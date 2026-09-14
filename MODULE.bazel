@@ -1,0 +1,453 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2024-2026 We-Amp B.V.
+
+module(
+    name = "pagespeed_2",
+    version = "0.1.0",
+)
+
+# Bazel modules (bzlmod)
+bazel_dep(name = "rules_cc", version = "0.2.16")
+bazel_dep(name = "abseil-cpp", version = "20260107.1", repo_name = "com_google_absl")
+bazel_dep(name = "re2", version = "2025-11-05.bcr.1", repo_name = "com_google_re2")
+bazel_dep(name = "googletest", version = "1.17.0.bcr.2", repo_name = "com_google_googletest")
+bazel_dep(name = "platforms", version = "1.0.0")
+bazel_dep(name = "rules_rust", version = "0.69.0")
+bazel_dep(name = "bazel_skylib", version = "1.9.0")
+
+# Rust toolchain
+rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
+rust.toolchain(edition = "2021")
+use_repo(rust, "rust_toolchains")
+
+register_toolchains("@rust_toolchains//:all")
+
+# Rust crate dependencies (crate_universe via bzlmod, Cargo.lock-driven).
+# from_cargo (not from_specs) so the COMMITTED lib/image/vtracer_ffi/Cargo.lock
+# is the single source of truth: the Bazel build resolves from it, and the
+# dependency scan (tools/sbom/dep-scan.sh) reads the same file — no drift
+# between what ships and what is scanned.
+crate = use_extension(
+    "@rules_rust//crate_universe:extensions.bzl",
+    "crate",
+)
+crate.from_cargo(
+    name = "crates",
+    cargo_lockfile = "//lib/image/vtracer_ffi:Cargo.lock",
+    manifests = ["//lib/image/vtracer_ffi:Cargo.toml"],
+)
+use_repo(crate, "crates")
+
+# Repository rules for non-BCR dependencies
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+new_git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl", "new_git_repository")
+
+# Cyclone Cache - fetched from GitHub main branch.
+# Not pinned during development; pinned to a specific commit at release time.
+# Pinned to the lease-based region-pinning commit:
+# every disk-borrow read stamps a per-stripe lease (default T=5s, guaranteed
+# floor 3T/4) and writers defer wraps while a lease is live, bounded by a 60s
+# anti-starvation ceiling (counted in wraps_forced_past_lease).  Embedders
+# holding a borrow longer than 3T/4 must call ReadHandle::renew_lease() at a
+# cadence <= 3T/4 (wired via ReadResult::renew_lease() / ps_read_renew_lease()).
+# Bumped: cache teardown now joins every background thread
+# unconditionally — fixes a thread-leak/use-after-free and a teardown
+# deadlock+race the previous bounded-join+leak masked (ASan/TSan-clean,
+# per-component regression guards).
+# Bumped: the directory insert/remove
+# election now verifies the full stored key before electing update-in-place.
+# Previously a (bucket, 12-bit tag, phase) collision between two distinct keys
+# silently destroyed the victim entry's slot on insert — a deterministic,
+# data-loss-class bug (reads were already key-verified, so the victim just
+# vanished as a clean miss). Colliding keys now coexist; eviction only happens
+# on a completely full bucket and is counted in the new
+# tag_collision_evictions stat. Follow-ups add checked lease renewal
+# (renew_read_lease_strict) and a Volume-lifetime UAF fix from the zero-copy
+# GA work — additive API, existing renew_lease() wiring unchanged.
+# Bumped: Volume::open() now makes
+# non-creators wait for the creator to finish initialization — closes a
+# multi-process cache-open race where a second opener could observe a
+# half-initialized volume and corrupt it or spuriously fail initialization;
+# the lock is dropped by the kernel on process death, so crash recovery is
+# automatic. A follow-up removes the dead WriteAggregator path, reclaiming ~4 MB of
+# committed RSS per cache stripe (no API impact; downstream consumers
+# verified unreferenced).
+# Bumped: borrow-scoped wrap gating — the
+# per-stripe read lease now gates wraps only while read handles are actually
+# outstanding (refcounted, released on handle close; ceiling-forced wraps
+# reset leaked state), so cache writes no longer starve at capacity under
+# steady reads. On-disk format unchanged (v1); adds the borrows_outstanding
+# stats gauge (append-only C-struct extension). Pairs with the worker-side
+# de-alias fix.
+# Bumped: lock-free concurrent read path —
+# the reader-side stripe lock and the directory global lock are replaced by
+# per-bucket seqlocks and per-thread-sharded read counters + HitTracker, so
+# read throughput scales with cores instead of collapsing under contention.
+# Also drops the per-write fsync in multi-process mode and fixes auto
+# stripe sizing (32MB granularity; derived stripe count persisted in the
+# volume header and validated on open). Adds stripe_count/stripe_bytes
+# stats (append-only C-struct extension). OPERATIONAL: the on-disk volume
+# format major version is bumped, so existing cache volumes auto-reset
+# (cold-wipe) on first open after upgrade AND on rollback — expect a
+# one-time origin-fetch spike; prefer an off-peak deploy window.
+# Bumped: heap-backs the CRC-validation cache so
+# sizeof(Volume) drops from ~520 KB to ~8.5 KB — a stack-allocated Volume
+# no longer overflows a 1 MB thread stack (the Windows default). One
+# pointer indirection on the read path; no format or API change.
+# Bumped: same fix for HitTracker — its 4096-stripe array
+# made sizeof(HitTracker) ~1 MB under MSVC, so the stack-constructed
+# trackers in cache_test silently died on Windows (1 MB default stack).
+# Heap-backed; sizeof ~120 bytes; static_assert guard added.
+# Bumped (zero-copy hardening batch): the first change adds the
+# reader-side acquire fences the copy-then-verify epoch rechecks needed on
+# weakly-ordered CPUs (x86 no-op) and makes forced-wrap deadline polling
+# normative for aliased serving (the nginx barrier + worker de-alias
+# changes already comply); the second closes a wrap-survivor window where a stale
+# directory entry or chain node could hand out a borrow the ordinary
+# forward fill then overwrote undetected (positional guard at both read
+# choke points); the third stops the multi-process write lock from
+# force-releasing a live-but-stalled holder (liveness proof +
+# takeover-generation guard — overlapping-write fix).
+# Bumped (wave-3 hardening batch): one change holds the
+# per-stripe write lock across the pwrite, closing a microsecond
+# reservation-to-pwrite tear window a concurrent reader could observe;
+# Another routes in-place volume-header updates through the mapping on
+# Windows, fixing fd writes to mmap'd ranges being silently swallowed on
+# some Windows configurations (relevant to Windows/IIS embedders). The batch also
+# add libFuzzer read-gauntlet + nightly stress harnesses and a Windows
+# MSVC/AppVerifier CI lane upstream. On-disk format UNCHANGED: no cache
+# reset on upgrade or rollback.
+# Bumped to cyclone 330035e (the multi-process silent-corruption fix line
+# plus the upgrade-safety stack): completes the fix line and makes
+# cross-format upgrades unilaterally safe. One change fixes
+# shared-cursor wrap adoption (a stale-high peer could re-wrap and reserve
+# an OVERLAPPING range -> CRC-clean corruption); another adds the lifetime-lock
+# reset gate (never reset a volume under a live peer -- refuse to open
+# instead); the format bump moves the on-disk format to v6 (8-aligned header tail +
+# document-slot padding) and fixes the header RMW races on the hit-count
+# and remove-alternate paths; the stack encodes format+geometry into the cache
+# FILENAME (cyclone.dat -> cyclone-6-<geohash>.dat) so binaries that
+# disagree on layout open DIFFERENT files -- cross-format upgrade/restart
+# overlap (incl. the nginx.so + factory_worker pair sharing one cache) can
+# never corrupt a live peer's cache, regardless of release order; and adds
+# opt-in startup GC of superseded fingerprint files
+# (gc_superseded_on_start, default OFF -- not enabled here; a legacy
+# cyclone.dat is never auto-deleted).
+# OPERATIONAL: v6 is a format bump, but with fingerprinted filenames the
+# new binary opens a NEW cache file rather than resetting the old one:
+# cold cache on upgrade, previous file left orphaned on disk (reclaim
+# manually or via the opt-in GC), and rollback is WARM (the old binary
+# finds its own file untouched).
+#
+# Bumped: Cache::volume_files() exposes the actual
+# (fingerprint-named) on-disk volume path — needed by lib/cache and the
+# nginx module for chmod 0666, reset-by-delete, corrupt-cache recovery and
+# the sendfile FD, all of which previously operated on the configured path
+# and silently missed the fingerprinted file.  Also makes the size==0
+# open-at-on-disk-size mode (how nginx opens the worker-created volume)
+# resolve to the sized peers' fingerprinted file instead of the raw legacy
+# path — without it, nginx and the worker silently stop sharing a volume.
+#
+# Bumped to cyclone edecf16. It lands the write when a
+# directory bucket is completely full of current-phase entries: previously
+# insert() returned false and the write was silently dropped, so
+# small-object workloads could start losing writes on a volume only a few
+# percent full by bytes; now the entry nearest the wrap cursor (the next
+# to be overwritten anyway) is evicted so the write always lands. It also
+# implements the cross-process reset gate on Windows via byte-range file
+# locks (it was POSIX-only): an incompatible open can no longer reset a
+# cache file out from under a live Windows peer — it refuses to open with
+# the new tail-appended CacheError::ResetRefusedLivePeer instead of
+# misreporting a version mismatch (MapError's default arm maps it to
+# PS_ERR_INTERNAL; the open simply fails, drain the peer and retry) — and
+# adds spawn-based multi-process tests for the gate. New observability:
+# bucket_full_evictions, resets_under_degraded_gate, resets_gate_verified
+# — ABI tail-appends to the stats structs, transparent to this repo's
+# consumers (worker stats refresh and ps_cache_stats copy named fields
+# only; the C# NativeCacheStats mirrors our own ps_cache_stats_t, not the
+# cyclone struct). Surfacing the new counters in 2.0 stats is a separate
+# follow-up. On-disk format UNCHANGED: no cache reset on upgrade or
+# rollback.
+#
+# Bumped to cyclone 962f2e8 (24 commits). Four things matter here.
+#
+# 1. LICENCE. Cyclone is Apache-2.0 from the relicense commit onward; every
+#    commit up to and including the previous pin was BUSL-1.1. The SBOM and
+#    NOTICE in this repo describe the library as Apache-2.0, and at this pin
+#    that is finally true of the commit we actually build.
+#
+# 2. BREAKING -- ON-DISK FORMAT MAJOR 7 (volume header and document in
+#    lockstep). The volume filename carries the format major, so an upgraded
+#    binary opens a NEW file rather than resetting the old one: every
+#    deployment starts with an EMPTY CACHE that refills as traffic arrives.
+#    Rollback stays warm (a format-6 binary reopens its own untouched file).
+#    The superseded file is left on disk -- the opt-in startup GC of
+#    superseded volumes is still default-off and not enabled here, so
+#    reclaim it manually.
+#
+# 3. THE DEFECT THIS PIN FIXES, which has already bitten deployed caches.
+#    Re-recording the same alternate id left every superseded document
+#    linked in the chain forever: physical chain depth grew one per
+#    re-record while the unique-id count stayed put, until the traversal cap
+#    refused every further write to that key. The key then froze -- reads
+#    kept serving the last-landed version with no error, so it was served
+#    stale and never re-optimised, with no self-healing path. Post-wrap a
+#    dominant key's chain could additionally turn cyclic and wedge earlier.
+#    The write path now unlinks the superseded same-id node during the chain
+#    walk it already performs (no extra I/O), refuses to link a new head to
+#    nodes from a previous wrap epoch, and carries a single-id conditional
+#    chain reset that lets an already-wedged chain accept writes again.
+#    Splicing is best-effort: a splice that cannot proceed safely is
+#    deferred and counted, never failing the caller's write. Default ON; the
+#    upstream kill switch is not set here, and the wrap-frontier refusal and
+#    the reset backstop stay active regardless.
+#
+# Also in the delta, reaching this repo with no config change on our side:
+# This delta makes CacheConfig::max_object_size live (declared but never read
+# until now), so the 64 MB default is ENFORCED and an over-size put fails
+# with the tail-appended CacheError::ObjectTooLarge -- MapError's default
+# arm maps it to PS_ERR_INTERNAL, so no code change is needed here. It also
+# makes both built-in alternate selectors treat a non-empty
+# acceptable_alternates set as a HARD restriction rather than a hint (this
+# repo's lib/classify selector builds that set). It stops the RAM
+# tier from serving an entry that a re-record or a removal should have
+# invalidated. It zeroes a wrap deadline left uninitialised in
+# MmapDirectory::init. And it adds opt-in cross-process RAM-cache coherence:
+# default OFF and not plumbed through PageSpeedCacheConfig, so it is inert
+# here -- exposing it is a separate follow-up. The lifetime fix plus the chain fix's four
+# alternate-chain counters tail-append to the stats structs, transparent to
+# this repo's field-by-field stats consumers; surfacing them is likewise a
+# follow-up. CacheConfig::min_object_size was removed upstream; this
+# repo never set it. The vendored build glue in //third_party:cyclone.BUILD
+# needs no change: the delta adds test sources only, and the library's
+# source set, header layout and include dirs are byte-identical.
+#
+# 4. A USE-AFTER-FREE ON THE WRITE PATH, fixed in the last commit of the delta.
+#    The per-object bound now reads Volume::config() at the top of every
+#    write, which turned the write handle's long-standing raw Volume* into a
+#    live use-after-free the moment a handle outlived its volume -- a cache
+#    reset or a teardown under an open handle, which the purge endpoint makes
+#    operator-reachable. The handle now holds a weak reference, pins the volume
+#    for the duration of write() and the commit, and reports
+#    CacheError::Closed when the volume is gone. The sanitizer lane in this
+#    repo reproduces the old fault and passes at this pin.
+# Re-pointed to the public home: C1 is the orphan-landed sanitized tree;
+# library content (src/, include/) identical to the source commit recorded
+# on the orphan, src/include delta vs the previous pin comment-only.
+new_git_repository(
+    name = "cyclone",
+    build_file = "//third_party:cyclone.BUILD",
+    commit = "a1637f8c776556f8c2e1417aa52e3f635bbfe91d",
+    remote = "https://github.com/We-Amp/cyclone-cache.git",
+)
+
+# Highway - SIMD library (used by Jpegli)
+http_archive(
+    name = "highway",
+    build_file = "//third_party:highway.BUILD",
+    sha256 = "07b3c1ba2c1096878a85a31a5b9b3757427af963b1141ca904db2f9f4afe0bc2",
+    strip_prefix = "highway-1.3.0",
+    urls = ["https://github.com/google/highway/archive/refs/tags/1.3.0.tar.gz"],
+)
+
+# libjpeg-turbo headers (type definitions only, no implementation).
+# Jpegli provides the implementation; this gives jpeglib.h struct/prototype defs.
+http_archive(
+    name = "libjpeg_turbo",
+    build_file = "//third_party:libjpeg_turbo.BUILD",
+    sha256 = "61846251941e5791005fb7face196eec24541fce04f12570c308557529e92c75",
+    strip_prefix = "libjpeg-turbo-2.1.5.1",
+    urls = ["https://github.com/libjpeg-turbo/libjpeg-turbo/archive/refs/tags/2.1.5.1.tar.gz"],
+)
+
+# Jpegli - Advanced JPEG encoder (BSD-3, from google/jpegli)
+# Provides ~35% better JPEG compression via adaptive quantization.
+# Drop-in replacement for libjpeg-turbo (same jpeglib.h API).
+http_archive(
+    name = "jpegli",
+    build_file = "//third_party:jpegli.BUILD",
+    patch_cmds = [
+        "rm -f lib/BUILD lib/BUILD.bazel tools/BUILD tools/BUILD.bazel",
+        # Fix ASan stack-buffer-overflow: row[kAlpha] reads row[-1] when
+        # kAlpha==-1 (YCbCrToRGB). Guard the pointer load like the Store.
+        "sed -i.bak 's/float\\* row_a = row\\[kAlpha\\];/float* row_a = kAlpha >= 0 ? row[kAlpha] : nullptr;/' lib/jpegli/color_transform.cc",
+    ],
+    sha256 = "56e4ec63dc3a5351117f8508a323ab0a946820d37d3089c7e306ec2b4edac4c8",
+    strip_prefix = "jpegli-bc19ca2393f79bfe0a4a9518f77e4ad33ce1ab7a",
+    urls = ["https://github.com/google/jpegli/archive/bc19ca2393f79bfe0a4a9518f77e4ad33ce1ab7a.tar.gz"],
+)
+
+# libpng (not in BCR)
+http_archive(
+    name = "libpng",
+    build_file = "//third_party:libpng.BUILD",
+    sha256 = "ba7efce137409079989df4667706c339bebfbb10e9f413474718012a13c8cd4c",
+    strip_prefix = "libpng-1.6.54",
+    urls = ["https://github.com/glennrp/libpng/archive/refs/tags/v1.6.54.tar.gz"],
+)
+
+# libwebp (not in BCR)
+http_archive(
+    name = "libwebp",
+    build_file = "//third_party:libwebp.BUILD",
+    sha256 = "93a852c2b3efafee3723efd4636de855b46f9fe1efddd607e1f42f60fc8f2136",
+    strip_prefix = "libwebp-1.6.0",
+    urls = ["https://github.com/webmproject/libwebp/archive/refs/tags/v1.6.0.tar.gz"],
+)
+
+# zlib (needed by libpng)
+http_archive(
+    name = "zlib",
+    build_file = "//third_party:zlib.BUILD",
+    sha256 = "b99a0b86c0ba9360ec7e78c4f1e43b1cbdf1e6936c8fa0f6835c0cd694a495a1",
+    strip_prefix = "zlib-1.3.2",
+    urls = ["https://github.com/madler/zlib/archive/refs/tags/v1.3.2.tar.gz"],
+)
+
+# brotli - Brotli compression/decompression
+http_archive(
+    name = "brotli",
+    build_file = "//third_party:brotli.BUILD",
+    sha256 = "816c96e8e8f193b40151dad7e8ff37b1221d019dbcb9c35cd3fadbfe6477dfec",
+    strip_prefix = "brotli-1.2.0",
+    urls = ["https://github.com/google/brotli/archive/refs/tags/v1.2.0.tar.gz"],
+)
+
+# giflib - GIF decoding/encoding
+http_archive(
+    name = "giflib",
+    build_file = "//third_party:giflib.BUILD",
+    sha256 = "be7ffbd057cadebe2aa144542fd90c6838c6a083b5e8a9048b8ee3b66b29d5fb",
+    strip_prefix = "giflib-5.2.2",
+    urls = [
+        "https://downloads.sourceforge.net/project/giflib/giflib-5.x/giflib-5.2.2.tar.gz",
+        "https://downloads.sourceforge.net/project/giflib/giflib-5.2.2.tar.gz",
+    ],
+)
+
+# OptiPNG - lossless PNG reduction (opngreduc component only)
+http_archive(
+    name = "optipng",
+    build_file = "//third_party:optipng.BUILD",
+    sha256 = "25a3bd68481f21502ccaa0f4c13f84dcf6b20338e4c4e8c51f2cefbd8513398c",
+    strip_prefix = "optipng-0.7.8",
+    urls = ["https://prdownloads.sourceforge.net/optipng/optipng-0.7.8.tar.gz?download"],
+)
+
+# libuv for async I/O in the worker
+http_archive(
+    name = "libuv",
+    build_file = "//third_party:libuv.BUILD",
+    sha256 = "eee139c05f7c868f5ae7a54b1e155fd5b6ed13a22329958d2ba711faad016353",
+    strip_prefix = "libuv-1.52.0",
+    urls = ["https://github.com/libuv/libuv/archive/refs/tags/v1.52.0.tar.gz"],
+)
+
+# llhttp - HTTP request/response parser (MIT license)
+# Successor to http_parser, used by the worker management API.
+http_archive(
+    name = "llhttp",
+    build_file = "//third_party:llhttp.BUILD",
+    sha256 = "c14a93f287d3dbd6580d08af968294f8bcc61e1e1e3c34301549d00f3cf09365",
+    strip_prefix = "llhttp-release-v9.3.1",
+    urls = ["https://github.com/nodejs/llhttp/archive/refs/tags/release/v9.3.1.tar.gz"],
+)
+
+# libaom - AV1 codec (used by libavif for AVIF encoding)
+# Built with rules_foreign_cc cmake due to arch-specific SIMD complexity.
+http_archive(
+    name = "libaom",
+    build_file = "//third_party:libaom.BUILD",
+    # 3.13.3 closes CVE-2025-8879 (AV1 encoder heap overflow, GHSA-28w9-qhgf-j4rh).
+    sha256 = "446a4ae9741cb8f3eeb98c949d25f91b48cb2b8569cae975c4b737392e9024fc",
+    strip_prefix = "libaom-3.13.3",
+    urls = ["https://storage.googleapis.com/aom-releases/libaom-3.13.3.tar.gz"],
+)
+
+# libyuv - YUV conversion and scaling library (Google)
+# Used by libavif for image scaling and RGB↔YUV conversion.
+# Pinned via git commit (googlesource archives have unstable hashes).
+# Re-pinned 2026-06-24 from 917276084 (2026-01-28) to the 2026-06-09 main HEAD,
+# which includes the ScalePlane int-overflow / ARGBAffineRow security fixes
+# (ef08f21f, "Fix security vulnerabilities in ScalePlane and ARGBAffineRow_")
+# and follow-up overflow hardening — see libavif issue #734. libyuv has no
+# semver tags, so a dated chromium revision is pinned.
+new_git_repository(
+    name = "libyuv",
+    build_file = "//third_party:libyuv.BUILD",
+    commit = "d23308a2a7442be8e559b1b471862fd7588d6a57",
+    remote = "https://chromium.googlesource.com/libyuv/libyuv.git",
+)
+
+# libavif - AVIF image format library
+http_archive(
+    name = "libavif",
+    build_file = "//third_party:libavif.BUILD",
+    # 1.3.0 closes CVE-2025-48174 (stream.c overflow) and CVE-2025-48175
+    # (reformat.c overflow).
+    sha256 = "0a545e953cc049bf5bcf4ee467306a2f113a75110edf59e61248873101cd26c1",
+    strip_prefix = "libavif-1.3.0",
+    urls = ["https://github.com/AOMediaCodec/libavif/archive/refs/tags/v1.3.0.tar.gz"],
+)
+
+# ed25519 - Portable Ed25519 implementation (zlib license)
+# Used by the Web Bot Auth / RSL-CAP verifier (RFC 9421 ed25519 signatures).
+http_archive(
+    name = "ed25519",
+    build_file = "//third_party:ed25519.BUILD",
+    sha256 = "aedb26c46d3dc3b721ab37c5248d5c923142e4d56009a9605c470383f32ce77a",
+    strip_prefix = "ed25519-b1f19fab4aebe607805620d25a5e42566ce46a0e",
+    urls = ["https://github.com/orlp/ed25519/archive/b1f19fab4aebe607805620d25a5e42566ce46a0e.tar.gz"],
+)
+
+# skcms - Skia's lightweight color management system (~200KB)
+# Used by SSIMULACRA2 perceptual quality metric (via jpegli CMS).
+# Pinned via git commit (googlesource archives have unstable hashes).
+new_git_repository(
+    name = "skcms",
+    build_file = "//third_party:skcms.BUILD",
+    commit = "bf2d52b98a420c59d991ced59fef8b4243b7dc13",
+    remote = "https://skia.googlesource.com/skcms.git",
+)
+
+# nlohmann/json - Header-only JSON library (MIT license)
+# Used by CDP client for Chrome DevTools Protocol message serialization.
+http_archive(
+    name = "nlohmann_json",
+    build_file = "//third_party:nlohmann_json.BUILD",
+    sha256 = "4b92eb0c06d10683f7447ce9406cb97cd4b453be18d7279320f7b2f025c10187",
+    strip_prefix = "json-3.12.0",
+    urls = ["https://github.com/nlohmann/json/archive/refs/tags/v3.12.0.tar.gz"],
+)
+
+# nanosvg - Header-only SVG parser/rasterizer (zlib license)
+# Used for SVG fidelity verification (re-rasterize vectorized SVG).
+http_archive(
+    name = "nanosvg",
+    build_file = "//third_party:nanosvg.BUILD",
+    sha256 = "01f0892f15c12e364063c07ef643f566372593f60e7010b33707a3804bf74aa1",
+    strip_prefix = "nanosvg-5cefd9847949af6df13f65027fd43af5a7513633",
+    urls = ["https://github.com/memononen/nanosvg/archive/5cefd9847949af6df13f65027fd43af5a7513633.tar.gz"],
+)
+
+# NGINX headers for building the dynamic module (.so)
+# Requires NGINX_PATH env var or third_party/nginx submodule.
+nginx = use_extension("//bazel:extensions.bzl", "nginx")
+use_repo(nginx, "nginx")
+
+# Compile commands for clangd (dev dependency, not needed for builds)
+bazel_dep(name = "hedron_compile_commands", dev_dependency = True)
+git_override(
+    module_name = "hedron_compile_commands",
+    commit = "abb61a688167623088f8768cc9264798df6a9d10",
+    patch_cmds = [
+        # Bazel 9 removed native.{py_binary,cc_binary}; load from rules_python/rules_cc.
+        "echo 'bazel_dep(name = \"rules_python\", version = \"1.0.0\")' >> MODULE.bazel",
+        "echo 'bazel_dep(name = \"rules_cc\", version = \"0.1.0\")' >> MODULE.bazel",
+        """sed -i.bak 's|native.py_binary(|py_binary(|' refresh_compile_commands.bzl && rm refresh_compile_commands.bzl.bak""",
+        """printf '%s\\n%s\\n' 'load("@rules_python//python:defs.bzl", "py_binary")' "$(cat refresh_compile_commands.bzl)" > refresh_compile_commands.bzl""",
+        """printf '%s\\n%s\\n' 'load("@rules_cc//cc:defs.bzl", "cc_binary")' "$(cat BUILD)" > BUILD""",
+    ],
+    remote = "https://github.com/hedronvision/bazel-compile-commands-extractor.git",
+)

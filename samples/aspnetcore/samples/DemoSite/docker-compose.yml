@@ -1,0 +1,29 @@
+services:
+  worker:
+    build:
+      context: ../../../../
+      dockerfile: samples/aspnetcore/samples/DemoSite/Dockerfile
+      target: worker-runtime
+    shm_size: '256m'
+    volumes:
+      - shared:/shared
+    ports:
+      - "9980:9880"
+
+  aspnet:
+    build:
+      context: ../../../../
+      dockerfile: samples/aspnetcore/samples/DemoSite/Dockerfile
+      target: aspnet-runtime
+    environment:
+      PAGESPEED_CACHE_PATH: /shared/cache.vol
+      PAGESPEED_SOCKET_PATH: /shared/pagespeed.sock
+    volumes:
+      - shared:/shared
+    ports:
+      - "5200:8080"
+    depends_on:
+      - worker
+
+volumes:
+  shared:

@@ -1,0 +1,59 @@
+# PageSpeed 2.0 - HTTP Compliance Test Environment
+#
+# Three services sharing a named volume:
+#   origin  - Programmable compliance origin server
+#   worker  - PageSpeed factory worker daemon
+#   nginx   - Nginx with pagespeed module (system under test)
+#
+# Usage:
+#   docker compose -f tools/http-compliance/docker-compose.yml up -d
+#   pytest tools/http-compliance/ -v
+#   docker compose -f tools/http-compliance/docker-compose.yml down -v
+
+services:
+  # Compliance origin: programmable HTTP server with conditional
+  # request, range, error, and method handling support.
+  origin:
+    image: python:3.12-slim
+    working_dir: /var/www
+    command: python3 /app/compliance_origin.py
+    volumes:
+      - ./testdata:/var/www
+      - ./compliance_origin.py:/app/compliance_origin.py:ro
+    environment:
+      - PORT=8081
+      - BIND=0.0.0.0
+      - COMPLIANCE_TESTDATA=/var/www
+    ports:
+      - "${COMPLIANCE_ORIGIN_PORT:-8181}:8081"
+
+  # PageSpeed factory worker
+  worker:
+    build:
+      context: ../../
+      dockerfile: tools/e2e/Dockerfile.e2e
+    entrypoint: ["/entrypoint-compliance-worker.sh"]
+    volumes:
+      - shared:/shared
+      - ./entrypoint-compliance-worker.sh:/entrypoint-compliance-worker.sh:ro
+    depends_on:
+      - origin
+
+  # Nginx with pagespeed module
+  nginx:
+    build:
+      context: ../../
+      dockerfile: tools/e2e/Dockerfile.e2e
+    command: ["nginx", "-c", "/etc/nginx/nginx-compliance.conf", "-g", "daemon off;"]
+    ports:
+      - "${COMPLIANCE_NGINX_PORT:-8180}:8080"
+      - "${COMPLIANCE_AGGRESSIVE_PORT:-8183}:8083"
+    volumes:
+      - shared:/shared
+      - ./nginx-compliance.conf:/etc/nginx/nginx-compliance.conf:ro
+    depends_on:
+      - origin
+      - worker
+
+volumes:
+  shared:

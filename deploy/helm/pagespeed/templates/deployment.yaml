@@ -1,0 +1,131 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "pagespeed.fullname" . }}
+  labels:
+    {{- include "pagespeed.labels" . | nindent 4 }}
+spec:
+  {{- if not .Values.autoscaling.enabled }}
+  replicas: {{ .Values.replicaCount }}
+  {{- end }}
+  selector:
+    matchLabels:
+      {{- include "pagespeed.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      labels:
+        {{- include "pagespeed.selectorLabels" . | nindent 8 }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      volumes:
+        - name: shared
+          emptyDir:
+            sizeLimit: {{ .Values.cache.sizeLimit }}
+        - name: nginx-conf
+          configMap:
+            name: {{ include "pagespeed.fullname" . }}-nginx
+      containers:
+        # Worker container
+        - name: worker
+          image: "{{ .Values.worker.image.repository }}:{{ include "pagespeed.imageTag" . }}"
+          imagePullPolicy: {{ .Values.worker.image.pullPolicy }}
+          env:
+            - name: CACHE_SIZE
+              value: {{ .Values.worker.cacheSize | quote }}
+          volumeMounts:
+            - name: shared
+              mountPath: /data
+          {{- with .Values.worker.extraArgs }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          startupProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "echo '' | socat -T 2 - UNIX-CONNECT:/data/pagespeed.sock.health | grep -q '^OK\\|^DEGRADED'"
+            periodSeconds: 2
+            failureThreshold: 30
+            timeoutSeconds: 5
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "echo '' | socat -T 2 - UNIX-CONNECT:/data/pagespeed.sock.health | grep -q '^OK'"
+            initialDelaySeconds: 2
+            periodSeconds: 5
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - "echo '' | socat -T 2 - UNIX-CONNECT:/data/pagespeed.sock.health | grep -q '^OK\\|^DEGRADED'"
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
+          {{- with .Values.worker.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+        # Nginx container
+        - name: nginx
+          image: "{{ .Values.nginx.image.repository }}:{{ include "pagespeed.imageTag" . }}"
+          imagePullPolicy: {{ .Values.nginx.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 80
+              protocol: TCP
+          env:
+            - name: BACKEND_HOST
+              value: {{ .Values.backend.host | quote }}
+            - name: BACKEND_PORT
+              value: {{ .Values.backend.port | quote }}
+          volumeMounts:
+            - name: shared
+              mountPath: /data
+            - name: nginx-conf
+              mountPath: /etc/nginx/templates
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 3
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          {{- with .Values.nginx.resources }}
+          resources:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

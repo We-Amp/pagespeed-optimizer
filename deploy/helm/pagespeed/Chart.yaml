@@ -1,0 +1,21 @@
+apiVersion: v2
+name: pagespeed
+description: PageSpeed 2.0 - Nginx image/CSS/JS/HTML optimization
+type: application
+# 0.3.0: collapse worker.image.tag + nginx.image.tag into one lockstep tag that
+# defaults to appVersion. Removing the two per-image tag keys is a
+# values-API change, hence the minor bump.
+version: 0.3.4
+appVersion: "2.0.42"
+keywords:
+  - pagespeed
+  - nginx
+  - optimization
+  - webp
+  - avif
+  - cache
+home: https://modpagespeed.com
+sources:
+  - https://github.com/We-Amp/pagespeed-optimizer
+maintainers:
+  - name: we-amp

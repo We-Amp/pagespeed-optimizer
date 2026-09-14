@@ -1,0 +1,193 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2024-2026 We-Amp B.V.
+
+load("//bazel:test.bzl", "gtest_test")
+
+gtest_test(
+    name = "cdp_client_test",
+    size = "medium",
+    deps = [
+        "//src/browser:cdp_client",
+        "//test/test_util:cdp_pipe",
+        "@com_google_absl//absl/status",
+        "@libuv",
+        "@nlohmann_json//:json",
+    ],
+)
+
+gtest_test(
+    name = "template_detector_test",
+    deps = [
+        "//src/browser:template_detector",
+        "//src/worker:html_scanner",
+    ],
+)
+
+gtest_test(
+    name = "optimization_profile_test",
+    deps = [
+        "//src/browser:optimization_profile",
+        "@com_google_absl//absl/status",
+    ],
+)
+
+gtest_test(
+    name = "browser_css_extractor_test",
+    size = "medium",
+    deps = [
+        "//src/browser:browser_css_extractor",
+        "//src/browser:cdp_client",
+        "//src/browser:cdp_types",
+        "//src/worker:critical_css_extractor",
+        "//test/test_util:cdp_pipe",
+        "@com_google_absl//absl/container:flat_hash_set",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@libuv",
+        "@nlohmann_json//:json",
+    ],
+)
+
+gtest_test(
+    name = "page_analysis_test",
+    size = "medium",
+    deps = [
+        "//lib/net:fetch_policy",
+        "//src/browser:agent_fetcher",
+        "//src/browser:cdp_client",
+        "//src/browser:cdp_types",
+        "//src/browser:page_analysis",
+        "//test/test_util:cdp_pipe",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@libuv",
+        "@nlohmann_json//:json",
+    ],
+)
+
+gtest_test(
+    name = "agent_fetcher_test",
+    deps = [
+        "//lib/net:fetch_policy",
+        "//lib/net:upstream_pin",
+        "//src/browser:agent_fetcher",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+gtest_test(
+    name = "analysis_queue_test",
+    deps = [
+        "//src/browser:analysis_queue",
+    ],
+)
+
+gtest_test(
+    name = "unused_css_remover_test",
+    deps = [
+        "//src/browser:unused_css_remover",
+    ],
+)
+
+gtest_test(
+    name = "visual_regression_gate_test",
+    size = "medium",
+    deps = [
+        "//src/browser:cdp_client",
+        "//src/browser:cdp_types",
+        "//src/browser:visual_regression_gate",
+        "//test/test_util:cdp_scripted_peer",
+        "//test/test_util:png_image",
+        "@com_google_absl//absl/status:statusor",
+        "@libpng",
+        "@libuv",
+        "@nlohmann_json//:json",
+    ],
+)
+
+gtest_test(
+    name = "critical_css_validator_test",
+    size = "medium",
+    deps = [
+        "//src/browser:cdp_client",
+        "//src/browser:critical_css_validator",
+        "//src/browser:visual_regression_gate",
+        "//test/test_util:cdp_scripted_peer",
+        "//test/test_util:png_image",
+        "@libpng",
+        "@libuv",
+        "@nlohmann_json//:json",
+    ],
+)
+
+gtest_test(
+    name = "font_glyph_scanner_test",
+    size = "medium",
+    deps = [
+        "//src/browser:cdp_client",
+        "//src/browser:cdp_types",
+        "//src/browser:font_glyph_scanner",
+        "//test/test_util:cdp_pipe",
+        "@com_google_absl//absl/status:statusor",
+        "@libuv",
+        "@nlohmann_json//:json",
+    ],
+)
+
+gtest_test(
+    name = "script_coverage_analyzer_test",
+    size = "medium",
+    deps = [
+        "//src/browser:cdp_client",
+        "//src/browser:cdp_types",
+        "//src/browser:page_analysis",
+        "//src/browser:script_coverage_analyzer",
+        "//test/test_util:cdp_pipe",
+        "@com_google_absl//absl/status:statusor",
+        "@libuv",
+        "@nlohmann_json//:json",
+    ],
+)
+
+gtest_test(
+    name = "browser_sandbox_test",
+    deps = [
+        "//src/browser:browser_sandbox",
+    ],
+)
+
+gtest_test(
+    name = "chrome_process_test",
+    deps = [
+        "//src/browser:chrome_process",
+        "@libuv",
+    ],
+)
+
+gtest_test(
+    name = "cdp_utils_test",
+    deps = [
+        "//src/browser:cdp_utils",
+    ],
+)
+
+gtest_test(
+    name = "browser_analysis_manager_test",
+    deps = [
+        "//lib/base:message_handler",
+        "//lib/cache:pagespeed_cache",
+        "//lib/classify:alternate_id",
+        "//lib/classify:capability_mask",
+        "//lib/classify:url_normalizer",
+        "//src/browser:browser_css_extractor",
+        "//src/browser:critical_css_validator",
+        "//src/browser:optimization_profile",
+        "//src/browser:page_analysis",
+        "//src/browser:script_coverage_analyzer",
+        "//src/worker:analysis_resource_map",
+        "//src/worker:browser_analysis_manager",
+        "//src/worker:html_scanner",
+        "//test/test_util:temp_dir",
+        "@libuv",
+    ],
+)

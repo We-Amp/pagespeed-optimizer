@@ -1,0 +1,37 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "pagespeed.fullname" . }}-nginx
+  labels:
+    {{- include "pagespeed.labels" . | nindent 4 }}
+data:
+  default.conf.template: |
+    upstream backend {
+        server {{ .Values.backend.host }}:{{ .Values.backend.port }};
+    }
+
+    server {
+        listen 80;
+        server_name _;
+
+        location /health {
+            access_log off;
+            return 200 "OK\n";
+        }
+
+        location / {
+            # Worker socket and HTML toggle auto-discovered from shared config
+            pagespeed on;
+            pagespeed_cache_path /data/cache.vol;
+            pagespeed_enable_mmap_directory on;
+
+            proxy_pass http://backend;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+
+            # Ensure origin sends uncompressed; PageSpeed caches raw bytes
+            proxy_set_header Accept-Encoding "";
+        }
+    }

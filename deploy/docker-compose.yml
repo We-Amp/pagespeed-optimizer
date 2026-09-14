@@ -1,0 +1,80 @@
+# PageSpeed 2.0 - Production Docker Compose
+#
+# Usage:
+#   docker compose -f deploy/docker-compose.yml up -d
+#
+# Build the images first:
+#   docker/build-release.sh [VERSION]
+#
+# Environment variables:
+#   PAGESPEED_VERSION - Image tag (default: latest)
+#   CACHE_SIZE - Cache size in bytes (default: 1GB)
+#   NGINX_PORT - HTTP port (default: 80)
+#   NGINX_SSL_PORT - HTTPS port (default: 443)
+#   BACKEND_HOST - Origin server host (default: host.docker.internal)
+#   BACKEND_PORT - Origin server port (default: 8081)
+#
+# Cache sharing (2.1): the worker and nginx images share the volume through
+# group `pagespeed` at the fixed GID 918, not through world-writable modes.
+# The worker's entrypoint starts as root, prepares/adopts the volume and then
+# drops the optimizer to uid 918, so no `user:` key is needed here. If you add
+# one, it must be `918:918`; if you mount this volume into a container of your
+# own that reads the cache, give it `group_add: ["918"]`. A worker that exits
+# 78 is refusing the volume, not crashing -- its log names the path and the fix.
+
+services:
+  worker:
+    image: ghcr.io/we-amp/pagespeed-worker:${PAGESPEED_VERSION:-latest}
+    volumes:
+      - pagespeed-data:/data
+    environment:
+      - CACHE_SIZE=${CACHE_SIZE:-1073741824}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "echo '' | socat - UNIX-CONNECT:/data/pagespeed.sock.health | grep -q '^OK'"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  nginx:
+    image: ghcr.io/we-amp/pagespeed-nginx:${PAGESPEED_VERSION:-latest}
+    ports:
+      - "${NGINX_PORT:-80}:80"
+      - "${NGINX_SSL_PORT:-443}:443"
+    volumes:
+      - pagespeed-data:/data
+      # Uncomment to use a custom nginx config:
+      # - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      # Uncomment for SSL:
+      # - ./ssl/cert.pem:/etc/nginx/ssl/cert.pem:ro
+      # - ./ssl/key.pem:/etc/nginx/ssl/key.pem:ro
+    environment:
+      - BACKEND_HOST=${BACKEND_HOST:-host.docker.internal}
+      - BACKEND_PORT=${BACKEND_PORT:-8081}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      worker:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 3s
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+volumes:
+  pagespeed-data:
+    driver: local

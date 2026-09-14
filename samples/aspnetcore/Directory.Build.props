@@ -1,0 +1,72 @@
+<!-- SPDX-License-Identifier: Apache-2.0
+     Copyright (c) 2024-2026 We-Amp B.V. -->
+
+<Project>
+
+  <PropertyGroup>
+    <LangVersion>13.0</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Deterministic>true</Deterministic>
+    <ContinuousIntegrationBuild Condition="'$(CI)' == 'true'">true</ContinuousIntegrationBuild>
+  </PropertyGroup>
+
+  <!-- NuGet package metadata (only applies to packable projects) -->
+  <PropertyGroup Condition="'$(IsPackable)' != 'false'">
+    <Version>2.0.41</Version>
+    <Authors>We-Amp</Authors>
+    <Company>We-Amp B.V.</Company>
+    <Copyright>Copyright (c) 2024-2026 We-Amp B.V.</Copyright>
+    <PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+    <PackageProjectUrl>https://modpagespeed.com/features/#aspnet-core</PackageProjectUrl>
+    <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageIcon>icon.png</PackageIcon>
+    <PackageReleaseNotes>2.0.41: Security: the published worker and nginx images are rebuilt on an updated base image, picking up the current distribution security updates. This clears several fixable medium-severity vulnerabilities in bundled system libraries. No ModPageSpeed code is affected and no configuration change is needed. Update recommended. Improved: a deferred stylesheet is now requested at normal priority using a standard preload, instead of a low-priority technique that could leave the browser waiting longer before the full stylesheet applied. The deferred stylesheet is also announced in early hints again, so it starts downloading sooner. Pages without JavaScript are unaffected — the no-script fallback is unchanged. The ASP.NET Core middleware emits the same primitive. Note for operators: the async-CSS helper script is served at a content-addressed path that changes with this release. Front-end and worker components must be upgraded together, as with every release. The deferral changes below are not retroactive either: HTML pages already in the cache were written before deferral required measured evidence and can keep serving that way until they revalidate, so purge or reset the cache after upgrading to have every cached page pick up the new behavior immediately. Improved: the optimizer now measures which elements are actually above the fold in a real browser render, per viewport, instead of estimating from the first elements in the document. Pages with substantial markup in the document head — which previously exhausted the estimate before reaching visible content — get more accurate above-the-fold CSS, so stylesheet deferral applies to more pages. Fixed: deferring a page's stylesheet could produce a flash of unstyled content when the inlined above-the-fold CSS did not in fact cover the fold. Deferral now applies only to a page whose above-the-fold appearance has been confirmed unchanged, and that confirmation is tied to the exact stylesheet it was made against — so publishing new styles re-checks before deferring again. Everywhere it does not apply, the stylesheet stays render-blocking and the above-the-fold CSS is still inlined, so those pages keep the inlining benefit and lose only the deferral. A page whose analysis has not completed keeps its stylesheet render-blocking. A confirmation only ever authorizes the above-the-fold CSS it was actually made about. If none can be measured for the specific page being served, that page's stylesheet stays render-blocking whatever its size — a small stylesheet gets no shortcut past the check — and whatever above-the-fold CSS was produced is still inlined. That confirmation now happens. While a page is analyzed, it is rendered twice at each viewport — once with its whole stylesheet, once with only the above-the-fold CSS that would be inlined — and the two are compared. Pages whose above-the-fold appearance is unchanged get their stylesheet deferred again; pages where it is not keep the stylesheet render-blocking and still get the above-the-fold CSS inlined. Deferral therefore applies to pages that have been analyzed, and only while they still serve the stylesheet the check was made against. Three limitations are worth knowing, because they are permanent. The comparison render runs without JavaScript, and without loading images, web fonts or imported stylesheets, so a fold whose appearance depends on any of those is not something the check can see. And the check covers a page template rather than each individual page: pages sharing a template share one confirmation, so a sibling page whose fold needs something the checked page did not can still be deferred. Verify such pages yourself, or turn deferral off for the site. Fixed: a page could have its stylesheet deferred while a content-security policy declared on that same page suppressed the inlined above-the-fold CSS, leaving nothing to paint with until the full stylesheet arrived. Whenever that inlining is refused, the deferral is now withdrawn with it. Changed: on the embedding library's low-level HTML transform entry point, `ps_html_transform_create`, the async-CSS configuration flag is now ignored. That entry point has no view of the page's stylesheets and no browser, so it cannot establish that deferring them is safe, and unsafe deferral is a flash of unstyled content. It always leaves stylesheets render-blocking, and still inlines the above-the-fold CSS it is given. The flag is off by default and the ASP.NET Core middleware does not use this entry point, so this reaches only an embedder that called it and set the flag explicitly; for stylesheet deferral, use the main HTML processing entry point, `ps_html_process`, which gathers the page's stylesheets and gates on them. Fixed: custom-property registrations and related at-rules were omitted from the inlined above-the-fold CSS. On stylesheets that rely on them — modern utility frameworks in particular — properties depending on those registrations computed incorrectly while the full stylesheet was still loading, so borders and similar details rendered wrong for a moment. These declarations are now always retained. Improved: above-the-fold CSS detection now correctly retains rules the browser was observed to use at first paint even when those rules sit inside a cascade layer or a responsive breakpoint, so less of the fold is left unstyled while the full stylesheet loads. Fixed: the JavaScript minifier corrupted valid code when a comment sat between `let` and the name it declares, matching the same fix in mod_pagespeed 1.15. The minifier did not look past the comment when deciding whether `let` starts a declaration, and removed a line break that JavaScript's automatic-semicolon rules needed: `let /*c*/ row` followed by a line starting `+4` was served as the unparseable `let row+4`, breaking the script. The declaration scan now skips comments and the line break is preserved. Fixed: the CSS minifier corrupted custom-property values when the property name contained an escaped character. Custom properties store raw token streams — read back verbatim by var() and getPropertyValue() — so the minifier leaves their values untouched; but the check that recognizes a custom property broke on names with escapes, such as the escaped space in `--\ \&gt;`. Those names are valid per CSS Syntax 3 (an escaped char is a name char), so the value was minified as ordinary CSS and could lose digits: `a{--\ \&gt;:0.}` was served as `a{--\ \&gt;:.}`. The name scan is now escape-aware (a character preceded by an odd-length backslash run is name content, not a boundary), and such properties keep their values byte-for-byte. Fixed: the CSS minifier's decimal optimization still rewrote identifiers that use hexadecimal escapes. 2.0.40 stopped the `0.5` → `.5` shortening from firing inside plain identifiers, but a CSS identifier is built from decoded escapes while the guard read raw bytes: the class selector `.a\35 0.5` — the class named `a50` — was served as `.a5`, silently restyling pages that use escaped identifiers. Escape structure is now decoded before the guard decides, including a hex escape's consumed whitespace terminator and escape content in front of a `-`, so such selectors survive minification unchanged while genuine numbers still minify.
+See CHANGELOG.md in the repository for earlier releases.</PackageReleaseNotes>
+    <!-- Source repo is private — strip ALL git-detected repository metadata.
+         Belt-and-braces: kill SourceLink auto-detection, then null the fields
+         in a late-binding target before GenerateNuspec emits them. -->
+    <PublishRepositoryUrl>false</PublishRepositoryUrl>
+    <IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>
+    <!-- The authoritative kill-switch (1.15-sidecar learning): stop the SDK's
+         _InitializeSourceControlInformation from populating SourceRevisionId /
+         RepositoryCommit at the SOURCE. Without it, that target can run AFTER the
+         BeforeTargets="GenerateNuspec" blanking below and re-inject the private-repo
+         HEAD SHA into <repository commit> — exactly what leaked in the sidecar's
+         1.15.0-preview.1 despite the identical ClearPrivateRepositoryMetadata target.
+         release.yml's leak-guard would still CATCH a regression; this PREVENTS at source. -->
+    <EnableSourceControlManagerQueries>false</EnableSourceControlManagerQueries>
+    <IncludeRepositoryUrlInNuspec>false</IncludeRepositoryUrlInNuspec>
+    <EnableSourceLink>false</EnableSourceLink>
+    <EmbedUntrackedSources>false</EmbedUntrackedSources>
+    <DeterministicSourcePaths>false</DeterministicSourcePaths>
+    <SourceRevisionId></SourceRevisionId>
+    <RepositoryUrl></RepositoryUrl>
+    <RepositoryType></RepositoryType>
+    <RepositoryCommit></RepositoryCommit>
+    <RepositoryBranch></RepositoryBranch>
+  </PropertyGroup>
+
+  <Target Name="ClearPrivateRepositoryMetadata"
+          BeforeTargets="GenerateNuspec;_GetPackageFiles"
+          Condition="'$(IsPackable)' != 'false'">
+    <PropertyGroup>
+      <RepositoryUrl></RepositoryUrl>
+      <RepositoryType></RepositoryType>
+      <RepositoryCommit></RepositoryCommit>
+      <RepositoryBranch></RepositoryBranch>
+      <SourceRevisionId></SourceRevisionId>
+      <PrivateRepositoryUrl></PrivateRepositoryUrl>
+    </PropertyGroup>
+  </Target>
+
+  <ItemGroup Condition="'$(IsPackable)' != 'false'">
+    <None Include="$(MSBuildThisFileDirectory)../../LICENSE" Pack="true" PackagePath="" />
+    <None Include="$(MSBuildThisFileDirectory)../../NOTICE" Pack="true" PackagePath="" />
+    <None Include="$(MSBuildThisFileDirectory)../../THIRD-PARTY-NOTICES" Pack="true" PackagePath="" />
+    <None Include="$(MSBuildThisFileDirectory)icon.png" Pack="true" PackagePath="" />
+    <None Include="$(MSBuildThisFileDirectory)README.md" Pack="true" PackagePath="README.md" />
+  </ItemGroup>
+
+</Project>
