@@ -31,18 +31,26 @@ name: Release
 # exist on the remote (it never creates the tag itself; cutting the GA tag
 # is the owner's act) and publishes the release with the five assets.
 #
-# Deltas vs the private fleet lane (modpagespeed-2 optimizer-release.yml):
+# The daemon binary MUST be built in the jammy-based pagespeed2-dev image
+# (docker/Dockerfile), never on the noble runner host: jammy's static
+# libc++ archives keep the binary at a GLIBC_2.34 floor (the RHEL 9 /
+# Debian 12 contract — a noble build advertises GLIBC_2.38 and the
+# resulting packages refuse to install there; observed on the first hosted
+# rehearsal, which derived "glibc floor: 2.38" vs rc.16's 2.34). The build
+# below therefore mirrors the private fleet lane exactly: vendor on the
+# host (which has the cyclone git credentials), then bazel inside the
+# content-hashed dev image with --vendor_dir.
+#
+# Other deltas vs the private fleet lane (modpagespeed-2
+# optimizer-release.yml), all forced by the hosted environment:
 #   * runners: self-hosted fleet -> ubuntu-latest (amd64) / ubuntu-24.04-arm
 #     (arm64), so the arm64 leg is still a NATIVE build — the packaging
 #     scripts take --binary/--library and are arch-agnostic, and no cross
 #     toolchain exists for this tree.
-#   * daemon build: the fleet builds inside the pagespeed2-dev docker image
-#     with a vendored tree and an L2 bazel-remote hub; here the build runs
-#     on the runner with the same clang-20/libc++-20 toolchain as ci.yml and
-#     the SAME bazel configs (--config=release / --config=release-linux-arm64:
-#     opt + thin_lto + hardening + stamp), with the fleet-only
-#     build:remote-cache config neutralized by a trailing empty
-#     --remote_cache= (later command-line flags win over the config chain).
+#   * the fleet-only build:remote-cache config (its L2 bazel-remote hub) is
+#     neutralized by a trailing empty --remote_cache= (later command-line
+#     flags win over the config chain); GitHub actions/cache carries the
+#     repository cache + the in-container bazel output base instead.
 #   * GIT_COMMIT is stamped from the checkout before the build (same
 #     mechanism as docker/build-release.sh) so the packaging scripts'
 #     --expect-version tripwire is deterministic.
@@ -162,11 +170,11 @@ jobs:
           - arch: amd64
             runner: ubuntu-latest
             bazel_config: release
-            timeout: 120
+            timeout: 150
           - arch: arm64
             runner: ubuntu-24.04-arm
             bazel_config: release-linux-arm64
-            timeout: 150
+            timeout: 180
     runs-on: ${{ matrix.runner }}
     timeout-minutes: ${{ matrix.timeout }}
     env:
@@ -192,7 +200,8 @@ jobs:
 
       # Identical to ci.yml: while We-Amp/cyclone-cache is private, route
       # the MODULE.bazel git fetch through the repo-secret token. Dies at
-      # the public flip; the token is never printed.
+      # the public flip; the token is never printed. The VENDOR step below
+      # runs on the host so the fetch happens where the credentials are.
       - name: Authenticate the cyclone fetch (pre-public-flip only)
         if: ${{ env.CI_CYCLO_CACHE_PAT != '' }}
         run: |
@@ -200,67 +209,24 @@ jobs:
             url."https://x-access-token:${CI_CYCLO_CACHE_PAT}@github.com/".insteadOf \
             "https://github.com/"
 
-      # Same toolchain as ci.yml (clang-20 + libc++-20 from apt.llvm.org —
-      # the daemon linkopts hard-require libc++, and libc++-18 lacks
-      # std::atomic_ref) plus libclang-rt-20-dev: the release config chain
-      # pulls in build:docker's -rtlib=compiler-rt linkopt, which needs the
-      # compiler-rt builtins archive. nasm is the x86 SIMD assembler for the
-      # libaom cmake repo rule — amd64 only.
-      - name: Install clang-20 + libc++-20 toolchain
-        run: |
-          set -euo pipefail
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
-            | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" \
-            | sudo tee /etc/apt/sources.list.d/llvm-toolchain-noble-20.list
-          sudo apt-get update
-          PKGS="clang-20 libc++-20-dev libc++abi-20-dev libclang-rt-20-dev \
-            lld-20 build-essential gperf cmake perl"
-          if [ "$(dpkg --print-architecture)" = "amd64" ]; then
-            PKGS="$PKGS nasm"
-          fi
-          # apt.llvm.org flakes (observed: a whole-package-set Err burst on
-          # one rehearsal leg while the sibling leg fetched clean minutes
-          # earlier). A release lane has no sibling to absorb a flake, so
-          # retry the install with a short backoff before giving up.
-          for attempt in 1 2 3; do
-            # shellcheck disable=SC2086
-            if sudo apt-get install -y --no-install-recommends $PKGS; then
-              break
-            fi
-            echo "::warning::apt-get install failed (attempt $attempt/3); retrying"
-            [ "$attempt" -lt 3 ] || exit 1
-            sleep $((attempt * 20))
-            sudo apt-get update
-          done
-          # The release configs enable thin_lto; the final link must be done
-          # by an LTO-aware linker or archive members referenced only from
-          # LTO'd objects (libaom.a, the vtracer staticlib) are never
-          # extracted — ld.bfd without the LLVM gold plugin fails that link
-          # with undefined aom_*/vtracer_* references (observed on the first
-          # hosted rehearsal). The fleet's dev image installs lld-20 and
-          # this exact ld.lld symlink, which the auto-configured bazel clang
-          # toolchain picks up; mirror both here.
-          sudo ln -sf /usr/bin/ld.lld-20 /usr/bin/ld.lld
-
       - name: Install bazelisk
         run: sudo npm install -g @bazel/bazelisk
 
-      # Bazel repository cache (dependency downloads, incl. the cyclone
-      # clone) + output base. Prefixed per-arch: an output base is
-      # arch-specific and must never be shared between the legs. The v2 salt
-      # invalidates output bases whose cc toolchain was configured before
-      # lld-20 was on the runner (the auto-configured toolchain is part of
-      # the cached output base).
-      - name: Cache Bazel repository cache + output base
+      # Host repository cache (vendor downloads, incl. the cyclone clone) +
+      # the in-container bazel output base (.ci-cache/bazel-out, bind-mounted
+      # to /tmp/bazel-out). Prefixed per-arch: an output base is
+      # arch-specific and must never be shared between the legs. Bump the
+      # vN salt to invalidate stale toolchains/outputs deliberately.
+      - name: Cache Bazel repository cache + container output base
         uses: actions/cache@v4
         with:
           path: |
-            ~/.cache/bazel
             ~/.cache/bazel-repo
-          key: ${{ runner.os }}-${{ matrix.arch }}-opt-release-bazel-v2-${{ hashFiles('MODULE.bazel', '.bazelrc', '.bazelversion', 'third_party/cyclone.BUILD') }}
+            ~/.cache/bazelisk
+            .ci-cache
+          key: ${{ runner.os }}-${{ matrix.arch }}-opt-release-bazel-v3-${{ hashFiles('MODULE.bazel', '.bazelrc', '.bazelversion', 'third_party/cyclone.BUILD', 'docker/Dockerfile', 'docker/nginx-version.txt') }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.arch }}-opt-release-bazel-v2-
+            ${{ runner.os }}-${{ matrix.arch }}-opt-release-bazel-v3-
 
       # Stamp the source revision into the build, the same mechanism
       # docker/build-release.sh uses: //src/product_version:build_commit
@@ -270,26 +236,50 @@ jobs:
       - name: Stamp GIT_COMMIT
         run: printf '%s' "$(git rev-parse HEAD)" > GIT_COMMIT
 
-      # --config=release / --config=release-linux-arm64 are the private
-      # lane's exact configs (opt + thin_lto + hardening + stamp). Their
-      # chain includes build:remote-cache, the fleet's L2 hub; the trailing
-      # empty --remote_cache= disables it — a hosted runner has no hub.
-      - name: Build the daemon and client library
-        env:
-          CC: clang-20
-          CXX: clang++-20
+      # Same dev image the fleet builds in, content-hashed the same way.
+      # Jammy base on purpose (see the workflow header): it keeps the
+      # binary's glibc floor at 2.34. Built per run — there is no registry
+      # here; the apt/LLVM/nginx fetches dominate (~15 min).
+      - name: Ensure dev image (content-hashed)
+        id: image
+        run: |
+          set -euo pipefail
+          DIR_HASH=$(find docker/ -type f | sort | xargs -I{} sha256sum {} | sha256sum | cut -c1-12)
+          CONTENT_IMAGE="pagespeed2-dev:${{ matrix.arch }}-${DIR_HASH}"
+          docker image inspect "$CONTENT_IMAGE" >/dev/null 2>&1 || \
+            docker build -t "$CONTENT_IMAGE" docker/
+          echo "image=$CONTENT_IMAGE" >> "$GITHUB_OUTPUT"
+
+      # Mirror of the fleet lane: vendor on the host (which has the cyclone
+      # git credentials), so the in-container build needs no network.
+      - name: Vendor dependencies (host — has the git credentials)
         run: >
-          bazel build --config=${{ matrix.bazel_config }}
-          --remote_cache=
+          bazel vendor --vendor_dir=vendor
           "--repository_cache=$HOME/.cache/bazel-repo"
           //src/worker:factory_worker //lib/pagespeed:libpagespeed.so
 
-      - name: Collect binaries
+      # --config=release / --config=release-linux-arm64 are the private
+      # lane's exact configs (opt + thin_lto + hardening + stamp; thin_lto
+      # links against the image's lld-20 via its ld.lld symlink). Their
+      # chain includes build:remote-cache, the fleet's L2 hub; the trailing
+      # empty --remote_cache= disables it — a hosted runner has no hub.
+      # HOME=/workspace lets the image's bazelisk find its bazel download.
+      - name: Build the daemon and client library (release config, in-container)
         run: |
           set -euo pipefail
-          mkdir -p out
-          cp -L bazel-bin/src/worker/factory_worker \
-                bazel-bin/lib/pagespeed/libpagespeed.so out/
+          mkdir -p out .ci-cache/bazel-out
+          docker run --rm --init \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/workspace \
+            -v "$PWD":/workspace \
+            -v "$PWD/.ci-cache/bazel-out":/tmp/bazel-out \
+            -w /workspace \
+            "${{ steps.image.outputs.image }}" \
+            bash -c 'bazel --output_user_root=/tmp/bazel-out \
+                build --vendor_dir=vendor --config=${{ matrix.bazel_config }} --remote_cache= \
+                //src/worker:factory_worker //lib/pagespeed:libpagespeed.so \
+              && cp -L bazel-bin/src/worker/factory_worker \
+                       bazel-bin/lib/pagespeed/libpagespeed.so /workspace/out/'
 
       # Same release-time gate the private v* lane runs on its artifacts.
       - name: Assert binary hardening (MPS2-SEC-05)
@@ -368,7 +358,9 @@ jobs:
       # Fail closed on ANY contract deviation: exactly the five assets, all
       # present and non-empty, sums verify, and the package-internal
       # versions carry the tilde package version the serving module's
-      # exact-version dependency will name.
+      # exact-version dependency will name. The glibc floor line is echoed
+      # for audit: the jammy dev-image build must keep it at 2.34 (the
+      # RHEL 9 / Debian 12 contract); a noble-built binary would say 2.38.
       - name: Fail-closed asset contract validation
         run: |
           set -euo pipefail
@@ -394,10 +386,18 @@ jobs:
           for deb in ./*.deb; do
             v="$(dpkg-deb -f "$deb" Version)"
             [ "$v" = "$PKG_VERSION" ] || { echo "::error::$deb Version '$v' != '$PKG_VERSION'"; exit 1; }
+            dep="$(dpkg-deb -f "$deb" Depends)"
+            echo "$deb Depends: $dep"
+            [ "$dep" = "libc6 (>= 2.34)" ] || { echo "::error::$deb Depends '$dep' != 'libc6 (>= 2.34)' — the binary was not built on the jammy dev image"; exit 1; }
           done
           for rpmf in ./*.rpm; do
             v="$(rpm -qp --qf '%{VERSION}-%{RELEASE}' "$rpmf")"
             [ "$v" = "${PKG_VERSION}-1" ] || { echo "::error::$rpmf version-release '$v' != '${PKG_VERSION}-1'"; exit 1; }
+            rpm -qp --requires "$rpmf" | grep -qx 'glibc >= 2.34' || { echo "::error::$rpmf lacks 'glibc >= 2.34' requires — the binary was not built on the jammy dev image"; exit 1; }
+            if rpm -qp --requires "$rpmf" | grep -qE '^glibc >= 2\.3[5-9]|^glibc >= [3-9]'; then
+              echo "::error::$rpmf requires a glibc above the 2.34 floor"
+              exit 1
+            fi
           done
           echo "asset contract: ok"
           {
