@@ -219,8 +219,20 @@ jobs:
           if [ "$(dpkg --print-architecture)" = "amd64" ]; then
             PKGS="$PKGS nasm"
           fi
-          # shellcheck disable=SC2086
-          sudo apt-get install -y --no-install-recommends $PKGS
+          # apt.llvm.org flakes (observed: a whole-package-set Err burst on
+          # one rehearsal leg while the sibling leg fetched clean minutes
+          # earlier). A release lane has no sibling to absorb a flake, so
+          # retry the install with a short backoff before giving up.
+          for attempt in 1 2 3; do
+            # shellcheck disable=SC2086
+            if sudo apt-get install -y --no-install-recommends $PKGS; then
+              break
+            fi
+            echo "::warning::apt-get install failed (attempt $attempt/3); retrying"
+            [ "$attempt" -lt 3 ] || exit 1
+            sleep $((attempt * 20))
+            sudo apt-get update
+          done
           # The release configs enable thin_lto; the final link must be done
           # by an LTO-aware linker or archive members referenced only from
           # LTO'd objects (libaom.a, the vtracer staticlib) are never
