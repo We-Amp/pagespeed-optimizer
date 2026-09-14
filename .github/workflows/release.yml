@@ -6,7 +6,7 @@ name: Release
 # Public release lane for the pagespeed-optimizer host packages (ADR-131:
 # GitHub-hosted runners ONLY — a public repo must never address the
 # self-hosted fleet, so this workflow carries no fleet labels, no private
-# URLs, and no hub coordinates).
+# URLs, and no fleet coordinates).
 #
 # Produces, for a tag `optimizer-v<upstream>` (e.g. optimizer-v1.16.0), a
 # GitHub release with exactly this asset set (the serving-module release
@@ -41,13 +41,13 @@ name: Release
 # host (which has the cyclone git credentials), then bazel inside the
 # content-hashed dev image with --vendor_dir.
 #
-# Other deltas vs the private fleet lane (modpagespeed-2
-# optimizer-release.yml), all forced by the hosted environment:
+# Other deltas vs the private fleet lane's optimizer release workflow, all
+# forced by the hosted environment:
 #   * runners: self-hosted fleet -> ubuntu-latest (amd64) / ubuntu-24.04-arm
 #     (arm64), so the arm64 leg is still a NATIVE build — the packaging
 #     scripts take --binary/--library and are arch-agnostic, and no cross
 #     toolchain exists for this tree.
-#   * the fleet-only build:remote-cache config (its L2 bazel-remote hub) is
+#   * the fleet-only build:remote-cache config (its shared remote cache) is
 #     neutralized by a trailing empty --remote_cache= (later command-line
 #     flags win over the config chain); GitHub actions/cache carries the
 #     repository cache + the in-container bazel output base instead.
@@ -105,9 +105,11 @@ jobs:
         id: derive
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ inputs.tag || github.ref_name }}
         run: |
           set -euo pipefail
-          TAG="${{ inputs.tag || github.ref_name }}"
+          # TAG arrives via the environment, never interpolated into the
+          # script text; validate it before any use.
           case "$TAG" in
             optimizer-v[0-9]*) ;;
             *) echo "::error::tag '$TAG' does not match optimizer-v<version>"; exit 1 ;;
@@ -261,8 +263,9 @@ jobs:
       # --config=release / --config=release-linux-arm64 are the private
       # lane's exact configs (opt + thin_lto + hardening + stamp; thin_lto
       # links against the image's lld-20 via its ld.lld symlink). Their
-      # chain includes build:remote-cache, the fleet's L2 hub; the trailing
-      # empty --remote_cache= disables it — a hosted runner has no hub.
+      # chain includes build:remote-cache, the fleet's shared remote cache;
+      # the trailing empty --remote_cache= disables it — a hosted runner has
+      # no such cache to talk to.
       # HOME=/workspace lets the image's bazelisk find its bazel download.
       - name: Build the daemon and client library (release config, in-container)
         run: |
@@ -282,7 +285,7 @@ jobs:
                        bazel-bin/lib/pagespeed/libpagespeed.so /workspace/out/'
 
       # Same release-time gate the private v* lane runs on its artifacts.
-      - name: Assert binary hardening (MPS2-SEC-05)
+      - name: Assert binary hardening
         run: |
           set -euo pipefail
           bash tools/assert-binary-hardening.sh out/factory_worker
