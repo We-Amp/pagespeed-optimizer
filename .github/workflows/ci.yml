@@ -112,12 +112,23 @@ jobs:
 
       # Slice rationale in the workflow header. --config=libc++ matches the
       # build leg so the test slice reuses its action cache.
+      # --flaky_test_attempts=2 mirrors the fleet's test:ci config (.bazelrc):
+      # Bazel re-runs ONLY tests that fail, marks them FLAKY when the retry
+      # passes, and STILL fails the leg when a test fails every attempt — it
+      # does not mask deterministic breakage. Needed here because the suite
+      # carries known slowdown-sensitive timing tests: upstream documents
+      # StaticFileRouteTest.SecurityHeadersDisabled flaking on server-restart
+      # timing under TSan's ~10x slowdown ("not a real race"), and the
+      # 4-vCPU hosted runner running 35 test binaries in parallel reproduces
+      # that slowdown class (observed failing exactly there, 34/35 passing,
+      # on the first secret-enabled run).
       - name: Run unit-test slice
         env:
           CC: clang-20
           CXX: clang++-20
         run: >
           bazel test --config=libc++
+          --flaky_test_attempts=2
           "--repository_cache=$HOME/.cache/bazel-repo"
           //test/lib/base:all
           //test/lib/cache:all
