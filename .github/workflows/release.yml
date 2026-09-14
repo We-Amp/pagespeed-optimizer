@@ -215,28 +215,40 @@ jobs:
             | sudo tee /etc/apt/sources.list.d/llvm-toolchain-noble-20.list
           sudo apt-get update
           PKGS="clang-20 libc++-20-dev libc++abi-20-dev libclang-rt-20-dev \
-            build-essential gperf cmake perl"
+            lld-20 build-essential gperf cmake perl"
           if [ "$(dpkg --print-architecture)" = "amd64" ]; then
             PKGS="$PKGS nasm"
           fi
           # shellcheck disable=SC2086
           sudo apt-get install -y --no-install-recommends $PKGS
+          # The release configs enable thin_lto; the final link must be done
+          # by an LTO-aware linker or archive members referenced only from
+          # LTO'd objects (libaom.a, the vtracer staticlib) are never
+          # extracted — ld.bfd without the LLVM gold plugin fails that link
+          # with undefined aom_*/vtracer_* references (observed on the first
+          # hosted rehearsal). The fleet's dev image installs lld-20 and
+          # this exact ld.lld symlink, which the auto-configured bazel clang
+          # toolchain picks up; mirror both here.
+          sudo ln -sf /usr/bin/ld.lld-20 /usr/bin/ld.lld
 
       - name: Install bazelisk
         run: sudo npm install -g @bazel/bazelisk
 
       # Bazel repository cache (dependency downloads, incl. the cyclone
       # clone) + output base. Prefixed per-arch: an output base is
-      # arch-specific and must never be shared between the legs.
+      # arch-specific and must never be shared between the legs. The v2 salt
+      # invalidates output bases whose cc toolchain was configured before
+      # lld-20 was on the runner (the auto-configured toolchain is part of
+      # the cached output base).
       - name: Cache Bazel repository cache + output base
         uses: actions/cache@v4
         with:
           path: |
             ~/.cache/bazel
             ~/.cache/bazel-repo
-          key: ${{ runner.os }}-${{ matrix.arch }}-opt-release-bazel-${{ hashFiles('MODULE.bazel', '.bazelrc', '.bazelversion', 'third_party/cyclone.BUILD') }}
+          key: ${{ runner.os }}-${{ matrix.arch }}-opt-release-bazel-v2-${{ hashFiles('MODULE.bazel', '.bazelrc', '.bazelversion', 'third_party/cyclone.BUILD') }}
           restore-keys: |
-            ${{ runner.os }}-${{ matrix.arch }}-opt-release-bazel-
+            ${{ runner.os }}-${{ matrix.arch }}-opt-release-bazel-v2-
 
       # Stamp the source revision into the build, the same mechanism
       # docker/build-release.sh uses: //src/product_version:build_commit
