@@ -1,0 +1,180 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2024-2026 We-Amp B.V.
+
+name: CI
+
+# Minimal public CI (ADR-131): one hosted build+test leg (the optimizer
+# daemon plus a meaningful unit-test slice), the whole-tree Apache RAT
+# license audit, and the license-header / SBOM-drift gates. GitHub-hosted
+# runners ONLY — a public repo must never address the self-hosted fleet, so
+# the exhaustive lanes (sanitizers, TSan, lint, Windows/macOS builds, the
+# full //test/... unit-test matrix, integration/E2E, CVE scanning, packaging
+# and release lanes) stay on the private fleet and are deliberately not part
+# of this workflow.
+#
+# Scope cuts vs the private lanes, made to fit the hosted-runner budget:
+#   * Test slice: //test/lib/base:all + //test/lib/cache:all + the
+#     libaom-free //test/src/worker tests. The remaining worker tests
+#     (image_transcoder_test, worker_test, ...) and the //test/lib/image,
+#     css, html and js suites pull the full codec stack (libaom/libavif/
+#     jpegli via cmake) and stay fleet-side. The slice still exercises the
+#     cyclone-cache integration (//test/lib/cache) and the daemon's config,
+#     HTTP-server, API and syscall-filter surfaces.
+#   * No macOS leg: a second cold Bazel build at the 10x private-repo
+#     minutes multiplier is not cheap; macOS coverage stays fleet-side.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build daemon & unit-test slice (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      # Repo secret filed by the repo admin while cyclone-cache is still
+      # private; empty once We-Amp/cyclone-cache is public.
+      CI_CYCLO_CACHE_PAT: ${{ secrets.CI_CYCLO_CACHE_PAT }}
+    steps:
+      - uses: actions/checkout@v5
+
+      # MODULE.bazel pins cyclone at
+      # https://github.com/We-Amp/cyclone-cache.git, which is still PRIVATE,
+      # so Bazel's anonymous git fetch fails without credentials. While that
+      # lasts, route github.com through the repo-secret token. This whole
+      # conditional step dies at the public flip: once cyclone-cache is
+      # public the fetch is anonymous and this step (and the secret) can be
+      # deleted. The token is never printed; git config only writes it to
+      # the runner-local $HOME/.gitconfig.
+      - name: Authenticate the cyclone fetch (pre-public-flip only)
+        if: ${{ env.CI_CYCLO_CACHE_PAT != '' }}
+        run: |
+          git config --global \
+            url."https://x-access-token:${CI_CYCLO_CACHE_PAT}@github.com/".insteadOf \
+            "https://github.com/"
+
+      # The daemon linkopts hard-require clang's libc++ (-nostdlib++ -lc++
+      # -lc++abi -lunwind), matching the private fleet's toolchain choice
+      # (docker/Dockerfile): clang-20 + libc++-20 from apt.llvm.org —
+      # libc++-18 (the ubuntu image default) lacks std::atomic_ref, which
+      # Cyclone requires (added in libc++-19). No unversioned libunwind-dev:
+      # it conflicts with the versioned libunwind-20-dev that
+      # libc++abi-20-dev pulls. The rest mirrors the private image's host
+      # tools: gperf (lib/html genrules), and for the libaom cmake_build
+      # repo rule cmake + make + a `cc` on PATH (build-essential's gcc, as
+      # on the fleet) + perl (RTCD headers) + nasm (x86 SIMD).
+      - name: Install clang-20 + libc++-20 toolchain
+        run: |
+          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
+          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" \
+            | sudo tee /etc/apt/sources.list.d/llvm-toolchain-noble-20.list
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang-20 libc++-20-dev libc++abi-20-dev \
+            build-essential gperf cmake perl nasm
+
+      - name: Install bazelisk
+        run: sudo npm install -g @bazel/bazelisk
+
+      # Bazel repository cache (dependency downloads, incl. the cyclone
+      # clone) + output base (external repos and build outputs). Same key
+      # per dependency-relevant file set; restore-keys give a warm-ish start
+      # when only the source changes.
+      - name: Cache Bazel repository cache + output base
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/bazel
+            ~/.cache/bazel-repo
+          key: ${{ runner.os }}-bazel-${{ hashFiles('MODULE.bazel', '.bazelrc', '.bazelversion', 'third_party/cyclone.BUILD') }}
+          restore-keys: |
+            ${{ runner.os }}-bazel-
+
+      - name: Build the optimizer daemon
+        env:
+          CC: clang-20
+          CXX: clang++-20
+        run: >
+          bazel build --config=libc++
+          "--repository_cache=$HOME/.cache/bazel-repo"
+          //src/worker:factory_worker
+
+      # Slice rationale in the workflow header. --config=libc++ matches the
+      # build leg so the test slice reuses its action cache.
+      - name: Run unit-test slice
+        env:
+          CC: clang-20
+          CXX: clang++-20
+        run: >
+          bazel test --config=libc++
+          "--repository_cache=$HOME/.cache/bazel-repo"
+          //test/lib/base:all
+          //test/lib/cache:all
+          //test/src/worker:serve_stats_test
+          //test/src/worker:config_file_test
+          //test/src/worker:shared_config_test
+          //test/src/worker:cache_dir_test
+          //test/src/worker:http_server_test
+          //test/src/worker:api_handlers_test
+          //test/src/worker:worker_api_test
+          //test/src/worker:url_registry_test
+          //test/src/worker:text_compressor_test
+          //test/src/worker:static_file_handler_test
+          //test/src/worker:syscall_filter_test
+          //test/src/worker:host_aliases_test
+          //test/src/worker:llms_txt_builder_test
+          //test/src/worker:html_scanner_test
+          //test/src/worker:websocket_test
+
+  rat:
+    name: License audit (Apache RAT)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: "21"
+      # tools/ci/rat.sh fetches the SHA-1-pinned RAT jar itself (fail
+      # closed); the report is kept outside the checkout so RAT never
+      # audits its own output.
+      - name: Run Apache RAT
+        run: tools/ci/rat.sh "${RUNNER_TEMP}/rat-report.txt"
+      - name: Upload RAT report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: rat-report
+          path: ${{ runner.temp }}/rat-report.txt
+          if-no-files-found: warn
+
+  license-and-sbom:
+    name: License Headers + SBOM Drift
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      # generate-sbom.py needs Python 3.11+ (datetime.UTC).
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+      - name: License headers (Apache-2.0 / SPDX) — all tracked source files
+        run: tools/check-license-headers.sh --all
+      - name: SBOM drift — generate-sbom.py --verify
+        run: python3 tools/generate-sbom.py --verify
+      # THIRD-PARTY-NOTICES ships in every package, so its entry versions
+      # must agree with the SBOM the step above just verified.
+      - name: THIRD-PARTY-NOTICES drift — versions vs SBOM
+        run: python3 tools/sbom/check-third-party-notices.py
