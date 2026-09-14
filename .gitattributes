@@ -1,0 +1,3 @@
+# Mark generated demo images as binary (prevent git diff on JPEGs)
+website/public/demos/*/images/*.jpg binary
+GIT_COMMIT text eol=lf

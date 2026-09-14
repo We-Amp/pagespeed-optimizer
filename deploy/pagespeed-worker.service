@@ -1,0 +1,44 @@
+[Unit]
+Description=ModPageSpeed 2.0 Factory Worker
+Documentation=https://modpagespeed.com/docs/configuration/
+After=network.target
+
+[Service]
+Type=simple
+ExecStartPre=/bin/mkdir -p /var/lib/pagespeed
+ExecStartPre=/bin/chmod 777 /var/lib/pagespeed
+ExecStart=/usr/local/bin/factory_worker \
+    --cache-path /var/lib/pagespeed/cache.vol \
+    --socket /var/lib/pagespeed/pagespeed.sock \
+    --cache-size 536870912 \
+    --log-format json \
+    --log-level info
+
+# Permissions
+UMask=0000
+User=root
+
+# Security hardening
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/var/lib/pagespeed
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Restart behavior
+Restart=on-failure
+RestartSec=5
+StartLimitBurst=5
+StartLimitIntervalSec=60
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=pagespeed-worker
+
+[Install]
+WantedBy=multi-user.target

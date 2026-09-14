@@ -1,0 +1,123 @@
+# PageSpeed 2.0 Helm Chart - Default Values
+
+replicaCount: 1
+
+# Single image tag for BOTH the worker and nginx images (lockstep): they
+# must run the same build, or the content-hashed async-CSS loader the worker
+# emits won't match what nginx serves -> 404 -> pages render unstyled (FOUC).
+# Empty tracks the chart's appVersion (recommended; bump appVersion in Chart.yaml
+# per release). Do NOT re-add worker.image.tag / nginx.image.tag — the chart
+# rejects them loud to keep the two images on one version.
+image:
+  tag: ""
+
+worker:
+  image:
+    repository: ghcr.io/we-amp/pagespeed-worker
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 250m
+      memory: 256Mi
+    limits:
+      cpu: "2"
+      memory: 1Gi
+  cacheSize: "1073741824"  # 1GB
+  extraArgs: []
+  # - --jpeg-quality
+  # - "80"
+  # - --log-level
+  # - debug
+
+nginx:
+  image:
+    repository: ghcr.io/we-amp/pagespeed-nginx
+    pullPolicy: IfNotPresent
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: "1"
+      memory: 512Mi
+
+backend:
+  host: "127.0.0.1"
+  port: 8081
+
+cache:
+  sizeLimit: 1Gi  # emptyDir sizeLimit
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  # kubernetes.io/ingress.class: nginx
+  # cert-manager.io/cluster-issuer: letsencrypt-prod
+  hosts:
+    - host: example.com
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+  # - secretName: example-tls
+  #   hosts:
+  #     - example.com
+
+autoscaling:
+  enabled: false
+  minReplicas: 1
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+podAnnotations: {}
+
+# Pod-level security context.
+#
+# The host package's syscall profile is a systemd unit directive, and a pod
+# has no systemd -- so on Kubernetes the equivalent control is the runtime's
+# seccomp profile, set here. RuntimeDefault is the container-runtime default
+# profile (the same one `docker run` applies): without this field the pod
+# runs seccomp UNCONFINED on many clusters, which is strictly weaker than
+# what a plain `docker run` gives you.
+#
+# HEADLESS CHROME: RuntimeDefault argument-filters away the CLONE_NEW*
+# namespace flags, so Chrome cannot build its own layer-1 sandbox under it
+# and browser analysis will refuse (naming the reason -- it never falls back
+# to an unsandboxed browser).
+#
+# Swapping the profile is NOT sufficient on its own today: the worker image
+# still runs as root (no USER directive), and Chrome refuses to sandbox
+# itself as uid 0, so browser analysis reports
+# browser_sandbox: "unavailable" regardless of which seccomp profile the pod
+# gets. Until the image gains a non-root user, the Localhost recipe below is
+# the seccomp HALF of a fix whose other half is missing -- set it if you are
+# preparing for that, not expecting browser analysis to start working.
+#
+# With that said: if you run browser analysis, stage
+# deploy/chrome-seccomp.json into the kubelet's seccomp profile root
+# (/var/lib/kubelet/seccomp/ by default, e.g. via a DaemonSet or your node
+# image) and switch to:
+#
+#   podSecurityContext:
+#     seccompProfile:
+#       type: Localhost
+#       localhostProfile: pagespeed/chrome-seccomp.json
+#
+# The path is relative to that root, the file must exist on every node that
+# can schedule the pod, and a missing file makes the pod fail to start --
+# loudly, which is the intended failure mode.
+podSecurityContext:
+  seccompProfile:
+    type: RuntimeDefault
+nodeSelector: {}
+tolerations: []
+affinity: {}

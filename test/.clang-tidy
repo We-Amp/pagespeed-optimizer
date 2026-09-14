@@ -1,0 +1,15 @@
+InheritParentConfig: true
+# Suppress checks that are false positives from Google Test framework:
+# - bugprone-chained-comparison: EXPECT_*/ASSERT_* expression decomposition.
+# - bugprone-throwing-static-initialization: TEST()/TEST_F() macros register via
+#   static initializers which may throw by design.
+# - bugprone-unused-return-value: Intentionally unchecked in test scaffolding.
+# - readability-implicit-bool-conversion: GTest streaming (<<) uses bool in contexts
+#   where this check fires on string literals and integer expressions.
+Checks: >
+  -bugprone-chained-comparison,
+  -bugprone-exception-escape,
+  -bugprone-throwing-static-initialization,
+  -bugprone-unused-return-value,
+  -bugprone-random-generator-seed,
+  -readability-implicit-bool-conversion

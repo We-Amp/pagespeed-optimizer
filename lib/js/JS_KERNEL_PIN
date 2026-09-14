@@ -1,0 +1,20 @@
+# Canonical mod_pagespeed 1.15 commit the vendored JS kernel under lib/js/
+# is synced from. Bump this SHA and re-run
+# tools/sync-js-kernel.sh in the same commit; the drift workflow
+# (CI's JS-kernel drift check) fails on any mismatch.
+# The pin must be a merged 1.15 master commit (hotfix valve: see the sync
+# tool header for SYNC_ALLOW_UNMERGED_PIN).
+#
+# The `floor <sha>` line below is the pin-downgrade ratchet (#1104): the
+# sync tool fails unless the pin equals the floor or descends from it
+# (exactly one floor line required), and the REQUIRED js-kernel-
+# differential CI job (plus the advisory drift workflow) fails unless this
+# tree's floor is equal to or a descendant of origin/main's floor — for
+# changes arriving via PR, the floor only moves forward.
+# Convention: on a routine pin bump, move the floor to the new pin in the
+# same commit. Exception: a hotfix-valve pin (unmerged 1.15 branch) keeps
+# the floor at the last MERGED pin — the unmerged SHA is orphaned by the
+# 1.15 squash-merge and must never become the floor; move the floor at
+# reconciliation. See lib/js/CLAUDE.md.
+fc827f25540c4cd436f648924e5bbc2522ac58ea  mod_pagespeed 1.15: internal decision citations replaced by their reasons
+floor fc827f25540c4cd436f648924e5bbc2522ac58ea

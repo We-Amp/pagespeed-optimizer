@@ -1,0 +1,88 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2024-2026 We-Amp B.V.
+
+# Standalone builder for ngx_http_brotli_filter_module.so.
+#
+# The brotli dynamic module is a pure function of (nginx version, pinned
+# ngx_brotli commit). It used to be a `brotli-builder` stage inside
+# Dockerfile.prebuilt, which meant every consumer that built that image
+# recompiled brotli from source whenever its Docker layer cache was cold —
+# ~100s. The HTTP Compliance job runs anywhere in a shared x64 pool, so any run
+# landing on a cold-cache host paid that full cost.
+#
+# It is now built once on a warm-cache producer host (the x64 Linux Build job,
+# which runs on one dedicated machine) and shipped as a CI artifact
+# (.ci-artifacts/ngx_http_brotli_filter_module.so) so Dockerfile.prebuilt just
+# COPYs it. stage-artifacts.sh falls back to building it here when the artifact
+# is absent (arm64 ci-periodic consumers, older artifact bundles).
+#
+# Build context: a directory containing .ci-artifacts/nginx-version (recorded by
+# the Linux Build "Build all targets" step, or derived by stage-artifacts.sh).
+# The first COPY is nginx-version so the Docker layer-cache key for the whole
+# compile is exactly that version — the compile only re-runs when nginx.org
+# ships a new point release.
+#
+# Usage (see tools/ci/build-brotli-module.sh):
+#   docker build -t pagespeed2-brotli:<ver> -f tools/e2e/Dockerfile.brotli .
+#   cid=$(docker create pagespeed2-brotli:<ver>)
+#   docker cp "$cid:/out/ngx_http_brotli_filter_module.so" .ci-artifacts/
+#   docker rm "$cid"
+#
+# nginx refuses to load any dynamic module whose embedded NGINX_VERSION_NUM
+# differs from the running nginx binary ("module … version X instead of Y" —
+# emerg, process exits). Anchoring the brotli module, the pagespeed module, and
+# the runtime nginx to the one recorded version keeps them from drifting apart
+# when nginx.org ships a new point release between cached builds (the recurring
+# HTTP Compliance startup skew: module 1030001 vs runtime 1030002). nginx.org
+# publishes every upstream version under both jammy and noble, so the
+# jammy-sourced build version installs cleanly here as -1~noble.
+FROM ubuntu:24.04
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# The nginx version the prebuilt pagespeed module was built against (recorded by CI).
+COPY .ci-artifacts/nginx-version /tmp/nginx-version
+
+RUN apt-get update && apt-get install -y wget gnupg ca-certificates \
+    && wget -qO- https://nginx.org/keys/nginx_signing.key | gpg --dearmor \
+       > /usr/share/keyrings/nginx-archive-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/ubuntu noble nginx" \
+       > /etc/apt/sources.list.d/nginx.list \
+    && echo "deb-src [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/ubuntu noble nginx" \
+       >> /etc/apt/sources.list.d/nginx.list \
+    && printf 'Package: *\nPin: origin nginx.org\nPin-Priority: 900\n' \
+       > /etc/apt/preferences.d/99nginx \
+    && apt-get update \
+    && NV="$(cat /tmp/nginx-version)" \
+    && echo "Building brotli against nginx ${NV}" \
+    && apt-get install -y --allow-downgrades \
+       "nginx=${NV}-1~noble" \
+       dpkg-dev \
+       cmake \
+       git \
+       libpcre3-dev \
+       zlib1g-dev \
+       libssl-dev \
+    && mkdir -p /nginx-src \
+    && cd /nginx-src \
+    && apt-get source "nginx=${NV}-1~noble" \
+    && rm -rf /var/lib/apt/lists/*
+
+# Clone ngx_brotli with bundled brotli encoder/decoder source.
+# Pin to a71f9312 (2023-10-09, latest master) for reproducible builds.
+RUN git clone --recurse-submodules https://github.com/google/ngx_brotli.git /ngx_brotli \
+    && cd /ngx_brotli && git checkout a71f9312c2deb28875acc7bacfdd5695a111aa53
+
+# Build bundled brotli static library (needed by ngx_brotli dynamic module).
+RUN cd /ngx_brotli/deps/brotli \
+    && mkdir -p out && cd out \
+    && cmake -DCMAKE_BUILD_TYPE=Release -DBUILD_SHARED_LIBS=OFF .. \
+    && cmake --build . --config Release -j$(nproc)
+
+# Configure nginx source and build brotli dynamic module, then stage it at a
+# fixed path so `docker cp` can extract it (see build-brotli-module.sh).
+RUN cd /nginx-src/nginx-* \
+    && ./configure --with-compat --add-dynamic-module=/ngx_brotli \
+    && make -j$(nproc) modules \
+    && mkdir -p /out \
+    && cp objs/ngx_http_brotli_filter_module.so /out/ngx_http_brotli_filter_module.so

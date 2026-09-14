@@ -1,0 +1,63 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2024-2026 We-Amp B.V.
+
+# Base runtime image for all PageSpeed 2.0 ubuntu-based containers.
+# Provides the minimal runtime dependencies shared across worker, nginx,
+# and test images. Individual Dockerfiles extend this with their specific
+# packages (e.g. Chromium, nginx, python3).
+#
+# Build:
+#   docker build -f docker/Dockerfile.base-runtime -t pagespeed2-base-runtime .
+#
+# Used as FROM in: Dockerfile.worker, Dockerfile.nginx, e2e/Dockerfile.*,
+# production-tests/Dockerfile.*
+
+FROM ubuntu:24.04@sha256:786a8b558f7be160c6c8c4a54f9a57274f3b4fb1491cf65146521ae77ff1dc54
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Common runtime packages needed by all PageSpeed 2.0 containers:
+#   libc++1-20  — C++ standard library (all binaries compiled with clang-20)
+#   curl        — healthchecks, HTTP utilities
+#   ca-certificates — TLS for operator-configured outbound fetches (origin
+#                 content, Web Bot Auth / RSL-CAP key directories)
+#   nginx       — installed from nginx.org (NOT distro). nginx dynamic modules
+#                 (ngx_pagespeed_module.so, ngx_http_brotli_filter_module.so)
+#                 embed NGINX_VERSION_NUM at build time, and the runtime nginx
+#                 refuses to load any module whose embedded version differs
+#                 ("module … version X instead of Y"). Both the builder
+#                 (docker/Dockerfile) and this image must therefore install
+#                 nginx from the same nginx.org channel; Ubuntu's distro
+#                 nginx (1.24.0 on Noble) is too old. The apt preferences
+#                 pin keeps the distro nginx from shadowing nginx.org.
+# clang-20 / libc++1-20 require the LLVM apt repo (not in Ubuntu 24.04 standard repos).
+# dist-upgrade: the digest pin freezes package state; without an upgrade pass
+# every rebuild re-freezes whatever CVEs the base carried.
+# wget/gnupg are needed only for the apt key setup in this same RUN — runtime
+# HTTP is curl — so they are purged at the end, dropping the gnupg/libgcrypt
+# CVE surface from every downstream image.
+# APT_REFRESH: bump (build-release.sh passes today's UTC date) to bust only this
+# apt layer so a scheduled rebuild always pulls current security updates even when
+# the base digest is unchanged and the layer cache is warm.
+ARG APT_REFRESH=2026-07-23
+RUN echo "apt refresh ${APT_REFRESH}" && apt-get update && apt-get -y dist-upgrade \
+    && apt-get install -y --no-install-recommends wget gnupg ca-certificates \
+    && wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
+       | tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc \
+    && echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" \
+       | tee /etc/apt/sources.list.d/llvm-toolchain-noble-20.list \
+    && wget -qO- https://nginx.org/keys/nginx_signing.key | gpg --dearmor \
+       > /usr/share/keyrings/nginx-archive-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/nginx-archive-keyring.gpg] http://nginx.org/packages/ubuntu noble nginx" \
+       > /etc/apt/sources.list.d/nginx.list \
+    && printf 'Package: *\nPin: origin nginx.org\nPin-Priority: 900\n' \
+       > /etc/apt/preferences.d/99nginx \
+    && apt-get update \
+    && apt-get install -y --no-install-recommends \
+       libc++1-20 \
+       curl \
+       ca-certificates \
+       nginx \
+    && apt-get purge -y wget gnupg \
+    && apt-get autoremove -y --purge \
+    && rm -rf /var/lib/apt/lists/*
