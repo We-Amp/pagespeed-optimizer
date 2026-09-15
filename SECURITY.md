@@ -2,7 +2,7 @@
 
 ## Reporting a Vulnerability
 
-If you discover a security vulnerability in ModPageSpeed 2.0, please report it
+If you discover a security vulnerability in mod_pagespeed 2.1, please report it
 responsibly by emailing **security@we-amp.com**. Do NOT open a public GitHub
 issue.
 
@@ -13,9 +13,14 @@ and address the issue.
 
 The following components are in scope for security reports:
 
-- C++ native engine (image optimization, HTML rewriting, cache subsystem)
+- pagespeed-optimizer daemon and the nginx serving module (image
+  optimization, HTML rewriting, cache subsystem, management HTTP API)
 - ASP.NET Core middleware and NuGet packages
-- Admin console (web UI)
+- Web console (the `/console/` UI)
+
+Reports for the Apache module (the
+[We-Amp/mod_pagespeed](https://github.com/We-Amp/mod_pagespeed) repository) are
+covered by this same policy and address.
 
 Third-party dependencies are out of scope. If you find a vulnerability in a
 dependency, please report it to the upstream maintainer and notify us so we can
@@ -23,8 +28,8 @@ assess impact.
 
 ## Supported Versions
 
-Only the latest release of ModPageSpeed 2.0 receives security updates. Users on
-older versions should upgrade to receive fixes.
+Only the latest release of the mod_pagespeed 2.1 line receives security
+updates. Users on older versions should upgrade to receive fixes.
 
 ## Disclosure Policy
 
