@@ -1,34 +1,62 @@
-# PageSpeed 2.0
+# mod_pagespeed 2.1 — pagespeed-optimizer
 
-A modern successor to mod_pagespeed for nginx, rebuilt from scratch with a
-three-component architecture for zero-copy cache serving and asynchronous
-content optimization.
+The optimization daemon, nginx serving module, and management console of the
+mod_pagespeed 2.1 product line. The same daemon also backs the Apache module
+(shipped from the [We-Amp/mod_pagespeed](https://github.com/We-Amp/mod_pagespeed)
+repository): one optimizer serves both web servers, with zero-copy cache
+serving and asynchronous content optimization.
 
 ## Architecture
 
+mod_pagespeed 2.1 converges on three cooperating components. The serving
+module is thin and lives in the web server; all optimization work happens in
+the daemon; the cache is shared between them.
+
 ```
-                    ┌─────────────┐
-    HTTP Request───>│    Nginx    │
-                    │  Interceptor│
-                    └──────┬──────┘
-                           │
-                    ┌──────▼──────┐     ┌──────────────┐
-                    │   Cyclone   │◄───►│   Factory    │
-                    │    Cache    │     │   Worker     │
-                    └─────────────┘     └──────────────┘
+                  ┌───────────────────────────┐
+   HTTP Request──>│    Web server + module    │
+                  │ nginx module — this repo  │
+                  │ Apache module —           │
+                  │   We-Amp/mod_pagespeed    │
+                  └─────────────┬─────────────┘
+                                │
+                  ┌─────────────▼─────────────┐     ┌──────────────────────┐
+                  │       Cyclone cache       │◄───►│ pagespeed-optimizer  │
+                  │  (We-Amp/cyclone-cache)   │     │ daemon — this repo   │
+                  └───────────────────────────┘     └──────────────────────┘
 ```
 
-**Nginx Interceptor** — C++ nginx module that classifies requests into
-capability-based cache keys, serves optimized variants via zero-copy mmap,
-and records cache misses for asynchronous processing.
+**Serving module** — Thin C++ web-server module that classifies requests into
+capability-based cache keys, serves optimized variants via zero-copy mmap, and
+records cache misses for asynchronous processing. This repository builds the
+nginx module; the Apache module — the 1.x lineage going live as 2.1 — lives in
+[We-Amp/mod_pagespeed](https://github.com/We-Amp/mod_pagespeed). Both modules
+attach to the same daemon and the same cache.
 
-**Cyclone Cache** — Variant-aware disk cache with memory-mapped directory
-sharing. Both nginx and the worker access the same cache file for instant
-cross-process visibility.
+**pagespeed-optimizer** — The optimization daemon: a lightweight C++ process
+that reads original content from cache, applies optimizations (image
+transcoding, CSS/JS minification, critical CSS extraction), and writes
+optimized variants back. It also serves the management console at `/console/`
+and the HTTP management API.
 
-**Factory Worker** — Lightweight C++ daemon that reads original content from
-cache, applies optimizations (image transcoding, CSS/JS minification,
-critical CSS extraction), and writes optimized variants back.
+**Cyclone cache** — Variant-aware disk cache with memory-mapped directory
+sharing. Both the web-server module and the daemon mmap the same volume file
+for instant cross-process visibility. Developed in
+[We-Amp/cyclone-cache](https://github.com/We-Amp/cyclone-cache) and fetched
+here via Bazel.
+
+## Packages
+
+mod_pagespeed 2.1 ships as deb/rpm package pairs:
+
+- **`pagespeed-optimizer`** — the optimization daemon (this repository)
+- **`mod-pagespeed`** — the Apache module, which depends on the optimizer
+  package at the exact same version, so `apt`/`yum` pull it in automatically
+
+Container images and a Helm chart cover the nginx deployment side; see
+[modpagespeed.com](https://modpagespeed.com/). Upgrading between releases —
+including from 1.x — is an in-place package upgrade; see
+[UPGRADING.md](UPGRADING.md).
 
 ## Features
 
@@ -43,9 +71,9 @@ critical CSS extraction), and writes optimized variants back.
 - **Capability-Based Variants** — Different optimized versions for WebP vs
   AVIF clients, mobile vs desktop, Save-Data, connection quality
 - **Zero-Copy Serving** — Cache hits served via mmap without copying data
-- **Graceful Degradation** — If the worker is down, nginx continues serving
-  original content
-- **Notification Retry** — Exponential backoff for worker notifications
+- **Graceful Degradation** — If the daemon is down, the web server continues
+  serving original content
+- **Notification Retry** — Exponential backoff for daemon notifications
 - **Per-URL Policies** — `pagespeed_disallow` directive for excluding paths
 - **Structured Logging** — JSON log output with configurable log levels
 - **Security Limits** — Configurable max URL length, content size limits,
@@ -75,9 +103,9 @@ cp nginx.conf.example nginx.conf
 # Edit nginx.conf for your upstream
 docker compose up -d
 
-# Or systemd (see deploy/pagespeed-worker.service)
-sudo cp deploy/pagespeed-worker.service /etc/systemd/system/
-sudo systemctl enable --now pagespeed-worker
+# Or systemd (see deploy/pagespeed-optimizer.service)
+sudo cp deploy/pagespeed-optimizer.service /etc/systemd/system/
+sudo systemctl enable --now pagespeed-optimizer
 ```
 
 ### Verify
@@ -102,11 +130,11 @@ curl -I http://localhost/style.css
 | `pagespeed_cache_path PATH` | (required) | Path to Cyclone cache file |
 | `pagespeed_disallow PATTERN` | (none) | Exclude URL patterns from optimization |
 
-The worker socket path and HTML processing toggle are configured on
-the worker side and shared with nginx automatically via `pagespeed-shared.conf`
+The daemon socket path and HTML processing toggle are configured on
+the daemon side and shared with nginx automatically via `pagespeed-shared.conf`
 (written next to the cache file). See the [Configuration Reference](/docs/configuration/).
 
-### Worker Flags
+### Daemon Flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -168,16 +196,25 @@ lib/           Curated code from mod_pagespeed
   js/          JS minifier
   image/       Image codecs and optimization
   cache/       Cyclone cache C++ wrapper
-src/           New PageSpeed 2.0 code
+src/           pagespeed-optimizer daemon and serving modules
   cache/       Capability mask, variant keys
-  nginx/       Nginx module
-  proto/       Worker IPC protocol
-  worker/      Factory worker daemon
+  nginx/       Nginx serving module
+  proto/       Daemon IPC protocol
+  worker/      pagespeed-optimizer daemon (factory worker)
+  browser/     Headless browser analysis (CDP client, Chrome management)
+  crypto/      Web Bot Auth / RSL-CAP verification
+samples/       ASP.NET Core middleware (WeAmp.PageSpeed.AspNetCore)
 test/          Unit and integration tests
-tools/         Docker, sanitizers, E2E, formatting scripts
+tools/         Docker, sanitizers, E2E, packaging, formatting scripts
 deploy/        Production deployment configs
-website/       Documentation website (Astro)
 ```
+
+## Related Repositories
+
+- [We-Amp/mod_pagespeed](https://github.com/We-Amp/mod_pagespeed) — the
+  Apache module and the 1.x lineage
+- [We-Amp/cyclone-cache](https://github.com/We-Amp/cyclone-cache) — the
+  Cyclone cache library
 
 ## License
 
