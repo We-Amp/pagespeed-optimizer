@@ -7,7 +7,7 @@ Component-specific details live in sub-CLAUDE.md files: `src/worker/`, `src/ngin
 `tools/workbench/`, `tools/e2e/`, `tools/stress/`, `tools/http-compliance/`,
 `samples/aspnetcore/`. Also
 `reference/mod_pagespeed/` (gitignored, absent on a fresh clone; original Google
-project, not 2.0 conventions — see Reference Code Locations below).
+project, not 2.1 conventions — see Reference Code Locations below).
 
 ## Canonical Checkout & Multi-Clone Safety
 
@@ -64,7 +64,7 @@ Keep exploration phases concise. When asked for a plan, deliver an actionable ou
 
 ## Project Overview
 
-PageSpeed 2.0 is a modern successor to ngx_pagespeed with five components:
+mod_pagespeed 2.1 is a modern successor to ngx_pagespeed with five components:
 1. **Nginx Interceptor** - C++ nginx module for zero-copy cache serving
 2. **Cyclone Cache** - Variant-aware cache with capability-based keys
 3. **PSOL Factory Worker** - Lightweight C++ daemon (HtmlParse + ImageOptimizer)
@@ -122,8 +122,8 @@ this rig is the packaged-install one.
 - `lib/` - Curated code from mod_pagespeed (base, HTML parser, image optimizer, CSS)
   - `lib/net/` - Outbound fetch path: SSRF guard, fetch policy, curl fetcher,
     upstream pin (security-sensitive)
-- `src/` - New PageSpeed 2.0 code (cache, worker, nginx module, browser, crypto)
-  - `src/cache/` - 2.0 cache integration (BUILD glue over `lib/cache/`)
+- `src/` - New mod_pagespeed 2.1 code (cache, worker, nginx module, browser, crypto)
+  - `src/cache/` - 2.1 cache integration (BUILD glue over `lib/cache/`)
   - `src/product_version/` - Single-source build version (`version.h`)
 - `test/` - GoogleTest unit + e2e tests, run via Bazel (`bazel test //test/...`)
 - `t/` - Test::Nginx::Socket `.t` integration tests for the nginx module
@@ -140,7 +140,7 @@ this rig is the packaged-install one.
 - `reference/` - Reference repositories (gitignored, absent on a fresh clone)
   - `reference/mod_pagespeed/` - Source for code curation (not part of build)
   - **Note**: `reference/mod_pagespeed/` CLAUDE.md describes the *original* project,
-    not PageSpeed 2.0 conventions.
+    not mod_pagespeed 2.1 conventions.
 
 ### Reference Code Locations (mod_pagespeed)
 

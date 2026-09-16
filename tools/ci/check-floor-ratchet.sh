@@ -195,7 +195,7 @@ if [[ -z "$SRC" && -n "$CANONICAL_URL" ]]; then
     # the mirror is still read as-is below, and the one-shot clone after
     # that is untouched — the required check's fail-closed semantics are
     # unchanged. flock is Linux-only, but --mirror-dir is a CI-only flag
-    # (all callers run on self-hosted Linux runners); without flock the
+    # (all callers run on Linux CI runners); without flock the
     # acquisition fails into the same skip path, no new failure mode.
     mirror_locked=0
     if ( exec 9>"${MIRROR_DIR_ARG}.lock" ) 2>/dev/null; then

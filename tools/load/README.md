@@ -1,4 +1,4 @@
-# PageSpeed 2.0 Load Test
+# mod_pagespeed 2.1 Load Test
 
 Stress-tests the full nginx/cache/worker stack with concurrent HTTP requests.
 

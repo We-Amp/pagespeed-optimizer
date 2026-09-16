@@ -1,4 +1,4 @@
-# ModPageSpeed 2.0 - Async-CSS probe environment
+# mod_pagespeed 2.1 - Async-CSS probe environment
 #
 # Same three-service topology as tools/http-compliance (origin / worker / nginx
 # sharing a named volume), with two differences that are the whole point of the

@@ -1,6 +1,6 @@
 # PageSpeed Workbench
 
-Management console for PageSpeed 2.0 — a pnpm monorepo with 4 packages.
+Management console for mod_pagespeed 2.1 — a pnpm monorepo with 4 packages.
 
 ## Package Structure
 

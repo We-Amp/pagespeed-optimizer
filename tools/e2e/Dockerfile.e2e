@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-# E2E test image for PageSpeed 2.0
+# E2E test image for mod_pagespeed 2.1
 #
 # Multi-stage build:
 #   1. Builder: installs nginx + matching source, builds module .so + worker

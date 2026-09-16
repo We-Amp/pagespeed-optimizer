@@ -1,4 +1,4 @@
-# PageSpeed 2.0 - Common Service Definitions
+# mod_pagespeed 2.1 - Common Service Definitions
 #
 # Shared healthcheck, logging, and restart patterns used by all deployments.
 # Referenced via `extends` in per-environment docker-compose files.

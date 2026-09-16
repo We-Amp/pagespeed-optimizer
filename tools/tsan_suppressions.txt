@@ -1,4 +1,4 @@
-# TSan suppressions for PageSpeed 2.0
+# TSan suppressions for mod_pagespeed 2.1
 # Add suppressions for false positives in third-party code here.
 #
 # Format:

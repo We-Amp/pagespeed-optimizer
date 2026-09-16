@@ -1,6 +1,6 @@
 # Production Deployment Checklist
 
-Pre-flight checks before deploying PageSpeed 2.0 in production.
+Pre-flight checks before deploying mod_pagespeed 2.1 in production.
 
 ## Cache Configuration (Critical)
 

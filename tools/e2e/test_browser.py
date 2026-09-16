@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-"""PageSpeed 2.0 E2E Browser Tests (Playwright).
+"""mod_pagespeed 2.1 E2E Browser Tests (Playwright).
 
 Headless browser tests verifying that optimized content renders correctly,
 JavaScript executes after minification, performance metrics are acceptable,

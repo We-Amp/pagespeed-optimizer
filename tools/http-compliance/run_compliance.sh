@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-# PageSpeed 2.0 - HTTP Compliance Test Runner
+# mod_pagespeed 2.1 - HTTP Compliance Test Runner
 #
 # Runs HTTP compliance tests against the full stack in Docker.
 #

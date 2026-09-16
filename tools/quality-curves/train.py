@@ -4,7 +4,7 @@
 # Copyright (c) 2024-2026 We-Amp B.V.
 
 """
-PageSpeed 2.0 — Quality Curve Training Pipeline
+mod_pagespeed 2.1 — Quality Curve Training Pipeline
 
 Trains per-format LightGBM models that predict encoder quality parameter
 for a target SSIMULACRA2 score given 17 image features.

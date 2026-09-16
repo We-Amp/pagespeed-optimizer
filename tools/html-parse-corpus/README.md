@@ -1,7 +1,7 @@
 # HTML parse corpus
 
 Canonical differential HTML parse harness for mod_pagespeed 1.15 and
-ModPageSpeed 2.0. **Read `SPEC.md` first** — it is the contract phase 2
+mod_pagespeed 2.1. **Read `SPEC.md` first** — it is the contract phase 2
 implements against in the optimizer.
 
 Layout:

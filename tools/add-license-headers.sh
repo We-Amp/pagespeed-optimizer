@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 #
-# Add or replace license headers on all source files in the PageSpeed 2.0 project.
+# Add or replace license headers on all source files in the mod_pagespeed 2.1 project.
 # Idempotent: safe to run multiple times.
 
 set -euo pipefail

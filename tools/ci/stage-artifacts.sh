@@ -18,7 +18,7 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 "${SCRIPT_DIR}/docker-preflight.sh"
 
 # Invalidate a STALE runner-local bundle before the existence check below.
-# Persistent self-hosted runners keep ${SRC}/.ci-artifacts/ across jobs, so a
+# Persistent CI runners keep ${SRC}/.ci-artifacts/ across jobs, so a
 # prior (different-SHA) Build's factory_worker can satisfy the existence check
 # and be used silently — the #706 HTTP-Compliance 404 was a stale
 # ngx_pagespeed_module.so from a pre-merge build sitting on the runner. The
@@ -103,7 +103,7 @@ if [ ! -f "${SRC}/.ci-artifacts/factory_worker" ]; then
 fi
 
 # Ensure pagespeed2-base-runtime exists AND matches the current Dockerfile.
-# Persistent self-hosted runners keep the image across jobs, so a plain
+# Persistent CI runners keep the image across jobs, so a plain
 # "rebuild if missing" check (the previous behaviour) silently reuses a
 # stale image when Dockerfile.base-runtime changes — invisibly breaking
 # downstream consumers (e.g. nginx version drift between builder and
@@ -147,9 +147,9 @@ echo "Prebuilt image will pin nginx to: $(cat .ci-artifacts/nginx-version)"
 
 # Brotli module: Dockerfile.prebuilt COPYs a pre-built
 # ngx_http_brotli_filter_module.so instead of recompiling it from source on
-# every (cold-cache) image build. The x64 Linux Build job builds it on the
-# dedicated heavy x64 runner (warm Docker layer cache) and ships it in the
-# artifact bundle, so the fragile linux-x64-pool never recompiles brotli.
+# every (cold-cache) image build. The x64 Linux Build job builds it on a
+# dedicated build runner (warm Docker layer cache) and ships it in the
+# artifact bundle, so the CI test runners never recompile brotli.
 # Producers that don't ship it (arm64 ci-periodic; older artifact bundles) fall
 # back to building it here — keyed by nginx-version, so it's a Docker
 # layer-cache no-op on a warm host. Build needs .ci-artifacts/nginx-version,

@@ -1,7 +1,7 @@
 {
   "name": "@pagespeed/vscode-shell",
   "displayName": "PageSpeed Workbench",
-  "description": "Web performance tuning for PageSpeed 2.0",
+  "description": "Web performance tuning for mod_pagespeed 2.1",
   "version": "0.1.0",
   "publisher": "we-amp",
   "private": true,

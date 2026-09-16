@@ -4,7 +4,7 @@
 # Copyright (c) 2024-2026 We-Amp B.V.
 
 """
-PageSpeed 2.0 — Model Compiler
+mod_pagespeed 2.1 — Model Compiler
 
 Converts trained LightGBM models to C source code using TL2cgen,
 producing files suitable for inclusion in the Bazel build.

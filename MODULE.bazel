@@ -232,9 +232,10 @@ new_git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl"
 #    for the duration of write() and the commit, and reports
 #    CacheError::Closed when the volume is gone. The sanitizer lane in this
 #    repo reproduces the old fault and passes at this pin.
-# Re-pointed to the public home: C1 is the orphan-landed sanitized tree;
-# library content (src/, include/) identical to the source commit recorded
-# on the orphan, src/include delta vs the previous pin comment-only.
+# Re-pointed to the public home: the pinned commit is the sanitized
+# single-commit tree published there; library content (src/, include/) is
+# identical to the source commit it was published from, and the src/include
+# delta vs the previous pin is comment-only.
 new_git_repository(
     name = "cyclone",
     build_file = "//third_party:cyclone.BUILD",

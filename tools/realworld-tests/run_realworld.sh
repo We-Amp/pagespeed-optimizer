@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-# PageSpeed 2.0 - Real-World Website Proxy Test Runner
+# mod_pagespeed 2.1 - Real-World Website Proxy Test Runner
 #
 # Brings up the Docker stack, runs pytest, collects logs, and tears down.
 #

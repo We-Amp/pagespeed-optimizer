@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-"""Generate varied test assets for PageSpeed 2.0 stress tests.
+"""Generate varied test assets for mod_pagespeed 2.1 stress tests.
 
 Creates images, CSS, JS, and HTML files at various sizes for testing
 resource limits, cache pressure, and content-type handling.

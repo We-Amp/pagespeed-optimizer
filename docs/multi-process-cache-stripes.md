@@ -1,6 +1,6 @@
 # Multi-Process Cache Stripe Interaction
 
-PageSpeed 2.0 uses the Cyclone Cache library with a specific multi-process
+mod_pagespeed 2.1 uses the Cyclone Cache library with a specific multi-process
 configuration. This document describes how nginx and the worker daemon share
 a single cache file safely and efficiently.
 
@@ -17,7 +17,7 @@ They both open the same `.vol` file (e.g., `/data/cache.vol`), chmod'd `0666`.
 
 Cyclone supports full multi-process stripe affinity where
 `stripe_owner = stripe_index % total_processes` and only the owner can write.
-**PageSpeed 2.0 does not use this.** Both processes open the cache with:
+**mod_pagespeed 2.1 does not use this.** Both processes open the cache with:
 
 ```cpp
 cyclone::MultiProcessConfig multi_process = {

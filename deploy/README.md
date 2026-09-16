@@ -1,4 +1,4 @@
-# PageSpeed 2.0 Deployment
+# mod_pagespeed 2.1 Deployment
 
 ## Quick Start with Docker Compose
 

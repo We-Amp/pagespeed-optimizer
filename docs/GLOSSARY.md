@@ -1,6 +1,6 @@
 # Glossary
 
-Load-bearing terms used across the PageSpeed 2.0 code and docs. Each definition
+Load-bearing terms used across the mod_pagespeed 2.1 code and docs. Each definition
 is one line plus a pointer to its source-of-truth header — read the header before
 changing the behaviour, not this file.
 
@@ -14,7 +14,7 @@ changing the behaviour, not this file.
 | **Default alternate (0x08 vs 0x00)** | `CapabilityMask()` default = Desktop/Identity = **0x08** (what nginx writes for original content); `CapabilityMask::Decode(0)` = Mobile/Identity = **0x00**. The two are distinct — do not conflate. | `lib/classify/capability_mask.h`; `lib/classify/alternate_id.h` (static_asserts on 0x08/0x00) |
 | **alternate == variant** | "Alternate" is Cyclone's term and "variant" is the PageSpeed term for the same thing: one cached form of a URL keyed by an AlternateId. Used interchangeably in docs. | `lib/classify/capability_mask.h:21` ("Variants stored as Cyclone alternates") |
 | **`net_instaweb::`** | Namespace for legacy ported HTML-parser code (HtmlParse, HtmlElement, HtmlNode, …). | `lib/html/*.h`; CLAUDE.md → Namespaces |
-| **`pagespeed::`** | Namespace for new PageSpeed 2.0 code; legacy image processing lives in the nested `pagespeed::image_compression::`. | `lib/classify/*.h`; CLAUDE.md → Namespaces |
+| **`pagespeed::`** | Namespace for new mod_pagespeed 2.1 code; legacy image processing lives in the nested `pagespeed::image_compression::`. | `lib/classify/*.h`; CLAUDE.md → Namespaces |
 | **Cyclone stripe** | A partition of the on-disk cache volume; Cyclone derives the stripe count from the volume size, so nginx and the worker must agree on size or the same key resolves to different stripes (cross-process reads/writes go invisible). | `docs/multi-process-cache-stripes.md`; `src/nginx/ngx_pagespeed_module.cc` (`MakeNginxCacheConfig`) |
 | **volume_size** | Cache volume byte size in `PageSpeedCacheConfig`. The worker sets it via `--cache-size`; **nginx must set `volume_size = 0`** to auto-detect from the existing file (matching size keeps the stripe layout consistent). | `lib/cache/cache.h` (`PageSpeedCacheConfig::volume_size`); CLAUDE.md → Cross-Process Cache Sharing |
-| **RewriteDriver** | The mod_pagespeed filter orchestrator (2000+ LOC, 60+ filters) that PageSpeed 2.0 deliberately does **not** port — 2.0 calls the underlying PSOL components directly. | CLAUDE.md → Project Overview (key design decision) |
+| **RewriteDriver** | The mod_pagespeed filter orchestrator (2000+ LOC, 60+ filters) that mod_pagespeed 2.1 deliberately does **not** port — 2.0 calls the underlying PSOL components directly. | CLAUDE.md → Project Overview (key design decision) |

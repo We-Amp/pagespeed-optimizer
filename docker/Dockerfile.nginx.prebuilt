@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 #
-# ModPageSpeed 2.0 nginx image — PREBUILT.
+# mod_pagespeed 2.1 nginx image — PREBUILT.
 #
 # Assembles the public image from CI-built artifacts (release.yml's
 # `--config=release` Docker-flavored build — PROD key, server=nginx); no
@@ -59,7 +59,7 @@ ARG VERSION=dev
 ARG BUILD_DATE
 ARG SOURCE_REVISION=unknown
 
-LABEL org.opencontainers.image.title="ModPageSpeed 2.0 Nginx Module" \
+LABEL org.opencontainers.image.title="mod_pagespeed 2.1 Nginx Module" \
       org.opencontainers.image.vendor="We-Amp B.V." \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.source="https://github.com/We-Amp/modpagespeed-images" \

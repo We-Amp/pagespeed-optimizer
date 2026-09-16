@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-"""Pytest fixtures for PageSpeed 2.0 stress tests.
+"""Pytest fixtures for mod_pagespeed 2.1 stress tests.
 
 Manages Docker Compose services as a session-scoped fixture and provides
 HTTP clients, IPC clients, and metrics helpers.

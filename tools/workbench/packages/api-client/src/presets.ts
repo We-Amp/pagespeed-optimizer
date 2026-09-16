@@ -2,7 +2,7 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 
 // ---------------------------------------------------------------------------
-// Capability mask encoding/decoding and device presets for the PageSpeed 2.0
+// Capability mask encoding/decoding and device presets for the mod_pagespeed 2.1
 // 32-bit capability bitmask.
 //
 // Bit layout (low 8 bits used):

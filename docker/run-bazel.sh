@@ -54,7 +54,8 @@ fi
 # Platform matching host architecture.
 PLATFORM="linux/$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
 
-# Forward SSH agent if available (needed for private repo fetches).
+# Forward SSH agent if available (needed when a dependency remote requires
+# authentication; harmless when every fetch is anonymous).
 SSH_ARGS=()
 if [[ "$FORWARD_SSH" = true ]] && [[ -n "${SSH_AUTH_SOCK:-}" ]]; then
     SSH_ARGS+=(

@@ -5,7 +5,7 @@
 #
 # sync-js-kernel.sh - Vendor the canonical JS kernel from mod_pagespeed 1.15.
 #
-# ModPageSpeed 2.0 does NOT own its JavaScript tokenizer/minifier kernel.
+# mod_pagespeed 2.1 does NOT own its JavaScript tokenizer/minifier kernel.
 # The 1.15 repository (mod_pagespeed) is the single
 # canonical source: fixes land there first and flow here through this script.
 # The vendored copy under lib/js/ is CHECKED IN so the 2.0 build stays

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-# Base runtime image for all PageSpeed 2.0 ubuntu-based containers.
+# Base runtime image for all mod_pagespeed 2.1 ubuntu-based containers.
 # Provides the minimal runtime dependencies shared across worker, nginx,
 # and test images. Individual Dockerfiles extend this with their specific
 # packages (e.g. Chromium, nginx, python3).
@@ -16,7 +16,7 @@ FROM ubuntu:24.04@sha256:786a8b558f7be160c6c8c4a54f9a57274f3b4fb1491cf65146521ae
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-# Common runtime packages needed by all PageSpeed 2.0 containers:
+# Common runtime packages needed by all mod_pagespeed 2.1 containers:
 #   libc++1-20  — C++ standard library (all binaries compiled with clang-20)
 #   curl        — healthchecks, HTTP utilities
 #   ca-certificates — TLS for operator-configured outbound fetches (origin
