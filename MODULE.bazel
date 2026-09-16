@@ -236,10 +236,12 @@ new_git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl"
 # single-commit tree published there; library content (src/, include/) is
 # identical to the source commit it was published from, and the src/include
 # delta vs the previous pin is comment-only.
+# The import was rewritten pre-flip (owner-ruled); the new pin's tree is
+# byte-identical to the old import a1637f8c776556f8c2e1417aa52e3f635bbfe91d.
 new_git_repository(
     name = "cyclone",
     build_file = "//third_party:cyclone.BUILD",
-    commit = "a1637f8c776556f8c2e1417aa52e3f635bbfe91d",
+    commit = "e5503d1fff5e8faccfd95fd9fb626820dc932e0a",
     remote = "https://github.com/We-Amp/cyclone-cache.git",
 )
 
