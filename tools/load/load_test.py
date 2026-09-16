@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-"""PageSpeed 2.0 Load Test Script.
+"""mod_pagespeed 2.1 Load Test Script.
 
 Stress-tests the full nginx -> cache -> worker stack using concurrent
 HTTP requests. Supports burst and sustained test modes.
@@ -175,7 +175,7 @@ def run_sustained(base_url, rps, duration, timeout):
 
 def main():
     parser = argparse.ArgumentParser(
-        description="PageSpeed 2.0 load test",
+        description="mod_pagespeed 2.1 load test",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Examples:\n"

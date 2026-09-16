@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-"""PageSpeed 2.0 E2E Tests: Story 4 — Configuration Changes.
+"""mod_pagespeed 2.1 E2E Tests: Story 4 — Configuration Changes.
 
 Tests the worker's /v1/config API for runtime config reload, validation,
 persistence, and edge cases.  Runs against the E2E Docker Compose stack

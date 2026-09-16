@@ -2,7 +2,7 @@
 
 ## Overview
 
-This test suite validates PageSpeed 2.0's production readiness through systematic
+This test suite validates mod_pagespeed 2.1's production readiness through systematic
 end-to-end testing covering HTTP protocol compliance, security, data integrity,
 streaming, stress, and operational resilience.
 

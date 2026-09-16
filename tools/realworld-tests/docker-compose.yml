@@ -1,4 +1,4 @@
-# PageSpeed 2.0 - Real-World Website Proxy Tests
+# mod_pagespeed 2.1 - Real-World Website Proxy Tests
 #
 # Two services sharing a named volume, proxying directly to real internet sites.
 # No custom origin — nginx acts as a reverse proxy to external websites.

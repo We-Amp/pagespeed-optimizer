@@ -46,7 +46,7 @@ static class Pages
                 <section class="hero">
                     <img src="/img/hero.jpg" width="1200" height="600"
                          alt="Hero banner — optimized with fetchpriority">
-                    <h1>PageSpeed 2.0 + ASP.NET Core</h1>
+                    <h1>mod_pagespeed 2.1 + ASP.NET Core</h1>
                     <p>This page demonstrates the PageSpeed middleware
                        processing a real HTML response.</p>
                 </section>
@@ -198,7 +198,7 @@ static class Pages
                         </p>
                     </header>
 
-                    <p>PageSpeed 2.0 intercepts HTML responses at the middleware
+                    <p>mod_pagespeed 2.1 intercepts HTML responses at the middleware
                        level and applies a suite of optimizations. This blog post
                        includes third-party resources that trigger
                        <code>preconnect</code> hints.</p>

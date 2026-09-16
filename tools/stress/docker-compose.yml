@@ -1,4 +1,4 @@
-# PageSpeed 2.0 - Stress Test Environment
+# mod_pagespeed 2.1 - Stress Test Environment
 #
 # Same 3-service architecture as E2E but with stress-tuned defaults:
 #   - Smaller cache (50MB) to trigger eviction

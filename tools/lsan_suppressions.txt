@@ -1,4 +1,4 @@
-# LeakSanitizer suppressions for PageSpeed 2.0
+# LeakSanitizer suppressions for mod_pagespeed 2.1
 #
 # There are currently no suppressions. The HTML parser's node arena runs
 # destructors via Arena<HtmlNode>::DestroyObjects() at ClearElements(), so

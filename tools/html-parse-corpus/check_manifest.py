@@ -3,7 +3,7 @@
 # Copyright (c) 2026 We-Amp B.V.
 """Local conformance gate for the HTML parse corpus.
 
-Mps2-local counterpart to the vendored gen_goldens.py --check. The vendored
+Optimizer-local counterpart to the vendored gen_goldens.py --check. The vendored
 generator is kept byte-identical to the canonical mod_pagespeed 1.15 copy
 (the shared manifest pins its sha256, D1 style), so it cannot learn about
 EXCLUSIONS.md here. This checker therefore lives next to it as an

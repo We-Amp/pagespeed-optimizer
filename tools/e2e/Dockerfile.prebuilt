@@ -14,7 +14,7 @@
 #
 # The brotli module used to be compiled from source in a `brotli-builder` stage
 # here, which made every cold-cache build recompile it (~100s — the recurring
-# HTTP Compliance slow build on linux-x64-pool). It is now pre-built once on a
+# HTTP Compliance slow build in CI). It is now pre-built once on a
 # warm producer host and shipped as a CI artifact; stage-artifacts.sh ensures
 # .ci-artifacts/ngx_http_brotli_filter_module.so exists (installing the shipped
 # one, or building it via tools/ci/build-brotli-module.sh as a fallback). See

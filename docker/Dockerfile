@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-# Build environment for PageSpeed 2.0 with sanitizer support.
+# Build environment for mod_pagespeed 2.1 with sanitizer support.
 #
 # Base is Ubuntu 22.04 (jammy, glibc 2.35) deliberately. We statically link
 # libc++/libc++abi/libunwind into libpagespeed.so + factory_worker; on

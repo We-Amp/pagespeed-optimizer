@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 
-// PageSpeed 2.0 — Quality Sweep Tool
+// mod_pagespeed 2.1 — Quality Sweep Tool
 //
 // For each (image, format, quality): encode → decode → ComputeSSIMULACRA2().
 // Outputs sweep_results.csv for training quality prediction models.

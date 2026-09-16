@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-# Build ModPageSpeed 2.0 production Docker images.
+# Build mod_pagespeed 2.1 production Docker images.
 #
 # Usage:
 #   docker/build-release.sh [VERSION] [--push-ar]
@@ -50,7 +50,7 @@ fi
 # updates even when the base digest and the rest of the Dockerfile are unchanged.
 APT_REFRESH="$(date -u +%F)"
 
-echo "Building ModPageSpeed 2.0 release images (version: $VERSION)"
+echo "Building mod_pagespeed 2.1 release images (version: $VERSION)"
 echo "Project directory: $PROJECT_DIR"
 echo "Platform: $BUILD_PLATFORM"
 if [ "$PUSH_AR" = true ]; then

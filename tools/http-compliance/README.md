@@ -1,6 +1,6 @@
 # HTTP Compliance Test Suite
 
-Verifies HTTP protocol correctness for the PageSpeed 2.0 proxy. Since
+Verifies HTTP protocol correctness for the mod_pagespeed 2.1 proxy. Since
 PageSpeed modifies response bodies (CSS/JS minification, image transcoding,
 critical CSS injection), HTTP compliance is non-trivial: Content-Length
 changes, Content-Type changes, ETags invalidate, and caching semantics

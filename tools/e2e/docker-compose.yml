@@ -1,4 +1,4 @@
-# PageSpeed 2.0 - E2E Test Environment
+# mod_pagespeed 2.1 - E2E Test Environment
 #
 # Three services sharing a named volume:
 #   origin  - Python HTTP server serving testdata on port 8081

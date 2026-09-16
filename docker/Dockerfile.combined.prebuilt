@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 #
-# ModPageSpeed 2.0 COMBINED image — PREBUILT.
+# mod_pagespeed 2.1 COMBINED image — PREBUILT.
 #
 # Runs the factory worker AND nginx in one container (single `docker run`),
 # pointing at the operator's backend via BACKEND_HOST/BACKEND_PORT. A packaging
@@ -60,7 +60,7 @@ ARG VERSION=dev
 ARG BUILD_DATE
 ARG SOURCE_REVISION=unknown
 
-LABEL org.opencontainers.image.title="ModPageSpeed 2.0 (combined)" \
+LABEL org.opencontainers.image.title="mod_pagespeed 2.1 (combined)" \
       org.opencontainers.image.vendor="We-Amp B.V." \
       org.opencontainers.image.licenses="Apache-2.0" \
       org.opencontainers.image.source="https://github.com/We-Amp/modpagespeed-images" \

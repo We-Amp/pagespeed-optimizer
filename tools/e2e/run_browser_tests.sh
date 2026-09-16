@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-# PageSpeed 2.0 - Headless Browser E2E Test Runner (Playwright)
+# mod_pagespeed 2.1 - Headless Browser E2E Test Runner (Playwright)
 #
 # Runs Playwright-based browser tests against the full stack
 # (nginx + worker + origin) in Docker, using Chromium, Firefox, and WebKit.

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 #
-# assert-binary-hardening.sh (MPS2-SEC-05) — verify a shipped binary carries the
+# assert-binary-hardening.sh — verify a shipped binary carries the
 # binary-hardening flags from the .bazelrc :hardening config. Run at release time
 # on each built .so, BEFORE stripping/packaging, so a shipped artifact can never
 # silently regress to un-hardened. Needs only readelf (binutils).

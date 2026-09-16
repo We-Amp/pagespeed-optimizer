@@ -2,7 +2,7 @@
 
 ## Purpose
 
-Pure C API wrapper exposing PageSpeed 2.0 functionality as a shared library for
+Pure C API wrapper exposing mod_pagespeed 2.1 functionality as a shared library for
 cross-language integration. Primary consumer: ASP.NET Core middleware in
 `samples/aspnetcore/` which calls this API via P/Invoke (DllImport).
 

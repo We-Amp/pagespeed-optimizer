@@ -56,7 +56,7 @@
 #                 omitted only the hub path is used (e.g. auxiliary runners
 #                 with no local vendor drive).
 #   --prefix <n>  Tarball basename prefix (default: mod_pagespeed).
-#                 callers in this repo pass --prefix modpagespeed-2.
+#                 Every caller passes its vendor job's prefix explicitly.
 #   --stream      Extract by streaming `zstd -d | tar` instead of
 #                 `tar --zstd -xf`. Used by jobs whose tar lacks --zstd.
 #
@@ -78,7 +78,7 @@
 #
 # SYNC NOTE: this file is kept in step with the mod_pagespeed copy of
 # tools/ci/extract-vendor-tarball.sh. The only intentional divergences are:
-#   * the --prefix line documents the caller value used in this repo;
+#   * the --prefix line is phrased for this repo's caller convention;
 #   * the extract-phase self-heal clears a partial $DEST before re-extracting
 #     (see step 2 in main).
 # Port any other change to both copies in the same pass.

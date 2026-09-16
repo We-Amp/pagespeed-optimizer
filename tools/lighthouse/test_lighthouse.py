@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-"""Lighthouse A/B validation tests for PageSpeed 2.0.
+"""Lighthouse A/B validation tests for mod_pagespeed 2.1.
 
 Compares Lighthouse audits between origin (unoptimized) and nginx (optimized)
 to validate that optimizations improve performance scores.

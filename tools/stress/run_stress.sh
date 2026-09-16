@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-# PageSpeed 2.0 Stress Test Runner
+# mod_pagespeed 2.1 Stress Test Runner
 #
 # Builds Docker images, generates test data, starts the stack, runs pytest,
 # saves logs, and tears down.

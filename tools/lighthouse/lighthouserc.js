@@ -2,7 +2,7 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 
 /**
- * Lighthouse CI configuration for PageSpeed 2.0.
+ * Lighthouse CI configuration for mod_pagespeed 2.1.
  *
  * Runs against the nginx proxy (port 8080) which serves optimized content.
  * Used by `lhci autorun` for CI pipelines and local validation.

@@ -5,7 +5,7 @@
 #
 # sync-html-kernel.sh - Vendor the canonical HTML kernel from mod_pagespeed 1.15.
 #
-# ModPageSpeed 2.0 does NOT own its HTML lexer/parser kernel. Since #1130
+# mod_pagespeed 2.1 does NOT own its HTML lexer/parser kernel. Since #1130
 # (cloning the JS-kernel machinery) the 1.15 repository
 # (mod_pagespeed) is the single canonical source: fixes land there
 # first and flow here through this script. The vendored copy under lib/html/

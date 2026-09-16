@@ -383,26 +383,6 @@ miniz_oxide 0.3.7 and 0.4.4
   https://github.com/Frommi/miniz_oxide/blob/0.3.7/miniz_oxide/LICENSE
   https://github.com/Frommi/miniz_oxide/blob/3db0b43dcb320753d37a2693854f5b0af23e1a36/miniz_oxide/LICENSE-MIT.md
 
-flo_curves 0.3.1
-  License: Apache-2.0
-  Copyright (c) Andrew Hunter
-  https://github.com/Logicalshift/flo_curves/blob/master/LICENSE
-
-color_quant 1.1.0
-  License: MIT
-  Copyright (c) 2016 PistonDevelopers
-  https://github.com/image-rs/color_quant/blob/master/LICENSE
-
-scoped_threadpool 0.1.9
-  License: MIT
-  Copyright (c) 2015 Marvin Löbel
-  https://github.com/Kimundi/scoped-threadpool-rs/blob/master/LICENSE
-
-miniz_oxide 0.3.7 and 0.4.4
-  License: MIT (0.3.7); MIT (or Zlib or Apache-2.0) (0.4.4)
-  Copyright (c) 2017 Frommi
-  https://github.com/Frommi/miniz_oxide/blob/master/LICENSE-MIT.md
-
 
 ===============================================================================
 JAVASCRIPT RUNTIME DEPENDENCIES (Console SPA)
@@ -503,6 +483,12 @@ ngx_brotli a71f931
   Copyright (c) 2011-2015 Nginx, Inc.
   Copyright (c) 2015-2019 Google Inc.
   https://github.com/google/ngx_brotli/blob/a71f9312c2deb28875acc7bacfdd5695a111aa53/LICENSE
+
+OpenSSL 3.0 (libssl3 on the Ubuntu 24.04 runtime base; the nginx.org nginx
+  package the runtime images install links against it)
+  License: Apache-2.0
+  Copyright (c) 1998-2025 The OpenSSL Project Authors
+  https://www.openssl.org/source/license.html
 
 
 ===============================================================================

@@ -1,4 +1,4 @@
-# PageSpeed 2.0 - Production Nginx Configuration
+# mod_pagespeed 2.1 - Production Nginx Configuration
 #
 # Copy this file to nginx.conf and adjust for your environment.
 

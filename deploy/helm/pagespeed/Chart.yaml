@@ -1,6 +1,6 @@
 apiVersion: v2
 name: pagespeed
-description: PageSpeed 2.0 - Nginx image/CSS/JS/HTML optimization
+description: mod_pagespeed 2.1 - Nginx image/CSS/JS/HTML optimization
 type: application
 # 0.3.0: collapse worker.image.tag + nginx.image.tag into one lockstep tag that
 # defaults to appVersion. Removing the two per-image tag keys is a

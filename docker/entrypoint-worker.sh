@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-# Canonical entrypoint for the ModPageSpeed 2.0 factory worker.
+# Canonical entrypoint for the mod_pagespeed 2.1 factory worker.
 #
 # Sets up permissions for cross-process cache sharing, then starts
 # the worker daemon. ALL behavior is controlled via environment variables

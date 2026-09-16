@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-# Production entrypoint for the ModPageSpeed 2.0 nginx image.
+# Production entrypoint for the mod_pagespeed 2.1 nginx image.
 #
 # Performs environment variable substitution on the nginx config
 # template, then starts nginx.

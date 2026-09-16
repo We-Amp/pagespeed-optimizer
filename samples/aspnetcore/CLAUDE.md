@@ -1,6 +1,6 @@
 # ASP.NET Core PageSpeed Integration
 
-.NET middleware that integrates PageSpeed 2.0's image optimization and HTML
+.NET middleware that integrates mod_pagespeed 2.1's image optimization and HTML
 processing into ASP.NET Core applications via native P/Invoke to `libpagespeed.so`.
 
 ## Architecture

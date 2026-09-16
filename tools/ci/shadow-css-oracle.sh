@@ -42,7 +42,7 @@
 #
 # Build wiring mirrors the fuzz workflow: direct clang++ compile of the
 # standalone harness (NOT bazel — see the css-fuzz.yml header). CXX is
-# overridable; default clang++-20 as on the self-hosted runner.
+# overridable; default clang++-20 as on the CI runners.
 
 set -uo pipefail
 

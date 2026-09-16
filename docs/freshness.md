@@ -9,7 +9,7 @@
 
 ## 1. Problem Statement
 
-PageSpeed 2.0 acts as a shared cache. When origin content changes (deploy, CMS
+mod_pagespeed 2.1 acts as a shared cache. When origin content changes (deploy, CMS
 publish, config update), the cache may serve stale content until `max-age`
 expires. Current behavior on stale content:
 

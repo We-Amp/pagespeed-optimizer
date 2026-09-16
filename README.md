@@ -132,7 +132,9 @@ curl -I http://localhost/style.css
 
 The daemon socket path and HTML processing toggle are configured on
 the daemon side and shared with nginx automatically via `pagespeed-shared.conf`
-(written next to the cache file). See the [Configuration Reference](/docs/configuration/).
+(written next to the cache file). See the
+[configuration reference](https://modpagespeed.com/docs/configuration/) and
+[deploy/README.md](deploy/README.md).
 
 ### Daemon Flags
 
@@ -162,8 +164,14 @@ the daemon side and shared with nginx automatically via `pagespeed-shared.conf`
 
 ### Prerequisites
 
-- Bazel 7+
-- C++23 compiler (GCC 13+ or Clang 17+)
+- [Bazelisk](https://github.com/bazelbuild/bazelisk) — the repository pins
+  the Bazel version in `.bazelversion` (9.0.0); bazelisk installs exactly
+  that
+- clang-20 with libc++-20 — `clang-20 libc++-20-dev libc++abi-20-dev` from
+  [apt.llvm.org](https://apt.llvm.org/) (not the distribution defaults:
+  libc++-18 and older lack `std::atomic_ref`, which the cache library
+  requires, and GCC trips constexpr bugs in abseil). Build with
+  `CC=clang-20 CXX=clang++-20 bazel build --config=libc++ //...`
 - Docker (for sanitizer tests and E2E)
 - pre-commit (`pip install pre-commit && pre-commit install`)
 
@@ -215,6 +223,11 @@ deploy/        Production deployment configs
   Apache module and the 1.x lineage
 - [We-Amp/cyclone-cache](https://github.com/We-Amp/cyclone-cache) — the
   Cyclone cache library
+
+## Support
+
+See [SUPPORT.md](SUPPORT.md) — GitHub Issues for bugs, [SECURITY.md](SECURITY.md)
+for vulnerabilities, commercial support from We-Amp.
 
 ## License
 

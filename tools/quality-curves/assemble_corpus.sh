@@ -3,7 +3,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-# PageSpeed 2.0 — Corpus Assembly Script
+# mod_pagespeed 2.1 — Corpus Assembly Script
 #
 # Assembles a 1500+ image corpus for quality curve training from multiple sources:
 #   - DIV2K validation set (ETH Zurich)

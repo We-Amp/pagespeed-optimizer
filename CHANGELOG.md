@@ -1,6 +1,6 @@
 # Changelog
 
-All notable changes to ModPageSpeed 2.0 are documented in this file.
+All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 

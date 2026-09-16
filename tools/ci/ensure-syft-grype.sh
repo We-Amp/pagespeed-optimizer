@@ -20,7 +20,7 @@
 #
 # Two layers of resilience, smallest sound change:
 #
-#   1. Runner-local persistent cache. These are persistent self-hosted runners,
+#   1. Runner-local persistent cache. These are persistent CI runners,
 #      so we cache the pinned binaries in a stable per-runner dir
 #      (CI_BIN_CACHE, default ~/.weamp/ci-bin) keyed by tool+version. Once a
 #      version is installed there, every later run links it into the job-local
@@ -44,7 +44,7 @@ GRYPE_VERSION="${GRYPE_VERSION:?GRYPE_VERSION is required (e.g. v0.112.0)}"
 # GitHub-provided per-job RUNNER_TEMP; overridable for local testing.
 BIN_DIR="${BIN_DIR:-${RUNNER_TEMP:?RUNNER_TEMP is required when BIN_DIR is unset}/bin}"
 
-# Persistent per-runner cache. Survives across jobs/runs on these self-hosted
+# Persistent per-runner cache. Survives across jobs/runs on these CI
 # runners; ~/.weamp is the established machine-local state dir (credentials,
 # ci-token, ci-artifacts key).
 CI_BIN_CACHE="${CI_BIN_CACHE:-${HOME}/.weamp/ci-bin}"

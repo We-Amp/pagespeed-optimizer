@@ -2,7 +2,7 @@
 
 ## Context
 
-You are implementing a production readiness E2E test suite for PageSpeed 2.0, a
+You are implementing a production readiness E2E test suite for mod_pagespeed 2.1, a
 caching reverse proxy (nginx module + worker daemon). The test suite lives in
 `tools/production-tests/`.
 

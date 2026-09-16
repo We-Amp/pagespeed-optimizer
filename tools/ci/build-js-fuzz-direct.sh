@@ -12,7 +12,7 @@
 #
 # Unlike the CSS harness, the JS kernel needs RE2 (lib/js/compat/re2.h ->
 # re2/re2.h) and modern RE2 needs abseil. No system RE2 can be assumed on
-# the self-hosted runners, so this script builds BOTH from pinned upstream
+# the CI runners, so this script builds BOTH from pinned upstream
 # source tarballs — the same versions MODULE.bazel pins for the bazel build
 # (parsed out of MODULE.bazel below, so a dependency bump that forgets the
 # lane fails loudly here instead of silently diverging), sha256-verified,

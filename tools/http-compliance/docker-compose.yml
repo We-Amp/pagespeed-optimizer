@@ -1,4 +1,4 @@
-# PageSpeed 2.0 - HTTP Compliance Test Environment
+# mod_pagespeed 2.1 - HTTP Compliance Test Environment
 #
 # Three services sharing a named volume:
 #   origin  - Programmable compliance origin server

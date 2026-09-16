@@ -181,9 +181,9 @@ coverage:macos --repo_env=GCOV=/opt/homebrew/opt/llvm/bin/llvm-cov
 build:windows-asan --config=windows
 build:windows-asan --copt=/fsanitize=address
 
-# ---------- Remote cache (centralized CI hub) ----------
+# ---------- Remote cache (shared CI cache) ----------
 # Shared L2 cache across all CI runners and runs. Used alongside --disk_cache (L1).
-# Self-hosted bazel-remote — no authentication required.
+# A bazel-remote instance — no authentication required.
 #
 # The endpoint is addressed through the environment-neutral alias
 # `bazel-remote-cache`; NO environment-specific hostname or address is stored in
@@ -200,7 +200,7 @@ build:remote-cache --remote_upload_local_results=true
 build:remote-cache --remote_timeout=120
 
 # ---------- CI configuration (tarball-first CI) ----------
-# Used by GitHub Actions workflows on the self-hosted x64 runner pool.
+# Used by the CI workflows on the x64 Linux runners.
 # Linux CI builds run inside the pagespeed2-dev Docker container.
 build:ci --config=docker
 build:ci --config=remote-cache
@@ -213,7 +213,7 @@ build:ci-linux-arm64 --config=remote-cache
 build:ci-linux-arm64 --jobs=HOST_CPUS*.75
 build:ci-linux-arm64 --nostamp
 
-# macOS CI (native, Apple Silicon laptop runner)
+# macOS CI (native, Apple Silicon runner)
 build:ci-macos --config=macos
 build:ci-macos --config=remote-cache
 build:ci-macos --jobs=8
@@ -232,7 +232,7 @@ test:ci-macos --flaky_test_attempts=2
 # to test:windows keeps it off the `bazel build --config=windows` steps.
 test:windows --flaky_test_attempts=2
 
-# --- Binary hardening (MPS2-SEC-05) ---------------------------------------
+# --- Binary hardening ----------------------------------------------------
 # Applied to the release configs below (NOT sanitizer builds — see the
 # FORTIFY override on :sanitizer). Shipped artifacts are shared objects
 # (libpagespeed.so, ngx_pagespeed_module.so), already -fPIC / ET_DYN, so

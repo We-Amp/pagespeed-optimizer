@@ -2,7 +2,7 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 
 // ---------------------------------------------------------------------------
-// Backend API response types for the PageSpeed 2.0 worker management API.
+// Backend API response types for the mod_pagespeed 2.1 worker management API.
 // ---------------------------------------------------------------------------
 
 // ---- GET /v1/health -------------------------------------------------------

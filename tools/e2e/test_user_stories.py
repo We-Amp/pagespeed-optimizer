@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-"""PageSpeed 2.0 E2E User Story Tests.
+"""mod_pagespeed 2.1 E2E User Story Tests.
 
 Tests the full stack: nginx module -> cache -> worker -> origin,
 verifying each user story from Phase 6.
@@ -63,7 +63,7 @@ class TestTextColdCacheMiss:
         r = client.get("/index.html")
         assert r.status_code == 200
         client.assert_miss(r)
-        assert "PageSpeed 2.0" in r.text
+        assert "mod_pagespeed 2.1" in r.text
 
 
 # -- Wait for worker to process text notifications --
@@ -202,7 +202,7 @@ class TestHtml:
         """HTML page served correctly through nginx."""
         r = client.get("/index.html")
         assert r.status_code == 200
-        assert "PageSpeed 2.0" in r.text
+        assert "mod_pagespeed 2.1" in r.text
 
 
 # -- Image AVIF negotiation --

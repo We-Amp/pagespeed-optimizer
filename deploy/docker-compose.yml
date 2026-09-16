@@ -1,4 +1,4 @@
-# PageSpeed 2.0 - Production Docker Compose
+# mod_pagespeed 2.1 - Production Docker Compose
 #
 # Usage:
 #   docker compose -f deploy/docker-compose.yml up -d
