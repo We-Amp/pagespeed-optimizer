@@ -54,7 +54,7 @@ COPY .ci-artifacts/ngx_pagespeed_module.so /usr/lib/nginx/modules/ngx_pagespeed_
 COPY .ci-artifacts/ngx_http_brotli_filter_module.so \
      /usr/lib/nginx/modules/ngx_http_brotli_filter_module.so
 
-# ABI-skew assertion (#933). The module embeds NGINX_VERSION_NUM at
+# ABI-skew assertion. The module embeds NGINX_VERSION_NUM at
 # build time and the runtime nginx refuses to load a module built against a
 # different version ("module ... version 1030002 instead of 1030003" — [emerg],
 # process exits). Load the prebuilt module into THIS image's pinned nginx at
@@ -67,7 +67,7 @@ RUN printf 'load_module /usr/lib/nginx/modules/ngx_pagespeed_module.so;\nevents 
          echo "$err" >&2; \
          if echo "$err" | grep -q 'module.*version'; then \
            RUNTIME_V="$(nginx -v 2>&1 | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1)"; \
-           echo "::error::nginx ABI skew: the prebuilt ngx_pagespeed_module.so was built against a different nginx than this image's runtime nginx/${RUNTIME_V} (pinned from .ci-artifacts/nginx-version). Rebuild the module against the runtime nginx, or correct nginx-version. See #933." >&2; \
+           echo "::error::nginx ABI skew: the prebuilt ngx_pagespeed_module.so was built against a different nginx than this image's runtime nginx/${RUNTIME_V} (pinned from .ci-artifacts/nginx-version). Rebuild the module against the runtime nginx, or correct nginx-version." >&2; \
          fi; \
          exit 1; \
        fi \

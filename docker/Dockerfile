@@ -101,7 +101,7 @@ ENV DOTNET_CLI_TELEMETRY_OPTOUT=1
 # This dev image is content-hash cached (the CI cache key is the sha256 of
 # docker/), so an UNPINNED `apt-get source nginx` let a cached image keep
 # building an old module against a runtime nginx that had moved forward — the
-# 2026-07 CI-Periodic ABI-skew incident (#933). Pinning here makes the version
+# 2026-07 CI-Periodic ABI-skew incident. Pinning here makes the version
 # a hashed input: bumping docker/nginx-version.txt changes docker/'s content
 # hash and forces a dev-image rebuild everywhere, and the assertion below fails
 # the build LOUDLY (not a silent red much later) if the pinned version is not

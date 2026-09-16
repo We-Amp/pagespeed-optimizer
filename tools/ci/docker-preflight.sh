@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 # Verify the Docker daemon is reachable before a job continues. Used to
 # fail fast on WSL2 runners when Docker Desktop on the Windows host is
-# down — see issue #285.
+# down.
 #
 # Usage: tools/ci/docker-preflight.sh
 
@@ -37,7 +37,7 @@ done
 
 HOST="$(hostname 2>/dev/null || echo unknown)"
 echo "::error::Docker daemon not reachable on ${HOST}." >&2
-echo "::error::On WSL2 runners this usually means Docker Desktop on the Windows host is not running, or the docker.sock is not exposed into the distro. See issue #285." >&2
+echo "::error::On WSL2 runners this usually means Docker Desktop on the Windows host is not running, or the docker.sock is not exposed into the distro." >&2
 
 # Surface diagnostic detail to the job log. `docker version` (unlike
 # `docker info`) returns the client side even when the daemon is down,

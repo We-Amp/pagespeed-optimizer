@@ -5,7 +5,7 @@
 # concurrent-PR contamination on dedicated shared runners: when two PRs run
 # back-to-back, the later Build overwrites the earlier Build's
 # .ci-artifacts/, and a Pkg Smoke rerun of the earlier PR would otherwise
-# read the other PR's binary (issue #300).
+# read the other PR's binary.
 #
 # Usage: invalidate-stale-artifacts.sh <staging-dir> <expected-sha>
 #

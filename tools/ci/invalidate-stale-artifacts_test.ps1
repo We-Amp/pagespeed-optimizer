@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-# Smoke tests for invalidate-stale-artifacts.ps1 (issue #300 follow-up).
+# Smoke tests for invalidate-stale-artifacts.ps1.
 # Mirrors invalidate-stale-artifacts_test.sh. No Pester dependency.
 #
 # Run:   pwsh -NoProfile -File tools/ci/invalidate-stale-artifacts_test.ps1

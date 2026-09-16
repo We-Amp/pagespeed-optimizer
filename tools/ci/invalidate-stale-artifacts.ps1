@@ -2,7 +2,7 @@
 # Windows counterpart to invalidate-stale-artifacts.sh. Wipes a local CI
 # artifacts staging dir whose metadata.json reports a different commit SHA
 # than expected, protecting against concurrent-PR contamination on dedicated
-# shared runners (issue #300).
+# shared runners.
 param(
   [Parameter(Mandatory=$true)][string]$Staging,
   [Parameter(Mandatory=$true)][string]$Expected

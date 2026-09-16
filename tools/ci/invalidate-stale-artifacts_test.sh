@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: Apache-2.0
-# Smoke tests for invalidate-stale-artifacts.sh (issue #300).
+# Smoke tests for invalidate-stale-artifacts.sh.
 set -euo pipefail
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
