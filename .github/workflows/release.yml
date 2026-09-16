@@ -3,7 +3,8 @@
 
 name: Release
 
-# Public release lane for the pagespeed-optimizer host packages (ADR-131:
+# Public release lane for the pagespeed-optimizer host packages (public
+# CI policy:
 # GitHub-hosted runners ONLY — a public repo must never address the
 # self-hosted fleet, so this workflow carries no fleet labels, no private
 # URLs, and no fleet coordinates).

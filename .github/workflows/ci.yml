@@ -3,7 +3,7 @@
 
 name: CI
 
-# Minimal public CI (ADR-131): one hosted build+test leg (the optimizer
+# Minimal public CI: one hosted build+test leg (the optimizer
 # daemon plus a meaningful unit-test slice), the whole-tree Apache RAT
 # license audit, and the license-header / SBOM-drift gates. GitHub-hosted
 # runners ONLY — a public repo must never address the self-hosted fleet, so
