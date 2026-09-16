@@ -5,12 +5,14 @@ name: CI
 
 # Minimal public CI: one hosted build+test leg (the optimizer
 # daemon plus a meaningful unit-test slice), the whole-tree Apache RAT
-# license audit, and the license-header / SBOM-drift gates. GitHub-hosted
-# runners ONLY — a public repo must never address the self-hosted fleet, so
-# the exhaustive lanes (sanitizers, TSan, lint, Windows/macOS builds, the
-# full //test/... unit-test matrix, integration/E2E, CVE scanning, packaging
-# and release lanes) stay on the private fleet and are deliberately not part
-# of this workflow.
+# license audit, the license-header / SBOM-drift gates, and the public-tree
+# hygiene gate (tools/ci/check-public-hygiene.sh — keeps
+# private-infrastructure and private-process vocabulary out of the public
+# tree). GitHub-hosted runners ONLY — a public repo must never address the
+# private build fleet, so the exhaustive lanes (sanitizers, TSan, lint,
+# Windows/macOS builds, the full //test/... unit-test matrix,
+# integration/E2E, CVE scanning, packaging and release lanes) stay on the
+# private fleet and are deliberately not part of this workflow.
 #
 # Scope cuts vs the private lanes, made to fit the hosted-runner budget:
 #   * Test slice: //test/lib/base:all + //test/lib/cache:all + the
@@ -189,3 +191,12 @@ jobs:
       # must agree with the SBOM the step above just verified.
       - name: THIRD-PARTY-NOTICES drift — versions vs SBOM
         run: python3 tools/sbom/check-third-party-notices.py
+
+  public-hygiene:
+    name: Public-tree hygiene gate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Scan the tracked tree for non-public vocabulary
+        run: tools/ci/check-public-hygiene.sh

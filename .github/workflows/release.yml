@@ -6,8 +6,8 @@ name: Release
 # Public release lane for the pagespeed-optimizer host packages (public
 # CI policy:
 # GitHub-hosted runners ONLY — a public repo must never address the
-# self-hosted fleet, so this workflow carries no fleet labels, no private
-# URLs, and no fleet coordinates).
+# private build fleet, so this workflow carries no fleet runner labels, no
+# private URLs, and no fleet coordinates).
 #
 # Produces, for a tag `optimizer-v<upstream>` (e.g. optimizer-v1.16.0), a
 # GitHub release with exactly this asset set (the serving-module release
@@ -44,7 +44,7 @@ name: Release
 #
 # Other deltas vs the private fleet lane's optimizer release workflow, all
 # forced by the hosted environment:
-#   * runners: self-hosted fleet -> ubuntu-latest (amd64) / ubuntu-24.04-arm
+#   * runners: private build fleet -> ubuntu-latest (amd64) / ubuntu-24.04-arm
 #     (arm64), so the arm64 leg is still a NATIVE build — the packaging
 #     scripts take --binary/--library and are arch-agnostic, and no cross
 #     toolchain exists for this tree.

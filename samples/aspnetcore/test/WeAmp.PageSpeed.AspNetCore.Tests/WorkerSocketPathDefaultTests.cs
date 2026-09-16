@@ -122,7 +122,7 @@ public class WorkerSocketPathDefaultTests
             // `await using` so the host is disposed on scope exit:
             // WorkerProcessHost kills the factory_worker child in Dispose()
             // (not StopAsync), so without disposal the worker leaks — which
-            // accumulates zombie workers on the self-hosted CI runners.
+            // accumulates zombie workers on persistent CI runners.
             await using var app = builder.Build();
             app.UsePageSpeed();
 
