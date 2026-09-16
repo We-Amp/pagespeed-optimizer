@@ -231,8 +231,9 @@ LOCAL="$TEST_TMP/local6.tar.zst"
 # A valid zstd frame whose payload is NOT a tar archive: passes `zstd -t`
 # (no sidecar, so zstd -t is the floor) but `tar --zstd -xf` fails on it.
 # This is the same contract as the observed race (verify OK, extraction dies
-# seconds later, run 29756918487) injected deterministically -- the harness
-# cannot delete the file between the script's verify and extract steps.
+# seconds later, as the script's header comment recounts) injected
+# deterministically -- the harness cannot delete the file between the
+# script's verify and extract steps.
 # The payload must be at least one full 512-byte tar block: GNU tar treats a
 # shorter archive as a clean EOF and exits 0, which made this case pass
 # vacuously. 64 KiB of incompressible bytes errors on both GNU and BSD tar.

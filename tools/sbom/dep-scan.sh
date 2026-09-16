@@ -363,8 +363,9 @@ EOF
 
   # --- built product images (local docker cache; the real shipped C/C++ surface) ---
   # Images gate only when explicitly opted into the blocking set
-  # (--images --fail-on <sev> --surfaces ...,image) — the scheduled dep-scan.yml
-  # run does exactly that (the CVE ratchet). Absent images degrade to a "not
+  # (--images --fail-on <sev> --surfaces ...,image) — the scheduled
+  # dependency-scan run does exactly that (the CVE ratchet). Absent images
+  # degrade to a "not
   # built" row (no gate hit), so a runner with a cold cache can't false-pass.
   if [ "$SCAN_IMAGES" = "1" ] && want_surface image; then
     if command -v docker >/dev/null 2>&1; then

@@ -1,14 +1,13 @@
 # CI infrastructure variables
 
-The CI hub coordinates — hostnames, addresses, filesystem roots and
-runner labels — are **environment-specific**. They are supplied to workflows as
-**GitHub repository variables** and are deliberately not stored anywhere in this
-tree, so the tree stays publishable as-is.
-
-Set them once per repository (`Settings → Secrets and variables → Actions →
-Variables`, or `gh variable set <NAME> --repo <owner>/<repo>`). None of them are
-credentials; they are addressing/config only. Authentication is unchanged and
-still comes from the runner's own SSH key material.
+The CI helper scripts in `tools/ci/` take their environment-specific
+coordinates — hosts, addresses, filesystem roots and runner labels — from
+environment variables, never from values hardcoded in this tree, so the tree
+carries no environment-specific configuration. The project's own CI supplies
+them as GitHub repository variables; anyone running the same scripts in
+another environment sets the same names themselves. None of them are
+credentials: they are addressing/config only, and authentication comes from
+the runner's own SSH key material.
 
 | Variable | What it addresses | Used by |
 |---|---|---|
@@ -20,15 +19,15 @@ still comes from the runner's own SSH key material.
 | `CI_LINUX_HOME` | home root on the Linux runners | workspace/cache/mirror paths |
 | `CI_WIN_USER_HOME` | Windows user-profile root | Bazelisk/Git/gcloud paths in Windows jobs |
 | `CI_HEAVY_LABEL` | runner label for the heavy x64 build pool | `runs-on:` |
-| `CI_HEAVY_HOST_LABEL` | runner label carried by exactly one host (image gate) | `dep-scan.yml` `runs-on:` |
-| `CI_HEAVY_HOST` | hostname of that host (defense-in-depth assertion) | `dep-scan.yml` |
+| `CI_HEAVY_HOST_LABEL` | runner label carried by exactly one host (the dependency-scan image gate) | that job's `runs-on:` |
+| `CI_HEAVY_HOST` | hostname of that host (a defense-in-depth assertion in the same job) | the dependency-scan job |
 
-### Derived names the workflows synthesize
+### Derived names composed from the variables above
 
-The helper scripts do not read `vars.*` themselves — they read plain environment
-variables. Each workflow that talks to the hub composes these in its top-level
-`env:` block from the repository variables above. They are **not** repository
-variables; do not set them in repo settings.
+The helper scripts do not read repository variables themselves — they read
+plain environment variables. The caller composes these from the variables
+above (in CI, in each hub-talking workflow's top-level `env:` block); they
+are not repository variables themselves.
 
 | Derived name | Composed as | Required by |
 |---|---|---|
@@ -40,15 +39,6 @@ variables; do not set them in repo settings.
 Both scripts require their inputs **only on the branch that reaches the
 network**: a run that already has a good local tarball or staged artifacts
 never touches the hub and never touches these variables.
-
-### Forks
-
-These workflows cannot run in a fork. Repository variables do not carry across,
-so `vars.*` expand to the empty string: `runs-on:` loses its runner label and
-the job queues forever, and `docker --add-host=bazel-remote-cache:` fails on an
-empty address. This is intentional — the CI hub is not reachable from a fork
-anyway. `dep-scan.yml`'s host assertion fails closed with an explicit error
-rather than silently passing.
 
 ## Bazel remote cache
 
@@ -69,10 +59,3 @@ alias **`bazel-remote-cache`**:
 
 Without any of those the remote cache is simply unused; builds still succeed
 against the local `--disk_cache`.
-
-## Adding a runner
-
-A new runner needs the labels the workflows ask for. Because the heavy-pool
-label is read from `CI_HEAVY_LABEL`, the label can be renamed fleet-wide by
-re-registering the runners with the new label and updating the variable — no
-workflow edit required.

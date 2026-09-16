@@ -5,15 +5,16 @@
 # Usage:
 #   SYFT_VERSION=v1.44.0 GRYPE_VERSION=v0.112.0 tools/ci/ensure-syft-grype.sh
 #
-# Both versions are REQUIRED (passed via the workflow env, e.g. ci.yml's
-# blocking-dep-scan and dep-scan.yml). This script does not pick versions; it
-# only installs the ones it's told to, so the pins stay in the workflows.
+# Both versions are REQUIRED (passed via the calling workflow's env — the
+# per-PR blocking dependency scan and the scheduled image scan). This script
+# does not pick versions; it only installs the ones it's told to, so the pins
+# stay with the callers.
 #
 # Why this exists
 # ---------------
-# Both dep-scan workflows used to inline `curl … install.sh | sh` for syft and
+# The dependency-scan jobs used to inline `curl … install.sh | sh` for syft and
 # grype. The installer curls github.com release assets at job time, which
-# intermittently fails — e.g. run 27396862292 hit `received HTTP status=000`
+# intermittently fails — one run hit `received HTTP status=000`
 # (a transient network/rate-limit blip) and then `unable to find tag=''`,
 # reddening the whole "Blocking Dep Scan (npm + cargo)" gate over a single
 # flaky fetch.
@@ -44,9 +45,8 @@ GRYPE_VERSION="${GRYPE_VERSION:?GRYPE_VERSION is required (e.g. v0.112.0)}"
 # GitHub-provided per-job RUNNER_TEMP; overridable for local testing.
 BIN_DIR="${BIN_DIR:-${RUNNER_TEMP:?RUNNER_TEMP is required when BIN_DIR is unset}/bin}"
 
-# Persistent per-runner cache. Survives across jobs/runs on these CI
-# runners; ~/.weamp is the established machine-local state dir (credentials,
-# ci-token, ci-artifacts key).
+# Persistent per-runner cache. Survives across jobs/runs on persistent CI
+# runners; the ~/.weamp dir is the established machine-local state location.
 CI_BIN_CACHE="${CI_BIN_CACHE:-${HOME}/.weamp/ci-bin}"
 
 # Retry knobs (overridable for tests / tuning), matching the house idiom.

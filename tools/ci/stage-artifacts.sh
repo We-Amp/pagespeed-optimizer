@@ -13,22 +13,23 @@ SRC="${1:?Usage: stage-artifacts.sh <source-dir>}"
 
 # Fail fast with a clear error if Docker isn't healthy — we'll need it
 # below to build pagespeed2-base-runtime, and the cascade error from a
-# raw `docker build` is much harder to diagnose. See #285.
+# raw `docker build` is much harder to diagnose.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 "${SCRIPT_DIR}/docker-preflight.sh"
 
 # Invalidate a STALE runner-local bundle before the existence check below.
 # Persistent CI runners keep ${SRC}/.ci-artifacts/ across jobs, so a
 # prior (different-SHA) Build's factory_worker can satisfy the existence check
-# and be used silently — the #706 HTTP-Compliance 404 was a stale
+# and be used silently — an HTTP-Compliance 404 was once traced to a stale
 # ngx_pagespeed_module.so from a pre-merge build sitting on the runner. The
 # Linux Build job's "Upload CI artifacts" step records the producing commit in
 # metadata.json; if it disagrees with this run's GITHUB_SHA, wipe the staging
 # dir so the SHA-keyed the CI hub fetch below pulls the correct bundle. No-op when
 # metadata.json is absent (old/foreign bundle) — same behaviour as before.
-# Mirrors the #300 guard the packaging/native-asset consumers already apply
-# (ci.yml "Download CI artifacts for packaging"). Skip when GITHUB_SHA is unset
-# (local/dev invocation) so we never wipe based on an empty expected SHA.
+# Mirrors the same stale-bundle guard the packaging/native-asset consumers
+# already apply (ci.yml "Download CI artifacts for packaging"). Skip when
+# GITHUB_SHA is unset (local/dev invocation) so we never wipe based on an
+# empty expected SHA.
 if [[ "${GITHUB_SHA:-}" =~ ^[0-9a-f]{40}$ ]]; then
   "${SCRIPT_DIR}/invalidate-stale-artifacts.sh" "${SRC}/.ci-artifacts" "${GITHUB_SHA}"
 fi
@@ -37,7 +38,7 @@ fi
 # Retry with backoff to absorb transient network/SSH blips, but
 # distinguish "upstream never produced artifacts" (rsync exit 23/24,
 # directory missing) from "transient failure" — the former is a hard
-# failure that won't be fixed by retrying. See #285.
+# failure that won't be fixed by retrying.
 if [ ! -f "${SRC}/.ci-artifacts/factory_worker" ]; then
   echo "::warning::Local CI artifacts not found in ${SRC}/.ci-artifacts/ — fetching from the CI hub"
   mkdir -p "${SRC}/.ci-artifacts"
@@ -53,7 +54,7 @@ if [ ! -f "${SRC}/.ci-artifacts/factory_worker" ]; then
   # linux-x64 is ci.yml's push bundle (--config=ci, with nginx-version +
   # brotli); ci-periodic's x64 test jobs set linux-x64-periodic to fetch the
   # --config=opt bundle their Build (x64) publishes, so the two producers
-  # never read each other's binaries for the same SHA. See #933.
+  # never read each other's binaries for the same SHA.
   # CI_HUB_SSH / CI_HUB_ARTIFACTS_ROOT come from GitHub repository variables
   # (wired into every calling workflow's top-level env:); nothing
   # environment-specific is hardcoded here.
@@ -83,7 +84,7 @@ if [ ! -f "${SRC}/.ci-artifacts/factory_worker" ]; then
     #     without evidence of a class of failure that retry masks.
     if [ "$rc" -eq 23 ] || [ "$rc" -eq 24 ]; then
       echo "::error::No artifacts at ${RSYNC_REMOTE} (rsync exit ${rc})." >&2
-      echo "::error::The upstream Linux Build job for SHA ${GITHUB_SHA} did not publish artifacts — check that job's log first; this rsync failure is a cascade. See #285." >&2
+      echo "::error::The upstream Linux Build job for SHA ${GITHUB_SHA} did not publish artifacts — check that job's log first; this rsync failure is a cascade." >&2
       exit 1
     fi
     if [ "$attempt" -ge "$max_attempts" ]; then

@@ -6,7 +6,7 @@ Three layers:
 |---|---|---|---|
 | **Curated SBOM gate** | `tools/generate-sbom.py` → grype on `sbom/mod_pagespeed-2.1.spdx.json` | shipped | **yes** (release + per-PR hygiene) — the published license SBOM |
 | **Ground-truth blocking gate** | `tools/sbom/dep-scan.sh --fail-on medium --surfaces npm,cargo` | shipped | **yes** (per-PR + push, pinned DB) — npm + cargo |
-| **Image blocking gate** | `tools/sbom/dep-scan.sh --images --fail-on medium --surfaces npm,cargo,image` | shipped | **yes** (daily + dispatch, dep-scan.yml) — where built images exist |
+| **Image blocking gate** | `tools/sbom/dep-scan.sh --images --fail-on medium --surfaces npm,cargo,image` | shipped | **yes** (daily + dispatch) — where built images exist |
 | **Comprehensive scan + notify** | `tools/sbom/dep-scan.sh` (no `--fail-on`) + tracking issue | this dir | **no** on push/PR (live-DB sweep + files an issue on medium+) |
 
 The two blocking gates are **not double-gating**, they cover different package
@@ -28,9 +28,9 @@ Per-surface ratchet status (blocking vs report-only):
 
 | Surface | Input (deterministic) | Coverage | Gate status |
 |---|---|---|---|
-| **npm** | `tools/workbench/pnpm-lock.yaml` (committed) | covered | **BLOCKING** at medium+ (ci.yml `blocking-dep-scan`) |
+| **npm** | `tools/workbench/pnpm-lock.yaml` (committed) | covered | **BLOCKING** at medium+ (the per-PR blocking job) |
 | **cargo** | `lib/image/vtracer_ffi/Cargo.lock` (committed; the Bazel build consumes it via `crate_universe` `from_cargo`, so build == scan — genuine zero-drift) | covered | **BLOCKING** at medium+ |
-| **images** (`--images`) | the **built product images** from the local docker cache — `modpagespeed/worker`, `modpagespeed/nginx`, `pagespeed2-base-runtime`, `pagespeed2-dev` (apt + Chromium + `.so` layers) | covered, build-machine only | **BLOCKING** (dep-scan.yml, scheduled/dispatch — where the images exist; cold cache degrades to non-gating "not built"): medium-band findings gate when **fixable**, High/Critical gate **always** — see "Image gate shape" below. Exception: `pagespeed2-dev*` is **report-only** (owner decision 2026-06-11) — it is the CI build toolchain, never shipped to customers; its rows/findings stay in the severity table (marked ⚠) and the daily issue but never bump the gate. |
+| **images** (`--images`) | the **built product images** from the local docker cache — `modpagespeed/worker`, `modpagespeed/nginx`, `pagespeed2-base-runtime`, `pagespeed2-dev` (apt + Chromium + `.so` layers) | covered, build-machine only | **BLOCKING** (the scheduled/dispatch dependency-scan run — where the images exist; cold cache degrades to non-gating "not built"): medium-band findings gate when **fixable**, High/Critical gate **always** — see "Image gate shape" below. Exception: `pagespeed2-dev*` is **report-only** (owner decision 2026-06-11) — it is the CI build toolchain, never shipped to customers; its rows/findings stay in the severity table (marked ⚠) and the daily issue but never bump the gate. |
 | **.NET** | the shipped **`.nupkg`** (NOT a dev-time `dotnet restore` — that undercounts and the NativeAssets are injected by the release pipeline) | **deferred** to a post-build scan | report-only (when added) |
 | **transitive C/C++** | Bazel external repos — Envoy's `cpe`+`release_date`+NVD model | **deferred**, lands in `mod_pagespeed` (the Envoy tree) | report-only (when added) |
 
@@ -67,8 +67,8 @@ bash tools/sbom/dep-scan.sh --images    # + built product images (build machine)
 
 # Blocking — exits NON-ZERO on any finding at/above <sev> (after VEX
 # suppression) on the requested surfaces:
-bash tools/sbom/dep-scan.sh --fail-on medium --surfaces npm,cargo        # per-PR gate (ci.yml)
-bash tools/sbom/dep-scan.sh --images --fail-on medium --surfaces npm,cargo,image  # +images (dep-scan.yml schedule)
+bash tools/sbom/dep-scan.sh --fail-on medium --surfaces npm,cargo        # per-PR gate
+bash tools/sbom/dep-scan.sh --images --fail-on medium --surfaces npm,cargo,image  # +images (the scheduled gate)
 # outputs: sbom/scan/<source>.spdx.json, <source>.grype.json, SUMMARY.md
 ```
 
@@ -92,7 +92,7 @@ non-deterministically break an in-flight PR/release:
   (get the current archive from `grype db list -o raw`, update the JSON, re-run
   the gate).
 
-The **report-only** scan (`dep-scan.yml`) uses the **live** DB so newly disclosed
+The **report-only** scan (the daily scheduled run) uses the **live** DB so newly disclosed
 CVEs surface promptly on the daily run; its results are therefore not byte-
 reproducible run-to-run, which is fine for an alerting (non-gating) job.
 
@@ -120,15 +120,15 @@ blocking:
 2. Triage findings into `sbom/*.vex.json` — `not_affected` + justification, or
    bump the real ones.
 3. Once a surface is clean at medium+, add it to the blocking gate's
-   `--surfaces` (ci.yml `blocking-dep-scan`).
+   `--surfaces` in the per-PR blocking job.
 
 **Status:** **npm + cargo + images are now BLOCKING** at medium+.
-- **npm + cargo** gate per-PR/push (ci.yml `blocking-dep-scan`, pinned DB) and
+- **npm + cargo** gate per-PR/push (the per-PR blocking job, pinned DB) and
   are clean at medium+ (only sub-threshold Low findings remain). A future
   medium+ CVE in those committed lockfiles fails the PR. `vitest` was bumped
   3.2.4 → 4.x to clear `CVE-2026-47429` (GHSA-5xrq-8626-4rwp, Critical) so npm
   is clean for the gate.
-- **images** gate on the **scheduled / dispatch** dep-scan.yml run (the
+- **images** gate on the **scheduled / dispatch** dependency-scan run (the
   dedicated runner where the built `:latest` images live); a medium+ image CVE
   reddens that run and opens the `dependencies-cve` tracking issue. They are not
   gated per-PR because PRs never rebuild images.

@@ -24,8 +24,8 @@
 #      NEVER reaches tar.
 #   2. SELF-HEALING FALLBACK. If the local copy is missing, fails integrity,
 #      OR FAILS EXTRACTION (a verified file can still vanish -- or its DrvFs
-#      mount flap -- between `zstd -t` and `tar`: Linux Build lane, run
-#      29756918487, "Local tarball present and verified" then seconds later
+#      mount flap -- between `zstd -t` and `tar`: observed on the Linux Build
+#      lane logging "Local tarball present and verified" then, seconds later,
 #      "Cannot open: No such file or directory"), we re-fetch from the
 #      authoritative CI hub shared dir with retries + backoff, re-verifying
 #      each attempt. A flaky/partial/vanished local file heals from the
@@ -249,8 +249,8 @@ fetch_from_hub() {
 #   Extracts a tarball that has ALREADY passed verify_tarball into $DEST.
 #   Returns tar's (or the pipeline's, under pipefail) exit status so the
 #   caller can self-heal: a verified file can still vanish -- or its DrvFs
-#   mount flap -- between verification and extraction (Linux Build lane, run
-#   29756918487: "Local tarball present and verified" followed seconds later
+#   mount flap -- between verification and extraction (observed on the Linux
+#   Build lane: "Local tarball present and verified" followed seconds later
 #   by tar's "Cannot open: No such file or directory"). Called under `if`, so
 #   `set -e` is intentionally suppressed inside; the last command's status is
 #   the function's return value (pipefail keeps a zstd-side failure in the
@@ -290,8 +290,9 @@ fi
 
 # 2. Extract the verified local candidate. Verification passing is NOT the end
 #    of the story: the file can still vanish, or the DrvFs mount flap, between
-#    `zstd -t` and `tar` (run 29756918487). Treat a failed extraction exactly
-#    like a failed integrity check -- heal from the CI hub below.
+#    `zstd -t` and `tar` (the incident described above). Treat a failed
+#    extraction exactly like a failed integrity check -- heal from the CI hub
+#    below.
 if [ -n "$CHOSEN" ]; then
   if extract_workspace "$CHOSEN"; then
     log "Workspace extracted into ${DEST}"

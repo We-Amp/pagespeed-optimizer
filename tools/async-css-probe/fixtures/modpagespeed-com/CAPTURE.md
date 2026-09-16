@@ -15,10 +15,37 @@ automatic one.
 
 | File | Bytes | sha256 |
 |---|---|---|
-| `index.html` | 271634 | `0400f0a659229b25e02ddffbc1a20a12e8305e757b517fa663243300d2f0a96b` |
+| `index.html` | 271554 | `a5e1639acfd902f7b557f969283a4db77f9ab0af95f1f34afe2476b7b2991265` |
 | `BaseLayout.BV5EQjYn.css` | 115789 | `5c368d20b277bfd7d270a53bb61320419551ec8409214d54787a6c6262358bb0` |
 
 Captured **2026-08-01**.
+
+### Amended 2026-09-16 — surviving retired-licensing copy scrubbed, no re-capture
+
+Third deliberate non-refresh, same rules again: text-only edits, no element
+added or removed. The 2026-09-10 pass scrubbed the below-fold and FAQ
+instances of the retired licensing model but missed three that contradict
+the Apache-2.0 GA reality, now reworded:
+
+- The first hero annotation ("Install and run unlicensed … Production use
+  requires a commercial license — but the software never locks you out.")
+  now reads that the product is free and open source under Apache-2.0 with
+  every feature included and no license key.
+- The second hero annotation ("Licensed per site …") now reads Apache-2.0,
+  no per-image or per-request metering, support and trust are what is sold;
+  the pricing link stands.
+- The closing CTA line ("Free to run unlicensed — license for production,
+  cancel anytime.") now reads free and open source (Apache-2.0), commercial
+  support available.
+
+271634 -> 271554 bytes; the sha256 in the table above is updated to match.
+The hero annotations are fold-visible: the reword adds and removes no
+element and keeps the line structure, so no layout moves, but the reworded
+glyphs do differ from `goldens/fold-*.png` — the non-blocking rendered lane
+may flag until the owed re-capture (post-GA site deploy) regenerates the
+goldens. A script-island comment naming the "Unlicensed/Community" pricing
+ladder rows was considered and left: it describes pricing mechanics, not
+licensing terms.
 
 ### Amended 2026-09-10 — pricing and retired-licensing copy scrubbed, no re-capture
 
@@ -34,10 +61,13 @@ and the rendered lane's fold goldens stay valid. What changed, and why:
 - The `AggregateOffer` JSON-LD block stated tier prices, a price-validity date
   and licensing terms; the numbers are zeroed and the description is "Pricing
   to be announced."
-- Three sentences describing the retired licensing model ("never locks you
-  out", a commercial-license requirement, the 12-hour license heartbeat) were
-  removed from below-fold copy and one FAQ answer; the surrounding sentences
-  stand unchanged.
+- Three sentences describing the retired licensing model were removed from
+  below-fold copy and one FAQ answer; the surrounding sentences stand
+  unchanged. As the 2026-09-16 amendment above records, this pass missed the
+  same model in the two hero annotations and the closing CTA line — the
+  "never locks you out" sentence among them — so this bullet's original
+  wording over-claimed a complete removal; the 2026-09-16 pass scrubbed
+  those survivors.
 
 287068 -> 271634 bytes. A real refresh — new HTML against the redesigned
 site, possibly a new stylesheet filename, and regenerated goldens — is still
