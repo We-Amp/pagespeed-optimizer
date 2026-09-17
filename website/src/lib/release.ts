@@ -2,8 +2,10 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
 // Typed accessors for the release manifests synced from corp/releases/*.yaml
-// into src/content/releases-{1.1,2.0}/release.yaml by the corp workflow
-// `.github/workflows/sync-manifests-to-mps2.yml`.
+// into src/content/releases-{1.1,2.0,2.1}/release.yaml by the corp workflow
+// `.github/workflows/sync-manifests-to-mps2.yml` (§7). The 2.1
+// manifest (the converged line, ) ships seeded in-tree until the sync
+// workflow gains the 2.1 copy step.
 //
 // Astro pages import `getRelease(line)` to fetch the manifest and
 // `artifactUrl(rel, channel, arch)` to render an absolute download URL with
@@ -11,10 +13,10 @@
 
 import { getEntry } from 'astro:content';
 
-type Line = '1.1' | '2.0';
+type Line = '1.1' | '2.0' | '2.1';
 
 export async function getRelease(line: Line) {
-  const collection = `releases-${line}` as 'releases-1.1' | 'releases-2.0';
+  const collection = `releases-${line}` as 'releases-1.1' | 'releases-2.0' | 'releases-2.1';
   const entry = await getEntry(collection, 'release');
   if (!entry) {
     throw new Error(

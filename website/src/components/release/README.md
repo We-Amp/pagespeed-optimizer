@@ -7,9 +7,9 @@ by the corp `sync-manifests-to-mps2` workflow —).
 **Authoring rule:** every version-coupled string on the website must flow
 through `getRelease()` (typed access) or one of these components. The
 CI step "Guard against version-pinned URLs in non-frozen content" in
-`.github/workflows/ci.yml` rejects any `releases/vX.Y.Z/`
+`.github/workflows/ci.yml` (Stage 7) rejects any `releases/vX.Y.Z/`
 literal in `src/content/`, `src/pages/`, `src/components/`, or
-`src/layouts/` (blog content is exempt — frozen content).
+`src/layouts/` (blog content is exempt — content).
 
 ## Available components
 
