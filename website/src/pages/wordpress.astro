@@ -1,0 +1,372 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { offerJsonLd } from '../data/offer-jsonld';
+import { V1_LINE, V2_GA_DATE, LICENSE_CLAUSE } from '../data/product-facts.mjs';
+import { stripHtml } from '../data/faq-shared';
+
+// /wordpress/ — landing page for the WordPress control-plane plugin
+// (/ Track A4). Also the Plugin URI target declared in the
+// plugin header, so it must resolve 200. The plugin is a pure-PHP control
+// plane: it adds Cache-Control to anonymous pages and calls the ModPageSpeed
+// purge API on content changes. It is NOT a standalone cache. Scoped honestly,
+// including the real 1.1-vs-2.0 difference (1.1 does not cache HTML).
+//
+// Display name on WordPress.org: "WeAmp Cache Control for ModPageSpeed"
+// (slug weamp-cache-control-for-modpagespeed). The "<brand> … for <project>"
+// structure is the directory-blessed pattern; this page's trademark footer
+// makes the WordPress/WooCommerce non-affiliation explicit.
+
+const WP_SLUG = 'weamp-cache-control-for-modpagespeed';
+const WP_URL = `https://wordpress.org/plugins/${WP_SLUG}/`;
+
+const faqEntries = [
+  {
+    q: 'Does this plugin cache pages itself?',
+    a: `No. Caching happens server-side: in ModPageSpeed 2.0 itself, or — on the ${V1_LINE} line — in a front cache (nginx <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">proxy_cache</code>, Varnish, or a CDN). The plugin only sets cache headers and sends purge requests. WordPress does not send <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">Cache-Control: public</code> on anonymous pages by default; the plugin adds it, with explicit bypasses for logged-in users, WooCommerce cart, checkout and account pages, search, feeds, and 404s.`,
+  },
+  {
+    q: 'I run mod_pagespeed / ngx_pagespeed 1.1 — do I get full-page caching?',
+    a: `Not from the module alone. The ${V1_LINE} line is a streaming rewriter; it does not cache HTML (its in-place cache holds optimized images, CSS, and JavaScript). For full-page caching on ${V1_LINE}, put an external cache in front (nginx <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">proxy_cache</code>, Varnish, or a CDN) and set <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">ModifyCachingHeaders off</code> so the plugin's headers reach that cache. On ${V1_LINE}, the plugin's purge calls evict optimized sub-resources and metadata, not HTML pages.`,
+  },
+  {
+    q: 'Does it work without ModPageSpeed installed?',
+    a: `No. ModPageSpeed must be running on your web server for the plugin to do anything — it is a control panel for the server module, not a <a class="text-interactive hover:text-interactive-hover underline" href="/vs/wp-rocket/">standalone WordPress caching plugin like WP Rocket</a>. The setup wizard detects your server and points you at the installation docs if none is found.`,
+  },
+  {
+    q: 'How does it keep the cache fresh?',
+    a: `It calls the ModPageSpeed purge API when content changes: publishing, updating, or deleting a post; comment changes; WooCommerce stock changes; and term or theme-setting changes. Purge values are always absolute URLs, and wildcard purges are refused outright to avoid an accidental full-cache flush.`,
+  },
+  {
+    q: 'Which ModPageSpeed versions are supported?',
+    a: `mod_pagespeed ${V1_LINE} (v${V1_LINE}.0+r3 or later) or ModPageSpeed 2.0 (v2.0.0 or later). The plugin auto-detects which line is running and adjusts its behavior accordingly.`,
+  },
+];
+
+const jsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'WeAmp Cache Control for ModPageSpeed',
+    applicationCategory: 'WebApplication',
+    operatingSystem: 'WordPress',
+    description: `WordPress control panel for ModPageSpeed full-page caching: adds Cache-Control headers to anonymous pages, purges the ModPageSpeed cache on publish, update, and delete, and exposes per-post-type TTLs in WP Admin and WP-CLI. Requires ModPageSpeed on the server.`,
+    softwareHelp: 'https://modpagespeed.com/docs/cache-control/',
+    downloadUrl: WP_URL,
+    offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
+    publisher: {
+      '@type': 'Organization',
+      name: 'We-Amp B.V.',
+      url: 'https://www.we-amp.com/',
+    },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqEntries.map((entry) => ({
+      '@type': 'Question',
+      name: entry.q,
+      acceptedAnswer: { '@type': 'Answer', text: stripHtml(entry.a) },
+    })),
+  },
+];
+---
+
+<BaseLayout
+  title="ModPageSpeed WordPress plugin: full-page caching and purge"
+  description="Free GPL-2.0 WordPress plugin for ModPageSpeed: adds Cache-Control to anonymous pages so the server can cache full HTML, and purges that cache the moment you publish."
+  jsonLd={jsonLd}
+  breadcrumbLeafName="WordPress"
+>
+  <article class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
+      <a href="/" class="hover:text-text-body">Home</a>
+      <span class="mx-1">/</span>
+      <span>WordPress</span>
+    </nav>
+
+    <p class="eyebrow mt-6">WordPress plugin</p>
+    <h1 class="mt-3 h1-hero text-text-body">
+      Full-page caching for WordPress, driven by ModPageSpeed
+    </h1>
+    <p class="lede mt-6 max-w-3xl">
+      WordPress does not send <code class="rounded bg-bg-elevated px-1 py-0.5 text-base"
+        >Cache-Control: public</code
+      > on anonymous pages, so your ModPageSpeed server never gets to cache the HTML it serves.
+      <strong class="font-semibold text-text-body"
+        >WeAmp Cache Control for ModPageSpeed</strong
+      > is the control panel that closes that gap: it sets the right cache headers and purges the
+      ModPageSpeed cache the moment your content changes. The caching itself happens server-side, in
+      the module you already run.
+    </p>
+
+    <div class="mt-8 flex flex-wrap gap-3">
+      <a href="#install" class="btn-primary" data-umami-event="cta_wordpress_install">
+        How to install
+      </a>
+      <a
+        href="/docs/cache-control/"
+        class="btn-secondary"
+        data-umami-event="cta_wordpress_docs"
+      >
+        Read the caching docs
+        <span aria-hidden="true">&rarr;</span>
+      </a>
+    </div>
+    <p class="mt-3 text-sm text-text-annotation">
+      Free and GPL-2.0. Live in the <a
+        href={WP_URL}
+        class="text-interactive hover:text-interactive-hover underline"
+        >WordPress.org plugin directory</a
+      >.
+    </p>
+
+    <!-- What it does -->
+    <section class="mt-14">
+      <h2 class="h2-section text-text-body">What the plugin does</h2>
+      <p class="mt-4 text-text-body">
+        It is a control plane, not a cache. Three responsibilities, all server-aware:
+      </p>
+      <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
+        <div
+          class="rounded-2xl border border-border bg-bg-elevated p-6"
+        >
+          <p class="text-xs font-semibold uppercase tracking-wide text-interactive">
+            Enables full-page caching
+          </p>
+          <p class="mt-3 text-sm text-text-muted">
+            Adds <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs"
+              >Cache-Control: public, max-age=N</code
+            > to anonymous responses, with automatic bypasses for logged-in users, WooCommerce cart,
+            checkout and account pages, search, feeds, and 404s.
+          </p>
+        </div>
+        <div
+          class="rounded-2xl border border-border bg-bg-elevated p-6"
+        >
+          <p class="text-xs font-semibold uppercase tracking-wide text-interactive">
+            Keeps the cache fresh
+          </p>
+          <p class="mt-3 text-sm text-text-muted">
+            Calls the ModPageSpeed purge API on publish, update, delete, comment changes, WooCommerce
+            stock changes, and term or theme-setting changes. Wildcard purges are refused, so a stray
+            value can't flush the whole cache.
+          </p>
+        </div>
+        <div
+          class="rounded-2xl border border-border bg-bg-elevated p-6"
+        >
+          <p class="text-xs font-semibold uppercase tracking-wide text-interactive">
+            Gives you control
+          </p>
+          <p class="mt-3 text-sm text-text-muted">
+            Per-post-type TTLs, a cookie bypass list, excluded URL patterns, a first-run setup
+            wizard, and <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs"
+              >wp pagespeed flush|status|test-connection</code
+            > on the command line.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Honesty: 1.1 vs 2.0 -->
+    <section class="mt-16">
+      <h2 class="h2-section text-text-body">
+        Works with both ModPageSpeed lines &mdash; with one real difference
+      </h2>
+      <p class="mt-4 text-text-body">
+        The plugin auto-detects which ModPageSpeed line your server runs and behaves accordingly.
+        How full-page caching lands depends on which line you run &mdash; the difference is real, so
+        here it is exactly.
+      </p>
+      <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+        <div
+          class="rounded-2xl border border-border bg-bg-elevated p-6"
+        >
+          <p class="text-xs font-semibold uppercase tracking-wide text-interactive">
+            ModPageSpeed 2.0
+          </p>
+          <p class="mt-3 text-sm text-text-muted">
+            2.0 caches full HTML pages itself. The plugin's headers and purge calls drive the
+            worker's page cache directly &mdash; no extra layer required. This is the path that needs
+            no front cache.
+          </p>
+        </div>
+        <div
+          class="rounded-2xl border border-border bg-bg-elevated p-6"
+        >
+          <p class="text-xs font-semibold uppercase tracking-wide text-interactive">
+            mod_pagespeed / ngx_pagespeed {V1_LINE}
+          </p>
+          <p class="mt-3 text-sm text-text-muted">
+            The {V1_LINE} line is a streaming rewriter; it does not cache HTML. Full-page caching
+            needs a front cache (nginx <code
+              class="rounded bg-bg-elevated px-1 py-0.5 text-xs">proxy_cache</code
+            >, Varnish, or a CDN) plus <code
+              class="rounded bg-bg-elevated px-1 py-0.5 text-xs"
+              >ModifyCachingHeaders off</code
+            >. The plugin's purge calls there evict optimized sub-resources, not pages.
+          </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- Install -->
+    <section id="install" class="mt-16 scroll-mt-24">
+      <h2 class="h2-section text-text-body">Install</h2>
+      <ol class="mt-6 space-y-4 text-text-body">
+        <li class="flex gap-3">
+          <span class="font-mono text-sm text-interactive">1.</span>
+          <span
+            >Install ModPageSpeed on your web server first &mdash; mod_pagespeed {V1_LINE} (v{V1_LINE}.0+r3
+            or later) or ModPageSpeed 2.0 (GA {V2_GA_DATE}). See the
+            <a
+              href="/download/"
+              class="text-interactive hover:text-interactive-hover underline">install guide</a
+            >.</span
+          >
+        </li>
+        <li class="flex gap-3">
+          <span class="font-mono text-sm text-interactive">2.</span>
+          <span
+            >Install it from the <a
+              href={WP_URL}
+              class="text-interactive hover:text-interactive-hover underline"
+              >WordPress.org plugin directory</a
+            >. In WordPress admin, go to <strong class="font-semibold">Plugins &rarr; Add New</strong>,
+            search for <strong class="font-semibold">WeAmp Cache Control for ModPageSpeed</strong>,
+            install and activate. (Prefer to install by hand? Download the zip from the directory and
+            upload it via <strong class="font-semibold">Plugins &rarr; Add New &rarr; Upload Plugin</strong>.)</span
+          >
+        </li>
+        <li class="flex gap-3">
+          <span class="font-mono text-sm text-interactive">3.</span>
+          <span
+            >Open <strong class="font-semibold">Settings &rarr; ModPageSpeed</strong> and run the
+            setup wizard: detect the server, enter the admin API URL, test the connection, apply the
+            nginx snippet it hands you, enable caching, and run a test purge.</span
+          >
+        </li>
+      </ol>
+      <p class="mt-6 text-sm text-text-annotation">
+        For 2.0, the worker admin API must be enabled (<code
+          class="rounded bg-bg-elevated px-1 py-0.5 text-xs">--api-port</code
+        >). For correct logged-in behavior on nginx, the wizard provides a copy-paste cookie-bypass
+        map block and verifies it.
+      </p>
+    </section>
+
+    <!-- FAQ -->
+    <section class="mt-16">
+      <h2 class="h2-section text-text-body">
+        WordPress caching with ModPageSpeed: common questions
+      </h2>
+      <dl class="mt-8 space-y-6">
+        {
+          faqEntries.map((entry) => (
+            <div class="border-b border-border pb-6">
+              <dt class="font-semibold text-text-body">{entry.q}</dt>
+              <dd class="mt-2 text-sm text-text-muted" set:html={entry.a} />
+            </div>
+          ))
+        }
+      </dl>
+    </section>
+
+    <!-- CTA -->
+    <section class="mt-16">
+      <div
+        class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-8"
+      >
+        <h2 class="h2-section text-text-body">Add it to your WordPress site</h2>
+        <p class="mt-3 text-text-body">
+          Install ModPageSpeed on the server, activate the plugin, and run the wizard. Anonymous pages
+          start carrying cache headers and the cache stays fresh as you publish.
+        </p>
+        <div class="mt-6 flex flex-wrap gap-3">
+          <a href="#install" class="btn-primary" data-umami-event="cta_wordpress_install_footer">
+            How to install
+          </a>
+          <a href="/pricing/" class="btn-secondary" data-umami-event="cta_wordpress_pricing">
+            See pricing
+            <span aria-hidden="true">&rarr;</span>
+          </a>
+        </div>
+        <p class="mt-3 text-xs text-text-annotation">
+          The plugin is free and GPL-2.0, and mod_pagespeed itself is {LICENSE_CLAUSE} &mdash; free
+          in development and in production.
+        </p>
+      </div>
+    </section>
+
+    <!-- See also -->
+    <section class="mt-16 border-t border-border pt-8">
+      <p class="text-base font-semibold uppercase tracking-wide text-text-body">
+        See also:
+      </p>
+      <ul class="mt-4 space-y-2 text-sm">
+        <li>
+          <a
+            href="/docs/cache-control/"
+            class="text-interactive hover:text-interactive-hover underline">Cache-Control and purging</a
+          > &mdash; how full-page caching and invalidation work in ModPageSpeed
+        </li>
+        <li>
+          <a href="/download/" class="text-interactive hover:text-interactive-hover underline"
+            >Install ModPageSpeed</a
+          > &mdash; the server module the plugin drives
+        </li>
+        <li>
+          <a href="/pricing/" class="text-interactive hover:text-interactive-hover underline"
+            >Pricing</a
+          > &mdash; per-site licensing for the server module
+        </li>
+      </ul>
+
+      <p class="mt-8 text-base font-semibold uppercase tracking-wide text-text-body">
+        WordPress performance:
+      </p>
+      <ul class="mt-4 space-y-2 text-sm">
+        <li>
+          <a
+            href="/blog/single-url-cache-purge-optimizing-proxy/"
+            class="text-interactive hover:text-interactive-hover underline"
+            >What a purge-on-publish actually does</a
+          > &mdash; the single-URL cache purge the plugin calls on every edit
+        </li>
+        <li>
+          <a
+            href="/blog/wordpress-server-side-page-cache-plugin/"
+            class="text-interactive hover:text-interactive-hover underline"
+            >Server-side page caching for WordPress</a
+          > &mdash; why the cache belongs on the server, not in a PHP plugin
+        </li>
+        <li>
+          <a
+            href="/blog/fix-lcp-wordpress-2026/"
+            class="text-interactive hover:text-interactive-hover underline">Fix LCP on WordPress</a
+          >, <a
+            href="/blog/fix-cls-wordpress-2026/"
+            class="text-interactive hover:text-interactive-hover underline">fix CLS</a
+          >, and <a
+            href="/blog/fix-inp-wordpress-2026/"
+            class="text-interactive hover:text-interactive-hover underline">fix INP</a
+          > &mdash; Core Web Vitals at the server layer
+        </li>
+        <li>
+          <a
+            href="/1.1/docs/caching/"
+            class="text-interactive hover:text-interactive-hover underline"
+            >mod_pagespeed 1.15 caching</a
+          > &mdash; cache backends and the front-cache setup for the 1.15 line
+        </li>
+      </ul>
+
+      <p class="mt-8 text-xs text-text-annotation">
+        WordPress is a trademark of the WordPress Foundation, and WooCommerce is a trademark of
+        Automattic Inc.; both are referenced here only to describe compatibility. We-Amp B.V. is not
+        affiliated with or endorsed by the WordPress Foundation or Automattic. ModPageSpeed is
+        developed and published by We-Amp B.V.
+      </p>
+    </section>
+  </article>
+</BaseLayout>

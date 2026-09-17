@@ -1,0 +1,115 @@
+---
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2024-2026 We-Amp B.V.
+//
+// Renders the full Apache + IIS download table for a release, sourced from
+// the corp release manifest. Replaces the hand-maintained markdown
+// table in docs-1.1/downloads.md so reships only edit corp/releases/1.1.yaml.
+
+import { getRelease, artifactUrl, archiveUrl } from '../../lib/release';
+
+interface Props {
+  line: '1.1' | '2.0';
+}
+
+const { line } = Astro.props;
+const rel = await getRelease(line);
+
+// The displayed filename must match the GA-alias href the manifest renders
+// (r0 / -0.), NOT the build revision — derive it from artifactUrl so the two
+// can never drift. See releases-1.1/release.yaml `artifacts:` for the pinning.
+const fileNameOf = (url: string) => url.split('/').pop() ?? url;
+
+const apacheRows = [
+  {
+    format: '.deb',
+    arch: 'amd64',
+    href: artifactUrl(rel, 'deb', 'amd64'),
+    name: fileNameOf(artifactUrl(rel, 'deb', 'amd64')),
+  },
+  {
+    format: '.deb',
+    arch: 'arm64',
+    href: artifactUrl(rel, 'deb', 'arm64'),
+    name: fileNameOf(artifactUrl(rel, 'deb', 'arm64')),
+  },
+  {
+    format: '.rpm',
+    arch: 'x86_64',
+    href: artifactUrl(rel, 'rpm', 'x86_64'),
+    name: fileNameOf(artifactUrl(rel, 'rpm', 'x86_64')),
+  },
+  {
+    format: '.rpm',
+    arch: 'aarch64',
+    href: artifactUrl(rel, 'rpm', 'aarch64'),
+    name: fileNameOf(artifactUrl(rel, 'rpm', 'aarch64')),
+  },
+  {
+    format: '.so',
+    arch: 'x86_64',
+    href: archiveUrl(rel, 'libmod_pagespeed-linux-x86_64.so'),
+    name: 'libmod_pagespeed-linux-x86_64.so',
+  },
+  {
+    format: '.so',
+    arch: 'aarch64',
+    href: archiveUrl(rel, 'libmod_pagespeed-linux-aarch64.so'),
+    name: 'libmod_pagespeed-linux-aarch64.so',
+  },
+];
+
+const iisOsLabel = `${rel.compat.iis.os[0]}+ (IIS ${rel.compat.iis.iis_versions.join('/')}), 64-bit only`;
+const iisName = `pagespeed-iis-${rel.release.semver}-win-x64.msi`;
+const iisHref = artifactUrl(rel, 'msi', 'win_x64');
+---
+
+<h3>Apache (Linux)</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Format</th>
+      <th>Architecture</th>
+      <th>Download</th>
+    </tr>
+  </thead>
+  <tbody>
+    {
+      apacheRows.map((row) => (
+        <tr>
+          <td>
+            <code>{row.format}</code>
+          </td>
+          <td>{row.arch}</td>
+          <td>
+            <a href={row.href}>{row.name}</a>
+          </td>
+        </tr>
+      ))
+    }
+  </tbody>
+</table>
+
+<h3>IIS (Windows)</h3>
+
+<table>
+  <thead>
+    <tr>
+      <th>Format</th>
+      <th>Contents</th>
+      <th>Download</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>
+        <code>.msi</code>
+      </td>
+      <td>{iisOsLabel}</td>
+      <td>
+        <a href={iisHref}>{iisName}</a>
+      </td>
+    </tr>
+  </tbody>
+</table>

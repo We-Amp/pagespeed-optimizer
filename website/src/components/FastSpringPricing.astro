@@ -1,0 +1,532 @@
+---
+/**
+ * Build-time regional pricing with client-side geo-detection.
+ *
+ * Drop-in replacement for the SBL-based pricing loader. Embeds the full
+ * pricing table at build time and detects the visitor's country via a
+ * synchronous cascade (timezone → GeoIP correction → language → US fallback).
+ *
+ * Supported data-fs-price values:
+ *   "monthly"               — formatted monthly price (e.g. "$99.00", "58,31 €")
+ *   "annual-monthly"        — formatted per-month of annual plan
+ *   "annual-total"          — formatted annual total
+ *   "annual"                — alias for "annual-monthly"
+ *
+ * Each span should contain a USD fallback as default text content, e.g.:
+ *   <span data-fs-price="monthly">$99</span>
+ *
+ * Rounded variant: data-fs-price-rounded supports the same values but
+ * always renders the price as a rounded integer in localized currency,
+ * bypassing FastSpring's per-country `display` string (which carries
+ * cents for some EU jurisdictions). Use in marketing copy where the
+ * exact tax-inclusive price isn't the point (e.g., a "From $99/site/yr" hero).
+ * Prices on conversion surfaces (cards, checkout buttons) should keep
+ * data-fs-price so the visible number matches checkout.
+ *
+ * Per-plan SKU resolution (the per-site ladder):
+ *   Plan keys: "starter-site" (site on up to 2 servers) and "business-site"
+ *   (unlimited servers per site, the flagship and DEFAULT_PLAN). Pricing is
+ *   per site, never per server — unit copy next to these spans must read
+ *   "per site" / "/site/yr". Legacy keys "mps1-pro" / "mps2-pro" still
+ *   resolve during the transition so in-field deep links keep working.
+ *   By default each [data-fs-price] span uses DEFAULT_PLAN (business-site).
+ *   To scope a span to a specific plan, wrap it in an ancestor element with
+ *   data-fs-plan="<plan-key>" — e.g., a pricing card may use:
+ *     <div data-fs-plan="starter-site">
+ *       <span data-fs-price="monthly">$12</span>
+ *     </div>
+ *   The lookup resolves "<plan>-monthly" / "<plan>-annual" SKU keys in the
+ *   embedded pricing table. Spans without a wrapping [data-fs-plan] use
+ *   DEFAULT_PLAN.
+ *
+ * Exposes:
+ *   window.__fsPricing      — structured pricing object for DEFAULT_PLAN
+ *   window.__fsPricingData  — full pricing table (for country selector)
+ *   window.__fsSetCountry   — function to manually set country
+ *   "fs-pricing-ready"      — CustomEvent on window, detail = DEFAULT_PLAN pricing
+ *
+ * VAT label support:
+ *   Elements with [data-fs-vat-label] are updated to the short parenthetical
+ *   "incl. VAT" (VAT-inclusive jurisdictions where FastSpring is registered)
+ *   or "excl. VAT" (everywhere else). The short form is designed to sit
+ *   adjacent to a price across varying layouts (table cells, hero CTAs, cards).
+ */
+import pricingData from '../data/fastspring-pricing.json';
+const safePricingJson = JSON.stringify(pricingData.products).replace(/</g, '\\u003c');
+---
+
+<Fragment
+  set:html={`<script type="application/json" id="fs-pricing-data">${safePricingJson}</script>`}
+/>
+
+{
+  /* F9: stabilize price-span layout so the USD-fallback → localized-price swap
+    (and the no-JS state) doesn't reflow surrounding copy. inline-block keeps
+    each price in its own layout box so a width change can't ripple along the
+    line; tabular-nums keeps digit widths uniform between the fallback and the
+    resolved value. Cosmetic only — no behavioral change. */
+}
+<style is:global>
+  [data-fs-price],
+  [data-fs-price-rounded] {
+    display: inline-block;
+    font-variant-numeric: tabular-nums;
+  }
+</style>
+
+<script is:inline>
+  (function () {
+    'use strict';
+
+    // -------------------------------------------------------------------------
+    // Config
+    // -------------------------------------------------------------------------
+    // Default plan used when a [data-fs-price] span has no [data-fs-plan]
+    // ancestor. Resolves to "<plan>-monthly" / "<plan>-annual" SKU keys in PT.
+    // Ladder plan keys: 'starter-site', 'business-site' (flagship).
+    // Legacy keys 'mps1-pro' / 'mps2-pro' remain resolvable during transition.
+    var DEFAULT_PLAN = 'business-site';
+    var LS_KEY = 'fs-country';
+    var GEO_URL = '/api/geo';
+
+    function monthlySku(plan) {
+      return plan + '-monthly';
+    }
+    function annualSku(plan) {
+      return plan + '-annual';
+    }
+
+    // -------------------------------------------------------------------------
+    // Timezone → ISO 3166-1 alpha-2 country code mapping.
+    // Covers EU (distinct VAT rates), major economies, and high-VPN regions.
+    // -------------------------------------------------------------------------
+    var TZ = {
+      'Europe/Vienna': 'AT',
+      'Europe/Brussels': 'BE',
+      'Europe/Sofia': 'BG',
+      'Europe/Zagreb': 'HR',
+      'Asia/Nicosia': 'CY',
+      'Asia/Famagusta': 'CY',
+      'Europe/Prague': 'CZ',
+      'Europe/Copenhagen': 'DK',
+      'Europe/Tallinn': 'EE',
+      'Europe/Helsinki': 'FI',
+      'Europe/Paris': 'FR',
+      'Europe/Berlin': 'DE',
+      'Europe/Busingen': 'DE',
+      'Europe/Athens': 'GR',
+      'Europe/Budapest': 'HU',
+      'Europe/Dublin': 'IE',
+      'Europe/Rome': 'IT',
+      'Europe/Riga': 'LV',
+      'Europe/Vilnius': 'LT',
+      'Europe/Luxembourg': 'LU',
+      'Europe/Malta': 'MT',
+      'Europe/Amsterdam': 'NL',
+      'Europe/Warsaw': 'PL',
+      'Europe/Lisbon': 'PT',
+      'Atlantic/Madeira': 'PT',
+      'Atlantic/Azores': 'PT',
+      'Europe/Bucharest': 'RO',
+      'Europe/Bratislava': 'SK',
+      'Europe/Ljubljana': 'SI',
+      'Europe/Madrid': 'ES',
+      'Atlantic/Canary': 'ES',
+      'Africa/Ceuta': 'ES',
+      'Europe/Stockholm': 'SE',
+      'Europe/London': 'GB',
+      'Europe/Belfast': 'GB',
+      'Europe/Zurich': 'CH',
+      'Europe/Oslo': 'NO',
+      'Atlantic/Reykjavik': 'IS',
+      'Europe/Belgrade': 'RS',
+      'Europe/Istanbul': 'TR',
+      'Europe/Kiev': 'UA',
+      'Europe/Kyiv': 'UA',
+      'Europe/Moscow': 'RU',
+      'Europe/Kaliningrad': 'RU',
+      'Europe/Minsk': 'BY',
+      'Europe/Chisinau': 'MD',
+      'Europe/Andorra': 'AD',
+      'Europe/Monaco': 'MC',
+      'America/New_York': 'US',
+      'America/Chicago': 'US',
+      'America/Denver': 'US',
+      'America/Los_Angeles': 'US',
+      'America/Phoenix': 'US',
+      'America/Anchorage': 'US',
+      'Pacific/Honolulu': 'US',
+      'America/Detroit': 'US',
+      'America/Boise': 'US',
+      'America/Indiana/Indianapolis': 'US',
+      'America/Indianapolis': 'US',
+      'America/Juneau': 'US',
+      'America/Kentucky/Louisville': 'US',
+      'America/Louisville': 'US',
+      'America/Menominee': 'US',
+      'America/Nome': 'US',
+      'America/Sitka': 'US',
+      'America/Yakutat': 'US',
+      'America/Adak': 'US',
+      'America/Toronto': 'CA',
+      'America/Vancouver': 'CA',
+      'America/Edmonton': 'CA',
+      'America/Winnipeg': 'CA',
+      'America/Halifax': 'CA',
+      'America/St_Johns': 'CA',
+      'America/Regina': 'CA',
+      'America/Mexico_City': 'MX',
+      'America/Cancun': 'MX',
+      'America/Monterrey': 'MX',
+      'America/Tijuana': 'MX',
+      'America/Hermosillo': 'MX',
+      'America/Mazatlan': 'MX',
+      'America/Sao_Paulo': 'BR',
+      'America/Bahia': 'BR',
+      'America/Belem': 'BR',
+      'America/Fortaleza': 'BR',
+      'America/Recife': 'BR',
+      'America/Manaus': 'BR',
+      'America/Argentina/Buenos_Aires': 'AR',
+      'America/Buenos_Aires': 'AR',
+      'America/Argentina/Cordoba': 'AR',
+      'America/Cordoba': 'AR',
+      'America/Santiago': 'CL',
+      'Pacific/Easter': 'CL',
+      'America/Bogota': 'CO',
+      'America/Lima': 'PE',
+      'America/Caracas': 'VE',
+      'America/Guayaquil': 'EC',
+      'America/Montevideo': 'UY',
+      'America/Asuncion': 'PY',
+      'America/La_Paz': 'BO',
+      'America/Panama': 'PA',
+      'America/Costa_Rica': 'CR',
+      'America/Guatemala': 'GT',
+      'America/Havana': 'CU',
+      'America/Jamaica': 'JM',
+      'America/Santo_Domingo': 'DO',
+      'America/Puerto_Rico': 'PR',
+      'Asia/Tokyo': 'JP',
+      'Asia/Seoul': 'KR',
+      'Asia/Shanghai': 'CN',
+      'Asia/Hong_Kong': 'HK',
+      'Asia/Taipei': 'TW',
+      'Asia/Kolkata': 'IN',
+      'Asia/Calcutta': 'IN',
+      'Asia/Singapore': 'SG',
+      'Asia/Bangkok': 'TH',
+      'Asia/Jakarta': 'ID',
+      'Asia/Makassar': 'ID',
+      'Asia/Kuala_Lumpur': 'MY',
+      'Asia/Kuching': 'MY',
+      'Asia/Manila': 'PH',
+      'Asia/Ho_Chi_Minh': 'VN',
+      'Asia/Saigon': 'VN',
+      'Asia/Dhaka': 'BD',
+      'Asia/Karachi': 'PK',
+      'Asia/Colombo': 'LK',
+      'Asia/Kathmandu': 'NP',
+      'Asia/Katmandu': 'NP',
+      'Asia/Tashkent': 'UZ',
+      'Asia/Almaty': 'KZ',
+      'Asia/Baku': 'AZ',
+      'Asia/Tbilisi': 'GE',
+      'Asia/Yerevan': 'AM',
+      'Asia/Dubai': 'AE',
+      'Asia/Riyadh': 'SA',
+      'Asia/Jerusalem': 'IL',
+      'Asia/Beirut': 'LB',
+      'Asia/Baghdad': 'IQ',
+      'Asia/Tehran': 'IR',
+      'Asia/Kuwait': 'KW',
+      'Asia/Qatar': 'QA',
+      'Asia/Amman': 'JO',
+      'Australia/Sydney': 'AU',
+      'Australia/Melbourne': 'AU',
+      'Australia/Brisbane': 'AU',
+      'Australia/Perth': 'AU',
+      'Australia/Adelaide': 'AU',
+      'Australia/Hobart': 'AU',
+      'Australia/Darwin': 'AU',
+      'Pacific/Auckland': 'NZ',
+      'Pacific/Chatham': 'NZ',
+      'Africa/Johannesburg': 'ZA',
+      'Africa/Cairo': 'EG',
+      'Africa/Lagos': 'NG',
+      'Africa/Nairobi': 'KE',
+      'Africa/Casablanca': 'MA',
+      'Africa/Tunis': 'TN',
+      'Africa/Algiers': 'DZ',
+      'Africa/Accra': 'GH',
+    };
+
+    // VAT/GST-inclusive countries: jurisdictions where FastSpring is registered
+    // for and collects local consumption tax in the displayed gross price.
+    // EU 27 + UK + EEA/EFTA (NO, IS) + AU + NZ, plus
+    // CH (MWST 8.1%), JP (consumption tax 10%), AE (VAT 5%).
+    var VAT =
+      /^(AT|BE|BG|HR|CY|CZ|DK|EE|FI|FR|DE|GR|HU|IE|IT|LV|LT|LU|MT|NL|PL|PT|RO|SK|SI|ES|SE|GB|NO|IS|AU|NZ|CH|JP|AE)$/;
+
+    // -------------------------------------------------------------------------
+    // Parse embedded pricing table
+    // -------------------------------------------------------------------------
+    var PT;
+    try {
+      PT = JSON.parse(document.getElementById('fs-pricing-data').textContent);
+    } catch (e) {
+      PT = null;
+    }
+    if (!PT) return;
+
+    // -------------------------------------------------------------------------
+    // Helpers
+    // -------------------------------------------------------------------------
+    function fmt(amount, currency) {
+      if (typeof amount !== 'number' || isNaN(amount)) return null;
+      try {
+        return new Intl.NumberFormat(undefined, {
+          style: 'currency',
+          currency: currency,
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 0,
+        }).format(Math.round(amount));
+      } catch (e) {
+        return '$' + Math.round(amount);
+      }
+    }
+
+    // -------------------------------------------------------------------------
+    // Country detection cascade
+    // -------------------------------------------------------------------------
+
+    // Step 0: localStorage override (manual country selector)
+    function getManualCountry() {
+      try {
+        return localStorage.getItem(LS_KEY);
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // Step 1: Timezone → country (synchronous, ~85-90% accuracy)
+    function getTimezoneCountry() {
+      try {
+        var tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+        return tz ? TZ[tz] || null : null;
+      } catch (e) {
+        return null;
+      }
+    }
+
+    // Step 3: navigator.language region subtag (~60-70% accuracy)
+    function getLanguageCountry() {
+      try {
+        var lang = navigator.language || '';
+        var parts = lang.split('-');
+        if (parts.length >= 2) {
+          var region = parts[parts.length - 1].toUpperCase();
+          if (region.length === 2) return region;
+        }
+      } catch (e) {}
+      return null;
+    }
+
+    // -------------------------------------------------------------------------
+    // Price resolution
+    // -------------------------------------------------------------------------
+    // Resolve {monthly, annual, country} prices for a given plan and country.
+    // Falls through to country='US' on misses; returns null if plan absent.
+    function resolveForCountry(cc, plan) {
+      if (!cc || !plan) return null;
+      var monthlyTable = PT[monthlySku(plan)];
+      var annualTable = PT[annualSku(plan)];
+      var m = monthlyTable && (monthlyTable[cc] || monthlyTable['US']);
+      if (!m) return null;
+      var a = annualTable && (annualTable[cc] || annualTable['US']);
+      return { monthly: m, annual: a, country: cc, plan: plan };
+    }
+
+    // Resolve the plan for a [data-fs-price] span by walking up to the
+    // closest [data-fs-plan] ancestor. Defaults to DEFAULT_PLAN.
+    function planForElement(el) {
+      var wrapper = el.closest('[data-fs-plan]');
+      return (wrapper && wrapper.getAttribute('data-fs-plan')) || DEFAULT_PLAN;
+    }
+
+    // Compute formatted strings for a {monthly, annual} pair.
+    // useRounded=true bypasses the FastSpring `display` string for
+    // monthly/annual-total and always renders via Intl integer formatter.
+    function formatPrices(m, a, useRounded) {
+      var mFmt = useRounded ? fmt(m.price, m.currency) : m.display || fmt(m.price, m.currency);
+      if (!mFmt) return null;
+      // Annual per-month: derived value, formatted with Intl.NumberFormat
+      var amRaw = a ? Math.round(a.price / 12) : null;
+      if (amRaw !== null && amRaw >= m.price) amRaw = null;
+      var amFmt = amRaw !== null ? fmt(amRaw, m.currency) : null;
+      var atFmt = a
+        ? useRounded
+          ? fmt(a.price, m.currency)
+          : a.display || fmt(a.price, m.currency)
+        : null;
+      return {
+        monthly: mFmt,
+        annualMonthly: amFmt,
+        annualMonthlyRaw: amRaw,
+        annualTotal: atFmt,
+      };
+    }
+
+    // -------------------------------------------------------------------------
+    // Apply pricing to DOM + expose public API
+    // -------------------------------------------------------------------------
+    function apply(country) {
+      if (!country) return;
+
+      // Per-element resolution: each [data-fs-price] span looks up its plan
+      // from the closest [data-fs-plan] ancestor, then resolves prices for
+      // that plan in the detected country. data-fs-price-rounded follows the
+      // same lookup but uses a separate cache (different formatter output).
+      var formattedByPlanDisplay = {};
+      var formattedByPlanRounded = {};
+
+      function applyToSpan(el, attr, cache, useRounded) {
+        var plan = planForElement(el);
+        var f = cache[plan];
+        if (f === undefined) {
+          var r = resolveForCountry(country, plan) || resolveForCountry('US', plan);
+          f = r ? formatPrices(r.monthly, r.annual, useRounded) : null;
+          cache[plan] = f;
+        }
+        if (!f) return;
+        var t = el.getAttribute(attr);
+        var v = null;
+        if (t === 'monthly') v = f.monthly;
+        else if (t === 'annual' || t === 'annual-monthly') v = f.annualMonthly;
+        else if (t === 'annual-total') v = f.annualTotal;
+        if (v !== null) el.textContent = v;
+      }
+
+      document.querySelectorAll('[data-fs-price]').forEach(function (el) {
+        applyToSpan(el, 'data-fs-price', formattedByPlanDisplay, false);
+      });
+      document.querySelectorAll('[data-fs-price-rounded]').forEach(function (el) {
+        applyToSpan(el, 'data-fs-price-rounded', formattedByPlanRounded, true);
+      });
+
+      // Update VAT labels atomically with prices, as the pricing contract requires.
+      // VAT label is country-derived and global; not per-plan.
+      var isVat = VAT.test(country);
+      document.querySelectorAll('[data-fs-vat-label]').forEach(function (el) {
+        el.textContent = isVat ? 'incl. VAT' : 'excl. VAT';
+      });
+
+      // Localize the ladder rows that have no FastSpring SKU (the
+      // Unlicensed/Community zeros and the Enterprise/Hoster anchors).
+      //   [data-fs-zero]            — render 0 in the visitor's currency.
+      //   [data-fs-usd-anchor="N"]  — convert the USD anchor N via the rate
+      //     implied by the visitor's business-site-annual row (the same data
+      //     the hydrated prices above use, so the page speaks one currency),
+      //     round coarsely, prefix "≈". The USD figures in product-facts stay
+      //     canonical; USD-currency countries keep the server-rendered text,
+      //     as does any failure path (original text is stashed and restored
+      //     because apply() re-runs on geo correction / manual selection).
+      var anchorRow = PT[annualSku(DEFAULT_PLAN)];
+      var anchorUs = anchorRow && anchorRow['US'];
+      var anchorCc = anchorRow && anchorRow[country];
+      var anchorRate =
+        anchorUs && anchorCc && anchorUs.price > 0 ? anchorCc.price / anchorUs.price : null;
+      var anchorCurrency = anchorCc ? anchorCc.currency : null;
+      function applyLocalized(el, render) {
+        if (!el.hasAttribute('data-fs-orig')) el.setAttribute('data-fs-orig', el.textContent);
+        var out = anchorCurrency && anchorCurrency !== 'USD' ? render() : null;
+        el.textContent = out !== null ? out : el.getAttribute('data-fs-orig');
+      }
+      function roundCoarse(v) {
+        if (v >= 1000) return Math.round(v / 100) * 100;
+        if (v >= 100) return Math.round(v / 10) * 10;
+        return Math.round(v);
+      }
+      document.querySelectorAll('[data-fs-zero]').forEach(function (el) {
+        applyLocalized(el, function () {
+          return fmt(0, anchorCurrency);
+        });
+      });
+      document.querySelectorAll('[data-fs-usd-anchor]').forEach(function (el) {
+        applyLocalized(el, function () {
+          var usdAmount = parseFloat(el.getAttribute('data-fs-usd-anchor'));
+          if (!usdAmount || !anchorRate) return null;
+          var f = fmt(roundCoarse(usdAmount * anchorRate), anchorCurrency);
+          return f ? '≈ ' + f : null;
+        });
+      });
+
+      // Public API — preserve contract from SBL-based component.
+      // __fsPricing exposes the DEFAULT_PLAN view for backward compatibility
+      // with consumers like calculator.astro that read currency/monthly.
+      var defaultResolved =
+        resolveForCountry(country, DEFAULT_PLAN) || resolveForCountry('US', DEFAULT_PLAN);
+      var defaultFormatted = formattedByPlanDisplay[DEFAULT_PLAN];
+      if (defaultResolved && defaultFormatted) {
+        window.__fsPricing = {
+          currency: defaultResolved.monthly.currency,
+          monthly: defaultResolved.monthly.price,
+          monthlyFormatted: defaultFormatted.monthly,
+          annualMonthly: defaultFormatted.annualMonthlyRaw,
+          annualMonthlyFormatted: defaultFormatted.annualMonthly,
+          annualTotal: defaultResolved.annual ? defaultResolved.annual.price : null,
+          annualTotalFormatted: defaultFormatted.annualTotal,
+          country: country,
+          vatInclusive: isVat,
+        };
+
+        window.dispatchEvent(new CustomEvent('fs-pricing-ready', { detail: window.__fsPricing }));
+      }
+
+      // Expose full pricing table for country selector on pricing page
+      window.__fsPricingData = PT;
+    }
+
+    // -------------------------------------------------------------------------
+    // Manual country setter (for pricing page country selector)
+    // -------------------------------------------------------------------------
+    window.__fsSetCountry = function (cc) {
+      try {
+        localStorage.setItem(LS_KEY, cc);
+      } catch (e) {}
+      // Verify the country resolves under DEFAULT_PLAN; fall back to US.
+      var probe = resolveForCountry(cc, DEFAULT_PLAN) || resolveForCountry('US', DEFAULT_PLAN);
+      apply(probe ? probe.country : 'US');
+    };
+
+    // -------------------------------------------------------------------------
+    // Synchronous detection + apply (steps 0, 1, 3, 4)
+    // Runs before first paint — no FOUC for 95%+ of visitors.
+    // -------------------------------------------------------------------------
+    var cc = getManualCountry() || getTimezoneCountry() || getLanguageCountry() || 'US';
+    // Verify the detected country resolves under DEFAULT_PLAN; fall back to US.
+    var probe0 = resolveForCountry(cc, DEFAULT_PLAN) || resolveForCountry('US', DEFAULT_PLAN);
+    apply(probe0 ? probe0.country : 'US');
+
+    // -------------------------------------------------------------------------
+    // Step 2: async GeoIP correction (~30ms same-origin fetch)
+    // GeoIP takes precedence for checkout parity (both IP-based).
+    // -------------------------------------------------------------------------
+    if (!getManualCountry()) {
+      fetch(GEO_URL)
+        .then(function (r) {
+          return r.ok ? r.json() : null;
+        })
+        .then(function (data) {
+          if (!data || !data.country) return;
+          var geoCC = data.country;
+          if (geoCC === cc) return; // already correct
+          var probe1 = resolveForCountry(geoCC, DEFAULT_PLAN);
+          if (probe1) apply(probe1.country);
+        })
+        .catch(function () {
+          /* geo endpoint failed — timezone price persists */
+        });
+    }
+  })();
+</script>

@@ -1,0 +1,275 @@
+---
+title: 'Getting Started'
+description: 'Install mod_pagespeed 1.15 on nginx, Apache, IIS, or Envoy: package repo or direct download, signature verification, and how to confirm optimization is running.'
+order: 2
+group: 'Getting Started'
+lastUpdated: 2026-09-06
+---
+
+import DownloadCmd from '../../components/release/DownloadCmd.astro';
+import XPageSpeedExample from '../../components/release/XPageSpeedExample.astro';
+import GpgKeyUrl from '../../components/release/GpgKeyUrl.astro';
+import { getRelease, archiveUrl, artifactUrl } from '../../lib/release';
+
+export const rel11 = await getRelease('1.1');
+export const sha256sumsUrl = archiveUrl(rel11, 'SHA256SUMS');
+// Derive from the manifest's GA-alias artifact URL (r0-pinned) so the signed
+// filename in the verify example never drifts from the actual download.
+export const debAsc = `${artifactUrl(rel11, 'deb', 'amd64').split('/').pop()}.asc`;
+
+## Choose your platform
+
+mod_pagespeed 1.15 runs on nginx, Apache, IIS, and Envoy. It optimizes responses in-process, inside the web server itself — the deployment model of the original open-source module, carried forward and actively maintained. If your setup instead calls for an out-of-process worker that fronts any HTTP origin behind nginx, see [ModPageSpeed 2.0](/docs/getting-started/). Pick your web server below.
+
+{/* platform: nginx */}
+
+<div data-platform="nginx" data-platform-label="nginx">
+
+### Install from the apt/yum repository
+
+The signed repository at `packages.modpagespeed.com` ships the nginx dynamic module (`nginx-module-pagespeed`) prebuilt for Debian and Ubuntu (**amd64 and arm64**) and for RHEL/AlmaLinux/Rocky 9 (x86_64 + aarch64) and 10 (x86_64). Each module is pinned to that distribution's exact stock nginx:
+
+| Distribution | Stock nginx (pinned) |
+| --- | --- |
+| Debian 11 (bullseye) | 1.18.0 |
+| Debian 12 (bookworm) | 1.22.1 |
+| Debian 13 (trixie) | 1.26.3 |
+| Ubuntu 22.04 (jammy) | 1.18.0 |
+| Ubuntu 24.04 (noble) | 1.24.0 |
+
+On RHEL/AlmaLinux/Rocky the yum repo ships the same module — el9 (x86_64 + aarch64, pinned to el9 stock nginx 1.20.1) and el10 (x86_64, pinned to el10 stock nginx). One command configures the apt or yum source and imports the signing key:
+
+```bash
+curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+```
+
+Then install the package:
+
+```bash
+sudo apt-get install nginx-module-pagespeed   # Debian/Ubuntu
+sudo dnf install nginx-module-pagespeed        # RHEL/AlmaLinux/Rocky
+```
+
+Installing the package drops the module into the standard nginx modules directory **and adds a modules-enabled auto-include snippet** — there is no `load_module` line to copy by hand. Enable optimization in your server block:
+
+```nginx
+server {
+    pagespeed on;
+    pagespeed FileCachePath /var/cache/pagespeed;
+
+    # Your existing configuration...
+}
+```
+
+Reload nginx:
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+Updates flow through the normal package upgrade path (`apt-get upgrade`).
+
+### Running a different nginx version?
+
+Each `.so` is pinned to its distribution's exact stock nginx version — nginx's `--with-compat` does **not** relax that check, so upgrading nginx past the stock version (or running nginx.org's stable/mainline builds) requires a matching rebuild. Need a build pinned to a different nginx version? [Contact us](/contact/).
+
+</div>
+
+{/* platform: apache */}
+
+<div data-platform="apache" data-platform-label="Apache">
+
+### Install from the apt/yum repository (recommended)
+
+The signed repository at `packages.modpagespeed.com` ships the Apache module for Debian 11/12/13, Ubuntu 22.04/24.04, AlmaLinux/RHEL/Rocky 9 (x86_64 + aarch64), and AlmaLinux/RHEL/Rocky 10 (x86_64). One command configures the apt or yum source and imports the signing key:
+
+```bash
+curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+```
+
+Then install the package:
+
+```bash
+sudo apt-get install mod-pagespeed     # Debian/Ubuntu
+sudo dnf install mod-pagespeed         # AlmaLinux/RHEL
+```
+
+The package drops the module into the standard Apache modules directory and enables it. Restart Apache:
+
+```bash
+sudo systemctl restart apache2   # Debian/Ubuntu
+sudo systemctl restart httpd     # RHEL family
+```
+
+Updates flow through the normal package upgrade path:
+
+```bash
+sudo apt-get update && sudo apt-get upgrade    # Debian/Ubuntu
+sudo dnf upgrade                                # RHEL family
+```
+
+The signed apt repo (Debian/Ubuntu) ships amd64 and arm64. The signed yum repo ships both x86_64 and aarch64 for AlmaLinux/RHEL/Rocky 9, and x86_64 for AlmaLinux/RHEL/Rocky 10. EL10 on aarch64 is not packaged.
+
+### Direct download (air-gapped or no package manager)
+
+For Debian and Ubuntu (`apt`/`dpkg`):
+
+<pre>
+  <code class="language-bash">
+    {`# amd64
+`}
+    <DownloadCmd line="1.1" channel="deb" arch="amd64" pkgmgr="curl" />
+    {`
+`}
+    <DownloadCmd line="1.1" channel="deb" arch="amd64" pkgmgr="dpkg" />
+    {`
+# arm64
+`}
+    <DownloadCmd line="1.1" channel="deb" arch="arm64" pkgmgr="curl" />
+    {`
+`}
+    <DownloadCmd line="1.1" channel="deb" arch="arm64" pkgmgr="dpkg" />
+  </code>
+</pre>
+
+For RHEL family (`dnf`/`yum`):
+
+<pre>
+  <code class="language-bash">
+    {`# x86_64
+`}
+    <DownloadCmd line="1.1" channel="rpm" arch="x86_64" pkgmgr="dnf" />
+    {`
+# aarch64
+`}
+    <DownloadCmd line="1.1" channel="rpm" arch="aarch64" pkgmgr="dnf" />
+  </code>
+</pre>
+
+Your existing `pagespeed.conf` continues to work — no configuration changes needed.
+
+### Module-only install (no package manager)
+
+If you'd rather drop the `.so` in by hand:
+
+<pre>
+  <code class="language-bash">
+    {`# x86_64
+`}
+    <DownloadCmd line="1.1" filename="libmod_pagespeed-linux-x86_64.so" pkgmgr="curl" />
+    {`
+sudo cp libmod_pagespeed-linux-x86_64.so /usr/lib/apache2/modules/mod_pagespeed.so
+sudo systemctl restart apache2`}
+  </code>
+</pre>
+
+### Verify the download
+
+Installs through `packages.modpagespeed.com` verify signatures automatically against the repository signing key (RSA 4096, fingerprint `DF00E296BE9141CEA5411346F50D6054F10712A0`).
+
+For direct downloads, each artifact is GPG-signed and listed in <a href={sha256sumsUrl}>SHA256SUMS</a>:
+
+<pre>
+  <code class="language-bash">{`curl -O ${sha256sumsUrl}\nsha256sum --check --ignore-missing SHA256SUMS\n# Or with the GPG signing key:\ncurl -O ${rel11.urls.gpg_key}\ngpg --import weamp-pkg-public.asc\ngpg --verify ${debAsc}`}</code>
+</pre>
+
+</div>
+
+{/* platform: iis */}
+
+<div data-platform="iis" data-platform-label="IIS">
+
+### Requirements
+
+- Windows Server 2019 or later (IIS 10+)
+- 64-bit only
+- Visual C++ Redistributable 2022
+- IIS worker process identity needs write permissions on the cache directory
+
+### Migrating from IISpeed?
+
+If IISpeed is installed on this host, **uninstall it before running the mod_pagespeed 1.15 MSI**. The two modules register the same handler in IIS and cannot coexist — leaving IISpeed in place will cause one or both to fail at site startup. Open _Apps & features_ (or _Programs and Features_), remove "IISpeed", `iisreset`, and then run the 1.15 installer.
+
+### Install the module
+
+Download the <a href={artifactUrl(rel11, 'msi', 'win_x64')}>IIS MSI installer</a> (<a href={artifactUrl(rel11, 'msi', 'win_x64') + '.asc'}>signature</a>) and run it on your Windows Server. The installer registers the module in IIS as a native HTTP module automatically and creates the default cache directory at `%ProgramData%\We-Amp\IISWebSpeed\Cache`.
+
+### Configure the file cache path
+
+After installation, verify the cache path in the server-level configuration at `%ProgramData%\We-Amp\IISWebSpeed\pagespeed.config`:
+
+```
+pagespeed FileCachePath %ProgramData%\We-Amp\IISWebSpeed\Cache
+```
+
+The cache directory must be writable by the IIS worker process identity (typically `IIS_IUSRS` or the app pool identity). The installer creates this directory with appropriate permissions.
+
+To validate the cache path, make a request to any page on your server and check that files appear in the cache directory.
+
+### Enable optimization for a site
+
+Place a `pagespeed.config` file in your website's root directory:
+
+```
+pagespeed on
+pagespeed FileCachePath %ProgramData%\We-Amp\IISWebSpeed\Cache
+```
+
+The `FileCachePath` must be included in per-site configs if not set in the server-level config. Site-level settings override server-level settings.
+
+### IIS Express
+
+For local development with IIS Express, add the module to `applicationhost.config` in `%userprofile%\Documents\IISExpress\config\`:
+
+1. Copy the module DLL to a known location
+2. Add the module registration under `<globalModules>` and `<modules>`
+3. Restart IIS Express
+
+### Disable optimization
+
+To disable optimization for a site, either delete or rename its `pagespeed.config` file, or add:
+
+```
+pagespeed off
+```
+
+</div>
+
+### Envoy
+
+Add the mod_pagespeed HTTP filter to your Envoy configuration. Envoy integration is experimental — [contact us](/contact/) for setup guidance.
+
+## Verify it works
+
+Send a request and check for the response header:
+
+```bash
+curl -I http://localhost/
+```
+
+You should see:
+
+<pre>
+  <code>
+    <XPageSpeedExample line="1.1" surface="nginx" />
+  </code>
+</pre>
+
+On Apache the header is named `X-Mod-Pagespeed` instead of `X-Page-Speed`. On IIS the module emits `X-Page-Speed`, the same as nginx — check for it with PowerShell:
+
+```powershell
+(Invoke-WebRequest http://localhost/ -Method Head).Headers["X-Page-Speed"]
+```
+
+The header value is the module version — its presence confirms the module is loaded and active. Optimization is progressive: the first request to a page triggers resource optimization in the background and may serve the original resources; subsequent requests serve the optimized variants from cache.
+
+## License
+
+mod_pagespeed 1.15 is licensed under Apache-2.0 and free to run in development and in production. Support subscriptions are available separately — see [License](/docs/license/).
+
+## Next steps
+
+- [Filters overview](/1.1/docs/filters-overview/) — the optimizations mod_pagespeed applies and how to select them
+- [What's New in 1.15](/1.1/docs/whats-new/) — see everything that changed
+- [Upgrading from Open-Source](/1.1/docs/upgrading-from-open-source/) — step-by-step migration guide
+- [Legacy docs (1.0)](/1.0/) — original open-source documentation

@@ -1,0 +1,18 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import ErrorContent from '../components/ErrorContent.astro';
+---
+
+<BaseLayout
+  title="Server Error — ModPageSpeed 2.0"
+  description="Something went wrong on our end."
+  noindex
+>
+  <ErrorContent
+    code="500"
+    heading="The worker dropped this one"
+    body="Something on our end failed mid-request — not your fault. Retry the page, or tell us what broke and we'll trace it."
+    linkHref="/contact/"
+    linkLabel="Report an issue"
+  />
+</BaseLayout>

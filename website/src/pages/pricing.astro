@@ -1,0 +1,289 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import { faqShared, stripHtml } from '../data/faq-shared';
+import { faq2 } from '../data/faq-2';
+import { offerJsonLd } from '../data/offer-jsonld';
+import {
+  SUPPORT_TIERS,
+  LICENSING_TERMS_URL,
+  BUILTWITH_SITES,
+  BUILTWITH_AS_OF,
+  PRODUCT_NAME,
+  CURRENT_LINE,
+  SOURCE_PUBLICATION,
+  SOURCE_IS_PUBLISHED,
+  LICENSE_CLAUSE,
+  LICENSE_CLAUSE_CAP,
+} from '../data/product-facts.mjs';
+
+const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
+const faqEntries = [...faqShared, ...faq2];
+
+// Per-offering UI: CTA target and the bullet detail under each card. The two
+// offerings themselves (name, kind, note) come from SUPPORT_TIERS; prices are
+// placeholders until published — no surface may render a price.
+const OFFERING_UI: Record<string, { href: string; cta: string; points: string[] }> = {
+  support: {
+    href: '/contact/?topic=support',
+    cta: 'Talk to us',
+    points: [
+      'A direct channel to the people who build the product',
+      'Agreed response times for configuration, upgrade and incident questions',
+      'SLA-backed delivery of security updates',
+      'Scoped to your deployment or your organization',
+    ],
+  },
+  'hardened-builds': {
+    href: '/contact/?topic=enterprise',
+    cta: 'Talk to us',
+    points: [
+      'The same code as the standard packages, built through a hardened pipeline',
+      'A signed SBOM and build provenance with every build',
+      'Delivered through the subscriber repository',
+      `The artifacts carry the same ${SOURCE_PUBLICATION.license} as the standard packages`,
+    ],
+  },
+};
+
+const offer = offerJsonLd({ url: 'https://modpagespeed.com/pricing/' });
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@graph': [
+    {
+      '@type': 'SoftwareApplication',
+      name: PRODUCT,
+      applicationCategory: 'WebApplication',
+      operatingSystem: 'Linux',
+      description: `Self-hosted web performance optimization: a native module for Apache and nginx with a separate optimizer worker. ${LICENSE_CLAUSE_CAP}; hardened builds and support plans are sold separately.`,
+      offers: offer,
+    },
+    {
+      '@type': 'FAQPage',
+      mainEntity: faqEntries.map((entry) => ({
+        '@type': 'Question',
+        name: entry.q,
+        acceptedAnswer: { '@type': 'Answer', text: stripHtml(entry.a) },
+      })),
+    },
+  ],
+};
+---
+
+<BaseLayout
+  title="Support Plans — mod_pagespeed"
+  description={`${PRODUCT} is ${LICENSE_CLAUSE} and free to run. What We-Amp sells is support and hardened builds: SLA-backed plans, enterprise attestation, and a hoster partner program — from the people who build the product.`}
+  jsonLd={jsonLd}
+>
+  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-16">
+    <div class="text-center">
+      <h1 class="h1-hero text-text-body">
+        The software is free. Support — and hardened builds — are what's for sale.
+      </h1>
+      <p class="lede mt-6 max-w-2xl mx-auto">
+        {PRODUCT} is {LICENSE_CLAUSE} — free to install and run, in development and in production. A support
+        subscription and hardened, attested builds are what We-Amp sells alongside it.
+      </p>
+    </div>
+
+    {/* The two offerings — placeholder-priced until pricing is published */}
+    <div id="plans" class="mt-14 grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
+      {
+        SUPPORT_TIERS.map((tier) => (
+          <div class="card flex flex-col">
+            <p class="text-lg font-semibold text-text-body">{tier.name}</p>
+            <p class="mt-2 text-sm text-text-muted">{tier.note}</p>
+            <ul class="mt-4 space-y-2 text-sm text-text-muted">
+              {(OFFERING_UI[tier.id]?.points ?? []).map((point) => (
+                <li class="flex gap-2">
+                  <Icon name="check" class="h-4 w-4 mt-0.5 shrink-0 text-interactive" />
+                  <span>{point}</span>
+                </li>
+              ))}
+            </ul>
+            <p class="mt-6 display-num text-2xl font-bold text-text-body">
+              Pricing to be announced
+            </p>
+            <p class="mt-1 text-xs text-text-annotation">
+              Engagements are available today — talk to us.
+            </p>
+            <a href={OFFERING_UI[tier.id]?.href ?? '/contact/'} class="btn-primary mt-6">
+              {OFFERING_UI[tier.id]?.cta ?? 'Contact us'} &rarr;
+            </a>
+          </div>
+        ))
+      }
+    </div>
+
+    <p class="mt-6 text-center text-sm text-text-muted max-w-3xl mx-auto">
+      Both cover the same software: a subscription changes who answers when you need help and how
+      your builds are attested, never what the software does. Running without one is a first-class
+      choice. Hosting providers running it at fleet scale: see the
+      <a href="/hosting-partners/" class="text-interactive hover:text-interactive-hover underline"
+        >hosting partner program</a
+      >. Subscriptions are governed by the
+      <a href="/terms/" class="text-interactive hover:text-interactive-hover underline"
+        >terms of service</a
+      > together with the
+      <a href={LICENSING_TERMS_URL} class="text-interactive hover:text-interactive-hover underline"
+        >support terms</a
+      >.
+    </p>
+
+    {/* Packages & builds — the two artifact lanes, stated plainly */}
+    <div class="mt-16">
+      <h2 class="h2-section text-center text-text-body">Packages &amp; builds</h2>
+      <div id="artifacts" class="mt-10 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div class="card">
+          <div class="flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-text-body">Standard packages</h3>
+            <span class="badge-interactive">Free</span>
+          </div>
+          <p class="mt-2 text-sm text-text-muted">
+            The signed apt and yum packages everyone runs — free to install and run, in development
+            and in production, on any number of servers. No account, no registration.
+          </p>
+          <a href="/download/" class="btn-secondary mt-4">Download &rarr;</a>
+        </div>
+        <div class="card">
+          <div class="flex items-center justify-between">
+            <h3 class="text-lg font-semibold text-text-body">Hardened builds</h3>
+            <span class="badge-interactive">Pricing to be announced</span>
+          </div>
+          <p class="mt-2 text-sm text-text-muted">
+            The same code the standard packages are built from, through a hardened pipeline: signed
+            SBOM and build provenance, delivered through the subscriber repository. They differ in
+            how they are built and attested — never in features. The artifacts themselves carry the
+            same {SOURCE_PUBLICATION.license} as the standard packages; a subscription covers access to
+            the subscriber repository.
+          </p>
+          <a href="/contact/?topic=enterprise" class="btn-secondary mt-4">Talk to us &rarr;</a>
+        </div>
+      </div>
+    </div>
+
+    {/* Social proof */}
+    <p class="mt-12 text-center text-sm text-text-annotation max-w-2xl mx-auto">
+      The optimization core behind <span class="font-semibold text-text-body"
+        >{BUILTWITH_SITES} live sites</span
+      > (per BuiltWith, {BUILTWITH_AS_OF}) — maintained by the team that helped build ngx_pagespeed.
+    </p>
+
+    <div class="mt-4 flex flex-wrap justify-center gap-x-6 gap-y-1 text-sm">
+      <a
+        href="/calculator/"
+        class="text-text-muted hover:text-interactive transition-colors underline-offset-4 hover:underline"
+        >Estimate your bandwidth savings</a
+      >
+      <a
+        href="/download/"
+        class="text-text-muted hover:text-interactive transition-colors underline-offset-4 hover:underline"
+        >Download &amp; run</a
+      >
+    </div>
+
+    {/* Reassurance cards */}
+    <div class="mt-16 grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="card">
+        <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
+          <Icon name="check" class="h-5 w-5 text-interactive" />
+        </div>
+        <h3 class="mt-4 font-semibold text-text-body">What if I never subscribe?</h3>
+        <p class="mt-2 text-sm text-text-muted">
+          Then you run the same software everyone else runs, free under the {
+            SOURCE_PUBLICATION.license
+          }. A support subscription changes who answers when you need help.
+        </p>
+      </div>
+      <div class="card">
+        <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
+          <Icon name="shield-check" class="h-5 w-5 text-interactive" />
+        </div>
+        <h3 class="mt-4 font-semibold text-text-body">Will it break my site?</h3>
+        <p class="mt-2 text-sm text-text-muted">
+          Transforms are deliberately conservative, and the design falls back to your original
+          content when an optimization step fails. Test on staging, then disable any path, URL
+          pattern, or transform type with one line of config.
+        </p>
+      </div>
+      <div class="card">
+        <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
+          <Icon name="server" class="h-5 w-5 text-interactive" />
+        </div>
+        <h3 class="mt-4 font-semibold text-text-body">One small company — what's the risk?</h3>
+        <p class="mt-2 text-sm text-text-muted">
+          Smaller than it used to be: {PRODUCT} is <a
+            href="/license/"
+            class="text-interactive hover:text-interactive-hover underline">{LICENSE_CLAUSE}</a
+          >, and there is no kill switch in the request path. If We-Amp disappeared tomorrow, your
+          deployment keeps running{
+            SOURCE_IS_PUBLISHED ? ' and the code stays yours to build, patch, and fork.' : '.'
+          }
+        </p>
+      </div>
+    </div>
+
+    {/* How to get started */}
+    <div class="mt-16">
+      <h2 class="h2-section text-center text-text-body">How to get started</h2>
+      <div class="mt-10 grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="card">
+          <p class="text-5xl font-bold text-interactive font-mono">1</p>
+          <h3 class="mt-3 font-semibold text-text-body">Install</h3>
+          <p class="mt-2 text-sm text-text-muted">
+            <code class="text-xs bg-bg-elevated px-1 py-0.5 rounded">apt install</code> the signed
+            <code class="text-xs bg-bg-elevated px-1 py-0.5 rounded">mod-pagespeed</code> (Apache) or
+            <code class="text-xs bg-bg-elevated px-1 py-0.5 rounded">nginx-module-pagespeed</code> (nginx)
+            from <a
+              href="/download/"
+              class="text-interactive hover:text-interactive-hover underline"
+              >packages.modpagespeed.com</a
+            >.
+          </p>
+        </div>
+        <div class="card">
+          <p class="text-5xl font-bold text-interactive font-mono">2</p>
+          <h3 class="mt-3 font-semibold text-text-body">Run it — it's yours</h3>
+          <p class="mt-2 text-sm text-text-muted">
+            No registration, no trial clock. Enable filters, set the cache path, and ship it to
+            production — the software is {LICENSE_CLAUSE}.
+          </p>
+        </div>
+        <div class="card">
+          <p class="text-5xl font-bold text-interactive font-mono">3</p>
+          <h3 class="mt-3 font-semibold text-text-body">Add backing when you want it</h3>
+          <p class="mt-2 text-sm text-text-muted">
+            When the deployment matters enough that you want support from the people who build it,
+            or attested builds for your supply chain,
+            <a
+              href="/contact/?topic=support"
+              class="text-interactive hover:text-interactive-hover underline">talk to us</a
+            >.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    {/* FAQ */}
+    <div class="mt-16 max-w-3xl mx-auto">
+      <h2 class="h2-section text-center text-text-body">Support questions</h2>
+      <div class="mt-8 space-y-3">
+        {
+          faqEntries.map((entry) => (
+            <details class="group rounded-lg border border-border bg-bg-elevated open:shadow-sm transition-shadow">
+              <summary class="flex items-center justify-between gap-3 cursor-pointer list-none px-4 py-3 text-sm font-semibold text-text-body">
+                <span>{entry.q}</span>
+                <Icon
+                  name="chevron-down"
+                  class="h-5 w-5 shrink-0 text-text-muted transition-transform duration-200 group-open:rotate-180"
+                />
+              </summary>
+              <p class="px-4 pb-4 pt-1 text-sm text-text-muted" set:html={entry.a} />
+            </details>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+</BaseLayout>

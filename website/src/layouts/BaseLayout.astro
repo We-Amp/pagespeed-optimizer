@@ -1,0 +1,1269 @@
+---
+import NewsletterSignup from '../components/NewsletterSignup.astro';
+import QuickMessage from '../components/QuickMessage.astro';
+import ShareFloat from '../components/ShareFloat.astro';
+import Icon from '../components/Icon.astro';
+import EolNotice from '../components/EolNotice.astro';
+import {
+  PRODUCT_DISPLAY_NAME,
+  PRODUCT_NAME,
+  CURRENT_LINE,
+  V1_LINE,
+  LICENSE_CLAUSE_CAP,
+} from '../data/product-facts.mjs';
+
+// Derived chrome labels (ruling O11: lowercase everywhere). The 1.1 section
+// keeps its own line identity; everything else speaks the converged line.
+const currentLabel = `${PRODUCT_DISPLAY_NAME} ${CURRENT_LINE}`;
+const legacyLabel = `${PRODUCT_NAME} ${V1_LINE}`;
+
+interface Props {
+  title: string;
+  description?: string;
+  ogImage?: string;
+  // Single schema object, or an array when a page needs to emit multiple
+  // top-level JSON-LD nodes (e.g. /1.1/ emits Product + FAQPage as separate
+  // <script> tags so each is a first-class schema for Google's parsers and
+  // so seo.spec.ts can assert against the first script's @type directly,
+  // rather than drilling into a wrapping @graph).
+  jsonLd?: Record<string, unknown> | Record<string, unknown>[];
+  // Emit <meta name="robots" content="noindex,follow"> — for error pages and
+  // any utility route that should not be indexed.
+  noindex?: boolean;
+  // Override the auto BreadcrumbList's final ListItem.name so the emitted
+  // JSON-LD leaf matches the page's visible breadcrumb leaf (the human title)
+  // rather than formatSegment(slug). Slug pages pass their human title here.
+  breadcrumbLeafName?: string;
+}
+
+const {
+  title,
+  description = `${PRODUCT_DISPLAY_NAME} ${CURRENT_LINE} — automatic web performance optimization for Apache and nginx. ${LICENSE_CLAUSE_CAP}. Your servers, your rules.`,
+  ogImage,
+  jsonLd,
+  noindex = false,
+  breadcrumbLeafName,
+} = Astro.props;
+
+const is11Section = Astro.url.pathname.startsWith('/1.1/');
+
+// Sitewide banner, section-aware: the /1.1/ section carries the non-dismissible
+// EolNotice instead (a second, dismissible banner there would double up), so
+// the dismissible banner is suppressed on /1.1/*. Dismissal is versioned — bump
+// the key suffix whenever the copy or link changes so previously-dismissed
+// users see the new banner.
+const bannerText = is11Section
+  ? ''
+  : `${PRODUCT_DISPLAY_NAME} ${CURRENT_LINE} is here — open source (Apache-2.0): the module you know, plus the optimizer worker`;
+const bannerHref = '/docs/getting-started/';
+const bannerDismissKey = 'banner-dismissed:mps21-ga-2026a';
+
+// Per-product OG image (BRAND-10): 1.1 pages should not carry the 2.0-branded
+// card. If the page passed an explicit ogImage, honor it. Otherwise pick a
+// product-appropriate default.
+// TODO(BRAND-10): no og-1.1.* exists in public/ yet — when a 1.1-specific OG
+// card is added (e.g. public/og-1.1.png), switch the 1.1 branch below to it.
+// Until then 1.1 pages fall back to the shared default rather than referencing
+// a missing file.
+const resolvedOgImage = ogImage ?? '/og-default.png?v=2';
+
+const siteUrl = Astro.site ?? new URL('https://modpagespeed.com');
+const absoluteOgImage = new URL(resolvedOgImage, siteUrl).href;
+// og:image:type + dimensions (F140): every OG card on the site is a 1200×630
+// PNG (the shared default and the per-post /og-cards/*.png). Declaring the MIME
+// type and pixel dimensions helps social scrapers render the preview without a
+// HEAD round-trip, and is the meta-side half of the OG fix; the deploy-side
+// half (excluding the card paths from in-place image rewriting so the .png URL
+// returns image/png, not WebP) is handled in nginx — see handoff note.
+const ogImageType = /\.webp(\?|$)/i.test(resolvedOgImage)
+  ? 'image/webp'
+  : /\.avif(\?|$)/i.test(resolvedOgImage)
+    ? 'image/avif'
+    : /\.jpe?g(\?|$)/i.test(resolvedOgImage)
+      ? 'image/jpeg'
+      : 'image/png';
+// Normalize to a trailing slash so a non-trailing inbound URL still emits the
+// canonical (trailing-slash) form the whole site links with — keeps duplicate
+// signals from splitting. File-like paths (with an extension) are left as-is.
+const rawPath = Astro.url.pathname;
+const canonicalPath =
+  rawPath.endsWith('/') || /\.[a-z0-9]+$/i.test(rawPath) ? rawPath : `${rawPath}/`;
+const canonicalUrl = new URL(canonicalPath, 'https://modpagespeed.com').href;
+
+const logoLight = is11Section ? '/logo-1.1.svg' : '/logo.svg';
+const logoDark = is11Section ? '/logo-1.1-dark.svg' : '/logo-dark.svg';
+
+// Nav is consolidated (UX-5, converged): one product, so Features, Pricing and
+// Blog stay flat; the five tools collapse into "Tools", docs under "Docs",
+// comparisons under "Compare". The previous lines (/1.1/, /1.1/docs/) moved to
+// the footer's "Previous versions" group — every destination stays reachable.
+// At most one "New" badge anywhere (UX-15) — it lives on RenderPeek in Tools.
+const navLinks: Array<{
+  href?: string;
+  label: string;
+  badge?: string;
+  umamiEvent?: string;
+  desktopOnlyFromLg?: boolean;
+  children?: Array<{
+    href: string;
+    label: string;
+    subtitle: string;
+    badge?: string;
+    umamiEvent?: string;
+  }>;
+}> = [
+  { href: '/features/', label: 'Features' },
+  { href: '/pricing/', label: 'Pricing' },
+  {
+    label: 'Tools',
+    children: [
+      {
+        href: '/analyze/',
+        label: 'Analyze',
+        subtitle: 'Score any URL with PageSpeed Insights',
+        umamiEvent: 'nav-analyze',
+      },
+      {
+        href: '/ai-readability/',
+        label: 'RenderPeek',
+        subtitle: 'Check what AI crawlers actually see',
+        badge: 'New',
+        umamiEvent: 'nav-ai-readability',
+      },
+      {
+        href: '/demo/',
+        label: 'Demo',
+        subtitle: 'Before and after, on a live site',
+      },
+      {
+        href: '/examples/',
+        label: 'Filter examples',
+        subtitle: 'Each filter, before and after',
+      },
+      {
+        href: '/calculator/',
+        label: 'Calculator',
+        subtitle: 'Estimate your bandwidth savings',
+      },
+    ],
+  },
+  {
+    label: 'Docs',
+    children: [
+      {
+        href: '/docs/',
+        label: 'Documentation',
+        subtitle: 'Install, configure, operate',
+      },
+      {
+        href: '/how-it-works/',
+        label: 'How it works',
+        subtitle: 'How the optimizer works, under the hood',
+      },
+    ],
+  },
+  {
+    label: 'Compare',
+    children: [
+      {
+        href: '/vs/',
+        label: 'Comparisons',
+        subtitle: 'Head-to-head against alternatives',
+      },
+      {
+        href: '/alternatives/',
+        label: 'Alternatives',
+        subtitle: 'How we stack up across the field',
+      },
+      {
+        href: '/core-web-vitals/',
+        label: 'Core Web Vitals',
+        subtitle: 'What the metrics mean, and how we move them',
+      },
+    ],
+  },
+  { href: '/blog/', label: 'Blog' },
+];
+
+const currentPath = Astro.url.pathname;
+
+// --- BreadcrumbList JSON-LD ---
+const segmentNames: Record<string, string> = {
+  features: 'Features',
+  analyze: 'Analyze',
+  '1.1': 'mod_pagespeed 1.15',
+  pricing: 'Pricing',
+  docs: 'Docs',
+  blog: 'Blog',
+  demo: 'Demo',
+  examples: 'Filter examples',
+  calculator: 'Savings Calculator',
+  contact: 'Contact',
+  license: 'License',
+  terms: 'Terms',
+  privacy: 'Privacy',
+  security: 'Security',
+  alternatives: 'Alternatives',
+  vs: 'Comparisons',
+  'pagespeed-markers': 'PageSpeed markers',
+  'how-it-works': 'How it works',
+  'aspnet-getting-started': 'ASP.NET Getting Started',
+  'aspnet-configuration': 'ASP.NET Configuration',
+};
+
+function formatSegment(segment: string): string {
+  if (segmentNames[segment]) return segmentNames[segment];
+  return segment
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(' ');
+}
+
+const pathSegments = currentPath
+  .replace(/^\/|\/$/g, '')
+  .split('/')
+  .filter(Boolean);
+
+const breadcrumbItems = [
+  { name: 'Home', url: 'https://modpagespeed.com/' },
+  ...pathSegments.map((segment, index) => ({
+    name: formatSegment(segment),
+    url: 'https://modpagespeed.com/' + pathSegments.slice(0, index + 1).join('/') + '/',
+  })),
+];
+
+// Align the emitted BreadcrumbList leaf with the page's visible breadcrumb
+// leaf: slug pages render their human title, but formatSegment(slug) diverges.
+// When breadcrumbLeafName is provided, override the final ListItem.name.
+if (breadcrumbLeafName && breadcrumbItems.length)
+  breadcrumbItems[breadcrumbItems.length - 1].name = breadcrumbLeafName;
+
+const breadcrumbJsonLd =
+  breadcrumbItems.length >= 2
+    ? {
+        '@context': 'https://schema.org',
+        '@type': 'BreadcrumbList',
+        itemListElement: breadcrumbItems.map((item, index) => ({
+          '@type': 'ListItem',
+          position: index + 1,
+          name: item.name,
+          item: item.url,
+        })),
+      }
+    : null;
+
+const jsonLdEntries: Array<Record<string, unknown> | undefined> = Array.isArray(jsonLd)
+  ? jsonLd
+  : [jsonLd];
+const jsonLdScripts = [...jsonLdEntries, breadcrumbJsonLd].filter(
+  (s): s is Record<string, unknown> => Boolean(s),
+);
+
+// Mobile-only sticky CTA (CONV): a fixed bottom pill that surfaces the primary
+// "Install" funnel after the user scrolls past the hero. Scoped to the four
+// conversion routes only — content/docs/tool pages don't get it. Normalize the
+// inbound path to a trailing slash so a non-trailing URL still matches. It's a
+// fixed overlay (no layout shift / no CLS) and is hidden (opacity-0 +
+// pointer-events-none) until the scroll script flips it on, so it's never a
+// hidden tap target.
+const stickyCtaPath = rawPath.endsWith('/') ? rawPath : `${rawPath}/`;
+const showStickyCta = ['/', '/pricing/', '/features/', '/demo/'].includes(stickyCtaPath);
+---
+
+<!doctype html>
+<html lang="en" class="scroll-smooth dark" id="html-root">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content={description} />
+    {noindex && <meta name="robots" content="noindex,follow" />}
+    <!-- Unscoped fallback first: browsers that ignore the media attribute still
+         get a theme color. Media-scoped overrides follow. -->
+    <meta name="theme-color" content="#0b0c0e" />
+    <meta name="color-scheme" content="dark" />
+    <link
+      rel="preload"
+      href="/fonts/inter-variable-subset.woff2"
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link rel="preload" href="/fonts/plex-mono-600.woff2" as="font" type="font/woff2" crossorigin />
+    <style is:inline>
+      /* Override critical CSS that includes bg-white but not dark:bg-stone-950.
+         ModPageSpeed's critical CSS extractor does not capture dark-variant
+         rules, so without !important the white background wins during the
+         critical-CSS-only rendering phase. */
+      html.dark,
+      html.dark body,
+      html.dark header {
+        background-color: #0b0c0e !important;
+        color: #e8eaed !important;
+      }
+      html.dark header {
+        border-color: #2a2e34 !important;
+      }
+      /* Dropdown panel: prevent white flash before dark variant loads */
+      html.dark .group .rounded-lg {
+        background-color: #191c20 !important;
+        border-color: #2a2e34 !important;
+      }
+      /* Card backgrounds: bg-white is captured in critical CSS but dark:bg-stone-900 is not,
+         so every bg-bg-elevated card flashes white until async CSS loads. */
+      html.dark .bg-white {
+        background-color: #191c20 !important;
+      }
+      /* Header logo dark-mode swap: the two <img> tags use `dark:hidden` and
+         `hidden dark:block` to switch between light/dark wordmarks. The base
+         `hidden` rule (display: none) IS captured in critical CSS but the
+         `dark:block` override is NOT, so on second-load (after PageSpeed has
+         inlined critical CSS) the dark logo stays display:none until async
+         CSS arrives and the user briefly sees no logo at all. Force the
+         correct visibility inline using the literal class-attribute
+         substrings — selector specificity (0,2,1) beats any later utility. */
+      html.dark img[class*='dark:hidden'] {
+        display: none !important;
+      }
+      html.dark img[class*='dark:block'] {
+        display: block !important;
+      }
+    </style>
+    <script is:inline define:vars={{ bannerDismissKey }}>
+      /* Set dark class before first paint to avoid FOUC on iOS. Must run
+         synchronously in <head> before any rendering occurs. */
+      (function () {
+        /* Dark-only identity (CALIBER): the `.dark` class is ALWAYS applied so
+           every existing `dark:` utility resolves to the instrument-black system.
+           No toggle, no light theme. */
+        document.documentElement.classList.add('dark');
+        /* Set platform preference for 1.1 docs platform selector */
+        var p = localStorage.getItem('docs-platform') || 'nginx';
+        document.documentElement.setAttribute('data-active-platform', p);
+        /* Hide launch banner if previously dismissed — prevents FOUC.
+           INVARIANT: the localStorage key is versioned (passed in as
+           bannerDismissKey). When the banner copy or link changes, bump the
+           key's version suffix in BaseLayout so previously-dismissed users see
+           the new banner. Do not revert to an unversioned key. */
+        if (localStorage.getItem(bannerDismissKey) === '1') {
+          document.documentElement.dataset.bannerDismissed = '1';
+        }
+      })();
+    </script>
+    <noscript
+      ><style>
+        html:not([data-active-platform]) [data-platform] {
+          display: block !important;
+        }
+      </style></noscript
+    >
+    <style is:inline>
+      [data-banner-dismissed='1'] #coming-soon-banner {
+        display: none;
+      }
+    </style>
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={absoluteOgImage} />
+    <meta property="og:image:type" content={ogImageType} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={canonicalUrl} />
+    <meta property="og:site_name" content={is11Section ? legacyLabel : PRODUCT_DISPLAY_NAME} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@modpagespeed" />
+    <meta name="twitter:title" content={title} />
+    <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={absoluteOgImage} />
+    <link rel="canonical" href={canonicalUrl} />
+    <link
+      rel="alternate"
+      type="application/rss+xml"
+      title={`${PRODUCT_DISPLAY_NAME} Blog`}
+      href="/blog/rss.xml"
+    />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <!-- No generator meta tag — we don't advertise the Astro version to avoid
+         framework-version disclosure. -->
+    <!-- Umami analytics (self-hosted, privacy-first, no cookies) -->
+    <script
+      is:inline
+      defer
+      src="https://umami.we-amp.com/script.js"
+      data-website-id="d32585a5-6610-4a11-8e5b-ef093fabbd20"
+      data-host-url="https://modpagespeed.com"></script>
+    <title>{title}</title>
+    {
+      jsonLdScripts.map((script) => (
+        <script is:inline type="application/ld+json" set:html={JSON.stringify(script)} />
+      ))
+    }
+    <style is:global>
+      @import '../styles/global.css';
+    </style>
+  </head>
+  <body class="min-h-screen flex flex-col bg-bg-primary text-text-body antialiased">
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-md focus:bg-interactive focus:px-4 focus:py-2 focus:text-on-accent"
+    >
+      Skip to main content
+    </a>
+    {
+      bannerText && (
+        <div
+          id="coming-soon-banner"
+          class="bg-bg-secondary text-text-body text-sm text-center py-2 px-4 relative border-b border-border"
+        >
+          <span
+            aria-hidden="true"
+            class="inline-block w-2 h-2 rounded-[1px] bg-interactive mr-2 align-middle"
+          />
+          {bannerHref ? (
+            <a
+              href={bannerHref}
+              class="underline underline-offset-2 hover:text-interactive transition-colors"
+            >
+              {bannerText} <span aria-hidden="true">→</span>
+            </a>
+          ) : (
+            <span>{bannerText}</span>
+          )}
+          <button
+            id="dismiss-banner"
+            type="button"
+            class="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 text-text-muted hover:text-text-body transition-colors"
+            aria-label="Dismiss banner"
+            aria-controls="coming-soon-banner"
+            title="Dismiss banner"
+          >
+            <Icon name="x" class="h-4 w-4" />
+          </button>
+        </div>
+      )
+    }
+    <header class="border-b border-border bg-bg-primary sticky top-0 z-50">
+      <nav class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
+        <div class="flex h-16 items-center justify-between">
+          <a
+            href="/"
+            class="flex items-center"
+            aria-label={`${is11Section ? legacyLabel : currentLabel} — Home`}
+          >
+            <img
+              src={logoLight}
+              alt={is11Section ? legacyLabel : currentLabel}
+              width="216"
+              height="32"
+              class="h-8 w-auto dark:hidden"
+            />
+            <img
+              src={logoDark}
+              alt={is11Section ? legacyLabel : currentLabel}
+              width="216"
+              height="32"
+              class="h-8 w-auto hidden dark:block"
+            />
+          </a>
+
+          {/* Desktop nav */}
+          <div class="hidden md:flex items-center gap-5 lg:gap-6">
+            {
+              navLinks.map((link, index) =>
+                link.children ? (
+                  <div class="relative group nav-dropdown-group">
+                    <button
+                      type="button"
+                      class:list={[
+                        'nav-dropdown-btn text-sm font-medium tracking-wide transition-colors flex items-center gap-1',
+                        link.children.some((c) => currentPath.startsWith(c.href))
+                          ? 'text-interactive'
+                          : 'text-text-muted hover:text-text-body',
+                      ]}
+                      aria-controls={`nav-panel-${index}`}
+                      aria-expanded="false"
+                    >
+                      {link.label}
+                      <Icon name="chevron-down" class="h-4 w-4 opacity-50" />
+                    </button>
+                    <div
+                      id={`nav-panel-${index}`}
+                      class="nav-dropdown-panel absolute left-0 pt-4 hidden z-50"
+                    >
+                      <div class="w-64 rounded-lg border border-border bg-bg-elevated shadow-lg dark:shadow-stone-900/50 py-2">
+                        {link.children.map((child) => (
+                          <a
+                            href={child.href}
+                            data-umami-event={child.umamiEvent}
+                            class:list={[
+                              'block px-4 py-3 hover:bg-bg-secondary transition-colors',
+                              currentPath.startsWith(child.href) ? 'bg-bg-secondary' : '',
+                            ]}
+                          >
+                            <span class="flex items-center gap-1.5">
+                              <span
+                                class:list={[
+                                  'text-sm font-medium',
+                                  currentPath.startsWith(child.href)
+                                    ? 'text-interactive'
+                                    : 'text-text-body',
+                                ]}
+                              >
+                                {child.label}
+                              </span>
+                              {child.badge && (
+                                <span class="rounded-full bg-interactive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-interactive">
+                                  {child.badge}
+                                </span>
+                              )}
+                            </span>
+                            <span class="block text-xs text-text-annotation mt-0.5">
+                              {child.subtitle}
+                            </span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <a
+                    href={link.href}
+                    data-umami-event={link.umamiEvent}
+                    aria-current={currentPath.startsWith(link.href!) ? 'page' : undefined}
+                    class:list={[
+                      'text-sm font-medium tracking-wide transition-colors inline-flex items-center gap-1.5',
+                      link.desktopOnlyFromLg ? 'hidden lg:inline-flex' : '',
+                      currentPath.startsWith(link.href!)
+                        ? 'text-interactive'
+                        : 'text-text-muted hover:text-text-body',
+                    ]}
+                  >
+                    {link.label}
+                    {link.badge && (
+                      <span class="rounded-full bg-interactive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-interactive">
+                        {link.badge}
+                      </span>
+                    )}
+                  </a>
+                ),
+              )
+            }
+            <button
+              type="button"
+              data-qm-open
+              data-umami-event="nav_message_open"
+              aria-haspopup="dialog"
+              class="text-sm font-medium tracking-wide transition-colors inline-flex items-center gap-1.5 text-text-muted hover:text-interactive"
+            >
+              <Icon name="message-square" class="h-4 w-4" />
+              Message
+            </button>
+            <a
+              href="/download/"
+              data-umami-event="cta_nav_download"
+              class="btn-primary ml-2 whitespace-nowrap"
+            >
+              Download &amp; run
+            </a>
+          </div>
+
+          {
+            /* Dark-only identity (CALIBER) — theme toggle removed; the site is
+              rendered exclusively on the instrument-black canvas. */
+          }
+
+          {/* Mobile menu button */}
+          <button
+            id="mobile-menu-btn"
+            class="md:hidden p-2 text-text-muted hover:text-text-body"
+            aria-label="Toggle menu"
+            aria-expanded="false"
+          >
+            <svg
+              class="h-6 w-6"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              aria-hidden="true"
+            >
+              <path
+                id="menu-icon-open"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M4 6h16M4 12h16M4 18h16"></path>
+              <path
+                id="menu-icon-close"
+                class="hidden"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                stroke-width="2"
+                d="M6 18L18 6M6 6l12 12"></path>
+            </svg>
+          </button>
+        </div>
+
+        {/* Mobile nav */}
+        <div
+          id="mobile-menu"
+          class="hidden md:hidden pb-4 max-h-[calc(100dvh-121px)] overflow-y-auto"
+        >
+          {
+            navLinks.map((link) =>
+              link.children ? (
+                <div>
+                  <p class="py-2 text-xs font-semibold uppercase tracking-wider text-text-annotation">
+                    {link.label}
+                  </p>
+                  {link.children.map((child) => (
+                    <a
+                      href={child.href}
+                      data-umami-event={child.umamiEvent ? `${child.umamiEvent}-mobile` : undefined}
+                      class:list={[
+                        'block py-3 pl-4 text-sm font-medium',
+                        currentPath.startsWith(child.href)
+                          ? 'text-interactive'
+                          : 'text-text-muted hover:text-text-body',
+                      ]}
+                    >
+                      <span class="inline-flex items-center gap-1.5">
+                        {child.label}
+                        {child.badge && (
+                          <span class="rounded-full bg-interactive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-interactive">
+                            {child.badge}
+                          </span>
+                        )}
+                      </span>
+                      <span class="block text-xs text-text-annotation font-normal">
+                        {child.subtitle}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              ) : (
+                <a
+                  href={link.href}
+                  data-umami-event={link.umamiEvent ? `${link.umamiEvent}-mobile` : undefined}
+                  aria-current={currentPath.startsWith(link.href!) ? 'page' : undefined}
+                  class:list={[
+                    'flex items-center gap-2 py-3 text-sm font-medium',
+                    currentPath.startsWith(link.href!)
+                      ? 'text-interactive'
+                      : 'text-text-muted hover:text-text-body',
+                  ]}
+                >
+                  <span>{link.label}</span>
+                  {link.badge && (
+                    <span class="rounded-full bg-interactive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-interactive">
+                      {link.badge}
+                    </span>
+                  )}
+                </a>
+              ),
+            )
+          }
+          <button
+            type="button"
+            data-qm-open
+            data-umami-event="nav_message_open_mobile"
+            aria-haspopup="dialog"
+            class="flex items-center gap-2 py-3 text-sm font-medium text-text-muted hover:text-interactive w-full"
+          >
+            <Icon name="message-square" class="h-4 w-4" />
+            Message us
+          </button>
+          <a
+            href="/download/"
+            data-umami-event="cta_nav_download_mobile"
+            class="btn-primary mt-2 w-full"
+          >
+            Download &amp; run
+          </a>
+        </div>
+      </nav>
+    </header>
+    <main id="main-content" class="flex-1">
+      {is11Section && <EolNotice />}
+      <slot />
+    </main>
+
+    <footer class="border-t border-border bg-bg-secondary">
+      <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-12">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-8">
+          <div class="col-span-2 sm:col-span-3 lg:col-span-1">
+            <img
+              src={logoLight}
+              alt={is11Section ? legacyLabel : currentLabel}
+              width="189"
+              height="28"
+              loading="lazy"
+              fetchpriority="low"
+              class="h-7 w-auto dark:hidden"
+            />
+            <img
+              src={logoDark}
+              alt={is11Section ? legacyLabel : currentLabel}
+              width="189"
+              height="28"
+              loading="lazy"
+              fetchpriority="low"
+              class="h-7 w-auto hidden dark:block"
+            />
+            <p class="mt-3 text-sm text-text-muted">
+              Built by We-Amp &mdash; the team that helped build ngx_pagespeed, maintaining
+              mod_pagespeed today.
+            </p>
+            <div class="mt-4 flex items-center gap-3">
+              <a
+                href="https://github.com/We-Amp"
+                rel="noopener"
+                aria-label={`${PRODUCT_DISPLAY_NAME} on GitHub`}
+                title="GitHub"
+                class="text-stone-500 hover:text-text-muted dark:hover:text-stone-200 transition-colors"
+              >
+                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path
+                    fill-rule="evenodd"
+                    clip-rule="evenodd"
+                    d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                  ></path>
+                </svg>
+              </a>
+              <a
+                href="/blog/rss.xml"
+                aria-label="Blog RSS feed"
+                title="RSS feed"
+                class="text-stone-500 hover:text-text-muted dark:hover:text-stone-200 transition-colors"
+              >
+                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path
+                    d="M6.18 15.64a2.18 2.18 0 110 4.36 2.18 2.18 0 010-4.36zM4 4.44A15.56 15.56 0 0119.56 20h-2.83A12.73 12.73 0 004 7.27V4.44zm0 5.66a9.9 9.9 0 019.9 9.9h-2.83A7.07 7.07 0 004 12.93V10.1z"
+                  ></path>
+                </svg>
+              </a>
+            </div>
+          </div>
+
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">
+              Product
+            </p>
+            <ul class="mt-3 space-y-2">
+              <li>
+                <a href="/features/" class="text-sm text-text-muted hover:text-text-body"
+                  >Features</a
+                >
+              </li>
+              <li>
+                <a href="/1.1/migrate/" class="text-sm text-text-muted hover:text-text-body"
+                  >Migrate from open source</a
+                >
+              </li>
+              <li>
+                <a href="/pricing/" class="text-sm text-text-muted hover:text-text-body"
+                  >Support plans</a
+                >
+              </li>
+              <li>
+                <a
+                  href="/download/"
+                  data-umami-event="cta_footer_download"
+                  class="text-sm text-text-muted hover:text-text-body">Download &amp; install</a
+                >
+              </li>
+            </ul>
+            <p class="mt-6 text-xs font-semibold uppercase tracking-wider text-text-annotation">
+              Previous versions
+            </p>
+            <ul class="mt-3 space-y-2">
+              <li>
+                <a href="/1.1/" class="text-sm text-text-muted hover:text-text-body"
+                  >mod_pagespeed 1.15</a
+                >
+              </li>
+              <li>
+                <a
+                  href="/1.1/docs/upgrading-to-2-1/"
+                  class="text-sm text-text-muted hover:text-text-body">Upgrading from 1.15</a
+                >
+              </li>
+              <li>
+                <a
+                  href="/docs/migrating-to-2-1/"
+                  class="text-sm text-text-muted hover:text-text-body">Migrating from 2.0</a
+                >
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">Tools</p>
+            <ul class="mt-3 space-y-2">
+              <li>
+                <a
+                  href="/analyze/"
+                  data-umami-event="nav-analyze-footer"
+                  class="text-sm text-text-muted hover:text-text-body">Analyze</a
+                >
+              </li>
+              <li>
+                <a
+                  href="/ai-readability/"
+                  data-umami-event="nav-ai-readability-footer"
+                  class="text-sm text-text-muted hover:text-text-body">RenderPeek</a
+                >
+              </li>
+              <li>
+                <a href="/demo/" class="text-sm text-text-muted hover:text-text-body">Demo</a>
+              </li>
+              <li>
+                <a href="/examples/" class="text-sm text-text-muted hover:text-text-body"
+                  >Filter examples</a
+                >
+              </li>
+              <li>
+                <a href="/calculator/" class="text-sm text-text-muted hover:text-text-body"
+                  >Savings calculator</a
+                >
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">
+              Resources
+            </p>
+            <ul class="mt-3 space-y-2">
+              <li>
+                <a href="/docs/" class="text-sm text-text-muted hover:text-text-body">Docs</a>
+              </li>
+              <li>
+                <a href="/1.1/docs/" class="text-sm text-text-muted hover:text-text-body"
+                  >Docs (1.15)</a
+                >
+              </li>
+              <li>
+                <a
+                  href="/docs/aspnet-getting-started/"
+                  class="text-sm text-text-muted hover:text-text-body">ASP.NET Middleware</a
+                >
+              </li>
+              <li>
+                <a
+                  href="/aspnet-core-performance/"
+                  class="text-sm text-text-muted hover:text-text-body">ASP.NET Core performance</a
+                >
+              </li>
+              <li>
+                <a href="/wordpress/" class="text-sm text-text-muted hover:text-text-body"
+                  >WordPress caching</a
+                >
+              </li>
+              <li>
+                <a href="/pagespeed-insights/" class="text-sm text-text-muted hover:text-text-body"
+                  >PageSpeed Insights</a
+                >
+              </li>
+              <li>
+                <a
+                  href="/self-hosted-image-optimization/"
+                  class="text-sm text-text-muted hover:text-text-body"
+                  >Self-hosted image optimization</a
+                >
+              </li>
+              <li>
+                <a href="/alternatives/" class="text-sm text-text-muted hover:text-text-body"
+                  >Alternatives</a
+                >
+              </li>
+              <li>
+                <a href="/vs/" class="text-sm text-text-muted hover:text-text-body">Comparisons</a>
+              </li>
+              <li>
+                <a href="/core-web-vitals/" class="text-sm text-text-muted hover:text-text-body"
+                  >Core Web Vitals</a
+                >
+              </li>
+              <li>
+                <a href="/how-it-works/" class="text-sm text-text-muted hover:text-text-body"
+                  >How it works</a
+                >
+              </li>
+              <li>
+                <a href="/pagespeed-markers/" class="text-sm text-text-muted hover:text-text-body"
+                  >PageSpeed markers</a
+                >
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">
+              Company
+            </p>
+            <ul class="mt-3 space-y-2">
+              <li>
+                <a href="/about/" class="text-sm text-text-muted hover:text-text-body">About</a>
+              </li>
+              <li>
+                <a href="/contact/" class="text-sm text-text-muted hover:text-text-body">Contact</a>
+              </li>
+              <li>
+                <a href="/blog/" class="text-sm text-text-muted hover:text-text-body">Blog</a>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">Legal</p>
+            <ul class="mt-3 space-y-2">
+              <li>
+                <a href="/terms/" class="text-sm text-text-muted hover:text-text-body">Terms</a>
+              </li>
+              <li>
+                <a href="/privacy/" class="text-sm text-text-muted hover:text-text-body">Privacy</a>
+              </li>
+              <li>
+                <a href="/security/" class="text-sm text-text-muted hover:text-text-body"
+                  >Security</a
+                >
+              </li>
+              <li>
+                <a href="/license/" class="text-sm text-text-muted hover:text-text-body"
+                  >Source license</a
+                >
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        {
+          /* Newsletter signup (compact, full-width row under the link grid).
+            Shared component; captures into the contact pipeline until
+            Buttondown is live — see src/components/NewsletterSignup.astro. */
+        }
+        <div class="mt-10 border-t border-border pt-8">
+          <div class="max-w-md">
+            <NewsletterSignup variant="footer" />
+          </div>
+        </div>
+
+        <div class="mt-8 border-t border-border pt-8">
+          {
+            /* Consolidated legal-identification block (LEGAL-8): legal name,
+              registered address, company registration, VAT number, and contact
+              in one easy-to-find place.
+              TODO(LEGAL-8): confirm the registered street address — the exact
+              street/number is not in the repo, so only the registered city is
+              shown. Fill in the full street address when available. */
+          }
+          <address class="not-italic text-xs leading-relaxed text-text-annotation">
+            <a
+              href="https://www.we-amp.com/"
+              class="font-medium text-[#8a857d] hover:text-text-body dark:hover:text-stone-200 transition-colors"
+              >We-Amp B.V.</a
+            >
+            &middot; Castricum, The Netherlands &middot; KvK 57898138 &middot; BTW NL852784429B01 &middot;
+            <a href="mailto:info@we-amp.com" class="hover:text-text-muted transition-colors"
+              >info@we-amp.com</a
+            >
+          </address>
+          <p class="mt-3 text-xs text-text-annotation">
+            &copy; {new Date().getFullYear()} We-Amp B.V.
+          </p>
+          <p class="mt-1 text-xs text-text-annotation">
+            mod_pagespeed is an open-source project originally developed at Google. {currentLabel} is
+            developed by We-Amp B.V. and is not affiliated with or endorsed by Google.
+          </p>
+        </div>
+      </div>
+    </footer>
+
+    {
+      /* Site-wide low-friction "quick message" widget — fixed bottom-right
+        launcher; sends a one-way message (optional reply email) to the
+        maintainer via the existing contact -> Telegram pipeline. */
+    }
+    <QuickMessage />
+
+    {
+      /* Site-wide floating "Share this page" widget — stacked above the Message
+        launcher; popup on desktop, native share sheet on mobile. */
+    }
+    <ShareFloat title={title} />
+
+    {
+      /* Mobile-only sticky conversion CTA. Fixed overlay (never pushes content,
+         so no CLS), anchored above the iOS home-indicator via the safe-area
+         inset. Starts hidden (opacity-0 + pointer-events-none) and the inline
+         script below flips data-sticky-cta="visible" — revealed by fading in
+         (opacity only) once the user scrolls past ~90% of the first viewport.
+         Do NOT animate it in with a downward translate (translate-y): a
+         transform that pushes a position:fixed box below the viewport bottom
+         makes real iOS Safari add that distance to the page's scrollable height
+         (a restable phantom void below the footer), even though Chromium and
+         headless WebKit don't reproduce it. Horizontal centering keeps
+         -translate-x-1/2 (its extent stays within the viewport, so it's safe).
+         The global prefers-reduced-motion reset in global.css caps the
+         transition to a single frame. z-40 sits below the sticky header (z-50)
+         and the skip link (z-[100]). */
+    }
+    {
+      showStickyCta && (
+        <a
+          id="sticky-cta"
+          href="/download/"
+          data-umami-event="cta_sticky_mobile"
+          data-sticky-cta="hidden"
+          class="btn-primary md:hidden fixed bottom-0 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full opacity-0 shadow-lg transition-opacity duration-300 ease-out pointer-events-none data-[sticky-cta=visible]:opacity-100 data-[sticky-cta=visible]:pointer-events-auto"
+          style="margin-bottom: calc(1rem + env(safe-area-inset-bottom));"
+        >
+          Download &amp; run
+        </a>
+      )
+    }
+
+    {
+      showStickyCta && (
+        <script is:inline>
+          {`
+          /* Reveal the mobile sticky CTA once the user scrolls past the hero
+             (~90% of the first viewport). Toggles a data attribute; the fade/
+             slide is pure CSS so reduced-motion users still get an instant flip
+             via the global motion reset. */
+          (function () {
+            var cta = document.getElementById('sticky-cta');
+            if (!cta) return;
+            function update() {
+              var past = window.scrollY > window.innerHeight * 0.9;
+              cta.setAttribute('data-sticky-cta', past ? 'visible' : 'hidden');
+            }
+            update();
+            window.addEventListener('scroll', update, { passive: true });
+            window.addEventListener('resize', update, { passive: true });
+          })();
+          `}
+        </script>
+      )
+    }
+
+    <!-- Dark class is now set in <head> to prevent FOUC on iOS -->
+
+    <script>
+      const btn = document.getElementById('mobile-menu-btn');
+      const menu = document.getElementById('mobile-menu');
+      const iconOpen = document.getElementById('menu-icon-open');
+      const iconClose = document.getElementById('menu-icon-close');
+
+      function setMobileMenuOpen(open: boolean) {
+        if (!btn || !menu) return;
+        btn.setAttribute('aria-expanded', String(open));
+        menu.classList.toggle('hidden', !open);
+        iconOpen?.classList.toggle('hidden', open);
+        iconClose?.classList.toggle('hidden', !open);
+      }
+
+      function closeMobileMenu(returnFocus: boolean) {
+        if (!menu || menu.classList.contains('hidden')) return;
+        setMobileMenuOpen(false);
+        if (returnFocus) btn?.focus();
+      }
+
+      btn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setMobileMenuOpen(btn.getAttribute('aria-expanded') !== 'true');
+      });
+
+      // Keep clicks inside the open menu from bubbling to the outside-click handler.
+      menu?.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+
+      // Outside tap/click closes the menu (no focus return — the user is acting elsewhere).
+      document.addEventListener('click', () => closeMobileMenu(false));
+
+      // Escape closes the menu and returns focus to the toggle. (WCAG 2.1.2)
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeMobileMenu(true);
+      });
+
+      // Desktop nav dropdowns (Tools, Docs) — click + keyboard support.
+      // Each group is independent; aria-expanded is the single source of truth
+      // and visual state mirrors it. Opening one closes the others.
+      const dropdownGroups = Array.from(
+        document.querySelectorAll<HTMLElement>('.nav-dropdown-group'),
+      )
+        .map((group) => ({
+          btn: group.querySelector<HTMLButtonElement>('.nav-dropdown-btn'),
+          panel: group.querySelector<HTMLElement>('.nav-dropdown-panel'),
+        }))
+        .filter((g): g is { btn: HTMLButtonElement; panel: HTMLElement } =>
+          Boolean(g.btn && g.panel),
+        );
+
+      function setGroupOpen(group: { btn: HTMLButtonElement; panel: HTMLElement }, open: boolean) {
+        group.panel.classList.toggle('hidden', !open);
+        group.btn.setAttribute('aria-expanded', String(open));
+      }
+
+      function closeAllDropdowns() {
+        dropdownGroups.forEach((g) => setGroupOpen(g, false));
+      }
+
+      dropdownGroups.forEach((group) => {
+        group.btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isOpen = !group.panel.classList.contains('hidden');
+          closeAllDropdowns();
+          setGroupOpen(group, !isOpen);
+        });
+
+        group.btn.addEventListener('keydown', (e) => {
+          if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            closeAllDropdowns();
+            setGroupOpen(group, true);
+            const firstLink = group.panel.querySelector<HTMLAnchorElement>('a');
+            firstLink?.focus();
+          }
+        });
+
+        group.panel.addEventListener('click', (e) => {
+          e.stopPropagation();
+        });
+
+        // Close a stale-open menu when focus leaves the group entirely (Tab-out).
+        // relatedTarget is the element gaining focus; if it's outside this
+        // group's wrapper, collapse the disclosure.
+        const wrapper = group.btn.closest<HTMLElement>('.nav-dropdown-group');
+        wrapper?.addEventListener('focusout', (e) => {
+          const next = e.relatedTarget as Node | null;
+          if (!next || !wrapper.contains(next)) {
+            setGroupOpen(group, false);
+          }
+        });
+      });
+
+      if (dropdownGroups.length > 0) {
+        document.addEventListener('click', closeAllDropdowns);
+
+        document.addEventListener('keydown', (e) => {
+          if (e.key !== 'Escape') return;
+          const openGroup = dropdownGroups.find((g) => !g.panel.classList.contains('hidden'));
+          if (openGroup) {
+            closeAllDropdowns();
+            openGroup.btn.focus();
+          }
+        });
+      }
+    </script>
+
+    <script is:inline define:vars={{ bannerDismissKey }}>
+      /* Banner dismissal is versioned (and section-scoped) so copy changes
+         reach previously-dismissed users. The key is passed in from BaseLayout
+         (bannerDismissKey); bump its version suffix there when copy changes. */
+      (function () {
+        var BANNER_KEY = bannerDismissKey;
+        var banner = document.getElementById('coming-soon-banner');
+        var dismissBtn = document.getElementById('dismiss-banner');
+        if (!banner) return;
+        if (localStorage.getItem(BANNER_KEY) === '1') {
+          banner.style.display = 'none';
+          return;
+        }
+        if (dismissBtn) {
+          dismissBtn.addEventListener('click', function () {
+            banner.style.display = 'none';
+            localStorage.setItem(BANNER_KEY, '1');
+          });
+        }
+      })();
+    </script>
+
+    <script is:inline>
+      /* Copy-to-clipboard buttons on every <pre><code>...</code></pre>.
+         Initialization gate: only flip <html data-clip-ready> if the
+         clipboard API is actually usable. CSS keeps buttons opacity:0 +
+         visibility:hidden until that flag is set, so we never flash empty
+         buttons on browsers that lack support (older Safari, non-HTTPS dev
+         preview). Inline <code> (not inside <pre>) is skipped by selector. */
+      (function () {
+        if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
+          return;
+        }
+        var COPY_SVG =
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+        var CHECK_SVG =
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+
+        function attach(pre) {
+          if (!pre || pre.dataset.copyAttached === '1') return;
+          var code = pre.querySelector('code');
+          if (!code) return;
+          pre.dataset.copyAttached = '1';
+          /* Ensure absolute child positions against the <pre>. CSS already
+             does this via `pre:has(code)` in browsers that support :has,
+             but set inline for older browsers as a defensive belt. */
+          var computed = window.getComputedStyle(pre);
+          if (computed.position === 'static') {
+            pre.style.position = 'relative';
+          }
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'code-copy-btn';
+          btn.setAttribute('aria-label', 'Copy code to clipboard');
+          btn.setAttribute('title', 'Copy');
+          btn.innerHTML = COPY_SVG;
+          btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var text = code.textContent || '';
+            navigator.clipboard.writeText(text).then(
+              function () {
+                btn.dataset.copied = 'true';
+                btn.setAttribute('aria-label', 'Copied');
+                btn.setAttribute('title', 'Copied');
+                btn.innerHTML = CHECK_SVG;
+                setTimeout(function () {
+                  delete btn.dataset.copied;
+                  btn.setAttribute('aria-label', 'Copy code to clipboard');
+                  btn.setAttribute('title', 'Copy');
+                  btn.innerHTML = COPY_SVG;
+                }, 1500);
+              },
+              function () {
+                /* Permission denied or other failure — leave button visible,
+                   no error UI; the user can still select+copy manually. */
+              },
+            );
+          });
+          pre.appendChild(btn);
+        }
+
+        function attachAll(root) {
+          var scope = root && root.querySelectorAll ? root : document;
+          var codes = scope.querySelectorAll('pre > code');
+          /* No code blocks on this page (most marketing pages) — no-op.
+             Skip the data-clip-ready flag and the per-node getComputedStyle
+             work entirely. */
+          if (codes.length === 0) return;
+          document.documentElement.setAttribute('data-clip-ready', '');
+          for (var i = 0; i < codes.length; i++) {
+            attach(codes[i].parentElement);
+          }
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', function () {
+            attachAll(document);
+          });
+        } else {
+          attachAll(document);
+        }
+      })();
+    </script>
+  </body>
+</html>

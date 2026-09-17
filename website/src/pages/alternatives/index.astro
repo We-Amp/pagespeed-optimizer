@@ -1,0 +1,175 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { LICENSE_CLAUSE_CAP } from '../../data/product-facts.mjs';
+
+const cards = [
+  {
+    href: '/alternatives/mod-pagespeed/',
+    title: 'mod_pagespeed alternative',
+    summary:
+      'mod_pagespeed is deprecated. ModPageSpeed 2.0 (out-of-process worker) and mod_pagespeed 1.15 (native in-process module) are the actively-maintained successors.',
+  },
+  {
+    href: '/alternatives/ngx-pagespeed/',
+    title: 'ngx_pagespeed alternative',
+    summary:
+      'ngx_pagespeed was the nginx port of mod_pagespeed; the GitHub repository is now read-only. mod_pagespeed 1.15 is the native nginx module; ModPageSpeed 2.0 is the Docker reverse proxy worker for nginx with variant-aware caching and zero-copy serving. Both actively patched.',
+  },
+  {
+    href: '/alternatives/iispeed/',
+    title: 'IISpeed alternative',
+    summary:
+      'IISpeed is deprecated. Free license transfer to mod_pagespeed 1.15 for native IIS, or to the WeAmp.PageSpeed.Sidecar NuGet package for ASP.NET Core.',
+  },
+  {
+    href: '/alternatives/google-pagespeed-module/',
+    title: 'Google PageSpeed Module alternative',
+    summary:
+      "\"Google PageSpeed Module\" almost always means the deprecated server module (mod_pagespeed / ngx_pagespeed) — not PageSpeed Insights (pagespeed.web.dev), which is still active and unrelated.",
+  },
+];
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: 'Alternatives to mod_pagespeed, ngx_pagespeed, and IISpeed',
+  description:
+    "Active continuations for Google's deprecated PageSpeed Module family — ModPageSpeed 2.0 and mod_pagespeed 1.15, plus path-by-path migration guidance for nginx, Apache, IIS, and ASP.NET Core.",
+  url: 'https://modpagespeed.com/alternatives/',
+  hasPart: cards.map((card) => ({
+    '@type': 'WebPage',
+    name: card.title,
+    description: card.summary,
+    url: `https://modpagespeed.com${card.href}`,
+  })),
+};
+---
+
+<BaseLayout
+  title="Alternatives to mod_pagespeed, ngx_pagespeed, and IISpeed"
+  description="mod_pagespeed and ngx_pagespeed are deprecated. Compare the maintained successors, ModPageSpeed 2.0 and 1.15, and pick the right fit per server."
+  jsonLd={jsonLd}
+>
+  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-20">
+    <h1 class="h1-hero text-text-body">
+      Alternatives to mod_pagespeed, ngx_pagespeed, and IISpeed
+    </h1>
+    <p class="lede mt-6 max-w-2xl">
+      <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">mod_pagespeed</code
+      > and <code class="rounded bg-bg-elevated px-1 py-0.5 text-base"
+        >ngx_pagespeed</code
+      > are deprecated. IISpeed is in transition. These pages cover the actively-maintained continuations
+      and which one fits each server.
+    </p>
+    <p class="lede-sub mt-4 max-w-2xl text-sm text-text-muted">
+      These continuations share the optimization core that powers <span
+        class="font-semibold text-text-body">230,000+ live sites</span
+      > today (<a
+        href="https://trends.builtwith.com/Server/mod_pagespeed"
+        target="_blank"
+        rel="noopener noreferrer"
+        class="text-interactive hover:text-interactive-hover underline"
+        >BuiltWith, May 2026</a
+      >) &mdash; not We-Amp customers, but proof it works at scale.
+    </p>
+
+    <div class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+      {
+        cards.map((card) => (
+          <a
+            href={card.href}
+            class="card rounded-2xl border border-border bg-bg-elevated p-6 md:p-7 hover:border-interactive/40 transition-colors flex flex-col"
+          >
+            <h2 class="text-lg font-semibold text-text-body">{card.title}</h2>
+            <p class="mt-2 text-sm text-text-muted flex-1">{card.summary}</p>
+            <span class="mt-4 text-sm font-medium text-interactive">
+              Read &rarr;
+            </span>
+          </a>
+        ))
+      }
+    </div>
+
+    <section class="mt-16">
+      <h2 class="h2-section text-text-body">Background reading</h2>
+      <ul class="mt-4 space-y-3 text-text-body">
+        <li>
+          <a
+            href="/blog/mod-pagespeed-alternatives/"
+            class="text-interactive hover:text-interactive-hover underline"
+            >mod_pagespeed alternatives in 2026</a
+          > — the deep comparison between ModPageSpeed 2.0 and mod_pagespeed 1.15, written for teams choosing
+          between them.
+        </li>
+        <li>
+          <a
+            href="/blog/mod-pagespeed-deprecated-2026/"
+            class="text-interactive hover:text-interactive-hover underline"
+            >Is mod_pagespeed deprecated? Yes &mdash; here's what to use in 2026</a
+          > &mdash; the full history of the deprecation and a path-by-path forward plan.
+        </li>
+        <li>
+          <a
+            href="/mod-pagespeed-still-maintained/"
+            class="text-interactive hover:text-interactive-hover underline"
+            >Is mod_pagespeed still maintained?</a
+          > &mdash; what development resumed and what has shipped since.
+        </li>
+        <li>
+          <a
+            href="/pagespeed-insights/"
+            class="text-interactive hover:text-interactive-hover underline"
+            >Improving your PageSpeed Insights score</a
+          > &mdash; which render-blocking, next-gen image, and caching audits a server module fixes.
+        </li>
+        <li>
+          Serving images yourself? <a
+            href="/self-hosted-image-optimization/"
+            class="text-interactive hover:text-interactive-hover underline"
+            >Self-hosted image optimization</a
+          > covers WebP and AVIF serving without a third-party image CDN.
+        </li>
+        <li>
+          Running Apache? The <a
+            href="/1.1/apache/"
+            class="text-interactive hover:text-interactive-hover underline"
+            >Apache PageSpeed module</a
+          > is the native in-process continuation for httpd.
+        </li>
+      </ul>
+    </section>
+
+    <section class="mt-16">
+      <h2 class="h2-section text-text-body">Try ModPageSpeed</h2>
+      <p class="mt-4 text-text-body">
+        Both editions are licensed under the Apache License 2.0; paid tiers are support
+        subscriptions &mdash; security patches, version upgrades, and email support. See the <a
+          href="/license/"
+          class="text-interactive hover:text-interactive-hover underline"
+          >software license</a
+        >.
+      </p>
+      <div class="mt-6 flex flex-wrap gap-3">
+        <a href="/download/" class="btn-primary" data-umami-event="cta_alternatives_hub_download"
+          >Download &amp; run</a
+        >
+        <a
+          href="/pricing/"
+          data-umami-event="cta_alternatives_hub_buy"
+          class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
+          >Support plans</a
+        >
+      </div>
+      <p class="mt-3 text-sm text-text-annotation">
+        {LICENSE_CLAUSE_CAP} &mdash; free in development and in production.
+      </p>
+    </section>
+
+    <p class="mt-16 text-xs text-text-annotation">
+      mod_pagespeed, ngx_pagespeed, IISpeed, and other product names are trademarks of their
+      respective owners. Comparisons reflect publicly available information as of 2026 and are
+      provided for evaluation; We-Amp B.V. is not affiliated with or endorsed by Google or the
+      Apache Software Foundation.
+    </p>
+  </section>
+</BaseLayout>

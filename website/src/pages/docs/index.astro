@@ -1,0 +1,222 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
+import { getRelease } from '../../lib/release';
+
+// Badge version is sourced from the release manifest so it tracks
+// the shipped 2.0 line instead of a hardcoded "preview" string.
+const rel20 = await getRelease('2.0');
+
+const allDocs = (await getCollection('docs')).sort((a, b) => a.data.order - b.data.order);
+
+const startHere = allDocs.find((d) => d.data.group === 'Start here');
+const rest = allDocs.filter((d) => d.data.group !== 'Start here');
+
+const groups: { label: string; docs: typeof allDocs }[] = [];
+let currentGroup = '';
+for (const d of rest) {
+  const group = d.data.group ?? 'Other';
+  if (group !== currentGroup) {
+    currentGroup = group;
+    groups.push({ label: group, docs: [] });
+  }
+  groups[groups.length - 1].docs.push(d);
+}
+
+// SEO: CollectionPage JSON-LD built from the SAME doc data that renders the
+// visible list below, so the structured listing stays in step with the page —
+// except the Reference (/docs/filters/) and Releases (/blog/) cards, which are
+// intentionally excluded from the structured ItemList.
+// Order mirrors the rendered order: Start here first, then each group.
+const siteOrigin = 'https://modpagespeed.com';
+const listedDocs = [...(startHere ? [startHere] : []), ...rest];
+const docItemList = listedDocs.map((doc, i) => ({
+  '@type': 'ListItem',
+  position: i + 1,
+  name: doc.data.title,
+  url: `${siteOrigin}/docs/${doc.id}/`,
+}));
+const docsJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: 'Documentation — ModPageSpeed 2.0',
+  url: `${siteOrigin}/docs/`,
+  mainEntity: {
+    '@type': 'ItemList',
+    itemListElement: docItemList,
+  },
+};
+---
+
+<BaseLayout
+  title="Documentation — ModPageSpeed 2.0"
+  description="Install, configure, and run ModPageSpeed 2.0. Guides for Docker, nginx module, ASP.NET Core middleware, configuration, deployment, and troubleshooting."
+  jsonLd={docsJsonLd}
+>
+  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16 lg:py-20">
+    <div
+      class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:flex-wrap"
+    >
+      <div class="flex items-center gap-3 flex-wrap min-w-0">
+        <h1 class="h1-hero break-words text-text-body">Documentation</h1>
+        <span
+          class="inline-flex items-center rounded-md bg-interactive px-2 py-1 text-xs font-mono font-medium text-on-accent"
+          aria-label={`ModPageSpeed ${rel20.display.badge_version} documentation`}
+        >
+          {rel20.display.badge_version}
+        </span>
+      </div>
+    </div>
+    <p class="mt-4 text-lg text-text-muted">
+      Two products, one optimization core. Pick the documentation that matches your deployment.
+    </p>
+
+    {
+      /* Balanced product picker — equal-weight cards for both product doc sets.
+        Stone = 1.1, blue = 2.0, matched border weight, shadow, icon-tile, and
+        accent saturation so neither product reads as the afterthought. */
+    }
+    <div class="mt-8 grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <a
+        href="#mps2-docs"
+        class="block rounded-2xl border border-interactive/40 bg-interactive/10 p-6 hover:border-interactive/40 hover:shadow-md dark:shadow-stone-900/50 transition-all"
+      >
+        <p class="text-xs font-semibold uppercase tracking-wider text-interactive">
+          Out-of-process worker
+        </p>
+        <h2 class="mt-2 text-xl font-semibold text-text-body">
+          ModPageSpeed 2.0 docs
+        </h2>
+        <p class="mt-2 text-sm text-text-muted">
+          The async worker behind an nginx reverse proxy, or ASP.NET Core middleware. Docker,
+          configuration, deployment, and troubleshooting.
+        </p>
+      </a>
+      <a
+        href="/1.1/docs/"
+        class="block rounded-2xl border border-border-strong bg-stone-100/70 dark:bg-stone-800/50 p-6 hover:border-border-strong hover:shadow-md dark:shadow-stone-900/50 transition-all"
+      >
+        <p
+          class="text-xs font-semibold uppercase tracking-wider text-text-body"
+        >
+          In-process module
+        </p>
+        <h2 class="mt-2 text-xl font-semibold text-text-body">
+          mod_pagespeed 1.15 docs
+        </h2>
+        <p class="mt-2 text-sm text-text-muted">
+          The native module for Apache, nginx, and IIS. Install, the classic filter set, per-filter
+          configuration, and the built-in admin console.
+        </p>
+      </a>
+    </div>
+
+    <p
+      id="mps2-docs"
+      class="mt-12 scroll-mt-24 eyebrow tracking-widest text-text-body"
+    >
+      ModPageSpeed 2.0 documentation
+    </p>
+
+    {
+      startHere && (
+        <a
+          href={`/docs/${startHere.id}/`}
+          class="mt-6 block rounded-2xl border border-interactive/40 bg-interactive/10 p-6 hover:border-interactive/40 hover:shadow-md dark:shadow-stone-900/50 transition-all"
+        >
+          <p class="text-xs font-semibold uppercase tracking-wider text-interactive">
+            Start here
+          </p>
+          <h2 class="mt-2 text-2xl font-semibold text-text-body">
+            {startHere.data.title}
+          </h2>
+          <p class="mt-2 text-sm text-text-muted">
+            {startHere.data.description}
+          </p>
+        </a>
+      )
+    }
+
+    <div class="mt-12 space-y-16">
+      {
+        groups.map((group) => (
+          <div class="border-t border-border pt-8">
+            <h2 class="eyebrow tracking-widest text-text-body mb-6">
+              {group.label}
+            </h2>
+            <div class="space-y-3">
+              {group.docs.map((doc) => (
+                <a
+                  href={`/docs/${doc.id}/`}
+                  class="block rounded-lg border border-border bg-bg-elevated p-6 hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
+                >
+                  <h3 class="text-lg font-semibold text-text-body">
+                    {doc.data.title}
+                  </h3>
+                  <p class="mt-1 text-sm text-text-muted">
+                    {doc.data.description}
+                  </p>
+                </a>
+              ))}
+            </div>
+          </div>
+        ))
+      }
+
+      <div class="border-t border-border pt-8">
+        <h2 class="eyebrow tracking-widest text-text-body mb-6">Reference</h2>
+        <div class="space-y-3">
+          <a
+            href="/docs/filters/"
+            class="block rounded-lg border border-border bg-bg-elevated p-6 hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
+          >
+            <h3 class="text-lg font-semibold text-text-body">
+              PageSpeed filters reference
+            </h3>
+            <p class="mt-1 text-sm text-text-muted">
+              The image, CSS, JavaScript, HTML, and caching filters, what each one does, and which
+              run by default.
+            </p>
+          </a>
+        </div>
+      </div>
+
+      <div class="border-t border-border pt-8">
+        <h2 class="eyebrow tracking-widest text-text-body mb-6">Releases</h2>
+        <div class="space-y-3">
+          <a
+            href="/docs/release-notes/"
+            class="block rounded-lg border border-border bg-bg-elevated p-6 hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
+          >
+            <h3 class="text-lg font-semibold text-text-body">
+              Release notes
+            </h3>
+            <p class="mt-1 text-sm text-text-muted">
+              Capabilities, user-facing changes, and security updates for ModPageSpeed 2.0.
+              Release announcements are on the <a
+                href="/blog/"
+                class="underline hover:text-interactive">blog</a
+              >.
+            </p>
+          </a>
+        </div>
+      </div>
+
+      <div class="border-t border-border pt-8">
+        <h2 class="eyebrow tracking-widest text-text-body mb-6">Concepts</h2>
+        <div class="space-y-3">
+          <a
+            href="/how-it-works/"
+            class="block rounded-lg border border-border bg-bg-elevated p-6 hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
+          >
+            <h3 class="text-lg font-semibold text-text-body">How it works</h3>
+            <p class="mt-1 text-sm text-text-muted">
+              CSS parsing, the metadata cache, and optimizing off the request path &mdash; the
+              mechanics under the filters.
+            </p>
+          </a>
+        </div>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

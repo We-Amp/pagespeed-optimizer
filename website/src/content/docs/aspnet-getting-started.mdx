@@ -1,0 +1,226 @@
+---
+title: 'Install ASP.NET Core middleware'
+description: 'Install ModPageSpeed as ASP.NET Core middleware via NuGet — the same 2.0 optimization pipeline (image transcoding, critical CSS) inside your .NET app, no nginx reverse proxy required.'
+order: 50
+group: 'ASP.NET Core'
+lastUpdated: 2026-07-04
+---
+
+import NugetCmd from '../../components/release/NugetCmd.astro';
+
+ModPageSpeed runs inside your ASP.NET Core pipeline as middleware, installed as
+a NuGet package. Same optimization pipeline as the nginx integration — image
+transcoding, CSS/JS minification, critical CSS — invoked via P/Invoke to the
+native C/C++ library. No separate reverse proxy or sidecar is required.
+
+## Prerequisites
+
+1. **.NET 8 SDK** or **.NET 10 SDK** — [dotnet.microsoft.com](https://dotnet.microsoft.com/download). The package targets `net8.0` and `net10.0`.
+2. **Supported platform:** Linux x64 or arm64, macOS ARM64 (Apple Silicon), or Windows x64
+3. **An ASP.NET Core application** that serves HTML responses (Razor Pages, MVC, Blazor Server, or minimal APIs returning HTML)
+
+## Install the package
+
+A single `dotnet add` command is enough — the meta-package pulls in the core
+abstractions and all native-asset packages transitively.
+
+<pre>
+  <code class="language-bash">
+    <NugetCmd />
+  </code>
+</pre>
+
+Three native-asset packages ship alongside the managed assemblies — one each
+for `linux-x64`/`linux-arm64`, `osx-arm64`, and `win-x64`. NuGet pulls all of
+them as transitive dependencies; MSBuild's RID resolution loads only the
+matching platform's binary at publish/run time.
+
+## Add to your pipeline
+
+Register PageSpeed services and add the middleware to your request pipeline.
+
+```csharp
+using WeAmp.PageSpeed.AspNetCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// Register PageSpeed services — auto-binds the "PageSpeed" section from
+// IConfiguration (appsettings.json, env vars, user secrets, …).
+builder.Services.AddPageSpeed();
+
+var app = builder.Build();
+
+// Add PageSpeed middleware — should be early in the pipeline, before
+// anything that writes the response body.
+app.UsePageSpeed();
+
+app.MapStaticAssets();
+app.MapRazorPages();
+
+app.Run();
+```
+
+Place `UsePageSpeed()` before any middleware that writes the response body. It
+needs to intercept responses before they reach the client.
+
+That is the whole setup. There is no `Worker` section to configure. The worker
+process starts automatically and coordinates over an auto-resolved per-process
+socket, so HTML and image optimization are on out of the box. You only add a
+`PageSpeed:Worker` section when you want to change that behavior; see the
+[configuration reference](/docs/aspnet-configuration/#worker-pagespeedworker).
+
+## Configure via appsettings.json
+
+Add a `PageSpeed` section to your appsettings.json. A minimal configuration:
+
+```json
+{
+  "PageSpeed": {
+    "Enabled": true
+  }
+}
+```
+
+That's enough to turn on every default rewrite (critical-CSS inlining, LCP
+preload, lazy loading, image dimensions, async CSS, script deferral, …). Each
+rewrite is its own boolean toggle under `PageSpeed:Html` — see the
+[configuration reference](/docs/aspnet-configuration/) for the full list.
+
+:::caution[Local development cache path]
+The default cache location, `/var/cache/pagespeed/volume.dat`, needs elevated
+permissions to create. That suits containers and production hosts that run as
+root, but a local `dotnet run` as a normal user fails at startup with
+`UnauthorizedAccessException: Access to the path '/var/cache' is denied`. For
+local development, point the cache at a writable path.
+:::
+
+```json
+{
+  "PageSpeed": {
+    "Enabled": true,
+    "Cache": {
+      "VolumePath": "pagespeed-cache/volume.dat"
+    }
+  }
+}
+```
+
+A relative path is created under your app's working directory. See
+[Cache volume](/docs/aspnet-configuration/#cache-volume) for container and
+production paths.
+
+## Verify the install
+
+Run your application:
+
+```bash
+dotnet run
+```
+
+Check the terminal output for the URL your app is listening on (e.g.
+`http://localhost:5123`). Three checks confirm the install end to end, from
+quickest to most thorough.
+
+> **`dotnet run` honors `launchSettings.json`.** When a
+> `Properties/launchSettings.json` exists, `dotnet run` applies its
+> `applicationUrl` and environment variables and **overrides**
+> `ASPNETCORE_URLS` / `ASPNETCORE_ENVIRONMENT` from your shell. If the app comes
+> up on an unexpected port or environment, that file is why. Pass
+> `dotnet run --no-launch-profile` to ignore it (and fall back to
+> `ASPNETCORE_URLS` / `ASPNETCORE_ENVIRONMENT`), or edit `launchSettings.json`
+> directly to set the port and environment.
+
+### 1. The `X-PageSpeed` header on a content route
+
+```bash
+curl -i http://localhost:<port>/
+```
+
+Look for the `X-PageSpeed` header on HTML responses. It reports the cache
+outcome:
+
+```
+X-PageSpeed: MISS
+```
+
+or, once the worker has built the variant:
+
+```
+X-PageSpeed: HIT
+```
+
+`MISS` means the worker is generating the optimized variant in the background;
+you'll see `HIT` on the next request. If the header is present, PageSpeed is
+active. Check a content route like `/` or one of your assets — the `/console/*`
+routes are short-circuited before the middleware, so they intentionally do not
+carry `X-PageSpeed`.
+
+### 2. The dashboard shows activity
+
+Open `http://localhost:<port>/console/`. After a few requests, the
+Dashboard and Metrics show non-zero request and optimization counts. If they
+read zero, jump to
+[My dashboard shows zeros](#my-dashboard-shows-zeros-and-nothing-is-moving).
+
+### 3. Content negotiation serves smaller images
+
+We don't rewrite URLs in 2.0 — the same `/hero.jpg` URL serves WebP to
+WebP-capable browsers and AVIF to AVIF-capable ones. The worker selects the
+variant from the request `Accept` header, and the response carries
+`Vary: Accept, Save-Data, User-Agent` so caches keep the variants apart:
+
+```bash
+curl -s -o /dev/null -D - http://localhost:<port>/hero.jpg -H 'Accept: image/jpeg'
+# Content-Length: 98230   Content-Type: image/jpeg   Vary: Accept, Save-Data, User-Agent
+
+curl -s -o /dev/null -D - http://localhost:<port>/hero.jpg -H 'Accept: image/webp'
+# Content-Length: 2422    Content-Type: image/webp   Vary: Accept, Save-Data, User-Agent
+
+curl -s -o /dev/null -D - http://localhost:<port>/hero.jpg -H 'Accept: image/avif'
+# Content-Length: 415     Content-Type: image/avif   Vary: Accept, Save-Data, User-Agent
+```
+
+The same URL returns smaller bytes per format. (Byte counts are from one sample
+image; yours will differ.) View the HTML source to see the rest: inlined
+critical CSS, lazy-loaded images, and deferred scripts where coverage analysis
+allows (tiny scripts may legitimately stay inline-blocking).
+
+> **Coming from 1.x?** There are no `.pagespeed.` magic URLs in 2.0. The HTML
+> stays clean and the original URLs serve optimized bytes through content
+> negotiation. If you're looking for rewritten asset URLs in the page source,
+> you won't find them — that's expected.
+
+## My dashboard shows zeros and nothing is moving
+
+If the Dashboard reads zero and DevTools shows no smaller image variants, the
+worker isn't coordinating with the middleware. On releases before 2.0.14,
+`Worker.SocketPath` defaulted in a way that could leave coordination off; from
+2.0.14 the default is an auto-resolved per-process socket with coordination on,
+so the quickstart above just works.
+
+Check, in order:
+
+1. You're on **2.0.14 or newer** — `dotnet list package` should show
+   `WeAmp.PageSpeed.AspNetCore` at `2.0.14`+.
+2. You haven't set `PageSpeed:Worker:SocketPath` to `null` or `""` in
+   appsettings.json or in code. Either value disables coordination and logs a
+   startup warning — leave the key unset for the default. See
+   [Worker configuration](/docs/aspnet-configuration/#worker-pagespeedworker).
+3. `PageSpeed:Worker:AutoStart` is still `true` (the default). With it `false`,
+   no worker process launches at all.
+
+Then re-run the [content-negotiation check](#3-content-negotiation-serves-smaller-images) — a `webp` request should return materially fewer
+bytes with `Content-Type: image/webp`.
+
+## Known limitations
+
+- License state changes propagate to the middleware within 30 seconds (health poll interval)
+
+## Next steps
+
+- [Configuration reference](/docs/aspnet-configuration/) — all appsettings.json options, hot reload, environment-specific config
+- [ASP.NET Core performance overview](/aspnet-core-performance/) — what the pipeline optimizes and the results to expect
+- [How the ASP.NET Core middleware works](/blog/aspnet-core-middleware/) — the architecture behind `UsePageSpeed()`
+- [Image optimization in C#](/blog/aspnet-core-image-optimization-c-sharp/) — the content-negotiation path in detail
+- Fix [LCP](/blog/fix-lcp-aspnet-core-2026/), [INP](/blog/fix-inp-aspnet-core-2026/), and [CLS](/blog/fix-cls-aspnet-core-2026/) in ASP.NET Core — targeted Core Web Vitals guides
+- [Software license](/license/) — Apache License 2.0

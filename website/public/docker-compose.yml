@@ -1,0 +1,50 @@
+# PageSpeed 2.0 - Quick Start
+#
+# Usage:
+#   curl -sO https://modpagespeed.com/docker-compose.yml
+#   docker compose up -d
+#   curl -I http://localhost/
+#
+# By default, nginx proxies to your origin at host.docker.internal:8081.
+# Set BACKEND_HOST and BACKEND_PORT to change this.
+
+services:
+  worker:
+    image: ghcr.io/we-amp/pagespeed-worker:2.0.21
+    volumes:
+      - pagespeed-data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "echo '' | socat - UNIX-CONNECT:/data/pagespeed.sock.health | grep -q '^OK'"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    # ports:
+    #   - "9880:9880"  # Optional: worker HTTP API + web console
+
+  nginx:
+    image: ghcr.io/we-amp/pagespeed-nginx:2.0.21
+    ports:
+      - "80:80"
+    volumes:
+      - pagespeed-data:/data
+    environment:
+      - BACKEND_HOST=${BACKEND_HOST:-host.docker.internal}
+      - BACKEND_PORT=${BACKEND_PORT:-8081}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      worker:
+        condition: service_healthy
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 3s
+
+volumes:
+  pagespeed-data:
+    driver: local

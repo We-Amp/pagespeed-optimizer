@@ -1,0 +1,2022 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { PSI_MPS_MAPPING } from '../data/psi-mps-mapping';
+import { FREE_TO_RUN_LINE } from '../data/product-facts.mjs';
+
+const title = 'Free PageSpeed Insights Test — See What ModPageSpeed Fixes';
+const description =
+  'Free PageSpeed Insights test, no signup. Every failing Lighthouse audit mapped to the ModPageSpeed filter that fixes it — LCP, CLS, render-blocking, images.';
+
+// "What gets fixed" — highest-impact audits, built at build-time from the
+// same mapping table the JS analyzer uses. Render order: image/asset wins
+// first (largest user-visible impact), then markup wins, then the
+// 2.0-specific HTML-caching card. The card visibility is toggled
+// client-side based on which edition the visitor selects.
+const FIXED_HIGHLIGHT_IDS = [
+  'image-delivery-insight',
+  'render-blocking-insight',
+  'cache-insight',
+  'unminified-css',
+  'unminified-javascript',
+  'unsized-images',
+  'modern-image-formats',
+  'uses-responsive-images',
+  'offscreen-images',
+  'uses-optimized-images',
+  // 2.0-only: HTML response caching in Cyclone — the load-bearing
+  // difference for slow-origin sites.
+  'document-latency-insight',
+];
+const fixedHighlights = FIXED_HIGHLIGHT_IDS.map((id) =>
+  PSI_MPS_MAPPING.find(
+    (m) => m.auditId === id && (m.coverage === 'full' || m.coverage === 'partial'),
+  ),
+).filter((m): m is NonNullable<typeof m> => Boolean(m));
+
+// FAQ entries — visible HTML and JSON-LD must match (Google penalizes drift).
+// Targeting "pagespeed test", "core web vitals", "lcp", "cls",
+// "lighthouse score", and "pagespeed insights alternative" queries.
+const faqEntries: { q: string; a: string }[] = [
+  {
+    q: 'What is a good PageSpeed Insights score?',
+    a: 'Google grades PageSpeed Insights scores in three buckets: 90–100 is good (green), 50–89 needs improvement (orange), and 0–49 is poor (red). Aim for 90+ on mobile; desktop scores are easier and less correlated with real user experience.',
+  },
+  {
+    q: 'What are Core Web Vitals?',
+    a: 'Core Web Vitals are three field metrics Google uses for ranking signals: Largest Contentful Paint (LCP) for loading, Interaction to Next Paint (INP) for responsiveness, and Cumulative Layout Shift (CLS) for visual stability. A page passes when 75% of real visits hit the "good" threshold on each metric.',
+  },
+  {
+    q: 'How do I improve Largest Contentful Paint (LCP)?',
+    a: 'LCP is usually a hero image or above-the-fold text block. The two highest-impact moves are shrinking the LCP image (WebP or AVIF, resized to its rendered size) and removing render-blocking CSS so the browser can paint sooner. ModPageSpeed does both without markup or build changes (transcoding, resizing, inlining critical CSS). Origin TTFB on the first request and JavaScript-injected backgrounds stay out of reach, though 2.0 can mask TTFB on repeat visits by caching HTML in shared memory when the origin allows it.',
+  },
+  {
+    q: 'How do I fix Cumulative Layout Shift (CLS)?',
+    a: 'Most CLS comes from images without width/height attributes: the browser cannot reserve space, so content jumps when the image arrives. ModPageSpeed measures each image and writes the dimensions back into the markup. CLS caused by late-loading fonts, injected ads, or dynamic banners needs application-level fixes.',
+  },
+  {
+    q: 'Is PageSpeed Insights free?',
+    a: 'Yes. PageSpeed Insights is a free Google tool that runs Lighthouse against any public URL and combines it with field data from the Chrome User Experience Report. This page calls the same PSI v5 API and adds a mapping layer so you can see which findings ModPageSpeed will fix on your server.',
+  },
+  {
+    q: "What's the difference between Lighthouse and PageSpeed Insights?",
+    a: 'Lighthouse is the open-source auditing engine. PageSpeed Insights is the public web app that runs Lighthouse in a cloud environment and combines it with Chrome User Experience Report (CrUX) field data. Same audits underneath; PSI adds field metrics and a public API.',
+  },
+  {
+    q: 'How is ModPageSpeed different from PageSpeed Insights?',
+    a: 'PageSpeed Insights diagnoses. ModPageSpeed fixes. Insights tells you "serve images in next-gen formats" and "eliminate render-blocking resources"; ModPageSpeed is the nginx/Apache/IIS module that does the transcoding, inlining, and cache-extension on every request. They are designed to work together.',
+  },
+  {
+    q: 'Can ModPageSpeed fix every PageSpeed Insights issue?',
+    a: 'No. ModPageSpeed handles byte-level work: image transcoding, CSS/JS minification, critical-CSS inlining, cache extension, dimension inference. It cannot reduce DOM size, tree-shake legacy JavaScript bundles, or rewrite third-party scripts. Origin TTFB on the first request stays out of reach too. 2.0 caches HTML in shared memory when the origin allows it, so repeat visits skip the origin; the first hit always reaches it. The analyzer above labels each audit accordingly.',
+  },
+  {
+    q: 'Is this a PageSpeed Insights API alternative?',
+    a: 'It is a wrapper, not a replacement. We call the official PageSpeed Insights v5 API server-side, cache results per (URL, strategy) for an hour, and overlay a mapping from Lighthouse audit IDs to the ModPageSpeed filters that address them. No account, no upload.',
+  },
+  {
+    q: 'How often should I run a website speed test?',
+    a: 'After anything that changes the page: a deploy, a new CMS theme, a marketing campaign that injects scripts, a CDN swap. Lab scores fluctuate run-to-run by a few points; treat anything inside a 10-point band as noise. For ongoing monitoring, the Chrome User Experience Report (CrUX) gives 28-day rolling field data.',
+  },
+];
+
+const jsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'WebApplication',
+    name: 'ModPageSpeed Analyze',
+    applicationCategory: 'DeveloperApplication',
+    operatingSystem: 'Any (web browser)',
+    url: 'https://modpagespeed.com/analyze/',
+    description,
+    offers: { '@type': 'Offer', price: 0, priceCurrency: 'USD' },
+    publisher: {
+      '@type': 'Organization',
+      name: 'We-Amp B.V.',
+      url: 'https://www.we-amp.com/',
+    },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faqEntries.map((entry) => ({
+      '@type': 'Question',
+      name: entry.q,
+      acceptedAnswer: {
+        '@type': 'Answer',
+        text: entry.a,
+      },
+    })),
+  },
+];
+---
+
+<BaseLayout title={title} description={description} jsonLd={jsonLd}>
+  <!-- ============================================================ -->
+  <!-- Hero + URL input                                              -->
+  <!-- ============================================================ -->
+  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-20 text-center">
+    <p class="eyebrow">Free · no account · no upload</p>
+    <h1 class="h1-hero mt-3 text-text-body">
+      PageSpeed Insights, with the fix attached.
+    </h1>
+    <p class="lede mt-5 max-w-2xl mx-auto">
+      Run Google's official PageSpeed Insights against any URL. We score the page on mobile and
+      desktop, then map every failing Lighthouse audit to the ModPageSpeed filter that fixes it on
+      your server. Audits no optimizer can touch get labeled.
+    </p>
+    <p class="mt-3 text-xs text-text-annotation max-w-2xl mx-auto">
+      This tool calls Google's public PageSpeed Insights API. ModPageSpeed is built by We-Amp B.V.
+      and is not affiliated with or endorsed by Google. PageSpeed Insights is a trademark of Google
+      LLC.
+    </p>
+
+    <form
+      id="psi-form"
+      class="mt-10 mx-auto max-w-2xl text-left"
+      novalidate
+      aria-describedby="psi-form-error"
+    >
+      <label for="psi-url" class="block text-sm font-medium text-text-body">
+        Page URL
+      </label>
+      <div class="mt-2 flex flex-col sm:flex-row gap-3">
+        <input
+          id="psi-url"
+          name="url"
+          type="url"
+          inputmode="url"
+          autocomplete="url"
+          required
+          spellcheck="false"
+          autocapitalize="off"
+          placeholder="https://example.com"
+          aria-invalid="false"
+          aria-describedby="psi-form-error"
+          class="flex-1 rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-elevated shadow-sm focus:border-interactive focus:ring-2 focus:ring-interactive aria-[invalid=true]:border-amber-600 aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-amber-600 dark:aria-[invalid=true]:border-amber-500 dark:aria-[invalid=true]:ring-amber-500 sm:text-sm"
+        />
+        <button id="psi-submit" type="submit" class="btn-primary whitespace-nowrap">
+          <span id="psi-submit-label">Analyze</span>
+          <svg
+            id="psi-submit-spinner"
+            class="hidden h-4 w-4 animate-spin"
+            viewBox="0 0 24 24"
+            fill="none"
+            aria-hidden="true"
+          >
+            <circle
+              cx="12"
+              cy="12"
+              r="10"
+              stroke="currentColor"
+              stroke-width="3"
+              stroke-opacity="0.25"></circle>
+            <path
+              d="M22 12a10 10 0 0 0-10-10"
+              stroke="currentColor"
+              stroke-width="3"
+              stroke-linecap="round"></path>
+          </svg>
+        </button>
+      </div>
+      <p
+        id="psi-form-error"
+        role="alert"
+        class="mt-2 hidden text-sm text-amber-700 dark:text-amber-400"
+      >
+      </p>
+      <p class="mt-3 text-xs text-text-annotation">
+        The URL you submit is sent to Google's PageSpeed Insights API (in the US) through a small
+        proxy on this site that holds the API key and caches results. Your IP address is logged and
+        rate-limited to 30 requests per minute per visitor to prevent abuse. See our
+        <a
+          href="/privacy/"
+          class="text-interactive hover:text-interactive-hover underline"
+          >Privacy policy</a
+        >.
+      </p>
+    </form>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- Results panel — hidden until first analysis                   -->
+  <!-- ============================================================ -->
+  <!--
+    Dedicated, off-screen status line for screen readers. Lives OUTSIDE the
+    results section so it stays visible to assistive tech even while the
+    results panel is `display:none` during loading. Scoped narrowly so AT
+    announces a one-sentence summary instead of the entire results subtree.
+  -->
+  <p id="psi-status" role="status" aria-live="polite" class="sr-only"></p>
+
+  <!-- ============================================================ -->
+  <!-- Loading skeleton — shown during PSI calls                     -->
+  <!-- ============================================================ -->
+  <section
+    id="psi-loading"
+    class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 pb-16 hidden"
+    aria-hidden="true"
+  >
+    <div
+      class="rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8 shadow-sm"
+    >
+      <div class="flex items-center gap-3">
+        <svg
+          class="h-5 w-5 animate-spin text-interactive"
+          viewBox="0 0 24 24"
+          fill="none"
+          aria-hidden="true"
+        >
+          <circle
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            stroke-width="3"
+            stroke-opacity="0.25"></circle>
+          <path
+            d="M22 12a10 10 0 0 0-10-10"
+            stroke="currentColor"
+            stroke-width="3"
+            stroke-linecap="round"></path>
+        </svg>
+        <p class="text-sm font-medium text-text-body">
+          Running PageSpeed Insights for mobile and desktop. Usually 10–20 seconds.
+        </p>
+      </div>
+      <p
+        id="psi-loading-step"
+        class="mt-2 ml-8 text-xs text-text-annotation tabular-nums"
+      >
+        Step 1 of 2: requesting mobile profile…
+      </p>
+
+      <!-- Two skeleton score chips -->
+      <div class="mt-6 grid grid-cols-2 gap-4 max-w-md">
+        <div class="rounded-lg bg-bg-elevated p-4">
+          <div class="h-3 w-12 rounded bg-bg-secondary animate-pulse"></div>
+          <div class="mt-2 h-8 w-16 rounded bg-bg-secondary animate-pulse"></div>
+          <div class="mt-2 h-3 w-20 rounded bg-bg-secondary animate-pulse"></div>
+        </div>
+        <div class="rounded-lg bg-bg-elevated p-4">
+          <div class="h-3 w-12 rounded bg-bg-secondary animate-pulse"></div>
+          <div class="mt-2 h-8 w-16 rounded bg-bg-secondary animate-pulse"></div>
+          <div class="mt-2 h-3 w-20 rounded bg-bg-secondary animate-pulse"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Skeleton fixable-list items -->
+    <div class="mt-8 space-y-4">
+      <div
+        class="rounded-xl border border-border bg-bg-elevated p-5"
+      >
+        <div class="h-4 w-2/3 rounded bg-bg-secondary animate-pulse"></div>
+        <div class="mt-3 h-3 w-full rounded bg-bg-elevated animate-pulse"></div>
+        <div class="mt-2 h-3 w-5/6 rounded bg-bg-elevated animate-pulse"></div>
+      </div>
+      <div
+        class="rounded-xl border border-border bg-bg-elevated p-5"
+      >
+        <div class="h-4 w-1/2 rounded bg-bg-secondary animate-pulse"></div>
+        <div class="mt-3 h-3 w-full rounded bg-bg-elevated animate-pulse"></div>
+        <div class="mt-2 h-3 w-4/6 rounded bg-bg-elevated animate-pulse"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="psi-results" class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 pb-16 hidden">
+    <!-- Headline coverage banner -->
+    <div
+      id="psi-headline"
+      class="rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8 shadow-sm"
+    >
+      <p class="eyebrow" id="psi-headline-url">—</p>
+      <h2
+        id="psi-headline-text"
+        class="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-text-body"
+      >
+        —
+      </h2>
+      <p id="psi-headline-savings" class="mt-3 text-sm text-text-muted"></p>
+
+      <!-- Mobile + Desktop score chips. Numeric + icon + text label so the
+           bucket is legible without colour vision (WCAG 1.4.1). -->
+      <div class="mt-6 grid grid-cols-2 gap-4 max-w-md">
+        <div class="rounded-lg bg-bg-secondary p-4">
+          <p class="text-xs uppercase tracking-wide text-text-annotation">Mobile</p>
+          <p
+            id="psi-score-mobile"
+            class="display-num mt-1 text-3xl font-bold text-text-body"
+          >
+            —
+          </p>
+          <p
+            id="psi-score-mobile-label"
+            class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-text-annotation"
+          >
+          </p>
+        </div>
+        <div class="rounded-lg bg-bg-secondary p-4">
+          <p class="text-xs uppercase tracking-wide text-text-annotation">Desktop</p>
+          <p
+            id="psi-score-desktop"
+            class="display-num mt-1 text-3xl font-bold text-text-body"
+          >
+            —
+          </p>
+          <p
+            id="psi-score-desktop-label"
+            class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-text-annotation"
+          >
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Edition toggle — applies to the config snippet, fixable list, and
+         "what gets fixed" cards below. Default to 2.0 (the reverse-proxy /
+         middleware line). The chosen edition is held in JS state only;
+         reloading the page resets to 2.0. Surfaced once the first analysis
+         completes — before
+         that, the build-time "what gets fixed" cards already default to the
+         2.0 view via syncEditionUi() on script load. -->
+    <div
+      id="psi-edition-toggle"
+      class="mt-8 rounded-2xl border border-border bg-bg-elevated p-5 sm:p-6 hidden"
+    >
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div>
+          <h3 class="text-sm font-semibold text-text-body">
+            ModPageSpeed edition
+          </h3>
+          <p id="psi-edition-blurb" class="mt-1 text-xs text-text-muted">
+            <!-- Populated at runtime from EDITION_BLURB. -->
+          </p>
+        </div>
+        <div
+          class="inline-flex shrink-0 self-start sm:self-auto gap-1 rounded-lg bg-bg-elevated p-1"
+          role="group"
+          aria-label="ModPageSpeed edition"
+        >
+          <button
+            type="button"
+            data-edition="2.0"
+            aria-pressed="true"
+            class="product-tab rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+            data-umami-event="psi-edition-toggle"
+            data-umami-event-edition="2.0"
+          >
+            ModPageSpeed 2.0
+          </button>
+          <button
+            type="button"
+            data-edition="1.1"
+            aria-pressed="false"
+            class="product-tab rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+            data-umami-event="psi-edition-toggle"
+            data-umami-event-edition="1.1"
+          >
+            mod_pagespeed 1.15
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Recommended pagespeed config — lead magnet -->
+    <div
+      id="psi-config-card"
+      class="mt-8 rounded-2xl border border-interactive/40 bg-interactive/10 p-6 sm:p-8 hidden"
+    >
+      <div class="flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h3 class="text-lg font-semibold text-text-body">
+            Drop-in pagespeed configuration
+          </h3>
+          <p id="psi-config-desc" class="mt-1 text-sm text-text-muted">
+            <!-- Populated at runtime — varies by edition. -->
+          </p>
+        </div>
+        <button
+          id="psi-config-copy"
+          type="button"
+          class="btn-secondary text-xs"
+          data-umami-event="psi-result-config-copy"
+        >
+          <svg
+            class="h-4 w-4"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+            aria-hidden="true"
+          >
+            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+          </svg>
+          <span id="psi-config-copy-label">Copy</span>
+        </button>
+      </div>
+      <pre
+        class="mt-4 overflow-x-auto rounded-md bg-stone-900 dark:bg-black p-4 text-xs sm:text-sm"><code id="psi-config-snippet" class="text-stone-100">pagespeed on;</code></pre>
+    </div>
+
+    <!-- Result-moment CTA: surfaced right after the config (the lead magnet
+         visitors copy) so the next step is in view without scrolling past the
+         audit lists to the CTA band at the bottom. Distinct event from the
+         bottom band so the placement lift is measurable. -->
+    <div id="psi-top-cta" class="mt-6 text-center hidden">
+      <a href="/download/" class="btn-primary" data-umami-event="psi-result-install-cta-top">
+        Download &amp; run &rarr;
+      </a>
+    </div>
+
+    <!-- Fixable audits -->
+    <div id="psi-fixable" class="mt-8 hidden">
+      <h3 class="h2-section text-xl sm:text-2xl text-text-body">
+        ModPageSpeed will fix this
+      </h3>
+      <p class="mt-1 text-sm text-text-muted">
+        Ordered by potential savings on this page.
+      </p>
+      <ul id="psi-fixable-list" class="mt-4 space-y-4"></ul>
+    </div>
+
+    <!-- Unfixable audits -->
+    <div id="psi-unfixable" class="mt-12 hidden">
+      <h3 class="h2-section text-xl sm:text-2xl text-text-body">
+        We won't pretend we can fix this
+      </h3>
+      <p class="mt-1 text-sm text-text-muted">
+        These audits sit at the application or infrastructure layer. ModPageSpeed runs byte-level
+        rewrites. Reshaping a bundler, an origin, or event handlers is engineering work no optimizer
+        can do for you.
+      </p>
+      <ul id="psi-unfixable-list" class="mt-4 space-y-3"></ul>
+    </div>
+
+    <!-- All-clean hero — PSI flagged nothing. Shown ONLY when totalFlagged === 0. -->
+    <div
+      id="psi-all-clean"
+      class="mt-8 rounded-2xl border-2 border-interactive/40 bg-bg-elevated p-6 sm:p-8 hidden"
+    >
+      <div class="flex items-start gap-4">
+        <div
+          class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-interactive text-on-accent shadow-md"
+          aria-hidden="true"
+        >
+          <svg
+            class="h-7 w-7"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="3"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <polyline points="20 6 9 17 4 12"></polyline>
+          </svg>
+        </div>
+        <div class="flex-1">
+          <h3 class="text-xl font-bold text-text-body">
+            Nothing for us to do here.
+          </h3>
+          <p class="mt-2 text-sm text-text-body leading-relaxed">
+            PSI flagged no failing performance audits on this page. Your delivery pipeline is
+            already doing the work ModPageSpeed would do.
+          </p>
+          <p class="mt-2 text-sm text-text-muted leading-relaxed">
+            ModPageSpeed keeps assets minified, images transcoded, and caches warm as the site
+            evolves. 2.0 runs as an nginx reverse proxy or ASP.NET Core middleware; 1.15 as a native
+            module inside Apache, nginx, IIS, or Envoy. The next deploy won't quietly undo this.
+          </p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Empty / mixed-empty state (only application-level audits surfaced). -->
+    <div
+      id="psi-empty"
+      class="mt-8 rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8 hidden"
+    >
+      <h3 class="text-lg font-semibold text-text-body">
+        No fixable audits surfaced.
+      </h3>
+      <p class="mt-2 text-sm text-text-muted">
+        Either your page is already in good shape, or PSI flagged only application-level concerns
+        that need code changes. ModPageSpeed isn't your bottleneck here. If you want it as a safety
+        net for image transcoding, caching, and minification on future pages, install it and run it
+        — it optimizes immediately, free to run.
+      </p>
+    </div>
+
+    <!-- CTAs — second button text + link updates with the edition toggle. -->
+    <div id="psi-ctas" class="mt-10 flex flex-col items-center gap-3 hidden">
+      <div class="flex flex-wrap items-center justify-center gap-4">
+        <a href="/download/" class="btn-primary" data-umami-event="psi-result-install-cta">
+          Download &amp; run &rarr;
+        </a>
+        <a href="/buy/" class="btn-secondary" data-umami-event="psi-result-trial-cta">
+          Support plans &rarr;
+        </a>
+        <a
+          id="psi-docs-cta"
+          href="/docs/configuration/"
+          class="btn-secondary"
+          data-umami-event="psi-result-docs-cta"
+        >
+          Read 2.0 config docs &rarr;
+        </a>
+      </div>
+      <p class="text-xs text-text-annotation">
+        {FREE_TO_RUN_LINE}
+      </p>
+    </div>
+
+    <!-- Error state -->
+    <div
+      id="psi-error"
+      class="mt-8 rounded-2xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 p-6 hidden"
+      role="alert"
+    >
+      <h3 class="text-base font-semibold text-amber-900 dark:text-amber-100">
+        <span id="psi-error-title">PSI returned an error.</span>
+      </h3>
+      <p id="psi-error-body" class="mt-2 text-sm text-amber-900/90 dark:text-amber-100/90"></p>
+      <button id="psi-error-retry" type="button" class="mt-4 btn-secondary text-xs">
+        Try again
+      </button>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- How it works — always visible, indexable                      -->
+  <!-- ============================================================ -->
+  <section
+    class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-16 border-t border-border"
+  >
+    <h2 class="h2-section text-center text-text-body">
+      From PageSpeed report to nginx config in three steps
+    </h2>
+    <p class="lede mt-3 text-center max-w-2xl mx-auto">
+      No account, no upload. Paste a URL, get the fixes.
+    </p>
+
+    <ol class="mt-10 grid gap-6 sm:grid-cols-3">
+      <li
+        class="rounded-xl border border-border bg-bg-elevated p-6"
+      >
+        <div
+          class="flex h-8 w-8 items-center justify-center rounded-full bg-interactive text-on-accent text-sm font-semibold"
+        >
+          1
+        </div>
+        <h3 class="mt-4 text-base font-semibold text-text-body">
+          Score your page on mobile and desktop
+        </h3>
+        <p class="mt-2 text-sm text-text-muted">
+          We call Google's official PageSpeed Insights v5 API for both form factors. Same engine
+          Search Console uses, same Lighthouse audits, same Core Web Vitals. Shown inline instead of
+          in a separate tab.
+        </p>
+      </li>
+      <li
+        class="rounded-xl border border-border bg-bg-elevated p-6"
+      >
+        <div
+          class="flex h-8 w-8 items-center justify-center rounded-full bg-interactive text-on-accent text-sm font-semibold"
+        >
+          2
+        </div>
+        <h3 class="mt-4 text-base font-semibold text-text-body">
+          See which audits ModPageSpeed will fix
+        </h3>
+        <p class="mt-2 text-sm text-text-muted">
+          Every failing audit is matched against a mapping table of over fifty Lighthouse audit IDs
+          and the ModPageSpeed filter inventory. Audits we cannot fix are labeled, not hidden.
+        </p>
+      </li>
+      <li
+        class="rounded-xl border border-border bg-bg-elevated p-6"
+      >
+        <div
+          class="flex h-8 w-8 items-center justify-center rounded-full bg-interactive text-on-accent text-sm font-semibold"
+        >
+          3
+        </div>
+        <h3 class="mt-4 text-base font-semibold text-text-body">
+          Copy a working nginx config
+        </h3>
+        <p class="mt-2 text-sm text-text-muted">
+          You get a ready-to-paste <code class="text-xs">pagespeed</code> directive block that enables
+          exactly the filters your page needs. Drop it in, reload nginx, re-run the test.
+        </p>
+      </li>
+    </ol>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- What gets fixed — content marketing for SEO                   -->
+  <!-- ============================================================ -->
+  <section
+    class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-16 border-t border-border"
+  >
+    <h2 class="h2-section text-center text-text-body">
+      What ModPageSpeed fixes automatically
+    </h2>
+    <p class="lede mt-3 text-center max-w-2xl mx-auto">
+      These are the PageSpeed Insights findings ModPageSpeed addresses on every request, with no
+      code changes on the origin. Most filters below have been production-tested in the upstream
+      <code class="text-sm">mod_pagespeed</code> codebase since 2010. A few are still marked &ldquo;test
+      first&rdquo;; the analyzer flags those per-page in the live results.
+    </p>
+
+    {
+      /* Inline edition toggle for the highlights cards. Always visible (the
+        toggle inside the results panel is only surfaced after analysis).
+        Both toggles read+write the same JS state via syncEditionUi(). */
+    }
+    <div id="psi-highlights-toggle" class="mt-8 flex flex-col items-center gap-2">
+      <span class="text-xs font-medium uppercase tracking-wide text-text-annotation">
+        Showing cards for
+      </span>
+      <div
+        class="inline-flex gap-1 rounded-lg bg-bg-elevated p-1"
+        role="group"
+        aria-label="ModPageSpeed edition"
+      >
+        <button
+          type="button"
+          data-edition="2.0"
+          aria-pressed="true"
+          class="product-tab rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+          data-umami-event="psi-highlights-edition-toggle"
+          data-umami-event-edition="2.0"
+        >
+          ModPageSpeed 2.0
+        </button>
+        <button
+          type="button"
+          data-edition="1.1"
+          aria-pressed="false"
+          class="product-tab rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+          data-umami-event="psi-highlights-edition-toggle"
+          data-umami-event-edition="1.1"
+        >
+          mod_pagespeed 1.15
+        </button>
+      </div>
+    </div>
+
+    <ul id="psi-highlights-list" class="mt-10 grid gap-4 sm:grid-cols-2">
+      {
+        fixedHighlights.map((item) => {
+          // 2.0-only audits get a "2.0 only" coverage marker; 1.1-only
+          // audits get a "1.1 only" marker. Neither implies one product
+          // supersedes the other — they cover different capability sets.
+          // Cards toggle their hidden state client-side based on the
+          // chosen edition.
+          const isTwoOnly = item.availableIn.includes('2.0') && !item.availableIn.includes('1.1');
+          const isOneOnly = item.availableIn.includes('1.1') && !item.availableIn.includes('2.0');
+          // Title overrides — keep the brand-honest framing for cards
+          // whose audit ID is generic (e.g. "Document request latency")
+          // but whose 2.0-only behaviour is the HTML cache.
+          const displayTitle =
+            isTwoOnly && item.auditId === 'document-latency-insight'
+              ? 'Mask slow origin TTFB with HTML caching'
+              : item.auditTitle;
+          return (
+            <li
+              data-highlight-id={item.auditId}
+              data-available-in={item.availableIn.join(',')}
+              class="rounded-xl border border-border bg-bg-elevated p-5"
+            >
+              <div class="flex items-start justify-between gap-2">
+                <h3 class="text-base font-semibold text-text-body">
+                  {displayTitle}
+                </h3>
+                {isTwoOnly && (
+                  <span class="shrink-0 inline-flex items-center rounded-md bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                    2.0 only
+                  </span>
+                )}
+                {isOneOnly && (
+                  <span class="shrink-0 inline-flex items-center rounded-md bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
+                    1.15 only
+                  </span>
+                )}
+              </div>
+              <p class="mt-2 text-sm text-text-muted leading-relaxed">
+                {item.explanation}
+              </p>
+              {item.filters.length > 0 && (
+                <ul class="mt-3 flex flex-wrap gap-1.5 list-none">
+                  {item.filters.map((f) => (
+                    <li>
+                      <code class="inline-flex items-center rounded-md border border-border-strong bg-bg-secondary px-2 py-0.5 text-xs font-mono text-text-body">
+                        {f}
+                      </code>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </li>
+          );
+        })
+      }
+    </ul>
+
+    <div
+      class="mt-10 rounded-xl border border-border bg-bg-secondary p-6"
+    >
+      <h3 class="text-base font-semibold text-text-body">
+        What ModPageSpeed will not fix
+      </h3>
+      <p class="mt-2 text-sm text-text-muted leading-relaxed">
+        Trust matters more than coverage claims. ModPageSpeed runs byte-level rewrites on what
+        leaves your server; it does not edit application code. These stay out of reach: excessive
+        DOM size, unused JavaScript and tree-shaking, legacy-JS polyfills served to modern browsers,
+        third-party script impact (analytics, tag managers, ads), Interaction to Next Paint (INP),
+        forced reflows in handler code, and font-display behavior. Origin TTFB on the first request
+        is also out of reach. 2.0 can mask it on repeat visits by caching HTML when the origin
+        allows it, but the first hit always reaches the origin. The analyzer above labels every one
+        of these in your report.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- FAQ — visible HTML mirrors the FAQPage JSON-LD                -->
+  <!-- ============================================================ -->
+  <section
+    class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16 border-t border-border"
+  >
+    <h2 class="h2-section text-center text-text-body">PageSpeed test FAQ</h2>
+    <p class="lede mt-3 text-center max-w-2xl mx-auto">
+      Questions that come up the first time you open a Lighthouse report.
+    </p>
+
+    <dl class="mt-10 space-y-6">
+      {
+        faqEntries.map((entry) => (
+          <div class="rounded-xl border border-border bg-bg-elevated p-6">
+            <dt class="text-base font-semibold text-text-body">{entry.q}</dt>
+            <dd class="mt-2 text-sm text-text-muted leading-relaxed">
+              {entry.a}
+            </dd>
+          </div>
+        ))
+      }
+    </dl>
+
+    <div class="mt-10 flex flex-col items-center gap-3">
+      <div class="flex flex-wrap items-center justify-center gap-4">
+        <a href="/download/" class="btn-primary" data-umami-event="psi-faq-install-cta">
+          Download &amp; run &rarr;
+        </a>
+        <a href="/features/" class="btn-secondary" data-umami-event="psi-faq-features-cta">
+          See every filter &rarr;
+        </a>
+      </div>
+      <p class="text-xs text-text-annotation">
+        {FREE_TO_RUN_LINE}
+      </p>
+      <p class="mt-6 text-sm text-text-muted text-center max-w-2xl">
+        Next: read what <a
+          href="/core-web-vitals/"
+          class="text-interactive hover:text-interactive-hover underline">LCP, CLS, and INP</a
+        > mean, decode the <a
+          href="/pagespeed-markers/"
+          class="text-interactive hover:text-interactive-hover underline"
+          >.pagespeed. URLs and markers</a
+        > in your report, dig into <a
+          href="/self-hosted-image-optimization/"
+          class="text-interactive hover:text-interactive-hover underline"
+          >self-hosted image optimization</a
+        >, or see how to <a
+          href="/blog/reduce-ttfb-server-layer-2026/"
+          class="text-interactive hover:text-interactive-hover underline"
+          >cut TTFB at the server layer</a
+        >.
+      </p>
+    </div>
+  </section>
+
+  <!-- ============================================================ -->
+  <!-- Client-side analyzer                                          -->
+  <!-- ============================================================ -->
+  <script>
+    import { PSI_MPS_MAPPING } from '../data/psi-mps-mapping';
+    import type { AuditMapping, Edition } from '../data/psi-mps-mapping';
+
+    // ---- Edition (1.1 vs 2.0) state ----
+    // Default to 2.0 — the reverse-proxy / middleware line. The toggle
+    // changes the config snippet, the per-fix badge text, the docs CTA, and
+    // which "what gets fixed" cards are visible.
+    let edition: Edition = '2.0';
+
+    const EDITION_BLURB: Record<Edition, string> = {
+      '2.0':
+        'Reverse-proxy / middleware line. An out-of-process worker behind an nginx reverse proxy (or ASP.NET Core middleware) that fronts any HTTP origin. Caches HTML in shared memory so slow origins serve from RAM on repeat visits.',
+      '1.1':
+        'Native-module line. An in-process module inside Apache, nginx, IIS, or Envoy. No worker, no extra hop. Named filters on every server.',
+    };
+
+    const DOCS_HREF: Record<Edition, { href: string; label: string }> = {
+      '2.0': { href: '/docs/configuration/', label: 'Read 2.0 config docs →' },
+      '1.1': { href: '/1.1/docs/configuration/', label: 'Read 1.15 filter docs →' },
+    };
+
+    const CONFIG_DESC: Record<Edition, string> = {
+      '2.0':
+        'Drop into your nginx server { } or location { } block. ModPageSpeed 2.0 has no EnableFilters directive; image transcoding, CSS/JS minification, and critical-CSS inlining run from the master switch. Per-transform flags live on the factory_worker command line.',
+      '1.1':
+        'Enables every filter that targets a flagged audit on this page. nginx syntax; equivalent Apache, IIS, and Envoy directives are in the 1.15 config reference.',
+    };
+
+    // ---- 1.1 filter → 2.0 docs anchor map ----
+    // 2.0 collapses 1.1's per-filter knobs into a smaller set of always-on
+    // transforms documented as anchored sections under /docs/configuration/.
+    // The slug values below are the contract Agent A is honoring when adding
+    // the 13 per-transform anchors to configuration.md. 1.1 filters with no
+    // 2.0 equivalent (e.g. animated WebP) are intentionally absent and fall
+    // back to the 1.1 filter-reference page; see the click handler below.
+    const FILTER_TO_2_0_ANCHOR: Record<string, string> = {
+      // image pipeline — every image-touching filter collapses into one transform
+      rewrite_images: 'image-pipeline',
+      convert_jpeg_to_webp: 'image-pipeline',
+      convert_to_webp_lossless: 'image-pipeline',
+      convert_to_webp_animated: 'image-pipeline',
+      recompress_images: 'image-pipeline',
+      recompress_jpeg: 'image-pipeline',
+      recompress_png: 'image-pipeline',
+      recompress_webp: 'image-pipeline',
+      resize_images: 'image-pipeline',
+      resize_rendered_image_dimensions: 'image-pipeline',
+      responsive_images: 'image-pipeline',
+      jpeg_sampling: 'image-pipeline',
+      strip_image_meta_data: 'image-pipeline',
+      // image dimensions (width/height hint injection)
+      insert_image_dimensions: 'image-dimensions',
+      // lazy-loading
+      lazyload_images: 'lazy-load-images',
+      // LCP preload hints
+      hint_preload_subresources: 'lcp-preload',
+      // DNS preconnect / dns-prefetch hint injection
+      insert_dns_prefetch: 'preconnect-injection',
+      // critical-CSS pipeline (inline above-the-fold CSS).
+      // NOTE: 1.1's `inline_css` inlines small EXTERNAL CSS to save
+      // round-trips — not critical-CSS extraction. No 2.0 analog; lets
+      // it fall through to the 1.1 docs page when clicked.
+      prioritize_critical_css: 'critical-css',
+      // async CSS loading
+      move_css_to_head: 'async-css',
+      move_css_above_scripts: 'async-css',
+      // @import flattening
+      flatten_css_imports: 'css-import-flattening',
+      // JS deferral. 1.1's `inline_javascript` inlines small external JS
+      // (round-trip saving), not deferral — no 2.0 analog, falls through
+      // to the 1.1 docs page.
+      defer_javascript: 'script-deferral',
+      // minification
+      rewrite_css: 'css-minification',
+      rewrite_javascript: 'js-minification',
+      // cache-control extension
+      extend_cache: 'cache-extension',
+      extend_cache_pdfs: 'cache-extension',
+      extend_cache_css: 'cache-extension',
+      extend_cache_images: 'cache-extension',
+      extend_cache_scripts: 'cache-extension',
+    };
+
+    // ---- Types (minimal slice of PSI v5 response) ----
+    interface PsiAudit {
+      id: string;
+      title?: string;
+      score?: number | null;
+      displayValue?: string;
+      details?: {
+        overallSavingsMs?: number;
+        overallSavingsBytes?: number;
+        type?: string;
+      };
+      numericValue?: number;
+    }
+    interface PsiResult {
+      lighthouseResult?: {
+        categories?: {
+          performance?: { score?: number | null };
+        };
+        audits?: Record<string, PsiAudit>;
+      };
+      error?: { code?: number; message?: string };
+    }
+    type Strategy = 'mobile' | 'desktop';
+
+    // ---- Config ----
+    // First-party server-side PSI proxy on modpagespeed.com. The Google API
+    // key lives in /etc/nginx-secrets/psi-api-key.conf on the VM and is
+    // injected by nginx; responses are cached for 1h per (url, strategy) and
+    // rate-limited per visitor IP. See corp/deploy/CLAUDE.md § "PSI proxy".
+    const PSI_ENDPOINT = '/psi/v5/runPagespeed';
+
+    // ---- Element refs ----
+    const form = document.getElementById('psi-form') as HTMLFormElement | null;
+    const urlInput = document.getElementById('psi-url') as HTMLInputElement | null;
+    const submitBtn = document.getElementById('psi-submit') as HTMLButtonElement | null;
+    const submitLabel = document.getElementById('psi-submit-label');
+    const submitSpinner = document.getElementById('psi-submit-spinner');
+    const formError = document.getElementById('psi-form-error');
+
+    const resultsEl = document.getElementById('psi-results');
+    const headlineUrlEl = document.getElementById('psi-headline-url');
+    const headlineTextEl = document.getElementById('psi-headline-text');
+    const headlineSavingsEl = document.getElementById('psi-headline-savings');
+    const scoreMobileEl = document.getElementById('psi-score-mobile');
+    const scoreDesktopEl = document.getElementById('psi-score-desktop');
+
+    const fixableEl = document.getElementById('psi-fixable');
+    const fixableListEl = document.getElementById('psi-fixable-list');
+    const unfixableEl = document.getElementById('psi-unfixable');
+    const unfixableListEl = document.getElementById('psi-unfixable-list');
+    const emptyEl = document.getElementById('psi-empty');
+    const ctasEl = document.getElementById('psi-ctas');
+    const topCtaEl = document.getElementById('psi-top-cta');
+
+    const configCard = document.getElementById('psi-config-card');
+    const configSnippet = document.getElementById('psi-config-snippet');
+    const configCopyBtn = document.getElementById('psi-config-copy');
+    const configCopyLabel = document.getElementById('psi-config-copy-label');
+
+    const errorBox = document.getElementById('psi-error');
+    const errorTitle = document.getElementById('psi-error-title');
+    const errorBody = document.getElementById('psi-error-body');
+    const errorRetryBtn = document.getElementById('psi-error-retry');
+
+    const allCleanEl = document.getElementById('psi-all-clean');
+    const loadingEl = document.getElementById('psi-loading');
+    const loadingStepEl = document.getElementById('psi-loading-step');
+    const statusEl = document.getElementById('psi-status');
+    const scoreMobileLabelEl = document.getElementById('psi-score-mobile-label');
+    const scoreDesktopLabelEl = document.getElementById('psi-score-desktop-label');
+
+    // Edition toggle, edition-aware blurb/desc, docs CTA, and the build-time
+    // rendered "what gets fixed" cards.
+    const editionToggleEl = document.getElementById('psi-edition-toggle');
+    const editionBlurbEl = document.getElementById('psi-edition-blurb');
+    const configDescEl = document.getElementById('psi-config-desc');
+    const docsCtaEl = document.getElementById('psi-docs-cta') as HTMLAnchorElement | null;
+    const highlightsListEl = document.getElementById('psi-highlights-list');
+
+    // ---- Helpers ----
+    function show(el: HTMLElement | null) {
+      if (el) el.classList.remove('hidden');
+    }
+    function hide(el: HTMLElement | null) {
+      if (el) el.classList.add('hidden');
+    }
+
+    function setLoading(loading: boolean) {
+      if (!submitBtn) return;
+      submitBtn.disabled = loading;
+      submitBtn.setAttribute('aria-busy', loading ? 'true' : 'false');
+      if (submitLabel) submitLabel.textContent = loading ? 'Analyzing…' : 'Analyze';
+      if (submitSpinner) submitSpinner.classList.toggle('hidden', !loading);
+      if (loading) {
+        if (loadingStepEl) loadingStepEl.textContent = 'Step 1 of 2: requesting mobile profile…';
+        show(loadingEl);
+        // Hide stale results while a new run is in flight.
+        hide(resultsEl);
+        if (statusEl) statusEl.textContent = 'Running PageSpeed Insights analysis, please wait.';
+      } else {
+        hide(loadingEl);
+      }
+    }
+
+    function setLoadingStep(text: string) {
+      if (loadingStepEl) loadingStepEl.textContent = text;
+    }
+
+    function setFormError(msg: string | null) {
+      if (!formError || !urlInput) return;
+      if (msg) {
+        formError.textContent = msg;
+        formError.classList.remove('hidden');
+        urlInput.setAttribute('aria-invalid', 'true');
+      } else {
+        formError.textContent = '';
+        formError.classList.add('hidden');
+        urlInput.setAttribute('aria-invalid', 'false');
+      }
+    }
+
+    function validateUrl(raw: string): { ok: true; url: string } | { ok: false; reason: string } {
+      const trimmed = raw.trim();
+      if (!trimmed) return { ok: false, reason: 'Enter a URL to analyze.' };
+      let parsed: URL;
+      try {
+        parsed = new URL(trimmed);
+      } catch {
+        return {
+          ok: false,
+          reason: 'That does not look like a valid URL (try https://example.com).',
+        };
+      }
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return { ok: false, reason: 'Only http:// and https:// URLs are supported.' };
+      }
+      if (!parsed.hostname || parsed.hostname === 'localhost') {
+        return {
+          ok: false,
+          reason: 'PSI needs a publicly reachable hostname. Localhost won’t work.',
+        };
+      }
+      return { ok: true, url: parsed.toString() };
+    }
+
+    type ScoreBucket = 'good' | 'needs-work' | 'poor';
+
+    function scoreBucket(score: number): ScoreBucket {
+      if (score >= 90) return 'good';
+      if (score >= 50) return 'needs-work';
+      return 'poor';
+    }
+
+    function scoreColorClasses(score: number): string {
+      // Match Lighthouse's traffic-light buckets, but in stone/cyan/amber
+      // rather than green/red. Reserved colors: amber for warnings (<50),
+      // the interactive cyan accent for primary signal (>=90), stone for neutral mid-range (50-89).
+      const bucket = scoreBucket(score);
+      if (bucket === 'good') return 'text-interactive';
+      if (bucket === 'needs-work') return 'text-text-body';
+      return 'text-amber-700 dark:text-amber-400';
+    }
+
+    const SCORE_CLASSES_TO_RESET = [
+      'text-interactive',
+      'text-stone-700',
+      'dark:text-stone-200',
+      'text-amber-700',
+      'dark:text-amber-400',
+      'text-stone-900',
+      'dark:text-stone-100',
+      'text-stone-500',
+      'dark:text-stone-400',
+    ];
+
+    /**
+     * Non-colour cue for the score bucket: SVG glyph + text label.
+     * Glyph shapes differ per bucket (check, dash-in-circle, triangle-bang)
+     * so colour-blind viewers and grayscale prints still read correctly.
+     */
+    function renderScoreBucket(labelEl: HTMLElement | null, score0to1: number | null | undefined) {
+      if (!labelEl) return;
+      while (labelEl.firstChild) labelEl.removeChild(labelEl.firstChild);
+      if (score0to1 == null) return;
+      const n = Math.round(score0to1 * 100);
+      const bucket = scoreBucket(n);
+      // Reset label colour
+      SCORE_CLASSES_TO_RESET.forEach((c) => labelEl.classList.remove(c));
+
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      svg.setAttribute('viewBox', '0 0 16 16');
+      svg.setAttribute('aria-hidden', 'true');
+      svg.setAttribute('class', 'h-3.5 w-3.5');
+      svg.setAttribute('fill', 'none');
+      svg.setAttribute('stroke', 'currentColor');
+      svg.setAttribute('stroke-width', '2');
+      svg.setAttribute('stroke-linecap', 'round');
+      svg.setAttribute('stroke-linejoin', 'round');
+
+      let labelText: string;
+      if (bucket === 'good') {
+        labelText = 'Good';
+        labelEl.classList.add('text-interactive');
+        // Circle with check
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', '8');
+        circle.setAttribute('cy', '8');
+        circle.setAttribute('r', '7');
+        svg.appendChild(circle);
+        const check = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
+        check.setAttribute('points', '5 8 7 10 11 6');
+        svg.appendChild(check);
+      } else if (bucket === 'needs-work') {
+        labelText = 'Needs work';
+        labelEl.classList.add('text-stone-600', 'dark:text-stone-300');
+        // Circle with horizontal dash
+        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        circle.setAttribute('cx', '8');
+        circle.setAttribute('cy', '8');
+        circle.setAttribute('r', '7');
+        svg.appendChild(circle);
+        const dash = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        dash.setAttribute('x1', '5');
+        dash.setAttribute('y1', '8');
+        dash.setAttribute('x2', '11');
+        dash.setAttribute('y2', '8');
+        svg.appendChild(dash);
+      } else {
+        labelText = 'Poor';
+        labelEl.classList.add('text-amber-700', 'dark:text-amber-400');
+        // Triangle with exclamation
+        const tri = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        tri.setAttribute('d', 'M8 2 L14.5 13.5 L1.5 13.5 Z');
+        svg.appendChild(tri);
+        const bang = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+        bang.setAttribute('x1', '8');
+        bang.setAttribute('y1', '7');
+        bang.setAttribute('x2', '8');
+        bang.setAttribute('y2', '10');
+        svg.appendChild(bang);
+        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        dot.setAttribute('cx', '8');
+        dot.setAttribute('cy', '12');
+        dot.setAttribute('r', '0.5');
+        dot.setAttribute('fill', 'currentColor');
+        svg.appendChild(dot);
+      }
+      labelEl.appendChild(svg);
+      const span = document.createElement('span');
+      span.textContent = labelText;
+      labelEl.appendChild(span);
+    }
+
+    function setScore(
+      el: HTMLElement | null,
+      labelEl: HTMLElement | null,
+      score0to1: number | null | undefined,
+    ) {
+      if (!el) return;
+      if (score0to1 == null) {
+        el.textContent = '—';
+        SCORE_CLASSES_TO_RESET.forEach((c) => el.classList.remove(c));
+        el.classList.add('text-stone-900', 'dark:text-stone-100');
+        renderScoreBucket(labelEl, null);
+        return;
+      }
+      const n = Math.round(score0to1 * 100);
+      el.textContent = String(n);
+      SCORE_CLASSES_TO_RESET.forEach((c) => el.classList.remove(c));
+      scoreColorClasses(n)
+        .split(' ')
+        .forEach((c) => el.classList.add(c));
+      renderScoreBucket(labelEl, score0to1);
+    }
+
+    function formatMs(ms: number): string {
+      if (ms < 1000) return `${Math.round(ms)} ms`;
+      return `${(ms / 1000).toFixed(2)} s`;
+    }
+
+    function formatBytes(bytes: number): string {
+      if (bytes < 1024) return `${bytes} B`;
+      if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+      return `${(bytes / 1024 / 1024).toFixed(2)} MB`;
+    }
+
+    // ---- PSI call ----
+    async function fetchPsi(targetUrl: string, strategy: Strategy): Promise<PsiResult> {
+      // Proxy validates `url` + `strategy` server-side and rejects anything
+      // else, so we send only those two args; `category` and `key` are added
+      // by nginx before the upstream call.
+      const params = new URLSearchParams({ url: targetUrl, strategy });
+
+      const res = await fetch(`${PSI_ENDPOINT}?${params.toString()}`, {
+        method: 'GET',
+        // No credentials, no custom headers — same-origin GET, no preflight.
+        // `cache: 'no-store'` makes the browser bypass its HTTP cache for this
+        // call. We still get the speedup from nginx's proxy_cache (same key,
+        // 1h TTL on 200s); we skip the browser layer because (a) it adds no
+        // value over the nginx hit, and (b) it would persistently pin any
+        // transient 5xx/4xx the user happened to see during a deploy window.
+        cache: 'no-store',
+      });
+      if (!res.ok) {
+        let body: PsiResult | null = null;
+        try {
+          body = (await res.json()) as PsiResult;
+        } catch {
+          // ignore
+        }
+        const message = body?.error?.message ?? `HTTP ${res.status}`;
+        const err = new Error(message) as Error & { status?: number };
+        err.status = res.status;
+        throw err;
+      }
+      return (await res.json()) as PsiResult;
+    }
+
+    // ---- Audit aggregation ----
+    interface AggregatedAudit {
+      mapping: AuditMapping;
+      overallSavingsMs: number;
+      overallSavingsBytes: number;
+      mobileScore: number | null;
+      desktopScore: number | null;
+      // For unmapped-audit logging only.
+      psiTitle?: string;
+    }
+
+    function isFlagged(audit: PsiAudit | undefined): boolean {
+      if (!audit) return false;
+      // Lighthouse score < 0.9 = audit "failed" or "needs work".
+      // Some insight audits have null score and rely on the presence of
+      // overallSavingsMs/Bytes; treat those as flagged when savings are
+      // non-trivial.
+      if (audit.score == null) {
+        const d = audit.details ?? {};
+        return (d.overallSavingsMs ?? 0) > 0 || (d.overallSavingsBytes ?? 0) > 0;
+      }
+      return audit.score < 0.9;
+    }
+
+    function aggregate(mobile: PsiResult, desktop: PsiResult): AggregatedAudit[] {
+      const mAudits = mobile.lighthouseResult?.audits ?? {};
+      const dAudits = desktop.lighthouseResult?.audits ?? {};
+      const seen = new Set<string>();
+      const out: AggregatedAudit[] = [];
+
+      for (const mapping of PSI_MPS_MAPPING) {
+        const m = mAudits[mapping.auditId];
+        const d = dAudits[mapping.auditId];
+        const flagged = isFlagged(m) || isFlagged(d);
+        if (!flagged) continue;
+        const overallSavingsMs = Math.max(
+          m?.details?.overallSavingsMs ?? 0,
+          d?.details?.overallSavingsMs ?? 0,
+        );
+        const overallSavingsBytes = Math.max(
+          m?.details?.overallSavingsBytes ?? 0,
+          d?.details?.overallSavingsBytes ?? 0,
+        );
+        seen.add(mapping.auditId);
+        out.push({
+          mapping,
+          overallSavingsMs,
+          overallSavingsBytes,
+          mobileScore: m?.score ?? null,
+          desktopScore: d?.score ?? null,
+          psiTitle: m?.title ?? d?.title,
+        });
+      }
+
+      // Sort: full coverage first (most useful), then by impact (ms savings desc,
+      // bytes desc), then alphabetically for stability.
+      out.sort((a, b) => {
+        const coverageRank: Record<string, number> = { full: 0, partial: 1, none: 2 };
+        const cr = coverageRank[a.mapping.coverage] - coverageRank[b.mapping.coverage];
+        if (cr !== 0) return cr;
+        if (b.overallSavingsMs !== a.overallSavingsMs)
+          return b.overallSavingsMs - a.overallSavingsMs;
+        if (b.overallSavingsBytes !== a.overallSavingsBytes)
+          return b.overallSavingsBytes - a.overallSavingsBytes;
+        return a.mapping.auditTitle.localeCompare(b.mapping.auditTitle);
+      });
+
+      return out;
+    }
+
+    function collectFlaggedAuditIds(mobile: PsiResult, desktop: PsiResult): Set<string> {
+      const ids = new Set<string>();
+      for (const src of [mobile, desktop]) {
+        const audits = src.lighthouseResult?.audits ?? {};
+        for (const id of Object.keys(audits)) {
+          if (isFlagged(audits[id])) ids.add(id);
+        }
+      }
+      return ids;
+    }
+
+    // ---- Rendering ----
+    function clearChildren(el: HTMLElement | null) {
+      if (!el) return;
+      while (el.firstChild) el.removeChild(el.firstChild);
+    }
+
+    function renderFilterChips(filters: readonly string[]): HTMLElement {
+      const wrap = document.createElement('div');
+      wrap.className = 'mt-3 flex flex-wrap gap-1.5';
+      for (const f of filters) {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        // focus-visible ring uses the interactive accent (matches the input's focus ring),
+        // with a 2px offset for legibility against the bg-stone-800 chip in
+        // dark mode and bg-stone-50 chip in light mode.
+        chip.className =
+          'inline-flex items-center rounded-md border border-border-strong bg-bg-secondary px-2 py-1 text-xs font-mono text-text-body hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-interactive/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-900';
+        chip.textContent = f;
+        chip.setAttribute('data-umami-event', 'psi-result-filter-click');
+        chip.setAttribute('data-umami-event-filter', f);
+        // Edition-aware deep link:
+        // - 1.1: always the per-filter anchor on the 1.1 filter-reference page.
+        // - 2.0: the per-transform anchor on /docs/configuration/ when the
+        //   1.1 filter maps to a 2.0 transform; otherwise (1.1-only filter,
+        //   e.g. convert_to_webp_animated) fall back to the 1.1 page; there
+        //   is no 2.0 equivalent.
+        // The aria-label and href are computed at click time so they always
+        // reflect the live edition toggle state without re-rendering chips.
+        const twoZeroAnchor: string | undefined = FILTER_TO_2_0_ANCHOR[f];
+        // When the toggle is on 2.0 and we have a mapped transform, the
+        // chip points at the named transform — surface that to screen
+        // readers rather than the 1.1 filter name. Chips are re-rendered
+        // by render() whenever setEdition() flips state, so this stays in
+        // sync with the live href below.
+        if (edition === '2.0' && twoZeroAnchor !== undefined) {
+          const transformName = twoZeroAnchor.replace(/-/g, ' ');
+          chip.setAttribute(
+            'aria-label',
+            `Open ${transformName} transform documentation in a new tab`,
+          );
+        } else {
+          chip.setAttribute('aria-label', `Open ${f} filter documentation in a new tab`);
+        }
+        chip.addEventListener('click', () => {
+          if (edition === '2.0' && twoZeroAnchor !== undefined) {
+            window.open(`/docs/configuration/#${twoZeroAnchor}`, '_blank', 'noopener');
+          } else {
+            window.open(`/1.1/docs/filter-reference/#${f}`, '_blank', 'noopener');
+          }
+        });
+        wrap.appendChild(chip);
+      }
+      return wrap;
+    }
+
+    function renderFixableItem(item: AggregatedAudit): HTMLLIElement {
+      const li = document.createElement('li');
+      li.className =
+        'rounded-xl border border-border bg-bg-elevated p-5';
+
+      const headerRow = document.createElement('div');
+      headerRow.className = 'flex items-start justify-between gap-3 flex-wrap';
+
+      const titleWrap = document.createElement('div');
+      const title = document.createElement('h4');
+      title.className = 'text-base font-semibold text-text-body';
+      title.textContent = item.mapping.auditTitle;
+      titleWrap.appendChild(title);
+
+      // Coverage + confidence chips + edition badge
+      const chipsRow = document.createElement('div');
+      chipsRow.className = 'mt-1 flex flex-wrap items-center gap-2';
+      const covChip = document.createElement('span');
+      const covClass =
+        item.mapping.coverage === 'full'
+          ? 'bg-interactive/10 text-interactive'
+          : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300';
+      covChip.className = `inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${covClass}`;
+      covChip.textContent = item.mapping.coverage === 'full' ? 'Fully addressed' : 'Partial fix';
+      chipsRow.appendChild(covChip);
+
+      if (item.mapping.confidence !== 'high') {
+        const confChip = document.createElement('span');
+        confChip.className =
+          'inline-flex items-center rounded-md bg-bg-elevated px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-body';
+        confChip.textContent = item.mapping.confidence === 'medium' ? 'Test first' : 'Experimental';
+        chipsRow.appendChild(confChip);
+      }
+
+      // Edition badge — surfaces audits that the *other* edition doesn't
+      // cover. With the toggle on 2.0, a 1.1-only audit (e.g. animated GIF
+      // → WebP) gets a "1.1 only" pill; with the toggle on 1.1, a 2.0-only
+      // audit (HTML caching) gets a "2.0 only" pill. Both markers use the
+      // same neutral styling — neither product supersedes the other; they
+      // cover different capability sets.
+      const isTwoOnly =
+        item.mapping.availableIn.includes('2.0') && !item.mapping.availableIn.includes('1.1');
+      const isOneOnly =
+        item.mapping.availableIn.includes('1.1') && !item.mapping.availableIn.includes('2.0');
+      if (isTwoOnly && edition === '1.1') {
+        const editionChip = document.createElement('span');
+        editionChip.className =
+          'inline-flex items-center rounded-md bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide';
+        editionChip.textContent = '2.0 only';
+        editionChip.title =
+          'This audit is addressed by ModPageSpeed 2.0. Switch the edition toggle above to see the 2.0 configuration.';
+        chipsRow.appendChild(editionChip);
+      } else if (isOneOnly && edition === '2.0') {
+        const editionChip = document.createElement('span');
+        editionChip.className =
+          'inline-flex items-center rounded-md bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide';
+        editionChip.textContent = '1.15 only';
+        editionChip.title =
+          'This audit is addressed by mod_pagespeed 1.15 only. Switch the edition toggle above to see the 1.15 configuration.';
+        chipsRow.appendChild(editionChip);
+      }
+      titleWrap.appendChild(chipsRow);
+      headerRow.appendChild(titleWrap);
+
+      // Savings badge (only when PSI reported one)
+      if (item.overallSavingsMs > 0 || item.overallSavingsBytes > 0) {
+        const savings = document.createElement('div');
+        savings.className = 'text-right text-xs text-text-annotation leading-tight';
+        const parts: string[] = [];
+        if (item.overallSavingsMs > 0) parts.push(formatMs(item.overallSavingsMs));
+        if (item.overallSavingsBytes > 0) parts.push(formatBytes(item.overallSavingsBytes));
+        savings.innerHTML =
+          '<span class="block text-text-annotation">est. savings</span>' +
+          `<span class="block font-semibold text-text-body">${parts.join(' · ')}</span>`;
+        headerRow.appendChild(savings);
+      }
+      li.appendChild(headerRow);
+
+      const explanation = document.createElement('p');
+      explanation.className = 'mt-3 text-sm text-text-muted leading-relaxed';
+      explanation.textContent = item.mapping.explanation;
+      li.appendChild(explanation);
+
+      if (item.mapping.caveats) {
+        const cav = document.createElement('p');
+        cav.className = 'mt-2 text-xs text-text-annotation italic leading-relaxed';
+        cav.textContent = `Caveat: ${item.mapping.caveats}`;
+        li.appendChild(cav);
+      }
+
+      if (item.mapping.filters.length > 0) {
+        li.appendChild(renderFilterChips(item.mapping.filters));
+      }
+      return li;
+    }
+
+    function renderUnfixableItem(item: AggregatedAudit): HTMLLIElement {
+      const li = document.createElement('li');
+      li.className =
+        'rounded-lg border border-border bg-bg-secondary p-4';
+      const title = document.createElement('p');
+      title.className = 'text-sm font-semibold text-text-body';
+      title.textContent = item.mapping.auditTitle;
+      li.appendChild(title);
+      const why = document.createElement('p');
+      why.className = 'mt-1 text-xs text-text-muted leading-relaxed';
+      why.textContent = item.mapping.explanation;
+      li.appendChild(why);
+      return li;
+    }
+
+    /**
+     * Filters fall into four buckets derived from token-name prefixes. The
+     * grouping mirrors the human-friendly chip categorisation in the 1.1
+     * filter reference. Anything that doesn't pattern-match lands in `other`
+     * — a deliberate catch-all so new tokens added upstream surface in the
+     * snippet instead of silently disappearing.
+     */
+    type FilterCategory = 'image' | 'css' | 'js' | 'cache' | 'other';
+
+    function categorizeFilter(token: string): FilterCategory {
+      if (
+        token.includes('image') ||
+        token.includes('jpeg') ||
+        token.includes('png') ||
+        token.includes('webp') ||
+        token.includes('sprite')
+      )
+        return 'image';
+      if (token.includes('javascript') || token.includes('_js')) return 'js';
+      if (token.includes('css')) return 'css';
+      if (
+        token.includes('cache') ||
+        token.includes('preload') ||
+        token.includes('dns_prefetch') ||
+        token === 'extend_cache'
+      )
+        return 'cache';
+      return 'other';
+    }
+
+    const CATEGORY_ORDER: FilterCategory[] = ['image', 'css', 'js', 'cache', 'other'];
+    const CATEGORY_COMMENTS: Record<FilterCategory, string> = {
+      image: '# Image transcoding (WebP, resize, lazy-load)',
+      css: '# CSS rewriting (combine, inline critical, defer)',
+      js: '# JavaScript minification + deferral',
+      cache: '# Caching, preload, DNS prefetch',
+      other: '# Other filters',
+    };
+
+    function buildConfigSnippet11(items: AggregatedAudit[]): string {
+      // Dedupe tokens parsed from each item's hand-authored snippet11.
+      // Anything the author deliberately left out of the snippet (e.g.
+      // experimental filters listed in mapping.filters for chip display only)
+      // stays out of the recommended config.
+      const filterTokens = new Set<string>();
+      for (const it of items) {
+        // Only consider items that 1.1 actually covers.
+        if (!it.mapping.availableIn.includes('1.1')) continue;
+        const snippet = it.mapping.snippet11;
+        if (!snippet) continue;
+        const m = /EnableFilters\s+([^;]+);/.exec(snippet);
+        if (!m) continue;
+        for (const f of m[1].split(',')) {
+          const token = f.trim();
+          if (token) filterTokens.add(token);
+        }
+      }
+      if (filterTokens.size === 0) return '';
+      // Bucket the tokens by category. One EnableFilters line per non-empty
+      // bucket so the snippet reads vertically on a 360px viewport instead
+      // of horizontally-scrolling as one giant line (the v1 problem).
+      const byCategory: Record<FilterCategory, string[]> = {
+        image: [],
+        css: [],
+        js: [],
+        cache: [],
+        other: [],
+      };
+      for (const token of filterTokens) {
+        byCategory[categorizeFilter(token)].push(token);
+      }
+      for (const cat of CATEGORY_ORDER) {
+        byCategory[cat].sort();
+      }
+
+      const lines: string[] = [
+        '# mod_pagespeed 1.15 — nginx syntax.',
+        '# Add to your server { } or location { } block.',
+        'pagespeed on;',
+        '',
+      ];
+      let first = true;
+      for (const cat of CATEGORY_ORDER) {
+        const tokens = byCategory[cat];
+        if (tokens.length === 0) continue;
+        if (!first) lines.push('');
+        first = false;
+        lines.push(CATEGORY_COMMENTS[cat]);
+        lines.push(`pagespeed EnableFilters ${tokens.join(',')};`);
+      }
+      return lines.join('\n');
+    }
+
+    /**
+     * 2.0 has no `EnableFilters` directive — image transcoding + CSS/JS
+     * minification + critical CSS + content-hashed cache extension all run
+     * from `pagespeed on;` plus a Cyclone cache file path. The only audit
+     * that contributes a non-default directive is `document-latency-insight`
+     * / `server-response-time` (set `pagespeed_html_max_age` to cache HTML
+     * for some seconds when the origin sends no Cache-Control), or
+     * `cache-insight` (opt into `pagespeed_cache_mode aggressive` after
+     * validating output).
+     *
+     * Strategy: collect any extra directives the per-audit `snippet20`
+     * contributes beyond the always-on baseline, deduped.
+     */
+    function buildConfigSnippet20(items: AggregatedAudit[]): string {
+      // Always-on baseline. Order matters — `pagespeed on` first, cache
+      // path second.
+      const baseline = new Set<string>([
+        'pagespeed on;',
+        'pagespeed_cache_path /var/lib/pagespeed/cache.vol;',
+      ]);
+      const extras = new Set<string>();
+      const unknownAuditTitles: string[] = [];
+
+      for (const it of items) {
+        if (!it.mapping.availableIn.includes('2.0')) continue;
+        const snippet = it.mapping.snippet20;
+        if (!snippet) {
+          // The audit IS covered by 2.0 but no concrete directive was
+          // documented. Most of these mean "no extra directive needed, the
+          // master switch turns it on" — but flag any audit whose snippet
+          // we didn't author, so the snippet doesn't silently drop
+          // 2.0-only audits.
+          if (!it.mapping.availableIn.includes('1.1')) {
+            unknownAuditTitles.push(it.mapping.auditTitle);
+          }
+          continue;
+        }
+        for (const rawLine of snippet.split('\n')) {
+          const line = rawLine.trim();
+          if (!line || line.startsWith('#')) continue;
+          if (!baseline.has(line)) {
+            extras.add(line);
+          }
+        }
+      }
+
+      // If only the always-on baseline applies and no 2.0-only audits were
+      // flagged, no snippet is needed — the page is covered by a default
+      // install. Render nothing in that case to keep the lead-magnet honest.
+      if (extras.size === 0 && unknownAuditTitles.length === 0) {
+        // We still emit the baseline so the customer can paste a starting
+        // point if they're new to 2.0. Skip only when there's literally no
+        // flagged 2.0-covered audit.
+        const anyTwoOhCoverage = items.some(
+          (it) => it.mapping.availableIn.includes('2.0') && it.mapping.coverage !== 'none',
+        );
+        if (!anyTwoOhCoverage) return '';
+      }
+
+      const lines: string[] = [
+        '# ModPageSpeed 2.0 — nginx + worker.',
+        '# Add the nginx directives to your server { } or location { } block;',
+        '# launch the worker with the listed flags (or use the equivalent',
+        '# appsettings.json keys in the ASP.NET Core middleware).',
+        '',
+        '# nginx — master switch + Cyclone cache file (required).',
+        'pagespeed on;',
+        'pagespeed_cache_path /var/lib/pagespeed/cache.vol;',
+      ];
+
+      if (extras.size > 0) {
+        lines.push('');
+        lines.push('# Additional directives suggested by this report:');
+        for (const directive of extras) {
+          lines.push(directive);
+        }
+      }
+
+      lines.push('');
+      lines.push('# factory_worker — image transcoding, CSS/JS minification,');
+      lines.push('# critical CSS, lazy-load, LCP preload, preconnect, async');
+      lines.push('# CSS, and script deferral are all on by default. Add');
+      lines.push('# --no-<transform> flags to disable any of them.');
+      lines.push('factory_worker \\');
+      lines.push('  --cache-path /var/lib/pagespeed/cache.vol \\');
+      lines.push('  --socket /var/lib/pagespeed/pagespeed.sock');
+
+      if (unknownAuditTitles.length > 0) {
+        lines.push('');
+        lines.push('# These flagged audits are covered by 2.0 but no concrete');
+        lines.push('# extra directive was documented — they ride on the master');
+        lines.push('# switch above:');
+        for (const t of unknownAuditTitles) {
+          lines.push(`#   - ${t}`);
+        }
+      }
+
+      return lines.join('\n');
+    }
+
+    function buildConfigSnippet(items: AggregatedAudit[]): string {
+      return edition === '2.0' ? buildConfigSnippet20(items) : buildConfigSnippet11(items);
+    }
+
+    // ---- Edition-aware re-render of already-fetched results ----
+    // The toggle changes the recommended config, the per-audit badges, and
+    // the docs CTA. Cache the last PSI response pair so flipping the toggle
+    // doesn't re-hit Google PSI.
+    let lastMobileResult: PsiResult | null = null;
+    let lastDesktopResult: PsiResult | null = null;
+    let lastTargetUrl: string | null = null;
+
+    // Both edition toggles (the one in the results panel and the one above
+    // the build-time highlights cards) use `[data-edition]` buttons grouped
+    // under their respective roots — query both together so syncEditionUi
+    // keeps them in lockstep regardless of which one the visitor clicked.
+    function getEditionButtons(): NodeListOf<HTMLButtonElement> {
+      return document.querySelectorAll<HTMLButtonElement>(
+        '#psi-edition-toggle [data-edition], #psi-highlights-toggle [data-edition]',
+      );
+    }
+
+    function syncEditionUi() {
+      // Toggle the aria-pressed state on every edition button on the page.
+      const buttons = getEditionButtons();
+      for (const btn of buttons) {
+        btn.setAttribute('aria-pressed', btn.dataset.edition === edition ? 'true' : 'false');
+      }
+      if (editionBlurbEl) editionBlurbEl.textContent = EDITION_BLURB[edition];
+      if (configDescEl) configDescEl.textContent = CONFIG_DESC[edition];
+      if (docsCtaEl) {
+        docsCtaEl.href = DOCS_HREF[edition].href;
+        docsCtaEl.textContent = DOCS_HREF[edition].label;
+      }
+      // "What gets fixed" highlight cards — hide cards that the chosen
+      // edition doesn't cover at all. (Cards that are available in both
+      // stay visible.)
+      if (highlightsListEl) {
+        const cards = highlightsListEl.querySelectorAll<HTMLLIElement>('[data-available-in]');
+        for (const card of cards) {
+          const editions = (card.dataset.availableIn ?? '').split(',');
+          card.classList.toggle('hidden', !editions.includes(edition));
+        }
+      }
+    }
+
+    function setEdition(next: Edition) {
+      if (edition === next) return;
+      edition = next;
+      syncEditionUi();
+      // Re-render whatever the last PSI run produced so the recommended
+      // config + per-audit badges reflect the new edition. No network call.
+      if (lastTargetUrl && lastMobileResult && lastDesktopResult) {
+        render(lastTargetUrl, lastMobileResult, lastDesktopResult, /*scroll*/ false);
+      }
+    }
+
+    // Wire the toggle buttons up at script start so they work even before
+    // the first analysis. The toggle still defaults to 2.0 because that's
+    // the marketed product line.
+    {
+      for (const btn of getEditionButtons()) {
+        btn.addEventListener('click', () => {
+          const next = btn.dataset.edition as Edition | undefined;
+          if (next === '1.1' || next === '2.0') setEdition(next);
+        });
+      }
+      // Initial paint so the blurb/desc/CTAs/highlight cards have correct
+      // content on first load (before any PSI run).
+      syncEditionUi();
+    }
+
+    // ---- Main render ----
+    function render(
+      targetUrl: string,
+      mobile: PsiResult,
+      desktop: PsiResult,
+      scroll: boolean = true,
+    ) {
+      // Cache for edition-toggle re-render.
+      lastTargetUrl = targetUrl;
+      lastMobileResult = mobile;
+      lastDesktopResult = desktop;
+      const mobileScore = mobile.lighthouseResult?.categories?.performance?.score ?? null;
+      const desktopScore = desktop.lighthouseResult?.categories?.performance?.score ?? null;
+      setScore(scoreMobileEl, scoreMobileLabelEl, mobileScore);
+      setScore(scoreDesktopEl, scoreDesktopLabelEl, desktopScore);
+
+      if (headlineUrlEl) headlineUrlEl.textContent = targetUrl;
+
+      const items = aggregate(mobile, desktop);
+      const fixable = items.filter((i) => i.mapping.coverage !== 'none');
+      const unfixable = items.filter((i) => i.mapping.coverage === 'none');
+
+      // Denominator: every PSI audit flagged on either strategy, including
+      // ones our mapping table doesn't (yet) know about. This keeps the
+      // headline honest as Lighthouse adds new performance audits.
+      const flaggedAuditIds = collectFlaggedAuditIds(mobile, desktop);
+      const totalFlagged = flaggedAuditIds.size;
+      const addressed = fixable.length;
+      const unmapped = totalFlagged - items.length;
+
+      let headline = '';
+      if (totalFlagged === 0) {
+        headline =
+          'PSI flagged no failing performance audits on this page — your site is already fast.';
+      } else if (addressed === 0) {
+        headline = `PSI flagged ${totalFlagged} performance ${totalFlagged === 1 ? 'audit' : 'audits'}; ModPageSpeed cannot automatically fix any of them on this page.`;
+      } else {
+        const tail =
+          unmapped > 0
+            ? ` (${unmapped} additional ${unmapped === 1 ? 'audit is' : 'audits are'} not yet mapped — see the project mapping data.)`
+            : '';
+        headline = `ModPageSpeed addresses ${addressed} of ${totalFlagged} flagged ${totalFlagged === 1 ? 'audit' : 'audits'}.${tail}`;
+      }
+      if (headlineTextEl) headlineTextEl.textContent = headline;
+      // Tight one-line summary for screen readers — scoped narrowly so AT
+      // doesn't announce the entire results subtree.
+      if (statusEl) statusEl.textContent = `Analysis complete. ${headline}`;
+
+      // Cumulative savings — only count audits MPS actually addresses.
+      const totalMs = fixable.reduce((s, i) => s + i.overallSavingsMs, 0);
+      const totalBytes = fixable.reduce((s, i) => s + i.overallSavingsBytes, 0);
+      if (headlineSavingsEl) {
+        const parts: string[] = [];
+        if (totalMs > 0) parts.push(`${formatMs(totalMs)} of estimated load-time savings`);
+        if (totalBytes > 0) parts.push(`${formatBytes(totalBytes)} of byte savings`);
+        headlineSavingsEl.textContent = parts.length
+          ? `Across the fixable audits PSI flagged, ModPageSpeed could recover ${parts.join(' and ')} on this page.`
+          : 'PSI did not attach numeric savings estimates to the flagged audits.';
+      }
+
+      // Fixable list
+      clearChildren(fixableListEl);
+      if (fixable.length > 0) {
+        for (const item of fixable) {
+          fixableListEl?.appendChild(renderFixableItem(item));
+        }
+        show(fixableEl);
+      } else {
+        hide(fixableEl);
+      }
+
+      // Unfixable list
+      clearChildren(unfixableListEl);
+      if (unfixable.length > 0) {
+        for (const item of unfixable) {
+          unfixableListEl?.appendChild(renderUnfixableItem(item));
+        }
+        show(unfixableEl);
+      } else {
+        hide(unfixableEl);
+      }
+
+      // Config snippet
+      const snippet = buildConfigSnippet(fixable);
+      if (snippet && configSnippet) {
+        configSnippet.textContent = snippet;
+        show(configCard);
+      } else {
+        hide(configCard);
+      }
+
+      // Empty / all-clean branching:
+      //   totalFlagged === 0  → "Your site is already fast" hero (distinctive)
+      //   addressed === 0 && unfixable.length === 0 → generic empty-state copy
+      //   anything else       → neither (the fixable/unfixable lists carry it)
+      if (totalFlagged === 0) {
+        show(allCleanEl);
+        hide(emptyEl);
+      } else if (fixable.length === 0 && unfixable.length === 0) {
+        hide(allCleanEl);
+        show(emptyEl);
+      } else {
+        hide(allCleanEl);
+        hide(emptyEl);
+      }
+
+      show(ctasEl);
+      show(topCtaEl);
+      show(editionToggleEl);
+      hide(errorBox);
+      show(resultsEl);
+
+      if (!scroll) return;
+
+      // Smooth-scroll to the results section so mobile users see the outcome
+      // immediately. Defer one rAF so the layout settles after `hidden` is
+      // removed — otherwise scrollIntoView measures the section as 0px tall.
+      // Honour prefers-reduced-motion (instant scroll, no easing).
+      const prefersReducedMotion =
+        typeof window.matchMedia === 'function' &&
+        window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+      requestAnimationFrame(() => {
+        resultsEl?.scrollIntoView({
+          behavior: prefersReducedMotion ? 'auto' : 'smooth',
+          block: 'start',
+        });
+      });
+    }
+
+    // ---- Error rendering ----
+    function renderError(title: string, body: string) {
+      if (errorTitle) errorTitle.textContent = title;
+      if (errorBody) errorBody.textContent = body;
+      show(resultsEl);
+      show(errorBox);
+      hide(fixableEl);
+      hide(unfixableEl);
+      hide(configCard);
+      hide(emptyEl);
+      hide(ctasEl);
+      hide(topCtaEl);
+      hide(editionToggleEl);
+      // Headline area: clear scores; leave the URL visible if we have one.
+      if (headlineTextEl) headlineTextEl.textContent = 'We couldn’t complete the analysis.';
+      if (headlineSavingsEl) headlineSavingsEl.textContent = '';
+      setScore(scoreMobileEl, scoreMobileLabelEl, null);
+      setScore(scoreDesktopEl, scoreDesktopLabelEl, null);
+      hide(allCleanEl);
+      if (statusEl && title) statusEl.textContent = title;
+    }
+
+    function classifyError(err: unknown): { title: string; body: string } {
+      const status = (err as { status?: number })?.status;
+      const message = (err as { message?: string })?.message ?? 'Unknown error.';
+      if (status === 429) {
+        return {
+          title: 'PSI rate limit hit.',
+          body: 'You’ve hit the per-visitor rate limit on this page. Wait a moment and try again.',
+        };
+      }
+      if (status === 400 || status === 404) {
+        return {
+          title: 'PSI couldn’t analyze that URL.',
+          body: `${message} Common causes: the page redirected, returned an error, or blocks Googlebot. Try the canonical URL of the page.`,
+        };
+      }
+      if (status && status >= 500) {
+        return {
+          title: 'PSI is having trouble.',
+          body: 'Google’s PageSpeed Insights service returned a server error. This usually clears in under a minute.',
+        };
+      }
+      return {
+        title: 'Couldn’t reach PSI.',
+        body: `${message} Check your network connection and try again.`,
+      };
+    }
+
+    // ---- Submit handler ----
+    let lastUrl: string | null = null;
+
+    async function runAnalysis(targetUrl: string) {
+      setLoading(true);
+      hide(errorBox);
+      lastUrl = targetUrl;
+      // Every analysis run flows through here — button click, Enter-key submit,
+      // ?url= deep-link auto-run, and retry. Fire the submit event programmatically
+      // so keyboard/auto-run paths (which never "click" the button) are counted.
+      // The button no longer carries `data-umami-event` to avoid double-counting.
+      (window as any).umami?.track('psi-analyze-submit');
+      try {
+        // We fire both fetches in parallel for speed but report progress
+        // sequentially so the user sees a deterministic two-step indicator
+        // instead of a vague "loading…". Whichever returns first flips the
+        // label to step 2.
+        let stepTwoShown = false;
+        const advance = () => {
+          if (!stepTwoShown) {
+            stepTwoShown = true;
+            setLoadingStep('Step 2 of 2: requesting desktop profile…');
+          }
+        };
+        const mobileP = fetchPsi(targetUrl, 'mobile').then((r) => {
+          advance();
+          return r;
+        });
+        const desktopP = fetchPsi(targetUrl, 'desktop').then((r) => {
+          advance();
+          return r;
+        });
+        // allSettled (not all) so a one-sided PSI failure (rate-limit/5xx/timeout
+        // on a single strategy) still yields telemetry instead of dropping the
+        // whole run.
+        const [mobileRes, desktopRes] = await Promise.allSettled([mobileP, desktopP]);
+        const mobile = mobileRes.status === 'fulfilled' ? mobileRes.value : null;
+        const desktop = desktopRes.status === 'fulfilled' ? desktopRes.value : null;
+
+        // Durable capture of which page was analyzed + its scores. Fired BEFORE
+        // render() so a render() exception can't drop the telemetry, and whenever
+        // at least one strategy returned (partial runs were previously lost to the
+        // all-or-nothing Promise.all). `hostname` is recorded alongside the full
+        // url for clean per-host aggregation. Operator traffic is excluded
+        // server-side, so this stays clean automatically.
+        const toScore = (s: number | null | undefined): number | null =>
+          typeof s === 'number' ? Math.round(s * 100) : null;
+        if (mobile || desktop) {
+          let hostname = '';
+          try {
+            hostname = new URL(targetUrl).hostname;
+          } catch {
+            /* targetUrl is pre-validated */
+          }
+          (window as any).umami?.track('psi-analyze-result', {
+            url: targetUrl,
+            hostname,
+            mobile_score: toScore(mobile?.lighthouseResult?.categories?.performance?.score),
+            desktop_score: toScore(desktop?.lighthouseResult?.categories?.performance?.score),
+          });
+        }
+
+        // The side-by-side comparison needs both profiles; if either failed,
+        // surface the error (same UX as before) — telemetry above already
+        // captured the run.
+        if (!mobile || !desktop) {
+          if (mobileRes.status === 'rejected') throw mobileRes.reason;
+          if (desktopRes.status === 'rejected') throw desktopRes.reason;
+          throw new Error('PageSpeed Insights returned no usable result for this URL.');
+        }
+        render(targetUrl, mobile, desktop);
+      } catch (err) {
+        const { title, body } = classifyError(err);
+        renderError(title, body);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    form?.addEventListener('submit', (ev) => {
+      ev.preventDefault();
+      if (!urlInput) return;
+      const result = validateUrl(urlInput.value);
+      if (!result.ok) {
+        setFormError(result.reason);
+        urlInput.focus();
+        return;
+      }
+      setFormError(null);
+      void runAnalysis(result.url);
+    });
+
+    errorRetryBtn?.addEventListener('click', () => {
+      if (lastUrl) void runAnalysis(lastUrl);
+    });
+
+    // Copy-to-clipboard for the config snippet.
+    configCopyBtn?.addEventListener('click', () => {
+      const text = configSnippet?.textContent ?? '';
+      if (!text) return;
+      if (!navigator.clipboard?.writeText) return;
+      void navigator.clipboard.writeText(text).then(() => {
+        if (configCopyLabel) {
+          configCopyLabel.textContent = 'Copied';
+          setTimeout(() => {
+            if (configCopyLabel) configCopyLabel.textContent = 'Copy';
+          }, 1500);
+        }
+      });
+    });
+
+    // Allow ?url= deep links (e.g. shared from a blog post).
+    (function autoRunFromQueryParam() {
+      const params = new URLSearchParams(window.location.search);
+      const presetUrl = params.get('url');
+      if (!presetUrl || !urlInput) return;
+      urlInput.value = presetUrl;
+      const result = validateUrl(presetUrl);
+      if (result.ok) void runAnalysis(result.url);
+    })();
+  </script>
+</BaseLayout>

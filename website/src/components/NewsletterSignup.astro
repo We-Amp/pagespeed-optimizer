@@ -1,0 +1,243 @@
+---
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2024-2026 We-Amp B.V.
+//
+// Newsletter signup — ONE shared component, two variants:
+//   - variant="footer": compact, site-wide in the BaseLayout footer
+//   - variant="blog":   warmer, contextual, at the foot of a blog post
+//
+// BACKEND STATUS (deferred). The newsletter-SENDING tool (Buttondown) is not
+// set up yet. Until it is, this form still functions: it CAPTURES the email +
+// explicit consent through the SAME endpoint the contact form already uses
+// (/ai-readability/api/contact -> render service -> Telegram notification +
+// server-side log), tagged with topic "newsletter-signup", so a consented
+// list forms now. Swapping to Buttondown later is a one/two-constant change in
+// the <script> below (NEWSLETTER_ENDPOINT + NEWSLETTER_MODE) with no markup
+// changes. To keep that swap a single line AND stay within the site CSP
+// (connect-src 'self' https://umami.we-amp.com), keep posting SAME-ORIGIN and
+// have the render service forward to Buttondown server-side; a direct
+// cross-origin POST to buttondown.com would also need a connect-src entry in
+// deploy/nginx.conf.
+//
+// Static-host constraint: production is a static rsync of the Astro build (no
+// SSR, no local API route), so this posts to the nginx-proxied endpoint,
+// exactly like contact.astro. No secret ships in this client code.
+
+interface Props {
+  variant?: 'footer' | 'blog';
+  /** Blog post slug — sets the signup-source attribution (blog variant only). */
+  slug?: string;
+}
+const { variant = 'footer', slug } = Astro.props;
+const isBlog = variant === 'blog';
+
+// Per-variant element IDs so the footer + blog instances that both render on a
+// blog page never share an id.
+const uid = `newsletter-${variant}`;
+const emailId = `${uid}-email`;
+const consentId = `${uid}-consent`;
+const statusId = `${uid}-status`;
+---
+
+{/* method="post" (not the GET default) so that if JS is unavailable a submit
+    cannot place the typed email into the URL/query string — capture is JS-only
+    (the handler calls preventDefault), but this keeps the no-JS edge safe. */}
+<form
+  data-newsletter
+  data-variant={variant}
+  data-slug={slug ?? ''}
+  method="post"
+  class:list={[
+    isBlog ? 'rounded-lg border border-border bg-bg-secondary p-6' : '',
+  ]}
+  novalidate
+>
+  {
+    isBlog ? (
+      <>
+        <p class="text-base font-semibold text-text-body">
+          Like this kind of writeup?
+        </p>
+        <p class="mt-2 text-sm text-text-muted">
+          We write about how mod_pagespeed and ModPageSpeed actually work, and what we learn shipping
+          them. Get the next post by email.
+        </p>
+      </>
+    ) : (
+      <>
+        <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">
+          Newsletter
+        </p>
+        <p class="mt-3 text-sm text-text-muted">
+          New writing on web performance and PageSpeed engineering. We only email when there's a new
+          post.
+        </p>
+      </>
+    )
+  }
+
+  <div class:list={[isBlog ? 'mt-5' : 'mt-3']}>
+    <label for={emailId} class="sr-only">Email address</label>
+    <input
+      id={emailId}
+      name="email"
+      type="email"
+      required
+      aria-required="true"
+      autocomplete="email"
+      inputmode="email"
+      placeholder="you@example.com"
+      class="block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-interactive/40"
+    />
+  </div>
+
+  {/* Genuine, un-pre-ticked consent (same clickwrap intent as /buy/). */}
+  <label
+    for={consentId}
+    class="mt-3 flex items-start gap-2.5 text-xs text-text-muted cursor-pointer"
+  >
+    <input
+      id={consentId}
+      name="consent"
+      type="checkbox"
+      class="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-stone-400 dark:border-stone-500 text-interactive focus:ring-2 focus:ring-interactive/40"
+    />
+    <span>
+      Email me new posts. I can unsubscribe anytime. See the
+      <a
+        href="/privacy/"
+        class="text-interactive hover:text-interactive-hover underline"
+        >Privacy policy</a
+      >.
+    </span>
+  </label>
+
+  <div class="mt-3 flex flex-col gap-2">
+    <button type="submit" data-newsletter-submit class:list={['btn-primary', isBlog ? '' : 'w-full']}>
+      Subscribe
+    </button>
+    <p id={statusId} data-newsletter-status role="status" aria-live="polite" class="hidden text-sm">
+    </p>
+  </div>
+</form>
+
+<script>
+  // ---------------------------------------------------------------------------
+  // SINGLE SWAP POINT for the Buttondown migration. Buttondown is not set up
+  // yet, so we CAPTURE into the existing contact pipeline. When Buttondown is
+  // live, change these two constants — no markup changes:
+  //   1. NEWSLETTER_ENDPOINT -> your Buttondown form action, e.g.
+  //        'https://buttondown.com/api/emails/embed-subscribe/<username>'
+  //      (Buttondown's PUBLIC embed endpoint — it carries NO secret; the API
+  //       key stays server-side and is never used here).
+  //      NOTE: a cross-origin Buttondown URL is blocked by the site CSP
+  //      (connect-src 'self' https://umami.we-amp.com). To keep the swap a
+  //      single line, keep this SAME-ORIGIN and have the render service forward
+  //      to Buttondown; otherwise also add the Buttondown origin to connect-src
+  //      in corp/deploy/nginx.conf.
+  //   2. NEWSLETTER_MODE -> 'buttondown' (posts form-encoded `email`, what the
+  //      embed expects) instead of 'capture' (posts the JSON the contact render
+  //      service expects). Everything else is identical across both modes.
+  // ---------------------------------------------------------------------------
+  const NEWSLETTER_ENDPOINT = '/ai-readability/api/contact';
+  // `as` (not a plain annotation) so TS keeps the union type instead of
+  // narrowing to the 'capture' literal — otherwise the dormant 'buttondown'
+  // swap-branch below reads as a dead comparison (ts2367).
+  const NEWSLETTER_MODE = 'capture' as 'capture' | 'buttondown';
+  const NEWSLETTER_TOPIC = 'newsletter-signup';
+
+  const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+  document.querySelectorAll<HTMLFormElement>('form[data-newsletter]').forEach((form) => {
+    const variant = form.dataset.variant ?? 'footer';
+    const slug = form.dataset.slug ?? '';
+    const source = variant === 'blog' && slug ? `blog:${slug}` : variant;
+
+    const emailEl = form.querySelector<HTMLInputElement>('input[name="email"]');
+    const consentEl = form.querySelector<HTMLInputElement>('input[name="consent"]');
+    const submitBtn = form.querySelector<HTMLButtonElement>('[data-newsletter-submit]');
+    const statusEl = form.querySelector<HTMLElement>('[data-newsletter-status]');
+    if (!emailEl || !consentEl || !submitBtn || !statusEl) return;
+
+    function setStatus(kind: 'success' | 'error' | null, msg: string) {
+      statusEl!.textContent = msg;
+      statusEl!.classList.remove(
+        'hidden',
+        'text-interactive',
+        'text-amber-700',
+        'dark:text-amber-400',
+      );
+      if (kind === null) {
+        statusEl!.classList.add('hidden');
+        return;
+      }
+      statusEl!.classList.add(
+        ...(kind === 'success'
+          ? ['text-interactive']
+          : ['text-amber-700', 'dark:text-amber-400']),
+      );
+    }
+
+    form.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const email = (emailEl!.value ?? '').trim();
+
+      // Genuine consent gate: no submit path without an affirmative tick.
+      if (!consentEl!.checked) {
+        setStatus('error', "Tick the box to confirm you'd like the emails.");
+        consentEl!.focus();
+        return;
+      }
+      if (!EMAIL_RE.test(email)) {
+        setStatus('error', "That email address doesn't look right. Check it and try again.");
+        emailEl!.focus();
+        return;
+      }
+
+      submitBtn!.disabled = true;
+      submitBtn!.setAttribute('aria-busy', 'true');
+      setStatus('success', 'Subscribing…');
+
+      try {
+        let res: Response;
+        if (NEWSLETTER_MODE === 'buttondown') {
+          // Buttondown's public embed expects a form-encoded `email`.
+          res = await fetch(NEWSLETTER_ENDPOINT, {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: new URLSearchParams({ email }),
+          });
+        } else {
+          // Capture into the existing contact pipeline. Payload shape matches
+          // the contact form exactly ({email,name,topic,message}); the consent
+          // record + source ride in the free-text message so the render service
+          // needs no new fields.
+          res = await fetch(NEWSLETTER_ENDPOINT, {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({
+              email,
+              name: '',
+              topic: NEWSLETTER_TOPIC,
+              message: `Newsletter signup — explicit consent given. Source: ${source}.`,
+            }),
+          });
+        }
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        form.reset();
+        // Fire on a successful POST only — never on click — so failed or
+        // validation-blocked submits don't inflate the signup count.
+        (window as any).umami?.track('newsletter_signup', { variant, source });
+        setStatus('success', "You're on the list. We'll email you when there's a new post.");
+      } catch {
+        setStatus(
+          'error',
+          "Couldn't sign you up just now. Try again in a moment, or email info@we-amp.com.",
+        );
+      } finally {
+        submitBtn!.disabled = false;
+        submitBtn!.removeAttribute('aria-busy');
+      }
+    });
+  });
+</script>

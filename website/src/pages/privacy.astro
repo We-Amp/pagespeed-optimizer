@@ -1,0 +1,379 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import { PRODUCT_NAME, CURRENT_LINE, VENDOR, COMPANY_KVK } from '../data/product-facts.mjs';
+
+// OWNER: set the effective date at GA (mirrors the terms page).
+const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
+---
+
+<BaseLayout
+  title="Privacy — mod_pagespeed"
+  description="Cookieless analytics — no tracking cookies. How modpagespeed.com handles personal data, and what the software you run does and does not send."
+>
+  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <h1 class="text-3xl sm:text-4xl font-bold tracking-tight text-text-body">Privacy</h1>
+    <p class="mt-4 text-sm text-text-annotation">
+      Effective date: September 2026 &middot; Version 2026-09
+    </p>
+    <p class="mt-6 text-lg text-text-muted">
+      This notice covers how the <strong>modpagespeed.com</strong> website and its services process personal
+      data, and what the software you install does with data. {VENDOR} operates several websites; this
+      page is the specific notice for modpagespeed.com. For the company-wide policy, see the
+      <a
+        href="https://we-amp.com/privacy/"
+        class="text-interactive hover:text-interactive-hover underline"
+        >We-Amp B.V. privacy policy</a
+      >, of which this is a part.
+    </p>
+
+    <div class="mt-12 space-y-10">
+      <!-- Controller -->
+      <div>
+        <h2 class="text-2xl font-bold text-text-body">Who is responsible</h2>
+        <p class="mt-4 text-text-muted">
+          The data controller is {VENDOR}, a company registered in the Netherlands.
+        </p>
+        <ul class="mt-3 list-none text-text-muted space-y-1">
+          <li>{VENDOR}, Castricum, the Netherlands</li>
+          <li>KvK (Chamber of Commerce): <span class="font-mono">{COMPANY_KVK}</span></li>
+          <li>VAT (BTW): <span class="font-mono">NL852784429B01</span></li>
+          <li>
+            Privacy contact:
+            <a
+              href="mailto:privacy@we-amp.com"
+              class="text-interactive hover:text-interactive-hover underline">privacy@we-amp.com</a
+            >
+          </li>
+        </ul>
+      </div>
+
+      <!-- The software -->
+      <div>
+        <h2 class="text-2xl font-bold text-text-body">The software you run</h2>
+        <p class="mt-4 text-text-muted">
+          {PRODUCT} runs on your servers. It sends no telemetry to us and opens no outbound connection
+          of its own accord. The only traffic that leaves a host is what you, the operator, configure:
+          fetches to your own origin for the resources it optimizes and, when you enable browser analysis,
+          requests to the pages you point it at (and whatever those pages load). Your visitors&rsquo;
+          data never reaches {VENDOR}, and we have no way to see it. This is true with or without a
+          support subscription; the predecessor lines behave the same way.
+        </p>
+        <p class="mt-2 text-text-muted">
+          Because of this, for most deployments {VENDOR} is not a processor of your visitors&rsquo; data
+          at all. Where we do act as a processor for a business customer &mdash; for example during a
+          support engagement in which you share logs or configuration with us &mdash; a Data Processing
+          Agreement is available on request at
+          <a
+            href="mailto:privacy@we-amp.com"
+            class="text-interactive hover:text-interactive-hover underline">privacy@we-amp.com</a
+          >.
+        </p>
+      </div>
+
+      <!-- What we process -->
+      <div>
+        <h2 class="text-2xl font-bold text-text-body">What the website processes, and why</h2>
+        <p class="mt-4 text-text-muted">
+          We keep data collection to the minimum each service needs. The activities below cover
+          everything modpagespeed.com does with personal data.
+        </p>
+
+        <div class="mt-6 space-y-6">
+          <!-- Analytics -->
+          <div>
+            <h3 class="font-semibold text-text-body">Website analytics</h3>
+            <p class="mt-2 text-text-muted">
+              We use a self-hosted Umami instance (umami.we-amp.com) to count page views and see
+              which pages are useful. Umami is cookieless and does not build a profile across sites.
+              It records aggregate signals such as page path, referrer, approximate region, browser
+              and device type, plus a few named interactions on this site (for example, clicks on a
+              download button). We do not use this data to identify individuals.
+            </p>
+            <p class="mt-2 text-sm text-text-annotation">
+              Lawful basis: legitimate interest (Art. 6(1)(f) GDPR) in measuring and improving the
+              site, balanced against the low-impact, cookieless design.
+            </p>
+          </div>
+
+          <!-- Server logs and GeoIP -->
+          <div>
+            <h3 class="font-semibold text-text-body">Server logs and IP geolocation</h3>
+            <p class="mt-2 text-text-muted">
+              Like any web server, ours keeps standard access logs: the connecting IP address, the
+              request line, a timestamp, the referrer and the user agent. The server also looks up
+              the connecting IP address in two DB-IP Lite databases held on the server itself
+              (country, and autonomous-system number), refreshed monthly. The lookup happens on our
+              server; the address is not sent to DB-IP or to any other third party for this. We use
+              the country to show prices in your region where the site displays them, and to limit
+              the administrative interface of our self-hosted analytics to addresses in the
+              Netherlands (no visitor-facing effect). We use the network number to leave visits from
+              datacenter and cloud-provider networks out of the site analytics; such visits are
+              simply not counted, and an address that cannot be resolved is never dropped.
+            </p>
+            <p class="mt-2 text-sm text-text-annotation">
+              Lawful basis: legitimate interest (Art. 6(1)(f) GDPR) in operating and securing the
+              site and in keeping its analytics meaningful.
+            </p>
+          </div>
+
+          <!-- PSI proxy -->
+          <div>
+            <h3 class="font-semibold text-text-body">PageSpeed Insights proxy (/analyze)</h3>
+            <p class="mt-2 text-text-muted">
+              When you submit a URL on the
+              <a href="/analyze/" class="text-interactive hover:text-interactive-hover underline"
+                >/analyze</a
+              > page, our server forwards that URL to Google&rsquo;s PageSpeed Insights API (operated
+              by Google in the United States) and returns the result. The URL you submit may itself contain
+              personal data if you choose to enter such a URL &mdash; please don&rsquo;t. We also log
+              and rate-limit by your IP address to prevent abuse of the shared API access.
+            </p>
+            <p class="mt-2 text-sm text-text-annotation">
+              Lawful basis: legitimate interest (Art. 6(1)(f) GDPR) in offering the tool and
+              protecting it from abuse. Use of Google&rsquo;s API is also subject to Google&rsquo;s
+              own terms and privacy policy.
+            </p>
+          </div>
+
+          <!-- RenderPeek -->
+          <div>
+            <h3 class="font-semibold text-text-body">AI-readability scanner (RenderPeek)</h3>
+            <p class="mt-2 text-text-muted">
+              The AI-readability scanner renders a URL you submit so we can report how it looks to
+              automated agents. Rendering runs on Google Cloud Run. As with the PageSpeed Insights
+              proxy, we process the submitted URL and your IP address for the request and to
+              rate-limit abuse. We do not retain the rendered page content beyond what is needed to
+              return your result.
+            </p>
+            <p class="mt-2 text-sm text-text-annotation">
+              Lawful basis: legitimate interest (Art. 6(1)(f) GDPR) in offering the tool and
+              protecting it from abuse.
+            </p>
+          </div>
+
+          <!-- Subscriptions -->
+          <div>
+            <h3 class="font-semibold text-text-body">Subscriptions</h3>
+            <p class="mt-2 text-text-muted">
+              When you take out a support subscription or a hardened-builds subscription, we process
+              your name, email address, organization and order details to provide the subscription,
+              to give you access to the subscriber repository, and to invoice. Where a merchant of
+              record handles the payment (currently FastSpring), it is the seller of record and an
+              independent data controller for the billing, payment and tax data it collects under
+              its own privacy policy; we receive the order and subscription record.
+            </p>
+            <p class="mt-2 text-sm text-text-annotation">
+              Lawful basis: performance of a contract (Art. 6(1)(b) GDPR) and our legal obligations
+              for bookkeeping and tax (Art. 6(1)(c) GDPR).
+            </p>
+          </div>
+
+          <!-- Contact -->
+          <div>
+            <h3 class="font-semibold text-text-body">When you contact us</h3>
+            <p class="mt-2 text-text-muted">
+              If you email us or use the contact form, we process the message and your contact
+              details to reply and keep a record of the correspondence. When you submit the contact
+              form, your name, email address, chosen topic and message are posted to a We-Amp
+              contact-handling endpoint, which delivers the message to us (as a Telegram
+              notification) and logs it so we can follow up. If that submission fails, or if
+              JavaScript is disabled, the form falls back to opening a pre-filled email in your own
+              mail client instead.
+            </p>
+            <p class="mt-2 text-sm text-text-annotation">
+              Lawful basis: legitimate interest (Art. 6(1)(f) GDPR) in responding to your request,
+              or steps toward a contract (Art. 6(1)(b) GDPR) where relevant.
+            </p>
+          </div>
+
+          <!-- Marketing / product updates -->
+          <div>
+            <h3 class="font-semibold text-text-body">Marketing and product updates</h3>
+            <p class="mt-2 text-text-muted">
+              Where a form on this site offers it &mdash; the newsletter signup in the footer and at
+              the foot of blog posts, or asking for a full RenderPeek report &mdash; you can opt in
+              to receive product and web-performance updates by email. Opting in is always a
+              separate, un-ticked choice. While we set up a dedicated email tool, we record your
+              address and consent through the same contact-handling endpoint described above. We
+              only send these updates to people who have opted in; every message will include an
+              unsubscribe link; and we do not sell or share your address with third parties for
+              their own marketing.
+            </p>
+            <p class="mt-2 text-sm text-text-annotation">
+              Lawful basis: consent (Art. 6(1)(a) GDPR). You can withdraw consent at any time by
+              emailing
+              <a
+                href="mailto:privacy@we-amp.com"
+                class="text-interactive hover:text-interactive-hover underline"
+                >privacy@we-amp.com</a
+              > (and, once we start sending updates, via the unsubscribe link in any message).
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Retention -->
+      <div>
+        <h2 class="text-2xl font-bold text-text-body">How long we keep data</h2>
+        <p class="mt-4 text-text-muted">
+          We retain personal data no longer than necessary for the purpose it was collected.
+        </p>
+        <ul class="mt-3 list-disc list-inside text-text-muted space-y-1">
+          <li>
+            <strong>Analytics:</strong> aggregate event data is retained on a rolling basis and is not
+            tied to an identified person.
+          </li>
+          <li>
+            <strong>Server access logs (including PageSpeed Insights / scanner requests):</strong>
+            access and rate-limit logs are kept short-term for abuse prevention and operations, then rotated
+            out.
+          </li>
+          <li>
+            <strong>Subscriptions, orders and invoices:</strong> retained for as long as your subscription
+            is active and afterward as required by Dutch tax law (a 7-year retention obligation applies
+            to accounting records).
+          </li>
+          <li>
+            <strong>Correspondence:</strong> kept as long as needed to handle your request and for a reasonable
+            period afterward.
+          </li>
+          <li>
+            <strong>Newsletter / marketing consent:</strong> your email address and consent record are
+            kept for as long as you remain subscribed. While we set up a dedicated email tool, these are
+            held in the interim server-side log described above; once that tool is live we migrate your
+            record to it and remove the interim copy.
+          </li>
+        </ul>
+      </div>
+
+      <!-- Sub-processors -->
+      <div>
+        <h2 class="text-2xl font-bold text-text-body">Sub-processors</h2>
+        <p class="mt-4 text-text-muted">
+          We rely on a small number of third parties to run modpagespeed.com. Each processes data
+          only as needed for its function.
+        </p>
+        <div class="mt-4 overflow-x-auto">
+          <table class="w-full text-left text-sm text-text-muted">
+            <thead class="text-text-body">
+              <tr class="border-b border-border">
+                <th class="py-2 pr-4 font-semibold">Provider</th>
+                <th class="py-2 pr-4 font-semibold">Purpose</th>
+                <th class="py-2 font-semibold">Location</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="border-b border-border">
+                <td class="py-2 pr-4">Google (PageSpeed Insights API)</td>
+                <td class="py-2 pr-4">Scores URLs submitted to /analyze</td>
+                <td class="py-2">United States</td>
+              </tr>
+              <tr class="border-b border-border">
+                <td class="py-2 pr-4">Google Cloud (Cloud Run)</td>
+                <td class="py-2 pr-4"
+                  >Hosts the AI-readability scanner that renders submitted URLs</td
+                >
+                <td class="py-2">United States (us-central1)</td>
+              </tr>
+              <tr class="border-b border-border">
+                <td class="py-2 pr-4">DB-IP</td>
+                <td class="py-2 pr-4">
+                  GeoIP databases (IP-to-Country Lite and IP-to-ASN Lite) held on our own server for
+                  regional price display and analytics filtering; no data is sent to DB-IP
+                </td>
+                <td class="py-2">N/A (local lookup)</td>
+              </tr>
+              <tr>
+                <td class="py-2 pr-4">Telegram (Telegram FZ-LLC)</td>
+                <td class="py-2 pr-4">
+                  Delivers contact-form and newsletter-signup messages to us as a notification (the
+                  message also resides in our server-side log, which is the durable record)
+                </td>
+                <td class="py-2">Outside the EU/EEA</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="mt-3 text-sm text-text-annotation">
+          Payments for subscriptions are handled by a merchant of record (FastSpring) as an
+          independent data controller &mdash; not a processor acting on our behalf &mdash; so it is
+          described under &ldquo;Subscriptions&rdquo; above rather than listed here. We self-host
+          our analytics (Umami) on our own infrastructure, so analytics is not handled by a
+          third-party processor.
+        </p>
+        <p class="mt-2 text-xs text-text-annotation">
+          GeoIP data is provided by <a
+            href="https://db-ip.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="text-interactive hover:text-interactive-hover underline">DB-IP.com</a
+          > under the Creative Commons Attribution 4.0 International License.
+        </p>
+      </div>
+
+      <!-- International transfers -->
+      <div>
+        <h2 class="text-2xl font-bold text-text-body">International transfers</h2>
+        <p class="mt-4 text-text-muted">
+          Some of the third parties we work with are based outside the EU/EEA &mdash; in the United
+          States (FastSpring and Google) and elsewhere (Telegram, which relays contact-form and
+          newsletter-signup notifications). Where personal data is transferred outside the EU/EEA,
+          we rely on appropriate safeguards such as the EU Standard Contractual Clauses and, where
+          applicable, the providers&rsquo; certification under the EU&ndash;U.S. Data Privacy
+          Framework.
+        </p>
+      </div>
+
+      <!-- Rights -->
+      <div>
+        <h2 class="text-2xl font-bold text-text-body">Your rights</h2>
+        <p class="mt-4 text-text-muted">
+          Under the GDPR you have the right to access, rectify, erase, restrict or object to the
+          processing of your personal data, and the right to data portability. To exercise any of
+          these, email
+          <a
+            href="mailto:privacy@we-amp.com"
+            class="text-interactive hover:text-interactive-hover underline">privacy@we-amp.com</a
+          >. We will respond within the timeframe required by law.
+        </p>
+        <p class="mt-2 text-text-muted">
+          You also have the right to lodge a complaint with a supervisory authority. In the
+          Netherlands this is the Autoriteit Persoonsgegevens (autoriteitpersoonsgegevens.nl).
+        </p>
+      </div>
+
+      <!-- Cookies -->
+      <div>
+        <h2 class="text-2xl font-bold text-text-body">Cookies and storage</h2>
+        <p class="mt-4 text-text-muted">
+          Our analytics (Umami) is cookieless &mdash; browsing modpagespeed.com does not set
+          tracking cookies. We use strictly necessary browser storage to remember preferences such
+          as light or dark mode. If you take out a subscription through our merchant of record, its
+          checkout may set its own cookies or browser storage as part of the payment flow, governed
+          by its privacy policy.
+        </p>
+      </div>
+
+      <!-- Changes -->
+      <div>
+        <h2 class="text-2xl font-bold text-text-body">Changes to this notice</h2>
+        <p class="mt-4 text-text-muted">
+          We may update this notice as our processing changes. The version identifier at the top of
+          this page will be updated when we do.
+        </p>
+      </div>
+
+      <!-- Contact -->
+      <div>
+        <h2 class="text-2xl font-bold text-text-body">Contact</h2>
+        <p class="mt-4 text-text-muted">
+          Questions about privacy? Reach us at
+          <a
+            href="mailto:privacy@we-amp.com"
+            class="text-interactive hover:text-interactive-hover underline">privacy@we-amp.com</a
+          >.
+        </p>
+      </div>
+    </div>
+  </section>
+</BaseLayout>
