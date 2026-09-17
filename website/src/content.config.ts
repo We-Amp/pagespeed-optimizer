@@ -124,9 +124,11 @@ const howItWorks = defineCollection({
 });
 
 // Release manifest collections, synced from corp/releases/{1.1,2.0}.yaml by
-// corp's sync-manifests-to-mps2 workflow (§7). The schema mirrors
-// corp/scripts/release/manifest-schema.mjs but is intentionally loose on
-// nested compat/artifacts (we render via the helper in src/lib/release.ts).
+// corp's sync-manifests-to-mps2 workflow (§7). The 2.1 manifest (the
+// converged line, ) is seeded in-tree — the sync workflow does not yet
+// copy it. The schema mirrors corp/scripts/release/manifest-schema.mjs but is
+// intentionally loose on nested compat/artifacts (we render via the helper in
+// src/lib/release.ts).
 const releaseSchema = z.object({
   // schema_version 2 (D1/D7) adds optional status/eol; the object is
   // non-strict so they would pass anyway, but model them so consumers get
@@ -135,7 +137,7 @@ const releaseSchema = z.object({
   status: z.enum(['active', 'frozen']).optional(),
   eol: z.record(z.string(), z.string()).optional(),
   product: z.object({
-    line: z.enum(['1.1', '2.0']),
+    line: z.enum(['1.1', '2.0', '2.1']),
     display_name: z.string(),
   }),
   release: z.object({
@@ -176,30 +178,42 @@ const releases11 = defineCollection({
 // "v"+semver). Enforce that invariant here so the 2.0.11-vs-2.0.16 drift that
 // shipped a header version the docs didn't install (F59/F133) can't recur — a
 // bump tool that touches release.semver without re-deriving display.* now fails
-// the build instead of silently disagreeing with itself.
-const releaseSchema20 = releaseSchema.superRefine((data, ctx) => {
-  const { semver } = data.release;
-  if (data.display.header_version !== semver) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['display', 'header_version'],
-      message: `display.header_version (${data.display.header_version}) must equal release.semver (${semver}) for the 2.0 line`,
-    });
-  }
-  if (data.display.badge_version !== `v${semver}`) {
-    ctx.addIssue({
-      code: z.ZodIssueCode.custom,
-      path: ['display', 'badge_version'],
-      message: `display.badge_version (${data.display.badge_version}) must equal "v"+release.semver (v${semver}) for the 2.0 line`,
-    });
-  }
-});
+// the build instead of silently disagreeing with itself. The 2.1 line (the
+// converged line, ) carries the same invariant.
+const displayMatchesSemver = (line: string) =>
+  releaseSchema.superRefine((data, ctx) => {
+    const { semver } = data.release;
+    if (data.display.header_version !== semver) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['display', 'header_version'],
+        message: `display.header_version (${data.display.header_version}) must equal release.semver (${semver}) for the ${line} line`,
+      });
+    }
+    if (data.display.badge_version !== `v${semver}`) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['display', 'badge_version'],
+        message: `display.badge_version (${data.display.badge_version}) must equal "v"+release.semver (v${semver}) for the ${line} line`,
+      });
+    }
+  });
+
+const releaseSchema20 = displayMatchesSemver('2.0');
+const releaseSchema21 = displayMatchesSemver('2.1');
 
 const releases20 = defineCollection({
   loader: file('src/content/releases-2.0/release.yaml', {
     parser: yamlSingleton('release'),
   }),
   schema: releaseSchema20,
+});
+
+const releases21 = defineCollection({
+  loader: file('src/content/releases-2.1/release.yaml', {
+    parser: yamlSingleton('release'),
+  }),
+  schema: releaseSchema21,
 });
 
 export const collections = {
@@ -209,4 +223,5 @@ export const collections = {
   'docs-1.1': docs11,
   'releases-1.1': releases11,
   'releases-2.0': releases20,
+  'releases-2.1': releases21,
 };

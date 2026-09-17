@@ -1,7 +1,7 @@
 ---
-title: 'Release Notes'
-description: 'ModPageSpeed 2.0 release notes — capabilities, performance, and security updates. Updating to the latest release is recommended.'
-order: 70
+title: 'Release Notes (ModPageSpeed 2.0)'
+description: 'ModPageSpeed 2.0 release notes for the frozen predecessor line — the 2.0.x release history and its security updates. Supported until February 7, 2027; migrating to mod_pagespeed 2.1 is recommended.'
+order: 71
 group: 'Reference'
 ---
 
@@ -9,10 +9,13 @@ import { getRelease } from '../../lib/release';
 
 export const rel = await getRelease('2.0');
 
-ModPageSpeed 2.0 ships on a continuous release cadence. The current stable
-release is **{rel.release.semver}**. This page summarizes what the product does
-and the user-facing changes in recent releases. We recommend running the latest
-release — it always carries the most recent performance and security work.
+This page documents the frozen ModPageSpeed 2.0 line; the current stable
+release is **{rel.release.semver}**. The 2.0 Docker and Helm deployments, and
+the ASP.NET Core middleware, remain supported until **February 7, 2027** and
+receive security updates — new feature work happens on mod_pagespeed 2.1, the
+converged line. See the [mod_pagespeed 2.1 release
+notes](/docs/release-notes-2-1/) and the
+[migration guide](/docs/migrating-to-2-1/).
 
 ## What's in ModPageSpeed 2.0
 
@@ -759,5 +762,6 @@ is a matter of moving to the latest package or image tag.
 ## Reporting a security issue
 
 Found a security problem? Please email
-[info@we-amp.com](mailto:info@we-amp.com) so we can investigate and ship a fix.
-We publish security-relevant changes here as part of the regular release notes.
+[security@we-amp.com](mailto:security@we-amp.com) so we can investigate and
+ship a fix. We publish security-relevant changes here as part of the regular
+release notes.
