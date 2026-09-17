@@ -39,7 +39,7 @@ name: Release
 # resulting packages refuse to install there; observed on the first hosted
 # rehearsal, which derived "glibc floor: 2.38" vs rc.16's 2.34). The build
 # below therefore mirrors the private fleet lane exactly: vendor on the
-# host (which has the cyclone git credentials), then bazel inside the
+# host (so the in-container build needs no network), then bazel inside the
 # content-hashed dev image with --vendor_dir.
 #
 # Other deltas vs the private fleet lane's optimizer release workflow, all
@@ -59,10 +59,9 @@ name: Release
 #     content-hashed tools/packaging/docker image, the same
 #     build-optimizer-{deb,rpm}.sh invocations.
 #
-# The cyclone pin fetch: MODULE.bazel pins We-Amp/cyclone-cache, public at
-# GA. While it is still private, the conditional CI_CYCLO_CACHE_PAT step
-# below (identical to ci.yml's) routes the fetch through the repo secret;
-# both die at the public flip.
+# The cyclone pin fetch: MODULE.bazel pins We-Amp/cyclone-cache, public
+# since the GA flip, so Bazel's git fetch is anonymous and needs no
+# credentials.
 
 on:
   push:
@@ -180,10 +179,6 @@ jobs:
             timeout: 180
     runs-on: ${{ matrix.runner }}
     timeout-minutes: ${{ matrix.timeout }}
-    env:
-      # Repo secret filed by the repo admin while cyclone-cache is still
-      # private; empty once We-Amp/cyclone-cache is public.
-      CI_CYCLO_CACHE_PAT: ${{ secrets.CI_CYCLO_CACHE_PAT }}
     steps:
       - name: Checkout
         uses: actions/checkout@v5
@@ -200,17 +195,6 @@ jobs:
           WANT="${{ needs.version.outputs.tag_sha }}"
           GOT="$(git rev-parse HEAD)"
           [ "$WANT" = "$GOT" ] || { echo "::error::tag moved: resolved $WANT, checked out $GOT"; exit 1; }
-
-      # Identical to ci.yml: while We-Amp/cyclone-cache is private, route
-      # the MODULE.bazel git fetch through the repo-secret token. Dies at
-      # the public flip; the token is never printed. The VENDOR step below
-      # runs on the host so the fetch happens where the credentials are.
-      - name: Authenticate the cyclone fetch (pre-public-flip only)
-        if: ${{ env.CI_CYCLO_CACHE_PAT != '' }}
-        run: |
-          git config --global \
-            url."https://x-access-token:${CI_CYCLO_CACHE_PAT}@github.com/".insteadOf \
-            "https://github.com/"
 
       - name: Install bazelisk
         run: sudo npm install -g @bazel/bazelisk
@@ -253,9 +237,9 @@ jobs:
             docker build -t "$CONTENT_IMAGE" docker/
           echo "image=$CONTENT_IMAGE" >> "$GITHUB_OUTPUT"
 
-      # Mirror of the fleet lane: vendor on the host (which has the cyclone
-      # git credentials), so the in-container build needs no network.
-      - name: Vendor dependencies (host — has the git credentials)
+      # Mirror of the fleet lane: vendor on the host, so the in-container
+      # build needs no network.
+      - name: Vendor dependencies (host)
         run: >
           bazel vendor --vendor_dir=vendor
           "--repository_cache=$HOME/.cache/bazel-repo"
