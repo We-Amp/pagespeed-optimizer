@@ -4,6 +4,8 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+## [2.1.0] - 2026-09-17
+
 Changed (plan for this before you upgrade): **the disk cache starts empty.**
 This release moves the optimizer to a new on-disk cache format. The new
 binary opens a new cache file instead of converting the old one, so every
