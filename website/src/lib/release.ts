@@ -19,7 +19,7 @@ export async function getRelease(line: Line) {
   if (!entry) {
     throw new Error(
       `Missing release manifest for ${line} (expected src/content/releases-${line}/release.yaml)`,
-   );
+    );
   }
   return entry.data;
 }
@@ -46,7 +46,7 @@ export function artifactUrl(rel: Release, channel: string, arch: string): string
   if (typeof tmpl !== 'string') {
     throw new Error(
       `No artifact template for channel=${channel} arch=${arch} in ${rel.product.line} manifest`,
-   );
+    );
   }
   const filename = tmpl
     .replaceAll('%V', rel.release.semver)

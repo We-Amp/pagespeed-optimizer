@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 
-// Core Web Vitals metric-pillar content. Each entry renders a deep
+// Core Web Vitals metric-pillar content (D3). Each entry renders a deep
 // per-metric page at /core-web-vitals/<metric>/ via src/pages/core-web-vitals/[metric].astro,
 // sitting between the /core-web-vitals/ hub and the 15 per-platform fix-spoke posts.
 //
@@ -411,7 +411,7 @@ export const pillars: CwvPillar[] = [
       },
       {
         heading: 'Fix the upstream behind interactive widgets',
-        body: "If INP attribution lands on a <code>fetch('/api/..')</code> that takes 300 ms to respond, INP is at least 300 ms and no rewriter changes that. Fix it at the source: caching, database indexing, async I/O. On nginx specifically, remove connection overhead too: set <code>keepalive</code> on upstream blocks (with <code>proxy_http_version 1.1</code> and an empty <code>Connection</code> header), raise <code>worker_connections</code> so bursts don't queue, and enable HTTP/2 to end HTTP/1.1 head-of-line blocking. These cut per-interaction connection cost; they don't shorten handler latency.",
+        body: "If INP attribution lands on a <code>fetch('/api/...')</code> that takes 300 ms to respond, INP is at least 300 ms and no rewriter changes that. Fix it at the source: caching, database indexing, async I/O. On nginx specifically, remove connection overhead too: set <code>keepalive</code> on upstream blocks (with <code>proxy_http_version 1.1</code> and an empty <code>Connection</code> header), raise <code>worker_connections</code> so bursts don't queue, and enable HTTP/2 to end HTTP/1.1 head-of-line blocking. These cut per-interaction connection cost; they don't shorten handler latency.",
         layer: 'both',
       },
       {

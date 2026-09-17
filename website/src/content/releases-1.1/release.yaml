@@ -2,7 +2,7 @@
 #
 # Edit this file when a new 1.1 release or reship ships. Every website,
 # script, and docs page that needs a 1.1 version string derives it from
-# this manifest.
+# this manifest (§1).
 #
 # DO NOT hand-edit `release.{semver,revision,tag,released_on}` — use the
 # `bump-website.mjs` tool. Other fields (compat, urls, artifacts) are
@@ -44,7 +44,7 @@ artifacts:
 
 urls:
   # Archive URL collapses to v{semver} only — the `+` character is
-  # structurally broken on the production nginx config.
+  # structurally broken on the production nginx config (§2).
   archive_base: "https://modpagespeed.com/releases/v1.15.0/"
   latest_base: "https://modpagespeed.com/releases/latest/"
   # Stable, NOT version-pinned (A1.1) — the same We-Amp signing key

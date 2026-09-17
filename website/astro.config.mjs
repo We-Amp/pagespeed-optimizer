@@ -78,12 +78,12 @@ const examplesWithData = (() => {
   try {
     const data = JSON.parse(
       readFileSync(resolve(__dirname, 'src/data/examples-data.json'), 'utf8'),
-   );
+    );
     return new Set(
       Object.entries(data.examples || {})
         .filter(([, v]) => v && !v.error && v.settled)
         .map(([slug]) => slug),
-   );
+    );
   } catch {
     return new Set();
   }
@@ -148,7 +148,7 @@ export default defineConfig({
   // this preserves any accrued links/bookmarks to the original URL.
   redirects: {
     '/blog/hello-world/': '/blog/why-i-rebuilt-mod-pagespeed/',
-    // /vs/getpagespeed/ retired 2026-06-20 (reverses the single-named-
+    // /vs/getpagespeed/ retired 2026-06-20 (reverses the D6 single-named-
     // page exception): we win the maintainer/alternative SERP on facts-about-us,
     // and a leader-names-challenger comparison page only lent the competitor
     // visibility. Forward the evaluation intent to the no-competitor-named page.
@@ -183,7 +183,7 @@ export default defineConfig({
   integrations: [
     // MDX for docs pages that interpolate release manifest values via the
     // release-aware components in src/components/release/. Plain .md docs
-    // continue to work; only the version-coupled docs use .mdx.
+    // continue to work; only the version-coupled docs use .mdx (§4).
     mdx(),
     sitemap({
       // Exclude legacy 1.0 docs, the noindex checkout, and the noindex
@@ -196,7 +196,7 @@ export default defineConfig({
           page.includes('/buy/') ||
           page.includes('/go/') ||
           page.includes('/error/')
-       )
+        )
           return false;
         const m = new URL(page).pathname.match(/^\/examples\/([^/]+)\/$/);
         if (m) return examplesWithData.has(m[1]);
