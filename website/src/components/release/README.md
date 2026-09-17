@@ -2,7 +2,7 @@
 
 These components render release-version content from the manifest at
 `src/content/releases-{1.1,2.0}/release.yaml` (synced from `corp/releases/*.yaml`
-by the corp `sync-manifests-to-mps2` workflow).
+by the corp `sync-manifests-to-mps2` workflow —).
 
 **Authoring rule:** every version-coupled string on the website must flow
 through `getRelease()` (typed access) or one of these components. The
@@ -32,8 +32,8 @@ title: 'My doc page'
 description: '…'
 ---
 
-import DownloadCmd from '././components/release/DownloadCmd.astro';
-import XPageSpeedExample from '././components/release/XPageSpeedExample.astro';
+import DownloadCmd from '../../components/release/DownloadCmd.astro';
+import XPageSpeedExample from '../../components/release/XPageSpeedExample.astro';
 
 Install the package:
 
