@@ -3,7 +3,7 @@
 //
 // Typed accessors for the release manifests synced from corp/releases/*.yaml
 // into src/content/releases-{1.1,2.0}/release.yaml by the corp workflow
-// `.github/workflows/sync-manifests-to-mps2.yml` (ADR-062 §7).
+// `.github/workflows/sync-manifests-to-mps2.yml`.
 //
 // Astro pages import `getRelease(line)` to fetch the manifest and
 // `artifactUrl(rel, channel, arch)` to render an absolute download URL with
@@ -19,7 +19,7 @@ export async function getRelease(line: Line) {
   if (!entry) {
     throw new Error(
       `Missing release manifest for ${line} (expected src/content/releases-${line}/release.yaml)`,
-    );
+   );
   }
   return entry.data;
 }
@@ -46,7 +46,7 @@ export function artifactUrl(rel: Release, channel: string, arch: string): string
   if (typeof tmpl !== 'string') {
     throw new Error(
       `No artifact template for channel=${channel} arch=${arch} in ${rel.product.line} manifest`,
-    );
+   );
   }
   const filename = tmpl
     .replaceAll('%V', rel.release.semver)

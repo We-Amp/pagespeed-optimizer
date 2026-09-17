@@ -3,7 +3,7 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 
 /**
- * Pre-build pricing fetch script (ADR-020).
+ * Pre-build pricing fetch script.
  *
  * Fetches localized pricing for ModPageSpeed Pro products from FastSpring's
  * REST API and writes src/data/fastspring-pricing.json.  The output file is
@@ -34,7 +34,7 @@ const OUTPUT_FILE = join(DATA_DIR, 'fastspring-pricing.json');
 // Configuration
 // ---------------------------------------------------------------------------
 
-// ADR-092 ladder SKUs. The legacy mps{1,2}-pro-* slugs stay in the array
+// ladder SKUs. The legacy mps{1,2}-pro-* slugs stay in the array
 // during the transition so the committed fallback still covers in-field
 // admin consoles deep-linking /buy/?product=mps2-pro-*; dropping them is
 // owned by P3.6 (the same change as the FastSpring retirement), not "later".

@@ -8,7 +8,7 @@ import { offerJsonLd } from '../data/offer-jsonld';
 import { FREE_TO_RUN_LINE } from '../data/product-facts.mjs';
 
 // Single source of truth for the NuGet install command — corp/releases/2.0.yaml
-// drives the `--prerelease` flag (display.nuget_install_flags). See ADR-062.
+// drives the `--prerelease` flag (display.nuget_install_flags).
 const rel20 = await getRelease('2.0');
 const nugetInstallCmd = `dotnet add package ${rel20.artifacts.nuget.package}${
   rel20.display.nuget_install_flags ? ` ${rel20.display.nuget_install_flags}` : ''

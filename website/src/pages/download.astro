@@ -1,19 +1,19 @@
 ---
-import BaseLayout from '../layouts/BaseLayout.astro';
-import Icon from '../components/Icon.astro';
-import { getRelease, artifactUrl, archiveUrl } from '../lib/release';
-import { offerJsonLd } from '../data/offer-jsonld';
-import { LICENSE_CLAUSE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
+import BaseLayout from './layouts/BaseLayout.astro';
+import Icon from './components/Icon.astro';
+import { getRelease, artifactUrl, archiveUrl } from './lib/release';
+import { offerJsonLd } from './data/offer-jsonld';
+import { LICENSE_CLAUSE, LICENSE_CLAUSE_CAP } from './data/product-facts.mjs';
 
 // Single source of truth: corp/releases/1.1.yaml synced into
 // src/content/releases-1.1/release.yaml by corp's sync-manifests-to-mps2
-// workflow (ADR-062 §7). Edit the corp manifest, not this file.
+// workflow. Edit the corp manifest, not this file.
 const rel11 = await getRelease('1.1');
 const rel20 = await getRelease('2.0');
 
-// Apache/nginx share the same deb/rpm distro support window per ADR-062 §1;
+// Apache/nginx share the same deb/rpm distro support window;
 // nginx adds the version hint. EL8 is intentionally absent from the stock
-// channel — dropped 2026-05-21 per ADR-058. The Apache card renders a concise
+// channel — dropped 2026-05-21. The Apache card renders a concise
 // hand-written distro summary instead of the raw manifest join (that list is
 // now 11 entries long); apache_versions stays manifest-derived so the version
 // floor cannot drift.
@@ -174,7 +174,7 @@ const jsonLd = {
               <p class="mt-3 text-xs italic text-text-annotation">
                 {integration.note}
               </p>
-            )}
+           )}
             <p class="mt-3 text-xs text-text-annotation flex-1">
               {integration.requirements}
             </p>
@@ -183,7 +183,7 @@ const jsonLd = {
               <span aria-hidden="true">&rarr;</span>
             </p>
           </a>
-        ))
+       ))
       }
     </div>
 

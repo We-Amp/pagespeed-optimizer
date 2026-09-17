@@ -3,7 +3,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import { getCollection } from 'astro:content';
 import { getRelease } from '../../lib/release';
 
-// Badge version is sourced from the release manifest (ADR-062) so it tracks
+// Badge version is sourced from the release manifest so it tracks
 // the shipped 2.0 line instead of a hardcoded "preview" string.
 const rel20 = await getRelease('2.0');
 

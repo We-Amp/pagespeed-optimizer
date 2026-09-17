@@ -9,7 +9,7 @@ test.describe('Calculator page', () => {
   });
 
   test('renders 4 input fields with default values', async ({ page }) => {
-    // ADR-092 per-site licensing: the old "#servers" input became "#sites"
+    // per-site licensing: the old "#servers" input became "#sites"
     // (price is per registrable domain, not per server), and the default
     // pageviews figure was raised to 10,000,000.
     await expect(page.locator('#pageviews')).toHaveValue('10000000');

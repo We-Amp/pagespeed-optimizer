@@ -55,7 +55,7 @@ test.describe('Responsive layout', () => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto('/calculator/');
     await expect(page.locator('#pageviews')).toBeVisible();
-    // ADR-092 per-site licensing renamed the "servers" input to "sites".
+    // per-site licensing renamed the "servers" input to "sites".
     await expect(page.locator('#sites')).toBeVisible();
   });
 

@@ -114,7 +114,7 @@ const pageDescription = `${ex.blurb} See it applied live by mod_pagespeed 1.15, 
 // `about` facts use the literal '1.15' (matching the docs template and this
 // page's own "mod_pagespeed 1.15" copy) — not examples-data.json's psHeader,
 // which is the engine tag and would reintroduce an old-version string
-// (ADR-095 content accuracy). No example-specific share image exists, so
+// (content accuracy). No example-specific share image exists, so
 // `image` is omitted (BaseLayout's og:image falls back to the shared default).
 const jsonLd: Record<string, unknown> | undefined = hasData
   ? {

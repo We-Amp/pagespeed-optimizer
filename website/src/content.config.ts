@@ -85,7 +85,7 @@ const docs = defineCollection({
           q: z.string(),
           a: z.string(),
         }),
-      )
+     )
       .optional(),
   }),
 });
@@ -124,11 +124,11 @@ const howItWorks = defineCollection({
 });
 
 // Release manifest collections, synced from corp/releases/{1.1,2.0}.yaml by
-// corp's sync-manifests-to-mps2 workflow (ADR-062 §7). The schema mirrors
+// corp's sync-manifests-to-mps2 workflow. The schema mirrors
 // corp/scripts/release/manifest-schema.mjs but is intentionally loose on
 // nested compat/artifacts (we render via the helper in src/lib/release.ts).
 const releaseSchema = z.object({
-  // schema_version 2 (ADR-121 D1/D7) adds optional status/eol; the object is
+  // schema_version 2 adds optional status/eol; the object is
   // non-strict so they would pass anyway, but model them so consumers get
   // typed access (e.g. a future frozen-line notice on the download page).
   schema_version: z.union([z.literal(1), z.literal(2)]),
@@ -161,7 +161,7 @@ const releaseSchema = z.object({
 // parser that returns an array with a stable id.
 const yamlSingleton = (id: string) => (text: string) => {
   const data = parseYaml(text);
-  return [{ id, ...data }];
+  return [{ id, ..data }];
 };
 
 const releases11 = defineCollection({

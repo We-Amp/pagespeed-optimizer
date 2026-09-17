@@ -20,9 +20,12 @@
 #
 # The slug and topology rules use explicit non-word character classes rather
 # than \b, so a longer path segment (github.com/oschaaf/cyclone-foo) is not a
-# hit while a hyphenated compound (non-self-hosted) still is.
+# hit while a hyphenated compound (non-threadripper) still is. The topology
+# rule scopes "self-hosted" to CI/runner contexts — the bare word is legitimate
+# product vocabulary ("self-hosted image optimization") and appears throughout
+# the website copy on purpose.
 E	ADR-[0-9]{3}([^0-9]|$)
 Ei	(linux|mac|macos|windows)-(x64|arm64)(-[a-z0-9]+)*-(pool|mps[0-9]+)([^a-z0-9-]|$)
 E	(^|[^A-Za-z0-9_/-])(oschaaf/modpagespeed-2|oschaaf/cyclone|mod_pagespeed_private)([^A-Za-z0-9_/-]|$)
 E	MPS2-[A-Z]+-[0-9]+
-Ei	(^|[^A-Za-z0-9_])(self-hosted|threadripper|duster|mpb-?16|weamp-web)([^A-Za-z0-9_]|$)
+Ei	(^|[^A-Za-z0-9_])(self-hosted[- ](runners?|agents?|ci|github|actions?|pool|fleet)|threadripper|duster|mpb-?16|weamp-web)([^A-Za-z0-9_]|$)

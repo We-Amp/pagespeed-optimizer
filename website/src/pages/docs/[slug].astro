@@ -8,7 +8,7 @@ import { createMarkdownProcessor } from '@astrojs/markdown-remark';
 import { getRelease } from '../../lib/release';
 import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
 
-// Per ADR-062 §4: the JSON-LD HowTo schema for aspnet-getting-started cites
+//: the JSON-LD HowTo schema for aspnet-getting-started cites
 // the literal `dotnet add package …` command shown on the page. Source it
 // from the release manifest so HowTo + page body never drift.
 const rel20 = await getRelease('2.0');

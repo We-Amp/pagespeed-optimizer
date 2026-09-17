@@ -1,9 +1,9 @@
 ---
-import BaseLayout from '../../layouts/BaseLayout.astro';
-import { pillars, spokeFor, type CwvPillar } from '../../data/cwv-pillars';
-import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
+import BaseLayout from '././layouts/BaseLayout.astro';
+import { pillars, spokeFor, type CwvPillar } from '././data/cwv-pillars';
+import { FREE_TO_RUN_LINE } from '././data/product-facts.mjs';
 
-// Metric-pillar pages (ADR-089 D3): /core-web-vitals/{lcp,cls,inp}/. Content
+// Metric-pillar pages: /core-web-vitals/{lcp,cls,inp}/. Content
 // lives in src/data/cwv-pillars.ts; spoke links are derived so the pillar never
 // drifts from the hub or the 15 per-platform fix posts.
 export function getStaticPaths() {
@@ -111,7 +111,7 @@ const jsonLd = [
               <h3 class="font-semibold text-text-body">{cause.title}</h3>
               <p class="mt-2 text-sm text-text-muted" set:html={cause.detail} />
             </div>
-          ))
+         ))
         }
       </div>
     </section>
@@ -133,7 +133,7 @@ const jsonLd = [
               </div>
               <p class="mt-2 text-sm text-text-muted" set:html={fix.body} />
             </div>
-          ))
+         ))
         }
       </div>
     </section>
@@ -162,7 +162,7 @@ const jsonLd = [
                 <span class="text-xs text-text-annotation">{spoke.title}</span>
               </a>
             </li>
-          ))
+         ))
         }
       </ul>
     </section>
@@ -177,7 +177,7 @@ const jsonLd = [
               <dt class="font-semibold text-text-body">{entry.q}</dt>
               <dd class="mt-2 text-sm text-text-muted" set:html={entry.a} />
             </div>
-          ))
+         ))
         }
       </dl>
     </section>
@@ -226,9 +226,9 @@ const jsonLd = [
               </a>
               {item.note ? (
                 <span class="text-text-annotation"> &mdash; {item.note}</span>
-              ) : null}
+             ) : null}
             </li>
-          ))
+         ))
         }
       </ul>
     </section>

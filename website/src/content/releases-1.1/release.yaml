@@ -2,7 +2,7 @@
 #
 # Edit this file when a new 1.1 release or reship ships. Every website,
 # script, and docs page that needs a 1.1 version string derives it from
-# this manifest (see ADR-062 §1).
+# this manifest.
 #
 # DO NOT hand-edit `release.{semver,revision,tag,released_on}` — use the
 # `bump-website.mjs` tool. Other fields (compat, urls, artifacts) are
@@ -26,7 +26,7 @@ release:
 artifacts:
   # PUBLIC DIRECT-DOWNLOAD NAMES ARE GA-ALIAS-PINNED (reship-in-place at r0),
   # NOT tracking the build's `+rN`. The public mirror (nginx) collapses the
-  # version URL to v1.1.0/ (no +rN — ADR-062 §2), so the canonical bytes at
+  # version URL to v1.1.0/ (no +rN — §2), so the canonical bytes at
   # gs://weamp-release-artifacts/v1.1.0/packages/ are reshipped in place under
   # these stable r0/-0. names on every release by publish-to-packages-repo.sh
   # (see its `reship_canonical_aliases` step). Therefore these templates are
@@ -44,12 +44,12 @@ artifacts:
 
 urls:
   # Archive URL collapses to v{semver} only — the `+` character is
-  # structurally broken on the production nginx config (ADR-062 §2).
+  # structurally broken on the production nginx config.
   archive_base: "https://modpagespeed.com/releases/v1.15.0/"
   latest_base: "https://modpagespeed.com/releases/latest/"
-  # Stable, NOT version-pinned (ADR-058 A1.1) — the same We-Amp signing key
+  # Stable, NOT version-pinned (A1.1) — the same We-Amp signing key
   # verifies every release, so gpg_key intentionally stays pinned to the frozen
-  # v1.1.0 canonical path even as archive_base advances to v1.15.0 (ADR-084 KEEP:
+  # v1.1.0 canonical path even as archive_base advances to v1.15.0 (KEEP:
   # /1.1/ download paths are frozen; the key file there is permanent + public).
   gpg_key: "https://modpagespeed.com/releases/v1.1.0/weamp-pkg-public.asc"
 
@@ -58,8 +58,8 @@ compat:
     # Debian 13 (trixie) is live in the signed repo for Apache + nginx,
     # amd64 + arm64 — it postdated this list (added 2026-06).
     deb_distros: ["Debian 11", "Debian 12", "Debian 13", "Ubuntu 22.04", "Ubuntu 24.04"]
-    # EL8 dropped 2026-05-21 per ADR-058 / mps11 PR #154 (glibc 2.28 vs 2.29).
-    # EL9 ships x86_64 + aarch64; EL10 is x86_64-only (ADR-101, accepted
+    # EL8 dropped 2026-05-21 / mps11 PR #154 (glibc 2.28 vs 2.29).
+    # EL9 ships x86_64 + aarch64; EL10 is x86_64-only (, accepted
     # 2026-06-20: committed el10 dnf/yum channel, native AlmaLinux 10 build).
     # Durability caveat: el10 publish jobs are additive-soft (continue-on-error,
     # in no hard gate) and the live r13 el10 RPMs were hand-published ahead of

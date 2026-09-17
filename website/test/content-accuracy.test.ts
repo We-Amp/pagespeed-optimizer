@@ -3,7 +3,7 @@
 //
 // content-accuracy.test.ts — ANTI-DRIFT guard for drift-prone product facts in
 // human-facing site copy. Prevents the recurrence of the product-fact drift
-// that mps2 PR #705 (2026-06-15 sitewide accuracy sweep) removed. See ADR-095.
+// that mps2 PR #705 (2026-06-15 sitewide accuracy sweep) removed.
 //
 // WHAT DRIFTED (and what this guard forbids coming back)
 //   PR #705 corrected a class of confidently-wrong product statements that had
@@ -13,7 +13,7 @@
 //       roadmap is "2.x" / "a future 2.x release");
 //     - ModPageSpeed 2.0 described as a loadable / standalone nginx module
 //       installable from apt/yum (it is NOT — 2.0 BUNDLES nginx 1.30.2 in its
-//       Docker reverse proxy and ships via Docker + Helm + NuGet per ADR-061;
+//       Docker reverse proxy and ships via Docker + Helm + NuGet;
 //       the standalone 2.0 nginx module is DEFERRED);
 //     - the 1.15 native nginx module's supported nginx range stated as
 //       "nginx 1.26+" (it is per-distro, pinned to each distro's STOCK nginx:
@@ -43,14 +43,14 @@
 //       packages are signed too." still flags). The denylist targets AFFIRMATIVE
 //       restatements of the wrong fact, NOT the corrective copy that PR #705
 //       itself wrote. This is precision-over-recall by design: the guard is a
-//       REGRESSION NET (ADR-095 §Consequences), not an exhaustive semantic
+//       REGRESSION NET (§Consequences), not an exhaustive semantic
 //       checker. `exemptionMustNotDisarm` probes machine-enforce the scoping.
 //   (3) CANONICAL-SOURCE consistency — assert the single-sources-of-truth
-//       (product-facts.mjs + the ADR-062 release manifests) still hold the
+//       (product-facts.mjs + the release manifests) still hold the
 //       ground-truth values, so the denylist's baseline never silently rots.
 //   (4) CORPUS TESTS — a fixed corpus of (a) real corrective phrasings that MUST
 //       NOT be flagged (the false positives an adversarial review found), and
-//       (b) engine-tag refs ("v1.1.0+r11") that MUST NOT be flagged (ADR-095 §5).
+//       (b) engine-tag refs ("v1.1.0+r11") that MUST NOT be flagged.
 //   (5) MATCHER UNIT TESTS — each denylist regex is asserted to FLAG a known
 //       wrong sample (and variants) AND to NOT flag a known-good sample, proving
 //       the matcher discriminates without having to mutate real content.
@@ -65,15 +65,15 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
 import { describe, it, expect } from 'vitest';
-import * as facts from '../src/data/product-facts.mjs';
+import * as facts from './src/data/product-facts.mjs';
 
-const WEBSITE_ROOT = fileURLToPath(new URL('..', import.meta.url));
+const WEBSITE_ROOT = fileURLToPath(new URL('.', import.meta.url));
 const CONTENT_DIR = path.join(WEBSITE_ROOT, 'src/content');
 const REL_2_0 = path.join(CONTENT_DIR, 'releases-2.0/release.yaml');
 const REL_1_1 = path.join(CONTENT_DIR, 'releases-1.1/release.yaml');
 
 // ---------------------------------------------------------------------------
-// Canonical manifests (ADR-062 single sources of truth). Parsed once.
+// Canonical manifests (single sources of truth). Parsed once.
 // ---------------------------------------------------------------------------
 type ReleaseManifest = {
   release: { semver: string; revision: number | null; tag: string };
@@ -333,8 +333,8 @@ const DENYLIST: DenyRule[] = [
   },
   {
     id: 'b1-2.0-drop-in-or-loadable-nginx-module',
-    why: '2.0 is NOT a loadable nginx module — it bundles nginx 1.30.2 in a Docker reverse proxy (ADR-061). The standalone 2.0 nginx module is deferred. (mod_pagespeed 1.15 IS a drop-in/loadable nginx module — so this rule requires a 2.0 subject; the bare phrase is correct for 1.15.)',
-    re: /ModPageSpeed 2\.0[\s\S]{0,80}?(?:drop-in nginx (?:image )?optimization module|loadable nginx module|drop-in module for nginx|nginx module you (?:load|compile|install))|(?:drop-in nginx (?:image )?optimization module|loadable nginx module|drop-in module for nginx)[\s\S]{0,40}?ModPageSpeed 2\.0/i,
+    why: '2.0 is NOT a loadable nginx module — it bundles nginx 1.30.2 in a Docker reverse proxy. The standalone 2.0 nginx module is deferred. (mod_pagespeed 1.15 IS a drop-in/loadable nginx module — so this rule requires a 2.0 subject; the bare phrase is correct for 1.15.)',
+    re: /ModPageSpeed 2\.0[\s\S]{0,80}?(?:drop-in nginx (?:image)?optimization module|loadable nginx module|drop-in module for nginx|nginx module you (?:load|compile|install))|(?:drop-in nginx (?:image)?optimization module|loadable nginx module|drop-in module for nginx)[\s\S]{0,40}?ModPageSpeed 2\.0/i,
     bad: 'ModPageSpeed 2.0 is a drop-in nginx image optimization module you load_module.',
     good: 'ModPageSpeed 2.0 ships as a Docker reverse proxy that bundles nginx 1.30.2.',
     variantsBad: [
@@ -349,7 +349,7 @@ const DENYLIST: DenyRule[] = [
   },
   {
     id: 'b2-2.0-near-load_module-or-dynamic-module',
-    why: '2.0 is distributed via Docker + Helm + NuGet, not loaded into an existing nginx via load_module (ADR-061).',
+    why: '2.0 is distributed via Docker + Helm + NuGet, not loaded into an existing nginx via load_module.',
     re: /ModPageSpeed 2\.0[\s\S]{0,80}?(?:load_module|dynamic module on an? existing nginx|(?:dynamic|loadable)(?: nginx)? module)|(?:load_module|dynamic module on an? existing nginx)[\s\S]{0,80}?ModPageSpeed 2\.0/i,
     // Corrective forms for THIS claim, all anchored on the denied object
     // (load_module / dynamic module / nginx config) rather than a bare token:
@@ -366,7 +366,7 @@ const DENYLIST: DenyRule[] = [
         /\b(?:Unlike|Whereas)\b[^\n]{0,80}?\bload_module\b/.source,
       ].join('|'),
       'i',
-    ),
+   ),
     exemptionMustNotDisarm: [
       // The corrective statement is about the Docker image, in clause 2; the
       // load_module claim in clause 1 is still false.
@@ -388,7 +388,7 @@ const DENYLIST: DenyRule[] = [
   },
   {
     id: 'b3-2.0-from-apt-or-yum-repo',
-    why: '2.0 does NOT ship from apt/yum repositories (those carry the 1.15 native modules). 2.0 = Docker + Helm + NuGet (ADR-061).',
+    why: '2.0 does NOT ship from apt/yum repositories (those carry the 1.15 native modules). 2.0 = Docker + Helm + NuGet.',
     // FORWARD-only: "ModPageSpeed 2.0" is the subject, tied to an apt/yum
     // repo/install/package within a short window. Single-channel (apt-only OR
     // yum-only) is the most likely reintroduction and is covered.
@@ -425,7 +425,7 @@ const DENYLIST: DenyRule[] = [
           .source,
       ].join('|'),
       'i',
-    ),
+   ),
     bad: 'Install ModPageSpeed 2.0 from the signed apt and yum repositories.',
     good: 'mod_pagespeed 1.15 ships as signed apt and yum packages, and the from-scratch ModPageSpeed 2.0 rewrite goes GA.',
     variantsBad: [
@@ -451,7 +451,7 @@ const DENYLIST: DenyRule[] = [
   {
     id: 'c-nginx-1.26-plus-as-module-range',
     why: 'The 1.15 native module is per-distro, pinned to each distro\'s STOCK nginx (1.18.0 … 1.26.3). It is NOT an open "nginx 1.26+" / "1.26 or newer" range.',
-    re: /(?:mod_pagespeed 1\.15|1\.15 (?:nginx )?module|native module)[\s\S]{0,60}?nginx 1\.26(?:\+|\s*(?:or newer|or later|and later|and up|minimum))|nginx 1\.26(?:\+|\s*(?:or newer|or later|and later|and up|minimum))[\s\S]{0,60}?(?:mod_pagespeed 1\.15|1\.15 (?:nginx )?module|native module)|nginx >=?\s?1\.26\b/i,
+    re: /(?:mod_pagespeed 1\.15|1\.15 (?:nginx)?module|native module)[\s\S]{0,60}?nginx 1\.26(?:\+|\s*(?:or newer|or later|and later|and up|minimum))|nginx 1\.26(?:\+|\s*(?:or newer|or later|and later|and up|minimum))[\s\S]{0,60}?(?:mod_pagespeed 1\.15|1\.15 (?:nginx)?module|native module)|nginx >=?\s?1\.26\b/i,
     bad: 'The mod_pagespeed 1.15 native module supports nginx 1.26+ on every distro.',
     good: 'The mod_pagespeed 1.15 native module is pinned per distro, stock nginx 1.18 to 1.26.3.',
     variantsBad: [
@@ -540,28 +540,28 @@ const DENYLIST: DenyRule[] = [
     re: new RegExp(
       [
         // "AVIF is ModPageSpeed 2.0 only" / "AVIF: 2.0-only"
-        /\bAVIF\b[^\n]{0,60}?\b(?:ModPageSpeed )?2\.0[ -]only\b/.source,
+        /\bAVIF\b[^\n]{0,60}?\b(?:ModPageSpeed)?2\.0[ -]only\b/.source,
         // "AVIF is available only in / only on / only from 2.0"
-        /\bAVIF\b[^\n]{0,60}?\bonly\b[^\n]{0,20}?\b(?:in|on|from|with|via)\b[^\n]{0,20}?(?:ModPageSpeed |the )?2\.0\b/
+        /\bAVIF\b[^\n]{0,60}?\bonly\b[^\n]{0,20}?\b(?:in|on|from|with|via)\b[^\n]{0,20}?(?:ModPageSpeed |the)?2\.0\b/
           .source,
         // "Only ModPageSpeed 2.0 produces AVIF"
-        /\bonly\b[^\n]{0,20}?(?:ModPageSpeed |the )?2\.0\b[^\n]{0,35}?\bAVIF\b/.source,
+        /\bonly\b[^\n]{0,20}?(?:ModPageSpeed |the)?2\.0\b[^\n]{0,35}?\bAVIF\b/.source,
         // "AVIF is exclusive to 2.0"
         /\bAVIF\b[^\n]{0,40}?\bexclusive(?:ly)?\b[^\n]{0,25}?2\.0\b/.source,
         // "AVIF ships only here" (a 2.0-page "here")
         /\bAVIF\b[^\n]{0,30}?\bonly here\b/.source,
         // "AVIF requires / needs ModPageSpeed 2.0"
-        /\bAVIF\b[^\n]{0,30}?\b(?:requires?|needs?)\b[^\n]{0,20}?(?:ModPageSpeed |the )?2\.0\b/
+        /\bAVIF\b[^\n]{0,30}?\b(?:requires?|needs?)\b[^\n]{0,20}?(?:ModPageSpeed |the)?2\.0\b/
           .source,
         // The vs/* contrast cell: WebP scoped to both lines, AVIF fenced to 2.0
         // ("…(1.15 + 2.0); AVIF in 2.0", "…across 1.15 and 2.0, AVIF from the
         // 2.0 worker"). The connector must sit DIRECTLY after AVIF, so
         // "On 1.15 AVIF is opt-in; in 2.0 it is on by default" does not fire.
-        /\b1\.15\b[^\n]{0,90}?\bAVIF\b[\s,—-]{0,3}\b(?:in|from)\b\s+(?:the |ModPageSpeed )?2\.0\b/
+        /\b1\.15\b[^\n]{0,90}?\bAVIF\b[\s,—-]{0,3}\b(?:in|from)\b\s+(?:the |ModPageSpeed)?2\.0\b/
           .source,
       ].join('|'),
       'i',
-    ),
+   ),
     // A claim correctly scoped to the ARCHIVED open-source build (which
     // genuinely never had AVIF) is accurate and must survive.
     // NARROWED: bare \bGoogle\b is gone. The entire site is about Google
@@ -617,7 +617,7 @@ const DENYLIST: DenyRule[] = [
         /\b1\.1(?:5)?\b[^\n]{0,60}?\b(?:does not|doesn['’]t|do not|don['’]t|cannot|can['’]t|won['’]t|will not|never)\b[^\n]{0,25}?\b(?:ship|ships|do|does|support|supports|have|has|produce|produces|emit|emits|generate|generates|include|includes|encode|encodes|output|outputs)\b[^\n]{0,20}?\bAVIF\b/
           .source,
         // "no AVIF in / for mod_pagespeed 1.15"
-        /\bno AVIF\b[^\n]{0,30}?\b(?:in|on|for|from)\b[^\n]{0,25}?(?:mod_pagespeed )?1\.1(?:5)?\b/
+        /\bno AVIF\b[^\n]{0,30}?\b(?:in|on|for|from)\b[^\n]{0,25}?(?:mod_pagespeed)?1\.1(?:5)?\b/
           .source,
         // "1.15 lacks AVIF"
         /\b1\.1(?:5)?\b[^\n]{0,40}?\blacks?\b[^\n]{0,20}?\bAVIF\b/.source,
@@ -625,11 +625,11 @@ const DENYLIST: DenyRule[] = [
         /\bAVIF\b[^\n]{0,40}?\bnot (?:available|supported|present|shipped|implemented)\b[^\n]{0,30}?1\.1(?:5)?\b/
           .source,
         // The stale ROADMAP claim: AVIF "planned" / "on the roadmap" for 1.15
-        /\b1\.1(?:5)?\b[^\n]{0,60}?\bAVIF\b[^\n]{0,30}?\b(?:is |as )?(?:still )?(?:planned|on the roadmap)\b/
+        /\b1\.1(?:5)?\b[^\n]{0,60}?\bAVIF\b[^\n]{0,30}?\b(?:is |as)?(?:still)?(?:planned|on the roadmap)\b/
           .source,
       ].join('|'),
       'i',
-    ),
+   ),
     // Exempt the denials that remain TRUE: Google's archived open-source build,
     // and the WeAmp.PageSpeed.AspNetCore NuGet package (a 2.0 product whose
     // win-x64 build lacks libaom, so it does not inherit AVIF from 1.15).
@@ -637,7 +637,7 @@ const DENYLIST: DenyRule[] = [
     // pagespeed module, so it carries the same opt-in AVIF filters -- "the
     // Sidecar does not do AVIF" is now FALSE and must be caught. The old blanket
     // /packages?/ exemption is gone with it: it re-opened the same hole by
-    // matching "the published sidecar packages ...".
+    // matching "the published sidecar packages ..".
     // NARROWED twice:
     //   - \bngx_pagespeed\b removed. It re-opened the exact hole the /packages?/
     //     removal closed: this rule's own `why` says 1.15 ships AVIF ON NGINX,
@@ -678,7 +678,7 @@ const DENYLIST: DenyRule[] = [
   },
   {
     id: 'f3-zero-copy-and-variant-cache-are-not-2.0-only',
-    why: "Zero-copy serving and the variant-aware Cyclone cache are NOT 2.0-only. mod_pagespeed 1.15 ships zero-copy serving on nginx, Apache and IIS as of v1.15.0+r19 (opt-in via CycloneZeroCopy / CycloneZeroCopyServe), and 1.15 already varies its cache on client capability -- image format, mobile UA, Save-Data and small-screen. What is genuinely 2.0-only is NARROWER: tablet/desktop viewport classes, pixel density (Sec-CH-DPR), transfer-encoding alternates, and PROACTIVE generation of the full variant matrix. Re-anchor exclusivity onto those, never onto 'variant-aware caching' or 'zero-copy' as whole categories. This class of error already shipped once: AVIF was replaced as the 2.0 differentiator by claims that were themselves false. NOTE: the widened scan surfaced ONE real false positive, a corrective comment in src/data/product-facts.mjs that told future authors 'NOT 2.0-only, never add them to a 2.0-only list: variant-aware caching'. A per-rule comment opt-out was tried and REVERTED — blinding f3 across every comment line in the canonical fact record to spare one line is a terrible trade. The comment was reworded instead ('Ships on BOTH lines, never fence to 2.0: ...'), which states the same facts without the exclusivity shape. Reword; never blind the rule.",
+    why: "Zero-copy serving and the variant-aware Cyclone cache are NOT 2.0-only. mod_pagespeed 1.15 ships zero-copy serving on nginx, Apache and IIS as of v1.15.0+r19 (opt-in via CycloneZeroCopy / CycloneZeroCopyServe), and 1.15 already varies its cache on client capability -- image format, mobile UA, Save-Data and small-screen. What is genuinely 2.0-only is NARROWER: tablet/desktop viewport classes, pixel density (Sec-CH-DPR), transfer-encoding alternates, and PROACTIVE generation of the full variant matrix. Re-anchor exclusivity onto those, never onto 'variant-aware caching' or 'zero-copy' as whole categories. This class of error already shipped once: AVIF was replaced as the 2.0 differentiator by claims that were themselves false. NOTE: the widened scan surfaced ONE real false positive, a corrective comment in src/data/product-facts.mjs that told future authors 'NOT 2.0-only, never add them to a 2.0-only list: variant-aware caching'. A per-rule comment opt-out was tried and REVERTED — blinding f3 across every comment line in the canonical fact record to spare one line is a terrible trade. The comment was reworded instead ('Ships on BOTH lines, never fence to 2.0: ..'), which states the same facts without the exclusivity shape. Reword; never blind the rule.",
     // No negationExempt: exclusivity claims are negation-shaped ("ship ONLY
     // here", "1.15 does NOT have it"), so negation tolerance would neuter this
     // rule to zero hits against live false copy -- exactly as for f1/f2.
@@ -690,13 +690,13 @@ const DENYLIST: DenyRule[] = [
         // "only 2.0 has variant-aware caching / zero-copy serving"
         /\bonly\b[^\n]{0,40}?\b2\.0\b[^\n]{0,60}?\b(?:variant-aware|zero-copy)\b/.source,
         // "variant-aware caching / zero-copy is 2.0-only"
-        /\b(?:variant-aware|zero-copy)\b[^\n]{0,60}?\b(?:is |are )?2\.0[-\s]only\b/.source,
+        /\b(?:variant-aware|zero-copy)\b[^\n]{0,60}?\b(?:is |are)?2\.0[-\s]only\b/.source,
         // "1.15 does not have / lacks zero-copy or the variant-aware cache"
         /\b1\.1(?:5)?\b[^\n]{0,60}?\b(?:does not|doesn['’]t|cannot|can['’]t|lacks?|without)\b[^\n]{0,30}?\b(?:variant-aware|zero-copy)\b/
           .source,
       ].join('|'),
       'i',
-    ),
+   ),
     // 2.0 genuinely owns the NARROWER properties, so exclusivity phrased around
     // those is legitimate. Also exempt the ASP.NET Core middleware, which really
     // does copy through the managed response stream rather than serving zero-copy.
@@ -726,7 +726,7 @@ const DENYLIST: DenyRule[] = [
         /\bcop(?:y|ies|ying)\b[^\n]{0,40}?\bmiddleware\b/.source,
       ].join('|'),
       'i',
-    ),
+   ),
     exemptionMustNotDisarm: [
       // Carries "viewport"; still a false exclusivity claim (1.15 has zero-copy).
       'Viewport-aware variants and zero-copy serving ship only in 2.0',
@@ -797,7 +797,7 @@ const DENYLIST: DenyRule[] = [
           `\\b2\\.0\\b[^\\n]{0,250}?\\b${CAP}\\b[^\\n]{0,500}?\\b(?:mod_pagespeed\\s+)?1\\.1(?:5)?\\b[^\\n]{0,60}?\\b(?:uses?|ships?|does|has|have|provides?|offers?|supports?|adds?|relies on)\\b(?=(?:(?!${CAP})[^\\n])*(?:WebP|convert_|recompress_|_images))(?:(?!${CAP})[^\\n])*$`,
         ].join('|'),
         'i',
-      );
+     );
     })(),
     // No negationExempt: like f1/f2/f3, the claim shape is not a denial —
     // fencing is done affirmatively, so negation tolerance has nothing to add.
@@ -878,7 +878,7 @@ const FP_CORPUS = [
   'Full matrix (AVIF from 2.0.4 onward).',
 ];
 
-// ENGINE-TAG CORPUS — correct v1.1.0+rN engine-tag refs (ADR-095 §5). The guard
+// ENGINE-TAG CORPUS — correct v1.1.0+rN engine-tag refs. The guard
 // must never flag these (the 1.1 engine tags are real; iis-configuration.md uses
 // v1.1.0+r11 twice). Machine-enforces §5 rather than relying on it being only
 // structurally true today.
@@ -978,7 +978,7 @@ function isCommentLine(line: string, file?: string): boolean {
 //   Now the exempting term must appear in the clause the match STARTS in. See
 //   `exemptionMustNotDisarm` for the machine-enforced probes.
 //
-//   Boundary set: ; — ? ! ( and a sentence period. The period is guarded
+//   Boundary set: ; — ? ! (and a sentence period. The period is guarded
 //   against splitting inside a version number: "ModPageSpeed 2.0", "1.15" and
 //   "v1.0.0" must stay intact, so a '.' between two digits is NOT a boundary.
 //   '?' and '!' are included beyond a bare [.;—] because a question mark ends a
@@ -1023,7 +1023,7 @@ function clauseScopeOfMatch(line: string, start: number): string {
     ranges.find((r) => r.start <= start && start < r.end) ??
     // `start` landed exactly on a boundary character: attribute it to the
     // clause that boundary closes.
-    [...ranges].reverse().find((r) => r.start <= start);
+    [..ranges].reverse().find((r) => r.start <= start);
   return hit ? line.slice(hit.start, hit.end) : line;
 }
 
@@ -1036,7 +1036,7 @@ function globalReFor(rule: DenyRule): RegExp {
     re = new RegExp(
       rule.re.source,
       rule.re.flags.includes('g') ? rule.re.flags : rule.re.flags + 'g',
-    );
+   );
     GLOBAL_RE.set(rule, re);
   }
   return re;
@@ -1124,7 +1124,7 @@ describe('canonical sources hold ground-truth product facts', () => {
         d.distro,
         d.nginx,
       ]),
-    );
+   );
     expect(matrix).toEqual({
       'Debian 11 bullseye': '1.18.0',
       'Debian 12 bookworm': '1.22.1',
@@ -1215,7 +1215,7 @@ describe('denylist matchers discriminate bad vs good samples', () => {
         expect(
           missed,
           missed.length ? `\nnot flagged:\n  ${missed.join('\n  ')}\n` : undefined,
-        ).toEqual([]);
+       ).toEqual([]);
       });
     }
     if (rule.variantsGood?.length) {
@@ -1224,7 +1224,7 @@ describe('denylist matchers discriminate bad vs good samples', () => {
         expect(
           wrong,
           wrong.length ? `\nwrongly flagged:\n  ${wrong.join('\n  ')}\n` : undefined,
-        ).toEqual([]);
+       ).toEqual([]);
       });
     }
   }
@@ -1240,7 +1240,7 @@ describe('denylist matchers discriminate bad vs good samples', () => {
         disarmed.length
           ? `\nexemption wrongly disarmed ${rule.id} on:\n  ${disarmed.join('\n  ')}\n`
           : undefined,
-      ).toEqual([]);
+     ).toEqual([]);
     });
   }
 
@@ -1249,13 +1249,13 @@ describe('denylist matchers discriminate bad vs good samples', () => {
     const f4 = DENYLIST.find((r) => r.id.startsWith('f4-'))!;
     const missed = HISTORICAL_DEFECTS.filter((d) => !isFlaggedByRule(f4, d.line)).map(
       (d) => d.site,
-    );
+   );
     expect(
       missed,
       missed.length
         ? `\nf4 MISSED its own motivating defects:\n  ${missed.join('\n  ')}\n`
         : undefined,
-    ).toEqual([]);
+   ).toEqual([]);
   });
 
   // The comment classifier is LANGUAGE-AWARE; the .tmpl/.txt bucket is
@@ -1265,7 +1265,7 @@ describe('denylist matchers discriminate bad vs good samples', () => {
     // '#' is a HEADING in every bucket that has one — never a comment.
     expect(
       isCommentLine('## Variant-Aware Caching', 'scripts/llms-templates/llms-full.txt.tmpl'),
-    ).toBe(false);
+   ).toBe(false);
     expect(isCommentLine('# ModPageSpeed', 'public/llms.txt')).toBe(false);
     expect(isCommentLine('## AVIF', 'src/content/blog/x.md')).toBe(false);
     expect(isCommentLine('- a bullet', 'src/content/blog/x.md')).toBe(false);
@@ -1293,7 +1293,7 @@ describe('false-positive corpus: correct corrective/contrast copy is never flagg
     expect(wrongly, wrongly.length ? `\n${wrongly.join('\n')}\n` : undefined).toEqual([]);
   });
 
-  it('no rule flags a correct v1.1.0+rN engine-tag reference (ADR-095 §5)', () => {
+  it('no rule flags a correct v1.1.0+rN engine-tag reference', () => {
     const wrongly = ENGINE_TAG_CORPUS.flatMap((s) => rulesFlagging(s).map((r) => `[${r.id}] ${s}`));
     expect(wrongly, wrongly.length ? `\n${wrongly.join('\n')}\n` : undefined).toEqual([]);
   });
@@ -1312,7 +1312,7 @@ describe('content accuracy guard (anti-drift; PR #705 must not regress)', () => 
         bucket.files.length,
         `bucket "${bucket.name}" collected ${bucket.files.length} files (floor ${bucket.floor}) — ` +
           'a path typo or moved tree silently degrades this guard to green',
-      ).toBeGreaterThanOrEqual(bucket.floor);
+     ).toBeGreaterThanOrEqual(bucket.floor);
     });
 
     // A bucket TOTAL is blind to losing one whole extension inside a mixed
@@ -1324,7 +1324,7 @@ describe('content accuracy guard (anti-drift; PR #705 must not regress)', () => 
           n,
           `bucket "${bucket.name}" collected ${n} ${ext} files (floor ${min}) — the bucket ` +
             'total can stay green while an entire extension drops out of the scan',
-        ).toBeGreaterThanOrEqual(min);
+       ).toBeGreaterThanOrEqual(min);
       });
     }
   }
@@ -1337,7 +1337,7 @@ describe('content accuracy guard (anti-drift; PR #705 must not regress)', () => 
   it('excluded paths are absent from the scan set', () => {
     const leaked = SCAN_FILES.filter((f) => isExcluded(f)).map((f) =>
       path.relative(WEBSITE_ROOT, f),
-    );
+   );
     expect(leaked, leaked.length ? `\n${leaked.join('\n')}\n` : undefined).toEqual([]);
   });
 
@@ -1351,7 +1351,7 @@ describe('content accuracy guard (anti-drift; PR #705 must not regress)', () => 
               violations.map((v) => `  ${v.location}`).join('\n') +
               '\n'
           : undefined,
-      ).toEqual([]);
+     ).toEqual([]);
     });
   }
 
@@ -1362,7 +1362,7 @@ describe('content accuracy guard (anti-drift; PR #705 must not regress)', () => 
       all.length
         ? '\n' + all.map((v) => `  [${v.ruleId}] ${v.location}`).join('\n') + '\n'
         : undefined,
-    ).toEqual([]);
+   ).toEqual([]);
   });
 });
 
@@ -1396,11 +1396,11 @@ describe('canary fixtures: the scan path (walker, filter, splitter) still works'
     expect(CANARY_FILES.length).toBe(DENYLIST.length);
     const missing = DENYLIST.map((r) => `${r.id}.md`).filter(
       (n) => !CANARY_FILES.some((f) => path.basename(f) === n),
-    );
+   );
     expect(
       missing,
       missing.length ? `\nmissing fixtures:\n  ${missing.join('\n  ')}\n` : undefined,
-    ).toEqual([]);
+   ).toEqual([]);
   });
 
   for (const rule of DENYLIST) {
@@ -1420,7 +1420,7 @@ describe('canary fixtures: the scan path (walker, filter, splitter) still works'
         `expected exactly one hit at line ${CANARY_BAD_LINE}, got:\n${hits
           .map((h) => `  ${h.location}`)
           .join('\n')}`,
-      ).toEqual([CANARY_BAD_LINE]);
+     ).toEqual([CANARY_BAD_LINE]);
     });
   }
 });

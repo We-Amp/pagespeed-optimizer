@@ -2,14 +2,14 @@
 
 These components render release-version content from the manifest at
 `src/content/releases-{1.1,2.0}/release.yaml` (synced from `corp/releases/*.yaml`
-by the corp `sync-manifests-to-mps2` workflow — see ADR-062 §7).
+by the corp `sync-manifests-to-mps2` workflow).
 
 **Authoring rule:** every version-coupled string on the website must flow
 through `getRelease()` (typed access) or one of these components. The
 CI step "Guard against version-pinned URLs in non-frozen content" in
-`.github/workflows/ci.yml` (ADR-062 Stage 7) rejects any `releases/vX.Y.Z/`
+`.github/workflows/ci.yml` rejects any `releases/vX.Y.Z/`
 literal in `src/content/`, `src/pages/`, `src/components/`, or
-`src/layouts/` (blog content is exempt — see ADR-062 §9 frozen content).
+`src/layouts/` (blog content is exempt — frozen content).
 
 ## Available components
 
@@ -32,8 +32,8 @@ title: 'My doc page'
 description: '…'
 ---
 
-import DownloadCmd from '../../components/release/DownloadCmd.astro';
-import XPageSpeedExample from '../../components/release/XPageSpeedExample.astro';
+import DownloadCmd from '././components/release/DownloadCmd.astro';
+import XPageSpeedExample from '././components/release/XPageSpeedExample.astro';
 
 Install the package:
 

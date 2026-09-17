@@ -2,10 +2,10 @@
 #
 # Edit this file when a new 2.0 release ships. Every website, script,
 # and docs page that needs a 2.0 version string derives it from this
-# manifest (see ADR-062 §1).
+# manifest.
 #
 # 2.0 uses plain SemVer patches for reships (e.g. 2.0.0 → 2.0.1), NOT
-# the `+rN` build-metadata form used by 1.1 (ADR-062 §3). NuGet enforces
+# the `+rN` build-metadata form used by 1.1. NuGet enforces
 # version uniqueness natively, and the aptly NVR constraint that drove
 # `+rN` for 1.1 does not apply to NuGet/Docker/Helm channels.
 #
@@ -14,15 +14,14 @@
 # operator-curated.
 #
 # Schema: scripts/release/manifest-schema.mjs
-# Distribution scope: ADR-061 §2 — NuGet + Docker + Helm only.
+# Distribution scope: §2 — NuGet + Docker + Helm only.
 #
-# FROZEN per ADR-121 D1 (ratified 2026-08-07, operator lane 4): the 2.0
+# FROZEN D1 (ratified 2026-08-07, operator lane 4): the 2.0
 # serving products froze after v2.0.41 (the last feature release, shipped
 # 2026-08-08). `bump-website.mjs` refuses feature bumps against this
-# manifest; security-critical reships (plain SemVer patch bumps, ADR-062
-# §3) still increment. The ADR-084 identity keys are untouched.
+# manifest; security-critical reships (plain SemVer patch bumps,# §3) still increment. The identity keys are untouched.
 # EOL basis: lane-4 ruling = 6 months per channel from the 2026-08-07
-# ruling date; dates publish at the freeze (ADR-121 publication rule) and
+# ruling date; dates publish at the freeze (publication rule) and
 # land in the EOL/support-lifecycle extraction ADR.
 # CARVE-OUT (operator ruling on corp#1156 review): the NuGet/middleware
 # line CONTINUES as a live product (ratified D1/D9) and is NOT covered by
@@ -37,7 +36,7 @@ product:
 
 status: frozen
 
-# Per-channel end-of-life dates (ADR-121 D1 lane 4: 6 months per frozen
+# Per-channel end-of-life dates (6 months per frozen
 # 2.0 channel from the 2026-08-07 ruling; security-only reships meanwhile).
 # nuget is deliberately absent — see the carve-out note above.
 # Security reships do NOT move these dates: the EOL basis is the
@@ -54,7 +53,7 @@ release:
   released_on: "2026-08-10"
 
 artifacts:
-  # NuGet flagship (four RIDs per ADR-009).
+  # NuGet flagship (four RIDs).
   nuget:
     package: "WeAmp.PageSpeed.AspNetCore"
     rids:
@@ -62,7 +61,7 @@ artifacts:
       - "linux-arm64"
       - "osx-arm64"
       - "win-x64"
-  # Docker images published to GHCR (ghcr.io/we-amp) — ADR-098. The combined
+  # Docker images published to GHCR (ghcr.io/we-amp) — . The combined
   # single-container image is ghcr.io/we-amp/pagespeed-combined.
   docker:
     image: "ghcr.io/we-amp/pagespeed-nginx"
@@ -76,17 +75,17 @@ artifacts:
 
 urls:
   # 2.0 has NO direct-archive download channel — it ships via NuGet + Docker +
-  # Helm only (ADR-061 §2). These URLs are never rendered for 2.0 (the website
+  # Helm only. These URLs are never rendered for 2.0 (the website
   # download UI keys off the per-line distribution scope), so they point at the
   # signed vendor repo root rather than a /releases/vX.Y.Z/ archive path that
   # would 404. The previous v2.0.7/ archive_base 404'd and was never reached.
   archive_base: "https://packages.modpagespeed.com/"
   latest_base: "https://packages.modpagespeed.com/"
-  # Stable, NOT version-pinned (ADR-058 A1.1). Signed vendor-repo pubkey.
+  # Stable, NOT version-pinned (A1.1). Signed vendor-repo pubkey.
   gpg_key: "https://packages.modpagespeed.com/pubkey.gpg"
 
 compat:
-  # 2.0 v1 ships NuGet middleware + Docker + Helm only (ADR-061 §2).
+  # 2.0 v1 ships NuGet middleware + Docker + Helm only.
   # Native server modules (Apache/nginx/IIS) stay on 1.1.
   dotnet:
     # TFMs are net8.0;net10.0 (csproj + shipped nupkg lib/ folders) — .NET 9

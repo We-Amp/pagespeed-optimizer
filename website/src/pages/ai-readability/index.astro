@@ -1,8 +1,8 @@
 ---
-import BaseLayout from '../../layouts/BaseLayout.astro';
-import Icon from '../../components/Icon.astro';
+import BaseLayout from '././layouts/BaseLayout.astro';
+import Icon from '././components/Icon.astro';
 
-// Public front end for the AI-readability scanner (ADR-072 D10). The render backend
+// Public front end for the AI-readability scanner. The render backend
 // runs on a separate box; nginx proxies /ai-readability/api/* to it (see corp deploy).
 // Local dev: append ?api=http://localhost:8787 to point at a local render service.
 const title = 'AI Readability Checker — see what AI crawlers read on your page';
@@ -259,14 +259,14 @@ const jsonLd = [webApp, faqPage];
                       <span class="font-medium text-emerald-700 dark:text-emerald-400">
                         Renders JS
                       </span>
-                    ) : (
+                   ) : (
                       <span class="font-medium text-text-annotation">
                         No — static HTML only
                       </span>
-                    )}
+                   )}
                   </td>
                 </tr>
-              ))
+             ))
             }
           </tbody>
         </table>
@@ -295,7 +295,7 @@ const jsonLd = [webApp, faqPage];
                 {item.acceptedAnswer.text}
               </p>
             </details>
-          ))
+         ))
         }
       </div>
     </div>
@@ -451,7 +451,7 @@ const jsonLd = [webApp, faqPage];
       background: var(--color-stone-700);
       color: var(--color-stone-300);
     }
-    /* "addressable inline" tag — NON-completion (never green; ADR-076). */
+    /* "addressable inline" tag — NON-completion (never green;). */
     .ar-fix {
       display: inline-block;
       font-size: 0.66rem;
@@ -608,15 +608,15 @@ const jsonLd = [webApp, faqPage];
       color: #fbbf24;
     }
     /* Tighten the doubled margin where the section explainer meets the first lens
-       (beyondExplain's bottom margin + .ar-lens top margin would otherwise stack ~2rem). */
-    .ar-explain + .ar-lens {
+       (beyondExplain's bottom margin .ar-lens top margin would otherwise stack ~2rem). */
+    .ar-explain .ar-lens {
       margin-top: 0.4rem;
     }
     /* WebMCP one-liner spacing (kept in CSS, not an inline style attribute). */
     .ar-aa-line {
       margin-top: 1rem;
     }
-    /* Ghost-Layer per-node evidence list (ADR-078 lens). Neutral, no pass/fail colour. */
+    /* Ghost-Layer per-node evidence list (lens). Neutral, no pass/fail colour. */
     .ar-glist {
       margin-top: 0.6rem;
       display: grid;
@@ -1092,7 +1092,7 @@ const jsonLd = [webApp, faqPage];
         (s || '').replace(
           /[&<>"]/g,
           (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c],
-        );
+       );
 
       // Inlined (not imported) because in production this is the Astro-built
       // modpagespeed.com/ai-readability/ page and only /ai-readability/api/* is proxied to the
@@ -1108,7 +1108,7 @@ const jsonLd = [webApp, faqPage];
           Array.isArray(d.aiCrawlersAllowed) &&
           d.aiCrawlersAllowed.length > 0 &&
           d.exposurePct >= 30
-        );
+       );
       }
       function agentPassCtaApplies(signedAgentVerification) {
         const s = signedAgentVerification;
@@ -1116,7 +1116,7 @@ const jsonLd = [webApp, faqPage];
           s &&
           s.status === 'ok' &&
           (s.classification === 'verifying' || s.classification === 'signature-aware')
-        );
+       );
       }
       function complianceFixCtaApplies(accessibility) {
         const a = accessibility;
@@ -1311,7 +1311,7 @@ const jsonLd = [webApp, faqPage];
           esc(verifyLine) +
           '</div>' +
           '</div>'
-        );
+       );
       }
 
       // Accessibility lens — ITEMIZED. Shows the byImpact summary + the topRules list with
@@ -1363,7 +1363,7 @@ const jsonLd = [webApp, faqPage];
               esc(rule.id) +
               '</span>' +
               '</li>'
-            );
+           );
           })
           .join('');
         const legend =
@@ -1389,7 +1389,7 @@ const jsonLd = [webApp, faqPage];
               : '') +
           legend +
           '</div>'
-        );
+       );
       }
 
       // WebMCP agent-actionability — demoted to one muted line (no badge row, ~0% adoption).
@@ -1401,7 +1401,7 @@ const jsonLd = [webApp, faqPage];
           ' — ' +
           esc(r.agentActionability.verdict) +
           '</div>'
-        );
+       );
       }
 
       // ---- Four FREE, NON-SCORED lenses. Each is an
@@ -1424,7 +1424,7 @@ const jsonLd = [webApp, faqPage];
             ? bits.join(', and ') + '. '
             : 'We saw no bot-auth signature headers and no agent toll on our own fetch. ') +
           'This is observed from the scanner’s own HTTP exchange only — not a measure of inbound agent verification.'
-        );
+       );
       }
       function avpBlock(avp) {
         if (!avp) return '';
@@ -1438,7 +1438,7 @@ const jsonLd = [webApp, faqPage];
           '<div class="ar-v">' +
           esc(avpVerdict(avp)) +
           '</div></div>'
-        );
+       );
       }
       function saVerdict(sa) {
         if (!sa || sa.status !== 'ok')
@@ -1470,7 +1470,7 @@ const jsonLd = [webApp, faqPage];
           '<div class="ar-v">' +
           esc(saVerdict(sa)) +
           '</div></div>'
-        );
+       );
       }
       function psVerdict(ps) {
         if (!ps || ps.status !== 'ok') return 'Provenance scan unavailable for this page.';
@@ -1487,7 +1487,7 @@ const jsonLd = [webApp, faqPage];
             ? ps.strippedOnServe +
               ' image(s) had a manifest upstream that your pipeline strips on serve. Detection only — nothing is validated, re-signed, or authored.'
             : 'No stripped manifests detected. Detection only — nothing is validated, re-signed, or authored.')
-        );
+       );
       }
       function psBlock(ps) {
         if (!ps) return '';
@@ -1503,7 +1503,7 @@ const jsonLd = [webApp, faqPage];
           '<div class="ar-v">' +
           esc(psVerdict(ps)) +
           '</div></div>'
-        );
+       );
       }
       function seVerdict(se) {
         if (!se || se.status !== 'ok')
@@ -1520,7 +1520,7 @@ const jsonLd = [webApp, faqPage];
           ex +
           (se.findings.length > 5 ? ', …' : '') +
           '. Heuristic, passive observation — not legal advice or a compliance certificate.'
-        );
+       );
       }
       function seBlock(se) {
         if (!se) return '';
@@ -1536,7 +1536,7 @@ const jsonLd = [webApp, faqPage];
           '<div class="ar-v">' +
           esc(seVerdict(se)) +
           '</div></div>'
-        );
+       );
       }
 
       // Hidden-layer lens (NON-SCORED): human-invisible-but-agent-readable
@@ -1564,13 +1564,13 @@ const jsonLd = [webApp, faqPage];
               (nd.gloss ? '<div class="ar-v">' + esc(nd.gloss) + '</div>' : '') +
               (nd.selector ? '<div class="ar-gsel">' + esc(nd.selector) + '</div>' : '') +
               '</div>',
-          )
+         )
           .join('');
         // Nodes with a real on-screen rectangle can be boxed on the screenshot; some
         // findings live only in the text/accessibility layer and have no box.
         const boxed = (gl.nodes || []).filter(
           (nd) => nd.rect && nd.rect.width > 0 && nd.rect.height > 0,
-        );
+       );
         // Only emit the (large, base64) screenshot when something was actually detected —
         // the clean/none state stays light.
         const shot = gl.screenshot
@@ -1600,7 +1600,7 @@ const jsonLd = [webApp, faqPage];
             : '') +
           (gl.detected ? '<div class="ar-glist">' + list + '</div>' : '') +
           '</div>'
-        );
+       );
       }
 
       // After the ghost panel is in the DOM, position the overlay boxes once the screenshot
@@ -1675,14 +1675,14 @@ const jsonLd = [webApp, faqPage];
               '% of your content is already in the raw HTML ' +
               av.detail.aiCrawlersAllowed.length +
               ' AI crawler(s) can read — but your origin can’t tell a real signed agent from an impostor.',
-          );
+         );
         }
         if (firedWedges.indexOf('agentpass') !== -1) {
           reasons.push(
             sa.classification === 'verifying'
               ? 'Your origin responded differently to our validly-signed probe than to a corrupted signature — behaviour consistent with cryptographic verification.'
               : 'Your origin already treats signed-agent requests differently from unsigned ones.',
-          );
+         );
         }
         if (firedWedges.indexOf('compliancefix') !== -1) {
           reasons.push(
@@ -1690,7 +1690,7 @@ const jsonLd = [webApp, faqPage];
               ? '1 of these issues looks'
               : ax.detail.fixableInline + ' of these issues look') +
               ' like the kind a self-hosted optimizer can address server-side, on your own servers, with no app changes.',
-          );
+         );
         }
         let ctx = '';
         if (bothWedges) {
@@ -1735,7 +1735,7 @@ const jsonLd = [webApp, faqPage];
                   ' /> ' +
                   WEDGE_LABELS[w] +
                   '</label>'
-                );
+               );
               })
               .join('') +
             '<label><input type="radio" name="ar-topic" value="notify" /> Just email me this result</label>' +
@@ -1767,7 +1767,7 @@ const jsonLd = [webApp, faqPage];
           // #ar-next-msg keeps its OWN explicit aria-live="polite": it is nested inside #ar-out
           // (which render() flips to aria-live="off" so the whole card isn't announced at once),
           // and per the ARIA live-region algorithm the nearest explicit setting governs — so the
-          // confirmation still announces. The tabindex=-1 + .focus() in wireNext is belt-and-braces.
+          // confirmation still announces. The tabindex=-1 .focus() in wireNext is belt-and-braces.
           '<div id="ar-next-msg" class="ar-next-msg" role="status" aria-live="polite" tabindex="-1"></div>';
         // Secondary "email me this result" text-button → /notify. Shown only when EXACTLY ONE
         // wedge fires: when BOTH fire the chooser already offers a "just email me this result"
@@ -1793,7 +1793,7 @@ const jsonLd = [webApp, faqPage];
           form +
           notifyBtn +
           disclosure
-        );
+       );
       }
 
       function render(data) {
@@ -1873,7 +1873,7 @@ const jsonLd = [webApp, faqPage];
               '%"></i></div><div class="ar-v">' +
               esc(c.verdict) +
               '</div></div>'
-            );
+           );
           })
           .join('');
 
@@ -1981,7 +1981,7 @@ const jsonLd = [webApp, faqPage];
             ' (' +
             (r.score || '') +
             '/100)\n',
-        );
+       );
         const mailto = 'mailto:info@we-amp.com?subject=' + subject + '&body=' + body;
         try {
           const res = await fetch(API + '/notify', {
@@ -2025,7 +2025,7 @@ const jsonLd = [webApp, faqPage];
               noteFieldEl.removeAttribute('hidden');
             },
             { once: true },
-          );
+         );
         }
         // When ≥2 wedges fire, the chooser drives data-wedge for analytics parity.
         // Seed it from the default-checked radio so the attribute matches the active
@@ -2036,7 +2036,7 @@ const jsonLd = [webApp, faqPage];
           form.setAttribute(
             'data-wedge',
             checkedDefault && checkedDefault.value !== 'notify' ? checkedDefault.value : '',
-          );
+         );
           form.querySelectorAll('input[name="ar-topic"]').forEach(function (radio) {
             radio.addEventListener('change', function () {
               form.setAttribute('data-wedge', radio.value === 'notify' ? '' : radio.value);

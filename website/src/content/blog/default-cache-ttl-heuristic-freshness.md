@@ -97,18 +97,18 @@ inline bool ComputeSharedRevalidationRequired(uint16_t origin_cc_flags,
 }
 ```
 
-`no-cache` and `must-revalidate` always apply. `proxy-revalidate` (RFC 9111 §5.2.2.10) and `s-maxage` (§5.2.2.9) only apply when `is_shared_cache` is true. `BuildCacheControlHeader` uses this verdict to suppress `stale-while-revalidate` and `stale-if-error` synthesis for any response that RFC 9111 §4.2.4 says may not be served stale. A private-cache integration that ignores those two directives correctly gets to keep serving stale where a shared cache would not.
+`no-cache` and `must-revalidate` always apply. `proxy-revalidate` (RFC 9111 §5.2.2.10) and `s-maxage` only apply when `is_shared_cache` is true. `BuildCacheControlHeader` uses this verdict to suppress `stale-while-revalidate` and `stale-if-error` synthesis for any response that RFC 9111 §4.2.4 says may not be served stale. A private-cache integration that ignores those two directives correctly gets to keep serving stale where a shared cache would not.
 
 ## Age adjustment at insert, and why a plain reload must not purge anything
 
 Freshness is `now - inserted_at` compared against the effective max-age. That comparison is only correct if `inserted_at` already accounts for time the response spent in caches upstream of you. RFC 9111 §4.2.3 handles this with the `Age` header, and ModPageSpeed applies it at insert time rather than at every read. From the nginx module:
 
 ```cpp
-// Set insertion timestamp, adjusted by inbound Age header (D3).
+// Set insertion timestamp, adjusted by inbound Age header.
 meta.cache_inserted_at = static_cast<uint32_t>(time(nullptr));
 ngx_str_t inbound_age = ngx_http_pagespeed_get_response_header(r, "Age");
 if (inbound_age.len > 0) {
-  ...
+  ..
   if (age_val > 0 && age_val <= meta.cache_inserted_at) {
     meta.cache_inserted_at -= age_val;
   }

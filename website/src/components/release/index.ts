@@ -2,7 +2,7 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
 // Barrel export for the release-aware component library that consumes the
-// corp release manifest (ADR-062). MDX docs pages should prefer importing
+// corp release manifest. MDX docs pages should prefer importing
 // individual components directly so unused components don't pull in their
 // `getRelease()` calls at build time.
 

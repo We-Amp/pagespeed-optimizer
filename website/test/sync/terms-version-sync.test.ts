@@ -17,7 +17,7 @@
 //
 // The admin console used to carry a third stamp (TERMS_VERSION in the
 // api-client, for the daemon's /v1/license/consent endpoint). Both were removed
-// at 2.1 GA (ADR-128 D3: the daemon has no license or consent surface), so this
+// at 2.1 GA (the daemon has no license or consent surface), so this
 // guard no longer reads the console tree.
 
 import { readFileSync } from 'node:fs';
@@ -34,22 +34,22 @@ function extract(rel: string, re: RegExp, label: string): string {
     throw new Error(
       `terms-version-sync: could not find ${label} in ${rel}. ` +
         `If the file moved or the stamp format changed, update this guard.`,
-    );
+   );
   }
   return m[1];
 }
 
 describe('terms-of-service version is in lockstep across all stamp sites', () => {
   const termsVersion = extract(
-    '../../src/pages/terms.astro',
+    '././src/pages/terms.astro',
     /Version\s+(\d{4}-\d{2})\b/,
     'the "Version YYYY-MM" line',
-  );
+ );
   const buyVersion = extract(
-    '../../src/pages/buy/index.astro',
+    '././src/pages/buy/index.astro',
     /TERMS_VERSION_WEB\s*=\s*'([^']+)'/,
     'TERMS_VERSION_WEB',
-  );
+ );
 
   it('terms.astro version matches the /buy/ web clickwrap stamp', () => {
     expect(buyVersion).toBe(termsVersion);

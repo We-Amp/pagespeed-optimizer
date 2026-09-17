@@ -42,7 +42,7 @@ test.describe('Accessibility', () => {
 
   test('calculator inputs have associated labels', async ({ page }) => {
     await page.goto('/calculator/');
-    // ADR-092 per-site licensing renamed the "servers" input to "sites".
+    // per-site licensing renamed the "servers" input to "sites".
     const inputIds = ['pageviews', 'pageweight', 'bwcost', 'sites'];
     for (const id of inputIds) {
       const label = page.locator(`label[for="${id}"]`);
