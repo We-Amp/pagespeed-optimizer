@@ -43,27 +43,8 @@ jobs:
     name: Build daemon & unit-test slice (ubuntu)
     runs-on: ubuntu-latest
     timeout-minutes: 60
-    env:
-      # Repo secret filed by the repo admin while cyclone-cache is still
-      # private; empty once We-Amp/cyclone-cache is public.
-      CI_CYCLO_CACHE_PAT: ${{ secrets.CI_CYCLO_CACHE_PAT }}
     steps:
       - uses: actions/checkout@v5
-
-      # MODULE.bazel pins cyclone at
-      # https://github.com/We-Amp/cyclone-cache.git, which is still PRIVATE,
-      # so Bazel's anonymous git fetch fails without credentials. While that
-      # lasts, route github.com through the repo-secret token. This whole
-      # conditional step dies at the public flip: once cyclone-cache is
-      # public the fetch is anonymous and this step (and the secret) can be
-      # deleted. The token is never printed; git config only writes it to
-      # the runner-local $HOME/.gitconfig.
-      - name: Authenticate the cyclone fetch (pre-public-flip only)
-        if: ${{ env.CI_CYCLO_CACHE_PAT != '' }}
-        run: |
-          git config --global \
-            url."https://x-access-token:${CI_CYCLO_CACHE_PAT}@github.com/".insteadOf \
-            "https://github.com/"
 
       # The daemon linkopts hard-require clang's libc++ (-nostdlib++ -lc++
       # -lc++abi -lunwind), matching the private fleet's toolchain choice
