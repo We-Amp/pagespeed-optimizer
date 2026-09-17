@@ -1,0 +1,391 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import OnThisPage from '../../../components/OnThisPage.astro';
+import { getCollection, render } from 'astro:content';
+import { FREE_TO_RUN_LINE } from '../../../data/product-facts.mjs';
+
+export async function getStaticPaths() {
+  const docs = await getCollection('docs-1.1');
+  return docs.map((doc) => ({
+    params: { slug: doc.id },
+    props: { doc },
+  }));
+}
+
+const { doc } = Astro.props;
+const { Content, headings } = await render(doc);
+
+const hasPlatformContent = doc.body?.includes('data-platform=') ?? false;
+
+// "On this page" navigation — h2/h3 anchors from the rendered body.
+const tocHeadings = headings.filter((h) => h.depth >= 2 && h.depth <= 3);
+const showToc = tocHeadings.length >= 3;
+
+const allDocs = (await getCollection('docs-1.1')).sort((a, b) => a.data.order - b.data.order);
+
+// Build grouped sidebar structure
+const groups: { label: string; docs: typeof allDocs }[] = [];
+let currentGroup = '';
+for (const d of allDocs) {
+  const group = d.data.group ?? '';
+  if (group !== currentGroup) {
+    currentGroup = group;
+    groups.push({ label: group, docs: [] });
+  }
+  groups[groups.length - 1].docs.push(d);
+}
+
+// Docs have no per-page OG cards (the og-cards generator is blog-only), so the
+// schema `image` is the same /og-default.png the page's og:image meta resolves
+// to in BaseLayout — never a URL that could 404.
+const schemaImage = new URL(
+  '/og-default.png?v=2',
+  Astro.site ?? new URL('https://modpagespeed.com'),
+).href;
+
+const jsonLd: Record<string, unknown> = {
+  '@context': 'https://schema.org',
+  '@type': 'TechArticle',
+  headline: doc.data.title,
+  description: doc.data.description,
+  image: schemaImage,
+  author: { '@type': 'Organization', name: 'We-Amp B.V.' },
+  publisher: {
+    '@type': 'Organization',
+    name: 'We-Amp B.V.',
+    logo: {
+      '@type': 'ImageObject',
+      url: 'https://modpagespeed.com/logo.svg',
+    },
+  },
+  mainEntityOfPage: `https://modpagespeed.com/1.1/docs/${doc.id}/`,
+  ...(doc.data.datePublished && {
+    datePublished: doc.data.datePublished.toISOString().split('T')[0],
+  }),
+  ...(doc.data.lastUpdated && { dateModified: doc.data.lastUpdated.toISOString().split('T')[0] }),
+  about: {
+    '@type': 'SoftwareApplication',
+    name: 'mod_pagespeed',
+    version: '1.15',
+    applicationCategory: 'WebApplication',
+    operatingSystem: 'Linux, Windows Server',
+  },
+};
+---
+
+<BaseLayout
+  title={`${doc.data.title} — mod_pagespeed 1.15`}
+  description={doc.data.description}
+  jsonLd={jsonLd}
+  breadcrumbLeafName={doc.data.title}
+>
+  <div
+    class:list={[
+      'mx-auto px-4 sm:px-6 lg:px-8 py-20',
+      showToc ? 'max-w-6xl xl:max-w-7xl' : 'max-w-6xl',
+    ]}
+  >
+    <div
+      class:list={[
+        'lg:grid lg:grid-cols-[240px_minmax(0,1fr)] lg:gap-12',
+        showToc && 'xl:grid-cols-[240px_minmax(0,1fr)_200px]',
+      ]}
+    >
+      <!-- Sidebar navigation -->
+      <nav class="hidden lg:block" aria-label="Documentation">
+        <div
+          class="mb-6 rounded-md border border-border bg-bg-secondary p-1 flex text-xs font-medium"
+          role="group"
+          aria-label="Documentation version"
+        >
+          <a
+            href="/docs/"
+            class="flex-1 text-center rounded px-2 py-1.5 text-text-muted hover:text-text-body"
+            >2.0</a
+          >
+          <span
+            class="flex-1 text-center rounded px-2 py-1.5 bg-bg-elevated text-text-body shadow-sm"
+            aria-current="page">1.15</span
+          >
+        </div>
+        <div class="space-y-6">
+          {
+            groups.map((group) => (
+              <div>
+                {group.label && (
+                  <p class="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-text-annotation">
+                    {group.label}
+                  </p>
+                )}
+                <ul class="space-y-1">
+                  {group.docs.map((d) => (
+                    <li>
+                      <a
+                        href={`/1.1/docs/${d.id}/`}
+                        aria-current={d.id === doc.id ? 'page' : undefined}
+                        class:list={[
+                          'block rounded-md px-3 py-2 text-sm transition-colors',
+                          d.id === doc.id
+                            ? 'bg-interactive/10 font-medium text-interactive'
+                            : 'text-text-muted hover:bg-bg-secondary hover:text-text-body',
+                        ]}
+                      >
+                        {d.data.title}
+                      </a>
+                    </li>
+                  ))}
+                  {/* Intentional link to the top-level /pagespeed-markers/ reference page.
+                      It is NOT a docs-1.1 collection entry (kept at top-level so it retains
+                      its own TechArticle/FAQPage JSON-LD and URL) — do not remove. */}
+                  {group.label === 'Reference' && (
+                    <li>
+                      <a
+                        href="/pagespeed-markers/"
+                        class="block rounded-md px-3 py-2 text-sm transition-colors text-text-muted hover:bg-bg-secondary hover:text-text-body"
+                      >
+                        PageSpeed markers
+                      </a>
+                    </li>
+                  )}
+                </ul>
+              </div>
+            ))
+          }
+        </div>
+      </nav>
+
+      <!-- Mobile navigation -->
+      <div class="lg:hidden mb-8 space-y-4">
+        <div
+          class="rounded-md border border-border bg-bg-secondary p-1 flex text-sm font-medium"
+          role="group"
+          aria-label="Documentation version"
+        >
+          <a
+            href="/docs/"
+            class="flex-1 text-center rounded px-2 py-1.5 text-text-muted">2.0</a
+          >
+          <span
+            class="flex-1 text-center rounded px-2 py-1.5 bg-bg-elevated text-text-body shadow-sm"
+            aria-current="page">1.15</span
+          >
+        </div>
+        <div>
+          <label
+            for="docs-nav"
+            class="block text-sm font-medium text-text-body"
+          >
+            Navigate docs
+          </label>
+          <select
+            id="docs-nav"
+            class="mt-1 block w-full rounded-md border border-border-strong bg-bg-elevated text-text-body px-3 py-2 text-sm shadow-sm focus:border-interactive focus:ring-2 focus:ring-interactive"
+          >
+            {
+              groups.map((group) => (
+                <optgroup label={group.label || 'Docs'}>
+                  {group.docs.map((d) => (
+                    <option value={`/1.1/docs/${d.id}/`} selected={d.id === doc.id}>
+                      {d.data.title}
+                    </option>
+                  ))}
+                  {/* Intentional non-collection link — see note in the desktop sidebar. */}
+                  {group.label === 'Reference' && (
+                    <option value="/pagespeed-markers/">PageSpeed markers</option>
+                  )}
+                </optgroup>
+              ))
+            }
+          </select>
+        </div>
+      </div>
+
+      <!-- Content -->
+      <article class="min-w-0">
+        <nav class="mb-6 text-sm text-text-annotation" aria-label="Breadcrumb">
+          <a href="/" class="hover:text-text-body">Home</a>
+          <span class="mx-1">/</span>
+          <a href="/1.1/" class="hover:text-text-body"
+            >mod_pagespeed 1.15</a
+          >
+          <span class="mx-1">/</span>
+          <a href="/1.1/docs/" class="hover:text-text-body">Docs</a>
+          <span class="mx-1">/</span>
+          <span>{doc.data.title}</span>
+        </nav>
+        <h1 class="text-3xl font-bold tracking-tight text-text-body">
+          {doc.data.title}
+        </h1>
+        <p class="mt-2 text-text-muted">{doc.data.description}</p>
+
+        {
+          showToc && (
+            <div class="mt-6 xl:hidden">
+              <OnThisPage variant="inline" headings={tocHeadings} />
+            </div>
+          )
+        }
+
+        <!-- Platform selector — only shown when the page has data-platform blocks -->
+        {
+          hasPlatformContent && (
+            <div
+              id="platform-selector"
+              class="mt-6 flex gap-1 overflow-x-auto -mx-1 px-1 sticky top-16 z-40 bg-bg-elevated py-2"
+              role="group"
+              aria-label="Select platform"
+            >
+              <button
+                type="button"
+                data-platform-tab="nginx"
+                class="platform-tab shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors min-h-[44px]"
+                aria-pressed="true"
+              >
+                nginx
+              </button>
+              <button
+                type="button"
+                data-platform-tab="apache"
+                class="platform-tab shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors min-h-[44px]"
+                aria-pressed="false"
+              >
+                Apache
+              </button>
+              <button
+                type="button"
+                data-platform-tab="iis"
+                class="platform-tab shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors min-h-[44px]"
+                aria-pressed="false"
+              >
+                IIS
+              </button>
+              <span id="platform-announce" class="sr-only" aria-live="polite" />
+            </div>
+          )
+        }
+
+        <div
+          class="mt-4 prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive"
+        >
+          <Content />
+        </div>
+
+        <aside
+          class="mt-12 rounded-lg border border-interactive/40 bg-interactive/10 p-6 text-center"
+        >
+          <p class="text-sm font-semibold text-text-body">
+            Drop-in compatible. Licensed per site for production use.
+          </p>
+          <p class="mt-1 text-sm text-text-muted">
+            {FREE_TO_RUN_LINE}
+          </p>
+          <div class="mt-4 flex flex-wrap items-center justify-center gap-x-5 gap-y-3">
+            <a
+              href="/download/"
+              data-umami-event="cta_1_1_docs_aside"
+              class="inline-block rounded-md bg-interactive px-5 py-2 text-sm font-medium text-on-accent hover:bg-interactive-hover transition-colors whitespace-nowrap"
+            >
+              Download &amp; run
+            </a>
+            <a
+              href="/pricing/"
+              data-umami-event="cta_1_1_docs_pricing"
+              class="text-sm font-medium text-interactive underline decoration-interactive underline-offset-2 hover:text-interactive-hover transition-colors"
+            >
+              See pricing
+            </a>
+          </div>
+        </aside>
+      </article>
+
+      {
+        showToc && (
+          <div class="hidden xl:block">
+            <div class="sticky top-20 max-h-[calc(100vh-7rem)] overflow-y-auto pb-8">
+              <OnThisPage variant="rail" headings={tocHeadings} />
+            </div>
+          </div>
+        )
+      }
+    </div>
+  </div>
+
+  <style>
+    .platform-tab[aria-pressed='true'] {
+      background-color: #5eb1c9;
+      color: white;
+    }
+    .platform-tab[aria-pressed='false'] {
+      background-color: var(--color-stone-100);
+      color: var(--color-stone-700);
+    }
+    .platform-tab[aria-pressed='false']:hover {
+      background-color: var(--color-stone-200);
+    }
+    .dark .platform-tab[aria-pressed='false'] {
+      background-color: var(--color-stone-800);
+      color: var(--color-stone-300);
+    }
+    .dark .platform-tab[aria-pressed='false']:hover {
+      background-color: var(--color-stone-700);
+    }
+    .platform-tab:focus-visible {
+      outline: 2px solid #5eb1c9;
+      outline-offset: 2px;
+    }
+    .dark .platform-tab:focus-visible {
+      outline-color: #84c7db;
+    }
+    #platform-selector {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    #platform-selector::-webkit-scrollbar {
+      display: none;
+    }
+    #platform-selector.is-sticky {
+      box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
+    }
+  </style>
+
+  <script>
+    const select = document.getElementById('docs-nav') as HTMLSelectElement;
+    select?.addEventListener('change', () => {
+      window.location.href = select.value;
+    });
+
+    // Platform selector
+    const tabs = document.querySelectorAll<HTMLButtonElement>('[data-platform-tab]');
+    const announce = document.getElementById('platform-announce');
+    const names: Record<string, string> = { nginx: 'nginx', apache: 'Apache', iis: 'IIS' };
+
+    function setActivePlatform(platform: string) {
+      document.documentElement.setAttribute('data-active-platform', platform);
+      localStorage.setItem('docs-platform', platform);
+      tabs.forEach((tab) => {
+        tab.setAttribute('aria-pressed', tab.dataset.platformTab === platform ? 'true' : 'false');
+      });
+      if (announce) announce.textContent = `Showing content for ${names[platform] || platform}`;
+    }
+
+    // Initialize tab states from current platform
+    const current = document.documentElement.getAttribute('data-active-platform') || 'nginx';
+    setActivePlatform(current);
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        if (tab.dataset.platformTab) setActivePlatform(tab.dataset.platformTab);
+      });
+    });
+
+    // Sticky shadow
+    const selector = document.getElementById('platform-selector');
+    if (selector) {
+      const observer = new IntersectionObserver(
+        ([entry]) => selector.classList.toggle('is-sticky', !entry.isIntersecting),
+        { threshold: 1, rootMargin: '-65px 0px 0px 0px' },
+      );
+      observer.observe(selector);
+    }
+  </script>
+</BaseLayout>

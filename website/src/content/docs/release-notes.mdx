@@ -1,0 +1,763 @@
+---
+title: 'Release Notes'
+description: 'ModPageSpeed 2.0 release notes — capabilities, performance, and security updates. Updating to the latest release is recommended.'
+order: 70
+group: 'Reference'
+---
+
+import { getRelease } from '../../lib/release';
+
+export const rel = await getRelease('2.0');
+
+ModPageSpeed 2.0 ships on a continuous release cadence. The current stable
+release is **{rel.release.semver}**. This page summarizes what the product does
+and the user-facing changes in recent releases. We recommend running the latest
+release — it always carries the most recent performance and security work.
+
+## What's in ModPageSpeed 2.0
+
+### Optimization pipeline
+
+- **Always-on, asynchronous optimization.** Optimization runs in a worker off
+  the request path. The first request for a resource serves the original;
+  subsequent requests serve the optimized variant, so optimization never adds
+  latency to a page load.
+- **Modern image delivery.** Images are transcoded to WebP and AVIF and served
+  per viewport class and pixel density, with `Save-Data` taken into account.
+- **Critical CSS, loaded the fast way.** Above-the-fold CSS is inlined and the
+  rest is loaded asynchronously without blocking render, in a way that is safe
+  under a strict Content-Security-Policy.
+- **LCP and layout hints.** Native lazy-loading, `fetchpriority` for the
+  largest image, and preconnect discovery for third-party origins.
+- **SVG vectorization** for suitable raster images, and learned per-image
+  quality prediction so each image is encoded at the right quality.
+
+### Operations and visibility
+
+- **Web console** for cache inspection, live statistics, and configuration.
+- **Honest savings reporting** — bandwidth and cache-hit figures reflect real
+  net savings.
+- **Statistics parity** across the nginx integration and the ASP.NET Core
+  middleware.
+
+### Content integrity
+
+- **Content Credentials (C2PA) are preserved** through image optimization, so
+  provenance metadata survives the delivery layer instead of being stripped.
+
+### License
+
+- ModPageSpeed 2.0 is licensed under Apache-2.0 and free to run in development
+  and in production.
+
+## Recent releases
+
+Security entries describe the impact class and recommend
+updating; we keep implementation specifics out of public notes by policy.
+
+### 2.0.41 — 2026-08-08
+
+Security: the published worker and nginx images are rebuilt on an updated base
+image, picking up the current distribution security updates. This clears several
+fixable medium-severity vulnerabilities in bundled system libraries. No
+ModPageSpeed code is affected and no configuration change is needed. Update
+recommended.
+
+Improved: a deferred stylesheet is now requested at normal priority using a
+standard preload, instead of a low-priority technique that could leave the
+browser waiting longer before the full stylesheet applied. The deferred
+stylesheet is also announced in early hints again, so it starts downloading
+sooner. Pages without JavaScript are unaffected — the no-script fallback is
+unchanged. The ASP.NET Core middleware emits the same primitive.
+
+Note for operators: the async-CSS helper script is served at a content-addressed
+path that changes with this release. Front-end and worker components must be
+upgraded together, as with every release. The deferral changes below are not
+retroactive either: HTML pages already in the cache were written before deferral
+required measured evidence and can keep serving that way until they revalidate,
+so purge or reset the cache after upgrading to have every cached page pick up
+the new behavior immediately.
+
+Improved: the optimizer now measures which elements are actually above the fold
+in a real browser render, per viewport, instead of estimating from the first
+elements in the document. Pages with substantial markup in the document head —
+which previously exhausted the estimate before reaching visible content — get
+more accurate above-the-fold CSS, so stylesheet deferral applies to more pages.
+
+Fixed: deferring a page's stylesheet could produce a flash of unstyled content
+when the inlined above-the-fold CSS did not in fact cover the fold. Deferral now
+applies only to a page whose above-the-fold appearance has been confirmed
+unchanged, and that confirmation is tied to the exact stylesheet it was made
+against — so publishing new styles re-checks before deferring again. Everywhere
+it does not apply, the stylesheet stays render-blocking and the above-the-fold
+CSS is still inlined, so those pages keep the inlining benefit and lose only the
+deferral. A page whose analysis has not completed keeps its stylesheet
+render-blocking. A confirmation only ever authorizes the above-the-fold CSS it
+was actually made about. If none can be measured for the specific page being
+served, that page's stylesheet stays render-blocking whatever its size — a small
+stylesheet gets no shortcut past the check — and whatever above-the-fold CSS was
+produced is still inlined.
+
+That confirmation now happens. While a page is analyzed, it is rendered twice at
+each viewport — once with its whole stylesheet, once with only the above-the-fold
+CSS that would be inlined — and the two are compared. Pages whose above-the-fold
+appearance is unchanged get their stylesheet deferred again; pages where it is
+not keep the stylesheet render-blocking and still get the above-the-fold CSS
+inlined. Deferral therefore applies to pages that have been analyzed, and only
+while they still serve the stylesheet the check was made against.
+
+Three limitations are worth knowing, because they are permanent. The comparison
+render runs without JavaScript, and without loading images, web fonts or
+imported stylesheets, so a fold whose appearance depends on any of those is not
+something the check can see. And the check covers a page template rather than
+each individual page: pages sharing a template share one confirmation, so a
+sibling page whose fold needs something the checked page did not can still be
+deferred. Verify such pages yourself, or turn deferral off for the site.
+
+Fixed: a page could have its stylesheet deferred while a content-security policy
+declared on that same page suppressed the inlined above-the-fold CSS, leaving
+nothing to paint with until the full stylesheet arrived. Whenever that inlining
+is refused, the deferral is now withdrawn with it.
+
+Changed: on the embedding library's low-level HTML transform entry point,
+`ps_html_transform_create`, the async-CSS configuration flag is now ignored.
+That entry point has no view of the page's stylesheets and no browser, so it
+cannot establish that deferring them is safe, and unsafe deferral is a flash of
+unstyled content. It always leaves stylesheets render-blocking, and still
+inlines the above-the-fold CSS it is given. The flag is off by default and the
+ASP.NET Core middleware does not use this entry point, so this reaches only an
+embedder that called it and set the flag explicitly; for stylesheet deferral,
+use the main HTML processing entry point, `ps_html_process`, which gathers the
+page's stylesheets and gates on them.
+
+Fixed: custom-property registrations and related at-rules were omitted from the
+inlined above-the-fold CSS. On stylesheets that rely on them — modern utility
+frameworks in particular — properties depending on those registrations computed
+incorrectly while the full stylesheet was still loading, so borders and similar
+details rendered wrong for a moment. These declarations are now always retained.
+
+Improved: above-the-fold CSS detection now correctly retains rules the browser
+was observed to use at first paint even when those rules sit inside a cascade
+layer or a responsive breakpoint, so less of the fold is left unstyled while the
+full stylesheet loads.
+
+Fixed: the JavaScript minifier corrupted valid code when a comment sat between
+`let` and the name it declares, matching the same fix in mod_pagespeed 1.15.
+The minifier did not look past the comment when deciding whether `let` starts
+a declaration, and removed a line break that JavaScript's automatic-semicolon
+rules needed: `let /*c*/ row` followed by a line starting `+4` was served as
+the unparseable `let row+4`, breaking the script. The declaration scan now
+skips comments and the line break is preserved.
+
+Fixed: the CSS minifier corrupted custom-property values when the property
+name contained an escaped character. Custom properties store raw token
+streams — read back verbatim by var() and getPropertyValue() — so the
+minifier leaves their values untouched; but the check that recognizes a
+custom property broke on names with escapes, such as the escaped space in
+`--\ \>`. Those names are valid per CSS Syntax 3 (an escaped char is a name
+char), so the value was minified as ordinary CSS and could lose digits:
+`a{--\ \>:0.}` was served as `a{--\ \>:.}`. The name scan is now
+escape-aware (a character preceded by an odd-length backslash run is name
+content, not a boundary), and such properties keep their values byte-for-byte.
+
+Fixed: the CSS minifier's decimal optimization still rewrote identifiers that
+use hexadecimal escapes. 2.0.40 stopped the `0.5` → `.5` shortening from firing
+inside plain identifiers, but a CSS identifier is built from decoded escapes
+while the guard read raw bytes: the class selector `.a\35 0.5` — the class named
+`a50` — was served as `.a5`, silently restyling pages that use escaped
+identifiers. Escape structure is now decoded before the guard decides, including
+a hex escape's consumed whitespace terminator and escape content in front of a
+`-`, so such selectors survive minification unchanged while genuine numbers
+still minify.
+
+### 2.0.40 — 2026-08-01
+
+Fixed: two JavaScript minifier edge cases, matching the same fixes
+in mod_pagespeed 1.15. A line break
+before an arrow function's `=>` was dropped as expression continuation —
+ECMA-262 forbids a line terminator there, so the input was already a
+SyntaxError, but the minified output (`a = x\n=> y` → `a=x=>y`) was
+VALID, silently turning a broken script into running code that masks the
+author's error; the line break is now preserved and invalid input is
+served as written. And an object or class-field literal whose generator
+method is followed by further members (`var o = { *m() {}, b: 2 };`)
+declined minification, so the whole file was served unminified; such
+files now minify normally.
+
+Fixed: several more cache-overwrite paths left a stale in-memory copy of
+the overwritten entry in place, the same class as the optimized-variant
+fix below. Most visibly: after a page's origin content was
+refreshed, a serving process could keep serving the pre-refresh version
+from its in-memory cache tier indefinitely, even though the refreshed
+version was in the cache. And after a revalidation confirmed a cached
+entry was still fresh, the in-memory copy kept its old timestamp, so that
+process revalidated the entry against origin on every subsequent request
+instead of serving it for its refreshed lifetime. Internal bookkeeping
+entries had the same gap, which could cause already-current work — such
+as llms.txt builds or image re-optimization — to be redone on every
+subsequent check after a refresh. All of these overwrite paths now
+invalidate the process's in-memory copy when the write completes.
+
+Fixed: writing a freshly optimized variant of a resource did not
+invalidate the in-memory cache tier's copy of the version it
+replaced. A process whose in-memory tier had captured the original bytes
+could keep serving the resource in its original form indefinitely, even
+though the optimized version was in the cache. The in-memory copy is now evicted
+when the write completes, so subsequent reads observe the optimized
+content.
+
+Fixed: optimized images ignored EXIF orientation. Portrait
+photos (EXIF Orientation 2-8, typical of phone cameras) were
+re-encoded with their stored, rotated pixels while the tag was
+stripped, so the served JPEG/WebP/AVIF rendered sideways or mirrored.
+The orientation is now baked into the pixels at decode time — every
+output format renders upright with no reliance on the tag surviving,
+and reported dimensions (including injected width/height attributes
+and viewport resizing) use the upright orientation. JPEG paths that
+cannot rewrite pixels (lossless recompression, oversized images) keep
+an accurate minimal orientation tag instead, so they continue to
+render upright; no other metadata is reintroduced. The fix is not
+retroactive: image variants cached before the upgrade keep their old
+(sideways) orientation until they expire, so purge or reset the cache
+to serve upright images immediately.
+
+Fixed: the CSS minifier's decimal optimization rewrote identifiers as
+if they were numbers. The rule that shortens `0.5` to `.5`
+fired wherever a `0` before a `.` was not preceded by a digit —
+including inside identifiers, where `0.5` is not a number: the class
+selector `.a0.5` was served as `.a.5`, `#id0.5` as `#id.5`, and the
+custom-element selector `a-0.5` as `a-.5`, silently restyling any page
+using such names. The strip now fires only at a number-token start: a
+`0` preceded by an identifier character (letter, digit, `_`, non-ASCII,
+or an escape), or by a `-` that itself continues a dashed identifier,
+is left untouched, while genuine numbers still minify (`0.5px` →
+`.5px`, `-0.5px` → `-.5px`).
+Fixed: the CSS minifier rewrote brace groups (`{...}`) nested inside
+declaration values. Its shorthand-collapse pass treated
+such a group as a nested block and re-emitted its contents: a leading
+or trailing `;` inside the group was deleted (`a{--z:{;x}}` served
+`a{--z:{x}}`, `a{--z:{L;}}` served `a{--z:{L}}`), and real longhand
+sequences inside custom-property values were collapsed into bogus
+shorthands (`--z:{padding-top:1px;...}` became `--z:{padding:1px}`).
+For custom properties this changes what `var()`/`getPropertyValue()`
+observe — valid-input corruption; ordinary values were rewritten the
+same way. The earlier trailing-semicolon trim had the same blind spot
+inside these groups. Both phases now leave brace groups inside
+declaration values byte-for-byte opaque; real nested blocks
+(`@media`, nested rulesets including `:pseudo`-starting selectors
+like `a{:hover{...}}`), the genuine trailing-`;` trim
+(`a{b:c;}` → `a{b:c}`), and real shorthand collapse are unaffected.
+One deliberate edge: nested rules with bare ident+pseudo preludes
+(`a{a:hover{...}}`) are preserved verbatim rather than collapsed —
+arguably the spec-correct treatment anyway, since CSS Nesting's
+relaxed parsing tries ident-starting preludes as declarations first.
+
+Fixed: three more CSS minifier correctness bugs in the same
+family. The declaration splitter in the
+longhand-to-shorthand pass treated a backslash-escaped `;` as a
+declaration terminator: `a{b:c\;}` lost the escaped semicolon (served
+`a{b:c\}`), and `a{m:\;;--z:url(x)}` glued the escape into the next
+declaration name, silently swallowing an entire custom property — both
+change what is served for valid input, the latter also what
+`var(--z)`/`getPropertyValue()` observe. The same gap in the pass's
+top-level scan and brace matcher let an escaped quote open a phantom
+string (`a{b:c\'d'e{x;}}`), misaligning block boundaries so string
+content was rewritten. Escapes outside string literals are now
+consumed as pairs in all of these scanners, like everywhere else in
+the minifier. Inside `calc()` and its siblings, space tightening
+around `*` and `/` could glue them into a `/*` comment token
+(`a{b:calc(1 / *2)}`), which a repeated optimization pass then honors
+as a real comment and truncates the stylesheet; the space between
+`/` and `*` (and the `*/` mirror) is now always kept. And the
+longhand-to-shorthand collapse accepted empty longhand values, so
+`{overflow-y:;overflow-x::}` collapsed to `{overflow:: }` with a
+trailing space no pass trims, converging one optimization pass late;
+empty values now refuse the collapse, as do values whose edge
+characters (`:`, `,`, `!`, …) would let a later pass trim the
+separator space the collapse emits (the same one-pass-late class; this also declines to collapse
+signed lengths like `+1px`, which were themselves one-pass-late).
+With these three, fuzzing's strict idempotence oracle has no known
+violations left on valid input.
+
+Fixed: the CSS minifier treated custom-property values as ordinary
+declarations in two more of its phases. The
+trailing-semicolon trim deleted `;` inside opaque values
+(`a{--x:{;}}` served `a{--x:{}}`), and the decimal optimizer rewrote
+numbers inside them — `:root{--x:0.5}` became `:root{--x:.5}`. Both are
+fixed: the trim now skips custom-value content but still removes the
+terminating semicolon (`a{--x:v;}` → `a{--x:v}`), and decimals inside
+custom-property values are left untouched. **Behavior note:** the
+decimal change is intentional — custom-property values are observed
+verbatim by `var()` and `getPropertyValue()`, so what is served for
+them is now byte-exact rather than minified. Escaped characters and
+braces inside parenthesized value groups are handled correctly, and
+detection of custom-property names no longer misfires across
+combinators.
+
+Fixed: the CSS minifier treated the contents of unquoted `url()` tokens
+as stylesheet structure in its later phases.
+Semicolons and braces are legal URL code points, but the
+trailing-semicolon trim deleted a `;` inside a url —
+`a{background:url(x;}y)}` served `url(x}y)` — and the
+longhand-to-shorthand pass could split a declaration mid-url and
+rewrite it into garbage
+(`padding-top:url(x;padding-right:1px);...` collapsed into a bogus
+`padding:` shorthand). Those phases now skip unquoted `url()` content
+verbatim, like the earlier phases already did.
+
+Fixed: the streaming CSS minifier corrupted stylesheets containing a
+backslash-escaped slash (`\/`) outside string literals. Its first
+phase did not recognize backslash escapes in normal context — a gap left
+by an earlier fix that added escape handling to the second phase only —
+so `\/` was misread as the start of a comment and everything up to the
+next `*/` (or end of input) was deleted. A valid stylesheet such as
+`a{--x:\/*y*/;b:c}` lost its custom-property value, changing what
+`var(--x)` and `getPropertyValue()` observe. Escaped quotes suffered the
+mirror-image misparse (a phantom string), which also made repeated
+optimization passes collapse one trailing space per pass instead of
+converging in one. The same phase skew also let the second phase scan
+unquoted `url()` content as ordinary CSS, stripping spaces before
+operator characters (`url(a ;b)` lost its space). Repeated optimization
+also converged one pass late on custom properties whose value starts
+with a comment (`a{--x:/*c*/v;...}` gained a leading space that the
+next pass removed). Escapes are now consumed uniformly, both phases
+tokenize `url()` the same way, and comments before the first value
+token contribute nothing, so what is served is preserved and
+re-optimization converges in one pass.
+
+Fixed: the CSS minifier deleted an escaped space at the end of an
+unquoted `url()` token. Its trailing-space trims before the
+closing paren (and at end of input) popped whitespace without checking
+for a preceding backslash escape, so `a{background:url(x\ )}` — an
+escaped space is a legal URL character — was emitted as
+`a{background:url(x\)}`, changing the URL; the rebound `\)` also made
+repeated optimization passes re-tokenize the url on the next pass.
+The trims now keep escaped whitespace, matching the guard the
+custom-property value trim already had.
+
+Changed: the HTML keyword table now recognizes the
+`data-pagespeed-srcset-url-hashes` attribute, completing the
+`HtmlName::Keyword` union with mod_pagespeed 1.15. Documents
+carrying that attribute now have it classified as a known keyword during
+parsing instead of an unrecognized name. No shipped filter rewrites on
+it, so what is served is unchanged; the two products' keyword enums are
+now identical.
+
+Fixed: the HTML parser never ran node destructors, so node data still
+owned at the end of a parse — attributes of elements deleted mid-parse,
+character data of dead nodes — leaked for the lifetime of the
+parser. The parser's node arena now tracks every allocated object and
+runs each node's destructor exactly once when the parse is cleared,
+releasing that memory. What is served is unchanged.
+
+Fixed: two per-parse memory leaks in the HTML parser. Adjacent
+character tokens merged by the parser's coalescing pass kept the
+merged-away token's text alive, and an element whose start tag was cut
+off by end of input (e.g. unterminated mid-attribute) never released its
+data; both buffers leaked outright because the parser's node arena frees
+memory in bulk without running destructors. The merged-away token now
+releases its text the moment it is retired, and a never-emitted element
+releases its data when the parse finishes. What is served is unchanged.
+
+Fixed: generators that yield object literals are minified again. A file
+containing `yield {…}` — or a same-line `await {…}` or `for (x of {…})` —
+was served in its original, unminified form: the minifier could not rule
+out that the braces opened a block rather than the operand, and declined
+the whole file. On a single line the braces can only be the operand, so
+such files are now fully minified. The genuinely ambiguous form — a line
+break between the keyword and the brace, where the two readings differ —
+is still declined and served unmodified, as before.
+
+Fixed: a class with a bare field directly before a generator method is no
+longer broken by minification. The line break after a bare field — `x` on
+its own line, followed by `*gen() {…}` — is what ends the field
+declaration; the minifier removed it, fusing the field and the generator
+method into one invalid declaration, so the minified script failed to
+parse where the original ran. The line break is now preserved. Static
+(`static x`), computed-name (`[expr]`), and private (`#x`) bare fields
+were affected the same way and are covered by the same fix.
+
+Fixed: the HTML parser classified doctypes with a substring heuristic that
+produced confidently wrong results on malformed input — any doctype whose
+text contained "strict" (even inside the system-identifier URL or in
+garbage) was treated as Strict, an "xhtml" substring flipped XHTML
+serialization behaviors on under `text/html`, and any unrecognized doctype
+defaulted to HTML 4 Transitional. Doctype classification now uses the
+exact-matching parser converged with mod_pagespeed 1.15:
+the tokens are compared against the known doctype spellings and anything
+unrecognized degrades to "unknown" instead of a guessed classification.
+FPI matching is ASCII case-insensitive (browsers sniff doctypes
+case-insensitively), and `<!DOCTYPE html SYSTEM "about:legacy-compat">`
+is now correctly classified as HTML5.
+
+Changed: the HTML parser's element nesting cap is now 512 (was 1024),
+unified with mod_pagespeed 1.15's limit. Pages
+nested deeper than the cap stop parsing at the cap and are passed through
+unrewritten. Real-world documents nest far below this bound. The trip is
+silent, exactly as in 1.15: the truncated parse is the observable signal
+and `HtmlParse::size_limit_exceeded()` stays reserved for the byte/token
+ceilings.
+
+Fixed: JSON resources served through the HTML parser's content-type table
+reported their canonical MIME type as `application/javascript`; it is now
+`application/json` (ported from mod_pagespeed 1.15). AVIF is
+now a recognized content type (`image/avif`, `.avif`), classified as an
+image for rewriting purposes.
+
+Fixed: the HTML lexer's `Restart()` error-recovery path trusted an
+internal invariant with only a debug-mode assertion; a release build that
+ever hit the violated invariant would attempt to resize a string to
+SIZE_MAX and abort. It now degrades gracefully (guard ported from
+mod_pagespeed 1.15).
+
+Changed: the HTML keyword tables now recognize the `allowfullscreen`,
+`decoding`, `dialog`, `fetchpriority`, `loading`, `picture`, and
+`playsinline` names, completing the union with mod_pagespeed 1.15's table.
+
+Fixed: the postfix `++`/`--` line-break fix below did not cover variables
+named `await` or `yield` (legal as ordinary names outside async and
+generator functions): the statement-separating line break after
+`await++`/`yield++` was still removed, so the two statements re-parsed as
+one and the script was served broken. Such line breaks are now preserved as
+well.
+
+Fixed: JavaScript minification could corrupt a script in which a line break
+separates a postfix `++`/`--` from a next statement that begins with an
+opening parenthesis, or with a leading-dot number such as `.5`. That line
+break is what keeps the two statements apart — without it the code re-parses
+as a call or member access on the value just incremented, which the browser
+rejects as a syntax error — but the minifier removed it and reported success,
+so the script was served broken with nothing logged. Such line breaks are now
+preserved (including when carried inside a comment). Line breaks that a
+following binary operator genuinely continues are still removed, and
+already-correct minified output is byte-for-byte unchanged.
+
+Fixed: JavaScript minification declined any file containing modern syntax and
+served it unminified instead — class declarations and class bodies, generator
+functions, object-literal method shorthand (`{ foo() {} }`), getters and
+setters, `import` and `export` declarations, dynamic `import()`, and private
+class fields. Together with the destructuring fix below, that covers most of
+what current bundlers emit, so a modern site could have the majority of its
+JavaScript served at full size with nothing reported as an error. Affected
+files now minify; measured against modern ES module bundles, the saving
+roughly doubled. Text inside template-literal interpolations (`${ ... }`) is
+now minified as well, where it was previously left as written. Files that
+contain none of these constructs minify to exactly the same bytes as before,
+and the minifier still declines and serves the original wherever a construct
+is genuinely ambiguous rather than risk altering the script.
+
+Fixed: critical-CSS inlining could omit stylesheet rules that are actually
+used above the fold — most visibly state-conditional rules such as dark-mode
+variants — producing a brief flash of unstyled content on first paint.
+Critical CSS is now derived against the page's actual DOM, preserving
+`@layer` and `@media` structure, and inlining is skipped when too many of
+the rules the page uses would be missing.
+
+Fixed: JavaScript minification could corrupt the script it served when the
+source contained an IE conditional-compilation comment (`/*@ ... @*/`), which
+the minifier preserves by design. Where such a comment directly followed a
+division operator or a regular-expression literal, dropping the whitespace
+between them ran the two together into what the browser then read as the
+opening of a comment, silently discarding the rest of the line. The script was
+served corrupted with nothing reported. Retained conditional-compilation
+comments are now kept separated from their neighbours whenever running them
+together would change how the script parses, and a line break that automatic
+semicolon insertion depends on is preserved across such a comment. Scripts
+that present no such hazard are minified exactly as before.
+
+Fixed: JavaScript minification declined any file containing a destructuring
+declaration — `const {a, b} = obj`, `let [x, y] = arr`, and their nested,
+computed-key, default, rest, and `for-of` forms — and served that file
+unminified instead. Current bundlers emit these patterns routinely, so a
+modern site could have a substantial share of its JavaScript served at full
+size with nothing reported as an error. Affected files now minify.
+Behavior is unchanged wherever a construct is genuinely ambiguous: the
+minifier still declines and serves the original rather than risk altering the
+script.
+
+### 2.0.39 — 2026-07-23
+
+Fixed: several automatically applied loading and priority hints could work
+against the page instead of for it; hints are now emitted only when the
+evidence supports them:
+
+- Injected `preconnect` links always carried `crossorigin`, warming a
+  connection pool that plain stylesheets, scripts, and images never use
+  (while the Early Hints variant of the same hint was bare). Preconnect
+  hints — in both the HTML and Early Hints — now carry `crossorigin` exactly
+  when the resource that motivated them is fetched in CORS mode (fonts,
+  `crossorigin`-marked resources, ES modules), so the warmed connection is
+  the one the browser actually reuses.
+- The preload hint for the main (LCP) image is suppressed when that image is
+  part of a `<picture>` element, where the browser may select a different
+  source: preloading could download an image the page never displays.
+- Iframes are no longer lazy-loaded unconditionally: the first iframe in the
+  document body — typically an above-the-fold video or media embed — now
+  loads normally, matching the above-the-fold protection images already had.
+  (Documents without an explicit `<body>` tag keep the previous behavior.)
+  Invisible iframes (0x0, `hidden`, or `display:none` — the shape of common
+  tag-manager tracking frames) are left entirely untouched: never
+  lazy-loaded, so tracking frames keep working without JavaScript, and they
+  no longer consume the above-fold exemption meant for the first visible
+  embed.
+- Invisible images (1x1 beacons, `hidden` or `display:none` elements) are now
+  left entirely untouched, at every position on the page: never promoted to
+  `fetchpriority="high"` — the first visible image takes the high-priority
+  slot instead, or none if no visible image appears near the top — and never
+  given `loading="lazy"`, which browsers answer for layout-less images by
+  skipping the load altogether, silently breaking tracking pixels. Invisible
+  images that earlier releases lazy-loaded will load again.
+- Stylesheets that the async-CSS optimization defers are no longer also
+  preload-hinted in Early Hints: the old combination re-promoted the very
+  download the optimization had deprioritized, competing with the LCP image
+  for bandwidth. Print stylesheets are likewise no longer preload-hinted.
+  When reprocessing leaves a page with no hints at all, previously stored
+  hints are now cleared instead of being served stale indefinitely.
+
+Upgrade note for ASP.NET Core deployments: upgrade the middleware package
+together with the worker. The preconnect fix above introduces a new stored
+form of the hint, and a middleware from an earlier release paired with an
+upgraded worker does not recognize it: it emits the hint as an unusable
+preload header instead. Browsers ignore the malformed entry; the affected
+preconnect is lost and the stray header is served until the middleware is
+upgraded too. When rolling back a worker after its
+newer hints have been stored, also purge the metadata cache so the older
+middleware is not served hint forms it cannot read.
+
+Security: the shared cache now enforces RFC 9111's rule for authenticated
+requests — a response to a request carrying an `Authorization` header is
+stored or reused only when the origin's `Cache-Control` explicitly permits
+shared caching (`public`, `must-revalidate`, or `s-maxage`); all other such
+requests pass through to the origin. The rule now also covers stale content
+served during an origin outage and preload hints (`103 Early Hints`)
+derived from a stored response. Previously, responses to authenticated
+requests could be shared through the cache. Relatedly, the exemption that
+lets a validated license capability token (`Authorization: License <token>`)
+bypass this gate no longer applies to internally generated requests —
+`try_files`, `rewrite`, `error_page` and index targets, and subrequests —
+because those never pass through the validation step, so an unvalidated
+credential could previously reach cached content by way of an internal
+redirect. Deployments that route every request through such a target fall
+back to ordinary shared-cache rules for license-bearing requests, which may
+reduce cache reuse for them. Update recommended for deployments serving
+authenticated content. The fix is not retroactive:
+entries cached before the upgrade are not removed, so also purge or reset
+the cache — or let existing entries expire — if authenticated responses may
+have been cached.
+
+Security: a cached response that the origin later marks as non-shareable is
+now removed from the cache. When a cached entry was revalidated with the
+origin and the origin answered "not modified", the entry's freshness was
+refreshed without re-checking whether it was still allowed in a shared
+cache — so an origin that had since marked the resource `private` or
+`no-store` (for example, a page that became personalized or
+account-specific) could have its previously cached copy kept and served to
+other visitors. Such a response now evicts the cached copy instead of
+renewing it, and the origin's restrictive directive is passed on to any
+downstream cache rather than being replaced with a freshness lifetime.
+Revalidations of an authenticated request that no longer carry explicit
+shared-cache permission, and revalidations that set a cookie, no longer
+extend a shared entry's lifetime. Update recommended, particularly where
+resources can change between public and private over their lifetime.
+
+This fix does reach some entries cached before the upgrade: an existing
+entry already marked `private` or `no-store` is evicted the next time it is
+revalidated, even if that revalidation carries no `Cache-Control` of its
+own. It is not a sweep, though — an affected entry is only removed once
+something revalidates it, so entries that are never revalidated before they
+expire are never examined. Purge or reset the cache if you need affected
+responses gone on a known schedule rather than on next revalidation.
+
+Only the blanket forms evict. `private` in its qualified form —
+`private="Set-Cookie"`, which restricts just the named headers and permits
+the rest to be cached — is correctly treated as non-blanket and keeps the
+entry, an idiom origins routinely pair with a perfectly cacheable
+`max-age`. `no-cache` never evicts in any form: it governs revalidation
+rather than storage.
+
+Fixed, on the same path: the response to a revalidation now carries the
+origin's full set of cache directives instead of a simplified freshness
+lifetime. An origin's `no-cache` in particular is relayed on every outcome,
+so a resource served as `no-cache, max-age=N` is again revalidated before
+each reuse rather than being treated by browsers and downstream caches as
+freely reusable for the whole lifetime.
+
+Security: the bundled nginx in the published worker and nginx images is
+updated to 1.30.4, picking up the July 2026 upstream nginx security fixes —
+including CVE-2026-42533, a request-processing memory-safety defect that the
+upstream nginx advisory reports as exploited in the wild. The images' distribution packages are also rebuilt
+against the latest Ubuntu security updates, which fixes CVE-2026-50812 and
+CVE-2026-50813 in the bundled SQLite library. Update recommended.
+
+Fixed: script deferral now requires execution evidence. The analysis browser
+serves same-origin scripts from the cache during analysis, and only scripts
+observed to execute little or nothing before first paint are deferred.
+Previously, scripts whose content was unavailable to the analysis could be
+classified as safe to defer without evidence, which could break pages that
+rely on synchronous script execution. Deferral continues to apply to scripts
+referenced by their full URL; as deferral decisions are now evidence-based,
+pages that load scripts from third-party hosts may see fewer scripts
+deferred.
+
+Fixed: pages referencing an empty same-origin script file (a stub or
+feature-flag placeholder) were re-analyzed every hour indefinitely: the
+empty file was mistaken for a script the analysis had yet to observe, which
+kept the page's analysis profile on its shortened warm-up lifetime forever.
+Cached-but-empty scripts no longer shorten the profile lifetime, so such
+pages return to the configured re-analysis interval.
+
+Fixed: the validator (`ETag`) on cache-served responses reflected only the
+variant and its byte length, so a revised page or asset that kept the same
+byte length also kept its old validator — a returning visitor's conditional
+request could be answered 304 Not Modified and briefly hold on to the
+outdated copy. For origins that supply an `ETag` or `Last-Modified` (and for
+agent-optimized pages), validators now also reflect the stored content
+identity, so a same-size revision gets a new validator; after upgrading,
+returning visitors re-download affected resources once and revalidation then
+resumes as normal. Origins that emit no validators keep the previous
+length-based behavior.
+
+Fixed: some conversion paths encoded WebP versions of JPEG and PNG images
+losslessly instead of at the configured quality. Depending on the image, the
+oversized result was either discarded in favor of the original — so the photo
+silently never got a WebP variant — or served as an unnecessarily large
+lossless WebP. Those images now receive properly compressed lossy WebP; GIF
+to WebP conversion remains lossless as intended.
+
+Fixed: the CSS minifier removed required whitespace around `+` and `-` inside
+the newer CSS math functions (`sin()`, `cos()`, `atan2()`, `pow()`, `hypot()`,
+and related), which could invalidate those declarations; spacing is now
+preserved inside the full set of CSS math functions.
+
+Fixed: the CSS minifier rewrote the contents of custom properties, whose
+values are opaque token streams where every space matters. Whitespace
+around operators was removed and interior runs collapsed, so a value such
+as `--gap: 1px + 2px` came back as `1px+2px` and any `calc(var(--gap))`
+that used it became invalid — browsers drop the whole declaration, which
+could leave a page visibly unstyled wherever the variable was applied.
+Values holding selector fragments or arbitrary strings read back through
+`getPropertyValue()` were altered the same way, and a stylesheet with an
+unquoted `url()` inside a custom property containing `/*` could have the
+remainder of the sheet swallowed. Custom-property values are now preserved
+verbatim; leading and trailing whitespace is still trimmed and comments are
+still removed. Backslash-escaped characters are also kept intact
+throughout, so a selector like a class name containing an escaped space no
+longer loses the escape — which previously broke the rule that used it.
+
+Fixed: the JavaScript minifier misread regular-expression literals appearing
+after `await`, `yield`, or the `of` in a for-of loop as division, which could
+alter the regular expression's whitespace and change its meaning. It could
+also remove the whitespace separating a regular expression's closing slash
+from a following `*`, forming an unintended comment opener. Such literals
+now minify correctly; inputs the minifier cannot safely process continue to
+be served unmodified.
+
+Fixed: CSS `@import` flattening could silently drop styles when only part of
+an import chain was cached: an `@import` that could not be inlined was left
+after already-inlined rules — a position where browsers must ignore it.
+Flattening is now all-or-nothing per stylesheet: if any imported sheet
+cannot be inlined, the stylesheet is served in its original form so every
+`@import` keeps working. Nested imports referencing sheets in other
+directories, which previously failed to resolve and caused the same style
+loss, now flatten correctly. A stylesheet imported more than once under
+different media conditions — for example once for `screen` and again for
+`print` — is now inlined under each condition instead of only the first,
+so the later variants' styles are no longer dropped. Stylesheets whose
+`@import` statements sit near comments, quoted strings, escaped characters
+or parenthesised media conditions are now read the way browsers read them:
+previously such a stylesheet could come out with a mangled media wrapper,
+applying rules on every medium the original had gated, or swallowing the
+styles that followed. Constructs that only resemble an import — an
+at-keyword that merely starts with `import`, or an unrecognised
+at-statement ahead of a live `@import` — no longer trigger inlining, and
+the original is served instead.
+
+Fixed: CSS `@import` flattening corrupted `url()` references whose address
+contains a quote, a backslash, or a closing parenthesis. Such an address
+accumulated one extra level of backslash escaping every time it was rebased,
+so a reference inside a nested import came out with doubled backslashes and
+pointed at a resource that does not exist — images, fonts, and other
+subresources reached through those references failed to load. Escape
+sequences are now decoded when an address is read and re-applied exactly
+once when it is written, so an address survives any depth of nesting
+unchanged. Hexadecimal escapes (`\22`), escaped delimiters inside an
+unquoted `url()`, and line continuations inside quoted addresses are now
+interpreted per the CSS syntax rules rather than passed through literally.
+
+Security: malformed or truncated image data could crash a worker process
+while image dimensions were being read to reserve layout space (a
+denial-of-service class; no memory disclosure or code execution). Debug
+builds could additionally hit the same path on one valid image format.
+Update recommended for deployments that optimize images they do not
+control. Relatedly, dimensions declared by an image's own header are now
+held to the same range limits as author-supplied width/height attributes
+before being written into the page — an out-of-range header now yields no
+inferred dimensions rather than an implausible value.
+
+Fixed: the HTML transform pipeline now respects a page's own
+Content-Security-Policy delivered via a `<meta http-equiv>` tag. When the
+page's policy would make the browser drop an inline element, inline critical
+CSS and speculation rules are no longer injected, and stylesheets governed
+by the policy are kept render-blocking instead of being converted to an
+async load — pages
+with a restrictive policy previously could render unstyled until the full
+stylesheet loaded. Comma-separated policy lists and multiple policy tags are
+combined restrictively. Policies delivered only via response header are not
+yet consulted.
+
+Earlier releases, most recent first:
+
+- **2.0.38 — Cache performance.** A faster and more scalable bundled cache
+  library: [cache hits no longer take a lock](https://modpagespeed.com/blog/cyclone-cache-vs-file-cache-benchmark/),
+  so read throughput scales with concurrent workers instead of serializing on
+  the cache, and disk syncs are no longer per-write — an order of magnitude
+  higher sustained throughput under write-heavy load in internal testing.
+  Plus new zero-copy and stale-serve counters in the
+  [metrics output](/docs/http-api/#get-v1metrics).
+- **2.0.38 — Cache upgrade safety.** The cache file is now fingerprinted by
+  the bundled cache library's on-disk format version — not the ModPageSpeed
+  release version; format changes are anticipated to be infrequent, so most
+  future upgrades keep the cache warm. When the format does change (as it
+  does in this release, so the first start on 2.0.38 begins with a cold
+  cache), old and new versions never open the same cache file, removing a
+  class of cache-corruption risk during upgrades, while the previous file
+  is left on disk so rollbacks stay warm — delete older cache files manually
+  once you won't roll back. Also cache-integrity fixes closing rare
+  corruption windows under concurrent optimization (including full-bucket
+  cache writes that were silently dropped, and a cross-process guard against
+  resetting a cache file another worker still has mapped).
+  **Updating is recommended.**
+- **2.0.37 — Security and reliability.** The bundled runtime images are
+  rebuilt against the latest distribution security updates, the admin
+  console receives security and reliability hardening, and cache fixes cover long transfers, concurrent startup, and
+  shutdown ordering. **Updating is recommended.**
+- **2.0.36 — Verified-crawler controls (experimental).** Off-by-default
+  RSL-CAP capability-token validation and an opt-in AI-crawl counter for
+  Web Bot Auth, plus an async-CSS correctness fix and unified metrics
+  output.
+- **2.0.32 – 2.0.33 — Security releases.** Security updates to the bundled
+  image-processing components, plus additional hardening of shipped
+  binaries. **Updating is recommended.**
+- **2.0.30 — Content integrity.** Content Credentials (C2PA) are now preserved
+  through image optimization, and Markdown responses are served with the
+  correct content type.
+- **2.0.28 — Stability.** Fixed a flash-of-unstyled-content edge case when
+  asynchronous CSS loaded against a cold cache, and removed a duplicate copy of
+  inlined critical CSS.
+- **2.0.26 — Performance and visibility.** CSP-safe asynchronous CSS loading,
+  and accurate bandwidth-savings reporting in the console.
+- **2.0.15 — Visibility.** Bandwidth-savings statistics now populate for the
+  ASP.NET Core middleware, at parity with the nginx integration.
+
+## Install and upgrade
+
+ModPageSpeed 2.0 ships as a NuGet package (ASP.NET Core middleware), as Docker
+images, and as a Helm chart. See [Getting started](/docs/getting-started/) to
+install, or [Deployment](/docs/deployment/) for production rollouts. Upgrading
+is a matter of moving to the latest package or image tag.
+
+## Reporting a security issue
+
+Found a security problem? Please email
+[info@we-amp.com](mailto:info@we-amp.com) so we can investigate and ship a fix.
+We publish security-relevant changes here as part of the regular release notes.

@@ -1,0 +1,43 @@
+---
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2024-2026 We-Amp B.V.
+//
+// Renders an X-Page-Speed / X-Mod-Pagespeed / X-PageSpeed response-header
+// example, sourced from the corp release manifest (ADR-062). Used by docs
+// pages with "verify it works" sections that previously hard-coded the
+// version string.
+//
+// Examples in MDX:
+//   <XPageSpeedExample line="1.1" surface="nginx" />
+//     → X-Page-Speed: 1.1.0
+//   <XPageSpeedExample line="1.1" surface="apache" />
+//     → X-Mod-Pagespeed: 1.1.0.0
+//   <XPageSpeedExample line="2.0" />
+//     → X-PageSpeed: WeAmp.PageSpeed/2.0.7
+
+import { getRelease } from '../../lib/release';
+
+interface Props {
+  line: '1.1' | '2.0';
+  surface?: 'nginx' | 'apache' | 'iis';
+}
+
+const { line, surface = 'nginx' } = Astro.props;
+const rel = await getRelease(line);
+
+let header: string;
+if (line === '2.0') {
+  header = `X-PageSpeed: WeAmp.PageSpeed/${rel.display.header_version}`;
+} else if (surface === 'apache') {
+  // 1.1 Apache build emits a four-segment legacy version string
+  // (X-Mod-Pagespeed: 1.1.0.0) to stay compatible with monitoring built
+  // against the open-source module's header. Render as the manifest semver
+  // suffixed with .0 until/unless the manifest gains a dedicated apache
+  // header_version field.
+  header = `X-Mod-Pagespeed: ${rel.display.header_version}.0`;
+} else {
+  header = `X-Page-Speed: ${rel.display.header_version}`;
+}
+---
+
+<Fragment>{header}</Fragment>

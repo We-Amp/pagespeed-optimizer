@@ -1,0 +1,83 @@
+# Release-aware components
+
+These components render release-version content from the manifest at
+`src/content/releases-{1.1,2.0}/release.yaml` (synced from `corp/releases/*.yaml`
+by the corp `sync-manifests-to-mps2` workflow — see ADR-062 §7).
+
+**Authoring rule:** every version-coupled string on the website must flow
+through `getRelease()` (typed access) or one of these components. The
+CI step "Guard against version-pinned URLs in non-frozen content" in
+`.github/workflows/ci.yml` (ADR-062 Stage 7) rejects any `releases/vX.Y.Z/`
+literal in `src/content/`, `src/pages/`, `src/components/`, or
+`src/layouts/` (blog content is exempt — see ADR-062 §9 frozen content).
+
+## Available components
+
+| Component               | Use for                                                                     |
+| ----------------------- | --------------------------------------------------------------------------- |
+| `<Version />`           | A single version label (`1.1.0`, `v1.1.0`, `v1.1.0+r9`) inline in prose.    |
+| `<DownloadCmd />`       | One shell line — `curl -O <url>` / `sudo dpkg -i …` / `sudo dnf install …`. |
+| `<DownloadTable />`     | The full DEB + RPM + MSI table on the downloads page.                       |
+| `<CompatMatrix />`      | The "Supported on …" block (nginx + Apache + IIS, per surface).             |
+| `<NugetCmd />`          | `dotnet add package WeAmp.PageSpeed.AspNetCore [--prerelease]`.             |
+| `<XPageSpeedExample />` | Response-header example: `X-Page-Speed:`/`X-Mod-Pagespeed:`/`X-PageSpeed:`. |
+| `<GpgKeyUrl />`         | The stable GPG signing-key URL (off `/releases/vX.Y.Z/` per Stage 7).       |
+| `<ImageTag />`          | Docker / Helm image tag for 2.0 (`2.0.7` etc.).                             |
+
+## Usage in MDX
+
+```mdx
+---
+title: 'My doc page'
+description: '…'
+---
+
+import DownloadCmd from '../../components/release/DownloadCmd.astro';
+import XPageSpeedExample from '../../components/release/XPageSpeedExample.astro';
+
+Install the package:
+
+<pre>
+  <code class="language-bash">
+    <DownloadCmd line="1.1" channel="deb" arch="amd64" pkgmgr="curl" />
+  </code>
+</pre>
+
+Verify the response header:
+
+<pre>
+  <code>
+    <XPageSpeedExample line="1.1" surface="nginx" />
+  </code>
+</pre>
+```
+
+Plain `.md` cannot import or render Astro components — only `.mdx`. If a
+new docs page needs version content, use the `.mdx` extension.
+
+## Usage in `.astro` pages
+
+`.astro` pages can import the components or call `getRelease()` directly:
+
+```astro
+---
+import { getRelease } from '~/lib/release';
+const rel20 = await getRelease('2.0');
+const cmd = `dotnet add package ${rel20.artifacts.nuget.package}${
+  rel20.display.nuget_install_flags ? ` ${rel20.display.nuget_install_flags}` : ''
+}`;
+---
+
+<code>{cmd}</code>
+```
+
+For the canonical download-page pattern, see `src/pages/download.astro`.
+
+## Why this is shaped this way
+
+See `decisions/062-deterministic-version-bump.md`:
+
+- **§1** — Manifest is the single source of truth.
+- **§2** — Naming convention (`v{semver}` in URLs, `+rN` in tags only).
+- **§4** — Render mechanism (build-time, components in markdown via MDX).
+- **§9** — Frozen content (blog posts are byte-untouched on reships).

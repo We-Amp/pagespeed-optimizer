@@ -1,0 +1,371 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Contact ModPageSpeed — Setup, Enterprise, Security"
+  description="Setup help, enterprise and volume pricing, and security disclosure for ModPageSpeed. One form; we aim to reply in about a business day (CET)."
+>
+  <section class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-20">
+    <div class="text-center">
+      <h1 class="h1-hero text-text-body">Pick the right channel.</h1>
+      <p class="mt-4 text-lg text-text-muted max-w-2xl mx-auto">
+        Setup help, enterprise and volume pricing, security disclosure. We aim to reply in about a
+        business day (CET).
+      </p>
+      <p class="mt-3 text-sm text-text-annotation max-w-2xl mx-auto">
+        Setup steps live in the
+        <a
+          href="/docs/"
+          class="text-interactive hover:text-interactive-hover underline"
+          >documentation</a
+        >; plans and licensing are on the
+        <a
+          href="/pricing/"
+          class="text-interactive hover:text-interactive-hover underline"
+          >pricing page</a
+        >.
+      </p>
+    </div>
+
+    <!-- Contact form. Behavior: JS-enabled clients POST to the capture endpoint
+         (/ai-readability/api/contact → render service → Telegram + logged), with a
+         mailto: fallback if that POST fails. No-JS clients post to the mailto:
+         action below. Either path lands the message with us. -->
+    <form
+      id="contact-form"
+      action="mailto:info@we-amp.com"
+      method="post"
+      enctype="text/plain"
+      class="mt-12 rounded-lg border border-border bg-bg-elevated p-6 sm:p-8 space-y-5"
+    >
+      <div>
+        <label
+          for="contact-name"
+          class="block text-sm font-medium text-text-body"
+        >
+          Name
+        </label>
+        <input
+          id="contact-name"
+          name="name"
+          type="text"
+          required
+          aria-required="true"
+          autocomplete="name"
+          class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 outline-none focus:ring-2 focus:ring-interactive/40"
+        />
+      </div>
+
+      <div>
+        <label
+          for="contact-email"
+          class="block text-sm font-medium text-text-body"
+        >
+          Email
+        </label>
+        <input
+          id="contact-email"
+          name="email"
+          type="email"
+          required
+          aria-required="true"
+          autocomplete="email"
+          class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 outline-none focus:ring-2 focus:ring-interactive/40 aria-[invalid=true]:border-amber-600 aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-amber-600 dark:aria-[invalid=true]:border-amber-500 dark:aria-[invalid=true]:ring-amber-500"
+        />
+      </div>
+
+      <div>
+        <label
+          for="contact-topic"
+          class="block text-sm font-medium text-text-body"
+        >
+          Topic
+        </label>
+        <select
+          id="contact-topic"
+          name="topic"
+          required
+          aria-required="true"
+          aria-describedby="contact-topic-hint"
+          class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 outline-none focus:ring-2 focus:ring-interactive/40"
+        >
+          <option value="support">General support / setup</option>
+          <option value="enterprise">Enterprise / volume pricing</option>
+          <option value="hosting">Hosting / multi-tenant licensing</option>
+          <option value="agent-optimize">Serve clean content to AI agents</option>
+          <option value="other">Other (not security)</option>
+        </select>
+        <p id="contact-topic-hint" class="mt-1 text-sm text-text-annotation">
+          Security reports go to a separate channel — see below.
+        </p>
+      </div>
+
+      <div>
+        <label
+          for="contact-message"
+          class="block text-sm font-medium text-text-body"
+        >
+          Message
+        </label>
+        <textarea
+          id="contact-message"
+          name="message"
+          rows="6"
+          required
+          aria-required="true"
+          aria-describedby="contact-message-hint"
+          class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 outline-none focus:ring-2 focus:ring-interactive/40"
+        ></textarea>
+        <p id="contact-message-hint" class="mt-1 text-sm text-text-annotation">
+          Server, OS, and version details help us reply faster.
+        </p>
+      </div>
+
+      <p class="text-xs text-text-annotation">
+        We use what you send only to reply &mdash; see our
+        <a
+          href="/privacy/"
+          class="text-interactive hover:text-interactive-hover underline"
+          >Privacy policy</a
+        >.
+      </p>
+
+      <div class="flex flex-col gap-2">
+        <button
+          id="contact-submit"
+          type="submit"
+          class="btn-primary"
+          aria-describedby="contact-form-hint"
+        >
+          Send message
+        </button>
+        <p id="contact-form-hint" class="text-xs text-text-annotation">
+          We aim to reply within about a business day (CET). Prefer email? Reach us at
+          <a
+            href="mailto:info@we-amp.com"
+            class="text-interactive hover:text-interactive-hover underline"
+            >info@we-amp.com</a
+          ><button
+            type="button"
+            id="contact-copy-email"
+            data-copy="info@we-amp.com"
+            class="ml-1 text-interactive hover:text-interactive-hover underline"
+            >(copy)</button
+          >.
+        </p>
+        <p id="contact-status" role="status" aria-live="polite" class="hidden text-sm"></p>
+      </div>
+    </form>
+
+    <script>
+      // Pre-fill the Topic select from ?topic= query param so the calculator's
+      // enterprise CTA (and any future links) lands on the right intent.
+      const params = new URLSearchParams(window.location.search);
+      const topicParam = params.get('topic');
+      const topicEl = document.getElementById('contact-topic') as HTMLSelectElement | null;
+      if (topicEl && topicParam) {
+        for (const opt of Array.from(topicEl.options)) {
+          if (opt.value === topicParam) {
+            topicEl.value = topicParam;
+            break;
+          }
+        }
+      }
+
+      // Copy-to-clipboard for the contact address, so a visitor whose mail client
+      // doesn't open can grab the address without selecting it by hand.
+      const copyBtn = document.getElementById('contact-copy-email') as HTMLButtonElement | null;
+      if (copyBtn) {
+        copyBtn.addEventListener('click', async () => {
+          const addr = copyBtn.dataset.copy ?? '';
+          try {
+            await navigator.clipboard.writeText(addr);
+            const prev = copyBtn.textContent;
+            copyBtn.textContent = '(copied)';
+            window.setTimeout(() => {
+              copyBtn.textContent = prev;
+            }, 1500);
+          } catch {
+            // Clipboard API unavailable (e.g. non-secure context) — the address
+            // stays visible and selectable next to this button, so this is a no-op.
+          }
+        });
+      }
+
+      // Intercept submit and POST to the capture endpoint; fall back to a mailto:
+      // (Topic-derived recipient) if the POST fails, and to the form's native
+      // mailto action if JS is off entirely.
+      const form = document.getElementById('contact-form') as HTMLFormElement | null;
+      const submitBtn = document.getElementById('contact-submit') as HTMLButtonElement | null;
+      const statusEl = document.getElementById('contact-status');
+      const emailInput = document.getElementById('contact-email') as HTMLInputElement | null;
+
+      function setStatus(kind: 'success' | 'error' | null, msg: string) {
+        if (!statusEl) return;
+        statusEl.textContent = msg;
+        statusEl.classList.remove(
+          'hidden',
+          'text-interactive',
+          'dark:text-interactive',
+          'text-amber-700',
+          'dark:text-amber-400',
+        );
+        if (kind === null) {
+          statusEl.classList.add('hidden');
+          return;
+        }
+        if (kind === 'success') {
+          statusEl.classList.add('text-interactive', 'dark:text-interactive');
+        } else {
+          statusEl.classList.add('text-amber-700', 'dark:text-amber-400');
+        }
+      }
+
+      form?.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        const data = new FormData(form);
+        const name = String(data.get('name') ?? '').trim();
+        const email = String(data.get('email') ?? '').trim();
+        const topic = String(data.get('topic') ?? 'support');
+        const message = String(data.get('message') ?? '').trim();
+
+        // Client-side validation. Lean on the browser first, then add our own
+        // checks so the failure is a clear message rather than a silent no-op.
+        if (!form.checkValidity()) {
+          form.reportValidity();
+          setStatus('error', 'Please fill in every field before sending.');
+          return;
+        }
+        if (!name || !email || !message) {
+          setStatus('error', 'Please fill in every field before sending.');
+          return;
+        }
+        const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+        if (!emailOk) {
+          setStatus('error', 'That email address does not look right. Check it and try again.');
+          // Flag the email field invalid (triggers the visible amber cue), move
+          // focus to it, and point its aria-errormessage at the status message so
+          // assistive tech announces the error against the field.
+          if (emailInput) {
+            emailInput.setAttribute('aria-invalid', 'true');
+            emailInput.setAttribute('aria-errormessage', 'contact-status');
+            emailInput.focus();
+          }
+          return;
+        }
+        // Email passed: clear any prior invalid state from an earlier submit.
+        if (emailInput) {
+          emailInput.setAttribute('aria-invalid', 'false');
+          emailInput.removeAttribute('aria-errormessage');
+        }
+
+        // mailto: fallback (used only if the POST fails) — preserves the
+        // never-lose-a-lead property the mailto-only flow had.
+        const recipient =
+          topic === 'enterprise' || topic === 'agent-optimize'
+            ? 'sales@we-amp.com'
+            : 'info@we-amp.com';
+        const subjectPrefix =
+          topic === 'enterprise'
+            ? '[Enterprise]'
+            : topic === 'agent-optimize'
+              ? '[Agent]'
+              : topic === 'other'
+                ? '[Contact]'
+                : '[Support]';
+        const subject = `${subjectPrefix} ${name || email || 'website inquiry'}`;
+        const mailtoBody = `From: ${name} <${email}>\n` + `Topic: ${topic}\n` + `\n` + `${message}\n`;
+        const mailtoHref =
+          `mailto:${recipient}` +
+          `?subject=${encodeURIComponent(subject)}` +
+          `&body=${encodeURIComponent(mailtoBody)}`;
+
+        if (submitBtn) {
+          submitBtn.disabled = true;
+          submitBtn.setAttribute('aria-busy', 'true');
+        }
+        setStatus('success', 'Sending…');
+        try {
+          const res = await fetch('/ai-readability/api/contact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ email, name, topic, message }),
+          });
+          if (!res.ok) throw new Error(`status ${res.status}`);
+          form.reset();
+          // Fire on a successful POST only (not on click) so validation-blocked
+          // or failed submits don't inflate the contact-conversion count.
+          (window as any).umami?.track('contact_submit', { topic });
+          setStatus(
+            'success',
+            'Thanks — your message is in. We aim to reply within about a business day (CET).',
+          );
+        } catch {
+          // Backend unreachable — open the mail client so the message is never lost.
+          setStatus(
+            'success',
+            `Opening your mail client, addressed to ${recipient}. If nothing happens, copy ${recipient} and email us directly.`,
+          );
+          window.location.href = mailtoHref;
+        } finally {
+          window.setTimeout(() => {
+            if (submitBtn) {
+              submitBtn.disabled = false;
+              submitBtn.removeAttribute('aria-busy');
+            }
+          }, 2000);
+        }
+      });
+    </script>
+
+    <!-- Security disclosure (separate channel) -->
+    <div
+      class="mt-12 rounded-lg border border-border bg-bg-secondary p-6"
+    >
+      <h2 class="text-lg font-semibold text-text-body">Security disclosure</h2>
+      <p class="mt-2 text-sm text-text-muted">
+        Found a vulnerability? Email
+        <a
+          href="mailto:security@modpagespeed.com"
+          class="text-interactive hover:text-interactive-hover underline"
+          >security@modpagespeed.com</a
+        >. See the
+        <a
+          href="/security/"
+          class="text-interactive hover:text-interactive-hover underline"
+          >security policy</a
+        > for safe-harbor terms and what to include in a report.
+      </p>
+    </div>
+
+    <!-- Manage subscription -->
+    <div
+      class="mt-8 rounded-lg border border-border bg-bg-secondary p-6 text-center"
+    >
+      <p class="text-sm font-medium text-text-body">Manage your subscription</p>
+      <p class="mt-2 text-sm text-text-muted">
+        Cancel, update payment details, or download invoices via the
+        <a
+          href="https://mpspro.onfastspring.com/account"
+          target="_blank"
+          rel="noopener noreferrer"
+          data-umami-event="outbound_fastspring_portal"
+          class="text-interactive hover:text-interactive-hover underline transition-colors"
+          >FastSpring customer portal</a
+        >.
+      </p>
+    </div>
+
+    <div class="mt-8 text-center">
+      <p class="text-sm text-text-annotation">
+        <a
+          href="https://www.we-amp.com/"
+          target="_blank"
+          rel="noopener noreferrer"
+          class="hover:text-text-muted transition-colors">We-Amp B.V.</a
+        >, The Netherlands
+      </p>
+    </div>
+  </section>
+</BaseLayout>

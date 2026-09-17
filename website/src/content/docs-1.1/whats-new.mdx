@@ -1,0 +1,142 @@
+---
+title: "What's New in 1.15"
+description: 'Everything that changed since the last open-source release of mod_pagespeed (2020). Security patches, AVIF image support, Cyclone Cache, multi-platform support, and more.'
+order: 5
+group: 'Getting Started'
+---
+
+import { getRelease } from '../../lib/release';
+
+export const rel11 = await getRelease('1.1');
+
+## Summary
+
+Google open-sourced mod_pagespeed in 2010. The last open-source release shipped in 2020, under the Apache incubator, and the project was archived in 2025. We-Amp picked up where the original team left off and built mod_pagespeed 1.15 — a commercially supported, drop-in compatible continuation.
+
+Everything below ships in 1.15 and is included in the subscription. If you are
+here to improve [Core Web Vitals](/core-web-vitals/), 1.15 brings the same
+server-layer optimizations — byte-weight, render-blocking, image, and caching, the
+levers behind LCP — to Apache, nginx, and IIS.
+
+## Security patches
+
+All known CVEs from the open-source project have been patched. We maintain an ongoing security review process and ship patches as part of regular updates — see the **[release notes](/1.1/docs/release-notes/)** for the per-release security entries.
+
+## Cyclone Cache
+
+The original mod_pagespeed used its own file-based cache that could grow unpredictably and suffered from lock contention under high concurrency. mod_pagespeed 1.15 replaces it with **Cyclone Cache** — a new cache backend shared with ModPageSpeed 2.0.
+
+Key improvements:
+
+- **Fixed-size cache file** — no more runaway disk usage
+- **Scan-resistant, no cache-cleaning passes** — Cyclone stays within its size bound inline, so there is no periodic background scan to trim the cache the way the original file cache needed; its eviction also resists pollution from one-off request floods, so your hot content stays cached
+- **Lock-free reads** — concurrent requests don't block each other
+- **Memory-mapped I/O** — the OS manages caching in RAM automatically
+- **Shared across processes** — works correctly with nginx worker processes
+- **Warm restarts, nothing to configure** — the open-source line kept the shared-memory metadata cache warm across restarts with periodic checkpoints to disk, which left a snapshot-interval loss window and one more knob to tune; in v1.15.0+r17 and later, metadata and page properties write through to Cyclone continuously, so a restart comes back warm with no checkpoint to schedule; in v1.15.0+r18 and later this data is held in a dedicated area of the cache, so heavy image traffic can't push it out
+- **Served by reference, not copied** — cached optimized assets can be carried into the server's output by reference to the memory-mapped cache instead of being copied per request. As of v1.15.0+r19 this is an opt-in on all three platforms (`CycloneZeroCopy`, plus `CycloneZeroCopyServe` on Apache and IIS) while it accrues production soak; see the [release notes](/1.1/docs/release-notes/) for the exact per-platform directives
+
+Your existing `pagespeed` directives continue to work. Cyclone Cache is the new default backend — no configuration change required.
+
+## AVIF joins WebP
+
+As of v1.15.0+r20, images can be optimized to
+**[AVIF](/1.1/docs/image-filters/#avif)** alongside the WebP path the module
+has shipped for years — on Apache, nginx, and IIS, served only to browsers
+that advertise the format. The four AVIF filters are **opt-in** (AV1 encoding
+costs more CPU than WebP, so it is not folded into `rewrite_images`), the
+encoder picks the smaller of the AVIF, WebP, and original outputs per image so
+enabling it cannot make an image larger, and metadata-retention options are
+honored — images carrying a C2PA content-provenance manifest are skipped,
+never stripped.
+
+As of v1.15.0+r21, WebP support is determined from the browser's `Accept`
+request header alone instead of hand-maintained lists of browser version
+strings: a browser that advertises WebP is taken to support every flavour of
+it, as AVIF already was.
+
+## Modernized, secured filter stack
+
+The filters are drop-in compatible with the open-source release — and they
+have been modernized well past their 2020 state:
+
+- **Modern JavaScript and CSS** — the tokenizer-based minifier handles
+  ES2015+ syntax (`??`, `?.`, destructuring, dynamic `import()`, `<script
+  type="module">`), and CSS inside `@supports`, `@layer`, and `@container`
+  blocks and level-4 media queries now optimizes instead of passing through
+  unchanged (v1.15.0+r20)
+- **New optimizers** — opt-in `prioritize_critical_images` (beacon-verified
+  `fetchpriority` for the images that determine LCP) and
+  `insert_speculation_rules` (same-origin prefetch as the user starts
+  interacting), revived Google Fonts CSS inlining, and font preload hints
+  harvested from `@font-face` rules (v1.15.0+r20)
+- **Core Web Vitals reporting** — the instrumentation beacon reports LCP,
+  CLS, and INP to the admin console, and no longer disables the browser's
+  back/forward cache (v1.15.0+r20)
+- **Respect for modern platform features** — Subresource Integrity,
+  Content-Security-Policy, and JavaScript modules are honored: rewrites that
+  would break them back off (v1.15.0+r20)
+- **One JavaScript minifier** — the legacy minifier is removed, completing
+  the deprecation announced in r19; the tokenizer-based minifier (the
+  default since 1.10.33.0, and the only one that understands modern
+  JavaScript) is now the only one. `UseExperimentalJsMinifier` is still
+  accepted, ignored, and logs a deprecation warning (v1.15.0+r21)
+- **Module preload hints** — dependencies collected from `<script
+  type="module">` are announced as `rel=modulepreload` in the `Link`
+  response header; modules carrying `integrity` or
+  `crossorigin="use-credentials"` are left unhinted (v1.15.0+r21)
+- **Automated clients get authored markup** — `defer_javascript` (and the
+  filters sharing its gate) no longer applies to automated clients,
+  including search-engine crawlers: they receive the page's normal script
+  markup instead of deferred markup only PageSpeed's client-side runtime
+  can execute. The known automated-client list has been brought up to date
+  with the current generation of AI assistant fetchers, and nginx gains the
+  opt-in `WebBotAuthBotDetection` directive: a cryptographically verified
+  Web Bot Auth signature (RFC 9421) classifies the request as automated
+  regardless of its user-agent string (v1.15.0+r21)
+- **Automatic optimization thread counts on Apache** — the two optimization
+  worker pools (`NumRewriteThreads`, `NumExpensiveRewriteThreads`) now
+  default to `auto` and are sized from the CPUs the process may use and the
+  child-process ceiling httpd reports, replacing fixed defaults that could
+  leave the server under-provisioned; the chosen counts are logged at
+  startup (v1.15.0+r21)
+- **Ongoing security hardening** — output-escaping, input-validation, and
+  parser hardening ship continuously; see
+  [Security patches](#security-patches)
+
+## Multi-platform support
+
+The open-source mod_pagespeed supported nginx and Apache. mod_pagespeed 1.15 adds IIS as a first-class platform — replacing IISpeed — plus an ASP.NET Core sidecar package ([WeAmp.PageSpeed](/1.1/docs/aspnet-sidecar/), preview):
+
+| Platform   | Status                                                                                                                                                                                                                                                               |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **nginx**  | Stable — prebuilt, signed apt/yum package for Debian 11/12/13 and Ubuntu 22.04/24.04 (amd64 + arm64) plus AlmaLinux/RHEL/Rocky 9 (x86_64 + aarch64) and 10 (x86_64), each pinned to that distro's stock nginx; contact us for a pinned build on other nginx versions |
+| **Apache** | Stable — drop-in replacement for the Google/Apache module                                                                                                                                                                                                            |
+| **IIS**    | Stable — native module for {rel11.compat.iis.os[0]} and later (IIS {rel11.compat.iis.iis_versions.join('/')}) — replaces IISpeed                                                                                                                                     |
+
+All platforms are built from a single codebase and share the same filter implementations.
+
+## Modern build system
+
+mod_pagespeed 1.15 is built with Bazel, replacing the original GYP/Make build system. This means:
+
+- **Reproducible builds** — every build produces identical output
+- **Pre-built packages** — .deb and .rpm from signed apt/yum repositories, and a signed .msi for IIS — no compiling from source
+- **Hermetic toolchain** — no dependency on system libraries
+
+## What stays the same
+
+mod_pagespeed 1.15 is a **drop-in replacement**. These things haven't changed:
+
+- All existing `pagespeed` configuration directives work as before
+- All filter names are accepted and the filters behave identically — with the
+  exception of a small set of long-obsolete ones (the Universal Analytics
+  filters, whose service was discontinued in 2023, and a few long-inert
+  names) that are deprecated as of v1.15.0+r20 — their names still parse and
+  log a deprecation warning; see the
+  [release notes](/1.1/docs/release-notes/)
+- The `X-Mod-Pagespeed` (Apache) / `X-Page-Speed` (nginx) response header is still emitted
+- Admin and statistics pages work the same way
+- `.htaccess` support on Apache is preserved
+
+If your site works with the open-source version, it works with 1.15. Swap the binary, keep your config.

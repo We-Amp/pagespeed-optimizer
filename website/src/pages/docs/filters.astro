@@ -1,0 +1,250 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { filtersByCategory } from '../../data/filters';
+
+// Canonical hub for the head term "PageSpeed filters" (SEO de-cannibalization,
+// 2026-06-18). This page used to be a pure category-card hub whose title
+// enumerated the taxonomy, so the SERP snippet fully answered the query and the
+// page drew impressions but zero clicks. It is now an ANSWER page: a flat,
+// scannable reference table of every filter sits up top (snippet bait + a click
+// reason the snippet can't contain), the category cards stay below for the
+// drill-down. The legacy /1.0/doc/{filters,config_filters}.html hubs are
+// noindex'd so they stop competing for the same term; the 1.1 docs keep their
+// product-scoped titles and link up here for the generic concept.
+//
+// The per-filter directive reference lives under /1.1/docs/ because the named
+// filter taxonomy (EnableFilters/RewriteLevel/the ~62 filters) is a mod_pagespeed
+// 1.15 feature. ModPageSpeed 2.0 is an independent rebuild with a different,
+// worker-flag optimization pipeline (image opt incl. AVIF + learned quality,
+// critical CSS, caching — see /docs/configuration/), NOT this filter list.
+
+const groups = filtersByCategory();
+const orderedFilters = groups.flatMap((g) => g.filters);
+
+const categories = [
+  {
+    slug: 'image-filters',
+    title: 'Image filters',
+    description:
+      'Recompression, format conversion (WebP), resizing, inlining, lazy loading, and responsive images. The master filter rewrite_images is a CoreFilter and enables several sub-filters by default.',
+  },
+  {
+    slug: 'css-filters',
+    title: 'CSS filters',
+    description:
+      'Minification, combining, inlining, import flattening, and critical CSS extraction. Several CSS filters are CoreFilters and run by default; the rest can be enabled individually or via OptimizeForBandwidth.',
+  },
+  {
+    slug: 'javascript-filters',
+    title: 'JavaScript filters',
+    description:
+      'Minification, combining, inlining, deferring execution, and source map preservation. Three JS filters are CoreFilters: rewrite_javascript, combine_javascript, and inline_javascript.',
+  },
+  {
+    slug: 'html-filters',
+    title: 'HTML filters',
+    description:
+      'Whitespace removal, comment stripping, attribute elision, DNS prefetch, and resource preloading. Two HTML filters (add_head, convert_meta_tags) are CoreFilters and run by default.',
+  },
+  {
+    slug: 'caching-url-filters',
+    title: 'Caching & URL filters',
+    description:
+      'Cache extension and URL management. The extend_cache filter rewrites resource URLs so browsers cache them aggressively while still receiving updated content when resources change.',
+  },
+];
+
+// ItemList enumerates the filters (not the five categories) so the structured
+// data mirrors the visible flat table — one ItemList, in the same order as the
+// rendered rows, for list/table-snippet eligibility without a content mismatch.
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: 'PageSpeed filters: the complete reference',
+  description:
+    'Every mod_pagespeed optimization filter in one reference: what each filter does and which content type it transforms. The complete filter list for mod_pagespeed 1.15.',
+  url: 'https://modpagespeed.com/docs/filters/',
+  mainEntity: {
+    '@type': 'ItemList',
+    numberOfItems: orderedFilters.length,
+    itemListElement: orderedFilters.map((f, idx) => ({
+      '@type': 'ListItem',
+      position: idx + 1,
+      name: f.name,
+      description: f.description,
+      url: `https://modpagespeed.com${f.href}`,
+    })),
+  },
+  about: {
+    '@type': 'SoftwareApplication',
+    name: 'mod_pagespeed',
+    applicationCategory: 'WebApplication',
+  },
+};
+---
+
+<BaseLayout
+  title="PageSpeed filters: the complete reference (60+)"
+  description="Every mod_pagespeed filter in one table: what each one does and its content type. The complete filter reference for mod_pagespeed 1.15. Not Google PageSpeed Insights."
+  jsonLd={jsonLd}
+>
+  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16 lg:py-20">
+    <div
+      class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:flex-wrap"
+    >
+      <h1 class="h1-hero break-words text-text-body">PageSpeed filters</h1>
+      <a
+        href="/docs/"
+        class="text-sm font-medium text-interactive hover:text-interactive-hover inline-flex items-center gap-1 self-start sm:self-auto"
+        aria-label="Back to documentation index"
+      >
+        Documentation
+        <span aria-hidden="true">&rarr;</span>
+      </a>
+    </div>
+
+    <p class="mt-4 text-lg text-text-muted">
+      PageSpeed filters are the named optimizations in mod_pagespeed, the <a
+        href="/1.1/"
+        class="text-interactive hover:text-interactive-hover underline-offset-4 hover:underline"
+        >in-process module</a
+      > that rewrites pages as your server serves them. Each filter performs one transformation on a
+      response: recompress images, minify and combine CSS and JavaScript, inline critical CSS, extend
+      cache lifetimes. The table below lists every filter in mod_pagespeed 1.15.
+    </p>
+
+    <p class="mt-4 text-sm text-text-muted">
+      ModPageSpeed 2.0 is an independent rebuild with a different optimization pipeline. It applies
+      image optimization (WebP, <a
+        href="/blog/avif-vs-webp-2026/"
+        class="text-interactive hover:text-interactive-hover underline-offset-4 hover:underline"
+        >AVIF</a
+      >, learned quality), critical CSS, and caching, configured through the worker rather than this
+      filter list. See the <a
+        href="/docs/configuration/"
+        class="text-interactive hover:text-interactive-hover underline-offset-4 hover:underline"
+        >ModPageSpeed 2.0 configuration guide</a
+      >.
+    </p>
+
+    <p
+      class="mt-4 rounded-lg border border-border bg-bg-elevated px-4 py-3 text-sm text-text-muted"
+    >
+      Looking for the Google PageSpeed Insights score at <a
+        href="https://pagespeed.web.dev"
+        rel="noopener"
+        class="text-interactive hover:text-interactive-hover underline-offset-4 hover:underline"
+        >pagespeed.web.dev</a
+      >? That is Google&rsquo;s online scoring tool. This page documents the optimization filters
+      that do the work, not the score. To measure a URL yourself, use <a
+        href="/analyze/"
+        class="text-interactive hover:text-interactive-hover underline-offset-4 hover:underline"
+        >Analyze</a
+      >.
+    </p>
+
+    <p class="mt-4 text-sm text-text-muted">
+      Enable filters individually with <code
+        class="text-sm bg-bg-elevated px-1.5 py-0.5 rounded font-mono">EnableFilters</code
+      >, or activate them in groups via <code
+        class="text-sm bg-bg-elevated px-1.5 py-0.5 rounded font-mono">RewriteLevel</code
+      > presets (CoreFilters, OptimizeForBandwidth). For how to enable, disable, and scope filters per
+      location, see the <a
+        href="/1.1/docs/filter-selection/"
+        class="text-interactive hover:text-interactive-hover underline-offset-4 hover:underline"
+        >mod_pagespeed 1.15 filter selection reference</a
+      >.
+    </p>
+
+    <h2 class="mt-10 text-base font-semibold text-text-body">The full list of PageSpeed filters</h2>
+    <p class="mt-1 text-sm text-text-muted">
+      Every filter, what it does, and which content type it transforms. Each name links to its
+      directive reference.
+    </p>
+
+    <div class="mt-4 overflow-x-auto">
+      <table class="w-full border-collapse text-sm">
+        <thead>
+          <tr class="border-b border-border text-left align-bottom">
+            <th scope="col" class="py-2 pr-4 font-semibold text-text-body">Filter</th>
+            <th scope="col" class="py-2 pr-4 font-semibold text-text-body">What it does</th>
+            <th scope="col" class="py-2 font-semibold text-text-body">Category</th>
+          </tr>
+        </thead>
+        <tbody>
+          {
+            orderedFilters.map((f) => (
+              <tr class="border-b border-border/60">
+                <td class="py-2 pr-4 align-top">
+                  <a
+                    href={f.href}
+                    class="font-mono text-interactive hover:text-interactive-hover break-all"
+                  >
+                    {f.name}
+                  </a>
+                </td>
+                <td class="py-2 pr-4 align-top text-text-muted">{f.description}</td>
+                <td class="py-2 align-top text-text-annotation whitespace-nowrap">{f.category}</td>
+              </tr>
+            ))
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <p class="mt-4 text-sm text-text-muted">
+      For the full directive-level reference (parameters, defaults, CoreFilter and
+      OptimizeForBandwidth membership, and safety notes), see the <a
+        href="/1.1/docs/filter-reference/"
+        class="text-interactive hover:text-interactive-hover underline-offset-4 hover:underline"
+        >per-filter directive reference</a
+      >.
+    </p>
+
+    <div class="mt-12 border-t border-border pt-8">
+      <h2 class="text-xl font-semibold text-text-body">Filters by category</h2>
+      <p class="mt-1 text-sm text-text-muted">
+        The per-category pages document every directive: parameters, defaults, and how to scope a
+        filter to a location.
+      </p>
+      <div class="mt-6 space-y-3">
+        {
+          categories.map((cat) => (
+            <a
+              href={`/1.1/docs/${cat.slug}/`}
+              class="block rounded-lg border border-border bg-bg-elevated p-6 hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
+            >
+              <h3 class="text-lg font-semibold text-text-body">{cat.title}</h3>
+              <p class="mt-1 text-sm text-text-muted">{cat.description}</p>
+            </a>
+          ))
+        }
+      </div>
+    </div>
+
+    <div class="mt-12 border-t border-border pt-8">
+      <h2 class="eyebrow tracking-widest text-text-body mb-6">See also</h2>
+      <div class="space-y-3">
+        <a
+          href="/1.1/docs/filters-overview/"
+          class="block rounded-lg border border-border bg-bg-elevated p-6 hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
+        >
+          <h3 class="text-lg font-semibold text-text-body">Filters overview</h3>
+          <p class="mt-1 text-sm text-text-muted">
+            All filters in one place, with one-line descriptions and CoreFilter membership.
+          </p>
+        </a>
+        <a
+          href="/1.1/docs/filter-reference/"
+          class="block rounded-lg border border-border bg-bg-elevated p-6 hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
+        >
+          <h3 class="text-lg font-semibold text-text-body">Filter directive reference</h3>
+          <p class="mt-1 text-sm text-text-muted">
+            Full directive reference for every filter: parameters, defaults, and per-server-block
+            scoping rules.
+          </p>
+        </a>
+      </div>
+    </div>
+  </section>
+</BaseLayout>

@@ -1,0 +1,25 @@
+---
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2024-2026 We-Amp B.V.
+//
+// Renders the GPG signing-key URL or an <a> linking to it, sourced from
+// the corp release manifest (ADR-062 Stage 7). The key URL moved off the
+// versioned archive base to packages.modpagespeed.com so it survives
+// reships without re-uploading.
+
+import { getRelease } from '../../lib/release';
+
+interface Props {
+  line?: '1.1' | '2.0';
+  /** When true, render only the URL string; otherwise render <a>{text}</a>. */
+  urlOnly?: boolean;
+  /** Anchor text when rendering as a link. Default: "GPG signing key". */
+  text?: string;
+}
+
+const { line = '1.1', urlOnly = false, text = 'GPG signing key' } = Astro.props;
+const rel = await getRelease(line);
+const url = rel.urls.gpg_key;
+---
+
+{urlOnly ? <Fragment>{url}</Fragment> : <a href={url}>{text}</a>}

@@ -1,0 +1,149 @@
+---
+title: 'Upgrading from open-source mod_pagespeed'
+description: 'Move from the archived open-source mod_pagespeed to the maintained 1.15 release on nginx, Apache, or IIS. Drop-in compatible — your config, filters, and .htaccess rules keep working.'
+order: 3
+group: 'Getting Started'
+lastUpdated: 2026-07-04
+---
+
+import XPageSpeedExample from '../../components/release/XPageSpeedExample.astro';
+
+## Overview
+
+mod_pagespeed 1.15 is a **drop-in replacement** for Google's open-source mod_pagespeed. The upgrade takes a few minutes:
+
+1. Stop your web server
+2. Replace the module binary
+3. Start your web server
+
+That's it. Your existing configuration, filters, and `.htaccess` rules continue to work.
+
+## Before you start
+
+Check your current version:
+
+```bash
+# nginx
+curl -I http://localhost/ | grep X-Page-Speed
+
+# Apache
+curl -I http://localhost/ | grep X-Mod-Pagespeed
+```
+
+**Back up your current module** in case you want to roll back:
+
+```bash
+# nginx
+sudo cp /usr/lib/nginx/modules/ngx_pagespeed_module.so /usr/lib/nginx/modules/ngx_pagespeed_module.so.bak
+
+# Apache
+sudo cp /usr/lib/apache2/modules/mod_pagespeed.so /usr/lib/apache2/modules/mod_pagespeed.so.bak
+```
+
+## Upgrade steps
+
+### nginx
+
+On Debian 11/12/13 or Ubuntu 22.04/24.04 (amd64 + arm64), or AlmaLinux/RHEL/Rocky 9 (x86_64 + aarch64) and 10 (x86_64), install from the signed repository — it drops the module into the standard nginx modules directory and tracks upgrades through your package manager:
+
+```bash
+# 1. Configure the repository and import the signing key (one time)
+curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+
+# 2. Install the module
+sudo apt install nginx-module-pagespeed   # Debian / Ubuntu
+sudo dnf install nginx-module-pagespeed   # AlmaLinux/RHEL/Rocky 9 or 10
+
+# 3. Restart nginx
+sudo systemctl restart nginx
+
+# 4. Verify
+curl -I http://localhost/ | grep X-Page-Speed
+# Should show: see expected response header below
+```
+
+Running an nginx version we don't yet package? Each module is exact-version-pinned to its distro's stock nginx — nginx refuses to load a module built for a different version — and the module source is not public, so there is no build-it-yourself path. [Contact us](/contact/) for a matching pinned build.
+
+<pre>
+  <code>
+    <XPageSpeedExample line="1.1" surface="nginx" />
+  </code>
+</pre>
+
+### Apache
+
+```bash
+# 1. Stop Apache
+sudo systemctl stop apache2
+
+# 2. Replace the module
+sudo cp mod_pagespeed.so /usr/lib/apache2/modules/
+
+# 3. Start Apache
+sudo systemctl start apache2
+
+# 4. Verify
+curl -I http://localhost/ | grep X-Mod-Pagespeed
+```
+
+### IIS
+
+1. Uninstall the existing IISpeed or mod_pagespeed module from IIS Manager
+2. Install the mod_pagespeed 1.15 module
+3. Restart IIS: `iisreset`
+
+## Cache migration
+
+mod_pagespeed 1.15 uses **Cyclone Cache**, a new cache backend. On first start after the upgrade:
+
+- The old file cache is ignored (not deleted)
+- Cyclone Cache starts fresh with an empty cache
+- Resources are re-optimized on first request — expect a brief warm-up period
+
+The warm-up is a one-time cost: in v1.15.0+r17 and later, cache contents persist across restarts (see [caching configuration](/1.1/docs/caching/)).
+
+You can safely delete the old cache directory after confirming the upgrade works:
+
+```bash
+# Check your config for the cache path, then:
+sudo rm -rf /var/cache/mod_pagespeed/  # or wherever your old cache lived
+```
+
+For cache sizing and storage options, see [caching configuration](/1.1/docs/caching/).
+
+## Configuration compatibility
+
+All existing directives are supported — the [directive index](/1.1/docs/directive-index/) lists the full set. A few notes:
+
+| Directive                   | Status                                        |
+| --------------------------- | --------------------------------------------- |
+| `pagespeed on/off`          | Works as before                               |
+| `pagespeed RewriteLevel`    | Works as before                               |
+| `pagespeed EnableFilters`   | All 40+ filters available                     |
+| `pagespeed DisableFilters`  | Works as before                               |
+| `pagespeed Domain`          | Works as before                               |
+| `pagespeed MapOriginDomain` | Works as before                               |
+| `pagespeed FileCachePath`   | Accepted — Cyclone Cache uses its own storage |
+
+The `FileCachePath` directive is still accepted for compatibility but mod_pagespeed 1.15 uses Cyclone Cache for storage. You can remove it from your config if you prefer.
+
+## Rolling back
+
+If you need to revert to the open-source version:
+
+```bash
+# Restore the backup you made earlier
+sudo systemctl stop nginx
+sudo cp /usr/lib/nginx/modules/ngx_pagespeed_module.so.bak /usr/lib/nginx/modules/ngx_pagespeed_module.so
+sudo systemctl start nginx
+```
+
+## Moving to ModPageSpeed 2.0?
+
+mod_pagespeed 1.15 stays the right choice for an in-process module on Apache, nginx, or IIS (Envoy is experimental) — the same architecture you are upgrading to here. If you are building a new deployment instead, look at [ModPageSpeed 2.0](/docs/): a Docker reverse proxy in front of any origin, or ASP.NET Core middleware. They are different products: 1.15 keeps the in-process, filter-based engine you are upgrading here, while 2.0 is an independent C++23 rebuild with its own optimization model and deployment topology.
+
+## Getting help
+
+- **Documentation:** [mod_pagespeed 1.15 docs](/1.1/docs/)
+- **Legacy docs:** [Open-source documentation (1.0)](/1.0/)
+- **Support:** [Contact us](/contact/) — included with your subscription

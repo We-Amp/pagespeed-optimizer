@@ -1,0 +1,32 @@
+---
+// Shared body for the error pages. Used by both the special top-level pages
+// (src/pages/404.astro, 500.astro — for dev + the node adapter) and the
+// prerendered copies at /error/404/ and /error/500/ that nginx actually serves
+// in production (TECH-1: the adapter only emits a redirect stub for the special
+// /404 route in the static build, so a non-special path carries the real page).
+interface Props {
+  code: string;
+  heading: string;
+  body: string;
+  linkHref: string;
+  linkLabel: string;
+}
+const { code, heading, body, linkHref, linkLabel } = Astro.props;
+---
+
+<section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-24 sm:py-32 text-center">
+  <p class="text-sm font-semibold text-interactive">{code}</p>
+  <h1 class="mt-4 text-4xl sm:text-5xl font-bold tracking-tight text-text-body">
+    {heading}
+  </h1>
+  <p class="mt-6 text-lg text-text-muted max-w-xl mx-auto">{body}</p>
+  <div class="mt-10 flex items-center justify-center gap-4">
+    <a href="/" class="btn-primary"> Go home </a>
+    <a
+      href={linkHref}
+      class="text-sm font-semibold text-text-muted hover:text-text-body transition-colors"
+    >
+      {linkLabel} <span aria-hidden="true">&rarr;</span>
+    </a>
+  </div>
+</section>

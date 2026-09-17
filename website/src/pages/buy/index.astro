@@ -1,0 +1,49 @@
+---
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2024-2026 We-Amp B.V.
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { PRODUCT_NAME, CURRENT_LINE, LICENSE_CLAUSE } from '../../data/product-facts.mjs';
+
+// Placeholder: the per-site ladder checkout is gone with the converged line;
+// what goes on sale here is support plans and hardened-build subscriptions,
+// and their checkout follows the pricing workstream — until then this page
+// holds the URL (noindex, out of the sitemap) with no live FastSpring SBL.
+//
+// Terms version stamped on the standalone-purchase consent record. MUST stay
+// in lockstep with website/src/pages/terms.astro ("Version …") — the 3-way
+// guard test/sync/terms-version-sync.test.ts reads this literal, so it stays
+// even while no checkout runs. When support-plan checkout lands, the consent
+// wiring picks this constant back up.
+const TERMS_VERSION_WEB = '2026-09';
+const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
+---
+
+<BaseLayout
+  title="Checkout — plans coming"
+  description={`${PRODUCT} is ${LICENSE_CLAUSE} and free to run. Checkout for support plans and hardened builds opens when pricing is published; until then, contact sales@we-amp.com.`}
+  noindex={true}
+>
+  <section class="mx-auto max-w-2xl px-4 sm:px-6 lg:px-8 py-24 text-center">
+    <h1 class="h1-hero text-text-body">Checkout opens with pricing</h1>
+    <p class="mt-6 text-text-muted">
+      {PRODUCT} is {LICENSE_CLAUSE}: free to install and run, in development and in production. What
+      We-Amp sells is
+      <a href="/pricing/" class="text-interactive underline underline-offset-4"
+        >support — and hardened, attested builds</a
+      > — checkout opens here once pricing is published. Until then, talk to us directly at <a
+        href="mailto:sales@we-amp.com"
+        class="text-interactive underline underline-offset-4">sales@we-amp.com</a
+      >.
+    </p>
+    <div class="mt-8 flex flex-wrap justify-center gap-4">
+      <a href="/download/" class="btn-primary">Download &amp; run &rarr;</a>
+      <a href="/pricing/" class="btn-secondary">Support plans &rarr;</a>
+    </div>
+    <p class="mt-8 text-xs text-text-annotation" data-terms-version={TERMS_VERSION_WEB}>
+      When checkout opens, purchases will be governed by the <a
+        href="/terms/"
+        class="underline underline-offset-2 hover:text-text-body">Terms of Service</a
+      >.
+    </p>
+  </section>
+</BaseLayout>

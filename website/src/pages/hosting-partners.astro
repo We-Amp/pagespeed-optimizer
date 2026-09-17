@@ -1,0 +1,92 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import Icon from '../components/Icon.astro';
+import { LICENSING_TERMS_URL } from '../data/product-facts.mjs';
+
+// Partner-program page (converged model): the software is free everywhere, so
+// the hosting offer is the support subscription shaped for providers —
+// fleet-scale backing, packaging coordination, and a direct channel — not a
+// volume license. Keep the two structural markers the production smoke
+// asserts: the hosting-topic contact CTA and the packages.modpagespeed.com
+// reference.
+
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'WebPage',
+  name: 'Hosting partners — mod_pagespeed',
+  description:
+    'The hosting partner program backs hosting providers running mod_pagespeed at fleet scale.',
+};
+---
+
+<BaseLayout
+  title="Hosting Partners — mod_pagespeed"
+  description="mod_pagespeed is free on every host. The hoster partner program adds fleet-scale support: packaging coordination, upgrade guidance, and a direct channel for providers."
+  jsonLd={jsonLd}
+>
+  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <p class="eyebrow text-interactive">Partner program &middot; for hosting providers</p>
+    <h1 class="mt-3 h1-hero text-text-body">Run it across your fleet. We'll back you.</h1>
+    <p class="lede mt-6 max-w-3xl">
+      mod_pagespeed is free on every host and every hosted domain — nothing about fleet scale
+      changes that. The hosting partner program is the support subscription shaped for providers: a
+      direct channel to the people who build the product, for those who make it part of their
+      platform.
+    </p>
+
+    <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div class="card">
+        <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
+          <Icon name="server" class="h-5 w-5 text-interactive" />
+        </div>
+        <h3 class="mt-4 font-semibold text-text-body">The packages you already trust</h3>
+        <p class="mt-2 text-sm text-text-muted">
+          No partner-specific builds: the same signed packages every nginx and Apache deployment
+          uses, from <a
+            href="https://packages.modpagespeed.com/"
+            rel="noopener noreferrer external"
+            class="text-interactive hover:text-interactive-hover underline"
+            >packages.modpagespeed.com</a
+          > — including cPanel/EA4 RPMs.
+        </p>
+      </div>
+      <div class="card">
+        <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
+          <Icon name="route" class="h-5 w-5 text-interactive" />
+        </div>
+        <h3 class="mt-4 font-semibold text-text-body">Fleet-scale support</h3>
+        <p class="mt-2 text-sm text-text-muted">
+          Support for providers who make mod_pagespeed part of their platform — talk to us about
+          what the program covers for your fleet.
+        </p>
+      </div>
+      <div class="card">
+        <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
+          <Icon name="check" class="h-5 w-5 text-interactive" />
+        </div>
+        <h3 class="mt-4 font-semibold text-text-body">Annual partner agreement</h3>
+        <p class="mt-2 text-sm text-text-muted">
+          One agreement per provider, under the <a
+            href={LICENSING_TERMS_URL}
+            class="text-interactive hover:text-interactive-hover underline">We-Amp terms</a
+          >. Program details are being finalized with the subscription pricing.
+        </p>
+      </div>
+    </div>
+
+    <div class="mt-14 rounded-2xl border border-border bg-bg-secondary p-6 md:p-8 text-center">
+      <h2 class="h2-section text-text-body">Talk to us about your fleet</h2>
+      <p class="mt-3 text-text-muted max-w-2xl mx-auto">
+        Tell us the platform (cPanel/EA4, plain Apache, nginx), the host count, and how you roll out
+        — we'll come back with what the partnership looks like.
+      </p>
+      <div class="mt-6">
+        <a
+          href="/contact/?topic=hosting"
+          class="btn-primary"
+          data-umami-event="cta_hosting_partners_contact">Contact us about the partner program</a
+        >
+      </div>
+    </div>
+  </section>
+</BaseLayout>

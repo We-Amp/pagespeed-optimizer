@@ -1,0 +1,127 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { getCollection } from 'astro:content';
+
+const allDocs = (await getCollection('docs-1.1')).sort((a, b) => a.data.order - b.data.order);
+
+// Build grouped structure
+const groups: { label: string; docs: typeof allDocs }[] = [];
+let currentGroup = '';
+for (const d of allDocs) {
+  const group = d.data.group ?? '';
+  if (group !== currentGroup) {
+    currentGroup = group;
+    groups.push({ label: group, docs: [] });
+  }
+  groups[groups.length - 1].docs.push(d);
+}
+
+// CollectionPage/ItemList structured data built from the rendered 1.1 docs
+// list so search engines understand the hub → spoke relationship. Names and
+// URLs mirror the visible cards (one ListItem per docs-1.1 entry, same
+// `/1.1/docs/${id}/` href). The top-level /pagespeed-markers/ card is
+// intentionally excluded — it keeps its own TechArticle/FAQPage JSON-LD.
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'CollectionPage',
+  name: 'mod_pagespeed 1.15 Documentation',
+  description:
+    'Install, configure, and optimize with mod_pagespeed 1.15. Guides for nginx, Apache, IIS, and Envoy. Filter reference, caching, and troubleshooting.',
+  url: 'https://modpagespeed.com/1.1/docs/',
+  publisher: { '@id': 'https://we-amp.com/#organization' },
+  mainEntity: {
+    '@type': 'ItemList',
+    name: 'mod_pagespeed 1.15 documentation pages',
+    numberOfItems: allDocs.length,
+    itemListElement: allDocs.map((doc, i) => ({
+      '@type': 'ListItem',
+      position: i + 1,
+      name: doc.data.title,
+      url: `https://modpagespeed.com/1.1/docs/${doc.id}/`,
+    })),
+  },
+};
+---
+
+<BaseLayout
+  title="Documentation — mod_pagespeed 1.15"
+  description="Install, configure, and optimize with mod_pagespeed 1.15. Guides for nginx, Apache, IIS, and Envoy. Filter reference, caching, and troubleshooting."
+  jsonLd={jsonLd}
+>
+  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-20">
+    <div class="flex items-center justify-between gap-4">
+      <h1 class="text-4xl font-bold tracking-tight text-text-body">
+        mod_pagespeed 1.15 Documentation
+      </h1>
+      <a
+        href="/docs/"
+        class="text-sm font-medium text-interactive hover:text-interactive-hover inline-flex items-center gap-1"
+        aria-label="Switch to ModPageSpeed 2.0 documentation"
+      >
+        ModPageSpeed 2.0 docs
+        <span aria-hidden="true">&rarr;</span>
+      </a>
+    </div>
+    <p class="mt-4 text-lg text-text-muted">
+      Everything you need to install, configure, and run mod_pagespeed 1.15 on nginx, Apache, IIS,
+      and Envoy.
+    </p>
+
+    <div
+      class="mt-6 rounded-lg border border-border bg-bg-secondary p-4 text-sm text-text-muted"
+    >
+      Starting a new deployment? <a
+        href="/docs/"
+        class="font-medium text-interactive hover:text-interactive-hover"
+        >ModPageSpeed 2.0</a
+      > is the current flagship — a Docker reverse proxy in front of any origin, or ASP.NET Core middleware.
+      Stay on 1.15 to keep an in-process module for Apache, nginx, IIS, or Envoy.
+    </div>
+
+    <div class="mt-12 space-y-10">
+      {
+        groups.map((group) => (
+          <div>
+            {group.label && (
+              <h2 class="text-xs font-semibold uppercase tracking-wider text-text-annotation mb-4">
+                {group.label}
+              </h2>
+            )}
+            <div class="space-y-3">
+              {group.docs.map((doc) => (
+                <a
+                  href={`/1.1/docs/${doc.id}/`}
+                  class="block rounded-lg border border-border p-6 hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
+                >
+                  <h3 class="text-lg font-semibold text-text-body">
+                    {doc.data.title}
+                  </h3>
+                  <p class="mt-1 text-sm text-text-muted">
+                    {doc.data.description}
+                  </p>
+                </a>
+              ))}
+              {/* Intentional link to the top-level /pagespeed-markers/ reference page.
+                  It is NOT a docs-1.1 collection entry (kept at top-level so it retains
+                  its own TechArticle/FAQPage JSON-LD and URL) — do not remove. */}
+              {group.label === 'Reference' && (
+                <a
+                  href="/pagespeed-markers/"
+                  class="block rounded-lg border border-border p-6 hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
+                >
+                  <h3 class="text-lg font-semibold text-text-body">
+                    PageSpeed markers
+                  </h3>
+                  <p class="mt-1 text-sm text-text-muted">
+                    What the .pagespeed. URLs, data-pagespeed-* attributes, and X-Page-Speed
+                    header on an optimized page mean.
+                  </p>
+                </a>
+              )}
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+</BaseLayout>

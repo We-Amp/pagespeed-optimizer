@@ -1,0 +1,201 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+
+// AboutPage JSON-LD references the canonical Organization node defined on
+// index.astro and iispeed.com via @id. Cross-property identity lets Google
+// reconcile the same legal entity wherever it appears.
+const jsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'AboutPage',
+  name: 'About — ModPageSpeed 2.0',
+  url: 'https://modpagespeed.com/about/',
+  description:
+    'The team behind ModPageSpeed 2.0: We-Amp B.V., a Dutch software company founded in 2012 that helped build ngx_pagespeed and maintained mod_pagespeed, and today maintains the PageSpeed optimization lineage — led by Otto van der Schaaf, an Apache PageSpeed committer and IPMC member.',
+  mainEntity: {
+    '@type': 'Organization',
+    '@id': 'https://we-amp.com/#organization',
+    name: 'We-Amp B.V.',
+    url: 'https://we-amp.com',
+    logo: 'https://we-amp.com/images/weamp.svg',
+    description:
+      'Dutch software company building server-side web optimization technology. Maintainer of ModPageSpeed 2.0 and mod_pagespeed 1.15.',
+    foundingDate: '2012',
+    founder: {
+      '@type': 'Person',
+      name: 'Otto van der Schaaf',
+      sameAs: ['https://www.linkedin.com/in/oschaaf', 'https://github.com/oschaaf'],
+    },
+    address: {
+      '@type': 'PostalAddress',
+      addressLocality: 'Castricum',
+      addressCountry: 'NL',
+    },
+    identifier: [{ '@type': 'PropertyValue', propertyID: 'KvK', value: '57898138' }],
+    sameAs: [
+      'https://we-amp.com',
+      'https://iispeed.com',
+      'https://github.com/We-Amp',
+      'https://github.com/oschaaf',
+    ],
+    brand: {
+      '@type': 'Brand',
+      name: 'ModPageSpeed 2.0',
+    },
+  },
+};
+---
+
+<BaseLayout
+  title="About — ModPageSpeed 2.0"
+  description="Built by We-Amp B.V. — a Dutch web-optimization company founded in 2012 in Castricum that helped build ngx_pagespeed and maintained mod_pagespeed, and today maintains the PageSpeed optimization lineage: mod_pagespeed 1.15, ngx_pagespeed, ModPageSpeed 2.0, and IISpeed."
+  jsonLd={jsonLd}
+>
+  {/* Hero */}
+  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-20">
+    <h1 class="h1-hero text-text-body">The team behind ModPageSpeed.</h1>
+    <p class="lede mt-8 max-w-2xl">
+      ModPageSpeed is built by We-Amp B.V., a Dutch software company founded in 2012 in Castricum,
+      on the coast north of Amsterdam. It's led by Otto van der Schaaf, an Apache PageSpeed committer
+      and IPMC member who helped build ngx_pagespeed, maintained mod_pagespeed, and shipped
+      open-source PageSpeed releases. Two products, one shared optimization core, and a line that
+      traces back to the original mod_pagespeed in 2010.
+    </p>
+  </section>
+
+  {/* Lineage */}
+  <section
+    class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-12 border-t border-border"
+  >
+    <h2 class="h2-section text-text-body">The lineage</h2>
+    <div class="mt-6 space-y-5 text-text-muted">
+      <p>
+        mod_pagespeed was an open-source server-side optimization framework originally built and
+        released by Google in 2010. The original team &mdash; Joshua Marantz, Jeff Kaufman, Maks
+        Orlovich, Bryan McQuade and others &mdash; shipped an Apache module that did things the rest
+        of the web hadn't figured out yet: server-side image transcoding, critical-CSS inlining,
+        cache-extension, JS minification, dozens of transforms across a content pipeline that
+        thousands of operators put in front of production traffic.
+      </p>
+      <p>
+        It set the standard. It's no longer actively developed upstream &mdash; Google retired the
+        project in 2020. The <a
+          href="/psol/"
+          class="text-interactive hover:text-interactive-hover underline"
+          >optimization libraries from the original mod_pagespeed</a
+        > are the shared core of both products. <a
+          href="/1.1/"
+          class="text-interactive hover:text-interactive-hover underline">mod_pagespeed 1.15</a
+        > carries the proven line forward as a native module on Apache, nginx and IIS (Envoy support
+        is experimental); 2.0 wraps the same rewriters in a new worker and cache architecture. The
+        rewriters that decide how to compress an image or rewrite a stylesheet are the ones the
+        original team built and proved.
+      </p>
+    </div>
+  </section>
+
+  {/* The company */}
+  <section
+    class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-12 border-t border-border"
+  >
+    <h2 class="h2-section text-text-body">The company</h2>
+    <div class="mt-6 space-y-5 text-text-muted">
+      <p>
+        We-Amp B.V. is a Dutch private limited company, registered at the KvK under 57898138,
+        founded in Castricum in 2012. The specialty has always been web performance: <a
+          href="/self-hosted-image-optimization/"
+          class="text-interactive hover:text-interactive-hover underline">image optimization</a
+        >, content rewriting, cache architecture, the boring infrastructure that decides whether a
+        page is fast or slow.
+      </p>
+      <p>
+        Today We-Amp is led by Otto van der Schaaf, an Apache PageSpeed committer and IPMC member
+        who helped build ngx_pagespeed and drove the project's Apache incubation. After the
+        incubator was archived and upstream went quiet, We-Amp carried the lineage forward
+        &mdash; shipping optimization code continuously since 2010, across Apache, nginx, Envoy and
+        IIS ports of the 1.x line. ModPageSpeed 2.0 is We-Amp's independent rebuild: two active
+        products (2.0 and 1.15), one shared optimization core, one Cyclone Cache library underneath
+        both.
+      </p>
+      <p>
+        Self-hosted software fits the way we work: you run the binary on your infrastructure, you
+        control the upgrade timing, we don't sit in your request path.
+      </p>
+    </div>
+  </section>
+
+  {/* Where AI fits */}
+  <section
+    class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-12 border-t border-border"
+  >
+    <h2 class="h2-section text-text-body">
+      Where AI fits, and where it doesn't
+    </h2>
+    <div class="mt-6 space-y-5 text-text-muted">
+      <p>
+        Inside the binary: small LightGBM models &mdash; one per format, JPEG, WebP, AVIF &mdash;
+        predict the encoder quality that hits a target SSIMULACRA2 perceptual score. Compiled to C
+        through TL2cgen, around five microseconds per call. No model downloads, no runtime
+        dependency, no outbound call in the request path. Every variant is verified against the
+        original with SSIMULACRA2 before it reaches your cache. Don't want it?
+        <code>--no-learned-quality-jpeg</code>, <code>--no-learned-quality-webp</code>,
+        <code>--no-learned-quality-avif</code>. Per format.
+      </p>
+      <p>
+        Outside the binary: agents watch security advisories, performance research and upstream
+        changes, and brief the team. A human approves before anything user-visible ships. No release
+        goes out without that sign-off.
+      </p>
+    </div>
+  </section>
+
+  {/* Why this matters */}
+  <section
+    class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-12 border-t border-border"
+  >
+    <h2 class="h2-section text-text-body">Why self-hosted, in 2026</h2>
+    <div class="mt-6 space-y-5 text-text-muted">
+      <p>
+        The 2026 web is HTTP/2 and HTTP/3, container orchestration, nginx in front of nearly
+        everything, AVIF in every browser worth optimizing for. The performance story is no longer
+        "the network is slow" &mdash; it's "your origin is doing too much work and shipping too many
+        bytes." Server-side optimization should live next to your origin, not in someone else's data
+        center two hops away.
+      </p>
+      <p>
+        ModPageSpeed 2.0 reflects that reality. It runs as an nginx interceptor plus a worker
+        process, talks to your origin over a local socket, and never phones home with request data.
+        There is no third-party proxy in the path. There is no CDN dependency. The license server
+        you talk to once a day for token renewal is the only external contact, and that's documented
+        and bypassable on air-gapped installs.
+      </p>
+      <p>
+        Operators in 2026 have absorbed the trade-offs of edge platforms and managed services, and a
+        growing number want some things back on their own boxes.
+      </p>
+    </div>
+  </section>
+
+  {/* Get in touch */}
+  <section
+    class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16 border-t border-border"
+  >
+    <h2 class="h2-section text-text-body">Get in touch</h2>
+    <p class="mt-6 text-text-muted">
+      Questions about the product, the company, or the lineage &mdash; email or use the form.
+      Pricing is published; no sales call required to read it.
+    </p>
+    <div class="mt-8 flex flex-wrap gap-4">
+      <a href="/contact/" class="btn-primary"> Contact </a>
+      <a
+        href="/pricing/"
+        class="inline-flex items-center justify-center gap-2 rounded-lg border border-border-strong px-6 py-3 text-sm font-semibold text-text-body hover:bg-bg-secondary transition-colors"
+      >
+        See pricing
+      </a>
+    </div>
+    <p class="mt-10 text-xs text-text-annotation max-w-2xl">
+      mod_pagespeed is an open-source project originally developed at Google. ModPageSpeed 2.0 is
+      developed by We-Amp B.V. and is not affiliated with or endorsed by Google.
+    </p>
+  </section>
+</BaseLayout>

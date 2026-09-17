@@ -1,0 +1,236 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { pillars, spokeFor, type CwvPillar } from '../../data/cwv-pillars';
+import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
+
+// Metric-pillar pages (ADR-089 D3): /core-web-vitals/{lcp,cls,inp}/. Content
+// lives in src/data/cwv-pillars.ts; spoke links are derived so the pillar never
+// drifts from the hub or the 15 per-platform fix posts.
+export function getStaticPaths() {
+  return pillars.map((pillar) => ({ params: { metric: pillar.metric }, props: { pillar } }));
+}
+
+const { pillar } = Astro.props as { pillar: CwvPillar };
+const spokes = spokeFor(pillar.metric);
+const url = `https://modpagespeed.com${pillar.slug}`;
+
+const layerLabel: Record<string, string> = {
+  server: 'Server layer',
+  application: 'Application',
+  both: 'Server + app',
+};
+const layerClass: Record<string, string> = {
+  server: 'bg-interactive/10 text-interactive border-interactive/40',
+  application:
+    'bg-amber-50 text-amber-800 dark:bg-amber-950/30 dark:text-amber-300 border-amber-200 dark:border-amber-900/60',
+  both: 'bg-emerald-50 text-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-300 border-emerald-200 dark:border-emerald-900/60',
+};
+
+// TechArticle first so seo.spec.ts can assert the primary @type; FAQPage second.
+const jsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'TechArticle',
+    headline: pillar.h1,
+    description: pillar.description,
+    about: pillar.name,
+    url,
+    mainEntityOfPage: url,
+    image: 'https://modpagespeed.com/og-default.png?v=2',
+    // Inline the publisher: the https://we-amp.com/#organization node this
+    // previously referenced by @id is only embedded on / and /about/, so the
+    // reference dangles on these pages.
+    publisher: {
+      '@type': 'Organization',
+      name: 'We-Amp B.V.',
+      logo: {
+        '@type': 'ImageObject',
+        url: 'https://modpagespeed.com/logo.svg',
+      },
+    },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: pillar.faq.map((entry) => ({
+      '@type': 'Question',
+      name: entry.q,
+      acceptedAnswer: { '@type': 'Answer', text: entry.a },
+    })),
+  },
+];
+---
+
+<BaseLayout title={pillar.title} description={pillar.description} jsonLd={jsonLd}>
+  <article class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
+      <a href="/" class="hover:text-text-body">Home</a>
+      <span class="mx-1">/</span>
+      <a href="/core-web-vitals/" class="hover:text-text-body"
+        >Core Web Vitals</a
+      >
+      <span class="mx-1">/</span>
+      <span>{pillar.abbr}</span>
+    </nav>
+
+    <h1 class="mt-6 h1-hero text-text-body">{pillar.h1}</h1>
+    <p class="lede mt-6 max-w-3xl" set:html={pillar.intro} />
+
+    <!-- Thresholds -->
+    <div
+      class="mt-8 inline-flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-border bg-bg-elevated px-6 py-4 text-sm"
+    >
+      <span class="font-semibold text-text-body">{pillar.abbr} thresholds</span>
+      <span class="text-emerald-700 dark:text-emerald-400"
+        >Good: {pillar.thresholds.good} {pillar.thresholds.unit}</span
+      >
+      <span class="text-amber-700 dark:text-amber-400"
+        >Poor: {pillar.thresholds.poor} {pillar.thresholds.unit}</span
+      >
+    </div>
+
+    <!-- What it measures -->
+    <section class="mt-14">
+      <h2 class="h2-section text-text-body">What {pillar.abbr} measures</h2>
+      <p class="mt-4 text-text-body" set:html={pillar.measures} />
+      <p class="mt-4 text-text-body">
+        A single lab run from <a
+          href="/pagespeed-insights/"
+          class="text-interactive hover:text-interactive-hover underline">PageSpeed Insights</a
+        > approximates {pillar.abbr}; the field number from real Chrome users is what Google ranks on.
+      </p>
+    </section>
+
+    <!-- Common causes -->
+    <section class="mt-16">
+      <h2 class="h2-section text-text-body">Common causes</h2>
+      <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+        {
+          pillar.causes.map((cause) => (
+            <div class="rounded-2xl border border-border bg-bg-elevated p-6">
+              <h3 class="font-semibold text-text-body">{cause.title}</h3>
+              <p class="mt-2 text-sm text-text-muted" set:html={cause.detail} />
+            </div>
+          ))
+        }
+      </div>
+    </section>
+
+    <!-- How to fix -->
+    <section class="mt-16">
+      <h2 class="h2-section text-text-body">How to fix {pillar.abbr}</h2>
+      <div class="mt-8 space-y-4">
+        {
+          pillar.fixes.map((fix) => (
+            <div class="rounded-2xl border border-border bg-bg-elevated p-6">
+              <div class="flex flex-wrap items-center gap-3">
+                <h3 class="font-semibold text-text-body">{fix.heading}</h3>
+                <span
+                  class={`rounded-chip border px-2 py-0.5 text-xs font-medium ${layerClass[fix.layer]}`}
+                >
+                  {layerLabel[fix.layer]}
+                </span>
+              </div>
+              <p class="mt-2 text-sm text-text-muted" set:html={fix.body} />
+            </div>
+          ))
+        }
+      </div>
+    </section>
+
+    <!-- Per-platform spokes -->
+    <section class="mt-16">
+      <h2 class="h2-section text-text-body">
+        Fix {pillar.abbr} on your platform
+      </h2>
+      <p class="mt-4 text-text-body">
+        The same metric fails for different reasons on different stacks. Pick yours for the concrete
+        diagnosis and fix.
+      </p>
+      <ul class="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-3">
+        {
+          spokes.map((spoke) => (
+            <li>
+              <a
+                href={spoke.href}
+                class="group flex flex-col gap-0.5 rounded-xl border border-border p-4 hover:border-interactive/40 transition-colors"
+              >
+                <span class="font-medium text-interactive group-hover:underline underline-offset-4">
+                  Fix {pillar.abbr} on {spoke.platform}
+                  <span aria-hidden="true"> &rarr;</span>
+                </span>
+                <span class="text-xs text-text-annotation">{spoke.title}</span>
+              </a>
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+
+    <!-- FAQ — visible mirrors FAQPage JSON-LD -->
+    <section class="mt-16">
+      <h2 class="h2-section text-text-body">{pillar.abbr}: common questions</h2>
+      <dl class="mt-8 space-y-6">
+        {
+          pillar.faq.map((entry) => (
+            <div class="border-b border-border pb-6">
+              <dt class="font-semibold text-text-body">{entry.q}</dt>
+              <dd class="mt-2 text-sm text-text-muted" set:html={entry.a} />
+            </div>
+          ))
+        }
+      </dl>
+    </section>
+
+    <!-- CTA -->
+    <section class="mt-16">
+      <div
+        class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-8"
+      >
+        <h2 class="h2-section text-text-body">Measure, then fix</h2>
+        <p class="mt-3 text-text-body">
+          Start with a measurement. Run a page through the analyzer to see what is driving its {
+            pillar.abbr
+          }, then fix it at the server layer with ModPageSpeed &mdash; it optimizes immediately.
+          {FREE_TO_RUN_LINE}
+        </p>
+        <div class="mt-6 flex flex-wrap gap-3">
+          <a
+            href="/analyze/"
+            class="btn-primary"
+            data-umami-event={`cta_pillar_${pillar.metric}_analyze`}>Analyze a page</a
+          >
+          <a
+            href="/pricing/"
+            class="inline-flex items-center gap-2 rounded-md border border-emerald-300 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-950/40 px-4 py-2 text-sm font-medium text-emerald-800 dark:text-emerald-300 hover:bg-emerald-100/70 dark:hover:bg-emerald-900/40 transition-colors"
+            data-umami-event={`cta_pillar_${pillar.metric}_pricing`}
+          >
+            See support plans
+            <span aria-hidden="true">&rarr;</span>
+          </a>
+        </div>
+      </div>
+    </section>
+
+    <!-- See also -->
+    <section class="mt-16 border-t border-border pt-8">
+      <p class="text-base font-semibold uppercase tracking-wide text-text-body">
+        See also:
+      </p>
+      <ul class="mt-4 space-y-2 text-sm">
+        {
+          pillar.seeAlso.map((item) => (
+            <li>
+              <a href={item.href} class="text-interactive hover:text-interactive-hover underline">
+                {item.text}
+              </a>
+              {item.note ? (
+                <span class="text-text-annotation"> &mdash; {item.note}</span>
+              ) : null}
+            </li>
+          ))
+        }
+      </ul>
+    </section>
+  </article>
+</BaseLayout>

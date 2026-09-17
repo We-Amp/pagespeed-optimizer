@@ -1,0 +1,275 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import { offerJsonLd } from '../../data/offer-jsonld';
+import { FREE_TO_RUN_LINE, LICENSE_CLAUSE } from '../../data/product-facts.mjs';
+
+const appJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'mod_pagespeed 1.15 — Apache module',
+  applicationCategory: 'DeveloperApplication',
+  operatingSystem: ['Linux'],
+  description:
+    "The maintained, commercially supported Apache PageSpeed module — the continuation of Google's open-source mod_pagespeed, with current dependencies, security patches, and the classic filter set. Same ModPagespeed directives as 1.13.35.2.",
+  offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
+  publisher: {
+    '@type': 'Organization',
+    name: 'We-Amp B.V.',
+    url: 'https://www.we-amp.com/',
+  },
+};
+
+// HowTo JSON-LD grounded verbatim in the visible Install / Configure steps below.
+const howToJsonLd = {
+  '@context': 'https://schema.org',
+  '@type': 'HowTo',
+  name: 'Install the Apache PageSpeed module (mod_pagespeed 1.15)',
+  description:
+    'Install the maintained Apache PageSpeed module from the signed apt/yum repository, enable it, and verify it is rewriting responses.',
+  tool: [{ '@type': 'HowToTool', name: 'Apache HTTP Server' }],
+  step: [
+    {
+      '@type': 'HowToStep',
+      position: 1,
+      name: 'Add the signed apt/yum repository',
+      text: 'Run curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh. One command configures the apt or yum source and imports the signing key.',
+    },
+    {
+      '@type': 'HowToStep',
+      position: 2,
+      name: 'Install the package and restart Apache',
+      text: 'Install the package with sudo apt install mod-pagespeed (Ubuntu 24.04) or sudo dnf install mod-pagespeed (AlmaLinux/RHEL/Rocky 9 or 10), then restart Apache with sudo systemctl restart apache2 (or systemctl restart httpd).',
+    },
+    {
+      '@type': 'HowToStep',
+      position: 3,
+      name: 'Enable the module and ModPagespeed directives',
+      text: 'The package loads the module automatically on install. In pagespeed.conf (or your virtual host configuration) add ModPagespeed on and ModPagespeedFileCachePath /var/cache/pagespeed to start optimizing with the default CoreFilters set.',
+    },
+    {
+      '@type': 'HowToStep',
+      position: 4,
+      name: 'Verify the response header',
+      text: 'Send a request with curl -I http://localhost/. The response carries X-Mod-Pagespeed: the first request to any URL shows X-Mod-Pagespeed: MISS while resources are optimized; subsequent requests show HIT.',
+    },
+  ],
+};
+
+const jsonLd = [appJsonLd, howToJsonLd];
+---
+
+<BaseLayout
+  title="Apache PageSpeed module (mod_pagespeed 1.15) — install & config"
+  description="Install the Apache PageSpeed module (mod_pagespeed 1.15) from the signed apt/yum repo — the maintained drop-in for Google's mod_pagespeed, with WebP transcoding and patched CVEs."
+  jsonLd={jsonLd}
+>
+  <!-- Hero -->
+  <section class="bg-bg-secondary border-b border-border">
+    <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16 lg:py-20">
+      <p class="eyebrow text-interactive">mod_pagespeed 1.15 · Apache</p>
+      <h1 class="h1-hero mt-3 text-text-body">Apache PageSpeed module</h1>
+      <p class="lede mt-6">
+        The Apache PageSpeed module &mdash; <code class="font-mono">mod_pagespeed</code> &mdash; maintained
+        again. mod_pagespeed 1.15 is the commercially supported continuation of Google's open-source <code
+          class="font-mono">mod_pagespeed</code
+        >: the same
+        <code class="font-mono">ModPagespeed</code> directives and a modernized, secured filter stack
+        with new optimizers, rebuilt against current dependencies with ongoing security patches. It loads
+        as a native Apache module &mdash; not a proxy, not a sidecar.
+      </p>
+      <div class="mt-8 flex flex-wrap gap-4">
+        <a href="#install" class="btn-primary" data-umami-event="cta_apache_hero_install">
+          Install
+        </a>
+        <a href="/1.1/docs/getting-started/" class="btn-secondary"> Getting-started guide </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- What it is -->
+  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <h2 class="h2-section text-text-body">What it is</h2>
+    <p class="mt-4 text-text-body">
+      Google open-sourced <code class="font-mono">mod_pagespeed</code>; its final open-source
+      release shipped in 2020 under the Apache Incubator podling, which has since retired.
+      mod_pagespeed 1.15 picks up that lineage. It is a <strong>drop-in replacement</strong> for the <a
+        href="/alternatives/google-pagespeed-module/"
+        class="text-interactive underline">open-source Google PageSpeed module</a
+      > &mdash; your existing
+      <code class="font-mono">pagespeed.conf</code> and
+      <code class="font-mono">ModPagespeed</code> directives continue to work &mdash; with the parts that
+      had gone stale brought current.
+    </p>
+    <ul class="mt-6 space-y-3 text-text-body">
+      <li class="flex items-start gap-3">
+        <span class="mt-1 flex-shrink-0 text-interactive font-bold">&bull;</span>
+        <span
+          ><strong>Current dependencies.</strong> Rebuilt with Bazel against up-to-date libraries, so
+          the module builds and runs on current Apache and current Linux distributions.</span
+        >
+      </li>
+      <li class="flex items-start gap-3">
+        <span class="mt-1 flex-shrink-0 text-interactive font-bold">&bull;</span>
+        <span
+          ><strong>Security patches.</strong> Known CVEs from the open-source project are patched, and
+          security maintenance is ongoing.</span
+        >
+      </li>
+      <li class="flex items-start gap-3">
+        <span class="mt-1 flex-shrink-0 text-interactive font-bold">&bull;</span>
+        <span
+          ><strong>The classic filter set.</strong> WebP transcoding and JPEG/PNG/GIF optimization, plus
+          <code class="font-mono">combine_css</code>,
+          <code class="font-mono">combine_javascript</code>, image spriting, in-place resource
+          optimization, and domain mapping.</span
+        >
+      </li>
+      <li class="flex items-start gap-3">
+        <span class="mt-1 flex-shrink-0 text-interactive font-bold">&bull;</span>
+        <span
+          ><strong>Same directives.</strong> The
+          <code class="font-mono">ModPagespeed*</code> directive set is unchanged from 1.13.35.2 &mdash;
+          see the <a href="/1.1/docs/directive-index/" class="text-interactive underline"
+            >full directive index</a
+          >.</span
+        >
+      </li>
+    </ul>
+  </section>
+
+  <!-- Install -->
+  <section id="install" class="bg-bg-secondary border-y border-border py-16 scroll-mt-20">
+    <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+      <h2 class="h2-section text-text-body">Install</h2>
+      <p class="mt-4 text-text-body">
+        The Apache module is a drop-in replacement for the open-source mod_pagespeed Apache module
+        &mdash; the same <code class="font-mono">ModPagespeed</code> directives, with current dependencies
+        and patched CVEs. It installs from the signed apt/yum repository at
+        <code class="font-mono">packages.modpagespeed.com</code>. One command configures the apt or
+        yum source and imports the signing key:
+      </p>
+      <pre
+        class="mt-4 overflow-x-auto rounded-lg bg-stone-900 dark:bg-stone-950 p-4 text-sm text-stone-100"><code data-umami-event="cta_apache_install_repo">curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh</code></pre>
+
+      <p class="mt-6 text-text-body">Then install the package and restart Apache:</p>
+      <pre
+        class="mt-4 overflow-x-auto rounded-lg bg-stone-900 dark:bg-stone-950 p-4 text-sm text-stone-100"><code data-umami-event="cta_apache_install_pkg">sudo apt install mod-pagespeed     # Ubuntu 24.04
+sudo dnf install mod-pagespeed     # AlmaLinux/RHEL/Rocky 9 or 10
+sudo systemctl restart apache2     # or: systemctl restart httpd</code></pre>
+
+      <p class="mt-6 text-sm text-text-annotation">
+        Every artifact is GPG-signed and listed in SHA256SUMS. For other distributions or air-gapped
+        hosts, the <a href="/1.1/docs/downloads/" class="text-interactive underline"
+          >downloads page</a
+        > lists the direct <code class="font-mono">.deb</code> / <code class="font-mono">.rpm</code>
+        packages; see the <a href="/1.1/docs/getting-started/" class="text-interactive underline"
+          >getting-started guide</a
+        > for verification and the full directive setup. Running Apache under cPanel/WHM? Follow the
+        <a href="/1.1/cpanel/" class="text-interactive underline">cPanel install guide</a> instead.
+      </p>
+    </div>
+  </section>
+
+  <!-- Configure -->
+  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <h2 class="h2-section text-text-body">A minimal Apache config</h2>
+    <p class="mt-4 text-text-body">
+      The distribution package loads the module automatically on install. Enable it and point it at
+      a cache directory in <code class="font-mono">pagespeed.conf</code> (or your virtual host configuration):
+    </p>
+    <pre
+      class="mt-4 overflow-x-auto rounded-lg bg-stone-900 dark:bg-stone-950 p-4 text-sm text-stone-100"><code>ModPagespeed on
+ModPagespeedFileCachePath /var/cache/pagespeed</code></pre>
+
+    <p class="mt-6 text-text-body">
+      That is enough to start optimizing with the default <code class="font-mono">CoreFilters</code>
+      set. To add or scope individual filters &mdash; for example, per virtual host:
+    </p>
+    <pre
+      class="mt-4 overflow-x-auto rounded-lg bg-stone-900 dark:bg-stone-950 p-4 text-sm text-stone-100"><code>&lt;VirtualHost *:80&gt;
+    ServerName www.example.com
+    ModPagespeed on
+    ModPagespeedFileCachePath /var/cache/pagespeed
+    ModPagespeedEnableFilters rewrite_images
+&lt;/VirtualHost&gt;</code></pre>
+
+    <p class="mt-6 text-text-body">
+      Verify the module is rewriting responses by checking for its header on a request:
+    </p>
+    <pre
+      class="mt-4 overflow-x-auto rounded-lg bg-stone-900 dark:bg-stone-950 p-4 text-sm text-stone-100"><code>curl -I http://localhost/</code></pre>
+    <p class="mt-4 text-text-body">
+      On Apache the response carries <code class="font-mono">X-Mod-Pagespeed</code>. The first
+      request to any URL shows <code class="font-mono">X-Mod-Pagespeed: MISS</code> while resources are
+      optimized; subsequent requests show <code class="font-mono">HIT</code>.
+    </p>
+
+    <div class="mt-8 rounded-2xl border border-border bg-bg-secondary p-6">
+      <p class="text-text-body">
+        This is the minimal setup. For the complete directive set &mdash; filter selection,
+        per-directory and per-virtual-host scoping, caching, HTTPS, and domain configuration &mdash;
+        see the <a
+          href="/1.1/docs/"
+          class="text-interactive underline"
+          data-umami-event="cta_apache_docs">mod_pagespeed 1.15 documentation</a
+        >.
+      </p>
+    </div>
+  </section>
+
+  <!-- Admin console -->
+  <section class="bg-bg-secondary border-y border-border py-16">
+    <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+      <h2 class="h2-section text-text-body">Install and run</h2>
+      <p class="mt-4 text-text-body">
+        Install the module &mdash; it loads into Apache and fully optimizes your site right away,
+        {LICENSE_CLAUSE} and free in development and in production. The global admin console lives at
+        <code class="font-mono">/pagespeed_global_admin</code> on your server; per-vhost statistics are
+        at <code class="font-mono">/pagespeed_admin/</code>.
+      </p>
+    </div>
+  </section>
+
+  <!-- Licensing -->
+  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
+    <h2 class="h2-section text-text-body">Licensing</h2>
+    <p class="mt-4 text-text-body">
+      Free &mdash; the maintained continuation is {LICENSE_CLAUSE}, in development and in
+      production, and the whole line carries the same license. What We-Amp sells is <a
+        href="/pricing/"
+        class="text-interactive underline">support &mdash; and hardened builds</a
+      >.
+    </p>
+    <p class="mt-6">
+      <a
+        href="/pricing/"
+        data-umami-event="cta_apache_pricing"
+        class="text-sm font-semibold text-interactive hover:text-interactive-hover inline-flex items-center gap-2"
+      >
+        See full pricing
+        <span aria-hidden="true">&rarr;</span>
+      </a>
+    </p>
+  </section>
+
+  <!-- Bottom CTA -->
+  <section class="bg-stone-900">
+    <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16 text-center">
+      <h2 class="h2-section text-white">The Apache PageSpeed module. Maintained again.</h2>
+      <p class="mt-4 text-stone-400 max-w-2xl mx-auto">
+        Same directives, plus a modernized, secured filter stack with new optimizers &mdash; current
+        dependencies and security patches. Free to install and run.
+      </p>
+      <div class="mt-8 flex flex-wrap justify-center gap-4">
+        <a href="#install" class="btn-primary" data-umami-event="cta_apache_bottom_install">
+          Download &amp; run
+        </a>
+        <a
+          href="/pricing/"
+          class="rounded-md border border-stone-600 px-6 py-3 text-sm font-semibold text-stone-300 hover:bg-stone-800 transition-colors"
+          data-umami-event="cta_apache_bottom_buy">Support plans</a
+        >
+      </div>
+    </div>
+  </section>
+</BaseLayout>

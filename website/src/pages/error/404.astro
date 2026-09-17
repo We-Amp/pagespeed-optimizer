@@ -1,0 +1,24 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import ErrorContent from '../../components/ErrorContent.astro';
+
+// Prerendered, branded 404 served by nginx via `error_page 404 /error/404/index.html`.
+// The special top-level /404 route is intercepted by the @astrojs/node adapter and only
+// emits a redirect stub in the static build; this non-special path prerenders the real
+// branded page. Kept in sync with src/pages/404.astro via the shared ErrorContent. (TECH-1)
+// Excluded from the sitemap (astro.config.mjs) and noindex.
+---
+
+<BaseLayout
+  title="Page Not Found — ModPageSpeed 2.0"
+  description="The page you're looking for doesn't exist."
+  noindex
+>
+  <ErrorContent
+    code="404"
+    heading="Page not found"
+    body="No cache entry, no origin. Try the docs or jump back to the homepage."
+    linkHref="/docs/"
+    linkLabel="Documentation"
+  />
+</BaseLayout>

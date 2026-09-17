@@ -1,0 +1,91 @@
+<!-- GENERATED — do not edit by hand. Facts: src/data/product-facts.mjs. Prose: scripts/llms-templates/. Regenerate: npm run gen:llms. Drift-guarded by test/sync/llms-generated.test.ts. -->
+
+# mod_pagespeed — self-hosted web performance optimization
+
+> Self-hosted web performance optimization for Apache and nginx. {{LICENSE_CLAUSE_CAP}}. {{PRODUCT_NAME}} {{CURRENT_LINE}} converges the mod_pagespeed lineage and the ModPageSpeed 2.0 engine into one product: a native web-server module with a separate optimizer worker.
+
+We-Amp B.V. develops {{PRODUCT_NAME}} {{CURRENT_LINE}}, the converged continuation of the open-source mod_pagespeed project, originally developed at Google. It automatically optimizes web content (images, CSS, JS, HTML): a native in-process module for Apache and nginx handles serving, and a separate optimizer worker does the heavy optimization work outside the web server. Drop-in compatible with the classic module: the same configuration directives and filters carry over. {{PRODUCT_NAME}} {{CURRENT_LINE}} converges the {{V1_LINE}} module line (renumbered from {{V1_RENUMBERED_FROM}} — the forward-semver successor to the last upstream release, {{LAST_UPSTREAM_VERSION}}) with the ModPageSpeed {{V2_LINE}} engine, which continues as the optimizer worker.
+
+Heritage: mod_pagespeed — the open-source optimization core this product continues — powers {{BUILTWITH_SITES}} live sites today (per BuiltWith, {{BUILTWITH_AS_OF}}). These are not We-Amp customers; they are the proof the optimization core works at scale.
+
+## Key Features
+
+- From the optimizer worker — image optimization: WebP/AVIF/SVG transcoding, viewport-aware resizing, ML-predicted quality (LightGBM per format), SSIMULACRA2 perceptual verification, content-aware classification (photo/screenshot/illustration/noisy), bilateral denoising, quality baselining from source DQT — up to {{MAX_VARIANTS}} variants per image ({{RASTER_VARIANTS}} raster + 1 SVG)
+- CSS optimization: four-phase minification, heuristic-based critical CSS extraction, async CSS loading (optional browser pipeline for validation)
+- JavaScript optimization: safe minification, automatic script deferral via browser analysis, no AST transforms
+- HTML optimization: critical CSS injection, async CSS loading, script deferral, 103 Early Hints, lazy loading attributes, image dimensions, LCP image preload, font preloading, preconnect injection, speculation rules (experimental)
+- Variant-aware caching: 32-bit capability bitmask (format, viewport, density, Save-Data, encoding)
+- From the module — the classic filter set: combine_css/combine_javascript, image spriting, IPRO, domain mapping, plus the built-in /pagespeed_admin/ UI
+- [Getting Started](https://modpagespeed.com/docs/getting-started/)
+
+## License and support
+
+{{PRODUCT_NAME}} {{CURRENT_LINE}} is {{LICENSE_CLAUSE}}: free to install and run, in development and in production, with free standard signed packages. What We-Amp sells is support — and hardened, attested builds:
+
+{{SUPPORT_LADDER_MD}}
+- No bandwidth fees, no per-request charges, no feature gates — the software itself costs nothing
+- [Support plans]({{SUPPORT_URL}}) · [Support terms]({{LICENSING_TERMS_URL}})
+
+## Predecessor lines
+
+- **mod_pagespeed {{V1_LINE}}** (renumbered from {{V1_RENUMBERED_FROM}}) now receives security fixes only, with per-platform transition windows; {{PRODUCT_NAME}} {{CURRENT_LINE}} is the drop-in upgrade. IIS / Windows Server deployments stay on {{V1_LINE}} until a converged Windows package ships. See [Upgrading to {{CURRENT_LINE}}](https://modpagespeed.com/1.1/docs/upgrading-to-2-1/).
+- **ModPageSpeed {{V2_LINE}}** (the Docker/Helm stack and the ASP.NET Core middleware) is feature-frozen and supported until February 7, 2027. Docker/Helm users migrate via the [migration guide](https://modpagespeed.com/docs/migrating-to-2-1/); the middleware is supported until the same date.
+
+## Distribution / install channels
+
+- Signed apt + yum repository at packages.modpagespeed.com (Apache + nginx .deb / .rpm). One-time setup: `curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh`, then `sudo apt install mod-pagespeed` / `sudo apt install nginx-module-pagespeed` (Debian / Ubuntu) or `sudo dnf install mod-pagespeed` / `sudo dnf install nginx-module-pagespeed` (AlmaLinux 9). The nginx module ships prebuilt and signed, with a .so pinned to each distro's stock nginx: {{NGINX_APT_MATRIX}}, {{NGINX_APT_ARCHES}}. Because each build is exact-version-pinned to its distro's nginx, running an nginx version we don't yet package needs a matching pinned build — contact us for one.
+- The module installs alongside the `pagespeed-optimizer` worker package; install both from the repository.
+- Direct downloads (.deb, .rpm, tar.gz) — every file is GPG-signed
+
+### ASP.NET Core sidecar (NuGet) — predecessor line
+
+The {{V1_LINE}} line (security fixes only, per-platform windows) also ships as a NuGet sidecar package, `WeAmp.PageSpeed.Sidecar` (with native binaries in `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`). Linux-only (linux-x64 / linux-arm64); it bundles nginx {{SIDECAR_NGINX_VERSION}}. Inverse topology: your ASP.NET Core Kestrel app is the public front door, and the bundled nginx runs on loopback behind it as the optimize-proxy. Install with `dotnet add package WeAmp.PageSpeed.Sidecar` (GA on nuget.org).
+
+## Company
+
+We-Amp B.V., The Netherlands (founded {{COMPANY_FOUNDED_YEAR}}, KvK {{COMPANY_KVK}})
+License: {{LICENSE_NAME}} — the LICENSE, NOTICE and THIRD-PARTY-NOTICES files ship with every distribution; what We-Amp sells is support and hardened builds. See https://modpagespeed.com/license/ and https://modpagespeed.com/terms/.
+
+mod_pagespeed is an open-source project originally developed at Google. {{PRODUCT_NAME}} {{CURRENT_LINE}} is developed by We-Amp B.V. and is not affiliated with or endorsed by Google.
+
+## Links
+
+- [Documentation](https://modpagespeed.com/docs/)
+- [Features](https://modpagespeed.com/features/)
+- [Support plans](https://modpagespeed.com/pricing/)
+- [Download / install](https://modpagespeed.com/download/)
+- [Live Demo](https://modpagespeed.com/demo/)
+- [Optimization Examples (live before/after per filter)](https://modpagespeed.com/examples/)
+- [Analyze a page (PageSpeed report mapping)](https://modpagespeed.com/analyze/)
+- [RenderPeek — free AI-readability checker (see what an AI agent reads on your page)](https://modpagespeed.com/ai-readability/)
+- [Blog](https://modpagespeed.com/blog/)
+- [Getting Started](https://modpagespeed.com/docs/getting-started/)
+- [Install (Docker)](https://modpagespeed.com/docs/installation-docker/)
+- [Install (Module)](https://modpagespeed.com/docs/installation-module/)
+- [Migrating from 2.0 to 2.1](https://modpagespeed.com/docs/migrating-to-2-1/)
+- [Install (ASP.NET Core)](https://modpagespeed.com/docs/aspnet-getting-started/)
+- [Configuration](https://modpagespeed.com/docs/configuration/)
+- [API Reference](https://modpagespeed.com/docs/api-reference/)
+- [Web Console](https://modpagespeed.com/docs/workbench/)
+- [Browser Analysis](https://modpagespeed.com/docs/browser-analysis/)
+- [Savings Calculator](https://modpagespeed.com/calculator/)
+- [Alternatives (mod_pagespeed, ngx_pagespeed, Google PageSpeed module, IISpeed)](https://modpagespeed.com/alternatives/)
+- [Comparisons (vs Cloudflare APO, Cloudinary, imgproxy, NitroPack, Thumbor, WP Rocket)](https://modpagespeed.com/vs/)
+- [Contact](https://modpagespeed.com/contact/)
+- [License](https://modpagespeed.com/license/)
+- [Terms](https://modpagespeed.com/terms/)
+- [Privacy](https://modpagespeed.com/privacy/)
+- [Security](https://modpagespeed.com/security/)
+- [mod_pagespeed {{V1_LINE}}](https://modpagespeed.com/1.1/)
+- [{{V1_LINE}} Migrate from open source](https://modpagespeed.com/1.1/migrate/)
+- [{{V1_LINE}} cPanel / EA4](https://modpagespeed.com/1.1/cpanel/)
+- [{{V1_LINE}} apt/yum repository](https://modpagespeed.com/download/apt-yum/)
+- [{{V1_LINE}} Documentation](https://modpagespeed.com/1.1/docs/)
+- [Upgrading from {{V1_LINE}} to {{CURRENT_LINE}}](https://modpagespeed.com/1.1/docs/upgrading-to-2-1/)
+- [{{V1_LINE}} Getting Started](https://modpagespeed.com/1.1/docs/getting-started/)
+- [{{V1_LINE}} Filter Reference](https://modpagespeed.com/1.1/docs/filter-reference/)
+- [{{V1_LINE}} Configuration](https://modpagespeed.com/1.1/docs/configuration/)
+- [{{V1_LINE}} FAQ](https://modpagespeed.com/1.1/docs/faq/)
+- [Legacy Docs (1.0)](https://modpagespeed.com/1.0/)
+- [machine-readable product summary](https://modpagespeed.com/api/product.json)
+- [llms-full.txt (expanded)](https://modpagespeed.com/llms-full.txt)

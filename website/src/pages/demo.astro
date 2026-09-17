@@ -1,0 +1,967 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+import CTAButton from '../components/CTAButton.astro';
+import metricsData from '../data/demo-metrics.json';
+
+const sites = metricsData.sites;
+const generatedAt = metricsData.generated_at;
+
+function formatBytes(bytes: number): string {
+  if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
+  if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
+  return bytes + ' B';
+}
+
+function pct(before: number, after: number): number {
+  return Math.round(((before - after) / before) * 100);
+}
+
+// Pre-compute totals for each site using real measured totals
+const siteData = sites.map((site) => {
+  const r = site.resources;
+  const imgBefore = r.images.totalJpeg;
+  const imgWebp = r.images.totalWebp;
+  const imgAvif = r.images.totalAvif;
+  const totalBefore = r.html.before + r.css.before + r.js.before + imgBefore;
+  const totalWebp = r.html.before + r.css.minified + r.js.minified + imgWebp;
+  const totalAvif = r.html.before + r.css.minified + r.js.minified + imgAvif;
+  return { ...site, imgBefore, imgWebp, imgAvif, totalBefore, totalWebp, totalAvif };
+});
+---
+
+<BaseLayout
+  title="Live demo — see ModPageSpeed optimize real sites"
+  description="Watch ModPageSpeed 2.0 cut real sites 48–69% smaller: measured CSS/JS minification and WebP/AVIF image transcoding, with modeled load-time and Lighthouse projections."
+>
+  {/* Demo site preview with tabs */}
+  <section class="py-20">
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <div class="text-center">
+        <h1 class="h1-hero text-text-body">See ModPageSpeed optimize real sites</h1>
+        <p class="lede mt-4 max-w-2xl mx-auto">
+          Four real sites — an e-commerce store, a blog, a news portal, and a portfolio — each built
+          from original, unoptimized assets. ModPageSpeed 2.0 cuts total page weight by 48&ndash;69%
+          across them; on the image-heavy store,
+          <a class="text-interactive underline underline-offset-2" href="/blog/avif-vs-webp-2026/"
+            >AVIF transcoding</a
+          > alone takes the catalog images from 99.7&nbsp;KB down to 23.7&nbsp;KB (76% smaller).
+          Every number below is measured.
+        </p>
+        <p class="mt-4 max-w-2xl mx-auto text-sm text-text-annotation">
+          This is ModPageSpeed 2.0 optimizing whole sites from its worker behind nginx.
+          mod_pagespeed 1.15 takes the other approach: a native module inside Apache, nginx, or IIS,
+          with granular per-filter control so you switch each optimization on or off yourself. See
+          that filter-by-filter on the
+          <a class="text-interactive underline underline-offset-2" href="/examples/"
+            >filter examples</a
+          >.
+        </p>
+      </div>
+
+      {/* Tab bar */}
+      <div
+        class="mt-10 border-b border-border"
+        id="demo-tabs"
+        role="tablist"
+        aria-label="Demo sites"
+      >
+        <div class="flex justify-center gap-1 -mb-px">
+          {
+            [
+              { id: 'ecommerce', label: 'E-commerce', desc: 'ShopGrid' },
+              { id: 'blog', label: 'Blog', desc: 'ByteWise' },
+              { id: 'news', label: 'News', desc: 'The Dispatch' },
+              { id: 'portfolio', label: 'Portfolio', desc: 'Lena Voss' },
+            ].map((tab, i) => (
+              <button
+                role="tab"
+                id={`tab-${tab.id}`}
+                aria-selected={i === 0 ? 'true' : 'false'}
+                aria-controls={`preview-${tab.id}`}
+                tabindex={i === 0 ? 0 : -1}
+                data-demo-tab={tab.id}
+                data-demo-src={`/demos/${tab.id}/index.html`}
+                class:list={[
+                  'relative px-5 py-3 text-sm font-medium transition-colors rounded-t-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-interactive',
+                  i === 0
+                    ? 'border border-border border-b-white dark:border-b-stone-900 bg-bg-elevated text-text-body'
+                    : 'text-text-annotation hover:text-text-body hover:bg-bg-secondary',
+                ]}
+              >
+                <span class="block">{tab.label}</span>
+                <span class="block text-xs font-normal text-text-annotation">
+                  {tab.desc}
+                </span>
+              </button>
+            ))
+          }
+        </div>
+      </div>
+
+      {/* Info note */}
+      <details
+        class="mt-6 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 px-4 py-3"
+      >
+        <summary class="text-sm font-medium text-amber-800 dark:text-amber-300 cursor-pointer">
+          About this demo's optimization baseline
+        </summary>
+        <p class="mt-2 text-sm text-amber-800 dark:text-amber-300">
+          These pages ship deliberately unoptimized assets so ModPageSpeed 2.0 has real work to do:
+          CSS is verbose with longhand properties, JavaScript is unminified, and images are served
+          as uncompressed JPEGs.
+        </p>
+      </details>
+
+      {/* Iframe preview area */}
+      <div
+        class="mt-6 rounded-lg border border-border bg-bg-elevated overflow-hidden shadow-sm"
+      >
+        <div
+          class="flex items-center justify-between px-4 py-2 border-b border-border bg-bg-secondary"
+        >
+          <div class="flex items-center gap-2">
+            <div class="flex gap-1.5">
+              <span class="block h-3 w-3 rounded-full bg-stone-300 dark:bg-stone-600"></span>
+              <span class="block h-3 w-3 rounded-full bg-stone-300 dark:bg-stone-600"></span>
+              <span class="block h-3 w-3 rounded-full bg-stone-300 dark:bg-stone-600"></span>
+            </div>
+            <span
+              id="demo-url-bar"
+              class="ml-2 text-xs text-text-annotation font-mono"
+            >
+              /demos/ecommerce/index.html
+            </span>
+          </div>
+          <a
+            id="demo-open-link"
+            href="/demos/ecommerce/index.html"
+            target="_blank"
+            rel="noopener"
+            class="text-xs text-interactive hover:underline"
+          >
+            Open in new tab
+          </a>
+        </div>
+        {
+          [
+            { id: 'ecommerce', label: 'E-commerce', src: '/demos/ecommerce/index.html' },
+            { id: 'blog', label: 'Blog', src: '/demos/blog/index.html' },
+            { id: 'news', label: 'News', src: '/demos/news/index.html' },
+            { id: 'portfolio', label: 'Portfolio', src: '/demos/portfolio/index.html' },
+          ].map((site, i) => (
+            <div
+              id={`preview-${site.id}`}
+              role="tabpanel"
+              aria-labelledby={`tab-${site.id}`}
+              class:list={[i !== 0 && 'hidden']}
+            >
+              <iframe
+                src={i === 0 ? site.src : undefined}
+                data-src={site.src}
+                class="w-full bg-white h-[min(700px,80vh)]"
+                title={`${site.label} demo site preview`}
+                loading="lazy"
+                sandbox="allow-scripts allow-same-origin"
+              />
+            </div>
+          ))
+        }
+      </div>
+    </div>
+  </section>
+
+  {/* Optimization analysis */}
+  <section class="py-16 bg-bg-secondary">
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <div class="text-center">
+        <h2 class="h2-section text-text-body">Optimization analysis</h2>
+        <p class="lede mt-4 max-w-2xl mx-auto">
+          Real measurements from the demo sites above, produced by the actual ModPageSpeed 2.0 nginx
+          + worker + cache stack. CSS/JS sizes are measured before and after minification, image
+          sizes are measured before and after transcoding to WebP and AVIF.
+        </p>
+      </div>
+
+      {/* Site picker */}
+      <div
+        class="mt-10 flex justify-center gap-2 flex-wrap"
+        id="site-picker"
+        role="group"
+        aria-label="Choose demo site to analyze"
+      >
+        {
+          siteData.map((site, i) => (
+            <button
+              data-site={site.id}
+              aria-pressed={i === 0 ? 'true' : 'false'}
+              class="product-tab rounded-md px-4 py-2 text-sm font-medium transition-colors"
+            >
+              {site.name}
+            </button>
+          ))
+        }
+      </div>
+
+      {/* Site panels */}
+      {
+        siteData.map((site, i) => (
+          <div
+            id={`panel-${site.id}`}
+            class:list={['mt-10', i !== 0 && 'hidden']}
+            data-panel={site.id}
+          >
+            {/* Top metrics row — delta-first hierarchy: the headline percentage is the
+                hero number; the raw before/after values are demoted to a caption row
+                of supporting evidence. */}
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+              {/* Page weight */}
+              <div class="rounded-lg border border-border bg-bg-elevated p-6 text-center">
+                <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation mb-3">
+                  Total page weight
+                </p>
+                <p class="display-num text-5xl sm:text-6xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400 leading-none">
+                  &minus;{pct(site.totalBefore, site.totalAvif)}%
+                </p>
+                <p class="mt-2 text-sm font-medium text-text-body">smaller</p>
+                <p class="mt-3 text-xs text-text-annotation display-num tabular-nums">
+                  <span class="line-through">{formatBytes(site.totalBefore)}</span>
+                  <span class="mx-1 text-text-annotation">&rarr;</span>
+                  <span class="font-semibold text-text-body">
+                    {formatBytes(site.totalAvif)}
+                  </span>
+                </p>
+              </div>
+
+              {/* Load time */}
+              <div class="rounded-lg border border-border bg-bg-elevated p-6 text-center">
+                <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation mb-3">
+                  Load time (3G)
+                </p>
+                <p class="display-num text-5xl sm:text-6xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400 leading-none">
+                  &minus;{pct(site.loadTime.before, site.loadTime.after)}%
+                </p>
+                <p class="mt-2 text-sm font-medium text-text-body">faster</p>
+                <p class="mt-3 text-xs text-text-annotation display-num tabular-nums">
+                  <span class="line-through">{site.loadTime.before}s</span>
+                  <span class="mx-1 text-text-annotation">&rarr;</span>
+                  <span class="font-semibold text-text-body">
+                    {site.loadTime.after}s
+                  </span>
+                </p>
+              </div>
+
+              {/* Lighthouse */}
+              <div class="rounded-lg border border-border bg-bg-elevated p-6 text-center">
+                <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation mb-3">
+                  Lighthouse Performance
+                </p>
+                <p
+                  class:list={[
+                    'display-num text-5xl sm:text-6xl font-bold tracking-tight leading-none',
+                    site.lighthouse.after >= 90
+                      ? 'text-emerald-700 dark:text-emerald-400'
+                      : 'text-amber-600 dark:text-amber-400',
+                  ]}
+                >
+                  +{site.lighthouse.after - site.lighthouse.before}
+                </p>
+                <p class="mt-2 text-sm font-medium text-text-body">
+                  points
+                  <span
+                    class:list={[
+                      'ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
+                      site.lighthouse.after >= 90
+                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
+                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+                    ]}
+                  >
+                    {site.lighthouse.after >= 90 ? 'Good (≥90)' : 'Needs work (<90)'}
+                  </span>
+                </p>
+                <p class="mt-3 text-xs text-text-annotation display-num tabular-nums">
+                  <span class="line-through">{site.lighthouse.before}</span>
+                  <span class="mx-1 text-text-annotation">&rarr;</span>
+                  <span class="font-semibold text-text-body">
+                    {site.lighthouse.after}
+                  </span>
+                </p>
+              </div>
+            </div>
+
+            {/* Resource breakdown table */}
+            <div class="mt-8 rounded-lg border border-border bg-bg-elevated overflow-hidden">
+              <div class="px-6 py-4 border-b border-border bg-bg-secondary">
+                <h3 class="text-sm font-semibold text-text-body">
+                  Resource breakdown
+                </h3>
+              </div>
+              <table class="w-full text-sm">
+                <thead>
+                  <tr class="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-text-annotation">
+                    <th class="px-6 py-3">Resource</th>
+                    <th class="px-6 py-3 text-right">Original</th>
+                    <th class="px-6 py-3 text-right">Optimized</th>
+                    <th class="px-6 py-3 text-right">Saving</th>
+                    <th class="px-6 py-3 w-40">
+                      <span class="sr-only">Bar</span>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {/* CSS */}
+                  <tr class="border-b border-border">
+                    <td class="px-6 py-3 font-medium text-text-body">
+                      CSS (minified)
+                    </td>
+                    <td class="px-6 py-3 text-right text-text-muted">
+                      {formatBytes(site.resources.css.before)}
+                    </td>
+                    <td class="px-6 py-3 text-right font-medium text-text-body">
+                      {formatBytes(site.resources.css.minified)}
+                    </td>
+                    <td class="px-6 py-3 text-right font-semibold text-emerald-700 dark:text-emerald-400">
+                      -{pct(site.resources.css.before, site.resources.css.minified)}%
+                    </td>
+                    <td class="px-6 py-3">
+                      <div class="flex gap-1 items-center">
+                        <div
+                          class="h-2 rounded-full bg-stone-300 dark:bg-stone-600"
+                          style={`width: ${Math.round((site.resources.css.before / site.totalBefore) * 100)}%`}
+                        />
+                        <div
+                          class="h-2 rounded-full bg-emerald-500"
+                          style={`width: ${Math.round((site.resources.css.minified / site.totalBefore) * 100)}%`}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                  {/* JS */}
+                  <tr class="border-b border-border">
+                    <td class="px-6 py-3 font-medium text-text-body">
+                      JavaScript (minified)
+                    </td>
+                    <td class="px-6 py-3 text-right text-text-muted">
+                      {formatBytes(site.resources.js.before)}
+                    </td>
+                    <td class="px-6 py-3 text-right font-medium text-text-body">
+                      {formatBytes(site.resources.js.minified)}
+                    </td>
+                    <td class="px-6 py-3 text-right font-semibold text-emerald-700 dark:text-emerald-400">
+                      -{pct(site.resources.js.before, site.resources.js.minified)}%
+                    </td>
+                    <td class="px-6 py-3">
+                      <div class="flex gap-1 items-center">
+                        <div
+                          class="h-2 rounded-full bg-stone-300 dark:bg-stone-600"
+                          style={`width: ${Math.round((site.resources.js.before / site.totalBefore) * 100)}%`}
+                        />
+                        <div
+                          class="h-2 rounded-full bg-emerald-500"
+                          style={`width: ${Math.round((site.resources.js.minified / site.totalBefore) * 100)}%`}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                  {/* Images WebP */}
+                  <tr class="border-b border-border">
+                    <td class="px-6 py-3 font-medium text-text-body">
+                      {site.resources.images.label} &rarr; WebP
+                    </td>
+                    <td class="px-6 py-3 text-right text-text-muted">
+                      {formatBytes(site.imgBefore)}
+                    </td>
+                    <td class="px-6 py-3 text-right font-medium text-text-body">
+                      {formatBytes(site.imgWebp)}
+                    </td>
+                    <td class="px-6 py-3 text-right font-semibold text-emerald-700 dark:text-emerald-400">
+                      -{pct(site.imgBefore, site.imgWebp)}%
+                    </td>
+                    <td class="px-6 py-3">
+                      <div class="flex gap-1 items-center">
+                        <div
+                          class="h-2 rounded-full bg-stone-300 dark:bg-stone-600"
+                          style={`width: ${Math.min(100, Math.round((site.imgBefore / site.totalBefore) * 100))}%`}
+                        />
+                        <div
+                          class="h-2 rounded-full bg-interactive"
+                          style={`width: ${Math.min(100, Math.round((site.imgWebp / site.totalBefore) * 100))}%`}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                  {/* Images AVIF */}
+                  <tr class="border-b border-border">
+                    <td class="px-6 py-3 font-medium text-text-body">
+                      {site.resources.images.label} &rarr; AVIF
+                    </td>
+                    <td class="px-6 py-3 text-right text-text-muted">
+                      {formatBytes(site.imgBefore)}
+                    </td>
+                    <td class="px-6 py-3 text-right font-medium text-text-body">
+                      {formatBytes(site.imgAvif)}
+                    </td>
+                    <td class="px-6 py-3 text-right font-semibold text-emerald-700 dark:text-emerald-400">
+                      -{pct(site.imgBefore, site.imgAvif)}%
+                    </td>
+                    <td class="px-6 py-3">
+                      <div class="flex gap-1 items-center">
+                        <div
+                          class="h-2 rounded-full bg-stone-300 dark:bg-stone-600"
+                          style={`width: ${Math.min(100, Math.round((site.imgBefore / site.totalBefore) * 100))}%`}
+                        />
+                        <div
+                          class="h-2 rounded-full bg-stone-500 dark:bg-stone-400"
+                          style={`width: ${Math.min(100, Math.round((site.imgAvif / site.totalBefore) * 100))}%`}
+                        />
+                      </div>
+                    </td>
+                  </tr>
+                  {/* HTML (unchanged) */}
+                  <tr>
+                    <td class="px-6 py-3 font-medium text-text-body">
+                      HTML + critical CSS
+                    </td>
+                    <td class="px-6 py-3 text-right text-text-muted">
+                      {formatBytes(site.resources.html.before)}
+                    </td>
+                    <td class="px-6 py-3 text-right font-medium text-text-body">
+                      {formatBytes(site.resources.html.before)}
+                    </td>
+                    <td class="px-6 py-3 text-right text-text-muted">0%</td>
+                    <td class="px-6 py-3">
+                      <div
+                        class="h-2 rounded-full bg-stone-200 dark:bg-stone-700"
+                        style={`width: ${Math.round((site.resources.html.before / site.totalBefore) * 100)}%`}
+                      />
+                    </td>
+                  </tr>
+                </tbody>
+                <tfoot>
+                  <tr class="border-t border-border bg-bg-secondary font-semibold">
+                    <td class="px-6 py-3 text-text-body">Total</td>
+                    <td class="px-6 py-3 text-right text-text-muted">
+                      {formatBytes(site.totalBefore)}
+                    </td>
+                    <td class="px-6 py-3 text-right text-text-body">
+                      {formatBytes(site.totalAvif)}
+                    </td>
+                    <td class="px-6 py-3 text-right text-emerald-700 dark:text-emerald-400">
+                      -{pct(site.totalBefore, site.totalAvif)}%
+                    </td>
+                    <td class="px-6 py-3" />
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+
+            {/* Waterfall comparison */}
+            <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Before waterfall */}
+              <div class="rounded-lg border border-border bg-bg-elevated p-6">
+                <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation mb-4">
+                  Before &mdash; original resources
+                </p>
+                <div class="space-y-2">
+                  <div>
+                    <div class="flex justify-between text-xs text-text-muted mb-1">
+                      <>
+                        <span>HTML</span>
+                        <span>{formatBytes(site.resources.html.before)}</span>
+                      </>
+                    </div>
+                    <div class="h-3 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
+                      <div
+                        class="h-full rounded-full bg-stone-400 dark:bg-stone-600"
+                        style={`width: ${Math.round((site.resources.html.before / site.totalBefore) * 100)}%`}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <div class="flex justify-between text-xs text-text-muted mb-1">
+                      <>
+                        <span>CSS</span>
+                        <span>{formatBytes(site.resources.css.before)}</span>
+                      </>
+                    </div>
+                    <div class="h-3 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
+                      <div
+                        class="h-full rounded-full bg-stone-400 dark:bg-stone-600"
+                        style={`width: ${Math.round((site.resources.css.before / site.totalBefore) * 100)}%`}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <div class="flex justify-between text-xs text-text-muted mb-1">
+                      <>
+                        <span>JavaScript</span>
+                        <span>{formatBytes(site.resources.js.before)}</span>
+                      </>
+                    </div>
+                    <div class="h-3 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
+                      <div
+                        class="h-full rounded-full bg-stone-400 dark:bg-stone-600"
+                        style={`width: ${Math.round((site.resources.js.before / site.totalBefore) * 100)}%`}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <div class="flex justify-between text-xs text-text-muted mb-1">
+                      <>
+                        <span>Images (JPEG)</span>
+                        <span>{formatBytes(site.imgBefore)}</span>
+                      </>
+                    </div>
+                    <div class="h-3 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
+                      <div
+                        class="h-full rounded-full bg-stone-400 dark:bg-stone-600"
+                        style={`width: ${Math.min(100, Math.round((site.imgBefore / site.totalBefore) * 100))}%`}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div class="mt-4 pt-3 border-t border-border flex justify-between text-sm font-semibold">
+                  <span class="text-text-body">Total</span>
+                  <span class="text-text-body">
+                    {formatBytes(site.totalBefore)}
+                  </span>
+                </div>
+              </div>
+
+              {/* After waterfall */}
+              <div class="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/30 dark:bg-emerald-950/30 p-6">
+                <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mb-4">
+                  After &mdash; optimized with AVIF
+                </p>
+                <div class="space-y-2">
+                  <div>
+                    <div class="flex justify-between text-xs text-text-muted mb-1">
+                      <>
+                        <span>HTML + critical CSS</span>
+                        <span>{formatBytes(site.resources.html.before)}</span>
+                      </>
+                    </div>
+                    <div class="h-3 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
+                      <div
+                        class="h-full rounded-full bg-interactive"
+                        style={`width: ${Math.round((site.resources.html.before / site.totalBefore) * 100)}%`}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <div class="flex justify-between text-xs text-text-muted mb-1">
+                      <>
+                        <span>CSS (minified)</span>
+                        <span>{formatBytes(site.resources.css.minified)}</span>
+                      </>
+                    </div>
+                    <div class="h-3 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
+                      <div
+                        class="h-full rounded-full bg-interactive"
+                        style={`width: ${Math.round((site.resources.css.minified / site.totalBefore) * 100)}%`}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <div class="flex justify-between text-xs text-text-muted mb-1">
+                      <>
+                        <span>JS (minified)</span>
+                        <span>{formatBytes(site.resources.js.minified)}</span>
+                      </>
+                    </div>
+                    <div class="h-3 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
+                      <div
+                        class="h-full rounded-full bg-interactive"
+                        style={`width: ${Math.round((site.resources.js.minified / site.totalBefore) * 100)}%`}
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <div class="flex justify-between text-xs text-text-muted mb-1">
+                      <>
+                        <span>Images (AVIF)</span>
+                        <span>{formatBytes(site.imgAvif)}</span>
+                      </>
+                    </div>
+                    <div class="h-3 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
+                      <div
+                        class="h-full rounded-full bg-interactive"
+                        style={`width: ${Math.min(100, Math.round((site.imgAvif / site.totalBefore) * 100))}%`}
+                      />
+                    </div>
+                  </div>
+                </div>
+                <div class="mt-4 pt-3 border-t border-emerald-200 dark:border-emerald-800 flex justify-between text-sm font-semibold">
+                  <span class="text-emerald-800 dark:text-emerald-300">Total</span>
+                  <span class="text-emerald-900 dark:text-emerald-200">
+                    {formatBytes(site.totalAvif)}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* CSS minification sample */}
+            <div class="mt-8 rounded-lg border border-border bg-bg-elevated overflow-hidden">
+              <div class="px-6 py-4 border-b border-border bg-bg-secondary">
+                <h3 class="text-sm font-semibold text-text-body">
+                  CSS minification example
+                </h3>
+                <p class="text-xs text-text-muted mt-1">
+                  Actual code from the {site.name.toLowerCase()} demo. Comments removed, whitespace
+                  stripped, shorthand properties collapsed.
+                </p>
+              </div>
+              <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-stone-200 dark:divide-stone-700">
+                <div class="p-4">
+                  <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation mb-2">
+                    Before &mdash; {formatBytes(site.resources.css.before)}
+                  </p>
+                  <pre class="text-xs text-text-muted bg-bg-secondary rounded p-3 overflow-x-auto max-h-56 overflow-y-auto">
+                    <code>{site.cssSnippet.before}</code>
+                  </pre>
+                </div>
+                <div class="p-4">
+                  <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mb-2">
+                    After &mdash; {formatBytes(site.resources.css.minified)}
+                  </p>
+                  <pre class="text-xs text-text-muted bg-emerald-50 dark:bg-emerald-950 rounded p-3 overflow-x-auto max-h-56 overflow-y-auto">
+                    <code set:text={site.cssSnippet.after} />
+                  </pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        ))
+      }
+    </div>
+  </section>
+
+  {/* Methodology */}
+  <section class="py-16">
+    <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+      <h2 class="h2-section text-text-body">Methodology</h2>
+      <p class="mt-3 text-text-muted">
+        We separate what we directly measure from what we model. The byte sizes below are measured
+        from the actual ModPageSpeed 2.0 optimization pipeline running against the demo sites above
+        — real pipeline output, not marketing math. The load-time and Lighthouse figures are
+        projections we derive from those measured savings, and we say so explicitly.
+      </p>
+      <p class="mt-4 text-sm font-semibold text-text-body">Directly measured</p>
+      <ul class="mt-2 space-y-2 text-sm text-text-muted list-disc list-inside">
+        <li>
+          <strong>CSS/JS sizes</strong> are measured by fetching the external
+          <code class="text-xs bg-stone-200 dark:bg-stone-700 rounded px-1">style.css</code> and
+          <code class="text-xs bg-stone-200 dark:bg-stone-700 rounded px-1">app.js</code> files from the
+          origin server (before) and from the PageSpeed nginx proxy (after). Minified sizes reflect our
+          actual CSS/JS minifier output.
+        </li>
+        <li>
+          <strong>Image sizes</strong> are measured by fetching each JPEG from the origin and the corresponding
+          WebP and AVIF variants from the PageSpeed proxy. Totals are the real sum of all images per demo
+          site.
+        </li>
+      </ul>
+      <p class="mt-4 text-sm font-semibold text-text-body">
+        Modeled from those measurements
+      </p>
+      <ul class="mt-2 space-y-2 text-sm text-text-muted list-disc list-inside">
+        <li>
+          <strong>Load times</strong> are a model, not a stopwatch reading: we project transfer time for
+          a simulated 3G connection (1.6 Mbps, 300ms RTT) from the measured total transfer size.
+        </li>
+        <li>
+          <strong>Lighthouse scores</strong> shown here are projected from the measured resource savings
+          and critical CSS injection, not captured from a live audit. For a live audit of your own site,
+          use our <a href="/analyze/">analyzer</a> — it runs Google's PageSpeed Insights and maps each
+          finding to the ModPageSpeed filter that fixes it.
+        </li>
+      </ul>
+      <p class="mt-4 text-xs text-text-annotation">
+        Measurements generated: {
+          new Date(generatedAt).toLocaleDateString('en-US', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+          })
+        }
+      </p>
+    </div>
+  </section>
+
+  {/* Live consoles */}
+  <section class="py-16">
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <h2 class="h2-section text-text-body text-center">
+        See the live consoles
+      </h2>
+      <p class="mt-4 text-text-muted text-center max-w-2xl mx-auto">
+        Both products ship a built-in console for monitoring and cache inspection. These are real,
+        publicly reachable instances running on our own infrastructure — open them and click around.
+      </p>
+      <div class="mt-10 grid gap-8 lg:grid-cols-2">
+        <div>
+          <a
+            href="https://we-amp.com/console/"
+            data-umami-event="live_2_0_console_demo"
+            class="block group"
+          >
+            <picture>
+              <source srcset="/images/console-2.0-dashboard.avif" type="image/avif" />
+              <source srcset="/images/console-2.0-dashboard.webp" type="image/webp" />
+              <img
+                src="/images/console-2.0-dashboard.png"
+                alt="ModPageSpeed 2.0 web console dashboard showing total bandwidth saved and live throughput, cache, and health charts"
+                width="1440"
+                height="900"
+                loading="lazy"
+                class="rounded-lg border border-border group-hover:border-interactive/40 transition-colors"
+              />
+            </picture>
+          </a>
+          <p class="mt-3 text-sm font-medium text-text-body">
+            ModPageSpeed 2.0 console
+          </p>
+          <p class="mt-1 text-sm text-text-muted">
+            A read-only dashboard with live optimization stats from this site's own production
+            deployment. <a
+              href="https://we-amp.com/console/"
+              class="text-interactive underline underline-offset-2"
+              >Open the live 2.0 console →</a
+            >
+          </p>
+        </div>
+        <div>
+          <a
+            href="https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/#/console"
+            data-umami-event="live_1_1_console_demo"
+            class="block group"
+          >
+            <picture>
+              <source srcset="/images/console-1.1-admin.avif" type="image/avif" />
+              <source srcset="/images/console-1.1-admin.webp" type="image/webp" />
+              <img
+                src="/images/console-1.1-admin.png"
+                alt="mod_pagespeed 1.15 admin console showing live statistics with per-variable deltas and trend sparklines"
+                width="1440"
+                height="900"
+                loading="lazy"
+                class="rounded-lg border border-border group-hover:border-interactive/40 transition-colors"
+              />
+            </picture>
+          </a>
+          <p class="mt-3 text-sm font-medium text-text-body">
+            mod_pagespeed 1.15 admin console
+          </p>
+          <p class="mt-1 text-sm text-text-muted">
+            The admin console built into the native module, running on our public Apache demo. Live
+            statistics, caches, histograms, and message history, served in-process with no separate
+            worker. <a
+              href="https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/#/console"
+              class="text-interactive underline underline-offset-2"
+              >Open the live 1.15 console →</a
+            >
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  {/* Try it yourself */}
+  <section class="py-16 bg-bg-secondary">
+    <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+      <h2 class="h2-section text-text-body text-center">
+        Verify on your own content
+      </h2>
+      <p class="mt-4 text-text-muted text-center max-w-2xl mx-auto">
+        Run ModPageSpeed 2.0 locally with Docker and measure the difference on your own site.
+      </p>
+      <div
+        class="mt-8 rounded-lg bg-bg-elevated border border-border p-6"
+      >
+        <p class="text-sm font-medium text-text-body mb-3">Quick start:</p>
+        <pre
+          class="rounded-md bg-stone-900 text-stone-100 p-4 text-sm overflow-x-auto"><code>docker compose -f deploy/docker-compose.yml up -d
+curl -I http://localhost:8080/          # X-PageSpeed: MISS (original)
+sleep 2                                 # Wait for worker optimization
+curl -I http://localhost:8080/          # X-PageSpeed: HIT  (optimized)</code></pre>
+        <p class="mt-4 text-sm text-text-muted">
+          See the <a
+            href="/docs/getting-started/"
+            class="text-interactive underline hover:text-interactive"
+            >getting started guide</a
+          >
+          for full installation instructions.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  {/* CTA */}
+  <section class="bg-interactive py-16">
+    <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center">
+      <h2 class="h2-section text-on-accent">
+        Free to run. See these results on your own site.
+      </h2>
+      <p class="mt-4 text-on-accent/80">
+        Apache-2.0 &mdash; free to install and run, in development and in production.
+      </p>
+      <div class="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
+        <CTAButton
+          variant="inverse"
+          href="/download/"
+          label="Download & run"
+          event="cta_demo_bottom"
+        />
+        <a
+          href="/pricing/"
+          data-umami-event="cta_demo_bottom_buy"
+          class="inline-flex items-center justify-center gap-2 rounded-lg border border-on-accent/40 bg-transparent px-6 py-3 text-sm font-semibold text-on-accent hover:bg-interactive-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-on-accent transition-colors"
+        >
+          Support plans
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <script>
+    // Demo site tab navigation
+    (function () {
+      var tabContainer = document.getElementById('demo-tabs');
+      var urlBar = document.getElementById('demo-url-bar');
+      var openLink = document.getElementById('demo-open-link');
+
+      // Classes that represent the active/inactive chrome-tab visual.
+      // Kept as token lists so focus-visible:* utilities set declaratively on
+      // the element markup are never blown away by className overwrites.
+      var ACTIVE_TOKENS = [
+        'border',
+        'border-stone-200',
+        'dark:border-stone-700',
+        'border-b-white',
+        'dark:border-b-stone-900',
+        'bg-white',
+        'dark:bg-stone-900',
+        'text-stone-900',
+        'dark:text-stone-100',
+      ];
+      var INACTIVE_TOKENS = [
+        'text-stone-500',
+        'dark:text-stone-400',
+        'hover:text-stone-700',
+        'dark:hover:text-stone-300',
+        'hover:bg-stone-50',
+        'dark:hover:bg-stone-800',
+      ];
+
+      function applyActive(el: Element) {
+        INACTIVE_TOKENS.forEach(function (t) {
+          el.classList.remove(t);
+        });
+        ACTIVE_TOKENS.forEach(function (t) {
+          el.classList.add(t);
+        });
+      }
+      function applyInactive(el: Element) {
+        ACTIVE_TOKENS.forEach(function (t) {
+          el.classList.remove(t);
+        });
+        INACTIVE_TOKENS.forEach(function (t) {
+          el.classList.add(t);
+        });
+      }
+
+      if (tabContainer) {
+        var tabs = Array.prototype.slice.call(
+          tabContainer.querySelectorAll('button[data-demo-tab]'),
+        ) as HTMLButtonElement[];
+
+        // Activate a tab: update visual chrome, aria-selected, roving tabindex,
+        // the controlled panel (lazy-loading its iframe), and the URL bar.
+        // role="tab" uses aria-selected; aria-pressed is invalid on tabs
+        // (axe: aria-allowed-attr).
+        function selectTab(tab: HTMLButtonElement, moveFocus: boolean) {
+          var siteId = tab.getAttribute('data-demo-tab');
+          var src = tab.getAttribute('data-demo-src');
+
+          tabs.forEach(function (t) {
+            applyInactive(t);
+            t.setAttribute('aria-selected', 'false');
+            t.setAttribute('tabindex', '-1');
+          });
+          applyActive(tab);
+          tab.setAttribute('aria-selected', 'true');
+          tab.setAttribute('tabindex', '0');
+          if (moveFocus) tab.focus();
+
+          document.querySelectorAll('[role="tabpanel"]').forEach(function (panel) {
+            if (panel.id === 'preview-' + siteId) {
+              panel.classList.remove('hidden');
+              var iframe = panel.querySelector('iframe');
+              if (iframe && !(iframe as HTMLIFrameElement).src) {
+                (iframe as HTMLIFrameElement).src = iframe.getAttribute('data-src') || '';
+              }
+            } else {
+              panel.classList.add('hidden');
+            }
+          });
+
+          if (urlBar) urlBar.textContent = src;
+          if (openLink && src) openLink.setAttribute('href', src);
+
+          (window as any).umami?.track('demo_preview_tab_switch', { site: siteId });
+        }
+
+        tabs.forEach(function (tab) {
+          tab.addEventListener('click', function () {
+            selectTab(tab, false);
+          });
+        });
+
+        // WAI-ARIA APG tablist keyboard: Left/Right move + activate with wrap,
+        // Home/End jump to the first/last tab.
+        tabContainer.addEventListener('keydown', function (e: KeyboardEvent) {
+          var current = document.activeElement as HTMLButtonElement;
+          var idx = tabs.indexOf(current);
+          if (idx === -1) return;
+          var next = -1;
+          if (e.key === 'ArrowRight' || e.key === 'ArrowDown') next = (idx + 1) % tabs.length;
+          else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp')
+            next = (idx - 1 + tabs.length) % tabs.length;
+          else if (e.key === 'Home') next = 0;
+          else if (e.key === 'End') next = tabs.length - 1;
+          if (next === -1) return;
+          e.preventDefault();
+          selectTab(tabs[next], true);
+        });
+      }
+    })();
+
+    // Optimization analysis site picker
+    (function () {
+      var picker = document.getElementById('site-picker');
+      if (picker) {
+        var buttons = picker.querySelectorAll('button[data-site]');
+        buttons.forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            var siteId = btn.getAttribute('data-site');
+            // Update pressed state — .product-tab utility keys off aria-pressed
+            buttons.forEach(function (b) {
+              b.setAttribute('aria-pressed', 'false');
+            });
+            btn.setAttribute('aria-pressed', 'true');
+            // Show/hide panels
+            document.querySelectorAll('[data-panel]').forEach(function (panel) {
+              if (panel.getAttribute('data-panel') === siteId) {
+                panel.classList.remove('hidden');
+              } else {
+                panel.classList.add('hidden');
+              }
+            });
+
+            // Analytics (Umami — umami.track(name, props) form)
+            (window as any).umami?.track('demo_site_switch', { site: siteId });
+          });
+        });
+      }
+    })();
+  </script>
+</BaseLayout>
