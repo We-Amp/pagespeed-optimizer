@@ -414,6 +414,14 @@ jobs:
     permissions:
       contents: write
     steps:
+      # gh release create --verify-tag shells out to git, so the job needs
+      # a checkout of the tag — downloading the dist artifact alone leaves
+      # no .git and the publish fails with "not a git repository".
+      - name: Checkout the tag
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.version.outputs.tag }}
+
       - name: Download validated dist
         uses: actions/download-artifact@v7
         with:
