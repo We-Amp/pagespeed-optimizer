@@ -52,6 +52,7 @@ mod_pagespeed 2.1 ships as deb/rpm package pairs:
 - **`pagespeed-optimizer`** — the optimization daemon (this repository)
 - **`mod-pagespeed`** — the Apache module, which depends on the optimizer
   package at the exact same version, so `apt`/`yum` pull it in automatically
+  Both install from the signed repository: `curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh`
 
 Container images and a Helm chart cover the nginx deployment side; see
 [modpagespeed.com](https://modpagespeed.com/). Upgrading between releases —
@@ -220,7 +221,7 @@ deploy/        Production deployment configs
 ## Related Repositories
 
 - [We-Amp/mod_pagespeed](https://github.com/We-Amp/mod_pagespeed) — the
-  Apache module and the 1.x lineage
+  Apache module (the 1.x lineage, live as 2.1)
 - [We-Amp/cyclone-cache](https://github.com/We-Amp/cyclone-cache) — the
   Cyclone cache library
 
