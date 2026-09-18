@@ -1,4 +1,10 @@
-# Astro Starter Kit: Minimal
+# modpagespeed.com website
+
+> This tree is imported from the site's source-of-truth repository; it is
+> not edited here, because an edit would be overwritten by the next import.
+> See `../RELEASING.md` ("The website tree") for the import flow and the
+> `Website` workflow that gates changes to this directory on the unit suite
+> and a production build.
 
 ```sh
 npm create astro@latest -- --template minimal

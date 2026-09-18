@@ -111,6 +111,23 @@ with clang-20 + libc++-20; the release build adds optimization, LTO and
 binary hardening, and `tools/assert-binary-hardening.sh` re-checks the
 hardening properties on both artifacts before they are packaged.
 
+## The website tree
+
+`website/` (the modpagespeed.com site) is imported wholesale from the site's
+source-of-truth repository by the maintainer export flow; it is not edited
+here, because a direct edit would be overwritten by the next import. The
+import applies a token-only scrub for internal references, asserts none
+remain, and runs this repository's public-tree hygiene gate
+(`tools/ci/check-public-hygiene.sh`) over the result before anything is
+committed.
+
+What enforces the quality of an import is the `Website` workflow
+(`.github/workflows/website.yml`): on every push or pull request touching
+`website/**` it runs `npm ci`, the vitest unit suite, and a production build
+(with `PRICING_ALLOW_STALE=1` — a hosted build holds no pricing API
+credentials, so it builds on the committed pricing file). A broken import
+cannot merge.
+
 ## Vulnerability Scanning
 
 ```bash
