@@ -115,6 +115,30 @@ test.describe('SEO', () => {
     }
   });
 
+  // Wave 0 (convergence): /download/ must actually sell the current line —
+  // a bare integration grid with no 2.1 row was the defect (A4 in
+  // convergence-inventory.md). One card per current-line integration, each
+  // labelled 'mod_pagespeed 2.1' next to its name.
+  test('/download/ offers the current line (mod_pagespeed 2.1)', async ({ page }) => {
+    await page.goto('/download/');
+    for (const name of ['Apache', 'nginx', 'nginx (Docker)', 'Helm']) {
+      await test.step(name, async () => {
+        const card = page.locator('a.card', {
+          has: page.getByRole('heading', { level: 3, name, exact: true }),
+        });
+        await expect(card).toContainText('mod_pagespeed 2.1');
+      });
+    }
+  });
+
+  test('/download/ JSON-LD name reflects the converged line', async ({ page }) => {
+    await page.goto('/download/');
+    const jsonLd = page.locator('script[type="application/ld+json"]').first();
+    const content = await jsonLd.textContent();
+    const data = JSON.parse(content!);
+    expect(data.name).toBe('mod_pagespeed 2.1');
+  });
+
   test('og:image is set on all pages', async ({ page }) => {
     for (const path of allPages) {
       await page.goto(path);
