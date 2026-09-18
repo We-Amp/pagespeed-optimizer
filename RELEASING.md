@@ -39,6 +39,19 @@ The gate exists because the failure it prevents is silent. A fix that ships
 without a note leaves everyone still working around it, and nothing anywhere
 goes red to say so.
 
+## Version numbering: VERSION.txt vs the shipped daemon
+
+`VERSION.txt` carries the converged product-line version (2.1.0 at GA) — the
+identity the website, release notes, and the NuGet middleware line share. The
+optimizer's own release lane is versioned independently: tags are
+`optimizer-v<X.Y.Z>` in the 1.16 packaging stream (e.g. `optimizer-v1.16.0`),
+matching the exact-version package pair the module depends on, and the shipped
+daemon self-reports that build version — not `VERSION.txt`. The two numbers
+move together at a release but are not the same number: bump `VERSION.txt`
+with the product line, cut `optimizer-v*` tags with the package stream. (The
+1.1 manifest in the corp meta-repo likewise stays on its own `v1.15.x+rN`
+scheme.)
+
 ## Cutting a release
 
 A release is a tag push. The tag names the version and the lane builds from
