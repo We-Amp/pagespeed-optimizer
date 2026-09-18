@@ -1,6 +1,13 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
-import { PRODUCT_NAME, CURRENT_LINE, VENDOR, COMPANY_KVK } from '../data/product-facts.mjs';
+import {
+  PRODUCT_NAME,
+  CURRENT_LINE,
+  V1_LINE,
+  V2_LINE,
+  VENDOR,
+  COMPANY_KVK,
+} from '../data/product-facts.mjs';
 
 // OWNER: set the effective date at GA (mirrors the terms page).
 const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
@@ -50,13 +57,29 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
       <!-- The software -->
       <div>
         <h2 class="text-2xl font-bold text-text-body">The software you run</h2>
+        {
+          /* TODO(counsel-T5): the predecessor-line sentence below is drafted from the relicensing
+            decision's retirement sequence: installs sold a production license may keep polling the
+            retired license-renewal endpoints, which first go inert and are decommissioned only
+            after every legacy paid term expires; the hosted collection machinery was removed.
+            Counsel to confirm the final wording against engineering facts — exactly which
+            predecessor releases, in which license state, can still contact the retired endpoints.
+            Minimal alignment only; the rest of this notice is untouched. */
+        }
         <p class="mt-4 text-text-muted">
           {PRODUCT} runs on your servers. It sends no telemetry to us and opens no outbound connection
           of its own accord. The only traffic that leaves a host is what you, the operator, configure:
           fetches to your own origin for the resources it optimizes and, when you enable browser analysis,
           requests to the pages you point it at (and whatever those pages load). Your visitors&rsquo;
           data never reaches {VENDOR}, and we have no way to see it. This is true with or without a
-          support subscription; the predecessor lines behave the same way.
+          support subscription.
+        </p>
+        <p class="mt-2 text-text-muted">
+          The predecessor lines &mdash; mod_pagespeed {V1_LINE} and ModPageSpeed {V2_LINE} &mdash; behave
+          the same way for installs that run without a paid license: they never sent us anything. Installs
+          of predecessor releases sold a production license may still contact our retired license-renewal
+          endpoints; those endpoints no longer record anything and are being switched off as the last
+          legacy terms expire.
         </p>
         <p class="mt-2 text-text-muted">
           Because of this, for most deployments {VENDOR} is not a processor of your visitors&rsquo; data
