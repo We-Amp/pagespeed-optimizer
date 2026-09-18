@@ -95,10 +95,7 @@ const faqEntries = [
   },
   {
     q: 'What happened to mod_pagespeed 1.15 and ModPageSpeed 2.0?',
-    a:
-      'They converged. mod_pagespeed 2.1 succeeds both: it continues the original module — same directives, Apache and nginx — and adds a separate optimizer worker process, under one Apache-2.0 open-source license. mod_pagespeed 1.15 now receives security fixes only, with per-platform transition windows (IIS stays on 1.15 until a converged Windows package ships, plus a transition window after it), and ModPageSpeed 2.0 (GA ' +
-      V2_GA_DATE +
-      ') is feature-frozen and supported until February 7, 2027. On Apache and nginx, run mod_pagespeed 2.1; other platforms stay on 1.15 for their transition window.',
+    a: 'They converged. mod_pagespeed 2.1 continues both: the original module — same directives, Apache and nginx — plus a separate optimizer worker process, under one Apache-2.0 open-source license. The IIS package ships from the 1.15 packaging channel.',
   },
 ];
 
@@ -324,15 +321,14 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
 
     <hr class="rule-ticked my-14" />
 
-    <!-- Two lines, what to run -->
+    <!-- One product, what to run -->
     <section>
       <h2 class="h2-section text-text-body">What there is to run today</h2>
       <p class="mt-4 text-text-body">
         The maintained line is <span class="whitespace-nowrap">mod_pagespeed 2.1</span> — one product,
-        converging the two lines We-Amp shipped through 2026. The previous lines remain available through
-        their transition windows.
+        converging the two lines We-Amp shipped through 2026.
       </p>
-      <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+      <div class="mt-8 grid grid-cols-1 max-w-xl">
         <div class="rounded-2xl border border-border bg-bg-elevated p-6">
           <p class="text-xs font-semibold uppercase tracking-wide text-interactive">
             The converged line
@@ -352,31 +348,20 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
             >
           </p>
         </div>
-        <div class="rounded-2xl border border-border bg-bg-elevated p-6">
-          <p class="text-xs font-semibold uppercase tracking-wide text-interactive">
-            The previous lines
-          </p>
-          <p class="mt-1 text-2xl font-bold text-text-body">1.15 and 2.0</p>
-          <p class="mt-3 text-sm text-text-muted">
-            mod_pagespeed {V1_LINE} now receives security fixes only, with per-platform transition windows — IIS
-            / Windows Server stays on 1.15 until a converged Windows package ships, plus a transition
-            window after it. ModPageSpeed 2.0 (GA {V2_GA_DATE}) is feature-frozen and supported
-            until February 7, 2027, with a documented migration path.
-          </p>
-          <p class="mt-4 text-sm">
-            <a
-              href="/1.1/docs/upgrading-to-2-1/"
-              class="font-medium text-interactive hover:text-interactive-hover underline underline-offset-4"
-              >1.15 security-support windows &rarr;</a
-            >
-            <a
-              href="/docs/migrating-to-2-1/"
-              class="ml-4 font-medium text-interactive hover:text-interactive-hover underline underline-offset-4"
-              >2.0 migration guide &rarr;</a
-            >
-          </p>
-        </div>
       </div>
+      <p class="mt-6 text-sm text-text-muted">
+        The IIS package ships from the 1.15 packaging channel. See the
+        <a
+          href="/1.1/docs/upgrading-to-2-1/"
+          class="font-medium text-interactive hover:text-interactive-hover underline underline-offset-4"
+          >upgrade guide</a
+        >. Running ModPageSpeed 2.0 Docker/Helm? See the
+        <a
+          href="/docs/migrating-to-2-1/"
+          class="font-medium text-interactive hover:text-interactive-hover underline underline-offset-4"
+          >migration guide</a
+        >.
+      </p>
       <p class="mt-6 text-sm text-text-muted">
         mod_pagespeed 2.1 is {LICENSE_CLAUSE}: free to install and run. Support &mdash; and hardened builds &mdash; are what&rsquo;s for sale; see <a
           href="/pricing/"

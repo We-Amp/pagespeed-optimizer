@@ -1,28 +1,36 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
+import { getRelease } from '../../lib/release';
 import { FREE_TO_RUN_LINE, LICENSE_CLAUSE } from '../../data/product-facts.mjs';
+
+// Image names and tag come from the release manifest, so the compose sample
+// below cannot drift from the published images.
+const rel = await getRelease('2.1');
+const dockerTag = rel.release.semver;
+const workerImage = rel.artifacts.docker.worker_image;
+const nginxImage = rel.artifacts.docker.image;
 
 const faq = [
   {
     q: 'Is the nginx port still maintained?',
-    a: 'Yes. mod_pagespeed 1.15 is the maintained continuation of the nginx port. It ships a native nginx module — the same ngx_pagespeed.so, the same pagespeed directives — built against current nginx, with current image and TLS dependencies and applied CVE patches. We-Amp helped ship the open-source 1.13.35.2 release and kept the module going.',
+    a: 'Yes. mod_pagespeed 2.1 is the maintained continuation of the nginx port. It ships a native nginx module — the same ngx_pagespeed.so, the same pagespeed directives — built against current nginx, with current image and TLS dependencies and applied CVE patches. We-Amp helped ship the open-source 1.13.35.2 release and kept the module going.',
   },
   {
     q: 'Can I keep my existing pagespeed directives?',
-    a: 'Yes. mod_pagespeed 1.15 is bit-compatible with open-source mod_pagespeed. The pagespeed directives and filter selectors you already wrote keep working. Install the signed package, add the load_module line, keep your config.',
+    a: 'Yes. mod_pagespeed 2.1 keeps the pagespeed directive surface and the classic filter names, so the directives and filter selectors you already wrote keep working. Install the signed package, add the load_module line, keep your config.',
   },
   {
     q: 'What happened to the old ngx_pagespeed repository?',
-    a: 'Google donated mod_pagespeed and ngx_pagespeed to the Apache Software Foundation in 2017. The Apache Incubator podling retired in 2023, and apache/incubator-pagespeed-ngx was marked read-only in 2025. The archived sources no longer build cleanly against current nginx without patching. The module itself did not stop. Its maintainers kept shipping it as mod_pagespeed 1.15.',
+    a: 'Google donated mod_pagespeed and ngx_pagespeed to the Apache Software Foundation in 2017. The Apache Incubator podling retired in 2023, and apache/incubator-pagespeed-ngx was marked read-only in 2025. The archived sources no longer build cleanly against current nginx without patching. The module itself did not stop. Its maintainers kept shipping it, and it ships today as mod_pagespeed 2.1.',
   },
   {
-    q: 'What is ModPageSpeed 2.0, and when would I want it instead?',
-    a: 'ModPageSpeed 2.0 is the newer out-of-process architecture: a worker behind an nginx reverse proxy (Docker), or native ASP.NET Core middleware. It keeps optimization off the request path. It serves cache hits via zero-copy mmap. It adds SVG auto-vectorization, Jpegli, and a variant-aware cache. Choose it for a new container-native deployment, or when SVG auto-vectorization and Jpegli matter for your image mix. Choose 1.15 for a native in-process nginx module that drops in where ngx_pagespeed sat.',
+    q: 'Native nginx module or Docker reverse proxy — which fits my stack?',
+    a: 'Both are mod_pagespeed 2.1. Install the native nginx module when you run nginx on Debian, Ubuntu, or Enterprise Linux and want the module in-process where ngx_pagespeed sat: one load_module line, your existing directives, no traffic detour. Run the Docker / nginx reverse proxy when you are container-native, when the origin is something other than nginx, or on Kubernetes via the Helm chart. Both run the same optimization pipeline against the same Cyclone cache.',
   },
   {
-    q: 'Which products generate AVIF?',
-    a: 'Both. ModPageSpeed 2.0 generates AVIF variants when the client signals support, and mod_pagespeed 1.15 encodes AVIF alongside WebP, JPEG, PNG, and GIF. AVIF is not the deciding factor between them — pick by deployment fit.',
+    q: 'Does the nginx module generate AVIF?',
+    a: 'Yes. mod_pagespeed 2.1 encodes AVIF alongside WebP, JPEG, PNG, and GIF, and serves the variant the client signals support for. AVIF is not a reason to pick one integration over another — pick by deployment fit.',
   },
   {
     q: 'Who maintains this?',
@@ -34,28 +42,13 @@ const jsonLd = [
   {
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
-    name: 'mod_pagespeed 1.15',
+    name: 'mod_pagespeed 2.1',
     applicationCategory: 'DeveloperApplication',
-    operatingSystem: ['Linux', 'Windows'],
+    operatingSystem: ['Linux'],
     description:
-      'Maintained continuation of the nginx PageSpeed port. Native in-process nginx module (ngx_pagespeed.so) with the same pagespeed directives and filters as open-source mod_pagespeed, built against current nginx with applied CVE patches. Also native on Apache and IIS (Envoy experimental).',
+      'Maintained continuation of the nginx PageSpeed port. Native in-process nginx module (ngx_pagespeed.so) with the same pagespeed directives and filters as open-source mod_pagespeed, built against current nginx with applied CVE patches, plus the optimizer worker for zero-copy mmap cache serving and variant-aware fan-out. Also native on Apache, and available as a Docker / nginx reverse proxy.',
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
     sameAs: ['https://packages.modpagespeed.com/', 'https://ngxpagespeed.com/'],
-    publisher: {
-      '@type': 'Organization',
-      name: 'We-Amp B.V.',
-      url: 'https://www.we-amp.com/',
-    },
-  },
-  {
-    '@context': 'https://schema.org',
-    '@type': 'SoftwareApplication',
-    name: 'ModPageSpeed 2.0',
-    applicationCategory: 'DeveloperApplication',
-    operatingSystem: ['Linux', 'Windows'],
-    description:
-      'Out-of-process web optimization worker behind an nginx reverse proxy (Docker), or native ASP.NET Core middleware. Zero-copy mmap cache serving, variant-aware fan-out, AVIF + WebP, ground-up C++23 rewrite of the PageSpeed module.',
-    offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
     publisher: {
       '@type': 'Organization',
       name: 'We-Amp B.V.',
@@ -76,7 +69,7 @@ const jsonLd = [
 
 <BaseLayout
   title="ngx_pagespeed alternative in 2026 — maintained nginx module"
-  description="ngx_pagespeed no longer builds on modern nginx. mod_pagespeed 1.15 is the maintained native module — same directives, builds on current nginx, CVE-patched."
+  description="ngx_pagespeed no longer builds on modern nginx. mod_pagespeed 2.1 is the maintained native module — same directives, builds on current nginx, CVE-patched."
   jsonLd={jsonLd}
 >
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-20">
@@ -85,8 +78,7 @@ const jsonLd = [
       <p class="lede mt-6">
         The nginx PageSpeed port lives on. The module you knew as <code
           class="rounded bg-bg-elevated px-1 py-0.5 text-base">ngx_pagespeed</code
-        > is now <code class="rounded bg-bg-elevated px-1 py-0.5 text-base"
-          >mod_pagespeed 1.15</code
+        > is now <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">mod_pagespeed 2.1</code
         >: the same native nginx module, the same <code
           class="rounded bg-bg-elevated px-1 py-0.5 text-base">pagespeed</code
         > directives, built against current nginx and security-patched. Maintained by the people who maintained
@@ -123,16 +115,16 @@ apt install nginx-module-pagespeed
 curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 dnf install nginx-module-pagespeed`}</code></pre>
 
-      <h2>mod_pagespeed 1.15 &mdash; the maintained nginx module</h2>
+      <h2>mod_pagespeed 2.1 &mdash; the maintained nginx module</h2>
       <p>
-        1.15 loads into your nginx binary the way ngx_pagespeed did. The module is named <code
+        The module loads into your nginx binary the way ngx_pagespeed did. It is still named <code
           >ngx_pagespeed.so</code
         > because it is the nginx port &mdash; the one you came here for. Install the signed package,
         add one <code>load_module</code> line, and keep the <code>pagespeed</code> directives, filter
         selectors, and URL-based variant fan-out you already wrote.
       </p>
 
-      <pre><code>{`# nginx.conf — mod_pagespeed 1.15 native module
+      <pre><code>{`# nginx.conf — the native mod_pagespeed 2.1 module
 load_module modules/ngx_pagespeed.so;
 
 pagespeed on;
@@ -140,24 +132,24 @@ pagespeed FileCachePath /var/cache/ngx_pagespeed;
 pagespeed RewriteLevel CoreFilters;`}</code></pre>
 
       <p>
-        It is the same <code>ngx_pagespeed.so</code>, bit-compatible with open-source mod_pagespeed:
-        same directives, with a modernized, secured filter stack and new optimizers. There is no separate worker, no reverse-proxy hop, and no
-        container. What changed: the module builds against current nginx, ships current image and
-        TLS dependencies, and takes CVE patches again.
+        It is the same <code>ngx_pagespeed.so</code>: the same directive surface as open-source
+        mod_pagespeed, with a modernized, secured filter stack and new optimizers. What changed: the
+        module builds against current nginx, ships current image and TLS dependencies, and takes CVE
+        patches again.
       </p>
       <p>
-        1.15 carries the full classic filter set: <code>combine_css</code>,
+        It carries the full classic filter set: <code>combine_css</code>,
         <code>combine_javascript</code>, image spriting, in-place resource optimization, domain
         mapping, DNS prefetch. It adds the built-in <code>/pagespeed_admin/</code> console and per-filter
         control. It optimizes images to WebP and AVIF alongside JPEG, PNG, and GIF.
       </p>
       <p>
-        It runs natively on Apache, nginx, and IIS (Envoy experimental). That makes it the only
-        PageSpeed build that loads inside Apache and IIS, and the successor to IISpeed.
+        The same module runs natively on Apache. The IIS package ships from the 1.15 packaging
+        channel.
       </p>
 
       <p>
-        <a href="/1.1/">mod_pagespeed 1.15 docs</a> &middot;
+        <a href="/docs/installation-module/">Module installation guide</a> &middot;
         <a href="https://packages.modpagespeed.com/" rel="noopener noreferrer external"
           >Package repositories (packages.modpagespeed.com)</a
         > &middot; <a href="/pricing/" data-umami-event="cta_alternatives_ngxpagespeed_buy_115"
@@ -167,10 +159,10 @@ pagespeed RewriteLevel CoreFilters;`}</code></pre>
 
       <h2>Who maintains it</h2>
       <p>
-        We-Amp B.V., based in Castricum, Netherlands, maintained mod_pagespeed throughout the Google era
-        and helped ship the open-source <code>1.13.35.2</code> release.
-        We-Amp owns <a href="https://ngxpagespeed.com/" rel="noopener noreferrer"
-          >ngxpagespeed.com</a
+        We-Amp B.V., based in Castricum, Netherlands, maintained mod_pagespeed throughout the Google
+        era and helped ship the open-source <code>1.13.35.2</code> release. We-Amp owns <a
+          href="https://ngxpagespeed.com/"
+          rel="noopener noreferrer">ngxpagespeed.com</a
         >, the historical landing page for the nginx port. When upstream development moved to the
         Apache Software Foundation and then wound down, the nginx module did not stop. Its
         maintainers kept shipping it.
@@ -187,92 +179,105 @@ pagespeed RewriteLevel CoreFilters;`}</code></pre>
         <a href="/blog/ngx-pagespeed-wont-build-modern-nginx/"
           >why ngx_pagespeed won't build on modern nginx (and the prebuilt fix)</a
         >, and the
-        <a href="https://ngxpagespeed.com/ngx-pagespeed-alternative/" rel="noopener noreferrer external"
-          >ngx_pagespeed alternative on ngxpagespeed.com</a
+        <a
+          href="https://ngxpagespeed.com/ngx-pagespeed-alternative/"
+          rel="noopener noreferrer external">ngx_pagespeed alternative on ngxpagespeed.com</a
         > walks through the prebuilt nginx module in more detail. Their image and TLS dependencies carry
-        known
-        CVEs that nobody is patching. A read-only repository is the reason to move to a maintained continuation,
-        not the reason to leave nginx-native optimization behind. That is the gap 1.15 closes: the same module,
-        still maintained.
+        known CVEs that nobody is patching. A read-only repository is the reason to move to a maintained
+        continuation, not the reason to leave nginx-native optimization behind. That is the gap the maintained
+        module closes: the same module, still maintained.
       </p>
 
-      <h2>If you want the new architecture: ModPageSpeed 2.0</h2>
+      <h2>If you want the container-native shape: the Docker reverse proxy</h2>
       <p>
-        ModPageSpeed 2.0 is the ground-up C++23 rewrite. Instead of loading into nginx, it runs as a
+        The same product has a second integration. Instead of loading into your nginx, it runs as a
         Docker reverse proxy in front of nginx (or any HTTP origin), which keeps optimization work
         off the request path. The proxy checks the cache and serves the variant via zero-copy <code
           >mmap</code
-        > on a hit. On a miss it serves the original and notifies a separate worker. The worker decodes
+        > on a hit. On a miss it serves the original and notifies the optimizer worker. The worker decodes
         once and generates up to 37 variants per asset: WebP, AVIF, viewport sizes, pixel densities, save-data,
         plus SVG for eligible images. It writes them to the variant-aware cache, which the next request
         reads from a hit.
       </p>
       <p>
         The optimization core underneath is the same PSOL core that ngx_pagespeed used. The
-        architecture around it is new: viewport- and density-aware variants, generated proactively
-        rather than on demand, ship only here.
+        architecture around it is what the C++23 rewrite added: viewport- and density-aware
+        variants, generated proactively rather than on demand.
       </p>
 
-      <pre><code>{`# docker-compose.yml — ModPageSpeed 2.0 reverse proxy in front of nginx
+      <pre><code>{`# docker-compose.yml — the nginx reverse proxy and the optimizer worker
 services:
-  modpagespeed:
-    image: weamp/modpagespeed:2
-    ports:
-      - "80:8080"
+  worker:
+    image: ${workerImage}:${dockerTag}
     environment:
-      PAGESPEED_ORIGIN: "http://nginx:80"
+      ACCEPT_EULA: "Y"
     volumes:
-      - cache:/var/cache/modpagespeed
+      - shared:/shared
+  nginx:
+    image: ${nginxImage}:${dockerTag}
+    ports:
+      - "8080:8080"
+    volumes:
+      - shared:/shared
 volumes:
-  cache:`}</code></pre>
+  shared:`}</code></pre>
 
-      <p>On ASP.NET Core, skip the proxy and run 2.0 as native middleware:</p>
+      <p>
+        On Kubernetes the Helm chart deploys the same two images as one pod. On ASP.NET Core, the
+        separately available <code>WeAmp.PageSpeed.AspNetCore</code> middleware skips the proxy entirely:
+      </p>
 
-      <pre><code>{`# ModPageSpeed 2.0 - ASP.NET Core middleware
+      <pre><code>{`# ASP.NET Core — the middleware package
 dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
 
       <p>
-        <a href="/features/">the full 2.0 feature set</a> &middot;
+        <a href="/features/">the full feature set</a> &middot;
+        <a href="/docs/installation-docker/">Docker guide</a> &middot;
         <a href="/docs/aspnet-getting-started/">.NET quickstart</a> &middot;
         <a href="/download/" data-umami-event="cta_alternatives_ngxpagespeed_download_20"
-          >Download &amp; run ModPageSpeed 2.0</a
+          >Download &amp; run</a
         >
       </p>
 
-      <h2>Which line for nginx</h2>
+      <h2>Which integration fits your nginx</h2>
       <p>
-        The converged mod_pagespeed 2.1 is the nginx answer: it shares the optimization core
-        (PSOL) and the Cyclone cache with the predecessor lines, and is {LICENSE_CLAUSE} &mdash;
-        free in development and in production. The table below maps the historical choices to where they stand now.
+        mod_pagespeed 2.1 is the nginx answer either way: both integrations share the optimization
+        core (PSOL) and the Cyclone cache, and both are {LICENSE_CLAUSE} &mdash; free in development and
+        in production. What differs is where the optimization runs.
       </p>
       <table>
         <thead>
           <tr>
             <th>What you want</th>
-            <th>mod_pagespeed 1.15 (nginx module)</th>
-            <th>ModPageSpeed 2.0 (worker + proxy)</th>
+            <th>Native nginx module</th>
+            <th>Docker / nginx reverse proxy</th>
           </tr>
         </thead>
         <tbody>
           <tr>
             <td>Deployment</td>
-            <td>Native in-process nginx module (<code>load_module</code>)</td>
-            <td>Docker reverse proxy in front of nginx, or ASP.NET Core middleware</td>
+            <td>In-process in your nginx (<code>load_module</code>)</td>
+            <td>A container in front of nginx or any other HTTP origin</td>
           </tr>
           <tr>
             <td>Configuration</td>
             <td>Your existing <code>pagespeed</code> directives, unchanged</td>
-            <td>Smaller directive surface; worker model differs from inline rewriting</td>
+            <td>Compose or Helm values; the directive surface is smaller</td>
+          </tr>
+          <tr>
+            <td>Install</td>
+            <td>Signed apt/yum package, pinned to your distribution's stock nginx</td>
+            <td>Published images, or the Helm chart on Kubernetes</td>
           </tr>
           <tr>
             <td>Image formats</td>
             <td>WebP, AVIF, JPEG, PNG, GIF</td>
-            <td>WebP, AVIF, JPEG, PNG, GIF, plus SVG for eligible images</td>
+            <td>WebP, AVIF, JPEG, PNG, GIF</td>
           </tr>
           <tr>
             <td>Cache serving</td>
-            <td>File cache on the request path</td>
-            <td>Variant-aware cache, zero-copy <code>mmap</code> on hits</td>
+            <td>Variant-aware Cyclone cache, zero-copy <code>mmap</code> on hits</td>
+            <td>Variant-aware Cyclone cache, zero-copy <code>mmap</code> on hits</td>
           </tr>
           <tr>
             <td>Admin / stats</td>
@@ -280,24 +285,26 @@ dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
             <td>Worker dashboard and stats</td>
           </tr>
           <tr>
-            <td>Other servers</td>
-            <td>Native on Apache and IIS (Envoy experimental)</td>
-            <td>Fronts any HTTP origin; native ASP.NET Core middleware</td>
+            <td>Best when</td>
+            <td>You run nginx yourself and want the module where ngx_pagespeed sat</td>
+            <td>You are container-native, or the origin is not nginx</td>
           </tr>
         </tbody>
       </table>
 
       <h2>Migration</h2>
       <p>
-        Coming from <code>ngx_pagespeed</code> 1.13.35.2, 1.15 is a package swap. Install the signed
+        Coming from <code>ngx_pagespeed</code> 1.13.35.2, the native module is a package swap. Install
+        the signed
         <code>nginx-module-pagespeed</code> from
         <a href="https://packages.modpagespeed.com/" rel="noopener noreferrer external"
           >packages.modpagespeed.com</a
         > and keep your directives unchanged.
       </p>
       <p>
-        Moving to the 2.0 worker model is a re-architecture. The directive surface is intentionally
-        smaller and the rewriting model differs from inline rewriting. The
+        Choosing the reverse proxy instead is a deployment change rather than a config port: the
+        directive surface is intentionally smaller and the worker model differs from inline
+        rewriting. The
         <a href="/blog/migrating-from-1x/">migration notes</a> cover what stays, what changes, and how
         the worker model works.
       </p>
@@ -312,32 +319,38 @@ dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
         ))
       }
 
-      <h2>Try one</h2>
+      <h2>Install and run</h2>
       <ul>
         <li>
-          <strong>mod_pagespeed 1.15 (nginx)</strong> &mdash; install the signed
+          <strong>Native nginx module</strong> &mdash; install the signed
           <code>nginx-module-pagespeed</code> package from
           <a href="https://packages.modpagespeed.com/" rel="noopener noreferrer external"
             >packages.modpagespeed.com</a
           >: <code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh</code>, then
           <code>apt install nginx-module-pagespeed</code> (Ubuntu) or
           <code>dnf install nginx-module-pagespeed</code> (AlmaLinux/RHEL/Rocky). &middot;
-          <a href="/1.1/">docs</a>
+          <a href="/docs/installation-module/">module guide</a>
         </li>
         <li>
-          <strong>ModPageSpeed 2.0</strong> &mdash;
-          <code>dotnet add package WeAmp.PageSpeed.AspNetCore</code> &middot;
-          <a href="/docs/aspnet-getting-started/">.NET quickstart</a> &middot;
+          <strong>Docker and Kubernetes</strong> &mdash;
+          <a href="/docs/installation-docker/">Docker guide</a> &middot;
+          <a href="/docs/helm-deployment/">Helm chart</a> &middot;
           <a href="/download/">Download &amp; run</a> &middot;
           <a href="/pricing/">Support plans</a>
+        </li>
+        <li>
+          <strong>ASP.NET Core</strong> &mdash;
+          <code>dotnet add package WeAmp.PageSpeed.AspNetCore</code> &middot;
+          <a href="/docs/aspnet-getting-started/">.NET quickstart</a>
         </li>
       </ul>
 
       <h2>Related</h2>
       <ul>
         <li>
-          <a href="https://ngxpagespeed.com/ngx-pagespeed-alternative/" rel="noopener noreferrer external"
-            >ngx_pagespeed alternative</a
+          <a
+            href="https://ngxpagespeed.com/ngx-pagespeed-alternative/"
+            rel="noopener noreferrer external">ngx_pagespeed alternative</a
           > on <a href="https://ngxpagespeed.com/" rel="noopener noreferrer">ngxpagespeed.com</a> &mdash;
           the historical landing page for the nginx port
         </li>

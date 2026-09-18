@@ -1,12 +1,12 @@
 ---
 title: 'Getting Started'
-description: 'Install ModPageSpeed 2.0. Two integrations share one optimization pipeline: a Docker / nginx reverse proxy, or ASP.NET Core middleware.'
+description: 'Install mod_pagespeed 2.1. Two integrations share one optimization pipeline: the native Apache/nginx module, or a Docker / nginx reverse proxy.'
 order: 1
 group: 'Start here'
-lastUpdated: 2026-07-04
+lastUpdated: 2026-09-18
 faq:
-  - q: 'Which ModPageSpeed 2.0 integration should I pick?'
-    a: 'Docker / nginx reverse proxy for new deployments and Kubernetes; ASP.NET Core middleware for in-process .NET pipelines. Both share the same C++ optimization core. For native Apache/nginx/IIS/Envoy modules on bare-metal today, use mod_pagespeed 1.15 — a standalone nginx 2.0 module is on the 2.x roadmap.'
+  - q: 'Which mod_pagespeed 2.1 integration should I pick?'
+    a: 'The native module (Apache or nginx) for a bare-metal or existing web-server deployment — installs from the signed apt/yum repository. Docker / nginx reverse proxy for a containerized deployment in front of any HTTP origin, including Kubernetes. Both share the same optimization core.'
   - q: 'What does the request flow look like on a cache hit?'
     a: 'Nginx classifies the client into a 32-bit capability mask, finds a matching optimized variant in the Cyclone cache, and serves it zero-copy from the memory-mapped file with `X-PageSpeed: HIT`. No origin round-trip and no allocation.'
   - q: 'How do I verify ModPageSpeed is working?'
@@ -14,18 +14,21 @@ faq:
   - q: 'What is safe cache mode and why is it the default?'
     a: 'Safe mode caches optimized resources for short periods (5 minutes for CSS/JS, 30 minutes for images) with mandatory revalidation, so misconfigurations self-correct quickly. It is the recommended mode while validating a new setup before switching to aggressive.'
   - q: 'What are the prerequisites?'
-    a: 'For the Docker / nginx reverse proxy you need only Docker — nginx ships inside the image, so you do not install it yourself. For the ASP.NET Core middleware, the .NET 8 or .NET 10 SDK. The worker runs on Linux x86_64 or arm64 (Debian/Ubuntu or RHEL/Rocky).'
+    a: 'For the native module you need only the signed apt/yum repository added to Apache or nginx. For the Docker / nginx reverse proxy you need only Docker — nginx ships inside the image, so you do not install it yourself. The worker runs on Linux x86_64 or arm64 (Debian/Ubuntu or RHEL/Rocky).'
 ---
 
-ModPageSpeed 2.0 ships two integrations:
+mod_pagespeed 2.1 ships two integrations:
 
+- **Native module (Apache or nginx)** — the in-process module, installed from
+  the signed apt/yum repository alongside the `pagespeed-optimizer` worker.
+  Drop-in for an existing pagespeed configuration.
+  [Install via apt/yum &rarr;](/download/apt-yum/), or see the
+  [module installation guide](/docs/installation-module/).
 - **Docker / nginx reverse proxy** — drop in front of any HTTP origin (Apache,
   Node.js, Caddy, IIS, your CDN's origin). Best for new deployments and
   Kubernetes. [Get started with Docker &rarr;](/docs/installation-docker/)
-- **ASP.NET Core middleware** — a NuGet package that runs inside your
-  ASP.NET Core pipeline. No proxy, no sidecar. [Get started with ASP.NET Core &rarr;](/docs/aspnet-getting-started/)
 
-Both run the same C++ optimization pipeline: image transcoding, CSS/JS
+Both run the same optimization pipeline: image transcoding, CSS/JS
 minification, critical CSS, and variant-aware caching with zero-copy serving
 from the Cyclone shared-memory cache. See the
 [full optimization filter set](/features/) for everything the pipeline applies.
@@ -34,10 +37,12 @@ To see which failing audits ModPageSpeed will fix, run your site through a
 [PageSpeed Insights test](/analyze/). For a per-platform plan to improve LCP,
 CLS, and INP, read the [Core Web Vitals](/core-web-vitals/) guide.
 
-> **Looking for a standalone nginx 2.0 module?**
-> Not in the current 2.0 release. For native Apache, nginx, IIS, or Envoy modules today, use
-> **[mod_pagespeed 1.15](/1.1/)** — the native server module line for Apache,
-> nginx, IIS, and Envoy. A 2.0 standalone nginx module is on the 2.x roadmap.
+Running the ASP.NET Core middleware? That is the separately available
+`WeAmp.PageSpeed` NuGet package — see
+[ASP.NET Core Getting Started](/docs/aspnet-getting-started/).
+
+The rest of this page walks the Docker / nginx reverse-proxy integration. For
+the native module, see the [module installation guide](/docs/installation-module/).
 
 ## How the Docker / nginx reverse-proxy integration works
 
@@ -59,11 +64,11 @@ For evaluation and small single-host deployments, the combined
 `ghcr.io/we-amp/pagespeed-combined` image runs nginx and the worker together in
 one container — see [Install with Docker](/docs/installation-docker/#quick-try-one-container).
 
-The ASP.NET Core integration collapses this into a single in-process pipeline
-— the optimization library runs as P/Invoke calls from the middleware, no
-separate worker process needed. See
-[ASP.NET Core Getting Started](/docs/aspnet-getting-started/) for the
-middleware-specific architecture.
+The separately available ASP.NET Core middleware collapses this into a single
+in-process pipeline — the optimization library runs as P/Invoke calls from the
+middleware, no separate worker process needed. See
+[ASP.NET Core Getting Started](/docs/aspnet-getting-started/) for that
+architecture.
 
 ### Request flow (nginx integrations)
 
@@ -84,15 +89,19 @@ When a request arrives:
 
 ## Prerequisites
 
-- **Docker** — for the Docker / nginx reverse proxy. nginx (1.30.2) ships
+- **Signed apt/yum repository** — for the native module, added to an existing
+  Apache or nginx install.
+- **Docker** — for the Docker / nginx reverse proxy. nginx (1.30.4) ships
   inside the image; you do not install it separately.
-- **.NET 8 or .NET 10 SDK** — for the ASP.NET Core middleware
 - **Linux** (Debian/Ubuntu or RHEL/Rocky), x86_64 or arm64 — for the worker.
-  The .NET middleware also runs on macOS and Windows.
+
+The separately available ASP.NET Core middleware needs the .NET 8 or .NET 10
+SDK; see [ASP.NET Core Getting Started](/docs/aspnet-getting-started/) for its
+prerequisites.
 
 ## Quick verification
 
-Once installed (via either method), verify that ModPageSpeed is
+Once installed (via any of these methods), verify that ModPageSpeed is
 working:
 
 ```bash
@@ -120,7 +129,7 @@ curl -H "Accept: image/webp,*/*" -o /dev/null -w "%{size_download}" \
 The response size should be smaller than the original once the worker has
 processed it. If it still matches, the worker has not finished yet — wait a
 moment and retry. The URL stays the same; only the bytes and `Content-Type`
-change, because 2.0 negotiates by the `Accept` header instead of rewriting URLs.
+change, because mod_pagespeed 2.1 negotiates by the `Accept` header instead of rewriting URLs.
 
 ## Safe cache mode
 

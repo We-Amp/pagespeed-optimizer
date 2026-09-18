@@ -14,15 +14,15 @@ const faq = [
   },
   {
     q: 'What replaces mod_pagespeed?',
-    a: 'Two actively-maintained continuations from We-Amp. mod_pagespeed 1.15 is the native in-process module for Apache, nginx, and IIS (Envoy experimental), with the same configuration syntax, the classic filter set, and the built-in admin console. ModPageSpeed 2.0 is the out-of-process worker behind an nginx reverse proxy, with SVG auto-vectorization, variant-aware caching, and zero-copy serving.',
+    a: 'mod_pagespeed 2.1, actively maintained by We-Amp: the native in-process module for Apache and nginx, with the same configuration syntax, the classic filter set, and the built-in admin console, plus an optimizer worker for SVG auto-vectorization, variant-aware caching, and zero-copy serving. The IIS package ships from the 1.15 packaging channel.',
   },
   {
     q: 'Can I still use mod_pagespeed 1.13.35.2?',
     a: "Yes, and it still installs. It also hasn't taken a security patch in years, won't build against current Apache, has no AVIF, and ships a build toolchain that wants Bazel 0.x and Python 2. If your threat model accepts unpatched dependencies, you can keep running it.",
   },
   {
-    q: 'Should I choose ModPageSpeed 2.0 or mod_pagespeed 1.15?',
-    a: 'Pick 1.15 for a native in-process module on Apache, nginx, or IIS with the familiar config surface, the classic filter set, and the built-in admin console. Pick 2.0 for an out-of-process worker behind an nginx reverse proxy, with SVG auto-vectorization, variant-aware caching, and zero-copy serving.',
+    q: 'Which platform do I run mod_pagespeed 2.1 on?',
+    a: 'Apache and nginx: the native in-process module with the familiar config surface, the classic filter set, and the built-in admin console, plus the optimizer worker for SVG auto-vectorization, variant-aware caching, and zero-copy serving. The IIS package ships from the 1.15 packaging channel.',
   },
 ];
 
@@ -30,26 +30,12 @@ const jsonLd = [
   {
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
-    name: 'ModPageSpeed 2.0',
+    name: 'mod_pagespeed 2.1',
     applicationCategory: 'DeveloperApplication',
-    operatingSystem: ['Linux', 'Windows', 'macOS'],
+    operatingSystem: ['Linux'],
     description:
-      'C++23 web optimization worker with zero-copy caching and variant-aware serving. Ground-up rewrite of mod_pagespeed.',
+      'Maintained continuation of Google mod_pagespeed: the native in-process module for Apache and nginx, with the C++23 optimizer worker alongside it for zero-copy caching and variant-aware serving. Same directive surface as 1.13.35.2.',
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
-    publisher: {
-      '@type': 'Organization',
-      name: 'We-Amp B.V.',
-      url: 'https://www.we-amp.com/',
-    },
-  },
-  {
-    '@context': 'https://schema.org',
-    '@type': 'SoftwareApplication',
-    name: 'mod_pagespeed 1.15',
-    applicationCategory: 'DeveloperApplication',
-    operatingSystem: ['Linux', 'Windows'],
-    description:
-      'Maintained continuation of Google mod_pagespeed with native modules for Apache, nginx, and IIS (Envoy experimental). Same configuration syntax as 1.13.35.2.',
     sameAs: 'https://packages.modpagespeed.com/',
     publisher: {
       '@type': 'Organization',
@@ -71,25 +57,23 @@ const jsonLd = [
 
 <BaseLayout
   title="mod_pagespeed alternative in 2026 — ModPageSpeed"
-  description="mod_pagespeed is deprecated. ModPageSpeed 2.0 (worker + variant-aware cache) and mod_pagespeed 1.15 (native Apache/nginx/IIS module) are the maintained, patched successors."
+  description="mod_pagespeed is deprecated. mod_pagespeed 2.1 — the native module plus the optimizer worker — is the maintained, patched continuation."
   jsonLd={jsonLd}
 >
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-20">
     <header>
       <h1 class="h1-hero text-text-body">mod_pagespeed alternative</h1>
       <p class="lede mt-6">
-        <code class="rounded bg-bg-elevated px-1 py-0.5 text-base"
-          >mod_pagespeed</code
-        >, Google's open-source web optimization module, is no longer actively developed. If you're
-        replacing it, two maintained successors carry the work forward: ModPageSpeed 2.0 and
-        mod_pagespeed 1.15, both from We-Amp.
+        <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">mod_pagespeed</code>, Google's
+        open-source web optimization module, is no longer actively developed. If you're replacing
+        it, mod_pagespeed 2.1 from We-Amp carries the work forward &mdash; the native module plus
+        the optimizer worker.
       </p>
       <div class="mt-6 flex flex-wrap gap-3">
         <a
           href="/download/"
           class="btn-primary"
-          data-umami-event="cta_alternatives_modpagespeed_install"
-          >Download &amp; run</a
+          data-umami-event="cta_alternatives_modpagespeed_install">Download &amp; run</a
         >
         <a
           href="/pricing/"
@@ -139,16 +123,16 @@ const jsonLd = [
           <tr>
             <td>2026</td>
             <td
-              >Active continuations: ModPageSpeed 2.0 (out-of-process worker) and mod_pagespeed 1.15
-              (native in-process module)</td
+              >Development continues as mod_pagespeed 2.1: the native in-process module for Apache
+              and nginx, with the optimizer worker alongside it</td
             >
           </tr>
         </tbody>
       </table>
 
       <p>
-        We-Amp B.V. &mdash; the team that helped build ngx_pagespeed, maintained mod_pagespeed, and drove
-        the project's Apache incubation &mdash; develops both continuations. The
+        We-Amp B.V. &mdash; the team that helped build ngx_pagespeed, maintained mod_pagespeed, and
+        drove the project's Apache incubation &mdash; develops that continuation. The
         <a href="https://we-amp.com/open-source/" rel="noopener noreferrer">open-source history</a> on
         we-amp.com has the longer version of how the project changed hands, and
         <a href="/mod-pagespeed-still-maintained/">is mod_pagespeed still maintained?</a> covers what
@@ -157,9 +141,9 @@ const jsonLd = [
       <p>
         Public development going quiet did not mean the work stopped. We-Amp kept PageSpeed
         maintained privately through those years, supporting its commercial IISpeed customers
-        without a gap and tracking new compilers, OS releases, and image codecs as they landed.
-        mod_pagespeed 1.15 brings that continuously maintained line back to the public package
-        repositories.
+        without a gap and tracking new compilers, OS releases, and image codecs as they landed. That
+        continuously maintained line is what ships today as mod_pagespeed 2.1, back in the public
+        package repositories.
       </p>
 
       <h2>Why people are looking for an alternative</h2>
@@ -187,44 +171,42 @@ const jsonLd = [
         </li>
       </ul>
 
-      <h2>ModPageSpeed 2.0 &mdash; container-native reverse proxy</h2>
+      <h2>mod_pagespeed 2.1 &mdash; the native module and the optimizer worker</h2>
       <p>
-        ModPageSpeed 2.0 runs as a Docker reverse proxy in front of nginx (or any HTTP origin), with
-        optimization work out of the request path. A separate worker process reads originals from a
-        shared cache, generates up to 37 variants per asset (WebP, AVIF, viewport sizes, pixel
-        densities, save-data, plus SVG for eligible images), and writes them back. The reverse proxy
-        serves cache hits via zero-copy <code>mmap</code>. It is a ground-up rewrite of the
-        PageSpeed module.
+        mod_pagespeed 2.1 is one product with two moving parts. The native module loads in-process
+        and handles the request; the <code>pagespeed-optimizer</code> worker does the heavy work outside
+        it. The worker reads originals from a shared Cyclone cache, generates up to 37 variants per asset
+        (WebP, AVIF, viewport sizes, pixel densities, save-data, plus SVG for eligible images), and writes
+        them back. The serving side returns cache hits via zero-copy
+        <code>mmap</code>. On the deb and rpm channels the two install and upgrade together as a
+        matching pair.
       </p>
       <p>
         The optimization libraries underneath are the same ones mod_pagespeed proved at scale; the
         architecture around them is new.
       </p>
 
-      <pre><code>{`# ModPageSpeed 2.0 - ASP.NET Core middleware
-dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
-
       <p>
-        <a href="/docs/">Read the docs</a> &middot; <a href="/features/">the full 2.0 feature set</a>
-        &middot; <a
-          href="/pricing/"
-          data-umami-event="cta_alternatives_modpagespeed_buy_docs">Support plans</a>
+        <a href="/docs/">Read the docs</a> &middot; <a href="/features/">the full feature set</a>
+        &middot; <a href="/pricing/" data-umami-event="cta_alternatives_modpagespeed_buy_docs"
+          >Support plans</a
+        >
       </p>
 
-      <h2>mod_pagespeed 1.15 &mdash; native modules for Apache, nginx, and IIS</h2>
+      <h2>The native module for Apache and nginx</h2>
       <p>
-        mod_pagespeed 1.15 loads into your server as a native in-process module: no separate worker,
-        no sidecar, no reverse-proxy hop, no container. It carries the same configuration syntax,
-        the same filters, and the same admin console as open-source mod_pagespeed, including the
-        classic
+        On Apache and nginx the module loads into your server as a native in-process module: no
+        sidecar, no reverse-proxy hop, no container. It carries the same directive surface, the same
+        filter names, and the same admin console as open-source mod_pagespeed, including the classic
         <code>combine_css</code>, <code>combine_javascript</code>, image spriting, in-place resource
-        optimization, and domain-mapping filters, with granular per-filter control &mdash; now on a modernized, secured filter stack with new optimizers. Image
-        optimization covers WebP and AVIF alongside JPEG, PNG, and GIF. New: CVE patches, current toolchain,
-        Cyclone Cache, and GA ports on Apache, nginx, and IIS (Envoy is experimental).
+        optimization, and domain-mapping filters, with granular per-filter control &mdash; now on a
+        modernized, secured filter stack with new optimizers. Image optimization covers WebP and
+        AVIF alongside JPEG, PNG, and GIF. New: CVE patches, current toolchain, and the Cyclone
+        Cache shared with the optimizer worker.
       </p>
       <p>
-        It is the only product native inside Apache and IIS, and it is bit-compatible with
-        open-source mod_pagespeed &mdash; swap the binary, keep the config.
+        An existing mod_pagespeed configuration carries over &mdash; swap the packages, keep the
+        config. The IIS package ships from the 1.15 packaging channel.
       </p>
 
       <pre><code>{`# nginx
@@ -238,52 +220,68 @@ ModPagespeed on
 ModPagespeedFileCachePath /var/cache/mod_pagespeed`}</code></pre>
 
       <p>
-        <a href="/1.1/">mod_pagespeed 1.15</a> &middot;
+        <a href="/download/apt-yum/">Install from apt / yum</a> &middot;
         <a href="/1.1/apache/">Apache PageSpeed module</a> &middot;
         <a href="https://packages.modpagespeed.com/" rel="noopener noreferrer external"
           >Package repositories (packages.modpagespeed.com)</a
         >
       </p>
 
-      <h2>2.0 or 1.15 &mdash; which one</h2>
+      <h2>Apache, nginx, Docker, Kubernetes &mdash; which integration fits</h2>
+      <p>
+        One product, four ways in. What you are choosing is how it meets your stack, not which
+        version to bet on:
+      </p>
       <table>
         <thead>
-          <tr><th>Use case</th><th>Choose</th></tr>
+          <tr><th>Your stack</th><th>How mod_pagespeed 2.1 installs</th></tr>
         </thead>
         <tbody>
           <tr>
-            <td>New nginx deployment (reverse-proxy / container-native)</td>
-            <td>ModPageSpeed 2.0</td>
+            <td>Apache httpd 2.4+</td>
+            <td>Native in-process module from the signed apt/yum repository</td>
           </tr>
           <tr>
-            <td>New deployment, want a native in-process module</td>
-            <td>mod_pagespeed 1.15</td>
+            <td>nginx on Debian, Ubuntu, or Enterprise Linux</td>
+            <td
+              >Native dynamic module from the same repository, built against your distribution's
+              stock nginx</td
+            >
           </tr>
           <tr>
             <td
               >Existing <code>mod_pagespeed</code> 1.13.35.2 deployment, want a patched, drop-in replacement</td
             >
-            <td>mod_pagespeed 1.15</td>
-          </tr>
-          <tr><td>Apache or IIS server (Envoy port experimental)</td><td>mod_pagespeed 1.15</td></tr>
-          <tr>
-            <td>ASP.NET Core application</td>
-            <td>ModPageSpeed 2.0 (WeAmp.PageSpeed.AspNetCore NuGet middleware)</td>
+            <td>Native module &mdash; the directive surface and filter names carry over</td>
           </tr>
           <tr>
-            <td>Want viewport- and density-aware variants generated proactively</td>
-            <td>ModPageSpeed 2.0</td>
+            <td>New container-native deployment, in front of any HTTP origin</td>
+            <td
+              >Docker / nginx reverse proxy &mdash; nginx and worker images, shared cache volume</td
+            >
+          </tr>
+          <tr>
+            <td>Kubernetes</td>
+            <td>The Helm chart &mdash; nginx and worker as one pod</td>
           </tr>
         </tbody>
       </table>
+      <p>
+        Three further integrations are available separately, outside those packages. The IIS package
+        ships from the 1.15 packaging channel. For ASP.NET Core there is the
+        <code>WeAmp.PageSpeed.AspNetCore</code> middleware, added in two lines of
+        <code>Program.cs</code>, and the <code>WeAmp.PageSpeed.Sidecar</code> package, which runs a bundled
+        nginx optimizer on loopback behind your Kestrel app.
+      </p>
 
       <h2>Migration</h2>
       <p>
-        The 1.15 configuration syntax is the same as 1.13.35.2 &mdash; most installs are a package
-        swap. For 2.0, configuration is intentionally minimal and migration is a re-architecture
-        rather than a drop-in. See <a href="/docs/getting-started/">getting started</a> for the 2.0 install
-        path, and the <a href="/blog/mod-pagespeed-alternatives/">deeper comparison</a>
-        for choosing between the two.
+        The 2.1 directive surface is the same as 1.13.35.2 &mdash; most installs are a package swap,
+        and the module reports a version mismatch with its worker loudly instead of absorbing it.
+        Container deployments configure the reverse proxy instead, which is a smaller surface than
+        an inline module. See <a href="/docs/getting-started/">getting started</a> for both install paths,
+        and the <a href="/blog/mod-pagespeed-alternatives/">deeper comparison</a>
+        for how it lines up against other tools.
       </p>
 
       <h2>Frequently asked questions</h2>
@@ -296,19 +294,24 @@ ModPagespeedFileCachePath /var/cache/mod_pagespeed`}</code></pre>
         ))
       }
 
-      <h2>Try one</h2>
+      <h2>Install and run</h2>
       <ul>
         <li>
-          <strong>ModPageSpeed 2.0</strong> &mdash;
+          <strong>Native module (Apache, nginx)</strong> &mdash;
+          <a href="https://packages.modpagespeed.com/" rel="noopener noreferrer external"
+            >package repos</a
+          > &middot; <a href="/download/apt-yum/">apt / yum install</a>
+        </li>
+        <li>
+          <strong>Docker and Kubernetes</strong> &mdash;
+          <a href="/docs/installation-docker/">Docker guide</a> &middot;
+          <a href="/docs/helm-deployment/">Helm chart</a>
+        </li>
+        <li>
+          <strong>ASP.NET Core</strong> &mdash;
           <code>dotnet add package WeAmp.PageSpeed.AspNetCore</code> &middot;
           <a href="/docs/aspnet-getting-started/">.NET quickstart</a> &middot;
           <a href="/pricing/">Support plans</a>
-        </li>
-        <li>
-          <strong>mod_pagespeed 1.15</strong> &mdash;
-          <a href="https://packages.modpagespeed.com/" rel="noopener noreferrer external"
-            >package repos</a
-          > &middot; <a href="/1.1/">docs</a>
         </li>
       </ul>
 

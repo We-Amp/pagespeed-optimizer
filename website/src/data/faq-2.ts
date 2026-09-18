@@ -12,7 +12,7 @@ import type { FaqEntry } from './faq-shared';
 export const faq2: FaqEntry[] = [
   {
     q: 'Which integrations are supported?',
-    a: 'Two first-class integrations: a Docker / nginx caching reverse proxy in front of any HTTP origin (Apache, Node.js, Caddy, IIS, your CDN\'s origin), and an ASP.NET Core middleware NuGet package. Same C++ optimization pipeline in both. (For an in-process nginx or Apache module on bare metal, that\'s <a href="/1.1/" class="text-interactive hover:text-interactive-hover underline">mod_pagespeed 1.15</a>.)',
+    a: 'Two first-class integrations: a Docker / nginx caching reverse proxy in front of any HTTP origin (Apache, Node.js, Caddy, IIS, your CDN\'s origin), and an ASP.NET Core middleware NuGet package. Same C++ optimization pipeline in both. (The native in-process module for Apache and nginx ships from the signed apt/yum repository — see <a href="/docs/installation-module/" class="text-interactive hover:text-interactive-hover underline">installation</a>.)',
   },
   {
     q: 'How does the nginx integration work?',
@@ -20,7 +20,7 @@ export const faq2: FaqEntry[] = [
   },
   {
     q: 'Does it work with Apache?',
-    a: 'Yes — as a reverse proxy. Deploy ModPageSpeed 2.0 in front of your Apache server via the Docker Compose setup, point <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">BACKEND_HOST</code> at your origin, and all optimizations apply automatically. If you need an in-process Apache module instead, that\'s <a href="/1.1/" class="text-interactive hover:text-interactive-hover underline">mod_pagespeed 1.15</a>.',
+    a: 'Yes — as a reverse proxy. Deploy ModPageSpeed 2.0 in front of your Apache server via the Docker Compose setup, point <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">BACKEND_HOST</code> at your origin, and all optimizations apply automatically. If you need an in-process Apache module instead, it ships from the signed apt/yum repository — see <a href="/docs/installation-module/" class="text-interactive hover:text-interactive-hover underline">installation</a>.',
   },
   {
     q: 'Does it work with Kubernetes?',

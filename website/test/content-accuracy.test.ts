@@ -71,6 +71,7 @@ const WEBSITE_ROOT = fileURLToPath(new URL('..', import.meta.url));
 const CONTENT_DIR = path.join(WEBSITE_ROOT, 'src/content');
 const REL_2_0 = path.join(CONTENT_DIR, 'releases-2.0/release.yaml');
 const REL_1_1 = path.join(CONTENT_DIR, 'releases-1.1/release.yaml');
+const REL_2_1 = path.join(CONTENT_DIR, 'releases-2.1/release.yaml');
 
 // ---------------------------------------------------------------------------
 // Canonical manifests (single sources of truth). Parsed once.
@@ -80,6 +81,11 @@ type ReleaseManifest = {
 };
 const manifest2_0 = parseYaml(readFileSync(REL_2_0, 'utf8')) as ReleaseManifest;
 const manifest1_1 = parseYaml(readFileSync(REL_1_1, 'utf8')) as ReleaseManifest;
+const manifest2_1 = parseYaml(readFileSync(REL_2_1, 'utf8')) as ReleaseManifest;
+
+// Current-line semver DERIVED at runtime — never hardcode (it changes at
+// every 2.1 release, same reason V2_SEMVER below is derived).
+const V2_1_SEMVER = manifest2_1.release.semver; // e.g. "2.1.0"
 
 // Baseline 2.0 semver DERIVED at runtime — never hardcode (it changes).
 const V2_SEMVER = manifest2_0.release.semver; // e.g. "2.0.21"
@@ -822,6 +828,21 @@ const DENYLIST: DenyRule[] = [
       'JPEG/PNG/GIF transcoded to WebP (and AVIF on 1.15 and 2.0).',
     ],
   },
+  {
+    id: 'g-2.1-no-native-module',
+    why: 'releases-2.1/release.yaml declares native deb/rpm packages for Apache and nginx, shipped from the signed apt/yum repository (the same channel mod_pagespeed 1.15 uses, per its GA-alias-naming note). A claim that the converged line has no standalone/native module is the exact regression a review round caught and fixed in installation-module.md; it must not resurface.',
+    re: /2\.1\b[\s\S]{0,40}?(?:has no|does not have|doesn't have|lacks|is without)\s+(?:an?\s+)?(?:standalone|native)\s+(?:Apache(?:\/nginx| or nginx)?|nginx)\s+module/i,
+    bad: 'mod_pagespeed 2.1 has no standalone nginx module yet.',
+    good: 'mod_pagespeed 2.1 ships a native module for Apache and nginx, from the signed apt/yum repository.',
+    variantsBad: [
+      'ModPageSpeed 2.1 does not have a native Apache or nginx module.',
+      '2.1 has no native nginx module.',
+    ],
+    variantsGood: [
+      'The native Apache and nginx module ships from the signed packages.modpagespeed.com repository — the same channel mod_pagespeed 1.15 uses.',
+      'mod_pagespeed 2.1 ships a native module for Apache and nginx today.',
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -1139,6 +1160,45 @@ describe('canonical sources hold ground-truth product facts', () => {
     expect(V2_SEMVER).toMatch(/^2\.0\.\d+$/);
     expect(manifest2_0.release.tag).toBe(`v${V2_SEMVER}`);
     expect(manifest2_0.release.tag).not.toBe('v1.0.0');
+  });
+
+  // Regression guard for the docker-tag staleness class (stale tags found in
+  // installation-docker.md, deployment.mdx, web-bot-auth.md, and the
+  // docs/[slug].astro HowTo JSON-LD): every pagespeed-worker/pagespeed-nginx
+  // tag in the converged line's own install surfaces must equal the CURRENT
+  // 2.1 manifest semver, derived at runtime, never hardcoded. Deliberately a
+  // fixed file list, not a sitewide scan: historical blog posts legitimately
+  // cite an older line's tag (e.g. run-with-docker-compose.md, migrating-from-1x.md)
+  // and must not be flagged.
+  it('docker image tags for the converged line match the 2.1 manifest semver', () => {
+    expect(V2_1_SEMVER).toMatch(/^2\.1\.\d+$/);
+    const files = [
+      path.join(CONTENT_DIR, 'docs/installation-docker.md'),
+      path.join(CONTENT_DIR, 'docs/deployment.mdx'),
+      path.join(CONTENT_DIR, 'docs/web-bot-auth.md'),
+      path.join(WEBSITE_ROOT, 'src/pages/docs/[slug].astro'),
+      path.join(WEBSITE_ROOT, 'scripts/llms-templates/llms-full.txt.tmpl'),
+    ];
+    // The tag is a literal semver ("...pagespeed-worker:2.1.0"), the same
+    // wrapped in a shell env-var default
+    // ("...pagespeed-worker:${PAGESPEED_VERSION:-2.1.0}"), or (in prose) one
+    // immediately followed by punctuation ("pagespeed-worker:2.1.0),"). Match
+    // the semver shape directly so trailing punctuation is never captured.
+    const tagRe =
+      /ghcr\.io\/we-amp\/pagespeed-(?:worker|nginx):(?:\$\{[A-Z_]+:-)?(\d+\.\d+\.\d+|latest)/g;
+    for (const file of files) {
+      const text = readFileSync(file, 'utf8');
+      const tags = [...text.matchAll(tagRe)].map((m) => m[1]);
+      expect(tags.length, `no pagespeed-worker/pagespeed-nginx tag found in ${file}`).toBeGreaterThan(
+        0,
+      );
+      for (const tag of tags) {
+        if (tag === 'latest') continue; // a rolling tag, not a pinned version to check
+        expect(tag, `${file} pins a docker tag that disagrees with the 2.1 manifest`).toBe(
+          V2_1_SEMVER,
+        );
+      }
+    }
   });
 
   it('IMAGE_FORMAT_SUPPORT claims no Envoy port for ANY format (AVIF included)', () => {

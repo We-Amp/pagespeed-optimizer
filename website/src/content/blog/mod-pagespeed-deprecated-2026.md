@@ -5,7 +5,7 @@ date: 2026-05-20
 author: 'Otto van der Schaaf'
 tags: ['deprecation', 'migration', 'security']
 draft: false
-lastUpdated: 2026-08-31
+lastUpdated: 2026-09-18
 ---
 
 Yes. `mod_pagespeed` is deprecated. The 1.13.35.2 binaries still install, but the project receives no maintenance and the dependency stack has not been patched in years. The maintained continuation is [mod_pagespeed 2.1](/), licensed under Apache-2.0, developed by We-Amp B.V.
@@ -16,12 +16,12 @@ Yes. `mod_pagespeed` is deprecated. The 1.13.35.2 binaries still install, but th
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `mod_pagespeed` 1.13.35.2 on Apache       | [mod_pagespeed 2.1](/) — drop-in replacement                                                                                                |
 | `ngx_pagespeed` on nginx                  | [mod_pagespeed 2.1](/) — drop-in for nginx                                                                                                  |
-| IISpeed on Windows / IIS                  | [mod_pagespeed 1.15 for IIS](/alternatives/iispeed/) — supported until a converged Windows package ships, plus a transition window after it |
+| IISpeed on Windows / IIS                  | [mod_pagespeed 1.15 for IIS](/alternatives/iispeed/) — the IIS package ships from the 1.15 packaging channel                                |
 | Envoy filter chain                        | [mod_pagespeed 2.1](/) (experimental)                                                                                                       |
-| Reverse proxy in front of any HTTP origin | [ModPageSpeed 2.0](/) — feature-frozen, supported until February 7, 2027; see the [migration guide](/docs/migrating-to-2-1/)                |
+| Reverse proxy in front of any HTTP origin | [ModPageSpeed 2.0](/) — see the [migration guide](/docs/migrating-to-2-1/)                                                                  |
 | ASP.NET Core application                  | [WeAmp.PageSpeed NuGet middleware](/blog/aspnet-core-middleware/)                                                                           |
 
-Through 2026, We-Amp shipped two continuations — mod_pagespeed 1.15 and ModPageSpeed 2.0 — and they have since converged: mod_pagespeed 2.1 is a native in-process module for Apache and nginx, using the same `ModPagespeed*` directives and the built-in `/pagespeed_admin/` console, with a separate optimizer worker doing the heavy optimization work outside the web server. It is licensed under Apache-2.0. mod_pagespeed 1.15 now receives security fixes only, with per-platform [transition windows](/1.1/docs/upgrading-to-2-1/). The deeper comparison lives in the [mod_pagespeed alternatives](/blog/mod-pagespeed-alternatives/) post.
+Through 2026, We-Amp shipped two continuations — mod_pagespeed 1.15 and ModPageSpeed 2.0 — and they have since converged: mod_pagespeed 2.1 is a native in-process module for Apache and nginx, using the same `ModPagespeed*` directives and the built-in `/pagespeed_admin/` console, with a separate optimizer worker doing the heavy optimization work outside the web server. It is licensed under Apache-2.0. mod_pagespeed 2.1 is a drop-in upgrade for mod_pagespeed 1.15 — see the [upgrade guide](/1.1/docs/upgrading-to-2-1/). The deeper comparison lives in the [mod_pagespeed alternatives](/blog/mod-pagespeed-alternatives/) post.
 
 ## Install snippets
 

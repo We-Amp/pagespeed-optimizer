@@ -26,10 +26,10 @@ Heritage: mod_pagespeed — the open-source optimization core this product conti
 - No bandwidth fees, no per-request charges, no feature gates — the software itself costs nothing
 - [Support plans]({{SUPPORT_URL}}) · [Support terms]({{LICENSING_TERMS_URL}})
 
-## Predecessor lines
+## Upgrading
 
-- **mod_pagespeed {{V1_LINE}}** (renumbered from {{V1_RENUMBERED_FROM}}) now receives security fixes only, with per-platform transition windows; {{PRODUCT_NAME}} {{CURRENT_LINE}} is the drop-in upgrade. IIS / Windows Server deployments stay on {{V1_LINE}} until a converged Windows package ships. See [Upgrading to {{CURRENT_LINE}}](https://modpagespeed.com/1.1/docs/upgrading-to-2-1/).
-- **ModPageSpeed {{V2_LINE}}** (the Docker/Helm stack and the ASP.NET Core middleware) is feature-frozen and supported until February 7, 2027. Docker/Helm users migrate via the [migration guide](https://modpagespeed.com/docs/migrating-to-2-1/); the middleware is supported until the same date.
+- **mod_pagespeed {{V1_LINE}}** (renumbered from {{V1_RENUMBERED_FROM}}): {{PRODUCT_NAME}} {{CURRENT_LINE}} is its drop-in upgrade. The IIS package ships from the {{V1_LINE}} packaging channel. See [Upgrading to {{CURRENT_LINE}}](https://modpagespeed.com/1.1/docs/upgrading-to-2-1/).
+- **ModPageSpeed {{V2_LINE}}** (the Docker/Helm stack): move via the [migration guide](https://modpagespeed.com/docs/migrating-to-2-1/). The ASP.NET Core middleware continues unchanged — see [ASP.NET Core performance](https://modpagespeed.com/aspnet-core-performance/).
 
 ## Distribution / install channels
 
@@ -37,9 +37,9 @@ Heritage: mod_pagespeed — the open-source optimization core this product conti
 - The module installs alongside the `pagespeed-optimizer` worker package; install both from the repository.
 - Direct downloads (.deb, .rpm, tar.gz) — every file is GPG-signed
 
-### ASP.NET Core sidecar (NuGet) — predecessor line
+### ASP.NET Core sidecar (NuGet)
 
-The {{V1_LINE}} line (security fixes only, per-platform windows) also ships as a NuGet sidecar package, `WeAmp.PageSpeed.Sidecar` (with native binaries in `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`). Linux-only (linux-x64 / linux-arm64); it bundles nginx {{SIDECAR_NGINX_VERSION}}. Inverse topology: your ASP.NET Core Kestrel app is the public front door, and the bundled nginx runs on loopback behind it as the optimize-proxy. Install with `dotnet add package WeAmp.PageSpeed.Sidecar` (GA on nuget.org).
+The {{V1_LINE}} line also ships as a NuGet sidecar package, `WeAmp.PageSpeed.Sidecar` (with native binaries in `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`). Linux-only (linux-x64 / linux-arm64); it bundles nginx {{SIDECAR_NGINX_VERSION}}. Inverse topology: your ASP.NET Core Kestrel app is the public front door, and the bundled nginx runs on loopback behind it as the optimize-proxy. Install with `dotnet add package WeAmp.PageSpeed.Sidecar` (GA on nuget.org).
 
 ## Company
 

@@ -488,8 +488,9 @@ const jsonLd = [
           </p>
           <p class="mt-2 text-sm text-text-muted leading-relaxed">
             ModPageSpeed keeps assets minified, images transcoded, and caches warm as the site
-            evolves. 2.0 runs as an nginx reverse proxy or ASP.NET Core middleware; 1.15 as a native
-            module inside Apache, nginx, IIS, or Envoy. The next deploy won't quietly undo this.
+            evolves — whether it runs as a reverse proxy in front of your origin, as ASP.NET Core
+            middleware, or as the in-server module for Apache, nginx, IIS, or Envoy. The next
+            deploy won't quietly undo this.
           </p>
         </div>
       </div>
@@ -526,7 +527,7 @@ const jsonLd = [
           class="btn-secondary"
           data-umami-event="psi-result-docs-cta"
         >
-          Read 2.0 config docs &rarr;
+          Read the configuration docs &rarr;
         </a>
       </div>
       <p class="text-xs text-text-annotation">
@@ -824,7 +825,7 @@ const jsonLd = [
     };
 
     const DOCS_HREF: Record<Edition, { href: string; label: string }> = {
-      '2.0': { href: '/docs/configuration/', label: 'Read 2.0 config docs →' },
+      '2.0': { href: '/docs/configuration/', label: 'Read the configuration docs →' },
       '1.1': { href: '/1.1/docs/configuration/', label: 'Read 1.15 filter docs →' },
     };
 
