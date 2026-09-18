@@ -3,7 +3,7 @@ title: 'Release Notes'
 description: 'mod_pagespeed 2.1 release notes — the converged line: the module and the optimizer worker, hardened defaults, and security updates. Updating to the latest release is recommended.'
 order: 70
 group: 'Reference'
-lastUpdated: 2026-09-17
+lastUpdated: 2026-09-18
 ---
 
 import { getRelease } from '../../lib/release';
@@ -115,18 +115,14 @@ JavaScript and CSS minifier correctness fixes carried across both
 predecessor lines, image-quality verification hardening, and
 browser-analysis robustness under the unprivileged worker.
 
-## The predecessor lines
+## Moving to 2.1
 
-- **Running ModPageSpeed 2.0?** The Docker/Helm line is feature-frozen and
-  supported until February 7, 2027; the ASP.NET Core middleware continues
-  unchanged until the same date. The
+- **Running ModPageSpeed 2.0?** The
   [migration guide](/docs/migrating-to-2-1/) walks the move to 2.1, and the
   2.0.x release history lives on the
   [ModPageSpeed 2.0 release notes](/docs/release-notes/) page.
 - **Running mod_pagespeed 1.15?** 2.1 is its next release, and the upgrade
-  is drop-in. 1.15 now receives security fixes only, for per-platform
-  transition windows — see the
-  [upgrade guide](/1.1/docs/upgrading-to-2-1/) and the
+  is drop-in — see the [upgrade guide](/1.1/docs/upgrading-to-2-1/) and the
   [1.15 release notes](/1.1/docs/release-notes/).
 
 ## Install and upgrade

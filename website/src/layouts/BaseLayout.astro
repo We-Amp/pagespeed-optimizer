@@ -3,7 +3,6 @@ import NewsletterSignup from '../components/NewsletterSignup.astro';
 import QuickMessage from '../components/QuickMessage.astro';
 import ShareFloat from '../components/ShareFloat.astro';
 import Icon from '../components/Icon.astro';
-import EolNotice from '../components/EolNotice.astro';
 import {
   PRODUCT_DISPLAY_NAME,
   PRODUCT_NAME,
@@ -47,11 +46,9 @@ const {
 
 const is11Section = Astro.url.pathname.startsWith('/1.1/');
 
-// Sitewide banner, section-aware: the /1.1/ section carries the non-dismissible
-// EolNotice instead (a second, dismissible banner there would double up), so
-// the dismissible banner is suppressed on /1.1/*. Dismissal is versioned — bump
-// the key suffix whenever the copy or link changes so previously-dismissed
-// users see the new banner.
+// Sitewide banner, section-aware: suppressed on /1.1/*. Dismissal is
+// versioned — bump the key suffix whenever the copy or link changes so
+// previously-dismissed users see the new banner.
 const bannerText = is11Section
   ? ''
   : `${PRODUCT_DISPLAY_NAME} ${CURRENT_LINE} is here — open source (Apache-2.0): the module you know, plus the optimizer worker`;
@@ -702,7 +699,6 @@ const showStickyCta = ['/', '/pricing/', '/features/', '/demo/'].includes(sticky
       </nav>
     </header>
     <main id="main-content" class="flex-1">
-      {is11Section && <EolNotice />}
       <slot />
     </main>
 

@@ -3,12 +3,12 @@ title: 'Migrating from ModPageSpeed 2.0 to mod_pagespeed 2.1'
 description: 'What changes when you move a ModPageSpeed 2.0 deployment to mod_pagespeed 2.1: your configuration carries over, the worker runs unprivileged, and the management API and browser sandbox get strict defaults.'
 order: 15
 group: 'Install'
-lastUpdated: 2026-09-17
+lastUpdated: 2026-09-18
 faq:
   - q: 'Do I have to recreate my cache volume?'
     a: 'No. On its first start, 2.1 migrates a volume created by 2.0 in place: it adopts the cache files into the unprivileged `pagespeed` user and keeps the warm cache, deleting nothing. Native-package installs are different: there the cache lives in a versioned directory and a package upgrade starts it cold by design.'
   - q: 'Do I have to migrate right away?'
-    a: 'No. ModPageSpeed 2.0 Docker and Helm deployments remain supported until February 7, 2027. Migrating earlier moves you onto the converged line sooner.'
+    a: 'No — migrate on your own schedule. Migrating earlier moves you onto the converged line sooner.'
 ---
 
 mod_pagespeed 2.1 converges the mod_pagespeed lineage and the ModPageSpeed 2.0
@@ -28,9 +28,8 @@ This guide is for ModPageSpeed 2.0 **Docker Compose** and **Helm** deployments
 (including the combined evaluation image).
 
 It is not for users of the ASP.NET Core middleware: the `WeAmp.PageSpeed`
-NuGet packages continue unchanged until February 7, 2027, and no migration is
-needed today — see [ASP.NET Core performance](/aspnet-core-performance/) for
-that path.
+NuGet packages continue unchanged, and no migration is needed today — see
+[ASP.NET Core performance](/aspnet-core-performance/) for that path.
 
 ## What changes in 2.1
 
@@ -141,8 +140,7 @@ One 2.0 deployment shape has no 2.1 equivalent yet: the **any-origin caching
 reverse proxy** — running the stack purely as an optimizing proxy in front of
 an origin that is otherwise untouched. Closing that gap is a committed part of
 the converged line's roadmap. Until it is covered, that shape stays where it
-is: it remains fully supported on 2.0 until February 7, 2027, and this guide
-applies when the coverage lands.
+is, fully supported on 2.0, and this guide applies when the coverage lands.
 
 ## Migration steps
 
@@ -167,9 +165,3 @@ mod_pagespeed 2.1 is licensed under the Apache License 2.0, free in
 development and in production. What We-Amp sells on the converged line is
 [support — and hardened, attested builds](/pricing/) from the people who build
 the product; the standard signed packages stay free.
-
-## Timeline
-
-ModPageSpeed 2.0 is feature-frozen. Docker and Helm deployments remain
-supported until **February 7, 2027**; the ASP.NET Core middleware continues
-unchanged until the same date. mod_pagespeed 2.1 is the converged line going forward.

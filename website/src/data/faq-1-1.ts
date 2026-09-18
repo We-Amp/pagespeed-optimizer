@@ -14,11 +14,11 @@ import { LICENSE_CLAUSE } from './product-facts.mjs';
 export const faq11: FaqEntry[] = [
   {
     q: 'Is mod_pagespeed still maintained?',
-    a: `Yes. The last upstream release shipped in 2020 and the GitHub repository was archived in 2025. Active development continued at <a href="https://we-amp.com/" class="text-interactive hover:text-interactive-hover underline">We-Amp B.V.</a> — the Dutch company that helped build ngx_pagespeed, maintained mod_pagespeed, and drove the project's Apache incubation. mod_pagespeed 1.15 continued the line, and the converged <a href="/" class="text-interactive hover:text-interactive-hover underline">mod_pagespeed 2.1</a> — ${LICENSE_CLAUSE} — is its drop-in upgrade; 1.15 now receives security fixes only, with per-platform <a href="/1.1/docs/upgrading-to-2-1/" class="text-interactive hover:text-interactive-hover underline">transition windows</a>.`,
+    a: `Yes. The last upstream release shipped in 2020 and the GitHub repository was archived in 2025. Active development continued at <a href="https://we-amp.com/" class="text-interactive hover:text-interactive-hover underline">We-Amp B.V.</a> — the Dutch company that helped build ngx_pagespeed, maintained mod_pagespeed, and drove the project's Apache incubation. mod_pagespeed 1.15 continued the line, and the converged <a href="/" class="text-interactive hover:text-interactive-hover underline">mod_pagespeed 2.1</a> — ${LICENSE_CLAUSE} — is its drop-in upgrade. See the <a href="/1.1/docs/upgrading-to-2-1/" class="text-interactive hover:text-interactive-hover underline">upgrade guide</a> to move.`,
   },
   {
     q: 'Are the known CVEs against the last upstream release patched?',
-    a: 'Yes. mod_pagespeed 1.15 ships with patches for the known CVEs that accumulated against the archived upstream. Security fixes continue through the per-platform transition windows; if your security team needs a current CVE statement for procurement, <a href="/contact/" class="text-interactive hover:text-interactive-hover underline">contact us</a>.',
+    a: 'Yes. mod_pagespeed 1.15 ships with patches for the known CVEs that accumulated against the archived upstream, and continues to receive security fixes. If your security team needs a current CVE statement for procurement, <a href="/contact/" class="text-interactive hover:text-interactive-hover underline">contact us</a>.',
   },
   {
     q: 'Will my existing pagespeed.conf keep working?',
@@ -34,7 +34,7 @@ export const faq11: FaqEntry[] = [
   },
   {
     q: 'Should I run 1.15 or the converged mod_pagespeed 2.1?',
-    a: `On Apache and nginx, run <a href="/" class="text-interactive hover:text-interactive-hover underline">mod_pagespeed 2.1</a> — the drop-in upgrade with the same directives, plus the optimizer worker, ${LICENSE_CLAUSE}. Stay on 1.15 where the converged packages do not cover you yet: IIS / Windows Server keeps 1.15 support until a converged Windows package ships, plus a transition window. The per-platform windows are on the <a href="/1.1/docs/upgrading-to-2-1/" class="text-interactive hover:text-interactive-hover underline">upgrade guide</a>.`,
+    a: `On Apache and nginx, run <a href="/" class="text-interactive hover:text-interactive-hover underline">mod_pagespeed 2.1</a> — the drop-in upgrade with the same directives, plus the optimizer worker, ${LICENSE_CLAUSE}. Stay on 1.15 where the converged packages do not cover you yet: the IIS package ships from the 1.15 packaging channel. See the <a href="/1.1/docs/upgrading-to-2-1/" class="text-interactive hover:text-interactive-hover underline">upgrade guide</a> for details.`,
   },
   {
     q: 'Can I run mod_pagespeed 1.15 under ASP.NET Core?',

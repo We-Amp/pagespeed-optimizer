@@ -5,6 +5,7 @@ date: 2026-09-17
 author: 'Otto van der Schaaf'
 tags: ['announcement', 'release']
 draft: false
+lastUpdated: 2026-09-18
 ---
 
 For the past year we shipped two products: mod_pagespeed 1.15, the maintained
@@ -63,14 +64,12 @@ hoster partner program](/pricing/) from the people who build it.
 ## What this means for you
 
 - **Running mod_pagespeed 1.15?** The line continues — 2.1 is its next
-  release, and the upgrade is drop-in. 1.15 now receives security fixes only,
-  for per-platform transition windows: Linux deb/rpm users have at least six
-  months, and IIS stays covered until a converged Windows package ships. The
-  [upgrade guide](/1.1/docs/upgrading-to-2-1/) has the details.
-- **Running ModPageSpeed 2.0?** The Docker/Helm line is feature-frozen and
-  supported until February 7, 2027; the
-  [migration guide](/docs/migrating-to-2-1/) walks the move. The ASP.NET Core
-  middleware is supported until the same date.
+  release, and the upgrade is drop-in. The IIS package ships from the 1.15
+  packaging channel. The [upgrade guide](/1.1/docs/upgrading-to-2-1/) has the
+  details.
+- **Running ModPageSpeed 2.0?** The Docker/Helm line moves via the
+  [migration guide](/docs/migrating-to-2-1/). The ASP.NET Core middleware
+  continues unchanged.
 - **New here?** [Install it](/docs/getting-started/) — two packages, your
   existing web server, free in development and in production.
 

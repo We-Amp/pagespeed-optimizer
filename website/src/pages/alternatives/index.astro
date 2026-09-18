@@ -7,13 +7,13 @@ const cards = [
     href: '/alternatives/mod-pagespeed/',
     title: 'mod_pagespeed alternative',
     summary:
-      'mod_pagespeed is deprecated. ModPageSpeed 2.0 (out-of-process worker) and mod_pagespeed 1.15 (native in-process module) are the actively-maintained successors.',
+      'mod_pagespeed is deprecated. mod_pagespeed 2.1 — the native module plus the optimizer worker — is the actively-maintained continuation.',
   },
   {
     href: '/alternatives/ngx-pagespeed/',
     title: 'ngx_pagespeed alternative',
     summary:
-      'ngx_pagespeed was the nginx port of mod_pagespeed; the GitHub repository is now read-only. mod_pagespeed 1.15 is the native nginx module; ModPageSpeed 2.0 is the Docker reverse proxy worker for nginx with variant-aware caching and zero-copy serving. Both actively patched.',
+      'ngx_pagespeed was the nginx port of mod_pagespeed; the GitHub repository is now read-only. mod_pagespeed 2.1 is the maintained nginx path — the native module plus the optimizer worker, with variant-aware caching and zero-copy serving.',
   },
   {
     href: '/alternatives/iispeed/',
@@ -25,7 +25,7 @@ const cards = [
     href: '/alternatives/google-pagespeed-module/',
     title: 'Google PageSpeed Module alternative',
     summary:
-      "\"Google PageSpeed Module\" almost always means the deprecated server module (mod_pagespeed / ngx_pagespeed) — not PageSpeed Insights (pagespeed.web.dev), which is still active and unrelated.",
+      '"Google PageSpeed Module" almost always means the deprecated server module (mod_pagespeed / ngx_pagespeed) — not PageSpeed Insights (pagespeed.web.dev), which is still active and unrelated.',
   },
 ];
 
@@ -34,7 +34,7 @@ const jsonLd = {
   '@type': 'CollectionPage',
   name: 'Alternatives to mod_pagespeed, ngx_pagespeed, and IISpeed',
   description:
-    "Active continuations for Google's deprecated PageSpeed Module family — ModPageSpeed 2.0 and mod_pagespeed 1.15, plus path-by-path migration guidance for nginx, Apache, IIS, and ASP.NET Core.",
+    "The active continuation for Google's deprecated PageSpeed Module family — mod_pagespeed 2.1 — plus path-by-path migration guidance for nginx, Apache, IIS, and ASP.NET Core.",
   url: 'https://modpagespeed.com/alternatives/',
   hasPart: cards.map((card) => ({
     '@type': 'WebPage',
@@ -47,7 +47,7 @@ const jsonLd = {
 
 <BaseLayout
   title="Alternatives to mod_pagespeed, ngx_pagespeed, and IISpeed"
-  description="mod_pagespeed and ngx_pagespeed are deprecated. Compare the maintained successors, ModPageSpeed 2.0 and 1.15, and pick the right fit per server."
+  description="mod_pagespeed and ngx_pagespeed are deprecated. Compare the maintained continuation, mod_pagespeed 2.1, and pick the right fit per server."
   jsonLd={jsonLd}
 >
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-20">
@@ -55,21 +55,19 @@ const jsonLd = {
       Alternatives to mod_pagespeed, ngx_pagespeed, and IISpeed
     </h1>
     <p class="lede mt-6 max-w-2xl">
-      <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">mod_pagespeed</code
-      > and <code class="rounded bg-bg-elevated px-1 py-0.5 text-base"
-        >ngx_pagespeed</code
-      > are deprecated. IISpeed is in transition. These pages cover the actively-maintained continuations
-      and which one fits each server.
+      <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">mod_pagespeed</code> and <code
+        class="rounded bg-bg-elevated px-1 py-0.5 text-base">ngx_pagespeed</code
+      > are deprecated. IISpeed is in transition. These pages cover the actively-maintained continuation,
+      mod_pagespeed 2.1, and how each server reaches it.
     </p>
     <p class="lede-sub mt-4 max-w-2xl text-sm text-text-muted">
-      These continuations share the optimization core that powers <span
+      mod_pagespeed 2.1 shares the optimization core that powers <span
         class="font-semibold text-text-body">230,000+ live sites</span
       > today (<a
         href="https://trends.builtwith.com/Server/mod_pagespeed"
         target="_blank"
         rel="noopener noreferrer"
-        class="text-interactive hover:text-interactive-hover underline"
-        >BuiltWith, May 2026</a
+        class="text-interactive hover:text-interactive-hover underline">BuiltWith, May 2026</a
       >) &mdash; not We-Amp customers, but proof it works at scale.
     </p>
 
@@ -82,9 +80,7 @@ const jsonLd = {
           >
             <h2 class="text-lg font-semibold text-text-body">{card.title}</h2>
             <p class="mt-2 text-sm text-text-muted flex-1">{card.summary}</p>
-            <span class="mt-4 text-sm font-medium text-interactive">
-              Read &rarr;
-            </span>
+            <span class="mt-4 text-sm font-medium text-interactive">Read &rarr;</span>
           </a>
         ))
       }
@@ -98,8 +94,8 @@ const jsonLd = {
             href="/blog/mod-pagespeed-alternatives/"
             class="text-interactive hover:text-interactive-hover underline"
             >mod_pagespeed alternatives in 2026</a
-          > — the deep comparison between ModPageSpeed 2.0 and mod_pagespeed 1.15, written for teams choosing
-          between them.
+          > — the deep comparison of what is available to replace the deprecated module, written for teams
+          evaluating their options.
         </li>
         <li>
           <a
@@ -142,11 +138,10 @@ const jsonLd = {
     <section class="mt-16">
       <h2 class="h2-section text-text-body">Try ModPageSpeed</h2>
       <p class="mt-4 text-text-body">
-        Both editions are licensed under the Apache License 2.0; paid tiers are support
+        Every integration is licensed under the Apache License 2.0; paid tiers are support
         subscriptions &mdash; security patches, version upgrades, and email support. See the <a
           href="/license/"
-          class="text-interactive hover:text-interactive-hover underline"
-          >software license</a
+          class="text-interactive hover:text-interactive-hover underline">software license</a
         >.
       </p>
       <div class="mt-6 flex flex-wrap gap-3">

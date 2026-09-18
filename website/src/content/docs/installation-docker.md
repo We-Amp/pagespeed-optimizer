@@ -1,12 +1,12 @@
 ---
 title: 'Install with Docker'
-description: 'Run ModPageSpeed 2.0 in Docker with Docker Compose: the nginx module, the worker, and a shared Cyclone cache. A one-container quick try, then a three-service production stack.'
+description: 'Run mod_pagespeed 2.1 in Docker with Docker Compose: the nginx module, the worker, and a shared Cyclone cache. A one-container quick try, then a three-service production stack.'
 order: 10
 group: 'Install'
-lastUpdated: 2026-09-06
+lastUpdated: 2026-09-18
 ---
 
-Deploy ModPageSpeed 2.0 with Docker Compose. You run three containers — nginx
+Deploy mod_pagespeed 2.1 with Docker Compose. You run three containers — nginx
 with the pagespeed module, the worker, and your origin server — sharing a
 Cyclone cache volume. To try it against your own site in seconds first, start
 with the single combined container below.
@@ -29,7 +29,7 @@ evaluation and small single-host deployments; for production, run the worker and
 nginx as separate services (below) so you can scale and update them
 independently — see the [production deployment guide](/docs/deployment/) for the
 hardened setup. `:latest` is published only on the combined image — the worker
-and nginx images ship immutable version tags (for example `:2.0.38`).
+and nginx images ship immutable version tags (for example `:2.1.0`).
 
 `ACCEPT_EULA=Y` acknowledges the
 [Terms of Service](https://modpagespeed.com/terms/), which govern your use of the
@@ -70,7 +70,7 @@ services:
 
   # Factory Worker — optimizes cached content
   worker:
-    image: ghcr.io/we-amp/pagespeed-worker:2.0.42
+    image: ghcr.io/we-amp/pagespeed-worker:2.1.0
     entrypoint: /entrypoint-worker.sh
     environment:
       # Acknowledges the Terms of Service: https://modpagespeed.com/terms/
@@ -83,7 +83,7 @@ services:
 
   # Nginx with PageSpeed module
   nginx:
-    image: ghcr.io/we-amp/pagespeed-nginx:2.0.42
+    image: ghcr.io/we-amp/pagespeed-nginx:2.1.0
     ports:
       - '8080:8080'
     volumes:
@@ -370,7 +370,7 @@ metadata:
 spec:
   containers:
     - name: nginx
-      image: ghcr.io/we-amp/pagespeed-nginx:2.0.42
+      image: ghcr.io/we-amp/pagespeed-nginx:2.1.0
       ports:
         - containerPort: 8080
       volumeMounts:
@@ -378,7 +378,7 @@ spec:
           mountPath: /shared
 
     - name: worker
-      image: ghcr.io/we-amp/pagespeed-worker:2.0.42
+      image: ghcr.io/we-amp/pagespeed-worker:2.1.0
       command: ['/entrypoint-worker.sh']
       env:
         # Acknowledges the Terms of Service: https://modpagespeed.com/terms/
@@ -416,7 +416,7 @@ gh attestation verify oci://ghcr.io/we-amp/pagespeed-combined:latest \
 ```
 
 The same commands work for `pagespeed-worker` and `pagespeed-nginx` (use a
-pinned tag such as `:2.0.38`).
+pinned tag such as `:2.1.0`).
 
 ## Troubleshooting
 

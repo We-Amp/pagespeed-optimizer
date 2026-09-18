@@ -47,6 +47,7 @@ import {
   PRODUCT_NAME,
   CURRENT_LINE,
   V1_LINE,
+  V2_LINE,
   V1_RENUMBERED_FROM,
   COMPANY_FOUNDED_YEAR,
   LAST_UPSTREAM_VERSION,
@@ -250,12 +251,16 @@ describe('product-facts consumers reflect the single source', () => {
     expect(Object.keys(data.features.image_formats_by_line)).toEqual(
       expect.arrayContaining([V1_LINE, '2.0', CURRENT_LINE]),
     );
-    // related_products keeps its key name (public contract); entries are the
-    // predecessor lines with an explicit status.
+    // related_products keeps its key name (public contract). No lifecycle
+    // status or date field is served — this is a published endpoint, so it
+    // gets the same treatment as llms.txt.
     expect(data.related_products[0].product).toBe(`mod_pagespeed ${V1_LINE}`);
-    expect(data.related_products[0].status).toBe('security-fixes-only');
+    expect(data.related_products[0]).not.toHaveProperty('status');
+    expect(data.related_products[0]).not.toHaveProperty('support_until');
     expect(data.related_products[0].nuget_sidecar.bundled_nginx).toBe(SIDECAR_NGINX_VERSION);
     expect(data.related_products[0].nuget_sidecar.package).toBe(PKG_SIDECAR);
-    expect(data.related_products[1].status).toBe('frozen');
+    expect(data.related_products[1].product).toBe(`ModPageSpeed ${V2_LINE}`);
+    expect(data.related_products[1]).not.toHaveProperty('status');
+    expect(data.related_products[1]).not.toHaveProperty('support_until');
   });
 });

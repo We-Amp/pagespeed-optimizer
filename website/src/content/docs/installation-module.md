@@ -1,48 +1,50 @@
 ---
 title: 'ModPageSpeed for nginx'
-description: 'ModPageSpeed 2.0 has no standalone nginx module yet. For a native nginx module today use mod_pagespeed 1.15; for 2.0 use the Docker / nginx reverse proxy.'
+description: 'Install the native mod_pagespeed 2.1 module for Apache and nginx from the signed packages.modpagespeed.com repository, or run the Docker / nginx reverse proxy.'
 order: 11
 group: 'Install'
-lastUpdated: 2026-07-04
+lastUpdated: 2026-09-18
 faq:
-  - q: 'Is there a standalone nginx module for ModPageSpeed 2.0?'
-    a: 'Not in the current 2.0 release. The 2.0 line ships the Docker / nginx reverse proxy. A standalone nginx 2.0 module is on the 2.x roadmap. For a native nginx module today, use mod_pagespeed 1.15.'
-  - q: 'How do I run ModPageSpeed on nginx today?'
-    a: 'Two options. Use the mod_pagespeed 1.15 nginx module — a native dynamic module from the signed packages.modpagespeed.com repository, built for Debian and Ubuntu on amd64 and arm64 and pinned to each distribution stock nginx (1.18 to 1.26). Or put the ModPageSpeed 2.0 Docker / nginx reverse proxy in front of your origin.'
+  - q: 'Is there a native nginx module for mod_pagespeed 2.1?'
+    a: 'Yes. The native Apache and nginx module ships from the signed packages.modpagespeed.com repository — the same channel mod_pagespeed 1.15 uses.'
+  - q: 'How do I run mod_pagespeed on nginx today?'
+    a: 'Two options. Install the native nginx module — a dynamic module from the signed packages.modpagespeed.com repository, built for Debian and Ubuntu on amd64 and arm64 and pinned to each distribution stock nginx (1.18 to 1.26). Or put the Docker / nginx reverse proxy in front of your origin.'
 ---
 
-ModPageSpeed 2.0 does not yet ship a standalone nginx module. You have two
+mod_pagespeed ships a native module for Apache and nginx. You have two
 working options for nginx:
 
-- **Native nginx module today** — use [mod_pagespeed 1.15](/1.1/).
-- **ModPageSpeed 2.0 today** — use the [Docker / nginx reverse proxy](/docs/installation-docker/).
+- **Native nginx module** — install from the signed
+  [packages.modpagespeed.com repository](/download/apt-yum/).
+- **Docker / nginx reverse proxy** — run the
+  [Docker / nginx reverse proxy](/docs/installation-docker/) in front of your
+  origin.
 
-A standalone nginx 2.0 module is on the 2.x roadmap. This page covers
-both options until it ships.
+## Native nginx module
 
-## Native nginx module: mod_pagespeed 1.15
-
-[mod_pagespeed 1.15](/1.1/) is the native server-module line for Apache, nginx,
-IIS, and Envoy. The signed repository at `packages.modpagespeed.com` ships the
-nginx module (`nginx-module-pagespeed`) for Debian and Ubuntu on amd64 and
-arm64. Each build is pinned to that distribution's stock nginx (1.18 through
-1.26), so there is no version to match by hand:
+The signed repository at `packages.modpagespeed.com` ships the nginx module
+(`nginx-module-pagespeed`) — the same channel mod_pagespeed 1.15 uses — for
+Debian and Ubuntu on amd64 and arm64. Each build is pinned to that
+distribution's stock nginx (1.18 through 1.26), so there is no version to
+match by hand:
 
 ```bash
 curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo apt-get install nginx-module-pagespeed
 ```
 
-See the [1.15 nginx guide](/1.1/) for configuration. The signed packages
-also sidestep the [ngx_pagespeed build failures on modern nginx](/blog/ngx-pagespeed-wont-build-modern-nginx/)
+See [Install from packages.modpagespeed.com](/download/apt-yum/) for the full
+distribution matrix (including the yum packages) and the Apache module. The
+signed packages also sidestep the
+[ngx_pagespeed build failures on modern nginx](/blog/ngx-pagespeed-wont-build-modern-nginx/)
 that come from compiling the old module from source.
 
-## ModPageSpeed 2.0: Docker / nginx reverse proxy
+## Docker / nginx reverse proxy
 
-The 2.0 [Docker / nginx reverse proxy](/docs/installation-docker/) runs the new
-C++ optimization core in front of any HTTP origin. It uses a dynamic nginx
+The [Docker / nginx reverse proxy](/docs/installation-docker/) runs the same
+optimization core in front of any HTTP origin. It uses a dynamic nginx
 module (`ngx_pagespeed_module.so`) paired with a separate worker process, and
-runs the same pipeline the future standalone module will:
+runs the same pipeline the native module does:
 [image transcoding](/blog/nginx-image-optimization-module/),
 CSS/JS minification, critical CSS, and zero-copy serving from the Cyclone
 shared-memory cache.

@@ -8,18 +8,12 @@ import { offerJsonLd } from '../data/offer-jsonld';
 import { stripHtml } from '../data/faq-shared';
 import { LICENSE_CLAUSE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
 
-// Single source of truth: corp/releases/{1.1,2.0}.yaml synced into
-// src/content/releases-{1.1,2.0}/release.yaml. The X-Mod-Pagespeed
+// Single source of truth: corp/releases/1.1.yaml synced into
+// src/content/releases-1.1/release.yaml. The X-Mod-Pagespeed
 // header that 1.1 emits keeps a four-segment legacy version suffix (".0") for
-// monitoring built against the open-source module; ASP.NET Core middleware
-// emits the manifest semver directly.
+// monitoring built against the open-source module.
 const rel11 = await getRelease('1.1');
-const rel20 = await getRelease('2.0');
 const xModPagespeedHeader = `X-Mod-Pagespeed: ${rel11.display.header_version}.0`;
-const xPageSpeedHeader20 = `X-PageSpeed: WeAmp.PageSpeed/${rel20.display.header_version}`;
-const nugetInstallCmd = `dotnet add package ${rel20.artifacts.nuget.package}${
-  rel20.display.nuget_install_flags ? ` ${rel20.display.nuget_install_flags}` : ''
-}`;
 
 // Best AVIF savings across all demo sites — surfaced lower in the social-proof
 // caption as a measured range detail. The canonical hero savings figure is the
@@ -224,7 +218,7 @@ const jsonLd = [organization, website, product, faqPage];
       Running IIS or ASP.NET Core? <a
         href="/1.1/"
         data-umami-event="cta_home_hero_11"
-        class="font-medium text-interactive hover:underline">mod_pagespeed 1.15 covers you &rarr;</a
+        class="font-medium text-interactive hover:underline">see mod_pagespeed 1.15 &rarr;</a
       >
     </p>
     <p class="mt-4 text-sm text-text-annotation">
@@ -446,7 +440,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
 
   <div class="rule-ticked" role="presentation" aria-hidden="true"></div>
 
-  {/* One product — the converged line, with the previous lines signposted */}
+  {/* One product — the converged line, with availability signposted by stack */}
   <section class="py-20">
     <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
       <h2 class="h2-section text-center text-text-body">
@@ -478,7 +472,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
               href="/1.1/"
               data-umami-event="cta_home_disambiguator_11"
               class="font-semibold text-interactive hover:underline">mod_pagespeed 1.15</a
-            > &mdash; supported until a converged Windows package ships, plus a transition window
+            > &mdash; the IIS package ships from the 1.15 packaging channel
           </li>
           <li>
             <span class="font-mono text-xs text-text-annotation">ASP.NET Core</span>
@@ -488,7 +482,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
               class="font-semibold text-interactive hover:underline"
               >the PageSpeed middleware
               <span class="font-mono text-xs">(WeAmp.PageSpeed.AspNetCore)</span></a
-            > &mdash; supported until February 7, 2027
+            >
           </li>
         </ul>
         <p class="mt-3 text-xs text-text-annotation">
@@ -496,8 +490,8 @@ date: Sun, 17 May 2026 09:14:08 GMT
           directives, so existing configuration carries over.
         </p>
       </div>
-      <div class="mt-12 grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch">
-        <div class="card-product lg:col-span-2 flex flex-col">
+      <div class="mt-12 max-w-2xl mx-auto">
+        <div class="card-product flex flex-col">
           {
             /* Capability register lit to 0xC9 — the same byte as the brand mark /
               logo, in the cyan accent: the converged card carries the live signal. */
@@ -547,39 +541,6 @@ date: Sun, 17 May 2026 09:14:08 GMT
             </li>
           </ul>
           <a href="/features/" class="btn-primary mt-auto"> See what it does &rarr; </a>
-        </div>
-        <div class="card-product card-product-stone flex flex-col">
-          {
-            /* Muted register — the previous lines keep their pages through their
-              transition windows; this card is the signpost, not a pitch. */
-          }
-          <div class="bitstrip bitstrip-mark bitstrip-muted" aria-hidden="true">
-            <i class="lit"></i><i></i><i></i><i class="lit"></i><i></i><i></i><i class="lit"></i><i
-              class="lit"></i>
-          </div>
-          <p class="mt-4 text-lg font-semibold text-text-body">Previous lines</p>
-          <p class="mt-1 text-sm text-text-muted">Supported through their transition windows</p>
-          <ul class="mt-4 mb-6 space-y-3 text-sm text-text-muted">
-            <li>
-              <span class="font-semibold text-text-body">mod_pagespeed 1.15</span> &mdash; security
-              fixes only, with per-platform windows; IIS stays covered until a converged Windows
-              package ships.
-              <a
-                href="/1.1/docs/upgrading-to-2-1/"
-                class="text-interactive underline underline-offset-4"
-                >The windows &rarr;</a
-              >
-            </li>
-            <li>
-              <span class="font-semibold text-text-body">ModPageSpeed 2.0</span> &mdash; feature-frozen;
-              Docker/Helm and the ASP.NET Core middleware are supported until February 7, 2027.
-              <a
-                href="/docs/migrating-to-2-1/"
-                class="text-interactive underline underline-offset-4">Migration guide &rarr;</a
-              >
-            </li>
-          </ul>
-          <a href="/1.1/" class="btn-secondary mt-auto"> mod_pagespeed 1.15 &rarr; </a>
         </div>
       </div>
     </div>
@@ -1486,9 +1447,10 @@ date: Sun, 17 May 2026 09:14:08 GMT
           <p class="text-emerald-400">{xModPagespeedHeader}</p>
         </div>
         <p class="mt-3 text-xs text-text-annotation">
-          On IIS / Windows Server? <a href="/1.1/" class="text-interactive underline underline-offset-2"
-            >mod_pagespeed 1.15 covers you</a
-          > until a converged Windows package ships.
+          On IIS / Windows Server, the package ships from the 1.15 packaging channel.
+          <a href="/1.1/" class="text-interactive underline underline-offset-2"
+            >See mod_pagespeed 1.15 &rarr;</a
+          >
         </p>
       </div>
     </div>

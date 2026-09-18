@@ -96,13 +96,13 @@ const productData = {
     proactive_variant_generation: true,
   },
   deployment: ['apt-yum-packages', 'docker', 'kubernetes-sidecar', 'aspnet-core-middleware'],
-  // Key name is a public contract (predates the convergence) — entries are now
-  // the predecessor lines, expressed via their `status` field.
+  // Key name is a public contract (predates the convergence). No lifecycle
+  // status or date fields here — this is a published, agent-readable
+  // endpoint, so those stay out the same way they stay out of llms.txt.
   related_products: [
     {
       product: `mod_pagespeed ${V1_LINE}`,
-      status: 'security-fixes-only',
-      description: `The predecessor line continuing the open-source mod_pagespeed project (originally developed at Google; not affiliated with or endorsed by Google): a native in-process module for Apache, nginx, and IIS. Now receiving security fixes only, with per-platform transition windows; ${PRODUCT_NAME} ${CURRENT_LINE} is the drop-in upgrade (same directives). Renumbered from ${V1_RENUMBERED_FROM} (forward-semver successor to the last upstream release, ${LAST_UPSTREAM_VERSION}).`,
+      description: `The mod_pagespeed ${V1_LINE} line, continuing the open-source mod_pagespeed project (originally developed at Google; not affiliated with or endorsed by Google): a native in-process module for Apache, nginx, and IIS. ${PRODUCT_NAME} ${CURRENT_LINE} is its drop-in upgrade (same directives). Renumbered from ${V1_RENUMBERED_FROM} (forward-semver successor to the last upstream release, ${LAST_UPSTREAM_VERSION}).`,
       nuget_sidecar: {
         package: PKG_SIDECAR,
         native_assets_package: PKG_SIDECAR_NATIVE,
@@ -121,10 +121,7 @@ const productData = {
     },
     {
       product: `ModPageSpeed ${V2_LINE}`,
-      status: 'frozen',
-      support_until: '2027-02-07',
-      description:
-        'The predecessor Docker/Helm stack and ASP.NET Core middleware. Feature-frozen and supported until 2027-02-07.',
+      description: `The ModPageSpeed ${V2_LINE} Docker/Helm stack and ASP.NET Core middleware.`,
       links: {
         migration_guide: 'https://modpagespeed.com/docs/migrating-to-2-1/',
       },
