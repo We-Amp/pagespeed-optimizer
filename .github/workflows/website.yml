@@ -1,0 +1,70 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2024-2026 We-Amp B.V.
+
+name: Website
+
+# Website gate: website/ (the modpagespeed.com site) is imported wholesale
+# by the maintainer export flow rather than edited here, so the failure this
+# workflow prevents is a broken import landing on main -- pages that no
+# longer build, or unit tests that a bad scrub or a partial copy broke. It
+# runs the same checks the site's own repo enforces (npm ci + the vitest
+# unit suite) plus a production build, so nothing that cannot render ships.
+#
+# Scope cuts, mirroring the CI workflow's hosted-runner budget:
+#   * The Playwright browser suite and the eslint/astro check lint leg stay
+#     out: they need browsers and minutes that outweigh the import risk they
+#     cover, and the unit suite already pins the site's content contracts
+#     (sync guards against drift between generated files and their sources).
+#   * The build runs with PRICING_ALLOW_STALE=1: a hosted PR build cannot
+#     hold pricing API credentials, so it proceeds on the committed pricing
+#     file, loudly (fetch-pricing.js refuses without this).
+#
+# Triggers mirror the CI workflow (push to main + pull requests), filtered
+# to the tree this gate owns. A push that merges a website pull request
+# re-runs it on main; the concurrency group keeps only the newest run.
+
+on:
+  push:
+    branches: [main]
+    paths: ['website/**']
+  pull_request:
+    branches: [main]
+    paths: ['website/**']
+
+concurrency:
+  group: website-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  website-build:
+    name: Website unit tests & build (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v5
+
+      # Node 22 LTS, matching the site's own test environment. npm cache is
+      # keyed on the site's lockfile so dependency installs stay warm across
+      # import-only changes.
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Unit tests (vitest)
+        run: npx vitest run
+
+      - name: Production build
+        env:
+          PRICING_ALLOW_STALE: "1"
+        run: npm run build
