@@ -6,10 +6,9 @@ import { LICENSE_CLAUSE, SOURCE_PUBLICATION } from './product-facts.mjs';
 // Shared FAQ entries — the support-model questions that apply across the
 // converged line and the predecessor lines.
 //
-// Rendered into the pricing/support page (with faq-2 appended) and into the
-// 1.1 marketing FAQ (with faq-1-1 appended). Answers may contain HTML;
-// JSON-LD callers should pipe through stripHtml() to get plain text
-// for the Schema.org Answer.text field.
+// Rendered into the pricing/support page (with faq-2 appended). Answers may
+// contain HTML; JSON-LD callers should pipe through stripHtml() to get plain
+// text for the Schema.org Answer.text field.
 
 export interface FaqEntry {
   q: string;
@@ -48,6 +47,14 @@ export const faqShared: FaqEntry[] = [
   {
     q: 'Where do the support terms live?',
     a: 'At <a href="https://we-amp.com/licensing/" class="text-interactive hover:text-interactive-hover underline">we-amp.com/licensing/</a> — the We-Amp terms page.',
+  },
+  {
+    q: 'Which web servers does mod_pagespeed support?',
+    a: 'Apache and nginx ship as GA native modules today, installed from the signed apt/yum repository — see the <a href="/download/apt-yum/" class="text-interactive hover:text-interactive-hover underline">full distribution matrix</a>. The IIS package ships from the 1.15 packaging channel.',
+  },
+  {
+    q: 'Can I run mod_pagespeed under ASP.NET Core?',
+    a: 'Yes, on Linux. The <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">WeAmp.PageSpeed.Sidecar</code> NuGet package adds mod_pagespeed to your Kestrel app via middleware, with a bundled nginx + ngx_pagespeed optimizer running on loopback behind it — <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">AddPageSpeed()</code> / <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">UsePageSpeed()</code> wire it in, and a single <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">dotnet add package</code> pulls the bundled native binaries. It is Linux-only (linux-x64, linux-arm64). See the <a href="/1.1/docs/aspnet-sidecar/" class="text-interactive hover:text-interactive-hover underline">ASP.NET Core sidecar guide</a>. For a cross-platform, in-process integration, see <a href="/docs/aspnet-getting-started/" class="text-interactive hover:text-interactive-hover underline">ASP.NET Core Getting Started</a> instead.',
   },
 ];
 
