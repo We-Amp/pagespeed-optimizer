@@ -16,7 +16,7 @@ Yes. `mod_pagespeed` is deprecated. The 1.13.35.2 binaries still install, but th
 | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
 | `mod_pagespeed` 1.13.35.2 on Apache       | [mod_pagespeed 2.1](/) — drop-in replacement                                                                                                |
 | `ngx_pagespeed` on nginx                  | [mod_pagespeed 2.1](/) — drop-in for nginx                                                                                                  |
-| IISpeed on Windows / IIS                  | [mod_pagespeed 1.15 for IIS](/alternatives/iispeed/) — the IIS package ships from the 1.15 packaging channel                                |
+| IISpeed on Windows / IIS                  | [mod_pagespeed for IIS](/alternatives/iispeed/) — the IIS package ships from the 1.15 packaging channel                                |
 | Envoy filter chain                        | [mod_pagespeed 2.1](/) (experimental)                                                                                                       |
 | Reverse proxy in front of any HTTP origin | [ModPageSpeed 2.0](/) — see the [migration guide](/docs/migrating-to-2-1/)                                                                  |
 | ASP.NET Core application                  | [WeAmp.PageSpeed NuGet middleware](/blog/aspnet-core-middleware/)                                                                           |

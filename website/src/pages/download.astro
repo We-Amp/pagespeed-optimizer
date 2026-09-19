@@ -280,6 +280,7 @@ const jsonLd = {
           </p>
           <pre
             class="mt-1 overflow-x-auto rounded bg-stone-900 dark:bg-stone-950 p-3 text-xs text-stone-100"><code>{`sudo cp libmod_pagespeed-linux-x86_64.so /usr/lib/apache2/modules/mod_pagespeed.so
+sudo cp libmod_pagespeed-linux-aarch64.so /usr/lib/apache2/modules/mod_pagespeed.so
 sudo systemctl restart apache2`}</code></pre>
           <p class="mt-3 text-xs text-text-annotation">
             Prefer a managed repo? Use the <a
@@ -298,7 +299,9 @@ sudo systemctl restart apache2`}</code></pre>
           </p>
           <pre
             class="mt-1 overflow-x-auto rounded bg-stone-900 dark:bg-stone-950 p-3 text-xs text-stone-100"><code>{`sudo dpkg -i ${artifactUrl(rel11, 'deb', 'amd64').split('/').pop()}
-sudo dnf install -y ${artifactUrl(rel11, 'rpm', 'x86_64')}`}</code></pre>
+sudo dpkg -i ${artifactUrl(rel11, 'deb', 'arm64').split('/').pop()}
+sudo dnf install -y ${artifactUrl(rel11, 'rpm', 'x86_64')}
+sudo dnf install -y ${artifactUrl(rel11, 'rpm', 'aarch64')}`}</code></pre>
         </div>
 
         <div>

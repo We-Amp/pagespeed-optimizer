@@ -846,6 +846,37 @@ const DENYLIST: DenyRule[] = [
       'mod_pagespeed 2.1 ships a native module for Apache and nginx today.',
     ],
   },
+  {
+    id: 'h-two-maintained-lines-phrasing',
+    // RULE: the product is one continuously updated line, not two products a
+    // reader must still choose between. A claim that "two" continuations,
+    // successors, lines, products, or editions are "(actively) maintained" in
+    // parallel, a bare "two product lines", or a bare either/or ("2.0 or
+    // 1.15" / "1.15 or 2.0", including the converged "2.1" spelling),
+    // restates the pre-convergence framing and misleads a reader into
+    // thinking there is still a choice to make. Legitimate copy that
+    // describes what converged (e.g. "converges the two lines … into one
+    // product") is licensed via the exemptIf on "converges"/"converged" — a
+    // promise that the lines *will* converge is not a licence.
+    why: 'The product is a single converged line; asserting that two actively maintained continuations/successors/lines/products/editions still coexist, offering a bare "2.0 or 1.15" / "2.1 or 1.15" choice, or naming "two product lines", misleads readers into thinking they must still pick between two products.',
+    re: /\btwo\b[^\n]{0,30}?(?:actively[- ])?maintained\b[^\n]{0,20}?(?:continuations?|successors?|lines?|products?|editions?)\b|\btwo\b[^\n]{0,20}?product lines?\b|\b(?:2\.[01] or 1\.15|1\.15 or 2\.[01])\b/i,
+    exemptIf: /\bconverge[sd]\b/i,
+    exemptionMustNotDisarm: [
+      'Although the lines will converge, two actively maintained products exist today.',
+      'Convergence is planned, but two actively maintained successors exist right now.',
+    ],
+    bad: 'We-Amp shipped two actively maintained continuations of mod_pagespeed.',
+    good: 'mod_pagespeed 2.1 converges the two lines We-Amp shipped through 2026 into one continuously updated product.',
+    variantsBad: [
+      'Two actively maintained successors exist today.',
+      'Whether it runs 1.15 or 2.0, the same optimizations apply.',
+      'Choose 2.1 or 1.15 depending on your platform.',
+      'There are two product lines to choose from.',
+    ],
+    variantsGood: [
+      'mod_pagespeed 2.1 converges the two previously maintained lines into one always-updated release.',
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------
