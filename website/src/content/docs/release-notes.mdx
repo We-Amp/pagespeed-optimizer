@@ -3,7 +3,7 @@ title: 'Release Notes (ModPageSpeed 2.0)'
 description: 'ModPageSpeed 2.0 release notes — the 2.0.x release history and its security updates. mod_pagespeed 2.1 is the converged line; see the migration guide.'
 order: 71
 group: 'Reference'
-lastUpdated: 2026-09-18
+lastUpdated: 2026-09-19
 ---
 
 import { getRelease } from '../../lib/release';
@@ -750,6 +750,29 @@ Earlier releases, most recent first:
   and accurate bandwidth-savings reporting in the console.
 - **2.0.15 — Visibility.** Bandwidth-savings statistics now populate for the
   ASP.NET Core middleware, at parity with the nginx integration.
+
+## 1.15 history
+
+The 1.15 releases cover the native in-process module — nginx, Apache, and IIS
+running the filter engine directly, rather than the reverse-proxy worker
+documented above. It has shipped a modernized, secured filter stack: all
+known CVEs from the original open-source codebase are patched, and security
+fixes continue to ship with regular updates. The file-based cache was
+replaced with **Cyclone Cache** — a fixed-size, lock-free, memory-mapped
+backend shared with the rest of the converged line — and AVIF joined WebP as
+an opt-in image format alongside ongoing filter-stack modernization (modern
+JavaScript/CSS syntax support, Core Web Vitals reporting, Subresource
+Integrity and CSP awareness). IIS became a first-class platform alongside
+Apache and nginx, and an ASP.NET Core sidecar package
+(`WeAmp.PageSpeed.Sidecar`) joined as an additional integration option — see
+[ASP.NET Core Getting Started](/docs/aspnet-getting-started/) for both
+ASP.NET Core options. Packages are prebuilt, reproducible and signed —
+`.deb`, `.rpm` and `.msi` — so there is nothing to compile. Every existing
+`pagespeed` configuration directive and filter name from the open-source
+release continues to work, with a small set of long-obsolete filter names
+now accepted with a deprecation warning.
+
+[Full 1.15 release notes archive →](/1.1/docs/release-notes/)
 
 ## Install and upgrade
 

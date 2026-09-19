@@ -29,7 +29,7 @@ mod_pagespeed 2.1 is open source under the Apache License 2.0: free to install a
 
 ## Upgrading
 
-- **mod_pagespeed 1.15** (renumbered from 1.1): mod_pagespeed 2.1 is its drop-in upgrade. The IIS package ships from the 1.15 packaging channel. See [Upgrading to 2.1](https://modpagespeed.com/1.1/docs/upgrading-to-2-1/).
+- **mod_pagespeed 1.15** (renumbered from 1.1): mod_pagespeed 2.1 is its drop-in upgrade. The IIS package ships from the 1.15 packaging channel. See [Upgrading to 2.1](https://modpagespeed.com/docs/migrating-to-2-1/#upgrading-from-1-15).
 - **ModPageSpeed 2.0** (the Docker/Helm stack): move via the [migration guide](https://modpagespeed.com/docs/migrating-to-2-1/). The ASP.NET Core middleware continues unchanged — see [ASP.NET Core performance](https://modpagespeed.com/aspnet-core-performance/).
 
 ## Distribution / install channels
@@ -80,12 +80,12 @@ mod_pagespeed is an open-source project originally developed at Google. mod_page
 - [Is mod_pagespeed still maintained?](https://modpagespeed.com/mod-pagespeed-still-maintained/)
 - [cPanel / EasyApache 4](https://modpagespeed.com/docs/cpanel/)
 - [1.15 apt/yum repository](https://modpagespeed.com/download/apt-yum/)
-- [1.15 Documentation](https://modpagespeed.com/1.1/docs/)
-- [Upgrading from 1.15 to 2.1](https://modpagespeed.com/1.1/docs/upgrading-to-2-1/)
-- [1.15 Getting Started](https://modpagespeed.com/1.1/docs/getting-started/)
-- [1.15 Filter Reference](https://modpagespeed.com/1.1/docs/filter-reference/)
-- [1.15 Configuration](https://modpagespeed.com/1.1/docs/configuration/)
-- [1.15 FAQ](https://modpagespeed.com/1.1/docs/faq/)
+- [1.15 Documentation](https://modpagespeed.com/docs/)
+- [Upgrading from 1.15 to 2.1](https://modpagespeed.com/docs/migrating-to-2-1/#upgrading-from-1-15)
+- [1.15 Getting Started](https://modpagespeed.com/docs/getting-started/)
+- [1.15 Filter Reference](https://modpagespeed.com/docs/filter-reference/)
+- [1.15 Configuration](https://modpagespeed.com/docs/configuration/)
+- [1.15 FAQ](https://modpagespeed.com/pricing/#faq)
 - [Legacy Docs (1.0)](https://modpagespeed.com/1.0/)
 - [machine-readable product summary](https://modpagespeed.com/api/product.json)
 - [llms-full.txt (expanded)](https://modpagespeed.com/llms-full.txt)

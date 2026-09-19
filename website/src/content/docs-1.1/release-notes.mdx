@@ -9,6 +9,8 @@ import { getRelease } from '../../lib/release';
 
 export const rel = await getRelease('1.1');
 
+*Archived 1.15 documentation — see the [current release notes](/docs/release-notes/).*
+
 mod_pagespeed 1.15 is the maintained, drop-in continuation of the Apache-lineage
 mod_pagespeed. The current release is **{rel.display.header_version}**
 (package {rel.release.tag}). It is the direct successor to the final
@@ -18,8 +20,8 @@ Apache incubator — and is actively maintained and security-patched.
 :::note[Coming from the open-source mod_pagespeed?]
 If you are moving off the open-source mod_pagespeed, 1.15 is a drop-in
 replacement — your existing configuration directives and filters carry over.
-Start with **[Upgrading from the open-source mod_pagespeed](/1.1/docs/upgrading-from-open-source/)**,
-then see **[What's new in 1.15](/1.1/docs/whats-new/)** for everything that has
+Start with **[Upgrading from the open-source mod_pagespeed](/docs/migrating-to-2-1/#coming-from-open-source)**,
+then see **[What's new in 1.15](/docs/release-notes/#115-history)** for everything that has
 changed since 2020. Swap the binary, keep your config.
 :::
 
@@ -29,7 +31,7 @@ Updates ship as package revisions of the current release; the latest is
 **{rel.release.tag}**. Each revision rolls up security, reliability, and
 feature work with no configuration change required, so **update to the latest
 revision when it is available.** Packages and install commands are on the
-**[Downloads](/1.1/docs/downloads/)** page.
+**[Downloads](/download/)** page.
 
 Two notes on version numbers:
 
@@ -1012,7 +1014,7 @@ Cache upgrade-safety release, plus zero-copy serving corrections.
 
 **Caching: version-safe cache files**
 
-- The [cache](/1.1/docs/caching/) now lives in a file fingerprinted by the
+- The [cache](/docs/cache-modes/#native-module-cache-storage) now lives in a file fingerprinted by the
   bundled cache library's on-disk format version — not the mod_pagespeed
   release version. Format changes are anticipated to be infrequent, so most
   future upgrades will keep the cache warm. When the format does change (as
@@ -1033,7 +1035,7 @@ Cache upgrade-safety release, plus zero-copy serving corrections.
   current-version entries, new writes to that bucket were silently dropped
   (the entry was simply never cached, so affected resources were re-optimized
   on every request). Writes now land by evicting an existing entry, and a new
-  `bucket_full_evictions` [statistic](/1.1/docs/admin-console/#statistics)
+  `bucket_full_evictions` [statistic](/docs/admin-console/#statistics)
   makes the condition observable. The
   effect was most likely during upgrade-day write storms into a cold cache.
 
@@ -1081,7 +1083,7 @@ Cache upgrade-safety release, plus zero-copy serving corrections.
   the loopback address family explicitly and fall back to the other family
   automatically.
 - Windows/IIS: cache-invalidation updates
-  ([purge requests](/1.1/docs/caching/#cache-flushing-and-purging)) after the
+  ([purge requests](/docs/cache-modes/#cache-flushing-and-purging)) after the
   first one were silently discarded — the on-disk purge state never advanced, so
   later purges did not take effect across restarts or between worker
   processes. Atomic file replacement on Windows now works as intended and
@@ -1115,7 +1117,7 @@ Cache upgrade-safety release, plus zero-copy serving corrections.
 - The native fetcher (`UseNativeFetcher`, nginx) remains off by default.
   Native HTTPS support has been introduced, so the fetcher can now retrieve
   `https://` resources directly (see
-  [HTTPS configuration](/1.1/docs/https-configuration/)). Enabling it requires
+  [HTTPS configuration](/docs/https-configuration/)). Enabling it requires
   a `resolver` directive in the nginx configuration.
 
 ### v1.15.0+r18 — 2026-07-11
@@ -1401,7 +1403,7 @@ final open-source release, **1.14.36.1** (August 2020). Everything below is
 relative to that baseline — in particular, the security and reliability fixes
 repair defects that were present in the final open-source release, not
 regressions in this line. See
-**[What's new in 1.15](/1.1/docs/whats-new/)** for the narrative version.
+**[What's new in 1.15](/docs/release-notes/#115-history)** for the narrative version.
 
 **Security**
 

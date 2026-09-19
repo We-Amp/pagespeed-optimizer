@@ -146,7 +146,7 @@ ModPagespeedEnableFilters inline_preview_images
 ModPagespeedImageRecompressionQuality 78
 ```
 
-The full directive reference lives in the [filter reference](/1.1/docs/filter-reference/).
+The full directive reference lives in the [filter reference](/docs/filter-reference/).
 
 ## When this doesn't work
 
@@ -171,7 +171,7 @@ Cases where mod_pagespeed alone isn't enough on WooCommerce:
 - [How to fix CLS on WooCommerce](/blog/fix-cls-woocommerce-2026/)
 - [How to fix LCP on WordPress](/blog/fix-lcp-wordpress-2026/)
 - [The economics of image optimization](/blog/economics-of-image-optimization/)
-- [mod_pagespeed 1.15 filter reference](/1.1/docs/filter-reference/)
+- [mod_pagespeed 1.15 filter reference](/docs/filter-reference/)
 - [The full LCP guide](/core-web-vitals/lcp/)
 - [Test your page in the analyzer](/analyze/)
 

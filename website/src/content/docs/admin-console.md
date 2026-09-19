@@ -224,7 +224,7 @@ v1.15.0+r18 adds cache observability counters to the caches page (`/pagespeed_ad
 - **Evictions / Tag collision evictions** — entries displaced by capacity pressure or key collisions.
 - **Write buffer wraps / Wraps deferred by lease / Writes dropped by lease / Wraps forced past lease** — write-buffer turnover and how zero-copy serving interacts with it; sustained deferred or dropped counts indicate a cache that is too small for its write rate.
 
-The statistics page also gains counters for zero-copy serving (all 0 while the feature is off): `zerocopy_serve_aliased`, `zerocopy_serve_copied_out`, `zerocopy_serve_renew_fail_reset`, `zerocopy_serve_aborted`, and `zerocopy_serve_ring_refills`. A persistently nonzero `zerocopy_serve_renew_fail_reset` rate is the signal that a cache stripe is hot enough to warrant tuning; see [Caching](/1.1/docs/caching/) for the zero-copy options.
+The statistics page also gains counters for zero-copy serving (all 0 while the feature is off): `zerocopy_serve_aliased`, `zerocopy_serve_copied_out`, `zerocopy_serve_renew_fail_reset`, `zerocopy_serve_aborted`, and `zerocopy_serve_ring_refills`. A persistently nonzero `zerocopy_serve_renew_fail_reset` rate is the signal that a cache stripe is hot enough to warrant tuning; see [Caching](/docs/cache-modes/#zero-copy-serving) for the zero-copy options.
 
 ## Console (historical graphs)
 
@@ -323,5 +323,5 @@ Gate access at the web server's normalized location/handler layer — `location 
 
 ## See also
 
-- [Caching](/1.1/docs/caching/) — cache purging via the admin interface
-- [Configuration](/1.1/docs/configuration/) — general configuration reference
+- [Caching](/docs/cache-modes/#purge-via-admin-page) — cache purging via the admin interface
+- [Configuration](/docs/configuration/) — general configuration reference

@@ -6,7 +6,7 @@
 // and mirrored into that page's ItemList JSON-LD.
 //
 // SINGLE SOURCE: the canonical, human-authored store is the markdown table in
-// src/content/docs-1.1/filter-reference.md ("All filters"). This array is a
+// src/content/docs/filter-reference.md ("All filters"). This array is a
 // machine-consumable PROJECTION of the four fields the hub page needs — name,
 // category, plain-text description, and the per-filter deep-link. Core/OFB/Safe
 // columns are deliberately omitted so the hub stays a 3-column overview, visibly
@@ -160,13 +160,13 @@ export const FILTERS: Filter[] = [
     name: 'extend_cache',
     category: 'Caching',
     description: 'Content-hashed URLs with 1-year browser cache',
-    href: '/1.1/docs/caching-url-filters/#extend_cache',
+    href: '/docs/cache-control/#extend_cache',
   },
   {
     name: 'extend_cache_pdfs',
     category: 'Caching',
     description: 'Cache extension for PDF links',
-    href: '/1.1/docs/caching-url-filters/#extend_cache_pdfs',
+    href: '/docs/cache-control/#extend_cache_pdfs',
   },
   {
     name: 'fallback_rewrite_css_urls',
@@ -268,7 +268,7 @@ export const FILTERS: Filter[] = [
     name: 'local_storage_cache',
     category: 'Caching',
     description: 'Caches inlined resources in localStorage',
-    href: '/1.1/docs/caching-url-filters/#local_storage_cache',
+    href: '/docs/cache-control/#local_storage_cache',
   },
   {
     name: 'move_css_above_scripts',
@@ -388,7 +388,7 @@ export const FILTERS: Filter[] = [
     name: 'rewrite_domains',
     category: 'Caching',
     description: 'Applies domain mappings to original resources',
-    href: '/1.1/docs/caching-url-filters/#rewrite_domains',
+    href: '/docs/cache-control/#rewrite_domains',
   },
   {
     name: 'rewrite_images',

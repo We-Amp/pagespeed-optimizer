@@ -13,7 +13,7 @@ A CSS `@import` rule hides a request the browser cannot see in advance. The brow
 
 The fix sounds trivial: replace each `@import` with the bytes of the file it points at, recurse, and emit one stylesheet. mod_pagespeed 1.15 does exactly this with the `flatten_css_imports` filter, a CoreFilter that runs by default. The reason it took a design document and not an afternoon is that a correct flattener has to preserve the meaning of the original cascade, and several CSS rules make naive concatenation produce a stylesheet that behaves differently from the original.
 
-This post walks the non-obvious cases a flattener has to get right. It complements the one-line entry in the [CSS filters reference](/1.1/docs/css-filters/#flatten_css_imports); here we explain why the rules exist.
+This post walks the non-obvious cases a flattener has to get right. It complements the one-line entry in the [CSS filters reference](/docs/css-filters/#flatten_css_imports); here we explain why the rules exist.
 
 ## Media queries: intersection, not wrapping
 
@@ -47,7 +47,7 @@ The same caution applies to parse errors. If any file in the chain will not pars
 
 ## The size cap: `CssFlattenMaxBytes`
 
-Flattening trades requests for bytes. One request is better than five, but not if the single sheet balloons to something enormous that delays first paint more than the round trips it removed. `CssFlattenMaxBytes` (default `1024000`, one megabyte) caps the flattened result. If the combined CSS would exceed it, the filter declines to flatten. Lower it if your import graph pulls in vendor frameworks you would rather keep as separately cacheable files. Both the parameter and the per-engine syntax are listed in the [CSS filters tuning table](/1.1/docs/css-filters/#tuning-parameters), and `flatten_css_imports` is summarized in the [filter reference](/1.1/docs/filter-reference/).
+Flattening trades requests for bytes. One request is better than five, but not if the single sheet balloons to something enormous that delays first paint more than the round trips it removed. `CssFlattenMaxBytes` (default `1024000`, one megabyte) caps the flattened result. If the combined CSS would exceed it, the filter declines to flatten. Lower it if your import graph pulls in vendor frameworks you would rather keep as separately cacheable files. Both the parameter and the per-engine syntax are listed in the [CSS filters tuning table](/docs/css-filters/#flatten_css_imports), and `flatten_css_imports` is summarized in the [filter reference](/docs/filter-reference/).
 
 ## In 1.15 versus 2.0
 

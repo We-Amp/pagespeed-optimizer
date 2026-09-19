@@ -150,7 +150,7 @@ the Cyclone Cache.
 
 If you have a working 1.13.35.2 install and want a security update
 that doesn't require config changes, this is the path. The
-[1.15 download docs](/1.1/docs/downloads/) list every platform package;
+[1.15 download docs](/download/) list every platform package;
 the [1.15 site](/) has the full reference.
 
 **Debian / Ubuntu (Apache):**
@@ -243,7 +243,7 @@ server, the modern equivalents:
 - **ASP.NET Core:** the [WeAmp.PageSpeed.AspNetCore NuGet
   middleware](/go/nuget?from=blog-google-dl-ssl)
   registers the ModPageSpeed 2.0 optimization core as ASP.NET Core middleware.
-- **Envoy:** see the [Envoy configuration docs](/1.1/docs/configuration/#envoy) for the HTTP filter.
+- **Envoy:** see the [Envoy configuration docs](/docs/configuration/) for the HTTP filter.
 
 ## What to do with the existing install
 

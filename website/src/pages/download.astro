@@ -84,7 +84,7 @@ const integrations = [
       'MSI installer for Windows Server. Enable in IIS Manager, iisreset, and the optimization pipeline is live.',
     note: 'Running IISpeed? Uninstall it first — both modules cannot coexist on the same host.',
     requirements: `${rel11.compat.iis.os[0]} or later, IIS ${rel11.compat.iis.iis_versions.join('/')}, x64`,
-    href: '/1.1/docs/iis-configuration/',
+    href: '/docs/iis-configuration/',
     cta: 'Install guide',
     umamiEvent: 'cta_download_iis',
   },
@@ -107,7 +107,7 @@ const integrations = [
       'WeAmp.PageSpeed.Sidecar adds the 1.15 module to your Kestrel app via middleware, with a bundled nginx optimizer on loopback behind it. One dotnet add package pulls the native binaries.',
     note: 'Now GA. Want the classic 1.x nginx-module behavior under .NET? Start here.',
     requirements: '.NET 8 or .NET 10 on Linux (linux-x64, linux-arm64).',
-    href: '/1.1/docs/aspnet-sidecar/',
+    href: '/docs/aspnet-getting-started/#the-115-sidecar-weamppagespeedsidecar',
     cta: 'Sidecar guide',
     umamiEvent: 'cta_download_aspnet_sidecar',
   },
@@ -276,6 +276,12 @@ const jsonLd = {
             </li>
           </ul>
           <p class="mt-3 text-xs text-text-annotation">
+            Module-only <code class="text-xs">.so</code> download: drop it in and restart —
+          </p>
+          <pre
+            class="mt-1 overflow-x-auto rounded bg-stone-900 dark:bg-stone-950 p-3 text-xs text-stone-100"><code>{`sudo cp libmod_pagespeed-linux-x86_64.so /usr/lib/apache2/modules/mod_pagespeed.so
+sudo systemctl restart apache2`}</code></pre>
+          <p class="mt-3 text-xs text-text-annotation">
             Prefer a managed repo? Use the <a
               href="/download/apt-yum/"
               data-umami-event="cta_download_apt_yum"
@@ -286,6 +292,13 @@ const jsonLd = {
               class="text-interactive underline">cPanel / EasyApache 4 guide</a
             >.
           </p>
+          <p class="mt-3 text-xs text-text-annotation">
+            Downloaded the <code class="text-xs">.deb</code> or <code class="text-xs">.rpm</code> directly
+            instead of using a repo?
+          </p>
+          <pre
+            class="mt-1 overflow-x-auto rounded bg-stone-900 dark:bg-stone-950 p-3 text-xs text-stone-100"><code>{`sudo dpkg -i ${artifactUrl(rel11, 'deb', 'amd64').split('/').pop()}
+sudo dnf install -y ${artifactUrl(rel11, 'rpm', 'x86_64')}`}</code></pre>
         </div>
 
         <div>
@@ -314,6 +327,31 @@ const jsonLd = {
           </p>
         </div>
       </div>
+
+      <div class="mt-5 rounded-lg border border-border bg-bg-elevated p-4">
+        <p class="text-xs font-semibold uppercase tracking-wide text-text-annotation">
+          Verify a download
+        </p>
+        <p class="mt-2 text-sm text-text-muted">
+          Installs through <code class="text-xs">packages.modpagespeed.com</code> verify signatures automatically
+          against the repository signing key (RSA 4096, fingerprint <code class="text-xs"
+            >DF00E296BE9141CEA5411346F50D6054F10712A0</code
+          >).
+        </p>
+        <p class="mt-2 text-sm text-text-muted">
+          For direct downloads, each artifact is GPG-signed and listed in <a
+            href={archiveUrl(rel11, 'SHA256SUMS')}
+            class="text-interactive underline">SHA256SUMS</a
+          >:
+        </p>
+        <pre
+          class="mt-1 overflow-x-auto rounded bg-stone-900 dark:bg-stone-950 p-3 text-xs text-stone-100"><code>{`curl -O ${archiveUrl(rel11, 'SHA256SUMS')}
+sha256sum --check --ignore-missing SHA256SUMS
+# Or with the GPG signing key:
+curl -O ${rel11.urls.gpg_key}
+gpg --import weamp-pkg-public.asc
+gpg --verify ${artifactUrl(rel11, 'deb', 'amd64').split('/').pop()}.asc`}</code></pre>
+      </div>
     </div>
   </section>
 
@@ -328,7 +366,7 @@ const jsonLd = {
     </p>
     <p class="mt-3 text-sm text-text-muted">
       An experimental Envoy port (source build only, mod_pagespeed 1.15) is documented at <a
-        href="/1.1/docs/configuration/#envoy"
+        href="/docs/configuration/#envoy"
         class="text-interactive hover:text-interactive-hover underline">mod_pagespeed 1.15</a
       >.
     </p>

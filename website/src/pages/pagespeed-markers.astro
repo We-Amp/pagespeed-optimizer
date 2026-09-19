@@ -45,6 +45,22 @@ const markers: Marker[] = [
     exampleLang: 'html',
   },
   {
+    id: 'text-psajs',
+    name: 'type="text/psajs"',
+    kind: 'HTML attribute',
+    summary:
+      'defer_javascript retypes scripts to this non-executing type so the browser skips them during parse; the src attribute is left intact.',
+    seen: 'You see it on <script> tags when defer_javascript is active — the type change is what keeps the browser from executing the script during initial parse. data-pagespeed-orig-index (below) preserves its original position for restoration.',
+  },
+  {
+    id: 'data-pagespeed-orig-index',
+    name: 'data-pagespeed-orig-index',
+    kind: 'HTML attribute',
+    summary:
+      "Records a deferred script's original position in the page so execution order is preserved.",
+    seen: 'You see it on <script> tags alongside type="text/psajs" when defer_javascript is active; the module uses it to restore deferred scripts to their real position and type before execution.',
+  },
+  {
     id: 'data-pagespeed-no-transform',
     name: 'data-pagespeed-no-transform',
     kind: 'HTML attribute',
@@ -300,7 +316,7 @@ const faqJsonLd = {
           > marker actually do to recompress and resize.
         </li>
         <li>
-          <a href="/1.1/docs/" class="text-interactive hover:text-interactive-hover underline"
+          <a href="/docs/" class="text-interactive hover:text-interactive-hover underline"
             >mod_pagespeed 1.15 documentation</a
           > &mdash; the full directive and filter reference behind these markers.
         </li>
@@ -322,7 +338,7 @@ const faqJsonLd = {
           <a href="/download/" class="btn-primary" data-umami-event="cta_markers_upgrade">
             Download &amp; run &rarr;
           </a>
-          <a href="/1.1/docs/" class="btn-secondary" data-umami-event="cta_markers_docs">
+          <a href="/docs/" class="btn-secondary" data-umami-event="cta_markers_docs">
             Read the 1.15 docs &rarr;
           </a>
         </div>

@@ -3,7 +3,7 @@ title: 'Where the Documentation Lives'
 description: 'Where the mod_pagespeed 2.1 documentation lives, and what happens to the ModPageSpeed 2.0 and mod_pagespeed 1.15 pages.'
 order: 62
 group: 'Reference'
-lastUpdated: 2026-09-18
+lastUpdated: 2026-09-19
 ---
 
 All mod_pagespeed 2.1 documentation lives in this tree. This page explains
@@ -23,13 +23,14 @@ Two audiences keep their own dedicated pages:
 - **ASP.NET Core middleware users** — the aspnet pages remain ModPageSpeed 2.0
   documentation; that audience has no migration to make.
 
-## The 1.15 docs stay online
+## The 1.15 docs are part of this tree now
 
-The [mod_pagespeed 1.15 documentation](/1.1/docs/) is not merged into this
-tree. It stays online at its current URLs. Because 2.1 keeps the 1.15
-directives and filter names, much of the configuration reference there still
-applies — but check the current pages here first for a new deployment. New
-documentation lands only here.
+The mod_pagespeed 1.15 reference material has been folded into the pages
+above — installation, configuration, caching, and the filter reference now
+cover both the module and the worker in one place. The
+[1.15 history section](/docs/release-notes/#115-history) of the release
+notes covers what changed release by release, with a pointer to the
+archived version history.
 
 ## Reporting gaps
 

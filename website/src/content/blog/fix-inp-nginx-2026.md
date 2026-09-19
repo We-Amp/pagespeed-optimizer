@@ -64,7 +64,7 @@ Output: a specific interaction, the responsible handler or XHR endpoint, and a b
 
 mod_pagespeed's leverage on a generic nginx site mirrors the WordPress case but without the CMS-specific failure modes. Enable:
 
-- **`defer_javascript`** — pushes script execution past the initial render so first-interaction JS parse no longer collides with the click. Marked **Test first** in the [filter reference](/1.1/docs/filter-reference/); test on a staging copy because it changes execution order.
+- **`defer_javascript`** — pushes script execution past the initial render so first-interaction JS parse no longer collides with the click. Marked **Test first** in the [filter reference](/docs/filter-reference/); test on a staging copy because it changes execution order.
 - **`combine_javascript`** — concatenates separate `<script src>` files into one. Cuts per-file parser-setup overhead.
 - **`rewrite_javascript`** — minifies inline and external JS. Useful if upstream serves non-minified bundles, which is common in custom stacks. The minifier is [ASI-safe on unterminated statements](/blog/safe-javascript-minification-semicolon-insertion/), so it will not break bundles that rely on automatic semicolon insertion.
 
@@ -147,7 +147,7 @@ This post deliberately does _not_ try to be the definitive INP guide. The INP ×
 - [How to fix CLS on nginx](/blog/fix-cls-nginx-2026/)
 - [How to fix INP on WordPress](/blog/fix-inp-wordpress-2026/)
 - [Server-side critical CSS with nginx](/blog/server-side-critical-css-nginx/)
-- [mod_pagespeed 1.15 filter reference](/1.1/docs/filter-reference/)
+- [mod_pagespeed 1.15 filter reference](/docs/filter-reference/)
 - [The full INP guide](/core-web-vitals/inp/)
 - [Test your page in the analyzer](/analyze/)
 

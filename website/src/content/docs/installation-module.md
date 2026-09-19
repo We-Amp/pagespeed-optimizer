@@ -33,12 +33,16 @@ The signed repository at `packages.modpagespeed.com` ships the Apache module
 curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo apt-get install mod-pagespeed   # Debian/Ubuntu
 sudo dnf install mod-pagespeed       # AlmaLinux/RHEL/Rocky
+sudo systemctl restart apache2       # Debian/Ubuntu
+sudo systemctl restart httpd         # RHEL family
 ```
 
 The module keeps the same directive surface and filter names, so an existing
 mod_pagespeed configuration carries over unchanged — see the
-[configuration reference](/1.1/docs/configuration/) for the full directive
-set.
+[configuration reference](/docs/configuration/) for the full directive
+set. The package also drops a default `pagespeed.conf` (in
+`/etc/apache2/mods-available/` on Debian/Ubuntu, `/etc/httpd/conf.d/` on
+RHEL) — edit that file to turn filters on.
 
 Running Apache under cPanel/WHM? Use the signed EasyApache 4 RPM instead —
 see the [cPanel / EasyApache 4 guide](/docs/cpanel/). See

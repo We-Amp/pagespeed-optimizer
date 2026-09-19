@@ -63,7 +63,7 @@ This part is specific to the 1.x lookup-time model, and it is worth understandin
 
 A few consequences worth holding onto:
 
-- **Purge is per server.** A purge only acts on the cache of the node that received it — in 1.x it records the invalidation there, in 2.0 it deletes the key there. Either way, in a multi-server deployment you have to send the purge to every node. ModPageSpeed does not propagate purges across servers — the [1.1 caching docs](/1.1/docs/caching/) state this directly, and it holds for 2.0. Front a fleet with a small fan-out script or a config-management hook.
+- **Purge is per server.** A purge only acts on the cache of the node that received it — in 1.x it records the invalidation there, in 2.0 it deletes the key there. Either way, in a multi-server deployment you have to send the purge to every node. ModPageSpeed does not propagate purges across servers — the [1.1 caching docs](/docs/cache-modes/#multi-server-deployments) state this directly, and it holds for 2.0. Front a fleet with a small fan-out script or a config-management hook.
 - **You often do not need to purge at all.** Assets under content-hashed URLs invalidate themselves: change the bytes, the hash changes, the old URL is simply never requested again. [Why optimized URLs carry a content hash](/blog/content-hash-urls/) covers that path. Purge is for the cases where the URL stays put and the content moves underneath it.
 - **For routine deploys, [conditional revalidation](/blog/conditional-revalidation-304-vs-active-purge/) is usually cheaper than purge.** It keeps optimized variants when only the HTML changed, instead of forcing a rebuild. The [Cache-Control guide](/docs/cache-control/) walks through when to reach for which.
 

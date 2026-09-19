@@ -161,7 +161,7 @@ ASP.NET Core's INP story is almost entirely about what frontend you ship. ModPag
 - [How to fix CLS on ASP.NET Core](/blog/fix-cls-aspnet-core-2026/)
 - [How to fix INP on nginx (generic)](/blog/fix-inp-nginx-2026/)
 - [ModPageSpeed 2.0 as ASP.NET Core middleware](/blog/aspnet-core-middleware/)
-- [mod_pagespeed 1.15 filter reference](/1.1/docs/filter-reference/)
+- [mod_pagespeed 1.15 filter reference](/docs/filter-reference/)
 - [The full INP guide](/core-web-vitals/inp/)
 - [Test your page in the analyzer](/analyze/)
 

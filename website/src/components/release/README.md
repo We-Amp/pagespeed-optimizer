@@ -16,12 +16,9 @@ literal in `src/content/`, `src/pages/`, `src/components/`, or
 | Component               | Use for                                                                     |
 | ----------------------- | --------------------------------------------------------------------------- |
 | `<Version />`           | A single version label (`1.1.0`, `v1.1.0`, `v1.1.0+r9`) inline in prose.    |
-| `<DownloadCmd />`       | One shell line — `curl -O <url>` / `sudo dpkg -i …` / `sudo dnf install …`. |
-| `<DownloadTable />`     | The full DEB + RPM + MSI table on the downloads page.                       |
 | `<CompatMatrix />`      | The "Supported on …" block (nginx + Apache + IIS, per surface).             |
 | `<NugetCmd />`          | `dotnet add package WeAmp.PageSpeed.AspNetCore [--prerelease]`.             |
 | `<XPageSpeedExample />` | Response-header example: `X-Page-Speed:`/`X-Mod-Pagespeed:`/`X-PageSpeed:`. |
-| `<GpgKeyUrl />`         | The stable GPG signing-key URL (off `/releases/vX.Y.Z/` per Stage 7).       |
 | `<ImageTag />`          | Docker / Helm image tag for 2.0 (`2.0.7` etc.).                             |
 
 ## Usage in MDX
@@ -32,16 +29,7 @@ title: 'My doc page'
 description: '…'
 ---
 
-import DownloadCmd from '../../components/release/DownloadCmd.astro';
 import XPageSpeedExample from '../../components/release/XPageSpeedExample.astro';
-
-Install the package:
-
-<pre>
-  <code class="language-bash">
-    <DownloadCmd line="1.1" channel="deb" arch="amd64" pkgmgr="curl" />
-  </code>
-</pre>
 
 Verify the response header:
 

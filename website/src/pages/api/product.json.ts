@@ -115,8 +115,8 @@ const productData = {
       },
       links: {
         overview: 'https://modpagespeed.com/',
-        docs: 'https://modpagespeed.com/1.1/docs/',
-        upgrade_guide: 'https://modpagespeed.com/1.1/docs/upgrading-to-2-1/',
+        docs: 'https://modpagespeed.com/docs/',
+        upgrade_guide: 'https://modpagespeed.com/docs/migrating-to-2-1/#upgrading-from-1-15',
       },
     },
     {

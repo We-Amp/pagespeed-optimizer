@@ -59,10 +59,10 @@ Full reference: [HTML filters](/docs/html-filters/)
 
 Caching filters extend browser cache lifetimes by rewriting resource URLs to include content hashes. This allows setting long `Cache-Control` max-age values while ensuring that browsers fetch updated resources when content changes.
 
-- [`extend_cache`](/1.1/docs/caching-url-filters/#extend_cache) (core) — rewrite CSS, JavaScript, and image URLs with content-based hashes and set long TTLs
-- [`extend_cache_pdfs`](/1.1/docs/caching-url-filters/#extend_cache_pdfs) — apply the same content-hashed URL strategy to PDF links
+- [`extend_cache`](/docs/cache-control/#extend_cache) (core) — rewrite CSS, JavaScript, and image URLs with content-based hashes and set long TTLs
+- [`extend_cache_pdfs`](/docs/cache-control/#extend_cache_pdfs) — apply the same content-hashed URL strategy to PDF links
 
-Full reference: [Caching and URL filters](/1.1/docs/caching-url-filters/)
+Full reference: [Caching and URL filters](/docs/cache-control/)
 
 ## Quick reference
 

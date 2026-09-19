@@ -124,7 +124,7 @@ When `RewriteLevel` is set to `CoreFilters` (the default), the following filters
 - [`combine_css`](/docs/css-filters/#combine_css) — combines multiple CSS files into one
 - [`combine_javascript`](/docs/javascript-filters/#combine_javascript) — combines multiple JavaScript files into one
 - [`convert_meta_tags`](/docs/html-filters/#convert_meta_tags) — converts `<meta http-equiv>` tags to response headers
-- [`extend_cache`](/1.1/docs/caching-url-filters/#extend_cache) — extends cache lifetime of resources by content-hashing URLs
+- [`extend_cache`](/docs/cache-control/#extend_cache) — extends cache lifetime of resources by content-hashing URLs
 - [`fallback_rewrite_css_urls`](/docs/css-filters/#fallback_rewrite_css_urls) — rewrites URLs in CSS even when CSS parsing fails
 - [`flatten_css_imports`](/docs/css-filters/#flatten_css_imports) — inlines `@import` rules in CSS
 - [`inline_css`](/docs/css-filters/#inline_css) — inlines small CSS files into HTML
@@ -372,4 +372,4 @@ With URL preservation enabled, mod_pagespeed still optimizes the resource conten
 
 - [Filters overview](/docs/filters-overview/) — catalog of all available filters
 - [Filter reference](/docs/filter-reference/) — complete filter table with descriptions
-- [Configuration](/1.1/docs/configuration/) — general configuration directives
+- [Configuration](/docs/configuration/) — general configuration directives

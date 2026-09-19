@@ -155,4 +155,4 @@ mod_pagespeed rewrites resource URLs to match the scheme of the page. Pages serv
 ## See also
 
 - [Domain Configuration](/docs/domain-configuration/) — domain authorization and mapping
-- [Configuration](/1.1/docs/configuration/) — general configuration reference
+- [Configuration](/docs/configuration/) — general configuration reference

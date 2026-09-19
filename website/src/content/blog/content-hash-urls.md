@@ -20,7 +20,7 @@ The interesting part is the string in the middle. It is not a version number or 
 
 ## What the content hash actually is
 
-When the [`extend_cache`](/1.1/docs/caching-url-filters/) filter rewrites a resource URL, it computes a hash over the bytes of that resource and embeds the hash in the new filename. The hash is a function of the content and nothing else. Two files with identical bytes get the same hash; change a single byte and the hash changes too.
+When the [`extend_cache`](/docs/cache-control/#extend_cache) filter rewrites a resource URL, it computes a hash over the bytes of that resource and embeds the hash in the new filename. The hash is a function of the content and nothing else. Two files with identical bytes get the same hash; change a single byte and the hash changes too.
 
 That property is what the rest of this builds on. Because the URL is derived from the content, the URL is a promise: this exact byte sequence, for as long as the URL exists. So mod_pagespeed serves it with `Cache-Control: max-age=31536000` (one year) and lets browsers and CDNs hold onto it as long as they like. There is no risk of serving a stale file. A changed file has different bytes, so it hashes differently, so it lands at a URL the browser has never seen and fetches fresh.
 

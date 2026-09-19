@@ -63,7 +63,7 @@ The output you want before continuing is a specific interaction (e.g., "click on
 
 mod_pagespeed's INP leverage on WordPress is real but partial. The server layer can reduce JS _parse_ and _transfer_ cost; it cannot remove third-party event handlers from the page. Enable, in order:
 
-- **`defer_javascript`** — pushes script execution past the initial render window, so the parse cost no longer collides with the user's first click. Marked **Test first** in the [filter reference](/1.1/docs/filter-reference/) because it changes execution order — themes that depend on jQuery being ready synchronously will break. Stage it.
+- **`defer_javascript`** — pushes script execution past the initial render window, so the parse cost no longer collides with the user's first click. Marked **Test first** in the [filter reference](/docs/filter-reference/) because it changes execution order — themes that depend on jQuery being ready synchronously will break. Stage it.
 - **`combine_javascript`** — concatenates multiple `<script src>` files into one, removing per-file parser setup. A typical WP install loads 10–20 separate JS files; combining cuts the parser overhead by an order of magnitude.
 - **`rewrite_javascript`** — minifies inline and external JS ([safely, without breaking on missing semicolons](/blog/safe-javascript-minification-semicolon-insertion/)). Minification is mostly transfer-size, but on parse-heavy bundles (jQuery + jQuery Migrate + WC fragments) the parse cost scales with byte count, so it is measurable on slower devices.
 
@@ -141,7 +141,7 @@ WordPress INP is mostly a plugin-discipline problem. mod_pagespeed reduces the p
 - [How to fix CLS on WordPress](/blog/fix-cls-wordpress-2026/)
 - [How to fix INP on WooCommerce](/blog/fix-inp-woocommerce-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)
-- [mod_pagespeed 1.15 filter reference](/1.1/docs/filter-reference/)
+- [mod_pagespeed 1.15 filter reference](/docs/filter-reference/)
 - [The full INP guide](/core-web-vitals/inp/)
 - [Test your page in the analyzer](/analyze/)
 

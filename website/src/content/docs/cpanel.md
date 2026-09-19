@@ -46,7 +46,7 @@ The RPM drops the module file but does not flip it on. Apache loads `mod_pagespe
 3. Tick the checkbox, then _Review_ → _Provision_. EasyApache 4 rebuilds Apache.
 4. When the provision finishes the module is loaded and the filter runs on every vhost served by `ea-apache24-httpd`.
 
-The package installs its configuration to `/etc/apache2/conf.d/pagespeed.conf` (marked `%config(noreplace)`, so your edits survive a reinstall or upgrade). Tune it the same way you would on any RHEL Apache host — see [Getting Started](/1.1/docs/getting-started/) for the directive reference.
+The package installs its configuration to `/etc/apache2/conf.d/pagespeed.conf` (marked `%config(noreplace)`, so your edits survive a reinstall or upgrade). Tune it the same way you would on any RHEL Apache host — see [Getting Started](/docs/getting-started/) for the directive reference.
 
 ### 4. Open the admin console
 
@@ -56,7 +56,7 @@ The global admin console lives at:
 https://your-host.example.com/pagespeed_global_admin
 ```
 
-Open `/pagespeed_global_admin` on any vhost — the admin route is global to the server, not scoped to one vhost (`/pagespeed_admin/` is the per-vhost statistics endpoint). The module installs and fully optimizes out of the box: mod_pagespeed is licensed under the Apache License 2.0, free in development and in production. See [Downloads & Licensing](/1.1/docs/downloads/).
+Open `/pagespeed_global_admin` on any vhost — the admin route is global to the server, not scoped to one vhost (`/pagespeed_admin/` is the per-vhost statistics endpoint). The module installs and fully optimizes out of the box: mod_pagespeed is licensed under the Apache License 2.0, free in development and in production. See [Downloads & Licensing](/download/).
 
 There is nothing to license per site or per server. cPanel hosts running many sites can join the [Hoster partner program](/hosting-partners/) for backing across the fleet, set up through the [contact form](/contact/). Plans: [pricing](/pricing/). Support terms: [we-amp.com/licensing](https://we-amp.com/licensing/).
 
@@ -138,7 +138,7 @@ rpm -q ea-apache24-mod_pagespeed              # installed package version
 httpd -M 2>/dev/null | grep pagespeed         # confirm the module is loaded
 ```
 
-If it does not appear, re-check the _Apache Modules_ step in WHM Customize and re-provision. See [Troubleshooting](/1.1/docs/troubleshooting/) for the general "module not running" checklist.
+If it does not appear, re-check the _Apache Modules_ step in WHM Customize and re-provision. See [Troubleshooting](/docs/troubleshooting/) for the general "module not running" checklist.
 
 ### `rpm -q` shows a leading `2:` (e.g. `2:1.15.0-...`) — is that version 2?
 

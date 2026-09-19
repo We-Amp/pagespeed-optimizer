@@ -68,7 +68,7 @@ Output you want before continuing: a specific interaction (e.g., "click on the p
 
 Magento ships a fragmented JS catalog (100+ files split across modules), and combining plus [safe minification](/blog/safe-javascript-minification-semicolon-insertion/) reduces transfer and parse overhead. But the dominant INP cost is _handler execution_, not parse, so this step is real but partial.
 
-**Important warning: do not enable `defer_javascript` on Magento.** Magento's RequireJS bootstrap is order-sensitive; deferring scripts breaks the `define`/`require` graph and produces nonsensical "module not found" errors at runtime. The [filter reference](/1.1/docs/filter-reference/) marks `defer_javascript` as **Test first** for exactly this reason. Stick to the safer pair below.
+**Important warning: do not enable `defer_javascript` on Magento.** Magento's RequireJS bootstrap is order-sensitive; deferring scripts breaks the `define`/`require` graph and produces nonsensical "module not found" errors at runtime. The [filter reference](/docs/filter-reference/) marks `defer_javascript` as **Test first** for exactly this reason. Stick to the safer pair below.
 
 Enable, in order:
 
@@ -158,7 +158,7 @@ No. Magento's RequireJS bootstrap is order-sensitive, and deferring scripts brea
 - [How to fix CLS on Magento](/blog/fix-cls-magento-2026/)
 - [How to fix INP on nginx (generic)](/blog/fix-inp-nginx-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)
-- [mod_pagespeed 1.15 filter reference](/1.1/docs/filter-reference/)
+- [mod_pagespeed 1.15 filter reference](/docs/filter-reference/)
 - [The full INP guide](/core-web-vitals/inp/)
 - [Test your page in the analyzer](/analyze/)
 

@@ -90,6 +90,10 @@ const docs = defineCollection({
   }),
 });
 
+// Holds exactly one archived entry (release-notes) — the mod_pagespeed 1.15
+// reference material was folded into the docs collection above; this page
+// stays at its own address as a version-branded history that a merged page
+// cannot replace.
 const docs11 = defineCollection({
   loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/docs-1.1' }),
   schema: z.object({

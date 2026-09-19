@@ -6,7 +6,52 @@ group: 'Configure'
 lastUpdated: 2026-07-12
 ---
 
-mod_pagespeed runs on IIS as a native, in-process module — the successor to IISpeed. This page documents the `pagespeed.config` file format it reads. For the directives that apply across every platform (Apache, nginx, IIS), see [Configuration](/1.1/docs/configuration/); to install the module first, see [Getting Started](/1.1/docs/getting-started/).
+mod_pagespeed runs on IIS as a native, in-process module — the successor to IISpeed. This page documents the `pagespeed.config` file format it reads. For the directives that apply across every platform (Apache, nginx, IIS), see [Configuration](/docs/configuration/); to install the module first, see [Requirements](#requirements) below.
+
+## Requirements
+
+- Windows Server 2019 or later (IIS 10+)
+- 64-bit only
+- Visual C++ Redistributable 2022
+- IIS worker process identity needs write permissions on the cache directory
+
+## Install the module
+
+Download the [IIS MSI installer](/download/) — each binary has a `.asc` signature next to it — and run it on your Windows Server. The installer registers the module in IIS as a native HTTP module automatically and creates the default cache directory at `%ProgramData%\We-Amp\IISWebSpeed\Cache`.
+
+### Migrating from IISpeed
+
+If IISpeed is installed on this host, **uninstall it before running the MSI**. The two modules register the same handler in IIS and cannot coexist — leaving IISpeed in place will cause one or both to fail at site startup. Open _Apps & features_ (or _Programs and Features_), remove "IISpeed", `iisreset`, and then run the installer.
+
+If you are migrating from the open-source module on IIS:
+
+1. Uninstall the existing IISpeed or mod_pagespeed module from IIS Manager
+2. Install the module
+3. Restart IIS: `iisreset`
+
+### IIS Express
+
+For local development with IIS Express, add the module to `applicationhost.config` in `%userprofile%\Documents\IISExpress\config\`:
+
+1. Copy the module DLL to a known location
+2. Add the module registration under `<globalModules>` and `<modules>`
+3. Restart IIS Express
+
+### Disable optimization
+
+To disable optimization for a site, either delete or rename its `pagespeed.config` file, or add:
+
+```
+pagespeed off
+```
+
+### Verify it works
+
+On IIS the module emits `X-Page-Speed`, the same as nginx — check for it with PowerShell:
+
+```powershell
+(Invoke-WebRequest http://localhost/ -Method Head).Headers["X-Page-Speed"]
+```
 
 ## File format
 
@@ -45,10 +90,10 @@ The module searches for configuration files in two locations:
 ### Server-level config
 
 ```
-%ProgramData%\We-Amp\IISWebSpeed\pagespeed.config
+%ProgramData%\We-Amp\PageSpeed\pagespeed.config
 ```
 
-This is typically `C:\ProgramData\We-Amp\IISWebSpeed\pagespeed.config`. Settings here apply to all websites on the server.
+The server-level file is `%ProgramData%\We-Amp\PageSpeed\pagespeed.config`. Installs upgraded from IISpeed also read `%ProgramData%\We-Amp\IISWebSpeed\pagespeed.config`. Settings here apply to all websites on the server.
 
 ### Site-level config
 
@@ -56,26 +101,34 @@ This is typically `C:\ProgramData\We-Amp\IISWebSpeed\pagespeed.config`. Settings
 <website root>\pagespeed.config
 ```
 
-Place a `pagespeed.config` file in the website's physical root directory (e.g., `C:\inetpub\wwwroot\pagespeed.config`). Site-level settings override server-level settings.
+Place a `pagespeed.config` file in the website's physical root directory (e.g., `C:\inetpub\wwwroot\pagespeed.config`). Site-level settings override server-level settings. The `FileCachePath` must be included in per-site configs if not set in the server-level config.
 
 ### Lookup order
 
 1. Check for `pagespeed.config` in the website root
-2. If not found, check for `iiswebspeed.config` in the website root (legacy fallback)
+2. If not found, check for `iiswebspeed.config` in the website root (the filename used by IISpeed installs)
 3. Load the server-level `pagespeed.config` (or `iiswebspeed.config`) as the base configuration
 4. Merge site-level settings on top of server-level settings
 
 ### Migration note
 
-If you are migrating from IISpeed, the module accepts both `pagespeed.config` (preferred) and `iiswebspeed.config` (legacy). When both files exist in the same directory, `pagespeed.config` takes priority. Rename your `iiswebspeed.config` to `pagespeed.config` when convenient — no content changes are needed.
+If you are migrating from IISpeed, the module accepts both `pagespeed.config` (preferred) and `iiswebspeed.config` (the filename used by IISpeed installs). When both files exist in the same directory, `pagespeed.config` takes priority. Rename your `iiswebspeed.config` to `pagespeed.config` when convenient — no content changes are needed.
 
 ## Cache directory
 
 The IIS worker process needs write access to the cache directory set by `FileCachePath`. The installer creates the default cache directory and grants the worker identity the access it needs, so a standard install requires no manual setup.
 
+Set the path explicitly with `FileCachePath`:
+
+```
+pagespeed FileCachePath %ProgramData%\We-Amp\IISWebSpeed\Cache
+```
+
+To validate the cache path, make a request to any page on your server and check that files appear in the cache directory.
+
 ### Automatic cache-directory creation
 
-From **v1.1.0+r11** onward, the module creates each website's cache subdirectory on first request and grants the worker identity write access — no manual `mkdir` or permission step. This works whether `FileCachePath` is under the `%ProgramData%\We-Amp\PageSpeed\` tree or the legacy `%ProgramData%\We-Amp\IISWebSpeed\` tree, so a cache path inherited from an IISpeed install keeps working after an upgrade with no configuration change.
+From **v1.1.0+r11** onward, the module creates each website's cache subdirectory on first request and grants the worker identity write access — no manual `mkdir` or permission step. This works whether `FileCachePath` is under the `%ProgramData%\We-Amp\PageSpeed\` tree or the `%ProgramData%\We-Amp\IISWebSpeed\` tree used by installs upgraded from IISpeed, so a cache path inherited from an IISpeed install keeps working after an upgrade with no configuration change.
 
 To require that the cache directory already exist instead, turn auto-creation off:
 
@@ -248,10 +301,10 @@ The module checks the modification timestamp of `pagespeed.config` periodically 
 
 ## See also
 
-- [Configuration](/1.1/docs/configuration/) — general configuration reference (all platforms)
+- [Configuration](/docs/configuration/) — general configuration reference (all platforms)
 - [Filter Selection](/docs/filter-selection/) — choosing and tuning filters
-- [IIS Tuning](/1.1/docs/iis-tuning/) — IIS-specific web server tuning
-- [Getting Started](/1.1/docs/getting-started/) — installation guide
+- [IIS Tuning](/docs/iis-configuration/#iis-tuning) — IIS-specific web server tuning
+- [Getting Started](/docs/getting-started/) — installation guide
 
 ## IIS tuning
 
@@ -338,7 +391,7 @@ ARR turns IIS into a reverse proxy with disk-based caching. When combined with m
 
 #### How it works with mod_pagespeed
 
-1. mod_pagespeed's [`extend_cache`](/1.1/docs/caching-url-filters/#extend_cache) filter rewrites cacheable resource URLs to include content hashes, extending their cache lifetime to one year.
+1. mod_pagespeed's [`extend_cache`](/docs/cache-control/#extend_cache) filter rewrites cacheable resource URLs to include content hashes, extending their cache lifetime to one year.
 2. ARR caches these long-lived resources. After the first request, subsequent requests are served directly from ARR's disk cache without reaching the backend.
 3. The backend handles only dynamic HTML responses and cache misses.
 
@@ -360,6 +413,6 @@ All supported Windows Server versions (2019 and later) default to an initial con
 
 ### See also
 
-- [Getting Started](/1.1/docs/getting-started/) — IIS installation guide
-- [Configuration](/1.1/docs/configuration/) — general configuration reference
+- [Getting Started](/docs/getting-started/) — IIS installation guide
+- [Configuration](/docs/configuration/) — general configuration reference
 - [IIS Configuration](/docs/iis-configuration/) — pagespeed.config format reference

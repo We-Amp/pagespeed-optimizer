@@ -159,7 +159,7 @@ Add the CSS rule `img { max-width: 100%; height: auto; }` and modern browsers co
 - [How to fix INP on nginx](/blog/fix-inp-nginx-2026/)
 - [How to fix CLS on WordPress](/blog/fix-cls-wordpress-2026/)
 - [Server-side critical CSS on nginx](/blog/server-side-critical-css-nginx/)
-- [mod_pagespeed 1.15 filter reference](/1.1/docs/filter-reference/)
+- [mod_pagespeed 1.15 filter reference](/docs/filter-reference/)
 - [The full CLS guide](/core-web-vitals/cls/)
 - [Test your page in the analyzer](/analyze/)
 

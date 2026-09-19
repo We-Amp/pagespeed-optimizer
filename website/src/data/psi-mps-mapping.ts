@@ -8,7 +8,7 @@
  *
  *   - **1.1** — Named filters on every server (nginx, Apache, IIS, Envoy).
  *     Config form: `pagespeed EnableFilters foo,bar;`. Filter inventory in
- *     `website/src/content/docs-1.1/filter-reference.md`.
+ *     `website/src/content/docs/filter-reference.md`.
  *
  *   - **2.0** — No `EnableFilters` directive. The nginx module exposes a
  *     master switch (`pagespeed on;`) plus a Cyclone cache directive

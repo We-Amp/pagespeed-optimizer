@@ -1,6 +1,6 @@
 ---
 title: 'Getting Started'
-description: 'Install mod_pagespeed 2.1. Two integrations share one optimization pipeline: the native Apache/nginx module, or a Docker / nginx reverse proxy.'
+description: 'Install mod_pagespeed 2.1. Three integrations share one optimization pipeline: the native Apache/nginx module, the native IIS module, or a Docker / nginx reverse proxy.'
 order: 1
 group: 'Start here'
 lastUpdated: 2026-09-18
@@ -17,7 +17,7 @@ faq:
     a: 'For the native module you need only the signed apt/yum repository added to Apache or nginx. For the Docker / nginx reverse proxy you need only Docker — nginx ships inside the image, so you do not install it yourself. The worker runs on Linux x86_64 or arm64 (Debian/Ubuntu or RHEL/Rocky).'
 ---
 
-mod_pagespeed 2.1 ships two integrations:
+mod_pagespeed 2.1 ships three integrations:
 
 - **Native module (Apache or nginx)** — the in-process module, installed from
   the signed apt/yum repository alongside the `pagespeed-optimizer` worker.
@@ -27,8 +27,11 @@ mod_pagespeed 2.1 ships two integrations:
 - **Docker / nginx reverse proxy** — drop in front of any HTTP origin (Apache,
   Node.js, Caddy, IIS, your CDN's origin). Best for new deployments and
   Kubernetes. [Get started with Docker &rarr;](/docs/installation-docker/)
+- **IIS (Windows)** — the native Windows module. The IIS package ships from
+  the 1.15 packaging channel.
+  [Install and configure &rarr;](/docs/iis-configuration/)
 
-Both run the same optimization pipeline: image transcoding, CSS/JS
+All three run the same optimization pipeline: image transcoding, CSS/JS
 minification, critical CSS, and variant-aware caching with zero-copy serving
 from the Cyclone shared-memory cache. See the
 [full optimization filter set](/features/) for everything the pipeline applies.

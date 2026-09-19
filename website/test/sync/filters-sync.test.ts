@@ -4,7 +4,7 @@
 // filters-sync.test.ts — drift guard between the canonical filter table and the
 // machine-consumable projection used by the /docs/filters/ hub.
 //
-//   source of truth : src/content/docs-1.1/filter-reference.md  ("All filters")
+//   source of truth : src/content/docs/filter-reference.md  ("All filters")
 //   projection       : src/data/filters.ts  (FILTERS)
 //
 // The hub page (/docs/filters/) renders its flat reference table and ItemList
@@ -15,14 +15,8 @@
 // — the markdown stays the single source, FILTERS can never silently drift from
 // it. This guard parses the markdown, not a second copy, so it cannot itself rot.
 //
-// LINK TARGET: the markdown source still links into the legacy /1.1/docs/
-// per-category pages, but four of those categories (Image, CSS, JavaScript,
-// HTML) now also live at /docs/ and FILTERS deliberately points there
-// instead — Caching does not, and stays on /1.1/docs/. CONVERGED_CATEGORIES
-// below is the one place that split is declared; `expectedHref` re-derives
-// the FILTERS-side link from the markdown-side link so the row-for-row
-// comparison still catches any OTHER drift (name/category/description, or an
-// unexpected href on top of the known category remap).
+// LINK TARGET: every category's per-category page now lives under /docs/, so
+// FILTERS matches the markdown source's hrefs field-for-field with no remap.
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
@@ -36,21 +30,6 @@ import {
 } from '../../src/data/filters';
 
 const ALLOWED_CATEGORIES = new Set<string>(CATEGORY_ORDER);
-
-// Categories whose per-category page was copied into the main /docs/ tree.
-// Their FILTERS hrefs point at /docs/<slug>/, not /1.1/docs/<slug>/; Caching
-// has not moved and keeps its /1.1/docs/ links.
-const CONVERGED_CATEGORIES = new Set<FilterCategory>(['Image', 'CSS', 'JavaScript', 'HTML']);
-
-/**
- * The href FILTERS is expected to carry for a markdown-sourced row: the
- * markdown's own href, with the legacy /1.1/docs/ prefix swapped for /docs/
- * when the row's category is one of CONVERGED_CATEGORIES.
- */
-function expectedHref(category: FilterCategory, mdHref: string): string {
-  if (!CONVERGED_CATEGORIES.has(category)) return mdHref;
-  return mdHref.replace(/^\/1\.1\/docs\//, '/docs/');
-}
 
 // Expected per-category counts (verified against filter-reference.md). The total
 // (68) and these counts are asserted so an accidental row add/drop is caught even
@@ -133,7 +112,7 @@ function countAllFilterTableRows(md: string): number {
 }
 
 describe('filters.ts is in lockstep with filter-reference.md', () => {
-  const parsed = parseReferenceTable(read('../../src/content/docs-1.1/filter-reference.md'));
+  const parsed = parseReferenceTable(read('../../src/content/docs/filter-reference.md'));
 
   it('parses a non-trivial number of rows from the markdown source', () => {
     expect(parsed.length).toBeGreaterThanOrEqual(60);
@@ -148,9 +127,7 @@ describe('filters.ts is in lockstep with filter-reference.md', () => {
     // Total rows in the section, counted independently of the parser's anchor
     // filter, must equal what we projected — so adding/removing a row (anchored
     // or not) without updating FILTERS turns CI red.
-    const totalRows = countAllFilterTableRows(
-      read('../../src/content/docs-1.1/filter-reference.md'),
-    );
+    const totalRows = countAllFilterTableRows(read('../../src/content/docs/filter-reference.md'));
     expect(totalRows).toBe(FILTERS.length);
     expect(totalRows).toBe(68);
   });
@@ -170,19 +147,14 @@ describe('filters.ts is in lockstep with filter-reference.md', () => {
     }
   });
 
-  it('every filter deep-links into the converged /docs/ or legacy /1.1/docs/ per-category docs', () => {
+  it('every filter deep-links into its /docs/ per-category page', () => {
     for (const f of FILTERS) {
-      const prefix = CONVERGED_CATEGORIES.has(f.category) ? '/docs/' : '/1.1/docs/';
-      expect(f.href.startsWith(prefix), `${f.name} href should start with ${prefix}`).toBe(true);
+      expect(f.href.startsWith('/docs/'), `${f.name} href should start with /docs/`).toBe(true);
     }
   });
 
-  it('matches the markdown source field-for-field, row-for-row (converged categories re-pointed)', () => {
+  it('matches the markdown source field-for-field, row-for-row', () => {
     // Both arrays are in the same (alphabetical) source order, so compare index-by-index.
-    // href is re-derived via expectedHref() to reflect the deliberate /docs/ re-point for
-    // CONVERGED_CATEGORIES; every other field (name, category, description) must still
-    // match the markdown byte-for-byte.
-    const expected = parsed.map((f) => ({ ...f, href: expectedHref(f.category, f.href) }));
-    expect(FILTERS).toEqual(expected);
+    expect(FILTERS).toEqual(parsed);
   });
 });

@@ -68,7 +68,7 @@ mod_pagespeed loads as an nginx module (`ngx_pagespeed`). It rewrites HTML on th
 - `inline_preview_images` — ships a sub-1 KB LQIP placeholder inline in the HTML for the hero, so the first paint shows something during the network wait.
 - `prioritize_critical_css` — extracts above-the-fold rules and inlines them into the document `<head>`, defers the rest. Kills the multi-stylesheet `<head>` chain that backend-emitted HTML usually carries.
 - `hint_preload_subresources` — emits `Link: rel=preload` response headers for resources the rewriter has identified as needed for above-the-fold rendering. The browser starts fetching them before the document body parses. See [server-injected resource hints](/blog/server-injected-resource-hints-speculation-rules/) for how the rewriter picks what to preload.
-- `lazyload_images` — defers offscreen image loading; this is marked "Test first" in the [filter reference](/1.1/docs/filter-reference/) and changes load order. Enable it for image-heavy pages, but keep the LCP image out of the lazy set — the rewriter's beacon-based detection identifies above-the-fold images automatically; verify with `?PageSpeedFilters=+debug`.
+- `lazyload_images` — defers offscreen image loading; this is marked "Test first" in the [filter reference](/docs/filter-reference/) and changes load order. Enable it for image-heavy pages, but keep the LCP image out of the lazy set — the rewriter's beacon-based detection identifies above-the-fold images automatically; verify with `?PageSpeedFilters=+debug`.
 
 Minimal nginx config:
 
@@ -140,7 +140,7 @@ server {
 }
 ```
 
-The full directive reference lives in the [filter reference](/1.1/docs/filter-reference/). For the install steps on nginx (Debian, Ubuntu, RHEL/AlmaLinux), see [installation as an nginx module](/docs/installation-module/).
+The full directive reference lives in the [filter reference](/docs/filter-reference/). For the install steps on nginx (Debian, Ubuntu, RHEL/AlmaLinux), see [installation as an nginx module](/docs/installation-module/).
 
 ## When this doesn't work
 
@@ -159,7 +159,7 @@ Cases where mod_pagespeed alone isn't enough on nginx:
 - [Server-side critical CSS on nginx](/blog/server-side-critical-css-nginx/)
 - [Image optimization as an nginx module](/blog/nginx-image-optimization-module/)
 - [The economics of image optimization](/blog/economics-of-image-optimization/)
-- [mod_pagespeed 1.15 filter reference](/1.1/docs/filter-reference/)
+- [mod_pagespeed 1.15 filter reference](/docs/filter-reference/)
 - [The full LCP guide](/core-web-vitals/lcp/)
 - [Test your page in the analyzer](/analyze/)
 

@@ -154,7 +154,7 @@ No. The AJAX cross-sell container starts at zero height with no img for the rewr
 - [How to fix INP on WooCommerce](/blog/fix-inp-woocommerce-2026/)
 - [How to fix CLS on WordPress](/blog/fix-cls-wordpress-2026/)
 - [The economics of image optimization](/blog/economics-of-image-optimization/)
-- [mod_pagespeed 1.15 filter reference](/1.1/docs/filter-reference/)
+- [mod_pagespeed 1.15 filter reference](/docs/filter-reference/)
 - [The full CLS guide](/core-web-vitals/cls/)
 - [Test your page in the analyzer](/analyze/)
 

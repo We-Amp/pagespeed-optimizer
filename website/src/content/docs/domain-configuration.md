@@ -231,6 +231,6 @@ The first argument is the URL prefix. The second is the filesystem path that cor
 
 ## See also
 
-- [Configuration](/1.1/docs/configuration/) — general configuration reference
-- [Caching](/1.1/docs/caching/) — how domain configuration affects caching behavior
+- [Configuration](/docs/configuration/) — general configuration reference
+- [Caching](/docs/cache-control/#rewrite_domains) — how domain configuration affects caching behavior
 - [Directive Index](/docs/directive-index/) — the full list of mod_pagespeed 2.1 directives
