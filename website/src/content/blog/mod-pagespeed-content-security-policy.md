@@ -9,7 +9,7 @@ draft: false
 ---
 If you run a strict Content-Security-Policy and you want an automatic optimizer in front of your pages, you are right to be cautious. The two systems are working against each other. A CSP exists to constrain exactly what a page is allowed to load and execute. An optimizer earns its keep by changing what a page loads and executes. Put them together without thought and the optimizer rewrites a resource to a URL the policy never authorized, the browser refuses it, and a page that worked five minutes ago stops rendering.
 
-This post walks through where mod_pagespeed and a CSP actually collide, feature by feature, and how mod_pagespeed 1.15 handles it: with the [`HonorCsp`](/1.1/docs/configuration/) directive, which makes the optimizer read your policy and decline any rewrite it cannot prove the policy already allows. The short version is that the safe behavior is to refuse the rewrite, not to widen your policy to fit it.
+This post walks through where mod_pagespeed and a CSP actually collide, feature by feature, and how mod_pagespeed 1.15 handles it: with the [`HonorCsp`](/docs/configuration/#native-module-configuration-directives) directive, which makes the optimizer read your policy and decline any rewrite it cannot prove the policy already allows. The short version is that the safe behavior is to refuse the rewrite, not to widen your policy to fit it.
 
 ## Why automatic rewriting and CSP fight
 
@@ -31,11 +31,11 @@ The original authors sketched three responses: loosen the policy to directory gr
 
 ### CDN and library mapping that expands allowed sources
 
-When you ask mod_pagespeed to move resources to a CDN with [`MapRewriteDomain`](/1.1/docs/caching-url-filters/), the rewritten HTML points at the new host. A policy that allowed `www.example.com` but not `cdn.example.com` will block those resources. This case is gentler than the hash case, because you explicitly asked for the CDN, so extending the allowance to the mapped host is at least defensible. Library canonicalization (swapping a local jQuery for a copy on a shared CDN) is the same shape of change. Both still amount to teaching the browser about a source it was told to distrust, so they belong under the same rule: act only within what the policy permits.
+When you ask mod_pagespeed to move resources to a CDN with [`MapRewriteDomain`](/docs/cache-control/#rewrite_domains), the rewritten HTML points at the new host. A policy that allowed `www.example.com` but not `cdn.example.com` will block those resources. This case is gentler than the hash case, because you explicitly asked for the CDN, so extending the allowance to the mapped host is at least defensible. Library canonicalization (swapping a local jQuery for a copy on a shared CDN) is the same shape of change. Both still amount to teaching the browser about a source it was told to distrust, so they belong under the same rule: act only within what the policy permits.
 
 ### Combining across paths
 
-[`combine_css`](/1.1/docs/css-filters/) and `combine_javascript` merge several files into one. The combined file has to live somewhere, and that somewhere is typically a common ancestor directory. If your policy allowed `/a/b/` and `/a/c/` but not `/a/`, the merged file lands at a path the policy never approved. Widening the policy to `/a/` to accommodate the merge would loosen your security to suit an optimization, which is backwards. The safe move is to skip the combine when it would produce a URL the policy does not already cover.
+[`combine_css`](/docs/css-filters/#combine_css) and `combine_javascript` merge several files into one. The combined file has to live somewhere, and that somewhere is typically a common ancestor directory. If your policy allowed `/a/b/` and `/a/c/` but not `/a/`, the merged file lands at a path the policy never approved. Widening the policy to `/a/` to accommodate the merge would loosen your security to suit an optimization, which is backwards. The safe move is to skip the combine when it would produce a URL the policy does not already cover.
 
 JavaScript combining carries an extra wrinkle the original design flagged: the technique it described relied on `eval`, which a policy without `'unsafe-eval'` forbids. The authors' own conclusion was that this is not something an optimizer should switch on for you under a strict policy. Treat aggressive JS combining as opt-in, and verify it against your `script-src` before enabling it in production. Automatic JavaScript rewriting has [correctness edge cases of its own](/blog/safe-javascript-minification-semicolon-insertion/) worth understanding before you widen a policy to accommodate it.
 
@@ -57,7 +57,7 @@ The hash path has a different trap. If an inline `<script>` or `<style>` is alre
 
 ## What HonorCsp does, and what it doesn't
 
-[`HonorCsp`](/1.1/docs/configuration/) is on by default in mod_pagespeed 1.15. The optimizer parses the `Content-Security-Policy` headers on a response and uses them as a gate: a rewrite happens only when its output still satisfies the policy. When in doubt, it declines the rewrite and serves the resource unchanged. You lose a little optimization on the affected resources; you keep a working, policy-compliant page. The directive is written like this (set it to `off` to disable the check):
+[`HonorCsp`](/docs/configuration/#native-module-configuration-directives) is on by default in mod_pagespeed 1.15. The optimizer parses the `Content-Security-Policy` headers on a response and uses them as a gate: a rewrite happens only when its output still satisfies the policy. When in doubt, it declines the rewrite and serves the resource unchanged. You lose a little optimization on the affected resources; you keep a working, policy-compliant page. The directive is written like this (set it to `off` to disable the check):
 
 ```nginx
 # nginx
@@ -82,7 +82,7 @@ A note on 2.0: mod_pagespeed 1.15 is the line that ships the `HonorCsp` directiv
 
 CSP support in mod_pagespeed grew out of design work on the [Apache PageSpeed project](https://github.com/we-amp/mod_pagespeed/wiki), specifically a 2016 design note by Maksim Orlovich that mapped out exactly these conflict classes before any of them were implemented. We-Amp was an initial committer on that project alongside the Google engineers who started PageSpeed, as the project moved toward Apache incubation. The conservative stance this post describes (refuse the rewrite rather than legalize it) is the design's own conclusion, and it is what We-Amp ships in the [maintained 1.15 line](/mod-pagespeed-still-maintained/) today.
 
-If you want to try it — mod_pagespeed 1.15 is licensed under Apache-2.0 and free to run — install it, then put a strict policy in front of a page and watch how `HonorCsp` behaves against it. The full directive set is in the [configuration reference](/1.1/docs/configuration/) and the [directive index](/1.1/docs/directive-index/), and the feature overview is on the [features page](/features/).
+If you want to try it — mod_pagespeed 1.15 is licensed under Apache-2.0 and free to run — install it, then put a strict policy in front of a page and watch how `HonorCsp` behaves against it. The full directive set is in the [configuration reference](/docs/configuration/) and the [directive index](/docs/directive-index/), and the feature overview is on the [features page](/features/).
 
 ---
 

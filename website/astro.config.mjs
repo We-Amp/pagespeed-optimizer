@@ -50,7 +50,6 @@ function buildLastmodMap() {
   const collections = [
     { dir: 'src/content/blog', prefix: '/blog/' },
     { dir: 'src/content/docs', prefix: '/docs/' },
-    { dir: 'src/content/docs-1.1', prefix: '/1.1/docs/' },
   ];
   for (const { dir, prefix } of collections) {
     /** @type {string[]} */
@@ -189,10 +188,13 @@ export default defineConfig({
       // Exclude legacy 1.0 docs, the noindex checkout, and the noindex
       // /go/ redirect shims. Also drop /examples/<slug>/ detail pages that have
       // no generated data yet (they're noindex until the generator populates
-      // them); the /examples/ index hub always stays in.
+      // them); the /examples/ index hub always stays in. The archived 1.15
+      // release notes page stays live and indexable but out of the sitemap —
+      // it is reachable only through its one deliberate discovery link.
       filter: (page) => {
         if (
           page.includes('/1.0/') ||
+          page.includes('/1.1/docs/') ||
           page.includes('/buy/') ||
           page.includes('/go/') ||
           page.includes('/error/')

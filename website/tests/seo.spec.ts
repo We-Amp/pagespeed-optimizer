@@ -114,8 +114,8 @@ test.describe('SEO', () => {
 
   // Post-convergence: one site name everywhere — the /1.1/*-specific
   // og:site_name flip is retired. The /1.1/ product page itself is retired
-  // (superseded by /); /1.1/docs/* survives this wave, so it stands in for
-  // the section here.
+  // (superseded by /); /1.1/docs/ narrowed to the archived release-notes
+  // page, which stands in for the section here.
   test('og:site_name is identical on a main-tree page and a /1.1/docs/ page', async ({ page }) => {
     await page.goto('/');
     const mainSiteName = await page
@@ -123,7 +123,7 @@ test.describe('SEO', () => {
       .getAttribute('content');
     expect(mainSiteName).toBeTruthy();
 
-    await page.goto('/1.1/docs/getting-started/');
+    await page.goto('/1.1/docs/release-notes/');
     const legacyPageSiteName = await page
       .locator('meta[property="og:site_name"]')
       .getAttribute('content');
@@ -136,7 +136,7 @@ test.describe('SEO', () => {
   test('breadcrumb JSON-LD on a /1.1/docs/ page carries no legacy segment label', async ({
     page,
   }) => {
-    await page.goto('/1.1/docs/getting-started/');
+    await page.goto('/1.1/docs/release-notes/');
     const scripts = await page.locator('script[type="application/ld+json"]').allTextContents();
     const breadcrumb = scripts
       .map((s) => JSON.parse(s))

@@ -3,7 +3,7 @@ title: 'Set Cache-Control headers'
 description: 'Which Cache-Control headers to set on your origin, by content type and by framework, for correct caching with ModPageSpeed 2.0.'
 order: 21
 group: 'Configure'
-lastUpdated: 2026-07-04
+lastUpdated: 2026-09-19
 ---
 
 > **Requires ModPageSpeed 2.0.x or later** with conditional revalidation support.
@@ -153,6 +153,73 @@ content types.
 
 When conditional revalidation is also enabled (the default), force-refresh uses
 `If-None-Match` / `If-Modified-Since` to avoid re-downloading unchanged content.
+
+## Cache-extension filters
+
+The filters in this section belong to the in-process module on Apache,
+nginx and IIS. They extend browser cache lifetimes and manage resource URLs
+across domains. Browsers cache resources for a year, but pick up updated
+content the moment a resource changes, because the URL carries a content
+hash. The `extend_cache` CoreFilter drives this: it sets a 1-year cache
+lifetime on CSS, JS, and image URLs.
+
+### extend_cache {#extend_cache}
+
+**Core filter.** Rewrites resource URLs (CSS, JS, images) to include a content hash, then serves the optimized resource with a 1-year `Cache-Control: max-age` header. When the original resource changes, the hash changes, generating a new URL that bypasses the browser cache.
+
+Resources that previously had short or no cache lifetimes gain a 1-year cache lifetime. Because the URL carries the content hash, a changed resource gets a new URL and is never served stale.
+
+The sub-filters `extend_cache_css`, `extend_cache_images`, and `extend_cache_scripts` are included when you enable `extend_cache`, which turns on all three. Each can also be enabled individually with `EnableFilters` (for example, `extend_cache_images` alone).
+
+### extend_cache_pdfs {#extend_cache_pdfs}
+
+**Not a CoreFilter.** Applies the same content-hash-based cache extension to PDF file links. Enable this filter if your site serves PDFs that change infrequently.
+
+```apacheconf
+# Apache
+ModPagespeedEnableFilters extend_cache_pdfs
+```
+
+```nginx
+# Nginx
+pagespeed EnableFilters extend_cache_pdfs;
+```
+
+### rewrite_domains {#rewrite_domains}
+
+**Not a CoreFilter. Test before deploying.** Rewrites resource URLs to use domains specified by `MapRewriteDomain` or `ShardDomain` directives. Useful for CDN integration or domain sharding.
+
+```apacheconf
+# Apache
+ModPagespeedEnableFilters rewrite_domains
+```
+
+```nginx
+# Nginx
+pagespeed EnableFilters rewrite_domains;
+```
+
+This filter only affects resources that mod_pagespeed does not otherwise optimize. Resources already rewritten by other filters ([`rewrite_css`](/docs/css-filters/#rewrite_css), [`rewrite_images`](/docs/image-filters/#rewrite_images), etc.) already have their domains set by those filters.
+
+See [Domain Configuration](/docs/domain-configuration/) for `MapRewriteDomain` and `ShardDomain` setup.
+
+### local_storage_cache {#local_storage_cache}
+
+**Experimental.** Stores inlined CSS and JavaScript in the browser's `localStorage` on first visit, then loads from `localStorage` on subsequent visits instead of re-inlining. This reduces HTML payload on repeat views at the cost of JavaScript complexity and reliance on `localStorage` availability.
+
+```apacheconf
+# Apache
+ModPagespeedEnableFilters local_storage_cache
+```
+
+```nginx
+# Nginx
+pagespeed EnableFilters local_storage_cache;
+```
+
+Not recommended for most deployments. Browser `localStorage` has size limits (typically 5-10 MB per origin) and can be cleared by the user at any time. Sites with many inlined resources may exceed these limits. Since v1.15.0+r18, with `HonorCsp` (default on) the filter stands down on pages whose `Content-Security-Policy` disallows the inline script it relies on.
+
+On IIS the same directives use the syntax described in [IIS configuration](/docs/iis-configuration/).
 
 ## Auditing Your Origin
 

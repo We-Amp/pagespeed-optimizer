@@ -763,7 +763,10 @@ const jsonLd = [
 
     const DOCS_HREF: Record<Edition, { href: string; label: string }> = {
       '2.0': { href: '/docs/configuration/', label: 'Read the configuration docs →' },
-      '1.1': { href: '/1.1/docs/configuration/', label: 'Read 1.15 filter docs →' },
+      '1.1': {
+        href: '/docs/configuration/#native-module-configuration-directives',
+        label: 'Read 1.15 filter docs →',
+      },
     };
 
     const CONFIG_DESC: Record<Edition, string> = {
@@ -1274,7 +1277,7 @@ const jsonLd = [
           if (edition === '2.0' && twoZeroAnchor !== undefined) {
             window.open(`/docs/configuration/#${twoZeroAnchor}`, '_blank', 'noopener');
           } else {
-            window.open(`/1.1/docs/filter-reference/#${f}`, '_blank', 'noopener');
+            window.open(`/docs/filter-reference/#${f}`, '_blank', 'noopener');
           }
         });
         wrap.appendChild(chip);

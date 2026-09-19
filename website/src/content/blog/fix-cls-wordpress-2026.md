@@ -139,7 +139,7 @@ Some CLS sources are outside mod_pagespeed's reach.
 - [How to fix INP on WordPress](/blog/fix-inp-wordpress-2026/)
 - [How to fix CLS on WooCommerce](/blog/fix-cls-woocommerce-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)
-- [mod_pagespeed 1.15 filter reference](/1.1/docs/filter-reference/)
+- [mod_pagespeed 1.15 filter reference](/docs/filter-reference/)
 - [The full CLS guide](/core-web-vitals/cls/)
 - [Test your page in the analyzer](/analyze/)
 

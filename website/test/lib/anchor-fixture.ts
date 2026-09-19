@@ -10,6 +10,16 @@ import { readFileSync } from 'node:fs';
 
 export type AnchorRow = { legacyPage: string; slug: string; anchor: string };
 
+// A handful of legacy pages folded as a SECTION into a /docs/ page with a
+// different slug (rather than migrating whole under their own slug). The
+// fixture's "page" column stays the legacy /1.1/docs/ URL for provenance;
+// this table is where the resulting /docs/ slug is looked up when it
+// differs from the legacy one.
+const SLUG_OVERRIDES: Record<string, string> = {
+  'caching-url-filters': 'cache-control',
+  caching: 'cache-modes',
+};
+
 export function loadAnchorFixture(fixturePath: string): AnchorRow[] {
   const raw = readFileSync(fixturePath, 'utf8');
   const lines = raw.split('\n').filter((l) => l.trim().length > 0);
@@ -29,7 +39,9 @@ export function loadAnchorFixture(fixturePath: string): AnchorRow[] {
     if (!m) {
       throw new Error(`${fixturePath}: unrecognized page format: ${legacyPage}`);
     }
-    return { legacyPage, slug: m[1], anchor };
+    const legacySlug = m[1];
+    const slug = SLUG_OVERRIDES[legacySlug] ?? legacySlug;
+    return { legacyPage, slug, anchor };
   });
 }
 

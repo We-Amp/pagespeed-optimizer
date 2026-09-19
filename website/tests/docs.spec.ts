@@ -90,14 +90,14 @@ test.describe('Docs', () => {
     await expect(page.locator('nav[aria-label="Documentation"]')).toHaveCount(1);
   });
 
-  // Same toggle removal on the /1.1/docs/ side — its own version toggle is
-  // gone too, while the unrelated platform tabs (nginx/apache/iis) stay
-  // intact.
-  test('1.15 doc page renders no version toggle and keeps its platform tabs', async ({ page }) => {
-    await page.goto('/1.1/docs/getting-started/');
+  // Same toggle removal on the /1.1/docs/ side (now just the archived
+  // release-notes page) — its own version toggle is gone too. That page has
+  // no platform-tab content of its own; the platform tabs are covered by the
+  // /docs/${slug}/ loop below.
+  test('1.15 doc page renders no version toggle', async ({ page }) => {
+    await page.goto('/1.1/docs/release-notes/');
     await expect(page.locator('[role="group"][aria-label="Documentation version"]')).toHaveCount(0);
     await expect(page.locator('nav[aria-label="Documentation"]')).toHaveCount(1);
-    await expect(page.locator('[data-platform-tab]').first()).toBeAttached();
   });
 
   test('doc pages have correct titles', async ({ page }) => {

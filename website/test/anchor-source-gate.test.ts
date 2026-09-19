@@ -83,8 +83,8 @@ function idsInSource(body: string): Set<string> {
 }
 
 describe('legacy doc anchors resolve at their new /docs/ location (source)', () => {
-  it('fixture carries all 35 rows for the 13 converged pages', () => {
-    expect(ANCHOR_ROWS.length).toBe(35);
+  it('fixture carries all 65 rows across the converged pages', () => {
+    expect(ANCHOR_ROWS.length).toBe(65);
   });
 
   const bySlug = groupBySlug(ANCHOR_ROWS);

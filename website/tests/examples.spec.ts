@@ -63,8 +63,8 @@ test.describe('Example detail page', () => {
     await expect(page.locator('text=Optimized').first()).toBeVisible();
   });
 
-  test('links to the relevant 1.1 filter docs', async ({ page }) => {
-    await expect(page.locator('a[href="/1.1/docs/css-filters/"]')).toBeVisible();
+  test('links to the relevant filter docs', async ({ page }) => {
+    await expect(page.locator('a[href="/docs/css-filters/"]')).toBeVisible();
   });
 });
 

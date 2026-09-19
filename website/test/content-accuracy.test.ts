@@ -211,7 +211,10 @@ const SCAN_BUCKETS: ScanBucket[] = [
     name: 'content',
     files: walk(CONTENT_DIR, ['.md', '.mdx']),
     floor: 100,
-    extFloors: { '.mdx': 10 },
+    // The docs-1.1 collection narrowed to one .mdx entry (release-notes),
+    // dropping five .mdx files sitewide; the real count is 8 as of this
+    // change.
+    extFloors: { '.mdx': 7 },
   },
   {
     // .astro pages plus the two PUBLISHED .ts routes (api/product.json.ts,

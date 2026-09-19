@@ -65,7 +65,7 @@ hoster partner program](/pricing/) from the people who build it.
 
 - **Running mod_pagespeed 1.15?** The line continues — 2.1 is its next
   release, and the upgrade is drop-in. The IIS package ships from the 1.15
-  packaging channel. The [upgrade guide](/1.1/docs/upgrading-to-2-1/) has the
+  packaging channel. The [upgrade guide](/docs/migrating-to-2-1/#upgrading-from-1-15) has the
   details.
 - **Running ModPageSpeed 2.0?** The Docker/Helm line moves via the
   [migration guide](/docs/migrating-to-2-1/). The ASP.NET Core middleware

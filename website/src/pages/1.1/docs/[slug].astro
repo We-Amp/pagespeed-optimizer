@@ -78,6 +78,7 @@ const jsonLd: Record<string, unknown> = {
   description={doc.data.description}
   jsonLd={jsonLd}
   breadcrumbLeafName={doc.data.title}
+  breadcrumbSkipSegments={['docs', '1.1']}
 >
   <div
     class:list={[
@@ -174,8 +175,6 @@ const jsonLd: Record<string, unknown> = {
           <a href="/" class="hover:text-text-body">Home</a>
           <span class="mx-1">/</span>
           <a href="/" class="hover:text-text-body">mod_pagespeed 1.15</a>
-          <span class="mx-1">/</span>
-          <a href="/1.1/docs/" class="hover:text-text-body">Docs</a>
           <span class="mx-1">/</span>
           <span>{doc.data.title}</span>
         </nav>

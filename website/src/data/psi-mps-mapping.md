@@ -20,7 +20,7 @@ high coverage count.
   category. The list was extracted from the GoogleChrome/lighthouse
   repository against the tip of `main` (audit IDs are stable; the set
   evolves slowly).
-- **Filter inventory:** `website/src/content/docs-1.1/filter-reference.md`.
+- **Filter inventory:** `website/src/content/docs/filter-reference.md`.
   The 1.15 filter set is the canonical superset; MPS 2.0 implements a
   subset implicitly (no `EnableFilters` directive — the worker runs image
   transcoding, CSS/JS minification, and critical CSS inlining whenever
@@ -109,7 +109,7 @@ fields hold edition-specific config syntax.
 
 - **1.15** exposes a hand-curated list of ~80 named filters that operators
   enable individually via `pagespeed EnableFilters foo,bar;`. The filter
-  inventory is documented in `docs-1.1/filter-reference.md`.
+  inventory is documented in `docs/filter-reference.md`.
 - **2.0** has no named filter list at all. The nginx module surface is two
   required directives (`pagespeed on;` + `pagespeed_cache_path …;`) and a
   handful of optional knobs (`pagespeed_cache_mode`, `pagespeed_disallow`,

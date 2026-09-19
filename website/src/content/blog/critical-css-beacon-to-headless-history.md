@@ -31,7 +31,7 @@ The beacon design, written up by Jan-Willem Maessen for the Apache PageSpeed pro
 
 The server picks the mode per visitor. With no data yet, it instruments. As data accumulates, the probability of instrumenting drops, so a heavily-visited page mostly serves the fast rewritten variant and only occasionally re-measures. It is a feedback loop: the crowd measures the page, the server learns, the crowd gets the faster version.
 
-In mod_pagespeed this filter is `prioritize_critical_css`, and it still works exactly this way in [mod_pagespeed 1.15](/1.1/docs/css-filters/). It is not a core filter and it is marked test-first, because it changes rendered HTML and depends on the beacon endpoint being reachable.
+In mod_pagespeed this filter is `prioritize_critical_css`, and it still works exactly this way in [mod_pagespeed 1.15](/docs/css-filters/#prioritize_critical_css). It is not a core filter and it is marked test-first, because it changes rendered HTML and depends on the beacon endpoint being reachable.
 
 ### Why the beacon forced same-origin inlining
 

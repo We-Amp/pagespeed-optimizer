@@ -26,6 +26,10 @@ interface Props {
   // JSON-LD leaf matches the page's visible breadcrumb leaf (the human title)
   // rather than formatSegment(slug). Slug pages pass their human title here.
   breadcrumbLeafName?: string;
+  // Omit these raw URL path segments from the auto BreadcrumbList — for an
+  // intermediate segment that has no page of its own (e.g. /1.1/docs/ on the
+  // archived release-notes page, the one surviving /1.1/docs/[slug] route).
+  breadcrumbSkipSegments?: string[];
 }
 
 const {
@@ -35,6 +39,7 @@ const {
   jsonLd,
   noindex = false,
   breadcrumbLeafName,
+  breadcrumbSkipSegments = [],
 } = Astro.props;
 
 const is11Section = Astro.url.pathname.startsWith('/1.1/');
@@ -86,8 +91,10 @@ const logoDark = '/logo-dark.svg';
 // Nav is consolidated (UX-5, converged): one product, so Features, Pricing and
 // Blog stay flat; the five tools collapse into "Tools", docs under "Docs",
 // comparisons under "Compare". /1.1/ and /1.1/docs/ are no longer advertised
-// from the nav or footer — the URLs still resolve for anyone who links them
+// from the nav or footer — /1.1/ still resolves for anyone who links it
 // directly, and the footer's upgrade link routes new readers to /docs/.
+// /1.1/docs/ narrowed to its one archived release-notes page; every other
+// 1.15 doc merged into /docs/.
 // At most one "New" badge anywhere (UX-15) — it lives on RenderPeek in Tools.
 const navLinks: Array<{
   href?: string;
@@ -214,12 +221,19 @@ const pathSegments = currentPath
   .split('/')
   .filter(Boolean);
 
+// Build each item's URL from the FULL, real path (cumulative up to its own
+// index) before filtering — an omitted segment must not shift a later
+// segment's URL, only remove its own ListItem from the visible list.
 const breadcrumbItems = [
   { name: 'Home', url: 'https://modpagespeed.com/' },
-  ...pathSegments.map((segment, index) => ({
-    name: formatSegment(segment),
-    url: 'https://modpagespeed.com/' + pathSegments.slice(0, index + 1).join('/') + '/',
-  })),
+  ...pathSegments
+    .map((segment, index) => ({
+      segment,
+      name: formatSegment(segment),
+      url: 'https://modpagespeed.com/' + pathSegments.slice(0, index + 1).join('/') + '/',
+    }))
+    .filter(({ segment }) => !breadcrumbSkipSegments.includes(segment))
+    .map(({ name, url }) => ({ name, url })),
 ];
 
 // Align the emitted BreadcrumbList leaf with the page's visible breadcrumb

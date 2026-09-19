@@ -144,7 +144,7 @@ ModPagespeedEnableFilters hint_preload_subresources
 ModPagespeedImageRecompressionQuality 82
 ```
 
-The full directive reference lives in the [filter reference](/1.1/docs/filter-reference/).
+The full directive reference lives in the [filter reference](/docs/filter-reference/).
 
 ## When this doesn't work
 
@@ -170,7 +170,7 @@ Cases where mod_pagespeed alone isn't enough on WordPress:
 - [How to fix LCP on WooCommerce](/blog/fix-lcp-woocommerce-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)
 - [Server-side critical CSS on nginx](/blog/server-side-critical-css-nginx/)
-- [mod_pagespeed 1.15 filter reference](/1.1/docs/filter-reference/)
+- [mod_pagespeed 1.15 filter reference](/docs/filter-reference/)
 - [The full LCP guide](/core-web-vitals/lcp/)
 - [Test your page in the analyzer](/analyze/)
 

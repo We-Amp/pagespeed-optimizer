@@ -28,8 +28,9 @@ const groups = filtersByCategory();
 const orderedFilters = groups.flatMap((g) => g.filters);
 
 // `converged: true` means the category's per-category page was copied into
-// the main /docs/ tree; its card links there. `caching-url-filters` has not
-// moved, so its card keeps linking to the legacy /1.1/docs/ route.
+// the main /docs/ tree; its card links there. `caching-url-filters` folded
+// into /docs/cache-control/ — a different slug — so it carries an explicit
+// `targetSlug` instead of reusing its own `slug`.
 const categories = [
   {
     slug: 'image-filters',
@@ -61,10 +62,11 @@ const categories = [
   },
   {
     slug: 'caching-url-filters',
+    targetSlug: 'cache-control',
     title: 'Caching & URL filters',
     description:
       'Cache extension and URL management. The extend_cache filter rewrites resource URLs so browsers cache them aggressively while still receiving updated content when resources change.',
-    converged: false,
+    converged: true,
   },
 ];
 
@@ -221,7 +223,7 @@ const jsonLd = {
         {
           categories.map((cat) => (
             <a
-              href={`${cat.converged ? '/docs' : '/1.1/docs'}/${cat.slug}/`}
+              href={`${cat.converged ? '/docs' : '/1.1/docs'}/${cat.targetSlug ?? cat.slug}/`}
               class="block rounded-lg border border-border bg-bg-elevated p-6 hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
             >
               <h3 class="text-lg font-semibold text-text-body">{cat.title}</h3>
