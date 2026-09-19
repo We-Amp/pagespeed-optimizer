@@ -5,7 +5,7 @@ import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
 const faq = [
   {
     q: 'Is IISpeed still supported?',
-    a: 'Support continues for existing customers, but IISpeed is deprecated and bug fixes and security patches have stopped. New IIS deployments should use mod_pagespeed 1.15 for IIS, and ASP.NET Core deployments should use the WeAmp.PageSpeed.Sidecar NuGet package.',
+    a: 'Support continues for existing customers, but IISpeed is deprecated and bug fixes and security patches have stopped. New IIS deployments should use mod_pagespeed for IIS, and ASP.NET Core deployments should use the WeAmp.PageSpeed.Sidecar NuGet package.',
   },
   {
     q: 'I hold an IISpeed license. What do I need to do?',
@@ -17,10 +17,10 @@ const faq = [
   },
   {
     q: 'Does WeAmp.PageSpeed.Sidecar work with classic ASP.NET?',
-    a: "WeAmp.PageSpeed.Sidecar is for ASP.NET Core. For classic ASP.NET / WebForms / MVC 5 on IIS, mod_pagespeed 1.15 for IIS is the right path — it's an IIS module, no application code changes required.",
+    a: "WeAmp.PageSpeed.Sidecar is for ASP.NET Core. For classic ASP.NET / WebForms / MVC 5 on IIS, mod_pagespeed for IIS is the right path — it's an IIS module, no application code changes required.",
   },
   {
-    q: 'Can I run both mod_pagespeed 1.15 for IIS and the WeAmp.PageSpeed.Sidecar package?',
+    q: 'Can I run both mod_pagespeed for IIS and the WeAmp.PageSpeed.Sidecar package?',
     a: 'Yes. Mixed environments are supported. Both run the mod_pagespeed 1.15 core — the native IIS module and the Sidecar package (bundled nginx + ngx_pagespeed on loopback) — so they share the same filters and admin console.',
   },
 ];
@@ -29,7 +29,7 @@ const jsonLd = [
   {
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
-    name: 'mod_pagespeed 1.15 — IIS port',
+    name: 'mod_pagespeed for IIS',
     applicationCategory: 'DeveloperApplication',
     applicationSubCategory: 'IIS module',
     operatingSystem: ['Windows'],
@@ -71,7 +71,7 @@ const jsonLd = [
 
 <BaseLayout
   title="IISpeed successor: PageSpeed for IIS (2026)"
-  description="IISpeed is deprecated. Its successor is mod_pagespeed 1.15, the native IIS module — free license transfer, or the Sidecar NuGet package for ASP.NET Core."
+  description="IISpeed is deprecated. Its successor is mod_pagespeed for IIS, the native IIS module — free license transfer, or the Sidecar NuGet package for ASP.NET Core."
   jsonLd={jsonLd}
 >
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-20">
@@ -84,11 +84,8 @@ const jsonLd = [
         and critical CSS injection on the IIS pipeline for Windows-hosted sites.
       </p>
       <div class="mt-6 flex flex-wrap gap-3">
-        <a
-          href="/download/"
-          class="btn-primary"
-          data-umami-event="cta_alternatives_iispeed_install"
-          >Download &amp; run mod_pagespeed 1.15</a
+        <a href="/download/" class="btn-primary" data-umami-event="cta_alternatives_iispeed_install"
+          >Download &amp; run mod_pagespeed for IIS</a
         >
         <a
           href="/pricing/"
@@ -151,13 +148,10 @@ const jsonLd = [
         </li>
       </ul>
 
-      <h2>Path 1 &mdash; mod_pagespeed 1.15 for IIS</h2>
+      <h2>Path 1 &mdash; mod_pagespeed for IIS</h2>
       <p>
-        If you have an IIS deployment and want a drop-in replacement, <code>mod_pagespeed 1.15</code
-        >
-        has a native IIS port with the same module surface IISpeed offered. Same <code
-          >web.config</code
-        >
+        If you have an IIS deployment and want a drop-in replacement, mod_pagespeed for IIS is a
+        native IIS port with the same module surface IISpeed offered. Same <code>web.config</code>
         syntax, a modernized, secured filter stack with new optimizers, same admin console &mdash; plus
         security patches, current toolchain, and Cyclone Cache.
       </p>
@@ -174,8 +168,8 @@ const jsonLd = [
 
       <p>
         The MSI installer from the
-        <a href="/download/">downloads page</a> registers the module, creates the cache directory,
-        and warm-starts the worker.
+        <a href="/download/">downloads page</a> registers the module, creates the cache directory, and
+        warm-starts the worker.
       </p>
 
       <p>
@@ -222,11 +216,11 @@ app.Run();`}</code></pre>
         <tbody>
           <tr>
             <td>Classic ASP.NET / WebForms / MVC 5 on IIS</td>
-            <td>mod_pagespeed 1.15 for IIS</td>
+            <td>mod_pagespeed for IIS</td>
           </tr>
           <tr>
             <td>Existing IISpeed install you want to keep running with security patches</td>
-            <td>mod_pagespeed 1.15 for IIS</td>
+            <td>mod_pagespeed for IIS</td>
           </tr>
           <tr>
             <td>ASP.NET Core 6+ on Kestrel (Linux)</td>
@@ -238,7 +232,7 @@ app.Run();`}</code></pre>
           </tr>
           <tr>
             <td>ASP.NET Core hosted on Windows / IIS</td>
-            <td>mod_pagespeed 1.15 for IIS (the Sidecar is Linux-only)</td>
+            <td>mod_pagespeed for IIS (the Sidecar is Linux-only)</td>
           </tr>
           <tr>
             <td>Mixed environment (some sites on classic IIS, some on .NET Core)</td>
@@ -272,12 +266,11 @@ app.Run();`}</code></pre>
         Install either path and it optimizes right away. The converged mod_pagespeed 2.1 is open
         source under Apache-2.0 &mdash; free in development and in production.
       </p>
+      <p>The IIS package ships from the 1.15 packaging channel.</p>
       <ul>
         <li>
-          <strong>mod_pagespeed 1.15 for IIS</strong> &mdash;
-          <a href="/download/">Download the MSI</a> &middot; <a href="/pricing/"
-            >Support plans</a
-          > &middot;
+          <strong>mod_pagespeed for IIS</strong> &mdash;
+          <a href="/download/">Download the MSI</a> &middot; <a href="/pricing/">Support plans</a> &middot;
           <a href="/docs/iis-configuration/">IIS docs</a>
         </li>
         <li>

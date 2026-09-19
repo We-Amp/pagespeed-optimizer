@@ -3,7 +3,7 @@ title: 'HTML Filters'
 description: 'HTML optimization filters in mod_pagespeed 2.1: collapse whitespace, strip comments, elide attributes, DNS prefetch, and resource preload hints.'
 order: 46
 group: 'Filters'
-lastUpdated: 2026-07-12
+lastUpdated: 2026-09-19
 ---
 
 ## Overview
@@ -102,6 +102,8 @@ Adds `<link rel="dns-prefetch" href="//example.com">` tags for third-party domai
 ### hint_preload_subresources {#hint_preload_subresources}
 
 Adds `Link: rel=preload` HTTP headers for CSS and JavaScript files discovered on previous visits to the same page. Uses the beacon system to collect resource data, so it becomes effective after the first page view.
+
+Since v1.15.0+r21, `<script type="module">` subresources are hinted with `rel=modulepreload` in the `Link` response header instead of `rel=preload`; modules carrying `integrity` or `crossorigin="use-credentials"` are left unhinted.
 
 ### insert_speculation_rules {#insert_speculation_rules}
 

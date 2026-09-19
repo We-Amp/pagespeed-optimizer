@@ -3,7 +3,7 @@ title: 'Verify AI crawlers with Web Bot Auth'
 description: 'Check RFC 9421 signatures from AI crawlers at your origin and label each request with a verified bot identity — observe-only, off by default.'
 order: 35
 group: 'Operate'
-lastUpdated: 2026-07-04
+lastUpdated: 2026-09-19
 faq:
   - q: 'Does it ever block a request?'
     a: 'No. The verifier is observe-only: it labels signature-bearing requests with an x-verified-bot response header and counts verdicts in /v1/metrics. It never changes how a request is served — no blocking, no cache variation, no redirect.'
@@ -15,6 +15,8 @@ faq:
     a: 'Any client that signs requests with RFC 9421 HTTP Message Signatures under the Web Bot Auth convention (tag="web-bot-auth", Ed25519) and publishes its public keys in an HTTPS JWKS key directory you configure. That covers Web Bot Auth adopters among AI crawlers and any signer you run yourself.'
   - q: 'Is this available in mod_pagespeed 1.15?'
     a: 'Yes. mod_pagespeed 1.15 ships the same verifier core for nginx, configured with pagespeed directives and exposing the verdict as the $x_verified_bot nginx variable. ModPageSpeed 2.0 configures it via environment variables and emits the verdict as a response header.'
+  - q: 'What does the nginx WebBotAuthBotDetection directive do?'
+    a: "A Web Bot Auth signature can inform whether a request is treated as an automated client, behind the opt-in WebBotAuthBotDetection directive (server configuration, default off). With it on, a request carrying a cryptographically valid Web Bot Auth signature (RFC 9421) is treated as an automated client whatever identifier it presents — so an agent that identifies honestly is classified correctly even when it sends a browser's user-agent string, which no identifier list can detect. Only a signature that verifies counts; an absent or failed signature changes nothing. Requires WebBotAuth, the existing directive that turns signature verification on. Off by default, so Web Bot Auth stays observe-only for every existing deployment: with the new directive off, a verification result still only labels the request — it populates the $x_verified_bot nginx variable, which you can log or pass to your own configuration, and the opt-in verified-request statistics."
   - q: 'What does "invalid" include?'
     a: 'Everything that carried signature material but fail-closed: tampered or expired Web Bot Auth signatures, signatures referencing keys you have not configured, and unparseable signature headers from other ecosystems (for example bare draft-cavage Signature headers used by some webhook and fediverse deliveries). Parseable RFC 9421 material that is simply not Web Bot Auth is counted separately as "other" and treated as unsigned.'
 ---
@@ -40,12 +42,12 @@ feature yet.
 For every request that carries Web Bot Auth signature material, the response
 gains an `x-verified-bot` header:
 
-| Request | `x-verified-bot` |
-|---|---|
-| Valid signature, key id in your verified-bots map | `<bot-name>, ed25519-verified` |
-| Valid signature, key id not in the map | `signed-agent` |
-| Tampered/expired signature, or an unknown key | `unknown` |
-| No signature material (browsers, ordinary crawlers) | *no header* |
+| Request                                             | `x-verified-bot`               |
+| --------------------------------------------------- | ------------------------------ |
+| Valid signature, key id in your verified-bots map   | `<bot-name>, ed25519-verified` |
+| Valid signature, key id not in the map              | `signed-agent`                 |
+| Tampered/expired signature, or an unknown key       | `unknown`                      |
+| No signature material (browsers, ordinary crawlers) | _no header_                    |
 
 Requests without signature headers are untouched — the label never inflates
 ordinary traffic. Aggregate counts are exported at `/v1/metrics`:
@@ -111,7 +113,7 @@ verifier. It is **off by default** and has **no general-availability
 commitment**. Its shape and behavior may change between releases.
 :::
 
-Separately from the first-party `/v1/metrics` counters above, you can *opt in*
+Separately from the first-party `/v1/metrics` counters above, you can _opt in_
 to publishing a small, machine-readable summary of your verified AI-crawl
 volume at a well-known endpoint. It is off unless you enable it, and it never
 changes how requests are served.
@@ -141,17 +143,17 @@ The matching worker flag is `--web-bot-auth-public-counter <off|private|public>`
 
 Behavior by mode:
 
-| Mode | No / invalid token | Valid bearer token |
-|---|---|---|
-| `off` (default) | endpoint returns `404` (invisible) | `404` |
-| `private` | `404` (existence hidden) | **exact** document |
-| `public` | **coarse** document (bucketed) | **exact** document |
+| Mode            | No / invalid token                 | Valid bearer token |
+| --------------- | ---------------------------------- | ------------------ |
+| `off` (default) | endpoint returns `404` (invisible) | `404`              |
+| `private`       | `404` (existence hidden)           | **exact** document |
+| `public`        | **coarse** document (bucketed)     | **exact** document |
 
 - The **exact** document reports the counting-start date, an instance
   identifier (`boot_id`), cumulative verified / invalid / other totals, and a
   per-signer breakdown (signer name where you have mapped the key id, otherwise
   a reproducible key-id hash — see below). It is served `Cache-Control:
-  no-store`.
+no-store`.
 - The **coarse** document is deliberately narrower to reduce fingerprinting: it
   replaces every count with a fixed size tier (for example `1k-10k`), omits the
   counting-start date and the instance identifier, and lists **only your
@@ -167,12 +169,12 @@ signal on `/v1/metrics` only.
 
 ### About the identifiers
 
-- **`boot_id`** is an *instance* identifier, not a per-restart value. It is
+- **`boot_id`** is an _instance_ identifier, not a per-restart value. It is
   minted once when the counting file is first created and stays the same across
   ordinary worker restarts (which reset the counters but keep the file); it
   changes only when the file is recreated. So distinct `boot_id`s across
   responses indicate distinct instances (for example behind a load balancer),
-  and a counter **reset** is detectable as a *decrease* in a cumulative total —
+  and a counter **reset** is detectable as a _decrease_ in a cumulative total —
   not as a change in `boot_id`.
 - **The key-id hash** (used for a verified signer that is not in your
   verified-bots map) is a plain, unsalted
