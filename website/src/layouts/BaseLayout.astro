@@ -3,18 +3,11 @@ import NewsletterSignup from '../components/NewsletterSignup.astro';
 import QuickMessage from '../components/QuickMessage.astro';
 import ShareFloat from '../components/ShareFloat.astro';
 import Icon from '../components/Icon.astro';
-import {
-  PRODUCT_DISPLAY_NAME,
-  PRODUCT_NAME,
-  CURRENT_LINE,
-  V1_LINE,
-  LICENSE_CLAUSE_CAP,
-} from '../data/product-facts.mjs';
+import { PRODUCT_DISPLAY_NAME, CURRENT_LINE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
 
-// Derived chrome labels (ruling O11: lowercase everywhere). The 1.1 section
-// keeps its own line identity; everything else speaks the converged line.
+// Derived chrome label (ruling O11: lowercase everywhere) — one product name,
+// one logo, one site name, used sitewide including on /1.1/*.
 const currentLabel = `${PRODUCT_DISPLAY_NAME} ${CURRENT_LINE}`;
-const legacyLabel = `${PRODUCT_NAME} ${V1_LINE}`;
 
 interface Props {
   title: string;
@@ -87,13 +80,14 @@ const canonicalPath =
   rawPath.endsWith('/') || /\.[a-z0-9]+$/i.test(rawPath) ? rawPath : `${rawPath}/`;
 const canonicalUrl = new URL(canonicalPath, 'https://modpagespeed.com').href;
 
-const logoLight = is11Section ? '/logo-1.1.svg' : '/logo.svg';
-const logoDark = is11Section ? '/logo-1.1-dark.svg' : '/logo-dark.svg';
+const logoLight = '/logo.svg';
+const logoDark = '/logo-dark.svg';
 
 // Nav is consolidated (UX-5, converged): one product, so Features, Pricing and
 // Blog stay flat; the five tools collapse into "Tools", docs under "Docs",
-// comparisons under "Compare". The previous lines (/1.1/, /1.1/docs/) moved to
-// the footer's "Previous versions" group — every destination stays reachable.
+// comparisons under "Compare". /1.1/ and /1.1/docs/ are no longer advertised
+// from the nav or footer — the URLs still resolve for anyone who links them
+// directly, and the footer's upgrade link routes new readers to /docs/.
 // At most one "New" badge anywhere (UX-15) — it lives on RenderPeek in Tools.
 const navLinks: Array<{
   href?: string;
@@ -188,7 +182,6 @@ const currentPath = Astro.url.pathname;
 const segmentNames: Record<string, string> = {
   features: 'Features',
   analyze: 'Analyze',
-  '1.1': 'mod_pagespeed 1.15',
   pricing: 'Pricing',
   docs: 'Docs',
   blog: 'Blog',
@@ -366,7 +359,7 @@ const showStickyCta = ['/', '/pricing/', '/features/', '/demo/'].includes(sticky
     <meta property="og:image:height" content="630" />
     <meta property="og:type" content="website" />
     <meta property="og:url" content={canonicalUrl} />
-    <meta property="og:site_name" content={is11Section ? legacyLabel : PRODUCT_DISPLAY_NAME} />
+    <meta property="og:site_name" content={PRODUCT_DISPLAY_NAME} />
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@modpagespeed" />
     <meta name="twitter:title" content={title} />
@@ -445,21 +438,17 @@ const showStickyCta = ['/', '/pricing/', '/features/', '/demo/'].includes(sticky
     <header class="border-b border-border bg-bg-primary sticky top-0 z-50">
       <nav class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
         <div class="flex h-16 items-center justify-between">
-          <a
-            href="/"
-            class="flex items-center"
-            aria-label={`${is11Section ? legacyLabel : currentLabel} — Home`}
-          >
+          <a href="/" class="flex items-center" aria-label={`${currentLabel} — Home`}>
             <img
               src={logoLight}
-              alt={is11Section ? legacyLabel : currentLabel}
+              alt={currentLabel}
               width="216"
               height="32"
               class="h-8 w-auto dark:hidden"
             />
             <img
               src={logoDark}
-              alt={is11Section ? legacyLabel : currentLabel}
+              alt={currentLabel}
               width="216"
               height="32"
               class="h-8 w-auto hidden dark:block"
@@ -708,7 +697,7 @@ const showStickyCta = ['/', '/pricing/', '/features/', '/demo/'].includes(sticky
           <div class="col-span-2 sm:col-span-3 lg:col-span-1">
             <img
               src={logoLight}
-              alt={is11Section ? legacyLabel : currentLabel}
+              alt={currentLabel}
               width="189"
               height="28"
               loading="lazy"
@@ -717,7 +706,7 @@ const showStickyCta = ['/', '/pricing/', '/features/', '/demo/'].includes(sticky
             />
             <img
               src={logoDark}
-              alt={is11Section ? legacyLabel : currentLabel}
+              alt={currentLabel}
               width="189"
               height="28"
               loading="lazy"
@@ -770,11 +759,6 @@ const showStickyCta = ['/', '/pricing/', '/features/', '/demo/'].includes(sticky
                 >
               </li>
               <li>
-                <a href="/1.1/migrate/" class="text-sm text-text-muted hover:text-text-body"
-                  >Migrate from open source</a
-                >
-              </li>
-              <li>
                 <a href="/pricing/" class="text-sm text-text-muted hover:text-text-body"
                   >Support plans</a
                 >
@@ -786,26 +770,10 @@ const showStickyCta = ['/', '/pricing/', '/features/', '/demo/'].includes(sticky
                   class="text-sm text-text-muted hover:text-text-body">Download &amp; install</a
                 >
               </li>
-            </ul>
-            <p class="mt-6 text-xs font-semibold uppercase tracking-wider text-text-annotation">
-              Previous versions
-            </p>
-            <ul class="mt-3 space-y-2">
-              <li>
-                <a href="/1.1/" class="text-sm text-text-muted hover:text-text-body"
-                  >mod_pagespeed 1.15</a
-                >
-              </li>
-              <li>
-                <a
-                  href="/1.1/docs/upgrading-to-2-1/"
-                  class="text-sm text-text-muted hover:text-text-body">Upgrading from 1.15</a
-                >
-              </li>
               <li>
                 <a
                   href="/docs/migrating-to-2-1/"
-                  class="text-sm text-text-muted hover:text-text-body">Migrating from 2.0</a
+                  class="text-sm text-text-muted hover:text-text-body">Upgrade to 2.1</a
                 >
               </li>
             </ul>
@@ -851,11 +819,6 @@ const showStickyCta = ['/', '/pricing/', '/features/', '/demo/'].includes(sticky
             <ul class="mt-3 space-y-2">
               <li>
                 <a href="/docs/" class="text-sm text-text-muted hover:text-text-body">Docs</a>
-              </li>
-              <li>
-                <a href="/1.1/docs/" class="text-sm text-text-muted hover:text-text-body"
-                  >Docs (1.15)</a
-                >
               </li>
               <li>
                 <a

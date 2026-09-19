@@ -106,7 +106,7 @@ volumes:
   <code class="language-bash">
     {`# Build images (if not using pre-built)
 docker/build-release.sh `}
-    <ImageTag line="2.0" />
+    <ImageTag line="2.1" />
     {`
 
 # Start in detached mode
@@ -323,16 +323,16 @@ each one explicitly after creating the file.
 
 ### Required Permissions
 
-| Path                                    | Owner:group          | Mode  | Reason                                    |
-| --------------------------------------- | -------------------- | ----- | ----------------------------------------- |
-| `/var/cache/pagespeed-optimizer/v1/`    | `pagespeed:pagespeed` | 3770 | Cache dir (tmpfiles.d) — setgid so the group is inherited by everything created inside, sticky so one group member cannot delete another's files |
-| volume files (`cache-*`)                | `pagespeed:pagespeed` | 0660 | Both processes read and write cache entries |
-| `pagespeed-shared.conf`                 | `pagespeed:pagespeed` | 0640 | nginx reads socket path / sizing / toggles |
-| `.pagespeed-serve-stats`                | `pagespeed:pagespeed` | 0660 | Shared serve-stats mmap                   |
-| `/run/pagespeed-optimizer/notify.sock`  | `pagespeed:pagespeed` | 0660 | nginx sends notifications to the worker   |
-| `notify.sock.health`                    | `pagespeed:pagespeed` | 0660 | Health check access                       |
-| `notify.sock.mgmt`                      | `pagespeed:pagespeed` | 0660 | Management socket access (PURGE)          |
-| `/etc/pagespeed-optimizer/daemon.env`   | `root:pagespeed`      | 0640 | API token, off the command line |
+| Path                                   | Owner:group           | Mode | Reason                                                                                                                                           |
+| -------------------------------------- | --------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `/var/cache/pagespeed-optimizer/v1/`   | `pagespeed:pagespeed` | 3770 | Cache dir (tmpfiles.d) — setgid so the group is inherited by everything created inside, sticky so one group member cannot delete another's files |
+| volume files (`cache-*`)               | `pagespeed:pagespeed` | 0660 | Both processes read and write cache entries                                                                                                      |
+| `pagespeed-shared.conf`                | `pagespeed:pagespeed` | 0640 | nginx reads socket path / sizing / toggles                                                                                                       |
+| `.pagespeed-serve-stats`               | `pagespeed:pagespeed` | 0660 | Shared serve-stats mmap                                                                                                                          |
+| `/run/pagespeed-optimizer/notify.sock` | `pagespeed:pagespeed` | 0660 | nginx sends notifications to the worker                                                                                                          |
+| `notify.sock.health`                   | `pagespeed:pagespeed` | 0660 | Health check access                                                                                                                              |
+| `notify.sock.mgmt`                     | `pagespeed:pagespeed` | 0660 | Management socket access (PURGE)                                                                                                                 |
+| `/etc/pagespeed-optimizer/daemon.env`  | `root:pagespeed`      | 0640 | API token, off the command line                                                                                                                  |
 
 ### Ensuring Correct Permissions
 

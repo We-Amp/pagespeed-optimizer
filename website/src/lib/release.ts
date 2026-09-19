@@ -64,3 +64,17 @@ export function artifactUrl(rel: Release, channel: string, arch: string): string
 export function archiveUrl(rel: Release, filename: string): string {
   return rel.urls.archive_base + filename;
 }
+
+/**
+ * Resolve a release's Docker/Helm image tag from `artifacts.docker.tag_template`
+ * (same %V/%R/%T substitution artifactUrl() does for filenames). Shared by
+ * ImageTag.astro (MDX docs) and any page that needs the same tag as a plain
+ * string, so the substitution formula lives in one place.
+ */
+export function dockerTag(rel: Release): string {
+  const tmpl = (rel.artifacts.docker?.tag_template as string) ?? '%V';
+  return tmpl
+    .replaceAll('%V', rel.release.semver)
+    .replaceAll('%R', String(rel.release.revision ?? 0))
+    .replaceAll('%T', rel.release.tag);
+}

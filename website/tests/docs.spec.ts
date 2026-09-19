@@ -56,6 +56,26 @@ test.describe('Docs', () => {
     expect(hasSidebar || hasMobileNav).toBeTruthy();
   });
 
+  // Post-convergence: the docs tree is single-line, so neither the desktop
+  // sidebar nor the mobile selector renders a "2.0 | 1.1" version toggle any
+  // more, and there is exactly one doc-tree sidebar on the page (not one per
+  // version).
+  test('docs page renders no version toggle, desktop or mobile', async ({ page }) => {
+    await page.goto('/docs/getting-started/');
+    await expect(page.locator('[role="group"][aria-label="Documentation version"]')).toHaveCount(0);
+    await expect(page.locator('nav[aria-label="Documentation"]')).toHaveCount(1);
+  });
+
+  // Same toggle removal on the /1.1/docs/ side — its own version toggle is
+  // gone too, while the unrelated platform tabs (nginx/apache/iis) stay
+  // intact.
+  test('1.15 doc page renders no version toggle and keeps its platform tabs', async ({ page }) => {
+    await page.goto('/1.1/docs/getting-started/');
+    await expect(page.locator('[role="group"][aria-label="Documentation version"]')).toHaveCount(0);
+    await expect(page.locator('nav[aria-label="Documentation"]')).toHaveCount(1);
+    await expect(page.locator('[data-platform-tab]').first()).toBeAttached();
+  });
+
   test('doc pages have correct titles', async ({ page }) => {
     await page.goto('/docs/getting-started/');
     await expect(page).toHaveTitle(/Getting Started/i);
@@ -71,8 +91,6 @@ test.describe('Docs', () => {
     await expect(body).toContainText('SocketPath');
     await expect(body).toContainText('Vary');
     // The "zeros" troubleshooting heading must be present and linkable.
-    await expect(
-      page.locator('#my-dashboard-shows-zeros-and-nothing-is-moving'),
-    ).toBeAttached();
+    await expect(page.locator('#my-dashboard-shows-zeros-and-nothing-is-moving')).toBeAttached();
   });
 });

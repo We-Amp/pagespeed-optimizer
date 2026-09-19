@@ -1,7 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Icon from '../components/Icon.astro';
-import { getRelease, artifactUrl, archiveUrl } from '../lib/release';
+import { getRelease, artifactUrl, archiveUrl, dockerTag } from '../lib/release';
 import { offerJsonLd } from '../data/offer-jsonld';
 import { LICENSE_CLAUSE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
 
@@ -11,14 +11,11 @@ import { LICENSE_CLAUSE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
 const rel11 = await getRelease('1.1');
 const rel21 = await getRelease('2.1');
 
-// Docker/Helm image tags resolve %V/%R/%T the same way artifactUrl() does for
-// filenames (see src/components/release/ImageTag.astro for the MDX-side
-// equivalent) — inlined here since the 2.1 manifest declares no native
-// artifact templates and artifactUrl() would throw on this line.
-const rel21DockerTag = (rel21.artifacts.docker.tag_template as string)
-  .replaceAll('%V', rel21.release.semver)
-  .replaceAll('%R', String(rel21.release.revision ?? 0))
-  .replaceAll('%T', rel21.release.tag);
+// Docker/Helm image tag via the shared resolver (see
+// src/components/release/ImageTag.astro for the MDX-side equivalent) — used
+// directly here since the 2.1 manifest declares no native artifact templates
+// and artifactUrl() would throw on this line.
+const rel21DockerTag = dockerTag(rel21);
 
 // Apache/nginx share the same deb/rpm distro support window;
 // nginx adds the version hint. EL8 is intentionally absent from the stock
@@ -63,7 +60,7 @@ const integrations = [
     badge: 'Reverse proxy',
     description:
       'Run the mod_pagespeed 2.1 worker as a Docker container in front of nginx. Same optimization pipeline, zero changes to your nginx binary or config.',
-    requirements: `Any host with Docker 24+ (Linux, macOS, Windows). Image: ${rel21.artifacts.docker.image}:${rel21DockerTag}.`,
+    requirements: `Any host with Docker 24+ (Linux, macOS, Windows). Images: ${rel21.artifacts.docker.image}:${rel21DockerTag} and ${rel21.artifacts.docker.worker_image}:${rel21DockerTag}.`,
     href: '/docs/installation-docker/',
     cta: 'Install guide',
     umamiEvent: 'cta_download_nginx_docker',
@@ -168,11 +165,16 @@ const jsonLd = {
     </p>
     <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
       {
-        integrations.map((integration) => (
+        integrations.map((integration, index) => (
           <a
             href={integration.href}
             data-umami-event={integration.umamiEvent}
-            class="card flex flex-col"
+            class:list={[
+              'card flex flex-col',
+              // Full-width final card: 7 cards in 2 columns orphans the last
+              // one on its own half-empty row — give it the whole row instead.
+              index === integrations.length - 1 && 'md:col-span-2',
+            ]}
           >
             <div class="flex items-baseline justify-between gap-3">
               <h3 class="text-xl font-semibold text-text-body">{integration.name}</h3>
@@ -333,7 +335,7 @@ const jsonLd = {
     <p class="mt-3 text-sm text-text-muted">
       IISpeed customer? Contact us about moving to mod_pagespeed — IIS deployments run on the native
       Windows module from the 1.15 packaging channel. <a
-        href="mailto:info@we-amp.com?subject=IISpeed%20license%20transfer%20(1.15%20or%202.0)&body=My%20IISpeed%20key%3A%20%0A%0AI%20want%20to%20transfer%20to%3A%20(1.15%20or%202.0)%0A"
+        href="mailto:info@we-amp.com?subject=IISpeed%20license%20transfer&body=My%20IISpeed%20key%3A%20%0A%0AMy%20license%20transfers%20to%20mod_pagespeed%202.1.%0A"
         class="text-interactive hover:text-interactive-hover underline"
         >Arrange your no-cost transfer</a
       >.

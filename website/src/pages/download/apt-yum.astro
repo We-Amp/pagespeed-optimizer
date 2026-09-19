@@ -5,10 +5,10 @@ import { LICENSE_CLAUSE } from '../../data/product-facts.mjs';
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'TechArticle',
-  headline: 'Install mod_pagespeed 1.15 from packages.modpagespeed.com (apt + yum)',
+  headline: 'Install mod_pagespeed 2.1 from packages.modpagespeed.com (apt + yum)',
   description:
-    'Signed apt and yum repository for the mod_pagespeed 1.15 Apache and nginx modules on Debian 11/12/13, Ubuntu 22.04/24.04, and AlmaLinux/RHEL/Rocky 9 and 10. One-line install configures the repo and pulls the package.',
-  about: 'mod_pagespeed 1.15',
+    'Signed apt and yum repository for the mod_pagespeed 2.1 Apache and nginx modules on Debian 11/12/13, Ubuntu 22.04/24.04, and AlmaLinux/RHEL/Rocky 9 and 10. One-line install configures the repo and pulls the package.',
+  about: 'mod_pagespeed 2.1',
   image: 'https://modpagespeed.com/og-default.png?v=2',
   author: { '@type': 'Organization', name: 'We-Amp B.V.' },
   publisher: {
@@ -24,34 +24,28 @@ const jsonLd = {
 ---
 
 <BaseLayout
-  title="Install mod_pagespeed 1.15 on Apache & nginx via apt / yum"
-  description="Signed apt and yum repo for the mod_pagespeed 1.15 Apache and nginx modules. One line installs it on Debian 11/12/13, Ubuntu 22.04/24.04, and AlmaLinux/RHEL/Rocky 9 and 10."
+  title="Install mod_pagespeed 2.1 on Apache & nginx via apt / yum"
+  description="Signed apt and yum repo for the mod_pagespeed 2.1 Apache and nginx modules. One line installs it on Debian 11/12/13, Ubuntu 22.04/24.04, and AlmaLinux/RHEL/Rocky 9 and 10."
   jsonLd={jsonLd}
 >
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
-    <p class="eyebrow text-interactive">mod_pagespeed 1.15</p>
+    <p class="eyebrow text-interactive">mod_pagespeed 2.1</p>
     <h1 class="h1-hero mt-2 text-text-body">
       Install from <code class="font-mono">packages.modpagespeed.com</code>
     </h1>
     <p class="lede mt-6">
-      A signed apt and yum repository for the mod_pagespeed 1.15 Apache and nginx modules. One line
+      A signed apt and yum repository for the mod_pagespeed 2.1 Apache and nginx modules. One line
       detects the distro, installs the GPG signing key, writes the source file, and pulls the
       package. The nginx module ships prebuilt for Debian 11/12/13 and Ubuntu 22.04/24.04 (amd64 and
       arm64), and for RHEL/AlmaLinux/Rocky 9 (x86_64, aarch64) and 10 (x86_64), each pinned to that
       distro's stock nginx.
     </p>
 
-    <div
-      class="mt-10 rounded-2xl border border-border bg-bg-secondary p-6"
-    >
-      <p class="text-xs font-semibold uppercase tracking-wide text-text-annotation">
-        Install
-      </p>
+    <div class="mt-10 rounded-2xl border border-border bg-bg-secondary p-6">
+      <p class="text-xs font-semibold uppercase tracking-wide text-text-annotation">Install</p>
       <pre
         class="mt-3 overflow-x-auto rounded bg-stone-900 dark:bg-stone-950 p-4 text-sm text-stone-100"><code data-umami-event="cta_download_apt_yum_oneliner">curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh</code></pre>
-      <p class="mt-4 text-sm text-text-muted">
-        Then install the module for your server. Apache:
-      </p>
+      <p class="mt-4 text-sm text-text-muted">Then install the module for your server. Apache:</p>
       <pre
         class="mt-2 overflow-x-auto rounded bg-stone-900 dark:bg-stone-950 p-4 text-sm text-stone-100"><code># Debian 11/12/13, Ubuntu 22.04/24.04
 sudo apt-get install mod-pagespeed
@@ -66,13 +60,12 @@ sudo apt-get install nginx-module-pagespeed
 # AlmaLinux / RHEL / Rocky 9 and 10
 sudo dnf install nginx-module-pagespeed</code></pre>
       <p class="mt-4 text-sm text-text-muted">
-        Installing <code class="font-mono">nginx-module-pagespeed</code> drops a modules-enabled
-        auto-include snippet — there is nothing to copy by hand. Each <code class="font-mono"
-          >.so</code
-        > is pinned to its distro's exact stock nginx version (nginx's <code class="font-mono"
+        Installing <code class="font-mono">nginx-module-pagespeed</code> drops a modules-enabled auto-include
+        snippet — there is nothing to copy by hand. Each <code class="font-mono">.so</code> is pinned
+        to its distro's exact stock nginx version (nginx's <code class="font-mono"
           >--with-compat</code
-        > does not relax that check), so upgrading nginx past the stock version needs a matching
-        rebuild — <a href="/contact/" class="text-interactive underline">contact us</a>
+        > does not relax that check), so upgrading nginx past the stock version needs a matching rebuild
+        — <a href="/contact/" class="text-interactive underline">contact us</a>
         for a pinned build. This is also the prebuilt fix <a
           href="/blog/ngx-pagespeed-wont-build-modern-nginx/"
           class="text-interactive hover:text-interactive-hover underline"
@@ -149,13 +142,14 @@ sudo dnf install nginx-module-pagespeed</code></pre>
       </li>
     </ul>
     <p class="mt-4 text-sm text-text-annotation">
-      EL8 is no longer in the generic yum repo. <a href="/contact/" class="text-interactive underline"
-        >Contact us</a
+      EL8 is no longer in the generic yum repo. <a
+        href="/contact/"
+        class="text-interactive underline">Contact us</a
       > if you run an nginx version we don't yet package and need a pinned build.
     </p>
     <p class="mt-4 text-sm text-text-annotation">
-      cPanel / EasyApache 4: the <code class="font-mono">ea-apache24-mod_pagespeed</code> package
-      covers EL8 and EL9 (x86_64) and auto-enables on cPanel hosts. See the <a
+      cPanel / EasyApache 4: the <code class="font-mono">ea-apache24-mod_pagespeed</code> package covers
+      EL8 and EL9 (x86_64) and auto-enables on cPanel hosts. See the <a
         href="/1.1/cpanel/"
         class="text-interactive underline">cPanel guide</a
       >.
@@ -184,20 +178,19 @@ sudo dnf install nginx-module-pagespeed</code></pre>
 
     <h2 class="h2-section mt-14 text-text-body">License</h2>
     <p class="mt-4 text-text-body">
-      The package is the same mod_pagespeed 1.15 build as the direct download links. Install it and
+      The package is the same mod_pagespeed 2.1 build as the direct download links. Install it and
       it optimizes right away, including <a
         href="/blog/nginx-image-optimization-module/"
         class="text-interactive hover:text-interactive-hover underline"
         >automatic WebP image optimization via the nginx module</a
-      >. mod_pagespeed 2.1 is {LICENSE_CLAUSE} — free in development and in production; what
-      We-Amp sells is <a
-        href="/pricing/"
-        class="text-interactive underline">support &mdash; and hardened builds</a
+      >. mod_pagespeed 2.1 is {LICENSE_CLAUSE} — free in development and in production; what We-Amp sells
+      is <a href="/pricing/" class="text-interactive underline"
+        >support &mdash; and hardened builds</a
       >. First-time setup is covered in the <a
-        href="/1.1/docs/getting-started/"
-        class="text-interactive underline">1.15 getting-started guide</a
-      >; see <a href="/download/" class="text-interactive underline">/download/</a> for the full
-      integration matrix (Apache, nginx, IIS, ASP.NET Core).
+        href="/docs/getting-started/"
+        class="text-interactive underline">getting-started guide</a
+      >; see <a href="/download/" class="text-interactive underline">/download/</a> for the full integration
+      matrix (Apache, nginx, IIS, ASP.NET Core).
     </p>
   </section>
 </BaseLayout>

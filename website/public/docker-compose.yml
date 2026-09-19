@@ -1,4 +1,4 @@
-# PageSpeed 2.0 - Quick Start
+# mod_pagespeed 2.1 - Quick Start
 #
 # Usage:
 #   curl -sO https://modpagespeed.com/docker-compose.yml
@@ -10,12 +10,13 @@
 
 services:
   worker:
-    image: ghcr.io/we-amp/pagespeed-worker:2.0.21
+    image: ghcr.io/we-amp/pagespeed-worker:2.1.0
     volumes:
       - pagespeed-data:/data
     restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "echo '' | socat - UNIX-CONNECT:/data/pagespeed.sock.health | grep -q '^OK'"]
+      test:
+        ['CMD-SHELL', "echo '' | socat - UNIX-CONNECT:/data/pagespeed.sock.health | grep -q '^OK'"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -24,22 +25,22 @@ services:
     #   - "9880:9880"  # Optional: worker HTTP API + web console
 
   nginx:
-    image: ghcr.io/we-amp/pagespeed-nginx:2.0.21
+    image: ghcr.io/we-amp/pagespeed-nginx:2.1.0
     ports:
-      - "80:80"
+      - '80:80'
     volumes:
       - pagespeed-data:/data
     environment:
       - BACKEND_HOST=${BACKEND_HOST:-host.docker.internal}
       - BACKEND_PORT=${BACKEND_PORT:-8081}
     extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - 'host.docker.internal:host-gateway'
     depends_on:
       worker:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost/health"]
+      test: ['CMD', 'curl', '-sf', 'http://localhost/health']
       interval: 10s
       timeout: 5s
       retries: 3

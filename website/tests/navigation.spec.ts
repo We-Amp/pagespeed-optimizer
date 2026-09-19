@@ -32,9 +32,9 @@ test.describe('Navigation', () => {
     await page.locator('.nav-dropdown-panel a[href="/docs/"]').first().click();
     await expect(page).toHaveURL('/docs/');
 
-    // The previous lines' docs left the Docs dropdown with the convergence;
-    // /1.1/docs/ stays reachable from the footer's "Previous versions" group
-    // (asserted in the footer test below).
+    // /1.1/docs/ left the Docs dropdown with the convergence and is no
+    // longer advertised from the footer either — the URL still resolves for
+    // anyone who links it directly.
   });
 
   test('header download CTA links to /download/', async ({ page }) => {
@@ -63,14 +63,29 @@ test.describe('Navigation', () => {
     await expect(footer.locator('a[href="/calculator/"]')).toBeVisible();
   });
 
+  test('footer Product group offers a single upgrade entry, not a previous-versions group', async ({
+    page,
+  }) => {
+    // Post-convergence: the old "Previous versions" group (1.15, upgrading-from-1.15,
+    // migrating-from-2.0) collapsed to one upgrade link in the Product group;
+    // /1.1/ and /1.1/docs/upgrading-to-2-1/ are no longer advertised from the footer.
+    await page.goto('/');
+    const footer = page.locator('footer');
+    await expect(footer.locator('a[href="/docs/migrating-to-2-1/"]')).toHaveText('Upgrade to 2.1');
+    await expect(footer.getByText('Previous versions')).toHaveCount(0);
+    await expect(footer.locator('a[href="/1.1/"]')).toHaveCount(0);
+    await expect(footer.locator('a[href="/1.1/docs/upgrading-to-2-1/"]')).toHaveCount(0);
+  });
+
   test('footer Resources links are present', async ({ page }) => {
-    // Post-audit: Resources contains Docs (2.0), Docs (1.1), and ASP.NET Middleware.
+    // Post-convergence: Resources contains Docs and ASP.NET Middleware; the
+    // "Docs (1.15)" link to /1.1/docs/ is no longer advertised from the footer.
     // Blog moved to Company; /1.0/ is no longer linked from the footer (legacy-only).
     await page.goto('/');
     const footer = page.locator('footer');
     await expect(footer.locator('a[href="/docs/"]')).toBeVisible();
-    await expect(footer.locator('a[href="/1.1/docs/"]')).toBeVisible();
     await expect(footer.locator('a[href="/docs/aspnet-getting-started/"]')).toBeVisible();
+    await expect(footer.locator('a[href="/1.1/docs/"]')).toHaveCount(0);
   });
 
   test('footer Company links are present', async ({ page }) => {

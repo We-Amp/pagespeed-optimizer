@@ -49,34 +49,13 @@ const jsonLd = {
   jsonLd={jsonLd}
 >
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-20">
-    <div class="flex items-center justify-between gap-4">
-      <h1 class="text-4xl font-bold tracking-tight text-text-body">
-        mod_pagespeed 1.15 Documentation
-      </h1>
-      <a
-        href="/docs/"
-        class="text-sm font-medium text-interactive hover:text-interactive-hover inline-flex items-center gap-1"
-        aria-label="Switch to ModPageSpeed 2.0 documentation"
-      >
-        ModPageSpeed 2.0 docs
-        <span aria-hidden="true">&rarr;</span>
-      </a>
-    </div>
+    <h1 class="text-4xl font-bold tracking-tight text-text-body">
+      mod_pagespeed 1.15 Documentation
+    </h1>
     <p class="mt-4 text-lg text-text-muted">
       Everything you need to install, configure, and run mod_pagespeed 1.15 on nginx, Apache, IIS,
       and Envoy.
     </p>
-
-    <div
-      class="mt-6 rounded-lg border border-border bg-bg-secondary p-4 text-sm text-text-muted"
-    >
-      Starting a new deployment? <a
-        href="/docs/"
-        class="font-medium text-interactive hover:text-interactive-hover"
-        >ModPageSpeed 2.0</a
-      > is the current flagship — a Docker reverse proxy in front of any origin, or ASP.NET Core middleware.
-      Stay on 1.15 to keep an in-process module for Apache, nginx, IIS, or Envoy.
-    </div>
 
     <div class="mt-12 space-y-10">
       {
@@ -93,12 +72,8 @@ const jsonLd = {
                   href={`/1.1/docs/${doc.id}/`}
                   class="block rounded-lg border border-border p-6 hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
                 >
-                  <h3 class="text-lg font-semibold text-text-body">
-                    {doc.data.title}
-                  </h3>
-                  <p class="mt-1 text-sm text-text-muted">
-                    {doc.data.description}
-                  </p>
+                  <h3 class="text-lg font-semibold text-text-body">{doc.data.title}</h3>
+                  <p class="mt-1 text-sm text-text-muted">{doc.data.description}</p>
                 </a>
               ))}
               {/* Intentional link to the top-level /pagespeed-markers/ reference page.
@@ -109,12 +84,10 @@ const jsonLd = {
                   href="/pagespeed-markers/"
                   class="block rounded-lg border border-border p-6 hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
                 >
-                  <h3 class="text-lg font-semibold text-text-body">
-                    PageSpeed markers
-                  </h3>
+                  <h3 class="text-lg font-semibold text-text-body">PageSpeed markers</h3>
                   <p class="mt-1 text-sm text-text-muted">
-                    What the .pagespeed. URLs, data-pagespeed-* attributes, and X-Page-Speed
-                    header on an optimized page mean.
+                    What the .pagespeed. URLs, data-pagespeed-* attributes, and X-Page-Speed header
+                    on an optimized page mean.
                   </p>
                 </a>
               )}

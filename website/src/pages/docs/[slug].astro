@@ -251,21 +251,6 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
     >
       <!-- Sidebar navigation -->
       <nav class="hidden lg:block" aria-label="Documentation">
-        <div
-          class="mb-6 rounded-md border border-border bg-bg-secondary p-1 flex text-xs font-medium"
-          role="group"
-          aria-label="Documentation version"
-        >
-          <span
-            class="flex-1 text-center rounded px-2 py-1.5 bg-bg-elevated text-text-body shadow-sm"
-            aria-current="page">2.0</span
-          >
-          <a
-            href="/1.1/docs/"
-            class="flex-1 text-center rounded px-2 py-1.5 text-text-muted hover:text-text-body"
-            >1.1</a
-          >
-        </div>
         {
           sidebarGroups.map((group) => (
             <div class="mb-6">
@@ -297,9 +282,7 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
             in `sidebarGroups`; surface them statically here. */
         }
         <div class="mb-6">
-          <p
-            class="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-text-annotation"
-          >
+          <p class="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-text-annotation">
             Releases
           </p>
           <ul class="space-y-1">
@@ -329,25 +312,8 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
 
       <!-- Mobile navigation -->
       <div class="lg:hidden mb-8 space-y-4">
-        <div
-          class="rounded-md border border-border bg-bg-secondary p-1 flex text-sm font-medium"
-          role="group"
-          aria-label="Documentation version"
-        >
-          <span
-            class="flex-1 text-center rounded px-2 py-1.5 bg-bg-elevated text-text-body shadow-sm"
-            aria-current="page">2.0</span
-          >
-          <a
-            href="/1.1/docs/"
-            class="flex-1 text-center rounded px-2 py-1.5 text-text-muted">1.1</a
-          >
-        </div>
         <div>
-          <label
-            for="docs-nav"
-            class="block text-sm font-medium text-text-body"
-          >
+          <label for="docs-nav" class="block text-sm font-medium text-text-body">
             Navigate docs
           </label>
           <select
@@ -427,7 +393,11 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
           )
         }
 
-        <ShareButtons title={doc.data.title} url={`https://modpagespeed.com/docs/${doc.id}/`} surface="docs" />
+        <ShareButtons
+          title={doc.data.title}
+          url={`https://modpagespeed.com/docs/${doc.id}/`}
+          surface="docs"
+        />
 
         <aside
           class="mt-12 rounded-lg border border-interactive/40 bg-interactive/10 p-6 text-center"

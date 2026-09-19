@@ -93,21 +93,6 @@ const jsonLd: Record<string, unknown> = {
     >
       <!-- Sidebar navigation -->
       <nav class="hidden lg:block" aria-label="Documentation">
-        <div
-          class="mb-6 rounded-md border border-border bg-bg-secondary p-1 flex text-xs font-medium"
-          role="group"
-          aria-label="Documentation version"
-        >
-          <a
-            href="/docs/"
-            class="flex-1 text-center rounded px-2 py-1.5 text-text-muted hover:text-text-body"
-            >2.0</a
-          >
-          <span
-            class="flex-1 text-center rounded px-2 py-1.5 bg-bg-elevated text-text-body shadow-sm"
-            aria-current="page">1.15</span
-          >
-        </div>
         <div class="space-y-6">
           {
             groups.map((group) => (
@@ -156,25 +141,8 @@ const jsonLd: Record<string, unknown> = {
 
       <!-- Mobile navigation -->
       <div class="lg:hidden mb-8 space-y-4">
-        <div
-          class="rounded-md border border-border bg-bg-secondary p-1 flex text-sm font-medium"
-          role="group"
-          aria-label="Documentation version"
-        >
-          <a
-            href="/docs/"
-            class="flex-1 text-center rounded px-2 py-1.5 text-text-muted">2.0</a
-          >
-          <span
-            class="flex-1 text-center rounded px-2 py-1.5 bg-bg-elevated text-text-body shadow-sm"
-            aria-current="page">1.15</span
-          >
-        </div>
         <div>
-          <label
-            for="docs-nav"
-            class="block text-sm font-medium text-text-body"
-          >
+          <label for="docs-nav" class="block text-sm font-medium text-text-body">
             Navigate docs
           </label>
           <select
@@ -205,9 +173,7 @@ const jsonLd: Record<string, unknown> = {
         <nav class="mb-6 text-sm text-text-annotation" aria-label="Breadcrumb">
           <a href="/" class="hover:text-text-body">Home</a>
           <span class="mx-1">/</span>
-          <a href="/1.1/" class="hover:text-text-body"
-            >mod_pagespeed 1.15</a
-          >
+          <a href="/1.1/" class="hover:text-text-body">mod_pagespeed 1.15</a>
           <span class="mx-1">/</span>
           <a href="/1.1/docs/" class="hover:text-text-body">Docs</a>
           <span class="mx-1">/</span>

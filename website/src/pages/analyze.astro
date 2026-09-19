@@ -116,9 +116,7 @@ const jsonLd = [
   <!-- ============================================================ -->
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-20 text-center">
     <p class="eyebrow">Free · no account · no upload</p>
-    <h1 class="h1-hero mt-3 text-text-body">
-      PageSpeed Insights, with the fix attached.
-    </h1>
+    <h1 class="h1-hero mt-3 text-text-body">PageSpeed Insights, with the fix attached.</h1>
     <p class="lede mt-5 max-w-2xl mx-auto">
       Run Google's official PageSpeed Insights against any URL. We score the page on mobile and
       desktop, then map every failing Lighthouse audit to the ModPageSpeed filter that fixes it on
@@ -136,9 +134,7 @@ const jsonLd = [
       novalidate
       aria-describedby="psi-form-error"
     >
-      <label for="psi-url" class="block text-sm font-medium text-text-body">
-        Page URL
-      </label>
+      <label for="psi-url" class="block text-sm font-medium text-text-body"> Page URL </label>
       <div class="mt-2 flex flex-col sm:flex-row gap-3">
         <input
           id="psi-url"
@@ -188,9 +184,7 @@ const jsonLd = [
         The URL you submit is sent to Google's PageSpeed Insights API (in the US) through a small
         proxy on this site that holds the API key and caches results. Your IP address is logged and
         rate-limited to 30 requests per minute per visitor to prevent abuse. See our
-        <a
-          href="/privacy/"
-          class="text-interactive hover:text-interactive-hover underline"
+        <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline"
           >Privacy policy</a
         >.
       </p>
@@ -216,9 +210,7 @@ const jsonLd = [
     class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 pb-16 hidden"
     aria-hidden="true"
   >
-    <div
-      class="rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8 shadow-sm"
-    >
+    <div class="rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8 shadow-sm">
       <div class="flex items-center gap-3">
         <svg
           class="h-5 w-5 animate-spin text-interactive"
@@ -243,10 +235,7 @@ const jsonLd = [
           Running PageSpeed Insights for mobile and desktop. Usually 10–20 seconds.
         </p>
       </div>
-      <p
-        id="psi-loading-step"
-        class="mt-2 ml-8 text-xs text-text-annotation tabular-nums"
-      >
+      <p id="psi-loading-step" class="mt-2 ml-8 text-xs text-text-annotation tabular-nums">
         Step 1 of 2: requesting mobile profile…
       </p>
 
@@ -267,16 +256,12 @@ const jsonLd = [
 
     <!-- Skeleton fixable-list items -->
     <div class="mt-8 space-y-4">
-      <div
-        class="rounded-xl border border-border bg-bg-elevated p-5"
-      >
+      <div class="rounded-xl border border-border bg-bg-elevated p-5">
         <div class="h-4 w-2/3 rounded bg-bg-secondary animate-pulse"></div>
         <div class="mt-3 h-3 w-full rounded bg-bg-elevated animate-pulse"></div>
         <div class="mt-2 h-3 w-5/6 rounded bg-bg-elevated animate-pulse"></div>
       </div>
-      <div
-        class="rounded-xl border border-border bg-bg-elevated p-5"
-      >
+      <div class="rounded-xl border border-border bg-bg-elevated p-5">
         <div class="h-4 w-1/2 rounded bg-bg-secondary animate-pulse"></div>
         <div class="mt-3 h-3 w-full rounded bg-bg-elevated animate-pulse"></div>
         <div class="mt-2 h-3 w-4/6 rounded bg-bg-elevated animate-pulse"></div>
@@ -304,12 +289,7 @@ const jsonLd = [
       <div class="mt-6 grid grid-cols-2 gap-4 max-w-md">
         <div class="rounded-lg bg-bg-secondary p-4">
           <p class="text-xs uppercase tracking-wide text-text-annotation">Mobile</p>
-          <p
-            id="psi-score-mobile"
-            class="display-num mt-1 text-3xl font-bold text-text-body"
-          >
-            —
-          </p>
+          <p id="psi-score-mobile" class="display-num mt-1 text-3xl font-bold text-text-body">—</p>
           <p
             id="psi-score-mobile-label"
             class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-text-annotation"
@@ -318,12 +298,7 @@ const jsonLd = [
         </div>
         <div class="rounded-lg bg-bg-secondary p-4">
           <p class="text-xs uppercase tracking-wide text-text-annotation">Desktop</p>
-          <p
-            id="psi-score-desktop"
-            class="display-num mt-1 text-3xl font-bold text-text-body"
-          >
-            —
-          </p>
+          <p id="psi-score-desktop" class="display-num mt-1 text-3xl font-bold text-text-body">—</p>
           <p
             id="psi-score-desktop-label"
             class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-text-annotation"
@@ -346,9 +321,7 @@ const jsonLd = [
     >
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h3 class="text-sm font-semibold text-text-body">
-            ModPageSpeed edition
-          </h3>
+          <h3 class="text-sm font-semibold text-text-body">ModPageSpeed edition</h3>
           <p id="psi-edition-blurb" class="mt-1 text-xs text-text-muted">
             <!-- Populated at runtime from EDITION_BLURB. -->
           </p>
@@ -389,9 +362,7 @@ const jsonLd = [
     >
       <div class="flex items-start justify-between gap-4 flex-wrap">
         <div>
-          <h3 class="text-lg font-semibold text-text-body">
-            Drop-in pagespeed configuration
-          </h3>
+          <h3 class="text-lg font-semibold text-text-body">Drop-in pagespeed configuration</h3>
           <p id="psi-config-desc" class="mt-1 text-sm text-text-muted">
             <!-- Populated at runtime — varies by edition. -->
           </p>
@@ -434,12 +405,8 @@ const jsonLd = [
 
     <!-- Fixable audits -->
     <div id="psi-fixable" class="mt-8 hidden">
-      <h3 class="h2-section text-xl sm:text-2xl text-text-body">
-        ModPageSpeed will fix this
-      </h3>
-      <p class="mt-1 text-sm text-text-muted">
-        Ordered by potential savings on this page.
-      </p>
+      <h3 class="h2-section text-xl sm:text-2xl text-text-body">ModPageSpeed will fix this</h3>
+      <p class="mt-1 text-sm text-text-muted">Ordered by potential savings on this page.</p>
       <ul id="psi-fixable-list" class="mt-4 space-y-4"></ul>
     </div>
 
@@ -479,9 +446,7 @@ const jsonLd = [
           </svg>
         </div>
         <div class="flex-1">
-          <h3 class="text-xl font-bold text-text-body">
-            Nothing for us to do here.
-          </h3>
+          <h3 class="text-xl font-bold text-text-body">Nothing for us to do here.</h3>
           <p class="mt-2 text-sm text-text-body leading-relaxed">
             PSI flagged no failing performance audits on this page. Your delivery pipeline is
             already doing the work ModPageSpeed would do.
@@ -489,8 +454,8 @@ const jsonLd = [
           <p class="mt-2 text-sm text-text-muted leading-relaxed">
             ModPageSpeed keeps assets minified, images transcoded, and caches warm as the site
             evolves — whether it runs as a reverse proxy in front of your origin, as ASP.NET Core
-            middleware, or as the in-server module for Apache, nginx, IIS, or Envoy. The next
-            deploy won't quietly undo this.
+            middleware, or as the in-server module for Apache, nginx, IIS, or Envoy. The next deploy
+            won't quietly undo this.
           </p>
         </div>
       </div>
@@ -501,9 +466,7 @@ const jsonLd = [
       id="psi-empty"
       class="mt-8 rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8 hidden"
     >
-      <h3 class="text-lg font-semibold text-text-body">
-        No fixable audits surfaced.
-      </h3>
+      <h3 class="text-lg font-semibold text-text-body">No fixable audits surfaced.</h3>
       <p class="mt-2 text-sm text-text-muted">
         Either your page is already in good shape, or PSI flagged only application-level concerns
         that need code changes. ModPageSpeed isn't your bottleneck here. If you want it as a safety
@@ -554,9 +517,7 @@ const jsonLd = [
   <!-- ============================================================ -->
   <!-- How it works — always visible, indexable                      -->
   <!-- ============================================================ -->
-  <section
-    class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-16 border-t border-border"
-  >
+  <section class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-16 border-t border-border">
     <h2 class="h2-section text-center text-text-body">
       From PageSpeed report to nginx config in three steps
     </h2>
@@ -565,9 +526,7 @@ const jsonLd = [
     </p>
 
     <ol class="mt-10 grid gap-6 sm:grid-cols-3">
-      <li
-        class="rounded-xl border border-border bg-bg-elevated p-6"
-      >
+      <li class="rounded-xl border border-border bg-bg-elevated p-6">
         <div
           class="flex h-8 w-8 items-center justify-center rounded-full bg-interactive text-on-accent text-sm font-semibold"
         >
@@ -582,9 +541,7 @@ const jsonLd = [
           in a separate tab.
         </p>
       </li>
-      <li
-        class="rounded-xl border border-border bg-bg-elevated p-6"
-      >
+      <li class="rounded-xl border border-border bg-bg-elevated p-6">
         <div
           class="flex h-8 w-8 items-center justify-center rounded-full bg-interactive text-on-accent text-sm font-semibold"
         >
@@ -598,17 +555,13 @@ const jsonLd = [
           and the ModPageSpeed filter inventory. Audits we cannot fix are labeled, not hidden.
         </p>
       </li>
-      <li
-        class="rounded-xl border border-border bg-bg-elevated p-6"
-      >
+      <li class="rounded-xl border border-border bg-bg-elevated p-6">
         <div
           class="flex h-8 w-8 items-center justify-center rounded-full bg-interactive text-on-accent text-sm font-semibold"
         >
           3
         </div>
-        <h3 class="mt-4 text-base font-semibold text-text-body">
-          Copy a working nginx config
-        </h3>
+        <h3 class="mt-4 text-base font-semibold text-text-body">Copy a working nginx config</h3>
         <p class="mt-2 text-sm text-text-muted">
           You get a ready-to-paste <code class="text-xs">pagespeed</code> directive block that enables
           exactly the filters your page needs. Drop it in, reload nginx, re-run the test.
@@ -620,12 +573,8 @@ const jsonLd = [
   <!-- ============================================================ -->
   <!-- What gets fixed — content marketing for SEO                   -->
   <!-- ============================================================ -->
-  <section
-    class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-16 border-t border-border"
-  >
-    <h2 class="h2-section text-center text-text-body">
-      What ModPageSpeed fixes automatically
-    </h2>
+  <section class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-16 border-t border-border">
+    <h2 class="h2-section text-center text-text-body">What ModPageSpeed fixes automatically</h2>
     <p class="lede mt-3 text-center max-w-2xl mx-auto">
       These are the PageSpeed Insights findings ModPageSpeed addresses on every request, with no
       code changes on the origin. Most filters below have been production-tested in the upstream
@@ -694,9 +643,7 @@ const jsonLd = [
               class="rounded-xl border border-border bg-bg-elevated p-5"
             >
               <div class="flex items-start justify-between gap-2">
-                <h3 class="text-base font-semibold text-text-body">
-                  {displayTitle}
-                </h3>
+                <h3 class="text-base font-semibold text-text-body">{displayTitle}</h3>
                 {isTwoOnly && (
                   <span class="shrink-0 inline-flex items-center rounded-md bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
                     2.0 only
@@ -708,9 +655,7 @@ const jsonLd = [
                   </span>
                 )}
               </div>
-              <p class="mt-2 text-sm text-text-muted leading-relaxed">
-                {item.explanation}
-              </p>
+              <p class="mt-2 text-sm text-text-muted leading-relaxed">{item.explanation}</p>
               {item.filters.length > 0 && (
                 <ul class="mt-3 flex flex-wrap gap-1.5 list-none">
                   {item.filters.map((f) => (
@@ -728,12 +673,8 @@ const jsonLd = [
       }
     </ul>
 
-    <div
-      class="mt-10 rounded-xl border border-border bg-bg-secondary p-6"
-    >
-      <h3 class="text-base font-semibold text-text-body">
-        What ModPageSpeed will not fix
-      </h3>
+    <div class="mt-10 rounded-xl border border-border bg-bg-secondary p-6">
+      <h3 class="text-base font-semibold text-text-body">What ModPageSpeed will not fix</h3>
       <p class="mt-2 text-sm text-text-muted leading-relaxed">
         Trust matters more than coverage claims. ModPageSpeed runs byte-level rewrites on what
         leaves your server; it does not edit application code. These stay out of reach: excessive
@@ -750,9 +691,7 @@ const jsonLd = [
   <!-- ============================================================ -->
   <!-- FAQ — visible HTML mirrors the FAQPage JSON-LD                -->
   <!-- ============================================================ -->
-  <section
-    class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16 border-t border-border"
-  >
+  <section class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16 border-t border-border">
     <h2 class="h2-section text-center text-text-body">PageSpeed test FAQ</h2>
     <p class="lede mt-3 text-center max-w-2xl mx-auto">
       Questions that come up the first time you open a Lighthouse report.
@@ -763,9 +702,7 @@ const jsonLd = [
         faqEntries.map((entry) => (
           <div class="rounded-xl border border-border bg-bg-elevated p-6">
             <dt class="text-base font-semibold text-text-body">{entry.q}</dt>
-            <dd class="mt-2 text-sm text-text-muted leading-relaxed">
-              {entry.a}
-            </dd>
+            <dd class="mt-2 text-sm text-text-muted leading-relaxed">{entry.a}</dd>
           </div>
         ))
       }
@@ -831,7 +768,7 @@ const jsonLd = [
 
     const CONFIG_DESC: Record<Edition, string> = {
       '2.0':
-        'Drop into your nginx server { } or location { } block. ModPageSpeed 2.0 has no EnableFilters directive; image transcoding, CSS/JS minification, and critical-CSS inlining run from the master switch. Per-transform flags live on the factory_worker command line.',
+        'Drop into your nginx server { } or location { } block. The reverse-proxy / middleware line has no EnableFilters directive; image transcoding, CSS/JS minification, and critical-CSS inlining run from the master switch. Per-transform flags live on the factory_worker command line.',
       '1.1':
         'Enables every filter that targets a flagged audit on this page. nginx syntax; equivalent Apache, IIS, and Envoy directives are in the 1.15 config reference.',
     };
@@ -1347,8 +1284,7 @@ const jsonLd = [
 
     function renderFixableItem(item: AggregatedAudit): HTMLLIElement {
       const li = document.createElement('li');
-      li.className =
-        'rounded-xl border border-border bg-bg-elevated p-5';
+      li.className = 'rounded-xl border border-border bg-bg-elevated p-5';
 
       const headerRow = document.createElement('div');
       headerRow.className = 'flex items-start justify-between gap-3 flex-wrap';
@@ -1443,8 +1379,7 @@ const jsonLd = [
 
     function renderUnfixableItem(item: AggregatedAudit): HTMLLIElement {
       const li = document.createElement('li');
-      li.className =
-        'rounded-lg border border-border bg-bg-secondary p-4';
+      li.className = 'rounded-lg border border-border bg-bg-secondary p-4';
       const title = document.createElement('p');
       title.className = 'text-sm font-semibold text-text-body';
       title.textContent = item.mapping.auditTitle;

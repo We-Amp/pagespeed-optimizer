@@ -1178,6 +1178,7 @@ describe('canonical sources hold ground-truth product facts', () => {
       path.join(CONTENT_DIR, 'docs/web-bot-auth.md'),
       path.join(WEBSITE_ROOT, 'src/pages/docs/[slug].astro'),
       path.join(WEBSITE_ROOT, 'scripts/llms-templates/llms-full.txt.tmpl'),
+      path.join(WEBSITE_ROOT, 'public/docker-compose.yml'),
     ];
     // The tag is a literal semver ("...pagespeed-worker:2.1.0"), the same
     // wrapped in a shell env-var default
@@ -1189,14 +1190,58 @@ describe('canonical sources hold ground-truth product facts', () => {
     for (const file of files) {
       const text = readFileSync(file, 'utf8');
       const tags = [...text.matchAll(tagRe)].map((m) => m[1]);
-      expect(tags.length, `no pagespeed-worker/pagespeed-nginx tag found in ${file}`).toBeGreaterThan(
-        0,
-      );
+      expect(
+        tags.length,
+        `no pagespeed-worker/pagespeed-nginx tag found in ${file}`,
+      ).toBeGreaterThan(0);
       for (const tag of tags) {
         if (tag === 'latest') continue; // a rolling tag, not a pinned version to check
         expect(tag, `${file} pins a docker tag that disagrees with the 2.1 manifest`).toBe(
           V2_1_SEMVER,
         );
+      }
+    }
+
+    // helm-deployment.mdx renders the image repository and tag in separate
+    // Helm-values table cells (`worker.image.tag` / `nginx.image.tag`), so the
+    // combined repo:tag form the regex above matches never appears in its
+    // source — scan the `*.image.tag` default-value cells directly instead.
+    const helmFile = path.join(CONTENT_DIR, 'docs/helm-deployment.mdx');
+    const helmText = readFileSync(helmFile, 'utf8');
+    const helmTagRe = /`(?:worker|nginx)\.image\.tag`\s*\|\s*`(\d+\.\d+\.\d+)`/g;
+    const helmTags = [...helmText.matchAll(helmTagRe)].map((m) => m[1]);
+    expect(
+      helmTags.length,
+      `no worker/nginx image.tag default found in ${helmFile}`,
+    ).toBeGreaterThan(0);
+    for (const tag of helmTags) {
+      expect(tag, `${helmFile} pins a Helm default tag that disagrees with the 2.1 manifest`).toBe(
+        V2_1_SEMVER,
+      );
+    }
+
+    // Both this file's "Upgrading" example and deployment.mdx's "Starting
+    // the Stack" build command call <ImageTag line="..." /> inline, which
+    // resolves the literal digits from the named release's manifest at
+    // build time — the raw source never contains a "2.1.0"-shaped string
+    // for these calls, only the `line` prop. Checking that prop directly is
+    // equivalent to checking the rendered result, since ImageTag
+    // deterministically maps line -> dockerTag(getRelease(line)). Both
+    // files are themselves converged-line content, so every <ImageTag>
+    // call in them must reference the current line.
+    const imageTagLineRe = /<ImageTag\s+line="([^"]+)"/g;
+    for (const file of [helmFile, path.join(CONTENT_DIR, 'docs/deployment.mdx')]) {
+      const text = readFileSync(file, 'utf8');
+      const imageTagLines = [...text.matchAll(imageTagLineRe)].map((m) => m[1]);
+      expect(
+        imageTagLines.length,
+        `no <ImageTag line="..."/> usage found in ${file}`,
+      ).toBeGreaterThan(0);
+      for (const line of imageTagLines) {
+        expect(
+          line,
+          `${file} calls <ImageTag line="${line}" /> instead of the converged line`,
+        ).toBe(facts.CURRENT_LINE);
       }
     }
   });

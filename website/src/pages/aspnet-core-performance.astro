@@ -69,7 +69,7 @@ const faqEntries = [
   },
   {
     q: 'I have an IISpeed license. What do I move to?',
-    a: `IISpeed is deprecated, and its license transfers free to mod_pagespeed ${V1_LINE} or ModPageSpeed 2.0. If you want to stay on classic IIS, install the signed IIS MSI for ${V1_LINE}. If you are on ASP.NET Core, the ${PKG_ASPNETCORE} NuGet middleware is the documented path. The 1.15 IIS port adopted the IISpeed codebase wholesale, so the optimization behavior is the one you already ran.`,
+    a: `IISpeed is deprecated, and its license transfers free to mod_pagespeed 2.1. The IIS package ships from the 1.15 packaging channel — install the signed IIS MSI if you want to stay on classic IIS. If you are on ASP.NET Core, the ${PKG_ASPNETCORE} NuGet middleware is a separately available package and remains the documented path there. The 1.15 IIS port adopted the IISpeed codebase wholesale, so the optimization behavior is the one you already ran.`,
   },
   {
     q: 'Will a server-side optimizer fix my INP or layout shift?',
@@ -150,18 +150,15 @@ app.Run();`;
     <p class="lede mt-6 max-w-3xl">
       nginx and Apache shops have had a server-side page optimizer for over a decade. The official
       .NET performance advice stops at response compression and a CDN, neither of which transcodes
-      an image or inlines critical CSS. <code
-        class="rounded bg-bg-elevated px-1 py-0.5 text-base">{PKG_ASPNETCORE}</code
+      an image or inlines critical CSS. <code class="rounded bg-bg-elevated px-1 py-0.5 text-base"
+        >{PKG_ASPNETCORE}</code
       > is the in-process middleware that closes that gap: one <code
         class="rounded bg-bg-elevated px-1 py-0.5 text-base">dotnet add package</code
       >, optimization applied to the responses Kestrel already renders.
     </p>
 
     <div class="mt-8 flex flex-wrap gap-3">
-      <a
-        href="/go/nuget?pkg=aspnetcore"
-        class="btn-primary"
-        data-umami-event="cta_aspnet_nuget"
+      <a href="/go/nuget?pkg=aspnetcore" class="btn-primary" data-umami-event="cta_aspnet_nuget"
         >Get it on NuGet</a
       >
       <a
@@ -187,10 +184,11 @@ app.Run();`;
         server-side optimizer works one layer down. It rewrites the response itself &mdash; it
         <a
           href="/self-hosted-image-optimization/"
-          class="text-interactive hover:text-interactive-hover underline">transcodes each image to a smaller format</a
-        >, extracts the above-the-fold CSS and defers the
-        rest, and adds a content hash so a repeat visit skips the network. That category has existed
-        for nginx and Apache since 2010. On .NET it has been a blind spot.
+          class="text-interactive hover:text-interactive-hover underline"
+          >transcodes each image to a smaller format</a
+        >, extracts the above-the-fold CSS and defers the rest, and adds a content hash so a repeat
+        visit skips the network. That category has existed for nginx and Apache since 2010. On .NET
+        it has been a blind spot.
       </p>
       <p class="mt-4 text-text-body">
         ModPageSpeed 2.0 went GA on {V2_GA_DATE}, and its ASP.NET Core middleware shipped the same
@@ -201,13 +199,9 @@ app.Run();`;
 
     <!-- Two ways to run it on the Microsoft stack -->
     <section class="mt-16">
-      <h2 class="h2-section text-text-body">
-        Two ways to run it on the Microsoft stack
-      </h2>
+      <h2 class="h2-section text-text-body">Two ways to run it on the Microsoft stack</h2>
       <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-        <div
-          class="rounded-2xl border border-border bg-bg-elevated p-6"
-        >
+        <div class="rounded-2xl border border-border bg-bg-elevated p-6">
           <p class="text-xs font-semibold uppercase tracking-wide text-interactive">
             ASP.NET Core middleware
           </p>
@@ -215,10 +209,10 @@ app.Run();`;
           <p class="mt-3 text-sm text-text-muted">
             The ModPageSpeed 2.0 in-process middleware. It runs inside your ASP.NET Core app, no
             reverse-proxy hop and no separate container. The native worker is bundled per runtime
-            identifier ({ridList}), so a single <code
-              class="text-xs bg-bg-elevated px-1 rounded">dotnet add package</code
-            > pulls everything &mdash; on Linux, Windows, or macOS. Does WebP and AVIF transcoding,
-            critical CSS, minification, and cache extension.
+            identifier ({ridList}), so a single <code class="text-xs bg-bg-elevated px-1 rounded"
+              >dotnet add package</code
+            > pulls everything &mdash; on Linux, Windows, or macOS. Does WebP and AVIF transcoding, critical
+            CSS, minification, and cache extension.
           </p>
           <p class="mt-4 text-sm">
             <a
@@ -228,9 +222,7 @@ app.Run();`;
             >
           </p>
         </div>
-        <div
-          class="rounded-2xl border border-border bg-bg-elevated p-6"
-        >
+        <div class="rounded-2xl border border-border bg-bg-elevated p-6">
           <p class="text-xs font-semibold uppercase tracking-wide text-interactive">
             Native IIS module
           </p>
@@ -238,11 +230,11 @@ app.Run();`;
             mod_pagespeed {V1_LINE}
           </p>
           <p class="mt-3 text-sm text-text-muted">
-            For classic IIS sites, mod_pagespeed {V1_LINE} loads as a native IIS module from a
-            signed MSI. Same filters and configuration as the Apache and nginx modules. WebP and AVIF
-            image transcoding, critical CSS, and minification, applied in the IIS pipeline. It continues
-            the optimizer behind IISpeed: that codebase was adopted into the {V1_LINE} IIS port and
-            put through a numbered set of security-hardening fixes before release.
+            For classic IIS sites, mod_pagespeed {V1_LINE} loads as a native IIS module from a signed
+            MSI. Same filters and configuration as the Apache and nginx modules. WebP and AVIF image transcoding,
+            critical CSS, and minification, applied in the IIS pipeline. It continues the optimizer behind
+            IISpeed: that codebase was adopted into the {V1_LINE} IIS port and put through a numbered
+            set of security-hardening fixes before release.
           </p>
           <p class="mt-4 text-sm">
             <a
@@ -271,16 +263,18 @@ app.Run();`;
         Add the package, then register the middleware early in the pipeline so it wraps the
         responses your endpoints produce.
       </p>
-      <pre class="mt-4 overflow-x-auto rounded-md bg-stone-900 dark:bg-black p-4 text-xs sm:text-sm"><code class="text-stone-100">dotnet add package {PKG_ASPNETCORE}</code></pre>
-      <pre class="mt-4 overflow-x-auto rounded-md bg-stone-900 dark:bg-black p-4 text-xs sm:text-sm"><code class="text-stone-100">{programCs}</code></pre>
+      <pre
+        class="mt-4 overflow-x-auto rounded-md bg-stone-900 dark:bg-black p-4 text-xs sm:text-sm"><code class="text-stone-100">dotnet add package {PKG_ASPNETCORE}</code></pre>
+      <pre
+        class="mt-4 overflow-x-auto rounded-md bg-stone-900 dark:bg-black p-4 text-xs sm:text-sm"><code class="text-stone-100">{programCs}</code></pre>
       <p class="mt-4 text-text-body">
         That is the whole integration for the common case. Optimization runs out of band: a worker
         process starts automatically alongside your app, reads originals from a shared cache,
-        generates up to {MAX_VARIANTS} variants per image (format, viewport, pixel density, and
-        Save-Data), and writes them back. The middleware serves the matching variant per request.
-        The trade-off is that the first request for a URL returns the original while the worker
-        builds the variants in the background; subsequent requests serve the optimized version from
-        cache. Worker flags and per-transform switches live in the
+        generates up to {MAX_VARIANTS} variants per image (format, viewport, pixel density, and Save-Data),
+        and writes them back. The middleware serves the matching variant per request. The trade-off is
+        that the first request for a URL returns the original while the worker builds the variants in
+        the background; subsequent requests serve the optimized version from cache. Worker flags and per-transform
+        switches live in the
         <a
           href="/docs/aspnet-configuration/"
           class="text-interactive hover:text-interactive-hover underline">configuration reference</a
@@ -306,42 +300,27 @@ app.Run();`;
           </caption>
           <thead>
             <tr class="border-b border-border">
-              <th
-                scope="col"
-                class="py-3 pr-4 text-left font-semibold text-text-body"
-                >Finding</th
-              >
-              <th
-                scope="col"
-                class="px-3 py-3 text-left font-semibold text-text-body"
-                >Coverage</th
-              >
-              <th
-                scope="col"
-                class="px-3 py-3 text-left font-semibold text-text-body"
-                >How</th
-              >
+              <th scope="col" class="py-3 pr-4 text-left font-semibold text-text-body">Finding</th>
+              <th scope="col" class="px-3 py-3 text-left font-semibold text-text-body">Coverage</th>
+              <th scope="col" class="px-3 py-3 text-left font-semibold text-text-body">How</th>
             </tr>
           </thead>
           <tbody>
             {
               coverageRows.map((m) => (
                 <tr class="border-b border-border align-top">
-                  <th
-                    scope="row"
-                    class="py-4 pr-4 text-left font-medium text-text-body"
-                  >
+                  <th scope="row" class="py-4 pr-4 text-left font-medium text-text-body">
                     {m.auditTitle}
                   </th>
                   <td class="px-3 py-4 whitespace-nowrap">
-                    {m.coverage === 'full' && <span class="badge-success">{coverageLabel.full}</span>}
+                    {m.coverage === 'full' && (
+                      <span class="badge-success">{coverageLabel.full}</span>
+                    )}
                     {m.coverage === 'partial' && (
                       <span class="badge-accent">{coverageLabel.partial}</span>
                     )}
                     {m.coverage === 'none' && (
-                      <span class="text-xs text-text-annotation">
-                        {coverageLabel.none}
-                      </span>
+                      <span class="text-xs text-text-annotation">{coverageLabel.none}</span>
                     )}
                   </td>
                   <td class="px-3 py-4 text-text-muted">
@@ -370,7 +349,8 @@ app.Run();`;
           C# and JavaScript, not the server layer.
           <a
             href="/blog/fix-inp-aspnet-core-2026/"
-            class="text-interactive hover:text-interactive-hover underline">Fixing INP on ASP.NET Core &rarr;</a
+            class="text-interactive hover:text-interactive-hover underline"
+            >Fixing INP on ASP.NET Core &rarr;</a
           >
         </p>
       </div>
@@ -378,9 +358,7 @@ app.Run();`;
 
     <!-- FAQ — visible Q&A mirrors the FAQPage JSON-LD -->
     <section class="mt-16">
-      <h2 class="h2-section text-text-body">
-        ASP.NET Core performance: common questions
-      </h2>
+      <h2 class="h2-section text-text-body">ASP.NET Core performance: common questions</h2>
       <dl class="mt-8 space-y-6">
         {
           faqEntries.map((entry) => (
@@ -395,24 +373,20 @@ app.Run();`;
 
     <!-- CTA -->
     <section class="mt-16">
-      <div
-        class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-8"
-      >
+      <div class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-8">
         <h2 class="h2-section text-text-body">Add it to your .NET app</h2>
         <p class="mt-3 text-text-body">
           One <code class="rounded bg-bg-elevated px-1 py-0.5 text-sm"
             >dotnet add package {PKG_ASPNETCORE}</code
-          >, one <code class="rounded bg-bg-elevated px-1 py-0.5 text-sm"
-            >app.UsePageSpeed()</code
-          >, and the responses Kestrel renders get optimized before they leave the process. It
+          >, one <code class="rounded bg-bg-elevated px-1 py-0.5 text-sm">app.UsePageSpeed()</code>,
+          and the responses Kestrel renders get optimized before they leave the process. It
           optimizes immediately, licensed or not.
         </p>
         <div class="mt-6 flex flex-wrap gap-3">
           <a
             href="/go/nuget?pkg=aspnetcore"
             class="btn-primary"
-            data-umami-event="cta_aspnet_nuget_footer"
-            >Get it on NuGet</a
+            data-umami-event="cta_aspnet_nuget_footer">Get it on NuGet</a
           >
           <a href="/pricing/" class="btn-secondary" data-umami-event="cta_aspnet_pricing">
             See pricing
@@ -427,14 +401,13 @@ app.Run();`;
 
     <!-- See also -->
     <section class="mt-16 border-t border-border pt-8">
-      <p class="text-base font-semibold uppercase tracking-wide text-text-body">
-        See also:
-      </p>
+      <p class="text-base font-semibold uppercase tracking-wide text-text-body">See also:</p>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
           <a
             href="/docs/aspnet-configuration/"
-            class="text-interactive hover:text-interactive-hover underline">ASP.NET Core configuration</a
+            class="text-interactive hover:text-interactive-hover underline"
+            >ASP.NET Core configuration</a
           > &mdash; middleware options, worker flags, and per-transform switches
         </li>
         <li>
@@ -447,7 +420,8 @@ app.Run();`;
         <li>
           <a
             href="/blog/aspnet-core-middleware/"
-            class="text-interactive hover:text-interactive-hover underline">The ASP.NET Core middleware</a
+            class="text-interactive hover:text-interactive-hover underline"
+            >The ASP.NET Core middleware</a
           > &mdash; where it sits in the request pipeline
         </li>
         <li>
@@ -465,7 +439,8 @@ app.Run();`;
         <li>
           <a
             href="/go/nuget?pkg=sidecar"
-            class="text-interactive hover:text-interactive-hover underline">{PKG_SIDECAR} on NuGet</a
+            class="text-interactive hover:text-interactive-hover underline"
+            >{PKG_SIDECAR} on NuGet</a
           > &mdash; the out-of-process {V1_LINE} sidecar (bundles nginx {SIDECAR_NGINX_VERSION}) for
           teams that want the 1.15 optimizer behind a .NET reverse proxy
         </li>
