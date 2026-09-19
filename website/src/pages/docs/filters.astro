@@ -12,45 +12,59 @@ import { filtersByCategory } from '../../data/filters';
 // noindex'd so they stop competing for the same term; the 1.1 docs keep their
 // product-scoped titles and link up here for the generic concept.
 //
-// The per-filter directive reference lives under /1.1/docs/ because the named
-// filter taxonomy (EnableFilters/RewriteLevel/the ~62 filters) is a mod_pagespeed
-// 1.15 feature. ModPageSpeed 2.0 is an independent rebuild with a different,
-// worker-flag optimization pipeline (image opt incl. AVIF + learned quality,
-// critical CSS, caching — see /docs/configuration/), NOT this filter list.
+// The per-filter directive reference (EnableFilters/RewriteLevel/the ~62
+// named filters) is the native module's filter taxonomy, documented at
+// /docs/filters-overview/, /docs/filter-selection/ and /docs/filter-reference/
+// (linked from the page body and the "See also" cards below). This hub
+// documents a different pipeline on the same converged line: the
+// mod_pagespeed 2.1 optimizer worker's own worker flags (image opt incl.
+// SVG auto-vectorization, critical CSS, caching — see
+// /docs/configuration/), not the named filter list above. WebP and AVIF are
+// the native module's own filters (see the PORTS_2_1 / PORTS_2_1_WORKER
+// split in product-facts.mjs) and stay out of this worker description.
+// Keep this comment and the rendered paragraph below it in agreement.
 
 const groups = filtersByCategory();
 const orderedFilters = groups.flatMap((g) => g.filters);
 
+// `converged: true` means the category's per-category page was copied into
+// the main /docs/ tree; its card links there. `caching-url-filters` has not
+// moved, so its card keeps linking to the legacy /1.1/docs/ route.
 const categories = [
   {
     slug: 'image-filters',
     title: 'Image filters',
     description:
       'Recompression, format conversion (WebP), resizing, inlining, lazy loading, and responsive images. The master filter rewrite_images is a CoreFilter and enables several sub-filters by default.',
+    converged: true,
   },
   {
     slug: 'css-filters',
     title: 'CSS filters',
     description:
       'Minification, combining, inlining, import flattening, and critical CSS extraction. Several CSS filters are CoreFilters and run by default; the rest can be enabled individually or via OptimizeForBandwidth.',
+    converged: true,
   },
   {
     slug: 'javascript-filters',
     title: 'JavaScript filters',
     description:
       'Minification, combining, inlining, deferring execution, and source map preservation. Three JS filters are CoreFilters: rewrite_javascript, combine_javascript, and inline_javascript.',
+    converged: true,
   },
   {
     slug: 'html-filters',
     title: 'HTML filters',
     description:
       'Whitespace removal, comment stripping, attribute elision, DNS prefetch, and resource preloading. Two HTML filters (add_head, convert_meta_tags) are CoreFilters and run by default.',
+    converged: true,
   },
   {
     slug: 'caching-url-filters',
     title: 'Caching & URL filters',
     description:
       'Cache extension and URL management. The extend_cache filter rewrites resource URLs so browsers cache them aggressively while still receiving updated content when resources change.',
+    converged: false,
   },
 ];
 
@@ -62,7 +76,7 @@ const jsonLd = {
   '@type': 'CollectionPage',
   name: 'PageSpeed filters: the complete reference',
   description:
-    'Every mod_pagespeed optimization filter in one reference: what each filter does and which content type it transforms. The complete filter list for mod_pagespeed 1.15.',
+    'Every mod_pagespeed optimization filter in one reference: what each filter does and which content type it transforms. The complete filter list for mod_pagespeed 2.1.',
   url: 'https://modpagespeed.com/docs/filters/',
   mainEntity: {
     '@type': 'ItemList',
@@ -85,7 +99,7 @@ const jsonLd = {
 
 <BaseLayout
   title="PageSpeed filters: the complete reference (60+)"
-  description="Every mod_pagespeed filter in one table: what each one does and its content type. The complete filter reference for mod_pagespeed 1.15. Not Google PageSpeed Insights."
+  description="Every mod_pagespeed filter in one table: what each one does and its content type. The complete filter reference for mod_pagespeed 2.1. Not Google PageSpeed Insights."
   jsonLd={jsonLd}
 >
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16 lg:py-20">
@@ -110,20 +124,16 @@ const jsonLd = {
         >in-process module</a
       > that rewrites pages as your server serves them. Each filter performs one transformation on a
       response: recompress images, minify and combine CSS and JavaScript, inline critical CSS, extend
-      cache lifetimes. The table below lists every filter in mod_pagespeed 1.15.
+      cache lifetimes. The table below lists every filter in mod_pagespeed 2.1.
     </p>
 
     <p class="mt-4 text-sm text-text-muted">
-      ModPageSpeed 2.0 is an independent rebuild with a different optimization pipeline. It applies
-      image optimization (WebP, <a
-        href="/blog/avif-vs-webp-2026/"
-        class="text-interactive hover:text-interactive-hover underline-offset-4 hover:underline"
-        >AVIF</a
-      >, learned quality), critical CSS, and caching, configured through the worker rather than this
-      filter list. See the <a
+      The mod_pagespeed 2.1 optimizer worker runs a different pipeline: image optimization (SVG
+      auto-vectorization), critical CSS, and caching, configured through worker flags rather than
+      this filter list. See the <a
         href="/docs/configuration/"
         class="text-interactive hover:text-interactive-hover underline-offset-4 hover:underline"
-        >ModPageSpeed 2.0 configuration guide</a
+        >mod_pagespeed 2.1 configuration guide</a
       >.
     </p>
 
@@ -150,9 +160,9 @@ const jsonLd = {
         class="text-sm bg-bg-elevated px-1.5 py-0.5 rounded font-mono">RewriteLevel</code
       > presets (CoreFilters, OptimizeForBandwidth). For how to enable, disable, and scope filters per
       location, see the <a
-        href="/1.1/docs/filter-selection/"
+        href="/docs/filter-selection/"
         class="text-interactive hover:text-interactive-hover underline-offset-4 hover:underline"
-        >mod_pagespeed 1.15 filter selection reference</a
+        >Filter Selection reference</a
       >.
     </p>
 
@@ -195,7 +205,7 @@ const jsonLd = {
     <p class="mt-4 text-sm text-text-muted">
       For the full directive-level reference (parameters, defaults, CoreFilter and
       OptimizeForBandwidth membership, and safety notes), see the <a
-        href="/1.1/docs/filter-reference/"
+        href="/docs/filter-reference/"
         class="text-interactive hover:text-interactive-hover underline-offset-4 hover:underline"
         >per-filter directive reference</a
       >.
@@ -211,7 +221,7 @@ const jsonLd = {
         {
           categories.map((cat) => (
             <a
-              href={`/1.1/docs/${cat.slug}/`}
+              href={`${cat.converged ? '/docs' : '/1.1/docs'}/${cat.slug}/`}
               class="block rounded-lg border border-border bg-bg-elevated p-6 hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
             >
               <h3 class="text-lg font-semibold text-text-body">{cat.title}</h3>
@@ -226,7 +236,7 @@ const jsonLd = {
       <h2 class="eyebrow tracking-widest text-text-body mb-6">See also</h2>
       <div class="space-y-3">
         <a
-          href="/1.1/docs/filters-overview/"
+          href="/docs/filters-overview/"
           class="block rounded-lg border border-border bg-bg-elevated p-6 hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
         >
           <h3 class="text-lg font-semibold text-text-body">Filters overview</h3>
@@ -235,7 +245,7 @@ const jsonLd = {
           </p>
         </a>
         <a
-          href="/1.1/docs/filter-reference/"
+          href="/docs/filter-reference/"
           class="block rounded-lg border border-border bg-bg-elevated p-6 hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
         >
           <h3 class="text-lg font-semibold text-text-body">Filter directive reference</h3>
