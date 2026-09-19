@@ -95,7 +95,7 @@ One constraint to know up front: each prebuilt `.so` is pinned to its distro's s
 
 ## When to reach for 2.0 instead
 
-The prebuilt [mod_pagespeed 1.15 module](/1.1/) is the closest match to what you already run. If you are reworking this part of the stack anyway, [ModPageSpeed 2.0](/) is the other option. It is a C++23 rewrite that runs as an async worker behind an nginx reverse proxy, or as ASP.NET Core middleware, with variant-aware caching and viewport-aware variants. That is a larger architectural change than swapping a module, so it fits when you want the caching model. To keep your existing nginx and ngx_pagespeed setup running with the least change, the 1.15 module is the closer match.
+The prebuilt [mod_pagespeed 1.15 module](/) is the closest match to what you already run. If you are reworking this part of the stack anyway, [ModPageSpeed 2.0](/) is the other option. It is a C++23 rewrite that runs as an async worker behind an nginx reverse proxy, or as ASP.NET Core middleware, with variant-aware caching and viewport-aware variants. That is a larger architectural change than swapping a module, so it fits when you want the caching model. To keep your existing nginx and ngx_pagespeed setup running with the least change, the 1.15 module is the closer match.
 
 ## The short version
 

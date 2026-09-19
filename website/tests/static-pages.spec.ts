@@ -73,4 +73,21 @@ test.describe('Static pages', () => {
     await expect(page.locator('header nav')).toBeVisible();
     await expect(page.locator('footer')).toBeVisible();
   });
+
+  // Four product-level pages retired after their unique content was migrated
+  // to their replacement pages. The server-side 301s live in a separate repo
+  // (nginx), so these paths are simply gone here — a resurrected route file
+  // would flip this test red.
+  const retiredProductPages = ['/1.1/', '/1.1/apache/', '/1.1/cpanel/', '/1.1/migrate/'];
+  for (const path of retiredProductPages) {
+    test(`${path} is not served`, async ({ page }) => {
+      const response = await page.goto(path);
+      expect(response?.status()).toBe(404);
+    });
+  }
+
+  test('/docs/cpanel/ renders with its H1', async ({ page }) => {
+    await page.goto('/docs/cpanel/');
+    await expect(page.locator('h1').first()).toBeVisible();
+  });
 });

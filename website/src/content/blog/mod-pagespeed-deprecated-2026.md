@@ -85,7 +85,7 @@ The worker architecture moves optimization work out of the request path: a separ
 
 The optimization libraries (the parts that decide how to recompress a JPEG, how to fold a stylesheet, how to extract critical CSS) are the same ones mod_pagespeed proved at scale. The architecture around them is new.
 
-`mod_pagespeed 2.1` continues the original codebase with security patches and a current toolchain on Apache and nginx, plus an experimental Envoy port. IIS deployments stay on mod_pagespeed 1.15 until a converged Windows package ships — the [upgrade guide](/1.1/docs/upgrading-to-2-1/) has the per-platform security-support windows.
+`mod_pagespeed 2.1` continues the original codebase with security patches and a current toolchain on Apache and nginx, plus an experimental Envoy port. The IIS package ships from the 1.15 packaging channel — see the [upgrade guide](/1.1/docs/upgrading-to-2-1/) for details.
 
 ## What about PageSpeed Insights?
 

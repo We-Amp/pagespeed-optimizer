@@ -11,14 +11,39 @@ faq:
     a: 'Two options. Install the native nginx module — a dynamic module from the signed packages.modpagespeed.com repository, built for Debian and Ubuntu on amd64 and arm64 and pinned to each distribution stock nginx (1.18 to 1.26). Or put the Docker / nginx reverse proxy in front of your origin.'
 ---
 
-mod_pagespeed ships a native module for Apache and nginx. You have two
-working options for nginx:
+mod_pagespeed ships a native module for Apache and nginx. You have three
+working options:
 
+- **Native Apache module** — install from the signed
+  [packages.modpagespeed.com repository](/download/apt-yum/), or the
+  [cPanel / EasyApache 4 guide](/docs/cpanel/) on cPanel hosts.
 - **Native nginx module** — install from the signed
   [packages.modpagespeed.com repository](/download/apt-yum/).
 - **Docker / nginx reverse proxy** — run the
   [Docker / nginx reverse proxy](/docs/installation-docker/) in front of your
   origin.
+
+## Native Apache module
+
+The signed repository at `packages.modpagespeed.com` ships the Apache module
+(`mod-pagespeed`) — the same channel mod_pagespeed 1.15 uses — for Apache
+2.4+:
+
+```bash
+curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+sudo apt-get install mod-pagespeed   # Debian/Ubuntu
+sudo dnf install mod-pagespeed       # AlmaLinux/RHEL/Rocky
+```
+
+The module keeps the same directive surface and filter names, so an existing
+mod_pagespeed configuration carries over unchanged — see the
+[configuration reference](/1.1/docs/configuration/) for the full directive
+set.
+
+Running Apache under cPanel/WHM? Use the signed EasyApache 4 RPM instead —
+see the [cPanel / EasyApache 4 guide](/docs/cpanel/). See
+[Install from packages.modpagespeed.com](/download/apt-yum/) for the full
+distribution matrix (including the yum packages) and the nginx module.
 
 ## Native nginx module
 

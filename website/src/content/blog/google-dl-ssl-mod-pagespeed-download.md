@@ -151,7 +151,7 @@ the Cyclone Cache.
 If you have a working 1.13.35.2 install and want a security update
 that doesn't require config changes, this is the path. The
 [1.15 download docs](/1.1/docs/downloads/) list every platform package;
-the [1.15 site](/1.1/) has the full reference.
+the [1.15 site](/) has the full reference.
 
 **Debian / Ubuntu (Apache):**
 
@@ -239,11 +239,11 @@ minutes](/blog/run-with-docker-compose/).
 If you were installing `mod_pagespeed` because it had a port for your
 server, the modern equivalents:
 
-- **IIS:** the [1.15 site](/1.1/) ships an MSI installer.
+- **IIS:** the [1.15 site](/download/) ships an MSI installer.
 - **ASP.NET Core:** the [WeAmp.PageSpeed.AspNetCore NuGet
   middleware](/go/nuget?from=blog-google-dl-ssl)
   registers the ModPageSpeed 2.0 optimization core as ASP.NET Core middleware.
-- **Envoy:** see the [1.15 site](/1.1/) for the Envoy HTTP filter docs.
+- **Envoy:** see the [Envoy configuration docs](/1.1/docs/configuration/#envoy) for the HTTP filter.
 
 ## What to do with the existing install
 
@@ -316,5 +316,5 @@ covers the rewrite.
 - [mod_pagespeed alternative in 2026](/alternatives/mod-pagespeed/) — decision matrix
 - [Google PageSpeed Module alternative](/alternatives/google-pagespeed-module/) — disambiguation
 - [All alternatives](/alternatives/)
-- [mod_pagespeed 1.15 docs](/1.1/) — the maintained continuation
+- [mod_pagespeed 1.15 docs](/) — the maintained continuation
 - [Run ModPageSpeed 2.0 with Docker Compose](/blog/run-with-docker-compose/) — modern install path

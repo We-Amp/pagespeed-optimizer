@@ -1,14 +1,15 @@
 ---
 title: 'cPanel / EasyApache 4'
-description: 'Install, uninstall, and maintain mod_pagespeed 1.15 on cPanel / EasyApache 4: the signed EA4 RPM, enabling it in WHM Customize, the cpanel/elevate OS-upgrade runbook, and how the Apache Module Magic Number keeps routine ea-apache24 updates from breaking the module.'
-order: 50
-group: 'cPanel / EasyApache 4'
-lastUpdated: 2026-09-17
+description: 'Install, uninstall, and maintain mod_pagespeed on cPanel / EasyApache 4: the signed EA4 RPM, enabling it in WHM Customize, the cpanel/elevate OS-upgrade runbook, and how the Apache Module Magic Number keeps routine ea-apache24 updates from breaking the module.'
+order: 12
+group: 'Install'
+datePublished: 2026-05-20
+lastUpdated: 2026-09-18
 ---
 
-mod_pagespeed 1.15 ships as a signed EasyApache 4 RPM, `ea-apache24-mod_pagespeed`, served from `packages.modpagespeed.com`. This is the package name Google's archived [apache/incubator-pagespeed-cpanel](https://github.com/apache/incubator-pagespeed-cpanel) repo used before it went dormant; We-Amp maintains the EA4 build today. See [/docs/cpanel/](/docs/cpanel/) for the converged-line guide.
+mod_pagespeed ships as a signed EasyApache 4 RPM, `ea-apache24-mod_pagespeed`, served from `packages.modpagespeed.com`. This is the package name Google's archived [apache/incubator-pagespeed-cpanel](https://github.com/apache/incubator-pagespeed-cpanel) repo used before it went dormant; We-Amp maintains the EA4 build today.
 
-EasyApache 4 ships only on RHEL-family hosts. The EA4 RPM is built for **EL8 (AlmaLinux 8, Rocky 8, CloudLinux 8), EL9 (AlmaLinux 9, Rocky 9, RHEL 9, CloudLinux 9), and EL10, x86_64**. Each EL major has its own RPM (the module is built against that major's glibc); pick the tree matching your host's release. arm64 is not built.
+EasyApache 4 ships only on RHEL-family hosts. The EA4 RPM is built for **EL8 (AlmaLinux 8, Rocky 8, CloudLinux 8), EL9 (AlmaLinux 9, Rocky 9, RHEL 9, CloudLinux 9), and EL10, x86_64**. Each EL major has its own RPM (the module is built against that major's glibc); pick the tree matching your host's release. arm64 is not built. The module pairs with the `pagespeed-optimizer` worker on EL9 and EL10; on EL8, the module runs without the optimizer worker.
 
 On CloudLinux 8/9, mod_pagespeed is an Apache output filter and runs on the standard EA4 Apache (including hosts using `mod_lsapi` as the PHP handler — `mod_lsapi` is an Apache handler, not LiteSpeed Web Server). It does not apply to LiteSpeed Web Server (LSWS), which is a separate, non-Apache server. The EL8 build is validated on AlmaLinux 8 / Rocky 8 stock EA4; if you run CloudLinux's `cl-ea4`-patched Apache and hit anything unexpected, [let us know](/contact/).
 
@@ -55,7 +56,7 @@ The global admin console lives at:
 https://your-host.example.com/pagespeed_global_admin
 ```
 
-Open `/pagespeed_global_admin` on any vhost — the admin route is global to the server, not scoped to one vhost (`/pagespeed_admin/` is the per-vhost statistics endpoint). The module installs and fully optimizes out of the box: the 1.15 line is licensed under Apache-2.0, free in development and in production. See [Downloads &amp; Licensing](/1.1/docs/downloads/).
+Open `/pagespeed_global_admin` on any vhost — the admin route is global to the server, not scoped to one vhost (`/pagespeed_admin/` is the per-vhost statistics endpoint). The module installs and fully optimizes out of the box: mod_pagespeed is licensed under the Apache License 2.0, free in development and in production. See [Downloads & Licensing](/1.1/docs/downloads/).
 
 There is nothing to license per site or per server. cPanel hosts running many sites can join the [Hoster partner program](/hosting-partners/) for backing across the fleet, set up through the [contact form](/contact/). Plans: [pricing](/pricing/). Support terms: [we-amp.com/licensing](https://we-amp.com/licensing/).
 
@@ -101,7 +102,13 @@ Remove the module before the upgrade window and reinstall after:
    sudo dnf install --enablerepo=ea4 ea-apache24-mod_pagespeed
    ```
 
-   Re-tick the box in WHM → _EasyApache 4_ → _Customize_ if the post-elevate provision dropped it. The existing config and token are picked up unchanged.
+   Re-tick the box in WHM → _EasyApache 4_ → _Customize_ if the post-elevate provision dropped it. The existing config is picked up unchanged. The post-install script also writes a one-line reminder to `/etc/motd` so it surfaces at the next SSH session before the upgrade window.
+
+## Current limits
+
+- **arm64.** EA4 RPMs ship x86_64 only. arm64 isn't packaged yet; [contact us](/contact/) if it blocks you.
+- **Ubuntu EA4.** cPanel's Ubuntu EA4 support is partial / preview. We ship RHEL-family only — EL8, EL9, and EL10 (AlmaLinux, Rocky, RHEL, CloudLinux).
+- **WHM plugin UI.** Config still lives in `pagespeed.conf` and per-vhost includes. There's no WHM plugin for point-and-click config yet.
 
 ## MMN / Apache ABI FAQ
 
@@ -135,4 +142,8 @@ If it does not appear, re-check the _Apache Modules_ step in WHM Customize and r
 
 ### `rpm -q` shows a leading `2:` (e.g. `2:1.15.0-...`) — is that version 2?
 
-No. The leading `2:` is the RPM **epoch**, not a major version — the product is still mod_pagespeed **1.15.0**. The epoch is a packaging ordering hint that sits above the version number; it ensures `dnf`/WHM consistently selects and upgrades to our signed build by epoch first, independent of the version string. WHM and `dnf` may surface the `2:` prefix in a few places; read it as "epoch 2, version 1.15.0".
+No. The leading `2:` is the RPM **epoch**, not a major version — the installed package's version string currently reads **1.15.0**. The epoch is a packaging ordering hint that sits above the version number; it ensures `dnf`/WHM consistently selects and upgrades to our signed build by epoch first, independent of the version string. WHM and `dnf` may surface the `2:` prefix in a few places; read it as "epoch 2, version 1.15.0".
+
+---
+
+cPanel, WHM, and EasyApache are trademarks of cPanel, L.L.C. We-Amp B.V. is not affiliated with or endorsed by cPanel, L.L.C.

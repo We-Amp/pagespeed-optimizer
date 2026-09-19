@@ -74,7 +74,7 @@ Many of Google's mod_pagespeed 1.13.x directives have no direct equivalent becau
 | `ModPagespeedCacheSizeMb`                            | `--cache-size`                 | Worker flag — value is now in **bytes**, not MB; multiply by 1048576 (e.g. `1024` MB → `--cache-size 1073741824`) |
 | `ModPagespeedFileCachePath`                          | `pagespeed_cache_path`         | nginx directive                                                                                                   |
 
-**Deliberately omitted features.** Several classic filters have no 2.0 equivalent because the 2.0 architecture makes them unnecessary or handles their use case differently. [mod_pagespeed 1.15](/1.1/) keeps these filters if you need them:
+**Deliberately omitted features.** Several classic filters have no 2.0 equivalent because the 2.0 architecture makes them unnecessary or handles their use case differently. [mod_pagespeed 1.15](/) keeps these filters if you need them:
 
 - `combine_css` / `combine_javascript` -- Not needed. HTTP/2 multiplexing eliminates the round-trip cost of multiple small files.
 - `lazyload_images` -- Replaced with native `loading="lazy"` attribute injection. The worker's HTML transform pipeline automatically adds `loading="lazy"` to `<img>` and `<iframe>` tags, with the LCP candidate image (or first body image as fallback) receiving `fetchpriority="high"` instead. This is enabled by default. The classic `lazyload_images` filter used a JavaScript-based approach; 2.0 uses the browser-native attribute.
@@ -209,7 +209,7 @@ curl -H "Accept: */*" -o /dev/null -w "%{content_type}" http://localhost/image.j
 
 **Do I need to change my HTML or application code?** No. All optimization is transparent at the reverse-proxy level. Your application serves the same responses it always has.
 
-**What about Apache support?** ModPageSpeed 2.0 uses nginx internally as its caching proxy, but it deploys in front of any HTTP origin server, including Apache. Run the Docker Compose setup with your Apache server as the backend origin. If you want a native Apache module rather than a reverse proxy, [mod_pagespeed 1.15](/1.1/migrate/) is the actively-maintained continuation: same directives, current toolchain.
+**What about Apache support?** ModPageSpeed 2.0 uses nginx internally as its caching proxy, but it deploys in front of any HTTP origin server, including Apache. Run the Docker Compose setup with your Apache server as the backend origin. If you want a native Apache module rather than a reverse proxy, [mod_pagespeed 1.15](/mod-pagespeed-still-maintained/) is the actively-maintained continuation: same directives, current toolchain.
 
 **What happened to specific filters?** The configuration mapping table above covers the major filters. In general, filters that work around HTTP/1.1 limitations (combining, spriting, inlining) have been intentionally dropped because HTTP/2 makes them unnecessary or counterproductive. Filters that perform genuine optimization (image transcoding, CSS/JS minification, critical CSS) are built into the worker's content-type dispatch.
 
@@ -217,7 +217,7 @@ curl -H "Accept: */*" -o /dev/null -w "%{content_type}" http://localhost/image.j
 
 - [ModPageSpeed 2.0: install and getting started](/docs/getting-started/)
 - [What ModPageSpeed 2.0 optimizes](/features/)
-- [mod_pagespeed 1.15 — the native Apache/nginx/IIS module](/1.1/)
-- [Migrate to mod_pagespeed 1.15](/1.1/migrate/)
+- [mod_pagespeed 1.15 — the native Apache/nginx/IIS module](/)
+- [Migrate to mod_pagespeed 1.15](/mod-pagespeed-still-maintained/)
 - [Why I rebuilt mod_pagespeed](/blog/why-i-rebuilt-mod-pagespeed/)
 - [Run ModPageSpeed 2.0 with Docker Compose](/blog/run-with-docker-compose/)

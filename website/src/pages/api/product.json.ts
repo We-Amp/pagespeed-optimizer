@@ -114,7 +114,7 @@ const productData = {
         url: 'https://www.nuget.org/packages/WeAmp.PageSpeed.Sidecar',
       },
       links: {
-        overview: 'https://modpagespeed.com/1.1/',
+        overview: 'https://modpagespeed.com/',
         docs: 'https://modpagespeed.com/1.1/docs/',
         upgrade_guide: 'https://modpagespeed.com/1.1/docs/upgrading-to-2-1/',
       },

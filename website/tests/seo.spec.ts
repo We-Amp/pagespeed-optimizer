@@ -74,13 +74,10 @@ test.describe('SEO', () => {
     await expect(jsonLd).toBeAttached();
   });
 
-  // Product JSON-LD pages use deliberately asymmetric @type checks:
-  //   /1.1/      — strict 'Product' (single schema type today)
-  //   /download/ — accepts ['Product', 'SoftwareApplication']
-  // If /1.1/ later becomes an array (e.g., gains SoftwareApplication), the strict
-  // check here fails loudly so we review the schema shape intentionally.
+  // Product / Merchant Listing JSON-LD. /1.1/ retired (its product page is
+  // superseded by /); /download/ is now the sole surface for this check —
+  // the Offer lives there.
   const productPages = [
-    { path: '/1.1/', expectType: (t: unknown) => t === 'Product' },
     {
       path: '/download/',
       expectType: (t: unknown) =>
@@ -116,15 +113,17 @@ test.describe('SEO', () => {
   });
 
   // Post-convergence: one site name everywhere — the /1.1/*-specific
-  // og:site_name flip is retired.
-  test('og:site_name is identical on a main-tree page and a /1.1/ page', async ({ page }) => {
+  // og:site_name flip is retired. The /1.1/ product page itself is retired
+  // (superseded by /); /1.1/docs/* survives this wave, so it stands in for
+  // the section here.
+  test('og:site_name is identical on a main-tree page and a /1.1/docs/ page', async ({ page }) => {
     await page.goto('/');
     const mainSiteName = await page
       .locator('meta[property="og:site_name"]')
       .getAttribute('content');
     expect(mainSiteName).toBeTruthy();
 
-    await page.goto('/1.1/');
+    await page.goto('/1.1/docs/getting-started/');
     const legacyPageSiteName = await page
       .locator('meta[property="og:site_name"]')
       .getAttribute('content');
@@ -134,8 +133,10 @@ test.describe('SEO', () => {
   // Post-convergence: one breadcrumb model — the segmentNames override that
   // rendered the '1.1' path segment as "mod_pagespeed 1.15" is retired, so
   // the leaf now falls back to the default formatter.
-  test('breadcrumb JSON-LD on a /1.1/ page carries no legacy segment label', async ({ page }) => {
-    await page.goto('/1.1/');
+  test('breadcrumb JSON-LD on a /1.1/docs/ page carries no legacy segment label', async ({
+    page,
+  }) => {
+    await page.goto('/1.1/docs/getting-started/');
     const scripts = await page.locator('script[type="application/ld+json"]').allTextContents();
     const breadcrumb = scripts
       .map((s) => JSON.parse(s))
