@@ -139,7 +139,7 @@ function buildTree({ title, author, when }) {
         color: '#fafaf9',
       },
       children: [
-        // Top row: ModPageSpeed 2.0 wordmark. Satori can rasterize inline
+        // Top row: the product wordmark. Satori can rasterize inline
         // SVG, but a typographic wordmark is more legible at OG sizes and
         // avoids a second asset-loading code path.
         {
@@ -168,13 +168,13 @@ function buildTree({ title, author, when }) {
                   },
                 },
               },
-              'ModPageSpeed 2.0',
+              'mod_pagespeed 2.1',
             ],
           },
         },
         // Middle stack: blue bar + title + caption. The bar is the
         // single piece of visual identity that ties cards back to the
-        // ModPageSpeed brand without depending on a logo asset.
+        // product without depending on a logo asset.
         {
           type: 'div',
           props: {

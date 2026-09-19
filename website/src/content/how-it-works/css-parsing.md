@@ -1,11 +1,11 @@
 ---
 title: "How CSS Minification and URL Rewriting Work"
-description: "How ModPageSpeed parses CSS into a syntax tree to minify, rewrite url(), and flatten @import safely — and why regex rewriters corrupt stylesheets."
+description: "How mod_pagespeed parses CSS into a syntax tree to minify, rewrite url(), and flatten @import safely — and why regex rewriters corrupt stylesheets."
 order: 30
 datePublished: 2026-06-13
 lastUpdated: 2026-09-06
 ---
-Most "CSS minifiers" are a pile of regular expressions. Strip whitespace, delete comments, collapse `0px` to `0`. That works until it doesn't, and when it fails it fails silently: the page still loads, the stylesheet still parses in the browser, but one background image now points at the wrong path. ModPageSpeed treats CSS the way a browser does. It parses the stylesheet into a syntax tree before touching a byte. This page explains why that matters, and what a real parser makes possible that string-munging cannot.
+Most "CSS minifiers" are a pile of regular expressions. Strip whitespace, delete comments, collapse `0px` to `0`. That works until it doesn't, and when it fails it fails silently: the page still loads, the stylesheet still parses in the browser, but one background image now points at the wrong path. mod_pagespeed treats CSS the way a browser does. It parses the stylesheet into a syntax tree before touching a byte. This page explains why that matters, and what a real parser makes possible that string-munging cannot.
 
 ## The corruption case that motivates a parser
 
@@ -41,16 +41,16 @@ When the parser cannot make sense of a stylesheet, the `fallback_rewrite_css_url
 
 ## Ideas the original authors considered but did not build
 
-The 2010 design note floated a wishlist that went well beyond minification: strip CSS rules that no element on the page uses, rename classes to shorter names, simplify over-complicated selectors, and refactor rules to remove redundancy. These are real ideas, and they are seductive. They are also not what mod_pagespeed shipped, and not what ModPageSpeed ships now. The reason is in the design note itself: JavaScript can change an element's classes at runtime, so a rule that looks unused at page load may be needed the instant a user clicks something. Dead-code elimination and class renaming on live HTML are unsafe in the general case, so they stayed on the drawing board.
+The 2010 design note floated a wishlist that went well beyond minification: strip CSS rules that no element on the page uses, rename classes to shorter names, simplify over-complicated selectors, and refactor rules to remove redundancy. These are real ideas, and they are seductive. They are also not what mod_pagespeed shipped then, and not what it ships now. The reason is in the design note itself: JavaScript can change an element's classes at runtime, so a rule that looks unused at page load may be needed the instant a user clicks something. Dead-code elimination and class renaming on live HTML are unsafe in the general case, so they stayed on the drawing board.
 
 What the parser actually powers in production is the conservative set: minify, rewrite embedded URLs, combine adjacent stylesheets, and flatten `@import`. Every CSS pass also only keeps its output when the result is genuinely smaller than the input. We mention the aspirational rewrites here so the distinction is clear — the parser could see the structure needed for them, but seeing the structure and being safe to act on it are different problems.
 
-## 1.15 and 2.0: same parsing discipline
+## The module and the optimizer worker: same parsing discipline {#115-and-20-same-parsing-discipline}
 
-Both lines fully parse CSS for structural rewrites and fall back to URL-only rewriting on parse failure. The runtime differs. mod_pagespeed 1.15 runs in-process inside Apache, nginx, or IIS and continues the original `CssParser` lineage. ModPageSpeed 2.0 moves optimization into a separate [worker process](/how-it-works/async-rewriting/) behind a thin interceptor, and adds SVG output to the image pipeline that CSS background images feed into. The parsing logic — tree first, fall back to URL-only, keep the smaller result — is the constant across both. The same discipline underlies [server-side critical CSS extraction](/blog/server-side-critical-css-nginx/), which has to understand selectors to decide what is above the fold — the same selector awareness behind the [critical-CSS extraction heuristics](/blog/critical-css-heuristics/).
+Both parts fully parse CSS for structural rewrites and fall back to URL-only rewriting on parse failure. The runtime differs. The module runs in-process inside Apache, nginx, or IIS and continues the original `CssParser` lineage. The optimizer worker runs the same parsing in a [separate process](/how-it-works/async-rewriting/) behind a thin reverse-proxy layer, and adds SVG output to the image pipeline that CSS background images feed into. The parsing logic — tree first, fall back to URL-only, keep the smaller result — is the constant across both. The same discipline underlies [server-side critical CSS extraction](/blog/server-side-critical-css-nginx/), which has to understand selectors to decide what is above the fold — the same selector awareness behind the [critical-CSS extraction heuristics](/blog/critical-css-heuristics/).
 
 A structure-aware server optimizer is categorically safer than the string substitution most build-time hacks rely on. It edits CSS without corrupting the stylesheet on the input you didn't think to test.
 
-The CSS parser at the center of this design comes from the original mod_pagespeed project: Joshua Marantz wrote the 2010 design note that argued for a real parser over search-and-replace, and that lineage carries straight into mod_pagespeed 1.15 and ModPageSpeed 2.0 today. mod_pagespeed is an open-source project now maintained by We-Amp B.V.
+The CSS parser at the center of this design comes from the original mod_pagespeed project: Joshua Marantz wrote the 2010 design note that argued for a real parser over search-and-replace, and that lineage carries straight into mod_pagespeed 2.1 today, in both of its parts. mod_pagespeed is an open-source project now maintained by We-Amp B.V.
 
-You can run the full optimizer — licensed under Apache-2.0, free to run — and watch it rewrite a stylesheet on your own pages; see [what ModPageSpeed optimizes](/features/) to start.
+You can run the full optimizer — licensed under Apache-2.0, free to run — and watch it rewrite a stylesheet on your own pages; see [what mod_pagespeed optimizes](/features/) to start.

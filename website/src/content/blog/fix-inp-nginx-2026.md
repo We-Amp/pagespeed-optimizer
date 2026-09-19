@@ -12,7 +12,7 @@ howTo:
   description: Diagnose the slowest interaction, lighten served JS with ngx_pagespeed, tune nginx's upstream and transport layer, then confirm the INP win with field and lab data.
   tools:
   - nginx
-  - mod_pagespeed 1.15 (ngx_pagespeed)
+  - mod_pagespeed 2.1 (ngx_pagespeed)
   - Chrome DevTools
   - web-vitals (attribution mode)
   - PageSpeed Insights
@@ -31,7 +31,7 @@ howTo:
 
 ---
 
-INP is a client-side metric — it measures the latency between a user input and the next paint — so nginx itself rarely _is_ the bottleneck. What nginx controls is _what JS gets served_ and _how fast the AJAX endpoints behind the interactive widgets respond_. **mod_pagespeed 1.15** (`ngx_pagespeed`) runs at the nginx layer to minify, combine, and defer that JS. If your origin already serves lean JS, MPS adds little; if it serves a typical bundled-WordPress-or-similar mess, MPS helps a lot. This is the CMS-agnostic guide for the in-between case where the stack is custom and you want to know where to push.
+INP is a client-side metric — it measures the latency between a user input and the next paint — so nginx itself rarely _is_ the bottleneck. What nginx controls is _what JS gets served_ and _how fast the AJAX endpoints behind the interactive widgets respond_. **mod_pagespeed 2.1** (`ngx_pagespeed`) runs at the nginx layer to minify, combine, and defer that JS. If your origin already serves lean JS, mod_pagespeed adds little; if it serves a typical bundled-WordPress-or-similar mess, mod_pagespeed helps a lot. This is the CMS-agnostic guide for the in-between case where the stack is custom and you want to know where to push.
 
 This guide is part of our [Core Web Vitals series](/core-web-vitals/).
 
@@ -79,7 +79,7 @@ pagespeed EnableFilters combine_javascript;
 pagespeed EnableFilters rewrite_javascript;
 ```
 
-Sanity check: if your stack already ships a modern code-split SPA bundle (React/Vue/Svelte with tree-shaking, gzipped, served via a CDN), MPS adds little to INP — those bundles are already lean. If your stack serves a bundled blob of legacy JS from the application server, MPS helps a lot. The Performance trace from the Diagnose step tells you which one you have.
+Sanity check: if your stack already ships a modern code-split SPA bundle (React/Vue/Svelte with tree-shaking, gzipped, served via a CDN), mod_pagespeed adds little to INP — those bundles are already lean. If your stack serves a bundled blob of legacy JS from the application server, mod_pagespeed helps a lot. The Performance trace from the Diagnose step tells you which one you have.
 
 ## Upstream and transport tuning
 
@@ -134,10 +134,10 @@ ModPagespeedEnableFilters rewrite_javascript
 INP is a client-side metric and nginx is a server. The leverage points are real but bounded.
 
 - **Modern code-split SPA bundles.** If your app already ships React or Vue with route-based code splitting, gzipped via Vite or webpack, and served from a CDN, mod_pagespeed's `combine_javascript` and `rewrite_javascript` add little — the bundle is already optimized. Profile first; do not enable filters that fight your build pipeline.
-- **Third-party scripts you do not control.** Intercom, HotJar, GTM-injected analytics, chat widgets — INP attribution on these stays with their script. MPS minifies them but cannot change their handlers. Defer via tag-manager config or remove; [Chrome Coverage tells you which of them ships unused bytes](/blog/remove-unused-javascript-chrome-coverage/) worth cutting.
+- **Third-party scripts you do not control.** Intercom, HotJar, GTM-injected analytics, chat widgets — INP attribution on these stays with their script. mod_pagespeed minifies them but cannot change their handlers. Defer via tag-manager config or remove; [Chrome Coverage tells you which of them ships unused bytes](/blog/remove-unused-javascript-chrome-coverage/) worth cutting.
 - **Slow upstream behind nginx is an upstream problem.** If `awk` on `access.log` shows your `/api/search` endpoint takes 600 ms, no rewriter at the nginx layer fixes that. The fix is in the upstream — DB indexing, caching, async handlers. nginx tuning (`keepalive`, HTTP/2) removes connection overhead but not handler latency.
 - **Geographic distance from origin.** Users on a continent away from your origin pay round-trip latency on every interactive XHR. A CDN with edge functions or a co-located cache layer is the fix; nginx alone cannot shorten the speed of light.
-- **Hand-written JS with synchronous heavy work.** If a button-click handler runs 200 ms of DOM thrashing or a synchronous JSON parse on a 500 KB blob, MPS minifies the source but the runtime cost is the same. Profile the handler, find what is slow, fix it. Common offender: hand-rolled state-machine code on form pages.
+- **Hand-written JS with synchronous heavy work.** If a button-click handler runs 200 ms of DOM thrashing or a synchronous JSON parse on a 500 KB blob, mod_pagespeed minifies the source but the runtime cost is the same. Profile the handler, find what is slow, fix it. Common offender: hand-rolled state-machine code on form pages.
 
 This post deliberately does _not_ try to be the definitive INP guide. The INP × CMS posts ([WordPress](/blog/fix-inp-wordpress-2026/), [WooCommerce](/blog/fix-inp-woocommerce-2026/), [Magento](/blog/fix-inp-magento-2026/), [ASP.NET Core](/blog/fix-inp-aspnet-core-2026/)) are where the platform-specific failure modes get named. This post is the generic transport-and-rewriter framing for when your stack is not on that list.
 
@@ -147,8 +147,8 @@ This post deliberately does _not_ try to be the definitive INP guide. The INP ×
 - [How to fix CLS on nginx](/blog/fix-cls-nginx-2026/)
 - [How to fix INP on WordPress](/blog/fix-inp-wordpress-2026/)
 - [Server-side critical CSS with nginx](/blog/server-side-critical-css-nginx/)
-- [mod_pagespeed 1.15 filter reference](/docs/filter-reference/)
+- [mod_pagespeed filter reference](/docs/filter-reference/)
 - [The full INP guide](/core-web-vitals/inp/)
 - [Test your page in the analyzer](/analyze/)
 
-mod_pagespeed 1.15 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed 2.1 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).

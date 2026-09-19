@@ -262,10 +262,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       </ul>
       <p class="mt-4 text-xs text-text-annotation">
         The estimate above counts image and CSS/JS savings from the variant-aware cache in
-        ModPageSpeed 2.0. The same PSOL optimization core also runs self-hosted inside Apache,
-        nginx, or IIS as mod_pagespeed 1.15, where it minifies CSS/JS and transcodes images to WebP.
-        Both products cut the same kind of bytes — pick the one that fits how you deploy. See the
-        optimizations side by side on the
+        mod_pagespeed 2.1. The optimizer worker does that work off the request path; the in-process
+        module inside Apache and nginx minifies CSS/JS and transcodes images to WebP on the same
+        pagespeed directives your configuration already uses. The IIS package ships from the 1.15 packaging channel. See the optimizations
+        side by side on the
         <a href="/examples/" class="text-interactive underline hover:text-interactive"
           >filter examples</a
         >, or read the case for

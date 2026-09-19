@@ -90,7 +90,7 @@ const integrations = [
   },
   {
     name: 'ASP.NET Core',
-    product: 'ModPageSpeed 2.0',
+    product: 'mod_pagespeed 2.1',
     badge: 'NuGet middleware',
     description:
       'Two lines in Program.cs add the optimization pipeline to any ASP.NET Core app. Runs in-process — no sidecar, no Docker.',
@@ -151,8 +151,8 @@ const jsonLd = {
       Every way to run it, in one place. mod_pagespeed 2.1's native module installs on Apache and
       nginx from the signed apt/yum repository, or runs as a Docker container fronting nginx —
       deploy that with Helm on Kubernetes. Windows/IIS ships from the 1.15 packaging channel, and
-      ASP.NET Core apps get a NuGet middleware or a Linux sidecar. Each card shows which product it
-      is and how it integrates.
+      ASP.NET Core apps get a NuGet middleware or a Linux sidecar. Each card shows which package it
+      comes from and how it integrates.
     </p>
     <p class="mt-3 text-sm text-text-annotation inline-flex items-center gap-3">
       <span
@@ -358,7 +358,7 @@ gpg --verify ${artifactUrl(rel11, 'deb', 'amd64').split('/').pop()}.asc`}</code>
     </div>
   </section>
 
-  <!-- Other integration paths: Envoy (1.15, experimental) + IISpeed transfer CTA -->
+  <!-- Other integration paths: nginx walkthrough + IISpeed transfer CTA -->
   <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-16 pb-20">
     <h2 class="text-base font-semibold text-text-body">Other integration paths</h2>
     <p class="mt-3 text-sm text-text-muted">
@@ -366,12 +366,6 @@ gpg --verify ${artifactUrl(rel11, 'deb', 'amd64').split('/').pop()}.asc`}</code>
         href="https://ngxpagespeed.com/"
         class="text-interactive hover:text-interactive-hover underline">ngxpagespeed.com</a
       > has the nginx install walkthrough.
-    </p>
-    <p class="mt-3 text-sm text-text-muted">
-      An experimental Envoy port (source build only, mod_pagespeed 1.15) is documented at <a
-        href="/docs/configuration/#envoy"
-        class="text-interactive hover:text-interactive-hover underline">mod_pagespeed 1.15</a
-      >.
     </p>
     <p class="mt-3 text-sm text-text-muted">
       IISpeed customer? Contact us about moving to mod_pagespeed — IIS deployments run on the native

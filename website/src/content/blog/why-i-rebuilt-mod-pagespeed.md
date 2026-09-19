@@ -52,7 +52,7 @@ ModPageSpeed 2.0 separates the system into three components:
 
 This separation means nginx never blocks on optimization. The first request always gets the original content (fast, from cache). Optimized variants [appear asynchronously](/how-it-works/async-rewriting/) as the worker processes them. Subsequent requests from similar clients get the optimized version.
 
-While nginx powers the caching proxy internally, the optimization worker and cache are server-agnostic. ModPageSpeed 2.0 deploys as a reverse proxy in front of any HTTP origin — Apache, Node.js, Caddy, or anything else that speaks HTTP. The Docker Compose setup takes a `BACKEND_HOST` and `BACKEND_PORT`, and the rest is automatic.
+While nginx powers the caching proxy internally, the optimization worker and cache are server-agnostic. In reverse-proxy mode, the mod_pagespeed 2.1 module fronts any HTTP origin — Apache, Node.js, Caddy, or anything else that speaks HTTP. The Docker Compose setup takes a `BACKEND_HOST` and `BACKEND_PORT`, and the rest is automatic.
 
 ## Why self-hosted matters
 
@@ -60,12 +60,12 @@ The trend in web performance is toward third-party proxies — CDN-based optimiz
 
 When your traffic flows through someone else's infrastructure, your data is on their servers. For companies subject to GDPR, HIPAA, or data residency requirements, this creates compliance overhead. You need to audit their data processing, negotiate DPAs, and hope their infrastructure stays in the right jurisdictions.
 
-ModPageSpeed 2.0 runs on your servers. Your content never leaves your infrastructure. There is no third-party data processor in the request path, which means no DPA to negotiate and no external audit surface for that hop.
+mod_pagespeed runs on your servers. Your content never leaves your infrastructure. There is no third-party data processor in the request path, which means no DPA to negotiate and no external audit surface for that hop.
 
 This also means no per-request pricing, no bandwidth fees, no API rate limits, and no bill of any kind — the software is free under the Apache License 2.0, and your optimization scales with your hardware, not a subscription tier. For the image pipeline specifically, this is what [self-hosted image optimization](/self-hosted-image-optimization/) looks like in practice — the transcoding runs on your own box, not a vendor's.
 
 ## Getting started
 
-ModPageSpeed 2.0 is available now. Deploy with Docker Compose, point it at your origin, and it optimizes out of the box. Setup takes about five minutes regardless of which web server you run behind it. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed is available now. Deploy with Docker Compose, point it at your origin, and it optimizes out of the box. Setup takes about five minutes regardless of which web server you run behind it. See [pricing](/pricing/) and [license terms](/license/).
 
 If you're running a site where performance matters and you want to keep your data on your own infrastructure, install it and run it — it's free under the Apache License 2.0, in development and in production. [Support plans](/pricing/) are available if you want them.

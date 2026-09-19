@@ -2,7 +2,7 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 
 /**
- * PageSpeed Insights (Lighthouse) audit → ModPageSpeed mapping.
+ * PageSpeed Insights (Lighthouse) audit → mod_pagespeed mapping.
  *
  * Two edition surfaces are modelled:
  *
@@ -83,7 +83,7 @@ export const PSI_MPS_MAPPING: AuditMapping[] = [
     ],
     confidence: 'high',
     explanation:
-      'FCP is gated by render-blocking CSS and slow byte delivery. ModPageSpeed inlines critical CSS, minifies all CSS/JS, and serves long-lived cache-busted URLs so repeat views render from cache.',
+      'FCP is gated by render-blocking CSS and slow byte delivery. mod_pagespeed inlines critical CSS, minifies all CSS/JS, and serves long-lived cache-busted URLs so repeat views render from cache.',
     caveats:
       'FCP is a metric, not a fixable defect. MPS removes common blockers but slow servers, large origin HTML, or third-party scripts in the critical path can still dominate.',
     availableIn: ['1.1', '2.0'],
@@ -108,7 +108,7 @@ export const PSI_MPS_MAPPING: AuditMapping[] = [
     ],
     confidence: 'high',
     explanation:
-      'LCP is usually a hero image or above-the-fold text. ModPageSpeed transcodes the LCP image to WebP, resizes it to its rendered size, and removes render-blocking CSS via critical-CSS inlining.',
+      'LCP is usually a hero image or above-the-fold text. mod_pagespeed transcodes the LCP image to WebP, resizes it to its rendered size, and removes render-blocking CSS via critical-CSS inlining.',
     caveats:
       'If LCP is a video poster, a background-image set by JavaScript, or a font-rendered headline, image filters cannot help directly.',
     availableIn: ['1.1', '2.0'],
@@ -179,7 +179,7 @@ export const PSI_MPS_MAPPING: AuditMapping[] = [
     filters: [],
     confidence: 'high',
     explanation:
-      'INP measures responsiveness of user interactions after load. It is dominated by event-handler JavaScript and React/Vue re-renders — work ModPageSpeed cannot rewrite without breaking the application.',
+      'INP measures responsiveness of user interactions after load. It is dominated by event-handler JavaScript and React/Vue re-renders — work mod_pagespeed cannot rewrite without breaking the application.',
     availableIn: ['1.1', '2.0'],
   },
   {
@@ -248,7 +248,7 @@ export const PSI_MPS_MAPPING: AuditMapping[] = [
     ],
     confidence: 'high',
     explanation:
-      'ModPageSpeed transcodes JPEG/PNG/GIF to WebP and AVIF, recompresses with quality-aware encoders, resizes to the rendered display size, and strips EXIF/ICC metadata. Typical result: 40–70% smaller images at visually equivalent quality.',
+      'mod_pagespeed transcodes JPEG/PNG/GIF to WebP and AVIF, recompresses with quality-aware encoders, resizes to the rendered display size, and strips EXIF/ICC metadata. Typical result: 40–70% smaller images at visually equivalent quality.',
     availableIn: ['1.1', '2.0'],
     snippet11:
       'pagespeed EnableFilters rewrite_images,convert_jpeg_to_webp,convert_jpeg_to_avif,resize_images;',
@@ -263,7 +263,7 @@ export const PSI_MPS_MAPPING: AuditMapping[] = [
     filters: ['hint_preload_subresources'],
     confidence: 'medium',
     explanation:
-      'When the LCP image is referenced from CSS or injected late, the browser cannot discover it during preload-scan. ModPageSpeed emits `Link: rel=preload` headers for the LCP image so the browser can fetch it before the HTML parser reaches the tag.',
+      'When the LCP image is referenced from CSS or injected late, the browser cannot discover it during preload-scan. mod_pagespeed emits `Link: rel=preload` headers for the LCP image so the browser can fetch it before the HTML parser reaches the tag.',
     caveats:
       'Authoritative LCP preload requires either an explicit `<link rel="preload">` from the origin or a fetchpriority="high" on the `<img>`. MPS surfaces hints but cannot guarantee preload for every LCP candidate.',
     availableIn: ['1.1', '2.0'],
@@ -282,7 +282,7 @@ export const PSI_MPS_MAPPING: AuditMapping[] = [
     explanation:
       'The "resource load delay" and "resource load duration" phases shrink when MPS serves a smaller, format-optimized LCP image. The "element render delay" phase shrinks when critical CSS is inlined.',
     caveats:
-      'The "TTFB" phase of LCP is server-side — 1.1 cannot reduce origin response time. 2.0 caches the HTML response in Cyclone (origin Cache-Control permitting) and serves it zero-copy from the memory-mapped cache on subsequent requests, masking origin TTFB for repeat visits.',
+      'The "TTFB" phase of LCP is server-side — the module alone cannot reduce origin response time. The optimizer worker caches the HTML response in Cyclone (origin Cache-Control permitting) and serves it zero-copy from the memory-mapped cache on subsequent requests, masking origin TTFB for repeat visits.',
     availableIn: ['1.1', '2.0'],
   },
   {
@@ -292,7 +292,7 @@ export const PSI_MPS_MAPPING: AuditMapping[] = [
     filters: ['extend_cache'],
     confidence: 'high',
     explanation:
-      'ModPageSpeed rewrites static resource URLs to include a content hash and serves them with `Cache-Control: max-age=31536000, immutable`. Repeat visits skip the network entirely.',
+      'mod_pagespeed rewrites static resource URLs to include a content hash and serves them with `Cache-Control: max-age=31536000, immutable`. Repeat visits skip the network entirely.',
     caveats:
       'Only applies to assets MPS rewrites (images, CSS, JS that flow through filters). Origin HTML and resources behind `Cache-Control: no-store` are untouched.',
     availableIn: ['1.1', '2.0'],
@@ -310,7 +310,7 @@ export const PSI_MPS_MAPPING: AuditMapping[] = [
     filters: [],
     confidence: 'high',
     explanation:
-      '`font-display: swap` is a CSS property that must be declared in the `@font-face` rule by the origin or font provider. ModPageSpeed does not rewrite font-loading semantics.',
+      '`font-display: swap` is a CSS property that must be declared in the `@font-face` rule by the origin or font provider. mod_pagespeed does not rewrite font-loading semantics.',
     availableIn: ['1.1', '2.0'],
   },
   {
@@ -369,7 +369,7 @@ export const PSI_MPS_MAPPING: AuditMapping[] = [
     filters: [],
     confidence: 'high',
     explanation:
-      'Third-party scripts (analytics, tag managers, ads, chat widgets) are loaded by the origin and run cross-origin. ModPageSpeed does not rewrite or proxy third-party JavaScript.',
+      'Third-party scripts (analytics, tag managers, ads, chat widgets) are loaded by the origin and run cross-origin. mod_pagespeed does not rewrite or proxy third-party JavaScript.',
     availableIn: ['1.1', '2.0'],
   },
   {
@@ -379,7 +379,7 @@ export const PSI_MPS_MAPPING: AuditMapping[] = [
     filters: [],
     confidence: 'medium',
     explanation:
-      'Document latency is origin TTFB plus DNS, TLS, and routing. ModPageSpeed 2.0 caches HTML in the Cyclone shared-memory cache when the origin allows it (set `Cache-Control: public, max-age=60, must-revalidate` on HTML, or use `pagespeed_html_max_age`), and serves cache hits zero-copy from the memory-mapped file — masking origin TTFB for repeat visits.',
+      'Document latency is origin TTFB plus DNS, TLS, and routing. The optimizer worker caches HTML in the Cyclone shared-memory cache when the origin allows it (set `Cache-Control: public, max-age=60, must-revalidate` on HTML, or use `pagespeed_html_max_age`), and serves cache hits zero-copy from the memory-mapped file — masking origin TTFB for repeat visits.',
     caveats:
       'Only repeat requests benefit; the first request for a URL still hits the origin. HTML output `Cache-Control` is always `no-cache` so downstream browsers and CDNs revalidate, but conditional revalidation makes that cheap (304 from origin, no body transfer).',
     // HTML caching at the module layer is unique to 2.0. 1.1 always passes
@@ -459,7 +459,7 @@ export const PSI_MPS_MAPPING: AuditMapping[] = [
     filters: ['rewrite_css'],
     confidence: 'high',
     explanation:
-      'ModPageSpeed minifies every CSS file it serves — removing whitespace, comments, and redundant syntax. CoreFilter; enabled by default.',
+      'mod_pagespeed minifies every CSS file it serves — removing whitespace, comments, and redundant syntax. CoreFilter; enabled by default.',
     availableIn: ['1.1', '2.0'],
     snippet11: 'pagespeed EnableFilters rewrite_css;',
     // 2.0: CSS minification runs unconditionally for every cached CSS asset
@@ -473,7 +473,7 @@ export const PSI_MPS_MAPPING: AuditMapping[] = [
     filters: ['rewrite_javascript', 'rewrite_javascript_external', 'rewrite_javascript_inline'],
     confidence: 'high',
     explanation:
-      'ModPageSpeed minifies every JS file it serves, plus inline `<script>` blocks. CoreFilter; enabled by default.',
+      'mod_pagespeed minifies every JS file it serves, plus inline `<script>` blocks. CoreFilter; enabled by default.',
     availableIn: ['1.1', '2.0'],
     snippet11: 'pagespeed EnableFilters rewrite_javascript;',
     // 2.0: JS minification is automatic (`--disable-js` to turn off).
@@ -500,7 +500,7 @@ export const PSI_MPS_MAPPING: AuditMapping[] = [
     filters: [],
     confidence: 'high',
     explanation:
-      'ModPageSpeed cannot determine at rewrite time which JS will be executed at runtime. Tree-shaking unused JS requires bundler-level code analysis.',
+      'mod_pagespeed cannot determine at rewrite time which JS will be executed at runtime. Tree-shaking unused JS requires bundler-level code analysis.',
     availableIn: ['1.1', '2.0'],
   },
   {
@@ -582,7 +582,7 @@ export const PSI_MPS_MAPPING: AuditMapping[] = [
     filters: [],
     confidence: 'high',
     explanation:
-      'bfcache eligibility is determined by response headers (`Cache-Control: no-store`), unload handlers, and other application behaviors that ModPageSpeed does not control.',
+      'bfcache eligibility is determined by response headers (`Cache-Control: no-store`), unload handlers, and other application behaviors that mod_pagespeed does not control.',
     availableIn: ['1.1', '2.0'],
   },
   {
@@ -616,7 +616,7 @@ export const PSI_MPS_MAPPING: AuditMapping[] = [
     filters: ['resize_images', 'resize_rendered_image_dimensions', 'responsive_images'],
     confidence: 'high',
     explanation:
-      'ModPageSpeed resizes images to the rendered dimensions and can generate a `srcset` for multiple resolutions. 2.0 generates viewport-tagged variants (Mobile/Tablet/Desktop, 1x/2x density) keyed off the request capability mask instead of using `srcset`.',
+      'mod_pagespeed resizes images to the rendered dimensions and can generate a `srcset` for multiple resolutions. The optimizer worker generates viewport-tagged variants (Mobile/Tablet/Desktop, 1x/2x density) keyed off the request capability mask instead of using `srcset`.',
     caveats:
       '`responsive_images` is "test first" — it changes the `<img>` markup and may interact with framework-rendered image components.',
     availableIn: ['1.1', '2.0'],
@@ -689,7 +689,7 @@ export const PSI_MPS_MAPPING: AuditMapping[] = [
     filters: [],
     confidence: 'high',
     explanation:
-      "In 1.1, gzip/brotli compression is configured on nginx itself (`gzip on;` / `brotli on;`), not via ModPageSpeed filters. In 2.0, the worker writes pre-compressed gzip and brotli alternates next to every cached text resource, so cache HITs serve a pre-compressed body with the right `Content-Encoding` header — but nginx is still the layer that selects the encoding, so this remains an nginx-config concern from the audit's perspective.",
+      "In the module, gzip/brotli compression is configured on nginx itself (`gzip on;` / `brotli on;`), not via mod_pagespeed filters. The optimizer worker writes pre-compressed gzip and brotli alternates next to every cached text resource, so cache HITs serve a pre-compressed body with the right `Content-Encoding` header — but nginx is still the layer that selects the encoding, so this remains an nginx-config concern from the audit's perspective.",
     availableIn: ['1.1', '2.0'],
   },
   {
@@ -699,9 +699,9 @@ export const PSI_MPS_MAPPING: AuditMapping[] = [
     filters: ['insert_dns_prefetch'],
     confidence: 'medium',
     explanation:
-      '1.1 inserts `<link rel="dns-prefetch">` hints for third-party domains it sees in the page. 2.0 detects third-party origins from external resources and writes `preconnect:` hints (the stronger form — DNS + TCP + TLS) to the Early Hints sentinel.',
+      'The module inserts `<link rel="dns-prefetch">` hints for third-party domains it sees in the page. The optimizer worker detects third-party origins from external resources and writes `preconnect:` hints (the stronger form — DNS + TCP + TLS) to the Early Hints sentinel.',
     caveats:
-      'DNS-prefetch is weaker than preconnect (DNS only, no TCP/TLS). 2.0\'s preconnect injection closes that gap; on 1.1, authoritative preconnect needs an origin-emitted `<link rel="preconnect">`.',
+      'DNS-prefetch is weaker than preconnect (DNS only, no TCP/TLS). The optimizer worker\'s preconnect injection closes that gap; with the module alone, authoritative preconnect needs an origin-emitted `<link rel="preconnect">`.',
     availableIn: ['1.1', '2.0'],
     snippet11: 'pagespeed EnableFilters insert_dns_prefetch;',
     snippet20: 'pagespeed on;\npagespeed_cache_path /var/lib/pagespeed/cache.vol;',
@@ -713,7 +713,7 @@ export const PSI_MPS_MAPPING: AuditMapping[] = [
     filters: ['hint_preload_subresources'],
     confidence: 'medium',
     explanation:
-      '1.1 emits `Link: rel=preload` headers for subresources it knows the page will request. 2.0 narrows this to the detected LCP image (the highest-impact preload) and writes the URL to the Early Hints sentinel so nginx can emit `103 Early Hints` responses.',
+      'The module emits `Link: rel=preload` headers for subresources it knows the page will request. The optimizer worker narrows this to the detected LCP image (the highest-impact preload) and writes the URL to the Early Hints sentinel so nginx can emit `103 Early Hints` responses.',
     caveats:
       'Only resources MPS sees during rewriting are hinted. Late-discovered LCP candidates still need origin-emitted preloads.',
     availableIn: ['1.1', '2.0'],
@@ -779,9 +779,9 @@ export const PSI_MPS_MAPPING: AuditMapping[] = [
     filters: [],
     confidence: 'medium',
     explanation:
-      'TTFB is dominated by origin work — database queries, application logic, framework rendering. ModPageSpeed 2.0 can mask slow TTFB on repeat requests by caching HTML in the Cyclone shared-memory cache when the origin allows it; the cache HIT is served zero-copy from the memory-mapped file with no origin round-trip. 1.1 does not cache HTML and so cannot help here.',
+      'TTFB is dominated by origin work — database queries, application logic, framework rendering. The optimizer worker can mask slow TTFB on repeat requests by caching HTML in the Cyclone shared-memory cache when the origin allows it; the cache HIT is served zero-copy from the memory-mapped file with no origin round-trip. The module alone does not cache HTML, so it cannot help here.',
     caveats:
-      'MPS 2.0 caches HTML only when the origin allows it (set `Cache-Control: public, max-age=60, must-revalidate` on HTML responses, or use `pagespeed_html_max_age` for origins that send no Cache-Control). The first request for any URL still hits the origin; the speedup is on subsequent requests.',
+      'The optimizer worker caches HTML only when the origin allows it (set `Cache-Control: public, max-age=60, must-revalidate` on HTML responses, or use `pagespeed_html_max_age` for origins that send no Cache-Control). The first request for any URL still hits the origin; the speedup is on subsequent requests.',
     availableIn: ['2.0'],
     snippet20:
       'pagespeed on;\npagespeed_cache_path /var/lib/pagespeed/cache.vol;\npagespeed_html_max_age 60;  # cache HTML for 60s when origin sends no Cache-Control',

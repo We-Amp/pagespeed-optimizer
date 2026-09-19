@@ -1,6 +1,6 @@
 ---
 title: 'Serve Markdown to AI agents'
-description: 'Serve AI agents a rendered Markdown copy of your pages at the same URL, and synthesize an /llms.txt from your sitemap — a ModPageSpeed 2.0 capability, off by default, with nothing leaving your server.'
+description: 'Serve AI agents a rendered Markdown copy of your pages at the same URL, and synthesize an /llms.txt — off by default, nothing leaves your server.'
 order: 34
 group: 'Operate'
 lastUpdated: 2026-09-06
@@ -11,18 +11,18 @@ faq:
     a: 'No. The capability ships in every build but stays off until you enable it with the --agent-optimize worker flag. There is no separate build.'
   - q: 'Does my content leave my server?'
     a: 'No. Rendering, cleaning, caching, and serving all happen on your own server. Serving a cached response performs zero outbound network I/O.'
-  - q: 'Is this available in mod_pagespeed 1.15?'
-    a: 'The rendered-Markdown variant is a ModPageSpeed 2.0 capability — it runs in the 2.0 worker behind nginx using headless Chrome. mod_pagespeed 1.15 recognizes and safely declines the agent request (it always serves normal HTML); it does not produce the rendered variant.'
+  - q: 'Does this work with the module alone, or does it need the optimizer worker?'
+    a: 'Yes. The rendered-Markdown variant runs in the optimizer worker behind nginx, using headless Chrome. The module recognizes and safely declines the agent request (it always serves normal HTML); it does not produce the rendered variant.'
   - q: 'What is the synthesized /llms.txt, and is it your /llms.txt?'
-    a: 'ModPageSpeed 2.0 can publish a synthesized /llms.txt for YOUR site — a Markdown index built from your own sitemap, off by default and enabled by its own worker flag. It is unrelated to the /llms.txt on modpagespeed.com, which describes our product. The index is built off the serving path and serving it performs zero outbound network I/O. It is a 2.0-only capability; mod_pagespeed 1.15 does not produce it.'
+    a: 'The optimizer worker can publish a synthesized /llms.txt for YOUR site — a Markdown index built from your own sitemap, off by default and enabled by its own worker flag. It is unrelated to the /llms.txt on modpagespeed.com, which describes our product. The index is built off the serving path and serving it performs zero outbound network I/O. It needs the worker: the module alone does not produce it.'
 ---
 
 AI agents and LLM crawlers fetch your pages to read, summarize, and act on them —
 but a JavaScript-rendered site often
 [looks empty to a client that does not execute scripts](/blog/can-ai-read-your-website/).
-ModPageSpeed 2.0 can serve those agents a **rendered, readable copy** of each
-page, at the **same URL**, without changing anything a browser or search engine
-sees.
+The mod_pagespeed 2.1 optimizer worker can serve those agents a **rendered,
+readable copy** of each page, at the **same URL**, without changing anything a
+browser or search engine sees.
 
 :::caution[Experimental]
 Agent optimization — the rendered-Markdown variant and the synthesized
@@ -33,7 +33,7 @@ future release, so evaluate it in staging before enabling it in production.
 ## How it works
 
 When an agent requests a page with `Accept: text/markdown` and you have enabled
-agent optimization, ModPageSpeed 2.0 serves a Markdown
+agent optimization, the optimizer worker serves a Markdown
 representation produced from the **fully-rendered DOM** — JavaScript executed,
 layout settled. JS-heavy pages that are otherwise invisible to agents become
 clean, structured text. Everyone else gets your normal optimized HTML at that
@@ -48,13 +48,13 @@ The agent response is content-negotiated, with these guarantees:
 - The page **body and Content-Type for browsers are unchanged** — standard
   content negotiation on `Accept`, not cloaking.
 
-The rendering runs in the ModPageSpeed 2.0 worker process behind nginx, reusing
+The rendering runs in the optimizer worker process behind nginx, reusing
 the same headless-Chrome subsystem as [browser analysis](/docs/browser-analysis/).
 
 ## Off by default
 
-The capability is present in every ModPageSpeed 2.0 build, but it does nothing
-until you enable agent optimization on the worker (`--agent-optimize`, or
+The capability is present in every build, but it does nothing until you enable
+agent optimization on the worker (`--agent-optimize`, or
 `PAGESPEED_AGENT_OPTIMIZE=true` in the Docker images). It also requires browser
 analysis (`--enable-browser-analysis`), since the Markdown copy is produced from
 the rendered DOM.
@@ -65,9 +65,9 @@ feature off is always safe.
 
 ## Serve an `/llms.txt` site index
 
-ModPageSpeed 2.0 can also publish a synthesized **`/llms.txt`** for your site — a
-compact Markdown index that points AI agents at your important pages, in the
-[llmstxt.org](https://llmstxt.org/) format. The worker builds it from your own
+The optimizer worker can also publish a synthesized **`/llms.txt`** for your
+site — a compact Markdown index that points AI agents at your important pages,
+in the [llmstxt.org](https://llmstxt.org/) format. The worker builds it from your own
 `sitemap.xml` (intersected with the paths you allow), with a one-line title and
 summary per page, and nginx serves it at `/llms.txt` with `X-Robots-Tag: noindex`,
 `Cache-Control: private`, and `Content-Type: text/markdown`.
@@ -89,9 +89,8 @@ publishes an `/llms.txt` for *your* site, from *your* content. They are
 unrelated.
 :::
 
-Like the rendered-Markdown copy, `/llms.txt` ships in ModPageSpeed 2.0 only — it
-needs the worker and headless-Chrome substrate. mod_pagespeed 1.15 does not produce
-it.
+Like the rendered-Markdown copy, `/llms.txt` needs the optimizer worker and its
+headless-Chrome substrate; the module alone does not produce it.
 
 ## Nothing leaves your server
 

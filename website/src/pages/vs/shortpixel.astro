@@ -7,7 +7,7 @@ import { editionClause, FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
 const rows = [
   {
     label: 'Deployment',
-    mps: 'Self-hosted (nginx interceptor + worker)',
+    mps: 'Self-hosted (module + optimizer worker)',
     other: 'WordPress plugin + ShortPixel service/CDN (as of 2026)',
   },
   {
@@ -17,7 +17,7 @@ const rows = [
   },
   {
     label: 'Platform',
-    mps: '1.15 ships native modules for nginx, Apache, and IIS (Envoy experimental); 2.0 runs as an nginx reverse proxy or ASP.NET Core middleware',
+    mps: 'Native module for Apache and nginx, reverse-proxy mode in front of any HTTP origin, or ASP.NET Core middleware. The IIS package ships from the 1.15 packaging channel.',
     other: 'WordPress plugins; API + PHP/.NET/Node libraries for other stacks (as of 2026)',
   },
   {
@@ -87,14 +87,15 @@ const jsonLd = [
   {
     '@context': 'https://schema.org',
     '@type': ['Product', 'SoftwareApplication'],
-    name: 'ModPageSpeed',
+    name: 'mod_pagespeed 2.1',
+    alternateName: 'ModPageSpeed',
     image: 'https://modpagespeed.com/og-default.png?v=2',
     applicationCategory: 'WebApplication',
     operatingSystem: ['Linux', 'Windows', 'macOS'],
     description:
-      'ShortPixel is a WordPress image-optimization plugin plus an Adaptive Images CDN/API. ModPageSpeed runs at the server layer (nginx/Apache), is CMS-independent, and optimizes the full HTML/CSS/JS pipeline at your origin.',
+      'ShortPixel is a WordPress image-optimization plugin plus an Adaptive Images CDN/API. mod_pagespeed runs at the server layer (nginx/Apache), is CMS-independent, and optimizes the full HTML/CSS/JS pipeline at your origin.',
     url: 'https://modpagespeed.com/',
-    brand: { '@type': 'Brand', name: 'ModPageSpeed' },
+    brand: { '@type': 'Brand', name: 'mod_pagespeed 2.1' },
     publisher: { '@id': 'https://we-amp.com/#organization' },
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
   },
@@ -102,8 +103,8 @@ const jsonLd = [
 ---
 
 <BaseLayout
-  title="ModPageSpeed vs ShortPixel: self-hosted alternative"
-  description="A self-hosted ShortPixel alternative for WordPress and any CMS: ModPageSpeed optimizes images and the whole page at your nginx origin — no third-party CDN."
+  title="mod_pagespeed vs ShortPixel: self-hosted alternative"
+  description="A self-hosted ShortPixel alternative for WordPress and any CMS: mod_pagespeed optimizes images and the whole page at your nginx origin — no third-party CDN."
   jsonLd={jsonLd}
 >
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16">
@@ -115,7 +116,7 @@ const jsonLd = [
       <span>vs ShortPixel</span>
     </nav>
 
-    <h1 class="mt-6 h1-hero text-text-body">ModPageSpeed vs ShortPixel</h1>
+    <h1 class="mt-6 h1-hero text-text-body">mod_pagespeed vs ShortPixel</h1>
 
     <section class="mt-8">
       <h2 class="h2-section text-text-body">TL;DR</h2>
@@ -124,12 +125,12 @@ const jsonLd = [
         Optimizer (compress, WebP/AVIF conversion) and Adaptive Images (on-the-fly resizing,
         next-gen formats, CSS/JS/font minification, optional delivery from ShortPixel&rsquo;s CDN)
         &mdash; plus an API and libraries for other stacks. Its center of gravity is images.
-        ModPageSpeed runs at the server layer, below the CMS, and optimizes the full HTML/CSS/JS
+        mod_pagespeed runs at the server layer, below the CMS, and optimizes the full HTML/CSS/JS
         pipeline of whatever the origin emits &mdash; with images generated and served from your own
         servers. If you mainly need image optimization on WordPress and don&rsquo;t mind a
         credit-based service that can offload images to a third-party CDN, ShortPixel is a strong
         fit. If you want optimization that lives in nginx, covers the whole page, and keeps every
-        byte at your origin, ModPageSpeed is the architectural alternative.
+        byte at your origin, mod_pagespeed is the architectural alternative.
       </p>
     </section>
 
@@ -167,7 +168,7 @@ const jsonLd = [
     </section>
 
     <section class="mt-12">
-      <h2 class="h2-section text-text-body">When to choose ModPageSpeed</h2>
+      <h2 class="h2-section text-text-body">When to choose mod_pagespeed</h2>
       <ul class="mt-4 space-y-2 list-disc pl-6 text-text-body">
         <li>
           You want the whole page optimized, not just images &mdash; critical CSS extraction,
@@ -177,11 +178,11 @@ const jsonLd = [
           >.
         </li>
         <li>
-          You&rsquo;re not on WordPress, or you run a mix of platforms. ModPageSpeed works on any
+          You&rsquo;re not on WordPress, or you run a mix of platforms. mod_pagespeed works on any
           CMS because it operates below the CMS.
         </li>
         <li>
-          You want images generated and served from your own origin. With ModPageSpeed, image bytes
+          You want images generated and served from your own origin. With mod_pagespeed, image bytes
           never leave your servers &mdash; there is no third-party CDN in the request path unless
           you add one.
         </li>
@@ -190,8 +191,8 @@ const jsonLd = [
           credit balance that tracks traffic or optimization volume.
         </li>
         <li>
-          You care about origin-side image variant generation &mdash; WebP and AVIF across 1.15 and
-          2.0 &mdash; and want the format chosen from the request&rsquo;s
+          You care about origin-side image variant generation &mdash; WebP and AVIF &mdash; and want
+          the format chosen from the request&rsquo;s
           <code>Accept</code> header, not predetermined at upload time.
         </li>
       </ul>
@@ -204,20 +205,20 @@ const jsonLd = [
           href="/blog/avif-vs-webp-2026/"
           class="text-interactive hover:text-interactive-hover underline">AVIF</a
         >, generate responsive variants, and can lazy load below-the-fold images. ShortPixel&rsquo;s
-        Adaptive Images also minifies CSS and JS, which overlaps with ModPageSpeed&rsquo;s asset
+        Adaptive Images also minifies CSS and JS, which overlaps with mod_pagespeed&rsquo;s asset
         rewriting. For an image-heavy WordPress page, the before/after numbers can land in a similar
         range.
       </p>
       <p class="mt-4 text-text-body">
         The difference shows up in scope and location. ShortPixel is image-led and can serve those
-        images from its own CDN; ModPageSpeed optimizes the full HTML/CSS/JS pipeline and keeps
+        images from its own CDN; mod_pagespeed optimizes the full HTML/CSS/JS pipeline and keeps
         every byte at your origin. The gap widens when image weight is only part of your page-size
         problem, or when you want one optimization layer that applies to every response your server
         emits.
       </p>
       <p class="mt-4 text-text-body">
-        You can also run them together: ShortPixel handling images inside WordPress, ModPageSpeed in
-        nginx for the rest of the pipeline. They don&rsquo;t conflict if configured to avoid
+        You can also run them together: ShortPixel handling images inside WordPress, mod_pagespeed
+        in nginx for the rest of the pipeline. They don&rsquo;t conflict if configured to avoid
         double-processing the same images. Most operators pick one.
       </p>
     </section>
@@ -227,7 +228,7 @@ const jsonLd = [
         id="migrating-from-shortpixel-to-modpagespeed"
         class="h2-section scroll-mt-24 text-text-body"
       >
-        Migrating from ShortPixel to ModPageSpeed
+        Migrating from ShortPixel to mod_pagespeed
       </h2>
       <p class="mt-4 text-text-body">
         Migration is reasonable if your stack diversified beyond WordPress, if you want optimization
@@ -235,7 +236,7 @@ const jsonLd = [
         delivery to stay at your own origin instead of a third-party CDN.
       </p>
       <p class="mt-4 text-text-body">
-        ModPageSpeed is the better fit when the optimization layer needs to outlive any one CMS,
+        mod_pagespeed is the better fit when the optimization layer needs to outlive any one CMS,
         apply to non-image and non-WordPress responses, or keep image bytes on infrastructure you
         control.
       </p>
@@ -243,16 +244,16 @@ const jsonLd = [
       <ol class="mt-3 space-y-2 list-decimal pl-6 text-text-body">
         <li>
           Disable ShortPixel&rsquo;s image rewriting (and Adaptive Images&rsquo; CSS/JS
-          minification) before enabling ModPageSpeed, so the two don&rsquo;t double-process the same
-          assets.
+          minification) before enabling mod_pagespeed, so the two don&rsquo;t double-process the
+          same assets.
         </li>
         <li>
           If you used ShortPixel&rsquo;s CDN for image delivery, decide whether you still want a
-          CDN. ModPageSpeed serves optimized images from your origin; you can put any CDN in front
+          CDN. mod_pagespeed serves optimized images from your origin; you can put any CDN in front
           of nginx if you want edge caching.
         </li>
         <li>
-          Verify ModPageSpeed&rsquo;s filter set produces the optimizations you relied on (WebP and
+          Verify mod_pagespeed&rsquo;s filter set produces the optimizations you relied on (WebP and
           AVIF conversion, responsive variants, lazy load) plus the ones ShortPixel didn&rsquo;t
           cover (critical CSS). The <a
             href="/blog/server-side-critical-css-nginx/"
@@ -261,7 +262,7 @@ const jsonLd = [
           > post walks through the setup.
         </li>
         <li>
-          Keep WordPress&rsquo;s own object cache and database cache; ModPageSpeed doesn&rsquo;t
+          Keep WordPress&rsquo;s own object cache and database cache; mod_pagespeed doesn&rsquo;t
           replace those.
         </li>
       </ol>
@@ -275,7 +276,7 @@ const jsonLd = [
         WebP/AVIF and (for Adaptive Images) CDN delivery. No server config.
       </p>
       <p class="mt-4 text-text-body">
-        <strong>Equivalent in mod_pagespeed 1.15.</strong> Install the nginx module on Debian&nbsp;11/12/13,
+        <strong>Equivalent in mod_pagespeed 2.1.</strong> Install the nginx module on Debian&nbsp;11/12/13,
         Ubuntu&nbsp;22.04/24.04 (amd64 + arm64), or AlmaLinux&nbsp;9 (x86_64 + aarch64):
       </p>
       <pre
@@ -330,12 +331,12 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
           <a href="/vs/imgix/" class="text-interactive hover:text-interactive-hover underline"
-            >ModPageSpeed vs imgix</a
+            >mod_pagespeed vs imgix</a
           > &mdash; managed image-CDN alternative
         </li>
         <li>
           <a href="/vs/cloudinary/" class="text-interactive hover:text-interactive-hover underline"
-            >ModPageSpeed vs Cloudinary</a
+            >mod_pagespeed vs Cloudinary</a
           > &mdash; media optimization SaaS alternative
         </li>
         <li>
@@ -347,12 +348,12 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
         </li>
         <li>
           <a href="/vs/wp-rocket/" class="text-interactive hover:text-interactive-hover underline"
-            >ModPageSpeed vs WP Rocket</a
+            >mod_pagespeed vs WP Rocket</a
           > &mdash; WordPress performance plugin alternative
         </li>
         <li>
           <a href="/wordpress/" class="text-interactive hover:text-interactive-hover underline"
-            >ModPageSpeed on WordPress</a
+            >mod_pagespeed on WordPress</a
           > &mdash; server-layer image and page optimization behind any WordPress site
         </li>
         <li>

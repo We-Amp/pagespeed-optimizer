@@ -1,6 +1,6 @@
 ---
 title: 'Template hashing: compute critical CSS once, reuse it across every matching URL'
-description: 'How ModPageSpeed 2.0 hashes a page template so critical CSS is computed once and reused across every URL sharing that template, with analysis-queue dedup to skip redundant renders.'
+description: 'How the mod_pagespeed 2.1 optimizer worker hashes a page template so critical CSS is computed once and reused across every URL sharing that template, with analysis-queue dedup to skip redundant renders.'
 date: 2026-06-13
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'
@@ -13,13 +13,13 @@ A store with 100,000 product URLs does not have 100,000 layouts. It has a handfu
 
 That arithmetic is the whole problem with browser-based critical CSS extraction. A render in `chrome-headless-shell` costs 200-800ms of CPU and 50-100MB of RAM per page. At 100,000 URLs that is hours of compute and a memory bill no one wants to defend. The fix is not a faster browser. The fix is to stop rendering the same template twice.
 
-ModPageSpeed 2.0 groups thousands of URLs into a handful of templates by hashing their DOM structure, so a critical-CSS profile computed once is reused across every URL that matches, and the analysis queue skips URLs whose template already has a profile. That is the cost-amortization mechanism that makes browser-validated critical CSS affordable on a real site.
+The optimizer worker groups thousands of URLs into a handful of templates by hashing their DOM structure, so a critical-CSS profile computed once is reused across every URL that matches, and the analysis queue skips URLs whose template already has a profile. That is the cost-amortization mechanism that makes browser-validated critical CSS affordable on a real site.
 
 ## Hash the template structure to reuse critical CSS
 
 Two product pages on the same store are nearly identical documents. Same tag hierarchy, same class names, same nesting depth. What differs is the part that does not affect which CSS rules apply: the product title text, the price, the image `src`, the SKU in a `data-` attribute. The cascade does not care that one hero image is `widget-a.jpg` and the next is `widget-b.jpg`. The rules that fire are the same.
 
-ModPageSpeed 2.0's template detector exploits exactly this. `TemplateDetector::HashStructure` walks the scanned elements and folds each one's nesting depth and tag name into a 64-bit FNV-1a hash (seeded with `kFnvOffsetBasis`), ignoring text content, ids, classes, and attribute values; it also mixes in the number of stylesheet links and whether inline CSS is present, since those are structural features that separate one template from another. Two pages that produce the same hash are treated as the same template. The product detail page for a blue widget and the product detail page for a red widget collapse to one template hash, because the only differences between them live in the data the hash deliberately throws away.
+The optimizer worker's template detector exploits exactly this. `TemplateDetector::HashStructure` walks the scanned elements and folds each one's nesting depth and tag name into a 64-bit FNV-1a hash (seeded with `kFnvOffsetBasis`), ignoring text content, ids, classes, and attribute values; it also mixes in the number of stylesheet links and whether inline CSS is present, since those are structural features that separate one template from another. Two pages that produce the same hash are treated as the same template. The product detail page for a blue widget and the product detail page for a red widget collapse to one template hash, because the only differences between them live in the data the hash deliberately throws away.
 
 The math falls out immediately:
 
@@ -93,7 +93,7 @@ A note on scope: the loop described here is wired into the worker. On each HTML 
 - [/how-it-works/css-parsing/](/how-it-works/css-parsing/) — how CSS is parsed in the optimization pipeline.
 - [/docs/browser-analysis/](/docs/browser-analysis/) — configuring the asynchronous browser-analysis tier.
 
-If you run a large catalog or a CMS where most of the page count comes from a few templates, this is the design that decides whether browser-validated critical CSS is worth the compute. Pull the [ModPageSpeed 2.0 worker and nginx images](/download/) and read [/docs/browser-analysis/](/docs/browser-analysis/) for the flags that gate the analysis tier: start with the heuristic pipeline running everywhere, then layer the browser tier on for the templates that justify it. It is licensed under Apache-2.0 and free to run, so you can profile your own templates and see the dedup math on your own URLs.
+If you run a large catalog or a CMS where most of the page count comes from a few templates, this is the design that decides whether browser-validated critical CSS is worth the compute. Pull the [mod_pagespeed worker and nginx images](/download/) and read [/docs/browser-analysis/](/docs/browser-analysis/) for the flags that gate the analysis tier: start with the heuristic pipeline running everywhere, then layer the browser tier on for the templates that justify it. It is licensed under Apache-2.0 and free to run, so you can profile your own templates and see the dedup math on your own URLs.
 
 ---
 

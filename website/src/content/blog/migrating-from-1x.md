@@ -13,7 +13,7 @@ faq:
   - q: "Do I need to change my HTML or application code?"
     a: "No. All optimization is transparent at the reverse-proxy level. Your application serves the same responses it always has."
   - q: "Will my existing cache be preserved?"
-    a: "No. ModPageSpeed 2.0 uses Cyclone, a different cache format from Google's 1.13.x file cache. The cache will be cold on first start and warm up as traffic flows through."
+    a: "No. The optimizer worker uses Cyclone, a different cache format from Google's 1.13.x file cache. The cache will be cold on first start and warm up as traffic flows through."
 ---
 
 ## What changed and why
@@ -37,7 +37,7 @@ Client -> Apache/Nginx -> mod_pagespeed filters (sync) -> Origin
                           [Rewrite cache for sub-resources]
 ```
 
-ModPageSpeed 2.0 uses a three-component architecture where optimization happens outside the request path:
+The 2.0 re-architecture introduced a three-component architecture where optimization happens outside the request path:
 
 ```
 Client -> Nginx interceptor -> Cyclone Cache (mmap) -> Client
@@ -74,7 +74,7 @@ Many of Google's mod_pagespeed 1.13.x directives have no direct equivalent becau
 | `ModPagespeedCacheSizeMb`                            | `--cache-size`                 | Worker flag — value is now in **bytes**, not MB; multiply by 1048576 (e.g. `1024` MB → `--cache-size 1073741824`) |
 | `ModPagespeedFileCachePath`                          | `pagespeed_cache_path`         | nginx directive                                                                                                   |
 
-**Deliberately omitted features.** Several classic filters have no 2.0 equivalent because the 2.0 architecture makes them unnecessary or handles their use case differently. [mod_pagespeed 1.15](/) keeps these filters if you need them:
+**Deliberately omitted features.** Several classic filters have no 2.0 equivalent because the 2.0 architecture makes them unnecessary or handles their use case differently. The [mod_pagespeed 2.1 module](/) keeps these filters if you need them:
 
 - `combine_css` / `combine_javascript` -- Not needed. HTTP/2 multiplexing eliminates the round-trip cost of multiple small files.
 - `lazyload_images` -- Replaced with native `loading="lazy"` attribute injection. The worker's HTML transform pipeline automatically adds `loading="lazy"` to `<img>` and `<iframe>` tags, with the LCP candidate image (or first body image as fallback) receiving `fetchpriority="high"` instead. This is enabled by default. The classic `lazyload_images` filter used a JavaScript-based approach; 2.0 uses the browser-native attribute.
@@ -96,7 +96,7 @@ cp /etc/apache2/mods-enabled/pagespeed.conf ~/pagespeed-1x-backup.conf
 cp /etc/nginx/nginx.conf ~/nginx-1x-backup.conf
 ```
 
-### 2. Install ModPageSpeed 2.0
+### 2. Install mod_pagespeed 2.1
 
 Deploy the three components using Docker Compose or systemd. The Docker Compose approach is recommended for initial testing:
 
@@ -177,7 +177,7 @@ curl -I http://localhost/
 
 Validate the migration before you route production traffic through it.
 
-**Check response headers.** Every response through ModPageSpeed 2.0 includes an `X-PageSpeed` header with either `MISS` (original content) or `HIT` (optimized variant). After warming the cache, verify that repeated requests return `HIT`.
+**Check response headers.** Every response through mod_pagespeed includes an `X-PageSpeed` header with either `MISS` (original content) or `HIT` (optimized variant). After warming the cache, verify that repeated requests return `HIT`.
 
 **Verify image format negotiation.** The worker picks [AVIF, WebP, or the original](/blog/avif-vs-webp-2026/) from each request's `Accept` header. Send requests with different Accept headers and confirm you receive the correct format:
 
@@ -199,25 +199,25 @@ curl -H "Accept: */*" -o /dev/null -w "%{content_type}" http://localhost/image.j
 
 **Monitor the health endpoint.** The worker exposes statistics through its health check socket, reporting active connections, notifications received, variants written, and error counts. Set up monitoring on these counters to track optimization progress and catch issues early.
 
-**Gradual rollout.** Start with a single backend server or a canary server block in nginx. Route a fraction of traffic through ModPageSpeed 2.0, compare Core Web Vitals in your RUM data, and expand once you are confident the optimization is correct.
+**Gradual rollout.** Start with a single backend server or a canary server block in nginx. Route a fraction of traffic through mod_pagespeed, compare Core Web Vitals in your RUM data, and expand once you are confident the optimization is correct.
 
 ## FAQ
 
 **Can I run Google's 1.13.x and 2.0 side by side?** Yes. Deploy them on different servers or different nginx server blocks. They share no state, so there is no conflict.
 
-**Will my existing cache be preserved?** No. ModPageSpeed 2.0 uses Cyclone, a different cache format from Google's 1.13.x file cache. The cache will be cold on first start and warm up as traffic flows through.
+**Will my existing cache be preserved?** No. The optimizer worker uses Cyclone, a different cache format from Google's 1.13.x file cache. The cache will be cold on first start and warm up as traffic flows through.
 
 **Do I need to change my HTML or application code?** No. All optimization is transparent at the reverse-proxy level. Your application serves the same responses it always has.
 
-**What about Apache support?** ModPageSpeed 2.0 uses nginx internally as its caching proxy, but it deploys in front of any HTTP origin server, including Apache. Run the Docker Compose setup with your Apache server as the backend origin. If you want a native Apache module rather than a reverse proxy, [mod_pagespeed 1.15](/mod-pagespeed-still-maintained/) is the actively-maintained continuation: same directives, current toolchain.
+**What about Apache support?** The reverse-proxy deployment uses nginx internally as its caching proxy, but it deploys in front of any HTTP origin server, including Apache. Run the Docker Compose setup with your Apache server as the backend origin. If you want a native Apache module rather than a reverse proxy, [the module](/mod-pagespeed-still-maintained/) is the in-process part of the same product: same directives, current toolchain.
 
 **What happened to specific filters?** The configuration mapping table above covers the major filters. In general, filters that work around HTTP/1.1 limitations (combining, spriting, inlining) have been intentionally dropped because HTTP/2 makes them unnecessary or counterproductive. Filters that perform genuine optimization (image transcoding, CSS/JS minification, critical CSS) are built into the worker's content-type dispatch.
 
 ## Related
 
-- [ModPageSpeed 2.0: install and getting started](/docs/getting-started/)
-- [What ModPageSpeed 2.0 optimizes](/features/)
-- [mod_pagespeed 1.15 — the native Apache/nginx/IIS module](/)
-- [Migrate to mod_pagespeed 1.15](/mod-pagespeed-still-maintained/)
+- [mod_pagespeed: install and getting started](/docs/getting-started/)
+- [What mod_pagespeed optimizes](/features/)
+- [mod_pagespeed — the native Apache, nginx and IIS module](/)
+- [Migrate to mod_pagespeed 2.1](/mod-pagespeed-still-maintained/)
 - [Why I rebuilt mod_pagespeed](/blog/why-i-rebuilt-mod-pagespeed/)
 - [Run ModPageSpeed 2.0 with Docker Compose](/blog/run-with-docker-compose/)

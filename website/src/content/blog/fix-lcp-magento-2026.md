@@ -13,7 +13,7 @@ howTo:
   tools:
   - PageSpeed Insights
   - Chrome DevTools
-  - mod_pagespeed 1.15
+  - mod_pagespeed 2.1
   - nginx
   - Varnish
   - Magento 2 CLI (bin/magento)
@@ -29,7 +29,7 @@ howTo:
 
 ---
 
-LCP on Magento is one of the harder cells in the matrix. Platform-side work — production mode, Varnish, image cache regeneration — does most of the heavy lifting; mod_pagespeed handles the CSS chain and the byte budget on top. Magento 2 storefronts routinely render the category banner or product hero past 3 s on mobile, and the Adobe Page Builder pages are worse. The plan: tame the RequireJS waterfall, regenerate catalog images to match the theme's rendered sizes, then layer **mod_pagespeed 1.15** (an nginx module) in front of Varnish to inline critical CSS and rewrite images.
+LCP on Magento is one of the harder cells in the matrix. Platform-side work — production mode, Varnish, image cache regeneration — does most of the heavy lifting; mod_pagespeed handles the CSS chain and the byte budget on top. Magento 2 storefronts routinely render the category banner or product hero past 3 s on mobile, and the Adobe Page Builder pages are worse. The plan: tame the RequireJS waterfall, regenerate catalog images to match the theme's rendered sizes, then layer **mod_pagespeed 2.1** (an nginx module) in front of Varnish to inline critical CSS and rewrite images.
 
 This guide is part of our [Core Web Vitals series](/core-web-vitals/).
 
@@ -141,8 +141,8 @@ Cases where mod_pagespeed alone isn't enough on Magento:
 - [How to fix LCP on nginx](/blog/fix-lcp-nginx-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)
 - [Self-hosted image optimization](/blog/self-hosted-image-optimization/)
-- [mod_pagespeed 1.15 filter reference](/docs/filter-reference/)
+- [mod_pagespeed filter reference](/docs/filter-reference/)
 - [The full LCP guide](/core-web-vitals/lcp/)
 - [Test your page in the analyzer](/analyze/)
 
-mod_pagespeed 1.15 runs as an nginx or Apache module. CoreFilters are enabled by default. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed 2.1 runs as an nginx or Apache module. CoreFilters are enabled by default. See [pricing](/pricing/) and [license terms](/license/).

@@ -1,12 +1,12 @@
 ---
 title: 'API Reference: IPC, Sockets, and C API'
-description: 'Reference for ModPageSpeed 2.0 internal interfaces: the nginx-to-worker IPC wire format, the health and management sockets (STATS, PURGE, METRICS), the capability-mask encoding, and the ps_ C API.'
+description: 'Reference for mod_pagespeed 2.1 internal interfaces: the module-to-worker IPC wire format, the health and management sockets (STATS, PURGE, METRICS), the capability-mask encoding, and the ps_ C API.'
 order: 60
 group: 'Reference'
-lastUpdated: 2026-07-04
+lastUpdated: 2026-09-19
 ---
 
-This page documents the internal protocols and interfaces of ModPageSpeed 2.0:
+This page documents the internal protocols and interfaces of mod_pagespeed 2.1:
 the IPC wire format between nginx and the worker, the health check endpoint,
 the management socket protocol (STATS, PURGE, METRICS, BROWSER-STATUS), the
 capability mask encoding, and the `ps_` C API for embedding the cache and HTML
@@ -439,7 +439,7 @@ or the original.
 
 ## C API
 
-ModPageSpeed 2.0 exposes a C API (`lib/pagespeed/pagespeed.h`) for embedding
+mod_pagespeed exposes a C API (`lib/pagespeed/pagespeed.h`) for embedding
 the cache, HTML processor, CSS minifier, and capability mask logic into custom
 applications. All functions use the `ps_` prefix. The API uses opaque handle
 types and C linkage, so it can be called from any language with a C FFI.

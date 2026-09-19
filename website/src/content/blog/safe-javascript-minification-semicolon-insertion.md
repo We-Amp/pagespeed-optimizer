@@ -1,6 +1,6 @@
 ---
 title: 'Safe JavaScript minification: automatic semicolon insertion and the fail-safe'
-description: "To minify JavaScript safely you have to parse it, not strip whitespace. How ModPageSpeed 2.0's tokenizer handles automatic semicolon insertion, regex-vs-divide, and a parse-error fail-safe that ships the original untouched."
+description: "To minify JavaScript safely you have to parse it, not strip whitespace. How the mod_pagespeed 2.1 optimizer worker's tokenizer handles automatic semicolon insertion, regex-vs-divide, and a parse-error fail-safe that ships the original untouched."
 date: 2026-06-14
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'
@@ -16,7 +16,7 @@ return
   a + b
 ```
 
-A whitespace stripper that joins lines sees `return a + b` and ships it. But the original returns `undefined`: JavaScript inserts a semicolon after `return` at the line break, and `a + b` becomes dead code. Remove the newline and you have changed what the program computes. Safe JavaScript minification has to know this, which is why ModPageSpeed 2.0's `jm` filter does not strip whitespace. It tokenizes.
+A whitespace stripper that joins lines sees `return a + b` and ships it. But the original returns `undefined`: JavaScript inserts a semicolon after `return` at the line break, and `a + b` becomes dead code. Remove the newline and you have changed what the program computes. Safe JavaScript minification has to know this, which is why the optimizer worker's `jm` filter does not strip whitespace. It tokenizes.
 
 The reason is built into the language. The comment at the top of `lib/js/js_tokenizer.cc` puts it bluntly: in `(x + y) / z` that slash is division, but the same slash *could* be the start of a regex literal if the token before the `(` was `if`. So you have to track parse state. And whitespace can matter because of semicolon insertion, and deciding whether a given piece of whitespace matters needs not just the previous parse state but a look *ahead* to the next token. You cannot lex JavaScript without partly parsing it.
 
@@ -51,7 +51,7 @@ The tokenizer also bails out by design when the parse state is past the point of
 
 ## The fail-safe: a parse error ships the original, untouched
 
-A minifier that is willing to abort needs a safe thing to do when it aborts. ModPageSpeed's answer is the guard in `src/worker/worker.cc`, in the JS branch of the optimization handler:
+A minifier that is willing to abort needs a safe thing to do when it aborts. The optimizer worker's answer is the guard in `src/worker/worker.cc`, in the JS branch of the optimization handler:
 
 ```cpp
 bool js_ok = js::MinifyUtf8Js(&js_patterns, js_input, &minified_js);
@@ -85,7 +85,7 @@ The shape of this is the whole point. The optimizer is allowed to be conservativ
 - [/blog/css-cache-inlining-for-coverage-api/](/blog/css-cache-inlining-for-coverage-api/) — cache-aware inlining for coverage measurement
 - [/blog/fix-inp-wordpress-2026/](/blog/fix-inp-wordpress-2026/) — cutting JavaScript work to fix INP on WordPress
 
-Minification shrinks the bytes you keep; [removing the unused JavaScript Chrome Coverage flags](/blog/remove-unused-javascript-chrome-coverage/) cuts the bytes you never needed. The `jm` filter is one of ModPageSpeed 2.0's [optimization filters](/features/), and if you want to put it in front of your own scripts, [download ModPageSpeed 2.0](/download/) and watch the worker stats: `text_minify_parse_failures` will tell you immediately if any of your bundles trip the tokenizer, and the originals keep serving while you look. The [configuration docs](/docs/configuration/) cover the JS size cap and how to enable the filter. It is licensed under Apache-2.0 and free to run, so you can measure the savings on your own bundles.
+Minification shrinks the bytes you keep; [removing the unused JavaScript Chrome Coverage flags](/blog/remove-unused-javascript-chrome-coverage/) cuts the bytes you never needed. The `jm` filter is one of the optimizer worker's [optimization filters](/features/), and if you want to put it in front of your own scripts, [download mod_pagespeed](/download/) and watch the worker stats: `text_minify_parse_failures` will tell you immediately if any of your bundles trip the tokenizer, and the originals keep serving while you look. The [configuration docs](/docs/configuration/) cover the JS size cap and how to enable the filter. It is licensed under Apache-2.0 and free to run, so you can measure the savings on your own bundles.
 
 ---
 

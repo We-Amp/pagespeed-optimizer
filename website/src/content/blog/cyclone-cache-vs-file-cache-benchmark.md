@@ -8,8 +8,8 @@ product: '2.0'
 faq:
   - q: 'Is Cyclone faster than the old file-per-entry cache?'
     a: 'Under concurrency, eviction pressure, and on realistic server storage, yes: 4x to 6x on throughput in our tests, with a tighter latency tail. On an idle, over-provisioned cache backed by a fast NVMe SSD, the two are close and the file cache can edge ahead.'
-  - q: 'Does mod_pagespeed 1.15 benefit from Cyclone?'
-    a: 'Yes. 1.15 already ships Cyclone and reads from it zero-copy: a cache hit is a pointer into the mapped file rather than a system call plus a heap copy. That read path is exactly what this benchmark measures.'
+  - q: 'Does the mod_pagespeed 2.1 module benefit from Cyclone?'
+    a: 'Yes. The module has shipped Cyclone since 1.15 and reads from it zero-copy: a cache hit is a pointer into the mapped file rather than a system call plus a heap copy. That read path is exactly what this benchmark measures.'
   - q: 'Will a faster cache make my site load faster?'
     a: 'It helps most when the cache is on the hot path: high concurrency, lots of already-optimized assets, and cache eviction under load. On a lightly loaded site the cache was rarely the bottleneck, so the end-to-end gain is smaller.'
   - q: 'Did a later rework change these benchmark results?'
@@ -18,7 +18,7 @@ faq:
     a: 'Aim to keep the hot working set in RAM. A memory-mapped cache is demand-paged, so the cache can be larger than physical memory; only the pages in active use need to be resident. Push the working set itself far past RAM and it pages to disk, about 1.8x slower in our test, and still faster than the file cache at that size. The file cache leans on the OS page cache for the same reason, so this is true of any disk-backed cache.'
 ---
 
-Every cache backend behind ModPageSpeed sits under one interface, so the optimizer above it never changes. That makes a direct question easy to ask: how much does the storage engine itself matter? We put **Cyclone**, the memory-mapped cache in mod_pagespeed 1.15 and ModPageSpeed 2.0, against the classic file-per-entry disk cache it replaced, and measured both across concurrency, realistic mixed traffic, latency tails, and eviction, on two very different machines.
+Every cache backend behind mod_pagespeed 2.1 sits under one interface, so the optimizer above it never changes. That makes a direct question easy to ask: how much does the storage engine itself matter? We put **Cyclone**, the memory-mapped cache both parts of mod_pagespeed share, against the classic file-per-entry disk cache it replaced, and measured both across concurrency, realistic mixed traffic, latency tails, and eviction, on two very different machines.
 
 The most useful result is a trend. Cyclone's advantage is smallest on a laptop with a fast NVMe SSD and grows to **4x-6x** on the kind of storage a real server runs on. The faster the disk, the more the old design's per-file cost stays hidden.
 
@@ -243,13 +243,13 @@ A memory-mapped cache is demand-paged, so only the pages you actually touch need
 
 This is not a tax Cyclone introduces. The file cache is fast for exactly the same reason, its bytes live in the OS page cache, so any disk-backed cache slows down once its hot set spills past memory; the file cache degrades here too, and from a lower starting point. The guidance is unchanged and cheap: size RAM to your hot working set, not to the entire cache. It is spelled out in the [production deployment guide](/docs/production-deployment/).
 
-## Where this lands in the products
+## Where this lands in the product {#where-this-lands-in-the-products}
 
-mod_pagespeed 1.15 already reads from Cyclone with no copy: a hit is a pointer into the mapped file, not a system call and a buffer allocation, which is exactly the read path these numbers measure — and in v1.15.0+r18 and later it can extend that to serving, with the experimental `CycloneZeroCopyServe` mode. ModPageSpeed 2.0 carries the memory-mapped path further into the request by default, serving cached bytes toward the socket without an intermediate copy. How it does that, streaming large hits with kernel `sendfile` straight from the shared cache file, copying small ones because the syscall would cost more, and staying correct while the cache changes underneath a slow client, is its own deep-dive: [zero-copy serving between nginx and the worker](/blog/memory-mapped-cache-zero-copy-serving/). If you run a file-cache configuration under real concurrency or eviction pressure, the update is worth taking.
+The module already reads from Cyclone with no copy: a hit is a pointer into the mapped file, not a system call and a buffer allocation, which is exactly the read path these numbers measure — and from v1.15.0+r19 it can extend that to serving, behind the opt-in `CycloneZeroCopy` switch. The optimizer worker carries the memory-mapped path further into the request by default, serving cached bytes toward the socket without an intermediate copy. How it does that, streaming large hits with kernel `sendfile` straight from the shared cache file, copying small ones because the syscall would cost more, and staying correct while the cache changes underneath a slow client, is its own deep-dive: [zero-copy serving between nginx and the worker](/blog/memory-mapped-cache-zero-copy-serving/). If you run a file-cache configuration under real concurrency or eviction pressure, the update is worth taking.
 
 A fair boundary on the claim: this is a cache benchmark, not an end-to-end page-serving benchmark. It shows the cache component is faster, not that a page renders some fixed percentage sooner. On most requests, origin fetch and optimization work dominate the clock. The cache win reaches the visitor precisely when a server is busy, with many concurrent hits, a large working set, and eviction running hot. That is also when a server most needs the help.
 
-We checked that boundary directly. Against the last mod_pagespeed release of the Google era — 1.13.35.2, which serves from the file-per-entry cache — mod_pagespeed 1.15 with Cyclone holds parity on end-to-end HTML serving at product defaults: the same throughput within noise (about 3,200 to 3,300 requests per second either way in a keepalive load test), the same CPU per request, and the same optimized output. On a normal page workload the cache is not the bottleneck, so a faster cache does not move that number — thirteen years of changes plus the Cyclone rebuild did not regress it.
+We checked that boundary directly. Against the last mod_pagespeed release of the Google era — 1.13.35.2, which serves from the file-per-entry cache — the module with Cyclone holds parity on end-to-end HTML serving at product defaults: the same throughput within noise (about 3,200 to 3,300 requests per second either way in a keepalive load test), the same CPU per request, and the same optimized output. On a normal page workload the cache is not the bottleneck, so a faster cache does not move that number — thirteen years of changes plus the Cyclone rebuild did not regress it.
 
 The read path only became the bottleneck under a harsher regime: a working set far larger than the hot set, hammered by hundreds of concurrent random-access readers. There the old lock-bound read path serialized and fell behind — under that load it trailed even the file-per-entry design it replaced. That is the regression this rework was built to remove, and the before-and-after above is its engine-level measure of the fix.
 
@@ -257,7 +257,7 @@ The read path only became the bottleneck under a harsher regime: a working set f
 
 **Is Cyclone faster than the old file-per-entry cache?** Under concurrency, eviction pressure, and on realistic server storage, yes: 4x to 6x on throughput in our tests, with a tighter latency tail. On an idle, over-provisioned cache backed by a fast NVMe SSD, the two are close and the file cache can edge ahead.
 
-**Does mod_pagespeed 1.15 benefit from Cyclone?** Yes. 1.15 already ships Cyclone and reads from it zero-copy: a cache hit is a pointer into the mapped file rather than a system call plus a heap copy. That read path is exactly what this benchmark measures.
+**Does the mod_pagespeed 2.1 module benefit from Cyclone?** Yes. The module has shipped Cyclone since 1.15 and reads from it zero-copy: a cache hit is a pointer into the mapped file rather than a system call plus a heap copy. That read path is exactly what this benchmark measures.
 
 **Will a faster cache make my site load faster?** It helps most when the cache is on the hot path: high concurrency, lots of already-optimized assets, and cache eviction under load. On a lightly loaded site the cache was rarely the bottleneck, so the end-to-end gain is smaller.
 

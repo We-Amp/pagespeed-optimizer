@@ -1,6 +1,6 @@
 ---
 title: 'Stopping cache fragmentation: stripping tracking params and normalizing URLs'
-description: 'Strip tracking parameters to stop cache fragmentation: ModPageSpeed normalizes the URL before keying, dropping UTM params, sorting the query, aliasing hosts.'
+description: 'Strip tracking parameters to stop cache fragmentation: mod_pagespeed 2.1 normalizes URLs before keying, dropping UTM params, sorting the query, aliasing hosts.'
 date: 2026-06-14
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'
@@ -9,7 +9,7 @@ draft: false
 product: '2.0'
 ---
 
-A marketing campaign goes out. The link is `https://shop.example/product/42?utm_source=newsletter&utm_medium=email&utm_campaign=spring`. Every recipient who clicks hits the same page, but each variation of the campaign string is, byte for byte, a different URL. If the cache keys on the raw request URL, that one product page now has dozens of cache entries that all hold the same optimized HTML. The cache fills with duplicates, the hit rate drops, and the first visitor on every variant pays the full optimization cost again. To strip tracking parameters and stop this cache fragmentation, ModPageSpeed normalizes the URL before it ever becomes a cache key.
+A marketing campaign goes out. The link is `https://shop.example/product/42?utm_source=newsletter&utm_medium=email&utm_campaign=spring`. Every recipient who clicks hits the same page, but each variation of the campaign string is, byte for byte, a different URL. If the cache keys on the raw request URL, that one product page now has dozens of cache entries that all hold the same optimized HTML. The cache fills with duplicates, the hit rate drops, and the first visitor on every variant pays the full optimization cost again. To strip tracking parameters and stop this cache fragmentation, mod_pagespeed 2.1 normalizes the URL before it ever becomes a cache key.
 
 The normalization layer lives in `lib/classify/url_normalizer.cc`. It runs at the front door in nginx and again in the worker's cache API, so the key written at serve time and the key looked up by the purge and inspection endpoints agree on exactly the same canonical form.
 
@@ -58,7 +58,7 @@ The worker's cache API (`cache_handlers.cc`, `api_handlers.cc`) uses the same no
 - [Viewport-aware image optimization](/blog/viewport-aware-image-optimization/)
 - [Cache modes documentation](/docs/cache-modes/)
 
-If your hit rate looks lower than your traffic should produce, look at the keys before you blame the cache: tracking params, query order, and host aliases are the usual culprits, and all three are configuration away from collapsing into one entry. [Download ModPageSpeed 2.0](/download/) and set `strip_query_params` to the noise your origin ignores, then check the [cache modes documentation](/docs/cache-modes/) to pair normalization with the [right default-TTL and freshness heuristics](/blog/default-cache-ttl-heuristic-freshness/). The build is licensed under Apache-2.0 and free to run, so you can measure the hit-rate change on your own traffic.
+If your hit rate looks lower than your traffic should produce, look at the keys before you blame the cache: tracking params, query order, and host aliases are the usual culprits, and all three are configuration away from collapsing into one entry. [Download mod_pagespeed](/download/) and set `strip_query_params` to the noise your origin ignores, then check the [cache modes documentation](/docs/cache-modes/) to pair normalization with the [right default-TTL and freshness heuristics](/blog/default-cache-ttl-heuristic-freshness/). The build is licensed under Apache-2.0 and free to run, so you can measure the hit-rate change on your own traffic.
 
 ---
 

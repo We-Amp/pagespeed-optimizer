@@ -1,6 +1,6 @@
 ---
 title: 'Fix CLS on nginx with mod_pagespeed (insert_image_dimensions)'
-description: 'Fix Cumulative Layout Shift on nginx-served sites: rewrite img tags to add width/height with ngx_pagespeed (mod_pagespeed 1.15), add a CSS aspect-ratio backstop, and ship dimensions at build time.'
+description: 'Fix Cumulative Layout Shift on nginx-served sites: rewrite img tags to add width/height with ngx_pagespeed (mod_pagespeed 2.1), add a CSS aspect-ratio backstop, and ship dimensions at build time.'
 date: 2026-05-12
 lastUpdated: 2026-07-04
 author: 'Otto van der Schaaf'
@@ -12,7 +12,7 @@ howTo:
   description: Eliminate Cumulative Layout Shift on nginx-served sites by rewriting img tags to add width/height with mod_pagespeed and reserving space for fonts and embeds with CSS.
   tools:
   - nginx
-  - mod_pagespeed 1.15 (ngx_pagespeed)
+  - mod_pagespeed 2.1 (ngx_pagespeed)
   - PageSpeed Insights
   - Chrome DevTools
   steps:
@@ -38,7 +38,7 @@ faq:
 
 ---
 
-nginx itself is fast; CLS is what nginx _serves_, not what nginx _does_. A 0.2+ CLS on mobile with the failing element a content image missing `width`/`height` is the classic shape, and auditing every static HTML file (or every template across every generator) is a recurring tax. Rewrite `<img>` tags at the HTML layer with `insert_image_dimensions` via **mod_pagespeed 1.15** (`ngx_pagespeed`) and stack CSS `aspect-ratio` as a backstop.
+nginx itself is fast; CLS is what nginx _serves_, not what nginx _does_. A 0.2+ CLS on mobile with the failing element a content image missing `width`/`height` is the classic shape, and auditing every static HTML file (or every template across every generator) is a recurring tax. Rewrite `<img>` tags at the HTML layer with `insert_image_dimensions` via **mod_pagespeed 2.1** (`ngx_pagespeed`) and stack CSS `aspect-ratio` as a backstop.
 
 This guide is part of our [Core Web Vitals series](/core-web-vitals/).
 
@@ -159,8 +159,8 @@ Add the CSS rule `img { max-width: 100%; height: auto; }` and modern browsers co
 - [How to fix INP on nginx](/blog/fix-inp-nginx-2026/)
 - [How to fix CLS on WordPress](/blog/fix-cls-wordpress-2026/)
 - [Server-side critical CSS on nginx](/blog/server-side-critical-css-nginx/)
-- [mod_pagespeed 1.15 filter reference](/docs/filter-reference/)
+- [mod_pagespeed filter reference](/docs/filter-reference/)
 - [The full CLS guide](/core-web-vitals/cls/)
 - [Test your page in the analyzer](/analyze/)
 
-mod_pagespeed 1.15 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed 2.1 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).

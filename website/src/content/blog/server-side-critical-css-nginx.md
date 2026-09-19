@@ -19,7 +19,7 @@ Core app behind nginx as a reverse proxy, a Go binary, a static-site
 generator with no Node), you've been doing critical CSS by hand or
 not at all.
 
-ModPageSpeed does critical CSS at the nginx layer for any backend. The
+The mod_pagespeed 2.1 module does critical CSS at the nginx layer for any backend. The
 nginx interceptor rewrites the HTML on the way out; the worker extracts
 critical CSS via a heuristic that runs in under 5 ms per page without a
 headless browser. Both pieces ship as a single package install.
@@ -57,7 +57,7 @@ The common pattern: your stack already has Node, or it's WordPress. If
 neither is true, the tool isn't a fit. That excludes most non-JS
 backends shipping HTML through nginx.
 
-## What ModPageSpeed does instead
+## What the module does instead
 
 Two pieces of software working together at the nginx layer:
 
@@ -97,7 +97,7 @@ The filter directive is `prioritize_critical_css`. It's not in
 `CoreFilters` by default because it changes the rendered HTML and needs
 a deploy-time smoke test.
 
-For **mod_pagespeed 1.15** (the lineage continuation, drop-in for the
+For **the module** (the lineage continuation, drop-in for the
 archived Google module with the same syntax):
 
 ```nginx
@@ -116,14 +116,14 @@ http {
 }
 ```
 
-On 1.15, `prioritize_critical_css` is the classic filter: it derives the
+In the module, `prioritize_critical_css` is the classic filter: it derives the
 above-the-fold selector set from a lightweight client-side beacon on the
 first visits and caches the result, rather than the worker's static scan
 described above. Same directive, same inlined result, still no headless
 browser — a different mechanism for a different era. The single-digit-
-millisecond static heuristic is specific to the 2.0 worker.
+millisecond static heuristic is specific to the optimizer worker.
 
-For **ModPageSpeed 2.0** (the rewrite; see [Run with Docker
+For **the optimizer worker** (see [Run with Docker
 Compose](/blog/run-with-docker-compose/) for the container path):
 
 ```nginx
@@ -137,8 +137,8 @@ http {
         pagespeed_cache_path /var/lib/pagespeed/cache.vol;
 
         # Critical-CSS injection is an always-on worker transform.
-        # 2.0 has no RewriteLevel or named filters; tune it via the
-        # worker config or the web console.
+        # The worker has no RewriteLevel or named filters; tune it
+        # via the worker config or the web console.
 
         location / {
             proxy_pass http://127.0.0.1:8081;
@@ -302,7 +302,7 @@ covers a whole site.
 
 ## Comparison
 
-| Property                 | WP Rocket         | criticalcss.com    | ModPageSpeed nginx             |
+| Property                 | WP Rocket         | criticalcss.com    | mod_pagespeed nginx             |
 | ------------------------ | ----------------- | ------------------ | ------------------------------ |
 | Where it runs            | WordPress plugin  | SaaS               | nginx interceptor + worker     |
 | Stack required           | WordPress         | Your URLs proxied  | Any backend behind nginx       |
@@ -314,24 +314,24 @@ covers a whole site.
 
 WP Rocket is the right choice if your stack is WordPress and you want a
 plugin UI. criticalcss.com is the right choice if you want a service to
-manage extraction across a small site without infra. ModPageSpeed is the
+manage extraction across a small site without infra. mod_pagespeed is the
 right choice if you have nginx in front of anything and you want a
 single optimization layer that handles critical CSS plus image variants
 plus minification plus the rest, server-side, for any backend.
 
-See [ModPageSpeed vs WP Rocket](/vs/wp-rocket/) for the full
+See [mod_pagespeed vs WP Rocket](/vs/wp-rocket/) for the full
 side-by-side comparison.
 
 ## Installing it
 
-The packaged install for nginx (1.15 line) is the fastest:
+The packaged install for nginx is the fastest:
 
 ```bash
 curl -fsSL https://packages.modpagespeed.com/setup-apt.sh | sudo bash
 sudo apt install nginx-module-pagespeed
 ```
 
-For ModPageSpeed 2.0 as ASP.NET Core middleware:
+For the ASP.NET Core middleware:
 
 ```bash
 dotnet add package WeAmp.PageSpeed.AspNetCore
@@ -347,7 +347,7 @@ to run in development and in production — see the [license](/license/).
 - [From beacon to headless to heuristic](/blog/critical-css-beacon-to-headless-history/) — why the static scan replaced the old browser-round-trip approach
 - [How CSS parsing works](/how-it-works/css-parsing/) — the syntax-tree layer beneath critical-CSS extraction
 - [Run ModPageSpeed 2.0 with Docker Compose](/blog/run-with-docker-compose/) — full nginx + worker container setup
-- [ModPageSpeed vs WP Rocket](/vs/wp-rocket/) — side-by-side comparison
+- [mod_pagespeed vs WP Rocket](/vs/wp-rocket/) — side-by-side comparison
 - [ASP.NET Core image optimization](/blog/aspnet-core-image-optimization-c-sharp/) — same pipeline applied to image content negotiation
 - [ngx_pagespeed alternative](https://ngxpagespeed.com/ngx-pagespeed-alternative/) — the maintained nginx module, for the nginx audience specifically
 - [mod_pagespeed alternatives](/alternatives/mod-pagespeed/) — background on why mod_pagespeed needs a successor in 2026

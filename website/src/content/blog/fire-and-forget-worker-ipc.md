@@ -1,6 +1,6 @@
 ---
 title: 'Fire-and-forget IPC: decoupling request latency from optimization work'
-description: 'ModPageSpeed 2.0 keeps optimization work off the nginx request path with fire-and-forget IPC to the worker: a small notification, no reply, so a cache miss stays cheap and requests never wait on an encode.'
+description: 'mod_pagespeed 2.1 keeps optimization work off the nginx request path with fire-and-forget IPC to the worker: a small notification, no reply, so a cache miss stays cheap and requests never wait on an encode.'
 date: 2026-06-13
 author: 'Otto van der Schaaf'
 tags: ['architecture', 'performance', 'deep-dive', 'nginx', 'caching']
@@ -10,7 +10,7 @@ product: '2.0'
 
 The fastest way to ruin a page-optimizer's reputation is to make the user request wait on the optimization. Re-encoding a JPEG to WebP takes tens of milliseconds. Extracting critical CSS means scanning the HTML and walking stylesheets. If any of that work sits on the request path, you have traded the latency you were trying to win back for latency you created yourself.
 
-ModPageSpeed 2.0 uses fire-and-forget IPC to keep that work off the request path entirely. The nginx module and the optimization worker talk to each other, but the message between them carries no content and expects no reply. The module sends a small notification — the URL, its content type, and a capability mask — then gets on with serving the response. The worker does the optimization later, in the background. That is what keeps a cache miss in 2.0 cheap: a pass-through plus a tiny socket write, not a synchronous encode.
+mod_pagespeed uses fire-and-forget IPC to keep that work off the request path entirely. The nginx module and the optimization worker talk to each other, but the message between them carries no content and expects no reply. The module sends a small notification — the URL, its content type, and a capability mask — then gets on with serving the response. The worker does the optimization later, in the background. That is what keeps a cache miss in 2.0 cheap: a pass-through plus a tiny socket write, not a synchronous encode.
 
 ## The model we walked away from
 
@@ -76,13 +76,13 @@ The caveat is the same one any asynchronous design carries: there is a window. W
 
 - [Memory-Mapped Cache: Zero-Copy Serving](/blog/memory-mapped-cache-zero-copy-serving/)
 - [Reducing TTFB at the Server Layer](/blog/reduce-ttfb-server-layer-2026/)
-- [Running ModPageSpeed 2.0 with Docker Compose](/blog/run-with-docker-compose/)
+- [Running mod_pagespeed with Docker Compose](/blog/run-with-docker-compose/)
 - [Migrating from mod_pagespeed 1.x](/blog/migrating-from-1x/)
 - [Why I Rebuilt mod_pagespeed](/blog/why-i-rebuilt-mod-pagespeed/)
 - [How async rewriting works](/how-it-works/async-rewriting/)
 - [The metadata cache](/how-it-works/metadata-cache/)
 
-If you want to see the asynchronous path in action — first request primes the cache, second request serves the optimized variant at cache-hit speed — the quickest way is to [download](/download/) ModPageSpeed 2.0 and watch a URL go from original to variant across two requests. The [cache modes documentation](/docs/cache-modes/) explains how the worker's write-back behaves under each mode. It is licensed under Apache-2.0 and free to run in development and in production, so you can stand the architecture up and verify the latency behavior on your own traffic.
+If you want to see the asynchronous path in action — first request primes the cache, second request serves the optimized variant at cache-hit speed — the quickest way is to [download](/download/) mod_pagespeed and watch a URL go from original to variant across two requests. The [cache modes documentation](/docs/cache-modes/) explains how the worker's write-back behaves under each mode. It is licensed under Apache-2.0 and free to run in development and in production, so you can stand the architecture up and verify the latency behavior on your own traffic.
 
 ---
 

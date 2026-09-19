@@ -1,6 +1,6 @@
 ---
 title: 'Pay-per-crawl at the origin: an experimental RSL-CAP access gate'
-description: 'mod_pagespeed 1.15 ships an experimental, off-by-default RSL-CAP gate for nginx: validate Authorization: License capability tokens and refuse unauthorized AI-crawler access at your origin. Preview, not GA.'
+description: 'mod_pagespeed 2.1 ships an experimental, off-by-default RSL-CAP gate for nginx: validate Authorization: License capability tokens and refuse unauthorized AI-crawler access at your origin. Preview, not GA.'
 date: 2026-06-22
 author: 'Otto van der Schaaf'
 tags: ['ai-agents', 'ai-crawlers', 'licensing', 'nginx']
@@ -8,13 +8,13 @@ draft: false
 lastUpdated: 2026-07-04
 ---
 
-> **Status: experimental preview, not GA.** RSL-CAP enforcement ships in mod_pagespeed 1.15, off by default and confined to test configurations. Nothing here is priced, sold, or available to buy. Treat this post as the design, not a quickstart.
+> **Status: experimental preview, not GA.** RSL-CAP enforcement ships in the mod_pagespeed 2.1 module, off by default and confined to test configurations. Nothing here is priced, sold, or available to buy. Treat this post as the design, not a quickstart.
 
 An AI crawler hits your site. It reads a product page, follows a few links, and pulls a PDF. None of that is free for you. It costs origin CPU, bandwidth, and database queries. The crawler then trains on that content, or answers a user's question from it, and the value flows to someone else's product.
 
 "Pay-per-crawl" is the industry's name for charging or gating that access. The interesting question is not whether to do it. It is where the decision gets made.
 
-Most proposals put the decision somewhere upstream: a CDN edge, a marketplace, a robots-style declaration that bots are free to ignore. mod_pagespeed 1.15 puts it at the origin you already control. The route that serves the bytes is the route that decides whether to serve them.
+Most proposals put the decision somewhere upstream: a CDN edge, a marketplace, a robots-style declaration that bots are free to ignore. The module puts it at the origin you already control. The route that serves the bytes is the route that decides whether to serve them.
 
 ## robots.txt is a request, not a control
 
@@ -22,9 +22,9 @@ The standard tools for crawler control are advisory. `robots.txt` lists what you
 
 An advisory layer is still useful. It tells honest agents the rules. But it is not an access control, because nothing at the origin checks compliance before the response goes out. If you want a request refused unless it carries proof of permission, that check has to run in the request path.
 
-## What 1.15 ships: pay-per-crawl as an RSL-CAP gate
+## What the module ships: pay-per-crawl as an RSL-CAP gate {#what-115-ships-pay-per-crawl-as-an-rsl-cap-gate}
 
-mod_pagespeed 1.15 adds RSL-CAP capability-token enforcement for nginx. The mechanism is narrow on purpose.
+The module adds RSL-CAP capability-token enforcement for nginx. The mechanism is narrow on purpose.
 
 A request arrives carrying an `Authorization: License <token>` header. The token is a capability: it encodes a license id and a set of scopes the holder is allowed to use. The interceptor validates the token against the issuer's public keys, then checks it against what the route requires.
 
@@ -32,11 +32,11 @@ If the route requires a license and scope that the token actually grants, the re
 
 mod_pagespeed does not meter, bill, or settle money. A 402 says "payment is required for this," not "we just charged you." You bring the issuer that mints tokens and the billing relationship behind it. mod_pagespeed is the gate, not the payment processor.
 
-This is not generally available. The enforcement primitive ships in 1.15, off by default, and today it runs only in experimental, test-vhost configurations. It is not priced, not sold, and not fully documented. If you want to run it in production, treat this post as the design, not the quickstart.
+This is not generally available. The enforcement primitive ships in the module, off by default, and today it runs only in experimental, test-vhost configurations. It is not priced, not sold, and not fully documented. If you want to run it in production, treat this post as the design, not the quickstart.
 
 ## The directives, and their defaults
 
-Enforcement is off until you turn it on. Every directive below ships empty or disabled by default, so installing 1.15 does not gate any route until you enable `RslCapEnforcement` and set a required license and scope.
+Enforcement is off until you turn it on. Every directive below ships empty or disabled by default, so installing the module does not gate any route until you enable `RslCapEnforcement` and set a required license and scope.
 
 - `RslCapEnforcement` — the master switch. Default **off**. Turn it on per location with `pagespeed RslCapEnforcement on;`.
 - `RslCapKeyDirectoryFile` — path to a local JWKS file holding the issuer's public keys. Tokens are verified against these. Default empty.
@@ -46,7 +46,7 @@ Enforcement is off until you turn it on. Every directive below ships empty or di
 
 You decide, per location block, which license and scope a caller must hold. A documentation tree might require one scope, a high-cost search endpoint another, your marketing pages none at all. The gate is local config plus a key file. There is no call out to a licensing service in the hot path.
 
-ModPageSpeed 2.0 ships the same experimental gate, configured through HTTPS JWKS key directories rather than a local file. Its verdict mapping and status codes match; see the [RSL-CAP configuration reference](/docs/rsl-cap/) for the 2.0 flags and environment variables.
+The optimizer worker ships the same experimental gate, configured through HTTPS JWKS key directories rather than a local file. Its verdict mapping and status codes match; see the [RSL-CAP configuration reference](/docs/rsl-cap/) for the worker's flags and environment variables.
 
 ## Why pay-per-crawl belongs at the origin
 

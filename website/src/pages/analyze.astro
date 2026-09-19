@@ -3,15 +3,15 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import { PSI_MPS_MAPPING } from '../data/psi-mps-mapping';
 import { FREE_TO_RUN_LINE } from '../data/product-facts.mjs';
 
-const title = 'Free PageSpeed Insights Test — See What ModPageSpeed Fixes';
+const title = 'Free PageSpeed Insights Test — See What mod_pagespeed Fixes';
 const description =
-  'Free PageSpeed Insights test, no signup. Every failing Lighthouse audit mapped to the ModPageSpeed filter that fixes it — LCP, CLS, render-blocking, images.';
+  'Free PageSpeed Insights test, no signup. Every failing Lighthouse audit mapped to the mod_pagespeed filter that fixes it — LCP, CLS, render-blocking, images.';
 
 // "What gets fixed" — highest-impact audits, built at build-time from the
 // same mapping table the JS analyzer uses. Render order: image/asset wins
 // first (largest user-visible impact), then markup wins, then the
-// 2.0-specific HTML-caching card. The card visibility is toggled
-// client-side based on which edition the visitor selects.
+// worker-specific HTML-caching card. The card visibility is toggled
+// client-side based on which part the visitor selects.
 const FIXED_HIGHLIGHT_IDS = [
   'image-delivery-insight',
   'render-blocking-insight',
@@ -23,7 +23,7 @@ const FIXED_HIGHLIGHT_IDS = [
   'uses-responsive-images',
   'offscreen-images',
   'uses-optimized-images',
-  // 2.0-only: HTML response caching in Cyclone — the load-bearing
+  // Worker-only: HTML response caching in Cyclone — the load-bearing
   // difference for slow-origin sites.
   'document-latency-insight',
 ];
@@ -47,31 +47,31 @@ const faqEntries: { q: string; a: string }[] = [
   },
   {
     q: 'How do I improve Largest Contentful Paint (LCP)?',
-    a: 'LCP is usually a hero image or above-the-fold text block. The two highest-impact moves are shrinking the LCP image (WebP or AVIF, resized to its rendered size) and removing render-blocking CSS so the browser can paint sooner. ModPageSpeed does both without markup or build changes (transcoding, resizing, inlining critical CSS). Origin TTFB on the first request and JavaScript-injected backgrounds stay out of reach, though 2.0 can mask TTFB on repeat visits by caching HTML in shared memory when the origin allows it.',
+    a: 'LCP is usually a hero image or above-the-fold text block. The two highest-impact moves are shrinking the LCP image (WebP or AVIF, resized to its rendered size) and removing render-blocking CSS so the browser can paint sooner. mod_pagespeed does both without markup or build changes (transcoding, resizing, inlining critical CSS). Origin TTFB on the first request and JavaScript-injected backgrounds stay out of reach, though the optimizer worker can mask TTFB on repeat visits by caching HTML in shared memory when the origin allows it.',
   },
   {
     q: 'How do I fix Cumulative Layout Shift (CLS)?',
-    a: 'Most CLS comes from images without width/height attributes: the browser cannot reserve space, so content jumps when the image arrives. ModPageSpeed measures each image and writes the dimensions back into the markup. CLS caused by late-loading fonts, injected ads, or dynamic banners needs application-level fixes.',
+    a: 'Most CLS comes from images without width/height attributes: the browser cannot reserve space, so content jumps when the image arrives. mod_pagespeed measures each image and writes the dimensions back into the markup. CLS caused by late-loading fonts, injected ads, or dynamic banners needs application-level fixes.',
   },
   {
     q: 'Is PageSpeed Insights free?',
-    a: 'Yes. PageSpeed Insights is a free Google tool that runs Lighthouse against any public URL and combines it with field data from the Chrome User Experience Report. This page calls the same PSI v5 API and adds a mapping layer so you can see which findings ModPageSpeed will fix on your server.',
+    a: 'Yes. PageSpeed Insights is a free Google tool that runs Lighthouse against any public URL and combines it with field data from the Chrome User Experience Report. This page calls the same PSI v5 API and adds a mapping layer so you can see which findings mod_pagespeed will fix on your server.',
   },
   {
     q: "What's the difference between Lighthouse and PageSpeed Insights?",
     a: 'Lighthouse is the open-source auditing engine. PageSpeed Insights is the public web app that runs Lighthouse in a cloud environment and combines it with Chrome User Experience Report (CrUX) field data. Same audits underneath; PSI adds field metrics and a public API.',
   },
   {
-    q: 'How is ModPageSpeed different from PageSpeed Insights?',
-    a: 'PageSpeed Insights diagnoses. ModPageSpeed fixes. Insights tells you "serve images in next-gen formats" and "eliminate render-blocking resources"; ModPageSpeed is the nginx/Apache/IIS module that does the transcoding, inlining, and cache-extension on every request. They are designed to work together.',
+    q: 'How is mod_pagespeed different from PageSpeed Insights?',
+    a: 'PageSpeed Insights diagnoses. mod_pagespeed fixes. Insights tells you "serve images in next-gen formats" and "eliminate render-blocking resources"; mod_pagespeed does the transcoding, inlining, and cache-extension on every request — in the module inside Apache, nginx or IIS, and in the optimizer worker behind it. They are designed to work together.',
   },
   {
-    q: 'Can ModPageSpeed fix every PageSpeed Insights issue?',
-    a: 'No. ModPageSpeed handles byte-level work: image transcoding, CSS/JS minification, critical-CSS inlining, cache extension, dimension inference. It cannot reduce DOM size, tree-shake legacy JavaScript bundles, or rewrite third-party scripts. Origin TTFB on the first request stays out of reach too. 2.0 caches HTML in shared memory when the origin allows it, so repeat visits skip the origin; the first hit always reaches it. The analyzer above labels each audit accordingly.',
+    q: 'Can mod_pagespeed fix every PageSpeed Insights issue?',
+    a: 'No. mod_pagespeed handles byte-level work: image transcoding, CSS/JS minification, critical-CSS inlining, cache extension, dimension inference. It cannot reduce DOM size, tree-shake legacy JavaScript bundles, or rewrite third-party scripts. Origin TTFB on the first request stays out of reach too. The optimizer worker caches HTML in shared memory when the origin allows it, so repeat visits skip the origin; the first hit always reaches it. The analyzer above labels each audit accordingly.',
   },
   {
     q: 'Is this a PageSpeed Insights API alternative?',
-    a: 'It is a wrapper, not a replacement. We call the official PageSpeed Insights v5 API server-side, cache results per (URL, strategy) for an hour, and overlay a mapping from Lighthouse audit IDs to the ModPageSpeed filters that address them. No account, no upload.',
+    a: 'It is a wrapper, not a replacement. We call the official PageSpeed Insights v5 API server-side, cache results per (URL, strategy) for an hour, and overlay a mapping from Lighthouse audit IDs to the mod_pagespeed filters that address them. No account, no upload.',
   },
   {
     q: 'How often should I run a website speed test?',
@@ -83,7 +83,8 @@ const jsonLd = [
   {
     '@context': 'https://schema.org',
     '@type': 'WebApplication',
-    name: 'ModPageSpeed Analyze',
+    name: 'mod_pagespeed Analyze',
+    alternateName: 'ModPageSpeed Analyze',
     applicationCategory: 'DeveloperApplication',
     operatingSystem: 'Any (web browser)',
     url: 'https://modpagespeed.com/analyze/',
@@ -119,13 +120,13 @@ const jsonLd = [
     <h1 class="h1-hero mt-3 text-text-body">PageSpeed Insights, with the fix attached.</h1>
     <p class="lede mt-5 max-w-2xl mx-auto">
       Run Google's official PageSpeed Insights against any URL. We score the page on mobile and
-      desktop, then map every failing Lighthouse audit to the ModPageSpeed filter that fixes it on
-      your server. Audits no optimizer can touch get labeled.
+      desktop, then map every failing Lighthouse audit to the filter in mod_pagespeed 2.1 that fixes
+      it on your server. Audits no optimizer can touch get labeled.
     </p>
     <p class="mt-3 text-xs text-text-annotation max-w-2xl mx-auto">
-      This tool calls Google's public PageSpeed Insights API. ModPageSpeed is built by We-Amp B.V.
-      and is not affiliated with or endorsed by Google. PageSpeed Insights is a trademark of Google
-      LLC.
+      This tool calls Google's public PageSpeed Insights API. mod_pagespeed 2.1 is built by We-Amp
+      B.V. and is not affiliated with or endorsed by Google. PageSpeed Insights is a trademark of
+      Google LLC.
     </p>
 
     <form
@@ -308,20 +309,20 @@ const jsonLd = [
       </div>
     </div>
 
-    <!-- Edition toggle — applies to the config snippet, fixable list, and
-         "what gets fixed" cards below. Default to 2.0 (the reverse-proxy /
-         middleware line). The chosen edition is held in JS state only;
-         reloading the page resets to 2.0. Surfaced once the first analysis
+    <!-- Part toggle — applies to the config snippet, fixable list, and
+         "what gets fixed" cards below. Defaults to the optimizer worker.
+         The choice is held in JS state only; reloading the page resets it.
+         Surfaced once the first analysis
          completes — before
          that, the build-time "what gets fixed" cards already default to the
-         2.0 view via syncEditionUi() on script load. -->
+         worker view via syncEditionUi() on script load. -->
     <div
       id="psi-edition-toggle"
       class="mt-8 rounded-2xl border border-border bg-bg-elevated p-5 sm:p-6 hidden"
     >
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h3 class="text-sm font-semibold text-text-body">ModPageSpeed edition</h3>
+          <h3 class="text-sm font-semibold text-text-body">Which part you configure</h3>
           <p id="psi-edition-blurb" class="mt-1 text-xs text-text-muted">
             <!-- Populated at runtime from EDITION_BLURB. -->
           </p>
@@ -329,7 +330,7 @@ const jsonLd = [
         <div
           class="inline-flex shrink-0 self-start sm:self-auto gap-1 rounded-lg bg-bg-elevated p-1"
           role="group"
-          aria-label="ModPageSpeed edition"
+          aria-label="Which part you configure"
         >
           <button
             type="button"
@@ -339,7 +340,7 @@ const jsonLd = [
             data-umami-event="psi-edition-toggle"
             data-umami-event-edition="2.0"
           >
-            ModPageSpeed 2.0
+            Optimizer worker
           </button>
           <button
             type="button"
@@ -349,7 +350,7 @@ const jsonLd = [
             data-umami-event="psi-edition-toggle"
             data-umami-event-edition="1.1"
           >
-            mod_pagespeed 1.15
+            Module
           </button>
         </div>
       </div>
@@ -405,7 +406,7 @@ const jsonLd = [
 
     <!-- Fixable audits -->
     <div id="psi-fixable" class="mt-8 hidden">
-      <h3 class="h2-section text-xl sm:text-2xl text-text-body">ModPageSpeed will fix this</h3>
+      <h3 class="h2-section text-xl sm:text-2xl text-text-body">mod_pagespeed will fix this</h3>
       <p class="mt-1 text-sm text-text-muted">Ordered by potential savings on this page.</p>
       <ul id="psi-fixable-list" class="mt-4 space-y-4"></ul>
     </div>
@@ -416,7 +417,7 @@ const jsonLd = [
         We won't pretend we can fix this
       </h3>
       <p class="mt-1 text-sm text-text-muted">
-        These audits sit at the application or infrastructure layer. ModPageSpeed runs byte-level
+        These audits sit at the application or infrastructure layer. mod_pagespeed runs byte-level
         rewrites. Reshaping a bundler, an origin, or event handlers is engineering work no optimizer
         can do for you.
       </p>
@@ -449,13 +450,13 @@ const jsonLd = [
           <h3 class="text-xl font-bold text-text-body">Nothing for us to do here.</h3>
           <p class="mt-2 text-sm text-text-body leading-relaxed">
             PSI flagged no failing performance audits on this page. Your delivery pipeline is
-            already doing the work ModPageSpeed would do.
+            already doing the work mod_pagespeed would do.
           </p>
           <p class="mt-2 text-sm text-text-muted leading-relaxed">
-            ModPageSpeed keeps assets minified, images transcoded, and caches warm as the site
+            mod_pagespeed keeps assets minified, images transcoded, and caches warm as the site
             evolves — whether it runs as a reverse proxy in front of your origin, as ASP.NET Core
-            middleware, or as the in-server module for Apache, nginx, IIS, or Envoy. The next deploy
-            won't quietly undo this.
+            middleware, or as the in-server module for Apache, nginx or IIS. The next deploy won't
+            quietly undo this.
           </p>
         </div>
       </div>
@@ -469,7 +470,7 @@ const jsonLd = [
       <h3 class="text-lg font-semibold text-text-body">No fixable audits surfaced.</h3>
       <p class="mt-2 text-sm text-text-muted">
         Either your page is already in good shape, or PSI flagged only application-level concerns
-        that need code changes. ModPageSpeed isn't your bottleneck here. If you want it as a safety
+        that need code changes. mod_pagespeed isn't your bottleneck here. If you want it as a safety
         net for image transcoding, caching, and minification on future pages, install it and run it
         — it optimizes immediately, free to run.
       </p>
@@ -548,11 +549,11 @@ const jsonLd = [
           2
         </div>
         <h3 class="mt-4 text-base font-semibold text-text-body">
-          See which audits ModPageSpeed will fix
+          See which audits mod_pagespeed will fix
         </h3>
         <p class="mt-2 text-sm text-text-muted">
           Every failing audit is matched against a mapping table of over fifty Lighthouse audit IDs
-          and the ModPageSpeed filter inventory. Audits we cannot fix are labeled, not hidden.
+          and the mod_pagespeed filter inventory. Audits we cannot fix are labeled, not hidden.
         </p>
       </li>
       <li class="rounded-xl border border-border bg-bg-elevated p-6">
@@ -574,9 +575,9 @@ const jsonLd = [
   <!-- What gets fixed — content marketing for SEO                   -->
   <!-- ============================================================ -->
   <section class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-16 border-t border-border">
-    <h2 class="h2-section text-center text-text-body">What ModPageSpeed fixes automatically</h2>
+    <h2 class="h2-section text-center text-text-body">What mod_pagespeed fixes automatically</h2>
     <p class="lede mt-3 text-center max-w-2xl mx-auto">
-      These are the PageSpeed Insights findings ModPageSpeed addresses on every request, with no
+      These are the PageSpeed Insights findings mod_pagespeed addresses on every request, with no
       code changes on the origin. Most filters below have been production-tested in the upstream
       <code class="text-sm">mod_pagespeed</code> codebase since 2010. A few are still marked &ldquo;test
       first&rdquo;; the analyzer flags those per-page in the live results.
@@ -594,7 +595,7 @@ const jsonLd = [
       <div
         class="inline-flex gap-1 rounded-lg bg-bg-elevated p-1"
         role="group"
-        aria-label="ModPageSpeed edition"
+        aria-label="Which part you configure"
       >
         <button
           type="button"
@@ -604,7 +605,7 @@ const jsonLd = [
           data-umami-event="psi-highlights-edition-toggle"
           data-umami-event-edition="2.0"
         >
-          ModPageSpeed 2.0
+          Optimizer worker
         </button>
         <button
           type="button"
@@ -614,7 +615,7 @@ const jsonLd = [
           data-umami-event="psi-highlights-edition-toggle"
           data-umami-event-edition="1.1"
         >
-          mod_pagespeed 1.15
+          Module
         </button>
       </div>
     </div>
@@ -622,16 +623,16 @@ const jsonLd = [
     <ul id="psi-highlights-list" class="mt-10 grid gap-4 sm:grid-cols-2">
       {
         fixedHighlights.map((item) => {
-          // 2.0-only audits get a "2.0 only" coverage marker; 1.1-only
-          // audits get a "1.1 only" marker. Neither implies one product
-          // supersedes the other — they cover different capability sets.
-          // Cards toggle their hidden state client-side based on the
-          // chosen edition.
+          // Worker-side audits get a "Worker" coverage marker; module-side
+          // audits get a "Module" marker. Both parts ship in mod_pagespeed
+          // 2.1; the marker says where the fix runs, not which product you
+          // need. Cards toggle their hidden state client-side based on the
+          // chosen part.
           const isTwoOnly = item.availableIn.includes('2.0') && !item.availableIn.includes('1.1');
           const isOneOnly = item.availableIn.includes('1.1') && !item.availableIn.includes('2.0');
           // Title overrides — keep the brand-honest framing for cards
           // whose audit ID is generic (e.g. "Document request latency")
-          // but whose 2.0-only behaviour is the HTML cache.
+          // but whose worker-only behaviour is the HTML cache.
           const displayTitle =
             isTwoOnly && item.auditId === 'document-latency-insight'
               ? 'Mask slow origin TTFB with HTML caching'
@@ -646,12 +647,12 @@ const jsonLd = [
                 <h3 class="text-base font-semibold text-text-body">{displayTitle}</h3>
                 {isTwoOnly && (
                   <span class="shrink-0 inline-flex items-center rounded-md bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-                    2.0 only
+                    Worker
                   </span>
                 )}
                 {isOneOnly && (
                   <span class="shrink-0 inline-flex items-center rounded-md bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-                    1.15 only
+                    Module
                   </span>
                 )}
               </div>
@@ -674,16 +675,16 @@ const jsonLd = [
     </ul>
 
     <div class="mt-10 rounded-xl border border-border bg-bg-secondary p-6">
-      <h3 class="text-base font-semibold text-text-body">What ModPageSpeed will not fix</h3>
+      <h3 class="text-base font-semibold text-text-body">What mod_pagespeed will not fix</h3>
       <p class="mt-2 text-sm text-text-muted leading-relaxed">
-        Trust matters more than coverage claims. ModPageSpeed runs byte-level rewrites on what
+        Trust matters more than coverage claims. mod_pagespeed runs byte-level rewrites on what
         leaves your server; it does not edit application code. These stay out of reach: excessive
         DOM size, unused JavaScript and tree-shaking, legacy-JS polyfills served to modern browsers,
         third-party script impact (analytics, tag managers, ads), Interaction to Next Paint (INP),
         forced reflows in handler code, and font-display behavior. Origin TTFB on the first request
-        is also out of reach. 2.0 can mask it on repeat visits by caching HTML when the origin
-        allows it, but the first hit always reaches the origin. The analyzer above labels every one
-        of these in your report.
+        is also out of reach. The optimizer worker can mask it on repeat visits by caching HTML when
+        the origin allows it, but the first hit always reaches the origin. The analyzer above labels
+        every one of these in your report.
       </p>
     </div>
   </section>
@@ -748,41 +749,43 @@ const jsonLd = [
     import { PSI_MPS_MAPPING } from '../data/psi-mps-mapping';
     import type { AuditMapping, Edition } from '../data/psi-mps-mapping';
 
-    // ---- Edition (1.1 vs 2.0) state ----
-    // Default to 2.0 — the reverse-proxy / middleware line. The toggle
-    // changes the config snippet, the per-fix badge text, the docs CTA, and
-    // which "what gets fixed" cards are visible.
+    // ---- Which part the reader is configuring ----
+    // The '2.0' key selects the optimizer worker, '1.1' the module; the
+    // keys are the stored state, not a product name. Defaults to the
+    // worker. The toggle changes the config snippet, the per-fix badge
+    // text, the docs CTA, and which "what gets fixed" cards are visible.
     let edition: Edition = '2.0';
 
     const EDITION_BLURB: Record<Edition, string> = {
       '2.0':
-        'Reverse-proxy / middleware line. An out-of-process worker behind an nginx reverse proxy (or ASP.NET Core middleware) that fronts any HTTP origin. Caches HTML in shared memory so slow origins serve from RAM on repeat visits.',
+        'The optimizer worker: a separate process behind the module (or an nginx reverse proxy fronting any origin, or the ASP.NET Core middleware). It optimizes off the request path and caches HTML in shared memory, so slow origins serve from RAM on repeat visits.',
       '1.1':
-        'Native-module line. An in-process module inside Apache, nginx, IIS, or Envoy. No worker, no extra hop. Named filters on every server.',
+        'The module: in-process inside Apache, nginx or IIS. No extra hop, and the classic named filters on every server.',
     };
 
     const DOCS_HREF: Record<Edition, { href: string; label: string }> = {
       '2.0': { href: '/docs/configuration/', label: 'Read the configuration docs →' },
       '1.1': {
         href: '/docs/configuration/#native-module-configuration-directives',
-        label: 'Read 1.15 filter docs →',
+        label: 'Read the filter reference →',
       },
     };
 
     const CONFIG_DESC: Record<Edition, string> = {
       '2.0':
-        'Drop into your nginx server { } or location { } block. The reverse-proxy / middleware line has no EnableFilters directive; image transcoding, CSS/JS minification, and critical-CSS inlining run from the master switch. Per-transform flags live on the factory_worker command line.',
+        'Drop into your nginx server { } or location { } block. Worker-side transforms have no EnableFilters directive; image transcoding, CSS/JS minification and critical-CSS inlining run from the master switch, and per-transform flags live on the factory_worker command line.',
       '1.1':
-        'Enables every filter that targets a flagged audit on this page. nginx syntax; equivalent Apache, IIS, and Envoy directives are in the 1.15 config reference.',
+        'Enables every named filter that targets a flagged audit on this page. nginx syntax; the equivalent Apache and IIS directives are in the configuration reference.',
     };
 
-    // ---- 1.1 filter → 2.0 docs anchor map ----
-    // 2.0 collapses 1.1's per-filter knobs into a smaller set of always-on
-    // transforms documented as anchored sections under /docs/configuration/.
-    // The slug values below are the contract Agent A is honoring when adding
-    // the 13 per-transform anchors to configuration.md. 1.1 filters with no
-    // 2.0 equivalent (e.g. animated WebP) are intentionally absent and fall
-    // back to the 1.1 filter-reference page; see the click handler below.
+    // ---- Named filter → worker transform docs anchor map ----
+    // The worker collapses the module's per-filter knobs into a smaller set
+    // of always-on transforms documented as anchored sections under
+    // /docs/configuration/.
+    // The slug values below must match the per-transform anchors in
+    // configuration.md. Named filters with no
+    // worker equivalent (e.g. animated WebP) are intentionally absent and
+    // fall back to the named-filter reference; see the click handler below.
     const FILTER_TO_2_0_ANCHOR: Record<string, string> = {
       // image pipeline — every image-touching filter collapses into one transform
       rewrite_images: 'image-pipeline',
@@ -1318,12 +1321,12 @@ const jsonLd = [
         chipsRow.appendChild(confChip);
       }
 
-      // Edition badge — surfaces audits that the *other* edition doesn't
-      // cover. With the toggle on 2.0, a 1.1-only audit (e.g. animated GIF
-      // → WebP) gets a "1.1 only" pill; with the toggle on 1.1, a 2.0-only
-      // audit (HTML caching) gets a "2.0 only" pill. Both markers use the
-      // same neutral styling — neither product supersedes the other; they
-      // cover different capability sets.
+      // Part badge — surfaces audits the *other* part doesn't cover. With
+      // the toggle on the worker, a module-only audit (e.g. animated GIF →
+      // WebP) gets a "Module" pill; with the toggle on the module, a
+      // worker-only audit (HTML caching) gets a "Worker" pill. Both markers
+      // use the same neutral styling — both parts ship in mod_pagespeed 2.1
+      // and the marker says where the fix runs.
       const isTwoOnly =
         item.mapping.availableIn.includes('2.0') && !item.mapping.availableIn.includes('1.1');
       const isOneOnly =
@@ -1332,17 +1335,17 @@ const jsonLd = [
         const editionChip = document.createElement('span');
         editionChip.className =
           'inline-flex items-center rounded-md bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide';
-        editionChip.textContent = '2.0 only';
+        editionChip.textContent = 'Worker';
         editionChip.title =
-          'This audit is addressed by ModPageSpeed 2.0. Switch the edition toggle above to see the 2.0 configuration.';
+          'This audit is addressed by the optimizer worker. Switch the toggle above to see its configuration.';
         chipsRow.appendChild(editionChip);
       } else if (isOneOnly && edition === '2.0') {
         const editionChip = document.createElement('span');
         editionChip.className =
           'inline-flex items-center rounded-md bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide';
-        editionChip.textContent = '1.15 only';
+        editionChip.textContent = 'Module';
         editionChip.title =
-          'This audit is addressed by mod_pagespeed 1.15 only. Switch the edition toggle above to see the 1.15 configuration.';
+          'This audit is addressed by the module. Switch the toggle above to see its configuration.';
         chipsRow.appendChild(editionChip);
       }
       titleWrap.appendChild(chipsRow);
@@ -1470,7 +1473,7 @@ const jsonLd = [
       }
 
       const lines: string[] = [
-        '# mod_pagespeed 1.15 — nginx syntax.',
+        '# mod_pagespeed 2.1 — the module, nginx syntax.',
         '# Add to your server { } or location { } block.',
         'pagespeed on;',
         '',
@@ -1488,7 +1491,7 @@ const jsonLd = [
     }
 
     /**
-     * 2.0 has no `EnableFilters` directive — image transcoding + CSS/JS
+     * The worker has no `EnableFilters` directive — image transcoding + CSS/JS
      * minification + critical CSS + content-hashed cache extension all run
      * from `pagespeed on;` plus a Cyclone cache file path. The only audit
      * that contributes a non-default directive is `document-latency-insight`
@@ -1538,8 +1541,8 @@ const jsonLd = [
       // install. Render nothing in that case to keep the lead-magnet honest.
       if (extras.size === 0 && unknownAuditTitles.length === 0) {
         // We still emit the baseline so the customer can paste a starting
-        // point if they're new to 2.0. Skip only when there's literally no
-        // flagged 2.0-covered audit.
+        // point if they're new to the worker. Skip only when there's
+        // literally no flagged worker-covered audit.
         const anyTwoOhCoverage = items.some(
           (it) => it.mapping.availableIn.includes('2.0') && it.mapping.coverage !== 'none',
         );
@@ -1547,7 +1550,7 @@ const jsonLd = [
       }
 
       const lines: string[] = [
-        '# ModPageSpeed 2.0 — nginx + worker.',
+        '# mod_pagespeed 2.1 — module + optimizer worker.',
         '# Add the nginx directives to your server { } or location { } block;',
         '# launch the worker with the listed flags (or use the equivalent',
         '# appsettings.json keys in the ASP.NET Core middleware).',
@@ -1576,9 +1579,9 @@ const jsonLd = [
 
       if (unknownAuditTitles.length > 0) {
         lines.push('');
-        lines.push('# These flagged audits are covered by 2.0 but no concrete');
-        lines.push('# extra directive was documented — they ride on the master');
-        lines.push('# switch above:');
+        lines.push('# These flagged audits are covered by the optimizer worker,');
+        lines.push('# but no extra directive was documented — they ride on the');
+        lines.push('# master switch above:');
         for (const t of unknownAuditTitles) {
           lines.push(`#   - ${t}`);
         }
@@ -1645,8 +1648,8 @@ const jsonLd = [
     }
 
     // Wire the toggle buttons up at script start so they work even before
-    // the first analysis. The toggle still defaults to 2.0 because that's
-    // the marketed product line.
+    // the first analysis. The toggle still defaults to the optimizer
+    // worker, which does the heavy optimization.
     {
       for (const btn of getEditionButtons()) {
         btn.addEventListener('click', () => {
@@ -1694,13 +1697,13 @@ const jsonLd = [
         headline =
           'PSI flagged no failing performance audits on this page — your site is already fast.';
       } else if (addressed === 0) {
-        headline = `PSI flagged ${totalFlagged} performance ${totalFlagged === 1 ? 'audit' : 'audits'}; ModPageSpeed cannot automatically fix any of them on this page.`;
+        headline = `PSI flagged ${totalFlagged} performance ${totalFlagged === 1 ? 'audit' : 'audits'}; mod_pagespeed cannot automatically fix any of them on this page.`;
       } else {
         const tail =
           unmapped > 0
             ? ` (${unmapped} additional ${unmapped === 1 ? 'audit is' : 'audits are'} not yet mapped — see the project mapping data.)`
             : '';
-        headline = `ModPageSpeed addresses ${addressed} of ${totalFlagged} flagged ${totalFlagged === 1 ? 'audit' : 'audits'}.${tail}`;
+        headline = `mod_pagespeed addresses ${addressed} of ${totalFlagged} flagged ${totalFlagged === 1 ? 'audit' : 'audits'}.${tail}`;
       }
       if (headlineTextEl) headlineTextEl.textContent = headline;
       // Tight one-line summary for screen readers — scoped narrowly so AT
@@ -1715,7 +1718,7 @@ const jsonLd = [
         if (totalMs > 0) parts.push(`${formatMs(totalMs)} of estimated load-time savings`);
         if (totalBytes > 0) parts.push(`${formatBytes(totalBytes)} of byte savings`);
         headlineSavingsEl.textContent = parts.length
-          ? `Across the fixable audits PSI flagged, ModPageSpeed could recover ${parts.join(' and ')} on this page.`
+          ? `Across the fixable audits PSI flagged, mod_pagespeed could recover ${parts.join(' and ')} on this page.`
           : 'PSI did not attach numeric savings estimates to the flagged audits.';
       }
 

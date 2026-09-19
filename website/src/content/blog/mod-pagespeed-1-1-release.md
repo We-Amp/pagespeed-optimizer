@@ -69,7 +69,7 @@ Build environment: Bazel 7.x on a classic WORKSPACE (`MODULE.bazel` is staged bu
 
 ## Cyclone Cache
 
-1.15 replaces the legacy `FileCache` with **Cyclone**, a C++23 disk cache shared with ModPageSpeed 2.0. The headline operational change: no more periodic pruning scans across millions of small files. The in-tree benchmark records the rest — versus `FileCache`, writes ~19× faster, deletes ~27× faster, large reads ~4.5× faster, small reads slightly slower. Code at `test/pagespeed/kernel/cache/disk_cache_speed_test.cc`; the [Cyclone versus file-cache benchmark](/blog/cyclone-cache-vs-file-cache-benchmark/) walks through the methodology and the full numbers.
+1.15 replaces the legacy `FileCache` with **Cyclone**, a C++23 disk cache shared with the optimizer worker. The headline operational change: no more periodic pruning scans across millions of small files. The in-tree benchmark records the rest — versus `FileCache`, writes ~19× faster, deletes ~27× faster, large reads ~4.5× faster, small reads slightly slower. Code at `test/pagespeed/kernel/cache/disk_cache_speed_test.cc`; the [Cyclone versus file-cache benchmark](/blog/cyclone-cache-vs-file-cache-benchmark/) walks through the methodology and the full numbers.
 
 On upgrade: existing `FileCache` directories aren't read; `FileCacheInodeLimit` parses as a deprecated no-op so Apache configurations keep loading.
 
@@ -115,6 +115,6 @@ The `X-Page-Speed` response header is unified across ports — no more port-spec
 
 ## Where to get it, what's next
 
-The [mod_pagespeed 1.1 overview](/) covers the four ports, support status, and licensing. Full release documentation — installer downloads, configuration, port-specific notes — lives in [the 1.15 docs](/docs/), with a thematic [what's-new summary](/docs/release-notes/#115-history) of everything that shipped. If you're choosing between 1.15 and ModPageSpeed 2.0, [the alternatives post](/blog/mod-pagespeed-alternatives/) lays out the trade-offs; if you're coming off a Google-era 1.13.x or ngx_pagespeed install, [the migration guide](/blog/migrating-from-1x/) walks through the config mapping and verification steps. mod_pagespeed 1.15 is licensed under the Apache License 2.0; support subscriptions are on the [pricing page](/pricing/).
+The [product overview](/) covers the four ports, support status, and licensing. Full release documentation — installer downloads, configuration, port-specific notes — lives in [the 1.15 docs](/docs/), with a thematic [what's-new summary](/docs/release-notes/#115-history) of everything that shipped. If you're comparing the paths, [the alternatives post](/blog/mod-pagespeed-alternatives/) lays out the trade-offs; if you're coming off a Google-era 1.13.x or ngx_pagespeed install, [the migration guide](/blog/migrating-from-1x/) walks through the config mapping and verification steps. mod_pagespeed is licensed under the Apache License 2.0; support subscriptions are on the [pricing page](/pricing/).
 
 If you've been running an [unpatched mod_pagespeed](/blog/mod-pagespeed-deprecated-2026/) against a 2020-vintage dependency graph: 1.15 ships on current toolchains, against libraries that have been patched.

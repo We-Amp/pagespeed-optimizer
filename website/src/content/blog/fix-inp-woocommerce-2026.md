@@ -9,9 +9,9 @@ lastUpdated: 2026-07-04
 product: '1.1'
 howTo:
   name: How to fix INP on WooCommerce
-  description: Diagnose the worst-case interaction, use mod_pagespeed 1.15 to cut JS parse cost on non-shop pages, then fix the architectural cart and variation handlers at the WooCommerce layer.
+  description: Diagnose the worst-case interaction, use mod_pagespeed 2.1 to cut JS parse cost on non-shop pages, then fix the architectural cart and variation handlers at the WooCommerce layer.
   tools:
-  - mod_pagespeed 1.15
+  - mod_pagespeed 2.1
   - Chrome DevTools Performance panel
   - web-vitals (attribution mode)
   - PageSpeed Insights
@@ -29,7 +29,7 @@ howTo:
 
 ---
 
-INP on a WooCommerce product page is almost always the click on a variation swatch, a hamburger menu, or "Add to cart": somewhere between 250 ms and 700 ms on mid-range Android, and Search Console is now flagging it. The plan: diagnose the responsible interaction, push parse-blocking JS past it with `defer_javascript` and friends via **mod_pagespeed 1.15** (an nginx or Apache module), then fix the cart and variation handlers on the WooCommerce side, because that is where the real cost lives. The cart is interactive JS by design, so server-layer leverage on those interactions is genuinely small.
+INP on a WooCommerce product page is almost always the click on a variation swatch, a hamburger menu, or "Add to cart": somewhere between 250 ms and 700 ms on mid-range Android, and Search Console is now flagging it. The plan: diagnose the responsible interaction, push parse-blocking JS past it with `defer_javascript` and friends via **mod_pagespeed 2.1** (an nginx or Apache module), then fix the cart and variation handlers on the WooCommerce side, because that is where the real cost lives. The cart is interactive JS by design, so server-layer leverage on those interactions is genuinely small.
 
 This guide is part of our [Core Web Vitals series](/core-web-vitals/).
 
@@ -138,8 +138,8 @@ If your INP problem is on the homepage/blog, the server layer is the high-levera
 - [How to fix CLS on WooCommerce](/blog/fix-cls-woocommerce-2026/)
 - [How to fix INP on WordPress](/blog/fix-inp-wordpress-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)
-- [mod_pagespeed 1.15 filter reference](/docs/filter-reference/)
+- [mod_pagespeed filter reference](/docs/filter-reference/)
 - [The full INP guide](/core-web-vitals/inp/)
 - [Test your page in the analyzer](/analyze/)
 
-mod_pagespeed 1.15 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed 2.1 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).

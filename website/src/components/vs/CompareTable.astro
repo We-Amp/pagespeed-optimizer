@@ -1,9 +1,9 @@
 ---
 // Reusable comparison table for the /vs/* pages.
 //
-// Renders a scannable, accessible "ModPageSpeed vs <competitor>" table:
+// Renders a scannable, accessible "mod_pagespeed vs <competitor>" table:
 //  - shaded, sticky header row
-//  - the ModPageSpeed column is visually emphasized (accent left border + tint)
+//  - the mod_pagespeed column is visually emphasized (accent left border + tint)
 //    so the differentiator reads at a glance
 //  - boolean cells ('yes' / 'no' / 'partial') render as semantic glyphs
 //    (✓ success-green / ✗ muted / ◐ partial) with a visually-hidden text label
@@ -14,7 +14,7 @@
 // Props:
 //   competitor   string   — display name for the right-hand column header
 //   rows         Row[]    — one object per feature row (see Row shape below)
-//   mpsHeader    string?  — left column header (default "ModPageSpeed")
+//   mpsHeader    string?  — left column header (default "mod_pagespeed")
 //
 // Row shape: { label: string, mps: Cell, other: Cell, highlight?: boolean }
 //   Cell is either:
@@ -36,7 +36,7 @@ interface Props {
   mpsHeader?: string;
 }
 
-const { competitor, rows, mpsHeader = 'ModPageSpeed' } = Astro.props as Props;
+const { competitor, rows, mpsHeader = 'mod_pagespeed 2.1' } = Astro.props as Props;
 
 const BOOLS = new Set(['yes', 'no', 'partial']);
 const isBool = (v: string) => BOOLS.has(v);

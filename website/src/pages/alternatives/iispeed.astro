@@ -9,11 +9,11 @@ const faq = [
   },
   {
     q: 'I hold an IISpeed license. What do I need to do?',
-    a: 'Nothing to move to mod_pagespeed 1.15 or the WeAmp.PageSpeed.Sidecar NuGet package — both are free to install and run. Questions about an existing IISpeed subscription go to license@we-amp.com.',
+    a: 'Nothing to move to mod_pagespeed 2.1 or the WeAmp.PageSpeed.Sidecar NuGet package — both are free to install and run. Questions about an existing IISpeed subscription go to license@we-amp.com.',
   },
   {
     q: 'What replaces IISpeed for IIS deployments?',
-    a: 'mod_pagespeed 1.15 ships a native IIS module with the same web.config surface IISpeed offered — a modernized, secured filter stack with new optimizers, same admin console, plus security patches, current toolchain, and Cyclone Cache.',
+    a: 'mod_pagespeed 2.1 ships a native IIS module with the same web.config surface IISpeed offered — a modernized, secured filter stack with new optimizers, same admin console, plus security patches, current toolchain, and Cyclone Cache. The IIS package ships from the 1.15 packaging channel.',
   },
   {
     q: 'Does WeAmp.PageSpeed.Sidecar work with classic ASP.NET?',
@@ -21,7 +21,7 @@ const faq = [
   },
   {
     q: 'Can I run both mod_pagespeed for IIS and the WeAmp.PageSpeed.Sidecar package?',
-    a: 'Yes. Mixed environments are supported. Both run the mod_pagespeed 1.15 core — the native IIS module and the Sidecar package (bundled nginx + ngx_pagespeed on loopback) — so they share the same filters and admin console.',
+    a: 'Yes. Mixed environments are supported. Both run the same mod_pagespeed core — the native IIS module and the Sidecar package (bundled nginx + ngx_pagespeed on loopback) — so they share the same filters and admin console.',
   },
 ];
 
@@ -108,7 +108,7 @@ const jsonLd = [
     >
       <p>
         IISpeed is now deprecated. Existing customers get a free license transfer to either
-        mod_pagespeed 1.15 (native IIS port) or to the WeAmp.PageSpeed.Sidecar NuGet package for
+        mod_pagespeed 2.1 (native IIS port) or to the WeAmp.PageSpeed.Sidecar NuGet package for
         ASP.NET Core. Support continues, but bug fixes and security patches have stopped.
       </p>
       <p>This page explains both forward paths.</p>
@@ -143,8 +143,7 @@ const jsonLd = [
         </li>
         <li>
           One IIS code path is better than two. The IIS port now lives inside
-          <code>mod_pagespeed 1.15</code>, shared with the Apache and nginx ports (Envoy support is
-          experimental).
+          <code>mod_pagespeed</code>, shared with the Apache and nginx ports.
         </li>
       </ul>
 
@@ -173,7 +172,7 @@ const jsonLd = [
       </p>
 
       <p>
-        <a href="/docs/">mod_pagespeed 1.15 docs</a> &middot;
+        <a href="/docs/">mod_pagespeed docs</a> &middot;
         <a href="/mod-pagespeed-still-maintained/">IIS migration guide</a> &middot;
         <a href="/download/">Download the MSI</a>
       </p>
@@ -243,7 +242,7 @@ app.Run();`}</code></pre>
 
       <h2>License transfer</h2>
       <p>
-        If you hold an IISpeed license, there is nothing to transfer: mod_pagespeed 1.15 and the
+        If you hold an IISpeed license, there is nothing to transfer: mod_pagespeed 2.1 and the
         WeAmp.PageSpeed.Sidecar NuGet package are free to install and run. Questions about an
         existing IISpeed subscription go to <a href="mailto:license@we-amp.com"
           >license@we-amp.com</a

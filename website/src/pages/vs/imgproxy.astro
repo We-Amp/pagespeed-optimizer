@@ -7,13 +7,13 @@ import { editionClause, FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
 const rows = [
   {
     label: 'Deployment',
-    mps: 'Self-hosted (nginx interceptor + worker)',
+    mps: 'Self-hosted (module + optimizer worker)',
     other: 'Self-hosted (Docker / Linux packages)',
   },
   { label: 'Scope', mps: 'Full HTML pipeline', other: 'Image processing only' },
   {
     label: 'Platform',
-    mps: '1.15 ships native modules for nginx, Apache, and IIS (Envoy experimental); 2.0 runs as an nginx reverse proxy or ASP.NET Core middleware',
+    mps: 'Native module for Apache and nginx, reverse-proxy mode in front of any HTTP origin, or ASP.NET Core middleware. The IIS package ships from the 1.15 packaging channel.',
     other: 'Any HTTP frontend',
   },
   {
@@ -65,14 +65,15 @@ const jsonLd = [
   {
     '@context': 'https://schema.org',
     '@type': ['Product', 'SoftwareApplication'],
-    name: 'ModPageSpeed',
+    name: 'mod_pagespeed 2.1',
+    alternateName: 'ModPageSpeed',
     image: 'https://modpagespeed.com/og-default.png?v=2',
     applicationCategory: 'WebApplication',
     operatingSystem: ['Linux', 'Windows', 'macOS'],
     description:
-      'ModPageSpeed includes image transcoding plus critical CSS, JS/CSS minification, and HTML rewriting in one worker — imgproxy is image-only.',
+      'mod_pagespeed includes image transcoding plus critical CSS, JS/CSS minification, and HTML rewriting in one worker — imgproxy is image-only.',
     url: 'https://modpagespeed.com/',
-    brand: { '@type': 'Brand', name: 'ModPageSpeed' },
+    brand: { '@type': 'Brand', name: 'mod_pagespeed 2.1' },
     publisher: { '@id': 'https://we-amp.com/#organization' },
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
   },
@@ -80,8 +81,8 @@ const jsonLd = [
 ---
 
 <BaseLayout
-  title="ModPageSpeed vs imgproxy: image proxy vs full pipeline"
-  description="Both self-hosted; imgproxy is image-only while ModPageSpeed is a full HTML pipeline (images, CSS, JS, critical CSS). Where each tool actually shines."
+  title="mod_pagespeed vs imgproxy: image proxy vs full pipeline"
+  description="Both self-hosted; imgproxy is image-only while mod_pagespeed is a full HTML pipeline (images, CSS, JS, critical CSS). Where each tool actually shines."
   jsonLd={jsonLd}
 >
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16">
@@ -94,20 +95,20 @@ const jsonLd = [
       <span>vs imgproxy</span>
     </nav>
 
-    <h1 class="mt-6 h1-hero text-text-body">ModPageSpeed vs imgproxy</h1>
+    <h1 class="mt-6 h1-hero text-text-body">mod_pagespeed vs imgproxy</h1>
 
     <!-- TL;DR -->
     <section class="mt-8">
       <h2 class="h2-section text-text-body">TL;DR</h2>
       <p class="mt-4 text-text-body">
-        imgproxy is a focused, self-hosted image processing server. ModPageSpeed is a self-hosted
+        imgproxy is a focused, self-hosted image processing server. mod_pagespeed is a self-hosted
         optimization pipeline that includes image work plus critical CSS, JS/CSS minification, and
         HTML rewriting. If image transformations are all you need, imgproxy is a smaller, sharper
         tool. If you want the <a
           href="/features/"
           class="text-interactive hover:text-interactive-hover underline"
           >full page-level optimization layer</a
-        > that mod_pagespeed used to provide, ModPageSpeed is the closer fit.
+        > that the original mod_pagespeed provided, mod_pagespeed 2.1 is the closer fit.
       </p>
     </section>
 
@@ -137,9 +138,9 @@ const jsonLd = [
       </ul>
     </section>
 
-    <!-- When to choose ModPageSpeed -->
+    <!-- When to choose mod_pagespeed -->
     <section class="mt-12">
-      <h2 class="h2-section text-text-body">When to choose ModPageSpeed</h2>
+      <h2 class="h2-section text-text-body">When to choose mod_pagespeed</h2>
       <ul class="mt-4 space-y-2 list-disc pl-6 text-text-body">
         <li>
           You want one process that handles images, CSS, JS, and HTML &mdash; the way mod_pagespeed
@@ -166,9 +167,9 @@ const jsonLd = [
       <h2 class="h2-section text-text-body">How they overlap</h2>
       <p class="mt-4 text-text-body">
         Both tools convert source images to modern formats and produce resized variants; on the
-        ModPageSpeed side that is WebP and AVIF across 1.15 and 2.0. Both run on your servers with
-        no third-party data path. Both are pull-based: the image gets optimized when it's first
-        requested, then served from cache.
+        mod_pagespeed side that is WebP and AVIF. Both run on your servers with no third-party data
+        path. Both are pull-based: the image gets optimized when it's first requested, then served
+        from cache.
       </p>
       <p class="mt-4 text-text-body">
         The genuine overlap is image format conversion and responsive sizing. For everything outside
@@ -182,32 +183,32 @@ const jsonLd = [
         id="migrating-from-imgproxy-to-modpagespeed"
         class="h2-section scroll-mt-24 text-text-body"
       >
-        Migrating from imgproxy to ModPageSpeed
+        Migrating from imgproxy to mod_pagespeed
       </h2>
       <p class="mt-4 text-text-body">
         Migration is reasonable if imgproxy was a partial solution and you ended up writing scripts
-        to minify CSS, generate critical CSS, or rewrite HTML around it. ModPageSpeed collapses
+        to minify CSS, generate critical CSS, or rewrite HTML around it. mod_pagespeed collapses
         those layers into one process.
       </p>
       <p class="mt-4 text-text-body">
-        If you're collapsing multiple optimization layers into one, ModPageSpeed handles the whole
+        If you're collapsing multiple optimization layers into one, mod_pagespeed handles the whole
         HTML response &mdash; images, CSS, JS, critical CSS &mdash; from a single worker, with
         decision-time format selection driven by the client's <code>Accept</code> header.
       </p>
       <p class="mt-4 text-text-body">If you do migrate:</p>
       <ol class="mt-3 space-y-2 list-decimal pl-6 text-text-body">
         <li>
-          Identify the imgproxy URL patterns your templates emit. ModPageSpeed rewrites image URLs
+          Identify the imgproxy URL patterns your templates emit. mod_pagespeed rewrites image URLs
           at the HTML layer, so template changes may be unnecessary.
         </li>
         <li>
           Decide whether you still want a separate transform endpoint for signed URLs (e.g., user
-          uploads). ModPageSpeed handles HTML-referenced images; user-upload pipelines may still
+          uploads). mod_pagespeed handles HTML-referenced images; user-upload pipelines may still
           belong in a dedicated service.
         </li>
         <li>
-          Point nginx at the ModPageSpeed interceptor and verify the cache directory has write
-          access from both nginx and the worker. The <a
+          Point nginx at the mod_pagespeed module and verify the cache directory has write access
+          from both nginx and the worker. The <a
             href="/blog/run-with-docker-compose/"
             class="text-interactive hover:text-interactive-hover underline"
             >Docker Compose walkthrough</a
@@ -225,7 +226,7 @@ const jsonLd = [
       <pre
         class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>/insecure/rs:fit:800:600/f:webp/plain/https://example.com/photo.jpg</code></pre>
       <p class="mt-4 text-text-body">
-        <strong>WebP conversion in mod_pagespeed 1.15.</strong> Install the nginx module on Debian&nbsp;11/12/13,
+        <strong>WebP conversion in mod_pagespeed 2.1.</strong> Install the nginx module on Debian&nbsp;11/12/13,
         Ubuntu&nbsp;22.04/24.04 (amd64 + arm64), or AlmaLinux&nbsp;9 (x86_64 + aarch64):
       </p>
       <pre
@@ -241,7 +242,7 @@ pagespeed EnableFilters convert_jpeg_to_webp;
 pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
       <p class="mt-4 text-text-body">
         The difference is where the decision lives. imgproxy requires per-URL parameters in
-        templates or signed URLs. ModPageSpeed makes the decision at HTML-rewrite time based on the
+        templates or signed URLs. mod_pagespeed makes the decision at HTML-rewrite time based on the
         client's <code>Accept</code> header.
       </p>
     </section>
@@ -280,12 +281,12 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
           <a href="/vs/thumbor/" class="text-interactive hover:text-interactive-hover underline"
-            >ModPageSpeed vs Thumbor</a
-          > &mdash; Thumbor is closer to imgproxy than to ModPageSpeed
+            >mod_pagespeed vs Thumbor</a
+          > &mdash; Thumbor is closer to imgproxy than to mod_pagespeed
         </li>
         <li>
           <a href="/vs/cloudinary/" class="text-interactive hover:text-interactive-hover underline"
-            >ModPageSpeed vs Cloudinary</a
+            >mod_pagespeed vs Cloudinary</a
           > &mdash; managed SaaS alternative to imgproxy
         </li>
         <li>
@@ -304,8 +305,9 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
         </li>
         <li>
           <a href="/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed 1.15</a
-          > &mdash; drop-in continuation with native nginx, Apache, and IIS modules (Envoy experimental)
+            >mod_pagespeed 2.1</a
+          > &mdash; drop-in continuation with native modules for Apache and nginx. The IIS package ships
+          from the 1.15 packaging channel.
         </li>
       </ul>
     </section>

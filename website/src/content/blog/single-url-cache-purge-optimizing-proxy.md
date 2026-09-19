@@ -1,6 +1,6 @@
 ---
 title: "Cache purge in an optimizing proxy: what one URL really touches"
-description: "Purging one URL in ModPageSpeed touches more than one cache entry. The fan-out problem, the lookup-time design 1.x used, and why 2.0 deletes immediately."
+description: "Purging one URL in mod_pagespeed 2.1 touches more than one cache entry. The fan-out problem, the lookup-time design 1.x used, and why the optimizer worker deletes immediately."
 date: 2026-06-13
 lastUpdated: 2026-07-04
 tags: ["caching", "cache-invalidation", "architecture", "wordpress", "operations"]
@@ -13,9 +13,9 @@ This matters more now than it used to. The [WeAmp Cache Control for ModPageSpeed
 
 ## One source URL, many cache entries
 
-ModPageSpeed does not cache "the optimized version" of a resource. It caches whichever variant fits the request that asked for it.
+mod_pagespeed does not cache "the optimized version" of a resource. It caches whichever variant fits the request that asked for it.
 
-Take `/images/hero.jpg`. A phone on a slow connection with Save-Data on gets a small AVIF. A desktop on a retina display gets a larger one. A browser that only speaks WebP gets WebP. ModPageSpeed 2.0 encodes these differences in a 32-bit capability mask — image format, viewport class, pixel density, Save-Data, transfer encoding — and folds that mask into the cache key. One source image can expand into dozens of distinct stored outputs. The [configuration reference](/docs/configuration/) puts the ceiling at 37 distinct variants for a single image with all proactive generation enabled.
+Take `/images/hero.jpg`. A phone on a slow connection with Save-Data on gets a small AVIF. A desktop on a retina display gets a larger one. A browser that only speaks WebP gets WebP. mod_pagespeed encodes these differences in a 32-bit capability mask — image format, viewport class, pixel density, Save-Data, transfer encoding — and folds that mask into the cache key. One source image can expand into dozens of distinct stored outputs. The [configuration reference](/docs/configuration/) puts the ceiling at 37 distinct variants for a single image with all proactive generation enabled.
 
 So a purge that only deleted the entry keyed on the bare URL would leave every variant behind, and the proxy would keep serving the old AVIF to phones while the desktop saw the new file. That is the first part of the fan-out.
 
@@ -33,7 +33,7 @@ That inverts the hard problem. Instead of finding every dependent entry up front
 
 ## What changed in 2.0: a purge deletes immediately
 
-ModPageSpeed 2.0 does not work that way. The enumeration problem that forced 1.x into lookup-time validation no longer exists, because 2.0 changed how variants are stored. All the variants of a resource — every format, viewport, density, Save-Data, and encoding combination — plus the internal sentinel records for the URL live as alternates under a *single* cache key, not one key per mask. [Cache key derivation and alternate fallback](/blog/cache-key-derivation-and-alternate-fallback/) walks through how that key is built and how the variants hang off it; [sentinel cache keys](/blog/sentinel-cache-keys-and-103-early-hints/) covers the reserved records that ride along under the same key.
+mod_pagespeed does not work that way. The enumeration problem that forced 1.x into lookup-time validation no longer exists, because 2.0 changed how variants are stored. All the variants of a resource — every format, viewport, density, Save-Data, and encoding combination — plus the internal sentinel records for the URL live as alternates under a *single* cache key, not one key per mask. [Cache key derivation and alternate fallback](/blog/cache-key-derivation-and-alternate-fallback/) walks through how that key is built and how the variants hang off it; [sentinel cache keys](/blog/sentinel-cache-keys-and-103-early-hints/) covers the reserved records that ride along under the same key.
 
 Once the whole chain lives under one key, there is nothing to enumerate. A purge in 2.0 is a single synchronous `remove_sync(key)` against that key, which drops every variant and every sentinel for the URL in one operation. There is no invalidation record and no timestamp comparison at read time: the entry is gone the moment the purge returns, and the next request rebuilds it from origin.
 
@@ -63,7 +63,7 @@ This part is specific to the 1.x lookup-time model, and it is worth understandin
 
 A few consequences worth holding onto:
 
-- **Purge is per server.** A purge only acts on the cache of the node that received it — in 1.x it records the invalidation there, in 2.0 it deletes the key there. Either way, in a multi-server deployment you have to send the purge to every node. ModPageSpeed does not propagate purges across servers — the [1.1 caching docs](/docs/cache-modes/#multi-server-deployments) state this directly, and it holds for 2.0. Front a fleet with a small fan-out script or a config-management hook.
+- **Purge is per server.** A purge only acts on the cache of the node that received it — in 1.x it records the invalidation there, in 2.0 it deletes the key there. Either way, in a multi-server deployment you have to send the purge to every node. mod_pagespeed does not propagate purges across servers — the [1.1 caching docs](/docs/cache-modes/#multi-server-deployments) state this directly, and it holds for 2.0. Front a fleet with a small fan-out script or a config-management hook.
 - **You often do not need to purge at all.** Assets under content-hashed URLs invalidate themselves: change the bytes, the hash changes, the old URL is simply never requested again. [Why optimized URLs carry a content hash](/blog/content-hash-urls/) covers that path. Purge is for the cases where the URL stays put and the content moves underneath it.
 - **For routine deploys, [conditional revalidation](/blog/conditional-revalidation-304-vs-active-purge/) is usually cheaper than purge.** It keeps optimized variants when only the HTML changed, instead of forcing a rebuild. The [Cache-Control guide](/docs/cache-control/) walks through when to reach for which.
 
@@ -73,4 +73,4 @@ The [features overview](/features/) has the full picture.
 
 ---
 
-*The cache-invalidation design in this post descends from the original mod_pagespeed work in the Apache PageSpeed project — Srihari Sukumaran's "Cache invalidation of URL patterns" (2012), Ilya Grigorik's "Cache Purge API" (2013), and Joshua Marantz's "Flushing individual cache entries" (2013), released under the Apache License 2.0. We-Amp was an initial committer on that project alongside the original Google engineers. mod_pagespeed and PageSpeed are trademarks of Google LLC; We-Amp B.V. is not affiliated with Google and maintains the open-source project independently. ModPageSpeed 2.0 is an independent rebuild.*
+*The cache-invalidation design in this post descends from the original mod_pagespeed work in the Apache PageSpeed project — Srihari Sukumaran's "Cache invalidation of URL patterns" (2012), Ilya Grigorik's "Cache Purge API" (2013), and Joshua Marantz's "Flushing individual cache entries" (2013), released under the Apache License 2.0. We-Amp was an initial committer on that project alongside the original Google engineers. mod_pagespeed and PageSpeed are trademarks of Google LLC; We-Amp B.V. is not affiliated with Google and maintains the open-source project independently. The 2.0 re-architecture was an independent rebuild.*

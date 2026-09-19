@@ -9,15 +9,15 @@ howTo:
   name: How to serve AVIF and WebP per request off the Accept header
   description: Set up per-request image format negotiation so each browser gets AVIF if it accepts it, WebP if not, and the original as a last resort, all from a single source image and decided by the Accept header instead of hand-written markup.
   tools:
-  - ModPageSpeed 2.0
+  - mod_pagespeed 2.1
   - nginx
   steps:
   - name: Run optimization at the server layer
-    text: Put ModPageSpeed 2.0 in front of your origin as a reverse proxy. The interceptor reads the request's Accept header and classifies the client's format support before it touches the cache.
+    text: Put the mod_pagespeed 2.1 module in front of your origin as a reverse proxy. The module reads the request's Accept header and classifies the client's format support before it touches the cache.
   - name: Let the worker produce the variants once
     text: On the first request for an image, the worker decodes the source once and encodes the format variants (AVIF, WebP, and an optimized original), writing each into the shared cache keyed by what the client supports. No build step and no separate asset pipeline.
   - name: Serve the best variant the client accepts
-    text: On every subsequent request the interceptor picks the smallest format the Accept header says the browser can decode. AVIF for browsers that send image/avif, WebP for browsers that send image/webp, the optimized original for everything else. The cache hit is served via mmap with no re-encode.
+    text: On every subsequent request the module picks the smallest format the Accept header says the browser can decode. AVIF for browsers that send image/avif, WebP for browsers that send image/webp, the optimized original for everything else. The cache hit is served via mmap with no re-encode.
   - name: Verify with curl and a real browser
     text: "Send a request with an explicit Accept header (curl -H 'Accept: image/avif,image/webp,*/*') and confirm the Content-Type comes back as image/avif. Drop avif from the header and confirm it falls back to image/webp, then to the original. Check that the response varies on Accept so caches downstream do not cross-serve formats."
 ---
@@ -34,7 +34,7 @@ At visually-equivalent quality, AVIF files are roughly 20–30% smaller than Web
 
 The cost is encode time. WebP encodes quickly. AVIF, at comparable effort, is slower: at default encoder settings the gap is roughly an order of magnitude, and high-effort AVIF settings widen it further. For a single image that does not matter. Encoding a 10,000-image catalog synchronously, in the request path with a browser waiting, does. AVIF's compression comes from spending CPU, and that CPU has to be spent somewhere.
 
-This is why the encode happens [outside the request path](/blog/economics-of-image-optimization/) in ModPageSpeed 2.0. The worker decodes the source once and runs the encoders asynchronously. The first visitor gets the original immediately; the AVIF and WebP variants land in the cache shortly after, for everyone who follows. A slow encoder costs nothing when no request waits on it.
+This is why the encode happens [outside the request path](/blog/economics-of-image-optimization/) in the mod_pagespeed 2.1 optimizer worker. The worker decodes the source once and runs the encoders asynchronously. The first visitor gets the original immediately; the AVIF and WebP variants land in the cache shortly after, for everyone who follows. A slow encoder costs nothing when no request waits on it.
 
 ## Browser support in 2026
 
@@ -75,7 +75,7 @@ The markup approach puts a person in charge of a decision the server already has
 
 Move the decision to where the `Accept` header arrives, at the server, and the per-image bookkeeping disappears.
 
-In ModPageSpeed 2.0 the nginx interceptor classifies each request into a capability mask that includes the formats the client accepts, read off the `Accept` header. It looks up the requested image in the [variant-aware cache](/features/) and serves the best-fit variant for that mask: AVIF to a browser that sent `image/avif`, WebP to one that sent `image/webp` but not `image/avif`, the optimized original to the rest. If the ideal variant is not in the cache yet, the selector degrades to the next-best one rather than failing.
+The module classifies each request into a capability mask that includes the formats the client accepts, read off the `Accept` header. It looks up the requested image in the [variant-aware cache](/features/) and serves the best-fit variant for that mask: AVIF to a browser that sent `image/avif`, WebP to one that sent `image/webp` but not `image/avif`, the optimized original to the rest. If the ideal variant is not in the cache yet, the selector degrades to the next-best one rather than failing.
 
 The variants are produced once. On a cache miss the worker reads the source, decodes it a single time, and encodes the formats from that one decode pass, writing each back into the shared cache. A 10-megapixel JPEG decodes to tens of megabytes in memory, so decoding once and fanning out to AVIF, WebP, and an optimized original keeps the CPU cost in check. The slow AVIF encode runs in the worker, off the request path, so no visitor waits on it.
 
@@ -102,7 +102,7 @@ The same content-negotiation machinery drives [viewport-aware resizing](/blog/vi
 
 Both. AVIF where the browser accepts it, because it is smaller. WebP where it does not, because it is well ahead of JPEG and supported almost everywhere. The original for the last few percent that take neither. The choice only looks like an either/or when you decide for every visitor at once. Decide per request off the `Accept` header instead, and every client gets the smallest format it can render.
 
-The work is in producing the variants once and selecting the right one on every request without hand-maintaining the chain. That is a [self-hosted, server-layer job](/self-hosted-image-optimization/), and the one [ModPageSpeed 2.0](/features/) is built to do. It also helps [LCP](/core-web-vitals/lcp/): the largest contentful element is often an image, and serving it as AVIF instead of JPEG is usually a large byte cut on the page.
+The work is in producing the variants once and selecting the right one on every request without hand-maintaining the chain. That is a [self-hosted, server-layer job](/self-hosted-image-optimization/), and the one [mod_pagespeed](/features/) is built to do. It also helps [LCP](/core-web-vitals/lcp/): the largest contentful element is often an image, and serving it as AVIF instead of JPEG is usually a large byte cut on the page.
 
 ---
 

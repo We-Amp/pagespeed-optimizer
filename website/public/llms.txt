@@ -2,7 +2,7 @@
 
 # mod_pagespeed — self-hosted web performance optimization
 
-> Self-hosted web performance optimization for Apache and nginx. Open source under the Apache License 2.0. mod_pagespeed 2.1 converges the mod_pagespeed lineage and the ModPageSpeed 2.0 engine into one product: a native web-server module with a separate optimizer worker.
+> Self-hosted web performance optimization for Apache and nginx. Open source under the Apache License 2.0. mod_pagespeed 2.1 converges the mod_pagespeed lineage and the engine from the 2.0 re-architecture into one product: a native web-server module with a separate optimizer worker.
 
 We-Amp B.V. develops mod_pagespeed 2.1, the converged continuation of the open-source mod_pagespeed project, originally developed at Google. It automatically optimizes web content (images, CSS, JS, HTML): a native in-process module for Apache and nginx handles serving, and a separate optimizer worker does the heavy optimization work outside the web server. Drop-in compatible with the classic module: the same configuration directives and filters carry over. mod_pagespeed 2.1 converges the 1.15 module line (renumbered from 1.1 — the forward-semver successor to the last upstream release, 1.14.36.1) with the ModPageSpeed 2.0 engine, which continues as the optimizer worker.
 
@@ -30,7 +30,7 @@ mod_pagespeed 2.1 is open source under the Apache License 2.0: free to install a
 ## Upgrading
 
 - **mod_pagespeed 1.15** (renumbered from 1.1): mod_pagespeed 2.1 is its drop-in upgrade. The IIS package ships from the 1.15 packaging channel. See [Upgrading to 2.1](https://modpagespeed.com/docs/migrating-to-2-1/#upgrading-from-1-15).
-- **ModPageSpeed 2.0** (the Docker/Helm stack): move via the [migration guide](https://modpagespeed.com/docs/migrating-to-2-1/). The ASP.NET Core middleware continues unchanged — see [ASP.NET Core performance](https://modpagespeed.com/aspnet-core-performance/).
+- **ModPageSpeed 2.0** (the Docker/Helm stack): move via the [migration guide](https://modpagespeed.com/docs/migrating-to-2-1/). The ASP.NET Core middleware has no migration step: `WeAmp.PageSpeed.AspNetCore` is the ASP.NET Core form of mod_pagespeed 2.1 — see [ASP.NET Core performance](https://modpagespeed.com/aspnet-core-performance/).
 
 ## Distribution / install channels
 
@@ -40,7 +40,7 @@ mod_pagespeed 2.1 is open source under the Apache License 2.0: free to install a
 
 ### ASP.NET Core sidecar (NuGet)
 
-The 1.15 line also ships as a NuGet sidecar package, `WeAmp.PageSpeed.Sidecar` (with native binaries in `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`). Linux-only (linux-x64 / linux-arm64); it bundles nginx 1.30.2. Inverse topology: your ASP.NET Core Kestrel app is the public front door, and the bundled nginx runs on loopback behind it as the optimize-proxy. Install with `dotnet add package WeAmp.PageSpeed.Sidecar` (GA on nuget.org).
+The module also ships as a NuGet sidecar package, `WeAmp.PageSpeed.Sidecar` (with native binaries in `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`). Linux-only (linux-x64 / linux-arm64); it bundles nginx 1.30.2. Inverse topology: your ASP.NET Core Kestrel app is the public front door, and the bundled nginx runs on loopback behind it as the optimize-proxy. Install with `dotnet add package WeAmp.PageSpeed.Sidecar` (GA on nuget.org).
 
 ## Company
 
@@ -79,13 +79,10 @@ mod_pagespeed is an open-source project originally developed at Google. mod_page
 - [Security](https://modpagespeed.com/security/)
 - [Is mod_pagespeed still maintained?](https://modpagespeed.com/mod-pagespeed-still-maintained/)
 - [cPanel / EasyApache 4](https://modpagespeed.com/docs/cpanel/)
-- [1.15 apt/yum repository](https://modpagespeed.com/download/apt-yum/)
-- [1.15 Documentation](https://modpagespeed.com/docs/)
+- [apt/yum repository](https://modpagespeed.com/download/apt-yum/)
 - [Upgrading from 1.15 to 2.1](https://modpagespeed.com/docs/migrating-to-2-1/#upgrading-from-1-15)
-- [1.15 Getting Started](https://modpagespeed.com/docs/getting-started/)
-- [1.15 Filter Reference](https://modpagespeed.com/docs/filter-reference/)
-- [1.15 Configuration](https://modpagespeed.com/docs/configuration/)
-- [1.15 FAQ](https://modpagespeed.com/pricing/#faq)
+- [Filter Reference](https://modpagespeed.com/docs/filter-reference/)
+- [FAQ](https://modpagespeed.com/pricing/#faq)
 - [Legacy Docs (1.0)](https://modpagespeed.com/1.0/)
 - [machine-readable product summary](https://modpagespeed.com/api/product.json)
 - [llms-full.txt (expanded)](https://modpagespeed.com/llms-full.txt)

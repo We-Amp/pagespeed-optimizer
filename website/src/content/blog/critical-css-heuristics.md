@@ -1,6 +1,6 @@
 ---
 title: 'Extract critical CSS without a browser — or with headless Chrome when you need it'
-description: 'How ModPageSpeed 2.0 extracts and inlines critical CSS two ways: static heuristics in under 5ms on every page, plus an optional headless-Chrome path for true above-the-fold rules at First Contentful Paint.'
+description: 'How the mod_pagespeed 2.1 optimizer worker extracts and inlines critical CSS two ways: static heuristics in under 5ms on every page, plus an optional headless-Chrome path for true above-the-fold rules at First Contentful Paint.'
 date: 2026-02-08
 author: 'Otto van der Schaaf'
 tags: ['critical-css', 'css', 'performance', 'headless-chrome', 'core-web-vitals', 'deep-dive']
@@ -15,7 +15,7 @@ Critical CSS -- the minimal set of styles needed to render above-the-fold conten
 
 There are two ways to answer that. You can render the page in a real browser and watch which rules apply to visible elements. Or you can read the HTML and CSS statically and reason about structure. The first is more precise. The second is faster by three orders of magnitude and needs no external process.
 
-ModPageSpeed 2.0 ships both. Heuristics are the always-on default: every page gets critical CSS extracted in single-digit milliseconds with no dependencies. Headless Chrome is an opt-in accuracy upgrade that runs off the request path and caches its results per template. This post covers how each path works, and how they fit together.
+The optimizer worker ships both. Heuristics are the always-on default: every page gets critical CSS extracted in single-digit milliseconds with no dependencies. Headless Chrome is an opt-in accuracy upgrade that runs off the request path and caches its results per template. This post covers how each path works, and how they fit together.
 
 ## Why headless Chrome can't sit on the request path
 
@@ -23,7 +23,7 @@ The standard critical-CSS tools today -- Critical, Penthouse, CriticalCSS -- all
 
 A headless Chromium process consumes 200-400 MB of memory and takes 2-5 seconds per page to render and evaluate. You cannot do that synchronously while a visitor waits for HTML. You also cannot do it once and forget it: Chromium updates shift element geometry and break automation APIs, so the extraction is a moving target that needs babysitting.
 
-For a system like ModPageSpeed 2.0 that [extracts critical CSS server-side at the nginx layer](/blog/server-side-critical-css-nginx/) with no application changes, requiring a headless browser *for every request* would be a non-starter. So the default path uses no browser at all. The browser, when you want it, runs somewhere else entirely.
+For a system like mod_pagespeed that [extracts critical CSS server-side at the nginx layer](/blog/server-side-critical-css-nginx/) with no application changes, requiring a headless browser *for every request* would be a non-starter. So the default path uses no browser at all. The browser, when you want it, runs somewhere else entirely.
 
 ## The heuristic path: critical CSS without a browser
 
@@ -106,7 +106,7 @@ In every one of these cases the page still gets optimized -- just with the faste
 
 Running Chrome raises two questions: footprint and safety.
 
-**Footprint.** ModPageSpeed 2.0 does not bundle Chrome. The Docker release images (`ghcr.io/we-amp/pagespeed-worker`) ship with Chromium pre-installed, so there's nothing to do. Outside Docker, install Chrome or `chrome-headless-shell` and point `--chrome-binary` at it (default `/usr/bin/chrome-headless-shell`). The worker manages Chrome's lifecycle so it can't drift or leak: it recycles the process every `--chrome-recycle-interval` pages (default 100), reads `/proc/pid/status` VmRSS every five seconds and restarts above `--chrome-max-memory` (default 512 MB), and caps queued work at `--browser-queue-size`. A long-running analysis backlog can't accumulate a leaking browser.
+**Footprint.** The optimizer worker does not bundle Chrome. The Docker release images (`ghcr.io/we-amp/pagespeed-worker`) ship with Chromium pre-installed, so there's nothing to do. Outside Docker, install Chrome or `chrome-headless-shell` and point `--chrome-binary` at it (default `/usr/bin/chrome-headless-shell`). The worker manages Chrome's lifecycle so it can't drift or leak: it recycles the process every `--chrome-recycle-interval` pages (default 100), reads `/proc/pid/status` VmRSS every five seconds and restarts above `--chrome-max-memory` (default 512 MB), and caps queued work at `--browser-queue-size`. A long-running analysis backlog can't accumulate a leaking browser.
 
 **SSRF defense.** Browser analysis works exclusively on *cached* content: the worker inlines the HTML and CSS it already holds and hands that to Chrome. Chrome never makes a live network request, and four independent layers enforce it:
 

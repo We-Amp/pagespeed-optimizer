@@ -3,7 +3,7 @@ title: 'Install with Docker'
 description: 'Run mod_pagespeed 2.1 in Docker with Docker Compose: the nginx module, the worker, and a shared Cyclone cache. A one-container quick try, then a three-service production stack.'
 order: 10
 group: 'Install'
-lastUpdated: 2026-09-18
+lastUpdated: 2026-09-19
 ---
 
 Deploy mod_pagespeed 2.1 with Docker Compose. You run three containers — nginx
@@ -13,7 +13,7 @@ with the single combined container below.
 
 ## Quick try (one container)
 
-The fastest way to see ModPageSpeed against your own site is the combined
+The fastest way to see mod_pagespeed against your own site is the combined
 image, which runs the worker and nginx together in a single container. Point it
 at your origin and publish port 80:
 
@@ -288,7 +288,7 @@ background. Later requests serve the optimized variant with `X-PageSpeed: HIT`.
 ### Verify image optimization
 
 A `HIT` on the HTML confirms the cache is live, but it does not by itself prove
-that images are being transcoded. ModPageSpeed 2.0 keeps the original URL and
+that images are being transcoded. mod_pagespeed keeps the original URL and
 serves a smaller WebP or AVIF body through content negotiation on the `Accept`
 header, so there are no `.pagespeed.` URLs to look for. Request the same image
 three ways and compare:
@@ -312,7 +312,7 @@ stay the same, see
 [Worker Not Processing Content](/docs/troubleshooting/#worker-not-processing-content)
 and [Images Not Converting to WebP/AVIF](/docs/troubleshooting/#images-not-converting-to-webpavif).
 
-CSS and JavaScript are minified in place at their original URLs — 2.0 does not
+CSS and JavaScript are minified in place at their original URLs — mod_pagespeed does not
 combine or rewrite them into new URLs, so the page source stays clean.
 
 ## View Logs

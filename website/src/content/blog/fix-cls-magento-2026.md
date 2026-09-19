@@ -11,7 +11,7 @@ howTo:
   name: How to fix CLS on Magento
   description: Reduce Cumulative Layout Shift on Magento 2 product pages by pre-sizing the Fotorama gallery with server-layer image dimensions and reserving space for the mini-cart and private-content blocks in Magento configuration and theme CSS.
   tools:
-  - mod_pagespeed 1.15
+  - mod_pagespeed 2.1
   - nginx
   - Apache
   - Chrome DevTools
@@ -32,7 +32,7 @@ howTo:
 
 ---
 
-Magento 2 product pages routinely score 0.3+ CLS on mobile and the offending element is almost always the Fotorama gallery, expanding from zero height to 700 px on init and dragging the price block, add-to-cart button, and tabs down with it. The biggest win is forcing image dimensions onto the catalog images via **mod_pagespeed 1.15** (an nginx module) so the gallery slot reserves the correct height before pixels arrive; everything else is sizing the mini-cart and private-content blocks. No fork of the gallery JavaScript, no Hyvä migration on day one.
+Magento 2 product pages routinely score 0.3+ CLS on mobile and the offending element is almost always the Fotorama gallery, expanding from zero height to 700 px on init and dragging the price block, add-to-cart button, and tabs down with it. The biggest win is forcing image dimensions onto the catalog images via **mod_pagespeed 2.1** (an nginx module) so the gallery slot reserves the correct height before pixels arrive; everything else is sizing the mini-cart and private-content blocks. No fork of the gallery JavaScript, no Hyvä migration on day one.
 
 This guide is part of our [Core Web Vitals series](/core-web-vitals/).
 
@@ -135,8 +135,8 @@ ModPagespeedEnableFilters prioritize_critical_css
 - [How to fix INP on Magento](/blog/fix-inp-magento-2026/)
 - [How to fix CLS on nginx](/blog/fix-cls-nginx-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)
-- [mod_pagespeed 1.15 filter reference](/docs/filter-reference/)
+- [mod_pagespeed filter reference](/docs/filter-reference/)
 - [The full CLS guide](/core-web-vitals/cls/)
 - [Test your page in the analyzer](/analyze/)
 
-mod_pagespeed 1.15 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed 2.1 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).

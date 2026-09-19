@@ -1,9 +1,9 @@
 ---
-title: 'ModPageSpeed for nginx'
+title: 'Install the nginx module'
 description: 'Install the native mod_pagespeed 2.1 module for Apache and nginx from the signed packages.modpagespeed.com repository, or run the Docker / nginx reverse proxy.'
 order: 11
 group: 'Install'
-lastUpdated: 2026-09-18
+lastUpdated: 2026-09-19
 faq:
   - q: 'Is there a native nginx module for mod_pagespeed 2.1?'
     a: 'Yes. The native Apache and nginx module ships from the signed packages.modpagespeed.com repository — the same channel mod_pagespeed 1.15 uses.'
@@ -79,5 +79,5 @@ CSS/JS minification, critical CSS, and zero-copy serving from the Cyclone
 shared-memory cache.
 
 Run your site through a [PageSpeed Insights test](/analyze/) to see which
-failing audits ModPageSpeed will fix, and read the
+failing audits mod_pagespeed will fix, and read the
 [Core Web Vitals](/core-web-vitals/) guide for the LCP, CLS, and INP plan.

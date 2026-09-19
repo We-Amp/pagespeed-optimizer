@@ -143,11 +143,8 @@ export const LAST_UPSTREAM_VERSION = '1.14.36.1';
 export const V2_GA_DATE = '2026-05-17';
 // The 2.0 marketing LINE label, the counterpart of V1_LINE. Use the line
 // constants as the edition keys everywhere — never a bare string literal, and
-// never the frozen /1.1/ URL path. Under the converged model V1_LINE and
-// V2_LINE are PREDECESSOR lines: 1.15 receives security fixes only, with per-platform
-// windows, and "ModPageSpeed 2.0" is the frozen predecessor brand
-// (EOL 2027-02-07). CURRENT_LINE is the converged line every current-product
-// surface derives from.
+// never the frozen /1.1/ URL path. CURRENT_LINE is the converged line every
+// current-product surface derives from, the ASP.NET Core middleware included.
 export const V2_LINE = '2.0';
 export const CURRENT_LINE = '2.1';
 
@@ -183,12 +180,12 @@ export const CURRENT_LINE = '2.1';
 //      portsFor() for non-copy consumers (the JSON API) only.
 //
 // FACTS ENCODED HERE (verified 2026-07):
-//   - mod_pagespeed 1.15 ships AVIF encoding on Apache, nginx (standard and
+//   - The 1.15 line ships AVIF encoding on Apache, nginx (standard and
 //     lite) and the native IIS module; the AV1 encoder is statically linked.
 //     AVIF is OPT-IN: its four filters sit outside rewrite_images and outside
 //     CoreFilters. The IIS module is x64-only and labelled Experimental. None
 //     of that nuance is rendered into copy — see rule 4.
-//   - ModPageSpeed 2.0 has AVIF in the nginx worker and the ASP.NET Core
+//   - The 2.0 line has AVIF in the nginx worker and the ASP.NET Core
 //     middleware.
 //   - SVG auto-vectorization stays 2.0-only (as do Jpegli and ML-predicted
 //     quality, which are not image FORMATS and so are not modelled here).
@@ -264,32 +261,20 @@ function joinList(items) {
 }
 
 /**
- * Render the edition-scoping clause the vs/* comparison rows need. Formats
- * that share an identical edition set COLLAPSE into one group, so the clause
- * reads naturally whether or not the formats line up:
+ * Render the image-format clause the vs/* comparison rows need: the bare list
+ * of formats the converged line encodes, with no line enumeration:
  *
- *   editionClause(['WebP', 'AVIF'])         -> 'WebP and AVIF across 1.15 and 2.0'
- *   editionClause(['WebP', 'AVIF', 'SVG'])  -> 'WebP and AVIF across 1.15 and 2.0, SVG in 2.0'
- *   editionClause(['SVG'])                  -> 'SVG in 2.0'
+ *   editionClause(['WebP', 'AVIF'])         -> 'WebP and AVIF'
+ *   editionClause(['WebP', 'AVIF', 'SVG'])  -> 'WebP, AVIF, and SVG'
+ *   editionClause(['SVG'])                  -> 'SVG'
  *
- * Never emits a port (rule 4). Unknown formats are skipped rather than guessed.
+ * Never emits a port or an edition label (rule 4). A format the converged line
+ * does not encode, and an unknown format, are skipped rather than guessed. The
+ * edition/port model stays retrievable for non-copy consumers (the JSON API)
+ * through editionsFor() and portsFor(), whose shapes do not move.
  */
 export function editionClause(formats = IMAGE_FORMAT_SUPPORT.map((r) => r.format)) {
-  const groups = [];
-  for (const format of formats) {
-    const editions = editionsFor(format);
-    if (editions.length === 0) continue; // unknown format — claim nothing
-    const key = editions.join('\u001f');
-    const group = groups.find((g) => g.key === key);
-    if (group) group.formats.push(format);
-    else groups.push({ key, editions, formats: [format] });
-  }
-  return groups
-    .map(
-      (g) =>
-        `${joinList(g.formats)} ${g.editions.length > 1 ? 'across' : 'in'} ${joinList(g.editions)}`,
-    )
-    .join(', ');
+  return joinList(formats.filter((format) => editionsFor(format).includes(CURRENT_LINE)));
 }
 
 // BACK-COMPAT: the flat format list, unchanged in name, shape and value
@@ -300,13 +285,13 @@ export function editionClause(formats = IMAGE_FORMAT_SUPPORT.map((r) => r.format
 export const IMAGE_FORMATS = /* @__PURE__ */ formatsFor(CURRENT_LINE);
 
 // --- NuGet packages ---------------------------------------------------------
-export const PKG_ASPNETCORE = 'WeAmp.PageSpeed.AspNetCore'; // ModPageSpeed 2.0 middleware
+export const PKG_ASPNETCORE = 'WeAmp.PageSpeed.AspNetCore'; // the ASP.NET Core middleware
 export const PKG_SIDECAR = 'WeAmp.PageSpeed.Sidecar'; // mod_pagespeed 1.15 sidecar
 export const PKG_SIDECAR_NATIVE = 'WeAmp.PageSpeed.Sidecar.NativeAssets.Linux';
 export const SIDECAR_NGINX_VERSION = '1.30.2'; // nginx bundled inside the 1.15 sidecar
 export const SIDECAR_RIDS = ['linux-x64', 'linux-arm64'];
 export const ASPNETCORE_RIDS = ['linux-x64', 'linux-arm64', 'osx-arm64', 'win-x64'];
-// Target frameworks the ModPageSpeed 2.0 ASP.NET Core middleware ships for.
+// Target frameworks the ASP.NET Core middleware ships for.
 // Authoritative for the .NET runtime requirement (.NET 8 or .NET 10) — NOT .NET 9.
 // Mirrors aspnet-getting-started.mdx ("targets net8.0 and net10.0"). Keep this in
 // lockstep with the package's <TargetFrameworks>; the content-accuracy guard asserts it.

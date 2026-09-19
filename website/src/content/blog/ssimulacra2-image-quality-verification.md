@@ -1,6 +1,6 @@
 ---
 title: 'SSIMULACRA2 image quality: verify the encode, then re-encode until it passes'
-description: 'How ModPageSpeed 2.0 scores encoded images against a SSIMULACRA2 image quality target and re-encodes until the result clears tolerance, not a quality knob.'
+description: 'How mod_pagespeed 2.1 scores encoded images against a SSIMULACRA2 target in the optimizer worker and re-encodes until the result clears tolerance.'
 date: 2026-06-14
 author: 'Otto van der Schaaf'
 tags: ['images', 'image-optimization', 'performance', 'deep-dive']
@@ -8,7 +8,7 @@ draft: false
 product: '2.0'
 ---
 
-Set a JPEG encoder to quality 85 and you get whatever quality 85 happens to mean for that particular image. A flat illustration comes out near-lossless and bloated. A noisy night photo comes out with smeared shadows and visible blocking. The number on the dial is an input to the encoder, not a statement about how the result looks. ModPageSpeed 2.0 treats that gap as a bug to close: it measures the encoded output with a SSIMULACRA2 image quality score and, if the result misses the target band, re-encodes at a stepped quality until it lands inside. The function that does this is `VerifySsimulacra2Quality()` in `image_transcoder.cc`, and this post walks through exactly what it does and where it runs.
+Set a JPEG encoder to quality 85 and you get whatever quality 85 happens to mean for that particular image. A flat illustration comes out near-lossless and bloated. A noisy night photo comes out with smeared shadows and visible blocking. The number on the dial is an input to the encoder, not a statement about how the result looks. The optimizer worker treats that gap as a bug to close: it measures the encoded output with a SSIMULACRA2 image quality score and, if the result misses the target band, re-encodes at a stepped quality until it lands inside. The function that does this is `VerifySsimulacra2Quality()` in `image_transcoder.cc`, and this post walks through exactly what it does and where it runs.
 
 This is the post-encode side of the story. A sister mechanism, [learned quality prediction](/blog/learned-quality-prediction/), tries to pick a good starting quality *before* the first encode. Prediction picks a likely starting point; verification confirms the result actually meets the target. The two run together, but they solve different halves of the problem.
 
@@ -18,7 +18,7 @@ The whole approach depends on having a metric that agrees with human eyes. If yo
 
 PSNR measures mean squared error between pixels. It is cheap and it is what a lot of older tooling reports, but it has no model of perception: it punishes a small global brightness shift that nobody would notice, and it under-counts blocking and ringing artifacts that everybody notices. SSIM is better. It compares local luminance, contrast, and structure rather than raw pixel deltas, so it tracks perceived quality more closely than PSNR. But it still misses a lot of the artifacts modern lossy codecs actually produce.
 
-SSIMULACRA2 is a perceptual metric built specifically to rate the kinds of distortions image codecs introduce, and it is tuned against large datasets of human quality ratings. It scores on roughly a 0 to 100 scale where higher is better, and a given score means about the same thing whether the file is a JPEG, a WebP, or an AVIF. That last property is what makes it usable as a single, format-independent target across a pipeline that emits all three. ModPageSpeed 2.0 calls `pagespeed::ComputeSSIMULACRA2()` on the decoded reference pixels and the decoded encoder output, comparing them at the same width, height, and bytes-per-pixel.
+SSIMULACRA2 is a perceptual metric built specifically to rate the kinds of distortions image codecs introduce, and it is tuned against large datasets of human quality ratings. It scores on roughly a 0 to 100 scale where higher is better, and a given score means about the same thing whether the file is a JPEG, a WebP, or an AVIF. That last property is what makes it usable as a single, format-independent target across a pipeline that emits all three. The optimizer worker calls `pagespeed::ComputeSSIMULACRA2()` on the decoded reference pixels and the decoded encoder output, comparing them at the same width, height, and bytes-per-pixel.
 
 ## The SSIMULACRA2 image quality verify-then-re-encode loop
 
@@ -68,7 +68,7 @@ JPEG is the exception. `TranscodeMulti` optimizes JPEG with the stream-based `Op
 
 ## Save-Data shifts the target, not the metric
 
-A visitor sending the `Save-Data` request hint is telling you they would rather have a smaller file than a prettier one. ModPageSpeed 2.0 honors that by [moving the target down rather than turning verification off](/blog/save-data-bandwidth/). In the resized transcode path, when save-data is active, the target is reduced by `savedata_score_reduction` (default `15.0f`), floored at zero:
+A visitor sending the `Save-Data` request hint is telling you they would rather have a smaller file than a prettier one. The optimizer worker honors that by [moving the target down rather than turning verification off](/blog/save-data-bandwidth/). In the resized transcode path, when save-data is active, the target is reduced by `savedata_score_reduction` (default `15.0f`), floored at zero:
 
 ```cpp
 local_config.target_ssimulacra2 =
@@ -92,7 +92,7 @@ A couple of points worth keeping straight. Verification only kicks in when `qual
 - [How async rewriting works](/how-it-works/async-rewriting/)
 - [Largest Contentful Paint](/core-web-vitals/lcp/)
 
-If you want to see the verify loop run on your own images, [download ModPageSpeed 2.0](/download/) and watch the worker log: every scored encode prints its SSIMULACRA2 value, and a `re-encoded` note whenever the loop had to correct a miss. The defaults (`target_ssimulacra2 = 70`, four attempts, a step of 5) are a sensible starting point, and every one of those fields is a config knob you can move once you've seen the scores your traffic produces. The full set lives under image transcoding in the [configuration reference](/docs/configuration/). It is licensed under Apache-2.0 and free to run, so you can measure the wins on your own images.
+If you want to see the verify loop run on your own images, [download mod_pagespeed](/download/) and watch the worker log: every scored encode prints its SSIMULACRA2 value, and a `re-encoded` note whenever the loop had to correct a miss. The defaults (`target_ssimulacra2 = 70`, four attempts, a step of 5) are a sensible starting point, and every one of those fields is a config knob you can move once you've seen the scores your traffic produces. The full set lives under image transcoding in the [configuration reference](/docs/configuration/). It is licensed under Apache-2.0 and free to run, so you can measure the wins on your own images.
 
 ---
 

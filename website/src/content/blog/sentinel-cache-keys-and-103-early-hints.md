@@ -1,6 +1,6 @@
 ---
 title: 'Sentinel cache keys: reserving alternate IDs for 103 Early Hints'
-description: 'How ModPageSpeed 2.0 precomputes 103 Early Hints preloads and lets nginx serve them from cache, using sentinel cache keys — the reserved Viewport=3 trick — to store them alongside per-URL content variants.'
+description: 'How the mod_pagespeed 2.1 optimizer worker precomputes 103 Early Hints preloads and lets nginx serve them from cache, using sentinel cache keys — the reserved Viewport=3 trick — to store them alongside per-URL content variants.'
 date: 2026-06-13
 author: 'Otto van der Schaaf'
 tags: ['caching', 'architecture', 'deep-dive', 'performance', 'nginx']
@@ -11,7 +11,7 @@ lastUpdated: 2026-09-06
 
 A browser asks for `https://example.com/`, and before the origin has produced a single byte of HTML, nginx writes back `HTTP/1.1 103 Early Hints` with a list of stylesheet preloads. The browser starts fetching CSS while the real response is still being assembled. That `103` payload did not come from the origin and it was not computed on the request path. It was read out of the cache, from a key that no client request can ever address.
 
-This post is about sentinel cache keys, as they ship in ModPageSpeed 2.0. The proxy stores per-URL content variants — WebP, AVIF, mobile, desktop, retina, Save-Data — as Cyclone *alternates* under one cache key. The same alternate mechanism also holds metadata that is *not* a content variant: the Early Hints preload list, a content-hash binding, a per-template browser optimization profile. The classifier reserves a slice of the alternate ID space for exactly this, using a property of the capability mask that makes collision with a real client impossible.
+This post is about sentinel cache keys, as they ship in mod_pagespeed. The proxy stores per-URL content variants — WebP, AVIF, mobile, desktop, retina, Save-Data — as Cyclone *alternates* under one cache key. The same alternate mechanism also holds metadata that is *not* a content variant: the Early Hints preload list, a content-hash binding, a per-template browser optimization profile. The classifier reserves a slice of the alternate ID space for exactly this, using a property of the capability mask that makes collision with a real client impossible.
 
 ## One key, many alternates, a reserved corner
 
@@ -80,7 +80,7 @@ Two caveats. The trick reserves a viewport-3 slice of the ID space but the syste
 - [Reducing TTFB at the server layer](/blog/reduce-ttfb-server-layer-2026/)
 - [How it works: the metadata cache](/how-it-works/metadata-cache/)
 
-The sentinel-cache-key scheme described here is in ModPageSpeed 2.0 today: the `SentinelId` enum lives in the shipped classifier, the worker writes the Early Hints channel, and nginx reads it and serves the `103`. The remaining edge — `103` over HTTP/2 and HTTP/3 — is future work. [Download it](/download/), put it in front of a real site, and read the [cache modes documentation](/docs/cache-modes/) to see how the cache behaves under each mode. It is licensed under Apache-2.0 and free to run in development and in production, so you can measure the hit path on your own traffic.
+The sentinel-cache-key scheme described here is in mod_pagespeed today: the `SentinelId` enum lives in the shipped classifier, the worker writes the Early Hints channel, and nginx reads it and serves the `103`. The remaining edge — `103` over HTTP/2 and HTTP/3 — is future work. [Download it](/download/), put it in front of a real site, and read the [cache modes documentation](/docs/cache-modes/) to see how the cache behaves under each mode. It is licensed under Apache-2.0 and free to run in development and in production, so you can measure the hit path on your own traffic.
 
 ---
 

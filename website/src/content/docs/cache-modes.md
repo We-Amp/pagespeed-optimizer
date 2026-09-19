@@ -1,13 +1,13 @@
 ---
 title: 'Choose a cache mode: safe vs aggressive'
-description: 'Control the Cache-Control headers ModPageSpeed 2.0 sets on optimized responses — safe mode (default) adds must-revalidate for fast recovery, aggressive mode uses long TTLs with stale-if-error — plus the in-process module cache reference: Cyclone storage, memcached and Redis, purging, sizing and IPRO.'
+description: 'Control the Cache-Control headers mod_pagespeed 2.1 sets on optimized responses — safe mode (default) adds must-revalidate for fast recovery, aggressive mode uses long TTLs with stale-if-error — plus the in-process module cache reference: Cyclone storage, memcached and Redis, purging, sizing and IPRO.'
 order: 22
 group: 'Configure'
 lastUpdated: 2026-09-19
 ---
 
-ModPageSpeed 2.0 transforms your origin's content — optimizing images, minifying
-CSS, and rewriting HTML. Because the output depends on ModPageSpeed's
+mod_pagespeed 2.1 transforms your origin's content — optimizing images, minifying
+CSS, and rewriting HTML. Because the output depends on mod_pagespeed's
 configuration and software version, the [Cache-Control headers your origin
 sends](/docs/cache-control/) don't apply verbatim to the transformed output. A misconfigured option or a software bug
 can produce broken content that gets cached by browsers and CDNs.
@@ -47,7 +47,7 @@ This means:
   serving stale content. This is intentional — a visible error is better than
   silently serving corrupted content.
 
-Revalidation costs little: ModPageSpeed generates ETags on all cache hits, so
+Revalidation costs little: mod_pagespeed generates ETags on all cache hits, so
 most revalidation requests return 304 Not Modified with no body transfer.
 
 ## Aggressive mode
@@ -117,9 +117,9 @@ max-age value. The safety mechanism is `must-revalidate`, not the TTL.
 
 ## What about `immutable`?
 
-ModPageSpeed strips `immutable` from all transformed content in both modes.
+mod_pagespeed strips `immutable` from all transformed content in both modes.
 Your origin may send `Cache-Control: immutable` for fingerprinted assets, but
-ModPageSpeed's output depends on mutable state (configuration, software version,
+mod_pagespeed's output depends on mutable state (configuration, software version,
 capability detection). The long TTL from `pagespeed_immutable_max_age` is
 preserved in aggressive mode — you get the cache performance without a false
 immutability claim.
@@ -135,7 +135,7 @@ content for up to 24 hours during origin outages.
 
 Some CDN configurations can override origin cache headers (e.g., Cloudflare
 "Cache Everything" page rules with edge TTL). These CDN-level overrides take
-precedence over ModPageSpeed's headers.
+precedence over mod_pagespeed's headers.
 
 For CDN-specific guidance including Vary header recommendations, see
 [CDN Integration](/docs/cdn-integration/).

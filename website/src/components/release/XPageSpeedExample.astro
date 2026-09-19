@@ -14,19 +14,24 @@
 //     → X-Mod-Pagespeed: 1.1.0.0
 //   <XPageSpeedExample line="2.0" />
 //     → X-PageSpeed: WeAmp.PageSpeed/2.0.7
+//   <XPageSpeedExample line="2.1" surface="middleware" />
+//     → X-PageSpeed: WeAmp.PageSpeed/2.1.0
+//
+// `surface="middleware"` asks for the ASP.NET Core middleware's header form
+// on any line; without it, `line="2.1"` renders the module's header.
 
 import { getRelease } from '../../lib/release';
 
 interface Props {
-  line: '1.1' | '2.0';
-  surface?: 'nginx' | 'apache' | 'iis';
+  line: '1.1' | '2.0' | '2.1';
+  surface?: 'nginx' | 'apache' | 'iis' | 'middleware';
 }
 
 const { line, surface = 'nginx' } = Astro.props;
 const rel = await getRelease(line);
 
 let header: string;
-if (line === '2.0') {
+if (surface === 'middleware' || line === '2.0') {
   header = `X-PageSpeed: WeAmp.PageSpeed/${rel.display.header_version}`;
 } else if (surface === 'apache') {
   // 1.1 Apache build emits a four-segment legacy version string

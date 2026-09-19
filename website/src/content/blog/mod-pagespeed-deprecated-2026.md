@@ -17,8 +17,8 @@ Yes. `mod_pagespeed` is deprecated. The 1.13.35.2 binaries still install, but th
 | `mod_pagespeed` 1.13.35.2 on Apache       | [mod_pagespeed 2.1](/) — drop-in replacement                                                                                                |
 | `ngx_pagespeed` on nginx                  | [mod_pagespeed 2.1](/) — drop-in for nginx                                                                                                  |
 | IISpeed on Windows / IIS                  | [mod_pagespeed for IIS](/alternatives/iispeed/) — the IIS package ships from the 1.15 packaging channel                                |
-| Envoy filter chain                        | [mod_pagespeed 2.1](/) (experimental)                                                                                                       |
-| Reverse proxy in front of any HTTP origin | [ModPageSpeed 2.0](/) — see the [migration guide](/docs/migrating-to-2-1/)                                                                  |
+| Envoy filter chain                        | No packaged build                                                                                                                          |
+| Reverse proxy in front of any HTTP origin | [mod_pagespeed 2.1](/) — see the [migration guide](/docs/migrating-to-2-1/)                                                                  |
 | ASP.NET Core application                  | [WeAmp.PageSpeed NuGet middleware](/blog/aspnet-core-middleware/)                                                                           |
 
 Through 2026, We-Amp shipped two continuations — mod_pagespeed 1.15 and ModPageSpeed 2.0 — and they have since converged: mod_pagespeed 2.1 is a native in-process module for Apache and nginx, using the same `ModPagespeed*` directives and the built-in `/pagespeed_admin/` console, with a separate optimizer worker doing the heavy optimization work outside the web server. It is licensed under Apache-2.0. mod_pagespeed 2.1 is a drop-in upgrade for mod_pagespeed 1.15 — see the [upgrade guide](/docs/migrating-to-2-1/#upgrading-from-1-15). The deeper comparison lives in the [mod_pagespeed alternatives](/blog/mod-pagespeed-alternatives/) post.
@@ -26,7 +26,7 @@ Through 2026, We-Amp shipped two continuations — mod_pagespeed 1.15 and ModPag
 ## Install snippets
 
 ```bash
-# ModPageSpeed 2.0 — ASP.NET Core middleware
+# mod_pagespeed 2.1 — ASP.NET Core middleware
 dotnet add package WeAmp.PageSpeed.AspNetCore
 ```
 
@@ -85,11 +85,11 @@ The worker architecture moves optimization work out of the request path: a separ
 
 The optimization libraries (the parts that decide how to recompress a JPEG, how to fold a stylesheet, how to extract critical CSS) are the same ones mod_pagespeed proved at scale. The architecture around them is new.
 
-`mod_pagespeed 2.1` continues the original codebase with security patches and a current toolchain on Apache and nginx, plus an experimental Envoy port. The IIS package ships from the 1.15 packaging channel — see the [upgrade guide](/docs/migrating-to-2-1/#upgrading-from-1-15) for details.
+`mod_pagespeed 2.1` continues the original codebase with security patches and a current toolchain on Apache and nginx. The IIS package ships from the 1.15 packaging channel — see the [upgrade guide](/docs/migrating-to-2-1/#upgrading-from-1-15) for details.
 
 ## What about PageSpeed Insights?
 
-If you've been searching for "PageSpeed" and ended up here, a quick disambiguation: `pagespeed.web.dev` (PageSpeed Insights, PSI) is a different Google product. It's a diagnostic tool that scores a URL on Core Web Vitals, and it's still actively maintained. PSI tells you whether your page passes; a server-side module like ModPageSpeed implements the fixes PSI recommends.
+If you've been searching for "PageSpeed" and ended up here, a quick disambiguation: `pagespeed.web.dev` (PageSpeed Insights, PSI) is a different Google product. It's a diagnostic tool that scores a URL on Core Web Vitals, and it's still actively maintained. PSI tells you whether your page passes; a server-side module like mod_pagespeed implements the fixes PSI recommends.
 
 See [Google PageSpeed Module alternative](/alternatives/google-pagespeed-module/) for the full disambiguation.
 
@@ -102,7 +102,7 @@ See [Google PageSpeed Module alternative](/alternatives/google-pagespeed-module/
 - [Google PageSpeed Module alternative](/alternatives/google-pagespeed-module/) — disambiguation against PageSpeed Insights
 - [mod_pagespeed alternatives — the deep comparison](/blog/mod-pagespeed-alternatives/)
 - [Why I rebuilt mod_pagespeed from scratch](/blog/why-i-rebuilt-mod-pagespeed/) — the origin story behind ModPageSpeed 2.0
-- [Upgrading to mod_pagespeed 2.1](/docs/migrating-to-2-1/#upgrading-from-1-15) — how long each 1.15 platform keeps security support, and the drop-in upgrade
+- [Upgrading to mod_pagespeed 2.1](/docs/migrating-to-2-1/#upgrading-from-1-15) — the drop-in upgrade
 - [Migrating from ModPageSpeed 2.0](/docs/migrating-to-2-1/) — for the Docker/Helm line
 - [Getting started](/docs/getting-started/) — concrete install steps
 - [Production deployment](/docs/production-deployment/) — hardening and rollout for a live server

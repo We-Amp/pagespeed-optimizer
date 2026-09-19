@@ -11,7 +11,7 @@ howTo:
   name: How to fix INP on WordPress
   description: Diagnose the slow interaction, use mod_pagespeed to cut JS parse and transfer cost, then trim the plugin handlers and jQuery that actually drive INP, and verify in the field.
   tools:
-  - mod_pagespeed 1.15
+  - mod_pagespeed 2.1
   - nginx
   - Apache
   - Chrome DevTools Performance panel
@@ -33,7 +33,7 @@ howTo:
 
 ---
 
-WordPress INP is mostly a plugin-discipline problem in disguise. LCP and CLS clear, then Search Console flags INP on the first nav click or search form — and there are forty plugin handlers that could be the culprit. **mod_pagespeed 1.15** (an nginx or Apache module) runs `defer_javascript`, `combine_javascript`, and `rewrite_javascript` to push parse and transfer cost past the first interaction, but the structural fix is removing plugins that attach delegated click listeners to `document`. Both steps below.
+WordPress INP is mostly a plugin-discipline problem in disguise. LCP and CLS clear, then Search Console flags INP on the first nav click or search form — and there are forty plugin handlers that could be the culprit. **mod_pagespeed 2.1** (an nginx or Apache module) runs `defer_javascript`, `combine_javascript`, and `rewrite_javascript` to push parse and transfer cost past the first interaction, but the structural fix is removing plugins that attach delegated click listeners to `document`. Both steps below.
 
 This guide is part of our [Core Web Vitals series](/core-web-vitals/).
 
@@ -141,8 +141,8 @@ WordPress INP is mostly a plugin-discipline problem. mod_pagespeed reduces the p
 - [How to fix CLS on WordPress](/blog/fix-cls-wordpress-2026/)
 - [How to fix INP on WooCommerce](/blog/fix-inp-woocommerce-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)
-- [mod_pagespeed 1.15 filter reference](/docs/filter-reference/)
+- [mod_pagespeed filter reference](/docs/filter-reference/)
 - [The full INP guide](/core-web-vitals/inp/)
 - [Test your page in the analyzer](/analyze/)
 
-mod_pagespeed 1.15 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed 2.1 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).

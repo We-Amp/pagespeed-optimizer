@@ -17,7 +17,7 @@ Setting them well means knowing how each encoder behaves. Most people don't, so 
 
 That number is wrong for nearly every image you serve. A photo of a clear sky compresses to almost nothing and still looks perfect. A screenshot of code at the same setting picks up visible ringing around every glyph. A single global quality has to be cautious enough to survive the screenshot, which means it wastes bytes on the photo.
 
-ModPageSpeed 2.0 removes that panel of dials. There is nothing to tune.
+The mod_pagespeed 2.1 optimizer worker removes that panel of dials. There is nothing to tune.
 
 ## Out of the box: nothing to configure
 
@@ -79,4 +79,4 @@ And it runs on your servers — [self-hosted image optimization](/self-hosted-im
 
 ---
 
-Learned quality prediction ships in ModPageSpeed 2.0. [Run it in 60 seconds with Docker Compose](/docs/installation-docker/), or [read how the variant matrix works](/blog/viewport-aware-image-optimization/).
+Learned quality prediction ships in the optimizer worker. [Run it in 60 seconds with Docker Compose](/docs/installation-docker/), or [read how the variant matrix works](/blog/viewport-aware-image-optimization/).

@@ -14,11 +14,11 @@ Cache invalidation has two halves. Purge is the loud one: it deletes, immediatel
 
 ## What a 304 actually buys you
 
-When ModPageSpeed caches a response from your origin, it stores the validators the origin sent: the `ETag`, the `Last-Modified` timestamp, or both. Those are the receipts. When the cached entry later goes stale — its `max-age` has elapsed — ModPageSpeed has a choice. It can re-fetch the resource in full, or it can ask the origin a narrower question: *has this changed since the version I'm holding?*
+When mod_pagespeed 2.1 caches a response from your origin, it stores the validators the origin sent: the `ETag`, the `Last-Modified` timestamp, or both. Those are the receipts. When the cached entry later goes stale — its `max-age` has elapsed — mod_pagespeed has a choice. It can re-fetch the resource in full, or it can ask the origin a narrower question: *has this changed since the version I'm holding?*
 
-That narrower question is a conditional request. ModPageSpeed sends `If-None-Match` with the stored ETag, or `If-Modified-Since` with the stored timestamp. If the origin's copy is unchanged, it answers `304 Not Modified` with no body. ModPageSpeed marks its cached entry fresh again and serves it. No bytes crossed the wire beyond the headers, and — this is the part that matters for an optimizing proxy — no re-optimization happened, because the input bytes are provably the same ones already optimized.
+That narrower question is a conditional request. mod_pagespeed sends `If-None-Match` with the stored ETag, or `If-Modified-Since` with the stored timestamp. If the origin's copy is unchanged, it answers `304 Not Modified` with no body. mod_pagespeed marks its cached entry fresh again and serves it. No bytes crossed the wire beyond the headers, and — this is the part that matters for an optimizing proxy — no re-optimization happened, because the input bytes are provably the same ones already optimized.
 
-In ModPageSpeed 2.0 this is on by default:
+In mod_pagespeed this is on by default:
 
 ```nginx
 pagespeed_conditional_revalidation on;   # default: on
@@ -71,7 +71,7 @@ The two tools also differ in scope, which the cache-modes behavior makes concret
 - [Cache modes: safe vs aggressive](/docs/cache-modes/)
 - [Set Cache-Control headers](/docs/cache-control/)
 
-Revalidation is invisible when it works, which is the point — most of the savings come from a feature you never have to invoke. If you want to see it on your own origin, install ModPageSpeed; it optimizes out of the box, and the [web console flags URLs](/docs/cache-control/) where the origin sends no `Cache-Control` header at all, which is the usual reason revalidation cannot help you yet. The [download](/download/) is the place to start; it is licensed under Apache-2.0 and free to run in development and in production.
+Revalidation is invisible when it works, which is the point — most of the savings come from a feature you never have to invoke. If you want to see it on your own origin, install mod_pagespeed; it optimizes out of the box, and the [web console flags URLs](/docs/cache-control/) where the origin sends no `Cache-Control` header at all, which is the usual reason revalidation cannot help you yet. The [download](/download/) is the place to start; it is licensed under Apache-2.0 and free to run in development and in production.
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 title: 'Set Cache-Control headers'
-description: 'Which Cache-Control headers to set on your origin, by content type and by framework, for correct caching with ModPageSpeed 2.0.'
+description: 'Which Cache-Control headers to set on your origin, by content type and by framework, for correct caching with mod_pagespeed 2.1.'
 order: 21
 group: 'Configure'
 lastUpdated: 2026-09-19
@@ -11,11 +11,11 @@ lastUpdated: 2026-09-19
 > re-fetches on every stale request. Upgrade before following these
 > recommendations.
 
-Your origin's `Cache-Control` headers directly control how ModPageSpeed caches
+Your origin's `Cache-Control` headers directly control how mod_pagespeed caches
 and serves your content. Getting these right prevents stale content and cuts
 unnecessary origin traffic.
 
-When your origin sends no `Cache-Control` header, ModPageSpeed applies
+When your origin sends no `Cache-Control` header, mod_pagespeed applies
 configurable defaults (HTML: `no-cache`, CSS/JS: 300s, images: 1800s in
 [safe mode](/docs/cache-modes/)) and logs
 a warning. Explicit headers are better than relying on
@@ -46,7 +46,7 @@ Cache-Control: public, max-age=31536000, immutable
 ```
 
 The URL changes on every build. Content at a given URL never changes.
-ModPageSpeed strips `immutable` from its transformed output — the optimized
+mod_pagespeed strips `immutable` from its transformed output — the optimized
 bytes depend on mutable config and software version — but preserves the long
 TTL, capping max-age at `pagespeed_immutable_max_age` (default: 7 days).
 
@@ -75,7 +75,7 @@ If images can be replaced at the same URL, add `must-revalidate` and an `ETag`.
 Cache-Control: no-store
 ```
 
-ModPageSpeed does not cache `no-store` responses. The response passes through
+mod_pagespeed does not cache `no-store` responses. The response passes through
 unchanged.
 
 ## Framework Configuration
@@ -100,7 +100,7 @@ for when each is the right invalidation strategy.
 
 ## Cache Mode
 
-The `pagespeed_cache_mode` directive controls how ModPageSpeed assembles
+The `pagespeed_cache_mode` directive controls how mod_pagespeed assembles
 Cache-Control headers on optimized responses. Safe mode (the default) adds
 `must-revalidate` and uses short TTLs for quick recovery from
 misconfigurations. Aggressive mode uses long TTLs with `public` for maximum
@@ -108,7 +108,7 @@ cache efficiency. See [Cache Modes](/docs/cache-modes/) for full details, or
 [the safety math behind must-revalidate vs aggressive TTLs](/blog/cache-mode-safety-must-revalidate-vs-aggressive/)
 for how each mode trades freshness against origin load.
 
-## ModPageSpeed Directives
+## mod_pagespeed Directives {#modpagespeed-directives}
 
 These directives control the default max-age values applied when origin
 responses lack a `Cache-Control` header. They do not override explicit
@@ -143,7 +143,7 @@ pagespeed_force_refresh off;       # default: off
 ```
 
 When a user performs a force-refresh (Ctrl+F5 or Shift+Reload), the browser sends
-`Cache-Control: no-cache` or `Pragma: no-cache`. ModPageSpeed detects these signals
+`Cache-Control: no-cache` or `Pragma: no-cache`. mod_pagespeed detects these signals
 and forces revalidation against your origin, even if the cached entry is fresh.
 
 For HTML, this is enabled by default — users expect force-refresh to fetch the latest

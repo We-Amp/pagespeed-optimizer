@@ -1,12 +1,12 @@
 ---
 title: 'Browser analysis with headless Chrome'
-description: 'How ModPageSpeed 2.0 renders pages in headless Chrome to extract critical CSS, detect the LCP element, measure JavaScript coverage, and gate optimizations against visual regressions.'
+description: 'How the optimizer worker renders pages in headless Chrome to extract critical CSS, detect the LCP element, measure JavaScript coverage, and gate optimizations against visual regressions.'
 order: 32
 group: 'Operate'
-lastUpdated: 2026-07-04
+lastUpdated: 2026-09-19
 ---
 
-ModPageSpeed 2.0 can render pages in headless Chrome instead of relying on
+The optimizer worker can render pages in headless Chrome instead of relying on
 heuristics alone. Browser analysis reads critical CSS from real CSS Coverage
 data, detects the true Largest Contentful Paint element, measures rendered
 image dimensions, and — for above-the-fold CSS — confirms in a real render that
@@ -41,8 +41,8 @@ does not rely on the container's `/dev/shm`.
 ### On a host install (deb/rpm)
 
 The `pagespeed-optimizer` package ships no browser and only *suggests* one.
-Install a Chromium or Chrome the daemon's `pagespeed` user can execute, then
-point the daemon at it from `/etc/default/pagespeed-optimizer` -- the default
+Install a Chromium or Chrome the optimizer worker's `pagespeed` user can execute, then
+point the optimizer worker at it from `/etc/default/pagespeed-optimizer` -- the default
 binary path exists only in the container images:
 
 | Distribution | Package | Binary |
@@ -60,7 +60,7 @@ OPTIMIZER_OPTS="--api-socket --enable-browser-analysis --chrome-binary /usr/bin/
 Restart the service and read `GET /v1/health` over the API socket:
 `browser_sandbox` must be `"on"` and `browser.chrome_running` `true`. The
 shipped service unit runs Chrome sandboxed as-is; the sandbox needs
-unprivileged user namespaces, and if the kernel refuses them the daemon
+unprivileged user namespaces, and if the kernel refuses them the optimizer worker
 reports `browser_sandbox: "unavailable"`, names the cause in the journal, and
 keeps serving without browser analysis (it never starts an unsandboxed
 browser on its own -- that is the explicit `PAGESPEED_BROWSER_SANDBOX=off`

@@ -25,6 +25,7 @@ import {
   V2_LINE,
   V1_RENUMBERED_FROM,
   LAST_UPSTREAM_VERSION,
+  PKG_ASPNETCORE,
   PKG_SIDECAR,
   PKG_SIDECAR_NATIVE,
   SIDECAR_NGINX_VERSION,
@@ -74,8 +75,8 @@ const productData = {
     // clients already consume — never repurpose it into an object or re-scope
     // it. Per-edition truth is expressed ADDITIVELY in the two keys below.
     image_formats: IMAGE_FORMATS,
-    // Per-edition format lists, keyed by marketing line label. Predecessor
-    // keys ('1.15', '2.0') are kept — the key set only grows.
+    // Per-edition format lists, keyed by marketing line label. Existing keys
+    // ('1.15', '2.0') are kept — the key set only grows.
     image_formats_by_line: {
       [V1_LINE]: formatsFor(V1_LINE),
       [V2_LINE]: formatsFor(V2_LINE),
@@ -121,7 +122,7 @@ const productData = {
     },
     {
       product: `ModPageSpeed ${V2_LINE}`,
-      description: `The ModPageSpeed ${V2_LINE} Docker/Helm stack and ASP.NET Core middleware.`,
+      description: `The Docker/Helm stack from the ${V2_LINE} re-architecture, whose engine continues as the ${PRODUCT_NAME} ${CURRENT_LINE} optimizer worker. Its ASP.NET Core middleware, ${PKG_ASPNETCORE}, continues as the ASP.NET Core form of ${PRODUCT_NAME} ${CURRENT_LINE}.`,
       links: {
         migration_guide: 'https://modpagespeed.com/docs/migrating-to-2-1/',
       },

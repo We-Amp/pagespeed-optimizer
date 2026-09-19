@@ -91,7 +91,7 @@ var app = builder.Build();
 app.UsePageSpeed();
 ```
 
-**For Blazor Server**, ModPageSpeed cannot help. SignalR round-trips are the dominant INP cost; no rewriter operating on the response stream can shorten a network round-trip. Skip this step entirely and go straight to the framework-level tuning below.
+**For Blazor Server**, mod_pagespeed 2.1 cannot help. SignalR round-trips are the dominant INP cost; no rewriter operating on the response stream can shorten a network round-trip. Skip this step entirely and go straight to the framework-level tuning below.
 
 ## Where the framework still helps
 
@@ -147,13 +147,13 @@ For sites still fronted by nginx (e.g., Kestrel behind nginx reverse proxy), the
 
 The Blazor Server section, expanded because it dominates the failure modes here.
 
-- **Blazor Server INP is architectural, not an optimization problem.** SignalR round-trips are by design; the framework was built for interactive line-of-business apps on a LAN, not public sites served to users on mobile. If you are seeing INP > 500 ms on a public Blazor Server site, ModPageSpeed and every other server-layer tool will fail to move the number meaningfully. The fix is Blazor WebAssembly, `@rendermode InteractiveAuto`, or a different frontend. We will not pretend otherwise.
+- **Blazor Server INP is architectural, not an optimization problem.** SignalR round-trips are by design; the framework was built for interactive line-of-business apps on a LAN, not public sites served to users on mobile. If you are seeing INP > 500 ms on a public Blazor Server site, mod_pagespeed and every other server-layer tool will fail to move the number meaningfully. The fix is Blazor WebAssembly, `@rendermode InteractiveAuto`, or a different frontend. We will not pretend otherwise.
 - **Razor Pages with third-party JS controls.** Telerik, Syncfusion, and DevExpress UI controls ship their own JS frameworks. INP on a Telerik grid sort or DevExpress combo open is bounded by their library's render path — MPS minifies their bytes but cannot change their internal architecture.
 - **TTFB-driven INP on uncached XHR endpoints.** If your interactive widgets fire `fetch('/api/something')` and your API endpoint takes 300 ms to respond, INP on that interaction is at least 300 ms. The fix is server-side — caching, async/await discipline in handlers, or DB indexing. Not page optimization.
 - **SignalR reconnect spikes.** Even on Blazor WebAssembly, if you use SignalR for real-time updates and the connection drops, the next interaction may record a multi-second INP. Implement client-side queuing.
 - **`StateHasChanged()` on hot paths.** A Blazor component that re-renders on every prop change cascades through its children. Profile with Blazor's built-in diagnostic counters before assuming MPS is the answer.
 
-ASP.NET Core's INP story is almost entirely about what frontend you ship. ModPageSpeed handles the Razor / jQuery case cleanly; the Blazor Server case is one we route to the framework, not to ourselves.
+ASP.NET Core's INP story is almost entirely about what frontend you ship. mod_pagespeed handles the Razor / jQuery case cleanly; the Blazor Server case is one we route to the framework, not to ourselves.
 
 ## Related
 
@@ -161,10 +161,10 @@ ASP.NET Core's INP story is almost entirely about what frontend you ship. ModPag
 - [How to fix CLS on ASP.NET Core](/blog/fix-cls-aspnet-core-2026/)
 - [How to fix INP on nginx (generic)](/blog/fix-inp-nginx-2026/)
 - [ModPageSpeed 2.0 as ASP.NET Core middleware](/blog/aspnet-core-middleware/)
-- [mod_pagespeed 1.15 filter reference](/docs/filter-reference/)
+- [mod_pagespeed filter reference](/docs/filter-reference/)
 - [The full INP guide](/core-web-vitals/inp/)
 - [Test your page in the analyzer](/analyze/)
 
 The IIS-flavored angle on the same metrics, including IIS-specific deployment notes, is at [iispeed.com — IIS Core Web Vitals 2026](https://iispeed.com/iis-core-web-vitals-2026/).
 
-ModPageSpeed runs as an ASP.NET Core middleware (NuGet) or an nginx / Apache / IIS module. On ASP.NET Core, install the middleware and run your app — it optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed 2.1 runs as ASP.NET Core middleware (NuGet) or as a module for Apache, nginx and IIS. The IIS package ships from the 1.15 packaging channel. On ASP.NET Core, install the middleware and run your app — it optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).

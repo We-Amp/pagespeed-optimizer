@@ -11,11 +11,11 @@ product: "2.0"
 
 The browser already knows how to prefetch the next page, preconnect to a font CDN, and preload an LCP image. The problem is that someone has to write those `<link>` and `<script>` tags into the HTML, keep them in sync with what the page actually references, and not break anything when a third-party origin moves. Most sites never do it.
 
-Server-injected resource hints push that work to the optimizing layer. On the cache-miss path — [the same server-side pass that shapes TTFB](/blog/reduce-ttfb-server-layer-2026/) — the ModPageSpeed 2.0 worker parses the HTML once to collect facts, then writes a second pass that injects three kinds of hint: a `<script type="speculationrules">` block whose prefetch list is derived from real traffic, `<link rel="preconnect">` for cross-origin hosts ranked by how render-critical they are, and `<link rel="preload" as="font">` for woff2 faces. This post walks through how each one is built, with the constants and exclusions taken straight from the worker source so you know exactly what ships and what is off by default.
+Server-injected resource hints push that work to the optimizing layer. On the cache-miss path — [the same server-side pass that shapes TTFB](/blog/reduce-ttfb-server-layer-2026/) — the mod_pagespeed 2.1 optimizer worker parses the HTML once to collect facts, then writes a second pass that injects three kinds of hint: a `<script type="speculationrules">` block whose prefetch list is derived from real traffic, `<link rel="preconnect">` for cross-origin hosts ranked by how render-critical they are, and `<link rel="preload" as="font">` for woff2 faces. This post walks through how each one is built, with the constants and exclusions taken straight from the worker source so you know exactly what ships and what is off by default.
 
 ## Speculation rules from a real-traffic hot-URL tracker
 
-The interesting hint is prefetch. A static prefetch list goes stale the moment your navigation patterns change. ModPageSpeed 2.0 instead derives the speculation URL list from traffic the worker actually sees.
+The interesting hint is prefetch. A static prefetch list goes stale the moment your navigation patterns change. The optimizer worker instead derives the speculation URL list from traffic it actually sees.
 
 Every warmup request feeds a hot-URL tracker. The relevant code in `worker.cc` is small:
 

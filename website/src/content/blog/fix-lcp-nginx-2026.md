@@ -9,10 +9,10 @@ product: '1.1'
 lastUpdated: 2026-07-04
 howTo:
   name: How to fix LCP on nginx
-  description: Diagnose the nginx transport layer, route image and critical-CSS work through the ngx_pagespeed (mod_pagespeed 1.15) module, tune HTTP/2 and pre-compressed assets, then confirm the LCP win.
+  description: Diagnose the nginx transport layer, route image and critical-CSS work through the ngx_pagespeed (mod_pagespeed 2.1) module, tune HTTP/2 and pre-compressed assets, then confirm the LCP win.
   tools:
   - nginx
-  - ngx_pagespeed (mod_pagespeed 1.15)
+  - ngx_pagespeed (mod_pagespeed 2.1)
   - PageSpeed Insights
   - curl
   - Chrome DevTools
@@ -30,7 +30,7 @@ howTo:
 
 ---
 
-Three nginx-side LCP failures keep showing up, and none is a content problem: HTML on the slow path while cacheable images wait behind it, on-the-fly gzip burning CPU on every response, and HTTP/1.1 head-of-line blocking that queues the LCP image behind CSS. The fix is to get the transport layer out of the way (HTTP/2, pre-compressed assets, TLS resumption), then route image and CSS work through **mod_pagespeed 1.15** (the `ngx_pagespeed` module) so the same recipe applies regardless of what backend nginx is fronting.
+Three nginx-side LCP failures keep showing up, and none is a content problem: HTML on the slow path while cacheable images wait behind it, on-the-fly gzip burning CPU on every response, and HTTP/1.1 head-of-line blocking that queues the LCP image behind CSS. The fix is to get the transport layer out of the way (HTTP/2, pre-compressed assets, TLS resumption), then route image and CSS work through **mod_pagespeed 2.1** (the `ngx_pagespeed` module) so the same recipe applies regardless of what backend nginx is fronting.
 
 This guide is part of our [Core Web Vitals series](/core-web-vitals/).
 
@@ -159,8 +159,8 @@ Cases where mod_pagespeed alone isn't enough on nginx:
 - [Server-side critical CSS on nginx](/blog/server-side-critical-css-nginx/)
 - [Image optimization as an nginx module](/blog/nginx-image-optimization-module/)
 - [The economics of image optimization](/blog/economics-of-image-optimization/)
-- [mod_pagespeed 1.15 filter reference](/docs/filter-reference/)
+- [mod_pagespeed filter reference](/docs/filter-reference/)
 - [The full LCP guide](/core-web-vitals/lcp/)
 - [Test your page in the analyzer](/analyze/)
 
-mod_pagespeed 1.15 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed 2.1 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).

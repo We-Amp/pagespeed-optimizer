@@ -17,10 +17,10 @@ export async function GET(context: APIContext) {
   const lastBuildDate = (posts[0]?.data.date ?? new Date(0)).toUTCString();
 
   return rss({
-    // Covers both products (1.1 and 2.0 posts), so the channel is not version-scoped.
-    title: 'ModPageSpeed Blog',
+    // Covers the whole blog history (1.1 and 2.0 posts), so the channel is not version-scoped.
+    title: 'mod_pagespeed Blog',
     description:
-      'Technical insights on web performance, automatic optimization, and the engineering behind ModPageSpeed.',
+      'Technical insights on web performance, automatic optimization, and the engineering behind mod_pagespeed.',
     site: context.site!,
     xmlns: {
       dc: 'http://purl.org/dc/elements/1.1/',

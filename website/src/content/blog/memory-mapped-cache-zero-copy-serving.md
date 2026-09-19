@@ -1,6 +1,6 @@
 ---
 title: 'The memory-mapped cache: zero-copy serving between nginx and the worker'
-description: 'How ModPageSpeed 2.0 shares one memory-mapped cache between nginx and the worker, serving large cache hits zero-copy with kernel sendfile and small ones with a single copy, while staying correct under concurrent writes.'
+description: 'How mod_pagespeed 2.1 shares one memory-mapped cache between nginx and the worker, serving large cache hits zero-copy with kernel sendfile and small ones with a single copy, while staying correct under concurrent writes.'
 date: 2026-06-13
 lastUpdated: 2026-07-05
 author: 'Otto van der Schaaf'
@@ -9,7 +9,7 @@ draft: false
 product: '2.0'
 pinned: 1
 faq:
-  - q: 'How does ModPageSpeed 2.0 serve a cache hit without copying the data?'
+  - q: 'How does mod_pagespeed serve a cache hit without copying the data?'
     a: 'nginx and the optimizing worker share one memory-mapped cache file. For a large hit, nginx streams the bytes straight from that file to the socket with sendfile, so the payload never enters the serving process. For a small hit, it copies the bytes once from the mapped region, because the sendfile syscall would cost more than the copy.'
   - q: 'Why does 2.0 use sendfile for large cache entries but a copy for small ones?'
     a: 'The sendfile syscall has fixed setup overhead. Above about 32 KB, avoiding the payload copy is worth that overhead; below it, copying the few kilobytes out of mapped memory is cheaper than setting up the kernel transfer. The crossover is empirically tuned.'
@@ -17,14 +17,14 @@ faq:
 
 In mod_pagespeed 1.x, a request for `/styles/site.css` or `/photo.jpg` paid for its own optimization. The web server ran the rewrite in-flight, on the request thread, and only then sent bytes to the client. The work was cached afterwards, but the architecture meant transformation latency sat on the critical path of real requests, in every web server process, every time the cache was cold.
 
-ModPageSpeed 2.0 takes that work off the request path entirely. The optimizing process and the serving process are separate, and they meet at a single memory-mapped cache: one disk file that both nginx and the worker `mmap` into their own address space. When a request hits a cached variant, nginx hands the client a buffer that points straight at the mapped pages. No copy, no re-parse. The bytes the worker wrote are the bytes nginx serves.
+The mod_pagespeed 2.1 optimizer worker takes that work off the request path entirely. The optimizing process and the serving process are separate, and they meet at a single memory-mapped cache: one disk file that both nginx and the worker `mmap` into their own address space. When a request hits a cached variant, nginx hands the client a buffer that points straight at the mapped pages. No copy, no re-parse. The bytes the worker wrote are the bytes nginx serves.
 
 ## Two processes, one memory-mapped cache
 
 The 2.0 runtime is three cooperating pieces, and the cache is the one they all share:
 
 1. A thin C++ nginx interceptor that classifies requests, serves cached variants, and proxies misses to the origin.
-2. A standalone factory worker process running a libuv event loop. It receives notifications from nginx, reads original content from cache, optimizes it, and writes variant alternates back.
+2. A standalone optimizer worker process running a libuv event loop. It receives notifications from nginx, reads original content from cache, optimizes it, and writes variant alternates back.
 3. Cyclone, a memory-mapped disk cache shared between the two.
 
 Cyclone stores everything in one memory-mapped volume file rather than a directory tree. Both nginx and the worker map that same file. The consequence is the part that matters for serving: writes from either process are immediately visible to the other, because both open the cache with multi-process sharing enabled. The worker finishes encoding a WebP variant, writes it into the mapped region, and the next nginx request can read it without any handoff, flush, or re-open. There is no message that ships content between the two processes. The IPC notification carries identifying metadata — the URL, hostname and scheme, a content type, and the 32-bit capability mask — not the bytes. The content lives in the cache; the socket only points at it.
@@ -57,7 +57,7 @@ The first is integrity. Every entry Cyclone stores carries a CRC32 checksum, and
 
 The second is lifetime. A `sendfile` response can outlive the handler that started it: a slow client keeps draining the socket long after the interceptor has moved on. If the cache were purged, or the volume reopened, in that window, the descriptor `sendfile` reads from could be closed underneath it. So each in-flight response takes its own duplicated descriptor for the cache file and holds a reference that pins the cache generation for the life of the request. A purge can close the shared descriptor and rotate the generation while the response keeps streaming from its private handle to the same bytes. Cleanup releases the descriptor and the reference in a fixed order, once the response is fully sent. Tests lock this down by purging the cache twice under an active request and asserting the response still reads the right bytes.
 
-A note on where that metadata lives, because it differs between the two products. In 2.0, each variant's metadata — the capability mask, content type, and origin cache-control fields — sits inside the Cyclone volume next to the alternate's bytes, so it inherits the same checksums and write-then-publish ordering and is as durable as the content it describes. mod_pagespeed 1.15 is arranged differently. It runs in-process, and Cyclone sits in two places there: as the on-disk cache for fetched originals and optimized output, and behind a shared-memory metadata cache shared across server processes. That shared-memory tier is a fast front for reads, but it writes through to Cyclone: every metadata entry, the small hot lookups included, is also recorded in the mapped volume on disk. The shared memory serves the hot path; Cyclone is the source of truth. Page properties — the critical-image and selector data the beacon learns from real traffic — get the same write-through treatment in v1.15.0+r17 and later. The practical consequence is that a restart doesn't throw the metadata away — the process comes back up, reads persist from the on-disk volume, and requests that were already resolved don't have to re-derive which variant to serve. In both products, the metadata and the optimized bytes it describes are backed by the same checksum and write-then-publish guarantees, and survive a restart together.
+A note on where that metadata lives, because it differs between the two parts. In the optimizer worker, each variant's metadata — the capability mask, content type, and origin cache-control fields — sits inside the Cyclone volume next to the alternate's bytes, so it inherits the same checksums and write-then-publish ordering and is as durable as the content it describes. The module is arranged differently. It runs in-process, and Cyclone sits in two places there: as the on-disk cache for fetched originals and optimized output, and behind a shared-memory metadata cache shared across server processes. That shared-memory tier is a fast front for reads, but it writes through to Cyclone: every metadata entry, the small hot lookups included, is also recorded in the mapped volume on disk. The shared memory serves the hot path; Cyclone is the source of truth. Page properties — the critical-image and selector data the beacon learns from real traffic — get the same write-through treatment in v1.15.0+r17 and later. The practical consequence is that a restart doesn't throw the metadata away — the process comes back up, reads persist from the on-disk volume, and requests that were already resolved don't have to re-derive which variant to serve. In both parts, the metadata and the optimized bytes it describes are backed by the same checksum and write-then-publish guarantees, and survive a restart together.
 
 ## Variants, metadata, and why a directory cache could not do this
 
@@ -69,7 +69,7 @@ The Cyclone format is not compatible with the 1.x file cache, and there is no mi
 
 ## Frequently asked questions
 
-**How does ModPageSpeed 2.0 serve a cache hit without copying the data?** nginx and the optimizing worker share one memory-mapped cache file. For a large hit, nginx streams the bytes straight from that file to the socket with sendfile, so the payload never enters the serving process. For a small hit, it copies the bytes once from the mapped region, because the sendfile syscall would cost more than the copy.
+**How does mod_pagespeed serve a cache hit without copying the data?** nginx and the optimizing worker share one memory-mapped cache file. For a large hit, nginx streams the bytes straight from that file to the socket with sendfile, so the payload never enters the serving process. For a small hit, it copies the bytes once from the mapped region, because the sendfile syscall would cost more than the copy.
 
 **Why does 2.0 use sendfile for large cache entries but a copy for small ones?** The sendfile syscall has fixed setup overhead. Above about 32 KB, avoiding the payload copy is worth that overhead; below it, copying the few kilobytes out of mapped memory is cheaper than setting up the kernel transfer. The crossover is empirically tuned.
 
@@ -81,11 +81,11 @@ The Cyclone format is not compatible with the 1.x file cache, and there is no mi
 - [Fire-and-forget worker IPC](/blog/fire-and-forget-worker-ipc/)
 - [Why I rebuilt mod_pagespeed](/blog/why-i-rebuilt-mod-pagespeed/)
 - [Reduce TTFB at the server layer](/blog/reduce-ttfb-server-layer-2026/)
-- [Run ModPageSpeed with Docker Compose](/blog/run-with-docker-compose/)
+- [Run mod_pagespeed with Docker Compose](/blog/run-with-docker-compose/)
 - [How async rewriting works](/how-it-works/async-rewriting/)
 - [Cache modes](/docs/cache-modes/)
 
-The two-container Docker Compose stack (an nginx interceptor and a factory worker sharing one cache volume) is the smallest setup that exercises this path; the [cache modes documentation](/docs/cache-modes/) covers how they coordinate around the mapped file.
+The two-container Docker Compose stack (an nginx interceptor and an optimizer worker sharing one cache volume) is the smallest setup that exercises this path; the [cache modes documentation](/docs/cache-modes/) covers how they coordinate around the mapped file.
 
 ---
 

@@ -1,6 +1,6 @@
 ---
 title: 'How the Metadata Cache Avoids Re-Optimizing'
-description: "How ModPageSpeed avoids re-optimizing on every request: a metadata cache keyed by the output URL maps to the answer and skips rewrites that don't shrink."
+description: "How mod_pagespeed avoids re-optimizing on every request: a metadata cache keyed by the output URL maps to the answer and skips rewrites that don't shrink."
 order: 20
 datePublished: 2026-06-13
 lastUpdated: 2026-09-06
@@ -8,7 +8,7 @@ lastUpdated: 2026-09-06
 
 A web optimizer faces an awkward bootstrapping problem. To rewrite a `<link>` or `<img>` tag, it has to know the optimized resource's URL. But that URL carries a [content hash](/blog/content-hash-urls/) computed from the optimized bytes — and you cannot compute those bytes without doing the full optimization. So on the surface, every page load looks like it requires re-optimizing every asset just to learn where the optimized version lives.
 
-That is the problem the metadata cache solves. It is the lookup table that lets the second request to a page skip almost all of the work the first request did. This page explains what it stores, why each piece is there, and how it maps onto the two cache tiers in ModPageSpeed 2.0 and mod_pagespeed 1.15.
+That is the problem the metadata cache solves. It is the lookup table that lets the second request to a page skip almost all of the work the first request did. This page explains what it stores, why each piece is there, and how it maps onto the two cache tiers in mod_pagespeed 2.1.
 
 ## The problem: you can't name the output without producing it
 
@@ -52,15 +52,15 @@ The metadata entry solves this by carrying a small key/value store. When a filte
 
 ## How this maps onto two cache tiers
 
-Both products split caching into a metadata tier and a data tier, but the process model differs, and the difference is worth getting right.
+Both parts split caching into a metadata tier and a data tier, but the process model differs, and the difference is worth getting right.
 
-**ModPageSpeed 2.0** runs optimization in a [separate worker process](/how-it-works/async-rewriting/) behind nginx. Both nginx and the worker open one [Cyclone cache](/docs/cache-modes/) volume file with memory-mapped sharing, so a write from the worker is immediately visible to nginx. On a request, nginx classifies the client into a 32-bit capability mask — image format support, viewport, pixel density, and a few other signals — and uses it as part of the cache key to find the right optimized variant. That mask is the modern, generalized form of "remembered dimensions": instead of one cached output per resource, the cache holds the variant matched to each class of client, and nginx serves it directly from the memory-mapped file with an `X-PageSpeed: HIT` header. No origin round-trip, no copy. The first request to a fresh page returns `X-PageSpeed: MISS` while the worker optimizes in the background; subsequent requests get the cached variant.
+**The optimizer worker** optimizes in a [separate process](/how-it-works/async-rewriting/) behind nginx. Both nginx and the worker open one [Cyclone cache](/docs/cache-modes/) volume file with memory-mapped sharing, so a write from the worker is immediately visible to nginx. On a request, nginx classifies the client into a 32-bit capability mask — image format support, viewport, pixel density, and a few other signals — and uses it as part of the cache key to find the right optimized variant. That mask is the modern, generalized form of "remembered dimensions": instead of one cached output per resource, the cache holds the variant matched to each class of client, and nginx serves it directly from the memory-mapped file with an `X-PageSpeed: HIT` header. No origin round-trip, no copy. The first request to a fresh page returns `X-PageSpeed: MISS` while the worker optimizes in the background; subsequent requests get the cached variant.
 
-**mod_pagespeed 1.15** runs in-process inside the web server. It uses [Cyclone Cache](/docs/cache-modes/#native-module-cache-storage) as its data tier by default, fronted by a shared-memory metadata cache that all server processes share, plus a small per-process LRU for the hottest small entries. The split is the same idea — small lookup data kept close, large optimized bytes kept in the backing store — implemented for an in-process module rather than a separate worker. In v1.15.0+r17 and later, the shared-memory tier also writes through to Cyclone, so metadata and page properties survive a restart.
+**The module** runs in-process inside the web server. It uses [Cyclone Cache](/docs/cache-modes/#native-module-cache-storage) as its data tier by default, fronted by a shared-memory metadata cache that all server processes share, plus a small per-process LRU for the hottest small entries. The split is the same idea — small lookup data kept close, large optimized bytes kept in the backing store — implemented for an in-process module rather than a separate worker. In v1.15.0+r17 and later, the shared-memory tier also writes through to Cyclone, so metadata and page properties survive a restart.
 
 For how the Cyclone data tier compares to the classic file-per-entry cache it replaced — measured across concurrency, latency tails, and eviction on fast and realistic storage — see the [Cyclone vs. the file cache benchmark](/blog/cyclone-cache-vs-file-cache-benchmark/).
 
-In both cases the metadata tier is the small, hot lookup this page has described, and the data tier holds the actual optimized bytes behind their content-hashed URLs. The deadline that governs the first request — serve the original now, finish optimizing, cache the result for next time — is `RewriteDeadlinePerFlushMs` in 1.15 and the equivalent background-worker model in 2.0. Either way, the metadata cache is what makes "next time" fast.
+In both cases the metadata tier is the small, hot lookup this page has described, and the data tier holds the actual optimized bytes behind their content-hashed URLs. The deadline that governs the first request — serve the original now, finish optimizing, cache the result for next time — is `RewriteDeadlinePerFlushMs` in the module; the optimizer worker gets the same effect by optimizing off the request path entirely. Either way, the metadata cache is what makes "next time" fast.
 
 ## The shape of a second request
 

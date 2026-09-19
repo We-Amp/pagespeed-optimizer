@@ -1,6 +1,6 @@
 ---
 title: 'Default cache TTL: heuristic freshness when the origin sends no Cache-Control'
-description: 'Default cache TTL when no Cache-Control: per-content-type heuristic TTLs, RFC 9111 Age adjustment, and the shared-vs-private cache split in ModPageSpeed 2.0.'
+description: 'Default cache TTL when no Cache-Control: per-content-type heuristic TTLs, RFC 9111 Age adjustment, and the shared-vs-private cache split in mod_pagespeed 2.1.'
 date: 2026-06-14
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'
@@ -9,7 +9,7 @@ draft: false
 product: '2.0'
 ---
 
-Plenty of origins ship responses with no `Cache-Control` header at all. A bare CMS, a misconfigured app server, a static handler that forgot the directive. The browser then falls back to its own heuristics, but an optimizing proxy sitting in front of that origin has a harder problem: it has already transformed the bytes, written an entry to its cache, and now has to decide a freshness lifetime for a response that told it nothing. That is the **default cache TTL when no Cache-Control** is present, and ModPageSpeed 2.0 resolves it in one place: `EvaluateFreshness` in `lib/cache/freshness.cc`.
+Plenty of origins ship responses with no `Cache-Control` header at all. A bare CMS, a misconfigured app server, a static handler that forgot the directive. The browser then falls back to its own heuristics, but an optimizing proxy sitting in front of that origin has a harder problem: it has already transformed the bytes, written an entry to its cache, and now has to decide a freshness lifetime for a response that told it nothing. That is the **default cache TTL when no Cache-Control** is present, and mod_pagespeed resolves it in one place: `EvaluateFreshness` in `lib/cache/freshness.cc`.
 
 This post covers exactly that decision: the per-content-type heuristic defaults, the caps that bound them, the RFC 9111 Age adjustment applied at insert, and the shared-vs-private split that decides whether `s-maxage` even counts. It does not cover the `kSafe`/`kAggressive` mode toggle or `must-revalidate`/`immutable` handling (see [cache-mode safety](/blog/cache-mode-safety-must-revalidate-vs-aggressive/)), nor the 304 conditional-revalidation handshake (see [conditional revalidation](/blog/conditional-revalidation-304-vs-active-purge/)).
 
@@ -101,7 +101,7 @@ inline bool ComputeSharedRevalidationRequired(uint16_t origin_cc_flags,
 
 ## Age adjustment at insert, and why a plain reload must not purge anything
 
-Freshness is `now - inserted_at` compared against the effective max-age. That comparison is only correct if `inserted_at` already accounts for time the response spent in caches upstream of you. RFC 9111 §4.2.3 handles this with the `Age` header, and ModPageSpeed applies it at insert time rather than at every read. From the nginx module:
+Freshness is `now - inserted_at` compared against the effective max-age. That comparison is only correct if `inserted_at` already accounts for time the response spent in caches upstream of you. RFC 9111 §4.2.3 handles this with the `Age` header, and mod_pagespeed applies it at insert time rather than at every read. From the nginx module:
 
 ```cpp
 // Set insertion timestamp, adjusted by inbound Age header (D3).

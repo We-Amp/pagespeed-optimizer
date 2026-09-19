@@ -1,7 +1,7 @@
 # Release-aware components
 
 These components render release-version content from the manifest at
-`src/content/releases-{1.1,2.0}/release.yaml` (synced from `corp/releases/*.yaml`
+`src/content/releases-{1.1,2.0,2.1}/release.yaml` (synced from `corp/releases/*.yaml`
 by the corp `sync-manifests-to-mps2` workflow —).
 
 **Authoring rule:** every version-coupled string on the website must flow
@@ -20,6 +20,9 @@ literal in `src/content/`, `src/pages/`, `src/components/`, or
 | `<NugetCmd />`          | `dotnet add package WeAmp.PageSpeed.AspNetCore [--prerelease]`.             |
 | `<XPageSpeedExample />` | Response-header example: `X-Page-Speed:`/`X-Mod-Pagespeed:`/`X-PageSpeed:`. |
 | `<ImageTag />`          | Docker / Helm image tag for 2.0 (`2.0.7` etc.).                             |
+
+`<XPageSpeedExample />` takes `surface="middleware"` for the ASP.NET Core
+middleware's `X-PageSpeed: WeAmp.PageSpeed/<version>` form on any line.
 
 ## Usage in MDX
 

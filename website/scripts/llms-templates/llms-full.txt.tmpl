@@ -2,17 +2,17 @@
 
 # mod_pagespeed — Full Reference ({{PRODUCT_NAME}} {{CURRENT_LINE}})
 
-> Self-hosted web performance optimization for Apache and nginx. {{LICENSE_CLAUSE_CAP}}. Built by a mod_pagespeed maintainer. {{PRODUCT_NAME}} {{CURRENT_LINE}} converges the mod_pagespeed lineage and the ModPageSpeed 2.0 engine into one product: a native web-server module with a separate optimizer worker.
+> Self-hosted web performance optimization for Apache and nginx. {{LICENSE_CLAUSE_CAP}}. Built by a mod_pagespeed maintainer. {{PRODUCT_NAME}} {{CURRENT_LINE}} converges the mod_pagespeed lineage and the engine from the 2.0 re-architecture into one product: a native web-server module with a separate optimizer worker.
 
 {{PRODUCT_NAME}} {{CURRENT_LINE}} is a self-hosted product by We-Amp B.V., {{LICENSE_CLAUSE}}, that automatically optimizes web content. A native in-process module for Apache and nginx handles serving, and a separate optimizer worker — sharing a disk cache with the module — does the heavy optimization work outside the web server. Drop-in compatible with the classic module: same configuration directives, same filters. No application code changes, no URL rewrites, no build pipeline modifications required.
 
 ## Product Overview
 
-ModPageSpeed 2.0 replaces the original mod_pagespeed RewriteDriver (2000+ LOC, 60+ filters) and uses the underlying PSOL optimization libraries directly. Optimization happens outside the request path in a separate worker process. The nginx module is a thin caching interceptor that classifies requests, serves cache hits via zero-copy mmap, and notifies the worker on misses.
+The 2.0 re-architecture — released as ModPageSpeed 2.0 — replaced the original mod_pagespeed RewriteDriver (2000+ LOC, 60+ filters) with an optimizer worker that uses the underlying PSOL optimization libraries directly. Optimization happens outside the request path in a separate worker process. The nginx module is a thin caching layer that classifies requests, serves cache hits via zero-copy mmap, and notifies the worker on misses.
 
 ### Heritage
 
-mod_pagespeed is the open-source optimization core this product continues. Per BuiltWith ({{BUILTWITH_AS_OF}}), it powers {{BUILTWITH_SITES}} live sites today ({{BUILTWITH_HISTORICAL}} across its full history). These sites are not We-Amp customers — they are evidence the optimization core works at scale. {{PRODUCT_NAME}} {{CURRENT_LINE}} converges the two lines We-Amp shipped through 2026: the maintained continuation of the open-source codebase (mod_pagespeed {{V1_LINE}}, renumbered from {{V1_RENUMBERED_FROM}} — the forward-semver successor to the last upstream release, {{LAST_UPSTREAM_VERSION}}) and the ground-up ModPageSpeed 2.0 optimization engine, which continues as the optimizer worker.
+mod_pagespeed is the open-source optimization core this product continues. Per BuiltWith ({{BUILTWITH_AS_OF}}), it powers {{BUILTWITH_SITES}} live sites today ({{BUILTWITH_HISTORICAL}} across its full history). These sites are not We-Amp customers — they are evidence the optimization core works at scale. {{PRODUCT_NAME}} {{CURRENT_LINE}} converges the two lines We-Amp shipped through 2026: the maintained continuation of the open-source codebase (mod_pagespeed {{V1_LINE}}, renumbered from {{V1_RENUMBERED_FROM}} — the forward-semver successor to the last upstream release, {{LAST_UPSTREAM_VERSION}}) and the ground-up optimization engine from the 2.0 re-architecture, which continues as the optimizer worker.
 
 ## Image Optimization
 
@@ -105,11 +105,11 @@ The Cyclone cache maps optimized resources directly into nginx output buffers us
 
 ### Three Components
 
-1. **Nginx Interceptor** — C++ nginx dynamic module. Classifies requests via Accept, Client Hints, Save-Data, and User-Agent headers. Composes cache keys. Serves hits via zero-copy mmap. Passes misses to origin. Sends fire-and-forget notifications to worker.
+1. **The Module** — C++ nginx dynamic module. Classifies requests via Accept, Client Hints, Save-Data, and User-Agent headers. Composes cache keys. Serves hits via zero-copy mmap. Passes misses to origin. Sends fire-and-forget notifications to worker.
 
 2. **Cyclone Cache** — Lock-free, memory-mapped disk cache with capability-based keys. Supports best-fit fallback. Memory-mapped directory for cross-process visibility. Both nginx and worker share the same cache file with enable_mmap_directory=true.
 
-3. **Factory Worker** — Lightweight C++ worker using libuv for async I/O. Receives notifications via Unix socket. Runs HTML parsing, image transcoding, CSS/JS minification, and critical CSS extraction. Writes results to Cyclone cache.
+3. **Optimizer Worker** — Lightweight C++ worker using libuv for async I/O. Receives notifications via Unix socket. Runs HTML parsing, image transcoding, CSS/JS minification, and critical CSS extraction. Writes results to Cyclone cache.
 
 ### Cross-Process Communication
 
@@ -124,7 +124,7 @@ The Cyclone cache maps optimized resources directly into nginx output buffers us
 
 Three containers sharing a named volume:
 1. Your origin server (any HTTP server)
-2. ghcr.io/we-amp/pagespeed-worker:2.1.0 (factory worker)
+2. ghcr.io/we-amp/pagespeed-worker:2.1.0 (optimizer worker)
 3. ghcr.io/we-amp/pagespeed-nginx:2.1.0 (nginx with pagespeed module)
 
 Shared volume at /shared contains the cache file and Unix socket.
@@ -171,7 +171,7 @@ The worker writes a `pagespeed-shared.conf` file next to the cache file, mode 06
 
 ## ASP.NET Core Middleware
 
-ModPageSpeed 2.0 is also available as ASP.NET Core middleware via the `WeAmp.PageSpeed.AspNetCore` NuGet package. It embeds the same C/C++ optimization pipeline (image transcoding, CSS/JS minification, HTML rewriting, critical CSS) directly into your ASP.NET Core application via P/Invoke. No nginx reverse proxy required.
+The same optimization pipeline is also available as ASP.NET Core middleware: the `WeAmp.PageSpeed.AspNetCore` NuGet package is the ASP.NET Core form of {{PRODUCT_NAME}} {{CURRENT_LINE}}. It embeds that C/C++ pipeline (image transcoding, CSS/JS minification, HTML rewriting, critical CSS) directly into your ASP.NET Core application via P/Invoke, and launches the bundled worker binary as a child process for the expensive work. No nginx reverse proxy required.
 
 ### Installation
 
@@ -236,18 +236,18 @@ Generally available (GA since {{V2_GA_DATE}}; see /docs/ for the current release
 
 CDN image optimization (Cloudinary, imgix, Cloudflare Images) charges $1-5 per 10,000 transformations plus bandwidth. {{PRODUCT_NAME}} {{CURRENT_LINE}} is free to run on your own infrastructure: your cost is your servers (and a support plan if you want one), regardless of request volume.
 
-CDN advantages: global edge distribution. ModPageSpeed advantages: data sovereignty, predictable costs, no vendor lock-in, no URL rewrites, broader optimization scope (HTML + CSS + JS + images).
+CDN advantages: global edge distribution. {{PRODUCT_NAME}} advantages: data sovereignty, predictable costs, no vendor lock-in, no URL rewrites, broader optimization scope (HTML + CSS + JS + images).
 
 ## FAQ
 
 Q: Does it work with any web server?
-A: Yes. ModPageSpeed 2.0 deploys as a reverse proxy in front of any HTTP origin — Apache, Node.js, Python, Ruby, PHP, or any other backend.
+A: Yes. In reverse-proxy mode {{PRODUCT_NAME}} {{CURRENT_LINE}} sits in front of any HTTP origin — Apache, Node.js, Python, Ruby, PHP, or any other backend.
 
 Q: Do I need to change my application code?
 A: No. All optimization is transparent at the reverse-proxy level.
 
 Q: What about HTTP/2?
-A: Yes. The nginx interceptor supports HTTP/2 and HTTP/3.
+A: Yes. The module supports HTTP/2 and HTTP/3.
 
 Q: Can I disable specific optimizations?
 A: Yes. Use --disable-image, --disable-css, --disable-js, or --disable-html worker flags.
@@ -284,18 +284,18 @@ RenderPeek is a free tool from We-Amp at https://modpagespeed.com/ai-readability
 
 ## Comparisons
 
-How ModPageSpeed compares to other optimization approaches. Each page is a structured, side-by-side comparison.
+How {{PRODUCT_NAME}} compares to other optimization approaches. Each page is a structured, side-by-side comparison.
 
-- [mod_pagespeed alternative — ModPageSpeed (the maintained continuation)](https://modpagespeed.com/alternatives/mod-pagespeed/)
+- [mod_pagespeed alternative — {{PRODUCT_NAME}} {{CURRENT_LINE}} (the maintained continuation)](https://modpagespeed.com/alternatives/mod-pagespeed/)
 - [ngx_pagespeed alternative for nginx](https://modpagespeed.com/alternatives/ngx-pagespeed/)
 - [Google PageSpeed Module alternative — what to use in 2026](https://modpagespeed.com/alternatives/google-pagespeed-module/)
 - [IISpeed alternative for IIS](https://modpagespeed.com/alternatives/iispeed/)
-- [ModPageSpeed vs Cloudflare APO — self-hosted vs the edge](https://modpagespeed.com/vs/cloudflare-apo/)
-- [ModPageSpeed vs Cloudinary — self-hosted vs media SaaS](https://modpagespeed.com/vs/cloudinary/)
-- [ModPageSpeed vs imgproxy — image proxy vs full pipeline](https://modpagespeed.com/vs/imgproxy/)
-- [ModPageSpeed vs NitroPack — self-hosted vs managed SaaS](https://modpagespeed.com/vs/nitropack/)
-- [ModPageSpeed vs Thumbor — smart crop vs full pipeline](https://modpagespeed.com/vs/thumbor/)
-- [ModPageSpeed vs WP Rocket — plugin vs the server layer](https://modpagespeed.com/vs/wp-rocket/)
+- [{{PRODUCT_NAME}} vs Cloudflare APO — self-hosted vs the edge](https://modpagespeed.com/vs/cloudflare-apo/)
+- [{{PRODUCT_NAME}} vs Cloudinary — self-hosted vs media SaaS](https://modpagespeed.com/vs/cloudinary/)
+- [{{PRODUCT_NAME}} vs imgproxy — image proxy vs full pipeline](https://modpagespeed.com/vs/imgproxy/)
+- [{{PRODUCT_NAME}} vs NitroPack — self-hosted vs managed SaaS](https://modpagespeed.com/vs/nitropack/)
+- [{{PRODUCT_NAME}} vs Thumbor — smart crop vs full pipeline](https://modpagespeed.com/vs/thumbor/)
+- [{{PRODUCT_NAME}} vs WP Rocket — plugin vs the server layer](https://modpagespeed.com/vs/wp-rocket/)
 
 ## Guides (blog)
 
@@ -303,7 +303,7 @@ Engineering posts and Core Web Vitals fix guides. Each CWV guide pairs a metric 
 
 Engineering and product:
 - [Why I rebuilt mod_pagespeed from scratch](https://modpagespeed.com/blog/why-i-rebuilt-mod-pagespeed/)
-- [mod_pagespeed 1.1.0: what six years of stewardship look like](https://modpagespeed.com/blog/mod-pagespeed-1-1-release/)
+- [mod_pagespeed 1.15: what six years of stewardship look like](https://modpagespeed.com/blog/mod-pagespeed-1-1-release/)
 - [Is mod_pagespeed deprecated? (2026)](https://modpagespeed.com/blog/mod-pagespeed-deprecated-2026/)
 - [mod_pagespeed Alternatives in 2026](https://modpagespeed.com/blog/mod-pagespeed-alternatives/)
 - [dl-ssl.google.com mod_pagespeed download (where the old binaries went)](https://modpagespeed.com/blog/google-dl-ssl-mod-pagespeed-download/)
@@ -340,21 +340,20 @@ Fix INP (Interaction to Next Paint):
 - [nginx](https://modpagespeed.com/blog/fix-inp-nginx-2026/)
 - [ASP.NET Core](https://modpagespeed.com/blog/fix-inp-aspnet-core-2026/)
 
-## mod_pagespeed {{V1_LINE}}
+## The module
 
-mod_pagespeed {{V1_LINE}} is a native in-process optimization module for the broadest server matrix — Apache, nginx, and IIS GA, with Envoy experimental. It is the maintained continuation of the open-source mod_pagespeed project (originally developed at Google) and stays drop-in compatible with it: all existing pagespeed configuration directives, filters, and behavior carry over unchanged. Renumbered from {{V1_RENUMBERED_FROM}} (forward-semver successor to the last upstream release, {{LAST_UPSTREAM_VERSION}}). Developed by We-Amp B.V.
+The module is the native in-process part of {{PRODUCT_NAME}} {{CURRENT_LINE}}, on the broadest server matrix — Apache, nginx and IIS. It is the maintained continuation of the open-source mod_pagespeed project (originally developed at Google) and stays drop-in compatible with it: all existing pagespeed configuration directives, filters, and behavior carry over unchanged. Renumbered from {{V1_RENUMBERED_FROM}} (forward-semver successor to the last upstream release, {{LAST_UPSTREAM_VERSION}}). Developed by We-Amp B.V.
 
 ### Architecture
 
-mod_pagespeed {{V1_LINE}} runs as an in-process module inside the web server. It intercepts HTTP responses, applies optimization filters to HTML, CSS, JavaScript, and images, then serves the optimized content. Optimized resources are cached in Cyclone Cache for subsequent requests.
+The module runs in-process inside the web server. It intercepts HTTP responses, applies optimization filters to HTML, CSS, JavaScript, and images, then serves the optimized content. Optimized resources are cached in Cyclone Cache for subsequent requests.
 
 Supported platforms (availability):
 - Apache (drop-in replacement for the open-source module) — GA
 - nginx (dynamic module) — GA. The `nginx-module-pagespeed` package is prebuilt and signed, with a .so pinned to each distro's stock nginx: {{NGINX_APT_MATRIX}}, {{NGINX_APT_ARCHES}}. On AlmaLinux 9 the nginx module targets stock nginx {{STOCK_NGINX_ALMA}} via the yum repository. Each build is exact-version-pinned to its distro's nginx, so running an nginx version we don't yet package needs a matching pinned build — contact us for one.
 - IIS (native Windows Server module, replaces IISpeed) — GA
-- Envoy (HTTP filter) — experimental
 
-### Install ({{V1_LINE}})
+### Install the module
 
 One-time repository setup, then install per platform:
 
@@ -372,7 +371,7 @@ IIS installs via the signed .msi for Windows Server 2019 / 2022. Direct download
 
 ### ASP.NET Core sidecar (NuGet)
 
-mod_pagespeed {{V1_LINE}} also ships as a NuGet sidecar package, `WeAmp.PageSpeed.Sidecar`, with native binaries delivered in the companion `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux` package. Linux-only (linux-x64 / linux-arm64); it bundles nginx {{SIDECAR_NGINX_VERSION}}.
+The module also ships as a NuGet sidecar package, `WeAmp.PageSpeed.Sidecar`, with native binaries delivered in the companion `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux` package. Linux-only (linux-x64 / linux-arm64); it bundles nginx {{SIDECAR_NGINX_VERSION}}.
 
 It uses an inverse topology: your ASP.NET Core Kestrel application is the public front door, and the bundled nginx runs on loopback behind it as the optimize-proxy. Add it to your project with:
 
@@ -440,7 +439,7 @@ Built-in admin UI at /pagespeed_admin/:
 
 {{PRODUCT_NAME}} {{CURRENT_LINE}} is the drop-in upgrade for mod_pagespeed {{V1_LINE}} (same directives, same filters). The IIS package ships from the {{V1_LINE}} packaging channel. See [Upgrading to {{CURRENT_LINE}}](https://modpagespeed.com/docs/migrating-to-2-1/#upgrading-from-1-15).
 
-Docker/Helm deployments on the ModPageSpeed {{V2_LINE}} engine move via the [migration guide](https://modpagespeed.com/docs/migrating-to-2-1/). The ASP.NET Core middleware continues unchanged — see [ASP.NET Core performance](https://modpagespeed.com/aspnet-core-performance/).
+Docker/Helm deployments on the ModPageSpeed {{V2_LINE}} engine move via the [migration guide](https://modpagespeed.com/docs/migrating-to-2-1/). The ASP.NET Core middleware has no migration step: `WeAmp.PageSpeed.AspNetCore` is the ASP.NET Core form of {{PRODUCT_NAME}} {{CURRENT_LINE}} — see [ASP.NET Core performance](https://modpagespeed.com/aspnet-core-performance/).
 
 ## Company
 
@@ -483,13 +482,10 @@ mod_pagespeed is an open-source project originally developed at Google. {{PRODUC
 - [Security](https://modpagespeed.com/security/)
 - [Is mod_pagespeed still maintained?](https://modpagespeed.com/mod-pagespeed-still-maintained/)
 - [cPanel / EasyApache 4](https://modpagespeed.com/docs/cpanel/)
-- [{{V1_LINE}} apt/yum repository](https://modpagespeed.com/download/apt-yum/)
-- [{{V1_LINE}} Documentation](https://modpagespeed.com/docs/)
+- [apt/yum repository](https://modpagespeed.com/download/apt-yum/)
 - [Upgrading from {{V1_LINE}} to {{CURRENT_LINE}}](https://modpagespeed.com/docs/migrating-to-2-1/#upgrading-from-1-15)
-- [{{V1_LINE}} Getting Started](https://modpagespeed.com/docs/getting-started/)
-- [{{V1_LINE}} Configuration](https://modpagespeed.com/docs/configuration/)
-- [{{V1_LINE}} Filter Reference](https://modpagespeed.com/docs/filter-reference/)
-- [{{V1_LINE}} Directive Index](https://modpagespeed.com/docs/directive-index/)
-- [{{V1_LINE}} FAQ](https://modpagespeed.com/pricing/#faq)
+- [Filter Reference](https://modpagespeed.com/docs/filter-reference/)
+- [Directive Index](https://modpagespeed.com/docs/directive-index/)
+- [FAQ](https://modpagespeed.com/pricing/#faq)
 - [{{V1_LINE}} Upgrading from Open-Source](https://modpagespeed.com/docs/migrating-to-2-1/#coming-from-open-source)
 - [Legacy Docs (1.0)](https://modpagespeed.com/1.0/)

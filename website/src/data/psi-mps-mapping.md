@@ -1,7 +1,7 @@
-# PSI → ModPageSpeed mapping table — methodology
+# PSI → mod_pagespeed mapping table — methodology
 
 This document explains how `psi-mps-mapping.ts` was built and how to keep it
-honest as Lighthouse and ModPageSpeed evolve.
+honest as Lighthouse and mod_pagespeed evolve.
 
 ## What this is
 
@@ -10,7 +10,7 @@ page calls PSI v5 for a customer-supplied URL and uses the table to convert
 "here are the failing audits" into "here's the filter config you need."
 
 The mapping is opinionated: it deliberately reports `coverage: "none"` for
-audits ModPageSpeed cannot honestly fix, even when there is a tempting
+audits mod_pagespeed cannot honestly fix, even when there is a tempting
 filter that might appear related. Customer trust is more valuable than a
 high coverage count.
 
@@ -21,8 +21,8 @@ high coverage count.
   repository against the tip of `main` (audit IDs are stable; the set
   evolves slowly).
 - **Filter inventory:** `website/src/content/docs/filter-reference.md`.
-  The 1.15 filter set is the canonical superset; MPS 2.0 implements a
-  subset implicitly (no `EnableFilters` directive — the worker runs image
+  The 1.15 filter set is the canonical superset; the optimizer worker
+  implements a subset implicitly (no `EnableFilters` directive — the worker runs image
   transcoding, CSS/JS minification, and critical CSS inlining whenever
   `pagespeed on` is set).
 - **Filter behavior + caveats:** the `Safe` column in `filter-reference.md`
@@ -99,9 +99,9 @@ Document these honestly so the /analyze copy can flag them:
 
 ## 1.15 vs 2.0 coverage
 
-`/analyze` ships two editions of the recommendation: ModPageSpeed 2.0 (the
-current product line, default) and mod_pagespeed 1.15 (the mature
-multi-server line). The `availableIn` field on each mapping declares which
+`/analyze` ships two editions of the recommendation, labelled for the two
+parts of mod_pagespeed 2.1: the optimizer worker (default) and the module.
+The `availableIn` field on each mapping declares which
 edition(s) actually address the audit; the `snippet11` and `snippet20`
 fields hold edition-specific config syntax.
 
@@ -160,7 +160,7 @@ origin and the module rewrites the response in flight.
 
 The mapping reflects this by promoting `server-response-time` and
 `document-latency-insight` from `coverage: 'none'` to `coverage:
-'partial'` on 2.0. Customer-facing copy never claims MPS 2.0 "fixes slow
+'partial'` on 2.0. Customer-facing copy never claims the optimizer worker "fixes slow
 TTFB" — only that it can mask it on repeat visits when the origin allows
 HTML caching.
 
@@ -173,7 +173,7 @@ declared 1.15-only — animated GIF → WebP transcoding doesn't have a
 documented 2.0 control surface in the configuration reference.
 
 Two diagnostics show edition-specific behaviour even though both editions
-"address" them via infrastructure rather than ModPageSpeed filters:
+"address" them via infrastructure rather than mod_pagespeed filters:
 
 - `uses-text-compression`: in 1.15 customers set `gzip on;` / `brotli on;`
   on nginx. In 2.0 the worker pre-compresses every cached text resource

@@ -7,10 +7,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'AboutPage',
-  name: 'About — ModPageSpeed 2.0',
+  name: 'About — mod_pagespeed 2.1',
   url: 'https://modpagespeed.com/about/',
   description:
-    'The team behind ModPageSpeed 2.0: We-Amp B.V., a Dutch software company founded in 2012 that helped build ngx_pagespeed and maintained mod_pagespeed, and today maintains the PageSpeed optimization lineage — led by Otto van der Schaaf, an Apache PageSpeed committer and IPMC member.',
+    'The team behind mod_pagespeed 2.1, introduced as ModPageSpeed 2.0: We-Amp B.V., a Dutch software company founded in 2012 that helped build ngx_pagespeed and maintained mod_pagespeed, and today maintains the PageSpeed optimization lineage — led by Otto van der Schaaf, an Apache PageSpeed committer and IPMC member.',
   mainEntity: {
     '@type': 'Organization',
     '@id': 'https://we-amp.com/#organization',
@@ -18,7 +18,7 @@ const jsonLd = {
     url: 'https://we-amp.com',
     logo: 'https://we-amp.com/images/weamp.svg',
     description:
-      'Dutch software company building server-side web optimization technology. Maintainer of ModPageSpeed 2.0 and mod_pagespeed 1.15.',
+      'Dutch software company building server-side web optimization technology. Maintainer of mod_pagespeed 2.1.',
     foundingDate: '2012',
     founder: {
       '@type': 'Person',
@@ -39,26 +39,27 @@ const jsonLd = {
     ],
     brand: {
       '@type': 'Brand',
-      name: 'ModPageSpeed 2.0',
+      name: 'mod_pagespeed 2.1',
+      alternateName: 'ModPageSpeed 2.0',
     },
   },
 };
 ---
 
 <BaseLayout
-  title="About — ModPageSpeed 2.0"
-  description="Built by We-Amp B.V. — a Dutch web-optimization company founded in 2012 in Castricum that helped build ngx_pagespeed and maintained mod_pagespeed, and today maintains the PageSpeed optimization lineage: mod_pagespeed 1.15, ngx_pagespeed, ModPageSpeed 2.0, and IISpeed."
+  title="About — mod_pagespeed 2.1"
+  description="Built by We-Amp B.V. — a Dutch web-optimization company that helped build ngx_pagespeed and maintains mod_pagespeed 2.1, ngx_pagespeed, and IISpeed."
   jsonLd={jsonLd}
 >
   {/* Hero */}
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-20">
-    <h1 class="h1-hero text-text-body">The team behind ModPageSpeed.</h1>
+    <h1 class="h1-hero text-text-body">The team behind mod_pagespeed.</h1>
     <p class="lede mt-8 max-w-2xl">
-      ModPageSpeed is built by We-Amp B.V., a Dutch software company founded in 2012 in Castricum,
-      on the coast north of Amsterdam. It's led by Otto van der Schaaf, an Apache PageSpeed
-      committer and IPMC member who helped build ngx_pagespeed, maintained mod_pagespeed, and
-      shipped open-source PageSpeed releases. Two products, one shared optimization core, and a line
-      that traces back to the original mod_pagespeed in 2010.
+      mod_pagespeed 2.1 is built by We-Amp B.V., a Dutch software company founded in 2012 in
+      Castricum, on the coast north of Amsterdam. It's led by Otto van der Schaaf, an Apache
+      PageSpeed committer and IPMC member who helped build ngx_pagespeed, maintained mod_pagespeed,
+      and shipped open-source PageSpeed releases. One product in two parts, one shared optimization
+      core, and a line that traces back to the original mod_pagespeed in 2010.
     </p>
   </section>
 
@@ -80,13 +81,14 @@ const jsonLd = {
           href="/psol/"
           class="text-interactive hover:text-interactive-hover underline"
           >optimization libraries from the original mod_pagespeed</a
-        > are the shared core of both products. <a
+        > are the shared core of both parts. The <a
           href="/"
-          class="text-interactive hover:text-interactive-hover underline">mod_pagespeed 1.15</a
-        > carries the proven line forward as a native module on Apache, nginx and IIS (Envoy support is
-        experimental); 2.0 wraps the same rewriters in a new worker and cache architecture. The rewriters
-        that decide how to compress an image or rewrite a stylesheet are the ones the original team built
-        and proved.
+          class="text-interactive hover:text-interactive-hover underline"
+          >mod_pagespeed 2.1 module</a
+        > carries the proven line forward in-process on Apache, nginx and IIS; the 2.0 re-architecture
+        wrapped the same rewriters in a worker and cache architecture, and that worker is the other part.
+        The rewriters that decide how to compress an image or rewrite a stylesheet are the ones the original
+        team built and proved.
       </p>
     </div>
   </section>
@@ -108,8 +110,9 @@ const jsonLd = {
         who helped build ngx_pagespeed and drove the project's Apache incubation. After the
         incubator was archived and upstream went quiet, We-Amp carried the lineage forward &mdash;
         shipping optimization code continuously since 2010, across Apache, nginx, Envoy and IIS
-        ports of the 1.x line. ModPageSpeed 2.0 is We-Amp's independent rebuild: two active products
-        (2.0 and 1.15), one shared optimization core, one Cyclone Cache library underneath both.
+        ports of the 1.x line. The 2.0 re-architecture was We-Amp's independent rebuild, and
+        mod_pagespeed 2.1 brings it together with the module as one product: one shared optimization
+        core, one Cyclone Cache library underneath both parts.
       </p>
       <p>
         Self-hosted software fits the way we work: you run the binary on your infrastructure, you
@@ -151,9 +154,9 @@ const jsonLd = {
         center two hops away.
       </p>
       <p>
-        ModPageSpeed 2.0 reflects that reality. It runs as an nginx interceptor plus a worker
-        process, talks to your origin over a local socket, and never phones home with request data.
-        There is no third-party proxy in the path. There is no CDN dependency. It makes no outbound
+        mod_pagespeed 2.1 reflects that reality. The module serves and the optimizer worker
+        optimizes; they talk over a local socket, and neither phones home with request data. There
+        is no third-party proxy in the path. There is no CDN dependency. It makes no outbound
         request of its own accord — the only egress is what the operator configures.
       </p>
       <p>
@@ -180,7 +183,7 @@ const jsonLd = {
       </a>
     </div>
     <p class="mt-10 text-xs text-text-annotation max-w-2xl">
-      mod_pagespeed is an open-source project originally developed at Google. ModPageSpeed 2.0 is
+      mod_pagespeed is an open-source project originally developed at Google. mod_pagespeed 2.1 is
       developed by We-Amp B.V. and is not affiliated with or endorsed by Google.
     </p>
   </section>

@@ -1,12 +1,12 @@
 ---
 title: 'Run in production'
-description: 'Production deployment guide for the ModPageSpeed 2.0 ASP.NET Core middleware: configuration, health probes, multi-instance scale, and zero-downtime restarts.'
+description: 'Production deployment guide for the mod_pagespeed 2.1 ASP.NET Core middleware: configuration, health probes, multi-instance scale, and zero-downtime restarts.'
 order: 52
 group: 'ASP.NET Core'
 lastUpdated: 2026-09-06
 faq:
-  - q: 'Does scaling ModPageSpeed 2.0 across multiple instances add per-server cost?'
-    a: 'No. ModPageSpeed 2.0 is licensed under Apache-2.0 and free to run in development and in production, so scaling out adds no software cost — size replica counts for traffic and availability.'
+  - q: 'Does scaling the ASP.NET Core middleware across multiple instances add per-server cost?'
+    a: 'No. mod_pagespeed 2.1 is licensed under Apache-2.0 and free to run in development and in production, so scaling out adds no software cost — size replica counts for traffic and availability.'
   - q: 'What does the /healthz check report?'
     a: '`Healthy`, with the cache entry count and the middleware version, while the cache is operational; `Unhealthy` when the cache cannot be opened — wire monitoring to alert on `Unhealthy`.'
 ---
@@ -15,17 +15,22 @@ import NugetCmd from '../../components/release/NugetCmd.astro';
 import XPageSpeedExample from '../../components/release/XPageSpeedExample.astro';
 import { getRelease } from '../../lib/release';
 
-export const rel20 = await getRelease('2.0');
+export const rel21 = await getRelease('2.1');
 
-This page is for teams shipping the `WeAmp.PageSpeed.AspNetCore` NuGet
-middleware into a production ASP.NET Core deployment. If you are still
-evaluating the middleware locally, start with
+{/* The NuGet package shares the product version; if the two ever diverge, read the package version from its own release entry. */}
+
+This page is for teams shipping the mod_pagespeed 2.1 ASP.NET Core middleware
+(`WeAmp.PageSpeed.AspNetCore`) into a production ASP.NET Core deployment. If you
+are still evaluating the middleware locally, start with
 [Install ASP.NET Core middleware](/docs/aspnet-getting-started/) instead.
 
-ModPageSpeed 2.0 {rel20.display.badge_version} ships **only** as the ASP.NET Core middleware (NuGet)
-plus the existing Docker / Helm images. If you need an in-process native module
-for nginx, Apache, or IIS instead, use [mod_pagespeed 1.15](/) — GA native
-server modules for all three.
+The current NuGet release is {rel21.display.badge_version}. The middleware runs
+in-process in your request pipeline and, by default, launches the `factory_worker`
+binary from the same package as a child process to do the expensive work — image
+transcoding and critical-CSS extraction — out of process. If you need an in-process
+native module for Apache, nginx or IIS instead, see [mod_pagespeed 2.1](/), where
+the module runs in-process in the web server. The IIS package ships from the 1.15
+packaging channel.
 
 ## Prerequisites
 
@@ -101,7 +106,7 @@ After deploy, confirm the middleware is active:
   <code class="language-bash">
     {`curl -I https://your-app.example.com/
 # `}
-    <XPageSpeedExample line="2.0" />
+    <XPageSpeedExample line="2.1" surface="middleware" />
     {`
 
 curl -s https://your-app.example.com/healthz | jq .
@@ -123,7 +128,7 @@ an SSH tunnel rather than by publishing the port.
 
 ## Scale across multiple instances
 
-ModPageSpeed 2.0 is licensed under Apache-2.0 and free to run in development
+mod_pagespeed 2.1 is licensed under Apache-2.0 and free to run in development
 and in production, so scaling out adds no software cost. Size replica counts
 for your traffic and availability needs.
 

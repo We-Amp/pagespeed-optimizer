@@ -11,7 +11,7 @@ howTo:
   name: How to fix CLS on WordPress
   description: Diagnose WordPress layout shifts, then reserve space at the server layer with mod_pagespeed image-dimension and critical-CSS filters and apply the manual font, banner, and ad-slot fixes the rewriter cannot make.
   tools:
-  - mod_pagespeed 1.15
+  - mod_pagespeed 2.1
   - nginx
   - Apache
   - PageSpeed Insights
@@ -22,7 +22,7 @@ howTo:
   - name: Read the shift report and identify the owning element
     text: Run PageSpeed Insights on the affected URL and read the "Avoid large layout shifts" diagnostic. Use Chrome DevTools' Layout Shift Regions overlay (or web-vitals with onCLS attribution) to record a baseline CLS score and pin down the element that owns most of the shift and its failure mode.
   - name: Insert image dimensions at the server with mod_pagespeed
-    text: 'Enable insert_image_dimensions in mod_pagespeed 1.15 (nginx or Apache): the rewriter reads each image''s real pixel size and writes matching width/height attributes uniformly across every page, so the browser reserves the slot. Test it on responsive templates before going site-wide.'
+    text: 'Enable insert_image_dimensions in mod_pagespeed 2.1 (nginx or Apache): the rewriter reads each image''s real pixel size and writes matching width/height attributes uniformly across every page, so the browser reserves the slot. Test it on responsive templates before going site-wide.'
   - name: Reserve critical CSS and lazyload placeholders
     text: Enable prioritize_critical_css to inline above-the-fold CSS and avoid the flash-of-unstyled-content shift, and lazyload_images so offscreen images defer behind a correctly sized placeholder. These stop the layout shifts the rewriter can see in the initial HTML.
   - name: Fix font-swap shifts in WordPress
@@ -34,7 +34,7 @@ howTo:
 
 ---
 
-A 0.32 CLS on the WordPress home page, Search Console flagging it under Core Web Vitals, and forty plugins between you and the layout: the fastest path under 0.1 is not auditing every featured image by hand. Most WordPress CLS regressions come from `<img>` tags missing `width`/`height`, and the fix sits one layer below the theme — **mod_pagespeed 1.15** (an nginx or Apache module) rewrites the HTML on the way out the door and applies dimensions uniformly to every page on the site.
+A 0.32 CLS on the WordPress home page, Search Console flagging it under Core Web Vitals, and forty plugins between you and the layout: the fastest path under 0.1 is not auditing every featured image by hand. Most WordPress CLS regressions come from `<img>` tags missing `width`/`height`, and the fix sits one layer below the theme — **mod_pagespeed 2.1** (an nginx or Apache module) rewrites the HTML on the way out the door and applies dimensions uniformly to every page on the site.
 
 This guide is part of our [Core Web Vitals series](/core-web-vitals/).
 
@@ -139,8 +139,8 @@ Some CLS sources are outside mod_pagespeed's reach.
 - [How to fix INP on WordPress](/blog/fix-inp-wordpress-2026/)
 - [How to fix CLS on WooCommerce](/blog/fix-cls-woocommerce-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)
-- [mod_pagespeed 1.15 filter reference](/docs/filter-reference/)
+- [mod_pagespeed filter reference](/docs/filter-reference/)
 - [The full CLS guide](/core-web-vitals/cls/)
 - [Test your page in the analyzer](/analyze/)
 
-mod_pagespeed 1.15 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed 2.1 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).

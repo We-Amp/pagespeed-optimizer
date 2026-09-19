@@ -3,8 +3,9 @@
 //
 // Catalog for the live optimization-examples gallery (/examples/).
 //
-// Each entry maps to a hand-crafted demo page served by Apache + mod_pagespeed
-// 1.15 on demo-httpd-1.1.modpagespeed.com. The gallery frames that page twice:
+// Each entry maps to a hand-crafted demo page served by the module on its
+// Apache demo host, demo-httpd-1.1.modpagespeed.com. The gallery frames that
+// page twice:
 //   before → <page>?PageSpeed=off                  (original, optimization off)
 //   after  → <page>?PageSpeedFilters=<filters>     (only the listed filter(s))
 //

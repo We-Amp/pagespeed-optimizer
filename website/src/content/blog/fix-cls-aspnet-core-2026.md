@@ -162,4 +162,4 @@ If you front Kestrel with nginx or IIS instead of running the middleware in-proc
 - [The full CLS guide](/core-web-vitals/cls/)
 - [Test your page in the analyzer](/analyze/)
 
-ModPageSpeed runs as an ASP.NET Core middleware (NuGet) or an nginx / Apache / IIS module. On ASP.NET Core, install the NuGet package and run your app — it optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed 2.1 runs as ASP.NET Core middleware (NuGet) or as a module for Apache, nginx and IIS. The IIS package ships from the 1.15 packaging channel. On ASP.NET Core, install the NuGet package and run your app — it optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).

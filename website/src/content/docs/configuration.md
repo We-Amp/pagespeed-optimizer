@@ -1,6 +1,6 @@
 ---
-title: 'ModPageSpeed 2.0 configuration reference'
-description: 'Reference for ModPageSpeed 2.0 nginx directives, worker flags, and cache tuning. Looking for the mod_pagespeed 1.15 reference? See the native module configuration directives section below.'
+title: 'Configuration reference'
+description: 'Reference for mod_pagespeed 2.1: nginx and Apache directives, optimizer-worker flags, and cache tuning, plus the native module directive reference.'
 order: 20
 group: 'Configure'
 lastUpdated: 2026-09-19
@@ -10,20 +10,20 @@ faq:
   - q: 'How do I disable PageSpeed for specific URLs?'
     a: 'Use `pagespeed off` inside a `location` block to disable the module for that path, or `pagespeed_disallow` to skip individual URL patterns (prefix, suffix, or substring) while keeping the module active elsewhere.'
   - q: 'How do I share the cache file between nginx and the worker?'
-    a: 'Point `pagespeed_cache_path` (nginx) and the worker cache at the same file (the packaged daemon defaults to `--cache-dir /var/cache/pagespeed-optimizer/v1`). The daemon owns the directory and every file in it (0660 `pagespeed:pagespeed`); the nginx worker user reaches them through membership in group `pagespeed`. Memory-mapped directory sharing is enabled automatically.'
+    a: 'Point `pagespeed_cache_path` (nginx) and the worker cache at the same file (the packaged optimizer worker defaults to `--cache-dir /var/cache/pagespeed-optimizer/v1`). The optimizer worker owns the directory and every file in it (0660 `pagespeed:pagespeed`); the nginx worker user reaches them through membership in group `pagespeed`. Memory-mapped directory sharing is enabled automatically.'
   - q: 'What does the capability mask do?'
     a: 'The 32-bit mask encodes the client image format, viewport, pixel density, Save-Data, and transfer encoding into the cache key, so different optimized variants are served to different clients. Nginx derives the mask from request headers and client hints.'
   - q: 'How large should the Cyclone cache be?'
     a: 'Small blog or portfolio sites need 256 MB–1 GB (the `--cache-size` default is 1 GB); medium sites (~1,000 pages) need 1–2 GB; large sites (10,000+ pages) need 2–4 GB; and image-heavy sites need 4–8 GB, because each source image can produce up to 37 variants when all proactive flags are enabled. See the sizing table for details.'
 ---
 
-ModPageSpeed 2.0 has a minimal configuration surface: two required nginx
+mod_pagespeed 2.1 has a minimal configuration surface: two required nginx
 directives (`pagespeed on;` and `pagespeed_cache_path`), a shared config file,
 and worker command-line flags. This page is the full reference for all of them,
 plus cache tuning and the capability mask format. Everything past the two
 required directives is optional tuning.
 
-> **New to ModPageSpeed?** This is the configuration reference. If you are just
+> **New to mod_pagespeed?** This is the configuration reference. If you are just
 > getting oriented, start with the [product overview](/) or
 > [Getting Started](/docs/getting-started/), then come back here once it is
 > installed. To install first, see [Install with Docker](/docs/installation-docker/)
@@ -93,10 +93,11 @@ so writes from either process are immediately visible to the other.
 
 The cache file is created automatically (by the worker) if it doesn't exist.
 For cross-process sharing to work, the file must be readable and writable by
-both nginx worker processes and the worker. The packaged daemon takes care of
-this: it runs as the unprivileged `pagespeed` user and sets every shared file
-explicitly to 0660 owner+group, so the only setup the web side needs is
-membership in group `pagespeed` (the module package's postinst adds it).
+both nginx worker processes and the optimizer worker. The packaged worker
+takes care of this: it runs as the unprivileged `pagespeed` user and sets
+every shared file explicitly to 0660 owner+group, so the only setup the web
+side needs is membership in group `pagespeed` (the module package's postinst
+adds it).
 
 ### `pagespeed_disallow`
 
@@ -170,7 +171,7 @@ server {
 
 ### Cache-Control Directives
 
-The following directives control how the interceptor sets `Cache-Control` and
+The following directives control how the module sets `Cache-Control` and
 `Age` headers on cache-served responses. See the
 [Cache Control guide](/docs/cache-control/) for detailed behavior.
 
@@ -316,7 +317,7 @@ Print usage information and exit.
 
 ### `--version`
 
-Print the ModPageSpeed version and exit.
+Print the mod_pagespeed version and exit.
 
 ### `--max-connections N`
 
@@ -749,9 +750,10 @@ pages. Disable with `--no-script-deferral`.
 
 ## Transforms
 
-Per-transform reference. Each entry names the 2.0 control surface and the
-matching 1.15 filter(s), so operators migrating from 1.15 can find the new
-knob and `/analyze` filter chips can deep-link to a specific transform.
+Per-transform reference. Each entry names the optimizer worker's control
+surface and the matching module filter(s), so operators coming from a
+filter-based configuration can find the new knob and `/analyze` filter chips
+can deep-link to a specific transform.
 
 Toggleable transforms expose a `factory_worker --no-<name>` flag and are
 enabled by default. Always-on transforms run from the master switch
@@ -769,7 +771,7 @@ per-transform off switch. Use `--disable-image` to skip the image pipeline
 entirely, or [`pagespeed_disallow`](#pagespeed_disallow) to exclude
 specific URL patterns. The proactive variant family is tuned via the
 [Proactive Variant Generation](#proactive-variant-generation) flags.
-(1.15 equivalent: `rewrite_images`, `convert_jpeg_to_webp`,
+(module equivalent: `rewrite_images`, `convert_jpeg_to_webp`,
 `convert_to_webp_lossless`, `recompress_jpeg`, `recompress_png`,
 `recompress_webp`, `resize_images`, `resize_rendered_image_dimensions`,
 `responsive_images`, `jpeg_sampling`, `strip_image_meta_data`.)
@@ -782,7 +784,7 @@ Dimensions are read from the worker's cached image headers. Toggleable
 via [`--no-image-dimensions`](#html-optimization-flags). When
 [browser analysis](#browser-analysis) is enabled, rendered dimensions
 from headless Chrome take precedence over decoded pixel dimensions.
-(1.15 equivalent: `insert_image_dimensions`.)
+(module equivalent: `insert_image_dimensions`.)
 
 ### Lazy load images {#lazy-load-images}
 
@@ -793,7 +795,7 @@ skipped when an LCP candidate is identified, and the first iframe in
 the document body is skipped, to avoid demoting above-the-fold
 content. Invisible images (1x1 tracking pixels, hidden elements) are
 never promoted and never lazy-loaded. Toggleable via
-[`--no-lazy-load-images`](#html-optimization-flags). (1.15 equivalent:
+[`--no-lazy-load-images`](#html-optimization-flags). (module equivalent:
 `lazyload_images`.)
 
 ### LCP preload {#lcp-preload}
@@ -802,7 +804,7 @@ Injects `<link rel="preload" as="image" fetchpriority="high">` in
 `<head>` for the predicted LCP image and writes the URL to the Early
 Hints cache sentinel, so nginx can emit `103 Early Hints` or `Link`
 response headers on subsequent requests. Toggleable via
-[`--no-lcp-preload`](#html-optimization-flags). (1.15 equivalent:
+[`--no-lcp-preload`](#html-optimization-flags). (module equivalent:
 `hint_preload_subresources`.)
 
 ### Preconnect injection {#preconnect-injection}
@@ -814,7 +816,7 @@ download. The hint carries `crossorigin` when the motivating resource
 fetches in CORS mode (fonts, `crossorigin`-marked resources, ES
 modules), matching the connection pool the browser will reuse.
 Toggleable via
-[`--no-preconnect-injection`](#html-optimization-flags). (1.15
+[`--no-preconnect-injection`](#html-optimization-flags). (module
 equivalent: `insert_dns_prefetch`.)
 
 ### Critical CSS {#critical-css}
@@ -827,7 +829,7 @@ only by `--disable-html`). When [browser analysis](#browser-analysis)
 is enabled the critical set is derived from the CSS Coverage API at
 three viewport sizes; otherwise a heuristic computes it from cached
 stylesheet structure. Used together with [async CSS](#async-css) so the
-remaining stylesheets stop blocking render. (1.15 equivalent:
+remaining stylesheets stop blocking render. (module equivalent:
 `prioritize_critical_css`.)
 
 > **Gotcha — critical-CSS inlining can break dark mode.** Critical-CSS
@@ -867,7 +869,7 @@ for a page whose above-the-fold appearance has been confirmed unchanged with the
 stylesheet deferred, against the stylesheet it is currently serving; otherwise
 the stylesheet stays render-blocking and the above-the-fold CSS is still
 inlined. Toggleable via
-[`--no-async-css`](#html-optimization-flags). (1.15 equivalent:
+[`--no-async-css`](#html-optimization-flags). (module equivalent:
 `move_css_to_head`, `move_css_above_scripts`.)
 
 ### CSS import flattening {#css-import-flattening}
@@ -876,7 +878,7 @@ Inlines `@import` chains so the browser does not have to discover and
 fetch each stylesheet sequentially. Flattening happens during CSS
 processing and the resulting stylesheet is cached and served as a
 single resource. Toggleable via
-[`--no-css-import-flattening`](#html-optimization-flags). (1.15
+[`--no-css-import-flattening`](#html-optimization-flags). (module
 equivalent: `flatten_css_imports`.)
 
 ### Script deferral {#script-deferral}
@@ -885,7 +887,7 @@ Adds the `defer` attribute to `<script src="...">` tags that script
 coverage analysis has identified as safe to defer, so they execute
 after HTML parsing instead of blocking it. Scripts already marked
 `async`, `defer`, or `type="module"` are left unchanged. Toggleable via
-[`--no-script-deferral`](#html-optimization-flags). (1.15 equivalent:
+[`--no-script-deferral`](#html-optimization-flags). (module equivalent:
 `defer_javascript`.)
 
 ### CSS minification {#css-minification}
@@ -894,7 +896,7 @@ Parses CSS and emits a minified form (whitespace and comment removal,
 shorthand collapsing where safe). The output is content-hashed and
 served via [cache extension](#cache-extension). Always-on under
 `pagespeed on;`; use `--disable-css` to skip CSS rewriting entirely.
-(1.15 equivalent: `rewrite_css`.)
+(module equivalent: `rewrite_css`.)
 
 ### JS minification {#js-minification}
 
@@ -902,7 +904,7 @@ Parses JavaScript and emits a minified form (whitespace, identifier
 shortening within safe scopes, dead-code removal where statically
 provable). The output is content-hashed and served via
 [cache extension](#cache-extension). Always-on under `pagespeed on;`;
-use `--disable-js` to skip JS rewriting entirely. (1.15 equivalent:
+use `--disable-js` to skip JS rewriting entirely. (module equivalent:
 `rewrite_javascript`.)
 
 ### Cache extension {#cache-extension}
@@ -914,7 +916,7 @@ changes, the long TTL is safe: a new deploy invalidates the old URL by
 producing a new hash, and there is no need to purge intermediate
 caches. Always-on under `pagespeed on;`. The TTL cap is controlled by
 [`pagespeed_max_age`](#cache-control-directives) and the per-type
-`pagespeed_*_max_age` directives. (1.15 equivalent: `extend_cache`,
+`pagespeed_*_max_age` directives. (module equivalent: `extend_cache`,
 `extend_cache_css`, `extend_cache_images`, `extend_cache_scripts`,
 `extend_cache_pdfs`.)
 
@@ -936,8 +938,8 @@ The `Cache-Control` header on the optimized HTML response is always
 revalidate on every navigation. Conditional revalidation
 ([`pagespeed_conditional_revalidation on`](#cache-control-directives),
 the default) keeps that cheap by answering with `304 Not Modified` when
-the cached body still matches. HTML caching is unique to 2.0; 1.15
-always passes HTML through to the origin and rewrites in flight.
+the cached body still matches. HTML caching runs in the optimizer worker; the
+module always passes HTML through to the origin and rewrites in flight.
 
 ## Browser Analysis
 
@@ -1336,7 +1338,7 @@ done
 
 ## Capability Mask
 
-ModPageSpeed classifies each request into a 32-bit capability mask based on
+The module classifies each request into a 32-bit capability mask based on
 the client's capabilities. This mask is used as part of the cache key, allowing
 different optimized variants to be served to different clients.
 
@@ -1479,7 +1481,7 @@ hardening set: empty `CapabilityBoundingSet`, `ProtectSystem=strict`,
 
 ## Response Headers
 
-ModPageSpeed adds the following response header:
+mod_pagespeed adds the following response header:
 
 | Header        | Value  | Meaning                                                  |
 | ------------- | ------ | -------------------------------------------------------- |
@@ -1587,7 +1589,7 @@ order; the first match causes the request to bypass PageSpeed.
 
 ## Enabling the native module
 
-These steps load and enable the in-process module (Apache, nginx, IIS); the reverse-proxy worker documented above needs none of them.
+These steps load and enable the in-process module (Apache, nginx, IIS); the optimizer worker documented above needs none of them.
 
 <!-- platform: nginx -->
 
@@ -1648,10 +1650,6 @@ pagespeed on
 
 </div>
 
-### Envoy
-
-The native module is available as an HTTP filter for Envoy. This integration is experimental. [Contact us](/contact/) for configuration guidance.
-
 ## Native module states
 
 The in-process module (Apache, nginx, IIS) supports three operational states:
@@ -1697,7 +1695,7 @@ pagespeed standby
 ## Native module configuration directives {#native-module-configuration-directives}
 
 These directives configure the in-process module (Apache, nginx, IIS) rather
-than the reverse-proxy worker documented above. For the complete list, see the [directive index](/docs/directive-index/).
+than the optimizer worker documented above. For the complete list, see the [directive index](/docs/directive-index/).
 
 In v1.15.0+r18 and later, configuration validation is stricter: out-of-range values for bounded options (image quality levels, progressive JPEG scan counts, `HttpCacheCompressionLevel`, `RewriteRandomDropPercentage`, `CentralControllerPort`) fail configuration load instead of being silently accepted, and an invalid filter name in `?PageSpeedFilters=` rejects the whole query. In addition, the `AddResourceHeader` limit of 20 headers is now enforced exactly, and directive and option-scope matching is case-consistent. A configuration that loaded on an earlier revision may need its values corrected when upgrading.
 
@@ -1785,7 +1783,7 @@ Optimization work runs on two thread pools, separate from the threads that serve
 requests. The _rewrite_ pool handles short, latency-sensitive bookkeeping; the
 _expensive rewrite_ pool handles heavy CPU work such as image transcoding, so a
 large image cannot hold up everything else. This is the in-process module's own
-thread configuration — see [Threading](#threading) above for the reverse-proxy
+thread configuration — see [Threading](#threading) above for the optimizer
 worker's `--num-threads` and `--ram-cache-size` flags, a different setting.
 
 In v1.15.0+r21 and later both pools size themselves. `NumRewriteThreads` and
@@ -1943,7 +1941,7 @@ URLs the module will rewrite.
 
 ## Native module location scoping {#location-specific-configuration}
 
-This section scopes the in-process module (Apache, nginx, IIS) rather than the reverse-proxy worker documented above.
+This section scopes the in-process module (Apache, nginx, IIS) rather than the optimizer worker documented above.
 
 mod_pagespeed directives can be scoped to specific parts of your site. The available scoping mechanisms vary by platform.
 
@@ -2000,7 +1998,7 @@ See [IIS configuration](/docs/iis-configuration/#path-based-matching-with-regex)
 
 ## Native module virtual hosts {#virtual-hosts}
 
-This section covers the in-process module (Apache, nginx, IIS) rather than the reverse-proxy worker documented above.
+This section covers the in-process module (Apache, nginx, IIS) rather than the optimizer worker documented above.
 
 Each virtual host can carry its own mod_pagespeed configuration. Directives set at the global level serve as defaults; virtual host configuration overrides them.
 
@@ -2080,7 +2078,7 @@ pagespeed EnableFilters collapse_whitespace
 
 ## Native module behind a reverse proxy
 
-This section covers the in-process module (Apache, nginx, IIS) running behind a reverse proxy, not the reverse-proxy worker documented above.
+This section covers the in-process module (Apache, nginx, IIS) running behind a reverse proxy, not the optimizer worker documented above.
 
 When mod_pagespeed runs behind a reverse proxy (such as nginx, Varnish, or a CDN), keep the following in mind:
 

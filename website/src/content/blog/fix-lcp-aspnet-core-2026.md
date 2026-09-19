@@ -59,13 +59,13 @@ Output you're hunting for: the LCP element, the TTFB number, and whether the lon
 
 ## Step 2: Recompress images and inline critical CSS in-process via the WeAmp.PageSpeed middleware
 
-ModPageSpeed 2.0 ships an ASP.NET Core middleware as a NuGet package (`WeAmp.PageSpeed.AspNetCore`). It runs the same optimization pipeline as the nginx interceptor — image transcoding, CSS extraction, HTML rewriting, cache management — inside the Kestrel process via P/Invoke into a native shared library. Optimization is on by default; there are no named filters to enable, and you tune the HTML transforms with the `options.Html.Enable*` toggles. What moves LCP:
+mod_pagespeed 2.1 ships an ASP.NET Core middleware as a NuGet package (`WeAmp.PageSpeed.AspNetCore`). It runs the same optimization pipeline as the nginx deployment — image transcoding, CSS extraction, HTML rewriting, cache management — inside the Kestrel process via P/Invoke into a native shared library. Optimization is on by default; there are no named filters to enable, and you tune the HTML transforms with the `options.Html.Enable*` toggles. What moves LCP:
 
 - **Image recompression and WebP/AVIF transcoding** — always-on worker behavior; it re-encodes hero images at a configured quality and transcodes to WebP and AVIF for browsers that advertise support. There is no toggle to switch it on.
 - **Critical-CSS injection** (`options.Html.EnableCriticalCss`, default on) — extracts above-the-fold rules from the page's CSS and inlines them into the document `<head>`, so the browser can paint without waiting for the external stylesheet. See [how the critical-CSS heuristics decide what to inline](/blog/critical-css-heuristics/).
 - **LCP preload** (`options.Html.EnableLcpPreload`, default on) — emits a `<link rel="preload">` hint for the detected LCP image so the browser fetches it early. This is one of the [server-injected resource hints](/blog/server-injected-resource-hints-speculation-rules/) the worker generates from the rendered HTML.
 
-For a Razor Pages site where the LCP element is text rather than an image, ModPageSpeed's contribution is smaller — critical-CSS injection still helps by trimming the CSS chain, but the bigger win is fixing TTFB by making view components properly async.
+For a Razor Pages site where the LCP element is text rather than an image, mod_pagespeed 2.1's contribution is smaller — critical-CSS injection still helps by trimming the CSS chain, but the bigger win is fixing TTFB by making view components properly async.
 
 Minimal `Program.cs` for an MVC/Razor Pages site:
 
@@ -152,11 +152,11 @@ The full configuration reference lives in [ASP.NET Core configuration](/docs/asp
 
 ## When this doesn't work
 
-Cases where ModPageSpeed alone isn't enough on ASP.NET Core:
+Cases where mod_pagespeed alone isn't enough on ASP.NET Core:
 
-- **Blazor Server.** The initial paint is a SignalR handshake. ModPageSpeed cannot rewrite content that's streamed over a WebSocket. The architectural fix is Blazor WebAssembly or `@rendermode InteractiveAuto` (.NET 8+), which falls back to WASM after the first visit.
+- **Blazor Server.** The initial paint is a SignalR handshake. mod_pagespeed cannot rewrite content that's streamed over a WebSocket. The architectural fix is Blazor WebAssembly or `@rendermode InteractiveAuto` (.NET 8+), which falls back to WASM after the first visit.
 - **TTFB is the long pole and view components are still synchronous.** No HTML rewriter can shorten a 1 s TTFB; fix the synchronous I/O first. Run `dotnet-trace collect` on the process, look at the BlockingTime counter, and convert blocking work to `async`/`await`.
-- **The LCP is a YouTube embed or third-party iframe.** ModPageSpeed cannot rewrite third-party iframe content. Use a static-poster facade pattern: render a `<picture>` with the video thumbnail and a play button; replace it with the iframe on click. The LCP becomes your own image.
+- **The LCP is a YouTube embed or third-party iframe.** mod_pagespeed cannot rewrite third-party iframe content. Use a static-poster facade pattern: render a `<picture>` with the video thumbnail and a play button; replace it with the iframe on click. The LCP becomes your own image.
 - **The site is a Single-Page App with ASP.NET Core only as the API layer.** Build-time image optimization (Webpack, Vite, esbuild) is the right layer for SPA LCP work; the middleware doesn't see the SPA's render pipeline.
 
 ## Related
@@ -170,4 +170,4 @@ Cases where ModPageSpeed alone isn't enough on ASP.NET Core:
 - [The full LCP guide](/core-web-vitals/lcp/)
 - [Test your page in the analyzer](/analyze/)
 
-ModPageSpeed runs as an ASP.NET Core middleware (NuGet), an nginx interceptor, or an Apache / IIS module. On ASP.NET Core, install the middleware and run your app — it optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed 2.1 runs as ASP.NET Core middleware (NuGet) or as a module for Apache, nginx and IIS. The IIS package ships from the 1.15 packaging channel. On ASP.NET Core, install the middleware and run your app — it optimizes out of the box. See [pricing](/pricing/) and [license terms](/license/).

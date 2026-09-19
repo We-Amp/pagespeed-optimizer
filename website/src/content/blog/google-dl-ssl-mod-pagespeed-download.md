@@ -26,7 +26,7 @@ patches in years.
 
 If you came here looking for an install command, this is the one to
 run on Debian or Ubuntu. It installs the signed apt repository at
-`packages.modpagespeed.com` and the maintained `mod_pagespeed 1.15`
+`packages.modpagespeed.com` and the maintained `mod_pagespeed 2.1`
 package:
 
 ```bash
@@ -113,7 +113,7 @@ AVIF never landed in Google's open-source releases. Google's last build
 only emits WebP and the legacy JPEG/PNG paths. In 2026 that's a meaningful weight
 penalty for above-the-fold hero images: AVIF is typically 20–30%
 smaller than WebP at equivalent quality (see [AVIF vs WebP in 2026](/blog/avif-vs-webp-2026/)).
-AVIF encoding landed in the maintained lines: mod_pagespeed 1.15 and ModPageSpeed 2.0 both emit it.
+AVIF encoding landed in mod_pagespeed 2.1: the module and the optimizer worker both emit it.
 
 ### No Core Web Vitals signals
 
@@ -141,17 +141,16 @@ You have two actively-maintained paths. The right choice depends on
 your deployment shape: a native in-process module that drops into an
 existing 1.13.35.2 install, or a reverse-proxy rewrite for nginx.
 
-### Path 1: `mod_pagespeed` 1.15, the native in-process module
+### Path 1: `mod_pagespeed`, the native in-process module {#path-1-mod_pagespeed-115-the-native-in-process-module}
 
 Same configuration syntax as 1.13.35.2. Same filter names. Same admin
-console. The native in-process module for Apache 2.4+, nginx, and IIS,
-with an experimental Envoy port. CVE patches, a current toolchain, and
-the Cyclone Cache.
+console. The native in-process module for Apache 2.4+, nginx, and IIS.
+CVE patches, a current toolchain, and the Cyclone Cache.
 
 If you have a working 1.13.35.2 install and want a security update
 that doesn't require config changes, this is the path. The
-[1.15 download docs](/download/) list every platform package;
-the [1.15 site](/) has the full reference.
+[mod_pagespeed 2.1 download docs](/download/) list every platform package;
+the [mod_pagespeed site](/) has the full reference.
 
 **Debian / Ubuntu (Apache):**
 
@@ -212,38 +211,38 @@ $ curl -sI http://localhost/ | grep -i pagespeed
 X-Page-Speed: 1.15.0-...
 ```
 
-### Path 2: ModPageSpeed 2.0, the rewrite
+### Path 2: the optimizer worker, from the 2.0 re-architecture {#path-2-modpagespeed-20-the-rewrite}
 
-A from-scratch rewrite designed for nginx and container-native
-deployment. Separate worker process, shared Cyclone cache via mmap,
-runtime content negotiation against `Accept`. A different architecture
-from the original mod_pagespeed, with its own independent C++23
-optimization core underneath.
+Built from scratch by the 2.0 re-architecture for nginx and
+container-native deployment. Separate worker process, shared Cyclone
+cache via mmap, runtime content negotiation against `Accept`. A
+different architecture from the original mod_pagespeed, with its own
+independent C++23 optimization core underneath.
 
 If you want a reverse-proxy plus async-worker model on nginx in front of
 any HTTP origin, this is the path.
 
 ```bash
-# ModPageSpeed 2.0 — ASP.NET Core middleware
+# mod_pagespeed 2.1 — ASP.NET Core middleware
 dotnet add package WeAmp.PageSpeed.AspNetCore
 ```
 
 It optimizes out of the box, and it is licensed under Apache-2.0 and free
 to run in development and in production.
 
-Full setup walkthrough at [Run ModPageSpeed 2.0 with Docker Compose in 5
+Full setup walkthrough at [Run mod_pagespeed with Docker Compose in 5
 minutes](/blog/run-with-docker-compose/).
 
-### IIS, ASP.NET Core, Envoy
+### IIS and ASP.NET Core {#iis-aspnet-core-envoy}
 
 If you were installing `mod_pagespeed` because it had a port for your
 server, the modern equivalents:
 
-- **IIS:** the [1.15 site](/download/) ships an MSI installer.
+- **IIS:** the [download page](/download/) ships an MSI installer. The IIS package
+  ships from the 1.15 packaging channel.
 - **ASP.NET Core:** the [WeAmp.PageSpeed.AspNetCore NuGet
   middleware](/go/nuget?from=blog-google-dl-ssl)
-  registers the ModPageSpeed 2.0 optimization core as ASP.NET Core middleware.
-- **Envoy:** see the [Envoy configuration docs](/docs/configuration/) for the HTTP filter.
+  registers the mod_pagespeed 2.1 optimization core as ASP.NET Core middleware.
 
 ## What to do with the existing install
 
@@ -269,7 +268,7 @@ curl -sI http://localhost/ | grep -i pagespeed
 
 Your existing `pagespeed.conf` continues to work. Same filter names,
 same admin console at `/pagespeed_admin/` (and `/pagespeed_global_admin`
-on 1.15 for the process-wide view). Cache directory under
+in the module for the process-wide view). Cache directory under
 `/var/cache/mod_pagespeed` is preserved across the migration and will be
 re-populated as new requests hit.
 
@@ -286,10 +285,9 @@ searching for `mod_pagespeed download`, you probably found the
 `dl-ssl.google.com` URL first and were about to install a 2020 binary
 with years of unpatched CVEs.
 
-The maintained continuations live on [modpagespeed.com](/), both the
-1.15 lineage and the 2.0 rewrite. The optimization work that
-`mod_pagespeed` did still matters. The 2020 binary isn't where to get
-it in 2026.
+The maintained continuation lives on [modpagespeed.com](/): mod_pagespeed
+2.1. The optimization work that `mod_pagespeed` did still matters. The
+2020 binary isn't where to get it in 2026.
 
 ## Get the maintained build
 
@@ -303,11 +301,11 @@ curl -fsSL https://packages.modpagespeed.com/setup-yum.sh | sudo bash
 sudo dnf install mod-pagespeed-stable
 ```
 
-mod_pagespeed 1.15 is the drop-in continuation. It optimizes out of the
+mod_pagespeed 2.1 is the drop-in continuation. It optimizes out of the
 box, and it is licensed under Apache-2.0 and free to run in development and
 in production — see the [license](/license/).
 Starting fresh on nginx? The
-[ModPageSpeed 2.0 Docker Compose quickstart](/blog/run-with-docker-compose/)
+[mod_pagespeed 2.1 Docker Compose quickstart](/blog/run-with-docker-compose/)
 covers the rewrite.
 
 ## Related
@@ -316,5 +314,5 @@ covers the rewrite.
 - [mod_pagespeed alternative in 2026](/alternatives/mod-pagespeed/) — decision matrix
 - [Google PageSpeed Module alternative](/alternatives/google-pagespeed-module/) — disambiguation
 - [All alternatives](/alternatives/)
-- [mod_pagespeed 1.15 docs](/) — the maintained continuation
+- [mod_pagespeed docs](/) — the maintained continuation
 - [Run ModPageSpeed 2.0 with Docker Compose](/blog/run-with-docker-compose/) — modern install path

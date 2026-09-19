@@ -1,6 +1,6 @@
 ---
 title: 'Cache key derivation in ModPageSpeed 2.0: host-scoped keys and single-pass variant fallback'
-description: 'How cache key derivation in ModPageSpeed 2.0 hashes host plus URL into one key and scores stored variants in one selector pass instead of probing many keys.'
+description: 'How cache key derivation in mod_pagespeed 2.1 hashes host plus URL into one key and scores stored variants in one selector pass instead of probing many keys.'
 date: 2026-06-13
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'
@@ -11,11 +11,11 @@ product: '2.0'
 
 Two sites behind the same proxy ask for the same path: `GET /logo.png`, one for `Host: a.example`, one for `Host: b.example`. If your cache key is the path, those two requests collide. The first site's logo gets served to the second site's visitors. The fix is in how the key is derived, and it changes more than just isolation.
 
-This post walks the shipped cache key derivation in ModPageSpeed 2.0: how a key is built from scheme, host, and URL, how the many variants of one resource are stored as alternates under that single key, and how a scored single-pass selector picks the right variant instead of probing a sequence of separate keys.
+This post walks the shipped cache key derivation in mod_pagespeed 2.1: how a key is built from scheme, host, and URL, how the many variants of one resource are stored as alternates under that single key, and how a scored single-pass selector picks the right variant instead of probing a sequence of separate keys.
 
 ## Cache key derivation: a digest of scheme, host, and URL
 
-A cache key in ModPageSpeed 2.0 is a Cyclone `CacheKey`: a 32-byte SHA-256 digest. The cache layer composes the string that gets hashed in `ComposeKey()` (private; callers reach it through `(url, hostname, scheme)` operations on `PageSpeedCache`), which builds `scheme://hostname/url` and hands it to the `cyclone::CacheKey` constructor. Host isolation falls out of it for free: different hostnames produce different strings, so they produce different digests, and `a.example/logo.png` and `b.example/logo.png` can never share a key. There is no escape hatch and no shared namespace. The isolation is cryptographic rather than conventional. Scheme is part of the string too, so `http` and `https` requests for the same host and path get distinct keys.
+A cache key in mod_pagespeed is a Cyclone `CacheKey`: a 32-byte SHA-256 digest. The cache layer composes the string that gets hashed in `ComposeKey()` (private; callers reach it through `(url, hostname, scheme)` operations on `PageSpeedCache`), which builds `scheme://hostname/url` and hands it to the `cyclone::CacheKey` constructor. Host isolation falls out of it for free: different hostnames produce different strings, so they produce different digests, and `a.example/logo.png` and `b.example/logo.png` can never share a key. There is no escape hatch and no shared namespace. The isolation is cryptographic rather than conventional. Scheme is part of the string too, so `http` and `https` requests for the same host and path get distinct keys.
 
 Two things go into the hash that an older path-only scheme would have dropped. The host goes in, which is what fixes isolation. And the variant information stays *out* of the key entirely — variants live as alternates under the one key, which is the more interesting half.
 
@@ -25,9 +25,9 @@ A `Host`-less request is the edge case. `NormalizeHostname()` returns an empty s
 
 ## One key, up to 64 alternates
 
-If the variant mask is no longer in the key, where does it live? In the alternate. Cyclone — the cache library shared by mod_pagespeed 1.15 and ModPageSpeed 2.0 — has native alternate selection: it can store multiple variants of one resource under a single key, each with its own stored bytes, and pick between them with a pluggable selector. The cap is `kMaxAlternatesPerKey = 64`.
+If the variant mask is no longer in the key, where does it live? In the alternate. Cyclone — the cache library both parts of mod_pagespeed share — has native alternate selection: it can store multiple variants of one resource under a single key, each with its own stored bytes, and pick between them with a pluggable selector. The cap is `kMaxAlternatesPerKey = 64`.
 
-A path-only-key scheme would have stored each variant under its own key. ModPageSpeed 2.0 keeps one key with the variants hung off it as alternates. Each variant is identified by an `AlternateId`, a `uint8_t` that is the low byte of the 32-bit capability mask — a direct cast, no offset or remapping (`MaskToAlternateId()` and `AlternateIdToMask()` in `alternate_id.h`). That low byte holds five dimensions: image format (bits 0-1), viewport class (bits 2-3), pixel density (bit 4), Save-Data (bit 5), and transfer-encoding (bits 6-7). Because PageSpeed always uses its own `PageSpeedSelector`, never one of Cyclone's built-in selectors, the named Cyclone `AlternateId` values (Brotli, WebP, and so on) are irrelevant to PageSpeed's usage and never consulted — the comment in `alternate_id.h` is explicit about this.
+A path-only-key scheme would have stored each variant under its own key. mod_pagespeed keeps one key with the variants hung off it as alternates. Each variant is identified by an `AlternateId`, a `uint8_t` that is the low byte of the 32-bit capability mask — a direct cast, no offset or remapping (`MaskToAlternateId()` and `AlternateIdToMask()` in `alternate_id.h`). That low byte holds five dimensions: image format (bits 0-1), viewport class (bits 2-3), pixel density (bit 4), Save-Data (bit 5), and transfer-encoding (bits 6-7). Because PageSpeed always uses its own `PageSpeedSelector`, never one of Cyclone's built-in selectors, the named Cyclone `AlternateId` values (Brotli, WebP, and so on) are irrelevant to PageSpeed's usage and never consulted — the comment in `alternate_id.h` is explicit about this.
 
 The image-format dimension has four values (bits 0-1: `00` Original, `01` WebP, `10` AVIF, `11` SVG), viewport has three (mobile, tablet, desktop), density two, Save-Data two, and transfer-encoding three real values (identity, gzip, brotli; `11` reserved). Note what is *not* a dimension: there is no connection-speed or effective-connection-type bit in the mask. When a write would exceed 64 alternates, Cyclone returns a `TooManyAlternates` error (surfaced through the C API as `PS_ERR_TOO_MANY_ALTERNATES`) rather than corrupting the chain.
 
@@ -75,7 +75,7 @@ The selection dimensions are the same ones that drive [viewport-aware image opti
 - [How the metadata cache works](/how-it-works/metadata-cache/)
 - [Cache modes](/docs/cache-modes/)
 
-If you want to see this caching layer in practice, the nginx build is on the [downloads page](/download/), and the [cache-control behavior](/docs/cache-control/) doc covers how ModPageSpeed 2.0 reads and emits cache directives. It is licensed under Apache-2.0 and free to run in development and in production, so you can confirm the host-scoped keys and single-pass selection hold up against your own traffic.
+If you want to see this caching layer in practice, the nginx build is on the [downloads page](/download/), and the [cache-control behavior](/docs/cache-control/) doc covers how mod_pagespeed reads and emits cache directives. It is licensed under Apache-2.0 and free to run in development and in production, so you can confirm the host-scoped keys and single-pass selection hold up against your own traffic.
 
 ---
 
