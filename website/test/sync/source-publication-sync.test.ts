@@ -22,7 +22,26 @@
 //      claim flips with the fact, never by hand;
 //   6. no non-content copy surface talks about license keys — neither the
 //      retired key model nor reassurance about its absence (the site does not
-//      mention keys at all).
+//      mention keys at all);
+//   7. no copy source describes the retired per-site / flat-rate commercial
+//      model (per-site subscriptions, flat-rate pricing, "buy/purchase a
+//      license", the retired Business-tier grant) — the earlier guards already
+//      covered the key/warn class; this covers the commercial-model class
+//      removed alongside it;
+//   8. no copy source describes the retired license-activation mechanism
+//      (license activation, token-based licensing, auto-renewal, or the
+//      Ed25519-token-based licensing variant specifically) — guard 6 already
+//      forbids "license activation" and "license token" but only scans the
+//      non-content surfaces; this repeats that class over src/content too, so
+//      a blog post can't carry it (that is exactly how one slipped through:
+//      mod-pagespeed-alternatives.md's "Unified licensing... license
+//      activation. Ed25519 token-based licensing with auto-renewal." bullet).
+//      Scoped narrowly so it does not trip on RSL-CAP / Web Bot Auth copy,
+//      which legitimately uses Ed25519 for request-signature verification
+//      (a live, current, unrelated feature) and even says "Ed25519-signed
+//      ... licensed identity" in the same sentence — the pattern below never
+//      matches bare "Ed25519" or bare "licensed", only the compound retired
+//      phrasing.
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
@@ -40,13 +59,17 @@ const licenseAstro = readFileSync(resolve(ROOT, 'src/pages/license.astro'), 'utf
 );
 
 // The legal pages (/terms/, /privacy/) were revised for the converged model and
-// are scanned like every other copy surface. Only the legacy FastSpring
-// price-hydration component is skipped by the key-talk scan (6): its one
-// mention is an internal comment on the retired ladder.
+// are scanned like every other copy surface.
 const PENDING_LEGAL_REVISION = new Set<string>();
-const PENDING_KEY_TALK = new Set(['src/components/FastSpringPricing.astro']);
+const PENDING_KEY_TALK = new Set<string>();
 // The derivation itself lives here and legitimately spells out both forms.
 const DERIVATION_SOURCE = 'src/data/product-facts.mjs';
+// Comment-only mentions of the retired per-site/Business ladder as history or
+// dead-code documentation — not rendered copy, so guard 7 does not chase them.
+const PENDING_COMMERCIAL_MODEL_TALK = new Set([
+  'src/data/offer-jsonld.ts', // "(The pre-GA AggregateOffer spanned the paid per-site license rungs; the license ladder is retired.)"
+  'src/pages/calculator.astro', // "Per-site licensing: one Business license per site, servers don't count." — dead branch, mpsUnitPrice is always 0
+]);
 
 /** Every text source under `dir` (recursive), by extension. */
 function copySources(dir: string): string[] {
@@ -150,5 +173,62 @@ describe('software-license single-source drift guard', () => {
     const KEY_TALK =
       /licen[cs]e[- ]key|license keys|--license-key|PAGESPEED_LICENSE|LicenseKey|licenseKey|unlicensed|X-PageSpeed-Warn|locks you out|license token|licen[cs]e activation|activat(e|ion|ing) a license|no license key|needs? no key|no keys?\b|key is ignored|leftover key/i;
     expect(offendersIn(KEY_TALK, PENDING_KEY_TALK)).toEqual([]);
+  });
+
+  it('7. no copy source describes the retired per-site / flat-rate commercial model', () => {
+    // Same surfaces as guard 4 (content collections included, so a fixed blog
+    // post cannot regress): pages, content, data, components, layouts, and
+    // the llms templates. Competitor pricing facts ("Per-site SaaS
+    // subscription (see vendor for tiers)") do not match: the pattern
+    // requires the retired-model word directly after "per-site" / "flat", or
+    // the "Business ... covers" grant phrasing, which only ever described
+    // this product's retired ladder.
+    const RETIRED_COMMERCIAL_MODEL =
+      /\bper[- ]site (?:subscription|pricing|price|rate|licens\w*)\b|\bflat[, ]*(?:predictable )?per[- ]site (?:price|pricing|rate|cost|model)\b|\bflat rate per site\b|\bbills? per site\b|\bpriced? per[- ]site\b|\bbuy a licen[cs]e\b|\bpurchase a licen[cs]e\b|\bBusiness (?:licen[cs]e )?covers\b/i;
+    const dirs = [
+      'src/pages',
+      'src/content',
+      'src/data',
+      'src/components',
+      'src/layouts',
+      'scripts/llms-templates',
+    ];
+    const offenders: string[] = [];
+    for (const dir of dirs) {
+      for (const file of copySources(resolve(ROOT, dir))) {
+        const rel = file.slice(ROOT.length + 1);
+        if (PENDING_LEGAL_REVISION.has(rel) || PENDING_COMMERCIAL_MODEL_TALK.has(rel)) continue;
+        if (RETIRED_COMMERCIAL_MODEL.test(readFileSync(file, 'utf8'))) offenders.push(rel);
+      }
+    }
+    expect(offenders).toEqual([]);
+  });
+
+  it('8. no copy source describes the retired license-activation mechanism', () => {
+    // Same surfaces as guards 4 and 7 (content collections included). The
+    // "Ed25519" alternative requires it to sit directly against "token-based"
+    // — RSL-CAP's docs use Ed25519 for signature verification and even pair
+    // it with "licensed identity" in prose (rsl-cap.md: "Ed25519-signed
+    // statement of a licensed identity"), which must NOT trip this guard;
+    // "Ed25519[- ]+token-based" cannot match that sentence shape.
+    const LICENSE_MECHANISM_TALK =
+      /licen[cs]e activation|token-based licens\w*|auto-renew(?:al)?|Ed25519[\s-]+token-based/i;
+    const dirs = [
+      'src/pages',
+      'src/content',
+      'src/data',
+      'src/components',
+      'src/layouts',
+      'scripts/llms-templates',
+    ];
+    const offenders: string[] = [];
+    for (const dir of dirs) {
+      for (const file of copySources(resolve(ROOT, dir))) {
+        const rel = file.slice(ROOT.length + 1);
+        if (PENDING_LEGAL_REVISION.has(rel)) continue;
+        if (LICENSE_MECHANISM_TALK.test(readFileSync(file, 'utf8'))) offenders.push(rel);
+      }
+    }
+    expect(offenders).toEqual([]);
   });
 });

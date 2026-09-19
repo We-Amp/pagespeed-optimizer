@@ -2,7 +2,7 @@
 title: 'Benchmarking ModPageSpeed 2.0: real numbers on real sites'
 description: 'Measured ModPageSpeed 2.0 results on e-commerce, blog, news, and portfolio sites: WebP/AVIF image savings and real LCP, FCP, CLS, and Lighthouse gains on 3G, 4G, and broadband.'
 date: 2026-02-05
-lastUpdated: 2026-07-04
+lastUpdated: 2026-09-19
 author: 'Otto van der Schaaf'
 tags: ['performance', 'benchmarks', 'image-optimization', 'core-web-vitals']
 draft: false
@@ -99,7 +99,7 @@ CDN-based image optimization services (Cloudinary, imgix, Cloudflare Polish) are
 
 CDN services bill per transformation plus bandwidth, so the image-optimization line item grows with every request served. At a million image requests a month it is a recurring monthly charge; at ten million it multiplies in step. These costs scale linearly with traffic and never stop.
 
-ModPageSpeed 2.0 is priced per site with all optimizations included ([see current pricing](/pricing/)) -- a Business license covers every server behind the site, so a redundant pair or a load-balanced fleet costs the same as one box. A single server can handle tens of thousands of unique images -- each image is transcoded once per format variant, then served from the Cyclone cache for all subsequent requests. The cache uses [memory-mapped I/O for zero-copy serving](/blog/memory-mapped-cache-zero-copy-serving/), so the marginal cost per request is effectively zero.
+ModPageSpeed 2.0 is free under the Apache License 2.0 with all optimizations included ([see pricing](/pricing/)) -- it runs on every server behind the site at no cost, so a redundant pair or a load-balanced fleet costs the same as one box. A single server can handle tens of thousands of unique images -- each image is transcoded once per format variant, then served from the Cyclone cache for all subsequent requests. The cache uses [memory-mapped I/O for zero-copy serving](/blog/memory-mapped-cache-zero-copy-serving/), so the marginal cost per request is effectively zero.
 
 Where CDN solutions have a genuine advantage is global edge distribution. If your audience is distributed across continents, edge-based transformation reduces latency that origin-based processing cannot. For sites with a regional audience, or those already using a CDN for distribution (which passes through the optimized origin responses), self-hosted optimization produces the same quality improvements at a fraction of the cost.
 

@@ -2,7 +2,7 @@
 title: 'Why I rebuilt mod_pagespeed from scratch'
 description: 'The story behind ModPageSpeed 2.0 — why mod_pagespeed is no longer actively developed, what was kept from PSOL, and how a new architecture replaced the RewriteDriver.'
 date: 2026-02-01
-lastUpdated: 2026-07-04
+lastUpdated: 2026-09-19
 author: 'Otto van der Schaaf'
 tags: ['architecture', 'announcement']
 product: '2.0'
@@ -62,10 +62,10 @@ When your traffic flows through someone else's infrastructure, your data is on t
 
 ModPageSpeed 2.0 runs on your servers. Your content never leaves your infrastructure. There is no third-party data processor in the request path, which means no DPA to negotiate and no external audit surface for that hop.
 
-This also means no per-request pricing, no bandwidth fees, no API rate limits. You pay a flat rate per site, and your optimization scales with your hardware, not your bill. For the image pipeline specifically, this is what [self-hosted image optimization](/self-hosted-image-optimization/) looks like in practice — the transcoding runs on your own box, not a vendor's.
+This also means no per-request pricing, no bandwidth fees, no API rate limits, and no bill of any kind — the software is free under the Apache License 2.0, and your optimization scales with your hardware, not a subscription tier. For the image pipeline specifically, this is what [self-hosted image optimization](/self-hosted-image-optimization/) looks like in practice — the transcoding runs on your own box, not a vendor's.
 
 ## Getting started
 
 ModPageSpeed 2.0 is available now. Deploy with Docker Compose, point it at your origin, and it optimizes out of the box. Setup takes about five minutes regardless of which web server you run behind it. See [pricing](/pricing/) and [license terms](/license/).
 
-If you're running a site where performance matters and you want to keep your data on your own infrastructure, install it, run it, and [buy a license](/pricing/) when you're ready for production.
+If you're running a site where performance matters and you want to keep your data on your own infrastructure, install it and run it — it's free under the Apache License 2.0, in development and in production. [Support plans](/pricing/) are available if you want them.

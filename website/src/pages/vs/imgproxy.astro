@@ -18,7 +18,7 @@ const rows = [
   },
   {
     label: 'Pricing model',
-    mps: 'Per-site subscription',
+    mps: 'Free (Apache-2.0); paid support optional',
     other: 'Open-source core; paid Pro tier',
   },
   {
@@ -103,9 +103,11 @@ const jsonLd = [
         imgproxy is a focused, self-hosted image processing server. ModPageSpeed is a self-hosted
         optimization pipeline that includes image work plus critical CSS, JS/CSS minification, and
         HTML rewriting. If image transformations are all you need, imgproxy is a smaller, sharper
-        tool. If you want the <a href="/features/" class="text-interactive hover:text-interactive-hover underline">full
-        page-level optimization layer</a> that mod_pagespeed used to provide, ModPageSpeed is the
-        closer fit.
+        tool. If you want the <a
+          href="/features/"
+          class="text-interactive hover:text-interactive-hover underline"
+          >full page-level optimization layer</a
+        > that mod_pagespeed used to provide, ModPageSpeed is the closer fit.
       </p>
     </section>
 
@@ -164,9 +166,9 @@ const jsonLd = [
       <h2 class="h2-section text-text-body">How they overlap</h2>
       <p class="mt-4 text-text-body">
         Both tools convert source images to modern formats and produce resized variants; on the
-        ModPageSpeed side that is WebP and AVIF across 1.15 and 2.0. Both run on your servers with no third-party
-        data path. Both are pull-based: the image gets optimized when it's first requested, then
-        served from cache.
+        ModPageSpeed side that is WebP and AVIF across 1.15 and 2.0. Both run on your servers with
+        no third-party data path. Both are pull-based: the image gets optimized when it's first
+        requested, then served from cache.
       </p>
       <p class="mt-4 text-text-body">
         The genuine overlap is image format conversion and responsive sizing. For everything outside
@@ -207,7 +209,8 @@ const jsonLd = [
           Point nginx at the ModPageSpeed interceptor and verify the cache directory has write
           access from both nginx and the worker. The <a
             href="/blog/run-with-docker-compose/"
-            class="text-interactive hover:text-interactive-hover underline">Docker Compose walkthrough</a
+            class="text-interactive hover:text-interactive-hover underline"
+            >Docker Compose walkthrough</a
           > covers a working baseline.
         </li>
       </ol>
@@ -244,12 +247,8 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
     </section>
 
     <section class="mt-12">
-      <div
-        class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-7"
-      >
-        <h2 class="h2-section text-text-body">
-          Outgrowing an image-only layer
-        </h2>
+      <div class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-7">
+        <h2 class="h2-section text-text-body">Outgrowing an image-only layer</h2>
         <p class="mt-3 text-text-body">
           If you ended up scripting CSS minification and critical CSS around imgproxy, one pipeline
           handles images plus CSS, JS, and HTML. On our own pages the full pipeline measures
@@ -277,9 +276,7 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
 
     <!-- See also -->
     <section class="mt-12 border-t border-border pt-8">
-      <p class="text-base font-semibold uppercase tracking-wide text-text-body">
-        See also:
-      </p>
+      <p class="text-base font-semibold uppercase tracking-wide text-text-body">See also:</p>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
           <a href="/vs/thumbor/" class="text-interactive hover:text-interactive-hover underline"

@@ -1,7 +1,8 @@
 ---
 title: 'Self-hosted image optimization: keep images on your origin and skip the egress bill'
-description: 'Image SaaS bills per transformation and per GB of egress. Self-hosted optimization transcodes WebP/AVIF on your servers at a flat per-site cost — no third party.'
+description: 'Image SaaS bills per transformation and per GB of egress. Self-hosted optimization transcodes WebP/AVIF on your own servers — no per-transformation cost, no third party.'
 date: 2026-06-06
+lastUpdated: 2026-09-19
 tags: ['image-optimization', 'self-hosted', 'cloudinary', 'performance']
 product: '2.0'
 draft: false
@@ -58,7 +59,7 @@ The two approaches work together. The common pattern is to run ModPageSpeed 2.0 
 
 ## Where the break-even line sits
 
-The break-even depends on your request volume and how globally distributed your audience is. If you are under a few hundred thousand image requests a month and your users are spread across continents, an image CDN is often both cheaper and faster, and the economics post says so. Above the crossover, or when the content has to stay on your infrastructure, the flat per-site model comes out ahead and stays there as traffic grows.
+The break-even depends on your request volume and how globally distributed your audience is. If you are under a few hundred thousand image requests a month and your users are spread across continents, an image CDN is often both cheaper and faster, and the economics post says so. Above the crossover, or when the content has to stay on your infrastructure, the free, self-hosted model comes out ahead and stays there as traffic grows.
 
 For a number based on your own traffic rather than a median, the [cost calculator](/calculator/) takes your request volume and shows where the two curves cross. For a feature-and-pricing comparison against the services people evaluate most, see [ModPageSpeed 2.0 vs Cloudinary](/vs/cloudinary/) and [vs imgix](/vs/imgix/). For the product page — what it does to each image, the variant matrix, and how to turn it on — see [self-hosted image optimization](/self-hosted-image-optimization/).
 

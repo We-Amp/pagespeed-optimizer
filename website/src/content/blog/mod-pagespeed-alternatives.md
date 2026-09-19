@@ -2,7 +2,7 @@
 title: 'mod_pagespeed and ngx_pagespeed alternatives in 2026'
 description: 'Google mod_pagespeed and ngx_pagespeed are no longer actively developed. mod_pagespeed 2.1 is the maintained continuation. Here is how the paths compare.'
 date: 2026-03-16
-lastUpdated: 2026-09-18
+lastUpdated: 2026-09-19
 author: 'Otto van der Schaaf'
 tags: ['migration', 'comparison', 'alternatives']
 draft: false
@@ -44,7 +44,7 @@ mod_pagespeed 2.1 runs inside Apache and nginx as a native in-process module, wi
 - **Actively maintained against current distributions.** Compiled and tested on Debian 11, 12, and 13, Ubuntu 22.04 and 24.04, AlmaLinux/RHEL/Rocky 9 and 10, and current nginx/Apache releases. The compatibility issues that plague the Google version (no longer actively developed) do not exist here.
 - **Prebuilt, signed packages.** Apache and nginx packages ship as signed `.deb`/`.rpm` from [packages.modpagespeed.com](https://packages.modpagespeed.com/). The nginx dynamic module — `nginx-module-pagespeed` — is prebuilt for Debian 11/12/13 and Ubuntu 22.04/24.04 on amd64 and arm64, each pinned to its distro's stock nginx, so there is nothing to compile. The IIS package ships from the 1.15 packaging channel.
 - **Cyclone cache.** The file-based cache from the original was replaced with Cyclone, a variant-aware, memory-mapped cache. Faster lookups, proper LRU eviction, and one cache format shared between the module and the optimizer worker.
-- **Unified licensing and admin console.** A web-based admin console for cache management, statistics, and license activation. Ed25519 token-based licensing with auto-renewal.
+- **Admin console.** A web-based admin console for cache management and statistics.
 
 **Best for:** Teams that already run mod_pagespeed or ngx_pagespeed, want a maintained version, and prefer a native server module over a reverse proxy. Apache users in particular: the module integrates directly into Apache's output filter chain exactly like the original.
 
@@ -66,22 +66,22 @@ The practical effect: the first request gets the original content (`X-PageSpeed:
 
 ## Choosing an integration
 
-|                                           | Native module (Apache, nginx)                          | Docker / nginx reverse proxy                                          |
-| ----------------------------------------- | ------------------------------------------------------ | --------------------------------------------------------------------- |
-| **Where it runs**                         | In-process in your web server                          | A container in front of any HTTP origin                               |
-| **Web servers**                           | Apache, nginx                                          | Any HTTP origin (Docker Compose, or Helm on Kubernetes)               |
-| **Install channel**                       | Signed apt/yum packages                                | Published container images                                            |
-| **Configuration**                         | `ModPagespeed*` directives (familiar)                  | Compose or Helm values + nginx directives                             |
-| **Optimization model**                    | Optimizer worker, off the request path                 | Optimizer worker, off the request path                                |
-| **Image formats**                         | WebP, AVIF, JPEG, PNG, GIF                             | WebP, AVIF, JPEG, PNG, GIF                                            |
-| **Image variants**                        | 32-bit capability mask (up to 37 variants per image)   | 32-bit capability mask (up to 37 variants per image)                  |
-| **Cache**                                 | Cyclone (shared)                                       | Cyclone (shared)                                                      |
-| **Classic filters**                       | combine_css/js, image spriting, IPRO, domain mapping   | Same optimization pipeline, configured on the proxy                   |
-| **Admin UI**                              | Built-in `/pagespeed_admin/` console                   | Worker console and stats                                              |
-| **Windows / IIS**                         | The IIS package ships from the 1.15 packaging channel. | In front of IIS as a reverse proxy                                    |
-| **ASP.NET Core**                          | Separately available NuGet packages                    | Separately available NuGet packages                                   |
-| **Migration from Google's mod_pagespeed** | Drop-in (same directives)                              | Config mapping required ([migration guide](/blog/migrating-from-1x/)) |
-| **Pricing**                               | Per-site flat rate ([see pricing](/pricing/))          | Per-site flat rate ([see pricing](/pricing/))                         |
+|                                           | Native module (Apache, nginx)                                       | Docker / nginx reverse proxy                                          |
+| ----------------------------------------- | ------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| **Where it runs**                         | In-process in your web server                                       | A container in front of any HTTP origin                               |
+| **Web servers**                           | Apache, nginx                                                       | Any HTTP origin (Docker Compose, or Helm on Kubernetes)               |
+| **Install channel**                       | Signed apt/yum packages                                             | Published container images                                            |
+| **Configuration**                         | `ModPagespeed*` directives (familiar)                               | Compose or Helm values + nginx directives                             |
+| **Optimization model**                    | Optimizer worker, off the request path                              | Optimizer worker, off the request path                                |
+| **Image formats**                         | WebP, AVIF, JPEG, PNG, GIF                                          | WebP, AVIF, JPEG, PNG, GIF                                            |
+| **Image variants**                        | 32-bit capability mask (up to 37 variants per image)                | 32-bit capability mask (up to 37 variants per image)                  |
+| **Cache**                                 | Cyclone (shared)                                                    | Cyclone (shared)                                                      |
+| **Classic filters**                       | combine_css/js, image spriting, IPRO, domain mapping                | Same optimization pipeline, configured on the proxy                   |
+| **Admin UI**                              | Built-in `/pagespeed_admin/` console                                | Worker console and stats                                              |
+| **Windows / IIS**                         | The IIS package ships from the 1.15 packaging channel.              | In front of IIS as a reverse proxy                                    |
+| **ASP.NET Core**                          | Separately available NuGet packages                                 | Separately available NuGet packages                                   |
+| **Migration from Google's mod_pagespeed** | Drop-in (same directives)                                           | Config mapping required ([migration guide](/blog/migrating-from-1x/)) |
+| **Pricing**                               | Free (Apache-2.0); paid support optional ([see pricing](/pricing/)) | Free (Apache-2.0); paid support optional ([see pricing](/pricing/))   |
 
 **If you are already running mod_pagespeed on Apache** and it works, the native in-process module is the direct path. It integrates directly into Apache's output filter chain, reads your exact `ModPagespeed*` directives, and is maintained and tested on current distributions.
 
@@ -95,11 +95,11 @@ mod_pagespeed 2.1 is not the only option. Depending on your needs, other tools m
 
 **Image-only optimization.** If your bottleneck is images and nothing else, [imgproxy](https://imgproxy.net/) and [thumbor](https://www.thumbor.org/) are lighter self-hosted options. They handle format conversion and resizing well. They do not touch CSS, JavaScript, or HTML. We compare each directly in [imgproxy vs ModPageSpeed](/vs/imgproxy/) and [thumbor vs ModPageSpeed](/vs/thumbor/).
 
-**CDN-based optimization.** Cloudflare Polish, [Cloudinary](/vs/cloudinary/), and [imgix](/vs/imgix/) optimize images at the edge. They work well for globally distributed audiences and require no server-side setup. The trade-off is per-request pricing that scales linearly with traffic, vendor lock-in via proprietary URL schemes, and routing your content through third-party infrastructure. At high request volumes the monthly transformation and bandwidth bill runs into the thousands and keeps climbing with traffic, versus a flat per-site rate for [self-hosted optimization](/self-hosted-image-optimization/) that covers every server behind the site ([see pricing](/pricing/)). Our [detailed cost comparison](/blog/economics-of-image-optimization/) has the full breakdown.
+**CDN-based optimization.** Cloudflare Polish, [Cloudinary](/vs/cloudinary/), and [imgix](/vs/imgix/) optimize images at the edge. They work well for globally distributed audiences and require no server-side setup. The trade-off is per-request pricing that scales linearly with traffic, vendor lock-in via proprietary URL schemes, and routing your content through third-party infrastructure. At high request volumes the monthly transformation and bandwidth bill runs into the thousands and keeps climbing with traffic, versus no per-request or per-GB bill at all for [self-hosted optimization](/self-hosted-image-optimization/): the software is free and covers every server behind the site ([see pricing](/pricing/)). Our [detailed cost comparison](/blog/economics-of-image-optimization/) has the full breakdown.
 
 **Manual optimization.** Build scripts that run imagemin, cssnano, and terser at deploy time. This works for static sites. It does not help with dynamic content, user-uploaded images, or content from a CMS. And it does not adapt to client capabilities. Every visitor gets the same assets regardless of whether their browser supports AVIF or their connection is 3G.
 
-**The gap mod_pagespeed 2.1 fills:** automatic, full-stack optimization (images + CSS + JS + HTML + critical CSS) that runs on your infrastructure, requires no application code changes, and costs a flat rate regardless of traffic volume.
+**The gap mod_pagespeed 2.1 fills:** automatic, full-stack optimization (images + CSS + JS + HTML + critical CSS) that runs on your infrastructure, requires no application code changes, and is free to run under the Apache License 2.0 regardless of traffic volume.
 
 ## Getting started
 
@@ -116,4 +116,4 @@ See the [getting started guide](/docs/getting-started/) for full setup instructi
 
 **The native module** ships prebuilt packages for Apache (`.deb`/`.rpm`) and a prebuilt, signed `nginx-module-pagespeed` for Debian 11/12/13 and Ubuntu 22.04/24.04 (amd64 + arm64), plus AlmaLinux/RHEL/Rocky 9 (x86_64 + aarch64) and 10 (x86_64) — see [Downloads](https://modpagespeed.com/download/) or [packages.modpagespeed.com](https://packages.modpagespeed.com/) for the signed apt/yum repo.
 
-Per-site licensing is the same either way: one license covers the site whichever integration it runs, and a Business license covers unlimited servers behind it. See the [pricing page](/pricing/) for current rates.
+Licensing is the same either way: mod_pagespeed 2.1 is open source under the Apache License 2.0, free to install and run on any number of servers whichever integration you use. See the [pricing page](/pricing/) for what's sold alongside it (support and hardened builds).

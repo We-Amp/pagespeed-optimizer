@@ -22,7 +22,7 @@ const rows = [
   },
   {
     label: 'Pricing model',
-    mps: 'Per-site subscription (Business covers unlimited servers)',
+    mps: 'Free (Apache-2.0); paid support optional',
     other: 'Credit-based; free tier, monthly, and one-time credit packs (see vendor)',
   },
   {
@@ -173,8 +173,7 @@ const jsonLd = [
           You want the whole page optimized, not just images &mdash; critical CSS extraction,
           render-blocking deferral, JS/CSS rewriting, and image variants in one <a
             href="/features/"
-            class="text-interactive hover:text-interactive-hover underline"
-            >server-layer pipeline</a
+            class="text-interactive hover:text-interactive-hover underline">server-layer pipeline</a
           >.
         </li>
         <li>
@@ -187,8 +186,8 @@ const jsonLd = [
           you add one.
         </li>
         <li>
-          You prefer one flat per-site subscription for predictable cost, rather than a credit
-          balance that tracks traffic or optimization volume.
+          You prefer no per-request or per-GB bill at all — the software is free — rather than a
+          credit balance that tracks traffic or optimization volume.
         </li>
         <li>
           You care about origin-side image variant generation &mdash; WebP and AVIF across 1.15 and
@@ -204,10 +203,10 @@ const jsonLd = [
         Both products convert images to WebP and <a
           href="/blog/avif-vs-webp-2026/"
           class="text-interactive hover:text-interactive-hover underline">AVIF</a
-        >, generate responsive variants, and can lazy load
-        below-the-fold images. ShortPixel&rsquo;s Adaptive Images
-        also minifies CSS and JS, which overlaps with ModPageSpeed&rsquo;s asset rewriting. For an
-        image-heavy WordPress page, the before/after numbers can land in a similar range.
+        >, generate responsive variants, and can lazy load below-the-fold images. ShortPixel&rsquo;s
+        Adaptive Images also minifies CSS and JS, which overlaps with ModPageSpeed&rsquo;s asset
+        rewriting. For an image-heavy WordPress page, the before/after numbers can land in a similar
+        range.
       </p>
       <p class="mt-4 text-text-body">
         The difference shows up in scope and location. ShortPixel is image-led and can serve those
@@ -253,9 +252,9 @@ const jsonLd = [
           of nginx if you want edge caching.
         </li>
         <li>
-          Verify ModPageSpeed&rsquo;s filter set produces the optimizations you relied on (WebP
-          and AVIF conversion, responsive variants, lazy load)
-          plus the ones ShortPixel didn&rsquo;t cover (critical CSS). The <a
+          Verify ModPageSpeed&rsquo;s filter set produces the optimizations you relied on (WebP and
+          AVIF conversion, responsive variants, lazy load) plus the ones ShortPixel didn&rsquo;t
+          cover (critical CSS). The <a
             href="/blog/server-side-critical-css-nginx/"
             class="text-interactive hover:text-interactive-hover underline"
             >server-side critical CSS in nginx</a
@@ -299,9 +298,7 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
     </section>
 
     <section class="mt-12">
-      <div
-        class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-7"
-      >
+      <div class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-7">
         <h2 class="h2-section text-text-body">Switching from ShortPixel</h2>
         <p class="mt-3 text-text-body">
           Server-layer optimization that covers the whole page &mdash; not just images &mdash; and
@@ -329,9 +326,7 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
     </section>
 
     <section class="mt-12 border-t border-border pt-8">
-      <p class="text-base font-semibold uppercase tracking-wide text-text-body">
-        See also:
-      </p>
+      <p class="text-base font-semibold uppercase tracking-wide text-text-body">See also:</p>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
           <a href="/vs/imgix/" class="text-interactive hover:text-interactive-hover underline"

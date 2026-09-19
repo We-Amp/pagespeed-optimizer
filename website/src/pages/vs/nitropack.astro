@@ -22,7 +22,7 @@ const rows = [
   },
   {
     label: 'Pricing model',
-    mps: 'Per-site subscription, no traffic tiers (Business covers unlimited servers)',
+    mps: 'Free (Apache-2.0); paid support optional',
     other: 'Per-site SaaS subscription (see vendor for tiers)',
   },
   {
@@ -79,7 +79,7 @@ const jsonLd = [
     applicationCategory: 'WebApplication',
     operatingSystem: ['Linux', 'Windows', 'macOS'],
     description:
-      'NitroPack is managed SaaS aimed at WordPress. ModPageSpeed is self-hosted, runs on any CMS, and licenses per site — no monthly traffic tier.',
+      'NitroPack is managed SaaS aimed at WordPress. ModPageSpeed is self-hosted, runs on any CMS, and is free under the Apache License 2.0 — no monthly traffic tier.',
     url: 'https://modpagespeed.com/',
     brand: { '@type': 'Brand', name: 'ModPageSpeed' },
     publisher: { '@id': 'https://we-amp.com/#organization' },
@@ -90,7 +90,7 @@ const jsonLd = [
 
 <BaseLayout
   title="NitroPack Alternative: Self-Hosted vs Managed SaaS"
-  description="NitroPack runs optimization in its cloud and meters traffic. ModPageSpeed is the self-hosted alternative: flat per-site pricing, content stays on your origin."
+  description="NitroPack runs optimization in its cloud and meters traffic. ModPageSpeed is the self-hosted alternative: free under the Apache License 2.0, content stays on your origin."
   jsonLd={jsonLd}
 >
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16">
@@ -157,9 +157,9 @@ const jsonLd = [
           > runs on any nginx, Apache, or IIS host.
         </li>
         <li>
-          You want a flat price per site that doesn't track pageviews. NitroPack's tiers meter
-          monthly traffic; a ModPageSpeed Business license covers the site at any volume, on any
-          number of servers.
+          You want no bill that tracks pageviews at all. NitroPack's tiers meter monthly traffic;
+          mod_pagespeed 2.1 is free under the Apache License 2.0 at any volume, on any number of
+          servers.
         </li>
         <li>
           You don't want your HTML routed through a third-party processor &mdash; for compliance,
@@ -184,14 +184,13 @@ const jsonLd = [
           href="/features/"
           class="text-interactive hover:text-interactive-hover underline"
           >critical CSS, HTML caching, and the rest of the filter set</a
-        >. Both
-        target Core Web Vitals &mdash; ModPageSpeed through LCP, render-blocking, and image work;
-        INP and most CLS are application-side and outside its scope.
+        >. Both target Core Web Vitals &mdash; ModPageSpeed through LCP, render-blocking, and image
+        work; INP and most CLS are application-side and outside its scope.
       </p>
       <p class="mt-4 text-text-body">
-        Where they differ is the deployment model and the business model. NitroPack does the work in
-        its cloud and meters each site by monthly traffic tier; ModPageSpeed does the work on your
-        servers and licenses the site flat, with no traffic meter.
+        Where they differ is the deployment model and the cost model. NitroPack does the work in its
+        cloud and meters each site by monthly traffic tier; ModPageSpeed does the work on your
+        servers and is free to run, with no traffic meter.
       </p>
     </section>
 
@@ -209,8 +208,8 @@ const jsonLd = [
       </p>
       <p class="mt-4 text-text-body">
         ModPageSpeed is the right move when you want optimization to live on your origin and keep
-        content out of a vendor's data center &mdash; compliance, multi-tenant hosting, or a flat
-        per-site price that doesn't move with traffic.
+        content out of a vendor's data center &mdash; compliance, multi-tenant hosting, or no
+        per-request or per-GB bill at all: the software is free.
       </p>
       <p class="mt-4 text-text-body">If you do migrate:</p>
       <ol class="mt-3 space-y-2 list-decimal pl-6 text-text-body">
@@ -218,7 +217,8 @@ const jsonLd = [
           Stand up ModPageSpeed on a staging origin and verify the filters you depended on (critical
           CSS, image variants) produce comparable Lighthouse numbers. The <a
             href="/blog/run-with-docker-compose/"
-            class="text-interactive hover:text-interactive-hover underline">Docker Compose walkthrough</a
+            class="text-interactive hover:text-interactive-hover underline"
+            >Docker Compose walkthrough</a
           > is a 60-second baseline.
         </li>
         <li>
@@ -264,16 +264,15 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
     </section>
 
     <section class="mt-12">
-      <div
-        class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-7"
-      >
+      <div class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-7">
         <h2 class="h2-section text-text-body">Outgrowing metered SaaS</h2>
         <p class="mt-3 text-text-body">
-          Flat per-site pricing with no traffic meter, content stays on your origin, works on any
-          stack &mdash; no HTML routed through a third party. On our own pages the origin pipeline measures
+          No per-request or per-GB bill at all &mdash; the software is free &mdash; content stays on
+          your origin, works on any stack, no HTML routed through a third party. On our own pages
+          the origin pipeline measures
           <span class="font-mono tabular-nums font-semibold text-emerald-700 dark:text-emerald-400"
             >&minus;68%</span
-          > page size. Install and run it. when you go to production.
+          > page size. Install and run it.
         </p>
         <div class="mt-5 flex flex-wrap gap-3">
           <a href="/download/" class="btn-primary" data-umami-event="cta_vs_nitropack_install"
@@ -297,9 +296,7 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
     </section>
 
     <section class="mt-12 border-t border-border pt-8">
-      <p class="text-base font-semibold uppercase tracking-wide text-text-body">
-        See also:
-      </p>
+      <p class="text-base font-semibold uppercase tracking-wide text-text-body">See also:</p>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
           <a href="/vs/wp-rocket/" class="text-interactive hover:text-interactive-hover underline"
@@ -307,7 +304,9 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
           > &mdash; plugin-based WordPress alternative
         </li>
         <li>
-          <a href="/vs/cloudflare-apo/" class="text-interactive hover:text-interactive-hover underline"
+          <a
+            href="/vs/cloudflare-apo/"
+            class="text-interactive hover:text-interactive-hover underline"
             >ModPageSpeed vs Cloudflare APO</a
           > &mdash; edge-cache alternative
         </li>
@@ -321,7 +320,8 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
         <li>
           <a
             href="/blog/run-with-docker-compose/"
-            class="text-interactive hover:text-interactive-hover underline">Docker Compose quickstart</a
+            class="text-interactive hover:text-interactive-hover underline"
+            >Docker Compose quickstart</a
           > &mdash; ModPageSpeed in front of any HTTP origin
         </li>
       </ul>

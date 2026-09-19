@@ -22,7 +22,7 @@ const rows = [
   },
   {
     label: 'Pricing model',
-    mps: 'Per-site subscription (Business covers unlimited servers)',
+    mps: 'Free (Apache-2.0); paid support optional',
     other: 'Usage-based (storage + delivery bandwidth + transforms; see vendor)',
   },
   {
@@ -124,7 +124,7 @@ const jsonLd = [
         page the origin emits &mdash; HTML, CSS, and JavaScript as well as images &mdash; without
         any asset leaving your servers. If you want a hosted image-rendering API and don&rsquo;t
         mind the dependency and per-usage cost, imgix is a strong fit. If you want one self-hosted
-        optimization layer that covers more than images and bills per site instead of per usage,
+        optimization layer that covers more than images and is free instead of billing per usage,
         ModPageSpeed is the architectural alternative.
       </p>
     </section>
@@ -177,9 +177,12 @@ const jsonLd = [
           server and nothing leaves it.
         </li>
         <li>
-          You prefer a flat, predictable per-site price over a usage-based bill that scales with
-          delivery bandwidth, stored images, and transform volume. A Business license covers the site,
-          with unlimited servers behind it; see <a href="/pricing/" class="text-interactive hover:text-interactive-hover underline">pricing</a>.
+          You prefer no per-request or per-GB bill at all over a usage-based bill that scales with
+          delivery bandwidth, stored images, and transform volume. mod_pagespeed 2.1 is free under
+          the Apache License 2.0, on any number of servers; see <a
+            href="/pricing/"
+            class="text-interactive hover:text-interactive-hover underline">pricing</a
+          > for optional support plans.
         </li>
         <li>
           You want to avoid a third-party dependency in the request path for image delivery, keeping
@@ -198,8 +201,8 @@ const jsonLd = [
       <p class="mt-4 text-text-body">
         The overlap is image optimization. Both convert images to WebP and AVIF, resize and crop
         them, and choose a modern format based on what the browser supports. For a page whose only
-        performance problem is heavy images, the two cover similar
-        ground &mdash; one from a managed edge, one from your own server.
+        performance problem is heavy images, the two cover similar ground &mdash; one from a managed
+        edge, one from your own server.
       </p>
       <p class="mt-4 text-text-body">
         The difference is scope and location. imgix is image-only and runs as a service in front of
@@ -223,10 +226,7 @@ const jsonLd = [
     </section>
 
     <section class="mt-12">
-      <h2
-        id="migrating-from-imgix-to-modpagespeed"
-        class="h2-section scroll-mt-24 text-text-body"
-      >
+      <h2 id="migrating-from-imgix-to-modpagespeed" class="h2-section scroll-mt-24 text-text-body">
         Migrating from imgix to ModPageSpeed
       </h2>
       <p class="mt-4 text-text-body">
@@ -236,11 +236,12 @@ const jsonLd = [
           class="text-interactive hover:text-interactive-hover underline"
           >self-hosted image optimization</a
         > that keeps images on your own origin rather than egressing them to a service, or if a usage-based
-        bill has become unpredictable and you&rsquo;d prefer a flat per-site price.
+        bill has become unpredictable and you&rsquo;d prefer no bill at all.
       </p>
       <p class="mt-4 text-text-body">
         ModPageSpeed is the better fit when the optimization layer needs to cover the whole page,
-        stay inside infrastructure you control, and bill per site rather than per byte delivered.
+        stay inside infrastructure you control, and cost nothing to run rather than billing per byte
+        delivered.
       </p>
       <p class="mt-4 text-text-body">If you do migrate:</p>
       <ol class="mt-3 space-y-2 list-decimal pl-6 text-text-body">
@@ -279,8 +280,13 @@ const jsonLd = [
         the original from your storage, renders the variant, and serves it from its edge.
       </p>
       <p class="mt-4 text-text-body">
-        <strong>Equivalent in <a href="/1.1/" class="text-interactive hover:text-interactive-hover underline">mod_pagespeed 1.15</a>.</strong> Install the nginx module on Debian&nbsp;11/12/13,
-        Ubuntu&nbsp;22.04/24.04 (amd64 + arm64), or AlmaLinux&nbsp;9 (x86_64 + aarch64):
+        <strong
+          >Equivalent in <a
+            href="/1.1/"
+            class="text-interactive hover:text-interactive-hover underline">mod_pagespeed 1.15</a
+          >.</strong
+        > Install the nginx module on Debian&nbsp;11/12/13, Ubuntu&nbsp;22.04/24.04 (amd64 + arm64), or
+        AlmaLinux&nbsp;9 (x86_64 + aarch64):
       </p>
       <pre
         class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
@@ -302,9 +308,7 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
     </section>
 
     <section class="mt-12">
-      <div
-        class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-7"
-      >
+      <div class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-7">
         <h2 class="h2-section text-text-body">Switching from imgix</h2>
         <p class="mt-3 text-text-body">
           One self-hosted pipeline for images, CSS, JS, and HTML &mdash; with nothing egressing to a
@@ -332,9 +336,7 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
     </section>
 
     <section class="mt-12 border-t border-border pt-8">
-      <p class="text-base font-semibold uppercase tracking-wide text-text-body">
-        See also:
-      </p>
+      <p class="text-base font-semibold uppercase tracking-wide text-text-body">See also:</p>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
           <a href="/vs/shortpixel/" class="text-interactive hover:text-interactive-hover underline"

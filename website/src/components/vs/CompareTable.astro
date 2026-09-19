@@ -45,9 +45,7 @@ const boolLabel = (v: string) => (v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Par
 
 <div class="cmp not-prose">
   <!-- Wide layout: real table, shown sm and up -->
-  <div
-    class="hidden sm:block overflow-x-auto rounded-xl border border-border"
-  >
+  <div class="hidden sm:block overflow-x-auto rounded-xl border border-border">
     <table class="w-full text-left text-sm">
       <thead>
         <tr class="bg-bg-elevated/80">
@@ -79,10 +77,7 @@ const boolLabel = (v: string) => (v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Par
                 row.highlight ? 'bg-emerald-50/60 dark:bg-emerald-950/20' : ''
               }`}
             >
-              <th
-                scope="row"
-                class="py-3 pl-4 pr-4 text-left align-top font-medium text-text-body"
-              >
+              <th scope="row" class="py-3 pl-4 pr-4 text-left align-top font-medium text-text-body">
                 {row.label}
               </th>
               <td class="border-l-2 border-interactive/40 bg-interactive/10 py-3 px-4 align-top">
@@ -191,7 +186,7 @@ const boolLabel = (v: string) => (v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Par
       data-umami-event="cta_compare_table_buy"
       class="font-semibold text-text-body hover:text-interactive"
     >
-      Buy a license
+      Support plans
     </a>
   </div>
 </div>
