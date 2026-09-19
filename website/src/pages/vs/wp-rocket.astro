@@ -22,7 +22,7 @@ const rows = [
   },
   {
     label: 'Pricing model',
-    mps: 'Per-site subscription (Business covers unlimited servers)',
+    mps: 'Free (Apache-2.0); paid support optional',
     other: 'Annual subscription per site bundle (see vendor)',
   },
   {
@@ -165,8 +165,9 @@ const jsonLd = [
           pages, static files, custom app responses &mdash; uniformly.
         </li>
         <li>
-          Your site runs on more than one server. A Business license covers the site, however many
-          load-balanced nginx boxes, replicas, and failover machines sit behind it.
+          Your site runs on more than one server. mod_pagespeed 2.1 is free under the Apache License
+          2.0, however many load-balanced nginx boxes, replicas, and failover machines sit behind
+          it.
         </li>
         <li>
           You don't trust a CMS plugin with your performance layer. PHP plugins can be disabled by
@@ -248,8 +249,13 @@ const jsonLd = [
         config.
       </p>
       <p class="mt-4 text-text-body">
-        <strong>Equivalent in <a href="/1.1/" class="text-interactive hover:text-interactive-hover underline">mod_pagespeed 1.15</a>.</strong> Install the nginx module on Debian&nbsp;11/12/13,
-        Ubuntu&nbsp;22.04/24.04 (amd64 + arm64), or AlmaLinux&nbsp;9 (x86_64 + aarch64):
+        <strong
+          >Equivalent in <a
+            href="/1.1/"
+            class="text-interactive hover:text-interactive-hover underline">mod_pagespeed 1.15</a
+          >.</strong
+        > Install the nginx module on Debian&nbsp;11/12/13, Ubuntu&nbsp;22.04/24.04 (amd64 + arm64), or
+        AlmaLinux&nbsp;9 (x86_64 + aarch64):
       </p>
       <pre
         class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
@@ -264,15 +270,13 @@ pagespeed RewriteLevel CoreFilters;
 pagespeed EnableFilters lazyload_images,rewrite_css,rewrite_javascript,prioritize_critical_css;
 pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
       <p class="mt-4 text-text-body">
-        The functional output overlaps. The difference is which layer owns the
-        configuration &mdash; wp-admin or nginx.conf.
+        The functional output overlaps. The difference is which layer owns the configuration &mdash;
+        wp-admin or nginx.conf.
       </p>
     </section>
 
     <section class="mt-12">
-      <div
-        class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-7"
-      >
+      <div class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-7">
         <h2 class="h2-section text-text-body">Switching from WP Rocket</h2>
         <p class="mt-3 text-text-body">
           Server-layer optimization that works on WordPress and everything else nginx serves. On our
@@ -295,9 +299,7 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
     </section>
 
     <section class="mt-12 border-t border-border pt-8">
-      <p class="text-base font-semibold uppercase tracking-wide text-text-body">
-        See also:
-      </p>
+      <p class="text-base font-semibold uppercase tracking-wide text-text-body">See also:</p>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
           <a href="/vs/nitropack/" class="text-interactive hover:text-interactive-hover underline"
@@ -305,7 +307,9 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
           > &mdash; managed SaaS WordPress alternative
         </li>
         <li>
-          <a href="/vs/cloudflare-apo/" class="text-interactive hover:text-interactive-hover underline"
+          <a
+            href="/vs/cloudflare-apo/"
+            class="text-interactive hover:text-interactive-hover underline"
             >ModPageSpeed vs Cloudflare APO</a
           > &mdash; edge-cache alternative
         </li>

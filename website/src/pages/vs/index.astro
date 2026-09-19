@@ -28,7 +28,7 @@ const comparisons = [
     slug: 'nitropack',
     title: 'ModPageSpeed vs NitroPack',
     summary:
-      'NitroPack is managed SaaS for WordPress; ModPageSpeed runs on your server and licenses per site, with no traffic tiers.',
+      'NitroPack is managed SaaS for WordPress; ModPageSpeed runs on your server and is free under the Apache License 2.0, with no traffic tiers.',
     kind: 'Managed SaaS / WordPress',
   },
   {
@@ -84,15 +84,11 @@ const jsonLd = {
 >
   <!-- Header -->
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
-    <p class="text-sm font-semibold uppercase tracking-wide text-interactive">
-      Comparisons
-    </p>
-    <h1 class="mt-3 h1-hero text-text-body">
-      ModPageSpeed vs the alternatives
-    </h1>
+    <p class="text-sm font-semibold uppercase tracking-wide text-interactive">Comparisons</p>
+    <h1 class="mt-3 h1-hero text-text-body">ModPageSpeed vs the alternatives</h1>
     <p class="mt-6 text-lg text-text-muted">
-      {comparisons.length} side-by-side write-ups: where ModPageSpeed overlaps with adjacent tools, and where it
-      doesn't. A self-hosted nginx pipeline behaves nothing like a SaaS CDN or a WordPress plugin,
+      {comparisons.length} side-by-side write-ups: where ModPageSpeed overlaps with adjacent tools, and
+      where it doesn't. A self-hosted nginx pipeline behaves nothing like a SaaS CDN or a WordPress plugin,
       so each write-up says where ModPageSpeed wins and where the other tool does.
     </p>
     <p class="mt-4 text-sm text-text-muted">
@@ -102,8 +98,7 @@ const jsonLd = {
         href="https://trends.builtwith.com/Server/mod_pagespeed"
         target="_blank"
         rel="noopener noreferrer"
-        class="text-interactive hover:text-interactive-hover underline"
-        >BuiltWith, May 2026</a
+        class="text-interactive hover:text-interactive-hover underline">BuiltWith, May 2026</a
       >) &mdash; not We-Amp customers, but proof it works at scale.
     </p>
     <p class="mt-4 text-sm text-text-annotation">
@@ -128,13 +123,9 @@ const jsonLd = {
               <p class="text-xs font-semibold uppercase tracking-wide text-text-annotation">
                 {c.kind}
               </p>
-              <h2 class="mt-2 text-lg font-semibold text-text-body">
-                {c.title}
-              </h2>
+              <h2 class="mt-2 text-lg font-semibold text-text-body">{c.title}</h2>
               <p class="mt-2 text-sm text-text-muted">{c.summary}</p>
-              <p class="mt-3 text-sm font-medium text-interactive">
-                Read the comparison &rarr;
-              </p>
+              <p class="mt-3 text-sm font-medium text-interactive">Read the comparison &rarr;</p>
             </a>
           </li>
         ))
@@ -202,7 +193,7 @@ const jsonLd = {
                 tool: 'NitroPack',
                 type: 'Managed SaaS (WordPress)',
                 best: 'Turnkey, hosted setup',
-                fits: 'Runs on your server, licensed per site with no traffic tiers',
+                fits: 'Runs on your server, free under Apache-2.0, no traffic tiers',
               },
               {
                 tool: 'WP Rocket',
@@ -251,21 +242,16 @@ const jsonLd = {
 
   <!-- Footer note: framing -->
   <section class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 pb-20">
-    <div
-      class="rounded-lg border border-border bg-bg-secondary px-6 py-5 text-sm text-text-muted"
-    >
+    <div class="rounded-lg border border-border bg-bg-secondary px-6 py-5 text-sm text-text-muted">
       <p>
-        Written by We-Amp, which develops ModPageSpeed, so the framing isn't neutral. Where a competitor is
-        the better fit for your stack, the comparison says so.
+        Written by We-Amp, which develops ModPageSpeed, so the framing isn't neutral. Where a
+        competitor is the better fit for your stack, the comparison says so.
       </p>
       <p class="mt-3">
         Still deciding between editions? See <a
           href="/pricing/"
-          class="text-interactive hover:text-interactive-hover underline"
-          >pricing</a
-        > or the <a
-          href="/1.1/"
-          class="text-interactive hover:text-interactive-hover underline"
+          class="text-interactive hover:text-interactive-hover underline">pricing</a
+        > or the <a href="/1.1/" class="text-interactive hover:text-interactive-hover underline"
           >mod_pagespeed 1.15</a
         > drop-in module page.
       </p>
@@ -279,14 +265,12 @@ const jsonLd = {
   </section>
 
   <section class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 pb-20">
-    <div
-      class="rounded-2xl border border-border bg-bg-elevated p-6 md:p-8"
-    >
+    <div class="rounded-2xl border border-border bg-bg-elevated p-6 md:p-8">
       <h2 class="h2-section text-text-body">Try ModPageSpeed</h2>
       <p class="mt-3 text-text-body">
-        Install and run it &mdash; mod_pagespeed 2.1 is {LICENSE_CLAUSE}, free in development and
-        in production. Support &mdash; and hardened builds &mdash;
-        from the people who build it are what's for sale.
+        Install and run it &mdash; mod_pagespeed 2.1 is {LICENSE_CLAUSE}, free in development and in
+        production. Support &mdash; and hardened builds &mdash; from the people who build it are
+        what's for sale.
       </p>
       <div class="mt-6 flex flex-wrap gap-3">
         <a href="/docs/getting-started/" class="btn-primary" data-umami-event="cta_vs_hub_install"

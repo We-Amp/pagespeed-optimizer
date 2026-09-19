@@ -22,7 +22,7 @@ const rows = [
   },
   {
     label: 'Pricing model',
-    mps: 'Per-site subscription (Business covers unlimited servers)',
+    mps: 'Free (Apache-2.0); paid support optional',
     other: 'Usage-based: transformations, storage, bandwidth (see vendor for tiers)',
   },
   {
@@ -169,13 +169,17 @@ const jsonLd = [
         <li>
           You need <a
             href="/features/"
-            class="text-interactive hover:text-interactive-hover underline">CSS, JS, and HTML optimization</a
+            class="text-interactive hover:text-interactive-hover underline"
+            >CSS, JS, and HTML optimization</a
           > in addition to images. Cloudinary doesn't do those.
         </li>
         <li>
-          You want predictable per-site pricing instead of usage-based billing that scales with
-          traffic. A Business license covers the site, regardless of servers or request
-          volume; see <a href="/pricing/" class="text-interactive hover:text-interactive-hover underline">pricing</a>.
+          You want no per-request or per-GB bill at all instead of usage-based billing that scales
+          with traffic. mod_pagespeed 2.1 is free under the Apache License 2.0, regardless of
+          servers or request volume; see <a
+            href="/pricing/"
+            class="text-interactive hover:text-interactive-hover underline">pricing</a
+          > for optional support plans.
         </li>
         <li>
           You're optimizing existing HTML responses, not building a media-asset workflow from
@@ -204,8 +208,9 @@ const jsonLd = [
         ModPageSpeed runs at your origin, origin-side HTML rewriting and lighter markup improve what
         crawlers and AI agents actually see &mdash; the page they parse, not just the media embedded
         in it. Cloudinary serves transformed assets, but the surrounding markup never passes through
-        it. See <a href="/ai-readability/" class="text-interactive hover:text-interactive-hover underline"
-          >AI readability</a
+        it. See <a
+          href="/ai-readability/"
+          class="text-interactive hover:text-interactive-hover underline">AI readability</a
         > for where that line of work is headed.
       </p>
       <p class="mt-4 text-text-body">
@@ -231,9 +236,7 @@ const jsonLd = [
         Partial migration is more common than full migration: keep Cloudinary for video and user
         uploads; let ModPageSpeed handle the HTML-referenced static images on the origin.
       </p>
-      <p class="mt-4 text-text-body">
-        If you do migrate (or partially migrate):
-      </p>
+      <p class="mt-4 text-text-body">If you do migrate (or partially migrate):</p>
       <ol class="mt-3 space-y-2 list-decimal pl-6 text-text-body">
         <li>
           Audit your templates for hard-coded Cloudinary URLs. ModPageSpeed rewrites origin image
@@ -244,7 +247,8 @@ const jsonLd = [
           statically hosted but routed through Cloudinary for optimization. The latter can move to
           the origin. The <a
             href="/blog/run-with-docker-compose/"
-            class="text-interactive hover:text-interactive-hover underline">Docker Compose walkthrough</a
+            class="text-interactive hover:text-interactive-hover underline"
+            >Docker Compose walkthrough</a
           > sets up a working origin-side baseline.
         </li>
         <li>
@@ -285,12 +289,8 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
     </section>
 
     <section class="mt-12">
-      <div
-        class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-7"
-      >
-        <h2 class="h2-section text-text-body">
-          Bring image work back to your origin
-        </h2>
+      <div class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-7">
+        <h2 class="h2-section text-text-body">Bring image work back to your origin</h2>
         <p class="mt-3 text-text-body">
           Keep Cloudinary for video and the DAM; move HTML-referenced images plus CSS, JS, and
           critical CSS to the origin. On our own pages the full pipeline measures
@@ -317,9 +317,7 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
     </section>
 
     <section class="mt-12 border-t border-border pt-8">
-      <p class="text-base font-semibold uppercase tracking-wide text-text-body">
-        See also:
-      </p>
+      <p class="text-base font-semibold uppercase tracking-wide text-text-body">See also:</p>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
           <a href="/vs/imgproxy/" class="text-interactive hover:text-interactive-hover underline"
@@ -332,7 +330,9 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
           > &mdash; self-hosted alternative with smart cropping
         </li>
         <li>
-          <a href="/vs/cloudflare-apo/" class="text-interactive hover:text-interactive-hover underline"
+          <a
+            href="/vs/cloudflare-apo/"
+            class="text-interactive hover:text-interactive-hover underline"
             >ModPageSpeed vs Cloudflare APO</a
           > &mdash; managed edge-cache alternative
         </li>

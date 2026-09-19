@@ -22,7 +22,7 @@ const rows = [
   },
   {
     label: 'Pricing model',
-    mps: 'Per-site subscription (Business covers unlimited servers)',
+    mps: 'Free (Apache-2.0); paid support optional',
     other: 'Cloudflare plan + APO add-on (see vendor)',
   },
   {
@@ -87,7 +87,7 @@ const jsonLd = [
     applicationCategory: 'WebApplication',
     operatingSystem: ['Linux', 'Windows', 'macOS'],
     description:
-      'Cloudflare APO is WordPress-only and runs at the Cloudflare edge. ModPageSpeed runs at your origin, supports any CMS, and licenses per site — every server behind the site is covered.',
+      'Cloudflare APO is WordPress-only and runs at the Cloudflare edge. ModPageSpeed runs at your origin, supports any CMS, and is free under the Apache License 2.0 — every server behind the site is covered.',
     url: 'https://modpagespeed.com/',
     brand: { '@type': 'Brand', name: 'ModPageSpeed' },
     publisher: { '@id': 'https://we-amp.com/#organization' },
@@ -173,8 +173,8 @@ const jsonLd = [
           extract it.
         </li>
         <li>
-          You scale horizontally at the origin. A Business license covers the site across however
-          many servers you run behind it; the server count never enters the bill.
+          You scale horizontally at the origin. mod_pagespeed 2.1 is free under the Apache License
+          2.0 on however many servers you run behind it; the server count never enters the bill.
         </li>
         <li>
           You need to keep content on your infrastructure for compliance or data-residency reasons.
@@ -259,16 +259,11 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
     </section>
 
     <section class="mt-12">
-      <div
-        class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-7"
-      >
-        <h2 class="h2-section text-text-body">
-          Optimization the edge cache can't do
-        </h2>
+      <div class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-7">
+        <h2 class="h2-section text-text-body">Optimization the edge cache can't do</h2>
         <p class="mt-3 text-text-body">
-          Critical CSS, SVG auto-vectorization, and variant-aware caching run below
-          the CDN, on any stack &mdash; keep Cloudflare in front if you like. On our own pages the
-          origin pipeline
+          Critical CSS, SVG auto-vectorization, and variant-aware caching run below the CDN, on any
+          stack &mdash; keep Cloudflare in front if you like. On our own pages the origin pipeline
           measures
           <span class="font-mono tabular-nums font-semibold text-emerald-700 dark:text-emerald-400"
             >&minus;68%</span
@@ -293,9 +288,7 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
     </section>
 
     <section class="mt-12 border-t border-border pt-8">
-      <p class="text-base font-semibold uppercase tracking-wide text-text-body">
-        See also:
-      </p>
+      <p class="text-base font-semibold uppercase tracking-wide text-text-body">See also:</p>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
           <a href="/vs/nitropack/" class="text-interactive hover:text-interactive-hover underline"
@@ -317,8 +310,7 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
         <li>
           <a href="/1.1/" class="text-interactive hover:text-interactive-hover underline"
             >mod_pagespeed 1.15</a
-          > &mdash; drop-in continuation with native nginx, Apache, and IIS modules (Envoy
-          experimental)
+          > &mdash; drop-in continuation with native nginx, Apache, and IIS modules (Envoy experimental)
         </li>
       </ul>
     </section>
