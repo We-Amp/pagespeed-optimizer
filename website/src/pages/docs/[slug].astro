@@ -27,6 +27,8 @@ export async function getStaticPaths() {
 const { doc } = Astro.props;
 const { Content, headings } = await render(doc);
 
+const hasPlatformContent = doc.body?.includes('data-platform=') ?? false;
+
 // Render the page's `faq` frontmatter as a visible accordion (it was previously
 // emitted only as FAQPage JSON-LD — useful to crawlers, invisible to readers).
 // The answers carry inline markdown (code spans, links, bold), so run them
@@ -360,6 +362,44 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
           )
         }
 
+        <!-- Platform selector — only shown when the page has data-platform blocks -->
+        {
+          hasPlatformContent && (
+            <div
+              id="platform-selector"
+              class="mt-6 flex gap-1 overflow-x-auto -mx-1 px-1 sticky top-16 z-40 bg-bg-elevated py-2"
+              role="group"
+              aria-label="Select platform"
+            >
+              <button
+                type="button"
+                data-platform-tab="nginx"
+                class="platform-tab shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors min-h-[44px]"
+                aria-pressed="true"
+              >
+                nginx
+              </button>
+              <button
+                type="button"
+                data-platform-tab="apache"
+                class="platform-tab shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors min-h-[44px]"
+                aria-pressed="false"
+              >
+                Apache
+              </button>
+              <button
+                type="button"
+                data-platform-tab="iis"
+                class="platform-tab shrink-0 rounded-full px-4 py-2 text-sm font-medium transition-colors min-h-[44px]"
+                aria-pressed="false"
+              >
+                IIS
+              </button>
+              <span id="platform-announce" class="sr-only" aria-live="polite" />
+            </div>
+          )
+        }
+
         <div
           class="mt-8 prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive prose-a:underline prose-a:underline-offset-2 prose-a:decoration-interactive hover:prose-a:decoration-interactive"
         >
@@ -445,6 +485,48 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
     select?.addEventListener('change', () => {
       window.location.href = select.value;
     });
+
+    // Platform selector
+    const tabs = document.querySelectorAll<HTMLButtonElement>('[data-platform-tab]');
+    const announce = document.getElementById('platform-announce');
+    const names: Record<string, string> = { nginx: 'nginx', apache: 'Apache', iis: 'IIS' };
+
+    function setActivePlatform(platform: string) {
+      document.documentElement.setAttribute('data-active-platform', platform);
+      try {
+        localStorage.setItem('docs-platform', platform);
+      } catch (e) {
+        // Storage may be blocked (Safari private mode, strict settings) —
+        // the tabs still work for this page load, just without persistence.
+        // Critically, this must not throw: this function also runs from the
+        // init call below, before the click listeners are attached, so an
+        // unwrapped throw here would leave the tabs permanently inert.
+      }
+      tabs.forEach((tab) => {
+        tab.setAttribute('aria-pressed', tab.dataset.platformTab === platform ? 'true' : 'false');
+      });
+      if (announce) announce.textContent = `Showing content for ${names[platform] || platform}`;
+    }
+
+    // Initialize tab states from current platform
+    const current = document.documentElement.getAttribute('data-active-platform') || 'nginx';
+    setActivePlatform(current);
+
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        if (tab.dataset.platformTab) setActivePlatform(tab.dataset.platformTab);
+      });
+    });
+
+    // Sticky shadow
+    const selector = document.getElementById('platform-selector');
+    if (selector) {
+      const observer = new IntersectionObserver(
+        ([entry]) => selector.classList.toggle('is-sticky', !entry.isIntersecting),
+        { threshold: 1, rootMargin: '-65px 0px 0px 0px' },
+      );
+      observer.observe(selector);
+    }
   </script>
 
   <style>
@@ -455,6 +537,34 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
     }
     details > summary::-webkit-details-marker {
       display: none;
+    }
+
+    /* Platform selector tabs — Caliber dark-only tokens (no light-mode pair). */
+    .platform-tab[aria-pressed='true'] {
+      background-color: var(--color-interactive);
+      color: var(--color-on-accent);
+    }
+    .platform-tab[aria-pressed='false'] {
+      background-color: var(--color-bg-secondary);
+      color: var(--color-text-muted);
+    }
+    .platform-tab[aria-pressed='false']:hover {
+      background-color: var(--color-border-strong);
+      color: var(--color-text-body);
+    }
+    .platform-tab:focus-visible {
+      outline: 2px solid var(--color-interactive);
+      outline-offset: 2px;
+    }
+    #platform-selector {
+      scrollbar-width: none;
+      -ms-overflow-style: none;
+    }
+    #platform-selector::-webkit-scrollbar {
+      display: none;
+    }
+    #platform-selector.is-sticky {
+      box-shadow: 0 1px 3px 0 rgb(0 0 0 / 0.1);
     }
   </style>
 </BaseLayout>

@@ -326,16 +326,31 @@ const showStickyCta = ['/', '/pricing/', '/features/', '/demo/'].includes(sticky
            every existing `dark:` utility resolves to the instrument-black system.
            No toggle, no light theme. */
         document.documentElement.classList.add('dark');
-        /* Set platform preference for 1.1 docs platform selector */
-        var p = localStorage.getItem('docs-platform') || 'nginx';
+        /* Set platform preference for the docs platform selector. Storage
+           access can throw (Safari private mode, strict cookie/storage
+           settings) — never let that leave data-active-platform unset, since
+           global.css hides every [data-platform] block until this attribute
+           is set. Fall back to the same 'nginx' default the page scripts use. */
+        var p = 'nginx';
+        try {
+          p = localStorage.getItem('docs-platform') || 'nginx';
+        } catch (e) {
+          /* storage blocked — p stays 'nginx' */
+        }
         document.documentElement.setAttribute('data-active-platform', p);
         /* Hide launch banner if previously dismissed — prevents FOUC.
            INVARIANT: the localStorage key is versioned (passed in as
            bannerDismissKey). When the banner copy or link changes, bump the
            key's version suffix in BaseLayout so previously-dismissed users see
-           the new banner. Do not revert to an unversioned key. */
-        if (localStorage.getItem(bannerDismissKey) === '1') {
-          document.documentElement.dataset.bannerDismissed = '1';
+           the new banner. Do not revert to an unversioned key.
+           Wrapped for the same reason as above: a throwing storage backend
+           must not abort this script before the platform attribute is set. */
+        try {
+          if (localStorage.getItem(bannerDismissKey) === '1') {
+            document.documentElement.dataset.bannerDismissed = '1';
+          }
+        } catch (e) {
+          /* storage blocked — banner just shows, same as "never dismissed" */
         }
       })();
     </script>
@@ -1152,14 +1167,25 @@ const showStickyCta = ['/', '/pricing/', '/features/', '/demo/'].includes(sticky
         var banner = document.getElementById('coming-soon-banner');
         var dismissBtn = document.getElementById('dismiss-banner');
         if (!banner) return;
-        if (localStorage.getItem(BANNER_KEY) === '1') {
-          banner.style.display = 'none';
-          return;
+        // Storage access can throw (Safari private mode, strict cookie/
+        // storage settings) — never let that abort this script before the
+        // dismiss button's click listener attaches.
+        try {
+          if (localStorage.getItem(BANNER_KEY) === '1') {
+            banner.style.display = 'none';
+            return;
+          }
+        } catch (e) {
+          /* storage blocked — banner just shows, same as "never dismissed" */
         }
         if (dismissBtn) {
           dismissBtn.addEventListener('click', function () {
             banner.style.display = 'none';
-            localStorage.setItem(BANNER_KEY, '1');
+            try {
+              localStorage.setItem(BANNER_KEY, '1');
+            } catch (e) {
+              /* storage blocked — dismissal just doesn't persist */
+            }
           });
         }
       })();
