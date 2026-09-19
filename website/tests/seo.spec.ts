@@ -115,6 +115,36 @@ test.describe('SEO', () => {
     }
   });
 
+  // Post-convergence: one site name everywhere — the /1.1/*-specific
+  // og:site_name flip is retired.
+  test('og:site_name is identical on a main-tree page and a /1.1/ page', async ({ page }) => {
+    await page.goto('/');
+    const mainSiteName = await page
+      .locator('meta[property="og:site_name"]')
+      .getAttribute('content');
+    expect(mainSiteName).toBeTruthy();
+
+    await page.goto('/1.1/');
+    const legacyPageSiteName = await page
+      .locator('meta[property="og:site_name"]')
+      .getAttribute('content');
+    expect(legacyPageSiteName).toBe(mainSiteName);
+  });
+
+  // Post-convergence: one breadcrumb model — the segmentNames override that
+  // rendered the '1.1' path segment as "mod_pagespeed 1.15" is retired, so
+  // the leaf now falls back to the default formatter.
+  test('breadcrumb JSON-LD on a /1.1/ page carries no legacy segment label', async ({ page }) => {
+    await page.goto('/1.1/');
+    const scripts = await page.locator('script[type="application/ld+json"]').allTextContents();
+    const breadcrumb = scripts
+      .map((s) => JSON.parse(s))
+      .find((d) => d['@type'] === 'BreadcrumbList');
+    expect(breadcrumb).toBeTruthy();
+    const names = breadcrumb.itemListElement.map((item: { name: string }) => item.name);
+    expect(names).not.toContain('mod_pagespeed 1.15');
+  });
+
   // Wave 0 (convergence): /download/ must actually sell the current line —
   // a bare integration grid with no 2.1 row was the defect (A4 in
   // convergence-inventory.md). One card per current-line integration, each
