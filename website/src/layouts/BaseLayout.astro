@@ -6,7 +6,7 @@ import Icon from '../components/Icon.astro';
 import { PRODUCT_DISPLAY_NAME, CURRENT_LINE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
 
 // Derived chrome label (lowercase everywhere) — one product name,
-// one logo, one site name, used sitewide including on /1.1/*.
+// one logo, one site name, used sitewide.
 const currentLabel = `${PRODUCT_DISPLAY_NAME} ${CURRENT_LINE}`;
 
 interface Props {
@@ -27,8 +27,8 @@ interface Props {
   // rather than formatSegment(slug). Slug pages pass their human title here.
   breadcrumbLeafName?: string;
   // Omit these raw URL path segments from the auto BreadcrumbList — for an
-  // intermediate segment that has no page of its own (e.g. /1.1/docs/ on the
-  // archived release-notes page, the one surviving /1.1/docs/[slug] route).
+  // intermediate segment that has no page of its own (the /1.1/docs/[slug]
+  // route this covered is retired; kept for any future segment-less page).
   breadcrumbSkipSegments?: string[];
 }
 
@@ -91,10 +91,9 @@ const logoDark = '/logo-dark.svg';
 // Nav is consolidated (UX-5, converged): one product, so Features, Pricing and
 // Blog stay flat; the five tools collapse into "Tools", docs under "Docs",
 // comparisons under "Compare". /1.1/ and /1.1/docs/ are no longer advertised
-// from the nav or footer — /1.1/ still resolves for anyone who links it
-// directly, and the footer's upgrade link routes new readers to /docs/.
-// /1.1/docs/ narrowed to its one archived release-notes page; every other
-// 1.15 doc merged into /docs/.
+// from the nav or footer, and the footer's upgrade link routes new readers
+// to /docs/. /1.1/docs/ (once narrowed to a single archived release-notes
+// page) is now fully retired — every 1.15 doc lives under /docs/.
 // At most one "New" badge anywhere (UX-15) — it lives on RenderPeek in Tools.
 const navLinks: Array<{
   href?: string;

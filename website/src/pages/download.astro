@@ -37,7 +37,7 @@ const integrations = [
     badge: 'Native module',
     description:
       'Prebuilt signed package from the apt/yum repository — apt-get on Debian and Ubuntu, dnf on Enterprise Linux. Drop-in replacement for the open-source build.',
-    requirements: `Debian 11/12/13, Ubuntu 22.04/24.04 (amd64 + arm64); RHEL/AlmaLinux/Rocky 9 (x86_64 + aarch64) & 10 (x86_64); Apache ${rel21.compat.apache.apache_versions.join('/')}.`,
+    requirements: `Debian 12/13, Ubuntu 22.04/24.04 (amd64 + arm64); RHEL/AlmaLinux/Rocky 9 (x86_64 + aarch64) & 10 (x86_64); Apache ${rel21.compat.apache.apache_versions.join('/')}.`,
     href: '/download/apt-yum/',
     cta: 'Repo setup guide',
     umamiEvent: 'cta_download_apache',
@@ -49,7 +49,7 @@ const integrations = [
     description:
       "Prebuilt signed dynamic module from the apt/yum repository, pinned to each distro's stock nginx. Loads alongside your existing nginx binary — no rebuild, no traffic detour.",
     requirements:
-      "Debian 11/12/13, Ubuntu 22.04/24.04 (amd64 + arm64); RHEL/AlmaLinux/Rocky 9 (x86_64 + aarch64) via dnf, EL10 (x86_64). Each module is pinned to its distro's exact stock nginx — running a different nginx version? Contact us for a matching build.",
+      "Debian 12/13, Ubuntu 22.04/24.04 (amd64 + arm64); RHEL/AlmaLinux/Rocky 9 (x86_64 + aarch64) via dnf, EL10 (x86_64). Each module is pinned to its distro's exact stock nginx — running a different nginx version? Contact us for a matching build.",
     href: '/download/apt-yum/',
     cta: 'Repo setup guide',
     umamiEvent: 'cta_download_nginx',

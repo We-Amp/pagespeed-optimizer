@@ -351,7 +351,7 @@ The module runs in-process inside the web server. It intercepts HTTP responses, 
 
 Supported platforms (availability):
 - Apache (drop-in replacement for the open-source module) — GA
-- nginx (dynamic module) — GA. The `nginx-module-pagespeed` package is prebuilt and signed, with a .so pinned to each distro's stock nginx: Debian 11 bullseye (nginx 1.18.0), Debian 12 bookworm (nginx 1.22.1), Debian 13 trixie (nginx 1.26.3), Ubuntu 22.04 jammy (nginx 1.18.0), Ubuntu 24.04 noble (nginx 1.24.0), amd64 + arm64. On AlmaLinux 9 the nginx module targets stock nginx 1.20.1 via the yum repository. Each build is exact-version-pinned to its distro's nginx, so running an nginx version we don't yet package needs a matching pinned build — contact us for one.
+- nginx (dynamic module) — GA. The `nginx-module-pagespeed` package is prebuilt and signed, with a .so pinned to each distro's stock nginx: Debian 12 bookworm (nginx 1.22.1), Debian 13 trixie (nginx 1.26.3), Ubuntu 22.04 jammy (nginx 1.18.0), Ubuntu 24.04 noble (nginx 1.24.0), amd64 + arm64. On AlmaLinux 9 the nginx module targets stock nginx 1.20.1 via the yum repository. Each build is exact-version-pinned to its distro's nginx, so running an nginx version we don't yet package needs a matching pinned build — contact us for one.
 - IIS (native Windows Server module, replaces IISpeed) — GA
 
 ### Install the module
@@ -364,7 +364,7 @@ curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo apt install mod-pagespeed          # Debian / Ubuntu
 sudo dnf install mod-pagespeed          # AlmaLinux 9
 # nginx (prebuilt, signed; pinned to your distro's stock nginx):
-sudo apt install nginx-module-pagespeed # Debian 11/12/13, Ubuntu 22.04/24.04 (amd64 + arm64)
+sudo apt install nginx-module-pagespeed # Debian 12/13, Ubuntu 22.04/24.04 (amd64 + arm64)
 sudo dnf install nginx-module-pagespeed # AlmaLinux 9 (stock nginx 1.20.1)
 ```
 

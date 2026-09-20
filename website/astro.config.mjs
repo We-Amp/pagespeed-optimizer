@@ -189,12 +189,11 @@ export default defineConfig({
       // /go/ redirect shims. Also drop /examples/<slug>/ detail pages that have
       // no generated data yet (they're noindex until the generator populates
       // them); the /examples/ index hub always stays in. The archived 1.15
-      // release notes page stays live and indexable but out of the sitemap —
-      // it is reachable only through its one deliberate discovery link.
+      // release notes page is retired (folded into /docs/release-notes/), so
+      // there is no /1.1/docs/ route left to exclude here.
       filter: (page) => {
         if (
           page.includes('/1.0/') ||
-          page.includes('/1.1/docs/') ||
           page.includes('/buy/') ||
           page.includes('/go/') ||
           page.includes('/error/')

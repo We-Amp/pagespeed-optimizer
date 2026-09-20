@@ -877,4 +877,94 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
   .dark .callout-tip .callout-title {
     color: var(--color-emerald-200);
   }
+
+  /* Release notes — collapsible entry chrome. Scoped entirely to .rn-* so
+     no other page pays for it. Tokens only, no new colors (Caliber
+     dark-only identity). */
+  .rn-alias {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+  }
+
+  details.rn-entry {
+    border-top: 1px solid var(--color-border);
+    padding-block: 1rem;
+  }
+  details.rn-entry > summary {
+    cursor: pointer;
+    list-style: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-weight: 600;
+    color: var(--color-text-body);
+  }
+  details.rn-entry > summary::-webkit-details-marker {
+    display: none;
+  }
+  .rn-entry .rn-ver {
+    font-variant-numeric: tabular-nums;
+  }
+  .rn-entry .rn-date {
+    font-weight: 400;
+    color: var(--color-text-annotation);
+  }
+  .rn-entry .rn-lede {
+    flex-basis: 100%;
+    font-weight: 400;
+    color: var(--color-text-muted);
+  }
+  .rn-badge {
+    display: inline-block;
+    border-radius: 9999px;
+    border: 1px solid var(--color-border-strong);
+    padding-inline: 0.55rem;
+    padding-block: 0.05rem;
+    font-size: 0.7rem;
+    font-weight: 500;
+    color: var(--color-text-muted);
+  }
+  .rn-badge-opt {
+    border-color: color-mix(in srgb, var(--color-interactive) 40%, transparent);
+    color: var(--color-interactive);
+  }
+  .rn-badge-mod {
+    border-color: color-mix(in srgb, var(--color-success) 40%, transparent);
+    color: var(--color-success);
+  }
+  .rn-badge-pair {
+    border-color: color-mix(in srgb, var(--color-accent) 40%, transparent);
+    color: var(--color-accent);
+  }
+  .rn-entry-current {
+    padding-top: 0;
+    border-top: none;
+  }
+  .rn-summary-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+    font-weight: 600;
+    color: var(--color-text-body);
+  }
+  .rn-index {
+    font-size: 0.875rem;
+    color: var(--color-text-muted);
+  }
+  .rn-index a {
+    color: var(--color-interactive);
+  }
+
+  /* Printing / find-in-page — a collapsed entry still prints in full. */
+  @media print {
+    .rn-entry:not([open]) > *:not(summary) {
+      display: block;
+    }
+  }
 }
