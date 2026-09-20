@@ -144,27 +144,27 @@ export const pillars: CwvPillar[] = [
       },
       {
         heading: 'Preload the LCP image so the browser fetches it early',
-        body: 'This attacks resource load delay. ModPageSpeed gives the detected LCP candidate image a <code>&lt;link rel=preload as=image&gt;</code> hint plus <code>fetchpriority=high</code>, so the browser starts the fetch earlier instead of discovering the image late &mdash; enabled by default. The worker can also send <strong>103 Early Hints</strong> with <code>Link: rel=preload</code> headers before the origin responds, plus preconnect for discovered third-party origins. On <a href="/alternatives/mod-pagespeed/">mod_pagespeed 1.15</a> (Apache/nginx) the equivalent filters are <code>hint_preload_subresources</code> and <code>inline_preview_images</code> (an LQIP placeholder).',
+        body: 'This attacks resource load delay. The optimizer worker gives the detected LCP candidate image a <code>&lt;link rel=preload as=image&gt;</code> hint plus <code>fetchpriority=high</code>, so the browser starts the fetch earlier instead of discovering the image late &mdash; enabled by default. The worker can also send <strong>103 Early Hints</strong> with <code>Link: rel=preload</code> headers before the origin responds, plus preconnect for discovered third-party origins. In the <a href="/alternatives/mod-pagespeed/">module</a> (Apache/nginx) the equivalent filters are <code>hint_preload_subresources</code> and <code>inline_preview_images</code> (an LQIP placeholder).',
         layer: 'server',
       },
       {
         heading: 'Inline critical CSS to remove the render-blocking chain',
-        body: 'This attacks element render delay. ModPageSpeed 2.0\'s worker extracts heuristic <a href="/blog/critical-css-heuristics/">critical CSS</a> with no headless browser &mdash; it scans the HTML and matches selectors against the DOM (first 25 elements; header/nav/hero patterns; <code>html</code>/<code>body</code>/<code>:root</code>/universal selectors) &mdash; then injects the result as a <code>&lt;style&gt;</code> tag before <code>&lt;/head&gt;</code>, removing render-blocking stylesheet requests. mod_pagespeed 1.15 does the same via <code>prioritize_critical_css</code>. An optional <code>--enable-browser-analysis</code> pipeline adds coverage validation and async CSS loading.',
+        body: 'This attacks element render delay. The optimizer worker extracts heuristic <a href="/blog/critical-css-heuristics/">critical CSS</a> with no headless browser &mdash; it scans the HTML and matches selectors against the DOM (first 25 elements; header/nav/hero patterns; <code>html</code>/<code>body</code>/<code>:root</code>/universal selectors) &mdash; then injects the result as a <code>&lt;style&gt;</code> tag before <code>&lt;/head&gt;</code>, removing render-blocking stylesheet requests. The module does the same via <code>prioritize_critical_css</code>. An optional <code>--enable-browser-analysis</code> pipeline adds coverage validation and async CSS loading.',
         layer: 'server',
       },
       {
         heading: 'Shrink the LCP image: WebP/AVIF + viewport-aware variants',
-        body: 'This attacks resource load duration. ModPageSpeed 2.0 transcodes images to WebP and AVIF based on the client\'s <code>Accept</code> header and serves <a href="/blog/viewport-aware-image-optimization/">viewport-aware responsive variants</a> (mobile/tablet/desktop, 1x/2x), so the hero downloads sooner. A single decode produces up to 37 cache variants, and every variant is verified against the original with SSIMULACRA2 before it is cached. mod_pagespeed 1.15 also transcodes to WebP and AVIF. Optimization is transparent: no URL rewrites, no markup changes, no build-pipeline changes.',
+        body: 'This attacks resource load duration. The optimizer worker transcodes images to WebP and AVIF based on the client\'s <code>Accept</code> header and serves <a href="/blog/viewport-aware-image-optimization/">viewport-aware responsive variants</a> (mobile/tablet/desktop, 1x/2x), so the hero downloads sooner. A single decode produces up to 37 cache variants, and every variant is verified against the original with SSIMULACRA2 before it is cached. The module also transcodes to WebP and AVIF. Optimization is transparent: no URL rewrites, no markup changes, no build-pipeline changes.',
         layer: 'server',
       },
       {
         heading: 'Fix TTFB first if the backend is the long pole',
-        body: 'If the four-phase breakdown shows <strong>TTFB</strong> dominating, the rewriter cannot help &mdash; the backend must be fixed first. On nginx that means serving pre-compressed assets instead of on-the-fly gzip, enabling HTTP/2 so the LCP image is not queued behind CSS/JS by HTTP/1.1 head-of-line blocking, and adding <code>Cache-Control: s-maxage</code> so HTML is cached rather than regenerated per request. ModPageSpeed serves the origin immediately on a cache miss and optimizes the variant out of the request path, but it does not make a slow application respond faster.',
+        body: 'If the four-phase breakdown shows <strong>TTFB</strong> dominating, the rewriter cannot help &mdash; the backend must be fixed first. On nginx that means serving pre-compressed assets instead of on-the-fly gzip, enabling HTTP/2 so the LCP image is not queued behind CSS/JS by HTTP/1.1 head-of-line blocking, and adding <code>Cache-Control: s-maxage</code> so HTML is cached rather than regenerated per request. mod_pagespeed serves the origin immediately on a cache miss and optimizes the variant out of the request path, but it does not make a slow application respond faster.',
         layer: 'both',
       },
       {
         heading: 'For SPA, third-party, and font-driven LCP, fix it in the app',
-        body: 'Some LCP causes are out of reach for an origin-side optimizer. ModPageSpeed <strong>cannot</strong> rewrite third-party iframe contents, does not see the runtime DOM of client-rendered SPAs, and does not manage your font-loading strategy. If your LCP element is rendered client-side, embedded from a third party, or a text block waiting on <code>font-display: swap</code>, the fix lives in your application &mdash; server-render the LCP node, preload the font, or move the embed off the critical path.',
+        body: 'Some LCP causes are out of reach for an origin-side optimizer. mod_pagespeed <strong>cannot</strong> rewrite third-party iframe contents, does not see the runtime DOM of client-rendered SPAs, and does not manage your font-loading strategy. If your LCP element is rendered client-side, embedded from a third party, or a text block waiting on <code>font-display: swap</code>, the fix lives in your application &mdash; server-render the LCP node, preload the font, or move the embed off the critical path.',
         layer: 'application',
       },
     ],
@@ -175,7 +175,7 @@ export const pillars: CwvPillar[] = [
       },
       {
         q: 'How do I fix LCP?',
-        a: 'Find which of the four phases is the long pole, then fix that one. If the LCP image is discovered late, preload it with <code>&lt;link rel=preload as=image&gt;</code> and <code>fetchpriority=high</code>. If render-blocking CSS is the delay, inline the critical above-the-fold CSS. If the image is too heavy, transcode it to WebP/AVIF and serve a viewport-sized variant. If TTFB dominates, fix the backend first. ModPageSpeed does the first three automatically at the server layer; the TTFB fix and any SPA/font fix are yours.',
+        a: 'Find which of the four phases is the long pole, then fix that one. If the LCP image is discovered late, preload it with <code>&lt;link rel=preload as=image&gt;</code> and <code>fetchpriority=high</code>. If render-blocking CSS is the delay, inline the critical above-the-fold CSS. If the image is too heavy, transcode it to WebP/AVIF and serve a viewport-sized variant. If TTFB dominates, fix the backend first. mod_pagespeed does the first three automatically at the server layer; the TTFB fix and any SPA/font fix are yours.',
       },
       {
         q: 'Why do my lab and field LCP numbers disagree?',
@@ -187,11 +187,11 @@ export const pillars: CwvPillar[] = [
       },
       {
         q: 'Can a server-side optimizer fix LCP?',
-        a: 'Yes, for three of the four phases. ModPageSpeed inlines critical CSS to cut render delay, transcodes and right-sizes the hero image to cut load duration, and preloads the detected LCP image to cut load delay &mdash; each attacks a distinct part of the timing breakdown, all at the server layer below the CMS. It cannot fix LCP when TTFB is the long pole (fix the backend first), and it cannot see a client-rendered SPA node, a third-party iframe, or your font-loading strategy.',
+        a: 'Yes, for three of the four phases. mod_pagespeed inlines critical CSS to cut render delay, transcodes and right-sizes the hero image to cut load duration, and preloads the detected LCP image to cut load delay &mdash; each attacks a distinct part of the timing breakdown, all at the server layer below the CMS. It cannot fix LCP when TTFB is the long pole (fix the backend first), and it cannot see a client-rendered SPA node, a third-party iframe, or your font-loading strategy.',
       },
       {
         q: 'Should I lazy-load the LCP image?',
-        a: 'No. The LCP image is, by definition, in the viewport at load, so lazy-loading it delays its discovery and download and makes LCP worse. Lazy-loading belongs on off-screen images. ModPageSpeed applies <code>loading=lazy</code> only to off-screen <code>&lt;img&gt;</code> and <code>&lt;iframe&gt;</code> elements and instead preloads the detected LCP candidate &mdash; both enabled by default.',
+        a: 'No. The LCP image is, by definition, in the viewport at load, so lazy-loading it delays its discovery and download and makes LCP worse. Lazy-loading belongs on off-screen images. mod_pagespeed applies <code>loading=lazy</code> only to off-screen <code>&lt;img&gt;</code> and <code>&lt;iframe&gt;</code> elements and instead preloads the detected LCP candidate &mdash; both enabled by default.',
       },
     ],
     seeAlso: [
@@ -232,7 +232,7 @@ export const pillars: CwvPillar[] = [
       'Fix CLS (Cumulative Layout Shift): reserve space with server-set image dimensions and critical CSS, then handle the font, iframe, and JS-injection cases.',
     h1: 'Fix Cumulative Layout Shift (CLS)',
     intro:
-      '<p>CLS is a layout-reservation problem, not a loading-speed problem. The page jumps because something arrived later than the layout assumed: an image with no reserved box, a font that reflowed the text, a banner that pushed content down. The fix is not "load faster"; it is "reserve the right space before the late thing arrives." With that framing, most CLS work is mechanical.</p><p>This page covers what CLS measures, how to find the element that owns the shift, and how to fix it, split between what a <a href="/features/">server-layer optimizer</a> handles for you and what only your own CSS and markup can. The largest single cause, images without explicit dimensions, ModPageSpeed fixes automatically; the rest needs reserved space you have to write. To see your own numbers, <a href="/analyze/">analyze a page</a> first.</p>',
+      '<p>CLS is a layout-reservation problem, not a loading-speed problem. The page jumps because something arrived later than the layout assumed: an image with no reserved box, a font that reflowed the text, a banner that pushed content down. The fix is not "load faster"; it is "reserve the right space before the late thing arrives." With that framing, most CLS work is mechanical.</p><p>This page covers what CLS measures, how to find the element that owns the shift, and how to fix it, split between what a <a href="/features/">server-layer optimizer</a> handles for you and what only your own CSS and markup can. The largest single cause, images without explicit dimensions, mod_pagespeed fixes automatically; the rest needs reserved space you have to write. To see your own numbers, <a href="/analyze/">analyze a page</a> first.</p>',
     thresholds: {
       good: 'under 0.1',
       poor: '0.25 and up',
@@ -275,17 +275,17 @@ export const pillars: CwvPillar[] = [
       },
       {
         heading: 'Reserve image space automatically with server-injected dimensions',
-        body: '<p>CLS is the metric ModPageSpeed moves most, and this is why. The <a href="/features/">2.0 worker injects explicit <code>width</code> and <code>height</code></a> on <code>&lt;img&gt;</code> tags that lack them, using dimensions read from the cached image data, so the browser reserves the correct layout box before pixels arrive. It is <strong>enabled by default</strong>. On <a href="/blog/fix-cls-nginx-2026/">mod_pagespeed 1.15</a> the same result comes from <code>insert_image_dimensions</code>, with <code>lazyload_images</code> deferring offscreen images (which must still carry explicit <code>width</code>/<code>height</code> so their space stays reserved).</p><p>This runs below the CMS, so one configuration fixes every URL the origin serves: hand-written HTML, classic-editor content, page-builder markup, with no markup changes or build step. Pair it with a single site rule, <code>img { max-width: 100%; height: auto; }</code>, so the browser computes the aspect-ratio box from the inserted attributes. Test it on responsive templates first: writing fixed dimensions can interfere with some CSS-driven responsive layouts.</p>',
+        body: '<p>CLS is the metric mod_pagespeed moves most, and this is why. The <a href="/features/">optimizer worker injects explicit <code>width</code> and <code>height</code></a> on <code>&lt;img&gt;</code> tags that lack them, using dimensions read from the cached image data, so the browser reserves the correct layout box before pixels arrive. It is <strong>enabled by default</strong>. In <a href="/blog/fix-cls-nginx-2026/">the module</a> the same result comes from <code>insert_image_dimensions</code>, with <code>lazyload_images</code> deferring offscreen images (which must still carry explicit <code>width</code>/<code>height</code> so their space stays reserved).</p><p>This runs below the CMS, so one configuration fixes every URL the origin serves: hand-written HTML, classic-editor content, page-builder markup, with no markup changes or build step. Pair it with a single site rule, <code>img { max-width: 100%; height: auto; }</code>, so the browser computes the aspect-ratio box from the inserted attributes. Test it on responsive templates first: writing fixed dimensions can interfere with some CSS-driven responsive layouts.</p>',
         layer: 'server',
       },
       {
         heading: 'Stabilize early layout with inlined critical CSS',
-        body: '<p>A render-blocking stylesheet chain leaves a window where the browser paints unstyled or partially-styled content, then re-lays it out when the CSS lands: a flash-of-unstyled-content shift on top of the font and image ones. ModPageSpeed\'s <a href="/blog/critical-css-heuristics/">heuristic critical CSS extraction</a> scans the HTML, matches selectors against the above-the-fold DOM, and injects the result as a <code>&lt;style&gt;</code> tag before <code>&lt;/head&gt;</code>, with no headless browser required, so above-the-fold styling is available without waiting on an external stylesheet. On 1.15 this is <code>prioritize_critical_css</code>, which shrinks the FOUC window during which layout-affecting CSS and font swaps arrive.</p>',
+        body: '<p>A render-blocking stylesheet chain leaves a window where the browser paints unstyled or partially-styled content, then re-lays it out when the CSS lands: a flash-of-unstyled-content shift on top of the font and image ones. The optimizer worker\'s <a href="/blog/critical-css-heuristics/">heuristic critical CSS extraction</a> scans the HTML, matches selectors against the above-the-fold DOM, and injects the result as a <code>&lt;style&gt;</code> tag before <code>&lt;/head&gt;</code>, with no headless browser required, so above-the-fold styling is available without waiting on an external stylesheet. In the module this is <code>prioritize_critical_css</code>, which shrinks the FOUC window during which layout-affecting CSS and font swaps arrive.</p>',
         layer: 'server',
       },
       {
         heading: 'Keep cached HTML and image dimensions in sync',
-        body: "<p>If a proxy or CDN serves HTML that references an image at the wrong size, the reserved box is wrong no matter who set it. Content-hash your asset URLs so a re-edited image gets a new URL the HTML must reference, which ModPageSpeed's <code>extend_cache</code> (1.15) does, and keep HTML short-cached while assets are long-cached and immutable. On a cache miss ModPageSpeed serves the origin immediately and regenerates variants out of the request path, so dimensions stay correct without stalling the response. URL <code>PURGE</code> removes all variants for a URL when you need to force a refresh.</p>",
+        body: "<p>If a proxy or CDN serves HTML that references an image at the wrong size, the reserved box is wrong no matter who set it. Content-hash your asset URLs so a re-edited image gets a new URL the HTML must reference, which the module's <code>extend_cache</code> does, and keep HTML short-cached while assets are long-cached and immutable. On a cache miss mod_pagespeed serves the origin immediately and regenerates variants out of the request path, so dimensions stay correct without stalling the response. URL <code>PURGE</code> removes all variants for a URL when you need to force a refresh.</p>",
         layer: 'both',
       },
       {
@@ -295,7 +295,7 @@ export const pillars: CwvPillar[] = [
       },
       {
         heading: 'Reserve space for iframes and JS-injected content',
-        body: '<p>ModPageSpeed cannot size a third-party embed (it does not know a YouTube iframe\'s intrinsic height) or content that JavaScript injects after the initial response; those need CSS-level reserved space you write. Wrap embeds in a fixed-ratio box: <code>&lt;div style="aspect-ratio: 16 / 9"&gt;</code> with the iframe at 100% width and height. Give ad slots a <code>min-height</code> matching the largest creative, pin cookie banners with <code>position: fixed</code> instead of letting them push content, and put <code>aspect-ratio</code> on any container whose child loads late. Never let a late element decide its own size at runtime.</p>',
+        body: '<p>mod_pagespeed cannot size a third-party embed (it does not know a YouTube iframe\'s intrinsic height) or content that JavaScript injects after the initial response; those need CSS-level reserved space you write. Wrap embeds in a fixed-ratio box: <code>&lt;div style="aspect-ratio: 16 / 9"&gt;</code> with the iframe at 100% width and height. Give ad slots a <code>min-height</code> matching the largest creative, pin cookie banners with <code>position: fixed</code> instead of letting them push content, and put <code>aspect-ratio</code> on any container whose child loads late. Never let a late element decide its own size at runtime.</p>',
         layer: 'application',
       },
     ],
@@ -306,7 +306,7 @@ export const pillars: CwvPillar[] = [
       },
       {
         q: 'How do I fix CLS?',
-        a: 'Diagnose first: find the element that owns the shift in Search Console and the PageSpeed Insights "Avoid large layout shifts" diagnostic. Then reserve space for it. The biggest cause is images without dimensions: <a href="/features/">ModPageSpeed injects <code>width</code> and <code>height</code> automatically</a> at the server layer, enabled by default, so the browser holds the box before the image loads. Fonts, iframes, and JavaScript-injected content need reserved space in your own CSS.',
+        a: 'Diagnose first: find the element that owns the shift in Search Console and the PageSpeed Insights "Avoid large layout shifts" diagnostic. Then reserve space for it. The biggest cause is images without dimensions: <a href="/features/">mod_pagespeed injects <code>width</code> and <code>height</code> automatically</a> at the server layer, enabled by default, so the browser holds the box before the image loads. Fonts, iframes, and JavaScript-injected content need reserved space in your own CSS.',
       },
       {
         q: 'Why is my field CLS worse than my Lighthouse CLS?',
@@ -314,7 +314,7 @@ export const pillars: CwvPillar[] = [
       },
       {
         q: 'Does setting image width and height actually fix CLS?',
-        a: 'For image-driven shifts, yes: it is the canonical fix. With explicit <code>width</code> and <code>height</code> (plus a <code>img { max-width: 100%; height: auto; }</code> rule) the browser computes the aspect-ratio box and reserves the slot before pixels arrive, so no jump occurs. ModPageSpeed does this automatically from cached image data for every <code>&lt;img&gt;</code> that lacks dimensions, so you do not have to audit markup by hand.',
+        a: 'For image-driven shifts, yes: it is the canonical fix. With explicit <code>width</code> and <code>height</code> (plus a <code>img { max-width: 100%; height: auto; }</code> rule) the browser computes the aspect-ratio box and reserves the slot before pixels arrive, so no jump occurs. mod_pagespeed does this automatically from cached image data for every <code>&lt;img&gt;</code> that lacks dimensions, so you do not have to audit markup by hand.',
       },
       {
         q: 'Can a server-side optimizer fix all of my CLS?',
@@ -343,7 +343,7 @@ export const pillars: CwvPillar[] = [
       },
       {
         href: '/features/',
-        text: 'ModPageSpeed 2.0 features',
+        text: 'mod_pagespeed 2.1 features',
         note: 'server-injected image dimensions, critical CSS, and variant-aware caching',
       },
     ],
@@ -358,7 +358,7 @@ export const pillars: CwvPillar[] = [
       "Fix INP (Interaction to Next Paint): the input-delay, processing, and presentation phases, the app-layer fixes, and where a server optimizer can't help.",
     h1: 'Interaction to Next Paint (INP): diagnose it, then fix it',
     intro:
-      '<p><strong>Interaction to Next Paint (INP)</strong> is the Core Web Vital that measures responsiveness: how long the user waits between a click, tap, or keypress and the next frame the browser paints in response. It replaced First Input Delay in March 2024. Unlike its predecessor it counts the whole interaction: not just the delay before your handler runs, but the handler itself and the paint that follows. That makes it the hardest vital to game, and the one most sites still fail.</p><p>Know this before you start: INP is the metric where a server-layer optimizer helps the least. The dominant cause is JavaScript running on the main thread, and that JavaScript lives in <em>your application code</em>, not at the server. This page gives you the diagnosis workflow and fixes split by where they actually live: the few things <a href="/features/">ModPageSpeed</a> can do at the server layer, and the larger set of changes only your app can make. Then it hands you off to the per-platform guide that names the failure modes on your stack.</p>',
+      '<p><strong>Interaction to Next Paint (INP)</strong> is the Core Web Vital that measures responsiveness: how long the user waits between a click, tap, or keypress and the next frame the browser paints in response. It replaced First Input Delay in March 2024. Unlike its predecessor it counts the whole interaction: not just the delay before your handler runs, but the handler itself and the paint that follows. That makes it the hardest vital to game, and the one most sites still fail.</p><p>Know this before you start: INP is the metric where a server-layer optimizer helps the least. The dominant cause is JavaScript running on the main thread, and that JavaScript lives in <em>your application code</em>, not at the server. This page gives you the diagnosis workflow and fixes split by where they actually live: the few things <a href="/features/">mod_pagespeed</a> can do at the server layer, and the larger set of changes only your app can make. Then it hands you off to the per-platform guide that names the failure modes on your stack.</p>',
     thresholds: {
       good: '≤ 200',
       poor: '> 500',
@@ -401,7 +401,7 @@ export const pillars: CwvPillar[] = [
       },
       {
         heading: 'Reduce startup JavaScript competing for the main thread',
-        body: "This is the server layer's narrow but real lever. ModPageSpeed can <code>rewrite_javascript</code> (minify, safe by construction: no AST transforms or renaming, and it only writes a smaller variant), <code>combine_javascript</code> (concatenate files to cut per-file parser setup), and <code>defer_javascript</code> (defer scripts it can prove safe; the 2.0 worker uses browser analysis). That moves parser-blocking work off the critical path so it no longer collides with the first click. It helps when the origin serves heavy non-minified or legacy JS, and little when you already ship a lean, code-split SPA bundle. <code>defer_javascript</code> is marked <strong>Test first</strong> because it changes execution order: profile, then stage it.",
+        body: "This is the server layer's narrow but real lever. mod_pagespeed can <code>rewrite_javascript</code> (minify, safe by construction: no AST transforms or renaming, and it only writes a smaller variant), <code>combine_javascript</code> (concatenate files to cut per-file parser setup), and <code>defer_javascript</code> (defer scripts it can prove safe; the optimizer worker uses browser analysis). That moves parser-blocking work off the critical path so it no longer collides with the first click. It helps when the origin serves heavy non-minified or legacy JS, and little when you already ship a lean, code-split SPA bundle. <code>defer_javascript</code> is marked <strong>Test first</strong> because it changes execution order: profile, then stage it.",
         layer: 'server',
       },
       {
@@ -432,7 +432,7 @@ export const pillars: CwvPillar[] = [
       },
       {
         q: 'How do I fix INP?',
-        a: 'Profile first: record a real interaction flow in the Chrome DevTools Performance panel (or log <code>onINP</code> with the <code>web-vitals</code> attribution build) to find the single worst interaction and which phase dominates it. Then fix where the cost lives: shrink and split the responsible handler, move third-party scripts out of the critical path, and fix slow <code>/api/*</code> upstreams. At the server layer, ModPageSpeed can minify, combine, and defer startup JavaScript so it stops competing for the main thread, useful when the origin serves heavy legacy JS, less so when you already ship a lean SPA bundle.',
+        a: 'Profile first: record a real interaction flow in the Chrome DevTools Performance panel (or log <code>onINP</code> with the <code>web-vitals</code> attribution build) to find the single worst interaction and which phase dominates it. Then fix where the cost lives: shrink and split the responsible handler, move third-party scripts out of the critical path, and fix slow <code>/api/*</code> upstreams. At the server layer, mod_pagespeed can minify, combine, and defer startup JavaScript so it stops competing for the main thread, useful when the origin serves heavy legacy JS, less so when you already ship a lean SPA bundle.',
       },
       {
         q: 'What is the difference between INP and First Input Delay (FID)?',
@@ -443,8 +443,8 @@ export const pillars: CwvPillar[] = [
         a: 'The lab number from Lighthouse / PageSpeed Insights is unreliable because the lab issues no human input: with no interaction to measure, it estimates. Real INP comes from CrUX field data (and your Search Console Core Web Vitals report). Always optimize against the field figure; it is the only one Google ranks on.',
       },
       {
-        q: 'Can ModPageSpeed fix my INP?',
-        a: 'Indirectly, and only sometimes. INP measures JavaScript main-thread responsiveness, and a server-layer optimizer does not rewrite your application logic; it will not make a slow click handler fast. What it can do is reduce how much JavaScript competes for the main thread before the user interacts, by minifying (<code>rewrite_javascript</code>), combining (<code>combine_javascript</code>), and deferring scripts proven safe (<code>defer_javascript</code>). That lowers INP on pages throttled by startup script execution: a lot when the origin serves heavy non-minified JS, little when the stack already ships a lean, code-split bundle. On mod_pagespeed 1.15 (nginx / Apache module) these are the named filters <code>rewrite_javascript</code>, <code>combine_javascript</code>, and <code>defer_javascript</code>. The ModPageSpeed 2.0 <a href="/blog/aspnet-core-middleware/">WeAmp.PageSpeed ASP.NET Core middleware</a> reaches the same outcome through its always-on pipeline — automatic JS minification and browser-analysis-driven deferral — not a named-filter list.',
+        q: 'Can mod_pagespeed fix my INP?',
+        a: 'Indirectly, and only sometimes. INP measures JavaScript main-thread responsiveness, and a server-layer optimizer does not rewrite your application logic; it will not make a slow click handler fast. What it can do is reduce how much JavaScript competes for the main thread before the user interacts, by minifying (<code>rewrite_javascript</code>), combining (<code>combine_javascript</code>), and deferring scripts proven safe (<code>defer_javascript</code>). That lowers INP on pages throttled by startup script execution: a lot when the origin serves heavy non-minified JS, little when the stack already ships a lean, code-split bundle. In the module these are the named filters <code>rewrite_javascript</code>, <code>combine_javascript</code>, and <code>defer_javascript</code>. The <a href="/blog/aspnet-core-middleware/">mod_pagespeed 2.1 ASP.NET Core middleware</a> reaches the same outcome through its always-on pipeline — automatic JS minification and browser-analysis-driven deferral — not a named-filter list.',
       },
       {
         q: "Why can't a server-layer tool fix Blazor Server INP?",

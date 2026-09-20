@@ -1,11 +1,12 @@
 ---
 title: 'License'
-description: 'ModPageSpeed 2.0 is licensed under the Apache License 2.0; paid tiers are support subscriptions.'
+description: 'mod_pagespeed 2.1 is licensed under the Apache License 2.0; what is sold is support subscriptions and hardened builds.'
 order: 14
 group: 'Install'
+lastUpdated: 2026-09-19
 ---
 
-ModPageSpeed 2.0 is licensed under the [Apache License 2.0](/license/). Every
+mod_pagespeed 2.1 is licensed under the [Apache License 2.0](/license/). Every
 feature is available to everyone.
 
 The `LICENSE`, `NOTICE` and `THIRD-PARTY-NOTICES` files ship with every

@@ -30,17 +30,17 @@ const siteData = sites.map((site) => {
 ---
 
 <BaseLayout
-  title="Live demo — see ModPageSpeed optimize real sites"
-  description="Watch ModPageSpeed 2.0 cut real sites 48–69% smaller: measured CSS/JS minification and WebP/AVIF image transcoding, with modeled load-time and Lighthouse projections."
+  title="Live demo — see mod_pagespeed 2.1 optimize real sites"
+  description="Watch mod_pagespeed 2.1 cut real sites 48–69% smaller: measured CSS/JS minification and WebP/AVIF transcoding, with modeled load-time projections."
 >
   {/* Demo site preview with tabs */}
   <section class="py-20">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div class="text-center">
-        <h1 class="h1-hero text-text-body">See ModPageSpeed optimize real sites</h1>
+        <h1 class="h1-hero text-text-body">See mod_pagespeed 2.1 optimize real sites</h1>
         <p class="lede mt-4 max-w-2xl mx-auto">
           Four real sites — an e-commerce store, a blog, a news portal, and a portfolio — each built
-          from original, unoptimized assets. ModPageSpeed 2.0 cuts total page weight by 48&ndash;69%
+          from original, unoptimized assets. mod_pagespeed cuts total page weight by 48&ndash;69%
           across them; on the image-heavy store,
           <a class="text-interactive underline underline-offset-2" href="/blog/avif-vs-webp-2026/"
             >AVIF transcoding</a
@@ -48,10 +48,10 @@ const siteData = sites.map((site) => {
           Every number below is measured.
         </p>
         <p class="mt-4 max-w-2xl mx-auto text-sm text-text-annotation">
-          This is ModPageSpeed 2.0 optimizing whole sites from its worker behind nginx.
-          mod_pagespeed 1.15 takes the other approach: a native module inside Apache, nginx, or IIS,
-          with granular per-filter control so you switch each optimization on or off yourself. See
-          that filter-by-filter on the
+          This is mod_pagespeed 2.1 optimizing whole sites: the optimizer worker doing the heavy
+          work behind the module. The module is the other half — in-process inside Apache, nginx or
+          IIS, with granular per-filter control so you switch each optimization on or off yourself.
+          See that filter-by-filter on the
           <a class="text-interactive underline underline-offset-2" href="/examples/"
             >filter examples</a
           >.
@@ -106,7 +106,7 @@ const siteData = sites.map((site) => {
           About this demo's optimization baseline
         </summary>
         <p class="mt-2 text-sm text-amber-800 dark:text-amber-300">
-          These pages ship deliberately unoptimized assets so ModPageSpeed 2.0 has real work to do:
+          These pages ship deliberately unoptimized assets so mod_pagespeed has real work to do:
           CSS is verbose with longhand properties, JavaScript is unminified, and images are served
           as uncompressed JPEGs.
         </p>
@@ -176,9 +176,9 @@ const siteData = sites.map((site) => {
       <div class="text-center">
         <h2 class="h2-section text-text-body">Optimization analysis</h2>
         <p class="lede mt-4 max-w-2xl mx-auto">
-          Real measurements from the demo sites above, produced by the actual ModPageSpeed 2.0 nginx
-          + worker + cache stack. CSS/JS sizes are measured before and after minification, image
-          sizes are measured before and after transcoding to WebP and AVIF.
+          Real measurements from the demo sites above, produced by the actual module + optimizer
+          worker + cache stack. CSS/JS sizes are measured before and after minification, image sizes
+          are measured before and after transcoding to WebP and AVIF.
         </p>
       </div>
 
@@ -641,9 +641,9 @@ const siteData = sites.map((site) => {
       <h2 class="h2-section text-text-body">Methodology</h2>
       <p class="mt-3 text-text-muted">
         We separate what we directly measure from what we model. The byte sizes below are measured
-        from the actual ModPageSpeed 2.0 optimization pipeline running against the demo sites above
-        — real pipeline output, not marketing math. The load-time and Lighthouse figures are
-        projections we derive from those measured savings, and we say so explicitly.
+        from the actual optimization pipeline running against the demo sites above — real pipeline
+        output, not marketing math. The load-time and Lighthouse figures are projections we derive
+        from those measured savings, and we say so explicitly.
       </p>
       <p class="mt-4 text-sm font-semibold text-text-body">Directly measured</p>
       <ul class="mt-2 space-y-2 text-sm text-text-muted list-disc list-inside">
@@ -672,7 +672,7 @@ const siteData = sites.map((site) => {
           <strong>Lighthouse scores</strong> shown here are projected from the measured resource savings
           and critical CSS injection, not captured from a live audit. For a live audit of your own site,
           use our <a href="/analyze/">analyzer</a> — it runs Google's PageSpeed Insights and maps each
-          finding to the ModPageSpeed filter that fixes it.
+          finding to the mod_pagespeed filter that fixes it.
         </li>
       </ul>
       <p class="mt-4 text-xs text-text-annotation">
@@ -694,8 +694,9 @@ const siteData = sites.map((site) => {
         See the live consoles
       </h2>
       <p class="mt-4 text-text-muted text-center max-w-2xl mx-auto">
-        Both products ship a built-in console for monitoring and cache inspection. These are real,
-        publicly reachable instances running on our own infrastructure — open them and click around.
+        Both parts ship a console: the module's admin console and the optimizer worker's web
+        console. These are real, publicly reachable instances running on our own infrastructure —
+        open them and click around.
       </p>
       <div class="mt-10 grid gap-8 lg:grid-cols-2">
         <div>
@@ -709,7 +710,7 @@ const siteData = sites.map((site) => {
               <source srcset="/images/console-2.0-dashboard.webp" type="image/webp" />
               <img
                 src="/images/console-2.0-dashboard.png"
-                alt="ModPageSpeed 2.0 web console dashboard showing total bandwidth saved and live throughput, cache, and health charts"
+                alt="mod_pagespeed 2.1 web console dashboard showing total bandwidth saved and live throughput, cache, and health charts"
                 width="1440"
                 height="900"
                 loading="lazy"
@@ -718,14 +719,14 @@ const siteData = sites.map((site) => {
             </picture>
           </a>
           <p class="mt-3 text-sm font-medium text-text-body">
-            ModPageSpeed 2.0 console
+            The optimizer worker's web console
           </p>
           <p class="mt-1 text-sm text-text-muted">
             A read-only dashboard with live optimization stats from this site's own production
             deployment. <a
               href="https://we-amp.com/console/"
               class="text-interactive underline underline-offset-2"
-              >Open the live 2.0 console →</a
+              >Open the live web console →</a
             >
           </p>
         </div>
@@ -740,7 +741,7 @@ const siteData = sites.map((site) => {
               <source srcset="/images/console-1.1-admin.webp" type="image/webp" />
               <img
                 src="/images/console-1.1-admin.png"
-                alt="mod_pagespeed 1.15 admin console showing live statistics with per-variable deltas and trend sparklines"
+                alt="The module's admin console showing live statistics with per-variable deltas and trend sparklines"
                 width="1440"
                 height="900"
                 loading="lazy"
@@ -749,7 +750,7 @@ const siteData = sites.map((site) => {
             </picture>
           </a>
           <p class="mt-3 text-sm font-medium text-text-body">
-            mod_pagespeed 1.15 admin console
+            The module's admin console
           </p>
           <p class="mt-1 text-sm text-text-muted">
             The admin console built into the native module, running on our public Apache demo. Live
@@ -757,7 +758,7 @@ const siteData = sites.map((site) => {
             worker. <a
               href="https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/#/console"
               class="text-interactive underline underline-offset-2"
-              >Open the live 1.15 console →</a
+              >Open the live admin console →</a
             >
           </p>
         </div>
@@ -772,7 +773,7 @@ const siteData = sites.map((site) => {
         Verify on your own content
       </h2>
       <p class="mt-4 text-text-muted text-center max-w-2xl mx-auto">
-        Run ModPageSpeed 2.0 locally with Docker and measure the difference on your own site.
+        Run mod_pagespeed 2.1 locally with Docker and measure the difference on your own site.
       </p>
       <div
         class="mt-8 rounded-lg bg-bg-elevated border border-border p-6"

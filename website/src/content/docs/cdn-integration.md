@@ -1,19 +1,19 @@
 ---
 title: 'Integrate with a CDN'
-description: 'Run ModPageSpeed behind Cloudflare, CloudFront, or Fastly: how Vary headers affect edge caching, per-CDN cache-key settings, and how to keep hit rates high.'
+description: 'Run mod_pagespeed 2.1 behind Cloudflare, CloudFront, or Fastly: how Vary headers affect edge caching, per-CDN cache-key settings, and how to keep hit rates high.'
 order: 23
 group: 'Configure'
-lastUpdated: 2026-07-04
+lastUpdated: 2026-09-19
 ---
 
-ModPageSpeed runs behind any CDN. The one thing to get right is how your CDN
-treats the `Vary` headers ModPageSpeed emits — get it wrong and edge hit rates
+mod_pagespeed 2.1 runs behind any CDN. The one thing to get right is how your CDN
+treats the `Vary` headers mod_pagespeed emits — get it wrong and edge hit rates
 collapse. This page explains that interaction and gives concrete settings for
 Cloudflare, CloudFront, and Fastly.
 
 ## Vary: User-Agent
 
-ModPageSpeed serves different optimized variants at the same URL based on client
+mod_pagespeed serves different optimized variants at the same URL based on client
 capabilities (image format support, viewport class, pixel density, encoding).
 To tell downstream caches about this, it emits Vary headers:
 
@@ -23,7 +23,7 @@ To tell downstream caches about this, it emits Vary headers:
 | HTML         | `Accept-Encoding, User-Agent`   |
 | CSS / JS     | `Accept-Encoding`               |
 
-Internally, ModPageSpeed classifies User-Agent strings into a small number of
+Internally, mod_pagespeed classifies User-Agent strings into a small number of
 capability dimensions: 3 viewport classes (mobile, tablet, desktop) × 2 pixel
 densities = 6 distinct variants. This makes the variation finite and cacheable.
 (See [viewport-aware image optimization](/blog/viewport-aware-image-optimization/)
@@ -31,7 +31,7 @@ for how those viewport classes drive the image pipeline.)
 
 However, most CDNs treat `Vary: User-Agent` as effectively uncacheable because
 they see every unique User-Agent string as a different cache key — not the 6
-capability classes that ModPageSpeed actually uses.
+capability classes that mod_pagespeed actually uses.
 
 ### Impact
 
@@ -50,7 +50,7 @@ Cloudflare ignores `Vary: User-Agent` by default on most plan tiers. It caches
 one variant regardless of User-Agent, using its own device classification for
 mobile/desktop decisions.
 
-**Recommendation:** ModPageSpeed's safe mode (short TTLs + `must-revalidate`)
+**Recommendation:** mod_pagespeed's safe mode (short TTLs + `must-revalidate`)
 is a good fit. If image variant accuracy is critical, consider Enterprise tier
 with custom cache keys.
 
@@ -77,12 +77,12 @@ thousands of variants per URL. Fastly limits variants to 256 per URL, after
 which it evicts aggressively.
 
 **Recommendation:** Use custom VCL to normalize User-Agent into capability
-classes, or strip User-Agent from Vary and rely on ModPageSpeed's internal
+classes, or strip User-Agent from Vary and rely on mod_pagespeed's internal
 classification.
 
 ### Other CDNs / No CDN
 
-If ModPageSpeed is your edge (no CDN in front), the Vary headers work correctly.
+If mod_pagespeed is your edge (no CDN in front), the Vary headers work correctly.
 Downstream browser caches and ISP proxies handle `Vary: User-Agent` at the
 per-client level, which produces correct behavior since each client has a stable
 User-Agent.

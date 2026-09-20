@@ -1,9 +1,9 @@
 ---
 title: 'Call the worker HTTP API'
-description: 'ModPageSpeed 2.0 worker HTTP API reference: health, stats, Prometheus metrics, cache management, live config, and WebSocket streaming endpoints — all callable with curl.'
+description: 'Optimizer worker HTTP API reference for mod_pagespeed 2.1: health, stats, Prometheus metrics, cache management, live config, and WebSocket streaming endpoints — all callable with curl.'
 order: 61
 group: 'Reference'
-lastUpdated: 2026-09-06
+lastUpdated: 2026-09-19
 ---
 
 import { getRelease } from '../../lib/release';
@@ -338,11 +338,11 @@ Key fields:
 `serve_savings` and `serve_classes` are present when serve-time statistics are
 available (the shared `.pagespeed-serve-stats` file). The `serve_savings` byte
 counters are measured by the serving front end (nginx, the ASP.NET middleware,
-or the mod_pagespeed 1.16 module) as content is served, so they reflect
+or the module) as content is served, so they reflect
 realized bandwidth savings and are distinct from the worker-side `by_type`
 counters above. `serve_classes` partitions the serves a front end judged
-optimizable into exactly one class each; today only the mod_pagespeed 1.16
-module classifies serves, so under another front end the block reads all-zero —
+optimizable into exactly one class each; today only the module
+classifies serves, so under another front end the block reads all-zero —
 which means "not instrumented", not "nothing happened".
 
 ### GET /v1/metrics

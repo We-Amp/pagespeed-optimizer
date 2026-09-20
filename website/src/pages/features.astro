@@ -14,19 +14,20 @@ const nugetInstallCmd = `dotnet add package ${rel20.artifacts.nuget.package}${
   rel20.display.nuget_install_flags ? ` ${rel20.display.nuget_install_flags}` : ''
 }`;
 
-// The canonical 2.0 product page previously emitted only a FAQPage. Add a
+// The canonical product page previously emitted only a FAQPage. Add a
 // SoftwareApplication + Offer so the feature content ties to the product
 // entity (and carries the price for merchant/rich results).
 const softwareApplication = {
   '@context': 'https://schema.org',
   '@type': ['Product', 'SoftwareApplication'],
-  name: 'ModPageSpeed 2.0',
+  name: 'mod_pagespeed 2.1',
+  alternateName: ['ModPageSpeed 2.0', 'mod_pagespeed'],
   applicationCategory: 'WebApplication',
   operatingSystem: 'Linux, Windows, macOS',
   description:
-    'Self-hosted web performance optimization: WebP/AVIF/SVG image transcoding, CSS/JS minification, heuristic critical CSS, variant-aware caching, and zero-copy mmap serving. Deploys as an nginx interceptor + worker or ASP.NET Core middleware.',
+    'Self-hosted web performance optimization: WebP/AVIF/SVG image transcoding, CSS/JS minification, heuristic critical CSS, variant-aware caching, and zero-copy mmap serving. One product in two parts: an in-process module and an optimizer worker sharing one Cyclone cache.',
   image: 'https://modpagespeed.com/og-default.png?v=2',
-  brand: { '@type': 'Brand', name: 'ModPageSpeed' },
+  brand: { '@type': 'Brand', name: 'mod_pagespeed' },
   featureList: [
     'WebP/AVIF/SVG image transcoding with viewport-aware resizing',
     'ML-predicted encoder quality with SSIMULACRA2 verification',
@@ -44,10 +45,10 @@ const faqPage = {
   mainEntity: [
     {
       '@type': 'Question',
-      name: 'What image formats does ModPageSpeed 2.0 support?',
+      name: 'What image formats does mod_pagespeed 2.1 support?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: "ModPageSpeed 2.0 automatically transcodes images to WebP and AVIF based on the client's Accept header. It also optimizes original JPEG and PNG formats. Animated GIFs are converted to animated WebP. Eligible images are auto-vectorized to SVG. Every variant is verified against the original with SSIMULACRA2 before it reaches the cache, using ML-predicted per-format quality. Up to 37 variants are generated per image across formats, viewports, pixel densities, and Save-Data preferences.",
+        text: "mod_pagespeed 2.1 transcodes images to WebP and AVIF based on the client's Accept header, and also optimizes original JPEG and PNG. Animated GIFs are converted to animated WebP. The optimizer worker adds SVG auto-vectorization for eligible images, Jpegli encoding, and ML-predicted per-format quality — every variant is verified against the original with SSIMULACRA2 before it reaches the cache. Up to 37 variants are generated per image across formats, viewports, pixel densities, and Save-Data preferences.",
       },
     },
     {
@@ -55,7 +56,7 @@ const faqPage = {
       name: 'How does critical CSS extraction work?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'ModPageSpeed 2.0 uses heuristic critical CSS extraction that runs standalone — no headless browser required. The worker scans HTML and matches CSS selectors against the DOM structure, analyzing the first 25 elements, semantic patterns (header, nav, hero), and universal selectors. Critical CSS is injected as a style tag before </head>, eliminating render-blocking stylesheet requests. An optional browser analysis pipeline adds CSS coverage validation, waterfall capture, and visual comparison for advanced use cases.',
+        text: 'The optimizer worker uses heuristic critical CSS extraction that runs standalone — no headless browser required. The worker scans HTML and matches CSS selectors against the DOM structure, analyzing the first 25 elements, semantic patterns (header, nav, hero), and universal selectors. Critical CSS is injected as a style tag before </head>, eliminating render-blocking stylesheet requests. An optional browser analysis pipeline adds CSS coverage validation, waterfall capture, and visual comparison for advanced use cases.',
       },
     },
     {
@@ -76,10 +77,10 @@ const faqPage = {
     },
     {
       '@type': 'Question',
-      name: 'Does ModPageSpeed 2.0 require changes to my application code?',
+      name: 'Does mod_pagespeed 2.1 require changes to my application code?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'No. ModPageSpeed 2.0 operates at the reverse-proxy level. It deploys as an nginx interceptor that sits in front of any HTTP origin server. All optimization is transparent — your application serves the same responses it always has. No URL rewrites, no markup changes, no build pipeline modifications.',
+        text: 'No. Optimization is transparent. The module serves in-process and the optimizer worker runs behind it; in reverse-proxy mode the module sits in front of any HTTP origin. Your application serves the same responses it always has. No URL rewrites, no markup changes, no build pipeline modifications.',
       },
     },
     {
@@ -97,8 +98,8 @@ const jsonLd = [softwareApplication, faqPage];
 ---
 
 <BaseLayout
-  title="ModPageSpeed 2.0 features: WebP/AVIF, critical CSS, minify"
-  description="Self-hosted WebP/AVIF/SVG transcoding, heuristic critical CSS, CSS/JS minification, and variant-aware caching — the full ModPageSpeed 2.0 feature set. Runs as an nginx interceptor or ASP.NET Core middleware."
+  title="mod_pagespeed 2.1 features: WebP/AVIF, critical CSS, minify"
+  description="Self-hosted WebP/AVIF/SVG transcoding, heuristic critical CSS, and variant-aware caching — the full mod_pagespeed 2.1 feature set, introduced as ModPageSpeed 2.0."
   jsonLd={jsonLd}
 >
   <!-- Hero -->
@@ -131,22 +132,6 @@ const jsonLd = [softwareApplication, faqPage];
       </a>
     </div>
   </section>
-
-  <!-- Version context bar -->
-  <div class="border-b border-border bg-stone-50/50 dark:bg-stone-900/50">
-    <div
-      class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-3 flex flex-wrap items-center justify-between gap-2 text-sm"
-    >
-      <p class="text-text-muted">
-        Viewing <span class="font-semibold text-text-body"
-          >ModPageSpeed 2.0</span
-        > features
-      </p>
-      <a href="/" class="text-interactive hover:text-interactive-hover transition-colors font-medium">
-        Looking for mod_pagespeed 1.15? →
-      </a>
-    </div>
-  </div>
 
   <!-- Benefits summary -->
   <section class="bg-bg-secondary py-16">
@@ -239,7 +224,7 @@ const jsonLd = [softwareApplication, faqPage];
       class="mt-6 rounded-2xl border border-border p-6 bg-bg-elevated"
     >
       <p class="text-text-body">
-        ModPageSpeed is an origin-side optimizer. It does not replace:
+        mod_pagespeed is an origin-side optimizer. It does not replace:
       </p>
       <ul class="mt-4 space-y-2 text-sm text-text-muted list-disc pl-6">
         <li>
@@ -1046,7 +1031,7 @@ const jsonLd = [softwareApplication, faqPage];
                   Server-side rendered, no client JS required
                 </p>
                 <p class="text-sm text-text-muted">
-                  The 2.0 worker renders the page with headless Chrome and caches the post-render
+                  The optimizer worker renders the page with headless Chrome and caches the post-render
                   result. AI crawlers that don't run JavaScript receive the same content a real
                   browser would — no empty shell, no missing copy.
                 </p>
@@ -1166,7 +1151,7 @@ const jsonLd = [softwareApplication, faqPage];
         </div>
       </div>
       <p class="mt-8 text-sm text-text-muted text-center max-w-2xl mx-auto">
-        Beyond nginx, ModPageSpeed integrates as middleware for ASP.NET Core applications via the <code
+        Beyond nginx, mod_pagespeed integrates as middleware for ASP.NET Core applications via the <code
           class="text-xs bg-bg-elevated px-1 rounded">libpagespeed.so</code
         > C API — same optimization pipeline, different stack.
       </p>
@@ -1301,9 +1286,10 @@ const jsonLd = [softwareApplication, faqPage];
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <h2 class="h2-section text-text-body">ASP.NET Core middleware</h2>
       <p class="mt-4 text-text-muted max-w-3xl">
-        The same optimization pipeline runs inside ASP.NET Core via a NuGet package and P/Invoke to
-        the native library. No nginx. No reverse proxy. Same image transcoding, same CSS extraction,
-        same variant-aware caching.
+        The same optimization pipeline runs inside ASP.NET Core: the <code
+          class="rounded bg-bg-elevated px-1 py-0.5 text-sm">{rel20.artifacts.nuget.package}</code
+        > NuGet package calls the native library through P/Invoke. No nginx. No reverse proxy. Same
+        image transcoding, same CSS extraction, same variant-aware caching.
       </p>
 
       <div class="mt-10 grid gap-8 lg:grid-cols-2">

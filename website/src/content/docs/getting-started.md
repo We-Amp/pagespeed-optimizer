@@ -3,13 +3,13 @@ title: 'Getting Started'
 description: 'Install mod_pagespeed 2.1. Three integrations share one optimization pipeline: the native Apache/nginx module, the native IIS module, or a Docker / nginx reverse proxy.'
 order: 1
 group: 'Start here'
-lastUpdated: 2026-09-18
+lastUpdated: 2026-09-19
 faq:
   - q: 'Which mod_pagespeed 2.1 integration should I pick?'
     a: 'The native module (Apache or nginx) for a bare-metal or existing web-server deployment — installs from the signed apt/yum repository. Docker / nginx reverse proxy for a containerized deployment in front of any HTTP origin, including Kubernetes. Both share the same optimization core.'
   - q: 'What does the request flow look like on a cache hit?'
     a: 'Nginx classifies the client into a 32-bit capability mask, finds a matching optimized variant in the Cyclone cache, and serves it zero-copy from the memory-mapped file with `X-PageSpeed: HIT`. No origin round-trip and no allocation.'
-  - q: 'How do I verify ModPageSpeed is working?'
+  - q: 'How do I verify mod_pagespeed is working?'
     a: 'Send `curl -I` to any page. The first response shows `X-PageSpeed: MISS` (proxied to origin), the second shows `X-PageSpeed: HIT` (served from cache). For images, request with `Accept: image/webp` and compare downloaded size against the original.'
   - q: 'What is safe cache mode and why is it the default?'
     a: 'Safe mode caches optimized resources for short periods (5 minutes for CSS/JS, 30 minutes for images) with mandatory revalidation, so misconfigurations self-correct quickly. It is the recommended mode while validating a new setup before switching to aggressive.'
@@ -36,12 +36,12 @@ minification, critical CSS, and variant-aware caching with zero-copy serving
 from the Cyclone shared-memory cache. See the
 [full optimization filter set](/features/) for everything the pipeline applies.
 
-To see which failing audits ModPageSpeed will fix, run your site through a
+To see which failing audits mod_pagespeed will fix, run your site through a
 [PageSpeed Insights test](/analyze/). For a per-platform plan to improve LCP,
 CLS, and INP, read the [Core Web Vitals](/core-web-vitals/) guide.
 
 Running the ASP.NET Core middleware? That is the separately available
-`WeAmp.PageSpeed` NuGet package — see
+`WeAmp.PageSpeed.AspNetCore` NuGet package — see
 [ASP.NET Core Getting Started](/docs/aspnet-getting-started/).
 
 The rest of this page walks the Docker / nginx reverse-proxy integration. For
@@ -67,9 +67,10 @@ For evaluation and small single-host deployments, the combined
 `ghcr.io/we-amp/pagespeed-combined` image runs nginx and the worker together in
 one container — see [Install with Docker](/docs/installation-docker/#quick-try-one-container).
 
-The separately available ASP.NET Core middleware collapses this into a single
-in-process pipeline — the optimization library runs as P/Invoke calls from the
-middleware, no separate worker process needed. See
+The separately available ASP.NET Core middleware collapses this into one
+process tree — the optimization library runs as P/Invoke calls from the
+middleware instead of from behind nginx, and the middleware launches the
+bundled worker itself as a child process. See
 [ASP.NET Core Getting Started](/docs/aspnet-getting-started/) for that
 architecture.
 
@@ -104,7 +105,7 @@ prerequisites.
 
 ## Quick verification
 
-Once installed (via any of these methods), verify that ModPageSpeed is
+Once installed (via any of these methods), verify that mod_pagespeed is
 working:
 
 ```bash
@@ -136,7 +137,7 @@ change, because mod_pagespeed 2.1 negotiates by the `Accept` header instead of r
 
 ## Safe cache mode
 
-By default, ModPageSpeed runs in **safe cache mode**. Optimized resources are
+By default, mod_pagespeed runs in **safe cache mode**. Optimized resources are
 cached for short periods (5 minutes for CSS/JS, 30 minutes for images) with
 mandatory revalidation, so misconfigurations self-correct quickly. This is the
 recommended mode while you validate your setup. See [Cache Modes](/docs/cache-modes/)

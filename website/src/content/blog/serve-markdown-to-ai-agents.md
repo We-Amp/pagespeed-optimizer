@@ -1,6 +1,6 @@
 ---
 title: 'Serve markdown and llms.txt to AI agents from your origin'
-description: 'ModPageSpeed 2.0 serves a clean markdown variant on Accept: text/markdown and synthesizes an /llms.txt index from your sitemap, generated at your own origin. Experimental, 2.0-only, license-gated, off by default.'
+description: 'The mod_pagespeed 2.1 optimizer worker serves a clean markdown variant on Accept: text/markdown and synthesizes an /llms.txt index from your sitemap, generated at your own origin. Experimental, runs in the optimizer worker, off by default.'
 date: 2026-06-22
 author: 'Otto van der Schaaf'
 tags: ['ai-agents', 'llms-txt', 'agent-optimize', 'content']
@@ -9,7 +9,7 @@ lastUpdated: 2026-07-04
 draft: false
 ---
 
-> **Status: experimental.** `agent_optimize` is a ModPageSpeed 2.0 feature, off by default and gated behind a license entitlement (contact us to scope it, not a self-serve toggle). Not generally available.
+> **Status: experimental.** `agent_optimize` is an optimizer worker feature, off by default and gated behind a license entitlement (contact us to scope it, not a self-serve toggle). Not generally available.
 
 An AI agent requests your page and wants the article. What it gets is your full HTML document: the nav, the cookie banner markup, the script tags, the footer, and the content buried in the middle. It parses all of it and burns tokens on all of it. The signal it wanted is maybe 10% of the bytes you sent.
 
@@ -17,7 +17,7 @@ That is a worse fit than it looks. HTML is a layout format. Agents and LLM crawl
 
 The usual answer is to maintain that markdown yourself. You stand up a headless CMS, or write a build step that mirrors every page into a markdown file and keeps the mirror in sync forever. That is a second content pipeline running next to your first one, and it drifts the moment someone edits a page and forgets the mirror.
 
-ModPageSpeed 2.0 takes a different route. It generates the markdown variant at the origin, from the site you already have.
+The optimizer worker takes a different route. It generates the markdown variant at the origin, from the site you already have.
 
 ## What `agent_optimize` does
 
@@ -33,7 +33,7 @@ The generation runs at your origin. There is no external service rendering your 
 
 Be clear on availability, because this one has real gates.
 
-`agent_optimize` is a ModPageSpeed 2.0 feature, and 2.0 only. It ships **off by default**. It is license-entitlement-gated, not part of the free baseline, and the entitlement is scoped with us directly rather than flipped on self-serve. On mod_pagespeed 1.15 the request is recognized and the response carries `Vary: Accept`, but no markdown is ever rendered or served; the render depends on a headless browser only 2.0 runs. Turning it on in 2.0 takes three things:
+`agent_optimize` runs in the optimizer worker; the module alone does not produce it. It ships **off by default**. It is license-entitlement-gated, not part of the free baseline, and the entitlement is scoped with us directly rather than flipped on self-serve. On the module the request is recognized and the response carries `Vary: Accept`, but no markdown is ever rendered or served; the render depends on a headless browser only the optimizer worker runs. Turning it on takes three things:
 
 1. **Enable browser analysis.** `agent_optimize` requires `--enable-browser-analysis`, because the markdown variant comes from a headless render.
 2. **Hold the entitlement.** Your license must include the `agent_optimize` entitlement. Without it, the flag does nothing.
@@ -41,7 +41,7 @@ Be clear on availability, because this one has real gates.
 
 For the site index, `--agent-optimize-llms-txt` (env `PAGESPEED_AGENT_OPTIMIZE_LLMS_TXT=true`, default `false`) implies `agent_optimize`, so enabling the index turns on markdown negotiation too.
 
-This is not a "just works out of the box" feature, and it would be dishonest to sell it as one. It is default-off, license-gated, and dependent on browser analysis being on.
+This is not a "just works out of the box" feature, and it would be dishonest to sell it as one. It is default-off and dependent on browser analysis being on.
 
 ### The cost you are signing up for
 

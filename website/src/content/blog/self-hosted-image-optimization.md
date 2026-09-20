@@ -35,7 +35,7 @@ A third-party transformation service can't structurally offer any of the followi
 
 ## How it works: one decode, many variants
 
-ModPageSpeed 2.0 runs the optimizer as an async worker behind nginx (or as ASP.NET Core middleware). The request path stays fast; the work happens out of band.
+mod_pagespeed 2.1 runs the optimizer as an async worker behind nginx (or as ASP.NET Core middleware). The request path stays fast; the work happens out of band.
 
 When nginx records a cache miss, it sends a fire-and-forget notification to the worker over a Unix socket. The worker reads the original from the shared cache, decodes it once, and generates every missing variant from that single pixel buffer. A 10-megapixel JPEG decodes to roughly 40 MB of raw pixels. Decode it once and run the encoders, instead of decoding it again for every format and size you want.
 
@@ -55,12 +55,12 @@ Self-hosting moves the cost from a per-request meter to operational responsibili
 
 **No global PoPs.** An image CDN transforms and serves from edge nodes physically close to the user. A single origin server does not. If your audience is globally distributed and first-byte edge latency is your bottleneck, origin-based optimization cannot match a CDN on its own.
 
-The two approaches work together. The common pattern is to run ModPageSpeed 2.0 at the origin for the optimization — decode-once transcoding, the variant matrix, the data staying put — and put a plain CDN in front for distribution. The CDN caches and serves the already-optimized variants from the edge. You get edge delivery without paying a transformation service to do work your origin already did once per image.
+The two approaches work together. The common pattern is to run mod_pagespeed at the origin for the optimization — decode-once transcoding, the variant matrix, the data staying put — and put a plain CDN in front for distribution. The CDN caches and serves the already-optimized variants from the edge. You get edge delivery without paying a transformation service to do work your origin already did once per image.
 
 ## Where the break-even line sits
 
 The break-even depends on your request volume and how globally distributed your audience is. If you are under a few hundred thousand image requests a month and your users are spread across continents, an image CDN is often both cheaper and faster, and the economics post says so. Above the crossover, or when the content has to stay on your infrastructure, the free, self-hosted model comes out ahead and stays there as traffic grows.
 
-For a number based on your own traffic rather than a median, the [cost calculator](/calculator/) takes your request volume and shows where the two curves cross. For a feature-and-pricing comparison against the services people evaluate most, see [ModPageSpeed 2.0 vs Cloudinary](/vs/cloudinary/) and [vs imgix](/vs/imgix/). For the product page — what it does to each image, the variant matrix, and how to turn it on — see [self-hosted image optimization](/self-hosted-image-optimization/).
+For a number based on your own traffic rather than a median, the [cost calculator](/calculator/) takes your request volume and shows where the two curves cross. For a feature-and-pricing comparison against the services people evaluate most, see [mod_pagespeed vs Cloudinary](/vs/cloudinary/) and [vs imgix](/vs/imgix/). For the product page — what it does to each image, the variant matrix, and how to turn it on — see [self-hosted image optimization](/self-hosted-image-optimization/).
 
 Self-hosted image optimization will not give you a CDN's edge footprint, and it will not fix a slow application or a slow database. It takes the part of your image bill that scales with traffic and makes it flat, while keeping every byte on your own origin.

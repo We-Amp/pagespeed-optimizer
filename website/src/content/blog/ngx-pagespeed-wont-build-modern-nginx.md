@@ -59,7 +59,7 @@ So when you `git clone` upstream and point `--add-module` at it on a 2026 box, y
 
 ## Installing the prebuilt module
 
-mod_pagespeed 1.15 is the maintained continuation of the open-source module — the same native, in-process nginx module, built for current distros and pinned to each distro's stock nginx. It serves from a signed apt and yum repository at `packages.modpagespeed.com`, amd64 and arm64.
+mod_pagespeed 2.1 is the maintained continuation of the open-source module — the same native, in-process nginx module, built for current distros and pinned to each distro's stock nginx. It serves from a signed apt and yum repository at `packages.modpagespeed.com`, amd64 and arm64.
 
 One line adds the repo. It detects the distribution, installs the GPG signing key, and writes the source file:
 
@@ -93,9 +93,9 @@ If that header is present, the module loaded and is rewriting responses on the r
 
 One constraint to know up front: each prebuilt `.so` is pinned to its distro's stock nginx version, because nginx's `--with-compat` does not relax the version check for a native module. The repository currently covers Debian 11 (nginx 1.18.0), Debian 12 (1.22.1), Debian 13 (1.26.3), Ubuntu 22.04 (1.18.0), and Ubuntu 24.04 (1.24.0), on amd64 and arm64. If you run a hand-rolled nginx newer than your distro's stock build, you still need a module compiled against that exact version. The difference is that it becomes our build to maintain, not yours. The Apache module ships the same way (`mod-pagespeed` via apt, plus el9 and el10 via yum), so a mixed Apache and nginx fleet stays on one repository.
 
-## When to reach for 2.0 instead
+## When to move to mod_pagespeed 2.1 {#when-to-reach-for-20-instead}
 
-The prebuilt [mod_pagespeed 1.15 module](/) is the closest match to what you already run. If you are reworking this part of the stack anyway, [ModPageSpeed 2.0](/) is the other option. It is a C++23 rewrite that runs as an async worker behind an nginx reverse proxy, or as ASP.NET Core middleware, with variant-aware caching and viewport-aware variants. That is a larger architectural change than swapping a module, so it fits when you want the caching model. To keep your existing nginx and ngx_pagespeed setup running with the least change, the 1.15 module is the closer match.
+The prebuilt [module](/) is the closest match to what you already run, and mod_pagespeed 2.1 ships it. If you are reworking this part of the stack anyway, the optimizer worker — the second part, out of the C++23 2.0 re-architecture — runs behind an nginx reverse proxy or as ASP.NET Core middleware, generating viewport-aware variants into the variant-aware cache both parts map. Installing the module alone is the smallest change; adding the worker is the larger one.
 
 ## The short version
 

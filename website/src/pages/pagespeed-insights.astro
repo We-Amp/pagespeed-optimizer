@@ -92,7 +92,7 @@ const auditExamples: Record<string, { slug: string; label: string }> = {
 
 const title = 'Improve your PageSpeed Insights score at the server layer';
 const description =
-  'Which PageSpeed Insights audits ModPageSpeed fixes at the server — render-blocking, next-gen images, caching — and which stay in your code. Free to run.';
+  'Which PageSpeed Insights audits mod_pagespeed fixes at the server — render-blocking, next-gen images, caching — and which stay in your code. Free to run.';
 
 // TechArticle first (seo.spec.ts asserts the first script block's @type),
 // FAQPage second. BaseLayout appends the auto BreadcrumbList last.
@@ -122,18 +122,18 @@ const faqEntries = [
   },
   {
     q: 'How do I improve my PageSpeed Insights score?',
-    a: 'Fix the opportunity audits the report flags, weighted by their impact. The byte-weight and delivery audits — render-blocking resources, next-gen image formats, properly sized images, efficient encoding, and cache policy — are delivery problems below the application, which is where a server-layer optimizer like ModPageSpeed applies. Audits rooted in your own JavaScript, such as INP, unused JavaScript, and third-party code, have to be fixed in the application or build step.',
+    a: 'Fix the opportunity audits the report flags, weighted by their impact. The byte-weight and delivery audits — render-blocking resources, next-gen image formats, properly sized images, efficient encoding, and cache policy — are delivery problems below the application, which is where a server-layer optimizer like mod_pagespeed applies. Audits rooted in your own JavaScript, such as INP, unused JavaScript, and third-party code, have to be fixed in the application or build step.',
   },
   {
     q: 'How do I eliminate render-blocking resources?',
-    a: 'A render-blocking resource is a stylesheet or script in the &lt;head&gt; that the browser must fetch and parse before it paints. ModPageSpeed extracts the above-the-fold CSS rules, inlines them, defers the rest, and inlines small scripts, so the first paint no longer waits on the external stylesheet chain. This is an auto-fix in the audit map: prioritize_critical_css plus inline_css and inline_javascript.',
+    a: 'A render-blocking resource is a stylesheet or script in the &lt;head&gt; that the browser must fetch and parse before it paints. mod_pagespeed extracts the above-the-fold CSS rules, inlines them, defers the rest, and inlines small scripts, so the first paint no longer waits on the external stylesheet chain. This is an auto-fix in the audit map: prioritize_critical_css plus inline_css and inline_javascript.',
   },
   {
     q: 'How do I serve images in next-gen formats?',
-    a: 'Next-gen formats means WebP and AVIF instead of JPEG, PNG, and GIF. ModPageSpeed transcodes images to WebP and AVIF when the requesting browser advertises support via the Accept header, and falls back to the original for browsers that do not. You do not re-author the markup; the server negotiates the format per request. Typical image savings are 40 to 70 percent at visually equivalent quality.',
+    a: 'Next-gen formats means WebP and AVIF instead of JPEG, PNG, and GIF. mod_pagespeed transcodes images to WebP and AVIF when the requesting browser advertises support via the Accept header, and falls back to the original for browsers that do not. You do not re-author the markup; the server negotiates the format per request. Typical image savings are 40 to 70 percent at visually equivalent quality.',
   },
   {
-    q: 'Does ModPageSpeed fix INP and CLS?',
+    q: 'Does mod_pagespeed fix INP and CLS?',
     a: 'INP, no. Interaction to Next Paint is dominated by event-handler and framework JavaScript on the main thread, which a server-layer optimizer cannot rewrite without breaking the application. CLS, partly: the common case of layout shift from images without width and height is auto-fixed by injecting the dimensions, but shifts from late-loading fonts, injected ads, or content added by JavaScript after first paint are application-level and stay in your code.',
   },
   {
@@ -177,8 +177,8 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
       PageSpeed Insights runs the Lighthouse audits and reports which ones a page fails. Some of
       those failures are delivery problems that live below your application &mdash; render-blocking
       CSS, oversized images, weak cache headers &mdash; where a server-layer optimizer applies.
-      Others are in your own JavaScript. This page maps each common audit onto what ModPageSpeed
-      does about it, marks every claim <span class="text-emerald-700 dark:text-emerald-300"
+      Others are in your own JavaScript. This page maps each common audit onto what
+      mod_pagespeed 2.1 does about it, marks every claim <span class="text-emerald-700 dark:text-emerald-300"
         >auto-fix</span
       >,
       <span class="text-amber-700 dark:text-amber-300">assistive</span>, or
@@ -195,8 +195,8 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
       </a>
     </div>
     <p class="mt-4 text-xs text-text-annotation max-w-3xl">
-      PageSpeed Insights and Lighthouse are products of Google LLC. ModPageSpeed is built by We-Amp
-      B.V. and is not affiliated with or endorsed by Google. The <a
+      PageSpeed Insights and Lighthouse are products of Google LLC. mod_pagespeed 2.1 is built by
+      We-Amp B.V. and is not affiliated with or endorsed by Google. The <a
         href="/analyze/"
         class="text-interactive hover:text-interactive-hover underline">Analyze tool</a
       > calls Google's public PageSpeed Insights API and reports its results.
@@ -229,8 +229,8 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
     <section>
       <h2 class="h2-section text-text-body">The audit map: what the server layer fixes</h2>
       <p class="mt-4 text-text-body">
-        Each row is a Lighthouse audit and whether ModPageSpeed addresses it. Of the audits below,
-        {autoFixCount} are auto-fixes: ModPageSpeed handles them with no change to your markup. The rest
+        Each row is a Lighthouse audit and whether mod_pagespeed addresses it. Of the audits below,
+        {autoFixCount} are auto-fixes: mod_pagespeed handles them with no change to your markup. The rest
         are assistive (it helps but cannot fully resolve the audit) or client-side (the fix lives in your
         application or build step).
       </p>
@@ -262,7 +262,7 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
       <div class="mt-8 overflow-x-auto">
         <table class="w-full border-collapse text-sm">
           <caption class="sr-only">
-            Lighthouse audits and how ModPageSpeed addresses each, with coverage and the filter that
+            Lighthouse audits and how mod_pagespeed addresses each, with coverage and the filter that
             applies
           </caption>
           <thead>
@@ -270,7 +270,7 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
               <th scope="col" class="py-3 pr-4 text-left font-semibold text-text-body">Audit</th>
               <th scope="col" class="px-3 py-3 text-left font-semibold text-text-body">Coverage</th>
               <th scope="col" class="px-3 py-3 text-left font-semibold text-text-body"
-                >What ModPageSpeed does</th
+                >What mod_pagespeed does</th
               >
             </tr>
           </thead>
@@ -330,10 +330,10 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
     <section>
       <h2 class="h2-section text-text-body">The auto-fix audits, configured</h2>
       <p class="mt-4 text-text-body">
-        For the audits ModPageSpeed fixes outright, here is the configuration that turns each on and
-        a link to the rewritten output. On mod_pagespeed 1.15 each optimization is a named filter
-        directive; ModPageSpeed 2.0 has no filter directives — image transcoding, CSS/JS
-        minification, and
+        For the audits mod_pagespeed fixes outright, here is the configuration that turns each on
+        and a link to the rewritten output. The module exposes each optimization as a named filter
+        directive; the optimizer worker has no filter directives — image transcoding, CSS/JS
+        minification and
         <a
           href="/blog/server-side-critical-css-nginx/"
           class="text-interactive hover:text-interactive-hover underline"
@@ -361,7 +361,7 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
                   {m.snippet11 && (
                     <>
                       <p class="mt-4 font-mono text-xs uppercase tracking-wide text-text-annotation">
-                        mod_pagespeed 1.15
+                        Module (named filters)
                       </p>
                       <pre class="mt-2 overflow-x-auto rounded-md bg-stone-900 dark:bg-black p-4 text-xs sm:text-sm">
                         <code class="text-stone-100">{m.snippet11}</code>
@@ -371,7 +371,7 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
                   {m.snippet20 && (
                     <>
                       <p class="mt-4 font-mono text-xs uppercase tracking-wide text-text-annotation">
-                        ModPageSpeed 2.0 (nginx)
+                        Optimizer worker (nginx)
                       </p>
                       <pre class="mt-2 overflow-x-auto rounded-md bg-stone-900 dark:bg-black p-4 text-xs sm:text-sm">
                         <code class="text-stone-100">{m.snippet20}</code>
@@ -396,9 +396,9 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
       </div>
 
       <p class="mt-6 text-sm text-text-muted">
-        ModPageSpeed 2.0 generates up to {MAX_VARIANTS} variants per image (format, viewport, pixel density,
-        and a Save-Data path) and serves the right one per request, so the image audits clear for every
-        device class, not just the one Lighthouse tested. The full set of 2.0 transforms is on the
+        The optimizer worker generates up to {MAX_VARIANTS} variants per image (format, viewport, pixel
+        density, and a Save-Data path) and serves the right one per request, so the image audits clear
+        for every device class, not just the one Lighthouse tested. The full set of transforms is on the
         <a href="/features/" class="text-interactive hover:text-interactive-hover underline"
           >features</a
         > page, and each optimization has a live before/after under
@@ -433,7 +433,7 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
         </dl>
       </div>
       <p class="mt-4 text-sm text-text-muted">
-        ModPageSpeed can reduce the <span class="italic">competing</span> startup script by minifying
+        mod_pagespeed can reduce the <span class="italic">competing</span> startup script by minifying
         it and deferring what it can prove is safe to defer, which frees main-thread time around an interaction.
         It will not make a slow click handler fast. The
         <a
@@ -451,8 +451,8 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
         <h2 class="h2-section text-text-body">Score your own page first</h2>
         <p class="mt-3 text-text-body">
           Run a URL through our analyzer &mdash; it scores the page via Google's PageSpeed Insights
-          API and badges each audit auto-fix, assistive, or client-side. Then install ModPageSpeed
-          and clear the ones it owns. It optimizes immediately, licensed or not.
+          API and badges each audit auto-fix, assistive, or client-side. Then install mod_pagespeed
+          and clear the ones it owns. It optimizes immediately.
         </p>
         <div class="mt-6 flex flex-wrap gap-3">
           <a href="/analyze/" class="btn-primary" data-umami-event="cta_psi_analyze"

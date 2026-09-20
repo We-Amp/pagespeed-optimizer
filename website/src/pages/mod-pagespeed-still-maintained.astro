@@ -48,7 +48,7 @@ const articleJsonLd = {
   about: [
     { '@type': 'Thing', name: 'mod_pagespeed' },
     { '@type': 'Thing', name: 'ngx_pagespeed' },
-    { '@type': 'Thing', name: 'ModPageSpeed' },
+    { '@type': 'Thing', name: 'mod_pagespeed 2.1' },
   ],
   image: 'https://modpagespeed.com/og-default.png?v=2',
   publisher: {
@@ -94,7 +94,7 @@ const faqEntries = [
     a: 'The dependency CVEs were cleared by bumping the vendored libraries. libwebp went from 1.1.0 to 1.5.0, which clears CVE-2023-4863 (exploited in the wild); the image codecs (libpng, giflib, libjpeg-turbo) were brought current; curl was moved to the 8.x line and bumped specifically to clear a CVE cluster; and on the nginx side, when the Ubuntu CVE-2026-49975 patch shifted a struct and hung our prebuilt module (built against upstream nginx rather than the patched source each distro ships), we fixed the packaging to build per-distro and added a runtime guard.',
   },
   {
-    q: 'What happened to mod_pagespeed 1.15 and ModPageSpeed 2.0?',
+    q: 'How do mod_pagespeed 1.15 and the 2.0 re-architecture fit into 2.1?',
     a: 'They converged. mod_pagespeed 2.1 continues both: the original module — same directives, Apache and nginx — plus a separate optimizer worker process, under one Apache-2.0 open-source license. The IIS package ships from the 1.15 packaging channel.',
   },
 ];

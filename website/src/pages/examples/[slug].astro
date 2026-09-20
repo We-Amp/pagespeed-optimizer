@@ -106,13 +106,13 @@ if (savings && substantive) {
   }
 }
 
-const pageDescription = `${ex.blurb} See it applied live by mod_pagespeed 1.15, with the source diff and measured byte/request savings.`;
+const pageDescription = `${ex.blurb} See it applied live by the mod_pagespeed module, with the source diff and measured byte/request savings.`;
 
 // TechArticle JSON-LD, mirroring /1.1/docs/[slug].astro. Emitted only on
 // indexable pages (the ones that carry settled before/after data); when
 // !hasData the page is noindex, so no structured data is passed. The product
-// `about` facts use the literal '1.15' (matching the docs template and this
-// page's own "mod_pagespeed 1.15" copy) — not examples-data.json's psHeader,
+// `about` facts use the literal '1.15' (matching the docs template and the
+// module package the demo origin runs) — not examples-data.json's psHeader,
 // which is the engine tag and would reintroduce an old-version string
 // (content accuracy). No example-specific share image exists, so
 // `image` is omitted (BaseLayout's og:image falls back to the shared default).
@@ -179,8 +179,7 @@ const jsonLd: Record<string, unknown> | undefined = hasData
           {ex.note && <span class="ml-1">· {ex.note}</span>}
         </p>
         <p class="mt-2 text-xs text-text-annotation">
-          A mod_pagespeed 1.15 filter. mod_pagespeed 2.1 applies it as part of one always-on
-          pipeline, not as a separate switch.
+          A module filter.
         </p>
         {
           namesGoogle && (
@@ -328,7 +327,7 @@ const jsonLd: Record<string, unknown> | undefined = hasData
       </script>
       <p class="mt-3 text-xs text-text-annotation">
         Both frames render identically — that's the goal. The win is in the bytes and requests
-        below, not the look. They're served live by mod_pagespeed 1.15 on
+        below, not the look. They're served live by the mod_pagespeed module on
         <code class="font-mono">{DEMO_ORIGIN.replace('https://', '')}</code>; the optimized frame
         applies only this filter. Right after a cache purge it may briefly match the original while
         the worker rewrites it — reload to see the result.
@@ -447,7 +446,7 @@ const jsonLd: Record<string, unknown> | undefined = hasData
       >
         <h2 class="h2-section text-text-body">Run this on your own site</h2>
         <p class="mt-3 text-sm text-text-muted max-w-xl mx-auto">
-          This is one of {EXAMPLES.length} filters mod_pagespeed 1.15 applies in place — self-hosted on
+          This is one of {EXAMPLES.length} filters the mod_pagespeed module applies in place — self-hosted on
           Apache, nginx, and IIS. Install and run it: it optimizes right away and adds an
           the optimized response headers shown above.
           {FREE_TO_RUN_LINE}

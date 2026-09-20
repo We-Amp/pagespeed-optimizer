@@ -1,6 +1,6 @@
 ---
 title: 'Air-gapped headless rendering: SSRF protection with pinned, out-of-process fetches'
-description: 'SSRF protection for headless browser rendering: ModPageSpeed 2.0 forces Chrome offline, routing subresources through an IP-pinned fetch re-checked per redirect.'
+description: 'SSRF protection for headless rendering: the optimizer worker forces Chrome offline, routing subresources through an IP-pinned fetch re-checked per redirect.'
 date: 2026-06-14
 author: 'Otto van der Schaaf'
 tags: ['architecture', 'security', 'headless-chrome', 'agentic', 'deep-dive']
@@ -11,7 +11,7 @@ lastUpdated: 2026-09-06
 
 Rendering an untrusted page in a real browser is a server-side request forgery primitive handed to whoever wrote the page. The HTML can point a stylesheet at `http://169.254.169.254/latest/meta-data/iam/security-credentials/`, an XHR at an internal admin port, or a script at a hostname that resolves to RFC1918 space. If the browser's own network stack fetches those, the page has read your cloud metadata endpoint through your renderer. SSRF protection for headless browser rendering is therefore not a feature you bolt on; it is the precondition for letting Chrome touch attacker-controlled markup at all.
 
-ModPageSpeed 2.0 has two answers to this, and this post is about the second one. The legacy perf-measurement render (covered in [/blog/headless-lcp-cls-measurement/](/blog/headless-lcp-cls-measurement/) and [/blog/remove-unused-javascript-chrome-coverage/](/blog/remove-unused-javascript-chrome-coverage/)) forces Chrome offline and serves only bytes the worker already cached, blocking everything else. That is deny-by-default with no egress at all. The [`agent_optimize` render](/blog/serve-markdown-to-ai-agents/) needs more: to produce faithful markdown for AI crawlers it has to actually fetch some subresources. So it keeps Chrome's network off and routes every paused request through an out-of-process, IP-pinned fetch that re-runs the full origin and SSRF policy on each redirect hop. The code lives in `src/browser/agent_fetcher.cc`, `lib/net/fetch_policy.cc`, `lib/net/upstream_pin.cc`, and `lib/net/ssrf_guard.cc`.
+The mod_pagespeed 2.1 optimizer worker has two answers to this, and this post is about the second one. The legacy perf-measurement render (covered in [/blog/headless-lcp-cls-measurement/](/blog/headless-lcp-cls-measurement/) and [/blog/remove-unused-javascript-chrome-coverage/](/blog/remove-unused-javascript-chrome-coverage/)) forces Chrome offline and serves only bytes the worker already cached, blocking everything else. That is deny-by-default with no egress at all. The [`agent_optimize` render](/blog/serve-markdown-to-ai-agents/) needs more: to produce faithful markdown for AI crawlers it has to actually fetch some subresources. So it keeps Chrome's network off and routes every paused request through an out-of-process, IP-pinned fetch that re-runs the full origin and SSRF policy on each redirect hop. The code lives in `src/browser/agent_fetcher.cc`, `lib/net/fetch_policy.cc`, `lib/net/upstream_pin.cc`, and `lib/net/ssrf_guard.cc`.
 
 ## SSRF protection for headless rendering: Chrome's network stays off
 
@@ -65,7 +65,7 @@ One scope note: the markdown post that mentions SSRF for `/llms.txt` fetching de
 - [/blog/visual-regression-gating-optimizations/](/blog/visual-regression-gating-optimizations/) — another off-request-path browser job.
 - [/blog/why-i-rebuilt-mod-pagespeed/](/blog/why-i-rebuilt-mod-pagespeed/) — why 2.0 is an independent rebuild.
 
-If you run a renderer over pages you do not control, the egress model is the part to read before you trust the output. ModPageSpeed 2.0's `agent_optimize` path is off by default and documented at [/docs/agent-optimize/](/docs/agent-optimize/); the offline render that drives everyday optimization needs none of this and ships on by default. You can pull the worker image and read the policy code yourself from [/download/](/download/); it is licensed under Apache-2.0 and free to run, so you can verify the behavior described here on your own deployment.
+If you run a renderer over pages you do not control, the egress model is the part to read before you trust the output. The optimizer worker's `agent_optimize` path is off by default and documented at [/docs/agent-optimize/](/docs/agent-optimize/); the offline render that drives everyday optimization needs none of this and ships on by default. You can pull the worker image and read the policy code yourself from [/download/](/download/); it is licensed under Apache-2.0 and free to run, so you can verify the behavior described here on your own deployment.
 
 ---
 

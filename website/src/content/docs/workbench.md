@@ -1,14 +1,14 @@
 ---
 title: 'Use the web console'
-description: 'Inspect cache contents, monitor live throughput and bandwidth savings, and hot-reload configuration from the ModPageSpeed 2.0 web console at /console/.'
+description: 'Inspect cache contents, monitor live throughput and bandwidth savings, and hot-reload configuration from the mod_pagespeed 2.1 web console at /console/.'
 order: 31
 group: 'Operate'
-lastUpdated: 2026-09-06
+lastUpdated: 2026-09-19
 ---
 
 The web console is a SvelteKit application served directly by the worker
 at `/console/`. It connects to the worker's HTTP API over WebSocket and REST,
-giving you real-time visibility into what ModPageSpeed 2.0 is doing on your
+giving you real-time visibility into what the optimizer worker is doing on your
 server.
 
 The console runs on the same machine as your worker and is accessible only
@@ -16,14 +16,14 @@ from your network. It loads no third-party scripts and makes no outbound network
 
 <img
   src="/images/console-2.0-dashboard.png"
-  alt="ModPageSpeed 2.0 web console dashboard showing total bandwidth saved, cache hit counters, and live throughput and health charts"
+  alt="mod_pagespeed 2.1 web console dashboard showing total bandwidth saved, cache hit counters, and live throughput and health charts"
   width="1440"
   height="900"
   loading="lazy"
   class="rounded-lg border border-border"
 />
 
-**See it live:** the [read-only ModPageSpeed 2.0 console](https://we-amp.com/console/) runs on our own production deployment — the dashboard above shows real optimization stats from the traffic that deployment serves. It runs in [Public Demo Mode](#public-demo-mode), so you can browse every view without a login.
+**See it live:** the [read-only web console](https://we-amp.com/console/) runs on our own production deployment — the dashboard above shows real optimization stats from the traffic that deployment serves. It runs in [Public Demo Mode](#public-demo-mode), so you can browse every view without a login.
 
 ## Accessing the Console
 
@@ -135,7 +135,7 @@ Network waterfall visualization powered by headless Chrome (requires
 - **Single capture** -- loads the page and renders a waterfall chart showing
   every network request with timing bars
 - **Capture Both** -- runs two sequential captures: one directly to the origin
-  (baseline) and one through the PageSpeed interceptor (optimized). Displays
+  (baseline) and one through mod_pagespeed (optimized). Displays
   them side by side.
 - **Comparison summary bar** -- transfer size savings, resource count diff,
   and finish time diff with percentage changes

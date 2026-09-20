@@ -82,14 +82,15 @@ const jsonLd = [
   {
     '@context': 'https://schema.org',
     '@type': ['Product', 'SoftwareApplication'],
-    name: 'ModPageSpeed',
+    name: 'mod_pagespeed 2.1',
+    alternateName: 'ModPageSpeed',
     image: 'https://modpagespeed.com/og-default.png?v=2',
     applicationCategory: 'WebApplication',
     operatingSystem: ['Linux', 'Windows', 'macOS'],
     description:
-      'Cloudflare APO is WordPress-only and runs at the Cloudflare edge. ModPageSpeed runs at your origin, supports any CMS, and is free under the Apache License 2.0 — every server behind the site is covered.',
+      'Cloudflare APO is WordPress-only and runs at the Cloudflare edge. mod_pagespeed runs at your origin, supports any CMS, and is free under the Apache License 2.0 — every server behind the site is covered.',
     url: 'https://modpagespeed.com/',
-    brand: { '@type': 'Brand', name: 'ModPageSpeed' },
+    brand: { '@type': 'Brand', name: 'mod_pagespeed 2.1' },
     publisher: { '@id': 'https://we-amp.com/#organization' },
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
   },
@@ -97,8 +98,8 @@ const jsonLd = [
 ---
 
 <BaseLayout
-  title="ModPageSpeed vs Cloudflare APO: self-hosted vs the edge"
-  description="A Cloudflare APO alternative: APO caches WordPress HTML at the edge; ModPageSpeed optimizes at your origin on any stack. Self-hosted vs SaaS, by the numbers."
+  title="mod_pagespeed vs Cloudflare APO: self-hosted vs the edge"
+  description="A Cloudflare APO alternative: APO caches WordPress HTML at the edge; mod_pagespeed optimizes at your origin on any stack. Self-hosted vs SaaS, by the numbers."
   jsonLd={jsonLd}
 >
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16">
@@ -110,16 +111,16 @@ const jsonLd = [
       <span>vs Cloudflare APO</span>
     </nav>
 
-    <h1 class="mt-6 h1-hero text-text-body">ModPageSpeed vs Cloudflare APO</h1>
+    <h1 class="mt-6 h1-hero text-text-body">mod_pagespeed vs Cloudflare APO</h1>
 
     <section class="mt-8">
       <h2 class="h2-section text-text-body">TL;DR</h2>
       <p class="mt-4 text-text-body">
         Cloudflare APO caches your WordPress HTML at Cloudflare's edge and serves it from there.
-        ModPageSpeed runs on your origin server and optimizes the response itself &mdash; images,
+        mod_pagespeed runs on your origin server and optimizes the response itself &mdash; images,
         CSS, JS, and HTML. APO is faster to enable if you're on WordPress and already on Cloudflare.
-        ModPageSpeed is the option when you want the optimization to live on your infrastructure and
-        work across platforms.
+        mod_pagespeed is the option when you want the optimization to live on your infrastructure
+        and work across platforms.
       </p>
     </section>
 
@@ -154,10 +155,10 @@ const jsonLd = [
     </section>
 
     <section class="mt-12">
-      <h2 class="h2-section text-text-body">When to choose ModPageSpeed</h2>
+      <h2 class="h2-section text-text-body">When to choose mod_pagespeed</h2>
       <ul class="mt-4 space-y-2 list-disc pl-6 text-text-body">
         <li>
-          You're not on WordPress. APO is WordPress-only; ModPageSpeed works on any stack that runs
+          You're not on WordPress. APO is WordPress-only; mod_pagespeed works on any stack that runs
           nginx, Apache, or IIS.
         </li>
         <li>
@@ -186,7 +187,7 @@ const jsonLd = [
       <h2 class="h2-section text-text-body">How they overlap</h2>
       <p class="mt-4 text-text-body">
         Both improve Core Web Vitals and ship fewer bytes. Each also composes with the other tools
-        in its ecosystem &mdash; APO with Cloudflare Polish, ModPageSpeed with whatever CDN sits in
+        in its ecosystem &mdash; APO with Cloudflare Polish, mod_pagespeed with whatever CDN sits in
         front of it.
       </p>
       <p class="mt-4 text-text-body">
@@ -197,7 +198,7 @@ const jsonLd = [
         >).
       </p>
       <p class="mt-4 text-text-body">
-        You can also run them together: ModPageSpeed at the origin, Cloudflare in front for global
+        You can also run them together: mod_pagespeed at the origin, Cloudflare in front for global
         caching. The optimization happens once at the origin and benefits from edge distribution.
       </p>
     </section>
@@ -207,7 +208,7 @@ const jsonLd = [
         id="migrating-from-cloudflare-apo-to-modpagespeed"
         class="h2-section scroll-mt-24 text-text-body"
       >
-        Migrating from Cloudflare APO to ModPageSpeed
+        Migrating from Cloudflare APO to mod_pagespeed
       </h2>
       <p class="mt-4 text-text-body">
         Migration is reasonable if you've outgrown WordPress, moved off Cloudflare, or need
@@ -217,7 +218,7 @@ const jsonLd = [
       <p class="mt-4 text-text-body">If you do migrate:</p>
       <ol class="mt-3 space-y-2 list-decimal pl-6 text-text-body">
         <li>
-          Keep APO enabled while you stand up ModPageSpeed on the origin. Verify origin-side
+          Keep APO enabled while you stand up mod_pagespeed on the origin. Verify origin-side
           optimization works in a staging environment.
         </li>
         <li>
@@ -226,7 +227,7 @@ const jsonLd = [
         </li>
         <li>
           Leave Cloudflare in front as a plain CDN if you want global distribution &mdash;
-          ModPageSpeed's cache hits compose cleanly with it.
+          mod_pagespeed's cache hits compose cleanly with it.
         </li>
       </ol>
     </section>
@@ -238,7 +239,7 @@ const jsonLd = [
         in the Cloudflare dashboard. No server-side configuration.
       </p>
       <p class="mt-4 text-text-body">
-        <strong>Installing mod_pagespeed 1.15 for nginx</strong> on Debian&nbsp;11/12/13, Ubuntu&nbsp;22.04/24.04
+        <strong>Installing mod_pagespeed 2.1 for nginx</strong> on Debian&nbsp;11/12/13, Ubuntu&nbsp;22.04/24.04
         (amd64 + arm64), or AlmaLinux&nbsp;9 (x86_64 + aarch64):
       </p>
       <pre
@@ -292,12 +293,12 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
           <a href="/vs/nitropack/" class="text-interactive hover:text-interactive-hover underline"
-            >ModPageSpeed vs NitroPack</a
+            >mod_pagespeed vs NitroPack</a
           > &mdash; another managed/SaaS optimization option
         </li>
         <li>
           <a href="/vs/wp-rocket/" class="text-interactive hover:text-interactive-hover underline"
-            >ModPageSpeed vs WP Rocket</a
+            >mod_pagespeed vs WP Rocket</a
           > &mdash; WordPress plugin alternative if you want to stay self-hosted but plugin-based
         </li>
         <li>
@@ -309,8 +310,9 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
         </li>
         <li>
           <a href="/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed 1.15</a
-          > &mdash; drop-in continuation with native nginx, Apache, and IIS modules (Envoy experimental)
+            >mod_pagespeed 2.1</a
+          > &mdash; drop-in continuation with native modules for Apache and nginx. The IIS package ships
+          from the 1.15 packaging channel.
         </li>
       </ul>
     </section>

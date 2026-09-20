@@ -11,7 +11,7 @@ product: '2.0'
 
 A crawler sends `GET /docs/configuration/` with `Accept: text/markdown`. Instead of a few hundred kilobytes of HTML wrapped in nav bars, script tags, and a cookie banner, it gets back a markdown document: headings, paragraphs, a code fence, the canonical link targets, and nothing else. The response carries `Content-Type: text/markdown`, `Vary: Accept`, `X-Robots-Tag: noindex`, and `Cache-Control: private`. The same origin also publishes a synthesized `/llms.txt` site-index built from its own sitemap.
 
-This is the feature in ModPageSpeed 2.0 that **serves markdown to AI crawlers** on the same URL a browser uses. It ships in the 2.0 worker but is **experimental and off by default**; it is content negotiation, not a separate endpoint or a separate build. Two things up front. The markdown variant is **operator-gated**: it is selected only when you have enabled agent optimization and the request asks for it. And the whole pipeline **honors AI opt-out signals**: `robots.txt` AI blocks, `X-Robots-Tag: noai`, `Google-Extended`, and known AI user agents. Both are in the code below.
+This is the feature in the mod_pagespeed 2.1 optimizer worker that **serves markdown to AI crawlers** on the same URL a browser uses. It ships in the worker but is **experimental and off by default**; it is content negotiation, not a separate endpoint or a separate build. Two things up front. The markdown variant is **operator-gated**: it is selected only when you have enabled agent optimization and the request asks for it. And the whole pipeline **honors AI opt-out signals**: `robots.txt` AI blocks, `X-Robots-Tag: noai`, `Google-Extended`, and known AI user agents. Both are in the code below.
 
 ## How to serve markdown to AI crawlers: SAX HTML to markdown, with a `<main>`/`<article>` guard
 
@@ -52,7 +52,7 @@ So: operator-gated, served as `text/markdown`, private and non-indexed. Not on b
 
 ## Synthesizing /llms.txt from the sitemap
 
-`/llms.txt` is a site-index for agents — a short, link-first map of what the site is. ModPageSpeed 2.0 synthesizes one from the customer's own sitemap rather than asking anyone to hand-author it. The builder is `LlmsTxtBuilder::Build` (`src/worker/llms_txt_builder.cc`), and it is pure of process effects: the two blocking operations (an own-origin HTTP GET, and a read of an existing agent-markdown variant from cache) are injected functions, so the whole orchestration is unit-testable without a network or a render.
+`/llms.txt` is a site-index for agents — a short, link-first map of what the site is. The optimizer worker synthesizes one from the customer's own sitemap rather than asking anyone to hand-author it. The builder is `LlmsTxtBuilder::Build` (`src/worker/llms_txt_builder.cc`), and it is pure of process effects: the two blocking operations (an own-origin HTTP GET, and a read of an existing agent-markdown variant from cache) are injected functions, so the whole orchestration is unit-testable without a network or a render.
 
 The flow, in order:
 

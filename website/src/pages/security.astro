@@ -3,13 +3,13 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
 <BaseLayout
-  title="Security — ModPageSpeed 2.0"
-  description="ModPageSpeed 2.0 security policy. Report vulnerabilities, threat model, supply chain security, and safe harbor for researchers."
+  title="Security — mod_pagespeed 2.1"
+  description="mod_pagespeed 2.1 security policy (previously ModPageSpeed 2.0). Report vulnerabilities, threat model, supply chain security, and safe harbor for researchers."
 >
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
     <h1 class="h1-hero text-text-body">Security</h1>
     <p class="mt-6 text-lg text-text-muted">
-      ModPageSpeed 2.0 processes untrusted content &mdash; HTML, CSS, JavaScript, and images from
+      mod_pagespeed 2.1 processes untrusted content &mdash; HTML, CSS, JavaScript, and images from
       origin servers. We take this seriously.
     </p>
 
@@ -82,9 +82,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       <div>
         <h2 class="h2-section text-text-body">Scope</h2>
         <p class="mt-4 text-text-muted">
-          This security policy covers the ModPageSpeed 2.0 software (the nginx reverse proxy, the
-          optimization worker, and the cache layer), the mod_pagespeed 1.15 ports (Apache, nginx,
-          Envoy, IIS), and the
+          This security policy covers the mod_pagespeed 2.1 software (the module, the
+          optimizer worker, and the cache layer) on Apache, nginx and IIS, and the
           <a
             href="https://modpagespeed.com"
             class="text-interactive hover:text-interactive-hover underline"
@@ -155,12 +154,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       >
         <h2 class="text-xl font-bold text-text-body">Architecture note</h2>
         <p class="mt-4 text-text-muted">
-          Both products process untrusted content by design &mdash; they rewrite HTML, minify CSS
+          Both parts process untrusted content by design &mdash; they rewrite HTML, minify CSS
           and JavaScript, and transcode images from origins you configure. We take this attack
-          surface seriously. ModPageSpeed 2.0 and mod_pagespeed 1.15 both build on a current
-          toolchain and run with AddressSanitizer and UndefinedBehaviorSanitizer in CI, catching
-          memory safety issues and undefined behavior before they reach production. The 2.0 code is
-          written in C++23 with smart pointers and RAII throughout.
+          surface seriously. Both parts of mod_pagespeed 2.1 build on a current toolchain and run
+          with AddressSanitizer and UndefinedBehaviorSanitizer in CI, catching memory safety issues
+          and undefined behavior before they reach production. The optimizer worker is written in
+          C++23 with smart pointers and RAII throughout.
         </p>
       </div>
 
@@ -168,7 +167,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       <div>
         <h2 class="h2-section text-text-body">Threat model</h2>
         <p class="mt-4 text-text-muted">
-          ModPageSpeed processes untrusted images, CSS, JS, and HTML from origin servers. The worker
+          mod_pagespeed processes untrusted images, CSS, JS, and HTML from origin servers. The worker
           process communicates only via a local Unix socket &mdash; it has no network access beyond
           the cache file and socket. All content parsing uses memory-safe patterns validated by
           continuous sanitizer testing (ASan, UBSan, TSan). No user data is transmitted externally.

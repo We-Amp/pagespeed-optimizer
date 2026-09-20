@@ -13,8 +13,8 @@ faq:
     a: 'The Web Bot Auth verifier is observe-only — it labels and counts RFC 9421 request signatures and never blocks. RSL-CAP is an operator-gated access-control layer for a distinct token type (Authorization: License capability tokens): it validates the token and returns 401/402/pass. The two use separate, isolated key trust domains.'
   - q: 'Where do the issuer keys come from?'
     a: 'From HTTPS JWKS key directories you configure. The worker warm-fetches and refreshes them in the background into a dedicated trust realm, so validation on the request path is a single in-memory Ed25519 check and never waits on the network. v1 validates against key directories only — there is no live token-introspection endpoint or remote authorization call.'
-  - q: 'Is this available in mod_pagespeed 1.15?'
-    a: 'Yes. mod_pagespeed 1.15 ships the same RSL-CAP validator core for nginx, configured with pagespeed directives. ModPageSpeed 2.0 configures it via environment variables.'
+  - q: 'Does the module validate these tokens too?'
+    a: 'Yes. The module ships the same RSL-CAP validator core for nginx, configured with pagespeed directives. The optimizer worker configures it via environment variables.'
 ---
 
 An `Authorization: License <token>` capability token is a compact, Ed25519-signed
@@ -53,7 +53,7 @@ The signature is always verified **before** expiry and authorization, so a
 tampered expiry or grant list can never influence those checks. `401` means "no
 valid licensed identity"; `402` means "the identity is cryptographically valid,
 but this license/scope is not granted" — `401` responses carry a
-`WWW-Authenticate: License` challenge. The engine only emits the status — it
+`WWW-Authenticate: License` challenge. The validator only emits the status — it
 never settles, meters, or handles money.
 
 Aggregate counts are exported at `/v1/metrics`:
@@ -119,8 +119,8 @@ counterpart to this layer: it classifies RFC 9421 request signatures and never
 blocks, whereas RSL-CAP is the operator-gated access-control layer that returns
 `401`/`402`/pass. The two use separate, isolated key trust domains.
 
-For the design rationale and the mod_pagespeed 1.15 nginx directives that
-configure the same validator, see [Pay-per-crawl at the
+For the design rationale and the module's nginx directives that configure the
+same validator, see [Pay-per-crawl at the
 origin](/blog/pay-per-crawl-at-the-origin/). For where token-gated access sits
 alongside crawler verification, rendered-markdown, and provenance preservation,
 see the pillar overview, [The agentic web at the

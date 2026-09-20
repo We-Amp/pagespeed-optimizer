@@ -4,9 +4,9 @@ import { getCollection } from 'astro:content';
 
 const pages = (await getCollection('how-it-works')).sort((a, b) => a.data.order - b.data.order);
 
-const title = 'How ModPageSpeed Works: CSS, Caching & Async Rewriting';
+const title = 'How mod_pagespeed works: CSS, caching, async rewriting';
 const description =
-  'How ModPageSpeed optimizes pages on your server: parsing CSS, caching optimized variants, and rewriting off the request path.';
+  'How mod_pagespeed optimizes pages on your server: parsing CSS, caching optimized variants, and rewriting off the request path.';
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -39,7 +39,8 @@ const jsonLd = {
       The docs tell you which directives to set; the blog covers what to fix on a given stack. These
       are the explainers in between &mdash; how the optimization actually works under the hood. The
       techniques trace back to the open-source mod_pagespeed and ngx_pagespeed projects, which We-Amp
-      helped build and maintain; ModPageSpeed 2.0 and mod_pagespeed 1.15 carry them forward.
+      helped build and maintain; mod_pagespeed 2.1 carries them forward in both of its parts &mdash;
+      the module and the optimizer worker.
     </p>
 
     <div class="mt-12 space-y-4">
@@ -75,14 +76,11 @@ const jsonLd = {
 
     <div class="mt-10 border-t border-border pt-8">
       <p class="text-sm text-text-muted">
-        Run it: <a
+        Run it: the <a
           href="/docs/"
-          class="text-interactive hover:text-interactive-hover underline">ModPageSpeed 2.0 docs</a
-        > for the out-of-process worker, or <a
-          href="/docs/"
-          class="text-interactive hover:text-interactive-hover underline"
-          >mod_pagespeed 1.15 docs</a
-        > for the in-process module on Apache, nginx, and IIS.
+          class="text-interactive hover:text-interactive-hover underline">mod_pagespeed 2.1 docs</a
+        > cover both parts &mdash; the in-process module for Apache, nginx and IIS, and the optimizer
+        worker that does the heavy optimization off the request path.
       </p>
       <p class="mt-3 text-sm text-text-muted">
         Measuring your own pages? <a

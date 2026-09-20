@@ -7,7 +7,7 @@ import { editionClause, FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
 const rows = [
   {
     label: 'Deployment',
-    mps: 'Self-hosted (nginx interceptor + worker)',
+    mps: 'Self-hosted (module + optimizer worker)',
     other: 'Managed SaaS with CDN',
   },
   {
@@ -17,7 +17,7 @@ const rows = [
   },
   {
     label: 'Platform',
-    mps: '1.15 ships native modules for nginx, Apache, and IIS (Envoy experimental); 2.0 runs as an nginx reverse proxy or ASP.NET Core middleware',
+    mps: 'Native module for Apache and nginx, reverse-proxy mode in front of any HTTP origin, or ASP.NET Core middleware. The IIS package ships from the 1.15 packaging channel.',
     other: 'Any stack (URL-based API + SDKs)',
   },
   {
@@ -80,14 +80,15 @@ const jsonLd = [
   {
     '@context': 'https://schema.org',
     '@type': ['Product', 'SoftwareApplication'],
-    name: 'ModPageSpeed',
+    name: 'mod_pagespeed 2.1',
+    alternateName: 'ModPageSpeed',
     image: 'https://modpagespeed.com/og-default.png?v=2',
     applicationCategory: 'WebApplication',
     operatingSystem: ['Linux', 'Windows', 'macOS'],
     description:
-      'Cloudinary is a managed media SaaS with video. ModPageSpeed is self-hosted image work plus critical CSS, JS, and HTML rewriting in one pipeline.',
+      'Cloudinary is a managed media SaaS with video. mod_pagespeed is self-hosted image work plus critical CSS, JS, and HTML rewriting in one pipeline.',
     url: 'https://modpagespeed.com/',
-    brand: { '@type': 'Brand', name: 'ModPageSpeed' },
+    brand: { '@type': 'Brand', name: 'mod_pagespeed 2.1' },
     publisher: { '@id': 'https://we-amp.com/#organization' },
     offers: offerJsonLd(),
   },
@@ -95,8 +96,8 @@ const jsonLd = [
 ---
 
 <BaseLayout
-  title="ModPageSpeed vs Cloudinary — self-hosted alternative"
-  description="Cloudinary alternative: ModPageSpeed optimizes images self-hosted at your origin — no media leaves your servers — plus CSS, JS, and HTML in one pipeline."
+  title="mod_pagespeed vs Cloudinary — self-hosted alternative"
+  description="Cloudinary alternative: mod_pagespeed optimizes images self-hosted at your origin — no media leaves your servers — plus CSS, JS, and HTML in one pipeline."
   jsonLd={jsonLd}
 >
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16">
@@ -108,17 +109,17 @@ const jsonLd = [
       <span>vs Cloudinary</span>
     </nav>
 
-    <h1 class="mt-6 h1-hero text-text-body">ModPageSpeed vs Cloudinary</h1>
+    <h1 class="mt-6 h1-hero text-text-body">mod_pagespeed vs Cloudinary</h1>
 
     <section class="mt-8">
       <h2 class="h2-section text-text-body">TL;DR</h2>
       <p class="mt-4 text-text-body">
         Cloudinary is a managed media platform &mdash; images and video are uploaded to Cloudinary,
-        transformed via URL-driven APIs, and delivered through its CDN. ModPageSpeed is a
+        transformed via URL-driven APIs, and delivered through its CDN. mod_pagespeed is a
         self-hosted optimization layer that includes images but also handles CSS, JS, and HTML. If
         image and video transformations are the bottleneck and you don't want to run that
         infrastructure, Cloudinary is the obvious fit. If you want optimization to stay on your
-        origin and cover more than just media, ModPageSpeed is the alternative.
+        origin and cover more than just media, mod_pagespeed is the alternative.
       </p>
     </section>
 
@@ -138,7 +139,7 @@ const jsonLd = [
           Cloudinary is built for.
         </li>
         <li>
-          You want video transcoding and adaptive-bitrate streaming. ModPageSpeed doesn't handle
+          You want video transcoding and adaptive-bitrate streaming. mod_pagespeed doesn't handle
           video at all.
         </li>
         <li>
@@ -156,7 +157,7 @@ const jsonLd = [
     </section>
 
     <section class="mt-12">
-      <h2 class="h2-section text-text-body">When to choose ModPageSpeed</h2>
+      <h2 class="h2-section text-text-body">When to choose mod_pagespeed</h2>
       <ul class="mt-4 space-y-2 list-disc pl-6 text-text-body">
         <li>
           You want optimization to stay on your origin. Cloudinary's value is its cloud &mdash; if
@@ -183,7 +184,7 @@ const jsonLd = [
         </li>
         <li>
           You're optimizing existing HTML responses, not building a media-asset workflow from
-          scratch. ModPageSpeed rewrites image URLs in the page; Cloudinary expects the page to
+          scratch. mod_pagespeed rewrites image URLs in the page; Cloudinary expects the page to
           reference Cloudinary URLs.
         </li>
         <li>
@@ -197,7 +198,7 @@ const jsonLd = [
       <h2 class="h2-section text-text-body">How they overlap</h2>
       <p class="mt-4 text-text-body">
         Both produce optimized images and serve different variants to different clients, cutting
-        image bytes on the wire; on the ModPageSpeed side that is WebP and AVIF across 1.15 and 2.0.
+        image bytes on the wire; on the mod_pagespeed side that is WebP and AVIF.
       </p>
       <p class="mt-4 text-text-body">
         The overlap is image format conversion and responsive sizing. For CSS, JS, HTML, video, and
@@ -205,16 +206,16 @@ const jsonLd = [
       </p>
       <p class="mt-4 text-text-body">
         One axis a remote media CDN doesn&rsquo;t touch is the HTML document itself. Because
-        ModPageSpeed runs at your origin, origin-side HTML rewriting and lighter markup improve what
-        crawlers and AI agents actually see &mdash; the page they parse, not just the media embedded
-        in it. Cloudinary serves transformed assets, but the surrounding markup never passes through
-        it. See <a
+        mod_pagespeed runs at your origin, origin-side HTML rewriting and lighter markup improve
+        what crawlers and AI agents actually see &mdash; the page they parse, not just the media
+        embedded in it. Cloudinary serves transformed assets, but the surrounding markup never
+        passes through it. See <a
           href="/ai-readability/"
           class="text-interactive hover:text-interactive-hover underline">AI readability</a
         > for where that line of work is headed.
       </p>
       <p class="mt-4 text-text-body">
-        You can also use them together: Cloudinary for user-uploaded media and video; ModPageSpeed
+        You can also use them together: Cloudinary for user-uploaded media and video; mod_pagespeed
         for the rest of the page (critical CSS, JS minification, optimization of any non-Cloudinary
         images). That composition is common when video is in scope.
       </p>
@@ -225,7 +226,7 @@ const jsonLd = [
         id="migrating-from-cloudinary-to-modpagespeed"
         class="h2-section scroll-mt-24 text-text-body"
       >
-        Migrating from Cloudinary to ModPageSpeed
+        Migrating from Cloudinary to mod_pagespeed
       </h2>
       <p class="mt-4 text-text-body">
         Migration is reasonable if your image use is straightforward (resize, reformat, lazy load)
@@ -234,12 +235,12 @@ const jsonLd = [
       </p>
       <p class="mt-4 text-text-body">
         Partial migration is more common than full migration: keep Cloudinary for video and user
-        uploads; let ModPageSpeed handle the HTML-referenced static images on the origin.
+        uploads; let mod_pagespeed handle the HTML-referenced static images on the origin.
       </p>
       <p class="mt-4 text-text-body">If you do migrate (or partially migrate):</p>
       <ol class="mt-3 space-y-2 list-decimal pl-6 text-text-body">
         <li>
-          Audit your templates for hard-coded Cloudinary URLs. ModPageSpeed rewrites origin image
+          Audit your templates for hard-coded Cloudinary URLs. mod_pagespeed rewrites origin image
           URLs at HTML-rewrite time &mdash; many template patterns can be simplified.
         </li>
         <li>
@@ -252,7 +253,7 @@ const jsonLd = [
           > sets up a working origin-side baseline.
         </li>
         <li>
-          Decide where video lives. ModPageSpeed does not process video; if Cloudinary was your
+          Decide where video lives. mod_pagespeed does not process video; if Cloudinary was your
           video pipeline, keep it or move to a dedicated video service.
         </li>
       </ol>
@@ -267,7 +268,7 @@ const jsonLd = [
       <pre
         class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>https://res.cloudinary.com/&lt;cloud&gt;/image/upload/f_auto,q_auto,w_800/photo.jpg</code></pre>
       <p class="mt-4 text-text-body">
-        <strong>mod_pagespeed 1.15 equivalent.</strong> Install the nginx module on Debian&nbsp;11/12/13,
+        <strong>mod_pagespeed 2.1 equivalent.</strong> Install the nginx module on Debian&nbsp;11/12/13,
         Ubuntu&nbsp;22.04/24.04 (amd64 + arm64), or AlmaLinux&nbsp;9 (x86_64 + aarch64):
       </p>
       <pre
@@ -284,7 +285,7 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
       <p class="mt-4 text-text-body">
         Both arrive at "the browser gets WebP when it supports it." The difference is the asset's
         home address: Cloudinary's CDN versus your origin (optionally with a generic CDN in front).
-        AVIF output on the ModPageSpeed side is available across 1.15 and 2.0.
+        AVIF output is available on the mod_pagespeed side too.
       </p>
     </section>
 
@@ -321,19 +322,19 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
           <a href="/vs/imgproxy/" class="text-interactive hover:text-interactive-hover underline"
-            >ModPageSpeed vs imgproxy</a
+            >mod_pagespeed vs imgproxy</a
           > &mdash; self-hosted alternative if you only need image processing
         </li>
         <li>
           <a href="/vs/thumbor/" class="text-interactive hover:text-interactive-hover underline"
-            >ModPageSpeed vs Thumbor</a
+            >mod_pagespeed vs Thumbor</a
           > &mdash; self-hosted alternative with smart cropping
         </li>
         <li>
           <a
             href="/vs/cloudflare-apo/"
             class="text-interactive hover:text-interactive-hover underline"
-            >ModPageSpeed vs Cloudflare APO</a
+            >mod_pagespeed vs Cloudflare APO</a
           > &mdash; managed edge-cache alternative
         </li>
         <li>

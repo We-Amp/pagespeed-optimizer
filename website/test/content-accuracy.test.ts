@@ -306,6 +306,35 @@ type DenyRule = {
   // CLAUSE-SCOPED — a denial in the neighbouring clause is about a different
   // claim and must not disarm this one.
   negationExempt?: RegExp;
+  // WHOLE-FILE exemption, by path relative to the website root. Reserved for a
+  // surface that is a HISTORICAL RECORD rather than a claim about the product
+  // as it is today (an archived release history, a frozen doc set, the legal
+  // pages that enumerate predecessor lines by name). A clause-scoped exemption
+  // cannot express "this whole document speaks in the past tense", and widening
+  // the regex until such a document passes would blind the rule everywhere
+  // else. Every rule that sets this pins the exact list of files it exempts in
+  // a test, so the exemption cannot silently widen to a live copy surface.
+  exemptFile?: (rel: string) => boolean;
+  // The exact scan-surface files `exemptFile` is allowed to cover. Asserted to
+  // match, so adding a file to the tree (or broadening the predicate) fails
+  // loudly instead of quietly removing a page from the rule's eyes.
+  exemptFileExpectation?: string[];
+  // Tighten the text this rule's exemptions are tested against to the
+  // COMMA-DELIMITED PART of the clause the match starts in.
+  //
+  // A comma is deliberately NOT a clause boundary for the rule REGEXES: one
+  // claim runs straight through a comma ("the worker, which ships only as an
+  // image"). But it is exactly the seam an EXEMPTION gets abused across,
+  // because bolting a true statement on after a comma is the most natural
+  // sentence a writer produces:
+  //   "ModPageSpeed 2.0 is the current product, see the migration guide."
+  //   "The optimizer worker is not in the yum repository on Linux, and the
+  //    IIS package ships from the 1.15 packaging channel."
+  // Each is false in its first part and exempt only because of its second —
+  // and the second is copy the programme itself mandates, so the disarm is
+  // not hypothetical. Opt IN per rule; every rule that sets this pins the
+  // abuse with `exemptionMustNotDisarm` probes.
+  exemptScope?: 'clause' | 'comma-part';
   variantsBad?: string[]; // extra affirmative reintroductions that MUST be flagged
   variantsGood?: string[]; // extra legitimate phrasings that MUST NOT be flagged
   // ADVERSARIAL PROBES for the exemptions. Sentences that carry an exemption
@@ -314,6 +343,71 @@ type DenyRule = {
   // too broad" from a silent hole into a red test.
   exemptionMustNotDisarm?: string[];
 };
+
+// A gap INSIDE a rule regex that stops at a clause boundary instead of running
+// to its character limit. A rule that pairs a subject with an object across a
+// wide [^\n]{0,80} window otherwise matches a subject in sentence one against
+// an object in sentence two — "The optimizer worker runs as its own service.
+// The module is a loadable nginx module." is two true statements, not a claim
+// that the worker is loadable. A '.' flanked by digits is a version separator,
+// not a boundary, so "mod_pagespeed 2.1" never splits a clause (the same
+// carve-out isClauseBoundary() makes for the exemption scope below).
+const CLAUSE_GAP = /(?:[^;:—!?.\n]|(?<=\d)\.|\.(?=\d))/.source;
+
+// CLAUSE_GAP plus the colon. A colon normally ends a clause, and for most
+// rules it should: what follows an "Install it:" is a new statement. But a
+// colon-introduced LIST is one statement, not two — "mod_pagespeed 2.1:
+// Apache, nginx, IIS and Envoy" names its subject once and then enumerates.
+// Used ONLY by rule `j`'s list branches, which additionally require the colon
+// itself to sit between the subject and the list.
+const COLON_LIST_GAP = /(?:[^;—!?.\n]|(?<=\d)\.|\.(?=\d))/.source;
+
+// The part names used as a rule SUBJECT. The prose name, the literal package /
+// binary names, and the bare "the worker" — which is what the copy actually
+// writes ("the worker rewrites it", "the worker process runs out-of-process"),
+// so a list without it guards a vocabulary the site does not use.
+//
+// "the worker process" IS this subject — that is how the ASP.NET Core docs
+// name it — so only the noun's other senses are excluded: a worker thread or
+// pool, nginx's own `worker_processes`, and "the worker image", which names
+// the container rather than the process running inside it. The browser's web
+// and service workers need no guard: neither reads as "the worker".
+const WORKER_SUBJECT =
+  /(?:optimi[sz]er worker|pagespeed-optimizer|factory_worker|the worker(?!_)(?!\s+(?:thread|threads|pool|pools|image|images)\b))/
+    .source;
+
+function escapeForRegExp(literal: string): string {
+  return literal.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+// The blog posts whose TITLE carries a retired product name. A title is
+// what was published on its date: it is indexed under that string, quoted
+// verbatim in the generated agent files, and rasterized into the post's social
+// card. Renaming one would rewrite the record and break three surfaces that
+// mirror it, so the titles stay and the rule steps over them — by exact
+// string, so nothing else is covered. The BODIES of these posts are not
+// exempt.
+const FROZEN_POST_TITLES = [
+  // The predecessor line's own release post, published under that number on
+  // its date. The label branch of rule `i` reaches titles carrying
+  // "mod_pagespeed 1.15" as of this hardening, and this is the one such title
+  // in the tree that is a dated record rather than a live label.
+  'mod_pagespeed 1.15: what six years of stewardship look like',
+  'ModPageSpeed 2.0 for ASP.NET Core: optimization middleware via NuGet',
+  'Run ModPageSpeed 2.0 with Docker Compose',
+  "Migrate from Google's mod_pagespeed / ngx_pagespeed to ModPageSpeed 2.0",
+  'Cache key derivation in ModPageSpeed 2.0: host-scoped keys and single-pass variant fallback',
+  'Benchmarking ModPageSpeed 2.0: real numbers on real sites',
+];
+
+// …and only in TITLE or LINK position: `title: '<it>'` in a post's own
+// frontmatter, or `[<it>](…)` where another page cites the post. The same
+// words in running prose are not a citation and stay flagged. A title is
+// trimmed at its first sentence period ("… for ASP.NET Core: …") because the
+// clause scope the exemption is tested against ends there.
+const FROZEN_TITLE_CITATION = FROZEN_POST_TITLES.map(
+  (title) => `(?:title:\\s*["']|\\[)${escapeForRegExp(title.split(/\.(?!\d)/)[0])}`,
+);
 
 const DENYLIST: DenyRule[] = [
   {
@@ -341,120 +435,208 @@ const DENYLIST: DenyRule[] = [
     ],
   },
   {
-    id: 'b1-2.0-drop-in-or-loadable-nginx-module',
-    why: '2.0 is NOT a loadable nginx module — it bundles nginx 1.30.2 in a Docker reverse proxy. The standalone 2.0 nginx module is deferred. (mod_pagespeed 1.15 IS a drop-in/loadable nginx module — so this rule requires a 2.0 subject; the bare phrase is correct for 1.15.)',
-    re: /ModPageSpeed 2\.0[\s\S]{0,80}?(?:drop-in nginx (?:image )?optimization module|loadable nginx module|drop-in module for nginx|nginx module you (?:load|compile|install))|(?:drop-in nginx (?:image )?optimization module|loadable nginx module|drop-in module for nginx)[\s\S]{0,40}?ModPageSpeed 2\.0/i,
-    bad: 'ModPageSpeed 2.0 is a drop-in nginx image optimization module you load_module.',
-    good: 'ModPageSpeed 2.0 ships as a Docker reverse proxy that bundles nginx 1.30.2.',
-    variantsBad: [
-      'ModPageSpeed 2.0 is a loadable nginx module.',
-      'ModPageSpeed 2.0 is a drop-in module for nginx.',
-    ],
-    variantsGood: [
-      // 1.15 IS a drop-in nginx module — the bare phrase must not fire (no 2.0 subject):
-      'A drop-in nginx image optimization module — install mod_pagespeed 1.15 from signed apt/yum.',
-      'The drop-in nginx optimization module for the open-source crowd: mod_pagespeed 1.15.',
-    ],
-  },
-  {
-    id: 'b2-2.0-near-load_module-or-dynamic-module',
-    why: '2.0 is distributed via Docker + Helm + NuGet, not loaded into an existing nginx via load_module.',
-    re: /ModPageSpeed 2\.0[\s\S]{0,80}?(?:load_module|dynamic module on an? existing nginx|(?:dynamic|loadable)(?: nginx)? module)|(?:load_module|dynamic module on an? existing nginx)[\s\S]{0,80}?ModPageSpeed 2\.0/i,
-    // Corrective forms for THIS claim, all anchored on the denied object
-    // (load_module / dynamic module / nginx config) rather than a bare token:
-    //   "2.0 does not use a load_module directive"
-    //   "there is no load_module line for 2.0" / "has no load_module directive"
-    //   "2.0 needs no nginx config"
-    //   "2.0 is not installed as a dynamic module"
-    // plus the Unlike/Whereas contrast where 1.15 owns the dynamic-module clause.
-    negationExempt: new RegExp(
+    id: 'b1-worker-as-loadable-nginx-module',
+    // RULE: the optimizer worker is a separate process that optimizes off the
+    // request path. It is never loaded into the web server. The IN-PROCESS
+    // part — the module — is the loadable Apache/nginx module, so the phrase
+    // itself is correct copy and misleads only when the WORKER is its subject:
+    // a reader told to load the worker into nginx goes looking for a module
+    // that does not exist, and misses the service that actually does the work.
+    why: 'The optimizer worker runs as its own process alongside the web server; it is not something you load into nginx. The module is the loadable part, so this rule requires the worker as the subject — the bare phrase is correct copy about the module.',
+    re: new RegExp(
       [
-        /\b(?:does not use|do(?:es)? not need|has no|have no|is no|there is no|needs? no|is not installed as|is not loaded as|not use)\b[^\n]{0,40}?(?:load_module|dynamic module|loadable module|nginx config)/
-          .source,
-        /\b(?:Unlike|Whereas)\b[^\n]{0,80}?\b1\.15\b/.source,
-        /\b(?:Unlike|Whereas)\b[^\n]{0,80}?\bload_module\b/.source,
+        `\\b${WORKER_SUBJECT}\\b${CLAUSE_GAP}{0,80}?(?:drop-in nginx (?:image )?optimization module|loadable nginx module|drop-in module for nginx|nginx module you (?:load|compile|install))`,
+        `(?:drop-in nginx (?:image )?optimization module|loadable nginx module|drop-in module for nginx)${CLAUSE_GAP}{0,40}?\\b${WORKER_SUBJECT}\\b`,
       ].join('|'),
       'i',
     ),
-    exemptionMustNotDisarm: [
-      // The corrective statement is about the Docker image, in clause 2; the
-      // load_module claim in clause 1 is still false.
-      'Add ModPageSpeed 2.0 with a load_module directive. The Docker image needs no nginx config.',
-      // The Unlike/1.15 contrast governs clause 2 only.
-      'Install ModPageSpeed 2.0 as a dynamic module on an existing nginx. Unlike 1.15, no restart is needed.',
-    ],
-    bad: 'Install ModPageSpeed 2.0 as a dynamic module on an existing nginx with load_module.',
-    good: 'The mod_pagespeed 1.15 nginx module adds a load_module line; the package auto-includes it.',
+    bad: 'The optimizer worker is a drop-in nginx image optimization module you load_module.',
+    good: 'The module is a drop-in nginx image optimization module; the optimizer worker runs beside it as its own process.',
     variantsBad: [
-      'ModPageSpeed 2.0 plugs into your existing nginx as a dynamic module.',
-      'Add ModPageSpeed 2.0 with a load_module directive.',
+      'The optimizer worker is a loadable nginx module.',
+      'The optimizer worker is a drop-in module for nginx.',
+      'Install pagespeed-optimizer as a drop-in nginx optimization module.',
+      // The bare name the copy actually uses — this read as a no-subject
+      // sentence until "the worker" joined WORKER_SUBJECT.
+      'The worker is a loadable nginx module.',
+    ],
+    variantsGood: [
+      // The module IS a drop-in nginx module — the bare phrase must not fire
+      // (no worker subject):
+      'A drop-in nginx image optimization module — install the module from the signed apt/yum repository.',
+      'The drop-in nginx optimization module for Apache, nginx and IIS: mod_pagespeed 2.1.',
+      // Both parts named, each doing its own job — the clause boundary keeps
+      // the module's phrase away from the worker:
+      'The optimizer worker runs as its own service; the module is the loadable nginx module.',
+      'A drop-in nginx image optimization module: install the module, then the optimizer worker.',
+      // "the worker image" is the container, not the process — the bare-name
+      // subject must not reach it.
+      'The worker image ships the optimizer worker; the module is the loadable nginx module.',
+    ],
+  },
+  {
+    id: 'b2-worker-near-load_module-or-dynamic-module',
+    // RULE: `load_module` loads the in-process module into nginx. The
+    // optimizer worker is started by its own service unit and talks to the
+    // module over a socket, so copy that puts the worker next to load_module,
+    // or calls it a dynamic module, sends a reader hunting for a directive
+    // that does not exist for it.
+    why: 'The optimizer worker is started as its own service, not loaded into an existing nginx with load_module. Only the module is loaded that way.',
+    re: new RegExp(
+      [
+        `\\b${WORKER_SUBJECT}\\b${CLAUSE_GAP}{0,80}?(?:load_module|dynamic module on an? existing nginx|(?:dynamic|loadable)(?: nginx)? module)`,
+        `(?:load_module|dynamic module on an? existing nginx)${CLAUSE_GAP}{0,80}?\\b${WORKER_SUBJECT}\\b`,
+      ].join('|'),
+      'i',
+    ),
+    // Corrective forms for THIS claim, all anchored on the denied object
+    // (load_module / dynamic module / nginx config) rather than a bare token:
+    //   "the optimizer worker does not use a load_module directive"
+    //   "there is no load_module line for the worker" / "has no load_module directive"
+    //   "the worker needs no nginx config"
+    //   "the worker is not installed as a dynamic module"
+    // plus the Unlike/Whereas contrast where the module owns that clause.
+    // CLAUSE_GAP, not [^\n]: a gap that runs to its character limit reaches
+    // past the end of the denial it is supposed to license and picks up a
+    // `load_module` belonging to the next statement. Paired with
+    // `exemptScope` below, which stops the same reach at a comma.
+    negationExempt: new RegExp(
+      [
+        `\\b(?:does not use|do(?:es)? not need|has no|have no|is no|there is no|needs? no|is not installed as|is not loaded (?:as|with|into)|not use)\\b${CLAUSE_GAP}{0,40}?(?:load_module|dynamic module|loadable module|nginx config)`,
+        `\\b(?:Unlike|Whereas)\\b${CLAUSE_GAP}{0,80}?\\bthe module\\b`,
+        `\\b(?:Unlike|Whereas)\\b${CLAUSE_GAP}{0,80}?\\bload_module\\b`,
+      ].join('|'),
+      'i',
+    ),
+    // "Whereas the module ships from apt, the optimizer worker is a dynamic
+    // module you load_module." — the contrast governs the part before the
+    // comma; the claim after it is still false. Scoping the exemption to the
+    // match's own comma-part is what stops a leading "Whereas the module …,"
+    // from switching this rule off for the rest of the sentence.
+    exemptScope: 'comma-part',
+    exemptionMustNotDisarm: [
+      // The corrective statement is about the container image, in clause 2;
+      // the load_module claim in clause 1 is still false.
+      'Add the optimizer worker with a load_module directive. The worker image needs no nginx config.',
+      // The Unlike/the-module contrast governs clause 2 only.
+      'Install the optimizer worker as a dynamic module on an existing nginx. Unlike the module, it needs no restart.',
+      // A COMMA, not a semicolon: the true denial in part two does not
+      // license the dynamic-module claim in part one.
+      'The optimizer worker is a dynamic module, and there is no load_module line for the module.',
+      // …and the contrast leading the sentence governs only its own part —
+      // prefixing "Whereas the module …," must not switch the rule off for
+      // everything after the comma.
+      'Whereas the module ships from apt, the optimizer worker is a dynamic module you load_module.',
+    ],
+    bad: 'Install the optimizer worker as a dynamic module on an existing nginx with load_module.',
+    good: 'The nginx module adds a load_module line; the package auto-includes it.',
+    variantsBad: [
+      'The optimizer worker plugs into your existing nginx as a dynamic module.',
+      'Add the optimizer worker with a load_module directive.',
+      'Load pagespeed-optimizer as a dynamic nginx module.',
+      // The bare name, which the subject list previously did not know.
+      'The worker installs as a dynamic module on an existing nginx with load_module.',
     ],
     variantsGood: [
       // Corrective / contrast — must be exempt by negation/contrast:
-      'ModPageSpeed 2.0 does not use a load_module directive — it bundles nginx in a Docker reverse proxy.',
-      "Unlike the 1.15 module's load_module line, ModPageSpeed 2.0 needs no nginx config.",
+      'The optimizer worker does not use a load_module directive — it runs as its own service.',
+      "Unlike the module's load_module line, the optimizer worker needs no nginx config.",
+      // Both parts in one sentence, each described correctly — the clause
+      // boundary keeps load_module attached to the module:
+      'Add the module with load_module; the optimizer worker starts from its own unit file.',
+      // A worker THREAD is a different thing that shares the noun.
+      'The worker thread pool in your application is unrelated to the load_module line.',
     ],
   },
   {
-    id: 'b3-2.0-from-apt-or-yum-repo',
-    why: '2.0 does NOT ship from apt/yum repositories (those carry the 1.15 native modules). 2.0 = Docker + Helm + NuGet.',
-    // FORWARD-only: "ModPageSpeed 2.0" is the subject, tied to an apt/yum
-    // repo/install/package within a short window. Single-channel (apt-only OR
-    // yum-only) is the most likely reintroduction and is covered.
-    re: /ModPageSpeed 2\.0\b[^\n]{0,50}?\b(?:apt|yum)\b[^\n]{0,25}?(?:repositor|repos?\b|install|package)/i,
-    // A line co-mentioning 1.15 is a combined product-line description ("1.15 +
-    // 2.0 — with a signed apt/yum repo"): the apt/yum repo belongs to the 1.15
-    // line, not a 2.0 distribution claim. Don't fire on those.
-    exemptIf: /\b1\.15\b/,
-    exemptionMustNotDisarm: [
-      // "1.15" is real here but governs the PREVIOUS clause (the thing being
-      // migrated FROM). Clause scoping is what makes this flag.
-      'Migrating from 1.15? Install ModPageSpeed 2.0 from the signed apt repository',
-      // negationExempt probes: the denial/replacement sits in the OTHER clause.
-      'Install ModPageSpeed 2.0 from the signed apt repository. Windows builds are not on apt.',
-      'ModPageSpeed 2.0 is available in our yum repository; the Helm chart replaces apt for Kubernetes.',
-      // Span-widening probes: the rule regex itself straddles the clause
-      // boundary, so the scope must key on where the match STARTS.
-      'Install ModPageSpeed 2.0 from apt. 1.15 packages are signed too.',
-      // …and an opening parenthesis is a clause boundary too.
-      'Install ModPageSpeed 2.0 from the apt repository (1.15 users: see below).',
-      // Multi-match probe: match #1 lands in an exempt clause (1.15), match #2
-      // does not. Evaluating only the first match would miss this.
-      'ModPageSpeed 2.0 works with the 1.15 apt repo; install ModPageSpeed 2.0 from the yum repository.',
-    ],
-    // Corrective forms for THIS claim: copy that DENIES 2.0 ships from apt/yum,
-    // or states 2.0 SUPERSEDES/REPLACES those packages (migration copy). Both
-    // are anchored on an apt/yum object, so an unrelated negation cannot disarm.
-    negationExempt: new RegExp(
+    id: 'b3-worker-not-from-apt-or-yum',
+    // RULE: the polarity of this claim INVERTED when the two parts became one
+    // product. The `pagespeed-optimizer` worker now ships from the same signed
+    // apt/yum repository as the module, and the two install and upgrade as a
+    // matching pair (releases-2.1/release.yaml `artifacts.docker` + the native
+    // deb/rpm note; docs/getting-started.md; docs/release-notes-2-1.mdx). So
+    // the misleading statement is no longer "the engine installs from apt" —
+    // it is the DENIAL carried over from when the out-of-process engine was
+    // container-only: "the worker ships only as an image", "there is no apt
+    // package for the worker". That sends a reader to Docker for a part their
+    // package manager already installs, and splits one product back into two
+    // install stories.
+    why: 'The pagespeed-optimizer worker ships from the same signed apt/yum repository as the module — the two install and upgrade as a matching pair, alongside the container images and the Helm chart. Copy that denies the worker has native packages, or scopes it to containers only, sends readers down an install path they do not need.',
+    re: new RegExp(
       [
-        /\b(?:supersedes?|replaces?|retires?)\b[^\n]{0,40}?\b(?:apt|yum)\b/.source,
-        /\b(?:is not|are not|does not|do not|isn['’]t|doesn['’]t|never)\b[^\n]{0,40}?\b(?:apt|yum)\b/
-          .source,
-        /\b(?:not|rather than|instead of)\s+(?:from\s+)?(?:the\s+)?(?:signed\s+)?(?:apt|yum)\b/
-          .source,
+        // "the optimizer worker is not in the apt repository" / "has no deb package"
+        `\\b${WORKER_SUBJECT}\\b${CLAUSE_GAP}{0,60}?\\b(?:is not|isn['’]t|are not|aren['’]t|does not|doesn['’]t|do not|don['’]t|cannot|can['’]t|won['’]t|will not|never|no)\\b${CLAUSE_GAP}{0,40}?\\b(?:apt|yum|deb|rpm|signed repositor\\w+|native packages?)\\b`,
+        // "the optimizer worker ships only as a container image".
+        // `only` must be the free-standing adverb, not the tail of a
+        // hyphenated compound: "without the worker, providing HTML-only
+        // optimizations (critical CSS, image dimensions…)" is a true sentence
+        // about the middleware, and its "HTML-only" plus a later "image" is
+        // not a packaging claim.
+        `\\b${WORKER_SUBJECT}\\b${CLAUSE_GAP}{0,60}?(?<!-)\\bonly\\b${CLAUSE_GAP}{0,30}?\\b(?:Docker|container|image|Helm|NuGet)\\b`,
+        // …and the same claim compounded the other way round, which is how
+        // it is usually written: "pagespeed-optimizer is container-only".
+        // The gap is tempered against a negation token because, unlike the
+        // branches above, this shape has a common TRUE form that denies it
+        // ("the optimizer worker is not a container-only component"), and the
+        // denial sits between the subject and the compound.
+        `\\b${WORKER_SUBJECT}\\b(?:(?!\\b(?:not|never|no|isn['’]t|aren['’]t)\\b)${CLAUSE_GAP}){0,60}?\\b(?:Docker|container|image|Helm|NuGet)[- ]only\\b`,
+        // "there is no apt package for the optimizer worker"
+        `\\bno\\b${CLAUSE_GAP}{0,25}?\\b(?:apt|yum|deb|rpm)\\b${CLAUSE_GAP}{0,40}?\\b${WORKER_SUBJECT}\\b`,
       ].join('|'),
       'i',
     ),
-    bad: 'Install ModPageSpeed 2.0 from the signed apt and yum repositories.',
-    good: 'mod_pagespeed 1.15 ships as signed apt and yum packages, and the from-scratch ModPageSpeed 2.0 rewrite goes GA.',
+    // Windows has no apt/yum at all, so a denial scoped to Windows/IIS states a
+    // platform fact rather than the worker's packaging. Nothing else licenses
+    // the denial — the probes below hold the exemption to the clause it sits in.
+    exemptIf: /\b(?:Windows|IIS|MSI)\b/i,
+    // …and to the denial's OWN comma-part within that clause. The programme
+    // mandates putting "The IIS package ships from the 1.15 packaging
+    // channel." beside platform statements, so a bare Windows/IIS token is
+    // available to disarm this rule in almost any sentence a writer would
+    // naturally produce — one comma instead of the semicolon the first probe
+    // uses was enough. The exempting platform now has to sit with the denial,
+    // not merely later in the same sentence.
+    exemptScope: 'comma-part',
+    exemptionMustNotDisarm: [
+      // "IIS" is real here but governs the SECOND clause; the packaging denial
+      // in clause 1 still misleads.
+      'The optimizer worker is not in the apt repository; the IIS package ships from the 1.15 packaging channel.',
+      // Span-widening probe: the regex window reaches past the boundary, so the
+      // scope must key on where the match STARTS.
+      'The optimizer worker has no deb package. Windows is served by an MSI.',
+      // The same disarm through a COMMA instead of that semicolon — and with
+      // the exact sentence the programme mandates putting next to platform
+      // statements, which is what made this the easiest exemption to abuse.
+      'The optimizer worker is not in the yum repository on Linux, and the IIS package ships from the 1.15 packaging channel.',
+      // A trailing contrast that merely NAMES the IIS module is not a denial
+      // scoped to Windows either.
+      'pagespeed-optimizer has no deb package, unlike the IIS module.',
+    ],
+    bad: 'The optimizer worker is not in the apt and yum repositories — it ships only as a container image.',
+    good: 'The module and the `pagespeed-optimizer` worker install and upgrade as a matching pair from the signed apt/yum repository.',
     variantsBad: [
-      'Install ModPageSpeed 2.0 with apt-get install modpagespeed.',
-      'ModPageSpeed 2.0 is available in our apt repository.',
-      'Get ModPageSpeed 2.0 from the yum repository.',
-      'ModPageSpeed 2.0 packages are in the apt and yum repos.',
+      'The optimizer worker ships only as a container image.',
+      'There is no apt package for the optimizer worker — use Docker.',
+      'The optimizer worker is not available from the signed repository.',
+      'pagespeed-optimizer does not ship as a deb or rpm package.',
+      // The compound form of the container-only claim.
+      'pagespeed-optimizer is container-only; it is not in the signed repository.',
+      // The bare name, which the subject list previously did not know.
+      'The worker ships only as a container image.',
     ],
     variantsGood: [
-      // Reverse contrast (1.15 ships apt/yum; 2.0 ships Docker) — must NOT fire:
-      'While the 1.15 module ships from apt and yum repositories, ModPageSpeed 2.0 ships via Docker, Helm, and NuGet.',
-      // Combined product-line description — apt/yum repo is the 1.15 line's:
-      // (The trailing clause used to read "; AVIF in 2.0." — corrected in the
-      // 1.15-AVIF re-anchor: 1.15 ships AVIF too, and rule f1 rightly flags
-      // that phrasing. The fixture, not the rule, was wrong.)
-      'We-Amp maintains mod_pagespeed 1.15 + ModPageSpeed 2.0 — with security patches and a signed apt/yum repo; AVIF across 1.15 and 2.0.',
-      // Migration copy — 2.0 replaces the legacy apt/yum path (exempt by "supersedes"):
-      'ModPageSpeed 2.0 supersedes the apt and yum packages of the legacy engine.',
-      // Corrective — exempt by negation:
-      'ModPageSpeed 2.0 is not distributed via apt and yum; those carry only the 1.15 native module.',
+      // The true packaging story, in the shapes real copy uses:
+      'Both parts install from the signed apt/yum repository: the module, and the pagespeed-optimizer worker beside it.',
+      'The optimizer worker also ships as a container image, for deployments that prefer one.',
+      // Windows genuinely has no apt/yum — the denial is a platform fact:
+      'The optimizer worker has no apt or yum packages on Windows; the IIS package ships from the 1.15 packaging channel.',
+      // A denial whose subject is the ASP.NET Core middleware, not the worker:
+      'The ASP.NET Core middleware ships from NuGet and never from apt or yum.',
+      // The denial OF the container-only claim is the corrective copy:
+      'The optimizer worker is not a container-only component; it installs from the signed apt and yum repositories.',
+      // "only" as the tail of a hyphenated compound is not the packaging
+      // adverb — this is a true sentence about the middleware:
+      'The middleware also runs in standalone mode without the worker, providing HTML-only optimizations (critical CSS, image dimensions, preload hints).',
     ],
   },
   {
@@ -531,9 +713,9 @@ const DENYLIST: DenyRule[] = [
       // Corrective / comparison / coexistence — must NOT fire:
       'ModPageSpeed 2.0 does not support .NET 9; it targets net8.0 and net10.0.',
       'ModPageSpeed 2.0 skipped .NET 9: it targets the net8.0 and net10.0 LTS releases.',
-      'ModPageSpeed 2.0 runs on net10.0, which is newer than .NET 9.',
-      'ModPageSpeed 2.0 runs on .NET 9 hosts too, even though the package targets net8.0 and net10.0.',
-      'ModPageSpeed 2.0 supports .NET 9 apps as a sidecar while the middleware itself targets net8.0/net10.0.',
+      'ModPageSpeed 2.0.x runs on net10.0, which is newer than .NET 9.',
+      'ModPageSpeed 2.0.x runs on .NET 9 hosts too, even though the package targets net8.0 and net10.0.',
+      'ModPageSpeed 2.0.x supports .NET 9 apps as a sidecar while the middleware itself targets net8.0/net10.0.',
       'ModPageSpeed 2.0 builds on .NET 9-era runtime improvements, shipping for net8.0 and net10.0.',
     ],
   },
@@ -811,7 +993,7 @@ const DENYLIST: DenyRule[] = [
     // No negationExempt: like f1/f2/f3, the claim shape is not a denial —
     // fencing is done affirmatively, so negation tolerance has nothing to add.
     bad: 'ModPageSpeed transcodes JPEG/PNG/GIF to WebP (and AVIF on 2.0), recompresses with quality-aware encoders.',
-    good: 'ModPageSpeed transcodes JPEG/PNG/GIF to WebP and AVIF across 1.15 and 2.0.',
+    good: 'mod_pagespeed transcodes JPEG/PNG/GIF to WebP and AVIF across 1.15 and 2.0.',
     variantsBad: [
       // (1) parenthetical fences, incl. the real :649 line:
       'JPEG/PNG/GIF transcoded to WebP (and AVIF on 2.0) when the client advertises support via `Accept`.',
@@ -823,7 +1005,7 @@ const DENYLIST: DenyRule[] = [
     variantsGood: [
       // Both lines granted the capability — no fence:
       'WebP and AVIF across 1.15 and 2.0, SVG in 2.0.',
-      'ModPageSpeed 2.0 transcodes to WebP and AVIF; mod_pagespeed 1.15 ships the same AVIF filters opt-in.',
+      '2.0 transcodes to WebP and AVIF; 1.15 ships the same AVIF filters opt-in.',
       // A genuinely 2.0-only capability may be fenced — SVG/Jpegli are not targets:
       'Images are converted to WebP (and SVG on 2.0).',
       'Vector output (Jpegli in 2.0) is a 2.0 addition.',
@@ -877,6 +1059,230 @@ const DENYLIST: DenyRule[] = [
       'mod_pagespeed 2.1 converges the two previously maintained lines into one always-updated release.',
     ],
   },
+  {
+    id: 'j-envoy-offered-on-the-current-line',
+    // RULE: the module runs in Apache, nginx and IIS. The Envoy port belongs
+    // to the predecessor line, was never shipped, and is excluded from CI —
+    // which is why Envoy appears in no port list in the fact record. Naming it
+    // in the same clause as the current product, or as the module, offers a
+    // reader a front end they cannot deploy. A dated post describing the
+    // predecessor's four front ends is a record and names neither subject.
+    why: "The module's platforms are Apache, nginx and IIS. The Envoy port is not shipped and is excluded from CI, so naming Envoy in a clause about mod_pagespeed 2.1 or about the module offers a deployment target that does not exist.",
+    re: new RegExp(
+      [
+        `(?:mod_pagespeed 2\\.1|the (?:native |in-process )?module)\\b${CLAUSE_GAP}{0,160}?\\bEnvoy\\b`,
+        `\\bEnvoy\\b${CLAUSE_GAP}{0,160}?(?:mod_pagespeed 2\\.1|the (?:native |in-process )?module)\\b`,
+        // A colon-introduced list is the site's own idiom for naming
+        // platforms — a card subline, a `description:` front-matter string, a
+        // comparison row — and CLAUSE_GAP treats ':' as a boundary, so the
+        // subject and the platform after the colon never met. These two
+        // branches cross a colon, and ONLY a colon: the subject has to sit
+        // directly in front of it ("mod_pagespeed 2.1: Apache, nginx, IIS and
+        // Envoy"), or Envoy has to head the list that introduces the subject
+        // ("Envoy users: install mod_pagespeed 2.1").
+        `(?:mod_pagespeed 2\\.1|the (?:native |in-process )?module)\\b\\s*:${COLON_LIST_GAP}{0,120}?\\bEnvoy\\b`,
+        `\\bEnvoy\\b${COLON_LIST_GAP}{0,40}?:${COLON_LIST_GAP}{0,120}?(?:mod_pagespeed 2\\.1|the (?:native |in-process )?module)\\b`,
+      ].join('|'),
+      'i',
+    ),
+    bad: 'The native module is available as an HTTP filter for Envoy.',
+    good: 'The module runs in-process in Apache, nginx and IIS.',
+    variantsBad: [
+      'mod_pagespeed 2.1 runs on Apache and nginx, plus an experimental Envoy port.',
+      'Envoy filter chain | mod_pagespeed 2.1 (experimental)',
+      'You can load the module into Envoy as an HTTP filter.',
+      // Colon-introduced platform lists — the site's own card/front-matter
+      // idiom, and invisible to the rule until the list branches were added.
+      'mod_pagespeed 2.1: Apache, nginx, IIS and Envoy.',
+      'Envoy users: install mod_pagespeed 2.1 and enable the filter.',
+    ],
+    variantsGood: [
+      // The predecessor line's four front ends, as a dated record — neither
+      // the current product nor "the module" is the subject:
+      '1.15 shipped one test framework across Apache, nginx, Envoy and IIS.',
+      'We-Amp has shipped optimization code across Apache, nginx, Envoy and IIS since 2010.',
+      // A clause boundary keeps a neighbouring Envoy sentence out of scope:
+      'The module runs in Apache, nginx and IIS. An experimental Envoy port exists on the predecessor line.',
+      // The dependency, not the front end:
+      'libcurl links against the same BoringSSL that Envoy links against.',
+      // The same colon list, naming only the platforms that exist:
+      'mod_pagespeed 2.1: Apache, nginx and IIS.',
+      // A colon list in the NEXT sentence — the clause boundary still holds:
+      'The module runs in Apache, nginx and IIS. Envoy users: see the predecessor line.',
+    ],
+  },
+  {
+    id: 'i-retired-product-name-as-current-label',
+    // RULE: the product is mod_pagespeed 2.1 — one product in two parts, the
+    // module and the optimizer worker. "ModPageSpeed 2.0", the bare camel
+    // "ModPageSpeed" and "mod_pagespeed 1.15" are names the product no longer
+    // goes by. Each survives only where it records something that was true
+    // when it was written, or names a literal: a version (2.0.x, v2.0, an
+    // image tag), a dated announcement, the state a reader is migrating FROM,
+    // the fixed phrase "the 2.0 re-architecture", the JSON-LD alternate name
+    // that keeps the old query findable, an identifier spelled that way in the
+    // world (a WordPress plugin's display name, a systemd or repo-config
+    // field), or one of the five dated post titles the blog still carries.
+    // Anywhere else — a present-tense product subject, an install or run
+    // imperative, a page title, an H1, a JSON-LD name, a call to action — it
+    // offers a reader a product they cannot install under that name, and
+    // splits one product back into a shelf of them.
+    why: 'The product is mod_pagespeed 2.1, one product in two parts (the module and the optimizer worker). A retired name used as the current product\'s label, or as something to install, tells readers to go looking for a product that is not on offer. Allowed: version facts (2.0.x, v2.0, image tags), dated announcements, migration source states, the phrase "the 2.0 re-architecture", the JSON-LD alternate name, literal identifiers, and the dated post titles the blog keeps.',
+    // CASE-SENSITIVE on purpose: this rule guards a SPELLING. Lower-cased,
+    // "modpagespeed" is the domain name and "mod_pagespeed" is the current
+    // product, so an /i flag would flag both wherever they appear. The
+    // exemptions below carry their own case handling.
+    re: new RegExp(
+      [
+        // Present-tense product subject: "ModPageSpeed 2.0 is / runs / ships …".
+        /\bModPageSpeed 2\.0\s+(?:is|are|runs?|ships?|optimi[sz]es?|supports?|generates?|serves?|deploys?|handles?|uses?|adds?|keeps?|transcodes?|caches?|has|have)\b/
+          .source,
+        // Imperative — "Run / Install / Upgrade to <retired name>" — for either
+        // retired line name. A Markdown link opener directly before the verb
+        // means the phrase is a cited post title ("[Run ModPageSpeed 2.0 with
+        // Docker Compose](/blog/…)"), not an instruction to the reader.
+        /(?<!\[)\b(?:[Rr]un|[Ii]nstall|[Dd]eploy|[Tt]ry|[Gg]et|[Uu]pgrade to|[Ss]witch to|[Mm]igrate to|[Cc]hoose)\s+(?:ModPageSpeed 2\.0|mod_pagespeed 1\.1(?:5)?)\b/
+          .source,
+        // Label position: a page title, an H1 or a JSON-LD name carrying the
+        // retired name is the product's name as search engines and readers see
+        // it first.
+        /(?:title=|title:|\bname:|"name":|headline:|<h1[^>]*>)[^\n]{0,60}(?:ModPageSpeed 2\.0|mod_pagespeed 1\.1(?:5)?)/
+          .source,
+        // The current product spelled with the retired camel.
+        /\bModPageSpeed 2\.1\b/.source,
+        // The camel brand as a bare product name. A version directly after it —
+        // literal, or interpolated from the release manifest — makes it a
+        // version fact, which the branches above judge on their own terms.
+        /\bModPageSpeed\b(?!\s*(?:2\.0|\$?\{))/.source,
+        // The retired abbreviation.
+        /\bMPS ?2\.0\b/.source,
+        // The predecessor line name as a present-tense product claim on a line
+        // that also tells the reader where to get it. A dated post recording
+        // what 1.15 shipped is a record; the same sentence next to a download,
+        // pricing or install link is an offer, and the offer is 2.1.
+        /\bmod_pagespeed 1\.1(?:5)?\s+(?:is|are|runs?|ships?|optimi[sz]es?|supports?|serves?|handles?|transcodes?|caches?)\b[^\n]{0,300}?(?:\/download\/|\/pricing\/|\/license\/|[Dd]ownload|[Ii]nstall)/
+          .source,
+      ].join('|'),
+    ),
+    // Each exemption has to sit in the retired name's OWN comma-part, not
+    // merely somewhere later in the sentence. Every allow-list term below is
+    // a word a writer reaches for anyway, so appending one after a comma —
+    // "ModPageSpeed 2.0 is the current product, see the migration guide for
+    // details." — turned all four families into an off switch for the rule.
+    // The probes at `exemptionMustNotDisarm` carry one comma-joined form per
+    // family.
+    exemptScope: 'comma-part',
+    // ALLOW-LIST, scoped as above. Each entry is a form in which a retired
+    // name states a fact rather than names the product on offer.
+    exemptIf: new RegExp(
+      [
+        /\b2\.0\.[\dx]/.source, // a semver or a "2.0.x" version range
+        /\bv2\.0\b/.source, // a release tag
+        /ghcr\.io/.source, // a container image reference
+        /\bre-architecture\b/.source, // the one sanctioned surviving noun phrase
+        // Migration copy: the state a reader is upgrading FROM, and the guide
+        // that covers it. Deliberately not bare "migrat" — "Migrate to
+        // ModPageSpeed 2.0" is an offer, not a source state, and must flag.
+        /[Mm]igrat(?:e|ed|ing|ion)\s+(?:from|guide|path)|migration guide/.source,
+        /alternateName/.source, // the JSON-LD bridge that keeps the old query findable
+        // Identifiers spelled that way in the world, not prose:
+        /WeAmp Cache Control for ModPageSpeed/.source, // the plugin's display name
+        /Settings (?:&rarr;|→) ModPageSpeed/.source, // the plugin's settings menu
+        /(?:name|Description)=ModPageSpeed/.source, // repo-config and unit-file fields
+        // The five dated post titles the blog keeps, in title or link
+        // position. They are indexed, quoted verbatim in the agent files, and
+        // rasterized into social cards; renaming one would rewrite what was
+        // published on its date and break three surfaces that mirror it.
+        ...FROZEN_TITLE_CITATION,
+      ].join('|'),
+    ),
+    // Whole documents that are a record of a past line rather than a claim
+    // about the product on offer. Pinned file-by-file below.
+    exemptFile: (rel) =>
+      /^src\/content\/docs(?:-1\.1)?\/release-notes[^/]*\.mdx$/.test(rel) ||
+      /^src\/pages\/(?:privacy|terms|license)\.astro$/.test(rel) ||
+      rel.startsWith('src/pages/1.1/'),
+    exemptFileExpectation: [
+      // Release histories: every entry is what shipped, under the name it
+      // shipped under, on the date it shipped.
+      'src/content/docs-1.1/release-notes.mdx',
+      'src/content/docs/release-notes-2-1.mdx',
+      'src/content/docs/release-notes.mdx',
+      // The frozen predecessor URL space, kept so old links keep working.
+      'src/pages/1.1/docs/[slug].astro',
+      // The legal pages, which enumerate the predecessor lines by name because
+      // the terms they state apply to each of them.
+      'src/pages/license.astro',
+      'src/pages/privacy.astro',
+      'src/pages/terms.astro',
+    ],
+    bad: 'ModPageSpeed 2.0 optimizes whole sites from its worker behind nginx.',
+    good: 'mod_pagespeed 2.1 optimizes whole sites: the optimizer worker, introduced by the 2.0 re-architecture, does the heavy work behind the module.',
+    variantsBad: [
+      'Run ModPageSpeed 2.0 locally with Docker and measure the difference.',
+      'title="Security — ModPageSpeed 2.0"',
+      'ModPageSpeed is a self-hosted optimizer.',
+      'MPS 2.0 generates up to 37 variants per image.',
+      'ModPageSpeed 2.1 is the converged product.',
+      'Install mod_pagespeed 1.15 for nginx on Debian 12.',
+      'mod_pagespeed 1.15 runs as an nginx or Apache module. It optimizes out of the box. See [pricing](/pricing/).',
+      // The label branch's own headline case, which it did not cover while it
+      // named only the 2.0 spelling — and which is exactly what a naming pass
+      // over titles, H1s and JSON-LD names is for.
+      "title: 'mod_pagespeed 1.15 — the drop-in module'",
+      "name: 'mod_pagespeed 1.15'",
+    ],
+    variantsGood: [
+      'A volume created by 2.0 is migrated in place on first start.',
+      'ModPageSpeed 2.0 went GA on 2026-05-17; its engine continues as the optimizer worker.',
+      'The optimizer worker was introduced by the 2.0 re-architecture.',
+      'Upgrading from ModPageSpeed 2.0? See the migration guide.',
+      "alternateName: 'ModPageSpeed',",
+      'The WeAmp Cache Control for ModPageSpeed plugin is live on WordPress.org.',
+      'Description=ModPageSpeed Factory Worker',
+      'Requires ModPageSpeed 2.0.x or later.',
+      'The IIS package ships from the 1.15 packaging channel.',
+      // A dated record of what the predecessor line shipped, with no offer
+      // attached — the 1.15 branch needs the call to action.
+      'mod_pagespeed 1.15 ships an experimental RSL-CAP gate for nginx, added in 2026.',
+      // The current product, spelled the way it is spelled:
+      'mod_pagespeed 2.1 runs as an Apache, nginx or IIS module. Install it from the signed repository.',
+      // The predecessor line's dated release post, in title position: a
+      // record of what was published on its date, not a live label.
+      "title: 'mod_pagespeed 1.15: what six years of stewardship look like'",
+    ],
+    exemptionMustNotDisarm: [
+      // The sanctioned history phrase governs the SECOND sentence; the claim
+      // in the first is still an offer of a product that is not on offer.
+      'ModPageSpeed 2.0 is the product you install today. The 2.0 re-architecture is why it is fast.',
+      // "migration guide" sits in clause 2.
+      'Install ModPageSpeed 2.0 in production; the migration guide covers the upgrade.',
+      // The JSON-LD bridge is clause 1; clause 2 uses the retired brand as the
+      // product's name.
+      "alternateName: 'ModPageSpeed 2.0'; ModPageSpeed is the product you install today.",
+      // A frozen post title is cited in clause 1; clause 2 is an offer.
+      'See [Run ModPageSpeed 2.0 with Docker Compose](/blog/run-with-docker-compose/); ModPageSpeed 2.0 ships as the product today.',
+      // The same title's words in running prose are not a citation.
+      'Run ModPageSpeed 2.0 with Docker Compose today and see the difference.',
+      // A real version fact in clause 2 does not license the imperative in
+      // clause 1.
+      'Upgrade to ModPageSpeed 2.0 today; the 2.0.41 release is current.',
+      // "Migrate to" is an offer, not a source state, so the migration
+      // exemption must not reach it.
+      'Migrate to ModPageSpeed 2.0 and install it from Docker Hub.',
+      // The same four exemption families again, each bolted on after a COMMA
+      // instead of the period or semicolon the probes above use. The comma
+      // form is the more natural sentence, so it is the one that gets
+      // written — and it defeated all four.
+      'ModPageSpeed 2.0 is the current product, see the migration guide for details.',
+      'Install ModPageSpeed 2.0 today, version 2.0.41.',
+      'ModPageSpeed 2.0 is the product you install today, introduced by the 2.0 re-architecture.',
+      'ModPageSpeed 2.0 ships today, alternateName aside.',
+      // The frozen-title exemption is citation-position only: the dated title
+      // in clause one does not license a live label in clause two.
+      "title: 'mod_pagespeed 1.15: what six years of stewardship look like'; name: 'mod_pagespeed 1.15'",
+    ],
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -893,30 +1299,31 @@ const FP_CORPUS = [
   'For RHEL 9 on arm64, install the package manually rather than from the yum repo.',
   'Note: arm64 RPMs are not in the RHEL 9 yum repo — fetch them from the release archive instead.',
   'Older docs wrongly listed the RHEL 9 yum repo as amd64 + arm64; it has always been x86_64 only.',
-  "Unlike the 1.15 module's load_module line, ModPageSpeed 2.0 needs no nginx config.",
-  'ModPageSpeed 2.0 does not use a load_module directive — it bundles nginx in a Docker reverse proxy.',
-  'There is no load_module line for ModPageSpeed 2.0; it ships as a Docker reverse proxy.',
-  'Whereas 1.15 runs as a dynamic module on an existing nginx, ModPageSpeed 2.0 bundles its own nginx.',
-  'ModPageSpeed 2.0 is not installed as a dynamic module on an existing nginx; it ships its own.',
-  'answer: ModPageSpeed 2.0 has no load_module directive because it bundles nginx 1.30.2 in a Docker reverse proxy.',
-  'ModPageSpeed 2.0 is not distributed via apt and yum; those carry only the 1.15 native module.',
-  'ModPageSpeed 2.0 does not install from apt and yum repos — use Docker, Helm, or NuGet.',
-  'ModPageSpeed 2.0 ships via Docker, not from apt and yum repos.',
-  'ModPageSpeed 2.0 ships through Docker rather than apt and yum.',
-  'ModPageSpeed 2.0 differs from the 1.15 apt and yum module entirely.',
-  'There is no v1.0.0 release of ModPageSpeed 2.0; GA was v2.0.0.',
-  'While the 1.15 module ships from apt and yum repositories, ModPageSpeed 2.0 ships via Docker, Helm, and NuGet.',
+  // Re-pointed with the rules they exercise: b1/b2/b3 now ask about the
+  // optimizer worker, and the worker's packaging story is the opposite of the
+  // one the retired engine had — it ships from the signed repository too.
+  "Unlike the module's load_module line, the optimizer worker needs no nginx config.",
+  'The optimizer worker does not use a load_module directive — it runs as its own service.',
+  'There is no load_module line for the optimizer worker; it starts from its own unit file.',
+  'Whereas the module loads into an existing nginx, the optimizer worker runs beside it.',
+  'The optimizer worker is not installed as a dynamic module on an existing nginx; it runs as its own service.',
+  'answer: the optimizer worker has no load_module directive because it runs as its own service.',
+  'The optimizer worker is not a container-only component; it installs from the signed apt and yum repositories.',
+  'The optimizer worker installs from apt and yum repos as well as from a container image.',
+  'The module and the optimizer worker upgrade together from the signed repository, rather than on separate schedules.',
+  'There is no v1.0.0 release of the 2.0 line; GA was v2.0.0.',
+  'While the module ships from apt and yum repositories, the optimizer worker ships from that repository and as a container image.',
   // Added by the 2026-06-15 FP-probe-v2 (all accurate; none may flag):
-  'A drop-in nginx image optimization module — install mod_pagespeed 1.15 from signed apt/yum.', // 1.15 IS a drop-in module
-  'The drop-in nginx optimization module for the open-source crowd: mod_pagespeed 1.15.',
+  'A drop-in nginx image optimization module — install the module from signed apt/yum.', // the module IS a drop-in module
+  'The drop-in nginx optimization module for Apache, nginx and IIS: mod_pagespeed 2.1.',
   'ModPageSpeed 2.0 skipped .NET 9: it targets the net8.0 and net10.0 LTS releases.',
-  'ModPageSpeed 2.0 runs on net10.0, which is newer than .NET 9.',
+  'ModPageSpeed 2.0.x runs on net10.0, which is newer than .NET 9.',
   'The el9 yum repo carries x86_64; arm64 ships from the apt repo only.',
   'On Debian 13 the 1.15 native module is built for nginx 1.26 (stable channel).', // trixie stock nginx IS 1.26.3
   'ModPageSpeed 2.0 supersedes the apt and yum packages of the legacy engine.',
   // Added by the 2026-06-15 FP-probe-v3 (accurate .NET-9 coexistence/era/"post-1.0"; none may flag):
-  'ModPageSpeed 2.0 runs on .NET 9 hosts too, even though the package targets net8.0 and net10.0.',
-  'ModPageSpeed 2.0 supports .NET 9 apps as a sidecar while the middleware itself targets net8.0/net10.0.',
+  'ModPageSpeed 2.0.x runs on .NET 9 hosts too, even though the package targets net8.0 and net10.0.',
+  'ModPageSpeed 2.0.x supports .NET 9 apps as a sidecar while the middleware itself targets net8.0/net10.0.',
   'ModPageSpeed 2.0 builds on .NET 9-era runtime improvements, shipping for net8.0 and net10.0.',
   'The post-1.0 cleanup of the Envoy shim landed in 2.0.16.',
   // Added by the f4 parenthetical-fence FP probe. All are ordinary, ACCURATE
@@ -978,7 +1385,7 @@ const ALLOWLIST_SAMPLES = [
   'native module pinned per distro: stock nginx 1.18 to 1.26.3.',
   'Apache yum repo: AlmaLinux/RHEL 9 (x86_64; arm64 via direct download).',
   'mod_pagespeed 1.15 ships as signed apt and yum packages.',
-  'ModPageSpeed 2.0 ships as a Docker reverse proxy bundling nginx 1.30.2.',
+  'The 2.0 line shipped as a Docker reverse proxy bundling nginx 1.30.2.',
 ];
 
 // ---------------------------------------------------------------------------
@@ -1043,7 +1450,13 @@ function isCommentLine(line: string, file?: string): boolean {
 // ---------------------------------------------------------------------------
 function isClauseBoundary(line: string, i: number): boolean {
   const ch = line[i];
-  if (ch === ';' || ch === '—' || ch === '?' || ch === '!' || ch === '(') return true;
+  // A ';' that closes an HTML entity is part of a WORD, not a clause end.
+  // Page copy is full of them (&rarr; &mdash; &nbsp; &rsquo;), and splitting
+  // there cuts a phrase in half: "Settings &rarr; ModPageSpeed" became the two
+  // clauses "…Settings &rarr" and "ModPageSpeed…", so an exemption naming the
+  // whole phrase never shared a clause with the token it licenses.
+  if (ch === ';') return !/&(?:#\d+|[A-Za-z][A-Za-z0-9]*)$/.test(line.slice(0, i));
+  if (ch === '—' || ch === '?' || ch === '!' || ch === '(') return true;
   if (ch !== '.') return false;
   // A '.' flanked by digits is a version separator, not a sentence end.
   return !(/\d/.test(line[i - 1] ?? '') && /\d/.test(line[i + 1] ?? ''));
@@ -1062,7 +1475,7 @@ function clauseRanges(line: string): Array<{ start: number; end: number }> {
   return ranges;
 }
 
-// The text of the SINGLE clause the match STARTS in.
+// The SINGLE clause range the match STARTS in.
 //
 // This deliberately does NOT union every clause the match overlaps. Several
 // rule regexes use wide [\s\S]{0,80} / [^\n]{0,50} windows and so straddle a
@@ -1072,14 +1485,42 @@ function clauseRanges(line: string): Array<{ start: number; end: number }> {
 //     -> the b3 match runs past the period to reach "packages", dragging the
 //        next sentence's "1.15" into scope and disarming itself.
 // The claim's SUBJECT sits where the match begins, so that clause is the scope.
-function clauseScopeOfMatch(line: string, start: number): string {
+function clauseRangeOfMatch(line: string, start: number): { start: number; end: number } {
   const ranges = clauseRanges(line);
   const hit =
     ranges.find((r) => r.start <= start && start < r.end) ??
     // `start` landed exactly on a boundary character: attribute it to the
     // clause that boundary closes.
     [...ranges].reverse().find((r) => r.start <= start);
-  return hit ? line.slice(hit.start, hit.end) : line;
+  return hit ?? { start: 0, end: line.length };
+}
+
+function clauseScopeOfMatch(line: string, start: number): string {
+  const r = clauseRangeOfMatch(line, start);
+  return line.slice(r.start, r.end);
+}
+
+// The COMMA-DELIMITED PART of that clause which contains the match start —
+// the exemption scope for a rule that sets `exemptScope: 'comma-part'`.
+//
+// Same argument as clause scoping, one level finer: the claim's SUBJECT sits
+// where the match begins, so the licence for that claim has to sit beside the
+// subject, not in whatever got appended after the next comma. Commas INSIDE
+// the match are not seams — a claim that spans one is still one claim — so the
+// part is grown to the match start and closed at the first comma after it.
+function commaPartOfMatch(line: string, start: number): string {
+  const r = clauseRangeOfMatch(line, start);
+  let from = r.start;
+  let to = r.end;
+  for (let i = r.start; i < r.end; i++) {
+    if (line[i] !== ',') continue;
+    if (i < start) from = i + 1;
+    else {
+      to = i;
+      break;
+    }
+  }
+  return line.slice(from, to);
 }
 
 // A per-rule global clone of the rule regex, so exec() can walk EVERY match on
@@ -1115,7 +1556,10 @@ function isFlaggedByRule(rule: DenyRule, line: string, _file?: string): boolean 
       re.lastIndex++; // zero-width match — never stall
       continue;
     }
-    const scope = clauseScopeOfMatch(line, m.index);
+    const scope =
+      rule.exemptScope === 'comma-part'
+        ? commaPartOfMatch(line, m.index)
+        : clauseScopeOfMatch(line, m.index);
     const exempt =
       (rule.negationExempt?.test(scope) ?? false) || (rule.exemptIf?.test(scope) ?? false);
     if (!exempt) return true;
@@ -1131,9 +1575,10 @@ type Violation = { ruleId: string; location: string; line: number };
 function scanFilesForRule(rule: DenyRule, files: string[]): Violation[] {
   const violations: Violation[] = [];
   for (const file of files) {
+    const rel = path.relative(WEBSITE_ROOT, file).split(path.sep).join('/');
+    if (rule.exemptFile?.(rel)) continue;
     const text = readFileSync(file, 'utf8');
     const lines = text.split('\n');
-    const rel = path.relative(WEBSITE_ROOT, file);
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const m = line.match(rule.re);
@@ -1155,6 +1600,20 @@ function scanForRule(rule: DenyRule): Violation[] {
 describe('canonical sources hold ground-truth product facts', () => {
   it('product-facts.mjs SIDECAR_NGINX_VERSION === 1.30.2', () => {
     expect(facts.SIDECAR_NGINX_VERSION).toBe('1.30.2');
+  });
+
+  // The social-card generator rasterizes a wordmark onto all 72 cards, and a
+  // card is the single highest-reach place the product is named: every share
+  // of every post carries it. The script is not copy, so no SCAN_BUCKET sees
+  // it, and the cards it writes are binaries no rule can read — a stale
+  // wordmark there is invisible to every other check in this file.
+  it('the social-card generator stamps the current product name', () => {
+    const generator = readFileSync(
+      path.join(WEBSITE_ROOT, 'scripts/generate-title-cards.mjs'),
+      'utf8',
+    );
+    expect(generator).toContain(`'${facts.PRODUCT_NAME} ${facts.CURRENT_LINE}'`);
+    expect(generator).not.toMatch(/ModPageSpeed|MPS ?2\.0/);
   });
 
   it('ASPNETCORE_RIDS includes linux-arm64 (2.0 is multi-arch, not x86_64-only)', () => {
@@ -1312,15 +1771,23 @@ describe('canonical sources hold ground-truth product facts', () => {
     expect(facts.editionsFor('AVIF')).toEqual([facts.V1_LINE, facts.V2_LINE, facts.CURRENT_LINE]);
     expect(facts.editionsFor('WebP')).toEqual([facts.V1_LINE, facts.V2_LINE, facts.CURRENT_LINE]);
     expect(facts.editionsFor('SVG')).toEqual([facts.V2_LINE, facts.CURRENT_LINE]);
-    // WebP and AVIF share an edition set, so the copy clause collapses; derive
-    // the expected clause from the table instead of hardcoding a rendering.
-    const clause = facts.editionClause(['WebP', 'AVIF']);
-    expect(clause.startsWith('WebP and AVIF across ')).toBe(true);
-    for (const line of [facts.V1_LINE, facts.V2_LINE, facts.CURRENT_LINE]) {
-      expect(clause).toContain(line);
-    }
-    // …and no rendered clause may leak a port (founder decision, mps2 #1000).
-    for (const c of [facts.editionClause(), facts.editionClause(['AVIF'])]) {
+    // The copy helper renders the bare format list — one product, so no line
+    // enumeration reaches rendered copy. The model above stays intact for the
+    // non-copy consumers (editionsFor()/portsFor()).
+    expect(facts.editionClause(['WebP', 'AVIF'])).toBe('WebP and AVIF');
+    expect(facts.editionClause(['SVG'])).toBe('SVG');
+    // An unknown format is skipped, never guessed.
+    expect(facts.editionClause(['WebP', 'JXL'])).toBe('WebP');
+    // …and no rendered clause may leak a line label or a port (founder
+    // decision, mps2 #1000).
+    for (const c of [
+      facts.editionClause(),
+      facts.editionClause(['WebP', 'AVIF']),
+      facts.editionClause(['AVIF']),
+    ]) {
+      for (const line of [facts.V1_LINE, facts.V2_LINE, facts.CURRENT_LINE]) {
+        expect(c).not.toContain(line);
+      }
       for (const port of ['Apache', 'IIS', 'ASP.NET Core', 'Envoy']) {
         expect(c).not.toContain(port);
       }
@@ -1380,6 +1847,23 @@ describe('denylist matchers discriminate bad vs good samples', () => {
           ? `\nexemption wrongly disarmed ${rule.id} on:\n  ${disarmed.join('\n  ')}\n`
           : undefined,
       ).toEqual([]);
+    });
+  }
+
+  // A whole-file exemption cannot be probed with a sentence, so it is pinned
+  // instead: the exact set of scanned files it removes from a rule's eyes is
+  // asserted. Broadening the predicate, or a live copy surface drifting into
+  // the exempted shape (a new release-notes-*.mdx that is really a landing
+  // page, say), fails here rather than quietly going unguarded.
+  for (const rule of DENYLIST) {
+    if (!rule.exemptFile) continue;
+    it(`[${rule.id}] the file exemption covers ONLY the archival surfaces it names`, () => {
+      const covered = SCAN_FILES.map((f) =>
+        path.relative(WEBSITE_ROOT, f).split(path.sep).join('/'),
+      )
+        .filter((rel) => rule.exemptFile!(rel))
+        .sort();
+      expect(covered).toEqual(rule.exemptFileExpectation ?? []);
     });
   }
 

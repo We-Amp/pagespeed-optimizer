@@ -84,7 +84,7 @@ const jsonLd = [webApp, faqPage];
 
 <BaseLayout title={title} description={description} jsonLd={jsonLd}>
   <section class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
-    <p class="eyebrow">RenderPeek &middot; a free tool from ModPageSpeed</p>
+    <p class="eyebrow">RenderPeek &middot; a free tool from mod_pagespeed</p>
     <h1 class="h1-hero text-text-body mt-2">
       See what AI crawlers miss. Optimize the HTML you serve, on your own servers.
     </h1>
@@ -92,8 +92,8 @@ const jsonLd = [webApp, faqPage];
       Most AI crawlers read your raw HTML and never run your JavaScript, so anything your scripts
       render is invisible to them. Paste a URL to see the gap. The same self-hosted mod_pagespeed
       worker that powers this site then optimizes and cleans that HTML inline, on your own servers
-      rather than behind a CDN. ModPageSpeed 2.0 can also serve AI agents a clean, rendered copy of
-      the page at the same URL &mdash; an
+      rather than behind a CDN. The optimizer worker can also serve AI agents a clean, rendered
+      copy of the page at the same URL &mdash; an
       <a href="/blog/serve-markdown-to-ai-agents/" class="text-interactive underline underline-offset-2"
         >experimental feature</a
       >, off by default, that we dogfood here.

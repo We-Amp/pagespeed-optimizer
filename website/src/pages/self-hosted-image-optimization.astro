@@ -33,7 +33,7 @@ const imageDelivery = getMappingByAuditId('image-delivery-insight');
 // the audit map. Fall back defensively if the entry id ever changes.
 const savingsClaim =
   imageDelivery?.explanation ??
-  'ModPageSpeed transcodes JPEG/PNG/GIF to WebP and AVIF, recompresses, resizes to the rendered display size, and strips metadata.';
+  'mod_pagespeed transcodes JPEG/PNG/GIF to WebP and AVIF, recompresses, resizes to the rendered display size, and strips metadata.';
 
 // The variant axes that multiply out to the 36 raster variants (+1 SVG = 37).
 // Mirrors RASTER_VARIANTS = 3 formats × 3 viewports × 2 densities × 2 Save-Data.
@@ -89,7 +89,8 @@ const articleJsonLd = {
 const softwareJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'SoftwareApplication',
-  name: 'ModPageSpeed 2.0',
+  name: 'mod_pagespeed 2.1',
+  alternateName: 'ModPageSpeed 2.0',
   applicationCategory: 'DeveloperApplication',
   operatingSystem: ['Linux', 'Windows', 'macOS'],
   description:
@@ -107,19 +108,19 @@ const softwareJsonLd = {
 const faqEntries = [
   {
     q: 'Can I optimize images without a CDN or an image service?',
-    a: 'Yes. ModPageSpeed runs the optimization on your own server — as an nginx module, behind an nginx reverse proxy, or as ASP.NET Core middleware. It transcodes to WebP and AVIF, resizes to the rendered size, and serves the result from a local cache. There is no upload step, no external service, and no per-image fee, because the work happens in your stack.',
+    a: 'Yes. mod_pagespeed runs the optimization on your own server — as an nginx module, behind an nginx reverse proxy, or as ASP.NET Core middleware. It transcodes to WebP and AVIF, resizes to the rendered size, and serves the result from a local cache. There is no upload step, no external service, and no per-image fee, because the work happens in your stack.',
   },
   {
     q: 'How is this different from Cloudinary, imgproxy, or Thumbor?',
-    a: 'Cloudinary is a hosted service billed per transformation, per stored asset, and per byte of egress. imgproxy and Thumbor are self-hosted services you run as a separate image server and call by rewriting your image URLs to point at them. ModPageSpeed sits in the response path of the site you already serve, optimizes the images the page references without URL rewriting on your part, and caches the variants — so it is self-hosted like imgproxy and Thumbor, but with nothing to wire into your markup.',
+    a: 'Cloudinary is a hosted service billed per transformation, per stored asset, and per byte of egress. imgproxy and Thumbor are self-hosted services you run as a separate image server and call by rewriting your image URLs to point at them. mod_pagespeed sits in the response path of the site you already serve, optimizes the images the page references without URL rewriting on your part, and caches the variants — so it is self-hosted like imgproxy and Thumbor, but with nothing to wire into your markup.',
   },
   {
     q: 'Does self-hosting image optimization cost more in CPU?',
-    a: 'Optimization runs once per image variant and the result is cached, so steady-state cost is a cache read, not a re-encode. In ModPageSpeed 2.0 the encode happens in a separate worker process out of the request path, so a slow or heavy transcode cannot stall the web server — the first request for an image is served as the original and the optimized variant appears on later requests. The quality model used to pick encoder settings runs on CPU — no GPU is required.',
+    a: 'Optimization runs once per image variant and the result is cached, so steady-state cost is a cache read, not a re-encode. In mod_pagespeed 2.1 the encode happens in the optimizer worker, out of the request path, so a slow or heavy transcode cannot stall the web server — the first request for an image is served as the original and the optimized variant appears on later requests. The quality model used to pick encoder settings runs on CPU — no GPU is required.',
   },
   {
     q: 'What image formats and sizes does it generate?',
-    a: `It transcodes to WebP and AVIF (and keeps the original as a fallback), and resizes each image to the size it is actually displayed at. ModPageSpeed 2.0 generates up to ${MAX_VARIANTS} variants per image — ${RASTER_VARIANTS} raster variants across format, viewport class, pixel density, and Save-Data, plus an SVG variant for eligible images — and serves the right one based on what the requesting browser advertises.`,
+    a: `It transcodes to WebP and AVIF (and keeps the original as a fallback), and resizes each image to the size it is actually displayed at. The optimizer worker generates up to ${MAX_VARIANTS} variants per image — ${RASTER_VARIANTS} raster variants across format, viewport class, pixel density, and Save-Data, plus an SVG variant for eligible images — and serves the right one based on what the requesting browser advertises.`,
   },
   {
     q: 'How much smaller are the images?',
@@ -127,7 +128,7 @@ const faqEntries = [
   },
   {
     q: 'How does it decide the compression quality?',
-    a: 'You can set fixed quality per format. By default, ModPageSpeed 2.0 uses a learned quality model that predicts the encoder setting needed to hit a target SSIMULACRA2 score — a perceptual metric that tracks how different two images look to a person — so it compresses as far as it can without a visible difference, per image, instead of applying one global quality number to everything.',
+    a: 'You can set fixed quality per format. By default, the optimizer worker uses a learned quality model that predicts the encoder setting needed to hit a target SSIMULACRA2 score — a perceptual metric that tracks how different two images look to a person — so it compresses as far as it can without a visible difference, per image, instead of applying one global quality number to everything.',
   },
   {
     q: 'Do my images leave my server?',
@@ -165,7 +166,7 @@ const faqJsonLd = {
     </h1>
     <p class="lede mt-6 max-w-3xl">
       Hosted image services optimize your images well, then bill you per transformation, per stored
-      asset, and per byte of egress. ModPageSpeed does the same work &mdash; transcode to WebP and
+      asset, and per byte of egress. mod_pagespeed 2.1 does the same work &mdash; transcode to WebP and
       AVIF, resize to the rendered size, target a perceptual-quality score &mdash; on the server you
       already run. Images never leave your origin, so there is nothing to meter on the way out.
     </p>
@@ -201,7 +202,7 @@ const faqJsonLd = {
               <th
                 scope="col"
                 class="px-3 py-3 text-left font-semibold text-text-body"
-                >Self-hosted (ModPageSpeed)</th
+                >Self-hosted (mod_pagespeed)</th
               >
             </tr>
           </thead>
@@ -224,7 +225,7 @@ const faqJsonLd = {
         </table>
       </div>
       <p class="mt-6 text-sm text-text-annotation">
-        This is the same trade hosted services make against running your own server. ModPageSpeed is
+        This is the same trade hosted services make against running your own server. mod_pagespeed is
         a self-hosted optimizer, in the same category as <a
           href="/vs/imgproxy/"
           class="text-interactive hover:text-interactive-hover underline">imgproxy</a
@@ -265,7 +266,7 @@ const faqJsonLd = {
           <p class="eyebrow">Resize</p>
           <p class="mt-3 text-sm text-text-muted">
             Each image is resized to the dimensions it is actually displayed at, so a phone
-            doesn&rsquo;t download a desktop-sized hero. ModPageSpeed 2.0 generates viewport-tagged
+            doesn&rsquo;t download a desktop-sized hero. The optimizer worker generates viewport-tagged
             variants instead of shipping one large image with a <code
               class="rounded bg-bg-elevated px-1 py-0.5 text-xs">srcset</code
             >.
@@ -291,7 +292,7 @@ const faqJsonLd = {
         Up to {MAX_VARIANTS} variants per image, served by capability
       </h2>
       <p class="mt-4 text-text-body">
-        ModPageSpeed 2.0 doesn&rsquo;t produce one optimized file per image &mdash; it produces a set
+        The optimizer worker doesn&rsquo;t produce one optimized file per image &mdash; it produces a set
         of variants and serves the one that matches the requesting browser. The raster variants
         multiply out from four axes; an <a
           href="/blog/svg-auto-vectorization/"
@@ -367,10 +368,9 @@ const faqJsonLd = {
         Variants are generated lazily, once, and cached &mdash; the cache stores them as alternates
         of a single key and the request path selects the best match. A browser that only takes WebP
         on a 1&times; mobile screen never causes the AVIF or 2&times; variants to be served, but they
-        are there when a different client needs them. In ModPageSpeed 2.0 the encode runs in a
-        separate worker process out of the request path, so the first request for an image is served
-        as the original while the worker optimizes in the background; later requests get the cached
-        variant.
+        are there when a different client needs them. The optimizer worker runs the encode out of
+        the request path, so the first request for an image is served as the original while the
+        worker optimizes in the background; later requests get the cached variant.
       </p>
     </section>
 
@@ -381,10 +381,10 @@ const faqJsonLd = {
       <h2 class="h2-section text-text-body">Turning it on</h2>
       <p class="mt-4 text-text-body">
         Image transcoding, resizing, and recompression are on as soon as it is enabled
-        &mdash; there is no per-filter list to assemble. On nginx, ModPageSpeed 2.0 is two
+        &mdash; there is no per-filter list to assemble. On nginx, mod_pagespeed 2.1 is two
         directives:
       </p>
-      <pre class="mt-4 overflow-x-auto rounded-md bg-stone-900 dark:bg-black p-4 text-xs sm:text-sm"><code class="text-stone-100">{`# nginx — ModPageSpeed 2.0
+      <pre class="mt-4 overflow-x-auto rounded-md bg-stone-900 dark:bg-black p-4 text-xs sm:text-sm"><code class="text-stone-100">{`# nginx — mod_pagespeed 2.1
 pagespeed on;
 pagespeed_cache_path /var/lib/pagespeed/cache.vol;`}</code></pre>
       <p class="mt-4 text-text-body">
@@ -398,7 +398,7 @@ pagespeed_cache_path /var/lib/pagespeed/cache.vol;`}</code></pre>
         For .NET, the same engine ships as ASP.NET Core middleware &mdash; one package, native worker
         bundled, no separate image server to deploy:
       </p>
-      <pre class="mt-4 overflow-x-auto rounded-md bg-stone-900 dark:bg-black p-4 text-xs sm:text-sm"><code class="text-stone-100">{`# ASP.NET Core — ModPageSpeed 2.0 middleware
+      <pre class="mt-4 overflow-x-auto rounded-md bg-stone-900 dark:bg-black p-4 text-xs sm:text-sm"><code class="text-stone-100">{`# ASP.NET Core — mod_pagespeed 2.1 middleware
 dotnet add package ${PKG_ASPNETCORE}`}</code></pre>
       <p class="mt-4 text-sm text-text-muted">
         See the <a href="/docs/getting-started/" class="text-interactive hover:text-interactive-hover underline"
@@ -406,9 +406,9 @@ dotnet add package ${PKG_ASPNETCORE}`}</code></pre>
         > for the nginx setup and <a
           href="/docs/aspnet-configuration/"
           class="text-interactive hover:text-interactive-hover underline">ASP.NET configuration</a
-        > for the middleware. The mod_pagespeed 1.15 line also transcodes WebP and AVIF as a native
-        module (SVG auto-vectorization, Jpegli, and the learned-quality model are 2.0-only); its prebuilt, signed
-        packages cover {NGINX_APT_MATRIX} for {NGINX_APT_ARCHES} via <a
+        > for the middleware. The module also transcodes WebP and AVIF in-process (SVG
+        auto-vectorization, Jpegli and the learned-quality model run in the optimizer worker); its
+        prebuilt, signed packages cover {NGINX_APT_MATRIX} for {NGINX_APT_ARCHES} via <a
           href="https://packages.modpagespeed.com/"
           rel="noopener noreferrer external"
           class="text-interactive hover:text-interactive-hover underline">packages.modpagespeed.com</a
@@ -542,7 +542,7 @@ dotnet add package ${PKG_ASPNETCORE}`}</code></pre>
         </li>
         <li>
           <a href="/vs/cloudinary/" class="text-interactive hover:text-interactive-hover underline"
-            >ModPageSpeed vs Cloudinary</a
+            >mod_pagespeed vs Cloudinary</a
           > &middot;
           <a href="/vs/imgproxy/" class="text-interactive hover:text-interactive-hover underline"
             >vs imgproxy</a
@@ -553,7 +553,7 @@ dotnet add package ${PKG_ASPNETCORE}`}</code></pre>
         </li>
         <li>
           <a href="/features/" class="text-interactive hover:text-interactive-hover underline"
-            >ModPageSpeed 2.0 features</a
+            >mod_pagespeed 2.1 features</a
           > &mdash; image transcoding, critical CSS, minification, and variant-aware caching
         </li>
       </ul>

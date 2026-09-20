@@ -1,6 +1,6 @@
 ---
 title: 'Auto-vectorizing raster images to SVG: one variant for every resolution'
-description: Raster to SVG auto-vectorization in ModPageSpeed 2.0 traces qualifying logos and icons with VTracer, collapsing the @1x/@2x/viewport matrix into one variant.
+description: 'Raster to SVG auto-vectorization in mod_pagespeed 2.1: the optimizer worker traces logos and icons with VTracer, collapsing the variant matrix into one.'
 date: 2026-06-13
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'
@@ -11,7 +11,7 @@ product: '2.0'
 
 A site logo arrives as `logo.png`: 8.2 KB, 240×80 pixels, three flat colors on a transparent background. To cover a Retina display it ships a 480×160 `@2x` version too. To look right on a phone there is a smaller crop. Each of those is its own cache entry, its own download, and its own blurry compromise at any DPI the designer did not anticipate. The same content as a Brotli-compressed SVG is around 600 bytes, renders crisply at any resolution, and is a single cache entry.
 
-That gap is the whole point of the SVG pipeline in ModPageSpeed 2.0. For images that are genuinely simple — logos, icons, flat illustrations — vectorizing removes them from the raster variant matrix entirely. There is nothing left to pick a viewport class for, no `@1x`/`@2x` pair, no per-density encode. One resolution-independent file serves every client. This post covers how 2.0 decides which images qualify and how it produces and serves them without breaking the ones that do not.
+That gap is the whole point of the SVG pipeline in the optimizer worker. For images that are genuinely simple — logos, icons, flat illustrations — vectorizing removes them from the raster variant matrix entirely. There is nothing left to pick a viewport class for, no `@1x`/`@2x` pair, no per-density encode. One resolution-independent file serves every client. This post covers how 2.0 decides which images qualify and how it produces and serves them without breaking the ones that do not.
 
 ## Detect first, vectorize second
 
@@ -53,7 +53,7 @@ One caveat: SVG render cost scales with path count, not pixel count, and for an 
 - [AVIF vs WebP in 2026](/blog/avif-vs-webp-2026/)
 - [Cumulative Layout Shift](/core-web-vitals/cls/)
 
-Raster-to-SVG auto-vectorization ships in detect-first mode, so the safe path is to run it that way: point ModPageSpeed 2.0 at your site, let it score your images, and read the workbench to see which logos and icons it flags and what they would save before a single byte changes for a visitor. When you are ready, switch `--svg-mode` to `auto` and let the SVG collapse the variant matrix for the assets that qualify. Grab a build from the [downloads page](/download/) and read the [configuration reference](/docs/configuration/) for the `--svg-*` flags. It is licensed under Apache-2.0 and free to run in development and in production, so you can evaluate whether vectorization is worth it on your own images.
+Raster-to-SVG auto-vectorization ships in detect-first mode, so the safe path is to run it that way: point the optimizer worker at your site, let it score your images, and read the workbench to see which logos and icons it flags and what they would save before a single byte changes for a visitor. When you are ready, switch `--svg-mode` to `auto` and let the SVG collapse the variant matrix for the assets that qualify. Grab a build from the [downloads page](/download/) and read the [configuration reference](/docs/configuration/) for the `--svg-*` flags. It is licensed under Apache-2.0 and free to run in development and in production, so you can evaluate whether vectorization is worth it on your own images.
 
 ---
 

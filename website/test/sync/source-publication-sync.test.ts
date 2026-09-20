@@ -62,6 +62,12 @@ const licenseAstro = readFileSync(resolve(ROOT, 'src/pages/license.astro'), 'utf
 // are scanned like every other copy surface.
 const PENDING_LEGAL_REVISION = new Set<string>();
 const PENDING_KEY_TALK = new Set<string>();
+// RSL-CAP is a CONTENT-licensing feature: it gates crawler access with
+// capability tokens, and "Unlicensed" / "the required license is not granted"
+// are its own protocol vocabulary (the rows of its HTTP status table), not the
+// retired software-licence apparatus guard 6 is about. Pinned to pages that
+// really are about that feature — see guard 6b.
+const CONTENT_LICENSING_FEATURE_PAGES = new Set(['src/content/docs/rsl-cap.md']);
 // The derivation itself lives here and legitimately spells out both forms.
 const DERIVATION_SOURCE = 'src/data/product-facts.mjs';
 // Comment-only mentions of the retired per-site/Business ladder as history or
@@ -147,9 +153,22 @@ describe('software-license single-source drift guard', () => {
     'src/layouts',
     'scripts/llms-templates',
   ];
-  function offendersIn(pattern: RegExp, skip: Set<string>): string[] {
+  // Every copy surface, content collections included. Guard 6 uses this: a
+  // claim about licence state misleads a reader wherever it is published, and
+  // a blog post is exactly where one survived ("keeps optimizing whether or
+  // not it's licensed" sat in a post for as long as the scan stopped at
+  // src/pages).
+  const ALL_COPY_DIRS = [
+    'src/pages',
+    'src/content',
+    'src/data',
+    'src/components',
+    'src/layouts',
+    'scripts/llms-templates',
+  ];
+  function offendersIn(pattern: RegExp, skip: Set<string>, dirs = NON_CONTENT_DIRS): string[] {
     const out: string[] = [];
-    for (const dir of NON_CONTENT_DIRS) {
+    for (const dir of dirs) {
       for (const file of copySources(resolve(ROOT, dir))) {
         const rel = file.slice(ROOT.length + 1);
         if (skip.has(rel) || rel === DERIVATION_SOURCE) continue;
@@ -169,10 +188,42 @@ describe('software-license single-source drift guard', () => {
     expect(offendersIn(CLAIM, new Set())).toEqual([]);
   });
 
-  it('6. no non-content copy surface talks about license keys', () => {
+  it('6. no copy surface talks about license keys or conditions optimization on a licence', () => {
+    // Two classes, one rule. The first is the retired key model and
+    // reassurance about its absence. The second is the same idea in the
+    // conditional voice — "it optimizes whether or not it's licensed",
+    // "licensed or not" — which tells a reader there is a licence gate to be
+    // on the right side of, on a site that has none. That phrasing is the one
+    // that slipped into a blog post while this scan stopped at src/pages.
+    //
+    // Deliberately blind to the licence FACTS the site does state: "licensed
+    // under Apache-2.0", "free to run", and a link to /license/ carry no
+    // conditional and no key, and no branch below can match them.
     const KEY_TALK =
-      /licen[cs]e[- ]key|license keys|--license-key|PAGESPEED_LICENSE|LicenseKey|licenseKey|unlicensed|X-PageSpeed-Warn|locks you out|license token|licen[cs]e activation|activat(e|ion|ing) a license|no license key|needs? no key|no keys?\b|key is ignored|leftover key/i;
-    expect(offendersIn(KEY_TALK, PENDING_KEY_TALK)).toEqual([]);
+      /licen[cs]e[- ]key|license keys|--license-key|PAGESPEED_LICENSE|LicenseKey|licenseKey|unlicensed|X-PageSpeed-Warn|locks you out|license token|licen[cs]e activation|activat(e|ion|ing) a license|no license key|needs? no key|no keys?\b|key is ignored|leftover key|whether or not (?:it|its|it's|the software|the module|the worker|your \w+)[^.\n]{0,20}?licen[cs]ed|regardless of (?:the |its )?licen[cs]e(?: state| status)?|even (?:if|when) (?:it is |it's )?unlicen[cs]ed|licen[cs]ed or not/i;
+    const skip = new Set([...PENDING_KEY_TALK, ...CONTENT_LICENSING_FEATURE_PAGES]);
+    expect(offendersIn(KEY_TALK, skip, ALL_COPY_DIRS)).toEqual([]);
+  });
+
+  it('6b. the content-licensing exemption only covers pages about content licensing', () => {
+    // The skip set cannot become a parking space: each entry must exist and
+    // must really be an RSL-CAP page, whose "Unlicensed" is a crawler
+    // response status, not a statement about the software's licence.
+    for (const rel of CONTENT_LICENSING_FEATURE_PAGES) {
+      const text = readFileSync(resolve(ROOT, rel), 'utf8');
+      expect(text, `${rel} is exempted but does not document RSL-CAP`).toMatch(/RSL-CAP/);
+    }
+  });
+
+  it('6c. guard 6 reaches the content collections', () => {
+    // A directory list is easy to get wrong and impossible to notice: the
+    // scan would simply find nothing. Assert the two collections the guard
+    // was extended to are actually being read.
+    const scanned = ALL_COPY_DIRS.flatMap((dir) => copySources(resolve(ROOT, dir))).map((f) =>
+      f.slice(ROOT.length + 1),
+    );
+    expect(scanned.filter((r) => r.startsWith('src/content/blog/')).length).toBeGreaterThan(20);
+    expect(scanned.filter((r) => r.startsWith('src/content/docs/')).length).toBeGreaterThan(10);
   });
 
   it('7. no copy source describes the retired per-site / flat-rate commercial model', () => {

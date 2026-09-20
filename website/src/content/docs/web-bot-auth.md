@@ -13,8 +13,8 @@ faq:
     a: 'No measurable cost. Requests without signature headers short-circuit before any work. Signature-bearing requests get at most one Ed25519 verification against keys already warmed in memory — verification never fetches anything over the network on the request path.'
   - q: 'Which bots can it verify?'
     a: 'Any client that signs requests with RFC 9421 HTTP Message Signatures under the Web Bot Auth convention (tag="web-bot-auth", Ed25519) and publishes its public keys in an HTTPS JWKS key directory you configure. That covers Web Bot Auth adopters among AI crawlers and any signer you run yourself.'
-  - q: 'Is this available in mod_pagespeed 1.15?'
-    a: 'Yes. mod_pagespeed 1.15 ships the same verifier core for nginx, configured with pagespeed directives and exposing the verdict as the $x_verified_bot nginx variable. ModPageSpeed 2.0 configures it via environment variables and emits the verdict as a response header.'
+  - q: 'Does the module verify Web Bot Auth signatures too?'
+    a: 'Yes. The module ships the same verifier core for nginx, configured with pagespeed directives and exposing the verdict as the $x_verified_bot nginx variable. The optimizer worker configures it via environment variables and emits the verdict as a response header.'
   - q: 'What does the nginx WebBotAuthBotDetection directive do?'
     a: "A Web Bot Auth signature can inform whether a request is treated as an automated client, behind the opt-in WebBotAuthBotDetection directive (server configuration, default off). With it on, a request carrying a cryptographically valid Web Bot Auth signature (RFC 9421) is treated as an automated client whatever identifier it presents — so an agent that identifies honestly is classified correctly even when it sends a browser's user-agent string, which no identifier list can detect. Only a signature that verifies counts; an absent or failed signature changes nothing. Requires WebBotAuth, the existing directive that turns signature verification on. Off by default, so Web Bot Auth stays observe-only for every existing deployment: with the new directive off, a verification result still only labels the request — it populates the $x_verified_bot nginx variable, which you can log or pass to your own configuration, and the opt-in verified-request statistics."
   - q: 'What does "invalid" include?'
@@ -26,7 +26,7 @@ text. [Web Bot Auth](https://datatracker.ietf.org/wg/webbotauth/about/) fixes
 that with cryptography: a bot signs its requests with an Ed25519 key
 ([RFC 9421](https://www.rfc-editor.org/rfc/rfc9421.html) HTTP Message
 Signatures) and publishes the public half in a JWKS key directory at a
-well-known HTTPS URL. ModPageSpeed 2.0 can verify those signatures at your
+well-known HTTPS URL. mod_pagespeed 2.1 can verify those signatures at your
 origin and tell you, per request, **which bot actually sent it**.
 
 :::caution[Experimental]
@@ -188,8 +188,8 @@ signal on `/v1/metrics` only.
 
 ## Related
 
-This page covers the ModPageSpeed 2.0 configuration. For the concept in depth
-and the equivalent mod_pagespeed 1.15 nginx directives, see
+This page covers the optimizer worker's configuration; the module's nginx
+directives are in
 [Verify AI crawlers with Web Bot Auth](/blog/verify-ai-crawlers-web-bot-auth/).
 
 The verifier described here is observe-only — it labels and counts, and never

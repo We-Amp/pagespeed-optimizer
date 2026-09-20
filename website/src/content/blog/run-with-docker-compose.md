@@ -9,7 +9,7 @@ draft: false
 product: '2.0'
 ---
 
-ModPageSpeed 2.0 ships as two cooperating containers. One is a worker
+mod_pagespeed 2.1 ships as two cooperating containers. One is a worker
 that transcodes images and minifies assets; the other is an nginx interceptor
 that serves the optimized variants. Both processes share a single
 [Cyclone cache](/blog/cyclone-cache-vs-file-cache-benchmark/) volume via
@@ -24,7 +24,7 @@ working install.
 
 ## docker-compose.yml
 
-This is the production compose file from the ModPageSpeed 2.0 repo, trimmed
+This is the production compose file from the mod_pagespeed repo, trimmed
 for readability:
 
 ```yaml
@@ -124,7 +124,7 @@ nginx never starts, check `docker compose logs worker` first.
 
 ## Verify
 
-The fastest check is the response header. ModPageSpeed 2.0 emits
+The fastest check is the response header. mod_pagespeed emits
 `X-PageSpeed:` on optimized responses (the 1.x lineage uses
 `X-Mod-Pagespeed:`, same project family, different header):
 

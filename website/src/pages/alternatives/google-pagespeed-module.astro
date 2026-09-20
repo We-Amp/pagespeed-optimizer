@@ -18,10 +18,10 @@ const faq = [
   },
   {
     q: 'Should I still use PageSpeed Insights?',
-    a: 'Yes. PSI is still actively maintained and remains the canonical reference for "does my page pass Core Web Vitals." Use it to identify problems; use a server-side module like ModPageSpeed to fix them.',
+    a: 'Yes. PSI is still actively maintained and remains the canonical reference for "does my page pass Core Web Vitals." Use it to identify problems; use a server-side module like mod_pagespeed to fix them.',
   },
   {
-    q: 'Can ModPageSpeed fix the issues that PageSpeed Insights flags?',
+    q: 'Can mod_pagespeed fix the issues that PageSpeed Insights flags?',
     a: "Most of the technical ones — yes. mod_pagespeed 2.1 minifies CSS/JS, serves WebP and AVIF image variants, serves viewport-matched image sizes, auto-vectorizes eligible images to SVG, and caches per client capability. The remaining items PSI flags are typically application-level (third-party scripts, slow server responses, heavy JavaScript) which a server module can't address.",
   },
   {
@@ -253,10 +253,10 @@ dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
       </p>
 
       <h2>PSI tells you the problem, the module fixes it</h2>
-      <p>PSI and ModPageSpeed are complementary, not competing:</p>
+      <p>PSI and mod_pagespeed are complementary, not competing:</p>
       <table>
         <thead>
-          <tr><th>PSI (diagnostic)</th><th>ModPageSpeed (server-side fix)</th></tr>
+          <tr><th>PSI (diagnostic)</th><th>mod_pagespeed 2.1 (server-side fix)</th></tr>
         </thead>
         <tbody>
           <tr>
@@ -283,7 +283,7 @@ dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
         </tbody>
       </table>
       <p>
-        The workflow is: PSI scores the page, ModPageSpeed applies the optimizations on the server,
+        The workflow is: PSI scores the page, mod_pagespeed applies the optimizations on the server,
         PSI re-scores. Repeat until the score plateaus and the remaining items are application-level
         work the module can't touch (third-party scripts, server response time, JS execution).
       </p>
@@ -302,7 +302,7 @@ dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
               <a href="https://pagespeed.web.dev/" rel="noopener noreferrer">PageSpeed Insights</a>
             </td>
           </tr>
-          <tr><td>Both</td><td>Run PSI before and after deploying ModPageSpeed</td></tr>
+          <tr><td>Both</td><td>Run PSI before and after deploying mod_pagespeed</td></tr>
         </tbody>
       </table>
 
@@ -349,7 +349,7 @@ dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
         ))
       }
 
-      <h2>Get ModPageSpeed</h2>
+      <h2>Get mod_pagespeed</h2>
       <p>
         Install and run it &mdash; mod_pagespeed is {LICENSE_CLAUSE}, free in development and in
         production.

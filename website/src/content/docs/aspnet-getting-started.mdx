@@ -1,6 +1,6 @@
 ---
 title: 'Install ASP.NET Core middleware'
-description: 'Install ModPageSpeed as ASP.NET Core middleware via NuGet — the same 2.0 optimization pipeline (image transcoding, critical CSS) inside your .NET app, no nginx reverse proxy required.'
+description: 'Install the mod_pagespeed 2.1 ASP.NET Core middleware via NuGet — the same optimization pipeline (image transcoding, critical CSS) inside your .NET app.'
 order: 50
 group: 'ASP.NET Core'
 lastUpdated: 2026-09-19
@@ -8,10 +8,11 @@ lastUpdated: 2026-09-19
 
 import NugetCmd from '../../components/release/NugetCmd.astro';
 
-ModPageSpeed runs inside your ASP.NET Core pipeline as middleware, installed as
-a NuGet package. Same optimization pipeline as the nginx integration — image
-transcoding, CSS/JS minification, critical CSS — invoked via P/Invoke to the
-native C/C++ library. No separate reverse proxy or sidecar is required.
+The mod_pagespeed 2.1 ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`) runs
+inside your ASP.NET Core pipeline, installed as a NuGet package. Same optimization
+pipeline as the nginx integration — image transcoding, CSS/JS minification, critical
+CSS — invoked via P/Invoke to the native C/C++ library. No separate reverse proxy or
+sidecar is required.
 
 ## Prerequisites
 
@@ -164,7 +165,7 @@ read zero, jump to
 
 ### 3. Content negotiation serves smaller images
 
-We don't rewrite URLs in 2.0 — the same `/hero.jpg` URL serves WebP to
+The middleware does not rewrite URLs — the same `/hero.jpg` URL serves WebP to
 WebP-capable browsers and AVIF to AVIF-capable ones. The worker selects the
 variant from the request `Accept` header, and the response carries
 `Vary: Accept, Save-Data, User-Agent` so caches keep the variants apart:
@@ -185,7 +186,7 @@ image; yours will differ.) View the HTML source to see the rest: inlined
 critical CSS, lazy-loaded images, and deferred scripts where coverage analysis
 allows (tiny scripts may legitimately stay inline-blocking).
 
-> **Coming from 1.x?** There are no `.pagespeed.` magic URLs in 2.0. The HTML
+> **Coming from 1.x?** The middleware emits no `.pagespeed.` magic URLs. The HTML
 > stays clean and the original URLs serve optimized bytes through content
 > negotiation. If you're looking for rewritten asset URLs in the page source,
 > you won't find them — that's expected.
@@ -381,7 +382,7 @@ unless `Sidecar.AllowPublicAdmin` is enabled).
 
 ### When to use the sidecar vs. the in-process middleware
 
-|               | `WeAmp.PageSpeed.Sidecar` (1.15)                           | `WeAmp.PageSpeed.AspNetCore` (2.0)                        |
+|               | `WeAmp.PageSpeed.Sidecar` (1.15)                           | `WeAmp.PageSpeed.AspNetCore` (2.1)                        |
 | ------------- | ---------------------------------------------------------- | --------------------------------------------------------- |
 | Model         | Middleware front door; bundled nginx optimizes on loopback | In-process middleware (P/Invoke)                          |
 | Platforms     | Linux only (`linux-x64`, `linux-arm64`)                    | linux-x64/arm64, osx-arm64, win-x64                       |

@@ -1,6 +1,6 @@
 ---
 title: 'ModPageSpeed 2.0 for ASP.NET Core: optimization middleware via NuGet'
-description: 'Run the ModPageSpeed 2.0 optimization pipeline as ASP.NET Core middleware via NuGet — image transcoding, critical CSS, and cache serving in two lines of C#, no nginx reverse proxy required.'
+description: 'Run the mod_pagespeed 2.1 optimization pipeline as ASP.NET Core middleware via NuGet — image transcoding, critical CSS and cache serving in two lines of C#.'
 date: 2026-02-12
 lastUpdated: 2026-06-21
 author: 'Otto van der Schaaf'
@@ -9,7 +9,7 @@ product: '2.0'
 draft: false
 ---
 
-ModPageSpeed 2.0 has been nginx-only until now. The nginx interceptor does zero-copy cache serving, 103 Early Hints, and sub-millisecond variant selection — but it requires nginx.
+The optimizer worker has been nginx-only until now. The nginx interceptor does zero-copy cache serving, 103 Early Hints, and sub-millisecond variant selection — but it requires nginx.
 
 If your application runs on ASP.NET Core, adding nginx as a reverse proxy just to get page optimization is a significant architectural change. You inherit nginx's configuration language, its process model, and its deployment story.
 

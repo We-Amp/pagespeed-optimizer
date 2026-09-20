@@ -1,14 +1,14 @@
 ---
-title: 'Deploy ModPageSpeed 2.0 to production: Docker, Helm, systemd'
-description: 'Run the ModPageSpeed 2.0 worker and nginx in production with Docker Compose, Kubernetes (Helm), or systemd — covering file permissions, logging, monitoring, and cache sizing.'
+title: 'Deploy to production: Docker, Helm, systemd'
+description: 'Run the optimizer worker and the module in production with Docker Compose, Kubernetes (Helm), or systemd — covering file permissions, logging, monitoring, and cache sizing.'
 order: 30
 group: 'Operate'
-lastUpdated: 2026-09-06
+lastUpdated: 2026-09-19
 ---
 
 import ImageTag from '../../components/release/ImageTag.astro';
 
-ModPageSpeed 2.0 runs as two cooperating processes: a worker that optimizes
+mod_pagespeed 2.1 runs as two cooperating processes: the optimizer worker, which optimizes
 content and an nginx front end that serves it from a shared cache. This guide
 covers the three ways to run that pair in production — Docker Compose,
 Kubernetes (Helm), and systemd — along with file permissions, logging,
@@ -228,7 +228,7 @@ ExecStart=/usr/local/bin/factory_worker \
     --log-format json \
     --log-level info
 
-# Identity: the daemon runs UNPRIVILEGED. The pagespeed user/group come
+# Identity: the optimizer worker runs UNPRIVILEGED. The pagespeed user/group come
 # from the packaged sysusers.d drop-in; the nginx worker user joins group
 # pagespeed (the module package's postinst does that join).
 User=pagespeed
@@ -277,12 +277,12 @@ sudo systemctl status pagespeed-worker
 
 ### Key systemd Settings
 
-- **`User=pagespeed` / `Group=pagespeed`** — The daemon runs unprivileged.
+- **`User=pagespeed` / `Group=pagespeed`** — The optimizer worker runs unprivileged.
   The serving module's web-server user joins group `pagespeed`;
   that shared group is the entire access boundary for the cache and sockets.
 - **`UMask=0007`** — Backstop only. Every security-relevant mode (sockets
   0660, volume 0660, shared config 0640, serve-stats 0660) is set with an
-  explicit chmod in the daemon, so nothing depends on the umask.
+  explicit chmod in the optimizer worker, so nothing depends on the umask.
 - **`ProtectSystem=strict`** / **`ReadWritePaths`** — The worker can only write
   to `/var/cache/pagespeed-optimizer`, so a worker vulnerability cannot write outside that directory.
 - **`LimitNOFILE=65536`** — Ensures the worker can open enough file descriptors
@@ -318,7 +318,7 @@ Cross-process cache sharing between nginx and the worker is scoped to one
 shared group. The worker runs as the unprivileged `pagespeed` user and owns
 every file it creates; nginx worker processes (`nobody`, `www-data`,
 `apache`, ...) reach those files through membership in group `pagespeed`.
-Nothing is world-accessible, and no mode is umask-derived — the daemon sets
+Nothing is world-accessible, and no mode is umask-derived — the optimizer worker sets
 each one explicitly after creating the file.
 
 ### Required Permissions
@@ -353,14 +353,14 @@ The worker's default cache and socket paths moved to
 the new paths and restart the web server.
 
 Until you do, in-place optimization stays off and the log reports the socket
-as absent — as though the daemon were not running — because the module is
+as absent — as though the optimizer worker were not running — because the module is
 still looking at the old location. The upgrade prints the same reminder.
 
 The worker **refuses to start** — with a log line naming the cause — when
 its cache directory is missing, unwritable, or holds content owned by
 another uid. That is deliberate: no install or startup path ever chowns or
 migrates pre-existing content (a root-owned cache from an older release is
-abandoned in place; the daemon cold-starts into the fresh directory).
+abandoned in place; the optimizer worker cold-starts into the fresh directory).
 Delete or move the old content yourself when you are ready to reclaim the
 disk.
 

@@ -1,6 +1,6 @@
 ---
 title: 'Proactive variant generation: warming the cache for hot URLs'
-description: 'How ModPageSpeed 2.0 warms hot-URL caches: nginx flags a hot URL and the worker pre-builds the whole image variant matrix — format, viewport, density, Save-Data — instead of encoding one variant per request.'
+description: 'How the mod_pagespeed 2.1 optimizer worker warms hot-URL caches: nginx flags a hot URL and the worker pre-builds the whole image variant matrix — format, viewport, density, Save-Data — instead of encoding one variant per request.'
 date: 2026-06-14
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'
@@ -9,7 +9,7 @@ draft: false
 product: '2.0'
 ---
 
-Lazy optimization has a real weakness: it only ever builds the variant the request in front of it asked for. The first visitor to a hot image is on a [Save-Data](/blog/save-data-bandwidth/) phone, so you encode one AVIF at mobile width and 1x density. The next visitor is on a 2x desktop with no Save-Data, and that variant is cold, so they get a fallback and a re-notify. ModPageSpeed 2.0 handles cache warmup variant generation differently: once nginx decides a URL is hot, it sends a warmup signal to the worker, which generates the whole format/viewport/density/Save-Data matrix proactively instead of waiting for each combination to be demanded one request at a time.
+Lazy optimization has a real weakness: it only ever builds the variant the request in front of it asked for. The first visitor to a hot image is on a [Save-Data](/blog/save-data-bandwidth/) phone, so you encode one AVIF at mobile width and 1x density. The next visitor is on a 2x desktop with no Save-Data, and that variant is cold, so they get a fallback and a re-notify. The optimizer worker handles cache warmup variant generation differently: once nginx decides a URL is hot, it sends a warmup signal to the worker, which generates the whole format/viewport/density/Save-Data matrix proactively instead of waiting for each combination to be demanded one request at a time.
 
 This post is about *when* and *why* variants get built ahead of demand. The mechanics of which variants exist live in [viewport-aware image optimization](/blog/viewport-aware-image-optimization/); how the cache key for each variant is built lives in [cache key derivation and alternate fallback](/blog/cache-key-derivation-and-alternate-fallback/). Here the question is the warmup trigger.
 
@@ -96,7 +96,7 @@ Warmup trades CPU for tail latency on your most-requested assets. If a handful o
 - [Asynchronous rewriting](/how-it-works/async-rewriting/)
 - [Cache modes](/docs/cache-modes/)
 
-Warmup is off by default; turn it on with `--enable-warmup` on the worker and `pagespeed_hot_threshold N;` in your nginx config, then watch the `proactive_variants_written` stat climb on your busiest URLs. [Download ModPageSpeed 2.0](/download/) to try it, and read [the cache-modes documentation](/docs/cache-modes/) to decide which mode pairs with your [TTL freshness heuristics](/blog/default-cache-ttl-heuristic-freshness/). It is licensed under Apache-2.0 and free to run, so you can measure the win on your own traffic.
+Warmup is off by default; turn it on with `--enable-warmup` on the worker and `pagespeed_hot_threshold N;` in your nginx config, then watch the `proactive_variants_written` stat climb on your busiest URLs. [Download mod_pagespeed](/download/) to try it, and read [the cache-modes documentation](/docs/cache-modes/) to decide which mode pairs with your [TTL freshness heuristics](/blog/default-cache-ttl-heuristic-freshness/). It is licensed under Apache-2.0 and free to run, so you can measure the win on your own traffic.
 
 ---
 

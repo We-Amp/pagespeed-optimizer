@@ -1,6 +1,6 @@
 ---
 title: 'Cache mode safety math: must-revalidate vs aggressive TTL and stale-if-error'
-description: 'Cache-Control safety in ModPageSpeed 2.0: why must-revalidate, not max-age, is the real safety net, and when aggressive TTLs with stale-if-error and stale-while-revalidate are the right call.'
+description: 'Cache-Control safety in mod_pagespeed 2.1: why must-revalidate, not max-age, is the real safety net, and when aggressive TTLs with stale-if-error and stale-while-revalidate are the right call.'
 date: 2026-06-13
 lastUpdated: 2026-07-04
 author: 'Otto van der Schaaf'
@@ -11,12 +11,12 @@ product: '2.0'
 
 Picture the failure you are actually trying to survive. You roll out a filter
 config, and a rewrite produces broken CSS — a stylesheet that parses on your
-machine but drops a rule on production. ModPageSpeed serves it, a CDN edge
+machine but drops a rule on production. mod_pagespeed 2.1 serves it, a CDN edge
 caches it with `max-age=86400`, and now every visitor for the next 24 hours
 gets the broken page until you find the purge button. The TTL is not protecting
 you here. It is what holds the bug in place.
 
-Cache mode safety in ModPageSpeed 2.0 exists to bound exactly that scenario. The
+Cache mode safety in mod_pagespeed exists to bound exactly that scenario. The
 [cache modes doc](/docs/cache-modes/) lays out the two settings, `safe` (the
 default) and `aggressive`, and the exact headers each emits. What the reference
 doc cannot do, and what this post is for, is editorialize: the recovery time is
@@ -56,7 +56,7 @@ lets your corrected config take effect. Safe mode bounds that window to 5 minute
 for CSS/JS and 30 for images. Aggressive mode opens it to 24 hours.
 
 People worry that forcing revalidation every few minutes is expensive. It is
-not, and the reason is conditional requests. ModPageSpeed generates ETags on all
+not, and the reason is conditional requests. mod_pagespeed generates ETags on all
 cache hits, so a revalidation that finds nothing changed returns 304 Not Modified
 with no body — a header exchange, not a re-transfer. The expensive part of a
 cache miss is shipping the bytes again, and `must-revalidate` plus ETags skips
@@ -75,7 +75,7 @@ A 504 feels like a downgrade. The origin is down, you had a cached copy, and the
 edge chose to fail instead of serving what it had. Why?
 
 Because the cached copy is, by construction, transformed output whose
-correctness depends on state the cache cannot see. ModPageSpeed rewrites your
+correctness depends on state the cache cannot see. mod_pagespeed rewrites your
 content against a specific filter configuration and a specific software version.
 The origin's own cache guarantees do not transfer verbatim to the rewritten
 bytes — a config change or a software bug can make yesterday's cached response
@@ -139,7 +139,7 @@ forcing it into safe-mode revalidation cadence is leaving performance on the
 floor for a safety margin you no longer need. The migration path is the point:
 start safe, prove correctness, then opt in.
 
-One detail that survives both modes: ModPageSpeed strips `immutable` from all
+One detail that survives both modes: mod_pagespeed strips `immutable` from all
 transformed content, in safe *and* aggressive. Your origin may mark fingerprinted
 assets `immutable`, but the optimized output depends on mutable state — config,
 software version, capability detection — so an immutability claim on it would be
@@ -162,7 +162,7 @@ The mode you want depends on how much you trust your cached transforms relative
 to your origin's uptime, and the answer on a fresh deployment is "not yet."
 Start in safe mode, let the short must-revalidate TTLs surface any broken output
 within minutes, and switch to aggressive once a week of clean traffic and a
-working CDN purge have earned it. ModPageSpeed 2.0 ships with safe as the default
+working CDN purge have earned it. mod_pagespeed ships with safe as the default
 for exactly that reason. If you want to try it on your own stack, the
 [download](/download/) is free to run — the line is licensed under
 Apache-2.0 — and the

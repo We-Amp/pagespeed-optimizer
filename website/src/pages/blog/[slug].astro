@@ -72,7 +72,7 @@ if (!post.data.coverImage && !generatedCards.has(`${post.id}.png`)) {
 const absoluteCardUrl = new URL(cardUrl, Astro.site ?? new URL('https://modpagespeed.com')).href;
 
 const isOneOne = post.data.product === '1.1';
-const productLabel = isOneOne ? 'mod_pagespeed 1.15' : 'mod_pagespeed 2.1';
+const productLabel = 'mod_pagespeed 2.1';
 
 // Append the product suffix to the <title> only when it won't push the SERP
 // title past the ~60-char truncation point. Long post titles keep their full
@@ -214,10 +214,13 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
         isOneOne ? (
           <>
             <p class="text-base font-semibold text-text-body">
-              Run mod_pagespeed 1.15 — Apache, nginx, Envoy, or IIS.
+              Run mod_pagespeed 2.1 — Apache, nginx and IIS.
             </p>
             <p class="mt-2 text-sm text-text-muted">
               Signed builds · Current dependency graph · Apache License 2.0
+            </p>
+            <p class="mt-2 text-sm text-text-muted">
+              The IIS package ships from the 1.15 packaging channel.
             </p>
             <div class="mt-5 flex flex-wrap items-center gap-3">
               <a

@@ -1,6 +1,6 @@
 ---
 title: "Visual-regression gating for critical CSS: reject any optimization that changes the pixels"
-description: "ModPageSpeed 2.0 pixel-diffs the rendered above-fold before caching a headless critical-CSS variant. If the optimized page looks different, the gate discards it and keeps the heuristic version."
+description: "The mod_pagespeed 2.1 optimizer worker pixel-diffs the rendered above-fold before caching a headless critical-CSS variant. If the optimized page looks different, the gate discards it and keeps the heuristic version."
 date: 2026-06-13
 author: 'Otto van der Schaaf'
 tags: ["headless-chrome", "critical-css", "visual-regression", "operations", "deep-dive", "core-web-vitals"]
@@ -11,13 +11,13 @@ lastUpdated: 2026-09-06
 
 The dangerous failure mode for a critical-CSS pass isn't making a page slower. It's making the page *wrong*: a hero that loses its background, or a card grid that loses its gap, because the extractor decided a rule wasn't above-fold and dropped it. Slower is measurable. Visually broken is the kind of thing you find out about from a customer screenshot three days later. That is the case for a visual regression gate.
 
-ModPageSpeed 2.0's design for browser-validated optimization treats that risk as the central problem. The headless tier runs a full Chrome render, pulls exact above-fold CSS from the Coverage API, and produces a smaller, more accurate critical-CSS variant than the heuristic pipeline can. But before that variant is ever allowed to replace the heuristic one in cache, it has to pass the visual regression gate: render the original, render the optimized version, diff the above-fold pixels, and if they differ beyond a tolerance, throw the optimized variant away and keep the heuristic one.
+The optimizer worker's design for browser-validated optimization treats that risk as the central problem. The headless tier runs a full Chrome render, pulls exact above-fold CSS from the Coverage API, and produces a smaller, more accurate critical-CSS variant than the heuristic pipeline can. But before that variant is ever allowed to replace the heuristic one in cache, it has to pass the visual regression gate: render the original, render the optimized version, diff the above-fold pixels, and if they differ beyond a tolerance, throw the optimized variant away and keep the heuristic one.
 
 This post is about the visual regression gate, why it exists, and how it sits inside a set of error budgets and content-integrity checks. A note on status up front: the headless layer is a design direction in the [headless browser optimization proposal](/how-it-works/async-rewriting/), and the gate exists as a standalone, tested library (`visual_regression_gate.h/cc`, 28 tests). It is not yet wired into the worker's notification pipeline. The heuristic pipeline is the shipped, always-on path. Everything below describes how the safety contract is meant to work, grounded in that proposal.
 
 ## Why a smaller critical-CSS variant is a riskier one
 
-The heuristic extractor in ModPageSpeed 2.0 is fast, deterministic, and zero-dependency. It also over-includes: pattern-matching above-fold elements by tag, id, class, and DOM depth tends to produce critical CSS that is larger than the theoretical minimum, and it can still miss genuinely-critical rules like pseudo-elements, complex selectors, and viewport-specific media queries. That over-inclusion is the trade-off, and it is the safe one: you ship more CSS than you need, but you rarely drop a rule the fold actually depends on.
+The heuristic extractor in the optimizer worker is fast, deterministic, and zero-dependency. It also over-includes: pattern-matching above-fold elements by tag, id, class, and DOM depth tends to produce critical CSS that is larger than the theoretical minimum, and it can still miss genuinely-critical rules like pseudo-elements, complex selectors, and viewport-specific media queries. That over-inclusion is the trade-off, and it is the safe one: you ship more CSS than you need, but you rarely drop a rule the fold actually depends on.
 
 The browser-validated path inverts that. Using `CSS.startRuleUsageTracking()` and `CSS.takeCoverageDelta()` at first contentful paint, it records exactly which rules fired during the real render at a real viewport. That brings the critical CSS much closer to the minimum the fold actually needs. The output is smaller and the slack is gone, so a misclassified rule is no longer harmless padding: it is a dropped style the fold actually needed.
 
@@ -76,7 +76,7 @@ This layered design is also why the gate's existence makes the *aggressive* opti
 - [Cumulative Layout Shift, end to end](/core-web-vitals/cls/)
 - [How async rewriting keeps the request path clean](/how-it-works/async-rewriting/)
 
-Browser-validated optimization is worth doing only if the browser proposes a change and the system proves the change is safe before any user sees it. A pixel diff of the above-fold, with anti-alias tolerance and a rejection-keeps-the-fallback default, is the proof: a variant that changes what the fold looks like never reaches cache, so the aggressive path can run without a human watching each page. To see the shipped heuristic pipeline this gate is designed to protect, [download ModPageSpeed 2.0](/download/) and read how [async rewriting](/how-it-works/async-rewriting/) keeps all of this off the request path. It is licensed under Apache-2.0 and free to run in development and in production.
+Browser-validated optimization is worth doing only if the browser proposes a change and the system proves the change is safe before any user sees it. A pixel diff of the above-fold, with anti-alias tolerance and a rejection-keeps-the-fallback default, is the proof: a variant that changes what the fold looks like never reaches cache, so the aggressive path can run without a human watching each page. To see the shipped heuristic pipeline this gate is designed to protect, [download mod_pagespeed](/download/) and read how [async rewriting](/how-it-works/async-rewriting/) keeps all of this off the request path. It is licensed under Apache-2.0 and free to run in development and in production.
 
 ---
 

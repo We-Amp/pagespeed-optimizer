@@ -1,6 +1,6 @@
 ---
 title: "Feeding Chrome's Coverage API: inlining cached CSS for accurate critical CSS"
-description: "How ModPageSpeed 2.0 feeds the Chrome Coverage API critical CSS: inline cached stylesheets into a network-blocked sandbox so it reports real used vs unused CSS."
+description: "How mod_pagespeed 2.1 feeds the Chrome Coverage API critical CSS: the worker inlines cached stylesheets into a network-blocked sandbox to see real usage."
 date: 2026-06-13
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'
@@ -15,7 +15,7 @@ The bug is not in the extractor. It is in what Chrome was allowed to see.
 
 ## Why the Chrome Coverage API returns 0% for critical CSS
 
-ModPageSpeed 2.0 computes critical CSS by loading a page's HTML into a fully sandboxed Chrome tab and reading the CSS Coverage API (`CSS.startRuleUsageTracking` → `takeCoverageDelta` → `stopRuleUsageTracking`). That tab is locked down hard: network offline, JavaScript disabled, every fetch blocked. The lockdown is deliberate. Browser analysis runs over content the worker pulled from cache, and the URLs inside that content are not trustworthy. An open network stack inside the analysis tab is an SSRF primitive pointed at your internal services. So we close it.
+The optimizer worker computes critical CSS by loading a page's HTML into a fully sandboxed Chrome tab and reading the CSS Coverage API (`CSS.startRuleUsageTracking` → `takeCoverageDelta` → `stopRuleUsageTracking`). That tab is locked down hard: network offline, JavaScript disabled, every fetch blocked. The lockdown is deliberate. Browser analysis runs over content the worker pulled from cache, and the URLs inside that content are not trustworthy. An open network stack inside the analysis tab is an SSRF primitive pointed at your internal services. So we close it.
 
 The cost of closing it shows up the moment a page uses `<link rel="stylesheet">` — which is to say, virtually every production site. Chrome cannot fetch the external stylesheet, so the document it analyzes has no CSS attached. The Coverage API reports usage against rules it can see, and it sees none. Zero bytes is the correct answer to the wrong document.
 
@@ -25,7 +25,7 @@ The tempting fix — relax the sandbox — is the one we rejected. Allowing same
 
 ## Inline the CSS we already have
 
-The worker already holds the CSS. nginx proxied those stylesheets, and the [Cyclone cache](/how-it-works/metadata-cache/) holds the version it last saw. So before handing HTML to Chrome, ModPageSpeed 2.0 enriches it: parse the `<link rel="stylesheet">` tags, look each one up in the cache, and inject a `<style>` block carrying the real CSS. Chrome's network stays offline. The bytes arrive through the document instead of through a socket.
+The worker already holds the CSS. nginx proxied those stylesheets, and the [Cyclone cache](/how-it-works/metadata-cache/) holds the version it last saw. So before handing HTML to Chrome, the optimizer worker enriches it: parse the `<link rel="stylesheet">` tags, look each one up in the cache, and inject a `<style>` block carrying the real CSS. Chrome's network stays offline. The bytes arrive through the document instead of through a socket.
 
 The enrichment runs inside `RunAnalysis()`, between the cache read and the call to the extractor. It lives in its own file (`css_cache_inliner.cc`) and takes a lookup callback rather than a cache handle:
 
@@ -57,7 +57,7 @@ Per-stylesheet blocks (rather than one concatenated blob) preserve cascade sourc
 
 ## The CSS came from cache, so treat it as hostile
 
-Cached CSS is not trusted input. It can contain whatever the origin served, and the analysis HTML is assembled from cache, so anything we inline into a `<style>` element has to be sanitized first. ModPageSpeed 2.0 reuses the exact pattern already in `html_css_injector.cc`:
+Cached CSS is not trusted input. It can contain whatever the origin served, and the analysis HTML is assembled from cache, so anything we inline into a `<style>` element has to be sanitized first. The optimizer worker reuses the exact pattern already in `html_css_injector.cc`:
 
 1. Strip null bytes, so a `\0` cannot smuggle a `</style>` past the next check.
 2. Scan the sanitized CSS for `</style` case-insensitively.
@@ -83,7 +83,7 @@ The longer-term direction for the CSS extractor is to stop manipulating HTML at 
 - [From beacon to headless: the history of critical CSS](/blog/critical-css-beacon-to-headless-history/)
 - [How async rewriting works](/how-it-works/async-rewriting/) and [browser analysis](/docs/browser-analysis/)
 
-If you want to see real coverage numbers instead of three zeroes, the browser-analysis pipeline ships in [ModPageSpeed 2.0](/download/); turn it on with `--enable-browser-analysis` and watch the `css_inlining_*` counters in `BROWSER-STATUS`. The [browser-analysis docs](/docs/browser-analysis/) cover the gate, the Chrome dependency, and how the extracted critical CSS feeds back into rewriting. It is licensed under Apache-2.0 and free to run, so you can prove the coverage numbers on your own content.
+If you want to see real coverage numbers instead of three zeroes, the browser-analysis pipeline ships in [mod_pagespeed](/download/); turn it on with `--enable-browser-analysis` and watch the `css_inlining_*` counters in `BROWSER-STATUS`. The [browser-analysis docs](/docs/browser-analysis/) cover the gate, the Chrome dependency, and how the extracted critical CSS feeds back into rewriting. It is licensed under Apache-2.0 and free to run, so you can prove the coverage numbers on your own content.
 
 ---
 

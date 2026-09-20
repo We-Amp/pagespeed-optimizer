@@ -1,15 +1,15 @@
 ---
 title: 'Deploy with Helm'
-description: 'Install ModPageSpeed 2.0 on Kubernetes with the official Helm chart: a two-container sidecar pod, values reference, autoscaling, and upgrades.'
+description: 'Install mod_pagespeed 2.1 on Kubernetes with the official Helm chart: a two-container pod (module + optimizer worker), values reference, autoscaling, and upgrades.'
 order: 13
 group: 'Install'
-lastUpdated: 2026-09-06
+lastUpdated: 2026-09-19
 ---
 
 import ImageTag from '../../components/release/ImageTag.astro';
 
-The official Helm chart deploys ModPageSpeed 2.0 as a sidecar pod: the nginx
-interceptor and worker run as two containers in the same pod, sharing
+The official Helm chart deploys mod_pagespeed 2.1 as a two-container pod: the module
+and the optimizer worker run as separate containers in the same pod, sharing
 an `emptyDir` volume for the Cyclone cache. This page covers installation,
 configuration, scaling, and upgrades.
 

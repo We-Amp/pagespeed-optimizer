@@ -1,6 +1,6 @@
 ---
 title: "Remove unused JavaScript with Chrome's coverage instrumentation"
-description: "How a headless Chrome V8 coverage pass measures which JavaScript actually executes before first paint, so ModPageSpeed 2.0 can safely defer the scripts that never run on load."
+description: "How a headless Chrome V8 coverage pass measures which JavaScript actually executes before first paint, so the mod_pagespeed 2.1 optimizer worker can safely defer the scripts that never run on load."
 date: 2026-06-14
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'
@@ -9,7 +9,7 @@ draft: false
 product: '2.0'
 ---
 
-Lighthouse tells you a page ships 380 KB of JavaScript and that "212 KB was unused." Useful, but it stops there. It does not tell you which of those bytes were never touched during the part of the load that matters, and it certainly does not rewrite the page for you. To **remove unused JavaScript** safely you need two things Lighthouse does not give you: per-script execution data measured at first paint, and a classifier that knows when moving a script is safe. ModPageSpeed 2.0 gets the first by running the page through Chrome's V8 coverage instrumentation in a headless tab, then feeds the result into a small set of deferral rules. This post is about exactly what that pass measures, which CDP methods it calls, and where the signal stops being trustworthy.
+Lighthouse tells you a page ships 380 KB of JavaScript and that "212 KB was unused." Useful, but it stops there. It does not tell you which of those bytes were never touched during the part of the load that matters, and it certainly does not rewrite the page for you. To **remove unused JavaScript** safely you need two things Lighthouse does not give you: per-script execution data measured at first paint, and a classifier that knows when moving a script is safe. The optimizer worker gets the first by running the page through Chrome's V8 coverage instrumentation in a headless tab, then feeds the result into a small set of deferral rules. This post is about exactly what that pass measures, which CDP methods it calls, and where the signal stops being trustworthy.
 
 ## What the coverage pass actually measures
 
@@ -75,7 +75,7 @@ INP is the Core Web Vital most directly tied to main-thread JavaScript, and defe
 - [Fix INP on nginx: a CMS-agnostic plan](/blog/fix-inp-nginx-2026/) — the server-layer view of deferring main-thread JavaScript.
 - [Can AI Read Your Website?](/blog/can-ai-read-your-website/) — what headless rendering reveals about a page beyond performance.
 
-ModPageSpeed 2.0 runs this coverage pass as part of its headless analysis stage; the recommendations feed the same async-rewriting machinery described in [how async rewriting works](/how-it-works/async-rewriting/). If you want to see what it flags on your own pages, [download a build](/download/) and read the [browser-analysis docs](/docs/browser-analysis/) for how to enable the headless stage. It is licensed under Apache-2.0 and free to run, so you can measure on your own pages.
+The optimizer worker runs this coverage pass as part of its headless analysis stage; the recommendations feed the same async-rewriting machinery described in [how async rewriting works](/how-it-works/async-rewriting/). If you want to see what it flags on your own pages, [download a build](/download/) and read the [browser-analysis docs](/docs/browser-analysis/) for how to enable the headless stage. It is licensed under Apache-2.0 and free to run, so you can measure on your own pages.
 
 ---
 

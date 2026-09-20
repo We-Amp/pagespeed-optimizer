@@ -1,12 +1,12 @@
 ---
 title: 'Troubleshoot common issues'
-description: 'Fix common ModPageSpeed 2.0 issues: cache misses, images not converting to WebP or AVIF, worker not processing, license warnings, and socket diagnostics.'
+description: 'Fix common mod_pagespeed 2.1 issues: cache misses, images not converting to WebP or AVIF, the optimizer worker not processing, and socket diagnostics.'
 order: 33
 group: 'Operate'
 lastUpdated: 2026-09-19
 ---
 
-Most ModPageSpeed 2.0 problems surface in one place: the `X-PageSpeed`
+Most mod_pagespeed 2.1 problems surface in one place: the `X-PageSpeed`
 response header. `HIT` means the worker served a cached response (normally an
 optimized variant); `MISS` means it served the original. Read that header first,
 then jump to the symptom
@@ -29,8 +29,8 @@ been requested before.
    `/run/pagespeed-optimizer/notify.sock`, but your web-server configuration
    keeps whatever it was set to. A configuration still naming the old
    `/var/lib/pagespeed-optimizer/...` paths makes the module attach to the
-   abandoned cache and report the socket as **absent** — "start the daemon" —
-   while the daemon is running perfectly well somewhere else. Repoint the
+   abandoned cache and report the socket as **absent** — "start the optimizer worker" —
+   while the optimizer worker is running perfectly well somewhere else. Repoint the
    directives and restart the web server.
 
    ```bash
@@ -86,7 +86,7 @@ image on every reload, and you are not sure optimization is working.
 
 **Cause:** Almost certainly nothing is wrong. Chrome DevTools open with
 **Disable cache** ticked, or a hard reload (`Cmd/Ctrl+Shift+R`), both make the
-browser send `Cache-Control: no-cache` on every request. ModPageSpeed honors
+browser send `Cache-Control: no-cache` on every request. mod_pagespeed honors
 that by revalidating and serving the unmodified origin response
 (`X-PageSpeed: MISS`) instead of a cached optimized variant. Real visitors do
 not send `no-cache`, so they always get the optimized response.
@@ -319,7 +319,7 @@ failed during initialization.
 ### "Failed to open cache at ..." {#failed-to-open-cache-at}
 
 The worker cannot open or create the cache file, or refused to start. The
-daemon refuses to start (loudly, naming the cause) when its cache directory
+optimizer worker refuses to start (loudly, naming the cause) when its cache directory
 is missing, unwritable, or holds content owned by another uid — it never
 chowns or migrates content itself. Read the refusal line in the journal; it
 distinguishes "does not exist" from "permission denied" from

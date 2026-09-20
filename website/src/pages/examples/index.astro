@@ -52,7 +52,7 @@ const itemListJsonLd = {
 
 <BaseLayout
   title="mod_pagespeed examples — every filter, shown live"
-  description="Every optimization mod_pagespeed 1.15 performs, shown live: combine and minify CSS/JS, recompress and lazy-load images, inline critical CSS, extend cache. Toggle the original against the optimized output, one filter at a time."
+  description="Every optimization the mod_pagespeed 2.1 module performs, shown live: combine and minify CSS/JS, recompress images, inline critical CSS, extend cache."
   jsonLd={itemListJsonLd}
 >
   <section class="py-16 sm:py-20">
@@ -63,35 +63,35 @@ const itemListJsonLd = {
         </p>
         <h1 class="h1-hero mt-3 text-text-body">Optimization examples</h1>
         <p class="lede mt-5">
-          Every optimization mod_pagespeed 1.15 performs, shown live. Each of these {total} examples is
-          a small page served by mod_pagespeed 1.15 — the self-hosted module for Apache, nginx, IIS, and
-          Envoy. Open one to see the original and the optimized output side by side, read exactly what
+          Every optimization the mod_pagespeed 2.1 module performs, shown live. Each of these {total}
+          examples is a small page served by the module — in-process in Apache, nginx and IIS.
+          Open one to see the original and the optimized output side by side, read exactly what
           changed in the source, and see the bytes and requests it saved.
         </p>
       </div>
 
-      {/* Which product these belong to — the 1.15 vs 2.0 control model. */}
+      {/* Which part these belong to — the module's per-filter control model. */}
       <div
         class="mt-6 max-w-3xl rounded-lg border border-border bg-bg-secondary/60 p-5"
       >
         <p class="font-semibold text-text-body">
-          These are mod_pagespeed 1.15 filters.
+          These are the module's named filters.
         </p>
         <p class="mt-2 text-sm text-text-muted">
-          1.15 is the self-hosted module for Apache, nginx, IIS, and Envoy, where you switch each
+          The module runs in-process in Apache, nginx and IIS, where you switch each
           optimization on and off individually — so this gallery shows them one filter at a time.
-          ModPageSpeed 2.0 takes a different path: one always-on pipeline with no per-filter
+          The optimizer worker takes a different path: one always-on pipeline with no per-filter
           switches, nothing to tune and nothing to break. Same optimization libraries underneath, a
-          different control model — on 2.0, read these as what the pipeline does, not a list of
-          toggles.
+          different control model — on the worker, read these as what the pipeline does, not a list
+          of toggles.
         </p>
         <p class="mt-3 text-sm">
           <a class="font-medium text-interactive hover:underline" href="/docs/"
-            >Read the 1.15 docs</a
+            >Read the module docs</a
           >
           <span class="mx-1 text-stone-300 dark:text-stone-600">·</span>
           <a class="font-medium text-interactive hover:underline" href="/demo/"
-            >See ModPageSpeed 2.0 optimize a whole site</a
+            >See mod_pagespeed optimize a whole site</a
           >
         </p>
       </div>

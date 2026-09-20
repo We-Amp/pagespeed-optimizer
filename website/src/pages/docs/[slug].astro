@@ -12,6 +12,10 @@ import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
 // the literal `dotnet add package …` command shown on the page. Source it
 // from the release manifest so HowTo + page body never drift.
 const rel20 = await getRelease('2.0');
+// The docs `about` node labels the current product line; derive it from the
+// 2.1 manifest so the structured-data version cannot drift from the release.
+const rel21 = await getRelease('2.1');
+const docsAboutVersion = rel21.release.semver.split('.').slice(0, 2).join('.');
 const nugetInstallCmd = `dotnet add package ${rel20.artifacts.nuget.package}${
   rel20.display.nuget_install_flags ? ` ${rel20.display.nuget_install_flags}` : ''
 }`;
@@ -110,7 +114,7 @@ jsonLd = {
   about: {
     '@type': 'SoftwareApplication',
     name: 'mod_pagespeed',
-    version: '2.0',
+    version: docsAboutVersion,
     applicationCategory: 'WebApplication',
   },
 };
@@ -122,7 +126,7 @@ if (doc.id === 'installation-docker') {
     '@type': 'HowTo',
     name: 'Install mod_pagespeed with Docker',
     description:
-      'Deploy mod_pagespeed using Docker Compose with three containers: nginx, factory worker, and your origin server.',
+      'Deploy mod_pagespeed using Docker Compose with three containers: nginx, the optimizer worker, and your origin server.',
     totalTime: 'PT10M',
     tool: [
       { '@type': 'HowToTool', name: 'Docker Engine 20.10+' },
@@ -171,7 +175,7 @@ if (doc.id === 'installation-docker') {
   jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'HowTo',
-    name: 'Install the PageSpeed ASP.NET Core Middleware',
+    name: 'Install the mod_pagespeed 2.1 ASP.NET Core Middleware',
     description:
       'Add PageSpeed optimization to an ASP.NET Core application via the WeAmp.PageSpeed.AspNetCore NuGet package.',
     totalTime: 'PT5M',
@@ -207,7 +211,6 @@ if (doc.id === 'installation-docker') {
     ],
   };
 }
-// Re-emit when the 2.0 nginx module ships.
 
 // Optional FAQPage JSON-LD assembled from frontmatter `faq` array.
 // Emitted as a sibling schema (alongside TechArticle or HowTo), not a

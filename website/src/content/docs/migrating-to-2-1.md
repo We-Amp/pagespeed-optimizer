@@ -34,9 +34,9 @@ This guide covers three starting points:
 - **The open-source mod_pagespeed project** — see
   [Coming from open-source mod_pagespeed](#coming-from-open-source).
 
-It is not for users of the ASP.NET Core middleware: the `WeAmp.PageSpeed`
-NuGet packages continue unchanged, and no migration is needed today — see
-[ASP.NET Core performance](/aspnet-core-performance/) for that path.
+It is not for users of the ASP.NET Core middleware: `WeAmp.PageSpeed.AspNetCore`
+is the ASP.NET Core form of mod_pagespeed 2.1, and there is no migration step —
+see [ASP.NET Core performance](/aspnet-core-performance/) for that path.
 
 ## What changes in 2.1
 
@@ -177,7 +177,7 @@ over — and installs from the same signed package repository. See
 Platform notes:
 
 - **IIS / Windows Server.** The IIS package ships from the 1.15 packaging channel.
-- **Debian 11 (bullseye)** — runs the 1.15-line module.
+- **Debian 11 (bullseye)** — the repository's bullseye suite carries the 1.15.0 module packages. The mod_pagespeed 2.1 packages need Debian 12 or newer.
 - **cPanel EasyApache 4 (EL8)** — the module runs without the optimizer
   worker.
 

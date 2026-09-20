@@ -1,6 +1,6 @@
 ---
 title: 'Web Bot Auth: verify AI crawlers at your origin'
-description: 'mod_pagespeed 1.15 ships an nginx Web Bot Auth verifier that checks RFC 9421 signatures and labels each request in $x_verified_bot. Observe-only, default off.'
+description: 'mod_pagespeed 2.1 ships an nginx Web Bot Auth verifier that checks RFC 9421 signatures and labels each request in $x_verified_bot. Observe-only, default off.'
 date: 2026-06-22
 author: 'Otto van der Schaaf'
 tags: ['ai-agents', 'security', 'nginx']
@@ -18,7 +18,7 @@ Any client can send any user-agent string. A scraper that wants your content set
 
 The traditional fix is reverse-DNS verification: look up the IP, confirm it resolves back into the crawler operator's domain, accept the request only if it does. That works only for the crawlers that publish stable IP ranges and run cooperative DNS, and it ties identity to network topology rather than to the agent.
 
-There is a better primitive, and mod_pagespeed 1.15 now speaks it.
+There is a better primitive, and the mod_pagespeed 2.1 module now speaks it.
 
 ## What Web Bot Auth checks
 
@@ -28,9 +28,9 @@ The verification is concrete. The request arrives with a signature. You hold the
 
 This is the same shape as the reverse-DNS check, but it binds to the agent's key instead of its IP. The bot can change IP or network and still prove who it is.
 
-## How the 1.15 verifier classifies a crawler
+## How the module's verifier classifies a crawler {#how-the-115-verifier-classifies-a-crawler}
 
-mod_pagespeed 1.15 includes an nginx verifier for the Web Bot Auth scheme. It is observe-only. It checks the signature off the blocking path and writes its verdict into an nginx variable, `$x_verified_bot`, then hands control back to your config. It never blocks.
+The module includes an nginx verifier for the Web Bot Auth scheme. It is observe-only. It checks the signature off the blocking path and writes its verdict into an nginx variable, `$x_verified_bot`, then hands control back to your config. It never blocks.
 
 The verdict covers three cases. A signature that checks out against a known key produces the recognized bot name plus a verified marker. An unsigned request produces a `human`-style marker. A tampered signature, or one that points at a key you do not have, produces an `unknown`-style marker. The smoke test below has the exact strings.
 
@@ -86,6 +86,6 @@ Those three cases are not aspirational. The repo ships an nginx smoke test that 
 
 Verification is the first step, not the whole answer. Once you can tell a real agent from an impostor, you can decide what each one is allowed to do, and whether access to your content should carry a price. That is the agentic-web problem in full, and it is the subject of the pillar piece: [the agentic web at the origin](/blog/agentic-web-at-the-origin/).
 
-The Web Bot Auth verifier gives you the identity primitive, available to enable in mod_pagespeed 1.15 and ModPageSpeed 2.0, off by default, observe-only. Enable it and read the verdict instead of trusting the user-agent string.
+The Web Bot Auth verifier gives you the identity primitive, available to enable in both parts of mod_pagespeed, off by default, observe-only. Enable it and read the verdict instead of trusting the user-agent string.
 
 Next: enable the verifier with the snippet above, then see how identity becomes access control — allow, or a 401/402 status, and nothing more — in [pay-per-crawl at the origin](/blog/pay-per-crawl-at-the-origin/).

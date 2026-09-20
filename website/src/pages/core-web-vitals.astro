@@ -4,7 +4,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 // Core Web Vitals pillar/hub. Consolidates the 15-post programmatic cluster
 // (fix-{cls,inp,lcp}-{aspnet-core,magento,nginx,woocommerce,wordpress}-2026)
 // into one rankable hub: a 3×5 metric × platform matrix linking each spoke,
-// plus an honest "how ModPageSpeed helps" section. The matrix is the single
+// plus an honest "how mod_pagespeed helps" section. The matrix is the single
 // source of truth for both the rendered table and the ItemList JSON-LD.
 
 const metrics = [
@@ -107,7 +107,7 @@ const faqEntries = [
   },
   {
     q: 'How do I improve my Core Web Vitals?',
-    a: 'Fix the dominant cause of each metric: preload the LCP image and remove render-blocking CSS for LCP; set explicit image dimensions and reserve space for late content for CLS; and reduce long main-thread JavaScript tasks for INP. ModPageSpeed addresses the LCP and CLS causes automatically at the server layer; INP fixes usually live in your application code.',
+    a: 'Fix the dominant cause of each metric: preload the LCP image and remove render-blocking CSS for LCP; set explicit image dimensions and reserve space for late content for CLS; and reduce long main-thread JavaScript tasks for INP. mod_pagespeed addresses the LCP and CLS causes automatically at the server layer; INP fixes usually live in your application code.',
   },
   {
     q: 'What is the difference between lab and field Core Web Vitals data?',
@@ -131,7 +131,7 @@ const faqJsonLd = {
 ---
 
 <BaseLayout
-  title="Fix Core Web Vitals: LCP, CLS, and INP by Platform — ModPageSpeed"
+  title="Fix Core Web Vitals: LCP, CLS, and INP by Platform — mod_pagespeed 2.1"
   description="What a server optimizer fixes for LCP and CLS, and where INP lives — with per-platform guides for WordPress, WooCommerce, Magento, nginx, and ASP.NET Core."
   jsonLd={[jsonLd, faqJsonLd]}
 >
@@ -143,21 +143,19 @@ const faqJsonLd = {
     </nav>
 
     <p class="eyebrow mt-6">Core Web Vitals</p>
-    <h1 class="mt-3 h1-hero text-text-body">
-      Fix Core Web Vitals at the server layer
-    </h1>
+    <h1 class="mt-3 h1-hero text-text-body">Fix Core Web Vitals at the server layer</h1>
     <p class="lede mt-6 max-w-3xl">
       Core Web Vitals are the three field metrics Google uses to score loading, visual stability,
       and responsiveness: Largest Contentful Paint (LCP), Cumulative Layout Shift (CLS), and
-      Interaction to Next Paint (INP). Each is defined below, with the concrete fix for
-      WordPress, WooCommerce, Magento, nginx, and ASP.NET Core.
+      Interaction to Next Paint (INP). Each is defined below, with the concrete fix for WordPress,
+      WooCommerce, Magento, nginx, and ASP.NET Core.
     </p>
     <div class="mt-8 flex flex-wrap gap-3">
       <a href="/analyze/" class="btn-primary" data-umami-event="cta_cwv_hero_analyze"
         >Analyze a page &rarr;</a
       >
       <a href="/features/" class="btn-secondary" data-umami-event="cta_cwv_hero_features"
-        >See what ModPageSpeed fixes</a
+        >See what mod_pagespeed 2.1 fixes</a
       >
     </div>
 
@@ -173,9 +171,7 @@ const faqJsonLd = {
         connections than the machine you test on. Optimize toward the field number.
       </p>
       <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
-        <div
-          class="rounded-2xl border border-border bg-bg-elevated p-6"
-        >
+        <div class="rounded-2xl border border-border bg-bg-elevated p-6">
           <p class="text-xs font-semibold uppercase tracking-wide text-interactive">
             Largest Contentful Paint
           </p>
@@ -185,9 +181,9 @@ const faqJsonLd = {
             a hero image, a banner, or the first heading. Under 2.5 s is good; over 4 s is poor.
           </p>
           <p class="mt-3 text-sm text-text-muted">
-            <span class="font-medium text-text-body">Typical causes:</span> the hero
-            image is not preloaded, a chain of render-blocking stylesheets delays first paint, or a large
-            unoptimized image takes too long to download.
+            <span class="font-medium text-text-body">Typical causes:</span> the hero image is not preloaded,
+            a chain of render-blocking stylesheets delays first paint, or a large unoptimized image takes
+            too long to download.
           </p>
           <p class="mt-4 text-sm">
             <a
@@ -197,9 +193,7 @@ const faqJsonLd = {
             >
           </p>
         </div>
-        <div
-          class="rounded-2xl border border-border bg-bg-elevated p-6"
-        >
+        <div class="rounded-2xl border border-border bg-bg-elevated p-6">
           <p class="text-xs font-semibold uppercase tracking-wide text-interactive">
             Cumulative Layout Shift
           </p>
@@ -209,9 +203,9 @@ const faqJsonLd = {
             moved and how far. Under 0.1 is good; 0.25 and up is poor.
           </p>
           <p class="mt-3 text-sm text-text-muted">
-            <span class="font-medium text-text-body">Typical causes:</span> images
-            and embeds without explicit width and height, web fonts that reflow text on swap, and content
-            injected above what the user is already reading.
+            <span class="font-medium text-text-body">Typical causes:</span> images and embeds without
+            explicit width and height, web fonts that reflow text on swap, and content injected above
+            what the user is already reading.
           </p>
           <p class="mt-4 text-sm">
             <a
@@ -221,9 +215,7 @@ const faqJsonLd = {
             >
           </p>
         </div>
-        <div
-          class="rounded-2xl border border-border bg-bg-elevated p-6"
-        >
+        <div class="rounded-2xl border border-border bg-bg-elevated p-6">
           <p class="text-xs font-semibold uppercase tracking-wide text-interactive">
             Interaction to Next Paint
           </p>
@@ -233,9 +225,9 @@ const faqJsonLd = {
             next frame the browser paints in response. Under 200 ms is good; over 500 ms is poor.
           </p>
           <p class="mt-3 text-sm text-text-muted">
-            <span class="font-medium text-text-body">Typical causes:</span> long JavaScript
-            tasks blocking the main thread, heavy event handlers, and frameworks whose interaction model
-            requires a round-trip before paint.
+            <span class="font-medium text-text-body">Typical causes:</span> long JavaScript tasks blocking
+            the main thread, heavy event handlers, and frameworks whose interaction model requires a round-trip
+            before paint.
           </p>
           <p class="mt-4 text-sm">
             <a
@@ -262,17 +254,10 @@ const faqJsonLd = {
           </caption>
           <thead>
             <tr class="border-b border-border">
-              <th
-                scope="col"
-                class="py-3 pr-4 text-left font-semibold text-text-body"
-                >Metric</th
-              >
+              <th scope="col" class="py-3 pr-4 text-left font-semibold text-text-body">Metric</th>
               {
                 platforms.map((platform) => (
-                  <th
-                    scope="col"
-                    class="px-3 py-3 text-left font-semibold text-text-body"
-                  >
+                  <th scope="col" class="px-3 py-3 text-left font-semibold text-text-body">
                     {platform.label}
                   </th>
                 ))
@@ -283,10 +268,7 @@ const faqJsonLd = {
             {
               metrics.map((metric) => (
                 <tr class="border-b border-border align-top">
-                  <th
-                    scope="row"
-                    class="py-4 pr-4 text-left font-semibold text-text-body"
-                  >
+                  <th scope="row" class="py-4 pr-4 text-left font-semibold text-text-body">
                     <span class="block">{metric.abbr}</span>
                     <span class="block text-xs font-normal text-text-annotation">
                       {metric.name}
@@ -319,22 +301,18 @@ const faqJsonLd = {
       </div>
     </section>
 
-    <!-- How ModPageSpeed helps (honest) -->
+    <!-- How mod_pagespeed helps (honest) -->
     <section class="mt-16">
-      <h2 class="h2-section text-text-body">How ModPageSpeed helps</h2>
+      <h2 class="h2-section text-text-body">How mod_pagespeed helps</h2>
       <p class="mt-4 text-text-body">
-        ModPageSpeed optimizes responses at the server layer, below the CMS, so a single
+        mod_pagespeed optimizes responses at the server layer, below the CMS, so a single
         configuration applies to every URL the origin serves. That maps directly onto LCP and CLS.
         It maps less directly onto INP, and this section says exactly why.
       </p>
 
       <div class="mt-8 space-y-4">
-        <div
-          class="rounded-2xl border border-border bg-bg-elevated p-6"
-        >
-          <h3 class="font-semibold text-text-body">
-            LCP &mdash; materially helped
-          </h3>
+        <div class="rounded-2xl border border-border bg-bg-elevated p-6">
+          <h3 class="font-semibold text-text-body">LCP &mdash; materially helped</h3>
           <p class="mt-2 text-sm text-text-muted">
             Heuristic critical CSS extraction inlines above-the-fold rules and defers the rest,
             removing the render-blocking stylesheet chain that delays first paint. Image transcoding
@@ -347,12 +325,8 @@ const faqJsonLd = {
           </p>
         </div>
 
-        <div
-          class="rounded-2xl border border-border bg-bg-elevated p-6"
-        >
-          <h3 class="font-semibold text-text-body">
-            CLS &mdash; materially helped
-          </h3>
+        <div class="rounded-2xl border border-border bg-bg-elevated p-6">
+          <h3 class="font-semibold text-text-body">CLS &mdash; materially helped</h3>
           <p class="mt-2 text-sm text-text-muted">
             The worker injects explicit width and height on <code
               class="text-xs bg-bg-elevated px-1 rounded">&lt;img&gt;</code
@@ -373,19 +347,19 @@ const faqJsonLd = {
             INP is a measure of JavaScript main-thread responsiveness. The dominant cause of poor
             INP is long tasks in your own application code &mdash; event handlers, hydration,
             framework work &mdash; and a server-layer optimizer does not rewrite that logic.
-            ModPageSpeed will not make a slow click handler fast.
+            mod_pagespeed will not make a slow click handler fast.
           </p>
           <p class="mt-3 text-sm text-text-muted">
             What it can do is reduce how much JavaScript competes for the main thread before the
             user interacts: <a
               href="/blog/safe-javascript-minification-semicolon-insertion/"
               class="text-interactive hover:text-interactive-hover underline">minifying scripts</a
-            > and deferring those it can prove are safe to defer
-            moves parser-blocking work off the critical path, which can lower INP on pages whose
-            responsiveness was being throttled by startup script execution. Where INP is structural
-            &mdash; for example a Blazor Server interaction that is a network round-trip by design,
-            or a heavy client framework &mdash; the fix lives in your application, not in the server
-            layer. The per-platform guides above are explicit about which case you are in.
+            > and deferring those it can prove are safe to defer moves parser-blocking work off the critical
+            path, which can lower INP on pages whose responsiveness was being throttled by startup script
+            execution. Where INP is structural &mdash; for example a Blazor Server interaction that is
+            a network round-trip by design, or a heavy client framework &mdash; the fix lives in your
+            application, not in the server layer. The per-platform guides above are explicit about which
+            case you are in.
           </p>
         </div>
       </div>
@@ -393,9 +367,7 @@ const faqJsonLd = {
 
     <!-- FAQ — visible Q&A mirrors the FAQPage JSON-LD -->
     <section class="mt-16">
-      <h2 class="h2-section text-text-body">
-        Core Web Vitals: common questions
-      </h2>
+      <h2 class="h2-section text-text-body">Core Web Vitals: common questions</h2>
       <dl class="mt-8 space-y-6">
         {
           faqEntries.map((entry) => (
@@ -410,9 +382,7 @@ const faqJsonLd = {
 
     <!-- CTA -->
     <section class="mt-16">
-      <div
-        class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-8"
-      >
+      <div class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-8">
         <h2 class="h2-section text-text-body">Measure your own pages</h2>
         <p class="mt-3 text-text-body">
           Start with a measurement, not a guess. Run a page through the analyzer to see what is
@@ -424,11 +394,7 @@ const faqJsonLd = {
           <a href="/analyze/" class="btn-primary" data-umami-event="cta_cwv_analyze"
             >Analyze a page</a
           >
-          <a
-            href="/pricing/"
-            class="btn-secondary"
-            data-umami-event="cta_cwv_pricing"
-          >
+          <a href="/pricing/" class="btn-secondary" data-umami-event="cta_cwv_pricing">
             See support plans
             <span aria-hidden="true">&rarr;</span>
           </a>
@@ -438,15 +404,11 @@ const faqJsonLd = {
 
     <!-- See also -->
     <section class="mt-16 border-t border-border pt-8">
-      <p class="text-base font-semibold uppercase tracking-wide text-text-body">
-        See also:
-      </p>
+      <p class="text-base font-semibold uppercase tracking-wide text-text-body">See also:</p>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
-          <a
-            href="/features/"
-            class="text-interactive hover:text-interactive-hover underline"
-            >ModPageSpeed 2.0 features</a
+          <a href="/features/" class="text-interactive hover:text-interactive-hover underline"
+            >mod_pagespeed 2.1 features</a
           > &mdash; image transcoding, critical CSS, minification, and variant-aware caching
         </li>
         <li>
@@ -468,7 +430,8 @@ const faqJsonLd = {
             href="/blog/reduce-ttfb-server-layer-2026/"
             class="text-interactive hover:text-interactive-hover underline"
             >Reduce TTFB at the server layer</a
-          > &mdash; the slow first byte that delays every Core Web Vital, fixed before you reach for a CDN
+          > &mdash; the slow first byte that delays every Core Web Vital, fixed before you reach for a
+          CDN
         </li>
       </ul>
     </section>

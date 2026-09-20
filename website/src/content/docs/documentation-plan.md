@@ -1,6 +1,6 @@
 ---
 title: 'Where the Documentation Lives'
-description: 'Where the mod_pagespeed 2.1 documentation lives, and what happens to the ModPageSpeed 2.0 and mod_pagespeed 1.15 pages.'
+description: 'Where the mod_pagespeed 2.1 documentation lives, and what happened to the pages written before the 2.0 re-architecture converged into it.'
 order: 62
 group: 'Reference'
 lastUpdated: 2026-09-19
@@ -12,16 +12,17 @@ what that means for the pages you may have bookmarked.
 ## One tree under /docs
 
 The mod_pagespeed 2.1 documentation lives here, under [/docs](/docs/). Pages
-written for ModPageSpeed 2.0 are reworded into 2.1 documentation **in place,
-at the same URLs** — the addresses do not carry a version number, so the
-bookmark you already have keeps working.
+written before the 2.0 re-architecture converged are reworded into 2.1
+documentation **in place, at the same URLs** — the addresses do not carry a
+version number, so the bookmark you already have keeps working.
 
 Two audiences keep their own dedicated pages:
 
-- **ModPageSpeed 2.0 Docker/Helm users** — the
+- **Docker and Helm users on the 2.0 stack** — the
   [migration guide](/docs/migrating-to-2-1/) is the path over.
-- **ASP.NET Core middleware users** — the aspnet pages remain ModPageSpeed 2.0
-  documentation; that audience has no migration to make.
+- **ASP.NET Core middleware users** — the aspnet pages document
+  `WeAmp.PageSpeed.AspNetCore`, the ASP.NET Core form of mod_pagespeed 2.1; that
+  audience has no migration to make.
 
 ## The 1.15 docs are part of this tree now
 

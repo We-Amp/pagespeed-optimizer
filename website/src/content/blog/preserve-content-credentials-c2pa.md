@@ -1,6 +1,6 @@
 ---
 title: 'Stop image optimization from stripping C2PA content credentials'
-description: 'ModPageSpeed detects C2PA / Content Credentials manifests and preserves image provenance instead of stripping it during optimization — on by default in both engines.'
+description: 'mod_pagespeed detects C2PA / Content Credentials manifests and preserves image provenance instead of stripping it when optimizing — on by default in both parts.'
 date: 2026-06-22
 author: 'Otto van der Schaaf'
 tags: ['images', 'c2pa', 'provenance', 'content-credentials']
@@ -8,7 +8,7 @@ lastUpdated: 2026-07-04
 draft: false
 ---
 
-> **Status: shipped in mod_pagespeed 1.15 and ModPageSpeed 2.0.** Provenance preservation is on by default in both engines. The PNG carry-through is experimental and off by default.
+> **Status: shipped in both parts of mod_pagespeed.** Provenance preservation is on by default in the module and in the optimizer worker. The PNG carry-through is experimental and off by default.
 
 An image optimizer's job is to make a file smaller. The fastest way to do that is to throw away everything the browser does not need to paint pixels: color profiles it can default, EXIF blocks, XMP packets, and any other metadata riding along in the file. Strip the lot, recompress, ship fewer bytes.
 
@@ -26,9 +26,9 @@ That signature is also the hard part for an optimizer. A resize changes the sign
 
 So the honest options are narrow: carry the original manifest through untouched, or do not modify the image at all.
 
-## How ModPageSpeed preserves C2PA provenance by default
+## How mod_pagespeed preserves C2PA provenance by default
 
-Provenance preservation ships in both engines and is **on by default**. In mod_pagespeed 1.15 it is the `PreserveImageProvenance` directive, scoped to the directory level; in ModPageSpeed 2.0 it is on for the worker unless you pass `--no-preserve-c2pa`. The mechanism is the same either way: detect-and-skip.
+Provenance preservation ships in both parts and is **on by default**. In the module it is the `PreserveImageProvenance` directive, scoped to the directory level; in the optimizer worker it is on unless you pass `--no-preserve-c2pa`. The mechanism is the same either way: detect-and-skip.
 
 Before optimizing an image, the worker does a conservative, signature-only scan for a manifest, once per image. If it finds one, and if the planned optimization would modify the image in a way that drops the manifest (a resize, a format conversion, or a recompress that would not carry the manifest), it serves the **original** bytes instead. You get the original image and an intact, verifiable manifest, rather than a smaller image with the provenance silently removed.
 
@@ -46,7 +46,7 @@ If you do not care about provenance on your site, you can turn the behavior off.
 
 ## Opt-in carry-through for PNG
 
-Carry-through ships in both engines but is **off by default**, and it is PNG-only: `ImageProvenanceCarry` in 1.15, `--c2pa-carry` in 2.0. Think of it as Level A carry-through.
+Carry-through ships in both parts but is **off by default**, and it is PNG-only: `ImageProvenanceCarry` in the module, `--c2pa-carry` in the optimizer worker. Think of it as Level A carry-through.
 
 With it enabled, a non-resized PNG that carries a manifest gets recompressed for byte savings, and its original manifest chunks (`caBX` and `iTXt`) are spliced into the recompressed output unmodified. The worker never re-authors the manifest. It copies the original signed chunks verbatim into the new file. On any anomaly, such as a chunk layout it does not recognize or anything that would risk corrupting the manifest, it falls back to the same detect-and-skip behavior as the default and serves the original.
 
@@ -56,7 +56,7 @@ It is off by default out of caution, not for lack of capability. Chunk splicing 
 
 Test it. Serve a JPEG or PNG that carries a C2PA manifest through the optimizer and request a resize. You get the original bytes back, not a stripped, resized image. Verify the manifest in any C2PA-aware tool; it should still validate.
 
-Then turn on carry-through (`ImageProvenanceCarry` in 1.15, `--c2pa-carry` in 2.0), serve a non-resized PNG with a manifest, and inspect the PNG chunk stream on the response. The output is recompressed and smaller, and the `caBX` and `iTXt` chunks are present and byte-identical to the input. The repository ships rewriter tests covering exactly these cases, so the behavior is pinned in CI rather than asserted in a blog post.
+Then turn on carry-through (`ImageProvenanceCarry` in the module, `--c2pa-carry` in the optimizer worker), serve a non-resized PNG with a manifest, and inspect the PNG chunk stream on the response. The output is recompressed and smaller, and the `caBX` and `iTXt` chunks are present and byte-identical to the input. The repository ships rewriter tests covering exactly these cases, so the behavior is pinned in CI rather than asserted in a blog post.
 
 For the precise per-case verdicts (which optimizations are skipped, which carry through, what the worker does at each boundary) read the test cases rather than trusting a paraphrase. They are the source of truth, and they stay current with the code when this post does not.
 
@@ -64,4 +64,4 @@ For the precise per-case verdicts (which optimizations are skipped, which carry 
 
 Provenance preservation is one piece of a larger shift: the origin server, not a third-party service, is where image decisions should be made. Keeping a signed manifest intact is part of keeping control of your own content. We cover the economics of doing image work on your own infrastructure in [the economics of image optimization](/blog/economics-of-image-optimization/). [Viewport-aware image optimization](/blog/viewport-aware-image-optimization/) explains the resize logic that decides whether an image gets a new variant at all, the same decision point where provenance is preserved or carried. [The agentic web at the origin](/blog/agentic-web-at-the-origin/) makes the broader case for running this at the origin.
 
-**Next step:** run a signed image through your staging instance and confirm you get the original back on resize; if you serve signed PNGs, enable carry-through (`ImageProvenanceCarry` in 1.15, `--c2pa-carry` in 2.0) to also save bytes on non-resized ones. Start from [viewport-aware image optimization](/blog/viewport-aware-image-optimization/) to see how the resize decision interacts with provenance preservation.
+**Next step:** run a signed image through your staging instance and confirm you get the original back on resize; if you serve signed PNGs, enable carry-through (`ImageProvenanceCarry` in the module, `--c2pa-carry` in the optimizer worker) to also save bytes on non-resized ones. Start from [viewport-aware image optimization](/blog/viewport-aware-image-optimization/) to see how the resize decision interacts with provenance preservation.

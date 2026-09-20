@@ -66,9 +66,7 @@ const jsonLd = [
     <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
       <a href="/" class="hover:text-text-body">Home</a>
       <span class="mx-1">/</span>
-      <a href="/core-web-vitals/" class="hover:text-text-body"
-        >Core Web Vitals</a
-      >
+      <a href="/core-web-vitals/" class="hover:text-text-body">Core Web Vitals</a>
       <span class="mx-1">/</span>
       <span>{pillar.abbr}</span>
     </nav>
@@ -97,7 +95,8 @@ const jsonLd = [
         A single lab run from <a
           href="/pagespeed-insights/"
           class="text-interactive hover:text-interactive-hover underline">PageSpeed Insights</a
-        > approximates {pillar.abbr}; the field number from real Chrome users is what Google ranks on.
+        > approximates {pillar.abbr}; the field number from real Chrome users is what Google ranks
+        on.
       </p>
     </section>
 
@@ -184,14 +183,12 @@ const jsonLd = [
 
     <!-- CTA -->
     <section class="mt-16">
-      <div
-        class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-8"
-      >
+      <div class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-8">
         <h2 class="h2-section text-text-body">Measure, then fix</h2>
         <p class="mt-3 text-text-body">
           Start with a measurement. Run a page through the analyzer to see what is driving its {
             pillar.abbr
-          }, then fix it at the server layer with ModPageSpeed &mdash; it optimizes immediately.
+          }, then fix it at the server layer with mod_pagespeed &mdash; it optimizes immediately.
           {FREE_TO_RUN_LINE}
         </p>
         <div class="mt-6 flex flex-wrap gap-3">
@@ -214,9 +211,7 @@ const jsonLd = [
 
     <!-- See also -->
     <section class="mt-16 border-t border-border pt-8">
-      <p class="text-base font-semibold uppercase tracking-wide text-text-body">
-        See also:
-      </p>
+      <p class="text-base font-semibold uppercase tracking-wide text-text-body">See also:</p>
       <ul class="mt-4 space-y-2 text-sm">
         {
           pillar.seeAlso.map((item) => (
@@ -224,9 +219,7 @@ const jsonLd = [
               <a href={item.href} class="text-interactive hover:text-interactive-hover underline">
                 {item.text}
               </a>
-              {item.note ? (
-                <span class="text-text-annotation"> &mdash; {item.note}</span>
-              ) : null}
+              {item.note ? <span class="text-text-annotation"> &mdash; {item.note}</span> : null}
             </li>
           ))
         }

@@ -1,6 +1,6 @@
 ---
 title: 'Automatic WebP/AVIF on nginx: one decode, 37 variants'
-description: 'Serve WebP and AVIF automatically on nginx, self-hosted. ModPageSpeed 2.0 decodes each image once and generates up to 37 responsive variants across format, viewport, and pixel density.'
+description: 'Serve WebP and AVIF automatically on nginx, self-hosted. The mod_pagespeed 2.1 optimizer worker decodes each image once and generates up to 37 responsive variants across format, viewport, and pixel density.'
 date: 2026-02-03
 lastUpdated: 2026-07-04
 author: 'Otto van der Schaaf'
@@ -17,7 +17,7 @@ For a 10-megapixel JPEG photograph, decoding produces roughly 40 MB of raw pixel
 
 This is not a theoretical concern. On a site with 500 product images, each at an average resolution of 3000x2000 pixels, the reactive approach consumes 18,000 decode operations across the full variant matrix. Each decode allocates roughly 18 MB of pixel data (3000 x 2000 x 3 bytes). The total memory churn -- allocated, written, read during encoding, then freed -- exceeds 300 GB over the lifetime of the variant matrix. The CPU time for JPEG decoding alone (at roughly 20 ms per image) adds up to 6 minutes. And this is before encoding, which is substantially more expensive than decoding for codecs like AVIF.
 
-ModPageSpeed 2.0 takes a different approach. When the worker receives the first notification for an image URL, it decodes the source once, then generates all missing variants from that single pixel buffer. One decode pass, one resize per viewport, and one encode per output format. The 1.4 GB of redundant decompression drops to 40 MB. The decode CPU time drops by a factor proportional to the number of variants sharing each decode pass. This work runs [off the request path](/how-it-works/async-rewriting/), so a visitor is never blocked on a transcode.
+The optimizer worker takes a different approach. When it receives the first notification for an image URL, it decodes the source once, then generates all missing variants from that single pixel buffer. One decode pass, one resize per viewport, and one encode per output format. The 1.4 GB of redundant decompression drops to 40 MB. The decode CPU time drops by a factor proportional to the number of variants sharing each decode pass. This work runs [off the request path](/how-it-works/async-rewriting/), so a visitor is never blocked on a transcode.
 
 ## The 32-bit capability mask
 

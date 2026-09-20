@@ -9,7 +9,7 @@ draft: false
 ---
 Every critical-CSS tool answers one question: which CSS rules does the browser actually need to paint the top of the page? Get that set right and you can inline a few kilobytes into the `<head>`, defer the rest, and stop a large stylesheet from blocking the first paint. Get it wrong and you ship a flash of unstyled content.
 
-Today most tools answer that question with a headless browser at build time. ModPageSpeed answers it at the server, with no build step. But the way it answers has changed three times, and the middle chapter is the interesting one: before headless Chrome was practical to run server-side, the original Apache PageSpeed project found critical CSS by instrumenting real visitors. That design worked, taught us a lot, and broke in a specific way once a CDN sat in front of it.
+Today most tools answer that question with a headless browser at build time. mod_pagespeed 2.1 answers it at the server, with no build step. But the way it answers has changed three times, and the middle chapter is the interesting one: before headless Chrome was practical to run server-side, the original Apache PageSpeed project found critical CSS by instrumenting real visitors. That design worked, taught us a lot, and broke in a specific way once a CDN sat in front of it.
 
 This post walks the three eras: the beacon, the failure mode that retired it, and where 2.0 landed.
 
@@ -31,7 +31,7 @@ The beacon design, written up by Jan-Willem Maessen for the Apache PageSpeed pro
 
 The server picks the mode per visitor. With no data yet, it instruments. As data accumulates, the probability of instrumenting drops, so a heavily-visited page mostly serves the fast rewritten variant and only occasionally re-measures. It is a feedback loop: the crowd measures the page, the server learns, the crowd gets the faster version.
 
-In mod_pagespeed this filter is `prioritize_critical_css`, and it still works exactly this way in [mod_pagespeed 1.15](/docs/css-filters/#prioritize_critical_css). It is not a core filter and it is marked test-first, because it changes rendered HTML and depends on the beacon endpoint being reachable.
+In mod_pagespeed this filter is `prioritize_critical_css`, and it still works exactly this way in [the module](/docs/css-filters/#prioritize_critical_css). It is not a core filter and it is marked test-first, because it changes rendered HTML and depends on the beacon endpoint being reachable.
 
 ### Why the beacon forced same-origin inlining
 
@@ -55,9 +55,9 @@ The mitigations were clever and they were a lot of moving parts. The downstream 
 
 That is the assessment of the beacon era. It was the right design when running a browser server-side wasn't an option, and it shipped real wins. It also carried a coordination cost that grew with exactly the caching layers high-traffic sites depend on.
 
-## Era three: ModPageSpeed 2.0 drops the beacon
+## Era three: the 2.0 re-architecture drops the beacon {#era-three-modpagespeed-20-drops-the-beacon}
 
-ModPageSpeed 2.0 is a ground-up rebuild, and it does not use the beacon at all. No injected measurement script, no property-cache round trip, no CDN coordination, no nonce bookkeeping. It answers the critical-CSS question two other ways, and both run on the server.
+The 2.0 re-architecture was a ground-up rebuild, and the optimizer worker does not use the beacon at all. No injected measurement script, no property-cache round trip, no CDN coordination, no nonce bookkeeping. It answers the critical-CSS question two other ways, and both run on the server.
 
 The default is **static heuristics**. The worker parses the HTML and matches CSS selectors against the DOM structure: a small budget of the earliest elements is treated as above the fold, structural conventions like `header`, `nav`, and `hero` are always kept, deeply nested and `footer`/`lazyload` content is dropped, and `@media print` is excluded. It runs in single-digit milliseconds with no browser and no network call beyond a cache read, and it biases toward keeping a little too much rather than too little. The full rule set, with the element and depth thresholds, is in [how the critical-CSS heuristics work](/blog/critical-css-heuristics/).
 
@@ -67,14 +67,14 @@ The contrast with the beacon is the whole point. The beacon measured the real br
 
 ### What this means in practice
 
-If you run **mod_pagespeed 1.15**, `prioritize_critical_css` is the beacon model, and it still earns its place: it measures real browsers, and on a site without a misbehaving cache in front of it, it works. Mind the beacon endpoint and the downstream-caching interaction described above.
+If you run **the module**, `prioritize_critical_css` is the beacon model, and it still earns its place: it measures real browsers, and on a site without a misbehaving cache in front of it, it works. Mind the beacon endpoint and the downstream-caching interaction described above.
 
-If you run **ModPageSpeed 2.0**, critical CSS comes from heuristics by default and from cached headless-Chrome measurement when you opt in. Nothing is injected into the page to measure it, and there is nothing to coordinate with your CDN. For the server-layer mechanics on nginx, see [server-side critical CSS for nginx](/blog/server-side-critical-css-nginx/).
+If you run **the mod_pagespeed 2.1 optimizer worker**, critical CSS comes from heuristics by default and from cached headless-Chrome measurement when you opt in. Nothing is injected into the page to measure it, and there is nothing to coordinate with your CDN. For the server-layer mechanics on nginx, see [server-side critical CSS for nginx](/blog/server-side-critical-css-nginx/).
 
 One boundary applies to all three eras. Inlining critical CSS removes a render-blocking request, which helps First Contentful Paint and often Largest Contentful Paint. It does not fix layout shift or input delay, and no critical-CSS tool guarantees a Core Web Vitals score. It removes one specific bottleneck. For the rest of the request budget, see [reducing TTFB at the server layer](/blog/reduce-ttfb-server-layer-2026/).
 
 ## Design background
 
-The beacon and downstream-caching designs summarized here come from the Apache PageSpeed project, authored by Jan-Willem Maessen (critical CSS beaconing) and Anupama Dutta (beaconing with downstream caching) in 2013. We-Amp was an initial committer on Apache PageSpeed alongside the Google engineers who started the project, as it moved toward Apache incubation. ModPageSpeed 2.0 is an independent rebuild; it inherits the lineage and the lessons, including this one, and made different choices where a decade of hindsight pointed elsewhere.
+The beacon and downstream-caching designs summarized here come from the Apache PageSpeed project, authored by Jan-Willem Maessen (critical CSS beaconing) and Anupama Dutta (beaconing with downstream caching) in 2013. We-Amp was an initial committer on Apache PageSpeed alongside the Google engineers who started the project, as it moved toward Apache incubation. The 2.0 re-architecture was an independent rebuild; it inherits the lineage and the lessons, including this one, and made different choices where a decade of hindsight pointed elsewhere.
 
-ModPageSpeed optimizes out of the box and keeps optimizing whether or not it's licensed. To see it run, browse the [feature list](/features/) or install it and watch a page get rewritten.
+mod_pagespeed optimizes out of the box, and it is licensed under Apache-2.0 and free to run. To see it run, browse the [feature list](/features/) or install it and watch a page get rewritten.

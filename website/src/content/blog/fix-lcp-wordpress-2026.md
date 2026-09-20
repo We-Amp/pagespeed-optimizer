@@ -11,7 +11,7 @@ howTo:
   name: How to fix LCP on WordPress
   description: Diagnose the WordPress LCP element, then fix it server-side with mod_pagespeed by inlining critical CSS and serving optimized WebP images, plus WordPress-side preload tweaks, and verify the improvement.
   tools:
-  - mod_pagespeed 1.15
+  - mod_pagespeed 2.1
   - nginx
   - Apache
   - PageSpeed Insights
@@ -36,11 +36,11 @@ faq:
 - q: Why is my WordPress LCP worse on mobile than on desktop?
   a: Field LCP reflects real visitors on slower hardware and connections than your editing machine, and on mobile the hero image competes with a longer render-blocking CSS chain. Reproduce it by testing with mobile throttling — Slow 4G plus 4x CPU slowdown.
 - q: Can a plugin fix WordPress LCP on its own?
-  a: A plugin fixes one site at a time and re-runs its work on every page load. mod_pagespeed 1.15 rewrites HTML at the nginx or Apache layer and serves optimized image variants from a shared cache, so the fix applies to every URL at once — including pages published later.
+  a: A plugin fixes one site at a time and re-runs its work on every page load. mod_pagespeed 2.1 rewrites HTML at the nginx or Apache layer and serves optimized image variants from a shared cache, so the fix applies to every URL at once — including pages published later.
 
 ---
 
-WordPress LCP regressions almost always trace back to one of three things: an unsized featured image, a theme stylesheet blocking paint, or a page builder whose hero element is injected by JS. We'll diagnose which one, then fix it server-side with **mod_pagespeed 1.15** (an nginx or Apache module) so the change applies to every URL at once — no theme rewrite, no per-image audit.
+WordPress LCP regressions almost always trace back to one of three things: an unsized featured image, a theme stylesheet blocking paint, or a page builder whose hero element is injected by JS. We'll diagnose which one, then fix it server-side with **mod_pagespeed 2.1** (an nginx or Apache module) so the change applies to every URL at once — no theme rewrite, no per-image audit.
 
 This guide is part of our [Core Web Vitals series](/core-web-vitals/).
 
@@ -71,7 +71,7 @@ Output you're hunting for: a baseline LCP value and a named element. If the name
 
 ## Inline above-the-fold CSS with prioritize_critical_css
 
-mod_pagespeed 1.15 runs as an nginx module (or Apache module) in front of WordPress. It rewrites HTML on the way out and serves optimized image variants from a shared cache. The filters that move LCP on WordPress:
+mod_pagespeed 2.1 runs as an nginx module (or Apache module) in front of WordPress. It rewrites HTML on the way out and serves optimized image variants from a shared cache. The filters that move LCP on WordPress:
 
 - `prioritize_critical_css` — inlines the above-the-fold CSS rules into the document `<head>` and defers the rest. This eliminates the multi-stylesheet `<head>` chain that failure mode #2 creates. The extractor is heuristic, not headless-browser-based, so it runs in single-digit milliseconds per page; see [Critical CSS without a headless browser](/blog/critical-css-heuristics/) for the algorithm.
 - `recompress_images` + `convert_jpeg_to_webp` — shrinks the hero JPEG by 30–60% with zero theme changes, then transcodes to WebP for browsers that advertise support. The variant is served from the cache on subsequent requests at HIT speed. See [the economics of image optimization](/blog/economics-of-image-optimization/) for why WebP conversion pays for itself on image-heavy pages.
@@ -160,7 +160,7 @@ Cases where mod_pagespeed alone isn't enough on WordPress:
 
 **Why is my WordPress LCP worse on mobile than on desktop?** Field LCP reflects real visitors on slower hardware and connections than your editing machine, and on mobile the hero image competes with a longer render-blocking CSS chain. Reproduce it by testing with mobile throttling — Slow 4G plus 4x CPU slowdown.
 
-**Can a plugin fix WordPress LCP on its own?** A plugin fixes one site at a time and re-runs its work on every page load. mod_pagespeed 1.15 rewrites HTML at the nginx or Apache layer and serves optimized image variants from a shared cache, so the fix applies to every URL at once — including pages published later.
+**Can a plugin fix WordPress LCP on its own?** A plugin fixes one site at a time and re-runs its work on every page load. mod_pagespeed 2.1 rewrites HTML at the nginx or Apache layer and serves optimized image variants from a shared cache, so the fix applies to every URL at once — including pages published later.
 
 ## Related
 
@@ -170,8 +170,8 @@ Cases where mod_pagespeed alone isn't enough on WordPress:
 - [How to fix LCP on WooCommerce](/blog/fix-lcp-woocommerce-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)
 - [Server-side critical CSS on nginx](/blog/server-side-critical-css-nginx/)
-- [mod_pagespeed 1.15 filter reference](/docs/filter-reference/)
+- [mod_pagespeed filter reference](/docs/filter-reference/)
 - [The full LCP guide](/core-web-vitals/lcp/)
 - [Test your page in the analyzer](/analyze/)
 
-mod_pagespeed 1.15 runs as an nginx or Apache module and optimizes by default. See [pricing](/pricing/) and [license terms](/license/).
+mod_pagespeed 2.1 runs as an nginx or Apache module and optimizes by default. See [pricing](/pricing/) and [license terms](/license/).

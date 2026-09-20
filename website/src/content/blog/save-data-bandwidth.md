@@ -1,6 +1,6 @@
 ---
 title: 'Save-Data: serving lighter image variants to bandwidth-conscious users'
-description: 'How ModPageSpeed 2.0 reads the Save-Data request header to serve lighter image variants -- a 30-50% bandwidth cut stacked on top of format and viewport optimization.'
+description: 'How mod_pagespeed 2.1 reads the Save-Data request header to serve lighter image variants -- a 30-50% bandwidth cut stacked on top of format and viewport optimization.'
 date: 2026-02-06
 lastUpdated: 2026-07-04
 author: 'Otto van der Schaaf'
@@ -17,7 +17,7 @@ The header was standardized as part of the Client Hints specification and has ha
 
 Save-Data represents an explicit user preference. This is not the system guessing whether the user is on a slow connection. The user has actively said: "I would rather have a smaller page than a sharper image." Respecting that preference is a matter of user agency. The performance win is a side effect.
 
-From a web standards perspective, Save-Data is also relevant to the `Vary` response header. Any server that serves different content based on `Save-Data` should include `Vary: Save-Data` in its response headers. Without that, intermediary caches (CDNs, corporate proxies) may serve the wrong variant to the wrong user. ModPageSpeed 2.0 handles this implicitly. The capability mask is the cache key, and it already includes the Save-Data bit -- the correct variant is always served without relying on `Vary` at the cache layer. The nginx interceptor still emits the appropriate `Vary` header on outgoing responses for downstream cache correctness.
+From a web standards perspective, Save-Data is also relevant to the `Vary` response header. Any server that serves different content based on `Save-Data` should include `Vary: Save-Data` in its response headers. Without that, intermediary caches (CDNs, corporate proxies) may serve the wrong variant to the wrong user. mod_pagespeed handles this implicitly. The capability mask is the cache key, and it already includes the Save-Data bit -- the correct variant is always served without relying on `Vary` at the cache layer. The nginx interceptor still emits the appropriate `Vary` header on outgoing responses for downstream cache correctness.
 
 ## How Save-Data fits in the capability mask
 
@@ -25,7 +25,7 @@ The `Save-Data` preference occupies a single bit (bit 5) in the 32-bit capabilit
 
 When a request arrives with `Save-Data: on`, the nginx interceptor sets bit 5, which selects a different cache alternate. A Mobile/WebP/1x/Identity request without Save-Data maps to mask `0x01`. The same request with Save-Data maps to `0x21`. These select two different alternates within the same URL's cache entry -- one encoded at normal quality, the other at reduced quality.
 
-## How ModPageSpeed 2.0 responds
+## How mod_pagespeed responds
 
 When the nginx interceptor parses incoming request headers, the `Save-Data` value is encoded into bit 5 of the 32-bit capability mask. This means that a user with `Save-Data: on` selects a different cache alternate than an identical user without it, even if everything else -- browser, viewport, network -- is the same. The cache serves a dedicated variant tuned for reduced data consumption.
 
@@ -61,7 +61,7 @@ The Save-Data column shows an additional 30-50% reduction compared to the same f
 
 Save-Data is not either-or with other optimizations. It stacks. Viewport resizing reduces dimensions. Modern codecs reduce bits per pixel. Save-Data reduces quality. Each layer compounds on the previous one.
 
-To put the bandwidth numbers in context: the HTTP Archive reports that the median mobile page loads 1.0 MB of images. A site running ModPageSpeed 2.0 with AVIF support serving mobile Save-Data users would reduce that to roughly 50-80 KB of images -- a 92-95% reduction. For users on metered connections, this is the difference between a page that costs a fraction of a cent to load and one that costs several cents.
+To put the bandwidth numbers in context: the HTTP Archive reports that the median mobile page loads 1.0 MB of images. A site running mod_pagespeed with AVIF support serving mobile Save-Data users would reduce that to roughly 50-80 KB of images -- a 92-95% reduction. For users on metered connections, this is the difference between a page that costs a fraction of a cent to load and one that costs several cents.
 
 ## Interaction with viewport resizing
 
@@ -73,7 +73,7 @@ For 2x pixel density with Save-Data, the system doubles the viewport target widt
 
 ## Save-Data as the primary bandwidth signal
 
-Save-Data is the primary bandwidth signal in ModPageSpeed 2.0. Earlier versions used the `ECT` (Effective Connection Type) header to apply per-connection quality multipliers. That was removed in favor of a simpler model: Save-Data selects the quality tier (normal or reduced), and the capability mask uses bits 6-7 for transfer encoding (identity, gzip, brotli) instead of connection type.
+Save-Data is the primary bandwidth signal in mod_pagespeed. Earlier versions used the `ECT` (Effective Connection Type) header to apply per-connection quality multipliers. That was removed in favor of a simpler model: Save-Data selects the quality tier (normal or reduced), and the capability mask uses bits 6-7 for transfer encoding (identity, gzip, brotli) instead of connection type.
 
 The rationale for removing ECT-based quality tuning:
 
@@ -180,4 +180,4 @@ factory_worker --no-proactive-savedata-variants ...
 
 To disable Save-Data entirely (treat all requests as Save-Data=off, ignoring the header), the header parsing would need to be modified in the nginx interceptor. This is not recommended -- the header exists because the user asked for it, and the marginal cost of respecting it is small.
 
-The combination of Save-Data with viewport resizing, modern codecs, and proactive variant generation means that ModPageSpeed 2.0 serves the right image to every user -- full quality for those who want it, reduced quality for those who asked for less, and the right resolution for every screen size. The 32-bit capability mask makes this possible without content negotiation logic in the application, without URL rewriting, and without any changes to the origin server.
+The combination of Save-Data with viewport resizing, modern codecs, and proactive variant generation means that mod_pagespeed serves the right image to every user -- full quality for those who want it, reduced quality for those who asked for less, and the right resolution for every screen size. The 32-bit capability mask makes this possible without content negotiation logic in the application, without URL rewriting, and without any changes to the origin server.
