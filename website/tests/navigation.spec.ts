@@ -33,8 +33,8 @@ test.describe('Navigation', () => {
     await expect(page).toHaveURL('/docs/');
 
     // /1.1/docs/ left the Docs dropdown with the convergence and is no
-    // longer advertised from the footer either — the URL still resolves for
-    // anyone who links it directly.
+    // longer advertised from the footer either; the route itself is now
+    // retired too (see docs.spec.ts's 404 check).
   });
 
   test('header download CTA links to /download/', async ({ page }) => {

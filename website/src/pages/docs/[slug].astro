@@ -3,6 +3,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import ShareButtons from '../../components/ShareButtons.astro';
 import OnThisPage from '../../components/OnThisPage.astro';
 import Icon from '../../components/Icon.astro';
+import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
 import { getCollection, render } from 'astro:content';
 import { createMarkdownProcessor } from '@astrojs/markdown-remark';
 import { getRelease } from '../../lib/release';
@@ -408,6 +409,14 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
         >
           <Content />
         </div>
+
+        {
+          /* Progressive enhancement for the release-notes page only (see
+            ReleaseNotesDeepLink.astro): a deep link or in-page link to a
+            release opens its collapsed <details> before scrolling to it.
+            Gated on doc.id so no other docs page pays for it. */
+          doc.id === 'release-notes' && <ReleaseNotesDeepLink />
+        }
 
         {
           faqItems.length > 0 && (

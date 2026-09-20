@@ -90,24 +90,6 @@ const docs = defineCollection({
   }),
 });
 
-// Holds exactly one archived entry (release-notes) — the mod_pagespeed 1.15
-// reference material was folded into the docs collection above; this page
-// stays at its own address as a version-branded history that a merged page
-// cannot replace.
-const docs11 = defineCollection({
-  loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/docs-1.1' }),
-  schema: z.object({
-    title: z.string(),
-    description: z.string(),
-    order: z.number().default(0),
-    group: z.string().optional(),
-    lastUpdated: z.coerce.date().optional(),
-    // Optional datePublished for TechArticle JSON-LD. When unset, the field
-    // is omitted from the rendered JSON-LD — we do not invent dates.
-    datePublished: z.coerce.date().optional(),
-  }),
-});
-
 // Evergreen "How it works" architecture explainers (wiki-republish cycle).
 // Transformative, source-grounded deep-dives on the optimization techniques —
 // distinct from docs (reference/config) and blog (task/news).
@@ -224,7 +206,6 @@ export const collections = {
   blog,
   docs,
   'how-it-works': howItWorks,
-  'docs-1.1': docs11,
   'releases-1.1': releases11,
   'releases-2.0': releases20,
   'releases-2.1': releases21,

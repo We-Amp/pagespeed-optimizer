@@ -114,36 +114,26 @@ test.describe('SEO', () => {
 
   // Post-convergence: one site name everywhere — the /1.1/*-specific
   // og:site_name flip is retired. The /1.1/ product page itself is retired
-  // (superseded by /); /1.1/docs/ narrowed to the archived release-notes
-  // page, which stands in for the section here.
-  test('og:site_name is identical on a main-tree page and a /1.1/docs/ page', async ({ page }) => {
-    await page.goto('/');
-    const mainSiteName = await page
-      .locator('meta[property="og:site_name"]')
-      .getAttribute('content');
-    expect(mainSiteName).toBeTruthy();
-
-    await page.goto('/1.1/docs/release-notes/');
-    const legacyPageSiteName = await page
-      .locator('meta[property="og:site_name"]')
-      .getAttribute('content');
-    expect(legacyPageSiteName).toBe(mainSiteName);
+  // (superseded by /); /1.1/docs/ (once narrowed to the archived
+  // release-notes page) is now retired too, its content folded into
+  // /docs/release-notes/. There is no page left to compare og:site_name
+  // against, so this asserts the retirement itself rather than dropping
+  // the test.
+  test('retired /1.1/docs/ page no longer carries its own og:site_name', async ({ page }) => {
+    const response = await page.goto('/1.1/docs/release-notes/');
+    expect(response?.status()).toBe(404);
   });
 
   // Post-convergence: one breadcrumb model — the segmentNames override that
-  // rendered the '1.1' path segment as "mod_pagespeed 1.15" is retired, so
-  // the leaf now falls back to the default formatter.
-  test('breadcrumb JSON-LD on a /1.1/docs/ page carries no legacy segment label', async ({
+  // rendered the '1.1' path segment as "mod_pagespeed 1.15" is retired along
+  // with the page it rendered on. Same reasoning as the og:site_name check
+  // above: assert the route is gone rather than test breadcrumb JSON-LD on
+  // a page that no longer builds.
+  test('retired /1.1/docs/ page carries no breadcrumb JSON-LD (route is gone)', async ({
     page,
   }) => {
-    await page.goto('/1.1/docs/release-notes/');
-    const scripts = await page.locator('script[type="application/ld+json"]').allTextContents();
-    const breadcrumb = scripts
-      .map((s) => JSON.parse(s))
-      .find((d) => d['@type'] === 'BreadcrumbList');
-    expect(breadcrumb).toBeTruthy();
-    const names = breadcrumb.itemListElement.map((item: { name: string }) => item.name);
-    expect(names).not.toContain('mod_pagespeed 1.15');
+    const response = await page.goto('/1.1/docs/release-notes/');
+    expect(response?.status()).toBe(404);
   });
 
   // Wave 0 (convergence): /download/ must actually sell the current line —

@@ -60,7 +60,7 @@
 //
 // This test asserts copy/contract only; it never modifies any file.
 
-import { readFileSync, readdirSync, statSync } from 'node:fs';
+import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { parse as parseYaml } from 'yaml';
@@ -211,10 +211,10 @@ const SCAN_BUCKETS: ScanBucket[] = [
     name: 'content',
     files: walk(CONTENT_DIR, ['.md', '.mdx']),
     floor: 100,
-    // The docs-1.1 collection narrowed to one .mdx entry (release-notes),
-    // dropping five .mdx files sitewide; the real count is 8 as of this
-    // change.
-    extFloors: { '.mdx': 7 },
+    // The docs-1.1 collection and docs/release-notes-2-1.mdx retired into
+    // the single converged docs/release-notes.mdx page, dropping two more
+    // .mdx files sitewide; the real count is 6 as of this change.
+    extFloors: { '.mdx': 5 },
   },
   {
     // .astro pages plus the two PUBLISHED .ts routes (api/product.json.ts,
@@ -1199,17 +1199,15 @@ const DENYLIST: DenyRule[] = [
     // Whole documents that are a record of a past line rather than a claim
     // about the product on offer. Pinned file-by-file below.
     exemptFile: (rel) =>
-      /^src\/content\/docs(?:-1\.1)?\/release-notes[^/]*\.mdx$/.test(rel) ||
-      /^src\/pages\/(?:privacy|terms|license)\.astro$/.test(rel) ||
-      rel.startsWith('src/pages/1.1/'),
+      /^src\/content\/docs\/release-notes\.mdx$/.test(rel) ||
+      /^src\/pages\/(?:privacy|terms|license)\.astro$/.test(rel),
     exemptFileExpectation: [
-      // Release histories: every entry is what shipped, under the name it
-      // shipped under, on the date it shipped.
-      'src/content/docs-1.1/release-notes.mdx',
-      'src/content/docs/release-notes-2-1.mdx',
+      // Release history: every entry is what shipped, under the name it
+      // shipped under, on the date it shipped. The docs-1.1 collection,
+      // docs/release-notes-2-1.mdx and the frozen /1.1/docs/[slug] route
+      // that also carried this exemption are retired — this is the one
+      // converged page now.
       'src/content/docs/release-notes.mdx',
-      // The frozen predecessor URL space, kept so old links keep working.
-      'src/pages/1.1/docs/[slug].astro',
       // The legal pages, which enumerate the predecessor lines by name because
       // the terms they state apply to each of them.
       'src/pages/license.astro',
@@ -1640,7 +1638,6 @@ describe('canonical sources hold ground-truth product facts', () => {
       ]),
     );
     expect(matrix).toEqual({
-      'Debian 11 bullseye': '1.18.0',
       'Debian 12 bookworm': '1.22.1',
       'Debian 13 trixie': '1.26.3',
       'Ubuntu 22.04 jammy': '1.18.0',
@@ -1800,6 +1797,16 @@ describe('canonical sources hold ground-truth product facts', () => {
     expect(tag).toBe(`v${semver}+r${revision}`);
     // Derived, not hardcoded: the manifest's semver must sit on the V1 line.
     expect(semver.startsWith(`${facts.V1_LINE}.`)).toBe(true);
+  });
+
+  // The docs-1.1 collection (formerly narrowed to a single archived
+  // release-notes page) and its /1.1/docs/[slug] route are retired — the
+  // converged history lives at docs/release-notes.mdx. Replaces the old
+  // legacy-docs-retirement.test.ts, which asserted the collection held
+  // exactly that one entry; there is no entry to hold now.
+  it('the docs-1.1 collection no longer exists', () => {
+    expect(existsSync(path.join(CONTENT_DIR, 'docs-1.1'))).toBe(false);
+    expect(existsSync(path.join(WEBSITE_ROOT, 'src/pages/1.1/docs/[slug].astro'))).toBe(false);
   });
 });
 

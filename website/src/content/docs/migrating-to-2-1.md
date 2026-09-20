@@ -216,7 +216,7 @@ sudo cp /usr/lib/apache2/modules/mod_pagespeed.so /usr/lib/apache2/modules/mod_p
 
 #### nginx
 
-On Debian 11/12/13 or Ubuntu 22.04/24.04 (amd64 + arm64), or AlmaLinux/RHEL/Rocky 9 (x86_64 + aarch64) and 10 (x86_64), install from the signed repository — it drops the module into the standard nginx modules directory and tracks upgrades through your package manager:
+On Debian 12/13 or Ubuntu 22.04/24.04 (amd64 + arm64), or AlmaLinux/RHEL/Rocky 9 (x86_64 + aarch64) and 10 (x86_64), install from the signed repository — it drops the module into the standard nginx modules directory and tracks upgrades through your package manager:
 
 ```bash
 # 1. Configure the repository and import the signing key (one time)

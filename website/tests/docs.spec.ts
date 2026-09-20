@@ -90,14 +90,14 @@ test.describe('Docs', () => {
     await expect(page.locator('nav[aria-label="Documentation"]')).toHaveCount(1);
   });
 
-  // Same toggle removal on the /1.1/docs/ side (now just the archived
-  // release-notes page) — its own version toggle is gone too. That page has
-  // no platform-tab content of its own; the platform tabs are covered by the
-  // /docs/${slug}/ loop below.
-  test('1.15 doc page renders no version toggle', async ({ page }) => {
-    await page.goto('/1.1/docs/release-notes/');
-    await expect(page.locator('[role="group"][aria-label="Documentation version"]')).toHaveCount(0);
-    await expect(page.locator('nav[aria-label="Documentation"]')).toHaveCount(1);
+  // The /1.1/docs/ archive route (formerly the sole surviving docs-1.1 page)
+  // is retired now that its release notes are folded into the converged
+  // /docs/release-notes/ page. Assert the old route is actually gone rather
+  // than dropping this test outright — there is no page left to check a
+  // version toggle on.
+  test('retired /1.1/docs/release-notes/ route is gone', async ({ page }) => {
+    const response = await page.goto('/1.1/docs/release-notes/');
+    expect(response?.status()).toBe(404);
   });
 
   test('doc pages have correct titles', async ({ page }) => {
