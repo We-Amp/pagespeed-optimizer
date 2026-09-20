@@ -25,7 +25,7 @@ const softwareApplication = {
   applicationCategory: 'WebApplication',
   operatingSystem: 'Linux, Windows, macOS',
   description:
-    'Self-hosted web performance optimization: WebP/AVIF/SVG image transcoding, CSS/JS minification, heuristic critical CSS, variant-aware caching, and zero-copy mmap serving. One product in two parts: an in-process module and an optimizer worker sharing one Cyclone cache.',
+    'Self-hosted web performance optimization: WebP/AVIF image transcoding (plus SVG auto-vectorization in the optimizer worker), CSS/JS minification, heuristic critical CSS, variant-aware caching, and zero-copy mmap serving. One product in two parts: an in-process module and an optimizer worker; with the Apache module and in the reverse-proxy deployment, both parts map the same Cyclone cache.',
   image: 'https://modpagespeed.com/og-default.png?v=2',
   brand: { '@type': 'Brand', name: 'mod_pagespeed' },
   featureList: [
@@ -385,8 +385,12 @@ const jsonLd = [softwareApplication, faqPage];
                     >converted from raster to SVG</a
                   > using VTracer (Rust FFI). The resulting vector is resolution-independent — one
                   variant serves all viewports and pixel densities. A size gate stores the SVG only
-                  when it is smaller than the raster original. Runs automatically for eligible images,
-                  no configuration required.
+                  when it is smaller than the raster original. It runs in the optimizer worker, with
+                  the Apache module or the reverse-proxy deployment; the default <code
+                    class="text-xs bg-bg-elevated px-1 rounded">--svg-mode detect</code
+                  > scores candidates without vectorizing, and <code
+                    class="text-xs bg-bg-elevated px-1 rounded">--svg-mode auto</code
+                  > serves them.
                 </p>
               </div>
             </li>
@@ -1151,6 +1155,11 @@ const jsonLd = [softwareApplication, faqPage];
         </div>
       </div>
       <p class="mt-8 text-sm text-text-muted text-center max-w-2xl mx-auto">
+        The Apache packages install the configuration that points the module at the optimizer
+        worker. The native nginx module runs on its own; to use the optimizer worker with nginx, run
+        the reverse-proxy deployment.
+      </p>
+      <p class="mt-4 text-sm text-text-muted text-center max-w-2xl mx-auto">
         Beyond nginx, mod_pagespeed integrates as middleware for ASP.NET Core applications via the <code
           class="text-xs bg-bg-elevated px-1 rounded">libpagespeed.so</code
         > C API — same optimization pipeline, different stack.

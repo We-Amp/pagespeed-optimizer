@@ -461,9 +461,15 @@ date: Sun, 17 May 2026 09:14:08 GMT
         <p class="font-semibold text-text-body">Pick by your stack</p>
         <ul class="mt-2 space-y-1">
           <li>
-            <span class="font-mono text-xs text-text-annotation">nginx · Apache</span>
+            <span class="font-mono text-xs text-text-annotation">Apache</span>
             &nbsp;native module + worker &rarr; <span class="font-semibold text-text-body"
               >mod_pagespeed 2.1</span
+            > (this page)
+          </li>
+          <li>
+            <span class="font-mono text-xs text-text-annotation">nginx</span>
+            &nbsp;native module, and module + worker in the reverse-proxy deployment &rarr; <span
+              class="font-semibold text-text-body">mod_pagespeed 2.1</span
             > (this page)
           </li>
           <li>
@@ -643,7 +649,9 @@ date: Sun, 17 May 2026 09:14:08 GMT
             > (Apache) or <code class="text-xs bg-bg-elevated px-1 py-0.5 rounded"
               >nginx-module-pagespeed</code
             > (nginx) — prebuilt, nothing to compile. The optimizer worker installs alongside as
-            <code class="text-xs bg-bg-elevated px-1 py-0.5 rounded">pagespeed-optimizer</code>.
+            <code class="text-xs bg-bg-elevated px-1 py-0.5 rounded">pagespeed-optimizer</code>; the
+            Apache packages point the module at it, and the reverse-proxy deployment pairs nginx
+            with the worker.
           </p>
         </div>
         <div class="card">
@@ -661,8 +669,9 @@ date: Sun, 17 May 2026 09:14:08 GMT
           <p class="mt-2 text-sm text-text-muted">
             <code class="text-xs bg-bg-elevated px-1.5 py-0.5 rounded font-mono"
               >curl -I your-site | grep X-Mod-Pagespeed</code
-            >. The version string confirms the module is active; the worker optimizes off the
-            request path and serves come from the cache.
+            >. The version string confirms the module is active. With the Apache module or the
+            reverse-proxy deployment, the worker optimizes off the request path and the serves come
+            from the cache.
           </p>
         </div>
       </div>
@@ -1385,7 +1394,8 @@ date: Sun, 17 May 2026 09:14:08 GMT
         <figcaption class="mt-4 text-center text-xs text-text-annotation max-w-xl mx-auto">
           Optimization happens outside the request path. Cache misses serve immediately; the worker
           writes the optimized variant in the background so the next request is served from cache.
-          Deploys as a native module for Apache or nginx, with the optimizer worker alongside.
+          Deploys as a native module for Apache or nginx, with the optimizer worker alongside the
+          Apache module or in the reverse-proxy deployment.
         </figcaption>
       </figure>
 

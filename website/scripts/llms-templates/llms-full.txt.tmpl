@@ -4,7 +4,7 @@
 
 > Self-hosted web performance optimization for Apache and nginx. {{LICENSE_CLAUSE_CAP}}. Built by a mod_pagespeed maintainer. {{PRODUCT_NAME}} {{CURRENT_LINE}} converges the mod_pagespeed lineage and the engine from the 2.0 re-architecture into one product: a native web-server module with a separate optimizer worker.
 
-{{PRODUCT_NAME}} {{CURRENT_LINE}} is a self-hosted product by We-Amp B.V., {{LICENSE_CLAUSE}}, that automatically optimizes web content. A native in-process module for Apache and nginx handles serving, and a separate optimizer worker — sharing a disk cache with the module — does the heavy optimization work outside the web server. Drop-in compatible with the classic module: same configuration directives, same filters. No application code changes, no URL rewrites, no build pipeline modifications required.
+{{PRODUCT_NAME}} {{CURRENT_LINE}} is a self-hosted product by We-Amp B.V., {{LICENSE_CLAUSE}}, that automatically optimizes web content. A native in-process module for Apache and nginx handles serving, and a separate optimizer worker does the heavy optimization work outside the web server; with the Apache module and in the reverse-proxy deployment, both parts map the same Cyclone cache. The native nginx module runs on its own; to use the optimizer worker with nginx, run the reverse-proxy deployment. Drop-in compatible with the classic module: same configuration directives, same filters. No application code changes, no URL rewrites, no build pipeline modifications required.
 
 ## Product Overview
 
@@ -103,6 +103,8 @@ The Cyclone cache maps optimized resources directly into nginx output buffers us
 
 ## Architecture
 
+This section describes the reverse-proxy deployment, where nginx and the worker run side by side; the native nginx module runs on its own.
+
 ### Three Components
 
 1. **The Module** — C++ nginx dynamic module. Classifies requests via Accept, Client Hints, Save-Data, and User-Agent headers. Composes cache keys. Serves hits via zero-copy mmap. Passes misses to origin. Sends fire-and-forget notifications to worker.
@@ -131,6 +133,8 @@ Shared volume at /shared contains the cache file and Unix socket.
 Key: chmod 777 /shared, chmod 666 cache.vol for cross-process access.
 
 ### Nginx Module (Bare Metal)
+
+This is the Docker / nginx reverse-proxy deployment installed without containers: its dynamic nginx module (ngx_pagespeed_module.so) paired with the worker. The native nginx-module-pagespeed package runs the module on its own.
 
 1. Download ngx_pagespeed_module.so matching your nginx version
 2. Download factory_worker binary

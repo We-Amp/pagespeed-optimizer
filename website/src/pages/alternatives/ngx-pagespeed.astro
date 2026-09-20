@@ -26,7 +26,7 @@ const faq = [
   },
   {
     q: 'Native nginx module or Docker reverse proxy — which fits my stack?',
-    a: 'Both are mod_pagespeed 2.1. Install the native nginx module when you run nginx on Debian, Ubuntu, or Enterprise Linux and want the module in-process where ngx_pagespeed sat: one load_module line, your existing directives, no traffic detour. Run the Docker / nginx reverse proxy when you are container-native, when the origin is something other than nginx, or on Kubernetes via the Helm chart. Both run the same optimization pipeline against the same Cyclone cache.',
+    a: 'Both are mod_pagespeed 2.1. Install the native nginx module when you run nginx on Debian, Ubuntu, or Enterprise Linux and want the module in-process where ngx_pagespeed sat: one load_module line, your existing directives, no traffic detour. Run the Docker / nginx reverse proxy when you are container-native, when the origin is something other than nginx, or on Kubernetes via the Helm chart. Both are the same product and the same Cyclone cache library. The native nginx module runs on its own; to use the optimizer worker with nginx, run the reverse-proxy deployment.',
   },
   {
     q: 'Does the nginx module generate AVIF?',
@@ -46,7 +46,7 @@ const jsonLd = [
     applicationCategory: 'DeveloperApplication',
     operatingSystem: ['Linux'],
     description:
-      'Maintained continuation of the nginx PageSpeed port. Native in-process nginx module (ngx_pagespeed.so) with the same pagespeed directives and filters as open-source mod_pagespeed, built against current nginx with applied CVE patches, plus the optimizer worker for zero-copy mmap cache serving and variant-aware fan-out. Also native on Apache, and available as a Docker / nginx reverse proxy.',
+      'Maintained continuation of the nginx PageSpeed port. Native in-process nginx module (ngx_pagespeed.so) with the same pagespeed directives and filters as open-source mod_pagespeed, built against current nginx with applied CVE patches, variant-aware Cyclone caching and zero-copy mmap serving. Also native on Apache, and available as a Docker / nginx reverse proxy with the optimizer worker.',
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
     sameAs: ['https://packages.modpagespeed.com/', 'https://ngxpagespeed.com/'],
     publisher: {

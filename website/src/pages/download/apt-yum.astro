@@ -60,6 +60,12 @@ sudo apt-get install nginx-module-pagespeed
 # AlmaLinux / RHEL / Rocky 9 and 10
 sudo dnf install nginx-module-pagespeed</code></pre>
       <p class="mt-4 text-sm text-text-muted">
+        The native nginx module runs on its own; to use the optimizer worker with nginx, run the <a
+          href="/docs/installation-docker/"
+          class="text-interactive underline">reverse-proxy deployment</a
+        >.
+      </p>
+      <p class="mt-4 text-sm text-text-muted">
         Installing <code class="font-mono">nginx-module-pagespeed</code> drops a modules-enabled auto-include
         snippet — there is nothing to copy by hand. Each <code class="font-mono">.so</code> is pinned
         to its distro's exact stock nginx version (nginx's <code class="font-mono"

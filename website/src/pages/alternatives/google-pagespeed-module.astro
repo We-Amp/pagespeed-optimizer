@@ -14,7 +14,7 @@ const faq = [
   },
   {
     q: 'What replaces the Google PageSpeed Module?',
-    a: 'mod_pagespeed 2.1, actively maintained by We-Amp: the native in-process module for Apache and nginx, with the same configuration syntax, the classic filter set, and the built-in admin console, plus an optimizer worker for SVG auto-vectorization, variant-aware caching, and zero-copy serving. The IIS package ships from the 1.15 packaging channel.',
+    a: 'mod_pagespeed 2.1, actively maintained by We-Amp: the native in-process module for Apache and nginx, with the same configuration syntax, the classic filter set, and the built-in admin console, plus, with the Apache module or the reverse-proxy deployment, an optimizer worker for SVG auto-vectorization, variant-aware caching, and zero-copy serving. The IIS package ships from the 1.15 packaging channel.',
   },
   {
     q: 'Should I still use PageSpeed Insights?',
@@ -22,7 +22,7 @@ const faq = [
   },
   {
     q: 'Can mod_pagespeed fix the issues that PageSpeed Insights flags?',
-    a: "Most of the technical ones — yes. mod_pagespeed 2.1 minifies CSS/JS, serves WebP and AVIF image variants, serves viewport-matched image sizes, auto-vectorizes eligible images to SVG, and caches per client capability. The remaining items PSI flags are typically application-level (third-party scripts, slow server responses, heavy JavaScript) which a server module can't address.",
+    a: "Most of the technical ones — yes. mod_pagespeed 2.1 minifies CSS/JS, serves WebP and AVIF image variants, serves viewport-matched image sizes, auto-vectorizes eligible images to SVG with the Apache module or the reverse-proxy deployment, and caches per client capability. The remaining items PSI flags are typically application-level (third-party scripts, slow server responses, heavy JavaScript) which a server module can't address.",
   },
   {
     q: 'What is the best Google PageSpeed module alternative in 2026?',
@@ -182,13 +182,14 @@ const jsonLd = [
         covers WebP and AVIF alongside JPEG, PNG, and GIF.
       </p>
       <p>
-        Alongside the module runs the <code>pagespeed-optimizer</code> worker, which takes the heavy work
-        off the request path: image transcoding, critical CSS, SVG auto-vectorization, ML-predicted image
-        quality, and the variant-aware cache the module then serves from with zero-copy <code
-          >mmap</code
-        >. Up to 37 variants per asset are generated per client capability. On the deb and rpm
-        channels the module and the worker install and upgrade together as a matching pair, and a
-        version mismatch between them is reported loudly rather than absorbed.
+        With the Apache module or the reverse-proxy deployment, the <code>pagespeed-optimizer</code>
+        worker runs alongside and takes the heavy work off the request path: image transcoding, critical
+        CSS, SVG auto-vectorization, ML-predicted image quality, and the variant-aware cache the module
+        then serves from with zero-copy <code>mmap</code>. Up to 37 variants per asset are generated
+        per client capability. On the deb and rpm channels the module and the worker install and
+        upgrade together as a matching pair, and a version mismatch between them is reported loudly
+        rather than absorbed. The native nginx module runs on its own; to use the optimizer worker
+        with nginx, run the reverse-proxy deployment.
       </p>
 
       <pre><code>{`# Apache — the native mod_pagespeed 2.1 module

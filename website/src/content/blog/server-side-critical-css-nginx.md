@@ -324,7 +324,9 @@ side-by-side comparison.
 
 ## Installing it
 
-The packaged install for nginx is the fastest:
+The native nginx module runs on its own; to use the optimizer worker with
+nginx, run the reverse-proxy deployment. The packaged install for the native
+nginx module is the fastest:
 
 ```bash
 curl -fsSL https://packages.modpagespeed.com/setup-apt.sh | sudo bash

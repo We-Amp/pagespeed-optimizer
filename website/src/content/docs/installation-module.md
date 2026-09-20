@@ -8,7 +8,7 @@ faq:
   - q: 'Is there a native nginx module for mod_pagespeed 2.1?'
     a: 'Yes. The native Apache and nginx module ships from the signed packages.modpagespeed.com repository — the same channel mod_pagespeed 1.15 uses.'
   - q: 'How do I run mod_pagespeed on nginx today?'
-    a: 'Two options. Install the native nginx module — a dynamic module from the signed packages.modpagespeed.com repository, built for Debian and Ubuntu on amd64 and arm64 and pinned to each distribution stock nginx (1.18 to 1.26). Or put the Docker / nginx reverse proxy in front of your origin.'
+    a: 'Two options. Install the native nginx module — a dynamic module from the signed packages.modpagespeed.com repository, built for Debian and Ubuntu on amd64 and arm64 and pinned to each distribution stock nginx (1.18 to 1.26). Or put the Docker / nginx reverse proxy in front of your origin. The native nginx module runs on its own; to use the optimizer worker with nginx, run the reverse-proxy deployment.'
 ---
 
 mod_pagespeed ships a native module for Apache and nginx. You have three
@@ -42,7 +42,9 @@ mod_pagespeed configuration carries over unchanged — see the
 [configuration reference](/docs/configuration/) for the full directive
 set. The package also drops a default `pagespeed.conf` (in
 `/etc/apache2/mods-available/` on Debian/Ubuntu, `/etc/httpd/conf.d/` on
-RHEL) — edit that file to turn filters on.
+RHEL) — edit that file to turn filters on. The Apache packages also install the
+configuration that points the module at the `pagespeed-optimizer` worker, so the
+module reaches the worker without further configuration.
 
 Running Apache under cPanel/WHM? Use the signed EasyApache 4 RPM instead —
 see the [cPanel / EasyApache 4 guide](/docs/cpanel/). See
@@ -62,6 +64,9 @@ curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo apt-get install nginx-module-pagespeed
 ```
 
+The native nginx module runs on its own; to use the optimizer worker with
+nginx, run the reverse-proxy deployment.
+
 See [Install from packages.modpagespeed.com](/download/apt-yum/) for the full
 distribution matrix (including the yum packages) and the Apache module. The
 signed packages also sidestep the
@@ -72,8 +77,7 @@ that come from compiling the old module from source.
 
 The [Docker / nginx reverse proxy](/docs/installation-docker/) runs the same
 optimization core in front of any HTTP origin. It uses a dynamic nginx
-module (`ngx_pagespeed_module.so`) paired with a separate worker process, and
-runs the same pipeline the native module does:
+module (`ngx_pagespeed_module.so`) paired with the optimizer worker:
 [image transcoding](/blog/nginx-image-optimization-module/),
 CSS/JS minification, critical CSS, and zero-copy serving from the Cyclone
 shared-memory cache.
