@@ -155,9 +155,10 @@ const jsonLd = {
       </p>
       <p>
         mod_pagespeed 2.1 reflects that reality. The module serves and the optimizer worker
-        optimizes; they talk over a local socket, and neither phones home with request data. There
-        is no third-party proxy in the path. There is no CDN dependency. It makes no outbound
-        request of its own accord — the only egress is what the operator configures.
+        optimizes; with the Apache module and in the reverse-proxy deployment they talk over a local
+        socket, and neither phones home with request data. There is no third-party proxy in the
+        path. There is no CDN dependency. It makes no outbound request of its own accord — the only
+        egress is what the operator configures.
       </p>
       <p>
         Operators in 2026 have absorbed the trade-offs of edge platforms and managed services, and a

@@ -263,9 +263,9 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
       <div class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-7">
         <h2 class="h2-section text-text-body">Optimization the edge cache can't do</h2>
         <p class="mt-3 text-text-body">
-          Critical CSS, SVG auto-vectorization, and variant-aware caching run below the CDN, on any
-          stack &mdash; keep Cloudflare in front if you like. On our own pages the origin pipeline
-          measures
+          Critical CSS and variant-aware caching run below the CDN, on any stack, and SVG
+          auto-vectorization comes with the Apache module or the reverse-proxy deployment &mdash;
+          keep Cloudflare in front if you like. On our own pages the origin pipeline measures
           <span class="font-mono tabular-nums font-semibold text-emerald-700 dark:text-emerald-400"
             >&minus;68%</span
           > page size. Install and run it. {FREE_TO_RUN_LINE}

@@ -6,7 +6,7 @@ group: 'Start here'
 lastUpdated: 2026-09-19
 faq:
   - q: 'Which mod_pagespeed 2.1 integration should I pick?'
-    a: 'The native module (Apache or nginx) for a bare-metal or existing web-server deployment — installs from the signed apt/yum repository. Docker / nginx reverse proxy for a containerized deployment in front of any HTTP origin, including Kubernetes. Both share the same optimization core.'
+    a: 'The native module (Apache or nginx) for a bare-metal or existing web-server deployment — installs from the signed apt/yum repository. Docker / nginx reverse proxy for a containerized deployment in front of any HTTP origin, including Kubernetes. Both share the same optimization core. The Apache packages install the configuration that points the module at the optimizer worker; the native nginx module runs on its own, so to use the optimizer worker with nginx, run the Docker / nginx reverse proxy.'
   - q: 'What does the request flow look like on a cache hit?'
     a: 'Nginx classifies the client into a 32-bit capability mask, finds a matching optimized variant in the Cyclone cache, and serves it zero-copy from the memory-mapped file with `X-PageSpeed: HIT`. No origin round-trip and no allocation.'
   - q: 'How do I verify mod_pagespeed is working?'
@@ -21,7 +21,9 @@ mod_pagespeed 2.1 ships three integrations:
 
 - **Native module (Apache or nginx)** — the in-process module, installed from
   the signed apt/yum repository alongside the `pagespeed-optimizer` worker.
-  Drop-in for an existing pagespeed configuration.
+  Drop-in for an existing pagespeed configuration. The Apache packages install
+  the configuration that points the module at the worker; the native nginx
+  module runs on its own.
   [Install via apt/yum &rarr;](/download/apt-yum/), or see the
   [module installation guide](/docs/installation-module/).
 - **Docker / nginx reverse proxy** — drop in front of any HTTP origin (Apache,

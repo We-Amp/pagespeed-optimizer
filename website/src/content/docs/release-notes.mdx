@@ -10,7 +10,10 @@ This page lists every release of mod_pagespeed 2.1, newest first, on one
 page. The product has two parts. The module runs inside Apache or nginx and applies the
 classic rewriting filters in the request itself. The optimizer worker is a separate
 process, introduced by the 2.0 re-architecture, that does the heavy optimization work off
-the request path. The two share one Cyclone cache and are released together.
+the request path. With the Apache module, the two map the same Cyclone cache. The
+reverse-proxy deployment pairs nginx with the worker over that same cache. The native
+nginx module runs on its own; to use the optimizer worker with nginx, run the
+reverse-proxy deployment. Both parts are released together.
 
 Version numbers follow the two parts. The native packages of both parts are
 versioned 1.16.0; the product as a whole is 2.1.0, and that is the version the container
@@ -69,13 +72,12 @@ on-disk format refuses to start and says so, rather than quietly running a
 cache of its own; starting the worker and then restarting Apache clears it.
 At boot there is nothing to do — the worker service is ordered ahead of
 Apache and nginx and counts as started only once its notification socket
-exists, so a web server coming up finds it ready instead of retrying. The
-ordering never makes one service require the other, so each still starts
-without the other. nginx ordering is new in 2.1: a host still carrying a
-2.0-era worker package orders Apache alone, so an nginx deployment that
-upgrades the module first is raced at every boot. A web server running
-under some other unit name is not ordered against the worker and needs an
-ordering drop-in of its own.
+exists, so a web server that uses the worker comes up and finds it ready
+instead of retrying. The ordering never makes one service require the
+other, so each still starts without the other. nginx ordering is new in
+2.1: a host still carrying a 2.0-era worker package orders Apache alone. A
+web server running under some other unit name is not ordered against the
+worker and needs an ordering drop-in of its own.
 
 Changed: restart the web server after upgrading. The module
 packages add the web server's user to the worker's group in their
@@ -119,8 +121,8 @@ into or called by any mod_pagespeed release, so no earlier release is
 believed to be exposed; the bundle is updated so that it carries no
 known-vulnerable version. Update recommended.
 
-Added: the module packages install the configuration that points
-the module at the optimizer worker. The Apache deb and rpm ship
+Added: the Apache module packages install the configuration that
+points the module at the optimizer worker. The Apache deb and rpm ship
 `pagespeed_daemon.conf` — under `/etc/apache2/conf-available/` on Debian and
 Ubuntu, enabled by the package and disabled again when it is removed, and
 under `/etc/httpd/conf.d/` on the Red Hat family — which sets
@@ -3644,7 +3646,8 @@ what the three lists below are for.
   and nginx now ship arm64 builds alongside x86_64.
 - **The optimizer worker** joined as the second part of the product. The heavy
   work — image transcoding, critical CSS, variant-aware caching — runs in a
-  separate process, and the module serves the results from the shared cache.
+  separate process, and with the Apache module or the reverse-proxy deployment the
+  module serves the results from the shared cache.
   On the deb and rpm channels the two install and upgrade together from the
   same signed repository; [the current release](#current-release) covers the
   pair.
@@ -3670,6 +3673,10 @@ Docker images, and as a Helm chart. See
 [installation guide](/docs/installation-docker/) for Docker, the
 [Helm deployment guide](/docs/helm-deployment/) for Kubernetes, and
 [Deployment](/docs/deployment/) for production rollouts.
+
+The Apache packages install the configuration that points the module at the
+optimizer worker. The native nginx module runs on its own; to use the optimizer
+worker with nginx, run the reverse-proxy deployment.
 
 The IIS package ships from the 1.15 packaging channel.
 

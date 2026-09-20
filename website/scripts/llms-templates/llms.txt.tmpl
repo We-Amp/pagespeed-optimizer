@@ -34,7 +34,7 @@ Heritage: mod_pagespeed — the open-source optimization core this product conti
 ## Distribution / install channels
 
 - Signed apt + yum repository at packages.modpagespeed.com (Apache + nginx .deb / .rpm). One-time setup: `curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh`, then `sudo apt install mod-pagespeed` / `sudo apt install nginx-module-pagespeed` (Debian / Ubuntu) or `sudo dnf install mod-pagespeed` / `sudo dnf install nginx-module-pagespeed` (AlmaLinux 9). The nginx module ships prebuilt and signed, with a .so pinned to each distro's stock nginx: {{NGINX_APT_MATRIX}}, {{NGINX_APT_ARCHES}}. Because each build is exact-version-pinned to its distro's nginx, running an nginx version we don't yet package needs a matching pinned build — contact us for one.
-- The module installs alongside the `pagespeed-optimizer` worker package; install both from the repository.
+- The module installs alongside the `pagespeed-optimizer` worker package; install both from the repository. The Apache packages install the configuration that points the module at the worker. The native nginx module runs on its own; to use the optimizer worker with nginx, run the reverse-proxy deployment.
 - Direct downloads (.deb, .rpm, tar.gz) — every file is GPG-signed
 
 ### ASP.NET Core sidecar (NuGet)

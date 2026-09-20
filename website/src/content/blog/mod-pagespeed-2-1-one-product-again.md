@@ -28,7 +28,8 @@ worker install from the same signed repository at packages.modpagespeed.com.
 
 The optimizer moved out. The heavy work — image transcoding and the rest of
 the rewrite pipeline — now runs in the worker, off the request path, writing
-optimized variants back to the shared cache the module serves from. That
+optimized variants back to the Cyclone cache that the Apache module, and
+nginx in the reverse-proxy deployment, serve from. That
 worker _is_ the ModPageSpeed 2.0 engine: the image pipeline with ML-predicted
 quality and SSIMULACRA2 verification, variant-aware caching, and the
 optimizations the rewrite was built for, now behind the module everyone
@@ -39,17 +40,17 @@ already runs.
 A web optimizer decodes untrusted bytes: every image it recompresses and
 every page it parses arrived from somewhere else. In mod_pagespeed 2.1 that
 optimization work runs in a dedicated `pagespeed-optimizer` process, under
-its own unprivileged system user with an empty capability set, and the
-module reaches its results through the shared cache. Browser-based analysis
-runs in that same worker process, with the Chrome sandbox required by
-default.
+its own unprivileged system user with an empty capability set, and with the
+Apache module or the reverse-proxy deployment the module reaches its results
+through the shared cache. Browser-based analysis runs in that same worker
+process, with the Chrome sandbox required by default.
 
-## Browser analysis and the agentic web, for everyone
+## Browser analysis and the agentic web
 
 Browser-based analysis (critical-CSS validation, waterfall capture, visual
 comparison) and the agent-readability tooling that makes your pages legible
-to AI assistants as well as browsers ship in 2.1 for everyone — one product,
-one feature set, on every platform the converged packages cover.
+to AI assistants as well as browsers run in the optimizer worker, and reach
+you with the Apache module or the reverse-proxy deployment.
 
 ## Open source, Apache-2.0
 
