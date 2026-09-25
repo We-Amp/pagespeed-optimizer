@@ -339,6 +339,19 @@ jobs:
         shell: powershell
         run: npm install -g @bazel/bazelisk
 
+      - name: Install the build tools the hosted image lacks
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # gperf generates the HTML name tables; nasm assembles libaom's
+          # x86 kernels. The runner image carries MSYS2 and Chocolatey.
+          & C:\msys64\usr\bin\pacman.exe -S --noconfirm --needed gperf
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          choco install nasm -y --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & C:\msys64\usr\bin\gperf.exe --version | Select-Object -First 1
+          & "C:\Program Files\NASM\nasm.exe" -v
+
       - name: Cache Bazel repository and disk caches
         uses: actions/cache@v4
         with:
@@ -367,7 +380,7 @@ jobs:
               Set-Item -Path "env:$($Matches[1])" -Value $Matches[2]
             }
           }
-          $env:PATH = "C:\msys64\usr\bin;$env:PATH"
+          $env:PATH = "C:\msys64\usr\bin;C:\Program Files\NASM;$env:PATH"
           bazelisk build --config=windows --config=opt `
             --repository_cache=C:/bazel-repo --disk_cache=C:/bazel-disk `
             //src/worker:factory_worker //lib/pagespeed:libpagespeed.so
