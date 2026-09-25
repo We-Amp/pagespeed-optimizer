@@ -46,7 +46,9 @@ foreach ($bin in $Binaries) {
     $bad++
     continue
   }
-  $deps = @($out | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '\.dll$' })
+  # Only the import list: dumpbin's own "Dump of file <path>" header also
+  # ends in .dll and would otherwise be read as an import.
+  $deps = @($out | ForEach-Object { $_.Trim() } | Where-Object { ($_ -match '\.dll$') -and ($_ -notmatch '^Dump of file ') })
   Write-Host "$name imports: $($deps -join ', ')"
   if ($deps.Count -eq 0) {
     Write-Host "::error::no imports read from $name; the check would prove nothing"
