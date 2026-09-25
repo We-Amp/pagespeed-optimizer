@@ -98,6 +98,12 @@ build:windows --copt=/wd4244   # int -> float, double -> float narrowing
 build:windows --copt=/wd4305   # double -> float truncation in initializers
 # Link-time code generation (MSVC equivalent of LTO)
 build:windows --features=static_link_msvcrt
+# The Rust staticlibs too: rustc's MSVC target links the DLL runtime unless
+# crt-static is set, and one such archive is enough to make the worker import
+# vcruntime140.dll. Build scripts and proc-macros are not affected (they run
+# on the build machine); a crate that compiles C through the cc crate would
+# need its own /MT, which tools/ci/check-no-vc-runtime.ps1 would catch.
+build:windows --@rules_rust//:extra_rustc_flags=-Ctarget-feature=+crt-static
 # Define NOMINMAX and WIN32_LEAN_AND_MEAN globally
 build:windows --copt=/DNOMINMAX
 build:windows --copt=/D_USE_MATH_DEFINES

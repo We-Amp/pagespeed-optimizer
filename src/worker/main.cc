@@ -26,6 +26,7 @@
 #include "src/worker/shared_config.h"
 #include "src/worker/syscall_selftest.h"
 #include "src/worker/unsafe_force_async_css.h"
+#include "src/worker/windows_service.h"
 #include "src/worker/worker.h"
 
 namespace {
@@ -63,6 +64,15 @@ bool ParseFloat(const char* flag, const char* value, float min, float max,
     return false;
   }
 }
+
+// The Windows-only options; they do not exist anywhere else.
+#ifdef _WIN32
+constexpr const char* kServiceUsage =
+    "  --service                  Run under the Service Control Manager\n"
+    "  --log-file PATH            With --service: append the log to PATH\n";
+#else
+constexpr const char* kServiceUsage = "";
+#endif
 
 void PrintUsage(const char* program) {
   std::cerr
@@ -188,6 +198,7 @@ void PrintUsage(const char* program) {
          "debug|info|warning|error (default: info)\n"
       << "  --log-format FORMAT        Log format: "
          "text|json (default: text)\n"
+      << kServiceUsage
       << "  --api-socket [PATH]        Serve the management API over a "
          "unix socket, mode 0660\n"
       << "                             (default path: "
@@ -554,7 +565,10 @@ bool ValidateManagementApiConfig(const pagespeed::WorkerConfig& config) {
   return true;
 }
 
-int main(int argc, char* argv[]) {  // NOLINT(bugprone-exception-escape)
+// The worker's whole startup and run: the process entry point on a console,
+// or the service's body under the Windows service dispatcher (`--service`).
+static int WorkerMain(int argc,  // NOLINT(bugprone-exception-escape)
+                      char* argv[]) {
   // Syscall-filter positive control, FIRST: it deliberately makes a call the
   // enforcing syscall profile denies, and the point is to make it before any
   // startup work could fail for an unrelated reason.  Compiled out of every
@@ -1263,6 +1277,8 @@ int main(int argc, char* argv[]) {  // NOLINT(bugprone-exception-escape)
   // Set up signal handlers
   std::signal(SIGINT, SignalHandler);
   std::signal(SIGTERM, SignalHandler);
+  // As a Windows service, the manager's Stop is the same request.
+  pagespeed::ServiceSetStopHandler([] { SignalHandler(SIGTERM); });
 #ifndef _WIN32
   // Ignore SIGHUP rather than dying from it (#1465).  The daemon's settings
   // are fixed at startup (cache location, socket paths, thread pool), so
@@ -1281,6 +1297,8 @@ int main(int argc, char* argv[]) {  // NOLINT(bugprone-exception-escape)
     return 1;
   }
 
+  pagespeed::ServiceReportRunning();
+
   // Run worker
   handler->Info("ModPageSpeed %s (%s) Factory Worker starting",
                 pagespeed::kPageSpeedVersion, pagespeed::kBuildCommitShort);
@@ -1294,4 +1312,12 @@ int main(int argc, char* argv[]) {  // NOLINT(bugprone-exception-escape)
                 pagespeed::kPageSpeedVersion, pagespeed::kBuildCommitShort);
 
   return 0;
+}
+
+int main(int argc, char* argv[]) {  // NOLINT(bugprone-exception-escape)
+  int exit_code = 0;
+  if (pagespeed::RunAsServiceIfRequested(argc, argv, &WorkerMain, &exit_code)) {
+    return exit_code;
+  }
+  return WorkerMain(argc, argv);
 }

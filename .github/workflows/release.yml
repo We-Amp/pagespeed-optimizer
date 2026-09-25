@@ -313,9 +313,112 @@ jobs:
           path: dist/*
           if-no-files-found: error
 
+  build-windows:
+    name: Build + package (windows x64)
+    needs: version
+    runs-on: windows-2022
+    timeout-minutes: 240
+    env:
+      BAZEL_SH: C:\msys64\usr\bin\bash.exe
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.version.outputs.checkout_ref }}
+
+      - name: Verify the checkout is the resolved tag commit
+        if: ${{ needs.version.outputs.tag_sha != '' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          WANT="${{ needs.version.outputs.tag_sha }}"
+          GOT="$(git rev-parse HEAD)"
+          [ "$WANT" = "$GOT" ] || { echo "::error::tag moved: resolved $WANT, checked out $GOT"; exit 1; }
+
+      - name: Install bazelisk
+        shell: powershell
+        run: npm install -g @bazel/bazelisk
+
+      - name: Install the build tools the hosted image lacks
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # gperf generates the HTML name tables; nasm assembles libaom's
+          # x86 kernels. The runner image carries MSYS2 and Chocolatey.
+          & C:\msys64\usr\bin\pacman.exe -S --noconfirm --needed gperf
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          choco install nasm -y --no-progress
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & C:\msys64\usr\bin\gperf.exe --version | Select-Object -First 1
+          & "C:\Program Files\NASM\nasm.exe" -v
+
+      - name: Cache Bazel repository and disk caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            C:\bazel-repo
+            C:\bazel-disk
+          key: ${{ runner.os }}-x64-opt-release-bazel-v1-${{ hashFiles('MODULE.bazel', '.bazelrc', '.bazelversion') }}
+          restore-keys: |
+            ${{ runner.os }}-x64-opt-release-bazel-v1-
+
+      - name: Stamp GIT_COMMIT
+        shell: bash
+        run: printf '%s' "$(git rev-parse HEAD)" > GIT_COMMIT
+
+      - name: Build the daemon and client library (release config)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # The build reads PATH, INCLUDE and LIB (.bazelrc action_env), so it
+          # runs inside the MSVC x64 developer environment. The CMake-built
+          # codec also needs the MSYS2 shell tools.
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat'
+          cmd /c "`"$vcvars`" >nul && set" | ForEach-Object {
+            if ($_ -match '^(PATH|INCLUDE|LIB|LIBPATH|VCToolsInstallDir|WindowsSdkDir|WindowsSDKVersion)=(.*)$') {
+              Set-Item -Path "env:$($Matches[1])" -Value $Matches[2]
+            }
+          }
+          $env:PATH = "C:\msys64\usr\bin;C:\Program Files\NASM;$env:PATH"
+          bazelisk build --config=windows --config=opt `
+            --repository_cache=C:/bazel-repo --disk_cache=C:/bazel-disk `
+            //src/worker:factory_worker //lib/pagespeed:libpagespeed.so
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $bin = (bazelisk info --config=windows --config=opt bazel-bin).Trim()
+          New-Item -ItemType Directory -Force -Path out | Out-Null
+          Copy-Item "$bin\src\worker\factory_worker.exe" out\factory_worker.exe
+          Copy-Item "$bin\lib\pagespeed\libpagespeed.so" out\pagespeed.dll
+
+      - name: The binaries need no Visual C++ runtime
+        shell: powershell
+        run: |
+          & tools\ci\check-no-vc-runtime.ps1 -Binaries out\factory_worker.exe,out\pagespeed.dll
+          exit $LASTEXITCODE
+
+      - name: Package
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # The upstream (SemVer) spelling: asset names never carry the
+          # package tilde, which GitHub would rewrite.
+          $name = "pagespeed-optimizer-${{ needs.version.outputs.upstream }}-win-x64"
+          $stage = "stage\$name"
+          New-Item -ItemType Directory -Force -Path $stage, dist | Out-Null
+          Copy-Item out\factory_worker.exe, out\pagespeed.dll, LICENSE, NOTICE $stage
+          Compress-Archive -Path "$stage\*" -DestinationPath "dist\$name.zip"
+          Get-ChildItem dist | Format-Table Name, Length
+
+      - name: Upload package
+        uses: actions/upload-artifact@v7
+        with:
+          name: optimizer-windows-x64
+          path: dist/*
+          if-no-files-found: error
+
   manifest:
     name: Validate asset set + SHA256SUMS
-    needs: [version, build]
+    needs: [version, build, build-windows]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -362,10 +465,15 @@ jobs:
             "pagespeed-optimizer-${UPSTREAM}-1.aarch64.rpm"
             "pagespeed-optimizer_${UPSTREAM}_amd64.deb"
             "pagespeed-optimizer_${UPSTREAM}_arm64.deb"
+            "pagespeed-optimizer-${UPSTREAM}-win-x64.zip"
             "SHA256SUMS"
           )
           mapfile -t ACTUAL < <(find . -maxdepth 1 -type f -printf '%f\n' | sort)
-          [ "${#ACTUAL[@]}" -eq 5 ] || { echo "::error::asset count ${#ACTUAL[@]} != 5: ${ACTUAL[*]}"; exit 1; }
+          [ "${#ACTUAL[@]}" -eq 6 ] || { echo "::error::asset count ${#ACTUAL[@]} != 6: ${ACTUAL[*]}"; exit 1; }
+          # The Windows zip: exactly the worker, its client library and the
+          # two licence files.
+          unzip -Z1 "pagespeed-optimizer-${UPSTREAM}-win-x64.zip" | sort | tr '\n' ' ' | grep -qx 'LICENSE NOTICE factory_worker.exe pagespeed.dll ' \
+            || { echo "::error::unexpected Windows zip contents: $(unzip -Z1 "pagespeed-optimizer-${UPSTREAM}-win-x64.zip" | tr '\n' ' ')"; exit 1; }
           for f in "${EXPECTED[@]}"; do
             [ -f "$f" ] || { echo "::error::missing asset '$f'"; exit 1; }
             [ -s "$f" ] || { echo "::error::empty asset '$f'"; exit 1; }
@@ -446,5 +554,5 @@ jobs:
           # shellcheck disable=SC2086
           gh release create "$TAG" $FLAGS \
             --title "pagespeed-optimizer $PKG_VERSION" \
-            --notes "The pagespeed-optimizer host packages (optimization daemon + the libpagespeed.so client library serving modules bind), version \`$PKG_VERSION\`, for deb and rpm hosts on amd64 and arm64. Install alongside the matching serving-module package, which depends on this package at this exact version. Verify downloads against SHA256SUMS." \
+            --notes "The pagespeed-optimizer host packages (optimization daemon + the libpagespeed.so client library serving modules bind), version \`$PKG_VERSION\`, for deb and rpm hosts on amd64 and arm64, and a Windows x64 zip (factory_worker.exe + pagespeed.dll). Install alongside the matching serving-module package, which depends on this package at this exact version. Verify downloads against SHA256SUMS." \
             ./dist/*

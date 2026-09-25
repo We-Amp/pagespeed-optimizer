@@ -29,6 +29,12 @@ _CMAKE_FLAGS = [
     "-DENABLE_TESTS=0",
     "-DENABLE_TOOLS=0",
     "-DBUILD_SHARED_LIBS=0",
+    # The static C/C++ runtime, as everything else in the Windows build
+    # (.bazelrc: static_link_msvcrt). Without it CMake defaults to /MD and
+    # this archive alone makes factory_worker.exe import vcruntime140.dll,
+    # which a stock Windows Server does not have. Ignored by non-MSVC
+    # compilers.
+    "-DCMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded",
 ]
 
 cmake_build(
@@ -50,10 +56,6 @@ cc_library(
     includes = ["."],
     linkopts = select({
         "@platforms//os:linux": ["-lpthread"],
-        "@platforms//os:windows": [
-            "-DEFAULTLIB:ucrt.lib",
-            "-DEFAULTLIB:msvcrt.lib",
-        ],
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
