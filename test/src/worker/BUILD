@@ -33,6 +33,13 @@ gtest_test(
 # what keeps the #ifdef'd half compiling, and asserting both is what proves
 # the shipped half really does not carry the switch.
 gtest_test(
+    name = "windows_service_test",
+    deps = [
+        "//src/worker:windows_service",
+    ],
+)
+
+gtest_test(
     name = "syscall_selftest_test",
     deps = [
         "//src/worker:syscall_selftest",

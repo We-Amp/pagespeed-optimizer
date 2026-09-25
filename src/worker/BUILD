@@ -24,6 +24,17 @@ cc_library(
 # run is what stops the disabled default from drifting into code that no
 # longer compiles.
 cc_library(
+    name = "windows_service",
+    srcs = ["windows_service.cc"],
+    hdrs = ["windows_service.h"],
+    linkopts = select({
+        "@platforms//os:windows": ["advapi32.lib"],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "syscall_selftest",
     srcs = ["syscall_selftest.cc"],
     hdrs = ["syscall_selftest.h"],
@@ -652,6 +663,7 @@ cc_binary(
         ":shared_config",
         ":syscall_selftest",
         ":unsafe_force_async_css",
+        ":windows_service",
         ":worker_lib",
         "//lib/base:json_message_handler",
         "//lib/base:message_handler",

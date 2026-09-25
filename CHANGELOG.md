@@ -4,6 +4,23 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Fixed: the Windows optimizer worker (`factory_worker.exe`) starts on a
+Windows Server that has no Visual C++ runtime installed. It used to fail at
+once with a missing-DLL error (exit code 0xC0000135) for any argument,
+`--help` included, unless the Visual C++ 2015-2022 redistributable was
+present. The worker now carries the runtime itself, as `pagespeed.dll`
+already did, so nothing beyond the operating system is needed.
+
+Added: the Windows optimizer worker runs as a Windows service. Register it
+with `--service` on its command line and the Service Control Manager starts
+it, sees it as running once it is ready, and stops it gracefully (the same
+shutdown Ctrl+C gives) on a service stop or at system shutdown. A start the
+worker refuses is reported with the worker's exit code. A service has no
+console, so `--log-file PATH`, valid only with `--service`, appends the log
+to a file that can be read while the service runs; a log file that cannot be
+opened stops the service with service-specific exit code 90. Run from a
+console, `--service` is refused with a message saying so.
+
 ## [2.1.0] - 2026-09-17
 
 Changed (plan for this before you upgrade): **the disk cache starts empty.**
