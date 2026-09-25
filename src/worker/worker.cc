@@ -71,6 +71,7 @@
 #include "src/worker/html_transform_filter.h"
 #include "src/worker/http_server.h"
 #include "src/worker/llms_txt_builder.h"
+#include "src/worker/pipe_dacl.h"
 #include "src/worker/posix_compat.h"
 #include "src/worker/serve_stats.h"
 #include "src/worker/shared_config.h"
@@ -122,18 +123,16 @@ class ScopeExit {
 };
 
 #ifdef _WIN32
-// SDDL for notification/health pipes: SYSTEM full + Authenticated Users
-// read/write.  GRGW (not GA) prevents clients from rewriting the DACL.
-// Matches POSIX default (nginx workers run as a different user).
-static constexpr const char* kPipeDaclOpen = "D:(A;;GA;;;SY)(A;;GRGW;;;AU)";
-// SDDL for management pipe: SYSTEM + Administrators only.
-// Matches POSIX chmod 0660 (owner + group, PURGE commands restricted).
-static constexpr const char* kPipeDaclRestricted = "D:(A;;GA;;;SY)(A;;GA;;;BA)";
+// The pipes' access rules (src/worker/pipe_dacl.h): notification and health
+// pipes open to Authenticated Users for reading and writing only (matching
+// the POSIX default: nginx workers run as a different user); the management
+// pipe restricted to SYSTEM, Administrators and the worker's own account
+// (matching POSIX chmod 0660: PURGE commands restricted).
 
 // Apply a DACL to a libuv named pipe after bind, before listen. Uses
 // uv_fileno() to retrieve the underlying Windows HANDLE. Returns false on
 // failure (caller decides whether to treat as fatal).
-static bool SetPipeDacl(uv_pipe_t* pipe, const char* sddl,
+static bool SetPipeDacl(uv_pipe_t* pipe, const std::string& sddl,
                         MessageHandler* handler, const char* label) {
   uv_os_fd_t fd;
   if (uv_fileno(reinterpret_cast<uv_handle_t*>(pipe), &fd) != 0) {
@@ -142,8 +141,8 @@ static bool SetPipeDacl(uv_pipe_t* pipe, const char* sddl,
   }
 
   PSECURITY_DESCRIPTOR sd = nullptr;
-  if (!ConvertStringSecurityDescriptorToSecurityDescriptorA(
-          sddl, SDDL_REVISION_1, &sd, nullptr)) {
+  if (sddl.empty() || !ConvertStringSecurityDescriptorToSecurityDescriptorA(
+                          sddl.c_str(), SDDL_REVISION_1, &sd, nullptr)) {
     if (handler) handler->Warning("Failed to parse SDDL for %s pipe", label);
     return false;
   }
@@ -1250,7 +1249,7 @@ bool Worker::Initialize() {
     // Set DACL before listen to prevent a TOCTOU window where the pipe
     // accepts connections with default (permissive) security.
     // Non-fatal: notification pipe carries optimization responses, not secrets.
-    if (!SetPipeDacl(server_.get(), kPipeDaclOpen, handler_, "notification")) {
+    if (!SetPipeDacl(server_.get(), OpenPipeSddl(), handler_, "notification")) {
       LogError(
           "Notification pipe DACL failed — proceeding "
           "with default security");
@@ -1294,7 +1293,8 @@ bool Worker::Initialize() {
 
 #ifdef _WIN32
     // Non-fatal: health pipe exposes operational state, not secrets.
-    if (!SetPipeDacl(health_server_.get(), kPipeDaclOpen, handler_, "health")) {
+    if (!SetPipeDacl(health_server_.get(), OpenPipeSddl(), handler_,
+                     "health")) {
       LogError(
           "Health pipe DACL failed — proceeding "
           "with default security");
@@ -1341,7 +1341,7 @@ bool Worker::Initialize() {
     // Windows equivalent of chmod 0660: restrict to SYSTEM + Administrators.
     // Applied before listen to prevent a TOCTOU window. Failure is fatal
     // for the management pipe since it accepts PURGE commands.
-    if (!SetPipeDacl(mgmt_server_.get(), kPipeDaclRestricted, handler_,
+    if (!SetPipeDacl(mgmt_server_.get(), RestrictedPipeSddl(), handler_,
                      "management")) {
       LogError(
           "Management pipe DACL failed — refusing to start "

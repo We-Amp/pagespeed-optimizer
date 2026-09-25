@@ -76,14 +76,16 @@ static HANDLE ConnectPipe(const std::string& pipe_name,
     }
   }
 
+  // Least privilege: connect at identification level. The worker never acts
+  // as its clients.
   HANDLE h =
       CreateFileA(pipe_name.c_str(),
                   GENERIC_READ | GENERIC_WRITE,  // libuv pipes are duplex
                   0,                             // no sharing
                   nullptr,                       // default security
                   OPEN_EXISTING,                 // must already exist
-                  0,                             // default attributes
-                  nullptr);                      // no template
+                  SECURITY_SQOS_PRESENT | SECURITY_IDENTIFICATION,
+                  nullptr);  // no template
 
   if (h == INVALID_HANDLE_VALUE) {
     DWORD err = GetLastError();

@@ -24,6 +24,17 @@ cc_library(
 # run is what stops the disabled default from drifting into code that no
 # longer compiles.
 cc_library(
+    name = "pipe_dacl",
+    srcs = ["pipe_dacl.cc"],
+    hdrs = ["pipe_dacl.h"],
+    linkopts = select({
+        "@platforms//os:windows": ["advapi32.lib"],
+        "//conditions:default": [],
+    }),
+    visibility = ["//visibility:public"],
+)
+
+cc_library(
     name = "windows_service",
     srcs = ["windows_service.cc"],
     hdrs = ["windows_service.h"],
@@ -583,6 +594,7 @@ cc_library(
         ":image_transcoder",
         ":llms_txt_builder",
         ":optimization_policy",
+        ":pipe_dacl",
         ":posix_compat",
         ":shared_config",
         ":static_file_handler",

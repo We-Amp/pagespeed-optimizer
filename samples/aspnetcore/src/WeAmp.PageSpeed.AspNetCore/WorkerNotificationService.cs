@@ -5,6 +5,7 @@ using System.Buffers.Binary;
 using System.IO.Pipes;
 using System.Net.Sockets;
 using System.Runtime.InteropServices;
+using System.Security.Principal;
 using System.Text;
 using System.Threading.Channels;
 using Microsoft.Extensions.Hosting;
@@ -261,8 +262,11 @@ public sealed class WorkerNotificationService : BackgroundService
             if (pipeName.StartsWith(pipePrefix, StringComparison.Ordinal))
                 pipeName = pipeName[pipePrefix.Length..];
 
+            // Least privilege: identification level only; the worker never
+            // acts as its clients.
             var pipe = new NamedPipeClientStream(
-                ".", pipeName, PipeDirection.Out, PipeOptions.Asynchronous);
+                ".", pipeName, PipeDirection.Out, PipeOptions.Asynchronous,
+                TokenImpersonationLevel.Identification);
             try
             {
                 await pipe.ConnectAsync(ct);

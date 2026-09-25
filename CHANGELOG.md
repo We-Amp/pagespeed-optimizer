@@ -4,6 +4,14 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Security: on Windows, a local privilege-escalation issue is fixed. A Windows
+host is exposed when other local code (for example another IIS application
+pool or a Windows service) runs next to an application that uses
+ModPageSpeed. Affected: the `WeAmp.PageSpeed.AspNetCore` and
+`WeAmp.PageSpeed.NativeAssets.Windows` NuGet packages (the latter carries
+`pagespeed.dll`), versions 2.0.0 through 2.1.0, and the Windows optimizer
+built from them. Update recommended. Linux and macOS are not affected.
+
 Fixed: the Windows optimizer worker (`factory_worker.exe`) starts on a
 Windows Server that has no Visual C++ runtime installed. It used to fail at
 once with a missing-DLL error (exit code 0xC0000135) for any argument,
