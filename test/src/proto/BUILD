@@ -14,6 +14,19 @@ gtest_test(
 )
 
 gtest_test(
+    name = "notification_sender_win_test",
+    # The test's server side impersonates the client (advapi32).
+    linkopts = select({
+        "@platforms//os:windows": ["advapi32.lib"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "//src/proto:notification_sender",
+        "//src/proto:worker_ipc",
+    ],
+)
+
+gtest_test(
     name = "worker_ipc_test",
     deps = [
         "//lib/classify:option_context",

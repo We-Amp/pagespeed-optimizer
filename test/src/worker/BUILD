@@ -40,6 +40,17 @@ gtest_test(
 )
 
 gtest_test(
+    name = "pipe_dacl_test",
+    linkopts = select({
+        "@platforms//os:windows": ["advapi32.lib"],
+        "//conditions:default": [],
+    }),
+    deps = [
+        "//src/worker:pipe_dacl",
+    ],
+)
+
+gtest_test(
     name = "syscall_selftest_test",
     deps = [
         "//src/worker:syscall_selftest",
