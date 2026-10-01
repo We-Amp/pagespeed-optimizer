@@ -796,12 +796,12 @@ TEST_F(HttpServerAuthTest, UnmarkedRouteOverSocketUnaffectedByReadOpenDefault) {
       0);
   std::string wire = test::InjectConnectionClose(
       "GET /v1/new-endpoint HTTP/1.1\r\nHost: x\r\n\r\n");
-  ::write(sock, wire.data(), wire.size());
+  (void)test::SocketWrite(sock, wire.data(), wire.size());
   std::this_thread::sleep_for(std::chrono::milliseconds(20));
   std::string response;
   char buf[4096];
   while (true) {
-    ssize_t n = ::read(sock, buf, sizeof(buf));
+    ssize_t n = test::SocketRead(sock, buf, sizeof(buf));
     if (n <= 0) break;
     response.append(buf, static_cast<size_t>(n));
   }
