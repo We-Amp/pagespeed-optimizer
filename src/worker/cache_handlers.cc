@@ -839,22 +839,33 @@ static HttpResponse HandleListCooldowns(CacheApiContext& ctx,
 // ---------------------------------------------------------------------------
 
 void RegisterCacheRoutes(HttpServer& server, CacheApiContext& ctx) {
-  server.AddRoute("GET", "/v1/cache/alternates",
-                  [&ctx](const HttpRequest& req) {
-                    return HandleListAlternates(ctx, req);
-                  });
+  // These five GET routes are open under --api-read-open today --
+  // RouteAuth::kReadOpenOk is the explicit allow-list entry preserving
+  // that.  Together they are the cached-URL inventory, the per-URL variant
+  // detail, the origin-host/content-type data, and the cooldown table: the
+  // read-only surface --api-read-open exists to publish.  The two mutating
+  // routes (purge, reprocess) stay at the RouteAuth::kToken default --
+  // --api-read-open only ever bypasses GET/HEAD, so it is a no-op for them
+  // either way.
+  server.AddRoute(
+      "GET", "/v1/cache/alternates",
+      [&ctx](const HttpRequest& req) { return HandleListAlternates(ctx, req); },
+      RouteAuth::kReadOpenOk);
 
-  server.AddRoute("GET", "/v1/cache/urls", [&ctx](const HttpRequest& req) {
-    return HandleListUrls(ctx, req);
-  });
+  server.AddRoute(
+      "GET", "/v1/cache/urls",
+      [&ctx](const HttpRequest& req) { return HandleListUrls(ctx, req); },
+      RouteAuth::kReadOpenOk);
 
-  server.AddRoute("GET", "/v1/cache/select", [&ctx](const HttpRequest& req) {
-    return HandleSelect(ctx, req);
-  });
+  server.AddRoute(
+      "GET", "/v1/cache/select",
+      [&ctx](const HttpRequest& req) { return HandleSelect(ctx, req); },
+      RouteAuth::kReadOpenOk);
 
-  server.AddRoute("GET", "/v1/cache/content", [&ctx](const HttpRequest& req) {
-    return HandleContent(ctx, req);
-  });
+  server.AddRoute(
+      "GET", "/v1/cache/content",
+      [&ctx](const HttpRequest& req) { return HandleContent(ctx, req); },
+      RouteAuth::kReadOpenOk);
 
   server.AddRoute("POST", "/v1/cache/purge", [&ctx](const HttpRequest& req) {
     return HandlePurge(ctx, req);
@@ -864,9 +875,10 @@ void RegisterCacheRoutes(HttpServer& server, CacheApiContext& ctx) {
       "POST", "/v1/cache/reprocess",
       [&ctx](const HttpRequest& req) { return HandleReprocess(ctx, req); });
 
-  server.AddRoute("GET", "/v1/cache/cooldowns", [&ctx](const HttpRequest& req) {
-    return HandleListCooldowns(ctx, req);
-  });
+  server.AddRoute(
+      "GET", "/v1/cache/cooldowns",
+      [&ctx](const HttpRequest& req) { return HandleListCooldowns(ctx, req); },
+      RouteAuth::kReadOpenOk);
 }
 
 }  // namespace pagespeed

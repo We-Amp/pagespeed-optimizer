@@ -56,13 +56,21 @@ storage.
 ### Public Demo Mode
 
 To expose the console as a read-only public dashboard, add `--api-read-open`
-to the worker. This allows unauthenticated visitors to view all dashboards,
-stats, and live WebSocket streams — except the optimizer log: that stream
-still asks for the token, sent as its first message, because log lines can
-carry the URLs, origin hosts and error text of every site the optimizer
-serves — while requiring the token for mutating operations (config changes,
-cache purge, browser captures). The console shows a login prompt only when a
-write operation is attempted.
+to the worker. Concretely, this makes the following readable without the
+token: the cached-URL inventory and per-URL variant detail, the origin hosts
+and content types behind them, the active cooldown table, overall
+stats/metrics, the current hot-reloadable config, and the live stats/events
+WebSocket streams. The optimizer log is the one exception: `GET /v1/logs`
+and the `/v1/ws/logs` stream still ask for the token — sent as the stream's
+first message — because log lines can carry the URLs, origin hosts and
+error text of every site the optimizer serves. Mutating operations (config
+changes, cache purge, browser captures) always require the token. The
+console shows a login prompt only when a write operation is attempted.
+
+Because this is still real operational data about your sites, **only turn
+on `--api-read-open` behind a reverse proxy that does its own
+authentication** (e.g., `allow`/`deny` by IP, or a proxy-level login) rather
+than exposing it directly to the internet.
 
 ## Console Pages
 
@@ -245,10 +253,14 @@ TypeScript package, which offers:
 - **Auth** -- Bearer token via first WebSocket message (not query parameter)
 
 When no API token is configured, all endpoints are open. With a token and
-`--api-read-open`, GET endpoints and WebSocket streams are open — except the
-log stream, `/v1/ws/logs`, which still needs the token sent as its first
-message — while mutating operations require authentication. The health
-endpoint (`/v1/health`) is always unauthenticated.
+`--api-read-open`, the allow-listed GET endpoints and the stats/events
+WebSocket streams are open — except the log stream, `/v1/ws/logs`, which
+still needs the token sent as its first message — while mutating operations
+require authentication. The health endpoint (`/v1/health`) is always
+unauthenticated. At most two WebSocket connections may be simultaneously
+waiting to send that first-message token before the worker refuses further
+upgrades (see [Connection Limits](/docs/http-api/#connection-limits)); an
+authenticated or read-open-stream connection never counts against that.
 
 The console is a self-contained single-page app — it loads no third-party
 scripts, uses no external UI toolkit, and renders its time-series charts with a

@@ -153,6 +153,12 @@ struct WsConnection {
   bool timers_initialized = false;
   bool authenticated = false;
   bool auth_required = false;
+  // True while this connection is counted in manager->preauth_pending_.
+  // Set at most once (in AcceptUpgrade, when auth_required is true) and
+  // cleared at most once (in HandleAuthMessage on successful auth, or in
+  // CloseWs otherwise) so the budget is decremented exactly once per
+  // connection regardless of which of those paths runs.
+  bool counted_preauth = false;
   std::string endpoint;  // "stats", "events", or "logs"
   int stats_interval_ms = 0;
 
@@ -284,26 +290,52 @@ void WsManager::AcceptUpgrade(uv_stream_t* handle, std::string_view endpoint,
     return;
   }
 
+  // A tokenless server only pre-authenticates the stream when it was
+  // explicitly opened; the HTTP layer refuses the handshake otherwise, and
+  // this is the matching second line inside the WS layer.  read_open
+  // pre-authenticates only the streams named in config_.read_open_streams
+  // (today: stats, events) -- an explicit allow-list, matching
+  // RouteAuth::kReadOpenOk on the HTTP side.  The log stream, and any
+  // stream name AcceptUpgrade has never heard of, is NOT in that set, so it
+  // keeps a configured token the same way GET /v1/logs does.  The handshake
+  // itself stays open for this path too (a browser cannot carry
+  // Authorization on it); the in-band message below is the only gate those
+  // streams get.  Without a token (--api-no-auth, or the unix socket, where
+  // the worker passes none) every stream is open.
+  const bool tokenless_open =
+      config_.auth_token.empty() && config_.allow_unauthenticated;
+  const bool read_open_applies =
+      config_.read_open &&
+      config_.read_open_streams.contains(std::string(endpoint));
+  // Whether THIS connection will need in-band authentication -- computed
+  // before allocating it, so the pre-authentication budget below can
+  // refuse the upgrade the same way the max_connections cap above does.
+  const bool needs_preauth = !tokenless_open && !read_open_applies;
+
+  if (needs_preauth && preauth_pending_ >= config_.max_preauth_connections) {
+    // Reject: too many connections already waiting for in-band auth.
+    handler_->Warning(
+        "WS: max connections awaiting authentication (%d) reached, "
+        "rejecting upgrade",
+        config_.max_preauth_connections);
+    uv_close(reinterpret_cast<uv_handle_t*>(handle), [](uv_handle_t* h) {
+      delete reinterpret_cast<uv_any_handle*>(h);
+    });
+    return;
+  }
+
   // Build and send the 101 handshake response.
   std::string handshake = WsBuildHandshakeResponse(client_key);
 
   auto* conn = new WsConnection;
   conn->manager = this;
   conn->endpoint = std::string(endpoint);
-  // A tokenless server only pre-authenticates the stream when it was
-  // explicitly opened; the HTTP layer refuses the handshake otherwise, and
-  // this is the matching second line inside the WS layer.  read_open
-  // pre-authenticates the read-only streams -- but not the log stream, which
-  // carries the same lines as GET /v1/logs and keeps a configured token the
-  // same way.  The handshake itself stays open for this path too (a browser
-  // cannot carry Authorization on it); this is the only gate the log stream
-  // gets.  Without a token (--api-no-auth, or the unix socket, where the
-  // worker passes none) every stream is open.
-  const bool tokenless_open =
-      config_.auth_token.empty() && config_.allow_unauthenticated;
-  const bool read_open_applies = config_.read_open && endpoint != "logs";
-  conn->auth_required = !config_.auth_token.empty() && !read_open_applies;
+  conn->auth_required = needs_preauth;
   conn->authenticated = tokenless_open || read_open_applies;
+  if (conn->auth_required) {
+    ++preauth_pending_;
+    conn->counted_preauth = true;
+  }
   conn->stats_interval_ms =
       (interval_ms > 0) ? std::clamp(interval_ms, config_.stats_min_interval_ms,
                                      config_.stats_max_interval_ms)
@@ -479,8 +511,28 @@ void WsManager::OnEventBatchTimer(uv_timer_t* timer) {
 void WsManager::OnAuthTimeout(uv_timer_t* timer) {
   auto* conn = static_cast<WsConnection*>(timer->data);
   if (!conn->authenticated && !conn->closing) {
-    conn->manager->handler_->Warning("WS: auth timeout, closing");
-    conn->manager->CloseWs(conn, 4001);
+    WsManager* manager = conn->manager;
+    // Rate-limit the warning itself (at most one per window) so a burst of
+    // never-authenticating connections cannot flood the log ring; the
+    // connection is closed either way.  The next emitted warning after a
+    // suppressed run reports how many were skipped.
+    const int64_t now_ms =
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch())
+            .count();
+    std::optional<int> suppressed =
+        manager->auth_timeout_warning_limiter_.RecordTimeout(now_ms);
+    if (suppressed.has_value()) {
+      if (*suppressed > 0) {
+        manager->handler_->Warning(
+            "WS: auth timeout, closing (%d more suppressed in the last "
+            "minute)",
+            *suppressed);
+      } else {
+        manager->handler_->Warning("WS: auth timeout, closing");
+      }
+    }
+    manager->CloseWs(conn, 4001);
   }
 }
 
@@ -726,6 +778,10 @@ void WsManager::HandleAuthMessage(WsConnection* conn,
 
   conn->authenticated = true;
   uv_timer_stop(&conn->auth_timer);
+  if (conn->counted_preauth) {
+    --preauth_pending_;
+    conn->counted_preauth = false;
+  }
 
   // Send initial snapshot for stats connections.
   if (conn->endpoint == "stats" && stats_provider_) {
@@ -793,6 +849,16 @@ void WsManager::SendFrame(WsConnection* conn, const std::string& frame_data) {
 void WsManager::CloseWs(WsConnection* conn, uint16_t code) {
   if (conn->closing) return;
   conn->closing = true;
+
+  // Free the pre-authentication budget slot exactly once, covering every
+  // path that reaches here still pending: timeout, an explicit close frame,
+  // a read/write error, or shutdown.  The authenticate-success path frees it
+  // in HandleAuthMessage instead and clears the flag, so this is a no-op
+  // there.
+  if (conn->counted_preauth) {
+    --preauth_pending_;
+    conn->counted_preauth = false;
+  }
 
   // Best-effort close frame send before closing.
   if (code > 0) {

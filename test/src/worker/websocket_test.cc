@@ -14,6 +14,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstring>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -954,6 +955,12 @@ TEST(WsConfigTest, Defaults) {
   EXPECT_GT(config.event_batch_ms, 0);
   EXPECT_GT(config.event_hwm, 0u);
   EXPECT_TRUE(config.auth_token.empty());
+  // The read-open allow-list: stats and events are in it, the log stream
+  // is deliberately not.
+  EXPECT_TRUE(config.read_open_streams.contains("stats"));
+  EXPECT_TRUE(config.read_open_streams.contains("events"));
+  EXPECT_FALSE(config.read_open_streams.contains("logs"));
+  EXPECT_EQ(config.max_preauth_connections, 2);
 }
 
 TEST(WsMetricsTest, Defaults) {
@@ -1568,6 +1575,436 @@ TEST_F(WsManagerTest, LogsStreamOpenWithoutATokenUnderReadOpen) {
 
   test::CloseSocket(sock);
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
+
+// read_open_streams is an explicit allow-list: an endpoint name that is
+// neither "stats" nor "events" (the only two in the default set) is NOT
+// pre-authenticated under read_open, exactly like "logs" -- including a
+// name AcceptUpgrade has never been told about.  A client that never sends
+// the in-band token gets nothing and is closed by the auth timeout.
+TEST_F(WsManagerTest, UnknownStreamNotPreAuthenticatedUnderReadOpen) {
+  ws_config_.auth_token = "secret-token";
+  ws_config_.allow_unauthenticated = false;
+  ws_config_.read_open = true;
+  ws_config_.auth_timeout_ms = 300;
+  StopLoopThread();
+  manager_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  manager_ = std::make_unique<WsManager>(loop_, ws_config_, handler_.get());
+  manager_->SetStatsProvider([]() -> json { return json{{"test", 1}}; });
+  manager_->Start();
+  StartLoopThread();
+
+  pending_endpoint_ = "mystery";  // Not in read_open_streams.
+  int sock = ConnectRawSocket();
+  ASSERT_GE(sock, 0);
+  ASSERT_NE(ReadHandshake(sock).find("101"), std::string::npos);
+
+  // No auth sent: nothing arrives before the auth timeout closes it.
+  std::string msg = ReadTextFrame(sock);
+  EXPECT_TRUE(msg.empty() || msg[0] == '\x08')
+      << "an unlisted stream was pre-authenticated under read-open: " << msg;
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  EXPECT_EQ(manager_->active_connections(), 0)
+      << "an unauthenticated unknown-stream connection outlived the auth "
+         "timeout";
+  test::CloseSocket(sock);
+}
+
+// ===================================================================
+// Pre-authentication budget (max_preauth_connections)
+// ===================================================================
+
+// An upgrade that would push the number of connections simultaneously
+// waiting for in-band auth past max_preauth_connections is refused the same
+// way exceeding max_connections is (the raw handle is closed, no handshake
+// data at all) -- but a connection within the budget still gets its
+// handshake.
+TEST_F(WsManagerTest, PreauthBudgetRejectsBeyondLimit) {
+  ws_config_.auth_token = "secret-token";
+  ws_config_.allow_unauthenticated = false;
+  ws_config_.max_preauth_connections = 1;
+  ws_config_.max_connections = 8;  // Not the limiting factor here.
+  StopLoopThread();
+  manager_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  manager_ = std::make_unique<WsManager>(loop_, ws_config_, handler_.get());
+  manager_->SetStatsProvider([]() -> json { return json{{"test", 1}}; });
+  manager_->Start();
+  StartLoopThread();
+
+  pending_endpoint_ = "stats";
+
+  // First connection uses the only pre-auth slot; never authenticates.
+  int sock1 = ConnectRawSocket();
+  ASSERT_GE(sock1, 0);
+  ASSERT_NE(ReadHandshake(sock1).find("101"), std::string::npos);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  EXPECT_EQ(manager_->active_connections(), 1);
+
+  // Second connection is refused outright: the pre-auth budget is spent.
+  int sock2 = ConnectRawSocket();
+  ASSERT_GE(sock2, 0);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  EXPECT_EQ(manager_->active_connections(), 1)
+      << "a connection was admitted past the pre-auth budget";
+
+  test::CloseSocket(sock1);
+  test::CloseSocket(sock2);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
+
+// Authenticating frees the budget slot: once sock1 sends the token, a new
+// connection can use the slot it held.
+TEST_F(WsManagerTest, PreauthBudgetFreedOnAuthenticate) {
+  ws_config_.auth_token = "secret-token";
+  ws_config_.allow_unauthenticated = false;
+  ws_config_.max_preauth_connections = 1;
+  ws_config_.max_connections = 8;
+  StopLoopThread();
+  manager_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  manager_ = std::make_unique<WsManager>(loop_, ws_config_, handler_.get());
+  manager_->SetStatsProvider([]() -> json { return json{{"test", 1}}; });
+  manager_->Start();
+  StartLoopThread();
+
+  pending_endpoint_ = "stats";
+
+  int sock1 = ConnectRawSocket();
+  ASSERT_GE(sock1, 0);
+  ReadHandshake(sock1);
+
+  // Authenticate sock1 -- this must free the slot.
+  std::string auth_msg = BuildMaskedTextFrame(R"({"auth":"secret-token"})");
+  ASSERT_EQ(test::SocketWrite(sock1, auth_msg.data(), auth_msg.size()),
+            static_cast<ssize_t>(auth_msg.size()));
+  std::this_thread::sleep_for(std::chrono::milliseconds(150));
+
+  // A second connection should now be admitted (gets a real handshake).
+  int sock2 = ConnectRawSocket();
+  ASSERT_GE(sock2, 0);
+  ASSERT_NE(ReadHandshake(sock2).find("101"), std::string::npos);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  EXPECT_EQ(manager_->active_connections(), 2);
+
+  test::CloseSocket(sock1);
+  test::CloseSocket(sock2);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
+
+// No leak: after several auth timeouts in a row, the budget still admits a
+// new connection each time -- the slot is not lost on the timeout path.
+TEST_F(WsManagerTest, PreauthBudgetFreedOnTimeoutNoLeak) {
+  ws_config_.auth_token = "secret-token";
+  ws_config_.allow_unauthenticated = false;
+  ws_config_.max_preauth_connections = 1;
+  ws_config_.max_connections = 8;
+  ws_config_.auth_timeout_ms = 150;
+  StopLoopThread();
+  manager_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  manager_ = std::make_unique<WsManager>(loop_, ws_config_, handler_.get());
+  manager_->SetStatsProvider([]() -> json { return json{{"test", 1}}; });
+  manager_->Start();
+  StartLoopThread();
+
+  pending_endpoint_ = "stats";
+
+  for (int i = 0; i < 3; ++i) {
+    int sock = ConnectRawSocket();
+    ASSERT_GE(sock, 0) << "iteration " << i;
+    ASSERT_NE(ReadHandshake(sock).find("101"), std::string::npos)
+        << "iteration " << i
+        << ": budget slot was not freed by the prior "
+           "timeout";
+    // Never authenticate; wait out the timeout to free the slot again.
+    std::this_thread::sleep_for(std::chrono::milliseconds(300));
+    EXPECT_EQ(manager_->active_connections(), 0) << "iteration " << i;
+    test::CloseSocket(sock);
+  }
+}
+
+// Authenticated connections and pre-authenticated read-open-stream
+// connections never count against the pre-auth budget: with the budget set
+// to 1, several simultaneous read-open "stats" connections (none of which
+// need in-band auth) all succeed.
+TEST_F(WsManagerTest, PreauthBudgetExemptsReadOpenAndTokenlessConnections) {
+  ws_config_.auth_token = "secret-token";
+  ws_config_.allow_unauthenticated = false;
+  ws_config_.read_open = true;
+  ws_config_.max_preauth_connections = 1;
+  ws_config_.max_connections = 8;
+  StopLoopThread();
+  manager_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  manager_ = std::make_unique<WsManager>(loop_, ws_config_, handler_.get());
+  manager_->SetStatsProvider([]() -> json { return json{{"test", 1}}; });
+  manager_->Start();
+  StartLoopThread();
+
+  pending_endpoint_ = "stats";  // In read_open_streams: pre-authenticated.
+
+  int sock1 = ConnectRawSocket();
+  ASSERT_GE(sock1, 0);
+  ASSERT_NE(ReadHandshake(sock1).find("101"), std::string::npos);
+  int sock2 = ConnectRawSocket();
+  ASSERT_GE(sock2, 0);
+  ASSERT_NE(ReadHandshake(sock2).find("101"), std::string::npos);
+  int sock3 = ConnectRawSocket();
+  ASSERT_GE(sock3, 0);
+  ASSERT_NE(ReadHandshake(sock3).find("101"), std::string::npos);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  EXPECT_EQ(manager_->active_connections(), 3)
+      << "a read-open stream connection was rejected by the pre-auth budget";
+
+  test::CloseSocket(sock1);
+  test::CloseSocket(sock2);
+  test::CloseSocket(sock3);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
+
+// An explicit WS close frame sent before authenticating also frees the
+// pre-auth budget slot -- the "close" path, via HandleFrame's kClose case
+// into CloseWs (distinct from the auth-timeout path above).
+TEST_F(WsManagerTest, PreauthBudgetFreedOnExplicitClose) {
+  ws_config_.auth_token = "secret-token";
+  ws_config_.allow_unauthenticated = false;
+  ws_config_.max_preauth_connections = 1;
+  ws_config_.max_connections = 8;
+  ws_config_.auth_timeout_ms = 5000;  // Long enough that only the close
+                                      // frame, not a timeout, frees it.
+  StopLoopThread();
+  manager_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  manager_ = std::make_unique<WsManager>(loop_, ws_config_, handler_.get());
+  manager_->SetStatsProvider([]() -> json { return json{{"test", 1}}; });
+  manager_->Start();
+  StartLoopThread();
+
+  pending_endpoint_ = "stats";
+
+  int sock1 = ConnectRawSocket();
+  ASSERT_GE(sock1, 0);
+  ReadHandshake(sock1);
+
+  // Close explicitly instead of authenticating or waiting out the timeout.
+  std::string close_frame = BuildMaskedCloseFrame(1000);
+  ASSERT_EQ(test::SocketWrite(sock1, close_frame.data(), close_frame.size()),
+            static_cast<ssize_t>(close_frame.size()));
+  std::this_thread::sleep_for(std::chrono::milliseconds(150));
+  EXPECT_EQ(manager_->active_connections(), 0);
+
+  // The slot must be free again well within the 5s auth timeout.
+  int sock2 = ConnectRawSocket();
+  ASSERT_GE(sock2, 0);
+  ASSERT_NE(ReadHandshake(sock2).find("101"), std::string::npos)
+      << "the pre-auth slot was not freed by the explicit close";
+
+  test::CloseSocket(sock1);
+  test::CloseSocket(sock2);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
+
+// An abrupt socket error (the client closing its raw TCP connection) before
+// authenticating also frees the slot -- the "error" path, via OnRead's
+// nread < 0 branch into CloseWs.
+TEST_F(WsManagerTest, PreauthBudgetFreedOnReadError) {
+  ws_config_.auth_token = "secret-token";
+  ws_config_.allow_unauthenticated = false;
+  ws_config_.max_preauth_connections = 1;
+  ws_config_.max_connections = 8;
+  ws_config_.auth_timeout_ms = 5000;
+  StopLoopThread();
+  manager_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  manager_ = std::make_unique<WsManager>(loop_, ws_config_, handler_.get());
+  manager_->SetStatsProvider([]() -> json { return json{{"test", 1}}; });
+  manager_->Start();
+  StartLoopThread();
+
+  pending_endpoint_ = "stats";
+
+  int sock1 = ConnectRawSocket();
+  ASSERT_GE(sock1, 0);
+  ReadHandshake(sock1);
+
+  // Abrupt client-side close, no close frame: the server's next read sees
+  // EOF/error, not a protocol-level close.
+  test::CloseSocket(sock1);
+  std::this_thread::sleep_for(std::chrono::milliseconds(150));
+  EXPECT_EQ(manager_->active_connections(), 0);
+
+  int sock2 = ConnectRawSocket();
+  ASSERT_GE(sock2, 0);
+  ASSERT_NE(ReadHandshake(sock2).find("101"), std::string::npos)
+      << "the pre-auth slot was not freed by the read error";
+
+  test::CloseSocket(sock2);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
+
+// ===================================================================
+// Auth-timeout warning rate limiting
+// ===================================================================
+
+// A MessageHandler that records every WARNING message, for asserting on the
+// rate-limited auth-timeout log rather than only on connection behaviour.
+class WsWarningRecordingHandler : public MessageHandler {
+ public:
+  void Message(MessageType type, const char* format, ...) override {
+    va_list args;
+    va_start(args, format);
+    MessageV(type, format, args);
+    va_end(args);
+  }
+  std::vector<std::string> warnings() const {
+    std::lock_guard<std::mutex> lock(mu_);
+    return warnings_;
+  }
+
+ protected:
+  void MessageV(MessageType type, const char* format, va_list args) override {
+    std::string formatted = FormatMessage(format, args);
+    std::lock_guard<std::mutex> lock(mu_);
+    if (type == MessageType::kWarning) warnings_.push_back(formatted);
+  }
+
+ private:
+  mutable std::mutex mu_;
+  std::vector<std::string> warnings_;
+};
+
+// Integration smoke test: several real auth timeouts in quick succession
+// (well within the 60s window) produce only ONE "auth timeout" warning --
+// proving OnAuthTimeout is actually wired to the limiter.  The window-
+// elapsed/suppressed-count arithmetic itself is covered by the pure
+// WsAuthTimeoutWarningLimiter tests below, which need no real waiting.
+TEST(WsAuthTimeoutWarningIntegrationTest, RepeatedTimeoutsLogOnlyOnce) {
+  uv_loop_t* loop = new uv_loop_t;
+  uv_loop_init(loop);
+  auto handler = std::make_unique<WsWarningRecordingHandler>();
+
+  WsConfig config;
+  config.auth_token = "secret-token";
+  config.allow_unauthenticated = false;
+  config.max_connections = 8;
+  config.auth_timeout_ms = 100;
+  auto manager = std::make_unique<WsManager>(loop, config, handler.get());
+  manager->Start();
+
+  uv_tcp_t listener;
+  uv_tcp_init(loop, &listener);
+  listener.data = manager.get();
+  struct sockaddr_in addr;
+  uv_ip4_addr("127.0.0.1", 0, &addr);
+  uv_tcp_bind(&listener, reinterpret_cast<const sockaddr*>(&addr), 0);
+  struct sockaddr_storage bound;
+  int namelen = sizeof(bound);
+  uv_tcp_getsockname(&listener, reinterpret_cast<sockaddr*>(&bound), &namelen);
+  int port = ntohs(reinterpret_cast<sockaddr_in*>(&bound)->sin_port);
+  uv_listen(reinterpret_cast<uv_stream_t*>(&listener), 8,
+            [](uv_stream_t* server, int status) {
+              if (status < 0) return;
+              auto* mgr = static_cast<WsManager*>(server->data);
+              auto* client = new uv_any_handle;
+              uv_tcp_init(server->loop, &client->tcp);
+              if (uv_accept(server, &client->stream) == 0) {
+                mgr->AcceptUpgrade(&client->stream, "stats",
+                                   "dGhlIHNhbXBsZSBub25jZQ==");
+              } else {
+                uv_close(&client->handle, [](uv_handle_t* h) {
+                  delete reinterpret_cast<uv_any_handle*>(h);
+                });
+              }
+            });
+
+  std::atomic<bool> running{true};
+  std::thread loop_thread([&] {
+    while (running) {
+      uv_run(loop, UV_RUN_NOWAIT);
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  });
+
+  // Three connections, none authenticate; each times out in turn (well
+  // under the 60s rate-limit window).
+  for (int i = 0; i < 3; ++i) {
+    int sock = test::ConnectTcp(port, 2);
+    ASSERT_GE(sock, 0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(200));
+    test::CloseSocket(sock);
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  running = false;
+  loop_thread.join();
+  manager->Stop();
+  uv_close(reinterpret_cast<uv_handle_t*>(&listener), nullptr);
+  uv_run(loop, UV_RUN_DEFAULT);
+  manager.reset();
+  uv_loop_close(loop);
+  delete loop;
+
+  int timeout_warnings = 0;
+  for (const auto& w : handler->warnings()) {
+    if (w.find("auth timeout") != std::string::npos) ++timeout_warnings;
+  }
+  EXPECT_EQ(timeout_warnings, 1)
+      << "expected exactly one rate-limited warning across 3 timeouts";
+}
+
+// Pure logic: the limiter itself, driven with synthetic timestamps so the
+// test needs no real sleeping.
+TEST(WsAuthTimeoutWarningLimiterTest, FirstCallEmitsWithZeroSuppressed) {
+  WsAuthTimeoutWarningLimiter limiter;
+  auto result = limiter.RecordTimeout(1000);
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(*result, 0);
+}
+
+TEST(WsAuthTimeoutWarningLimiterTest, CallsWithinWindowAreSuppressed) {
+  WsAuthTimeoutWarningLimiter limiter(60000);
+  ASSERT_TRUE(limiter.RecordTimeout(0).has_value());
+  EXPECT_FALSE(limiter.RecordTimeout(1000).has_value());
+  EXPECT_FALSE(limiter.RecordTimeout(30000).has_value());
+  EXPECT_FALSE(limiter.RecordTimeout(59999).has_value());
+}
+
+TEST(WsAuthTimeoutWarningLimiterTest,
+     EmitsAgainAfterWindowWithSuppressedCount) {
+  WsAuthTimeoutWarningLimiter limiter(60000);
+  ASSERT_TRUE(limiter.RecordTimeout(0).has_value());  // Emits, suppressed=0.
+  EXPECT_FALSE(limiter.RecordTimeout(10000).has_value());  // Suppressed #1.
+  EXPECT_FALSE(limiter.RecordTimeout(20000).has_value());  // Suppressed #2.
+  EXPECT_FALSE(limiter.RecordTimeout(59999).has_value());  // Suppressed #3.
+  auto result = limiter.RecordTimeout(60000);  // Window elapsed: emits.
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(*result, 3);
+}
+
+TEST(WsAuthTimeoutWarningLimiterTest, SuppressedCountResetsAfterEachEmission) {
+  WsAuthTimeoutWarningLimiter limiter(60000);
+  ASSERT_TRUE(limiter.RecordTimeout(0).has_value());
+  EXPECT_FALSE(limiter.RecordTimeout(100).has_value());
+  auto second_emit = limiter.RecordTimeout(60000);
+  ASSERT_TRUE(second_emit.has_value());
+  EXPECT_EQ(*second_emit, 1);
+
+  // A fresh window with no suppressed calls reports 0, not the stale count.
+  auto third_emit = limiter.RecordTimeout(120000);
+  ASSERT_TRUE(third_emit.has_value());
+  EXPECT_EQ(*third_emit, 0);
+}
+
+TEST(WsAuthTimeoutWarningLimiterTest, ExactlyAtWindowBoundaryEmits) {
+  WsAuthTimeoutWarningLimiter limiter(1000);
+  ASSERT_TRUE(limiter.RecordTimeout(0).has_value());
+  // >= window_ms, per RecordTimeout's contract.
+  auto result = limiter.RecordTimeout(1000);
+  EXPECT_TRUE(result.has_value());
 }
 
 // ===================================================================

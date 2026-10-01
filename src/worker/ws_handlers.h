@@ -20,8 +20,10 @@
 #include <functional>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_set>
 #include <vector>
 
 #include "nlohmann/json.hpp"
@@ -65,9 +67,21 @@ struct WsConfig {
   // operator deliberately opted out (--api-no-auth).  Otherwise a tokenless
   // server fails closed, here as in HttpServer::CheckAuth.
   bool allow_unauthenticated = false;
-  // Skip WS auth on the read-only streams; the log stream keeps the token
-  // (see AcceptUpgrade).
+  // Skip WS auth under --api-read-open, but ONLY for a stream name in
+  // read_open_streams -- an explicit allow-list, matching
+  // RouteAuth::kReadOpenOk on the HTTP side.  A stream not in this set
+  // (including one AcceptUpgrade has never heard of) keeps the token even
+  // under read_open, the same as the log stream does today.
   bool read_open = false;
+  std::unordered_set<std::string> read_open_streams = {"stats", "events"};
+  // At most this many connections may be simultaneously waiting for
+  // in-band authentication (the WS handshake has no header a browser could
+  // carry a bearer token on, so the token -- when one is required -- is
+  // sent as the connection's first text frame instead).  An upgrade that
+  // would exceed this is refused the same way exceeding max_connections is.
+  // Authenticated connections, and pre-authenticated read-open-stream
+  // connections, never count against this budget.
+  int max_preauth_connections = 2;
 };
 
 // Metrics for WebSocket subsystem.
@@ -77,6 +91,41 @@ struct WsMetrics {
   std::atomic<int> logs_connections{0};
   std::atomic<uint64_t> messages_sent{0};
   std::atomic<uint64_t> messages_dropped{0};
+};
+
+// Rate-limits the WS auth-timeout warning to at most one emission per
+// window (60s by default), reporting how many timeouts were suppressed
+// since the last emission.  Pure and stateful-but-clockless: the caller
+// supplies "now" (steady-clock milliseconds), so this is testable with
+// synthetic timestamps and needs no real sleep.  Not thread-safe; callers
+// on WsManager serialize on the event loop thread, as with every other
+// WsManager field.
+class WsAuthTimeoutWarningLimiter {
+ public:
+  explicit WsAuthTimeoutWarningLimiter(int64_t window_ms = 60000)
+      : window_ms_(window_ms) {}
+
+  // Call once per auth timeout with the current time.  Returns the number
+  // of PRIOR timeouts suppressed since the last emission (0 on the very
+  // first call, or the first call after a window has fully elapsed) when
+  // THIS timeout should be logged now; returns std::nullopt when this
+  // timeout itself is suppressed (less than window_ms since the last
+  // emission) -- the caller logs nothing, but the connection still closes.
+  std::optional<int> RecordTimeout(int64_t now_ms) {
+    if (!last_emit_ms_.has_value() || now_ms - *last_emit_ms_ >= window_ms_) {
+      const int suppressed = suppressed_since_last_;
+      suppressed_since_last_ = 0;
+      last_emit_ms_ = now_ms;
+      return suppressed;
+    }
+    ++suppressed_since_last_;
+    return std::nullopt;
+  }
+
+ private:
+  int64_t window_ms_;
+  std::optional<int64_t> last_emit_ms_;
+  int suppressed_since_last_ = 0;
 };
 
 // Forward declaration — connection state is internal.
@@ -234,6 +283,15 @@ class WsManager {
   std::vector<WsConnection*> connections_;
   // Atomic mirror of connections_.size() for thread-safe reads.
   std::atomic<int> connection_count_{0};
+
+  // Connections currently waiting for in-band authentication (loop thread
+  // only, like connections_).  Bounded by config_.max_preauth_connections;
+  // see AcceptUpgrade, HandleAuthMessage, and CloseWs for the single
+  // increment / exactly-once-decrement sites.
+  int preauth_pending_ = 0;
+
+  // Rate limiter for the "WS: auth timeout" warning (see OnAuthTimeout).
+  WsAuthTimeoutWarningLimiter auth_timeout_warning_limiter_;
 };
 
 }  // namespace pagespeed

@@ -1025,7 +1025,7 @@ It is **off** until you enable a transport.
 | `--api-allow-remote` | `false`                                 | Confirm a deliberate non-loopback bind                              |
 | `--api-no-auth`      | `false`                                 | Confirm a deliberate tokenless API on loopback or the unix socket   |
 | `--api-token`        | (none)                                  | Bearer token for auth (prefer the `PAGESPEED_API_TOKEN` env var)    |
-| `--api-read-open`    | `false`                                 | Allow unauthenticated GET + WebSocket access (the log endpoint/stream excepted) |
+| `--api-read-open`    | `false`                                 | Allow unauthenticated access to an explicit allow-list of GET endpoints + WebSocket streams (the log endpoint/stream excepted); use only behind an authenticating proxy |
 | `--console-dir`      | (none)                                  | Path to the web console SPA directory                               |
 
 ### One invariant, enforced at startup
@@ -1051,13 +1051,19 @@ IPv4 literal — the API binds IPv4 only, so `localhost`, `::1` and other IPv6
 forms are rejected by name rather than left to fail the bind later.
 
 With a token configured, every endpoint except `/v1/health` requires an
-`Authorization: Bearer <token>` header. `--api-read-open` opens GET requests and
-WebSocket streams while keeping mutating operations behind the token — useful
-for a public demo dashboard. It is an explicit choice: an absent token no longer
-opens reads for you. The one exception is the optimizer log: `GET /v1/logs` and
-the `/v1/ws/logs` stream still require the token — the stream takes it as its
-first message, since a WebSocket handshake carries no header a browser could
-set.
+`Authorization: Bearer <token>` header. `--api-read-open` opens an explicit
+allow-list of GET requests and WebSocket streams while keeping mutating
+operations behind the token — useful for a public demo dashboard. It is an
+explicit choice: an absent token no longer opens reads for you, and nor does
+a GET route added in a later release unless it is deliberately added to the
+allow-list. Concretely, read-open makes the cached-URL inventory, the origin
+hosts behind it, the cooldown table, and the live stats/events streams
+readable without the token. The one exception is the optimizer log: `GET
+/v1/logs` and the `/v1/ws/logs` stream still require the token — the stream
+takes it as its first message, since a WebSocket handshake carries no header
+a browser could set. Because read-open still exposes real operational data,
+recommend it only behind a reverse proxy that does its own authentication,
+not directly on the open internet.
 
 ### The unix socket is the recommended local transport
 

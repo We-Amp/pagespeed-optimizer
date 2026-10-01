@@ -1218,12 +1218,13 @@ std::optional<HttpResponse> HttpServer::CheckAuth(const HttpRequest& request,
                                "Authentication required");
   }
 
-  // Read-open mode: safe read-only requests don't require auth.  HEAD is the
-  // read-only sibling of GET (same auth semantics, no body) and is what
-  // monitoring tools (UptimeRobot, curl health checks) use, so it must follow
-  // the same bypass as GET — otherwise HEAD returns a false 401 while GET to
-  // the same endpoint succeeds.  A route registered with
-  // RouteAuth::kTokenEvenIfReadOpen keeps the token here.
+  // Read-open mode: an explicitly allow-listed GET/HEAD route doesn't
+  // require auth.  HEAD is the read-only sibling of GET (same auth
+  // semantics, no body) and is what monitoring tools (UptimeRobot, curl
+  // health checks) use, so it must follow the same bypass as GET —
+  // otherwise HEAD returns a false 401 while GET to the same endpoint
+  // succeeds.  A route NOT registered with RouteAuth::kReadOpenOk (the
+  // default) keeps the token here, read-open or not.
   if (config_.read_open && read_open_applies &&
       (request.method == "GET" || request.method == "HEAD")) {
     return std::nullopt;
@@ -1250,19 +1251,25 @@ std::optional<HttpResponse> HttpServer::CheckAuth(const HttpRequest& request,
 }
 
 bool HttpServer::ReadOpenApplies(const HttpRequest& request) const {
+  // Explicit allow-list: only a route registered with RouteAuth::kReadOpenOk
+  // bypasses the token under --api-read-open.  Everything else -- a route
+  // left at the default, and a path that matches no registered route at
+  // all -- fails closed, so a new route that forgets to opt in does not
+  // silently join the public read-only surface.
+  //
   // HEAD is answered by the GET route (see DispatchRequest), so it follows
   // that route's rule.
   const std::string_view method = (request.method == "HEAD")
                                       ? std::string_view("GET")
                                       : std::string_view(request.method);
   for (const auto& route : routes_) {
-    if (route.auth != RouteAuth::kTokenEvenIfReadOpen) continue;
+    if (route.auth != RouteAuth::kReadOpenOk) continue;
     const bool path_match = route.is_prefix
                                 ? request.path.starts_with(route.path)
                                 : (request.path == route.path);
-    if (path_match && route.method == method) return false;
+    if (path_match && route.method == method) return true;
   }
-  return true;
+  return false;
 }
 
 void HttpServer::ApplyCors(const HttpRequest& request, HttpResponse& response) {

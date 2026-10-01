@@ -115,13 +115,20 @@ and `::1` included — the API binds IPv4 only).
 | -------------------------- | ------------------------------------------------- |
 | Unix socket                | All endpoints open to peers in group `pagespeed`  |
 | Token configured (TCP)     | All endpoints require auth (except `/v1/health` and the `/console/` static bundle) |
-| Token + `--api-read-open`  | GET + WebSocket open (except the log: `GET /v1/logs`, `/v1/ws/logs`), POST/PATCH require auth |
+| Token + `--api-read-open`  | An explicit allow-list of GET routes + the `stats`/`events` WebSocket streams open (except the log: `GET /v1/logs`, `/v1/ws/logs`), POST/PATCH require auth |
 | No token + `--api-no-auth` | All endpoints open — TCP loopback only            |
 
-In read-open mode (`--api-read-open`), GET endpoints and WebSocket connections
-are accessible without authentication. This enables exposing the console publicly
-as a read-only dashboard while keeping mutating operations (config changes, cache
-purge) behind the token. Auth for WebSocket is sent as the first message (see
+In read-open mode (`--api-read-open`), an explicit allow-list of GET
+endpoints and WebSocket streams is accessible without authentication.
+Concretely: the cached-URL inventory (`GET /v1/cache/urls`), per-URL variant
+detail and content (`GET /v1/cache/alternates`, `/select`, `/content`) —
+which is also where the origin hosts and content types behind each cached
+URL are visible — the active cooldown table (`GET /v1/cache/cooldowns`),
+overall stats/metrics/config (`GET /v1/stats`, `/v1/metrics`, `/v1/config`),
+and the live `/v1/ws/stats` and `/v1/ws/events` WebSocket streams. This
+enables exposing the console publicly as a read-only dashboard while keeping
+mutating operations (config changes, cache purge) behind the token. Auth for
+WebSocket is sent as the first message (see
 [WebSocket Endpoints](#websocket-endpoints)). The one exception is the optimizer
 log: log lines carry the URLs, origin hosts and error text of every site the
 optimizer serves, so `GET /v1/logs` still requires the token on TCP, and the
@@ -129,10 +136,18 @@ optimizer serves, so `GET /v1/logs` still requires the token on TCP, and the
 handshake (see [WebSocket Endpoints](#websocket-endpoints)), since a browser
 cannot carry the token on the handshake itself.
 
-`--api-read-open` is an explicit choice. In earlier releases an *absent* token
-opened reads as a side effect; it no longer does, and an unset token now fails
-closed on every endpoint that is not `/v1/health` or the `/console/` static
-bundle.
+`--api-read-open` is an explicit allow-list, not an opt-out. In earlier
+releases an *absent* token opened reads as a side effect; it no longer does,
+and an unset token now fails closed on every endpoint that is not
+`/v1/health` or the `/console/` static bundle. The allow-list is also
+closed by default for anything new: a GET route added in a later release
+stays behind the token under read-open unless it is deliberately added to
+the list, so the read-only surface never grows silently.
+
+Because read-open still exposes real operational data about your sites,
+only enable it behind a reverse proxy that performs its own
+authentication (IP allow-listing, a login prompt, etc.) — never expose it
+directly to the open internet.
 
 ### Error Responses
 
@@ -976,12 +991,23 @@ the same connection lifecycle:
 
 ### Connection Limits
 
-| Parameter                    | Value |
-| ---------------------------- | ----- |
-| Max connections per endpoint | 8     |
-| Ping interval                | 30s   |
-| Pong timeout                 | 10s   |
-| Auth timeout                 | 2s    |
+| Parameter                                | Value |
+| ----------------------------------------- | ----- |
+| Max connections per endpoint              | 8     |
+| Max connections awaiting authentication   | 2     |
+| Ping interval                             | 30s   |
+| Pong timeout                              | 10s   |
+| Auth timeout                              | 2s    |
+
+The "max connections awaiting authentication" limit is separate from, and
+tighter than, the overall per-endpoint connection cap: at most 2 WebSocket
+connections may be simultaneously holding a slot while waiting for the
+in-band `{"auth": "..."}` message (see [Authentication Modes](#authentication-modes)).
+A connection that is already authenticated — including one pre-authenticated
+under `--api-read-open` on an allow-listed stream — never counts against
+this budget, so it only bounds the number of handshakes that have completed
+but not yet proven a token. An upgrade that would exceed it is refused the
+same way exceeding the per-endpoint cap is.
 
 ### GET /v1/ws/stats
 
