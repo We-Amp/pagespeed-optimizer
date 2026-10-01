@@ -13073,6 +13073,92 @@ TEST_F(WorkerTest, WebSocketValidEndpointsAccepted) {
   }
 }
 
+// With a token and --api-read-open, the worker's log handshake still
+// succeeds -- a browser cannot carry Authorization on it -- but the stream
+// behind it withholds every line until the token arrives in-band, exactly
+// as WsManager::AcceptUpgrade enforces without read-open. The other stream
+// stays pre-authenticated.
+TEST_F(WorkerTest, ReadOpenLogStreamKeepsTheToken) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+  config.api_port = -1;  // OS picks a free port
+  config.api_token = "worker-read-open-token";
+  config.api_read_open = true;
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+  ASSERT_GT(worker.api_port(), 0);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  // Connects, sends the handshake, and returns {socket, response head} --
+  // the caller keeps the socket open to watch what happens next (unlike a
+  // helper that closes it, this test needs to keep reading from one path).
+  auto handshake = [&worker](const std::string& path) {
+    std::string request = "GET " + path +
+                          " HTTP/1.1\r\n"
+                          "Host: localhost\r\n"
+                          "Connection: Upgrade\r\n"
+                          "Upgrade: websocket\r\n"
+                          "Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\n"
+                          "Sec-WebSocket-Version: 13\r\n\r\n";
+    int sock =
+        pagespeed::test::ConnectTcp(worker.api_port(), /*timeout_sec=*/5);
+    if (sock < 0) return std::make_pair(sock, std::string());
+    pagespeed::test::SocketWrite(sock, request.data(), request.size());
+    std::string head;
+    char c;
+    while (head.find("\r\n\r\n") == std::string::npos &&
+           pagespeed::test::SocketRead(sock, &c, 1) == 1) {
+      head.push_back(c);
+    }
+    return std::make_pair(sock, head);
+  };
+
+  // The anonymous log handshake succeeds: the gate does not ask for the
+  // bearer header on this path, under read-open or otherwise.
+  auto [logs_sock, logs_head] = handshake("/v1/ws/logs");
+  ASSERT_GE(logs_sock, 0);
+  EXPECT_NE(logs_head.find("101"), std::string::npos) << logs_head;
+
+  // No in-band {"auth":...} is sent: once the auth timeout elapses
+  // (WsConfig::auth_timeout_ms, 2000ms by default -- the Worker wires no
+  // override) the only bytes on the wire are one close frame with code 4001
+  // (unmasked, FIN + opcode 8, two-byte payload), then end of stream. Any
+  // text frame would be log content reaching an unauthenticated visitor.
+  std::this_thread::sleep_for(std::chrono::milliseconds(2200));
+  char buf[256];
+  std::string received;
+  ssize_t nread;
+  while ((nread = pagespeed::test::SocketRead(logs_sock, buf, sizeof(buf))) >
+         0) {
+    received.append(buf, static_cast<size_t>(nread));
+  }
+  const std::string close_4001("\x88\x02\x0f\xa1", 4);
+  EXPECT_EQ(received, close_4001)
+      << "the log stream sent more than the auth-timeout close frame to an "
+         "unauthenticated read-open visitor ("
+      << received.size() << " bytes)";
+  pagespeed::test::CloseSocket(logs_sock);
+
+  // The other stream stays pre-authenticated under read-open: its handshake
+  // succeeds and a snapshot follows with no in-band auth needed.
+  auto [stats_sock, stats_head] = handshake("/v1/ws/stats");
+  ASSERT_GE(stats_sock, 0);
+  EXPECT_NE(stats_head.find("101"), std::string::npos) << stats_head;
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+  ssize_t stats_nread =
+      pagespeed::test::SocketRead(stats_sock, buf, sizeof(buf));
+  EXPECT_GT(stats_nread, 0)
+      << "the stats stream sent no snapshot under read-open";
+  pagespeed::test::CloseSocket(stats_sock);
+}
+
 // ---------------------------------------------------------------------------
 // ToSvgImageType coverage: GIF source format through SVG pipeline.
 // Exercises the IMAGE_GIF -> kGif branch of ToSvgImageType().

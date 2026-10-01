@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <random>
 #include <string>
 #include <utility>
 
@@ -19,6 +20,123 @@
 namespace pagespeed {
 
 using json = nlohmann::json;
+
+namespace {
+
+constexpr std::string_view kReplacementCharacter = "\xEF\xBF\xBD";  // U+FFFD
+constexpr std::string_view kEllipsis = "\xE2\x80\xA6";              // U+2026
+
+// Length of the well-formed UTF-8 sequence that starts at s[i] (RFC 3629;
+// Unicode's table of well-formed byte sequences), or 0 when none does:
+// a stray continuation byte, an overlong lead (C0, C1), F5..FF, a surrogate
+// (ED A0..BF), anything above U+10FFFF (F4 90..), or a sequence the end of
+// the string cuts short.
+size_t Utf8SequenceLength(std::string_view s, size_t i) {
+  const auto byte = [&s](size_t k) { return static_cast<unsigned char>(s[k]); };
+  const unsigned char lead = byte(i);
+  if (lead < 0x80) return 1;
+  size_t length = 0;
+  unsigned char second_lo = 0x80;
+  unsigned char second_hi = 0xBF;
+  if (lead >= 0xC2 && lead <= 0xDF) {
+    length = 2;
+  } else if (lead == 0xE0) {
+    length = 3;
+    second_lo = 0xA0;  // no overlong three-byte forms
+  } else if ((lead >= 0xE1 && lead <= 0xEC) || lead == 0xEE || lead == 0xEF) {
+    length = 3;
+  } else if (lead == 0xED) {
+    length = 3;
+    second_hi = 0x9F;  // no UTF-16 surrogates
+  } else if (lead == 0xF0) {
+    length = 4;
+    second_lo = 0x90;  // no overlong four-byte forms
+  } else if (lead >= 0xF1 && lead <= 0xF3) {
+    length = 4;
+  } else if (lead == 0xF4) {
+    length = 4;
+    second_hi = 0x8F;  // nothing above U+10FFFF
+  } else {
+    return 0;
+  }
+  if (i + length > s.size()) return 0;
+  if (byte(i + 1) < second_lo || byte(i + 1) > second_hi) return 0;
+  for (size_t k = 2; k < length; ++k) {
+    if (byte(i + k) < 0x80 || byte(i + k) > 0xBF) return 0;
+  }
+  return length;
+}
+
+// Every serialization of a log entry goes through here: the replace handler
+// turns any invalid UTF-8 into U+FFFD instead of throwing on the loop thread.
+// SanitizeLogMessage already guarantees valid messages; this is the backstop.
+std::string DumpLog(const json& j) {
+  return j.dump(-1, ' ', false, json::error_handler_t::replace);
+}
+
+// Serialized bytes reserved for a /v1/logs envelope around its entries: the
+// seven fixed keys with 20-digit numbers and the 16-digit stream id need
+// about 230.
+constexpr size_t kLogsPageEnvelopeReserve = 256;
+
+// 64 random bits as 16 lowercase hex digits (two 32-bit draws).
+std::string NewLogStreamId() {
+  std::random_device random;
+  uint64_t bits =
+      (static_cast<uint64_t>(random()) << 32) | static_cast<uint64_t>(random());
+  static constexpr char kHex[] = "0123456789abcdef";
+  std::string id(16, '0');
+  for (size_t i = id.size(); i-- > 0;) {
+    id[i] = kHex[bits & 0xF];
+    bits >>= 4;
+  }
+  return id;
+}
+
+}  // namespace
+
+std::string SanitizeLogMessage(std::string message) {
+  // Repair: copy only from the first invalid byte on (valid text, the
+  // common case, is not copied).
+  size_t i = 0;
+  while (i < message.size()) {
+    const size_t n = Utf8SequenceLength(message, i);
+    if (n == 0) break;
+    i += n;
+  }
+  if (i < message.size()) {
+    std::string repaired = message.substr(0, i);
+    repaired.reserve(message.size() + 8);
+    while (i < message.size()) {
+      const size_t n = Utf8SequenceLength(message, i);
+      if (n == 0) {
+        repaired.append(kReplacementCharacter);
+        ++i;
+      } else {
+        repaired.append(message, i, n);
+        i += n;
+      }
+    }
+    message = std::move(repaired);
+  }
+
+  // Cap: the text is valid UTF-8 now, so backing up over continuation bytes
+  // finds the character boundary at or below the cap.
+  if (message.size() > kMaxLogMessageBytes) {
+    size_t keep = kMaxLogMessageBytes;
+    while (keep > 0 &&
+           (static_cast<unsigned char>(message[keep]) & 0xC0) == 0x80) {
+      --keep;
+    }
+    const size_t removed = message.size() - keep;
+    message.resize(keep);
+    message.append(kEllipsis);
+    message.append("[truncated ");
+    message.append(std::to_string(removed));
+    message.append(" bytes]");
+  }
+  return message;
+}
 
 // ---------------------------------------------------------------------------
 // WsConnection — per-client WebSocket state
@@ -70,7 +188,10 @@ struct WsWriteContext {
 // ---------------------------------------------------------------------------
 
 WsManager::WsManager(uv_loop_t* loop, WsConfig config, MessageHandler* handler)
-    : loop_(loop), config_(std::move(config)), handler_(handler) {}
+    : loop_(loop),
+      config_(std::move(config)),
+      handler_(handler),
+      stream_id_(NewLogStreamId()) {}
 
 WsManager::~WsManager() {
   if (running_) Stop();
@@ -172,11 +293,18 @@ void WsManager::AcceptUpgrade(uv_stream_t* handle, std::string_view endpoint,
   conn->endpoint = std::string(endpoint);
   // A tokenless server only pre-authenticates the stream when it was
   // explicitly opened; the HTTP layer refuses the handshake otherwise, and
-  // this is the matching second line inside the WS layer.
+  // this is the matching second line inside the WS layer.  read_open
+  // pre-authenticates the read-only streams -- but not the log stream, which
+  // carries the same lines as GET /v1/logs and keeps a configured token the
+  // same way.  The handshake itself stays open for this path too (a browser
+  // cannot carry Authorization on it); this is the only gate the log stream
+  // gets.  Without a token (--api-no-auth, or the unix socket, where the
+  // worker passes none) every stream is open.
   const bool tokenless_open =
       config_.auth_token.empty() && config_.allow_unauthenticated;
-  conn->auth_required = !config_.auth_token.empty() && !config_.read_open;
-  conn->authenticated = tokenless_open || config_.read_open;
+  const bool read_open_applies = config_.read_open && endpoint != "logs";
+  conn->auth_required = !config_.auth_token.empty() && !read_open_applies;
+  conn->authenticated = tokenless_open || read_open_applies;
   conn->stats_interval_ms =
       (interval_ms > 0) ? std::clamp(interval_ms, config_.stats_min_interval_ms,
                                      config_.stats_max_interval_ms)
@@ -723,11 +851,16 @@ void WsManager::PostLog(std::string_view level, std::string_view source,
   entry["source"] = source;
   entry["level"] = level;
   entry["module"] = module;
-  entry["message"] = std::move(message);
+  entry["message"] = SanitizeLogMessage(std::move(message));
 
   {
     std::lock_guard<std::mutex> lock(log_mutex_);
-    if (pending_logs_.size() >= kMaxPendingQueueSize) return;
+    if (pending_logs_.size() >= kMaxPendingQueueSize) {
+      // Shed without a seq (no phantom gap), but counted: /v1/logs reports
+      // shed_total so a reader can say that entries were not kept.
+      log_shed_total_.fetch_add(1, std::memory_order_relaxed);
+      return;
+    }
     pending_logs_.push_back(std::move(entry));
   }
   uv_async_send(&async_log_);
@@ -746,6 +879,12 @@ void WsManager::DrainPendingLogs() {
   }
 
   for (auto& entry : logs) {
+    // Stamp the per-process sequence number at drain time, on the loop
+    // thread: ordering is the ring order by construction, no atomic is
+    // needed, the retained seqs stay contiguous, and entries shed at a full
+    // pending queue (PostLog's drop path) never receive one -- so a reader
+    // never sees a phantom gap.
+    entry["seq"] = log_total_;
     // Append to ring buffer, evicting oldest if at capacity.
     if (log_ring_.size() >= kMaxLogRingSize) {
       log_ring_.pop_front();
@@ -758,7 +897,7 @@ void WsManager::DrainPendingLogs() {
       if (conn->closing || !conn->authenticated) continue;
       if (conn->endpoint != "logs") continue;
 
-      std::string serialized = entry.dump();
+      std::string serialized = DumpLog(entry);
       if (conn->log_buffer_bytes + serialized.size() > config_.event_hwm) {
         metrics_.messages_dropped.fetch_add(1, std::memory_order_relaxed);
         continue;
@@ -783,7 +922,7 @@ void WsManager::FlushLogBatch() {
     // Send individual log entries (not batched array — matches
     // frontend protocol expectation).
     for (auto& entry : conn->log_buffer) {
-      SendText(conn, entry.dump());
+      SendText(conn, DumpLog(entry));
     }
     conn->log_buffer.clear();
     conn->log_buffer_bytes = 0;
@@ -798,7 +937,81 @@ void WsManager::SendLogSnapshot(WsConnection* conn) {
     snapshot["entries"].push_back(entry);
   }
   snapshot["total"] = log_total_;
-  SendText(conn, snapshot.dump());
+  SendText(conn, DumpLog(snapshot));
+}
+
+nlohmann::json WsManager::BuildLogsResponse(uint64_t since, bool has_since,
+                                            size_t limit) const {
+  // Loop thread only, like SendLogSnapshot: log_ring_ is confined to the
+  // event loop, and route handlers run on that loop, so this reads without a
+  // lock.  Never blocks; the work is proportional to the page, never to the
+  // ring.
+  const size_t size = log_ring_.size();
+  const uint64_t oldest_seq =
+      size == 0 ? 0 : log_ring_.front().at("seq").get<uint64_t>();
+  const uint64_t newest_seq =
+      size == 0 ? 0 : log_ring_.back().at("seq").get<uint64_t>();
+
+  // One entry's serialized size inside the page, its separating comma
+  // included.  The budget counts real bytes, JSON escaping and all, so the
+  // bound is exact.
+  const auto entry_bytes = [](const json& entry) {
+    return DumpLog(entry).size() + 1;
+  };
+  size_t used = kLogsPageEnvelopeReserve;
+
+  // The page is log_ring_[first, last).
+  size_t first = size;
+  size_t last = size;
+  if (has_since) {
+    // Retained seqs are contiguous (one per drained entry), so the first
+    // entry newer than the cursor sits at index since + 1 - oldest_seq; a
+    // cursor older than the ring starts at its oldest entry, and one at or
+    // past the newest matches nothing.
+    if (size > 0 && since < newest_seq) {
+      first =
+          since < oldest_seq ? 0 : static_cast<size_t>(since + 1 - oldest_seq);
+    }
+    last = first;
+    // Oldest unseen first, so a burst larger than one page is paged through
+    // on later reads (`more`) rather than dropped from the middle.
+    while (last < size && last - first < limit) {
+      const size_t n = entry_bytes(log_ring_[last]);
+      if (last > first && used + n > kMaxLogsPageBytes) break;
+      used += n;
+      ++last;
+    }
+  } else {
+    // No cursor: the newest entries that fit, walking back from the newest,
+    // so "what is happening now" is never what the budget leaves out.
+    while (first > 0 && last - first < limit) {
+      const size_t n = entry_bytes(log_ring_[first - 1]);
+      if (first < last && used + n > kMaxLogsPageBytes) break;
+      used += n;
+      --first;
+    }
+  }
+
+  json entries = json::array();
+  for (size_t i = first; i < last; ++i) {
+    entries.push_back(log_ring_[i]);
+  }
+
+  json resp;
+  resp["entries"] = std::move(entries);
+  resp["next_since"] = last > first
+                           ? log_ring_[last - 1].at("seq").get<uint64_t>()
+                           : (has_since ? since : uint64_t{0});
+  resp["oldest_seq"] = oldest_seq;
+  resp["newest_seq"] = newest_seq;
+  // The cursor fell behind the oldest retained entry: the entries in
+  // between were evicted.  (oldest_seq >= 1 keeps the subtraction safe and
+  // an empty ring a non-gap.)
+  resp["gap"] = has_since && oldest_seq >= 1 && since < oldest_seq - 1;
+  resp["more"] = has_since && last < size;
+  resp["shed_total"] = log_shed_total_.load(std::memory_order_relaxed);
+  resp["stream_id"] = stream_id_;
+  return resp;
 }
 
 }  // namespace pagespeed

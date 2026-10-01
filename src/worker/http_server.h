@@ -130,11 +130,23 @@ using RouteHandler = std::function<HttpResponse(const HttpRequest&)>;
 using UpgradeHandler =
     std::function<void(HttpRequest request, uv_stream_t* handle)>;
 
+// How a route's authentication relates to --api-read-open.
+enum class RouteAuth : uint8_t {
+  // The server-wide rules: on TCP with a token, --api-read-open opens GET
+  // and HEAD without it.
+  kStandard,
+  // The bearer token stays required on TCP even under --api-read-open, for
+  // read-only data too sensitive for a public read-only console.  Nothing
+  // else differs: the unix socket and --api-no-auth treat it like any route.
+  kTokenEvenIfReadOpen,
+};
+
 // A single route registration.
 struct Route {
   std::string method;      // HTTP method ("GET", "POST", etc.)
   std::string path;        // Exact path or prefix (ending with *)
   bool is_prefix = false;  // True if path ends with *
+  RouteAuth auth = RouteAuth::kStandard;
   RouteHandler handler;
 };
 
@@ -205,8 +217,10 @@ class HttpServer {
   HttpServer& operator=(const HttpServer&) = delete;
 
   // Register a route handler.
-  // Path may end with '*' for prefix matching.
-  void AddRoute(std::string method, std::string path, RouteHandler handler);
+  // Path may end with '*' for prefix matching.  `auth` opts a read route out
+  // of --api-read-open (see RouteAuth).
+  void AddRoute(std::string method, std::string path, RouteHandler handler,
+                RouteAuth auth = RouteAuth::kStandard);
 
   // Set a handler for WebSocket upgrade requests.
   // When a request carries "Connection: Upgrade" + "Upgrade: websocket"
@@ -258,9 +272,15 @@ class HttpServer {
   // Dispatch a parsed request to the router.
   HttpResponse DispatchRequest(const HttpRequest& request);
 
-  // Check authentication for a request.
+  // Check authentication for a request.  `read_open_applies` is false when
+  // the request targets a RouteAuth::kTokenEvenIfReadOpen route.
   // Returns nullopt if auth is OK, or an error response if not.
-  std::optional<HttpResponse> CheckAuth(const HttpRequest& request);
+  std::optional<HttpResponse> CheckAuth(const HttpRequest& request,
+                                        bool read_open_applies);
+
+  // False when the request's method and path match a route registered with
+  // RouteAuth::kTokenEvenIfReadOpen (HEAD matching GET, as routing does).
+  bool ReadOpenApplies(const HttpRequest& request) const;
 
   // Check CORS and add headers to response.
   void ApplyCors(const HttpRequest& request, HttpResponse& response);

@@ -1677,6 +1677,14 @@ bool Worker::Initialize() {
         .syscall_filter_state = []() -> std::string {
           return SyscallFilterStateName(DetectSyscallFilter());
         },
+        // The log ring read, wired to the WsManager constructed further down
+        // in this block.  The lambda runs at request time, on the loop
+        // thread; the HTTP server only starts accepting at the end of this
+        // block (http_server_->Start()), after ws_manager_ exists.
+        .read_logs = [this](uint64_t since, bool has_since,
+                            size_t limit) -> nlohmann::json {
+          return ws_manager_->BuildLogsResponse(since, has_since, limit);
+        },
     });
     RegisterOperationalRoutes(*http_server_, *api_ctx_);
 
