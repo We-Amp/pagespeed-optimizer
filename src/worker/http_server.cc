@@ -632,7 +632,13 @@ void HttpServer::OnConnection(uv_stream_t* server, int status) {
   conn->handle.handle.data = conn;
 
   if (uv_accept(server, &conn->handle.stream) != 0) {
-    delete conn;
+    // The handle was already uv_*_init'd by InitStream() above, so it must
+    // be uv_close()'d rather than deleted directly (as every other accept
+    // site in this daemon does): a bare delete would leave the handle
+    // registered with the loop.
+    uv_close(&conn->handle.handle, [](uv_handle_t* h) {
+      delete static_cast<HttpConnection*>(h->data);
+    });
     return;
   }
 

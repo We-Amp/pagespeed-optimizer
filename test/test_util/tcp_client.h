@@ -4,6 +4,7 @@
 #ifndef TEST_TEST_UTIL_TCP_CLIENT_H_
 #define TEST_TEST_UTIL_TCP_CLIENT_H_
 
+#include <cerrno>
 #include <cstring>
 #include <string>
 
@@ -40,6 +41,33 @@ inline void CloseSocket(int sock) { closesocket(sock); }
 inline void CloseSocket(int sock) { close(sock); }
 #endif
 
+// A signal delivered to the test process interrupts a blocking socket call
+// with EINTR before any byte moves; that is not an answer from the server, so
+// the POSIX calls below retry it.
+inline ssize_t SocketWrite(int sock, const void* data, size_t len) {
+#ifdef _WIN32
+  return send(sock, static_cast<const char*>(data), static_cast<int>(len), 0);
+#else
+  ssize_t n;
+  do {
+    n = write(sock, data, len);
+  } while (n < 0 && errno == EINTR);
+  return n;
+#endif
+}
+
+inline ssize_t SocketRead(int sock, void* buf, size_t len) {
+#ifdef _WIN32
+  return recv(sock, static_cast<char*>(buf), static_cast<int>(len), 0);
+#else
+  ssize_t n;
+  do {
+    n = read(sock, buf, len);
+  } while (n < 0 && errno == EINTR);
+  return n;
+#endif
+}
+
 // Connect to localhost:port via TCP, send request, read full response.
 // Returns the response body, or empty string on failure.
 // timeout_sec sets SO_RCVTIMEO (0 = no timeout).
@@ -72,22 +100,17 @@ inline std::string SendRequest(int port, const std::string& request,
     return "";
   }
 
+  (void)SocketWrite(sock, request.data(), request.size());
 #ifdef _WIN32
-  (void)send(sock, request.data(), static_cast<int>(request.size()), 0);
   shutdown(sock, SD_SEND);
 #else
-  (void)write(sock, request.data(), request.size());
   shutdown(sock, SHUT_WR);
 #endif
 
   std::string response;
   char buf[4096];
   while (true) {
-#ifdef _WIN32
-    int n = recv(sock, buf, sizeof(buf), 0);
-#else
-    ssize_t n = read(sock, buf, sizeof(buf));
-#endif
+    ssize_t n = SocketRead(sock, buf, sizeof(buf));
     if (n <= 0) break;
     response.append(buf, static_cast<size_t>(n));
   }
@@ -126,20 +149,12 @@ inline std::string SendRequestKeepOpen(int port, const std::string& request,
     return "";
   }
 
-#ifdef _WIN32
-  (void)send(sock, request.data(), static_cast<int>(request.size()), 0);
-#else
-  (void)write(sock, request.data(), request.size());
-#endif
+  (void)SocketWrite(sock, request.data(), request.size());
 
   std::string response;
   char buf[4096];
   while (true) {
-#ifdef _WIN32
-    int n = recv(sock, buf, sizeof(buf), 0);
-#else
-    ssize_t n = read(sock, buf, sizeof(buf));
-#endif
+    ssize_t n = SocketRead(sock, buf, sizeof(buf));
     if (n <= 0) break;
     response.append(buf, static_cast<size_t>(n));
   }
@@ -179,22 +194,6 @@ inline int ConnectTcp(int port, int timeout_sec = 10) {
   }
 
   return sock;
-}
-
-inline ssize_t SocketWrite(int sock, const void* data, size_t len) {
-#ifdef _WIN32
-  return send(sock, static_cast<const char*>(data), static_cast<int>(len), 0);
-#else
-  return write(sock, data, len);
-#endif
-}
-
-inline ssize_t SocketRead(int sock, void* buf, size_t len) {
-#ifdef _WIN32
-  return recv(sock, static_cast<char*>(buf), static_cast<int>(len), 0);
-#else
-  return read(sock, buf, len);
-#endif
 }
 
 inline void SocketShutdown(int sock, int how) { shutdown(sock, how); }

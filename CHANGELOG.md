@@ -4,6 +4,9 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Fixed: the management API's HTTP listener now releases a connection's
+resources correctly when accepting that connection fails.
+
 Security: under specific inputs, some management API reads and live-stream
 messages could stop the optimizer. Update recommended.
 

@@ -18,8 +18,10 @@
 //     outside the helper's own implementation.
 
 #include <atomic>
+#include <cerrno>
 #include <chrono>
 #include <cstdint>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <memory>
@@ -224,7 +226,10 @@ class JsonOutputHttpNetTest : public ::testing::Test {
     std::string wire = test::InjectConnectionClose(request);
     int port = server_->bound_port();
     int sock = test::ConnectTcp(port, 5);
-    if (sock < 0) return "";
+    if (sock < 0) {
+      return "<connect to port " + std::to_string(port) +
+             " failed: " + std::strerror(errno) + ">";
+    }
 
     ssize_t sent = test::SocketWrite(sock, wire.data(), wire.size());
     (void)sent;
@@ -268,7 +273,8 @@ TEST_F(JsonOutputHttpNetTest, FailingHandlerAnswers500AndServerKeepsServing) {
   // The server keeps serving afterward.
   std::string resp2 =
       SendRequest("GET /v1/health HTTP/1.1\r\nHost: localhost\r\n\r\n");
-  EXPECT_NE(resp2.find("200 OK"), std::string::npos);
+  EXPECT_NE(resp2.find("200 OK"), std::string::npos)
+      << "response: [" << resp2 << "]";
 }
 
 // =============================================================================
@@ -335,7 +341,10 @@ class JsonOutputCacheApiTest : public ::testing::Test {
     std::string wire = test::InjectConnectionClose(request);
     int port = server_->bound_port();
     int sock = test::ConnectTcp(port, 5);
-    if (sock < 0) return "";
+    if (sock < 0) {
+      return "<connect to port " + std::to_string(port) +
+             " failed: " + std::strerror(errno) + ">";
+    }
 
     ssize_t sent = test::SocketWrite(sock, wire.data(), wire.size());
     (void)sent;
@@ -344,7 +353,16 @@ class JsonOutputCacheApiTest : public ::testing::Test {
     char buf[4096];
     while (true) {
       ssize_t n = test::SocketRead(sock, buf, sizeof(buf));
-      if (n <= 0) break;
+      if (n <= 0) {
+        if (response.empty()) {
+          response = n == 0 ? "<closed by peer before any byte>"
+                            : std::string("<read failed: ") +
+                                  std::strerror(errno) + ">";
+          response += " active_connections=" +
+                      std::to_string(server_->active_connections());
+        }
+        break;
+      }
       response.append(buf, n);
     }
     test::CloseSocket(sock);
@@ -361,7 +379,7 @@ class JsonOutputCacheApiTest : public ::testing::Test {
   std::unique_ptr<CacheApiContext> ctx_;
   std::vector<CacheApiContext::CooldownEntry> cooldowns_;
   uv_loop_t* loop_ = nullptr;
-  std::unique_ptr<NullMessageHandler> handler_;
+  std::unique_ptr<MessageHandler> handler_;
   std::unique_ptr<HttpServer> server_;
   std::thread loop_thread_;
   std::atomic<bool> loop_running_{false};
@@ -376,7 +394,8 @@ TEST_F(JsonOutputCacheApiTest, UrlsServesWellFormedJsonForAnyStoredUrl) {
   std::string resp1 = SendRequest(
       "GET /v1/cache/urls?offset=0&limit=10 HTTP/1.1\r\nHost: "
       "localhost\r\n\r\n");
-  ASSERT_NE(resp1.find("200 OK"), std::string::npos);
+  ASSERT_NE(resp1.find("200 OK"), std::string::npos)
+      << "response: [" << resp1 << "]";
   json j1 = ParseJsonBody(resp1);
   ASSERT_EQ(j1["urls"].size(), 1u);
   EXPECT_NE(j1["urls"][0]["url"].get<std::string>().find("\xEF\xBF\xBD"),
@@ -386,7 +405,8 @@ TEST_F(JsonOutputCacheApiTest, UrlsServesWellFormedJsonForAnyStoredUrl) {
   std::string resp2 = SendRequest(
       "GET /v1/cache/urls?offset=0&limit=10 HTTP/1.1\r\nHost: "
       "localhost\r\n\r\n");
-  EXPECT_NE(resp2.find("200 OK"), std::string::npos);
+  EXPECT_NE(resp2.find("200 OK"), std::string::npos)
+      << "response: [" << resp2 << "]";
   json j2 = ParseJsonBody(resp2);
   EXPECT_EQ(j2["urls"].size(), 1u);
 }
@@ -405,7 +425,8 @@ TEST_F(JsonOutputCacheApiTest, CooldownsServesWellFormedJsonForAnyUrl) {
 
   std::string resp1 = SendRequest(
       "GET /v1/cache/cooldowns HTTP/1.1\r\nHost: localhost\r\n\r\n");
-  ASSERT_NE(resp1.find("200 OK"), std::string::npos);
+  ASSERT_NE(resp1.find("200 OK"), std::string::npos)
+      << "response: [" << resp1 << "]";
   json j1 = ParseJsonBody(resp1);
   ASSERT_EQ(j1["cooldowns"].size(), 1u);
   EXPECT_NE(j1["cooldowns"][0]["url"].get<std::string>().find("\xEF\xBF\xBD"),
@@ -414,7 +435,8 @@ TEST_F(JsonOutputCacheApiTest, CooldownsServesWellFormedJsonForAnyUrl) {
   // The process keeps serving: a second request succeeds too.
   std::string resp2 = SendRequest(
       "GET /v1/cache/cooldowns HTTP/1.1\r\nHost: localhost\r\n\r\n");
-  EXPECT_NE(resp2.find("200 OK"), std::string::npos);
+  EXPECT_NE(resp2.find("200 OK"), std::string::npos)
+      << "response: [" << resp2 << "]";
 }
 
 // =============================================================================
