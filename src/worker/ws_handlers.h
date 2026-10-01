@@ -65,8 +65,9 @@ struct WsConfig {
   // operator deliberately opted out (--api-no-auth).  Otherwise a tokenless
   // server fails closed, here as in HttpServer::CheckAuth.
   bool allow_unauthenticated = false;
-  bool read_open =
-      false;  // Skip WS auth when read_open (streams are read-only).
+  // Skip WS auth on the read-only streams; the log stream keeps the token
+  // (see AcceptUpgrade).
+  bool read_open = false;
 };
 
 // Metrics for WebSocket subsystem.
