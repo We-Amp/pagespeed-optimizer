@@ -892,8 +892,7 @@ TEST_F(WsManagerTest, LogsSeqsContiguousAcrossRingWrap) {
 
 TEST_F(WsManagerTest, LogsInvalidUtf8IsReplacedOnTheStream) {
   // A log client is connected, so the drain serializes each entry for it:
-  // a message with invalid bytes must neither stop the process nor reach the
-  // client as anything but valid UTF-8.
+  // every entry must reach the client as valid UTF-8.
   pending_endpoint_ = "logs";
   int sock = ConnectRawSocket();
   ASSERT_GE(sock, 0);

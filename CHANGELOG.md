@@ -29,13 +29,8 @@ to a file that can be read while the service runs; a log file that cannot be
 opened stops the service with service-specific exit code 90. Run from a
 console, `--service` is refused with a message saying so.
 
-Security: a malformed log line could stop the optimizer. Update recommended.
-
-Changed: optimizer log messages are always valid UTF-8 (bytes that are not
-are shown as U+FFFD) and at most 4 KiB long; a longer message is cut on a
-character boundary and ends in "…[truncated N bytes]". Log entries on the
-live log stream carry a `seq` number that increases by one per entry while
-the process runs.
+Security: under specific inputs, reading the optimizer's log could stop the
+optimizer. Update recommended.
 
 Added: `GET /v1/logs?since=<seq>&limit=<n>` reads the optimizer's recent log
 over plain HTTP, for clients that cannot hold a WebSocket open. Each page
@@ -44,6 +39,11 @@ newest without it; `next_since` is the cursor for the next read, `more` says
 another page is waiting, `gap` says entries were dropped between reads,
 `shed_total` counts entries the optimizer could not keep, and `stream_id`
 changes when the optimizer restarts.
+
+Changed: an optimizer log message carries at most 4 KiB of text; a longer
+message is cut on a character boundary and ends in "…[truncated N bytes]".
+Log entries on the live log stream carry a `seq` number that increases by
+one per entry while the process runs.
 
 Security: with `--api-read-open`, the optimizer's log lines are no longer
 readable without the API token. Both the `/v1/ws/logs` stream and the new
