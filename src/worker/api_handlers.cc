@@ -1189,17 +1189,24 @@ void RegisterOperationalRoutes(HttpServer& server, ApiContext& ctx) {
     return HandleHealth(ctx, req);
   });
 
-  server.AddRoute("GET", "/v1/stats", [&ctx](const HttpRequest& req) {
-    return HandleStats(ctx, req);
-  });
+  // These three are open under --api-read-open today (RouteAuth::kReadOpenOk
+  // is the explicit allow-list entry preserving that); --api-read-open's
+  // whole purpose is a public read-only console, and stats/metrics/config
+  // are exactly its data.
+  server.AddRoute(
+      "GET", "/v1/stats",
+      [&ctx](const HttpRequest& req) { return HandleStats(ctx, req); },
+      RouteAuth::kReadOpenOk);
 
-  server.AddRoute("GET", "/v1/metrics", [&ctx](const HttpRequest& req) {
-    return HandleMetrics(ctx, req);
-  });
+  server.AddRoute(
+      "GET", "/v1/metrics",
+      [&ctx](const HttpRequest& req) { return HandleMetrics(ctx, req); },
+      RouteAuth::kReadOpenOk);
 
-  server.AddRoute("GET", "/v1/config", [&ctx](const HttpRequest& req) {
-    return HandleConfigGet(ctx, req);
-  });
+  server.AddRoute(
+      "GET", "/v1/config",
+      [&ctx](const HttpRequest& req) { return HandleConfigGet(ctx, req); },
+      RouteAuth::kReadOpenOk);
 
   server.AddRoute("PATCH", "/v1/config", [&ctx](const HttpRequest& req) {
     return HandleConfigPatch(ctx, req);
@@ -1207,15 +1214,17 @@ void RegisterOperationalRoutes(HttpServer& server, ApiContext& ctx) {
 
   // The log ring read.  Registered only when the Worker wired a ring
   // reader.  Log lines carry every host's URLs and error text, so on TCP
-  // the token stays required even under --api-read-open (the /v1/ws/logs
-  // stream keeps the same rule, enforced inside the WS layer); the unix
-  // socket and HEAD handling are the shared dispatch's, like every GET
-  // /v1/* route.
+  // the token stays required even under --api-read-open -- this is simply
+  // RouteAuth::kToken, the default, named explicitly here because it is the
+  // one GET route that deliberately does NOT join the allow-list (the
+  // /v1/ws/logs stream keeps the same rule, enforced inside the WS layer);
+  // the unix socket and HEAD handling are the shared dispatch's, like every
+  // GET /v1/* route.
   if (ctx.read_logs) {
     server.AddRoute(
         "GET", "/v1/logs",
         [&ctx](const HttpRequest& req) { return HandleLogs(ctx, req); },
-        RouteAuth::kTokenEvenIfReadOpen);
+        RouteAuth::kToken);
   }
 }
 

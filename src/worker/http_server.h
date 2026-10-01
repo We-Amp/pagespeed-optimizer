@@ -131,14 +131,23 @@ using UpgradeHandler =
     std::function<void(HttpRequest request, uv_stream_t* handle)>;
 
 // How a route's authentication relates to --api-read-open.
+//
+// This is an explicit allow-list, not an opt-out: kToken is the default, so
+// a route that is registered without naming this parameter requires the
+// bearer token on TCP regardless of --api-read-open.  A route must opt in
+// with kReadOpenOk to become readable without the token under read-open --
+// a new GET route added later and left at the default stays closed, rather
+// than silently becoming part of the public read-only surface.
 enum class RouteAuth : uint8_t {
-  // The server-wide rules: on TCP with a token, --api-read-open opens GET
-  // and HEAD without it.
-  kStandard,
-  // The bearer token stays required on TCP even under --api-read-open, for
-  // read-only data too sensitive for a public read-only console.  Nothing
-  // else differs: the unix socket and --api-no-auth treat it like any route.
-  kTokenEvenIfReadOpen,
+  // The bearer token is required on TCP, --api-read-open or not.  The
+  // default; also correct for every mutating route (POST/PATCH/DELETE),
+  // since --api-read-open only ever bypasses GET/HEAD.
+  kToken,
+  // Opts this GET/HEAD route out of the token requirement specifically
+  // under --api-read-open, for read-only data judged safe for a public
+  // read-only console.  Nothing else differs: the unix socket and
+  // --api-no-auth treat it like any route.
+  kReadOpenOk,
 };
 
 // A single route registration.
@@ -146,7 +155,7 @@ struct Route {
   std::string method;      // HTTP method ("GET", "POST", etc.)
   std::string path;        // Exact path or prefix (ending with *)
   bool is_prefix = false;  // True if path ends with *
-  RouteAuth auth = RouteAuth::kStandard;
+  RouteAuth auth = RouteAuth::kToken;
   RouteHandler handler;
 };
 
@@ -217,10 +226,11 @@ class HttpServer {
   HttpServer& operator=(const HttpServer&) = delete;
 
   // Register a route handler.
-  // Path may end with '*' for prefix matching.  `auth` opts a read route out
-  // of --api-read-open (see RouteAuth).
+  // Path may end with '*' for prefix matching.  `auth` opts a GET/HEAD route
+  // INTO --api-read-open (see RouteAuth); the default keeps the token
+  // required regardless of read-open.
   void AddRoute(std::string method, std::string path, RouteHandler handler,
-                RouteAuth auth = RouteAuth::kStandard);
+                RouteAuth auth = RouteAuth::kToken);
 
   // Set a handler for WebSocket upgrade requests.
   // When a request carries "Connection: Upgrade" + "Upgrade: websocket"
@@ -272,14 +282,17 @@ class HttpServer {
   // Dispatch a parsed request to the router.
   HttpResponse DispatchRequest(const HttpRequest& request);
 
-  // Check authentication for a request.  `read_open_applies` is false when
-  // the request targets a RouteAuth::kTokenEvenIfReadOpen route.
+  // Check authentication for a request.  `read_open_applies` is true only
+  // when the request targets a route registered with RouteAuth::kReadOpenOk.
   // Returns nullopt if auth is OK, or an error response if not.
   std::optional<HttpResponse> CheckAuth(const HttpRequest& request,
                                         bool read_open_applies);
 
-  // False when the request's method and path match a route registered with
-  // RouteAuth::kTokenEvenIfReadOpen (HEAD matching GET, as routing does).
+  // True only when the request's method and path match a route registered
+  // with RouteAuth::kReadOpenOk (HEAD matching GET, as routing does).  False
+  // by default -- including for a path that matches no registered route at
+  // all -- so a route (or non-route) that never named the option stays
+  // closed under --api-read-open.
   bool ReadOpenApplies(const HttpRequest& request) const;
 
   // Check CORS and add headers to response.

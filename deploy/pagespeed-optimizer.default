@@ -72,9 +72,16 @@
 #   --api-no-auth                       confirm a deliberate tokenless TCP
 #                                       loopback API (the socket never needs
 #                                       this -- its group scope is the auth)
-#   --api-read-open                     open GET without a credential; this
-#                                       is now a CHOICE, not something an
-#                                       absent token does for you
+#   --api-read-open                     open an explicit allow-list of GET
+#                                       routes + the stats/events WS streams
+#                                       without a credential (cached-URL
+#                                       inventory, origin hosts, cooldown
+#                                       table, live event stream); this is a
+#                                       CHOICE, not something an absent
+#                                       token does for you, and the log
+#                                       stays token-only. Use only behind a
+#                                       proxy that authenticates -- never
+#                                       expose directly
 #
 # Publishing the API off-host? Put your reverse proxy's own authentication
 # in front of it as well.

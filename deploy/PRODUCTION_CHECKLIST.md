@@ -75,7 +75,12 @@ Pre-flight checks before deploying mod_pagespeed 2.1 in production.
   purge the cache and read the cached-URL inventory. (The socket transport
   never needs this flag and never prints that banner)
 - [ ] Reads are open only if you asked (`--api-read-open`); an absent token no
-  longer opens them
+  longer opens them, and neither does a new GET route in a later release
+  unless it's deliberately added to the allow-list. Read-open exposes the
+  cached-URL inventory, origin hosts, the cooldown table, and the live
+  stats/events streams (the log endpoint/stream stays token-only) -- only
+  turn it on behind a reverse proxy that authenticates, never directly on
+  the open internet
 
 ## Docker/Kubernetes
 
