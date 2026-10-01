@@ -1973,10 +1973,10 @@ TEST(WsAuthTimeoutWarningIntegrationTest, RepeatedTimeoutsLogOnlyOnce) {
 
 // Sibling of RepeatedTimeoutsLogOnlyOnce for the OTHER warning this change
 // introduces: a refusal costs a client nothing (no 2s wait), so without its
-// own rate limit the ring would fill at whatever rate upgrades arrive --
-// review finding I-2. One connection holds the only pre-auth slot for the
-// whole test (long auth_timeout_ms, never authenticates, never closes), so
-// every further upgrade is refused outright.
+// own rate limit the ring would fill at whatever rate upgrades arrive. One
+// connection holds the only pre-auth slot for the whole test (long
+// auth_timeout_ms, never authenticates, never closes), so every further
+// upgrade is refused outright.
 TEST(WsAuthTimeoutWarningIntegrationTest, RepeatedRefusalsLogOnlyOnce) {
   uv_loop_t* loop = new uv_loop_t;
   uv_loop_init(loop);

@@ -1009,9 +1009,12 @@ under `--api-read-open` on an allow-listed stream — never counts against
 this budget, so it only bounds the number of handshakes that have completed
 but not yet proven a token. An upgrade that would exceed it is refused the
 same way exceeding the overall connection cap is. A well-behaved client
-only opens a token-gated stream (anything not on the read-open allow-list)
-once it already has a token to send; the shipped web console follows this
-rule for all three streams.
+does not keep retrying a stream the server has rejected for a missing or
+wrong token: the shipped web console opens every stream immediately
+(correct for the common case, since most deployments serve at least some
+streams with no token at all) and, if a stream it opened this way is
+closed for an authentication reason, waits for a new token rather than
+reconnecting into the same rejection.
 
 ### GET /v1/ws/stats
 

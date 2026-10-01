@@ -7,6 +7,15 @@ import type { ApiTransport, Unsubscribe } from './transport.js';
 import type { ApiErrorResponse } from './types.js';
 
 /**
+ * How long a WebSocket connection must stay open, with no message at all,
+ * before it is treated as proof of life for reconnect-backoff purposes (see
+ * createSocket). Comfortably above the worker's default auth timeout (2s),
+ * so it only ever credits a connection the worker has actually accepted.
+ * Exported so tests can reference it instead of duplicating the number.
+ */
+export const PROOF_OF_LIFE_MS = 5000;
+
+/**
  * Custom error class for API errors returned by the backend.
  */
 export class ApiError extends Error {
@@ -38,18 +47,6 @@ export interface DirectTransportOptions {
  * requests and WebSocket for streaming subscriptions.
  */
 export class DirectTransport implements ApiTransport {
-  /**
-   * Streams the worker never pre-authenticates under --api-read-open, even
-   * though every other WebSocket stream opens anonymously there (see
-   * src/worker/ws_handlers.h read_open_streams). Opening one of these
-   * without a token just occupies a server-side pre-authentication slot
-   * until the worker's auth timeout closes it -- and, left to the normal
-   * reconnect loop, it would do that forever. subscribe() defers opening a
-   * socket for these paths until a token is available; see pendingAuth.
-   */
-  private static readonly TOKEN_REQUIRED_PATHS: ReadonlySet<string> =
-    new Set(['/v1/ws/logs']);
-
   private readonly baseUrl: string;
   private token: string | undefined;
   private readonly maxReconnectMs: number;
@@ -62,14 +59,6 @@ export class DirectTransport implements ApiTransport {
     string,
     { ws: WebSocket; handlers: Set<(msg: unknown) => void> }
   >();
-
-  /**
-   * Subscriptions for a TOKEN_REQUIRED_PATHS path, held here instead of in
-   * `sockets` while no token is set. A path is in exactly one of the two
-   * maps at a time. Promoted to a real socket by setToken() once a token
-   * is supplied.
-   */
-  private pendingAuth = new Map<string, Set<(msg: unknown) => void>>();
 
   /** Reconnect attempt counter per path (for exponential backoff). */
   private reconnectAttempts = new Map<string, number>();
@@ -105,23 +94,6 @@ export class DirectTransport implements ApiTransport {
   setToken(token: string | undefined): void {
     this.token = token;
     this.reconnectSockets();
-    if (token) {
-      this.promotePendingAuth();
-    }
-  }
-
-  /**
-   * Open a real socket for every subscription that was deferred by
-   * subscribe() because its path required a token that did not exist yet.
-   */
-  private promotePendingAuth(): void {
-    if (this.pendingAuth.size === 0) return;
-    const deferred = this.pendingAuth;
-    this.pendingAuth = new Map();
-    for (const [path, handlers] of deferred) {
-      const ws = this.createSocket(path, handlers);
-      this.sockets.set(path, { ws, handlers });
-    }
   }
 
   /**
@@ -249,33 +221,15 @@ export class DirectTransport implements ApiTransport {
       };
     }
 
-    const existingPending = this.pendingAuth.get(path);
-    if (existingPending) {
-      existingPending.add(handler);
-      return () => {
-        existingPending.delete(handler);
-        if (existingPending.size === 0) {
-          this.pendingAuth.delete(path);
-        }
-      };
-    }
-
-    if (DirectTransport.TOKEN_REQUIRED_PATHS.has(path) && !this.token) {
-      // Defer: opening this socket now would just sit anonymously until the
-      // worker's auth timeout closes it. setToken() promotes this once a
-      // token is supplied.
-      const handlers = new Set<(msg: unknown) => void>();
-      handlers.add(handler);
-      this.pendingAuth.set(path, handlers);
-      return () => {
-        handlers.delete(handler);
-        if (handlers.size === 0) {
-          this.pendingAuth.delete(path);
-        }
-      };
-    }
-
-    // Create a new WebSocket connection for this path.
+    // Create a new WebSocket connection for this path. Every stream opens
+    // immediately regardless of whether a token is set: plenty of real
+    // deployments serve every stream, logs included, with no token at all
+    // (the unix socket, --api-no-auth, the in-process ASP.NET host), and
+    // those consoles never acquire one -- holding a stream back until a
+    // token appeared left exactly those deployments silent forever. A
+    // deployment where the stream genuinely needs a token the client does
+    // not have yet costs one rejected attempt (see the 4001 handling in
+    // createSocket below), not a dead stream.
     const handlers = new Set<(msg: unknown) => void>();
     handlers.add(handler);
     const ws = this.createSocket(path, handlers);
@@ -349,10 +303,29 @@ export class DirectTransport implements ApiTransport {
   ): WebSocket {
     const url = this.buildWsUrl(path);
     const ws = new WebSocket(url);
-    // Proof of life for THIS socket: becomes true on its first message
-    // (an auth_ok, a snapshot, anything). Guards the one-time backoff
-    // reset below.
+    // Proof of life for THIS socket, guarding the one-time backoff reset
+    // below. Two ways to earn it: a message (an auth_ok, a snapshot, any
+    // real traffic), or simply staying open for PROOF_OF_LIFE_MS without
+    // being closed -- a pre-authenticated stream with nothing to report
+    // yet (events, between notifications) sends no message at all, and
+    // without this it would never reset, so a later drop+reconnect would
+    // keep climbing a backoff it never needed. PROOF_OF_LIFE_MS is well
+    // above the worker's auth timeout (2s by default), so a connection the
+    // worker is about to reject for authentication is already closed with
+    // 4001 (handled below, not reconnected) long before the timer could
+    // mistake it for proof of life.
     let provedLive = false;
+    let liveTimer: ReturnType<typeof setTimeout> | undefined;
+
+    const markLive = () => {
+      if (provedLive) return;
+      provedLive = true;
+      if (liveTimer !== undefined) {
+        clearTimeout(liveTimer);
+        liveTimer = undefined;
+      }
+      this.reconnectAttempts.set(path, 0);
+    };
 
     ws.addEventListener('open', () => {
       // Deliberately does NOT reset reconnectAttempts here. The 101
@@ -360,17 +333,15 @@ export class DirectTransport implements ApiTransport {
       // about to reject for authentication -- resetting on `open` alone
       // made the backoff for a stream that fails auth every time sit at a
       // constant ~1s instead of growing. The counter resets once this
-      // connection proves itself below instead.
+      // connection proves itself instead (markLive, above).
       if (this.token) {
         ws.send(JSON.stringify({ auth: this.token }));
       }
+      liveTimer = setTimeout(markLive, PROOF_OF_LIFE_MS);
     });
 
     ws.addEventListener('message', (ev: MessageEvent) => {
-      if (!provedLive) {
-        provedLive = true;
-        this.reconnectAttempts.set(path, 0);
-      }
+      markLive();
       try {
         const data: unknown = JSON.parse(String(ev.data));
         for (const h of handlers) {
@@ -382,6 +353,10 @@ export class DirectTransport implements ApiTransport {
     });
 
     ws.addEventListener('close', (ev: CloseEvent) => {
+      if (liveTimer !== undefined) {
+        clearTimeout(liveTimer);
+        liveTimer = undefined;
+      }
       // Only the socket that is still the active one for this path may drive
       // reconnection. If it has been replaced (e.g. by a token re-auth) its
       // close is expected and must not schedule a duplicate reconnect.
@@ -391,8 +366,7 @@ export class DirectTransport implements ApiTransport {
       // (see src/worker/ws_handlers.cc). Reconnecting immediately would
       // just repeat the same failure, re-occupying a server-side
       // pre-authentication slot on every cycle. Stay closed until the
-      // token changes -- setToken() reopens it then (reconnectSockets()
-      // for an already-open path, promotePendingAuth() for a deferred one).
+      // token changes -- setToken() reopens it then via reconnectSockets().
       if (ev.code === 4001) return;
       this.scheduleReconnect(path, handlers);
     });

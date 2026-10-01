@@ -3,7 +3,11 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { get } from 'svelte/store';
-import { DirectTransport, ApiError } from '../direct-transport.js';
+import {
+  DirectTransport,
+  ApiError,
+  PROOF_OF_LIFE_MS,
+} from '../direct-transport.js';
 
 // ---------------------------------------------------------------------------
 // Minimal WebSocket mock
@@ -433,24 +437,46 @@ describe('DirectTransport WebSocket', () => {
 });
 
 // ---------------------------------------------------------------------------
-// /v1/ws/logs: never open anonymously, even under --api-read-open
+// /v1/ws/logs: open it like any other stream; survive a token the client
+// does not have
 // ---------------------------------------------------------------------------
 //
-// The log stream is the one WebSocket the worker never pre-authenticates
-// under read-open (see src/worker/ws_handlers.h read_open_streams). A
-// console that opens it anyway just holds a server-side pre-authentication
-// slot until the auth timeout -- see I-1 in the read-open review. These
-// tests pin the three-part fix: never open /v1/ws/logs without a token,
-// treat a 4001 (auth rejected/timed out) close as terminal instead of
-// reconnecting, and reset the reconnect backoff only once a connection
-// proves itself (its first message), not merely on `open`.
+// The log stream is the one WebSocket the worker does not pre-authenticate
+// under --api-read-open (see src/worker/ws_handlers.h read_open_streams),
+// but plenty of real deployments serve it -- and every other stream -- with
+// no token at all: the unix socket, --api-no-auth, the in-process ASP.NET
+// host. Those consoles never acquire a token, so a client that held the log
+// stream back until one appeared would leave the Debug Console and the
+// /logs page empty forever in exactly those deployments. subscribe() treats
+// /v1/ws/logs the same as every other path instead: open immediately. A
+// deployment where the stream genuinely needs a token the client does not
+// have yet costs one rejected attempt, not a dead stream, because of two
+// other properties: a 4001 (auth rejected/timed out) close is terminal
+// instead of being retried, and the reconnect backoff only resets once a
+// connection proves itself (a message, or simply staying open a while), not
+// merely on `open`.
 
-describe('DirectTransport /v1/ws/logs auth gating', () => {
-  it('does not open a WebSocket for /v1/ws/logs when no token is set', () => {
+describe('DirectTransport /v1/ws/logs with no token (tokenless-open server)', () => {
+  it('opens /v1/ws/logs immediately with no token and delivers a snapshot', () => {
     const anon = new DirectTransport({ baseUrl: 'http://localhost:9090' });
-    anon.subscribe('/v1/ws/logs', vi.fn());
+    const handler = vi.fn();
+    anon.subscribe('/v1/ws/logs', handler);
 
-    expect(MockWebSocket.instances).toHaveLength(0);
+    expect(MockWebSocket.instances).toHaveLength(1);
+    const ws = MockWebSocket.instances[0];
+    expect(ws.url).toBe('ws://localhost:9090/v1/ws/logs');
+
+    ws.simulateOpen();
+    // No token configured anywhere -- nothing to send. The unix socket,
+    // --api-no-auth, and the ASP.NET host all serve this stream with none.
+    expect(ws.sent).toEqual([]);
+
+    ws.simulateMessage({ type: 'snapshot', entries: [], total: 0 });
+    expect(handler).toHaveBeenCalledWith({
+      type: 'snapshot',
+      entries: [],
+      total: 0,
+    });
     anon.disconnect();
   });
 
@@ -461,40 +487,9 @@ describe('DirectTransport /v1/ws/logs auth gating', () => {
     expect(MockWebSocket.instances).toHaveLength(1);
     anon.disconnect();
   });
+});
 
-  it('opens the deferred /v1/ws/logs socket once setToken() supplies a token', () => {
-    const anon = new DirectTransport({ baseUrl: 'http://localhost:9090' });
-    const handler = vi.fn();
-    anon.subscribe('/v1/ws/logs', handler);
-    expect(MockWebSocket.instances).toHaveLength(0);
-
-    anon.setToken('late-token');
-
-    expect(MockWebSocket.instances).toHaveLength(1);
-    const ws = MockWebSocket.instances[0];
-    expect(ws.url).toBe('ws://localhost:9090/v1/ws/logs');
-    ws.simulateOpen();
-    expect(ws.sent).toEqual([JSON.stringify({ auth: 'late-token' })]);
-    ws.simulateMessage({ type: 'snapshot', entries: [], total: 0 });
-    expect(handler).toHaveBeenCalledWith({
-      type: 'snapshot',
-      entries: [],
-      total: 0,
-    });
-    anon.disconnect();
-  });
-
-  it('unsubscribing a deferred logs subscription before a token arrives opens nothing', () => {
-    const anon = new DirectTransport({ baseUrl: 'http://localhost:9090' });
-    const unsub = anon.subscribe('/v1/ws/logs', vi.fn());
-    unsub();
-
-    anon.setToken('late-token');
-
-    expect(MockWebSocket.instances).toHaveLength(0);
-    anon.disconnect();
-  });
-
+describe('DirectTransport /v1/ws/logs: a token-requiring server', () => {
   it('a 4001 close is terminal: no reconnect is scheduled', () => {
     vi.useFakeTimers();
     transport.subscribe('/v1/ws/logs', vi.fn());
@@ -578,6 +573,53 @@ describe('DirectTransport reconnect backoff reset timing', () => {
     ws2.simulateMessage({ type: 'snapshot', sequence: 0, data: {} });
     ws2.simulateClose(1001); // Reset by the message -> attempt 1 -> 1000ms.
 
+    vi.advanceTimersByTime(1000);
+    expect(MockWebSocket.instances).toHaveLength(3);
+
+    vi.useRealTimers();
+  });
+
+  // A pre-authenticated stream with nothing to report (events, between
+  // notifications) can stay open a long time without ever sending a
+  // message. Without a time-based fallback, such a stream would never
+  // reset its backoff, so a later drop would keep climbing an attempt
+  // count it never needed.
+  it('staying open without any message still resets the backoff eventually', () => {
+    vi.useFakeTimers();
+    transport.subscribe('/v1/ws/events', vi.fn());
+    const ws1 = MockWebSocket.instances[0];
+    ws1.simulateOpen();
+    ws1.simulateClose(1001); // attempt 1 -> 1000ms backoff
+    vi.advanceTimersByTime(1000);
+
+    const ws2 = MockWebSocket.instances[1];
+    ws2.simulateOpen();
+    // No message at all -- just stay open past the proof-of-life window.
+    vi.advanceTimersByTime(PROOF_OF_LIFE_MS);
+    ws2.simulateClose(1001); // Reset by the timer -> attempt 1 -> 1000ms.
+
+    vi.advanceTimersByTime(1000);
+    expect(MockWebSocket.instances).toHaveLength(3);
+
+    vi.useRealTimers();
+  });
+
+  it('closing before the proof-of-life window elapses does not reset the backoff', () => {
+    vi.useFakeTimers();
+    transport.subscribe('/v1/ws/events', vi.fn());
+    const ws1 = MockWebSocket.instances[0];
+    ws1.simulateOpen();
+    ws1.simulateClose(1001); // attempt 1 -> 1000ms backoff
+    vi.advanceTimersByTime(1000);
+
+    const ws2 = MockWebSocket.instances[1];
+    ws2.simulateOpen();
+    // Closed well before the proof-of-life window -- the pending timer
+    // must not fire later and must not be mistaken for proof of life.
+    ws2.simulateClose(1001); // Still attempt 2 -> 2000ms backoff.
+
+    vi.advanceTimersByTime(1000);
+    expect(MockWebSocket.instances).toHaveLength(2);
     vi.advanceTimersByTime(1000);
     expect(MockWebSocket.instances).toHaveLength(3);
 
