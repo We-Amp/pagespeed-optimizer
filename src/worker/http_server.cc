@@ -632,7 +632,17 @@ void HttpServer::OnConnection(uv_stream_t* server, int status) {
   conn->handle.handle.data = conn;
 
   if (uv_accept(server, &conn->handle.stream) != 0) {
-    delete conn;
+    // The handle was already uv_*_init'd by InitStream() above, so it must
+    // be uv_close()'d rather than deleted directly -- matching the
+    // uv_accept-failure convention every other accept site in this daemon
+    // follows (Worker::OnHealthConnection, Worker::OnConnection). A bare
+    // `delete conn` here skips libuv's own close bookkeeping for the
+    // handle, leaking it; under sustained accept pressure (e.g. many
+    // HttpServer instances cycling through fd-constrained CI runners) the
+    // leak compounds, making the next accept() more likely to fail too.
+    uv_close(&conn->handle.handle, [](uv_handle_t* h) {
+      delete static_cast<HttpConnection*>(h->data);
+    });
     return;
   }
 

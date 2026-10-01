@@ -4,6 +4,12 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Fixed: the management API's HTTP listener leaked resources whenever it
+failed to accept an incoming connection, instead of releasing them. On a
+host under sustained connection load this could compound, making the next
+accept progressively more likely to fail too and leaving that connection
+unanswered rather than retried.
+
 Security: under specific inputs, some management API reads and live-stream
 messages could stop the optimizer. Update recommended.
 
