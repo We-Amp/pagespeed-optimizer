@@ -52,6 +52,16 @@ other read endpoints and streams stay open, and the unix socket and
 `--api-no-auth` are unchanged. A read-only console that showed the log
 without a token no longer does. Update recommended.
 
+Changed: `--api-read-open` now opens exactly the documented read endpoints
+and the `stats`/`events` WebSocket streams, and nothing else -- a future GET
+endpoint stays behind the token under read-open unless it is explicitly
+added to that list. Separately, at most two WebSocket connections may be
+waiting to send their authentication message at once; a connection beyond
+that limit is refused the same way exceeding the overall connection limit
+is refused today. Repeated authentication timeouts are now logged at most
+once a minute. The bundled console stops reconnecting to a stream the
+server refused for a missing token, until a token is set.
+
 ## [2.1.0] - 2026-09-17
 
 Changed (plan for this before you upgrade): **the disk cache starts empty.**

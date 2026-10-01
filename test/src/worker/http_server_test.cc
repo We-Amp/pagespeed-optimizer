@@ -541,9 +541,12 @@ TEST_F(HttpServerAuthTest, ReadOpenMode) {
   server_.reset();
   config_.read_open = true;
   server_ = std::make_unique<HttpServer>(loop_, config_, handler_.get());
-  server_->AddRoute("GET", "/v1/stats", [](const HttpRequest&) {
-    return HttpResponse().Json("{\"stats\":true}");
-  });
+  server_->AddRoute(
+      "GET", "/v1/stats",
+      [](const HttpRequest&) {
+        return HttpResponse().Json("{\"stats\":true}");
+      },
+      RouteAuth::kReadOpenOk);
   server_->AddRoute("PATCH", "/v1/config", [](const HttpRequest&) {
     return HttpResponse().Json("{\"applied\":{}}");
   });
@@ -577,9 +580,12 @@ TEST_F(HttpServerAuthTest, ReadOpenHeadFollowsGet) {
   server_.reset();
   config_.read_open = true;
   server_ = std::make_unique<HttpServer>(loop_, config_, handler_.get());
-  server_->AddRoute("GET", "/v1/stats", [](const HttpRequest&) {
-    return HttpResponse().Json("{\"stats\":true}");
-  });
+  server_->AddRoute(
+      "GET", "/v1/stats",
+      [](const HttpRequest&) {
+        return HttpResponse().Json("{\"stats\":true}");
+      },
+      RouteAuth::kReadOpenOk);
   ASSERT_TRUE(server_->Start());
   StartLoopThread();
 
@@ -619,9 +625,9 @@ TEST_F(HttpServerAuthTest, HeadRequiresTokenWhenReadOpenDisabled) {
   EXPECT_NE(head_resp.find("401"), std::string::npos);
 }
 
-// A route registered with RouteAuth::kTokenEvenIfReadOpen keeps the bearer
-// token under --api-read-open on TCP, for GET and HEAD alike, while every
-// other GET stays open.
+// A route registered with RouteAuth::kReadOpenOk opts out of the token
+// under --api-read-open on TCP, for GET and HEAD alike, while a route that
+// does NOT opt in (the default, RouteAuth::kToken) stays closed.
 TEST_F(HttpServerAuthTest, ReadOpenKeepsTokenOnlyRoutesClosed) {
   StopLoopThread();
   server_->Stop();
@@ -629,19 +635,22 @@ TEST_F(HttpServerAuthTest, ReadOpenKeepsTokenOnlyRoutesClosed) {
   server_.reset();
   config_.read_open = true;
   server_ = std::make_unique<HttpServer>(loop_, config_, handler_.get());
-  server_->AddRoute("GET", "/v1/stats", [](const HttpRequest&) {
-    return HttpResponse().Json("{\"stats\":true}");
-  });
+  server_->AddRoute(
+      "GET", "/v1/stats",
+      [](const HttpRequest&) {
+        return HttpResponse().Json("{\"stats\":true}");
+      },
+      RouteAuth::kReadOpenOk);
   server_->AddRoute(
       "GET", "/v1/logs",
       [](const HttpRequest&) {
         return HttpResponse().Json("{\"entries\":[]}");
       },
-      RouteAuth::kTokenEvenIfReadOpen);
+      RouteAuth::kToken);
   ASSERT_TRUE(server_->Start());
   StartLoopThread();
 
-  // A standard route: open under read-open (the baseline).
+  // The allow-listed route: open under read-open (the baseline).
   EXPECT_NE(SendRequest("GET /v1/stats HTTP/1.1\r\nHost: localhost\r\n\r\n")
                 .find("200 OK"),
             std::string::npos);
@@ -665,6 +674,161 @@ TEST_F(HttpServerAuthTest, ReadOpenKeepsTokenOnlyRoutesClosed) {
       "Authorization: Bearer secret-token-123\r\n\r\n");
   EXPECT_NE(ok.find("200 OK"), std::string::npos) << ok;
   EXPECT_NE(ok.find("{\"entries\":[]}"), std::string::npos) << ok;
+}
+
+// read-open is an explicit allow-list: a route registered with NO auth
+// argument at all (the ordinary way every route but this test's is
+// registered) gets the default, RouteAuth::kToken, and therefore still
+// needs the bearer token under --api-read-open -- for GET and HEAD alike.
+// A route that forgets to opt in does NOT become readable for free.
+TEST_F(HttpServerAuthTest, UnmarkedRouteStaysClosedUnderReadOpen) {
+  StopLoopThread();
+  server_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  server_.reset();
+  config_.read_open = true;
+  server_ = std::make_unique<HttpServer>(loop_, config_, handler_.get());
+  // No RouteAuth argument -- relies entirely on the default.
+  server_->AddRoute("GET", "/v1/new-endpoint", [](const HttpRequest&) {
+    return HttpResponse().Json("{\"secret\":true}");
+  });
+  ASSERT_TRUE(server_->Start());
+  StartLoopThread();
+
+  std::string get =
+      SendRequest("GET /v1/new-endpoint HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(get.find("401"), std::string::npos) << get;
+  EXPECT_EQ(get.find("secret"), std::string::npos) << get;
+
+  std::string head =
+      SendRequest("HEAD /v1/new-endpoint HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(head.find("401"), std::string::npos) << head;
+
+  // The right token still reaches the handler.
+  std::string ok = SendRequest(
+      "GET /v1/new-endpoint HTTP/1.1\r\nHost: localhost\r\n"
+      "Authorization: Bearer secret-token-123\r\n\r\n");
+  EXPECT_NE(ok.find("200 OK"), std::string::npos) << ok;
+
+  // A path matching NO registered route at all is the same "fails closed
+  // by default" case: ReadOpenApplies returns false (not true, as it used
+  // to for an unmatched path), so CheckAuth asks for the token before
+  // routing ever gets a chance to answer 404. The CheckAuth 401 therefore
+  // now runs first for an unknown path too -- a visible behaviour change
+  // from before this allow-list (previously 404), noted in the report.
+  std::string unknown =
+      SendRequest("GET /v1/does-not-exist HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(unknown.find("401"), std::string::npos) << unknown;
+}
+
+// ReadOpenApplies must answer about the route DispatchRequest would
+// actually pick, not "does any kReadOpenOk route happen to match this
+// path". Registered first (and so the one dispatch picks for an exact
+// match, per DispatchRequest's first-match loop): a specific, token-only
+// route. Registered second: a broader allow-listed prefix that ALSO
+// matches the same literal path. A scan that checks only "any kReadOpenOk
+// match" (ignoring which one dispatch would use) would fail open here.
+TEST_F(HttpServerAuthTest, ReadOpenConsultsTheRouteDispatchWouldPick) {
+  StopLoopThread();
+  server_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  server_.reset();
+  config_.read_open = true;
+  server_ = std::make_unique<HttpServer>(loop_, config_, handler_.get());
+  server_->AddRoute("GET", "/v1/cache/secret", [](const HttpRequest&) {
+    return HttpResponse().Json("{\"secret\":true}");
+  });
+  server_->AddRoute(
+      "GET", "/v1/cache/*",
+      [](const HttpRequest&) {
+        return HttpResponse().Json("{\"prefix\":true}");
+      },
+      RouteAuth::kReadOpenOk);
+  ASSERT_TRUE(server_->Start());
+  StartLoopThread();
+
+  // Dispatch picks the specific route (registered first); auth must follow
+  // that same route, not the broader prefix that also happens to match.
+  std::string secret =
+      SendRequest("GET /v1/cache/secret HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(secret.find("401"), std::string::npos) << secret;
+  EXPECT_EQ(secret.find("\"secret\":true"), std::string::npos) << secret;
+
+  // A path only the prefix matches is unaffected and stays open.
+  std::string other =
+      SendRequest("GET /v1/cache/other HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(other.find("200 OK"), std::string::npos) << other;
+  EXPECT_NE(other.find("\"prefix\":true"), std::string::npos) << other;
+}
+
+// Transport invariance #1: the unix socket's filesystem-group credential
+// does not consult RouteAuth at all (HttpServer::CheckAuth returns early for
+// is_pipe()), so a route with no RouteAuth argument is unaffected by the
+// read-open default flip -- it stays open there exactly as before, even
+// with --api-read-open also set.
+#ifndef _WIN32
+TEST_F(HttpServerAuthTest, UnmarkedRouteOverSocketUnaffectedByReadOpenDefault) {
+  StopLoopThread();
+  server_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  server_.reset();
+  std::string socket_path =
+      absl::StrCat("/tmp/pagespeed-api-test-readopen-", ::getpid(), ".sock");
+  ::unlink(socket_path.c_str());
+  config_.socket_path = socket_path;
+  config_.port = 0;
+  config_.read_open = true;  // Irrelevant on the socket transport.
+  config_.allow_unauthenticated = false;
+  server_ = std::make_unique<HttpServer>(loop_, config_, handler_.get());
+  server_->AddRoute("GET", "/v1/new-endpoint", [](const HttpRequest&) {
+    return HttpResponse().Json("{\"secret\":true}");
+  });
+  ASSERT_TRUE(server_->Start());
+  StartLoopThread();
+
+  int sock = ::socket(AF_UNIX, SOCK_STREAM, 0);
+  ASSERT_GE(sock, 0);
+  struct sockaddr_un addr{};
+  addr.sun_family = AF_UNIX;
+  std::strncpy(addr.sun_path, socket_path.c_str(), sizeof(addr.sun_path) - 1);
+  ASSERT_EQ(
+      ::connect(sock, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)),
+      0);
+  std::string wire = test::InjectConnectionClose(
+      "GET /v1/new-endpoint HTTP/1.1\r\nHost: x\r\n\r\n");
+  ::write(sock, wire.data(), wire.size());
+  std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  std::string response;
+  char buf[4096];
+  while (true) {
+    ssize_t n = ::read(sock, buf, sizeof(buf));
+    if (n <= 0) break;
+    response.append(buf, static_cast<size_t>(n));
+  }
+  ::close(sock);
+  ::unlink(socket_path.c_str());
+
+  EXPECT_NE(response.find("200"), std::string::npos) << response;
+  EXPECT_NE(response.find("\"secret\":true"), std::string::npos) << response;
+}
+#endif  // !_WIN32
+
+// Transport invariance #2: --api-no-auth (allow_unauthenticated on a
+// tokenless server) also returns from CheckAuth before RouteAuth is ever
+// consulted, so a route with no RouteAuth argument stays open there too,
+// read-open default flip notwithstanding.
+TEST_F(HttpServerTest, UnmarkedRouteUnderApiNoAuthUnaffectedByReadOpenDefault) {
+  config_.read_open = true;  // Also set, to show it changes nothing here.
+  server_ = std::make_unique<HttpServer>(loop_, config_, handler_.get());
+  server_->AddRoute("GET", "/v1/new-endpoint", [](const HttpRequest&) {
+    return HttpResponse().Json("{\"secret\":true}");
+  });
+  ASSERT_TRUE(server_->Start());
+  StartLoopThread();
+
+  std::string resp =
+      SendRequest("GET /v1/new-endpoint HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(resp.find("200 OK"), std::string::npos) << resp;
 }
 
 // Issue #1449: the console's static bundle carries no operational data, so
@@ -2782,7 +2946,7 @@ TEST_F(HttpServerUnixSocketTest, TokenOnlyRouteNeedsNoBearerOverTheSocket) {
       [](const HttpRequest&) {
         return HttpResponse().Json("{\"entries\":[]}");
       },
-      RouteAuth::kTokenEvenIfReadOpen);
+      RouteAuth::kToken);
   ASSERT_TRUE(server_->Start());
   StartLoopThread();
 

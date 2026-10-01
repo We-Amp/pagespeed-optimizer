@@ -3,7 +3,11 @@
 
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { get } from 'svelte/store';
-import { DirectTransport, ApiError } from '../direct-transport.js';
+import {
+  DirectTransport,
+  ApiError,
+  PROOF_OF_LIFE_MS,
+} from '../direct-transport.js';
 
 // ---------------------------------------------------------------------------
 // Minimal WebSocket mock
@@ -56,9 +60,9 @@ class MockWebSocket {
     }
   }
 
-  simulateClose(): void {
+  simulateClose(code?: number): void {
     this.readyState = 3;
-    for (const fn of this.listeners.get('close') ?? []) fn({});
+    for (const fn of this.listeners.get('close') ?? []) fn({ code });
   }
 
   simulateError(): void {
@@ -429,6 +433,197 @@ describe('DirectTransport WebSocket', () => {
     const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1];
     expect(ws.url).toBe('wss://example.com/v1/ws/stats');
     secureTransport.disconnect();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// /v1/ws/logs: open it like any other stream; survive a token the client
+// does not have
+// ---------------------------------------------------------------------------
+//
+// The log stream is the one WebSocket the worker does not pre-authenticate
+// under --api-read-open (see src/worker/ws_handlers.h read_open_streams),
+// but plenty of real deployments serve it -- and every other stream -- with
+// no token at all: the unix socket, --api-no-auth, the in-process ASP.NET
+// host. Those consoles never acquire a token, so a client that held the log
+// stream back until one appeared would leave the Debug Console and the
+// /logs page empty forever in exactly those deployments. subscribe() treats
+// /v1/ws/logs the same as every other path instead: open immediately. A
+// deployment where the stream genuinely needs a token the client does not
+// have yet costs one rejected attempt, not a dead stream, because of two
+// other properties: a 4001 (auth rejected/timed out) close is terminal
+// instead of being retried, and the reconnect backoff only resets once a
+// connection proves itself (a message, or simply staying open a while), not
+// merely on `open`.
+
+describe('DirectTransport /v1/ws/logs with no token (tokenless-open server)', () => {
+  it('opens /v1/ws/logs immediately with no token and delivers a snapshot', () => {
+    const anon = new DirectTransport({ baseUrl: 'http://localhost:9090' });
+    const handler = vi.fn();
+    anon.subscribe('/v1/ws/logs', handler);
+
+    expect(MockWebSocket.instances).toHaveLength(1);
+    const ws = MockWebSocket.instances[0];
+    expect(ws.url).toBe('ws://localhost:9090/v1/ws/logs');
+
+    ws.simulateOpen();
+    // No token configured anywhere -- nothing to send. The unix socket,
+    // --api-no-auth, and the ASP.NET host all serve this stream with none.
+    expect(ws.sent).toEqual([]);
+
+    ws.simulateMessage({ type: 'snapshot', entries: [], total: 0 });
+    expect(handler).toHaveBeenCalledWith({
+      type: 'snapshot',
+      entries: [],
+      total: 0,
+    });
+    anon.disconnect();
+  });
+
+  it('other read-open streams still open immediately without a token', () => {
+    const anon = new DirectTransport({ baseUrl: 'http://localhost:9090' });
+    anon.subscribe('/v1/ws/stats', vi.fn());
+
+    expect(MockWebSocket.instances).toHaveLength(1);
+    anon.disconnect();
+  });
+});
+
+describe('DirectTransport /v1/ws/logs: a token-requiring server', () => {
+  it('a 4001 close is terminal: no reconnect is scheduled', () => {
+    vi.useFakeTimers();
+    transport.subscribe('/v1/ws/logs', vi.fn());
+    const ws = MockWebSocket.instances[0];
+    ws.simulateOpen();
+
+    ws.simulateClose(4001);
+    vi.advanceTimersByTime(60_000);
+
+    expect(MockWebSocket.instances).toHaveLength(1);
+    vi.useRealTimers();
+  });
+
+  it('after a 4001 close, setToken() reopens the stream (not a timer)', () => {
+    vi.useFakeTimers();
+    transport.subscribe('/v1/ws/logs', vi.fn());
+    const ws1 = MockWebSocket.instances[0];
+    ws1.simulateOpen();
+    ws1.simulateClose(4001);
+    vi.advanceTimersByTime(60_000);
+    expect(MockWebSocket.instances).toHaveLength(1);
+
+    transport.setToken('fresh-token');
+
+    expect(MockWebSocket.instances).toHaveLength(2);
+    vi.useRealTimers();
+  });
+
+  it('a non-4001 close still reconnects normally', () => {
+    vi.useFakeTimers();
+    transport.subscribe('/v1/ws/logs', vi.fn());
+    const ws1 = MockWebSocket.instances[0];
+    ws1.simulateOpen();
+
+    ws1.simulateClose(1001);
+    vi.advanceTimersByTime(1000);
+
+    expect(MockWebSocket.instances).toHaveLength(2);
+    vi.useRealTimers();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reconnect backoff: reset on proof-of-life, not on the raw 101
+// ---------------------------------------------------------------------------
+
+describe('DirectTransport reconnect backoff reset timing', () => {
+  it('open alone does not reset the backoff counter', () => {
+    vi.useFakeTimers();
+    transport.subscribe('/v1/ws/stats', vi.fn());
+    const ws1 = MockWebSocket.instances[0];
+    ws1.simulateOpen();
+    ws1.simulateClose(1001); // attempt 1 -> 1000ms backoff
+
+    vi.advanceTimersByTime(1000);
+    expect(MockWebSocket.instances).toHaveLength(2);
+    const ws2 = MockWebSocket.instances[1];
+    ws2.simulateOpen(); // Must NOT reset the counter by itself.
+    ws2.simulateClose(1001);
+
+    // If `open` had reset the counter, this would reconnect at the 1000ms
+    // mark (attempt 1 again). The fix keeps it at attempt 2 -> 2000ms.
+    vi.advanceTimersByTime(1000);
+    expect(MockWebSocket.instances).toHaveLength(2);
+    vi.advanceTimersByTime(1000);
+    expect(MockWebSocket.instances).toHaveLength(3);
+
+    vi.useRealTimers();
+  });
+
+  it('the first message resets the backoff counter', () => {
+    vi.useFakeTimers();
+    transport.subscribe('/v1/ws/stats', vi.fn());
+    const ws1 = MockWebSocket.instances[0];
+    ws1.simulateOpen();
+    ws1.simulateClose(1001); // attempt 1 -> 1000ms backoff
+    vi.advanceTimersByTime(1000);
+
+    const ws2 = MockWebSocket.instances[1];
+    ws2.simulateOpen();
+    ws2.simulateMessage({ type: 'snapshot', sequence: 0, data: {} });
+    ws2.simulateClose(1001); // Reset by the message -> attempt 1 -> 1000ms.
+
+    vi.advanceTimersByTime(1000);
+    expect(MockWebSocket.instances).toHaveLength(3);
+
+    vi.useRealTimers();
+  });
+
+  // A pre-authenticated stream with nothing to report (events, between
+  // notifications) can stay open a long time without ever sending a
+  // message. Without a time-based fallback, such a stream would never
+  // reset its backoff, so a later drop would keep climbing an attempt
+  // count it never needed.
+  it('staying open without any message still resets the backoff eventually', () => {
+    vi.useFakeTimers();
+    transport.subscribe('/v1/ws/events', vi.fn());
+    const ws1 = MockWebSocket.instances[0];
+    ws1.simulateOpen();
+    ws1.simulateClose(1001); // attempt 1 -> 1000ms backoff
+    vi.advanceTimersByTime(1000);
+
+    const ws2 = MockWebSocket.instances[1];
+    ws2.simulateOpen();
+    // No message at all -- just stay open past the proof-of-life window.
+    vi.advanceTimersByTime(PROOF_OF_LIFE_MS);
+    ws2.simulateClose(1001); // Reset by the timer -> attempt 1 -> 1000ms.
+
+    vi.advanceTimersByTime(1000);
+    expect(MockWebSocket.instances).toHaveLength(3);
+
+    vi.useRealTimers();
+  });
+
+  it('closing before the proof-of-life window elapses does not reset the backoff', () => {
+    vi.useFakeTimers();
+    transport.subscribe('/v1/ws/events', vi.fn());
+    const ws1 = MockWebSocket.instances[0];
+    ws1.simulateOpen();
+    ws1.simulateClose(1001); // attempt 1 -> 1000ms backoff
+    vi.advanceTimersByTime(1000);
+
+    const ws2 = MockWebSocket.instances[1];
+    ws2.simulateOpen();
+    // Closed well before the proof-of-life window -- the pending timer
+    // must not fire later and must not be mistaken for proof of life.
+    ws2.simulateClose(1001); // Still attempt 2 -> 2000ms backoff.
+
+    vi.advanceTimersByTime(1000);
+    expect(MockWebSocket.instances).toHaveLength(2);
+    vi.advanceTimersByTime(1000);
+    expect(MockWebSocket.instances).toHaveLength(3);
+
+    vi.useRealTimers();
   });
 });
 

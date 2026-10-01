@@ -61,13 +61,19 @@ Embedded HTTP/1.1 server (libuv + llhttp) for the web console and programmatic a
 **Auth**: Bearer token via `--api-token` flag or `PAGESPEED_API_TOKEN` env var.
 Health and the `/console`/`/console/*` static bundle
 (GET/HEAD only — static assets carry no data, #1449) are always exempt.
-`--api-read-open` allows unauthenticated GET requests and WebSocket connections
-(read-only streams), except the optimizer log: `GET /v1/logs` (a route registered
-with `RouteAuth::kTokenEvenIfReadOpen`) keeps the token on TCP, and so does the
-`/v1/ws/logs` stream — not on the handshake (a browser cannot carry
-`Authorization` there), but via the same in-band auth message every WebSocket
-stream already uses, which `WsManager::AcceptUpgrade` no longer skips for `logs`
-under read-open. The unix socket and `--api-no-auth` leave both open.
+`--api-read-open` is an explicit allow-list, not a default: `RouteAuth::kToken`
+is the default for every route (token required on TCP regardless of read-open),
+and a GET/HEAD route opts in with `RouteAuth::kReadOpenOk` (`/v1/stats`,
+`/v1/metrics`, `/v1/config`, and the four `/v1/cache/*` read routes today).
+A route left at the default — including one added later — stays closed under
+read-open. The optimizer log is the one GET route that deliberately does not
+opt in: `GET /v1/logs` keeps the token on TCP, and so does the `/v1/ws/logs`
+stream (`WsConfig::read_open_streams`, default `{"stats", "events"}`, is the
+matching allow-list on the WS side) — not on the handshake (a browser cannot
+carry `Authorization` there), but via the same in-band auth message every
+WebSocket stream already uses. The unix socket and `--api-no-auth` leave both
+open, since `HttpServer::CheckAuth`/`WsManager::AcceptUpgrade` return before
+ever consulting `RouteAuth`/`read_open_streams` on those paths.
 Mutating endpoints (POST/PATCH/DELETE) always require auth when a token is set.
 This enables exposing the console publicly as a read-only demo while requiring
 a token for configuration changes. WebSocket uses auth-via-first-message
