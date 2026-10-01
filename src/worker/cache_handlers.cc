@@ -20,6 +20,7 @@
 #include "lib/classify/content_type.h"
 #include "lib/classify/pagespeed_selector.h"
 #include "nlohmann/json.hpp"
+#include "src/worker/json_dump.h"
 
 namespace pagespeed {
 
@@ -312,7 +313,7 @@ static HttpResponse HandleListAlternates(CacheApiContext& ctx,
     }
   }
 
-  return HttpResponse().Json(resp.dump());
+  return HttpResponse().Json(DumpJson(resp));
 }
 
 // ---------------------------------------------------------------------------
@@ -375,7 +376,7 @@ static HttpResponse HandleListUrls(CacheApiContext& ctx,
   resp["has_more"] = page.has_more;
   resp["total"] = page.total;
 
-  return HttpResponse().Json(resp.dump());
+  return HttpResponse().Json(DumpJson(resp));
 }
 
 // ---------------------------------------------------------------------------
@@ -468,7 +469,7 @@ static HttpResponse HandleSelect(CacheApiContext& ctx,
   resp["best_index"] = best_idx;
   resp["best_score"] = best_score;
 
-  return HttpResponse().Json(resp.dump());
+  return HttpResponse().Json(DumpJson(resp));
 }
 
 // ---------------------------------------------------------------------------
@@ -617,7 +618,7 @@ static HttpResponse HandlePurge(CacheApiContext& ctx,
     resp["scope"] = "all";
     resp["urls_cleared"] = urls_cleared;
     resp["volume_reset"] = true;
-    return HttpResponse().Json(resp.dump());
+    return HttpResponse().Json(DumpJson(resp));
   }
 
   // Single-URL purge.
@@ -695,7 +696,7 @@ static HttpResponse HandlePurge(CacheApiContext& ctx,
         "pressure or was never cached.";
   }
 
-  return HttpResponse().Json(resp.dump());
+  return HttpResponse().Json(DumpJson(resp));
 }
 
 // ---------------------------------------------------------------------------
@@ -790,7 +791,7 @@ static HttpResponse HandleReprocess(CacheApiContext& ctx,
   resp["scheme"] = scheme;
   resp["reprocess_enqueued"] = ctx.enqueue_reprocess != nullptr;
 
-  return HttpResponse().Json(resp.dump());
+  return HttpResponse().Json(DumpJson(resp));
 }
 
 // ---------------------------------------------------------------------------
@@ -806,7 +807,7 @@ static HttpResponse HandleListCooldowns(CacheApiContext& ctx,
     resp["enabled"] = false;
     return HttpResponse()
         .SetHeader("Cache-Control", "no-store")
-        .Json(resp.dump());
+        .Json(DumpJson(resp));
   }
 
   auto entries = ctx.list_cooldowns();
@@ -830,7 +831,7 @@ static HttpResponse HandleListCooldowns(CacheApiContext& ctx,
   resp["enabled"] = true;
   return HttpResponse()
       .SetHeader("Cache-Control", "no-store")
-      .Json(resp.dump());
+      .Json(DumpJson(resp));
 }
 
 // ---------------------------------------------------------------------------

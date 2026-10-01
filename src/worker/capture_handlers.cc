@@ -45,6 +45,7 @@
 #include "src/browser/cdp_types.h"
 #include "src/worker/browser_analysis_manager.h"
 #include "src/worker/capture_handlers_internal.h"
+#include "src/worker/json_dump.h"
 #include "uv.h"
 
 namespace pagespeed {
@@ -947,7 +948,7 @@ static HttpResponse HandleWaterfall(CaptureContext& ctx,
                                state->error_message);
   }
 
-  return HttpResponse().Json(state->result_json.dump());
+  return HttpResponse().Json(DumpJson(state->result_json));
 }
 
 // ---------------------------------------------------------------------------
@@ -1050,7 +1051,7 @@ static HttpResponse HandleScreenshot(CaptureContext& ctx,
                                state->error_message);
   }
 
-  return HttpResponse().Json(state->result_json.dump());
+  return HttpResponse().Json(DumpJson(state->result_json));
 }
 
 // ---------------------------------------------------------------------------

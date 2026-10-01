@@ -8,12 +8,14 @@
 #include <algorithm>
 #include <chrono>
 #include <cstring>
+#include <exception>
 #include <random>
 #include <string>
 #include <utility>
 
 #include "lib/base/message_handler.h"
 #include "lib/base/string_util.h"
+#include "src/worker/json_dump.h"
 #include "src/worker/uv_helpers.h"
 #include "src/worker/websocket.h"
 
@@ -67,12 +69,9 @@ size_t Utf8SequenceLength(std::string_view s, size_t i) {
   return length;
 }
 
-// Every serialization of a log entry goes through here: the replace handler
-// turns any invalid UTF-8 into U+FFFD instead of throwing on the loop thread.
-// SanitizeLogMessage already guarantees valid messages; this is the backstop.
-std::string DumpLog(const json& j) {
-  return j.dump(-1, ' ', false, json::error_handler_t::replace);
-}
+// Every serialization of a log entry goes through here, and so through the
+// shared JSON helper; SanitizeLogMessage already keeps messages well-formed.
+std::string DumpLog(const json& j) { return DumpJson(j); }
 
 // Serialized bytes reserved for a /v1/logs envelope around its entries: the
 // seven fixed keys with 20-digit numbers and the 16-digit stream id need
@@ -365,7 +364,7 @@ void WsManager::AcceptUpgrade(uv_stream_t* handle, std::string_view endpoint,
     snapshot["type"] = "snapshot";
     snapshot["sequence"] = stats_seq_;
     snapshot["data"] = current;
-    SendText(conn, snapshot.dump());
+    SendText(conn, DumpJson(snapshot));
     // Only initialize the delta baseline if not yet set.
     if (prev_stats_.is_null()) {
       prev_stats_ = std::move(current);
@@ -399,7 +398,13 @@ void WsManager::PostEvent(std::string_view type, json detail) {
 
 void WsManager::OnAsyncEvent(uv_async_t* async) {
   auto* self = static_cast<WsManager*>(async->data);
-  self->DrainPendingEvents();
+  // Last-resort net: a failure here drops this batch and keeps serving,
+  // instead of stopping the optimizer.
+  try {
+    self->DrainPendingEvents();
+  } catch (const std::exception&) {
+    self->handler_->Warning("WS: dropping event batch after a drain error");
+  }
 }
 
 void WsManager::DrainPendingEvents() {
@@ -416,7 +421,7 @@ void WsManager::DrainPendingEvents() {
     if (conn->endpoint != "events") continue;
 
     for (const auto& evt : events) {
-      std::string serialized = evt.dump();
+      std::string serialized = DumpJson(evt);
       if (conn->event_buffer_bytes + serialized.size() > config_.event_hwm) {
         // High-water mark exceeded, drop oldest events.
         metrics_.messages_dropped.fetch_add(1, std::memory_order_relaxed);
@@ -426,9 +431,10 @@ void WsManager::DrainPendingEvents() {
         conn->event_buffer.push_back(',');
         conn->event_buffer_bytes += 1;
       }
-      conn->event_buffer_bytes += serialized.size();
+      const size_t serialized_size = serialized.size();
       conn->event_buffer +=
           std::move(serialized);  // NOLINT(performance-move-const-arg)
+      conn->event_buffer_bytes += serialized_size;
     }
   }
 }
@@ -450,12 +456,24 @@ void WsManager::OnPingTimer(uv_timer_t* timer) {
 
 void WsManager::OnStatsTimer(uv_timer_t* timer) {
   auto* self = static_cast<WsManager*>(timer->data);
-  self->PushStats();
+  // Last-resort net; see OnAsyncEvent.
+  try {
+    self->PushStats();
+  } catch (const std::exception&) {
+    self->handler_->Warning(
+        "WS: dropping stats push after a serialization error");
+  }
 }
 
 void WsManager::OnEventBatchTimer(uv_timer_t* timer) {
   auto* self = static_cast<WsManager*>(timer->data);
-  self->FlushEventBatch();
+  // Last-resort net; see OnAsyncEvent.
+  try {
+    self->FlushEventBatch();
+  } catch (const std::exception&) {
+    self->handler_->Warning(
+        "WS: dropping event batch flush after a serialization error");
+  }
 }
 
 void WsManager::OnAuthTimeout(uv_timer_t* timer) {
@@ -511,7 +529,7 @@ void WsManager::PushStats() {
   msg["type"] = "delta";
   msg["sequence"] = stats_seq_;
   msg["data"] = std::move(delta);
-  std::string serialized = msg.dump();
+  std::string serialized = DumpJson(msg);
 
   for (auto* conn : connections_) {
     if (conn->closing || !conn->authenticated) continue;
@@ -556,7 +574,7 @@ void WsManager::FlushEventBatch() {
       msg["data"] = conn->event_buffer;
     }
 
-    SendText(conn, msg.dump());
+    SendText(conn, DumpJson(msg));
     conn->event_buffer.clear();
     conn->event_buffer_bytes = 0;
   }
@@ -716,7 +734,7 @@ void WsManager::HandleAuthMessage(WsConnection* conn,
     snapshot["type"] = "snapshot";
     snapshot["sequence"] = stats_seq_;
     snapshot["data"] = current;
-    SendText(conn, snapshot.dump());
+    SendText(conn, DumpJson(snapshot));
     if (prev_stats_.is_null()) {
       prev_stats_ = std::move(current);
     }
@@ -730,7 +748,7 @@ void WsManager::HandleAuthMessage(WsConnection* conn,
   // Send auth success acknowledgment.
   json ack;
   ack["type"] = "auth_ok";
-  SendText(conn, ack.dump());
+  SendText(conn, DumpJson(ack));
 }
 
 // ---------------------------------------------------------------------------
@@ -868,7 +886,12 @@ void WsManager::PostLog(std::string_view level, std::string_view source,
 
 void WsManager::OnAsyncLog(uv_async_t* async) {
   auto* self = static_cast<WsManager*>(async->data);
-  self->DrainPendingLogs();
+  // Last-resort net; see OnAsyncEvent.
+  try {
+    self->DrainPendingLogs();
+  } catch (const std::exception&) {
+    self->handler_->Warning("WS: dropping log batch after a drain error");
+  }
 }
 
 void WsManager::DrainPendingLogs() {
@@ -910,7 +933,13 @@ void WsManager::DrainPendingLogs() {
 
 void WsManager::OnLogBatchTimer(uv_timer_t* timer) {
   auto* self = static_cast<WsManager*>(timer->data);
-  self->FlushLogBatch();
+  // Last-resort net; see OnAsyncEvent.
+  try {
+    self->FlushLogBatch();
+  } catch (const std::exception&) {
+    self->handler_->Warning(
+        "WS: dropping log batch flush after a serialization error");
+  }
 }
 
 void WsManager::FlushLogBatch() {

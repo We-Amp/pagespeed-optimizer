@@ -265,6 +265,26 @@ gtest_test(
 )
 
 gtest_test(
+    name = "json_output_test",
+    # :all_sources materializes the package's current *.cc/*.h files, by
+    # relative path, under this test's working directory -- the same
+    # convention test/lib/image:png_optimizer_test relies on for its
+    # testdata/ -- so the no-bare-dump gate can scan them.
+    data = ["//src/worker:all_sources"],
+    deps = [
+        "//lib/base:message_handler",
+        "//src/worker:cache_handlers",
+        "//src/worker:http_server",
+        "//src/worker:json_dump",
+        "//src/worker:url_registry",
+        "//src/worker:ws_handlers",
+        "//test/test_util:tcp_client",
+        "@libuv",
+        "@nlohmann_json//:json",
+    ],
+)
+
+gtest_test(
     name = "log_handlers_test",
     size = "medium",
     data = ["testdata/logs_page.golden.json"],

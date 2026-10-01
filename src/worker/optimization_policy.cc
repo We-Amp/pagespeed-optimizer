@@ -14,6 +14,7 @@
 #include "absl/status/statusor.h"
 #include "nlohmann/json.hpp"
 #include "src/browser/optimization_profile.h"
+#include "src/worker/json_dump.h"
 
 namespace pagespeed {
 
@@ -106,7 +107,7 @@ std::string OptimizationPolicy::ToJson() const {
   j["above_fold_image_count"] = above_fold_image_count;
   j["optimization_score"] = optimization_score;
   j["confidence"] = confidence;
-  return j.dump();
+  return DumpJson(j);
 }
 
 absl::StatusOr<OptimizationPolicy> OptimizationPolicy::FromJson(

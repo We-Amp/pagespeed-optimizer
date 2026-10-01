@@ -4,6 +4,9 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Security: under specific inputs, some management API reads and live-stream
+messages could stop the optimizer. Update recommended.
+
 Security: on Windows, a local privilege-escalation issue is fixed. A Windows
 host is exposed when other local code (for example another IIS application
 pool or a Windows service) runs next to an application that uses
@@ -28,9 +31,6 @@ console, so `--log-file PATH`, valid only with `--service`, appends the log
 to a file that can be read while the service runs; a log file that cannot be
 opened stops the service with service-specific exit code 90. Run from a
 console, `--service` is refused with a message saying so.
-
-Security: under specific inputs, reading the optimizer's log could stop the
-optimizer. Update recommended.
 
 Added: `GET /v1/logs?since=<seq>&limit=<n>` reads the optimizer's recent log
 over plain HTTP, for clients that cannot hold a WebSocket open. Each page
