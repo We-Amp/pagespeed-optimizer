@@ -1432,6 +1432,145 @@ TEST_F(WsManagerTest, LogsWithAuthRequired) {
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
+// Under read_open with a token configured, every stream is pre-authenticated
+// -- except the log stream, which carries the same lines as GET /v1/logs and
+// keeps the token the same way.  A log client that never authenticates gets
+// nothing and is closed by the auth timeout.
+TEST_F(WsManagerTest, LogsStreamKeepsTheTokenUnderReadOpen) {
+  ws_config_.auth_token = "secret-token";
+  ws_config_.allow_unauthenticated = false;
+  ws_config_.read_open = true;
+  ws_config_.auth_timeout_ms = 300;
+  StopLoopThread();
+  manager_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  manager_ = std::make_unique<WsManager>(loop_, ws_config_, handler_.get());
+  manager_->SetStatsProvider([]() -> json { return json{{"test", 1}}; });
+  manager_->Start();
+  StartLoopThread();
+
+  manager_->PostLog("info", "worker", "test", "only the token may read this");
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  pending_endpoint_ = "logs";
+  int sock = ConnectRawSocket();
+  ASSERT_GE(sock, 0);
+  ASSERT_NE(ReadHandshake(sock).find("101"), std::string::npos);
+
+  // No auth sent: no snapshot arrives before the auth timeout closes the
+  // connection (ReadTextFrameByType skips the close frame, then hits EOF).
+  std::string frame = ReadTextFrameByType(sock, "snapshot");
+  EXPECT_TRUE(frame.empty())
+      << "log snapshot sent without the token: " << frame;
+  EXPECT_EQ(frame.find("only the token may read this"), std::string::npos);
+
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  EXPECT_EQ(manager_->active_connections(), 0)
+      << "an unauthenticated log stream outlived the auth timeout";
+  test::CloseSocket(sock);
+}
+
+// With the token sent in-band, the log stream under read_open behaves exactly
+// as without read_open: snapshot, then auth_ok.
+TEST_F(WsManagerTest, LogsStreamWithTheTokenUnderReadOpen) {
+  ws_config_.auth_token = "secret-token";
+  ws_config_.allow_unauthenticated = false;
+  ws_config_.read_open = true;
+  StopLoopThread();
+  manager_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  manager_ = std::make_unique<WsManager>(loop_, ws_config_, handler_.get());
+  manager_->SetStatsProvider([]() -> json { return json{{"test", 1}}; });
+  manager_->Start();
+  StartLoopThread();
+
+  manager_->PostLog("info", "worker", "test", "read with the token");
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  pending_endpoint_ = "logs";
+  int sock = ConnectRawSocket();
+  ASSERT_GE(sock, 0);
+  ReadHandshake(sock);
+
+  std::string auth_msg = BuildMaskedTextFrame(R"({"auth":"secret-token"})");
+  ASSERT_EQ(test::SocketWrite(sock, auth_msg.data(), auth_msg.size()),
+            static_cast<ssize_t>(auth_msg.size()));
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+  bool got_auth_ok = false;
+  bool got_snapshot = false;
+  for (int i = 0; i < 4; ++i) {
+    std::string msg = ReadTextFrame(sock);
+    if (msg.empty()) break;
+    json j = json::parse(msg, nullptr, false);
+    if (j.is_discarded() || !j.contains("type")) continue;
+    if (j["type"] == "auth_ok") got_auth_ok = true;
+    if (j["type"] == "snapshot") {
+      got_snapshot = true;
+      EXPECT_NE(msg.find("read with the token"), std::string::npos) << msg;
+    }
+    if (got_auth_ok && got_snapshot) break;
+  }
+  EXPECT_TRUE(got_auth_ok) << "the log stream did not ask for the token";
+  EXPECT_TRUE(got_snapshot);
+
+  test::CloseSocket(sock);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
+
+// The other streams keep read_open's behaviour: a stats client gets its
+// snapshot without authenticating.
+TEST_F(WsManagerTest, OtherStreamsStayOpenUnderReadOpen) {
+  ws_config_.auth_token = "secret-token";
+  ws_config_.allow_unauthenticated = false;
+  ws_config_.read_open = true;
+  StopLoopThread();
+  manager_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  manager_ = std::make_unique<WsManager>(loop_, ws_config_, handler_.get());
+  manager_->SetStatsProvider([]() -> json { return json{{"test", 1}}; });
+  manager_->Start();
+  StartLoopThread();
+
+  pending_endpoint_ = "stats";
+  int sock = ConnectRawSocket();
+  ASSERT_GE(sock, 0);
+  ReadHandshake(sock);
+  EXPECT_FALSE(ReadTextFrameByType(sock, "snapshot").empty())
+      << "read_open must keep the stats stream open without the token";
+
+  test::CloseSocket(sock);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
+
+// Without a token (--api-no-auth, and the unix socket, where the worker
+// gives the WS layer none) the log stream stays open under read_open.
+TEST_F(WsManagerTest, LogsStreamOpenWithoutATokenUnderReadOpen) {
+  ws_config_.auth_token.clear();
+  ws_config_.allow_unauthenticated = true;
+  ws_config_.read_open = true;
+  StopLoopThread();
+  manager_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  manager_ = std::make_unique<WsManager>(loop_, ws_config_, handler_.get());
+  manager_->SetStatsProvider([]() -> json { return json{{"test", 1}}; });
+  manager_->Start();
+  StartLoopThread();
+
+  manager_->PostLog("info", "worker", "test", "open without a token");
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  pending_endpoint_ = "logs";
+  int sock = ConnectRawSocket();
+  ASSERT_GE(sock, 0);
+  ReadHandshake(sock);
+  std::string frame = ReadTextFrameByType(sock, "snapshot");
+  EXPECT_NE(frame.find("open without a token"), std::string::npos) << frame;
+
+  test::CloseSocket(sock);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
+
 // ===================================================================
 // Coverage: Connection close frame handling (lines 520-522)
 // ===================================================================

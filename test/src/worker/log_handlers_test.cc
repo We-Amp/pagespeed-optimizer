@@ -490,6 +490,35 @@ TEST_F(LogHandlersTest, ResponseShapeIsStable) {
       << body << "\n---- end ----";
 }
 
+// The real registration under --api-read-open with a token: the other GET
+// routes are open, /v1/logs is not.
+class LogHandlersReadOpenTest : public LogHandlersTest {
+ protected:
+  void ConfigureServer(HttpServerConfig& config) override {
+    config.allow_unauthenticated = false;
+    config.auth_token = "secret-token";
+    config.read_open = true;
+  }
+};
+
+TEST_F(LogHandlersReadOpenTest, LogsNeedTheTokenWhileStatsStayOpen) {
+  PostLogs(1);
+  EXPECT_EQ(StatusCode(Get("/v1/config")), 200);  // read-open is in force...
+  EXPECT_EQ(StatusCode(Get("/v1/logs")), 401);    // ...but not for the log
+  EXPECT_EQ(StatusCode(SendRequest(
+                "HEAD /v1/logs HTTP/1.1\r\nHost: localhost\r\n\r\n")),
+            401);
+  EXPECT_EQ(
+      StatusCode(SendRequest("GET /v1/logs HTTP/1.1\r\nHost: localhost\r\n"
+                             "Authorization: Bearer wrong\r\n\r\n")),
+      403);
+  const std::string ok = SendRequest(
+      "GET /v1/logs HTTP/1.1\r\nHost: localhost\r\n"
+      "Authorization: Bearer secret-token\r\n\r\n");
+  EXPECT_EQ(StatusCode(ok), 200);
+  EXPECT_EQ(ParseJsonBody(ok)["entries"].size(), 1u);
+}
+
 // Direct reads of the ring: the test thread runs the loop itself, so it IS
 // the loop thread and may call BuildLogsResponse.
 class LogRingTest : public ::testing::Test {

@@ -1209,12 +1209,16 @@ void RegisterOperationalRoutes(HttpServer& server, ApiContext& ctx) {
   });
 
   // The log ring read.  Registered only when the Worker wired a ring
-  // reader; HEAD handling and the no-store default come from the shared
-  // dispatch, exactly like the other GET /v1/* routes.
+  // reader.  Log lines carry every host's URLs and error text, so on TCP
+  // the token stays required even under --api-read-open (the /v1/ws/logs
+  // stream keeps the same rule, enforced inside the WS layer); the unix
+  // socket and HEAD handling are the shared dispatch's, like every GET
+  // /v1/* route.
   if (ctx.read_logs) {
-    server.AddRoute("GET", "/v1/logs", [&ctx](const HttpRequest& req) {
-      return HandleLogs(ctx, req);
-    });
+    server.AddRoute(
+        "GET", "/v1/logs",
+        [&ctx](const HttpRequest& req) { return HandleLogs(ctx, req); },
+        RouteAuth::kTokenEvenIfReadOpen);
   }
 }
 

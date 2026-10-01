@@ -293,11 +293,18 @@ void WsManager::AcceptUpgrade(uv_stream_t* handle, std::string_view endpoint,
   conn->endpoint = std::string(endpoint);
   // A tokenless server only pre-authenticates the stream when it was
   // explicitly opened; the HTTP layer refuses the handshake otherwise, and
-  // this is the matching second line inside the WS layer.
+  // this is the matching second line inside the WS layer.  read_open
+  // pre-authenticates the read-only streams -- but not the log stream, which
+  // carries the same lines as GET /v1/logs and keeps a configured token the
+  // same way.  The handshake itself stays open for this path too (a browser
+  // cannot carry Authorization on it); this is the only gate the log stream
+  // gets.  Without a token (--api-no-auth, or the unix socket, where the
+  // worker passes none) every stream is open.
   const bool tokenless_open =
       config_.auth_token.empty() && config_.allow_unauthenticated;
-  conn->auth_required = !config_.auth_token.empty() && !config_.read_open;
-  conn->authenticated = tokenless_open || config_.read_open;
+  const bool read_open_applies = config_.read_open && endpoint != "logs";
+  conn->auth_required = !config_.auth_token.empty() && !read_open_applies;
+  conn->authenticated = tokenless_open || read_open_applies;
   conn->stats_interval_ms =
       (interval_ms > 0) ? std::clamp(interval_ms, config_.stats_min_interval_ms,
                                      config_.stats_max_interval_ms)

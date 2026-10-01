@@ -1025,7 +1025,7 @@ It is **off** until you enable a transport.
 | `--api-allow-remote` | `false`                                 | Confirm a deliberate non-loopback bind                              |
 | `--api-no-auth`      | `false`                                 | Confirm a deliberate tokenless API on loopback or the unix socket   |
 | `--api-token`        | (none)                                  | Bearer token for auth (prefer the `PAGESPEED_API_TOKEN` env var)    |
-| `--api-read-open`    | `false`                                 | Allow unauthenticated GET + WebSocket access                        |
+| `--api-read-open`    | `false`                                 | Allow unauthenticated GET + WebSocket access (the log endpoint/stream excepted) |
 | `--console-dir`      | (none)                                  | Path to the web console SPA directory                               |
 
 ### One invariant, enforced at startup
@@ -1054,7 +1054,10 @@ With a token configured, every endpoint except `/v1/health` requires an
 `Authorization: Bearer <token>` header. `--api-read-open` opens GET requests and
 WebSocket streams while keeping mutating operations behind the token — useful
 for a public demo dashboard. It is an explicit choice: an absent token no longer
-opens reads for you.
+opens reads for you. The one exception is the optimizer log: `GET /v1/logs` and
+the `/v1/ws/logs` stream still require the token — the stream takes it as its
+first message, since a WebSocket handshake carries no header a browser could
+set.
 
 ### The unix socket is the recommended local transport
 

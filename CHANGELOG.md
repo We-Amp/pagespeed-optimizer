@@ -45,6 +45,13 @@ another page is waiting, `gap` says entries were dropped between reads,
 `shed_total` counts entries the optimizer could not keep, and `stream_id`
 changes when the optimizer restarts.
 
+Security: with `--api-read-open`, the optimizer's log lines are no longer
+readable without the API token. Both the `/v1/ws/logs` stream and the new
+`GET /v1/logs` require the token over TCP whenever one is configured; the
+other read endpoints and streams stay open, and the unix socket and
+`--api-no-auth` are unchanged. A read-only console that showed the log
+without a token no longer does. Update recommended.
+
 ## [2.1.0] - 2026-09-17
 
 Changed (plan for this before you upgrade): **the disk cache starts empty.**
