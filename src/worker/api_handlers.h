@@ -61,6 +61,15 @@ struct ApiContext {
   // force -- a stock container is already "filtered" by its runtime's default
   // profile.  May be unset (treated as "unknown").
   std::function<std::string()> syscall_filter_state = nullptr;
+  // Reads a page of the worker's in-memory log ring for GET /v1/logs:
+  // (since, has_since, limit) -> the response document.  Wired by the
+  // Worker to WsManager::BuildLogsResponse; the /v1/logs route is registered
+  // only when this is set.  The default initializer keeps existing
+  // designated ApiContext constructions compiling under
+  // -Wmissing-designated-field-initializers (-Werror on Linux), as with
+  // browser_manager above.
+  std::function<nlohmann::json(uint64_t since, bool has_since, size_t limit)>
+      read_logs = nullptr;
 };
 
 // Builds the complete /v1/stats JSON document from live worker state.
@@ -122,6 +131,7 @@ std::string BuildPrometheusMetricsText(const PrometheusMetricsInputs& in);
 //   GET  /v1/metrics  - Prometheus text exposition format
 //   GET  /v1/config   - Current configuration
 //   PATCH /v1/config  - Hot-reload configuration fields
+//   GET  /v1/logs     - Recent log entries (registered when ctx.read_logs is set)
 void RegisterOperationalRoutes(HttpServer& server, ApiContext& ctx);
 
 }  // namespace pagespeed

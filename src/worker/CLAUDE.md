@@ -62,7 +62,12 @@ Embedded HTTP/1.1 server (libuv + llhttp) for the web console and programmatic a
 Health and the `/console`/`/console/*` static bundle
 (GET/HEAD only — static assets carry no data, #1449) are always exempt.
 `--api-read-open` allows unauthenticated GET requests and WebSocket connections
-(read-only streams).
+(read-only streams), except the optimizer log: `GET /v1/logs` (a route registered
+with `RouteAuth::kTokenEvenIfReadOpen`) keeps the token on TCP, and so does the
+`/v1/ws/logs` stream — not on the handshake (a browser cannot carry
+`Authorization` there), but via the same in-band auth message every WebSocket
+stream already uses, which `WsManager::AcceptUpgrade` no longer skips for `logs`
+under read-open. The unix socket and `--api-no-auth` leave both open.
 Mutating endpoints (POST/PATCH/DELETE) always require auth when a token is set.
 This enables exposing the console publicly as a read-only demo while requiring
 a token for configuration changes. WebSocket uses auth-via-first-message
@@ -85,7 +90,8 @@ a token for configuration changes. WebSocket uses auth-via-first-message
 | `/v1/capture/screenshot` | POST | CDP screenshot (needs Chrome) |
 | `/v1/ws/stats` | WS | Live stats streaming |
 | `/v1/ws/events` | WS | Real-time event stream |
-| `/v1/ws/logs` | WS | Real-time log streaming (ring buffer snapshot + live) |
+| `/v1/logs` | GET | Recent log entries from the in-memory ring (`since`/`limit` cursor; pages ≤ 512 KiB; `stream_id` changes on restart); token required on TCP even with `--api-read-open` |
+| `/v1/ws/logs` | WS | Real-time log streaming (ring buffer snapshot + live); token required on TCP even with `--api-read-open` (sent as the first message, not the handshake) |
 | `/console/*` | GET | Static file server for web console |
 
 **Tests**: `test/src/worker/` — 23 test files, key ones:

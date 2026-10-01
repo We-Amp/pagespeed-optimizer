@@ -405,7 +405,7 @@ void HttpServer::SetUpgradeHandler(UpgradeHandler handler) {
 }
 
 void HttpServer::AddRoute(std::string method, std::string path,
-                          RouteHandler handler) {
+                          RouteHandler handler, RouteAuth auth) {
   Route route;
   route.method = std::move(method);
   if (path.size() > 1 && path.back() == '*') {
@@ -416,6 +416,7 @@ void HttpServer::AddRoute(std::string method, std::string path,
     route.is_prefix = false;
   }
   route.handler = std::move(handler);
+  route.auth = auth;
   routes_.push_back(std::move(route));
 }
 
@@ -1100,7 +1101,7 @@ HttpResponse HttpServer::DispatchRequest(const HttpRequest& request) {
   }
 
   if (!skip_auth) {
-    auto auth_error = CheckAuth(request);
+    auto auth_error = CheckAuth(request, ReadOpenApplies(request));
     if (auth_error.has_value()) {
       return std::move(*auth_error);
     }
@@ -1186,7 +1187,8 @@ HttpResponse HttpServer::DispatchRequest(const HttpRequest& request) {
   return HttpResponse::Error(ApiErrorCode::kNotFound, "Not found");
 }
 
-std::optional<HttpResponse> HttpServer::CheckAuth(const HttpRequest& request) {
+std::optional<HttpResponse> HttpServer::CheckAuth(const HttpRequest& request,
+                                                  bool read_open_applies) {
   // On the unix-socket transport the FILESYSTEM is
   // the credential.  Reaching this socket at all means passing its 0660
   // `pagespeed` group scope, which is the same boundary that already governs
@@ -1220,8 +1222,9 @@ std::optional<HttpResponse> HttpServer::CheckAuth(const HttpRequest& request) {
   // read-only sibling of GET (same auth semantics, no body) and is what
   // monitoring tools (UptimeRobot, curl health checks) use, so it must follow
   // the same bypass as GET — otherwise HEAD returns a false 401 while GET to
-  // the same endpoint succeeds.
-  if (config_.read_open &&
+  // the same endpoint succeeds.  A route registered with
+  // RouteAuth::kTokenEvenIfReadOpen keeps the token here.
+  if (config_.read_open && read_open_applies &&
       (request.method == "GET" || request.method == "HEAD")) {
     return std::nullopt;
   }
@@ -1244,6 +1247,22 @@ std::optional<HttpResponse> HttpServer::CheckAuth(const HttpRequest& request) {
   }
 
   return std::nullopt;
+}
+
+bool HttpServer::ReadOpenApplies(const HttpRequest& request) const {
+  // HEAD is answered by the GET route (see DispatchRequest), so it follows
+  // that route's rule.
+  const std::string_view method = (request.method == "HEAD")
+                                      ? std::string_view("GET")
+                                      : std::string_view(request.method);
+  for (const auto& route : routes_) {
+    if (route.auth != RouteAuth::kTokenEvenIfReadOpen) continue;
+    const bool path_match = route.is_prefix
+                                ? request.path.starts_with(route.path)
+                                : (request.path == route.path);
+    if (path_match && route.method == method) return false;
+  }
+  return true;
 }
 
 void HttpServer::ApplyCors(const HttpRequest& request, HttpResponse& response) {

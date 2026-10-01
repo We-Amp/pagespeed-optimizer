@@ -13,6 +13,7 @@
 #include <utility>
 #include <vector>
 
+#include "absl/strings/numbers.h"
 #include "absl/strings/str_cat.h"
 #include "lib/classify/url_normalizer.h"
 #include "nlohmann/json.hpp"
@@ -1139,6 +1140,47 @@ static HttpResponse HandleConfigPatch(ApiContext& ctx,
 }
 
 // ---------------------------------------------------------------------------
+// GET /v1/logs?since=<seq>&limit=<n>
+// ---------------------------------------------------------------------------
+
+// Default and maximum entries per log page.  The ring owner also stops a
+// page at kMaxLogsPageBytes, so a page of long lines is shorter.
+static constexpr size_t kMaxLogReadLimit = 500;
+
+// Reads a page of the worker's in-memory log ring (WsManager).  `since` is a
+// sequence cursor: entries with seq > since, oldest first, so a burst larger
+// than a page is paged through on later reads; without it, the newest
+// entries.  Malformed numbers are a 400; an out-of-range limit clamps,
+// mirroring /v1/cache/urls.  (absl::SimpleAtoi also accepts a leading '+'
+// and surrounding whitespace, and an empty value reads as absent -- lenient
+// like the other endpoints; the module proxy in front is strict.)
+static HttpResponse HandleLogs(ApiContext& ctx, const HttpRequest& request) {
+  const std::string_view since_str = request.QueryParam("since");
+  const std::string_view limit_str = request.QueryParam("limit");
+
+  uint64_t since = 0;
+  bool has_since = false;
+  if (!since_str.empty()) {
+    if (!absl::SimpleAtoi(since_str, &since)) {
+      return HttpResponse::Error(ApiErrorCode::kBadRequest,
+                                 "Invalid 'since' parameter");
+    }
+    has_since = true;
+  }
+
+  size_t limit = kMaxLogReadLimit;
+  if (!limit_str.empty()) {
+    if (!absl::SimpleAtoi(limit_str, &limit)) {
+      return HttpResponse::Error(ApiErrorCode::kBadRequest,
+                                 "Invalid 'limit' parameter");
+    }
+  }
+  if (limit == 0 || limit > kMaxLogReadLimit) limit = kMaxLogReadLimit;
+
+  return HttpResponse().Json(DumpJson(ctx.read_logs(since, has_since, limit)));
+}
+
+// ---------------------------------------------------------------------------
 // Route registration
 // ---------------------------------------------------------------------------
 
@@ -1162,6 +1204,19 @@ void RegisterOperationalRoutes(HttpServer& server, ApiContext& ctx) {
   server.AddRoute("PATCH", "/v1/config", [&ctx](const HttpRequest& req) {
     return HandleConfigPatch(ctx, req);
   });
+
+  // The log ring read.  Registered only when the Worker wired a ring
+  // reader.  Log lines carry every host's URLs and error text, so on TCP
+  // the token stays required even under --api-read-open (the /v1/ws/logs
+  // stream keeps the same rule, enforced inside the WS layer); the unix
+  // socket and HEAD handling are the shared dispatch's, like every GET
+  // /v1/* route.
+  if (ctx.read_logs) {
+    server.AddRoute(
+        "GET", "/v1/logs",
+        [&ctx](const HttpRequest& req) { return HandleLogs(ctx, req); },
+        RouteAuth::kTokenEvenIfReadOpen);
+  }
 }
 
 }  // namespace pagespeed

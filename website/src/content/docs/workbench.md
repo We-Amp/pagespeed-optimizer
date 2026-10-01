@@ -57,9 +57,12 @@ storage.
 
 To expose the console as a read-only public dashboard, add `--api-read-open`
 to the worker. This allows unauthenticated visitors to view all dashboards,
-stats, and live WebSocket streams while requiring the token for mutating
-operations (config changes, cache purge, browser captures). The console
-shows a login prompt only when a write operation is attempted.
+stats, and live WebSocket streams — except the optimizer log: that stream
+still asks for the token, sent as its first message, because log lines can
+carry the URLs, origin hosts and error text of every site the optimizer
+serves — while requiring the token for mutating operations (config changes,
+cache purge, browser captures). The console shows a login prompt only when a
+write operation is attempted.
 
 ## Console Pages
 
@@ -242,9 +245,10 @@ TypeScript package, which offers:
 - **Auth** -- Bearer token via first WebSocket message (not query parameter)
 
 When no API token is configured, all endpoints are open. With a token and
-`--api-read-open`, GET endpoints and WebSocket streams are open while mutating
-operations require authentication. The health endpoint (`/v1/health`) is always
-unauthenticated.
+`--api-read-open`, GET endpoints and WebSocket streams are open — except the
+log stream, `/v1/ws/logs`, which still needs the token sent as its first
+message — while mutating operations require authentication. The health
+endpoint (`/v1/health`) is always unauthenticated.
 
 The console is a self-contained single-page app — it loads no third-party
 scripts, uses no external UI toolkit, and renders its time-series charts with a

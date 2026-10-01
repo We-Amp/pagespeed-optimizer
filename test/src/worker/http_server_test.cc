@@ -619,6 +619,54 @@ TEST_F(HttpServerAuthTest, HeadRequiresTokenWhenReadOpenDisabled) {
   EXPECT_NE(head_resp.find("401"), std::string::npos);
 }
 
+// A route registered with RouteAuth::kTokenEvenIfReadOpen keeps the bearer
+// token under --api-read-open on TCP, for GET and HEAD alike, while every
+// other GET stays open.
+TEST_F(HttpServerAuthTest, ReadOpenKeepsTokenOnlyRoutesClosed) {
+  StopLoopThread();
+  server_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  server_.reset();
+  config_.read_open = true;
+  server_ = std::make_unique<HttpServer>(loop_, config_, handler_.get());
+  server_->AddRoute("GET", "/v1/stats", [](const HttpRequest&) {
+    return HttpResponse().Json("{\"stats\":true}");
+  });
+  server_->AddRoute(
+      "GET", "/v1/logs",
+      [](const HttpRequest&) {
+        return HttpResponse().Json("{\"entries\":[]}");
+      },
+      RouteAuth::kTokenEvenIfReadOpen);
+  ASSERT_TRUE(server_->Start());
+  StartLoopThread();
+
+  // A standard route: open under read-open (the baseline).
+  EXPECT_NE(SendRequest("GET /v1/stats HTTP/1.1\r\nHost: localhost\r\n\r\n")
+                .find("200 OK"),
+            std::string::npos);
+
+  // The token-only route: 401 without a token, and no body leaks.
+  std::string get =
+      SendRequest("GET /v1/logs HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(get.find("401"), std::string::npos) << get;
+  EXPECT_EQ(get.find("entries"), std::string::npos) << get;
+  std::string head =
+      SendRequest("HEAD /v1/logs HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(head.find("401"), std::string::npos) << head;
+
+  // 403 with a wrong token, the answer with the right one.
+  EXPECT_NE(SendRequest("GET /v1/logs HTTP/1.1\r\nHost: localhost\r\n"
+                        "Authorization: Bearer wrong-token\r\n\r\n")
+                .find("403"),
+            std::string::npos);
+  std::string ok = SendRequest(
+      "GET /v1/logs HTTP/1.1\r\nHost: localhost\r\n"
+      "Authorization: Bearer secret-token-123\r\n\r\n");
+  EXPECT_NE(ok.find("200 OK"), std::string::npos) << ok;
+  EXPECT_NE(ok.find("{\"entries\":[]}"), std::string::npos) << ok;
+}
+
 // Issue #1449: the console's static bundle carries no operational data, so
 // GET/HEAD to /console and /console/* load without the bearer token even when
 // one is configured.  Every /v1/* data endpoint stays behind the token, and
@@ -2716,6 +2764,32 @@ TEST_F(HttpServerUnixSocketTest, NoBearerNeededOverTheSocket) {
       SendOverSocket("GET /v1/stats HTTP/1.1\r\nHost: x\r\n\r\n");
   EXPECT_NE(response.find("200"), std::string::npos) << response;
   EXPECT_NE(response.find("\"received\""), std::string::npos) << response;
+}
+
+// Over the socket the filesystem is the credential for every route, the
+// token-only ones included: the read-open exception is a TCP rule.
+TEST_F(HttpServerUnixSocketTest, TokenOnlyRouteNeedsNoBearerOverTheSocket) {
+  StopLoopThread();
+  server_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  server_.reset();
+  ::unlink(socket_path_.c_str());
+  config_.auth_token = "a-perfectly-good-token";
+  config_.read_open = true;
+  server_ = std::make_unique<HttpServer>(loop_, config_, handler_.get());
+  server_->AddRoute(
+      "GET", "/v1/logs",
+      [](const HttpRequest&) {
+        return HttpResponse().Json("{\"entries\":[]}");
+      },
+      RouteAuth::kTokenEvenIfReadOpen);
+  ASSERT_TRUE(server_->Start());
+  StartLoopThread();
+
+  std::string response =
+      SendOverSocket("GET /v1/logs HTTP/1.1\r\nHost: x\r\n\r\n");
+  EXPECT_NE(response.find("200"), std::string::npos) << response;
+  EXPECT_NE(response.find("{\"entries\":[]}"), std::string::npos) << response;
 }
 
 // The mutating half of the same rule: no bearer token, but the CSRF header is
