@@ -302,7 +302,7 @@ class JsonOutputCacheApiTest : public ::testing::Test {
 
     loop_ = new uv_loop_t;
     uv_loop_init(loop_);
-    handler_ = std::make_unique<NullMessageHandler>();
+    handler_ = std::make_unique<ConsoleMessageHandler>();
     HttpServerConfig server_config;
     server_config.port = 0;
     server_config.allow_unauthenticated = true;
@@ -353,7 +353,16 @@ class JsonOutputCacheApiTest : public ::testing::Test {
     char buf[4096];
     while (true) {
       ssize_t n = test::SocketRead(sock, buf, sizeof(buf));
-      if (n <= 0) break;
+      if (n <= 0) {
+        if (response.empty()) {
+          response = n == 0 ? "<closed by peer before any byte>"
+                            : std::string("<read failed: ") +
+                                  std::strerror(errno) + ">";
+          response += " active_connections=" +
+                      std::to_string(server_->active_connections());
+        }
+        break;
+      }
       response.append(buf, n);
     }
     test::CloseSocket(sock);
@@ -370,7 +379,7 @@ class JsonOutputCacheApiTest : public ::testing::Test {
   std::unique_ptr<CacheApiContext> ctx_;
   std::vector<CacheApiContext::CooldownEntry> cooldowns_;
   uv_loop_t* loop_ = nullptr;
-  std::unique_ptr<NullMessageHandler> handler_;
+  std::unique_ptr<MessageHandler> handler_;
   std::unique_ptr<HttpServer> server_;
   std::thread loop_thread_;
   std::atomic<bool> loop_running_{false};
