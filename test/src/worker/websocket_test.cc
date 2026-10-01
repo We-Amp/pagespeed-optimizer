@@ -764,6 +764,166 @@ TEST_F(WsManagerTest, LogsRingBufferCap) {
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
+// --- Log message hygiene -----------------------------------------------------
+
+TEST(LogMessageSanitizeTest, ValidTextIsUnchanged) {
+  EXPECT_EQ(SanitizeLogMessage(""), "");
+  EXPECT_EQ(SanitizeLogMessage("cache flush complete"), "cache flush complete");
+  // Two-, three- and four-byte characters pass through untouched.
+  const std::string multi = "caf\xC3\xA9 \xE2\x82\xAC \xF0\x9F\x98\x80";
+  EXPECT_EQ(SanitizeLogMessage(multi), multi);
+}
+
+TEST(LogMessageSanitizeTest, InvalidBytesBecomeReplacementCharacters) {
+  const std::string kFffd = "\xEF\xBF\xBD";
+  EXPECT_EQ(SanitizeLogMessage("bad \xFF\xFE byte"),
+            "bad " + kFffd + kFffd + " byte");
+  // A stray continuation byte.
+  EXPECT_EQ(SanitizeLogMessage("a\x80z"), "a" + kFffd + "z");
+  // An overlong encoding of '/'.
+  EXPECT_EQ(SanitizeLogMessage("\xC0\xAF"), kFffd + kFffd);
+  // A UTF-16 surrogate encoded as UTF-8.
+  EXPECT_EQ(SanitizeLogMessage("\xED\xA0\x80"), kFffd + kFffd + kFffd);
+  // Above U+10FFFF.
+  EXPECT_EQ(SanitizeLogMessage("\xF4\x90\x80\x80"),
+            kFffd + kFffd + kFffd + kFffd);
+  // A sequence cut short by the end of the message (a URL cut at a fixed
+  // byte count ends like this).
+  EXPECT_EQ(SanitizeLogMessage("ab\xE2\x82"), "ab" + kFffd + kFffd);
+}
+
+TEST(LogMessageSanitizeTest, LongMessagesAreCutOnACharacterBoundary) {
+  // Exactly at the cap: unchanged.
+  const std::string at_cap(kMaxLogMessageBytes, 'a');
+  EXPECT_EQ(SanitizeLogMessage(at_cap), at_cap);
+
+  // Twice the cap: the first 4096 bytes and a suffix naming what was cut.
+  EXPECT_EQ(SanitizeLogMessage(std::string(2 * kMaxLogMessageBytes, 'x')),
+            std::string(kMaxLogMessageBytes, 'x') +
+                "\xE2\x80\xA6[truncated 4096 bytes]");
+
+  // A three-byte character straddling the cap is not split: 4095 'a', then
+  // U+20AC (3 bytes) and "tail" -- the cut falls before the euro sign.
+  const std::string straddle =
+      std::string(kMaxLogMessageBytes - 1, 'a') + "\xE2\x82\xAC" + "tail";
+  EXPECT_EQ(SanitizeLogMessage(straddle),
+            std::string(kMaxLogMessageBytes - 1, 'a') +
+                "\xE2\x80\xA6[truncated 7 bytes]");
+}
+
+TEST(LogMessageSanitizeTest, ReplacementHappensBeforeTheCap) {
+  // 4094 'a' and one invalid byte: the U+FFFD makes it 4097 bytes, so the
+  // cap applies to the repaired text and the replacement character (which
+  // would straddle the cap) is cut whole.
+  EXPECT_EQ(
+      SanitizeLogMessage(std::string(kMaxLogMessageBytes - 2, 'a') + "\xFF"),
+      std::string(kMaxLogMessageBytes - 2, 'a') +
+          "\xE2\x80\xA6[truncated 3 bytes]");
+}
+
+TEST_F(WsManagerTest, LogsEntriesCarryAscendingSeq) {
+  manager_->PostLog("info", "worker", "worker", "first");
+  manager_->PostLog("warning", "worker", "image", "second");
+  manager_->PostLog("error", "cache", "cache", "third");
+  // PostLog drains via async callback on the loop thread; give it time.
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+  pending_endpoint_ = "logs";
+  int sock = ConnectRawSocket();
+  ASSERT_GE(sock, 0);
+  ReadHandshake(sock);
+
+  std::string msg = ReadTextFrameByType(sock, "snapshot");
+  ASSERT_FALSE(msg.empty());
+  json j = json::parse(msg, nullptr, false);
+  ASSERT_FALSE(j.is_discarded());
+  ASSERT_GE(j["entries"].size(), 3u);
+  // Entries carry a per-process sequence number, ascending in ring order,
+  // starting at 0 on this fresh manager.
+  for (size_t i = 0; i < 3; ++i) {
+    ASSERT_TRUE(j["entries"][i].contains("seq")) << i;
+    EXPECT_EQ(j["entries"][i]["seq"].get<uint64_t>(), i) << i;
+  }
+
+  // A live entry drained after the snapshot continues the sequence.
+  manager_->PostLog("info", "worker", "worker", "fourth");
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+  std::string live = ReadTextFrameByType(sock, "log");
+  ASSERT_FALSE(live.empty());
+  json lj = json::parse(live, nullptr, false);
+  ASSERT_FALSE(lj.is_discarded());
+  ASSERT_TRUE(lj.contains("seq"));
+  EXPECT_EQ(lj["seq"].get<uint64_t>(), 3u);
+
+  test::CloseSocket(sock);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
+
+TEST_F(WsManagerTest, LogsSeqsContiguousAcrossRingWrap) {
+  // Fill the ring beyond its capacity (same shape as LogsRingBufferCap).
+  for (int i = 0; i < 2050; ++i) {
+    manager_->PostLog("info", "worker", "worker", "entry " + std::to_string(i));
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+
+  pending_endpoint_ = "logs";
+  int sock = ConnectRawSocket();
+  ASSERT_GE(sock, 0);
+  ReadHandshake(sock);
+  std::string msg = ReadTextFrameByType(sock, "snapshot");
+  ASSERT_FALSE(msg.empty());
+  json j = json::parse(msg, nullptr, false);
+  ASSERT_FALSE(j.is_discarded());
+  ASSERT_EQ(j["entries"].size(), 2000u);
+  // The oldest 50 entries were evicted; the retained seqs are contiguous
+  // and ascending: total - 2000 .. total - 1.
+  const uint64_t total = j["total"].get<uint64_t>();
+  ASSERT_GE(total, 2050u);
+  uint64_t expect = total - 2000;
+  for (const auto& entry : j["entries"]) {
+    ASSERT_TRUE(entry.contains("seq"));
+    EXPECT_EQ(entry["seq"].get<uint64_t>(), expect);
+    ++expect;
+  }
+
+  test::CloseSocket(sock);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
+
+TEST_F(WsManagerTest, LogsInvalidUtf8IsReplacedOnTheStream) {
+  // A log client is connected, so the drain serializes each entry for it:
+  // a message with invalid bytes must neither stop the process nor reach the
+  // client as anything but valid UTF-8.
+  pending_endpoint_ = "logs";
+  int sock = ConnectRawSocket();
+  ASSERT_GE(sock, 0);
+  ReadHandshake(sock);
+  ASSERT_FALSE(ReadTextFrameByType(sock, "snapshot").empty());
+
+  manager_->PostLog("warning", "worker", "worker", "bad \xFF\xFE byte");
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+  std::string live = ReadTextFrameByType(sock, "log");
+  ASSERT_FALSE(live.empty());
+  json lj = json::parse(live, nullptr, false);  // strict: rejects bad UTF-8
+  ASSERT_FALSE(lj.is_discarded());
+  EXPECT_EQ(lj["message"].get<std::string>(),
+            "bad \xEF\xBF\xBD\xEF\xBF\xBD byte");
+  test::CloseSocket(sock);
+
+  // A client connecting later gets the same repaired text in its snapshot.
+  int sock2 = ConnectRawSocket();
+  ASSERT_GE(sock2, 0);
+  ReadHandshake(sock2);
+  json snap =
+      json::parse(ReadTextFrameByType(sock2, "snapshot"), nullptr, false);
+  ASSERT_FALSE(snap.is_discarded());
+  ASSERT_FALSE(snap["entries"].empty());
+  EXPECT_EQ(snap["entries"].back()["message"].get<std::string>(),
+            "bad \xEF\xBF\xBD\xEF\xBF\xBD byte");
+  test::CloseSocket(sock2);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
+
 TEST_F(WsManagerTest, LogsMetricsTracking) {
   pending_endpoint_ = "logs";
   int sock = ConnectRawSocket();

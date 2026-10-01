@@ -29,6 +29,14 @@ to a file that can be read while the service runs; a log file that cannot be
 opened stops the service with service-specific exit code 90. Run from a
 console, `--service` is refused with a message saying so.
 
+Security: a malformed log line could stop the optimizer. Update recommended.
+
+Changed: optimizer log messages are always valid UTF-8 (bytes that are not
+are shown as U+FFFD) and at most 4 KiB long; a longer message is cut on a
+character boundary and ends in "…[truncated N bytes]". Log entries on the
+live log stream carry a `seq` number that increases by one per entry while
+the process runs.
+
 ## [2.1.0] - 2026-09-17
 
 Changed (plan for this before you upgrade): **the disk cache starts empty.**

@@ -32,6 +32,18 @@ namespace pagespeed {
 
 class MessageHandler;
 
+// Longest log message the ring keeps, in bytes of UTF-8.  A longer message is
+// cut on a character boundary and ends in "…[truncated N bytes]".
+inline constexpr size_t kMaxLogMessageBytes = 4096;
+
+// Makes a log message safe to store and to serve as JSON: every byte that
+// does not begin or continue a well-formed UTF-8 sequence becomes U+FFFD,
+// then a message longer than kMaxLogMessageBytes keeps its longest prefix of
+// at most kMaxLogMessageBytes bytes that ends on a character boundary,
+// followed by "…[truncated N bytes]" (N = the number of bytes removed).
+// Pure; callable from any thread.
+std::string SanitizeLogMessage(std::string message);
+
 // Configuration for WebSocket endpoints.
 struct WsConfig {
   int max_connections = 8;       // Max simultaneous WS connections.

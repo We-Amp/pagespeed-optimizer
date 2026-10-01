@@ -20,6 +20,104 @@ namespace pagespeed {
 
 using json = nlohmann::json;
 
+namespace {
+
+constexpr std::string_view kReplacementCharacter = "\xEF\xBF\xBD";  // U+FFFD
+constexpr std::string_view kEllipsis = "\xE2\x80\xA6";              // U+2026
+
+// Length of the well-formed UTF-8 sequence that starts at s[i] (RFC 3629;
+// Unicode's table of well-formed byte sequences), or 0 when none does:
+// a stray continuation byte, an overlong lead (C0, C1), F5..FF, a surrogate
+// (ED A0..BF), anything above U+10FFFF (F4 90..), or a sequence the end of
+// the string cuts short.
+size_t Utf8SequenceLength(std::string_view s, size_t i) {
+  const auto byte = [&s](size_t k) { return static_cast<unsigned char>(s[k]); };
+  const unsigned char lead = byte(i);
+  if (lead < 0x80) return 1;
+  size_t length = 0;
+  unsigned char second_lo = 0x80;
+  unsigned char second_hi = 0xBF;
+  if (lead >= 0xC2 && lead <= 0xDF) {
+    length = 2;
+  } else if (lead == 0xE0) {
+    length = 3;
+    second_lo = 0xA0;  // no overlong three-byte forms
+  } else if ((lead >= 0xE1 && lead <= 0xEC) || lead == 0xEE || lead == 0xEF) {
+    length = 3;
+  } else if (lead == 0xED) {
+    length = 3;
+    second_hi = 0x9F;  // no UTF-16 surrogates
+  } else if (lead == 0xF0) {
+    length = 4;
+    second_lo = 0x90;  // no overlong four-byte forms
+  } else if (lead >= 0xF1 && lead <= 0xF3) {
+    length = 4;
+  } else if (lead == 0xF4) {
+    length = 4;
+    second_hi = 0x8F;  // nothing above U+10FFFF
+  } else {
+    return 0;
+  }
+  if (i + length > s.size()) return 0;
+  if (byte(i + 1) < second_lo || byte(i + 1) > second_hi) return 0;
+  for (size_t k = 2; k < length; ++k) {
+    if (byte(i + k) < 0x80 || byte(i + k) > 0xBF) return 0;
+  }
+  return length;
+}
+
+// Every serialization of a log entry goes through here: the replace handler
+// turns any invalid UTF-8 into U+FFFD instead of throwing on the loop thread.
+// SanitizeLogMessage already guarantees valid messages; this is the backstop.
+std::string DumpLog(const json& j) {
+  return j.dump(-1, ' ', false, json::error_handler_t::replace);
+}
+
+}  // namespace
+
+std::string SanitizeLogMessage(std::string message) {
+  // Repair: copy only from the first invalid byte on (valid text, the
+  // common case, is not copied).
+  size_t i = 0;
+  while (i < message.size()) {
+    const size_t n = Utf8SequenceLength(message, i);
+    if (n == 0) break;
+    i += n;
+  }
+  if (i < message.size()) {
+    std::string repaired = message.substr(0, i);
+    repaired.reserve(message.size() + 8);
+    while (i < message.size()) {
+      const size_t n = Utf8SequenceLength(message, i);
+      if (n == 0) {
+        repaired.append(kReplacementCharacter);
+        ++i;
+      } else {
+        repaired.append(message, i, n);
+        i += n;
+      }
+    }
+    message = std::move(repaired);
+  }
+
+  // Cap: the text is valid UTF-8 now, so backing up over continuation bytes
+  // finds the character boundary at or below the cap.
+  if (message.size() > kMaxLogMessageBytes) {
+    size_t keep = kMaxLogMessageBytes;
+    while (keep > 0 &&
+           (static_cast<unsigned char>(message[keep]) & 0xC0) == 0x80) {
+      --keep;
+    }
+    const size_t removed = message.size() - keep;
+    message.resize(keep);
+    message.append(kEllipsis);
+    message.append("[truncated ");
+    message.append(std::to_string(removed));
+    message.append(" bytes]");
+  }
+  return message;
+}
+
 // ---------------------------------------------------------------------------
 // WsConnection — per-client WebSocket state
 // ---------------------------------------------------------------------------
@@ -723,7 +821,7 @@ void WsManager::PostLog(std::string_view level, std::string_view source,
   entry["source"] = source;
   entry["level"] = level;
   entry["module"] = module;
-  entry["message"] = std::move(message);
+  entry["message"] = SanitizeLogMessage(std::move(message));
 
   {
     std::lock_guard<std::mutex> lock(log_mutex_);
@@ -746,6 +844,12 @@ void WsManager::DrainPendingLogs() {
   }
 
   for (auto& entry : logs) {
+    // Stamp the per-process sequence number at drain time, on the loop
+    // thread: ordering is the ring order by construction, no atomic is
+    // needed, the retained seqs stay contiguous, and entries shed at a full
+    // pending queue (PostLog's drop path) never receive one -- so a reader
+    // never sees a phantom gap.
+    entry["seq"] = log_total_;
     // Append to ring buffer, evicting oldest if at capacity.
     if (log_ring_.size() >= kMaxLogRingSize) {
       log_ring_.pop_front();
@@ -758,7 +862,7 @@ void WsManager::DrainPendingLogs() {
       if (conn->closing || !conn->authenticated) continue;
       if (conn->endpoint != "logs") continue;
 
-      std::string serialized = entry.dump();
+      std::string serialized = DumpLog(entry);
       if (conn->log_buffer_bytes + serialized.size() > config_.event_hwm) {
         metrics_.messages_dropped.fetch_add(1, std::memory_order_relaxed);
         continue;
@@ -783,7 +887,7 @@ void WsManager::FlushLogBatch() {
     // Send individual log entries (not batched array — matches
     // frontend protocol expectation).
     for (auto& entry : conn->log_buffer) {
-      SendText(conn, entry.dump());
+      SendText(conn, DumpLog(entry));
     }
     conn->log_buffer.clear();
     conn->log_buffer_bytes = 0;
@@ -798,7 +902,7 @@ void WsManager::SendLogSnapshot(WsConnection* conn) {
     snapshot["entries"].push_back(entry);
   }
   snapshot["total"] = log_total_;
-  SendText(conn, snapshot.dump());
+  SendText(conn, DumpLog(snapshot));
 }
 
 }  // namespace pagespeed

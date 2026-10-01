@@ -1002,11 +1002,17 @@ ws.onmessage = (event) => {
 
 **Server messages:**
 
-| Type       | Description                                                                                                                   |
-| ---------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `snapshot` | Ring buffer on connect: `{type: "snapshot", entries: LogEntry[], total: N}`                                                   |
-| `log`      | Single log entry: `{type: "log", timestamp: MS, source: "...", level: "...", module: "...", message: "...", details?: {...}}` |
-| `overflow` | `{type: "overflow", dropped_count: N}`                                                                                        |
+| Type       | Description                                                                                                                           |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| `snapshot` | Ring buffer on connect: `{type: "snapshot", entries: LogEntry[], total: N}`                                                              |
+| `log`      | Single log entry: `{type: "log", seq: N, timestamp: MS, source: "...", level: "...", module: "...", message: "...", details?: {...}}` |
+| `overflow` | `{type: "overflow", dropped_count: N}`                                                                                                   |
+
+Every entry carries `seq`, a sequence number that increases by one per entry
+for as long as the optimizer process runs (it starts again at 0 after a
+restart). `message` is always valid UTF-8 — bytes that are not are shown as
+U+FFFD — and at most 4 KiB: a longer message is cut on a character boundary
+and ends in `…[truncated N bytes]`.
 
 **Log sources:** `worker`, `cache`, `chrome`
 
