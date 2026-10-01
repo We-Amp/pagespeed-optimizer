@@ -218,6 +218,21 @@ TEST(WsHandshakeTest, HandshakeResponse) {
 
 class WsManagerTest : public ::testing::Test {
  protected:
+  // Connection teardown runs on the loop thread; poll for the expected
+  // count (up to a deadline) instead of sleeping a fixed time, so a slow
+  // host cannot observe a close that is still in flight.
+  int WaitForActiveConnections(
+      int expected,
+      std::chrono::milliseconds timeout = std::chrono::milliseconds(3000)) {
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    int n = manager_->active_connections();
+    while (n != expected && std::chrono::steady_clock::now() < deadline) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+      n = manager_->active_connections();
+    }
+    return n;
+  }
+
   void SetUp() override {
     loop_ = new uv_loop_t;
     uv_loop_init(loop_);
@@ -429,8 +444,7 @@ TEST_F(WsManagerTest, HandshakeAndConnect) {
   EXPECT_EQ(manager_->active_connections(), 1);
 
   test::CloseSocket(sock);
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  EXPECT_EQ(manager_->active_connections(), 0);
+  EXPECT_EQ(WaitForActiveConnections(0), 0);
 }
 
 TEST_F(WsManagerTest, StatsSnapshotOnConnect) {
@@ -580,8 +594,7 @@ TEST_F(WsManagerTest, WrongAuthToken) {
   std::string auth_msg = BuildMaskedTextFrame(R"({"auth":"wrong"})");
   test::SocketWrite(sock, auth_msg.data(), auth_msg.size());
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(200));
-  EXPECT_EQ(manager_->active_connections(), 0);
+  EXPECT_EQ(WaitForActiveConnections(0), 0);
   test::CloseSocket(sock);
 }
 
@@ -1276,8 +1289,7 @@ TEST_F(WsManagerTest, InvalidAuthJsonFormat) {
   std::string invalid_msg = BuildMaskedTextFrame("not json at all");
   test::SocketWrite(sock, invalid_msg.data(), invalid_msg.size());
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(200));
-  EXPECT_EQ(manager_->active_connections(), 0)
+  EXPECT_EQ(WaitForActiveConnections(0), 0)
       << "Invalid auth JSON should close the connection";
   test::CloseSocket(sock);
 }
@@ -1301,8 +1313,7 @@ TEST_F(WsManagerTest, AuthMessageMissingAuthField) {
       BuildMaskedTextFrame(R"({"token":"secret-token"})");
   test::SocketWrite(sock, missing_auth.data(), missing_auth.size());
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(200));
-  EXPECT_EQ(manager_->active_connections(), 0)
+  EXPECT_EQ(WaitForActiveConnections(0), 0)
       << "Auth message without 'auth' field should close the connection";
   test::CloseSocket(sock);
 }
@@ -1470,8 +1481,7 @@ TEST_F(WsManagerTest, LogsStreamKeepsTheTokenUnderReadOpen) {
       << "log snapshot sent without the token: " << frame;
   EXPECT_EQ(frame.find("only the token may read this"), std::string::npos);
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  EXPECT_EQ(manager_->active_connections(), 0)
+  EXPECT_EQ(WaitForActiveConnections(0), 0)
       << "an unauthenticated log stream outlived the auth timeout";
   test::CloseSocket(sock);
 }
@@ -1605,8 +1615,7 @@ TEST_F(WsManagerTest, UnknownStreamNotPreAuthenticatedUnderReadOpen) {
   EXPECT_TRUE(msg.empty() || msg[0] == '\x08')
       << "an unlisted stream was pre-authenticated under read-open: " << msg;
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  EXPECT_EQ(manager_->active_connections(), 0)
+  EXPECT_EQ(WaitForActiveConnections(0), 0)
       << "an unauthenticated unknown-stream connection outlived the auth "
          "timeout";
   test::CloseSocket(sock);
@@ -1735,8 +1744,7 @@ TEST_F(WsManagerTest, PreauthBudgetFreedOnTimeoutNoLeak) {
         << ": budget slot was not freed by the prior "
            "timeout";
     // Never authenticate; wait out the timeout to free the slot again.
-    std::this_thread::sleep_for(std::chrono::milliseconds(300));
-    EXPECT_EQ(manager_->active_connections(), 0) << "iteration " << i;
+    EXPECT_EQ(WaitForActiveConnections(0), 0) << "iteration " << i;
     test::CloseSocket(sock);
   }
 }
@@ -1809,8 +1817,7 @@ TEST_F(WsManagerTest, PreauthBudgetFreedOnExplicitClose) {
   std::string close_frame = BuildMaskedCloseFrame(1000);
   ASSERT_EQ(test::SocketWrite(sock1, close_frame.data(), close_frame.size()),
             static_cast<ssize_t>(close_frame.size()));
-  std::this_thread::sleep_for(std::chrono::milliseconds(150));
-  EXPECT_EQ(manager_->active_connections(), 0);
+  EXPECT_EQ(WaitForActiveConnections(0), 0);
 
   // The slot must be free again well within the 5s auth timeout.
   int sock2 = ConnectRawSocket();
@@ -1849,8 +1856,7 @@ TEST_F(WsManagerTest, PreauthBudgetFreedOnReadError) {
   // Abrupt client-side close, no close frame: the server's next read sees
   // EOF/error, not a protocol-level close.
   test::CloseSocket(sock1);
-  std::this_thread::sleep_for(std::chrono::milliseconds(150));
-  EXPECT_EQ(manager_->active_connections(), 0);
+  EXPECT_EQ(WaitForActiveConnections(0), 0);
 
   int sock2 = ConnectRawSocket();
   ASSERT_GE(sock2, 0);
@@ -2135,8 +2141,7 @@ TEST_F(WsManagerTest, ClientCloseFrame) {
 
   test::SocketWrite(sock, close_frame.data(), close_frame.size());
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(200));
-  EXPECT_EQ(manager_->active_connections(), 0)
+  EXPECT_EQ(WaitForActiveConnections(0), 0)
       << "Connection should be closed after client close frame";
 
   test::CloseSocket(sock);
@@ -2207,8 +2212,7 @@ TEST_F(WsManagerTest, ContinuationFrameClosesConnection) {
 
   test::SocketWrite(sock, cont_frame.data(), cont_frame.size());
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(200));
-  EXPECT_EQ(manager_->active_connections(), 0)
+  EXPECT_EQ(WaitForActiveConnections(0), 0)
       << "Continuation frame should trigger protocol error close";
 
   test::CloseSocket(sock);
@@ -2278,8 +2282,7 @@ TEST_F(WsManagerTest, AuthFieldNotString) {
   std::string bad_auth = BuildMaskedTextFrame(R"({"auth": 12345})");
   test::SocketWrite(sock, bad_auth.data(), bad_auth.size());
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(200));
-  EXPECT_EQ(manager_->active_connections(), 0)
+  EXPECT_EQ(WaitForActiveConnections(0), 0)
       << "Non-string auth field should close the connection";
   test::CloseSocket(sock);
 }
@@ -2307,8 +2310,7 @@ TEST_F(WsManagerTest, CloseFrameWithoutCode) {
 
   test::SocketWrite(sock, close_frame.data(), close_frame.size());
 
-  std::this_thread::sleep_for(std::chrono::milliseconds(200));
-  EXPECT_EQ(manager_->active_connections(), 0)
+  EXPECT_EQ(WaitForActiveConnections(0), 0)
       << "Close frame without code should use default code 1000";
 
   test::CloseSocket(sock);
@@ -2436,8 +2438,7 @@ TEST_F(WsManagerTest, MaxConnectionsRejectsWithCorrectMetrics) {
 
   // After closing first, a new connection should succeed.
   test::CloseSocket(sock1);
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
-  EXPECT_EQ(manager_->active_connections(), 0);
+  EXPECT_EQ(WaitForActiveConnections(0), 0);
 
   int sock3 = ConnectRawSocket();
   ASSERT_GE(sock3, 0);
