@@ -893,6 +893,68 @@ The `png_base64` field contains the screenshot as a base64-encoded PNG image.
 
 ---
 
+## Logs
+
+### GET /v1/logs
+
+Recent log entries from the optimizer's in-memory log (the same 2,000-entry
+ring the [`/v1/ws/logs`](#get-v1wslogs) stream starts from), for clients that
+poll over plain HTTP.
+
+```bash
+curl "http://localhost:9880/v1/logs?limit=100"
+curl "http://localhost:9880/v1/logs?since=1841"
+```
+
+**Query parameters:**
+
+| Parameter | Type | Default | Description |
+| --------- | ---- | ------- | ----------- |
+| `since`   | int  | -       | Return entries with a `seq` above this, oldest first. Without it, the newest entries. |
+| `limit`   | int  | 500     | Max entries to return (capped at 500; `0` means the default) |
+
+A page is also at most 512 KiB of JSON: a page of long lines holds fewer
+entries, and `more` says when to read again.
+
+**Response:**
+
+```json
+{
+  "entries": [
+    {
+      "level": "info",
+      "message": "cache flush complete",
+      "module": "worker",
+      "seq": 1842,
+      "source": "worker",
+      "timestamp": 1759230000000,
+      "type": "log"
+    }
+  ],
+  "gap": false,
+  "more": false,
+  "newest_seq": 1842,
+  "next_since": 1842,
+  "oldest_seq": 0,
+  "shed_total": 0,
+  "stream_id": "9f2c4e1a7b3d5c80"
+}
+```
+
+| Field        | Description |
+| ------------ | ----------- |
+| `entries`    | Log entries, ascending by `seq`. The entry fields are the ones [`/v1/ws/logs`](#get-v1wslogs) sends. |
+| `next_since` | Pass this as `since` on the next read. |
+| `more`       | Newer entries are waiting beyond this page: read again now. |
+| `gap`        | Entries between your `since` and `oldest_seq` were dropped from the ring before you read them. |
+| `oldest_seq` / `newest_seq` | The oldest and newest entry the ring still holds. |
+| `shed_total` | Entries not recorded because the optimizer was logging faster than it could keep; increases over the process's life. |
+| `stream_id`  | Identifies this optimizer process. When it changes, the optimizer restarted and `seq` started again at 0: drop your `since` and read the newest entries. |
+
+A `since` or `limit` that is not a whole number is a 400.
+
+---
+
 ## WebSocket Endpoints
 
 WebSocket endpoints provide real-time streaming data. All three endpoints follow

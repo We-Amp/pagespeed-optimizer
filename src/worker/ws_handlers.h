@@ -36,6 +36,11 @@ class MessageHandler;
 // cut on a character boundary and ends in "…[truncated N bytes]".
 inline constexpr size_t kMaxLogMessageBytes = 4096;
 
+// Largest serialized GET /v1/logs page, envelope included.  A page stops
+// before it would exceed this, whatever its entry limit says, so a page of
+// long lines is shorter, never larger.
+inline constexpr size_t kMaxLogsPageBytes = 512 * 1024;
+
 // Makes a log message safe to store and to serve as JSON: every byte that
 // does not begin or continue a well-formed UTF-8 sequence becomes U+FFFD,
 // then a message longer than kMaxLogMessageBytes keeps its longest prefix of
@@ -129,6 +134,21 @@ class WsManager {
   void PostLog(std::string_view level, std::string_view source,
                std::string_view module, std::string message);
 
+  // Build the GET /v1/logs response document from the log ring.
+  // LOOP THREAD ONLY: log_ring_ is confined to the event loop (mutated only
+  // by DrainPendingLogs), and route handlers run on that loop, so this reads
+  // the ring with no lock -- log_mutex_ guards pending_logs_, not the ring.
+  // Never blocks.  With has_since, the oldest entries newer than `since`;
+  // otherwise the newest entries.  At most `limit` entries and at most
+  // kMaxLogsPageBytes serialized, but at least one entry when one matches.
+  nlohmann::json BuildLogsResponse(uint64_t since, bool has_since,
+                                   size_t limit) const;
+
+  // This process's log stream identity: 16 lowercase hex digits (64 random
+  // bits) drawn when the manager is constructed.  Sequence numbers start
+  // again at 0 in a new process; a reader that sees this change knows it.
+  const std::string& stream_id() const { return stream_id_; }
+
   // Access metrics.
   const WsMetrics& metrics() const { return metrics_; }
 
@@ -174,6 +194,7 @@ class WsManager {
   uv_loop_t* loop_;
   WsConfig config_;
   MessageHandler* handler_;
+  const std::string stream_id_;  // see stream_id()
   WsMetrics metrics_;
   std::atomic<bool> running_ = false;
 
@@ -202,6 +223,9 @@ class WsManager {
   std::vector<nlohmann::json> pending_logs_;
   std::deque<nlohmann::json> log_ring_;
   uint64_t log_total_ = 0;  // Total logs ever posted (for overflow count).
+  // Posts dropped at a full pending queue.  They never receive a seq (no
+  // phantom gap); the count lets a reader say that entries were not kept.
+  std::atomic<uint64_t> log_shed_total_{0};
   static constexpr size_t kMaxLogRingSize = 2000;
   static constexpr size_t kMaxPendingQueueSize = 10000;
 

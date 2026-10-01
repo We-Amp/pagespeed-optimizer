@@ -265,6 +265,25 @@ gtest_test(
 )
 
 gtest_test(
+    name = "log_handlers_test",
+    size = "medium",
+    data = ["testdata/logs_page.golden.json"],
+    deps = [
+        "//lib/base:message_handler",
+        "//src/product_version:version",
+        "//src/worker:api_handlers",
+        "//src/worker:http_server",
+        "//src/worker:serve_stats",
+        "//src/worker:shared_config",
+        "//src/worker:worker_types",
+        "//src/worker:ws_handlers",
+        "//test/test_util:tcp_client",
+        "@libuv",
+        "@nlohmann_json//:json",
+    ],
+)
+
+gtest_test(
     name = "capture_handlers_test",
     deps = [
         "//lib/base:message_handler",

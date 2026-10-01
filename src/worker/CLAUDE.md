@@ -85,6 +85,7 @@ a token for configuration changes. WebSocket uses auth-via-first-message
 | `/v1/capture/screenshot` | POST | CDP screenshot (needs Chrome) |
 | `/v1/ws/stats` | WS | Live stats streaming |
 | `/v1/ws/events` | WS | Real-time event stream |
+| `/v1/logs` | GET | Recent log entries from the in-memory ring (`since`/`limit` cursor; pages ≤ 512 KiB; `stream_id` changes on restart) |
 | `/v1/ws/logs` | WS | Real-time log streaming (ring buffer snapshot + live) |
 | `/console/*` | GET | Static file server for web console |
 

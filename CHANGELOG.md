@@ -37,6 +37,14 @@ character boundary and ends in "…[truncated N bytes]". Log entries on the
 live log stream carry a `seq` number that increases by one per entry while
 the process runs.
 
+Added: `GET /v1/logs?since=<seq>&limit=<n>` reads the optimizer's recent log
+over plain HTTP, for clients that cannot hold a WebSocket open. Each page
+holds at most 500 entries and 512 KiB, oldest first after `since` or the
+newest without it; `next_since` is the cursor for the next read, `more` says
+another page is waiting, `gap` says entries were dropped between reads,
+`shed_total` counts entries the optimizer could not keep, and `stream_id`
+changes when the optimizer restarts.
+
 ## [2.1.0] - 2026-09-17
 
 Changed (plan for this before you upgrade): **the disk cache starts empty.**
