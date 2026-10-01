@@ -1644,14 +1644,29 @@ TEST_F(WsManagerTest, PreauthBudgetRejectsBeyondLimit) {
   EXPECT_EQ(manager_->active_connections(), 1);
 
   // Second connection is refused outright: the pre-auth budget is spent.
+  // Prove the refusal's actual shape -- no 101, no bytes at all, just the
+  // raw handle closed -- rather than only the aggregate connection count
+  // (which a sufficiently-early sleep could pass vacuously).
   int sock2 = ConnectRawSocket();
   ASSERT_GE(sock2, 0);
-  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  std::string refusal = ReadHandshake(sock2);
+  EXPECT_TRUE(refusal.empty())
+      << "a refused upgrade sent handshake bytes: " << refusal;
   EXPECT_EQ(manager_->active_connections(), 1)
       << "a connection was admitted past the pre-auth budget";
 
+  // The refusal above must not itself have consumed (or leaked) a slot:
+  // freeing sock1's slot admits a fresh connection normally.
   test::CloseSocket(sock1);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  int sock3 = ConnectRawSocket();
+  ASSERT_GE(sock3, 0);
+  EXPECT_NE(ReadHandshake(sock3).find("101"), std::string::npos)
+      << "a connection after the refusal was not admitted once the slot "
+         "freed";
+
   test::CloseSocket(sock2);
+  test::CloseSocket(sock3);
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
@@ -1954,6 +1969,93 @@ TEST(WsAuthTimeoutWarningIntegrationTest, RepeatedTimeoutsLogOnlyOnce) {
   }
   EXPECT_EQ(timeout_warnings, 1)
       << "expected exactly one rate-limited warning across 3 timeouts";
+}
+
+// Sibling of RepeatedTimeoutsLogOnlyOnce for the OTHER warning this change
+// introduces: a refusal costs a client nothing (no 2s wait), so without its
+// own rate limit the ring would fill at whatever rate upgrades arrive --
+// review finding I-2. One connection holds the only pre-auth slot for the
+// whole test (long auth_timeout_ms, never authenticates, never closes), so
+// every further upgrade is refused outright.
+TEST(WsAuthTimeoutWarningIntegrationTest, RepeatedRefusalsLogOnlyOnce) {
+  uv_loop_t* loop = new uv_loop_t;
+  uv_loop_init(loop);
+  auto handler = std::make_unique<WsWarningRecordingHandler>();
+
+  WsConfig config;
+  config.auth_token = "secret-token";
+  config.allow_unauthenticated = false;
+  config.max_connections = 8;
+  config.max_preauth_connections = 1;
+  config.auth_timeout_ms = 10000;  // Long enough to never fire in this test.
+  auto manager = std::make_unique<WsManager>(loop, config, handler.get());
+  manager->Start();
+
+  uv_tcp_t listener;
+  uv_tcp_init(loop, &listener);
+  listener.data = manager.get();
+  struct sockaddr_in addr;
+  uv_ip4_addr("127.0.0.1", 0, &addr);
+  uv_tcp_bind(&listener, reinterpret_cast<const sockaddr*>(&addr), 0);
+  struct sockaddr_storage bound;
+  int namelen = sizeof(bound);
+  uv_tcp_getsockname(&listener, reinterpret_cast<sockaddr*>(&bound), &namelen);
+  int port = ntohs(reinterpret_cast<sockaddr_in*>(&bound)->sin_port);
+  uv_listen(reinterpret_cast<uv_stream_t*>(&listener), 8,
+            [](uv_stream_t* server, int status) {
+              if (status < 0) return;
+              auto* mgr = static_cast<WsManager*>(server->data);
+              auto* client = new uv_any_handle;
+              uv_tcp_init(server->loop, &client->tcp);
+              if (uv_accept(server, &client->stream) == 0) {
+                mgr->AcceptUpgrade(&client->stream, "stats",
+                                   "dGhlIHNhbXBsZSBub25jZQ==");
+              } else {
+                uv_close(&client->handle, [](uv_handle_t* h) {
+                  delete reinterpret_cast<uv_any_handle*>(h);
+                });
+              }
+            });
+
+  std::atomic<bool> running{true};
+  std::thread loop_thread([&] {
+    while (running) {
+      uv_run(loop, UV_RUN_NOWAIT);
+      std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
+  });
+
+  // First connection: fills the one pre-auth slot and holds it (never
+  // authenticates, stays open for the rest of the test).
+  int holder = test::ConnectTcp(port, 2);
+  ASSERT_GE(holder, 0);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  // Three more connections: each is refused outright (the slot is taken).
+  for (int i = 0; i < 3; ++i) {
+    int sock = test::ConnectTcp(port, 2);
+    ASSERT_GE(sock, 0);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    test::CloseSocket(sock);
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+
+  running = false;
+  loop_thread.join();
+  test::CloseSocket(holder);
+  manager->Stop();
+  uv_close(reinterpret_cast<uv_handle_t*>(&listener), nullptr);
+  uv_run(loop, UV_RUN_DEFAULT);
+  manager.reset();
+  uv_loop_close(loop);
+  delete loop;
+
+  int reject_warnings = 0;
+  for (const auto& w : handler->warnings()) {
+    if (w.find("rejecting upgrade") != std::string::npos) ++reject_warnings;
+  }
+  EXPECT_EQ(reject_warnings, 1)
+      << "expected exactly one rate-limited warning across 3 refusals";
 }
 
 // Pure logic: the limiter itself, driven with synthetic timestamps so the

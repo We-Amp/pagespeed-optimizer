@@ -292,6 +292,12 @@ class WsManager {
 
   // Rate limiter for the "WS: auth timeout" warning (see OnAuthTimeout).
   WsAuthTimeoutWarningLimiter auth_timeout_warning_limiter_;
+
+  // Rate limiter for the "WS: max connections awaiting authentication"
+  // refusal warning (see AcceptUpgrade). A separate instance from the one
+  // above: a refusal costs a client nothing (no 2s wait), so its line rate
+  // is bounded only by how fast upgrades arrive, independently of timeouts.
+  WsAuthTimeoutWarningLimiter preauth_reject_warning_limiter_;
 };
 
 }  // namespace pagespeed

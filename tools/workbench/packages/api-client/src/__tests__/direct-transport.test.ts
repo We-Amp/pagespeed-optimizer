@@ -56,9 +56,9 @@ class MockWebSocket {
     }
   }
 
-  simulateClose(): void {
+  simulateClose(code?: number): void {
     this.readyState = 3;
-    for (const fn of this.listeners.get('close') ?? []) fn({});
+    for (const fn of this.listeners.get('close') ?? []) fn({ code });
   }
 
   simulateError(): void {
@@ -429,6 +429,159 @@ describe('DirectTransport WebSocket', () => {
     const ws = MockWebSocket.instances[MockWebSocket.instances.length - 1];
     expect(ws.url).toBe('wss://example.com/v1/ws/stats');
     secureTransport.disconnect();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// /v1/ws/logs: never open anonymously, even under --api-read-open
+// ---------------------------------------------------------------------------
+//
+// The log stream is the one WebSocket the worker never pre-authenticates
+// under read-open (see src/worker/ws_handlers.h read_open_streams). A
+// console that opens it anyway just holds a server-side pre-authentication
+// slot until the auth timeout -- see I-1 in the read-open review. These
+// tests pin the three-part fix: never open /v1/ws/logs without a token,
+// treat a 4001 (auth rejected/timed out) close as terminal instead of
+// reconnecting, and reset the reconnect backoff only once a connection
+// proves itself (its first message), not merely on `open`.
+
+describe('DirectTransport /v1/ws/logs auth gating', () => {
+  it('does not open a WebSocket for /v1/ws/logs when no token is set', () => {
+    const anon = new DirectTransport({ baseUrl: 'http://localhost:9090' });
+    anon.subscribe('/v1/ws/logs', vi.fn());
+
+    expect(MockWebSocket.instances).toHaveLength(0);
+    anon.disconnect();
+  });
+
+  it('other read-open streams still open immediately without a token', () => {
+    const anon = new DirectTransport({ baseUrl: 'http://localhost:9090' });
+    anon.subscribe('/v1/ws/stats', vi.fn());
+
+    expect(MockWebSocket.instances).toHaveLength(1);
+    anon.disconnect();
+  });
+
+  it('opens the deferred /v1/ws/logs socket once setToken() supplies a token', () => {
+    const anon = new DirectTransport({ baseUrl: 'http://localhost:9090' });
+    const handler = vi.fn();
+    anon.subscribe('/v1/ws/logs', handler);
+    expect(MockWebSocket.instances).toHaveLength(0);
+
+    anon.setToken('late-token');
+
+    expect(MockWebSocket.instances).toHaveLength(1);
+    const ws = MockWebSocket.instances[0];
+    expect(ws.url).toBe('ws://localhost:9090/v1/ws/logs');
+    ws.simulateOpen();
+    expect(ws.sent).toEqual([JSON.stringify({ auth: 'late-token' })]);
+    ws.simulateMessage({ type: 'snapshot', entries: [], total: 0 });
+    expect(handler).toHaveBeenCalledWith({
+      type: 'snapshot',
+      entries: [],
+      total: 0,
+    });
+    anon.disconnect();
+  });
+
+  it('unsubscribing a deferred logs subscription before a token arrives opens nothing', () => {
+    const anon = new DirectTransport({ baseUrl: 'http://localhost:9090' });
+    const unsub = anon.subscribe('/v1/ws/logs', vi.fn());
+    unsub();
+
+    anon.setToken('late-token');
+
+    expect(MockWebSocket.instances).toHaveLength(0);
+    anon.disconnect();
+  });
+
+  it('a 4001 close is terminal: no reconnect is scheduled', () => {
+    vi.useFakeTimers();
+    transport.subscribe('/v1/ws/logs', vi.fn());
+    const ws = MockWebSocket.instances[0];
+    ws.simulateOpen();
+
+    ws.simulateClose(4001);
+    vi.advanceTimersByTime(60_000);
+
+    expect(MockWebSocket.instances).toHaveLength(1);
+    vi.useRealTimers();
+  });
+
+  it('after a 4001 close, setToken() reopens the stream (not a timer)', () => {
+    vi.useFakeTimers();
+    transport.subscribe('/v1/ws/logs', vi.fn());
+    const ws1 = MockWebSocket.instances[0];
+    ws1.simulateOpen();
+    ws1.simulateClose(4001);
+    vi.advanceTimersByTime(60_000);
+    expect(MockWebSocket.instances).toHaveLength(1);
+
+    transport.setToken('fresh-token');
+
+    expect(MockWebSocket.instances).toHaveLength(2);
+    vi.useRealTimers();
+  });
+
+  it('a non-4001 close still reconnects normally', () => {
+    vi.useFakeTimers();
+    transport.subscribe('/v1/ws/logs', vi.fn());
+    const ws1 = MockWebSocket.instances[0];
+    ws1.simulateOpen();
+
+    ws1.simulateClose(1001);
+    vi.advanceTimersByTime(1000);
+
+    expect(MockWebSocket.instances).toHaveLength(2);
+    vi.useRealTimers();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Reconnect backoff: reset on proof-of-life, not on the raw 101
+// ---------------------------------------------------------------------------
+
+describe('DirectTransport reconnect backoff reset timing', () => {
+  it('open alone does not reset the backoff counter', () => {
+    vi.useFakeTimers();
+    transport.subscribe('/v1/ws/stats', vi.fn());
+    const ws1 = MockWebSocket.instances[0];
+    ws1.simulateOpen();
+    ws1.simulateClose(1001); // attempt 1 -> 1000ms backoff
+
+    vi.advanceTimersByTime(1000);
+    expect(MockWebSocket.instances).toHaveLength(2);
+    const ws2 = MockWebSocket.instances[1];
+    ws2.simulateOpen(); // Must NOT reset the counter by itself.
+    ws2.simulateClose(1001);
+
+    // If `open` had reset the counter, this would reconnect at the 1000ms
+    // mark (attempt 1 again). The fix keeps it at attempt 2 -> 2000ms.
+    vi.advanceTimersByTime(1000);
+    expect(MockWebSocket.instances).toHaveLength(2);
+    vi.advanceTimersByTime(1000);
+    expect(MockWebSocket.instances).toHaveLength(3);
+
+    vi.useRealTimers();
+  });
+
+  it('the first message resets the backoff counter', () => {
+    vi.useFakeTimers();
+    transport.subscribe('/v1/ws/stats', vi.fn());
+    const ws1 = MockWebSocket.instances[0];
+    ws1.simulateOpen();
+    ws1.simulateClose(1001); // attempt 1 -> 1000ms backoff
+    vi.advanceTimersByTime(1000);
+
+    const ws2 = MockWebSocket.instances[1];
+    ws2.simulateOpen();
+    ws2.simulateMessage({ type: 'snapshot', sequence: 0, data: {} });
+    ws2.simulateClose(1001); // Reset by the message -> attempt 1 -> 1000ms.
+
+    vi.advanceTimersByTime(1000);
+    expect(MockWebSocket.instances).toHaveLength(3);
+
+    vi.useRealTimers();
   });
 });
 

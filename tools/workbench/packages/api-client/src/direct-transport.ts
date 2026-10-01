@@ -38,6 +38,18 @@ export interface DirectTransportOptions {
  * requests and WebSocket for streaming subscriptions.
  */
 export class DirectTransport implements ApiTransport {
+  /**
+   * Streams the worker never pre-authenticates under --api-read-open, even
+   * though every other WebSocket stream opens anonymously there (see
+   * src/worker/ws_handlers.h read_open_streams). Opening one of these
+   * without a token just occupies a server-side pre-authentication slot
+   * until the worker's auth timeout closes it -- and, left to the normal
+   * reconnect loop, it would do that forever. subscribe() defers opening a
+   * socket for these paths until a token is available; see pendingAuth.
+   */
+  private static readonly TOKEN_REQUIRED_PATHS: ReadonlySet<string> =
+    new Set(['/v1/ws/logs']);
+
   private readonly baseUrl: string;
   private token: string | undefined;
   private readonly maxReconnectMs: number;
@@ -50,6 +62,14 @@ export class DirectTransport implements ApiTransport {
     string,
     { ws: WebSocket; handlers: Set<(msg: unknown) => void> }
   >();
+
+  /**
+   * Subscriptions for a TOKEN_REQUIRED_PATHS path, held here instead of in
+   * `sockets` while no token is set. A path is in exactly one of the two
+   * maps at a time. Promoted to a real socket by setToken() once a token
+   * is supplied.
+   */
+  private pendingAuth = new Map<string, Set<(msg: unknown) => void>>();
 
   /** Reconnect attempt counter per path (for exponential backoff). */
   private reconnectAttempts = new Map<string, number>();
@@ -85,6 +105,23 @@ export class DirectTransport implements ApiTransport {
   setToken(token: string | undefined): void {
     this.token = token;
     this.reconnectSockets();
+    if (token) {
+      this.promotePendingAuth();
+    }
+  }
+
+  /**
+   * Open a real socket for every subscription that was deferred by
+   * subscribe() because its path required a token that did not exist yet.
+   */
+  private promotePendingAuth(): void {
+    if (this.pendingAuth.size === 0) return;
+    const deferred = this.pendingAuth;
+    this.pendingAuth = new Map();
+    for (const [path, handlers] of deferred) {
+      const ws = this.createSocket(path, handlers);
+      this.sockets.set(path, { ws, handlers });
+    }
   }
 
   /**
@@ -212,6 +249,32 @@ export class DirectTransport implements ApiTransport {
       };
     }
 
+    const existingPending = this.pendingAuth.get(path);
+    if (existingPending) {
+      existingPending.add(handler);
+      return () => {
+        existingPending.delete(handler);
+        if (existingPending.size === 0) {
+          this.pendingAuth.delete(path);
+        }
+      };
+    }
+
+    if (DirectTransport.TOKEN_REQUIRED_PATHS.has(path) && !this.token) {
+      // Defer: opening this socket now would just sit anonymously until the
+      // worker's auth timeout closes it. setToken() promotes this once a
+      // token is supplied.
+      const handlers = new Set<(msg: unknown) => void>();
+      handlers.add(handler);
+      this.pendingAuth.set(path, handlers);
+      return () => {
+        handlers.delete(handler);
+        if (handlers.size === 0) {
+          this.pendingAuth.delete(path);
+        }
+      };
+    }
+
     // Create a new WebSocket connection for this path.
     const handlers = new Set<(msg: unknown) => void>();
     handlers.add(handler);
@@ -286,16 +349,28 @@ export class DirectTransport implements ApiTransport {
   ): WebSocket {
     const url = this.buildWsUrl(path);
     const ws = new WebSocket(url);
+    // Proof of life for THIS socket: becomes true on its first message
+    // (an auth_ok, a snapshot, anything). Guards the one-time backoff
+    // reset below.
+    let provedLive = false;
 
     ws.addEventListener('open', () => {
-      this.reconnectAttempts.set(path, 0);
-      // Send auth token as the first message.
+      // Deliberately does NOT reset reconnectAttempts here. The 101
+      // handshake always fires `open`, even for a connection the worker is
+      // about to reject for authentication -- resetting on `open` alone
+      // made the backoff for a stream that fails auth every time sit at a
+      // constant ~1s instead of growing. The counter resets once this
+      // connection proves itself below instead.
       if (this.token) {
         ws.send(JSON.stringify({ auth: this.token }));
       }
     });
 
     ws.addEventListener('message', (ev: MessageEvent) => {
+      if (!provedLive) {
+        provedLive = true;
+        this.reconnectAttempts.set(path, 0);
+      }
       try {
         const data: unknown = JSON.parse(String(ev.data));
         for (const h of handlers) {
@@ -306,14 +381,20 @@ export class DirectTransport implements ApiTransport {
       }
     });
 
-    ws.addEventListener('close', () => {
+    ws.addEventListener('close', (ev: CloseEvent) => {
       // Only the socket that is still the active one for this path may drive
       // reconnection. If it has been replaced (e.g. by a token re-auth) its
       // close is expected and must not schedule a duplicate reconnect.
       if (this.sockets.get(path)?.ws !== ws) return;
-      if (!this.disconnected && handlers.size > 0) {
-        this.scheduleReconnect(path, handlers);
-      }
+      if (this.disconnected || handlers.size === 0) return;
+      // 4001 is the worker's "authentication rejected or timed out" close
+      // (see src/worker/ws_handlers.cc). Reconnecting immediately would
+      // just repeat the same failure, re-occupying a server-side
+      // pre-authentication slot on every cycle. Stay closed until the
+      // token changes -- setToken() reopens it then (reconnectSockets()
+      // for an already-open path, promotePendingAuth() for a deferred one).
+      if (ev.code === 4001) return;
+      this.scheduleReconnect(path, handlers);
     });
 
     ws.addEventListener('error', () => {

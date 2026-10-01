@@ -78,6 +78,15 @@ std::string DumpLog(const json& j) { return DumpJson(j); }
 // about 230.
 constexpr size_t kLogsPageEnvelopeReserve = 256;
 
+// Current time for the rate limiters below (steady, monotonic, loop-thread
+// cadence is fine since these are called from timer/connection callbacks,
+// not a tight loop).
+int64_t SteadyNowMs() {
+  return std::chrono::duration_cast<std::chrono::milliseconds>(
+             std::chrono::steady_clock::now().time_since_epoch())
+      .count();
+}
+
 // 64 random bits as 16 lowercase hex digits (two 32-bit draws).
 std::string NewLogStreamId() {
   std::random_device random;
@@ -313,11 +322,27 @@ void WsManager::AcceptUpgrade(uv_stream_t* handle, std::string_view endpoint,
   const bool needs_preauth = !tokenless_open && !read_open_applies;
 
   if (needs_preauth && preauth_pending_ >= config_.max_preauth_connections) {
-    // Reject: too many connections already waiting for in-band auth.
-    handler_->Warning(
-        "WS: max connections awaiting authentication (%d) reached, "
-        "rejecting upgrade",
-        config_.max_preauth_connections);
+    // Reject: too many connections already waiting for in-band auth.  Rate
+    // limit this warning the same way the auth-timeout one is limited (its
+    // own instance, since the two trips are independent and this one has no
+    // 2s wait to slow it down): a refused upgrade costs the client nothing,
+    // so unlike a timeout the rate of these lines is bounded only by how
+    // fast upgrades arrive.
+    std::optional<int> suppressed =
+        preauth_reject_warning_limiter_.RecordTimeout(SteadyNowMs());
+    if (suppressed.has_value()) {
+      if (*suppressed > 0) {
+        handler_->Warning(
+            "WS: max connections awaiting authentication (%d) reached, "
+            "rejecting upgrade (%d more since the last report)",
+            config_.max_preauth_connections, *suppressed);
+      } else {
+        handler_->Warning(
+            "WS: max connections awaiting authentication (%d) reached, "
+            "rejecting upgrade",
+            config_.max_preauth_connections);
+      }
+    }
     uv_close(reinterpret_cast<uv_handle_t*>(handle), [](uv_handle_t* h) {
       delete reinterpret_cast<uv_any_handle*>(h);
     });
@@ -516,12 +541,8 @@ void WsManager::OnAuthTimeout(uv_timer_t* timer) {
     // never-authenticating connections cannot flood the log ring; the
     // connection is closed either way.  The next emitted warning after a
     // suppressed run reports how many were skipped.
-    const int64_t now_ms =
-        std::chrono::duration_cast<std::chrono::milliseconds>(
-            std::chrono::steady_clock::now().time_since_epoch())
-            .count();
     std::optional<int> suppressed =
-        manager->auth_timeout_warning_limiter_.RecordTimeout(now_ms);
+        manager->auth_timeout_warning_limiter_.RecordTimeout(SteadyNowMs());
     if (suppressed.has_value()) {
       if (*suppressed > 0) {
         manager->handler_->Warning(

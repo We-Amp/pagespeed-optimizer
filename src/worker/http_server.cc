@@ -1257,17 +1257,25 @@ bool HttpServer::ReadOpenApplies(const HttpRequest& request) const {
   // all -- fails closed, so a new route that forgets to opt in does not
   // silently join the public read-only surface.
   //
-  // HEAD is answered by the GET route (see DispatchRequest), so it follows
-  // that route's rule.
+  // This mirrors DispatchRequest's own route-matching loop exactly (first
+  // match in registration order, HEAD normalized to GET), and answers about
+  // THAT route specifically -- not "does any kReadOpenOk route happen to
+  // match this path".  The distinction matters once a prefix route exists:
+  // scanning for any allow-listed match, ignoring order, would fail OPEN
+  // for a request whose path a kReadOpenOk prefix matches but whose more
+  // specific, earlier-registered kToken route is what dispatch actually
+  // picks.  Checking the same first match dispatch would pick keeps the two
+  // in lockstep by construction.
   const std::string_view method = (request.method == "HEAD")
                                       ? std::string_view("GET")
                                       : std::string_view(request.method);
   for (const auto& route : routes_) {
-    if (route.auth != RouteAuth::kReadOpenOk) continue;
     const bool path_match = route.is_prefix
                                 ? request.path.starts_with(route.path)
                                 : (request.path == route.path);
-    if (path_match && route.method == method) return true;
+    if (path_match && route.method == method) {
+      return route.auth == RouteAuth::kReadOpenOk;
+    }
   }
   return false;
 }

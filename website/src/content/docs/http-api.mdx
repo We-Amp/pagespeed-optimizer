@@ -991,23 +991,27 @@ the same connection lifecycle:
 
 ### Connection Limits
 
-| Parameter                                | Value |
-| ----------------------------------------- | ----- |
-| Max connections per endpoint              | 8     |
-| Max connections awaiting authentication   | 2     |
-| Ping interval                             | 30s   |
-| Pong timeout                              | 10s   |
-| Auth timeout                              | 2s    |
+| Parameter                                  | Value |
+| ------------------------------------------- | ----- |
+| Max WebSocket connections (all streams)     | 8     |
+| Max connections awaiting authentication     | 2     |
+| Ping interval                               | 30s   |
+| Pong timeout                                | 10s   |
+| Auth timeout                                | 2s    |
 
 The "max connections awaiting authentication" limit is separate from, and
-tighter than, the overall per-endpoint connection cap: at most 2 WebSocket
-connections may be simultaneously holding a slot while waiting for the
-in-band `{"auth": "..."}` message (see [Authentication Modes](#authentication-modes)).
+tighter than, the overall connection cap above (which counts every stream
+together, not per endpoint): at most 2 WebSocket connections may be
+simultaneously holding a slot while waiting for the in-band
+`{"auth": "..."}` message (see [Authentication Modes](#authentication-modes)).
 A connection that is already authenticated — including one pre-authenticated
 under `--api-read-open` on an allow-listed stream — never counts against
 this budget, so it only bounds the number of handshakes that have completed
 but not yet proven a token. An upgrade that would exceed it is refused the
-same way exceeding the per-endpoint cap is.
+same way exceeding the overall connection cap is. A well-behaved client
+only opens a token-gated stream (anything not on the read-open allow-list)
+once it already has a token to send; the shipped web console follows this
+rule for all three streams.
 
 ### GET /v1/ws/stats
 

@@ -624,7 +624,9 @@ struct WorkerConfig {
   std::string api_bind_address;   // Override HttpServerConfig::bind_address
   std::string api_socket_path;    // HTTP over AF_UNIX (--api-socket)
   std::string api_token;          // Auth token (also PAGESPEED_API_TOKEN)
-  bool api_read_open = false;     // GET open even with token, except the log
+  bool api_read_open = false;     // The allow-listed GET routes and the
+                                  // stats/events streams open even with a
+                                  // token; the log stays token-only
                                   // (--api-read-open)
   bool api_allow_remote = false;  // Deliberate non-loopback bind
   bool api_no_auth = false;       // Deliberate tokenless local API

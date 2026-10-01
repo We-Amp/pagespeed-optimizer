@@ -709,6 +709,56 @@ TEST_F(HttpServerAuthTest, UnmarkedRouteStaysClosedUnderReadOpen) {
       "GET /v1/new-endpoint HTTP/1.1\r\nHost: localhost\r\n"
       "Authorization: Bearer secret-token-123\r\n\r\n");
   EXPECT_NE(ok.find("200 OK"), std::string::npos) << ok;
+
+  // A path matching NO registered route at all is the same "fails closed
+  // by default" case: ReadOpenApplies returns false (not true, as it used
+  // to for an unmatched path), so CheckAuth asks for the token before
+  // routing ever gets a chance to answer 404. The CheckAuth 401 therefore
+  // now runs first for an unknown path too -- a visible behaviour change
+  // from before this allow-list (previously 404), noted in the report.
+  std::string unknown =
+      SendRequest("GET /v1/does-not-exist HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(unknown.find("401"), std::string::npos) << unknown;
+}
+
+// ReadOpenApplies must answer about the route DispatchRequest would
+// actually pick, not "does any kReadOpenOk route happen to match this
+// path". Registered first (and so the one dispatch picks for an exact
+// match, per DispatchRequest's first-match loop): a specific, token-only
+// route. Registered second: a broader allow-listed prefix that ALSO
+// matches the same literal path. A scan that checks only "any kReadOpenOk
+// match" (ignoring which one dispatch would use) would fail open here.
+TEST_F(HttpServerAuthTest, ReadOpenConsultsTheRouteDispatchWouldPick) {
+  StopLoopThread();
+  server_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  server_.reset();
+  config_.read_open = true;
+  server_ = std::make_unique<HttpServer>(loop_, config_, handler_.get());
+  server_->AddRoute("GET", "/v1/cache/secret", [](const HttpRequest&) {
+    return HttpResponse().Json("{\"secret\":true}");
+  });
+  server_->AddRoute(
+      "GET", "/v1/cache/*",
+      [](const HttpRequest&) {
+        return HttpResponse().Json("{\"prefix\":true}");
+      },
+      RouteAuth::kReadOpenOk);
+  ASSERT_TRUE(server_->Start());
+  StartLoopThread();
+
+  // Dispatch picks the specific route (registered first); auth must follow
+  // that same route, not the broader prefix that also happens to match.
+  std::string secret =
+      SendRequest("GET /v1/cache/secret HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(secret.find("401"), std::string::npos) << secret;
+  EXPECT_EQ(secret.find("\"secret\":true"), std::string::npos) << secret;
+
+  // A path only the prefix matches is unaffected and stays open.
+  std::string other =
+      SendRequest("GET /v1/cache/other HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(other.find("200 OK"), std::string::npos) << other;
+  EXPECT_NE(other.find("\"prefix\":true"), std::string::npos) << other;
 }
 
 // Transport invariance #1: the unix socket's filesystem-group credential
