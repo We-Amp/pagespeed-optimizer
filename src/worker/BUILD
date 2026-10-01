@@ -314,6 +314,26 @@ cc_library(
     ],
 )
 
+# Safe JSON serialization: the one choke point every .dump( call under
+# src/worker/ must go through (test/src/worker:json_output_test enforces
+# this with a source-tree gate), so a handler never aborts the daemon on a
+# string it cannot losslessly encode as strict JSON.
+cc_library(
+    name = "json_dump",
+    hdrs = ["json_dump.h"],
+    visibility = ["//visibility:public"],
+    deps = ["@nlohmann_json//:json"],
+)
+
+# Package sources, exposed so the json_output_test regression gate can scan
+# every current (and future) file under src/worker/ for a bare .dump( call
+# that bypasses :json_dump.
+filegroup(
+    name = "all_sources",
+    srcs = glob(["*.cc", "*.h"]),
+    visibility = ["//test/src/worker:__pkg__"],
+)
+
 # In-memory URL registry for cache URL enumeration
 cc_library(
     name = "url_registry",
@@ -331,6 +351,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":http_server",
+        ":json_dump",
         ":url_registry",
         "//lib/cache:pagespeed_cache",
         "//lib/classify:alternate_id",
@@ -359,6 +380,7 @@ cc_library(
     hdrs = ["ws_handlers.h"],
     visibility = ["//visibility:public"],
     deps = [
+        ":json_dump",
         ":uv_helpers",
         ":websocket",
         "//lib/base:message_handler",
@@ -375,6 +397,7 @@ cc_library(
     hdrs = ["optimization_policy.h"],
     visibility = ["//visibility:public"],
     deps = [
+        ":json_dump",
         "//src/browser:optimization_profile",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -389,6 +412,7 @@ cc_library(
     hdrs = ["config_file.h"],
     visibility = ["//visibility:public"],
     deps = [
+        ":json_dump",
         ":worker_types",
         "//lib/base:atomic_file_writer",
         "@nlohmann_json//:json",
@@ -515,6 +539,7 @@ cc_library(
     deps = [
         ":config_file",
         ":http_server",
+        ":json_dump",
         ":shared_config",
         ":worker_types",
         "//lib/classify:url_normalizer",
@@ -537,6 +562,7 @@ cc_library(
     deps = [
         ":browser_analysis_manager",
         ":http_server",
+        ":json_dump",
         "//lib/base:string_util",
         "//src/browser:cdp_client",
         "//src/browser:cdp_types",

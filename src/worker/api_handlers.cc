@@ -19,6 +19,7 @@
 #include "src/product_version/build_commit.h"
 #include "src/product_version/version.h"
 #include "src/worker/config_file.h"
+#include "src/worker/json_dump.h"
 #include "src/worker/serve_stats.h"
 #include "src/worker/shared_config.h"
 #include "src/worker/worker.h"
@@ -140,7 +141,7 @@ static HttpResponse HandleHealth(ApiContext& ctx,
   j["syscall_filter"] =
       ctx.syscall_filter_state ? ctx.syscall_filter_state() : "unknown";
 
-  return HttpResponse().Json(j.dump());
+  return HttpResponse().Json(DumpJson(j));
 }
 
 // ---------------------------------------------------------------------------
@@ -376,7 +377,7 @@ json BuildStatsJson(ApiContext& ctx) {
 
 static HttpResponse HandleStats(ApiContext& ctx,
                                 const HttpRequest& /*request*/) {
-  return HttpResponse().Json(BuildStatsJson(ctx).dump());
+  return HttpResponse().Json(DumpJson(BuildStatsJson(ctx)));
 }
 
 // ---------------------------------------------------------------------------
@@ -1017,7 +1018,7 @@ static json ConfigToJson(const WorkerConfig& c) {
 static HttpResponse HandleConfigGet(ApiContext& ctx,
                                     const HttpRequest& /*request*/) {
   auto config = ctx.get_config();
-  return HttpResponse().Json(ConfigToJson(*config).dump());
+  return HttpResponse().Json(DumpJson(ConfigToJson(*config)));
 }
 
 // ---------------------------------------------------------------------------
@@ -1134,7 +1135,7 @@ static HttpResponse HandleConfigPatch(ApiContext& ctx,
   // Use the updated config directly to avoid a redundant lock acquisition.
   result["config"] = ConfigToJson(applied.empty() ? *current : *updated);
 
-  return HttpResponse().Json(result.dump());
+  return HttpResponse().Json(DumpJson(result));
 }
 
 // ---------------------------------------------------------------------------

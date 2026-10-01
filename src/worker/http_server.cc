@@ -18,6 +18,7 @@
 #include <cerrno>
 #include <cstdio>
 #include <cstring>
+#include <exception>
 #include <optional>
 #include <utility>
 
@@ -1158,7 +1159,17 @@ HttpResponse HttpServer::DispatchRequest(const HttpRequest& request) {
                                       : (request.path == route.path);
 
     if (path_match && method_match) {
-      return route.handler(request);
+      // Last-resort net: a handler that fails answers 500 instead of
+      // stopping the optimizer. The exception text itself is never echoed
+      // into the response or the log, only a fixed, generic message, so a
+      // handler bug can't turn into an information leak.
+      try {
+        return route.handler(request);
+      } catch (const std::exception&) {
+        handler_->Warning("HTTP: route handler threw; answering 500");
+        return HttpResponse::Error(ApiErrorCode::kInternalError,
+                                   "Internal server error");
+      }
     }
   }
 

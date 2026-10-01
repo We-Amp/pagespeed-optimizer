@@ -4,6 +4,9 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Security: under specific inputs, some management API reads and live-stream
+messages could stop the optimizer. Update recommended.
+
 Security: on Windows, a local privilege-escalation issue is fixed. A Windows
 host is exposed when other local code (for example another IIS application
 pool or a Windows service) runs next to an application that uses

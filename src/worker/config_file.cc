@@ -14,6 +14,7 @@
 
 #include "lib/base/atomic_file_writer.h"
 #include "nlohmann/json.hpp"
+#include "src/worker/json_dump.h"
 #include "src/worker/worker.h"
 
 namespace pagespeed {
@@ -651,7 +652,7 @@ bool WriteConfigFile(const std::string& path, const json& j) {
     return false;
   }
   // 0644: world-readable config (not secret, unlike license).
-  return AtomicWriteFile(path, j.dump(2) + "\n", 0644);
+  return AtomicWriteFile(path, DumpJson(j, 2) + "\n", 0644);
 }
 
 }  // namespace pagespeed
