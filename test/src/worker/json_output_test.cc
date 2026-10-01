@@ -302,7 +302,7 @@ class JsonOutputCacheApiTest : public ::testing::Test {
 
     loop_ = new uv_loop_t;
     uv_loop_init(loop_);
-    handler_ = std::make_unique<ConsoleMessageHandler>();
+    handler_ = std::make_unique<NullMessageHandler>();
     HttpServerConfig server_config;
     server_config.port = 0;
     server_config.allow_unauthenticated = true;

@@ -2716,13 +2716,13 @@ class HttpServerUnixSocketTest : public HttpServerTest {
       ::close(sock);
       return "";
     }
-    ssize_t sent = ::write(sock, wire.data(), wire.size());
+    ssize_t sent = test::SocketWrite(sock, wire.data(), wire.size());
     (void)sent;
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
     std::string response;
     char buf[4096];
     while (true) {
-      ssize_t n = ::read(sock, buf, sizeof(buf));
+      ssize_t n = test::SocketRead(sock, buf, sizeof(buf));
       if (n <= 0) break;
       response.append(buf, static_cast<size_t>(n));
     }
