@@ -306,9 +306,10 @@ void WsManager::DrainPendingEvents() {
         conn->event_buffer.push_back(',');
         conn->event_buffer_bytes += 1;
       }
-      conn->event_buffer_bytes += serialized.size();
+      const size_t serialized_size = serialized.size();
       conn->event_buffer +=
           std::move(serialized);  // NOLINT(performance-move-const-arg)
+      conn->event_buffer_bytes += serialized_size;
     }
   }
 }

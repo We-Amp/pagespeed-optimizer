@@ -23,6 +23,7 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <regex>
 #include <sstream>
 #include <stdexcept>
 #include <string>
@@ -148,8 +149,10 @@ TEST(NoBareJsonDumpGateTest, NoBareDumpCallsOutsideTheHelper) {
       << "src/worker not found relative to the test's working directory -- "
          "is //src/worker:all_sources wired into this target's `data`?";
 
+  // `.dump(` with any whitespace around the name.
+  const std::regex kDumpCall(R"(\.\s*dump\s*\()");
   std::vector<std::string> violations;
-  for (const auto& dir_entry : fs::directory_iterator(dir)) {
+  for (const auto& dir_entry : fs::recursive_directory_iterator(dir)) {
     if (!dir_entry.is_regular_file()) continue;
     const fs::path& path = dir_entry.path();
     if (path.filename() == "json_dump.h") continue;  // the sanctioned call.
@@ -161,7 +164,7 @@ TEST(NoBareJsonDumpGateTest, NoBareDumpCallsOutsideTheHelper) {
     int lineno = 0;
     while (std::getline(f, line)) {
       ++lineno;
-      if (line.find(".dump(") != std::string::npos) {
+      if (std::regex_search(line, kDumpCall)) {
         std::ostringstream oss;
         oss << path.string() << ":" << lineno << ": " << line;
         violations.push_back(oss.str());
@@ -258,7 +261,7 @@ TEST_F(JsonOutputHttpNetTest, FailingHandlerAnswers500AndServerKeepsServing) {
 
   std::string resp1 = SendRequest(
       "GET /v1/test-failing-handler HTTP/1.1\r\nHost: localhost\r\n\r\n");
-  EXPECT_NE(resp1.find("500"), std::string::npos);
+  EXPECT_EQ(resp1.rfind("HTTP/1.1 500", 0), 0u) << resp1;
   // The failure detail is never echoed back to the client.
   EXPECT_EQ(resp1.find("unexpected failure detail"), std::string::npos);
 

@@ -316,8 +316,8 @@ cc_library(
 
 # Safe JSON serialization: the one choke point every .dump( call under
 # src/worker/ must go through (test/src/worker:json_output_test enforces
-# this with a source-tree gate), so a handler never aborts the daemon on a
-# string it cannot losslessly encode as strict JSON.
+# this with a source-tree gate), so every JSON response and stream message
+# is always well-formed.
 cc_library(
     name = "json_dump",
     hdrs = ["json_dump.h"],
@@ -330,7 +330,7 @@ cc_library(
 # that bypasses :json_dump.
 filegroup(
     name = "all_sources",
-    srcs = glob(["*.cc", "*.h"]),
+    srcs = glob(["**/*.cc", "**/*.h"]),
     visibility = ["//test/src/worker:__pkg__"],
 )
 
