@@ -130,6 +130,9 @@ jobs:
           //test/src/worker:llms_txt_builder_test
           //test/src/worker:html_scanner_test
           //test/src/worker:websocket_test
+          //test/src/worker:json_output_test
+          //test/src/worker:cache_handlers_test
+          //test/src/worker:capture_handlers_test
 
   rat:
     name: License audit (Apache RAT)
