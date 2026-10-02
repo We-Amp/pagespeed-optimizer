@@ -249,7 +249,13 @@ new_git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl"
 #    binary opens a NEW file: the cache starts cold once after upgrade, the
 #    format-7 file is left on disk (reclaim it manually), and rollback is
 #    warm. nginx and the worker must run the same build, as with every
-#    format bump.
+#    format bump. Because the format changed, kCacheDirGeneration
+#    (src/worker/shared_config.h) moves from 1 to 2: the packaged default
+#    cache directory becomes /var/cache/pagespeed-optimizer/v2 and the
+#    worker publishes cache_dir_generation=2. The residency check before a
+#    readahead hint uses mincore(2), which the systemd unit now admits.
+#    Chain walks now reject a link that points at or above its own node
+#    with ChainCorrupted; RemoveAlternatesExcept drops the whole key on it.
 #
 # 2. WRAP RETENTION IS THE DEFAULT. When a stripe's ring wraps, the previous
 #    pass stays readable until the forward fill needs its bytes instead of
