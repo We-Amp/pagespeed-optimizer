@@ -350,6 +350,33 @@ fi
 if [ -d /run/systemd/system ]; then
   systemd-tmpfiles --create %{name}.conf || true
 fi
+# Is the ACTION REQUIRED half of the notice below earned?  Only files
+# the web server actually loads may answer: backup and leftover names
+# (*.bak*, *.dpkg-*, *.rpmsave, *.rpmnew, *.orig, *~) are skipped, and
+# under Debian's Apache layout *-available/ is read only through its
+# *-enabled/ symlink (grep -R follows it), so a stale operator backup
+# beside an already-current live config stays silent.  nginx and RHEL
+# httpd have no enabled/available split; their whole /etc trees are
+# loadable.  The root-prefix argument exists for the packaging tests.
+ps_stale_web_config() { # [root]
+  ps_scan_root="\${1:-/}"
+  ps_paths=""
+  for ps_dir in nginx \\
+      apache2/apache2.conf apache2/ports.conf apache2/conf.d \\
+      apache2/conf-enabled apache2/sites-enabled apache2/mods-enabled \\
+      httpd/conf httpd/conf.d httpd/conf.modules.d; do
+    if [ -e "\$ps_scan_root/etc/\$ps_dir" ]; then
+      ps_paths="\$ps_paths \$ps_scan_root/etc/\$ps_dir"
+    fi
+  done
+  [ -n "\$ps_paths" ] || return 1
+  # the grep's own exit status is the answer: 0 = a loaded file still
+  # names an old path, 1 = none does (2 = error; never warn on error)
+  grep -R -F -l '/var/lib/pagespeed' \\
+    --exclude='*.bak*' --exclude='*.dpkg-*' --exclude='*.rpmsave' \\
+    --exclude='*.rpmnew' --exclude='*.orig' --exclude='*~' \\
+    \$ps_paths >/dev/null 2>&1
+}
 # Cold-start notice: a pre-existing ROOT-OWNED pagespeed cache can never
 # be chowned or migrated.  The daemon cold-starts into
 # /var/cache/pagespeed-optimizer/v1; say so once, plainly.
@@ -360,15 +387,17 @@ for legacy in /var/lib/pagespeed-optimizer /var/lib/pagespeed; do
     echo "%{name}: the daemon now runs unprivileged (user pagespeed) with"
     echo "%{name}: a fresh cache at /var/cache/pagespeed-optimizer/v1 -- the"
     echo "%{name}: cache will cold-start; no content is migrated or chowned."
-    echo "%{name}: ACTION REQUIRED: the daemon's default paths moved, but your"
-    echo "%{name}: web-server configuration still points at the old ones. Update"
-    echo "%{name}: pagespeed_cache_path (nginx) or ModPagespeedDaemonVolumePath /"
-    echo "%{name}: ModPagespeedDaemonSocketPath to"
-    echo "%{name}: /var/cache/pagespeed-optimizer/v1/cache and"
-    echo "%{name}: /run/pagespeed-optimizer/notify.sock, then restart the web"
-    echo "%{name}: server. Until you do, in-place optimization stays OFF and the"
-    echo "%{name}: log will report the socket as absent even though the daemon"
-    echo "%{name}: is running."
+    if ps_stale_web_config; then
+      echo "%{name}: ACTION REQUIRED: the daemon's default paths moved, but your"
+      echo "%{name}: web-server configuration still points at the old ones. Update"
+      echo "%{name}: pagespeed_cache_path (nginx) or ModPagespeedDaemonVolumePath /"
+      echo "%{name}: ModPagespeedDaemonSocketPath to"
+      echo "%{name}: /var/cache/pagespeed-optimizer/v1/cache and"
+      echo "%{name}: /run/pagespeed-optimizer/notify.sock, then restart the web"
+      echo "%{name}: server. Until you do, in-place optimization stays OFF and the"
+      echo "%{name}: log will report the socket as absent even though the daemon"
+      echo "%{name}: is running."
+    fi
     echo "%{name}: see https://modpagespeed.com/docs/deployment/"
     break
   fi
@@ -523,6 +552,20 @@ self_test() {
   check "post tells the operator to repoint the web server" "1" \
     "$(printf '%s\n' "$scripts" \
       | grep -c "ACTION REQUIRED: the daemon.s default paths moved")"
+  # The repoint warning must be earned before it is printed: the scriptlet
+  # scans only web-server configuration the server actually loads (the
+  # *-enabled/ trees, never *-available/ on its own) and skips backup and
+  # leftover file names, so a stale .bak cannot warn on a host whose live
+  # config is already current.
+  check "post has the loaded-config scan helper" "1" \
+    "$(printf '%s\n' "$scripts" | grep -c 'ps_stale_web_config() {')"
+  check "scan skips the six backup/leftover name patterns" "6" \
+    "$(printf '%s\n' "$scripts" | grep -o -- '--exclude=' | wc -l | tr -d ' ')"
+  check "scan reads Apache through its *-enabled/ trees only" "1" \
+    "$(printf '%s\n' "$scripts" \
+      | grep -c 'apache2/conf-enabled apache2/sites-enabled apache2/mods-enabled')"
+  check "repoint warning is gated on the scan" "1" \
+    "$(printf '%s\n' "$scripts" | grep -c 'if ps_stale_web_config; then')"
   check "post restarts service" "1" \
     "$(printf '%s\n' "$scripts" | grep -c "systemctl restart $PKG.service")"
   check "post enables service" "1" \
@@ -734,6 +777,16 @@ print(1 if need <= a and not leak else 0)')"
     echo "FAIL: underivable glibc floor was accepted" >&2; fails=$((fails+1))
   else
     echo "ok: underivable glibc floor refused"
+  fi
+  # The shipped scan helper's behaviour (backup and leftover files never
+  # earn the repoint warning) is asserted against fixture trees by the
+  # standalone test next to this script; run it here so every lane that
+  # exercises the packaging self-tests exercises it too.
+  if bash "$HERE/test-postinst-stale-config.sh" >/dev/null; then
+    echo "ok: postinst stale-config scan unit test"
+  else
+    echo "FAIL: postinst stale-config scan unit test" >&2
+    fails=$((fails+1))
   fi
   if [[ "$fails" -gt 0 ]]; then
     echo "self-test: $fails FAILURE(S)" >&2; return 1

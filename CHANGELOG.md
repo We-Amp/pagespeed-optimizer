@@ -4,6 +4,12 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Fixed: the post-install scripts of the Linux packages no longer warn
+about outdated optimizer paths in backup or leftover web-server
+configuration files the web server does not load, such as a `.bak` copy
+under Apache's `conf-available/`. The update notice now fires only when
+a file the server actually loads still references the old paths.
+
 Fixed: the management API's HTTP listener now releases a connection's
 resources correctly when accepting that connection fails.
 
