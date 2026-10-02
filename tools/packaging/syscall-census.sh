@@ -199,7 +199,7 @@ if [[ "$UNIT_POSTURE" -eq 1 ]]; then
   # RuntimeDirectory, so strace -o there fails silently and the posture
   # produces nothing. The cache directory is the one place the daemon may
   # write; the log is copied out afterwards.
-  TRACE_IN_UNIT=/var/cache/$PKG/v1/strace-P8.log
+  TRACE_IN_UNIT=/var/cache/$PKG/v2/strace-P8.log
   cat > "$D/zz-census-strace.conf" <<EOF
 [Service]
 SystemCallFilter=
@@ -277,7 +277,7 @@ RUN_ROOT="$WORK/census-run"
 run_posture() { # name extra-daemon-args...
   local name="$1"; shift
   local log="$WORK/strace-${DISTRO}-${name}.log"
-  local cdir="$CACHE_ROOT/$name/v1"
+  local cdir="$CACHE_ROOT/$name/v2"
   local rdir="$RUN_ROOT/$name"
   rm -rf "$CACHE_ROOT/$name" "$rdir"
   mkdir -p "$cdir" "$rdir"
@@ -462,7 +462,11 @@ done
 ALLOWED="$WORK/allowed-${DISTRO}.txt"
 cat "$WORK/privileged-${DISTRO}.txt" "$WORK/resources-${DISTRO}.txt" 2>/dev/null \
   | sort -u > "$WORK/subtracted-${DISTRO}.txt"
-comm -23 "$GROUP" "$WORK/subtracted-${DISTRO}.txt" > "$ALLOWED"
+# Plus the names the unit admits one by one (mincore, for the cache's
+# readahead residency check).
+UNIT_NAMES="mincore"
+{ comm -23 "$GROUP" "$WORK/subtracted-${DISTRO}.txt"; printf '%s\n' $UNIT_NAMES; } \
+  | sort -u > "$ALLOWED"
 
 {
   echo "# Syscall census -- ${DISTRO} (systemd ${SYSTEMD_VER}, $(uname -m), kernel $(uname -r))"
@@ -477,8 +481,9 @@ comm -23 "$GROUP" "$WORK/subtracted-${DISTRO}.txt" > "$ALLOWED"
   local_denied="$(comm -23 "$ALL" "$ALLOWED" | tr '\n' ' ')"
   if [[ -z "${local_denied// /}" ]]; then
     echo 'EMPTY -- every call observed in every measured posture is admitted by'
-    echo '`SystemCallFilter=@system-service` + `~@privileged @resources`. The'
-    echo 'enforcing profile needs no per-name additions on this distro.'
+    echo '`SystemCallFilter=@system-service mincore` + `~@privileged @resources`.'
+    echo 'The enforcing profile needs no per-name additions beyond mincore on'
+    echo 'this distro.'
   else
     echo 'The enforcing profile would KILL these observed calls; each one must'
     echo 'be explained or admitted by name -- the shipped unit enforces:'

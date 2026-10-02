@@ -10,7 +10,7 @@
 # Asserts (design doc §4 table):
 #   notify/health/mgmt sockets  0660
 #   volume file(s)              0660
-#   pagespeed-shared.conf       0640, and carries cache_dir_generation=1
+#   pagespeed-shared.conf       0640, and carries cache_dir_generation=2
 #   .pagespeed-serve-stats      0660
 #   no world-writable bit anywhere under the cache or socket dirs
 #   missing cache dir           -> refuses to start, log names "does not exist"
@@ -65,7 +65,7 @@ cleanup() {
   rm -rf "$TMP" || true
 }
 trap cleanup EXIT
-CACHE_DIR="$TMP/cache/v1"
+CACHE_DIR="$TMP/cache/v2"
 RUN_DIR="$TMP/run"
 mkdir -p "$CACHE_DIR" "$RUN_DIR"
 
@@ -113,8 +113,8 @@ check "serve-stats mode 0660" "660" "$(mode_of "$CACHE_DIR/.pagespeed-serve-stat
 volume="$(find "$CACHE_DIR" -maxdepth 1 -name 'cache-*' -type f | head -1)"
 [[ -n "$volume" ]] || { echo "FAIL: no volume file in $CACHE_DIR" >&2; exit 1; }
 check "volume file mode 0660" "660" "$(mode_of "$volume")"
-check "shared config publishes cache_dir_generation=1" "1" \
-  "$(grep -c '^cache_dir_generation=1$' "$CACHE_DIR/pagespeed-shared.conf")"
+check "shared config publishes cache_dir_generation=2" "1" \
+  "$(grep -c '^cache_dir_generation=2$' "$CACHE_DIR/pagespeed-shared.conf")"
 check "no world-writable file under cache dir" "0" \
   "$(find "$CACHE_DIR" -perm -o+w | wc -l | tr -d ' ')"
 check "no world-writable entry under socket dir" "0" \
@@ -126,12 +126,12 @@ rm -f "$TMP/worker.pid"
 
 # --- refusal legs ---------------------------------------------------------
 check "missing cache dir refuses (exit)" "1" \
-  "$("$BINARY" --cache-dir "$TMP/absent/v1" --socket "$RUN_DIR/x.sock" \
+  "$("$BINARY" --cache-dir "$TMP/absent/v2" --socket "$RUN_DIR/x.sock" \
       >"$TMP/missing.log" 2>&1; echo $?)"
 check "missing cache dir log says 'does not exist'" "1" \
   "$(grep -c 'does not exist' "$TMP/missing.log")"
 
-LOCKED="$TMP/locked/v1"
+LOCKED="$TMP/locked/v2"
 mkdir -p "$LOCKED"
 chmod 0500 "$LOCKED"
 if [[ "$(id -u)" -ne 0 ]]; then
@@ -148,7 +148,7 @@ chmod 0700 "$LOCKED"
 if [[ "$(id -u)" -eq 0 ]]; then
   # A foreign-owned file the daemon WOULD rewrite (named after the volume
   # stem) must refuse.
-  FOREIGN="$TMP/foreign/v1"
+  FOREIGN="$TMP/foreign/v2"
   mkdir -p "$FOREIGN"
   touch "$FOREIGN/cache-6-0123456789abcdef"
   chown 1:1 "$FOREIGN/cache-6-0123456789abcdef"
@@ -161,7 +161,7 @@ if [[ "$(id -u)" -eq 0 ]]; then
   # A foreign-owned file the daemon never touches must NOT refuse: the cache
   # directory is group-writable by design, so a directory-wide rule would let
   # any group member (or a filesystem's own lost+found) deny service.
-  BYSTANDER="$TMP/bystander/v1"
+  BYSTANDER="$TMP/bystander/v2"
   mkdir -p "$BYSTANDER/lost+found"
   touch "$BYSTANDER/someone-elses-file"
   chown 1:1 "$BYSTANDER/someone-elses-file"

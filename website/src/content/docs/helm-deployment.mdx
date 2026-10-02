@@ -50,6 +50,14 @@ Each pod contains two containers:
   writes variants back. It creates the cache file and Unix sockets at startup.
 - **emptyDir** is the shared volume mounted at `/data` in both containers. Its
   lifetime is tied to the pod -- cache is rebuilt after pod restarts.
+- **One PID namespace.** The chart sets `shareProcessNamespace: true`, so
+  both cache writers share one namespace, as in the compose files, and the
+  pod's pause container is PID 1 and reaps orphaned processes. (The cache
+  itself is safe across PID namespaces, and because the cache is a per-pod
+  `emptyDir` and both containers use one image tag, an upgrade never mixes
+  builds on one cache.) The setting is not configurable. Both containers can
+  see each other's processes, including the worker's command line: keep
+  secrets in environment variables, not in `worker.extraArgs`.
 
 ## Installation
 

@@ -183,8 +183,9 @@ if [ -n "$PS_GENERATED_API" ] || [ -n "$PS_GENERATED_PURGE" ]; then
   echo "=============================================================================="
 fi
 # Deliberately NOT --api-token: the daemon reads both from the ENVIRONMENT,
-# which keeps them out of /proc/<pid>/cmdline (readable by any process in the
-# container's pid namespace).
+# which keeps them out of /proc/<pid>/cmdline. That matters beyond this
+# container: the shipped Helm pod and compose files put the worker in a PID
+# namespace shared with nginx, so every process there can read the argv.
 [ -n "${PAGESPEED_API_TOKEN:-}" ] && export PAGESPEED_API_TOKEN
 export PAGESPEED_PURGE_TOKEN
 

@@ -588,14 +588,16 @@ AlternateId IdOf(const CapabilityMask& mask) {
 }  // namespace
 
 TEST_F(DurableOriginalsTest, OriginRefreshDropsAKeyWhoseChainCannotBeWalked) {
-  // The reported shape: one listing returns the traversal-cap number of
-  // entries that are all the SAME node, however often the key is purged, and
-  // every write to the key is refused.  A chain whose head links back to
-  // itself produces exactly that — the per-alternate removal re-points the
-  // directory at the head's successor, which is the head, and reports success
-  // without changing anything — so no bounded number of passes can empty it.
-  // Only dropping the whole key ends the loop; this test builds that chain and
-  // pins the drop.
+  // The reported shape: a chain whose head links back to itself.  At the
+  // storage layer this issue was reported against, one listing returned the
+  // traversal-cap number of copies of that node, every write to the key was
+  // refused, and the per-alternate removal re-pointed the directory at the
+  // head's successor — the head — and reported success without changing
+  // anything.  The current storage layer rejects the self-link instead: the
+  // listing stops there, writes land, and the removal refuses with
+  // ChainCorrupted.  Either way no bounded number of per-alternate passes can
+  // unlink the stale head; only dropping the whole key ends the loop.  This
+  // test builds that chain and pins the drop.
   //
   // TWO ids, not one: the storage layer resets a single-id chain at the
   // traversal boundary when the next write carries that same id, so a
@@ -630,19 +632,24 @@ TEST_F(DurableOriginalsTest, OriginRefreshDropsAKeyWhoseChainCannotBeWalked) {
   ASSERT_NO_FATAL_FAILURE(SelfLinkChainHead(head, tail));
   CreateCache();  // Same volume file, re-opened.
 
-  // The listing now has the reported shape: cap-many entries, one node.
+  // The storage layer rejects a link that points at or above its own node,
+  // so the listing stops at the bad link: the head is listed once and the
+  // identity variant behind it is unreachable.  (Before that check, this
+  // listing returned cap-many copies of the head and the re-record below was
+  // refused.)
   auto looped = cache_->ListAlternates("/loop.jpg", "example.com", "https");
   ASSERT_TRUE(looped.has_value());
-  ASSERT_GT(looped->size(), 2u);
-  for (const auto& alt : *looped) {
-    ASSERT_EQ(alt.disk_offset, head);
-    ASSERT_EQ(static_cast<AlternateId>(alt.id), webp_id);
-  }
-  // ... and the re-record the front end performs after serving the origin is
-  // refused, which is why no record + notify could follow the refresh here.
-  ASSERT_FALSE(WriteOriginalTo("/loop.jpg", "REFRESHED", OriginalMetadata()))
-      << "the wedged key must refuse the re-record, or this test is not "
-         "standing on the shape it describes";
+  ASSERT_EQ(looped->size(), 1u);
+  ASSERT_EQ(looped->front().disk_offset, head);
+  ASSERT_EQ(static_cast<AlternateId>(looped->front().id), webp_id);
+  // The re-record the front end performs after serving the origin now lands,
+  // prepended ahead of the bad link — but the stale webp head is still
+  // selectable, and removing it has to follow the link it cannot follow.
+  ASSERT_TRUE(WriteOriginalTo("/loop.jpg", "REFRESHED", OriginalMetadata()));
+  ASSERT_TRUE(
+      cache_->AlternateExists("/loop.jpg", "example.com", "https", webp_id))
+      << "the stale head must still be listed, or this test is not standing "
+         "on the shape it describes";
 
   const AlternateId preserve[] = {identity};
   auto removed = cache_->RemoveAlternatesExcept("/loop.jpg", "example.com",

@@ -12,7 +12,7 @@ Pre-flight checks before deploying mod_pagespeed 2.1 in production.
 - [ ] Web-server user is in group `pagespeed` (module postinst does the join;
   `id www-data` / `id apache` must list it) and the web server was restarted
   after the join
-- [ ] Cache dir `/var/cache/pagespeed-optimizer/v1` is 3770 (setgid+sticky)
+- [ ] Cache dir `/var/cache/pagespeed-optimizer/v2` is 3770 (setgid+sticky)
   `pagespeed:pagespeed`; volume + serve-stats 0660, shared config 0640 —
   nothing world-writable (`find /var/cache/pagespeed-optimizer -perm -o+w`
   is empty)

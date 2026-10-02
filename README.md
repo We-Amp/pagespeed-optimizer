@@ -141,7 +141,7 @@ the daemon side and shared with nginx automatically via `pagespeed-shared.conf`
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--cache-dir DIR` | `/var/cache/pagespeed-optimizer/v1` | Directory holding the cache volume, shared config and serve-stats |
+| `--cache-dir DIR` | `/var/cache/pagespeed-optimizer/v2` | Directory holding the cache volume, shared config and serve-stats |
 | `--cache-path PATH` | (derived from `--cache-dir`) | Expert override: full cache volume file stem |
 | `--socket PATH` | `/run/pagespeed-optimizer/notify.sock` | Unix socket path |
 | `--cache-size BYTES` | `104857600` | Cache size (100MB) |

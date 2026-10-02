@@ -95,7 +95,7 @@ done
 
 PKG=pagespeed-optimizer
 CACHE_ROOT=/var/cache/$PKG
-CACHE_DIR=$CACHE_ROOT/v1
+CACHE_DIR=$CACHE_ROOT/v2
 RUN_DIR=/run/$PKG
 LEGACY=/var/lib/$PKG
 ENVFILE=/etc/$PKG/daemon.env
@@ -175,7 +175,7 @@ if [[ "$SCENARIO" == fresh ]]; then
     "clean host: user+group+versioned cache dir created, no false cold-start notice"
 else
   leg_begin install-over-legacy \
-    "planted root-owned legacy tree: notice fires, legacy untouched, v1 created"
+    "planted root-owned legacy tree: notice fires, legacy untouched, v2 created"
 fi
 
 # ------------------------------------------------------- pre-install state --

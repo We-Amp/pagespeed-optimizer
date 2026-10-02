@@ -14825,29 +14825,22 @@ TEST_F(WorkerTest, OriginRefreshedSentinelEndsTheLoopOnAnUneditableVariantSet) {
   Worker worker(config, &handler);
   ASSERT_TRUE(worker.Initialize());
 
-  // The worker opened the planted volume and sees the wedge: one node, over
-  // and over, and a re-record that cannot land.
+  // The worker opened the planted volume and sees the self-linked head.  At
+  // the storage layer this issue was reported against, the listing returned
+  // that one node over and over and every re-record was refused.  The
+  // current storage layer rejects a link that points at or above its own
+  // node, so the listing stops at the bad link: the stale webp head is listed
+  // once and the identity variant behind it is unreachable.  Either way no
+  // per-alternate removal can unlink the head; only dropping the whole key
+  // ends the loop, and that is what the sentinel below must do.
   auto looped = worker.cache()->ListAlternates(path, "", "https");
   ASSERT_TRUE(looped.has_value());
-  ASSERT_GT(looped->size(), 2u);
-  for (const auto& alt : *looped) {
-    ASSERT_EQ(alt.disk_offset, head);
-    ASSERT_EQ(static_cast<AlternateId>(alt.id), webp_id);
-  }
-  {
-    AlternateMetadata meta;
-    meta.full_mask = static_cast<uint32_t>(SentinelId::kOriginalContent);
-    meta.content_type = ContentType::kImage;
-    meta.origin_content_type = "image/jpeg";
-    auto wh =
-        worker.cache()->WriteOriginalAlternate(path, "", "https", 5, meta);
-    ASSERT_TRUE(wh.has_value());
-    ASSERT_TRUE(
-        wh->write_sync(std::as_bytes(std::span("BYTES", 5))).has_value());
-    ASSERT_FALSE(wh->close_sync().has_value())
-        << "the wedged key must refuse the re-record, or this test is not "
-           "standing on the shape it describes";
-  }
+  ASSERT_EQ(looped->size(), 1u);
+  ASSERT_EQ(looped->front().disk_offset, head);
+  ASSERT_EQ(static_cast<AlternateId>(looped->front().id), webp_id);
+  ASSERT_TRUE(worker.cache()->AlternateExists(path, "", "https", webp_id))
+      << "the stale head must still be selectable, or this test is not "
+         "standing on the shape it describes";
 
   std::thread worker_thread([&worker]() { worker.Run(); });
   WorkerStopper stopper(worker, worker_thread);

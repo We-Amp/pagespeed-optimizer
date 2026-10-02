@@ -71,7 +71,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-CACHE_DIR="$TMP/cache/v1"
+CACHE_DIR="$TMP/cache/v2"
 RUN_DIR="$TMP/run"
 mkdir -p "$CACHE_DIR" "$RUN_DIR"
 

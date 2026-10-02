@@ -314,19 +314,19 @@ PSENVHDR
   fi
   # Cold-start notice: a pre-existing ROOT-OWNED pagespeed cache can never
   # be chowned or migrated.  The daemon cold-starts into
-  # /var/cache/pagespeed-optimizer/v1; say so once, plainly.
+  # /var/cache/pagespeed-optimizer/v2; say so once, plainly.
   for legacy in /var/lib/pagespeed-optimizer /var/lib/pagespeed; do
     if [ -d "$legacy" ] && \
        [ -n "$(find "$legacy" -mindepth 1 -maxdepth 1 -uid 0 -print -quit 2>/dev/null)" ]; then
       echo "pagespeed-optimizer: pre-existing root-owned cache detected at $legacy."
       echo "pagespeed-optimizer: the daemon now runs unprivileged (user pagespeed) with"
-      echo "pagespeed-optimizer: a fresh cache at /var/cache/pagespeed-optimizer/v1 -- the"
+      echo "pagespeed-optimizer: a fresh cache at /var/cache/pagespeed-optimizer/v2 -- the"
       echo "pagespeed-optimizer: cache will cold-start; no content is migrated or chowned."
       echo "pagespeed-optimizer: ACTION REQUIRED: the daemon's default paths moved, but"
       echo "pagespeed-optimizer: your web-server configuration still points at the old"
       echo "pagespeed-optimizer: ones. Update pagespeed_cache_path (nginx) or"
       echo "pagespeed-optimizer: ModPagespeedDaemonVolumePath / ModPagespeedDaemonSocketPath"
-      echo "pagespeed-optimizer: to /var/cache/pagespeed-optimizer/v1/cache and"
+      echo "pagespeed-optimizer: to /var/cache/pagespeed-optimizer/v2/cache and"
       echo "pagespeed-optimizer: /run/pagespeed-optimizer/notify.sock, then restart the web"
       echo "pagespeed-optimizer: server. Until you do, in-place optimization stays OFF and"
       echo "pagespeed-optimizer: the log will report the socket as absent even though the"
@@ -335,6 +335,21 @@ PSENVHDR
       break
     fi
   done
+  # Generation notice: the cache-directory generation moved from v1 to v2
+  # (cache format change).  The daemon never reads v1/ again and nothing
+  # deletes it; say so once, and name the web-server paths to update.
+  if [ -d /var/cache/pagespeed-optimizer/v1 ]; then
+    echo "pagespeed-optimizer: the cache directory moved from"
+    echo "pagespeed-optimizer: /var/cache/pagespeed-optimizer/v1 to"
+    echo "pagespeed-optimizer: /var/cache/pagespeed-optimizer/v2 (new cache format); the"
+    echo "pagespeed-optimizer: cache starts empty and refills as traffic arrives."
+    echo "pagespeed-optimizer: ACTION REQUIRED if your web-server configuration names"
+    echo "pagespeed-optimizer: the v1 path: update pagespeed_cache_path (nginx) or"
+    echo "pagespeed-optimizer: ModPagespeedDaemonVolumePath to"
+    echo "pagespeed-optimizer: /var/cache/pagespeed-optimizer/v2/cache and restart the"
+    echo "pagespeed-optimizer: web server. The v1 directory is left in place; delete it"
+    echo "pagespeed-optimizer: once you will not roll back."
+  fi
 fi
 if [ -d /run/systemd/system ]; then
   systemctl daemon-reload
@@ -473,7 +488,7 @@ self_test() {
   check "tmpfiles.d creates the cache dir 3770 pagespeed:pagespeed" "1" \
     "$(dpkg-deb --fsys-tarfile "$deb" \
       | tar -xO ./usr/lib/tmpfiles.d/$PKG.conf \
-      | grep -cE "^d +/var/cache/pagespeed-optimizer/v1 +3770 +pagespeed +pagespeed")"
+      | grep -cE "^d +/var/cache/pagespeed-optimizer/v2 +3770 +pagespeed +pagespeed")"
   # #1486: both env files get their group scope from `z` lines, so an
   # upgrade that replaced (or kept) either file still converges on
   # 0640 root:pagespeed at the next install/upgrade/boot.
@@ -540,8 +555,8 @@ self_test() {
   # enforcing legs, so the load-bearing assertion inverts: enforcement must
   # not silently DISAPPEAR, and it must be exactly the measured profile --
   # two group lines and nothing else, no reset, no errno conversion.
-  check "shipped unit enforces the @system-service allow-list" "1" \
-    "$(printf '%s' "$unit" | grep -c "^SystemCallFilter=@system-service\$")"
+  check "shipped unit enforces the @system-service allow-list (+ mincore)" "1" \
+    "$(printf '%s' "$unit" | grep -c "^SystemCallFilter=@system-service mincore\$")"
   check "shipped unit subtracts @privileged and @resources" "1" \
     "$(printf '%s' "$unit" | grep -c "^SystemCallFilter=~@privileged @resources\$")"
   check "shipped unit carries exactly those two filter lines" "2" \
@@ -549,7 +564,7 @@ self_test() {
   check "shipped unit never resets its own filter" "0" \
     "$(printf '%s' "$unit" | grep -c "^SystemCallFilter=\$" || true)"
   check "shipped unit keeps logging calls outside @system-service" "1" \
-    "$(printf '%s' "$unit" | grep -c "^SystemCallLog=~@system-service\$")"
+    "$(printf '%s' "$unit" | grep -c "^SystemCallLog=~@system-service mincore\$")"
   check "shipped unit converts no denial to an errno" "0" \
     "$(printf '%s' "$unit" | grep -c "^SystemCallErrorNumber=" || true)"
   check "unit restricts syscall architectures to native" "1" \

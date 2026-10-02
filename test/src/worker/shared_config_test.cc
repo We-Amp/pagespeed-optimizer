@@ -23,6 +23,7 @@
 
 #include "gtest/gtest.h"
 #include "lib/base/message_handler.h"
+#include "volume.hpp"
 
 namespace pagespeed {
 namespace {
@@ -515,9 +516,16 @@ TEST_F(SharedConfigTest, CacheDirGenerationRoundTrip) {
   auto parsed = ParseSharedConfig("socket_path=/x.sock\n");
   EXPECT_EQ(parsed.cache_dir_generation, 0);
 
-  // Parsed when present; emitted by the writer when set.
+  // Parsed when present, including a generation other than this build's:
+  // the reader reports what the writer stated and leaves the verdict to the
+  // peer comparing it with its own.
   parsed = ParseSharedConfig("cache_dir_generation=1\n");
+  EXPECT_EQ(parsed.cache_dir_generation, 1);
+  parsed = ParseSharedConfig(
+      "cache_dir_generation=" + std::to_string(kCacheDirGeneration) + "\n");
   EXPECT_EQ(parsed.cache_dir_generation, kCacheDirGeneration);
+
+  // Emitted by the writer when set.
 
   std::string path = (tmp_dir_ / "gen.conf").string();
   SharedConfig config;
@@ -541,6 +549,16 @@ TEST_F(SharedConfigTest, CacheDirGenerationRoundTrip) {
       ParseSharedConfig("cache_dir_generation=abc\n").cache_dir_generation, 0);
   EXPECT_EQ(ParseSharedConfig("cache_dir_generation=-2\n").cache_dir_generation,
             0);
+}
+
+// Tripwire for shared_config.h's bump rule 2: a storage format major that
+// moves after a generation has shipped takes the generation with it.  When
+// this fails, the Cyclone pin moved the format major: decide the generation
+// (bump it, or record why not in shared_config.h), then update both numbers
+// here together.
+TEST(CacheDirGeneration, TracksTheStorageFormatMajor) {
+  EXPECT_EQ(cyclone::VolumeHeader::kFormatVersionMajor, 8);
+  EXPECT_EQ(kCacheDirGeneration, 2);
 }
 
 TEST_F(SharedConfigTest, WritePidField) {

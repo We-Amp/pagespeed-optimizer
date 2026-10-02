@@ -52,7 +52,7 @@ ExecStartPost=/bin/sh -c 'i=0; while [ ! -S "$SOCKET_PATH" ]; do if [ -n "$MAINP
 # (PAGESPEED_API_TOKEN, PAGESPEED_PURGE_TOKEN) do NOT belong here or on the
 # command line: they ride /etc/pagespeed-optimizer/daemon.env (0640
 # root:pagespeed) so they stay out of /proc/<pid>/cmdline.
-Environment=CACHE_DIR=/var/cache/pagespeed-optimizer/v1
+Environment=CACHE_DIR=/var/cache/pagespeed-optimizer/v2
 Environment=SOCKET_PATH=/run/pagespeed-optimizer/notify.sock
 Environment=CACHE_SIZE=536870912
 Environment=LOG_LEVEL=info
@@ -247,8 +247,18 @@ RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6
 # DRIVEN OVER THEM, a cache purge, a reload signal, SIGTERM, and the daemon
 # running UNDER THIS UNIT as User=pagespeed with every directive here in
 # force -- on Debian 12, Ubuntu 24.04 and AlmaLinux 9 is already a member
-# of @system-service minus @privileged and @resources, so the allow-list
-# needs no per-name additions.
+# of @system-service minus @privileged and @resources.
+#
+# ONE per-name addition, from the cache library rather than the census:
+# mincore(2).  Cyclone (since 2194698) checks whether a range is already in
+# the page cache before it issues a readahead hint, and it now does so on
+# the ordinary path -- once per stripe when it opens an existing mmap
+# directory at start, and on cold reads of 16 KiB and up.  mincore is
+# outside @system-service, so without it the daemon is killed with SIGSYS
+# as soon as it reopens its own cache (the rig's "browser profile masked"
+# leg caught it; the browser drop-in also admits it, which is why the
+# default posture did not).  It only reports residency of the caller's own
+# mappings.
 #
 # Measured rather than assumed: io_uring_setup/io_uring_enter are IN
 # @system-service and are really used by libuv 1.52's Linux backend, so the
@@ -266,7 +276,7 @@ RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6
 # @system-service is systemd's "what a normal system service does" set,
 # maintained per-architecture upstream, so this unit never names a syscall
 # number.
-SystemCallFilter=@system-service
+SystemCallFilter=@system-service mincore
 # ...minus two groups this daemon has no business in.  It holds no
 # capabilities (CapabilityBoundingSet= is empty) and never adjusts its own
 # scheduling or namespaces, so a call from either group is a bug or an
@@ -284,7 +294,7 @@ RestrictNamespaces=yes
 # call outside @system-service and lets it proceed.  Under enforcement the
 # kill wins for the calls both cover, so what this adds is (1) a record of
 # the calls a drop-in re-admitted beyond @system-service -- Chrome's
-# seccomp/chroot/mincore -- and (2) the pre-2.1 soak posture, unchanged,
+# seccomp/chroot -- and (2) the pre-2.1 soak posture, unchanged,
 # for a host that opted out above.
 #
 # Cost, both halves.  (1) Each directive installs a real seccomp-BPF
@@ -293,8 +303,10 @@ RestrictNamespaces=yes
 # (2) An audit record is written per MATCHING call, and THAT is only cheap
 # because the census found nothing outside the set.  If a future change
 # starts making one of these calls in a hot path the log (or the kill) will
-# say so loudly, which is the point -- read it, do not silence it.
-SystemCallLog=~@system-service
+# say so loudly, which is the point -- read it, do not silence it.  The one
+# exception is mincore, admitted above for the cache's readahead check: it
+# runs on cold reads, so logging it would write an audit record per read.
+SystemCallLog=~@system-service mincore
 
 # Resource limits
 LimitNOFILE=65536

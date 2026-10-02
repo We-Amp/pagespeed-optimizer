@@ -83,7 +83,7 @@ void PrintUsage(const char* program) {
       << "  --cache-dir DIR            Cache directory; the volume, shared "
          "config and\n"
       << "                             serve-stats live inside it (default: "
-         "/var/cache/pagespeed-optimizer/v1)\n"
+         "/var/cache/pagespeed-optimizer/v2)\n"
       << "  --cache-path PATH          Expert override: full cache volume "
          "file STEM\n"
       << "                             (deliberately extensionless); wins "

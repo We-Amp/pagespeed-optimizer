@@ -68,9 +68,18 @@ services:
     expose:
       - '8081'
 
+  # Holds the PID namespace the worker and nginx share (see below)
+  pidns:
+    image: registry.k8s.io/pause:3.10.1@sha256:278fb9dbcca9518083ad1e11276933a2e96f23de604a3a08cc3c80002767d24c
+    user: '65535:65535'
+    network_mode: none
+    read_only: true
+    cap_drop: ['ALL']
+
   # Factory Worker — optimizes cached content
   worker:
     image: ghcr.io/we-amp/pagespeed-worker:2.1.0
+    pid: 'service:pidns'
     entrypoint: /entrypoint-worker.sh
     environment:
       # Acknowledges the Terms of Service: https://modpagespeed.com/terms/
@@ -79,17 +88,20 @@ services:
       - shared:/shared
       - ./entrypoint-worker.sh:/entrypoint-worker.sh:ro
     depends_on:
+      - pidns
       - origin
 
   # Nginx with PageSpeed module
   nginx:
     image: ghcr.io/we-amp/pagespeed-nginx:2.1.0
+    pid: 'service:pidns'
     ports:
       - '8080:8080'
     volumes:
       - shared:/shared
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
+      - pidns
       - worker
 
 volumes:
@@ -98,6 +110,22 @@ volumes:
 
 The `shared` volume is where the Cyclone cache file and Unix socket live. Both
 the nginx and worker containers mount it at `/shared`.
+
+**Every process that shares the cache volume must share one host, and should
+share one PID namespace.** The cache is safe across PID namespaces, but older
+builds recover a cross-process write lock from a holder whose process the
+kernel reports gone. Separate containers get separate PID namespaces by
+default, and there a live holder in the other container looks gone to an
+older build (or its PID names an unrelated process), so during an upgrade
+that mixes builds two writes could overlap without either side noticing. `pid: 'service:pidns'` puts the worker and nginx
+in one namespace. It is owned by `pidns`, a container running the
+digest-pinned Kubernetes pause image, rather than by the worker, because the
+kernel stops every process in a PID namespace when its first process exits:
+with the worker as owner, restarting the worker would also kill nginx. For
+the same reason the anchor's image must not change with the release: a
+recreated anchor takes both services down mid-upgrade. Stopping `pidns`
+stops both; `docker compose up -d` brings them back. Any other container you point at the volume needs the
+same `pid:` line.
 
 ## Nginx Configuration
 
@@ -192,7 +220,8 @@ What this means for your compose file:
   a bind-mounted host directory is owned by `918:918` beforehand — a bind mount
   never inherits the image's ownership.
 - **If a third container reads the cache**, give it group `918`
-  (`group_add: ["918"]` in compose).
+  (`group_add: ["918"]` in compose) and put it in the same PID namespace
+  (`pid: 'service:pidns'`).
 - **Don't publish the management API on a port below 1024.** The optimizer is no
   longer root and cannot bind one; publish a high port instead
   (`PAGESPEED_API_PORT=9880` with `ports: ["9880:9880"]`).
@@ -360,7 +389,9 @@ you want to clear the cache completely.
 ## Kubernetes
 
 For Kubernetes deployments, run nginx and the worker as separate containers in
-the same pod, sharing an `emptyDir` volume:
+the same pod, sharing an `emptyDir` volume and one PID namespace
+(`shareProcessNamespace: true`; the reason is under
+[How the cache volume is shared](#docker-compose-configuration)):
 
 ```yaml
 apiVersion: v1
@@ -368,6 +399,7 @@ kind: Pod
 metadata:
   name: pagespeed
 spec:
+  shareProcessNamespace: true
   containers:
     - name: nginx
       image: ghcr.io/we-amp/pagespeed-nginx:2.1.0
@@ -394,8 +426,14 @@ spec:
         sizeLimit: 512Mi
 ```
 
-Both containers in the same pod share the same network namespace, so the Unix
-socket is accessible without additional configuration.
+Both containers in the same pod share the network namespace and, with
+`shareProcessNamespace: true`, the PID namespace. The pod's pause container is
+then PID 1; each container's main process still receives its own stop signal.
+The pause container reaps orphaned processes; both containers can see each
+other's processes, including the worker's command line, so keep secrets in
+environment variables, not arguments. Do not split nginx and the worker into
+separate pods that mount the same volume: separate pods usually do not share
+a node, and never a PID namespace.
 
 ## Verifying the images
 

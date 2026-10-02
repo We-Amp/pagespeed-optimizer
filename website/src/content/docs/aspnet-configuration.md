@@ -136,6 +136,16 @@ To run the worker as a fully separate process, pair a concrete `SocketPath`
 with `AutoStart` `false` so the middleware connects to your externally managed
 worker instead of launching its own.
 
+The application and the worker then share the cache volume, so they must run
+on one host, and should run in one PID namespace. The cache is safe across PID
+namespaces, but older builds recover a cross-process write lock from a holder
+whose process the kernel reports gone, and a live holder in another
+container's PID namespace looks gone to them; one namespace keeps an upgrade
+safe while old and new builds share the volume. In Kubernetes, put both
+containers in one pod with `shareProcessNamespace: true`; in compose, give
+both `pid: 'service:<anchor>'` for a small container that only holds the
+namespace.
+
 ## Hot reload
 
 Configuration changes are picked up automatically through ASP.NET Core's
