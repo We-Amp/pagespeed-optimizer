@@ -144,8 +144,8 @@ check "dangling symlink cannot hide a stale enabled file" "stale" \
   "$(stale "$fx")"
 
 # nginx loads nginx.conf, conf.d/, sites-enabled/, modules-enabled/ and default.d/;
-# sites-available/ is read only when linked from sites-enabled/.
-# leftovers do not.
+# sites-available/ is read only when linked from sites-enabled/. The live config
+# warns, dpkg leftovers do not.
 fx="$tmp/nginx"
 mkdir -p "$fx/etc/nginx"
 printf '%s\n' "pagespeed_cache_path /var/cache/pagespeed-optimizer/v1/cache;" \
