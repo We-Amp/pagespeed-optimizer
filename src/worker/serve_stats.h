@@ -33,6 +33,8 @@ class MessageHandler;
 //       front-end architectures are mutually exclusive by construction (a
 //       deployment runs exactly one front end pointed at a given cache), so
 //       exactly one process writes these.
+//       By-encoding rows (v9) belong to this group: written by the front end
+//       inside RecordServeHit().
 //   * serve-class counters + notify_suppressed_total (v8)
 //       WRITER: the front end, through RecordServeClass() / the C API.
 //       LIVE where the 1.16 module fronts the cache: its module-side writer
@@ -58,8 +60,8 @@ class MessageHandler;
 // aarch64) because aligned 64-bit loads/stores are naturally atomic.
 struct ServeStats {
   static constexpr uint32_t kMagic = 0x50533032;  // "PS02"
-  static constexpr uint32_t kVersion = 8;
-  // 512 (was 256 through v5, 128 through v3): v6 adds the opt-in
+  static constexpr uint32_t kVersion = 9;
+  // 1024 (was 512 through v8, 256 through v5, 128 through v3): v6 adds the opt-in
   // counter apparatus (per-signer slots, overflow, verify-latency buckets, a
   // boot identity and a counting-since day) — 192 bytes of additions overflow
   // the 96-byte headroom left in 256, so the file grows to 512. Safe because
@@ -73,7 +75,10 @@ struct ServeStats {
   // grow kFileSize on the same version bump, exactly as v6 did when 256 ran
   // out.  The exact-size assert below pins the layout so an accidental reorder
   // or a mid-block insertion cannot slip past review.
-  static constexpr size_t kFileSize = 512;
+  // v9 adds the by-transfer-encoding serve counters (two [4][3] arrays,
+  // 192 bytes), past v8's 32-byte headroom, so the file grows to 1024 on
+  // the same version bump. HEADROOM AFTER v9 IS 352 BYTES.
+  static constexpr size_t kFileSize = 1024;
 
   // Web Bot Auth opt-in counter (experimental): the maximum
   // number of distinct verified signer identities we track by keyid; the
@@ -341,6 +346,21 @@ struct ServeStats {
   uint32_t saturation_hwm;
   // ---- end v8 block (88 bytes) ----
 
+  // ---- v9: serves by transfer encoding ----
+  // The same serves the per-type counters above total, split by the
+  // transfer-encoding axis of the served variant's capability mask (bits
+  // 6-7: identity, gzip, brotli), so a front end that never serves a stored
+  // compressed variant shows an all-identity row instead of an unexplained
+  // saving gap.  Index [type][encoding]: type is the ContentType value
+  // (html=0..image=3), encoding is CapabilityMask::TransferEncoding
+  // (identity=0, gzip=1, brotli=2).  A mask whose encoding field is
+  // kReserved (3) writes no row here -- not a servable encoding -- while
+  // the per-type totals still count the serve.  WRITER: the front end, with
+  // the bytes/hits group above, through RecordServeHit().
+  uint64_t serve_hits_by_encoding[4][3];
+  uint64_t serve_bytes_by_encoding[4][3];
+  // ---- end v9 block (192 bytes) ----
+
   // Days since the Unix epoch when this counting file was first created fresh.
   // Day-granular ("since" date).  Minted in the create-fresh path only;
   // PRESERVED across same-version reuse/restart (NOT a counter).
@@ -363,7 +383,7 @@ static_assert(sizeof(ServeStats) <= ServeStats::kFileSize);
 // Pin the EXACT size at v8.  The <= assert above only catches an overflow; it
 // would happily accept a field silently dropped or re-typed.  Anything that
 // changes the layout must change this number and the version together.
-static_assert(sizeof(ServeStats) == 480,
+static_assert(sizeof(ServeStats) == 672,
               "ServeStats layout changed: bump kVersion and update this pin");
 static_assert(alignof(ServeStats) == 8);
 // The v8 block must stay 8-byte aligned so every u64 in it can be updated with
@@ -377,6 +397,10 @@ static_assert(offsetof(ServeStats, saturation_hwm) <
               offsetof(ServeStats, counting_since_unix_day));
 static_assert(offsetof(ServeStats, counting_since_unix_day) <
               offsetof(ServeStats, boot_id));
+static_assert(offsetof(ServeStats, serve_hits_by_encoding) % 8 == 0);
+static_assert(offsetof(ServeStats, serve_bytes_by_encoding) % 8 == 0);
+static_assert(offsetof(ServeStats, serve_bytes_by_encoding) <
+              offsetof(ServeStats, counting_since_unix_day));
 
 // One serve-class outcome for a response the front end judged optimizable.
 // Values are DISJOINT SINGLE BITS on purpose: a caller that accidentally

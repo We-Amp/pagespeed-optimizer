@@ -317,6 +317,7 @@ gtest_test(
 
 gtest_test(
     name = "api_handlers_test",
+    data = ["testdata/stats_page.golden.json"],
     deps = [
         "//lib/base:message_handler",
         "//src/product_version:version",
