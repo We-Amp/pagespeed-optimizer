@@ -393,6 +393,33 @@ json BuildStatsJson(ApiContext& ctx) {
         {"flags_unrecognized", load(ss->serve_flags_unrecognized_total)}};
   }
 
+  // Entries judged already optimal at processing time: no smaller identity
+  // variant was produced.  Per processed entry (not per serve) — CSS/JS at
+  // the "already minimal" verdict, images at the no-savings skip — over
+  // this worker process's lifetime.
+  j["verdicts"] = {
+      {"css",
+       {{"already_optimal",
+         {{"count", ctx.stats.css_already_optimal_count.load()},
+          {"bytes", ctx.stats.css_already_optimal_bytes.load()}}}}},
+      {"js",
+       {{"already_optimal",
+         {{"count", ctx.stats.js_already_optimal_count.load()},
+          {"bytes", ctx.stats.js_already_optimal_bytes.load()}}}}},
+      {"image",
+       {{"already_optimal",
+         {{"count", ctx.stats.image_already_optimal_count.load()},
+          {"bytes", ctx.stats.image_already_optimal_bytes.load()}}}}}};
+
+  // The worker's own time base: when this process started (wall clock) and
+  // how long it has been up (monotonic).  One stats read answers "since
+  // when" for every counter in this document without a second health read.
+  const auto now = std::chrono::steady_clock::now();
+  j["uptime_seconds"] =
+      std::chrono::duration_cast<std::chrono::seconds>(now - ctx.start_time)
+          .count();
+  j["started_at_ms"] = ctx.started_at_ms;
+
   return j;
 }
 
@@ -481,6 +508,27 @@ std::string BuildPrometheusMetricsText(const PrometheusMetricsInputs& in) {
                   s.js_processed.load(), "\n");
   absl::StrAppend(&m, "pagespeed_processed_total{type=\"image\"} ",
                   s.images_processed.load(), "\n");
+
+  // Per-type already-optimal verdicts (entries, original bytes).
+  absl::StrAppend(
+      &m, "# HELP pagespeed_already_optimal_total ",
+      "Entries whose optimization produced no smaller identity variant.\n");
+  absl::StrAppend(&m, "# TYPE pagespeed_already_optimal_total counter\n");
+  absl::StrAppend(&m, "pagespeed_already_optimal_total{type=\"css\"} ",
+                  s.css_already_optimal_count.load(), "\n");
+  absl::StrAppend(&m, "pagespeed_already_optimal_total{type=\"js\"} ",
+                  s.js_already_optimal_count.load(), "\n");
+  absl::StrAppend(&m, "pagespeed_already_optimal_total{type=\"image\"} ",
+                  s.image_already_optimal_count.load(), "\n");
+  absl::StrAppend(&m, "# HELP pagespeed_already_optimal_bytes_total ",
+                  "Original bytes of entries already optimal.\n");
+  absl::StrAppend(&m, "# TYPE pagespeed_already_optimal_bytes_total counter\n");
+  absl::StrAppend(&m, "pagespeed_already_optimal_bytes_total{type=\"css\"} ",
+                  s.css_already_optimal_bytes.load(), "\n");
+  absl::StrAppend(&m, "pagespeed_already_optimal_bytes_total{type=\"js\"} ",
+                  s.js_already_optimal_bytes.load(), "\n");
+  absl::StrAppend(&m, "pagespeed_already_optimal_bytes_total{type=\"image\"} ",
+                  s.image_already_optimal_bytes.load(), "\n");
 
   // Per-type processing time
   absl::StrAppend(

@@ -831,6 +831,54 @@ TEST_F(ApiHandlersIntegrationTest, StatsEndpointServesByEncoding) {
   EXPECT_EQ(enc["br"]["bytes"], 0);
 }
 
+TEST_F(ApiHandlersIntegrationTest, StatsEndpointReportsAlreadyOptimalVerdicts) {
+  stats_.css_already_optimal_count.store(1, std::memory_order_relaxed);
+  stats_.css_already_optimal_bytes.store(110554, std::memory_order_relaxed);
+  stats_.image_already_optimal_count.store(4, std::memory_order_relaxed);
+  stats_.image_already_optimal_bytes.store(8000, std::memory_order_relaxed);
+
+  std::string resp =
+      SendRequest("GET /v1/stats HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  json j = ParseJsonBody(resp);
+  ASSERT_TRUE(j.contains("verdicts"));
+  EXPECT_EQ(j["verdicts"]["css"]["already_optimal"]["count"], 1);
+  EXPECT_EQ(j["verdicts"]["css"]["already_optimal"]["bytes"], 110554);
+  EXPECT_EQ(j["verdicts"]["js"]["already_optimal"]["count"], 0);
+  EXPECT_EQ(j["verdicts"]["image"]["already_optimal"]["count"], 4);
+  EXPECT_EQ(j["verdicts"]["image"]["already_optimal"]["bytes"], 8000);
+}
+
+TEST_F(ApiHandlersIntegrationTest, StatsEndpointReportsTheProcessTimeBase) {
+  // The fixture backdates start_time by an hour; started_at_ms is set
+  // directly because the fixture's ApiContext is not a real Worker's.
+  ctx_->started_at_ms = 1759230000000;
+
+  std::string resp =
+      SendRequest("GET /v1/stats HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  json j = ParseJsonBody(resp);
+  EXPECT_EQ(j["started_at_ms"], int64_t{1759230000000});
+  ASSERT_TRUE(j["uptime_seconds"].is_number());
+  EXPECT_GE(j["uptime_seconds"].get<int64_t>(), 3599);
+}
+
+TEST_F(ApiHandlersIntegrationTest, MetricsEndpointMirrorsVerdicts) {
+  stats_.css_already_optimal_count.store(2, std::memory_order_relaxed);
+  stats_.css_already_optimal_bytes.store(221108, std::memory_order_relaxed);
+  stats_.image_already_optimal_count.store(1, std::memory_order_relaxed);
+
+  std::string resp =
+      SendRequest("GET /v1/metrics HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(resp.find("pagespeed_already_optimal_total{type=\"css\"} 2\n"),
+            std::string::npos);
+  EXPECT_NE(
+      resp.find("pagespeed_already_optimal_bytes_total{type=\"css\"} 221108\n"),
+      std::string::npos);
+  EXPECT_NE(resp.find("pagespeed_already_optimal_total{type=\"image\"} 1\n"),
+            std::string::npos);
+  EXPECT_NE(resp.find("pagespeed_already_optimal_total{type=\"js\"} 0\n"),
+            std::string::npos);
+}
+
 TEST_F(ApiHandlersIntegrationTest, MetricsEndpointWithServeSavings) {
   ServeStats ss{};
   ss.magic = ServeStats::kMagic;

@@ -4,6 +4,14 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Added: GET /v1/stats now reports how many entries of each type the
+optimizer judged already optimal — no smaller variant could be produced —
+with their original sizes, so a resource that serves at its original size
+because it was already minimal shows up as exactly that instead of as zero
+savings. The document also states when the worker process started and how
+long it has been up, so one read answers "since when" for every counter in
+it.
+
 Added: GET /v1/stats now reports each content type's cache serves split by
 the transfer encoding actually served (identity, gzip or brotli), next to
 the totals it already reported. A serving front end that never serves the
