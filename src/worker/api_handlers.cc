@@ -327,23 +327,43 @@ json BuildStatsJson(ApiContext& ctx) {
     auto load = [](const uint64_t& field) -> uint64_t {
       return *reinterpret_cast<const volatile uint64_t*>(&field);
     };
+    // v9: the same serves, split by the transfer encoding actually served
+    // (the variant's capability mask, recorded per hit).  An all-identity
+    // row on a front end that stores compressed variants is the "compressed
+    // copies not served here" signal a stats consumer can see.
+    auto by_encoding = [&load](const ServeStats* s, size_t type_index) {
+      return json{
+          {"identity",
+           {{"hits", load(s->serve_hits_by_encoding[type_index][0])},
+            {"bytes", load(s->serve_bytes_by_encoding[type_index][0])}}},
+          {"gzip",
+           {{"hits", load(s->serve_hits_by_encoding[type_index][1])},
+            {"bytes", load(s->serve_bytes_by_encoding[type_index][1])}}},
+          {"br",
+           {{"hits", load(s->serve_hits_by_encoding[type_index][2])},
+            {"bytes", load(s->serve_bytes_by_encoding[type_index][2])}}}};
+    };
     j["serve_savings"] = {
         {"html",
          {{"original_bytes", load(ss->html_original_bytes)},
           {"optimized_bytes", load(ss->html_optimized_bytes)},
-          {"hits", load(ss->html_optimized_hits)}}},
+          {"hits", load(ss->html_optimized_hits)},
+          {"by_encoding", by_encoding(ss, 0)}}},
         {"css",
          {{"original_bytes", load(ss->css_original_bytes)},
           {"optimized_bytes", load(ss->css_optimized_bytes)},
-          {"hits", load(ss->css_optimized_hits)}}},
+          {"hits", load(ss->css_optimized_hits)},
+          {"by_encoding", by_encoding(ss, 1)}}},
         {"js",
          {{"original_bytes", load(ss->js_original_bytes)},
           {"optimized_bytes", load(ss->js_optimized_bytes)},
-          {"hits", load(ss->js_optimized_hits)}}},
+          {"hits", load(ss->js_optimized_hits)},
+          {"by_encoding", by_encoding(ss, 2)}}},
         {"image",
          {{"original_bytes", load(ss->image_original_bytes)},
           {"optimized_bytes", load(ss->image_optimized_bytes)},
-          {"hits", load(ss->image_optimized_hits)}}},
+          {"hits", load(ss->image_optimized_hits)},
+          {"by_encoding", by_encoding(ss, 3)}}},
     };
     // Zero-copy serve-barrier verdicts (from the same nginx mmap).
     j["zerocopy"] = {

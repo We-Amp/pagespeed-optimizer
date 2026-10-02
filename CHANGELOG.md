@@ -4,6 +4,16 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Added: GET /v1/stats now reports each content type's cache serves split by
+the transfer encoding actually served (identity, gzip or brotli), next to
+the totals it already reported. A serving front end that never serves the
+stored compressed variants becomes visible as an all-identity row instead
+of an unexplained saving. The shared counter file this comes from moves to
+a new layout version: its counters — including the serve savings the admin
+console shows — restart at zero once, when an updated worker first starts,
+and a worker older than this change stops recording into it until it is
+updated too.
+
 Fixed: the management API's HTTP listener now releases a connection's
 resources correctly when accepting that connection fails.
 

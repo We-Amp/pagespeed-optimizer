@@ -381,12 +381,12 @@ TEST_F(ServeStatsTest, StructSize) {
   // headroom); the version+size bump self-heals existing files.  v7 adds the
   // zero-copy serve-barrier + bounded-stale counters (40 bytes), still
   // inside 512.  v8 adds the serve-class + saturation block (88 bytes).
-  EXPECT_EQ(ServeStats::kFileSize, 512u);
-  EXPECT_EQ(ServeStats::kVersion, 8u);
+  EXPECT_EQ(ServeStats::kFileSize, 1024u);
+  EXPECT_EQ(ServeStats::kVersion, 9u);
   // The exact size is pinned in the header too; asserted here so the failure
   // names the surface rather than a translation unit.
-  EXPECT_EQ(sizeof(ServeStats), 480u);
-  EXPECT_EQ(ServeStats::kFileSize - sizeof(ServeStats), 32u)
+  EXPECT_EQ(sizeof(ServeStats), 672u);
+  EXPECT_EQ(ServeStats::kFileSize - sizeof(ServeStats), 352u)
       << "headroom shrank: the next append may need a kFileSize bump";
 }
 
@@ -470,6 +470,99 @@ TEST_F(ServeStatsTest, RecordServeHitPerTypeIncrements) {
   EXPECT_EQ(stats->svg_optimized_hits, 0u);
 
   CloseServeStats(stats);
+}
+
+// --- v9: serves by transfer encoding ----------------------------------------
+
+TEST_F(ServeStatsTest, RecordServeHitSplitsByTransferEncoding) {
+  ServeStats* stats = CreateServeStats(path_);
+  ASSERT_NE(stats, nullptr);
+
+  // Bits 6-7 of the mask: identity (0), gzip (1), brotli (2).
+  constexpr uint32_t kGzipMask = 1u << 6;
+  constexpr uint32_t kBrotliMask = 2u << 6;
+  const size_t css = static_cast<size_t>(ContentType::kCss);
+  const size_t image = static_cast<size_t>(ContentType::kImage);
+  const size_t js = static_cast<size_t>(ContentType::kJs);
+
+  RecordServeHit(stats, ContentType::kCss, 1000, 800, 0);
+  RecordServeHit(stats, ContentType::kCss, 1000, 200, kGzipMask);
+  RecordServeHit(stats, ContentType::kCss, 1000, 160, kBrotliMask);
+  RecordServeHit(stats, ContentType::kImage, 5000, 5000, kGzipMask);
+
+  // The per-type totals are unchanged by the split.
+  EXPECT_EQ(3u, stats->css_optimized_hits);
+  EXPECT_EQ(1u, stats->image_optimized_hits);
+  // ...and the split itself:
+  EXPECT_EQ(1u, stats->serve_hits_by_encoding[css][0]);
+  EXPECT_EQ(800u, stats->serve_bytes_by_encoding[css][0]);
+  EXPECT_EQ(1u, stats->serve_hits_by_encoding[css][1]);
+  EXPECT_EQ(200u, stats->serve_bytes_by_encoding[css][1]);
+  EXPECT_EQ(1u, stats->serve_hits_by_encoding[css][2]);
+  EXPECT_EQ(160u, stats->serve_bytes_by_encoding[css][2]);
+  EXPECT_EQ(0u, stats->serve_hits_by_encoding[image][0]);
+  EXPECT_EQ(1u, stats->serve_hits_by_encoding[image][1]);
+  EXPECT_EQ(5000u, stats->serve_bytes_by_encoding[image][1]);
+
+  // The reserved encoding (3) writes no row; the totals still count it.
+  RecordServeHit(stats, ContentType::kJs, 100, 90, 3u << 6);
+  EXPECT_EQ(1u, stats->js_optimized_hits);
+  EXPECT_EQ(0u, stats->serve_hits_by_encoding[js][0]);
+  EXPECT_EQ(0u, stats->serve_hits_by_encoding[js][1]);
+  EXPECT_EQ(0u, stats->serve_hits_by_encoding[js][2]);
+  CloseServeStats(stats);
+}
+
+TEST_F(ServeStatsTest, ReusedFileZeroesTheEncodingBlock) {
+  ServeStats* stats = CreateServeStats(path_);
+  ASSERT_NE(stats, nullptr);
+  RecordServeHit(stats, ContentType::kCss, 1000, 200, 1u << 6);
+  CloseServeStats(stats);
+
+  // A second create over the same path reuses the file and zeroes every
+  // counter, the v9 block included.
+  ServeStats* reused = CreateServeStats(path_);
+  ASSERT_NE(reused, nullptr);
+  EXPECT_EQ(reused->version, ServeStats::kVersion);
+  EXPECT_EQ(0u, reused->css_optimized_hits);
+  EXPECT_EQ(0u, reused->serve_hits_by_encoding[1][1]);
+  EXPECT_EQ(0u, reused->serve_bytes_by_encoding[1][1]);
+  CloseServeStats(reused);
+}
+
+// The real v8 -> v9 upgrade artifact: a 512-byte file with correct magic and
+// version=8, junk past the v8 struct. Open must reject it (the SIZE gate
+// fires first) and Create must replace it with a fresh zeroed v9 file -- an
+// older layout must read as zeros, never as garbage counters.
+TEST_F(ServeStatsTest, LegacyV8FileIsRejectedAndRecreatedZeroed) {
+  std::string legacy(512, '\0');
+  uint32_t magic = ServeStats::kMagic;
+  uint32_t version = 8;
+  std::memcpy(&legacy[0], &magic, sizeof(magic));
+  std::memcpy(&legacy[4], &version, sizeof(version));
+  legacy[480] = 0x2A;  // non-zero junk in the v8 tail
+  legacy[500] = 0xFF;
+  FILE* f = fopen(path_.c_str(), "wb");
+  ASSERT_NE(f, nullptr);
+  ASSERT_EQ(legacy.size(), fwrite(legacy.data(), 1, legacy.size(), f));
+  fclose(f);
+
+  EXPECT_EQ(nullptr, OpenServeStats(path_));
+
+  ServeStats* fresh = CreateServeStats(path_);
+  ASSERT_NE(fresh, nullptr);
+  EXPECT_EQ(fresh->magic, ServeStats::kMagic);
+  EXPECT_EQ(fresh->version, ServeStats::kVersion);
+  EXPECT_EQ(0u, fresh->css_optimized_hits);
+  EXPECT_EQ(0u, fresh->serve_hits_by_encoding[1][1]);
+  EXPECT_EQ(0u, fresh->serve_bytes_by_encoding[3][2]);
+  CloseServeStats(fresh);
+
+  // On-disk size is the new kFileSize, so a subsequent open succeeds.
+  ServeStats* reopened = OpenServeStats(path_);
+  ASSERT_NE(reopened, nullptr);
+  EXPECT_EQ(reopened->version, ServeStats::kVersion);
+  CloseServeStats(reopened);
 }
 
 TEST_F(ServeStatsTest, RecordServeHitOnlyTouchesTargetBucket) {
@@ -927,7 +1020,7 @@ TEST_F(ServeStatsTest, LegacyV7FileIsRejectedAndRecreatedWithWarning) {
   const std::vector<std::string> warnings = handler.warnings();
   ASSERT_EQ(warnings.size(), 1u) << "expected exactly one skew warning";
   EXPECT_NE(warnings[0].find("version 7"), std::string::npos) << warnings[0];
-  EXPECT_NE(warnings[0].find("version 8"), std::string::npos) << warnings[0];
+  EXPECT_NE(warnings[0].find("version 9"), std::string::npos) << warnings[0];
 
   ServeStats* reopened = OpenServeStats(path_);
   ASSERT_NE(reopened, nullptr);

@@ -801,6 +801,36 @@ TEST_F(ApiHandlersIntegrationTest, StatsEndpointWithServeSavings) {
   EXPECT_EQ(sv["image"]["hits"], 100);
 }
 
+TEST_F(ApiHandlersIntegrationTest, StatsEndpointServesByEncoding) {
+  ServeStats ss{};
+  ss.magic = ServeStats::kMagic;
+  ss.version = ServeStats::kVersion;
+  ss.css_original_bytes = 2000;
+  ss.css_optimized_bytes = 1000;
+  ss.css_optimized_hits = 2;
+  const size_t css = static_cast<size_t>(ContentType::kCss);
+  ss.serve_hits_by_encoding[css][0] = 1;
+  ss.serve_bytes_by_encoding[css][0] = 800;
+  ss.serve_hits_by_encoding[css][1] = 1;
+  ss.serve_bytes_by_encoding[css][1] = 200;
+  ctx_->serve_stats = &ss;
+
+  std::string resp =
+      SendRequest("GET /v1/stats HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  json j = ParseJsonBody(resp);
+  ASSERT_TRUE(j.contains("serve_savings"));
+  // The existing keys are unchanged...
+  EXPECT_EQ(j["serve_savings"]["css"]["hits"], 2);
+  // ...and the split nests inside each type.
+  auto& enc = j["serve_savings"]["css"]["by_encoding"];
+  EXPECT_EQ(enc["identity"]["hits"], 1);
+  EXPECT_EQ(enc["identity"]["bytes"], 800);
+  EXPECT_EQ(enc["gzip"]["hits"], 1);
+  EXPECT_EQ(enc["gzip"]["bytes"], 200);
+  EXPECT_EQ(enc["br"]["hits"], 0);
+  EXPECT_EQ(enc["br"]["bytes"], 0);
+}
+
 TEST_F(ApiHandlersIntegrationTest, MetricsEndpointWithServeSavings) {
   ServeStats ss{};
   ss.magic = ServeStats::kMagic;

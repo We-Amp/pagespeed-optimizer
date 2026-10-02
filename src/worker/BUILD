@@ -480,6 +480,7 @@ cc_library(
     deps = [
         ":posix_compat",
         "//lib/base:message_handler",
+        "//lib/classify:capability_mask",
         "//lib/classify:content_type",
     ],
 )
