@@ -143,7 +143,8 @@ ln -s ../conf-available/gone.conf "$fx/etc/apache2/conf-enabled/gone.conf"
 check "dangling symlink cannot hide a stale enabled file" "stale" \
   "$(stale "$fx")"
 
-# nginx has no enabled/available split: the live config warns, dpkg
+# nginx loads nginx.conf, conf.d/, sites-enabled/, modules-enabled/ and default.d/;
+# sites-available/ is read only when linked from sites-enabled/.
 # leftovers do not.
 fx="$tmp/nginx"
 mkdir -p "$fx/etc/nginx"
