@@ -17,7 +17,12 @@
 
 3. Edit `deploy/nginx.conf` -- set your upstream backend address.
 
-4. Start services:
+4. Start services. The compose file runs a third service, `pidns` (the
+   digest-pinned Kubernetes pause image): the worker and nginx join its PID
+   namespace, which keeps upgrades safe while an older build (which judges
+   cache-lock holders by PID) shares the volume. Restarting the worker or
+   nginx leaves the other up; stopping `pidns` stops both, and `up -d` brings
+   them back (see the comment in `docker-compose.yml`).
    ```bash
    cd deploy
    docker compose up -d

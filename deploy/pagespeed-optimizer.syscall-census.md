@@ -25,7 +25,10 @@ measured posture, is already admitted by
     SystemCallFilter=@system-service
     SystemCallFilter=~@privileged @resources
 
-so the enforcing profile carries no per-name additions. That is the result
+so the enforcing profile carries no per-name additions from the census.
+(The unit since admits one name by hand, `mincore`, for the cache library's
+readahead residency check added after this census; see the comment above
+`SystemCallFilter=` in the unit.) That is the result
 that lets the profile ship as two group names instead of a list of ~370
 syscalls that would have to be re-derived per architecture.
 

@@ -137,6 +137,14 @@ bazel test //test/lib/cache/...
   asserts all of this, including that the default context yields the historical
   key BYTE FOR BYTE so that no existing cache goes cold.
 - Both nginx and worker MUST set `enable_mmap_directory = true` for cross-process visibility.
+- Every process sharing a volume MUST run on one host. Cyclone judges write-lock
+  holder liveness by a kernel-held byte-range slot on the volume file (safe
+  across PID namespaces); older builds use `kill(pid, 0)`, so keep one PID
+  namespace while old and new builds overlap. Containers: the Helm pod sets
+  `shareProcessNamespace: true`; compose files join both services to a `pidns`
+  anchor service (`pid: "service:pidns"`, digest-pinned pause image, never the
+  release image). Don't close the cache's fds behind
+  its back.
 - RAM cache defaults to 64MB (per-process CLFUS). Set `ram_cache_size=0` to disable.
 - `ComposeKey()` is private -- keys are always composed from `(url, hostname)` pairs.
 - `max_metadata_size` is DERIVED, not chosen: it defaults to

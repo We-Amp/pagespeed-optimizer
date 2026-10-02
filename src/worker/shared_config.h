@@ -69,9 +69,24 @@ inline constexpr int kSharedConfigVersion = 1;
 // single 0 -> 1 move.  No released binary has ever resolved a v1 directory, so
 // there is no peer to skew against and nothing in v1 to be made unusable.  A
 // format major that bumps AFTER 2.1 ships takes N to 2.
+//
+// N = 2: cyclone's format major went 7 -> 8 (CRC-32C document checksums)
+// after 2.1.0 shipped with v1, so trigger 2 fires against a released
+// generation.  The new binary opens a new, empty volume in v2/ and never
+// touches v1/ -- including v1/pagespeed-shared.conf, which 2.1.0 left saying
+// generation 1.  What the handshake does and does not catch:
+//   - a NEW peer (compiled for 2) whose configuration still names v1 reads
+//     that stale file, sees 1, and refuses loudly;
+//   - an OLD peer (compiled for 1) next to this daemon also reads v1/, sees
+//     the matching 1, and attaches to a volume nobody writes any more: a
+//     SILENT split.  The mod_pagespeed 1.1 packages declare an exact-version
+//     Depends on pagespeed-optimizer, which is what prevents that pairing;
+//     the 2.x nginx module from 2.1.0 checks nothing,
+//     and the generation check added to it later covers only a new module
+//     next to an old worker.
 // Do NOT bump for entry-schema changes (those ride per-entry versioning
 // inside the volume) or serve-stats layout changes (own namespace, own file).
-inline constexpr int kCacheDirGeneration = 1;
+inline constexpr int kCacheDirGeneration = 2;
 
 // Keep in sync with inline SharedConfig in src/nginx/ngx_pagespeed_module.cc.
 struct SharedConfig {

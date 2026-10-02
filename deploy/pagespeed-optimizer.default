@@ -26,7 +26,7 @@
 # /var/lib/pagespeed-optimizer is never touched by the package: a
 # pre-existing root-owned cache there is abandoned in place (cold start;
 # no content is migrated or chowned).
-# CACHE_DIR=/var/cache/pagespeed-optimizer/v1
+# CACHE_DIR=/var/cache/pagespeed-optimizer/v2
 
 # Notify/health/mgmt socket location. The default lives in the service's
 # RuntimeDirectory (/run/pagespeed-optimizer, 0750 pagespeed:pagespeed);

@@ -16,6 +16,12 @@ if [ ! -d "$CHART_DIR" ]; then
 fi
 
 if ! command -v helm &>/dev/null; then
+  # Locally a missing helm is a skip; in CI (CHECK_HELM_REQUIRED=1) it is a
+  # failure, so the gate cannot pass without having run.
+  if [ "${CHECK_HELM_REQUIRED:-0}" = "1" ]; then
+    echo "ERROR: helm not installed and CHECK_HELM_REQUIRED=1"
+    exit 1
+  fi
   echo "SKIP: helm not installed"
   exit 0
 fi
@@ -63,6 +69,16 @@ if helm template pagespeed-test "$CHART_DIR" --set worker.image.tag=9.9.9 >/dev/
   exit 1
 fi
 echo "OK: worker.image.tag override is rejected loud"
+
+echo ""
+echo "=== Helm guard: the pod shares one PID namespace ==="
+# The pod keeps every cache writer in one PID namespace (as the compose files
+# do) with the pause container as PID 1; see the comment in deployment.yaml.
+if ! helm template pagespeed-test "$CHART_DIR" | grep -qE '^ +shareProcessNamespace: true$'; then
+  echo "ERROR: the rendered pod does not set shareProcessNamespace: true"
+  exit 1
+fi
+echo "OK: shareProcessNamespace: true"
 
 echo ""
 echo "All Helm checks passed."

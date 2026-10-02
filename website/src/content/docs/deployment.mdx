@@ -20,6 +20,19 @@ The recommended production setup uses two containers sharing a named volume:
 the worker and nginx with the PageSpeed module. Your origin server runs
 separately (on the same host, a different host, or behind a load balancer).
 
+**Every process that shares the cache volume must share one host, and should
+share one PID namespace.** The cache is safe across PID namespaces, but older
+builds recover a cross-process write lock from a holder whose process the
+kernel reports gone, and a live holder in another container's PID namespace
+looks gone to them, so during an upgrade that mixes builds two writes could
+overlap undetected. The compose file
+puts both containers in the PID namespace of `pidns`, a container that runs
+the Kubernetes pause image and only holds the namespace: if the worker held
+it instead, restarting the worker would also stop nginx. Its image is pinned
+by digest and never follows the release tag, so an upgrade does not recreate
+it. Stopping `pidns` itself stops both; `docker compose up -d` brings them
+back.
+
 ### Environment File
 
 Copy the example environment file and adjust for your setup:
@@ -52,8 +65,21 @@ The production `deploy/docker-compose.yml` runs the worker and nginx:
 
 ```yaml
 services:
+  pidns:
+    image: registry.k8s.io/pause:3.10.1@sha256:278fb9dbcca9518083ad1e11276933a2e96f23de604a3a08cc3c80002767d24c
+    user: '65535:65535'
+    network_mode: none
+    read_only: true
+    cap_drop: ['ALL']
+    security_opt: ['no-new-privileges:true']
+    restart: unless-stopped
+
   worker:
     image: ghcr.io/we-amp/pagespeed-worker:${PAGESPEED_VERSION:-2.1.0}
+    pid: 'service:pidns'
+    depends_on:
+      pidns:
+        condition: service_started
     volumes:
       - pagespeed-data:/data
     environment:
@@ -77,6 +103,7 @@ services:
 
   nginx:
     image: ghcr.io/we-amp/pagespeed-nginx:${PAGESPEED_VERSION:-2.1.0}
+    pid: 'service:pidns'
     ports:
       - '${NGINX_PORT:-80}:80'
       - '${NGINX_SSL_PORT:-443}:443'
@@ -86,6 +113,8 @@ services:
       - BACKEND_HOST=${BACKEND_HOST:-127.0.0.1}
       - BACKEND_PORT=${BACKEND_PORT:-8081}
     depends_on:
+      pidns:
+        condition: service_started
       worker:
         condition: service_healthy
     restart: unless-stopped
@@ -149,7 +178,8 @@ remain available immediately.
 ## Kubernetes (Helm)
 
 The official Helm chart deploys the worker and nginx as sidecar containers in a
-single pod, sharing an `emptyDir` volume for the Cyclone cache. It is published
+single pod, sharing an `emptyDir` volume for the Cyclone cache and one PID
+namespace (`shareProcessNamespace: true`). It is published
 to a Helm repository hosted on `modpagespeed.com`. See the dedicated
 [Helm deployment guide](/docs/helm-deployment/) for the full configuration
 reference.
@@ -222,7 +252,7 @@ Type=simple
 # never the command line -- /proc/<pid>/cmdline is world-readable.
 EnvironmentFile=-/etc/pagespeed-optimizer/daemon.env
 ExecStart=/usr/local/bin/factory_worker \
-    --cache-dir /var/cache/pagespeed-optimizer/v1 \
+    --cache-dir /var/cache/pagespeed-optimizer/v2 \
     --socket /run/pagespeed-optimizer/notify.sock \
     --cache-size 536870912 \
     --log-format json \
@@ -325,7 +355,7 @@ each one explicitly after creating the file.
 
 | Path                                   | Owner:group           | Mode | Reason                                                                                                                                           |
 | -------------------------------------- | --------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `/var/cache/pagespeed-optimizer/v1/`   | `pagespeed:pagespeed` | 3770 | Cache dir (tmpfiles.d) — setgid so the group is inherited by everything created inside, sticky so one group member cannot delete another's files |
+| `/var/cache/pagespeed-optimizer/v2/`   | `pagespeed:pagespeed` | 3770 | Cache dir (tmpfiles.d) — setgid so the group is inherited by everything created inside, sticky so one group member cannot delete another's files |
 | volume files (`cache-*`)               | `pagespeed:pagespeed` | 0660 | Both processes read and write cache entries                                                                                                      |
 | `pagespeed-shared.conf`                | `pagespeed:pagespeed` | 0640 | nginx reads socket path / sizing / toggles                                                                                                       |
 | `.pagespeed-serve-stats`               | `pagespeed:pagespeed` | 0660 | Shared serve-stats mmap                                                                                                                          |
@@ -346,7 +376,7 @@ rather than recreating the modes by hand.
 ### Upgrading from an earlier release
 
 The worker's default cache and socket paths moved to
-`/var/cache/pagespeed-optimizer/v1/cache` and
+`/var/cache/pagespeed-optimizer/v2/cache` and
 `/run/pagespeed-optimizer/notify.sock`. Your web-server configuration does
 **not** move with them: after upgrading, update `pagespeed_cache_path`
 (nginx) or `ModPagespeedDaemonVolumePath` / `ModPagespeedDaemonSocketPath` to
@@ -370,7 +400,7 @@ If you see persistent `MISS` responses or worker processing errors, check
 permissions:
 
 ```bash
-ls -la /var/cache/pagespeed-optimizer/v1/
+ls -la /var/cache/pagespeed-optimizer/v2/
 # Expected:
 # drwxrws---  pagespeed pagespeed  .
 # -rw-rw----  pagespeed pagespeed  cache-1-....dat

@@ -238,10 +238,53 @@ new_git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl"
 # delta vs the previous pin is comment-only.
 # The import was rewritten pre-flip (owner-ruled); the new pin's tree is
 # byte-identical to the old import a1637f8c776556f8c2e1417aa52e3f635bbfe91d.
+#
+# Bumped to cyclone 97ed09e (37 commits). Three things matter here.
+#
+# 1. ON-DISK FORMAT MAJOR 8. The document checksum is now CRC-32C, with
+#    hardware paths on x86-64 (SSE4.2) and ARMv8 picked by a runtime CPU
+#    probe; the intrinsics sit behind per-function target attributes, so no
+#    new copts are needed. The mmap directory layout also moved to version 2.
+#    Both are mixed into the fingerprinted volume filename, so an upgraded
+#    binary opens a NEW file: the cache starts cold once after upgrade, the
+#    format-7 file is left on disk (reclaim it manually), and rollback is
+#    warm. nginx and the worker must run the same build, as with every
+#    format bump. Because the format changed, kCacheDirGeneration
+#    (src/worker/shared_config.h) moves from 1 to 2: the packaged default
+#    cache directory becomes /var/cache/pagespeed-optimizer/v2 and the
+#    worker publishes cache_dir_generation=2. The residency check before a
+#    readahead hint uses mincore(2), which the systemd unit now admits.
+#    Chain walks now reject a link that points at or above its own node
+#    with ChainCorrupted; RemoveAlternatesExcept drops the whole key on it.
+#
+# 2. WRAP RETENTION IS THE DEFAULT. When a stripe's ring wraps, the previous
+#    pass stays readable until the forward fill needs its bytes instead of
+#    being dropped at once (a higher hit ratio under churn). The mode is
+#    persisted per volume and every process sharing a volume must use the
+#    same one; nginx and the worker both keep the library default, so they
+#    agree, and the format bump means no existing volume meets the new mode.
+#
+# 3. LOCK AND LOOKUP SEMANTICS. Cross-process write locks wait out a live
+#    holder and give up with CacheError::Busy rather than taking the lock
+#    over; a dead holder is detected by a kernel-held liveness slot rather
+#    than by its PID, which also holds across PID namespaces. A lookup that
+#    cannot get a consistent directory read within its wait budget returns
+#    Busy instead of a false miss. MapError already maps Busy to
+#    PS_ERR_BUSY, and the serving paths treat any failed read as a miss, so
+#    no code change is needed.
+#
+# Also in the delta, with no config change on our side: cold-read and
+# sequential readahead hints (default on), every cache-file descriptor
+# opened close-on-exec, and a set of multi-process correctness fixes.
+# Opt-in features (write-behind, last-page fill, the KV-tier preset) are
+# not enabled here. New stats counters (retention, readahead, directory read
+# timeouts) tail-append to CacheStats, transparent to the field-by-field
+# stats copies; surfacing them is a follow-up. //third_party:cyclone.BUILD
+# lists sources explicitly and gains src/core/crc32c.cpp.
 new_git_repository(
     name = "cyclone",
     build_file = "//third_party:cyclone.BUILD",
-    commit = "e5503d1fff5e8faccfd95fd9fb626820dc932e0a",
+    commit = "97ed09e3da707d7579480b6dcdd2ec0f53d2a153",
     remote = "https://github.com/We-Amp/cyclone-cache.git",
 )
 

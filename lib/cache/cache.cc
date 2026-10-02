@@ -1051,19 +1051,28 @@ PageSpeedCache::RemoveAlternatesExcept(std::string_view url,
   // re-points the directory at the head's successor, which is the head) and
   // the listing comes back identical.  The write path resets such a chain
   // when every node it can see carries the id being written, but a key that
-  // holds an original as well as a variant is past that heal, and neither the
-  // read walk nor the removal walk guards against the cycle at all.  That
-  // NO-OP SUCCESS is the only signature that escalates to dropping the whole
-  // key, and the escalation costs a preserved entry, so it is deliberately
-  // narrow:
+  // holds an original as well as a variant is past that heal.  That NO-OP
+  // SUCCESS, and the ChainCorrupted refusal that replaces it at the current
+  // storage layer (below), are the only signatures that escalate to dropping
+  // the whole key, and the escalation costs a preserved entry, so it is
+  // deliberately narrow:
   //
-  //   * a removal that FAILED (anything but "the alternate is already gone")
-  //     is a maybe-transient storage verdict — the pinned storage layer
-  //     reports Busy when a concurrent wrap races a middle-node removal, and
-  //     a middle-node removal is precisely what a PRESERVED head produces.
+  //   * a removal that FAILED (anything but "the alternate is already gone"
+  //     or ChainCorrupted) is a maybe-transient storage verdict — the pinned
+  //     storage layer reports Busy when a concurrent wrap races a middle-node
+  //     removal, and a middle-node removal is precisely what a PRESERVED head
+  //     produces.
   //     Such a pass ends the loop and never escalates: the stale variants
   //     survive this purge and the next refresh retries, exactly as before
   //     this function grew passes.
+  //   * a removal that reports ChainCorrupted is the SAME signature, stated
+  //     by the storage layer instead of inferred here.  Since the storage
+  //     layer began rejecting a chain link that points at or above its own
+  //     node, its walks no longer loop on such a chain: the listing stops at
+  //     the bad link and a removal that would have to follow it refuses with
+  //     ChainCorrupted.  That verdict is structural, not transient — the
+  //     same link is rejected on every retry — so it escalates exactly like
+  //     a no-op success.
   //   * a listing that could not be READ is not evidence of anything.  The
   //     read has its own bounded revalidation and reports the same verdict
   //     for a lost revalidation as for genuine corruption, so it ends the
@@ -1123,12 +1132,17 @@ PageSpeedCache::RemoveAlternatesExcept(std::string_view url,
       auto dropped = cache_->remove_alternate_sync(key, cy_id);
       if (dropped.has_value()) {
         ++removed;
+      } else if (dropped.error() == cyclone::CacheError::ChainCorrupted) {
+        unwalkable = true;
       } else if (dropped.error() != cyclone::CacheError::AlternateNotFound) {
         removal_failed = true;
       }
     }
     if (!listed_non_preserved) {
       break;  // Only preserved entries (or nothing) remain.
+    }
+    if (unwalkable) {
+      break;  // The storage layer cannot unlink from this chain.
     }
     if (removal_failed) {
       break;  // Maybe transient: leave the rest to the next refresh.

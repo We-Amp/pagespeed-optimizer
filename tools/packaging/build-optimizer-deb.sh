@@ -312,29 +312,78 @@ PSENVHDR
   if [ -d /run/systemd/system ]; then
     systemd-tmpfiles --create pagespeed-optimizer.conf || true
   fi
+  # Is the ACTION REQUIRED half of the notice below earned?  Only files
+  # the web server actually loads may answer: backup and leftover names
+  # (*.bak*, *.dpkg-*, *.rpmsave, *.rpmnew, *.orig, *~) are skipped, and
+  # only load paths are scanned.  Debian-style layouts load a
+  # *-available/ file (Apache conf-, sites-; nginx sites-) only through
+  # its *-enabled/ symlink (grep -R follows it), so a stale operator
+  # backup or a disabled site beside an already-current live config
+  # stays silent.  The root-prefix argument exists for the packaging
+  # tests.
+  ps_stale_web_config() { # [root]
+    ps_scan_root="${1:-/}"
+    ps_paths=""
+    for ps_dir in nginx/nginx.conf nginx/conf.d nginx/sites-enabled \
+        nginx/modules-enabled nginx/default.d \
+        apache2/apache2.conf apache2/ports.conf apache2/conf.d \
+        apache2/conf-enabled apache2/sites-enabled apache2/mods-enabled \
+        httpd/conf httpd/conf.d httpd/conf.modules.d; do
+      if [ -e "$ps_scan_root/etc/$ps_dir" ]; then
+        ps_paths="$ps_paths $ps_scan_root/etc/$ps_dir"
+      fi
+    done
+    [ -n "$ps_paths" ] || return 1
+    # Include/IncludeOptional targets outside these standard trees are unseen; such an operator keeps the warning behaviour of a manual check.
+    # the grep's own exit status is the answer: -q keeps a found match 0
+    # even when another entry in the tree errors (a dangling enabled
+    # symlink); 1 = no loaded file names an old path, and a bare scan
+    # error never warns on its own
+    grep -q -R -F '/var/lib/pagespeed' \
+      --exclude='*.bak*' --exclude='*.dpkg-*' --exclude='*.rpmsave' \
+      --exclude='*.rpmnew' --exclude='*.orig' --exclude='*~' \
+      $ps_paths 2>/dev/null
+  }
   # Cold-start notice: a pre-existing ROOT-OWNED pagespeed cache can never
   # be chowned or migrated.  The daemon cold-starts into
-  # /var/cache/pagespeed-optimizer/v1; say so once, plainly.
+  # /var/cache/pagespeed-optimizer/v2; say so once, plainly.
   for legacy in /var/lib/pagespeed-optimizer /var/lib/pagespeed; do
     if [ -d "$legacy" ] && \
        [ -n "$(find "$legacy" -mindepth 1 -maxdepth 1 -uid 0 -print -quit 2>/dev/null)" ]; then
       echo "pagespeed-optimizer: pre-existing root-owned cache detected at $legacy."
       echo "pagespeed-optimizer: the daemon now runs unprivileged (user pagespeed) with"
-      echo "pagespeed-optimizer: a fresh cache at /var/cache/pagespeed-optimizer/v1 -- the"
+      echo "pagespeed-optimizer: a fresh cache at /var/cache/pagespeed-optimizer/v2 -- the"
       echo "pagespeed-optimizer: cache will cold-start; no content is migrated or chowned."
-      echo "pagespeed-optimizer: ACTION REQUIRED: the daemon's default paths moved, but"
-      echo "pagespeed-optimizer: your web-server configuration still points at the old"
-      echo "pagespeed-optimizer: ones. Update pagespeed_cache_path (nginx) or"
-      echo "pagespeed-optimizer: ModPagespeedDaemonVolumePath / ModPagespeedDaemonSocketPath"
-      echo "pagespeed-optimizer: to /var/cache/pagespeed-optimizer/v1/cache and"
-      echo "pagespeed-optimizer: /run/pagespeed-optimizer/notify.sock, then restart the web"
-      echo "pagespeed-optimizer: server. Until you do, in-place optimization stays OFF and"
-      echo "pagespeed-optimizer: the log will report the socket as absent even though the"
-      echo "pagespeed-optimizer: daemon is running."
+      if ps_stale_web_config; then
+        echo "pagespeed-optimizer: ACTION REQUIRED: the daemon's default paths moved, but"
+        echo "pagespeed-optimizer: your web-server configuration still points at the old"
+        echo "pagespeed-optimizer: ones. Update pagespeed_cache_path (nginx) or"
+        echo "pagespeed-optimizer: ModPagespeedDaemonVolumePath / ModPagespeedDaemonSocketPath"
+        echo "pagespeed-optimizer: to /var/cache/pagespeed-optimizer/v2/cache and"
+        echo "pagespeed-optimizer: /run/pagespeed-optimizer/notify.sock, then restart the web"
+        echo "pagespeed-optimizer: server. Until you do, in-place optimization stays OFF and"
+        echo "pagespeed-optimizer: the log will report the socket as absent even though the"
+        echo "pagespeed-optimizer: daemon is running."
+      fi
       echo "pagespeed-optimizer: see https://modpagespeed.com/docs/deployment/"
       break
     fi
   done
+  # Generation notice: the cache-directory generation moved from v1 to v2
+  # (cache format change).  The daemon never reads v1/ again and nothing
+  # deletes it; say so once, and name the web-server paths to update.
+  if [ -d /var/cache/pagespeed-optimizer/v1 ]; then
+    echo "pagespeed-optimizer: the cache directory moved from"
+    echo "pagespeed-optimizer: /var/cache/pagespeed-optimizer/v1 to"
+    echo "pagespeed-optimizer: /var/cache/pagespeed-optimizer/v2 (new cache format); the"
+    echo "pagespeed-optimizer: cache starts empty and refills as traffic arrives."
+    echo "pagespeed-optimizer: ACTION REQUIRED if your web-server configuration names"
+    echo "pagespeed-optimizer: the v1 path: update pagespeed_cache_path (nginx) or"
+    echo "pagespeed-optimizer: ModPagespeedDaemonVolumePath to"
+    echo "pagespeed-optimizer: /var/cache/pagespeed-optimizer/v2/cache and restart the"
+    echo "pagespeed-optimizer: web server. The v1 directory is left in place; delete it"
+    echo "pagespeed-optimizer: once you will not roll back."
+  fi
 fi
 if [ -d /run/systemd/system ]; then
   systemctl daemon-reload
@@ -473,7 +522,7 @@ self_test() {
   check "tmpfiles.d creates the cache dir 3770 pagespeed:pagespeed" "1" \
     "$(dpkg-deb --fsys-tarfile "$deb" \
       | tar -xO ./usr/lib/tmpfiles.d/$PKG.conf \
-      | grep -cE "^d +/var/cache/pagespeed-optimizer/v1 +3770 +pagespeed +pagespeed")"
+      | grep -cE "^d +/var/cache/pagespeed-optimizer/v2 +3770 +pagespeed +pagespeed")"
   # #1486: both env files get their group scope from `z` lines, so an
   # upgrade that replaced (or kept) either file still converges on
   # 0640 root:pagespeed at the next install/upgrade/boot.
@@ -540,8 +589,8 @@ self_test() {
   # enforcing legs, so the load-bearing assertion inverts: enforcement must
   # not silently DISAPPEAR, and it must be exactly the measured profile --
   # two group lines and nothing else, no reset, no errno conversion.
-  check "shipped unit enforces the @system-service allow-list" "1" \
-    "$(printf '%s' "$unit" | grep -c "^SystemCallFilter=@system-service\$")"
+  check "shipped unit enforces the @system-service allow-list (+ mincore)" "1" \
+    "$(printf '%s' "$unit" | grep -c "^SystemCallFilter=@system-service mincore\$")"
   check "shipped unit subtracts @privileged and @resources" "1" \
     "$(printf '%s' "$unit" | grep -c "^SystemCallFilter=~@privileged @resources\$")"
   check "shipped unit carries exactly those two filter lines" "2" \
@@ -549,7 +598,7 @@ self_test() {
   check "shipped unit never resets its own filter" "0" \
     "$(printf '%s' "$unit" | grep -c "^SystemCallFilter=\$" || true)"
   check "shipped unit keeps logging calls outside @system-service" "1" \
-    "$(printf '%s' "$unit" | grep -c "^SystemCallLog=~@system-service\$")"
+    "$(printf '%s' "$unit" | grep -c "^SystemCallLog=~@system-service mincore\$")"
   check "shipped unit converts no denial to an errno" "0" \
     "$(printf '%s' "$unit" | grep -c "^SystemCallErrorNumber=" || true)"
   check "unit restricts syscall architectures to native" "1" \
@@ -643,6 +692,20 @@ print(1 if need <= a and not leak else 0)')"
     "$(grep -c "cold-start; no content is migrated or chowned." "$ctrl/postinst")"
   check "postinst tells the operator to repoint the web server" "1" \
     "$(grep -c "ACTION REQUIRED: the daemon.s default paths moved" "$ctrl/postinst")"
+  # The repoint warning must be earned before it is printed: the postinst
+  # scans only web-server configuration the server actually loads (the
+  # *-enabled/ trees, never *-available/ on its own) and skips backup and
+  # leftover file names, so a stale .bak cannot warn on a host whose live
+  # config is already current.
+  check "postinst has the loaded-config scan helper" "1" \
+    "$(grep -c "ps_stale_web_config() {" "$ctrl/postinst")"
+  check "scan skips the six backup/leftover name patterns" "6" \
+    "$(grep -o -- "--exclude=" "$ctrl/postinst" | wc -l | tr -d ' ')"
+  check "scan reads Apache through its *-enabled/ trees only" "1" \
+    "$(grep -c "apache2/conf-enabled apache2/sites-enabled apache2/mods-enabled" \
+      "$ctrl/postinst")"
+  check "repoint warning is gated on the scan" "1" \
+    "$(grep -c "if ps_stale_web_config; then" "$ctrl/postinst")"
   check "postinst never chowns" "0" \
     "$(grep -cE "^[[:space:]]*(chown|chgrp)[[:space:]]" "$ctrl/postinst" || true)"
   # Token provisioning: generated once, never rewritten, and
@@ -708,6 +771,16 @@ print(1 if need <= a and not leak else 0)')"
     fails=$((fails+1))
   else
     echo "ok: underivable glibc floor refused"
+  fi
+  # The shipped scan helper's behaviour (backup and leftover files never
+  # earn the repoint warning) is asserted against fixture trees by the
+  # standalone test next to this script; run it here so every lane that
+  # exercises the packaging self-tests exercises it too.
+  if bash "$HERE/test-postinst-stale-config.sh" >/dev/null; then
+    echo "ok: postinst stale-config scan unit test"
+  else
+    echo "FAIL: postinst stale-config scan unit test" >&2
+    fails=$((fails+1))
   fi
   if [[ "$fails" -gt 0 ]]; then
     echo "self-test: $fails FAILURE(S)" >&2; return 1
