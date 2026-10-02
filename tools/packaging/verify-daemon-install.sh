@@ -23,14 +23,20 @@
 #           permissions and through the shipped client library, which is
 #           the entry point a serving module actually calls.
 #   legacy  Plant a root-owned pre-2.1 cache at /var/lib/pagespeed-optimizer
-#           FIRST, then install: the cold-start ACTION REQUIRED notice must
-#           fire, the legacy tree must come out byte-, inode- and
+#           FIRST, together with an ENABLED Apache file still naming the
+#           old paths (plus a stale operator backup in conf-available/
+#           that the web server never loads), then install: the cold-start
+#           ACTION REQUIRED notice must fire -- earned by the enabled
+#           file -- the legacy tree must come out byte-, inode- and
 #           ownership-identical (never chowned, never migrated, never
 #           deleted), and the new versioned directory must still be created
-#           and owned by the daemon user.  Then reinstall the same package
-#           over the result with /etc/default edited and at 0644 root:root:
-#           the upgrade path must re-pin BOTH env files to
-#           0640 root:pagespeed and keep the operator edit (#1486).
+#           and owned by the daemon user.  Then repoint the enabled file
+#           (the backup stays) and reinstall the same package over the
+#           result with /etc/default edited and at 0644 root:root: the
+#           ACTION REQUIRED half must stay silent -- backup-only old
+#           paths never earn it -- while the upgrade path re-pins BOTH
+#           env files to 0640 root:pagespeed and keeps the operator edit
+#           (#1486).
 #
 # Two deliberate emulations, both because a container has no PID 1 systemd
 # (the booted-container legs live in verify-daemon-systemd.sh):
@@ -198,6 +204,23 @@ if [[ "$SCENARIO" == legacy ]]; then
   chown -R 0:0 "$LEGACY"
   LEGACY_BEFORE="$(cd "$LEGACY" && find . -type f | sort | xargs sha256sum)"
   LEGACY_STAT_BEFORE="$(cd "$LEGACY" && find . | sort | xargs stat -c '%n %u:%g %a %i')"
+
+  # The repoint-warning half of the cold-start notice: an ENABLED Apache
+  # file still naming the old paths, planted in the exact layout a2enconf
+  # produces (a conf-enabled/ symlink to conf-available/), plus the
+  # operator backup beside it that the web server never loads.  The
+  # Debian Apache layout is planted on every flavour (the check scans it
+  # and RHEL's httpd alike); it is the layout from the real upgrade that
+  # warned on the backup alone.  The first install below asserts the
+  # warning fires, EARNED by the enabled file; leg 1c repoints the
+  # enabled file and asserts the leftover backup alone no longer does.
+  mkdir -p /etc/apache2/conf-available /etc/apache2/conf-enabled
+  printf 'ModPagespeedDaemonVolumePath /var/lib/pagespeed-optimizer/cache\n' \
+    > /etc/apache2/conf-available/pagespeed-daemon.conf
+  ln -s ../conf-available/pagespeed-daemon.conf \
+    /etc/apache2/conf-enabled/pagespeed-daemon.conf
+  cp -p /etc/apache2/conf-available/pagespeed-daemon.conf \
+    /etc/apache2/conf-available/pagespeed-daemon.conf.bak-pre-rc7
 fi
 
 # --------------------------------------------------------------- install ---
@@ -273,7 +296,7 @@ fi
 if [[ "$SCENARIO" == legacy ]]; then
   check "cold-start notice names the legacy path" "1" \
     "$(grep -c "pre-existing root-owned cache detected at $LEGACY" "$INSTALL_LOG")"
-  check "cold-start notice says ACTION REQUIRED" "1" \
+  check "cold-start notice says ACTION REQUIRED (enabled file still stale)" "1" \
     "$(grep -c 'ACTION REQUIRED' "$INSTALL_LOG")"
   check "cold-start notice states no migration and no chown" "1" \
     "$(grep -c 'cold-start; no content is migrated or chowned.' "$INSTALL_LOG")"
@@ -304,6 +327,13 @@ if [[ "$SCENARIO" == legacy ]]; then
   printf '# operator edit\nLOG_LEVEL=debug\n' >> "$DEFAULTS"
   chmod 0644 "$DEFAULTS"
   chown root:root "$DEFAULTS"
+  # Operator repoints the live configuration; the stale operator backup
+  # stays behind in conf-available/.  The reinstall's notice must keep the
+  # cold-start facts but DROP the ACTION REQUIRED half: a file the web
+  # server does not load may never earn the repoint warning (a real
+  # upgrade warned on exactly such a backup).
+  printf 'ModPagespeedDaemonVolumePath /var/cache/pagespeed-optimizer/v1/cache\n' \
+    > /etc/apache2/conf-available/pagespeed-daemon.conf
   UPGRADE_LOG="$WORK/upgrade-${SCENARIO}.log"
   set +e
   if [[ "$FLAVOR" == deb ]]; then
@@ -315,6 +345,10 @@ if [[ "$SCENARIO" == legacy ]]; then
   set -e
   cat "$UPGRADE_LOG"
   check "upgrade/reinstall exits cleanly" "0" "$urc"
+  check "reinstall keeps the cold-start facts" "1" \
+    "$(grep -c 'pre-existing root-owned cache detected' "$UPGRADE_LOG" || true)"
+  check "repointed config: backup-only old paths earn no ACTION REQUIRED" "0" \
+    "$(grep -c 'ACTION REQUIRED' "$UPGRADE_LOG" || true)"
   # Same no-booted-systemd emulation as after the first install: run exactly
   # what the maintainer script's tmpfiles call would have run.
   if [[ ! -d /run/systemd/system ]]; then
