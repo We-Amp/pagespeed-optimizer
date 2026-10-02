@@ -315,15 +315,17 @@ PSENVHDR
   # Is the ACTION REQUIRED half of the notice below earned?  Only files
   # the web server actually loads may answer: backup and leftover names
   # (*.bak*, *.dpkg-*, *.rpmsave, *.rpmnew, *.orig, *~) are skipped, and
-  # under Debian's Apache layout *-available/ is read only through its
-  # *-enabled/ symlink (grep -R follows it), so a stale operator backup
-  # beside an already-current live config stays silent.  nginx and RHEL
-  # httpd have no enabled/available split; their whole /etc trees are
-  # loadable.  The root-prefix argument exists for the packaging tests.
+  # only load paths are scanned.  Debian-style layouts load a
+  # *-available/ file (Apache conf-, sites-; nginx sites-) only through
+  # its *-enabled/ symlink (grep -R follows it), so a stale operator
+  # backup or a disabled site beside an already-current live config
+  # stays silent.  The root-prefix argument exists for the packaging
+  # tests.
   ps_stale_web_config() { # [root]
     ps_scan_root="${1:-/}"
     ps_paths=""
-    for ps_dir in nginx \
+    for ps_dir in nginx/nginx.conf nginx/conf.d nginx/sites-enabled \
+        nginx/modules-enabled nginx/default.d \
         apache2/apache2.conf apache2/ports.conf apache2/conf.d \
         apache2/conf-enabled apache2/sites-enabled apache2/mods-enabled \
         httpd/conf httpd/conf.d httpd/conf.modules.d; do
@@ -332,12 +334,15 @@ PSENVHDR
       fi
     done
     [ -n "$ps_paths" ] || return 1
-    # the grep's own exit status is the answer: 0 = a loaded file still
-    # names an old path, 1 = none does (2 = error; never warn on error)
-    grep -R -F -l '/var/lib/pagespeed' \
+    # Include/IncludeOptional targets outside these standard trees are unseen; such an operator keeps the warning behaviour of a manual check.
+    # the grep's own exit status is the answer: -q keeps a found match 0
+    # even when another entry in the tree errors (a dangling enabled
+    # symlink); 1 = no loaded file names an old path, and a bare scan
+    # error never warns on its own
+    grep -q -R -F '/var/lib/pagespeed' \
       --exclude='*.bak*' --exclude='*.dpkg-*' --exclude='*.rpmsave' \
       --exclude='*.rpmnew' --exclude='*.orig' --exclude='*~' \
-      $ps_paths >/dev/null 2>&1
+      $ps_paths 2>/dev/null
   }
   # Cold-start notice: a pre-existing ROOT-OWNED pagespeed cache can never
   # be chowned or migrated.  The daemon cold-starts into

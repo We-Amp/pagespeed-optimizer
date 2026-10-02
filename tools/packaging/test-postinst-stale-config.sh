@@ -80,6 +80,8 @@ check "deb helper excludes the six backup/leftover name patterns" "6" \
 check "deb helper reads Apache through its *-enabled/ trees only" "1" \
   "$(grep -c 'apache2/conf-enabled apache2/sites-enabled apache2/mods-enabled' \
     <<<"$deb_helper" || true)"
+check "deb helper enumerates nginx load paths, not the whole tree" "5" \
+  "$(grep -o 'nginx/' <<<"$deb_helper" | wc -l | tr -d ' ')"
 check "deb gates the repoint warning on the scan" "1" \
   "$(grep -c 'if ps_stale_web_config; then' <<<"$deb_postinst" || true)"
 check "rpm gates the repoint warning on the scan" "1" \
@@ -130,6 +132,17 @@ printf '%s\n' "$OLD_PATH" > "$fx/etc/apache2/mods-available/pagespeed.conf"
 ln -s ../mods-available/pagespeed.conf "$fx/etc/apache2/mods-enabled/pagespeed.conf"
 check "mods-enabled file with old paths warns" "stale" "$(stale "$fx")"
 
+# A scan error must not un-earn the warning: grep exits 2 when any entry
+# in a scanned tree errors, and a dangling *-enabled/ symlink (the
+# leftover of a removed package or a half-done edit) is a plausible one
+# -- a genuinely stale enabled file beside it must still warn.
+fx="$tmp/apache2-dangling"
+mkdir -p "$fx/etc/apache2/conf-enabled"
+printf '%s\n' "$OLD_PATH" > "$fx/etc/apache2/conf-enabled/pagespeed-daemon.conf"
+ln -s ../conf-available/gone.conf "$fx/etc/apache2/conf-enabled/gone.conf"
+check "dangling symlink cannot hide a stale enabled file" "stale" \
+  "$(stale "$fx")"
+
 # nginx has no enabled/available split: the live config warns, dpkg
 # leftovers do not.
 fx="$tmp/nginx"
@@ -142,6 +155,20 @@ check "nginx dpkg leftover with old paths stays silent" "clean" "$(stale "$fx")"
 printf '%s\n' "pagespeed_cache_path /var/lib/pagespeed-optimizer/cache;" \
   >> "$fx/etc/nginx/nginx.conf"
 check "live nginx config with old paths warns" "stale" "$(stale "$fx")"
+
+# Debian's nginx keeps sites in sites-available/ and loads them only
+# through sites-enabled/ symlinks (same discipline as Apache's
+# *-available/ split): a stale site whose symlink was removed is a
+# disabled file nginx never reads, and the same file linked back in is
+# live again.
+fx="$tmp/nginx-sites"
+mkdir -p "$fx/etc/nginx/sites-available" "$fx/etc/nginx/sites-enabled"
+printf '%s\n' "pagespeed_cache_path /var/lib/pagespeed-optimizer/cache;" \
+  > "$fx/etc/nginx/sites-available/mysite"
+check "nginx disabled site in sites-available only stays silent" "clean" \
+  "$(stale "$fx")"
+ln -s ../sites-available/mysite "$fx/etc/nginx/sites-enabled/mysite"
+check "nginx site linked from sites-enabled warns" "stale" "$(stale "$fx")"
 
 # RHEL httpd: the live conf.d file warns; rpm leftovers and editor
 # backups (anywhere) do not.
