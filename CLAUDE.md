@@ -270,10 +270,11 @@ volume (nginx, worker, any `libpagespeed` client) must run on one host. Cyclone
 builds use `kill(pid, 0)`, where a live holder in another PID namespace looks
 gone and two writes overlap undetected. So keep one PID namespace while old and
 new builds can share a volume: the Helm pod sets `shareProcessNamespace: true`
-(guarded by `tools/ci/check_helm.sh`); the deploy compose files join worker and
-nginx to a `pidns` anchor service (`pid: "service:pidns"`) running the
-digest-pinned `registry.k8s.io/pause` image, so that restarting either never
-kills the other. The anchor's image must never follow the release tag: a
+and the deploy compose files join worker and nginx to a `pidns` anchor service
+(`pid: "service:pidns"`) running the digest-pinned `registry.k8s.io/pause`
+image, so that restarting either never kills the other. These settings are
+kept consistent by hand; `tools/ci/check_helm.sh` can be run locally to verify
+them. The anchor's image must never follow the release tag: a
 recreated anchor kills the namespace mid-`up -d` (the upgrade then fails with
 "cannot stop container ... is not running"). Stopping `pidns` stops both. Open the cache after any daemonize
 step and never close its fds behind its back (that drops the slot lock).

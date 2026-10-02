@@ -79,9 +79,9 @@ inline constexpr int kSharedConfigVersion = 1;
 //     that stale file, sees 1, and refuses loudly;
 //   - an OLD peer (compiled for 1) next to this daemon also reads v1/, sees
 //     the matching 1, and attaches to a volume nobody writes any more: a
-//     SILENT split.  For mod_pagespeed 1.1 packages the exact-version
-//     Depends on pagespeed-optimizer (install/debian, install/rpm) is what
-//     prevents that pairing; the 2.x nginx module from 2.1.0 checks nothing,
+//     SILENT split.  The mod_pagespeed 1.1 packages declare an exact-version
+//     Depends on pagespeed-optimizer, which is what prevents that pairing;
+//     the 2.x nginx module from 2.1.0 checks nothing,
 //     and the generation check added to it later covers only a new module
 //     next to an old worker.
 // Do NOT bump for entry-schema changes (those ride per-entry versioning

@@ -75,6 +75,8 @@ services:
     network_mode: none
     read_only: true
     cap_drop: ['ALL']
+    security_opt: ['no-new-privileges:true']
+    restart: unless-stopped
 
   # Factory Worker — optimizes cached content
   worker:
