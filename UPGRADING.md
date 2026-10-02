@@ -2,13 +2,82 @@
 
 This document covers upgrading to mod_pagespeed 2.1:
 
-- **From 1.x (1.15):** an in-place package upgrade — see the first section
-  below.
+- **From 2.1.0:** the cache directory moves from `v1` to `v2` and the cache
+  starts empty — see the first section below.
+- **From 1.x (1.15):** an in-place package upgrade — see the second section.
 - **From 2.0:** the cache cold-start, start-order and configuration notes in
-  the second section.
+  the third section.
 - The long appendix at the end describes the 1.x → 2.0 architecture change
   for readers of the nginx line. It is background, not a migration guide:
   a 1.x install upgraded to 2.1 through the packages does not go through it.
+
+## Upgrading from 2.1.0
+
+The cache storage library moved to a new on-disk format (major 8: CRC-32C
+document checksums). A cache directory holds one format, so the optimizer's
+versioned cache directory moves with it: the default is now
+`/var/cache/pagespeed-optimizer/v2` (2.1.0 used `.../v1`), and the
+`cache_dir_generation` the optimizer publishes in `pagespeed-shared.conf`
+is now `2`.
+
+- **The cache starts empty.** The new optimizer opens a new volume in `v2/`
+  and never reads `v1/`. The first requests after the upgrade are misses and
+  the cache refills as traffic arrives -- pick a quiet hour if your origin is
+  sensitive to that.
+- **The old cache is left on disk.** Nothing deletes `v1/` for you. A
+  rollback to 2.1.0 reopens it still warm; once you will not roll back,
+  delete it (`rm -rf /var/cache/pagespeed-optimizer/v1`). The disk needs
+  room for both volumes until you do. The package prints a notice
+  whenever it finds `v1/` during an install or upgrade.
+- **Repoint web-server configuration that names `v1`.** A default package
+  install needs nothing. If your web-server configuration names the cache
+  path explicitly (`pagespeed_cache_path` in nginx,
+  `ModPagespeedDaemonVolumePath` in Apache), change `.../v1/cache` to
+  `.../v2/cache` and restart the web server. A serving module that checks
+  the generation refuses to attach when the generation published beside the
+  configured path differs from its own, and says so in the error log; it
+  does not go looking for another directory.
+- **Containers: the old cache file stays in the volume.** The container
+  images do not use a `v<N>` directory: the worker always opens
+  `--cache-path /data/cache.vol`, and the cache library names the real file
+  after its format, so the new build creates `/data/cache-8-<hex>.vol` next
+  to 2.1.0's `/data/cache-7-<hex>.vol` in the same volume. Nothing removes
+  the old one (it is `CACHE_SIZE` bytes, 1 GiB by default), and on a named
+  volume (the compose files) it stays until you delete it. Once the new
+  build is serving and no 2.1.0 container still mounts the volume, delete it:
+  `docker compose exec worker sh -c 'rm -f /data/cache-7-*.vol /data/cache.vol-7-*.small'`.
+  Do not delete it while an old build still runs, and never delete a
+  `cache-8-*` file. The Helm chart's cache is a per-pod `emptyDir`, which an
+  upgrade replaces, so nothing is left behind there.
+- **Compose: the worker and nginx now share one PID namespace.** This
+  release's cache library is safe across PID namespaces, but older builds
+  recover the cross-process write lock from a holder whose PID looks gone,
+  and a live holder in another container does. While an old and a new build
+  share a named volume during the upgrade, two writes could then overlap,
+  so the compose files put every container that mounts the volume in the PID
+  namespace of a `pidns` service. It runs the digest-pinned Kubernetes pause
+  image, so an image upgrade never recreates it. Restarting the worker or
+  nginx leaves the other running; stopping or recreating `pidns` stops both
+  (`docker compose up -d` starts all three again). If you run your own
+  compose file, do the same, with an anchor image that does not change with
+  the release: `pid: "service:<anchor>"` on every container that mounts the
+  volume. The Helm chart (0.3.5) sets `shareProcessNamespace: true`; there
+  the cache is per pod, so builds never mix, and the setting keeps the same
+  layout and makes the pause container PID 1. Keep the cache on a local
+  filesystem (NFS and SMB are untested).
+- **The optimizer's systemd unit admits one more system call, `mincore`.**
+  The cache library now checks whether data is already in memory before it
+  asks the kernel to read ahead, and `mincore` is outside
+  `@system-service`. The unit's allow-list is now
+  `SystemCallFilter=@system-service mincore`, and `SystemCallLog=` no longer
+  logs it. If you replaced the unit's filter with your own, add `mincore`, or
+  the optimizer is killed with `SIGSYS` when it reopens its cache.
+- **Upgrade the optimizer and the serving module together.** They must link
+  the same cache library. An older module next to a newer optimizer (or the
+  reverse) opens a different volume file instead of sharing one. The
+  packages depend on each other at the exact same version, which prevents
+  this for package installs; container deployments get it from the single
+  image tag the Helm chart and the compose files use for both images.
 
 ## Upgrading from 1.x to 2.1
 
@@ -28,9 +97,9 @@ upgrade, boring by design and proven by in-place upgrade rehearsals:
   then the web server.
 - **The cache is not purged — it is side-stepped.** 1.15 already stores its
   cache in a Cyclone volume (`cyclone.dat` under the file-cache path), and
-  the 2.1 daemon opens its own new volume — format major 7, with the format
+  the 2.1 daemon opens its own new volume — format major 8, with the format
   carried in the filename, under its own cache directory
-  (`/var/cache/pagespeed-optimizer/v1`) — and never touches the old file.
+  (`/var/cache/pagespeed-optimizer/v2`) — and never touches the old file.
   There is no purge storm: the old file stays where it is, and a rollback to
   1.x reopens it still warm unless you deliberately deleted it. Nothing
   removes the old file for you — delete it yourself once you are confident
@@ -45,7 +114,7 @@ The free-space check and the manual start order written for 2.0 installs in
 the next section apply to the 1.x upgrade exactly the same way, with one
 difference: the 2.0→2.1 files share one cache directory, while the 1.15
 volume and the 2.1 volume live in different directories (the 1.x file-cache
-path versus `/var/cache/pagespeed-optimizer/v1`). Both files exist during
+path versus `/var/cache/pagespeed-optimizer/v2`). Both files exist during
 the upgrade either way, so the disk needs room for the second volume.
 
 ## Upgrading from 2.0 to 2.1
@@ -372,7 +441,7 @@ incompatible with the 1.x file-based cache. There is no migration path -- the ca
 starts cold and warms as traffic flows through. (This describes the classic 1.x
 directory cache as the 2.0 line found it. Later 1.15 releases already store
 the cache in a Cyclone volume -- `cyclone.dat` under the file-cache path. The
-2.1 daemon opens its own new volume -- format major 7, with the format
+2.1 daemon opens its own new volume -- format major 8, with the format
 carried in the filename -- and never touches the old file, which is what
 makes the side-stepping 1.x → 2.1 cache upgrade at the top of this document
 work.)
@@ -552,7 +621,7 @@ different server blocks.
 **Will my 1.x cache carry over?**
 No -- and it is not destroyed either. 1.15 stores its cache in a Cyclone
 volume (`cyclone.dat` under the file-cache path); the 2.1 daemon opens its
-own new volume -- format major 7, with the format carried in the filename --
+own new volume -- format major 8, with the format carried in the filename --
 under its own cache directory and never touches the old file, which stays
 warm for a rollback unless you delete it. The new cache starts cold and
 rewarms as traffic flows through.

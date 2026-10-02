@@ -263,6 +263,22 @@ Cache file chmod 660, notification socket 0660 owner+group (daemon user
 with explicit chmod/fchmod after create — never umask-derived; the unit's
 `UMask=0007` is a backstop only.
 
+**One host; one PID namespace during upgrades**: every process sharing the
+volume (nginx, worker, any `libpagespeed` client) must run on one host. Cyclone
+(since 2194698) proves a write-lock holder dead by a kernel-held byte-range
+"liveness slot" on the volume file, which is safe across PID namespaces; older
+builds use `kill(pid, 0)`, where a live holder in another PID namespace looks
+gone and two writes overlap undetected. So keep one PID namespace while old and
+new builds can share a volume: the Helm pod sets `shareProcessNamespace: true`
+and the deploy compose files join worker and nginx to a `pidns` anchor service
+(`pid: "service:pidns"`) running the digest-pinned `registry.k8s.io/pause`
+image, so that restarting either never kills the other. These settings are
+kept consistent by hand; `tools/ci/check_helm.sh` can be run locally to verify
+them. The anchor's image must never follow the release tag: a
+recreated anchor kills the namespace mid-`up -d` (the upgrade then fails with
+"cannot stop container ... is not running"). Stopping `pidns` stops both. Open the cache after any daemonize
+step and never close its fds behind its back (that drops the slot lock).
+
 **Volume size must match**: nginx MUST open the cache with `config.volume_size = 0` (auto-detect from file). The worker sets its own size via `--cache-size`. Cyclone derives stripe count from volume size — a mismatch makes the same SHA-256 key resolve to different stripes in each process, making all cross-process reads and writes invisible. Symptom is identical to the `enable_mmap_directory` omission: `X-PageSpeed: HIT` but content is unoptimized. `config.volume_size = 0` is set once in the shared helper `MakeNginxCacheConfig` (`src/nginx/ngx_pagespeed_module.cc`), used by both `GetCache` and `CheckGenerationAndGetCache`.
 
 **Serve-time bandwidth stats** (`src/worker/serve_stats.h/.cc`): Shared 128-byte

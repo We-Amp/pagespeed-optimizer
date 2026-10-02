@@ -138,7 +138,7 @@ This is the Docker / nginx reverse-proxy deployment installed without containers
 
 1. Download ngx_pagespeed_module.so matching your nginx version
 2. Download factory_worker binary
-3. Create the cache directory (/var/cache/pagespeed-optimizer/v1/) owned by the worker's user and group, mode 3770 — setgid so the group is inherited, sticky so one group member cannot remove another's files. The packaged deb/rpm does this for you via tmpfiles.d.
+3. Create the cache directory (/var/cache/pagespeed-optimizer/v2/) owned by the worker's user and group, mode 3770 — setgid so the group is inherited, sticky so one group member cannot remove another's files. The packaged deb/rpm does this for you via tmpfiles.d.
 4. Add load_module and pagespeed directives to nginx.conf, pointing pagespeed_cache_path at the cache stem inside that directory
 5. Create a systemd service for factory_worker running as the unprivileged pagespeed user (User=/Group=pagespeed, RuntimeDirectory=pagespeed-optimizer). Every shared mode is set explicitly by the worker — sockets and volume 0660, shared config 0640 — so UMask is a backstop only, never the mechanism.
 6. Add the nginx worker user to group pagespeed and restart nginx: that group membership is what lets it reach the cache and socket.
@@ -159,7 +159,7 @@ The worker writes a `pagespeed-shared.conf` file next to the cache file, mode 06
 ### Key Worker Flags
 
 - --socket PATH — Unix socket path (default: /run/pagespeed-optimizer/notify.sock)
-- --cache-dir DIR — directory holding the cache volume, shared config and serve-stats (default: /var/cache/pagespeed-optimizer/v1)
+- --cache-dir DIR — directory holding the cache volume, shared config and serve-stats (default: /var/cache/pagespeed-optimizer/v2)
 - --cache-path PATH — expert override: full Cyclone cache volume file stem (derived from --cache-dir when unset)
 - --cache-size BYTES — max cache size (default: 1073741824 = 1 GB)
 - --disable-image — disable image optimization

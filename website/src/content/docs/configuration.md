@@ -10,7 +10,7 @@ faq:
   - q: 'How do I disable PageSpeed for specific URLs?'
     a: 'Use `pagespeed off` inside a `location` block to disable the module for that path, or `pagespeed_disallow` to skip individual URL patterns (prefix, suffix, or substring) while keeping the module active elsewhere.'
   - q: 'How do I share the cache file between nginx and the worker?'
-    a: 'Point `pagespeed_cache_path` (nginx) and the worker cache at the same file (the packaged optimizer worker defaults to `--cache-dir /var/cache/pagespeed-optimizer/v1`). The optimizer worker owns the directory and every file in it (0660 `pagespeed:pagespeed`); the nginx worker user reaches them through membership in group `pagespeed`. Memory-mapped directory sharing is enabled automatically.'
+    a: 'Point `pagespeed_cache_path` (nginx) and the worker cache at the same file (the packaged optimizer worker defaults to `--cache-dir /var/cache/pagespeed-optimizer/v2`). The optimizer worker owns the directory and every file in it (0660 `pagespeed:pagespeed`); the nginx worker user reaches them through membership in group `pagespeed`. Memory-mapped directory sharing is enabled automatically.'
   - q: 'What does the capability mask do?'
     a: 'The 32-bit mask encodes the client image format, viewport, pixel density, Save-Data, and transfer encoding into the cache key, so different optimized variants are served to different clients. Nginx derives the mask from request headers and client hints.'
   - q: 'How large should the Cyclone cache be?'
@@ -225,11 +225,11 @@ The `factory_worker` binary accepts these flags:
 Directory the cache volume, shared config, and serve-stats live in.
 
 ```bash
-factory_worker --cache-dir /var/cache/pagespeed-optimizer/v1
+factory_worker --cache-dir /var/cache/pagespeed-optimizer/v2
 ```
 
 **Default:** `/var/cache/pagespeed-optimizer/v<N>` where N is the compiled-in
-cache-directory generation (currently 1). The directory must exist, be
+cache-directory generation (currently 2). The directory must exist, be
 writable by the worker, and contain only files owned by the worker's user —
 the worker refuses to start (loudly, naming the cause) otherwise. The
 packaged tmpfiles.d drop-in creates the default as 3770
@@ -242,7 +242,7 @@ Expert override: full path to the Cyclone cache volume file stem
 (deliberately extensionless). Wins over `--cache-dir` when both are given.
 
 ```bash
-factory_worker --cache-path /var/cache/pagespeed-optimizer/v1/cache
+factory_worker --cache-path /var/cache/pagespeed-optimizer/v2/cache
 ```
 
 Must match the `pagespeed_cache_path` nginx directive. The worker reads original
@@ -1082,13 +1082,13 @@ entire reason to prefer the socket over `127.0.0.1` plus a token.
 
 ```bash
 # Local: no port, no credential to distribute.
-factory_worker --cache-dir /var/cache/pagespeed-optimizer/v1 \
+factory_worker --cache-dir /var/cache/pagespeed-optimizer/v2 \
   --api-socket \
   --console-dir /opt/pagespeed/console
 
 # Remote, deliberately: both flags AND a token, or it will not start.
 PAGESPEED_API_TOKEN="$(cat /run/secrets/api-token)" \
-factory_worker --cache-dir /var/cache/pagespeed-optimizer/v1 \
+factory_worker --cache-dir /var/cache/pagespeed-optimizer/v2 \
   --api-port 9880 --api-bind 0.0.0.0 --api-allow-remote \
   --console-dir /opt/pagespeed/console
 ```
@@ -1467,7 +1467,7 @@ After=network.target
 Type=simple
 ExecStart=/usr/local/bin/factory_worker \
   --socket /run/pagespeed-optimizer/notify.sock \
-  --cache-dir /var/cache/pagespeed-optimizer/v1 \
+  --cache-dir /var/cache/pagespeed-optimizer/v2 \
   --cache-size 536870912 \
   --log-format json \
   --log-level info

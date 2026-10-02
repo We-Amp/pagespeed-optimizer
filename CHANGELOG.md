@@ -24,6 +24,53 @@ ModPageSpeed. Affected: the `WeAmp.PageSpeed.AspNetCore` and
 `pagespeed.dll`), versions 2.0.0 through 2.1.0, and the Windows optimizer
 built from them. Update recommended. Linux and macOS are not affected.
 
+Changed: the optimizer's cache moved to a new on-disk format, and with it
+to a new directory. The cache storage library now checksums documents with
+CRC-32C (hardware-accelerated on x86-64 and ARMv8) and keeps the previous
+pass of a full cache readable until its bytes are actually overwritten, so a
+URL's original and its variants stay servable across a cache wrap. A
+directory holds one format, so the default cache directory is now
+`/var/cache/pagespeed-optimizer/v2` (2.1.0 used `.../v1`), and the
+optimizer publishes `cache_dir_generation=2` in `pagespeed-shared.conf`.
+After the upgrade the cache starts empty and refills as traffic arrives. The
+`v1` directory is left on disk, which keeps a rollback to 2.1.0 warm; delete
+it once you will not roll back. The packages print a notice when they find
+it. If your web-server configuration names the cache path
+(`pagespeed_cache_path`, `ModPagespeedDaemonVolumePath`), change `v1` to
+`v2`. Upgrade the optimizer and the serving module together: a pair
+linking different cache formats opens two different files instead of
+sharing one. See UPGRADING.md.
+
+Fixed: in the container deployments the optimizer and nginx could overwrite
+each other's cache writes. They ran in separate PID namespaces, and the cache
+library recovered a cross-process write lock from a holder whose PID looked
+gone, which a live process in another PID namespace does. The library now
+tells a live holder from a dead one by a lock the kernel holds for each
+process, which works across PID namespaces. Older builds still judge by PID,
+so the compose files now run both services in the PID namespace of a small
+`pidns` container, which keeps an upgrade safe while an old and a new build
+share the named cache volume. `pidns` runs the digest-pinned Kubernetes pause
+image, so an image upgrade never recreates it. Restarting the worker or nginx
+leaves the other running; stopping or recreating `pidns` stops both, and
+`docker compose up -d` brings all three back. The Helm chart (0.3.5) sets
+`shareProcessNamespace: true` on the pod, for the same one-namespace layout
+(its per-pod cache never mixes builds). Custom compose files that share the
+volume across an upgrade should do the same.
+
+Changed: the optimizer's systemd unit admits `mincore(2)` in its system-call
+allow-list. The cache library now checks whether data is already in memory
+before it issues a readahead hint, including when it reopens its cache at
+start. Without it, a host that masked the browser-analysis profile (which
+also admits `mincore`) would have the optimizer killed with `SIGSYS`.
+
+Fixed: under heavy write traffic from both the web server and the optimizer,
+one process could take over a cross-process cache lock that another, merely
+descheduled, process still held, and the two writes could overlap. A process
+now waits for a live holder. A write or removal that has waited 250 ms in
+total behind other holders gives up and reports the cache as busy; the write
+is dropped and redone on the next miss, and a purge reports failure instead
+of success.
+
 Fixed: the Windows optimizer worker (`factory_worker.exe`) starts on a
 Windows Server that has no Visual C++ runtime installed. It used to fail at
 once with a missing-DLL error (exit code 0xC0000135) for any argument,

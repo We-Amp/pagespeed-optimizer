@@ -48,14 +48,17 @@ manage_sock_files_pattern(pagespeed_t, pagespeed_runtime_t, pagespeed_runtime_t)
 ########################################
 # Peers: the serving module's web-server workers.  They never CREATE
 # anything (the daemon is the sole author); they mmap the volume rw and
-# connect the notify socket fire-and-forget.
+# connect the notify socket fire-and-forget.  `lock`: the cache library
+# takes fcntl byte-range (OFD) locks on the volume file -- the init and
+# lifetime locks, and one write-lock liveness slot per process -- and a peer
+# needs them to open and write the cache.
 
 gen_require(`
     type httpd_t;
 ')
 
 allow httpd_t pagespeed_cache_t:dir { getattr search };
-allow httpd_t pagespeed_cache_t:file { getattr open read write map };
+allow httpd_t pagespeed_cache_t:file { getattr open read write map lock };
 allow httpd_t pagespeed_runtime_t:dir { getattr search };
 allow httpd_t pagespeed_runtime_t:sock_file { getattr read write };
 allow httpd_t pagespeed_t:unix_stream_socket connectto;
@@ -66,7 +69,7 @@ optional_policy(`
     ')
 
     allow nginx_t pagespeed_cache_t:dir { getattr search };
-    allow nginx_t pagespeed_cache_t:file { getattr open read write map };
+    allow nginx_t pagespeed_cache_t:file { getattr open read write map lock };
     allow nginx_t pagespeed_runtime_t:dir { getattr search };
     allow nginx_t pagespeed_runtime_t:sock_file { getattr read write };
     allow nginx_t pagespeed_t:unix_stream_socket connectto;

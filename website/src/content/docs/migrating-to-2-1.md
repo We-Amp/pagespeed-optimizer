@@ -109,7 +109,7 @@ empty `podSecurityContext: {}` will **not** override the chart default.
 2.1 also ships as native web-server packages: the module plus the
 `pagespeed-optimizer` worker, installed and upgraded as a matching pair. On a
 package install the worker keeps its cache in a versioned directory
-(`/var/cache/pagespeed-optimizer/v1`), and a package upgrade starts that
+(`/var/cache/pagespeed-optimizer/v2`), and a package upgrade starts that
 cache cold by design. See [downloads](/download/) for packages and
 platforms.
 
@@ -132,7 +132,7 @@ What to review is operational defaults, not directives:
 | Browser analysis | Sandbox required                                                            | Your runtime's seccomp profile blocks user namespaces: allow them, or opt out deliberately           |
 | Helm pod         | `seccompProfile.type: RuntimeDefault`                                       | A workload needs blocked syscalls: set `seccompProfile: null`                                        |
 | Worker identity  | `pagespeed` (UID/GID 918)                                                   | You set an explicit `user:`, bind-mount the cache, or share it with a third container                |
-| Package paths    | `/var/cache/pagespeed-optimizer/v1`, `/run/pagespeed-optimizer/notify.sock` | Your web-server config points at explicitly configured worker paths: repoint both                    |
+| Package paths    | `/var/cache/pagespeed-optimizer/v2`, `/run/pagespeed-optimizer/notify.sock` | Your web-server config points at explicitly configured worker paths: repoint both                    |
 
 :::note
 If every request is a cache MISS after upgrading, the usual cause is a path

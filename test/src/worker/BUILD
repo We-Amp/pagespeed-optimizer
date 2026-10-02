@@ -181,6 +181,7 @@ gtest_test(
     deps = [
         "//lib/base:message_handler",
         "//src/worker:shared_config",
+        "@cyclone",
     ],
 )
 

@@ -39,7 +39,7 @@ done
 mkdir -p "$WORK"
 
 PKG=pagespeed-optimizer
-CACHE_DIR=/var/cache/$PKG/v1
+CACHE_DIR=/var/cache/$PKG/v2
 RUN_DIR=/run/$PKG
 fails=0
 LEG_NAME=""; LEG_NOTE=""; LEG_FAILS=0
@@ -456,10 +456,10 @@ for d in "ProtectKernelTunables=yes" "ProtectKernelModules=yes" \
          "RestrictSUIDSGID=yes" "RestrictRealtime=yes" "LockPersonality=yes" \
          "SystemCallArchitectures=native" "LimitCORE=0" \
          "RestrictAddressFamilies=AF_UNIX AF_NETLINK AF_INET AF_INET6" \
-         "SystemCallFilter=@system-service" \
+         "SystemCallFilter=@system-service mincore" \
          "SystemCallFilter=~@privileged @resources" \
          "RestrictNamespaces=yes" \
-         "SystemCallLog=~@system-service"; do
+         "SystemCallLog=~@system-service mincore"; do
   check "unit carries $d" "1" \
     "$(printf '%s' "$UNIT_TEXT" | grep -cxF "$d" || true)"
 done
@@ -758,6 +758,7 @@ NOBROWSER="$(systemctl is-active "$PKG.service" || true)"
 check "browser profile masked: the daemon stays up (no bare allow-list exists any more)" "active" "$NOBROWSER"
 check "browser profile masked: no SIGSYS" "0" "$(died_of_sigsys)"
 check "browser profile masked: seccomp(2) is not admitted" "0" "$(scf_has seccomp)"
+check "browser profile masked: mincore(2) is still admitted (the cache's readahead check)" "1" "$(scf_has mincore)"
 check "browser profile masked: RestrictNamespaces=yes is back in force" "yes" \
   "$(systemctl show -p RestrictNamespaces --value "$PKG.service")"
 NOBROWSER_STATE="state=${NOBROWSER} code=$(show ExecMainCode) status=$(show ExecMainStatus)"
@@ -781,7 +782,7 @@ check "and still reports itself filtered (SystemCallLog= remains)" "filtered" \
   "$(json_field "$(api_get /v1/health)" syscall_filter)"
 optout_off
 browser_profile_off
-LEG_NOTE="enforcing profile: daemon active with io_uring available (${IOURING_ON}), with UV_USE_IO_URING=0 (${IOURING_OFF}), with the vendor browser profile (${BOTH_OK}); browser profile masked is SAFE (${NOBROWSER_STATE}); documented opt-out: active=${OPTOUT_OK} SystemCallFilter=~ api=${OPTOUT_API}; no per-name syscall additions were needed"
+LEG_NOTE="enforcing profile: daemon active with io_uring available (${IOURING_ON}), with UV_USE_IO_URING=0 (${IOURING_OFF}), with the vendor browser profile (${BOTH_OK}); browser profile masked is SAFE (${NOBROWSER_STATE}); documented opt-out: active=${OPTOUT_OK} SystemCallFilter=~ api=${OPTOUT_API}; one per-name syscall addition (mincore, the cache's readahead check)"
 leg_end
 
 # --------------------------------------------- leg: namespace polarity ----
