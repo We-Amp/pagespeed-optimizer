@@ -11,6 +11,7 @@ cc_library(
     srcs = [
         "src/c_api/cyclone_c.cpp",
         "src/core/cache.cpp",
+        "src/core/crc32c.cpp",
         "src/core/directory.cpp",
         "src/core/document.cpp",
         "src/core/hit_tracker.cpp",
