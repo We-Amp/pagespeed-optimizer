@@ -178,6 +178,19 @@ struct WorkerStats {
   std::atomic<uint64_t> js_processed{0};
   std::atomic<uint64_t> images_processed{0};
 
+  // Entries whose optimization produced no smaller identity variant
+  // ("already minimal" for CSS/JS, the no-savings skip for images), per
+  // type: how many entries were judged, and their original byte sizes.
+  // Counted ONCE PER PROCESSED ENTRY at the verdict, never per serve; the
+  // window is this worker process's lifetime (they restart with it).  The
+  // serve-side picture is GET /v1/stats serve_savings.*.by_encoding.
+  std::atomic<uint64_t> css_already_optimal_count{0};
+  std::atomic<uint64_t> css_already_optimal_bytes{0};
+  std::atomic<uint64_t> js_already_optimal_count{0};
+  std::atomic<uint64_t> js_already_optimal_bytes{0};
+  std::atomic<uint64_t> image_already_optimal_count{0};
+  std::atomic<uint64_t> image_already_optimal_bytes{0};
+
   // Per image output format
   std::atomic<uint64_t> webp_generated{0};
   std::atomic<uint64_t> avif_generated{0};
@@ -997,6 +1010,8 @@ class Worker {
                         std::string_view minified, ContentType content_type,
                         const char* type_name,
                         std::atomic<uint64_t>& processed_stat,
+                        std::atomic<uint64_t>& already_optimal_count,
+                        std::atomic<uint64_t>& already_optimal_bytes,
                         const std::function<bool()>& purge_check,
                         const PurgeDispatchGen& purge_gen,
                         const std::shared_ptr<const WorkerConfig>& cfg);
@@ -1516,6 +1531,11 @@ class Worker {
 
   // Start time for uptime computation.
   std::chrono::steady_clock::time_point start_time_;
+
+  // Wall-clock epoch milliseconds at construction, for GET /v1/stats.
+  // start_time_ (steady) measures durations but is meaningless across
+  // processes; this answers "since when" for humans.
+  int64_t started_at_ms_;
 
   // Web Bot Auth key-directory warmer: periodic timer that
   // queues one SSRF-guarded JWKS refresh cycle onto the work pool

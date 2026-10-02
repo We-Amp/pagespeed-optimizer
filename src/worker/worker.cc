@@ -841,7 +841,10 @@ Worker::ClientContext* Worker::GetClientContext(uv_stream_t* stream) {
 Worker::Worker(const WorkerConfig& config, MessageHandler* handler)
     : config_(config),
       handler_(handler),
-      start_time_(std::chrono::steady_clock::now()) {}
+      start_time_(std::chrono::steady_clock::now()),
+      started_at_ms_(std::chrono::duration_cast<std::chrono::milliseconds>(
+                         std::chrono::system_clock::now().time_since_epoch())
+                         .count()) {}
 
 int Worker::api_port() const {
   return http_server_ ? http_server_->bound_port() : 0;
@@ -1660,6 +1663,7 @@ bool Worker::Initialize() {
         .num_threads = config_.num_threads,
         .max_connections = http_cfg.max_connections,
         .start_time = start_time_,
+        .started_at_ms = started_at_ms_,
         .serve_stats = serve_stats_,
         // Live read: browser_manager_ is created (or reset on init failure)
         // before the HTTP server starts and is stable afterwards.
@@ -3289,6 +3293,10 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
                 missing_formats.end()) {
           stats_.image_no_savings_skipped.fetch_add(1,
                                                     std::memory_order_relaxed);
+          stats_.image_already_optimal_count.fetch_add(
+              1, std::memory_order_relaxed);
+          stats_.image_already_optimal_bytes.fetch_add(
+              image_data.size(), std::memory_order_relaxed);
         }
       }
     }
@@ -3377,6 +3385,8 @@ void Worker::WriteTextVariant(const CacheNotification& notification,
                               std::string_view minified,
                               ContentType content_type, const char* type_name,
                               std::atomic<uint64_t>& processed_stat,
+                              std::atomic<uint64_t>& already_optimal_count,
+                              std::atomic<uint64_t>& already_optimal_bytes,
                               const std::function<bool()>& purge_check,
                               const PurgeDispatchGen& purge_gen,
                               const std::shared_ptr<const WorkerConfig>& cfg) {
@@ -3446,6 +3456,11 @@ void Worker::WriteTextVariant(const CacheNotification& notification,
   } else {
     // Already minimal — still write compressed variants of the
     // original content (gzip/brotli still reduces transfer size).
+    // Counted before the de-alias early return below: the verdict is about
+    // the optimization outcome, not the write's success.
+    already_optimal_count.fetch_add(1, std::memory_order_relaxed);
+    already_optimal_bytes.fetch_add(original_input.size(),
+                                    std::memory_order_relaxed);
     CapabilityMask mask = NormalizeMaskForDedup(notification.capability_mask);
     AlternateMetadata orig_meta = CreateWorkerMetadata(
         read_result.metadata, content_type,
@@ -5782,7 +5797,9 @@ void Worker::HandleNotification(const CacheNotification& notification,
 
       WriteTextVariant(notification, *css_read_result, css_input, minified_css,
                        ContentType::kCss, "CSS", stats_.css_processed,
-                       purge_check, purge_gen, cfg);
+                       stats_.css_already_optimal_count,
+                       stats_.css_already_optimal_bytes, purge_check, purge_gen,
+                       cfg);
       break;
     }
 
@@ -5895,8 +5912,10 @@ void Worker::HandleNotification(const CacheNotification& notification,
       }
 
       WriteTextVariant(notification, *js_read_result, js_input, minified_js,
-                       ContentType::kJs, "JS", stats_.js_processed, purge_check,
-                       purge_gen, cfg);
+                       ContentType::kJs, "JS", stats_.js_processed,
+                       stats_.js_already_optimal_count,
+                       stats_.js_already_optimal_bytes, purge_check, purge_gen,
+                       cfg);
       break;
     }
 

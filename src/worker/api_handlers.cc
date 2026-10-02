@@ -327,23 +327,43 @@ json BuildStatsJson(ApiContext& ctx) {
     auto load = [](const uint64_t& field) -> uint64_t {
       return *reinterpret_cast<const volatile uint64_t*>(&field);
     };
+    // v9: the same serves, split by the transfer encoding actually served
+    // (the variant's capability mask, recorded per hit).  An all-identity
+    // row on a front end that stores compressed variants is the "compressed
+    // copies not served here" signal a stats consumer can see.
+    auto by_encoding = [&load](const ServeStats* s, size_t type_index) {
+      return json{
+          {"identity",
+           {{"hits", load(s->serve_hits_by_encoding[type_index][0])},
+            {"bytes", load(s->serve_bytes_by_encoding[type_index][0])}}},
+          {"gzip",
+           {{"hits", load(s->serve_hits_by_encoding[type_index][1])},
+            {"bytes", load(s->serve_bytes_by_encoding[type_index][1])}}},
+          {"br",
+           {{"hits", load(s->serve_hits_by_encoding[type_index][2])},
+            {"bytes", load(s->serve_bytes_by_encoding[type_index][2])}}}};
+    };
     j["serve_savings"] = {
         {"html",
          {{"original_bytes", load(ss->html_original_bytes)},
           {"optimized_bytes", load(ss->html_optimized_bytes)},
-          {"hits", load(ss->html_optimized_hits)}}},
+          {"hits", load(ss->html_optimized_hits)},
+          {"by_encoding", by_encoding(ss, 0)}}},
         {"css",
          {{"original_bytes", load(ss->css_original_bytes)},
           {"optimized_bytes", load(ss->css_optimized_bytes)},
-          {"hits", load(ss->css_optimized_hits)}}},
+          {"hits", load(ss->css_optimized_hits)},
+          {"by_encoding", by_encoding(ss, 1)}}},
         {"js",
          {{"original_bytes", load(ss->js_original_bytes)},
           {"optimized_bytes", load(ss->js_optimized_bytes)},
-          {"hits", load(ss->js_optimized_hits)}}},
+          {"hits", load(ss->js_optimized_hits)},
+          {"by_encoding", by_encoding(ss, 2)}}},
         {"image",
          {{"original_bytes", load(ss->image_original_bytes)},
           {"optimized_bytes", load(ss->image_optimized_bytes)},
-          {"hits", load(ss->image_optimized_hits)}}},
+          {"hits", load(ss->image_optimized_hits)},
+          {"by_encoding", by_encoding(ss, 3)}}},
     };
     // Zero-copy serve-barrier verdicts (from the same nginx mmap).
     j["zerocopy"] = {
@@ -372,6 +392,33 @@ json BuildStatsJson(ApiContext& ctx) {
         {"class_unrecognized", load(ss->serve_class_unrecognized_total)},
         {"flags_unrecognized", load(ss->serve_flags_unrecognized_total)}};
   }
+
+  // Entries judged already optimal at processing time: no smaller identity
+  // variant was produced.  Per processed entry (not per serve) — CSS/JS at
+  // the "already minimal" verdict, images at the no-savings skip — over
+  // this worker process's lifetime.
+  j["verdicts"] = {
+      {"css",
+       {{"already_optimal",
+         {{"count", ctx.stats.css_already_optimal_count.load()},
+          {"bytes", ctx.stats.css_already_optimal_bytes.load()}}}}},
+      {"js",
+       {{"already_optimal",
+         {{"count", ctx.stats.js_already_optimal_count.load()},
+          {"bytes", ctx.stats.js_already_optimal_bytes.load()}}}}},
+      {"image",
+       {{"already_optimal",
+         {{"count", ctx.stats.image_already_optimal_count.load()},
+          {"bytes", ctx.stats.image_already_optimal_bytes.load()}}}}}};
+
+  // The worker's own time base: when this process started (wall clock) and
+  // how long it has been up (monotonic).  One stats read answers "since
+  // when" for every counter in this document without a second health read.
+  const auto now = std::chrono::steady_clock::now();
+  j["uptime_seconds"] =
+      std::chrono::duration_cast<std::chrono::seconds>(now - ctx.start_time)
+          .count();
+  j["started_at_ms"] = ctx.started_at_ms;
 
   return j;
 }
@@ -461,6 +508,27 @@ std::string BuildPrometheusMetricsText(const PrometheusMetricsInputs& in) {
                   s.js_processed.load(), "\n");
   absl::StrAppend(&m, "pagespeed_processed_total{type=\"image\"} ",
                   s.images_processed.load(), "\n");
+
+  // Per-type already-optimal verdicts (entries, original bytes).
+  absl::StrAppend(
+      &m, "# HELP pagespeed_already_optimal_total ",
+      "Entries whose optimization produced no smaller identity variant.\n");
+  absl::StrAppend(&m, "# TYPE pagespeed_already_optimal_total counter\n");
+  absl::StrAppend(&m, "pagespeed_already_optimal_total{type=\"css\"} ",
+                  s.css_already_optimal_count.load(), "\n");
+  absl::StrAppend(&m, "pagespeed_already_optimal_total{type=\"js\"} ",
+                  s.js_already_optimal_count.load(), "\n");
+  absl::StrAppend(&m, "pagespeed_already_optimal_total{type=\"image\"} ",
+                  s.image_already_optimal_count.load(), "\n");
+  absl::StrAppend(&m, "# HELP pagespeed_already_optimal_bytes_total ",
+                  "Original bytes of entries already optimal.\n");
+  absl::StrAppend(&m, "# TYPE pagespeed_already_optimal_bytes_total counter\n");
+  absl::StrAppend(&m, "pagespeed_already_optimal_bytes_total{type=\"css\"} ",
+                  s.css_already_optimal_bytes.load(), "\n");
+  absl::StrAppend(&m, "pagespeed_already_optimal_bytes_total{type=\"js\"} ",
+                  s.js_already_optimal_bytes.load(), "\n");
+  absl::StrAppend(&m, "pagespeed_already_optimal_bytes_total{type=\"image\"} ",
+                  s.image_already_optimal_bytes.load(), "\n");
 
   // Per-type processing time
   absl::StrAppend(

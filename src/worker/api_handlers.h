@@ -38,6 +38,9 @@ struct ApiContext {
   int num_threads;
   int max_connections;
   std::chrono::steady_clock::time_point start_time;
+  // Wall-clock epoch ms at worker construction (GET /v1/stats); the
+  // monotonic start_time above stays the source for uptime_seconds.
+  int64_t started_at_ms = 0;
   ServeStats* serve_stats = nullptr;  // mmap'd nginx bandwidth counters
   // Live read of the worker's browser analysis manager (nullptr when browser
   // analysis is disabled or failed to initialize), used by the shared

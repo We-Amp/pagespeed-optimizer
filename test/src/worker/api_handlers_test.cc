@@ -9,6 +9,7 @@
 #include "src/worker/api_handlers.h"
 
 #include <cerrno>
+#include <cstdlib>
 #include <cstring>
 #include <filesystem>
 #include <fstream>
@@ -801,6 +802,84 @@ TEST_F(ApiHandlersIntegrationTest, StatsEndpointWithServeSavings) {
   EXPECT_EQ(sv["image"]["hits"], 100);
 }
 
+TEST_F(ApiHandlersIntegrationTest, StatsEndpointServesByEncoding) {
+  ServeStats ss{};
+  ss.magic = ServeStats::kMagic;
+  ss.version = ServeStats::kVersion;
+  ss.css_original_bytes = 2000;
+  ss.css_optimized_bytes = 1000;
+  ss.css_optimized_hits = 2;
+  const size_t css = static_cast<size_t>(ContentType::kCss);
+  ss.serve_hits_by_encoding[css][0] = 1;
+  ss.serve_bytes_by_encoding[css][0] = 800;
+  ss.serve_hits_by_encoding[css][1] = 1;
+  ss.serve_bytes_by_encoding[css][1] = 200;
+  ctx_->serve_stats = &ss;
+
+  std::string resp =
+      SendRequest("GET /v1/stats HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  json j = ParseJsonBody(resp);
+  ASSERT_TRUE(j.contains("serve_savings"));
+  // The existing keys are unchanged...
+  EXPECT_EQ(j["serve_savings"]["css"]["hits"], 2);
+  // ...and the split nests inside each type.
+  auto& enc = j["serve_savings"]["css"]["by_encoding"];
+  EXPECT_EQ(enc["identity"]["hits"], 1);
+  EXPECT_EQ(enc["identity"]["bytes"], 800);
+  EXPECT_EQ(enc["gzip"]["hits"], 1);
+  EXPECT_EQ(enc["gzip"]["bytes"], 200);
+  EXPECT_EQ(enc["br"]["hits"], 0);
+  EXPECT_EQ(enc["br"]["bytes"], 0);
+}
+
+TEST_F(ApiHandlersIntegrationTest, StatsEndpointReportsAlreadyOptimalVerdicts) {
+  stats_.css_already_optimal_count.store(1, std::memory_order_relaxed);
+  stats_.css_already_optimal_bytes.store(110554, std::memory_order_relaxed);
+  stats_.image_already_optimal_count.store(4, std::memory_order_relaxed);
+  stats_.image_already_optimal_bytes.store(8000, std::memory_order_relaxed);
+
+  std::string resp =
+      SendRequest("GET /v1/stats HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  json j = ParseJsonBody(resp);
+  ASSERT_TRUE(j.contains("verdicts"));
+  EXPECT_EQ(j["verdicts"]["css"]["already_optimal"]["count"], 1);
+  EXPECT_EQ(j["verdicts"]["css"]["already_optimal"]["bytes"], 110554);
+  EXPECT_EQ(j["verdicts"]["js"]["already_optimal"]["count"], 0);
+  EXPECT_EQ(j["verdicts"]["image"]["already_optimal"]["count"], 4);
+  EXPECT_EQ(j["verdicts"]["image"]["already_optimal"]["bytes"], 8000);
+}
+
+TEST_F(ApiHandlersIntegrationTest, StatsEndpointReportsTheProcessTimeBase) {
+  // The fixture backdates start_time by an hour; started_at_ms is set
+  // directly because the fixture's ApiContext is not a real Worker's.
+  ctx_->started_at_ms = 1759230000000;
+
+  std::string resp =
+      SendRequest("GET /v1/stats HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  json j = ParseJsonBody(resp);
+  EXPECT_EQ(j["started_at_ms"], int64_t{1759230000000});
+  ASSERT_TRUE(j["uptime_seconds"].is_number());
+  EXPECT_GE(j["uptime_seconds"].get<int64_t>(), 3599);
+}
+
+TEST_F(ApiHandlersIntegrationTest, MetricsEndpointMirrorsVerdicts) {
+  stats_.css_already_optimal_count.store(2, std::memory_order_relaxed);
+  stats_.css_already_optimal_bytes.store(221108, std::memory_order_relaxed);
+  stats_.image_already_optimal_count.store(1, std::memory_order_relaxed);
+
+  std::string resp =
+      SendRequest("GET /v1/metrics HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(resp.find("pagespeed_already_optimal_total{type=\"css\"} 2\n"),
+            std::string::npos);
+  EXPECT_NE(
+      resp.find("pagespeed_already_optimal_bytes_total{type=\"css\"} 221108\n"),
+      std::string::npos);
+  EXPECT_NE(resp.find("pagespeed_already_optimal_total{type=\"image\"} 1\n"),
+            std::string::npos);
+  EXPECT_NE(resp.find("pagespeed_already_optimal_total{type=\"js\"} 0\n"),
+            std::string::npos);
+}
+
 TEST_F(ApiHandlersIntegrationTest, MetricsEndpointWithServeSavings) {
   ServeStats ss{};
   ss.magic = ServeStats::kMagic;
@@ -1186,6 +1265,76 @@ TEST_F(ApiHandlersIntegrationTest, HealthReportsSharedConfigVersionMismatch) {
       << detail;
   // Running on defaults is a degradation of the install, not a healthy state.
   EXPECT_EQ(j["status"], "degraded");
+}
+
+TEST_F(ApiHandlersIntegrationTest, StatsResponseShapeIsStable) {
+  // CAPTURE POINT: the /v1/stats document for these inputs, byte for byte
+  // as served, must equal testdata/stats_page.golden.json.  The admin
+  // console's fixtures copy that file; if this test changes, the file
+  // changes and every copy follows it.
+  ServeStats ss{};
+  ss.magic = ServeStats::kMagic;
+  ss.version = ServeStats::kVersion;
+  // The already-optimal story the console explains: one CSS file, no net
+  // saving, all serves identity; images with a real saving.
+  ss.css_original_bytes = 200000;
+  ss.css_optimized_bytes = 200000;
+  ss.css_optimized_hits = 3;
+  ss.image_original_bytes = 500000;
+  ss.image_optimized_bytes = 100000;
+  ss.image_optimized_hits = 2;
+  ss.serve_optimized_total = 5;
+  const size_t css = static_cast<size_t>(ContentType::kCss);
+  const size_t image = static_cast<size_t>(ContentType::kImage);
+  ss.serve_hits_by_encoding[css][0] = 3;
+  ss.serve_bytes_by_encoding[css][0] = 200000;
+  ss.serve_hits_by_encoding[image][0] = 2;
+  ss.serve_bytes_by_encoding[image][0] = 100000;
+  ctx_->serve_stats = &ss;
+  stats_.css_already_optimal_count.store(1, std::memory_order_relaxed);
+  stats_.css_already_optimal_bytes.store(110554, std::memory_order_relaxed);
+  stats_.image_already_optimal_count.store(2, std::memory_order_relaxed);
+  stats_.image_already_optimal_bytes.store(120000, std::memory_order_relaxed);
+  ctx_->started_at_ms = 1759230000000;
+
+  const std::string resp =
+      SendRequest("GET /v1/stats HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  const size_t split = resp.find("\r\n\r\n");
+  ASSERT_NE(split, std::string::npos);
+  std::string body = resp.substr(split + 4);
+  const json parsed = json::parse(body, nullptr, false);
+  ASSERT_TRUE(parsed.is_object());
+  ASSERT_TRUE(parsed.contains("serve_savings"));
+  ASSERT_TRUE(parsed.contains("verdicts"));
+
+  // Substitute the ONE live value textually and in place (the fixture
+  // backdates start_time, so uptime is 3600 plus scheduling skew), so every
+  // other byte — key order, spacing, escaping — is the daemon's own.
+  const std::string kUptimeKey = "\"uptime_seconds\":";
+  const size_t up = body.find(kUptimeKey);
+  ASSERT_NE(up, std::string::npos);
+  size_t digits_end = up + kUptimeKey.size();
+  while (digits_end < body.size() &&
+         static_cast<unsigned char>(body[digits_end]) >= '0' &&
+         static_cast<unsigned char>(body[digits_end]) <= '9') {
+    ++digits_end;
+  }
+  body.replace(up + kUptimeKey.size(), digits_end - (up + kUptimeKey.size()),
+               "3600");
+
+  // Keep the actual bytes for whoever has to re-capture the golden.
+  if (const char* dir = std::getenv("TEST_UNDECLARED_OUTPUTS_DIR")) {
+    std::ofstream(std::string(dir) + "/stats_page.json", std::ios::binary)
+        << body << '\n';
+  }
+  std::ifstream golden_file("test/src/worker/testdata/stats_page.golden.json",
+                            std::ios::binary);
+  ASSERT_TRUE(golden_file.is_open()) << "golden missing (BUILD data dep?)";
+  const std::string golden((std::istreambuf_iterator<char>(golden_file)),
+                           std::istreambuf_iterator<char>());
+  EXPECT_EQ(golden, body + "\n")
+      << "---- actual /v1/stats (uptime substituted) ----\n"
+      << body << "\n---- end ----";
 }
 
 }  // namespace

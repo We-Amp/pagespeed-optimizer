@@ -4,6 +4,23 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Added: GET /v1/stats now reports how many entries of each type the
+optimizer judged already optimal — no smaller variant could be produced —
+with their original sizes, so a resource that serves at its original size
+because it was already minimal shows up as exactly that instead of as zero
+savings. The document also states when the worker process started and how
+long it has been up, so one read answers "since when" for every counter in
+it.
+
+Added: GET /v1/stats now reports each content type's cache serves split by
+the transfer encoding actually served (identity, gzip or brotli), next to
+the totals it already reported. A serving front end that never serves the
+stored compressed variants becomes visible as an all-identity row instead
+of an unexplained saving. The shared counter file this comes from moves to
+a new layout version: its counters — including the serve savings the admin
+console shows — restart at zero once, when an updated worker first starts,
+and a worker older than this change stops recording into it until it is
+updated too.
 Fixed: the post-install scripts of the Linux packages no longer warn
 about outdated optimizer paths in backup or leftover web-server
 configuration files the web server does not load, such as a `.bak` copy

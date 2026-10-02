@@ -24,6 +24,7 @@
 #include <string_view>
 
 #include "lib/base/message_handler.h"
+#include "lib/classify/capability_mask.h"
 
 namespace pagespeed {
 
@@ -62,6 +63,18 @@ static void ZeroCounters(ServeStats* s) {
         &s->serve_class_unrecognized_total, &s->serve_flags_unrecognized_total,
         &s->saturation_sample_accum, &s->saturation_sample_count}) {
     std::atomic_ref<uint64_t>(*field).store(0, std::memory_order_relaxed);
+  }
+  // v9 by-transfer-encoding serve counters: zeroed with the counters above,
+  // same relaxed-atomic discipline.
+  for (auto& row : s->serve_hits_by_encoding) {
+    for (auto& field : row) {
+      std::atomic_ref<uint64_t>(field).store(0, std::memory_order_relaxed);
+    }
+  }
+  for (auto& row : s->serve_bytes_by_encoding) {
+    for (auto& field : row) {
+      std::atomic_ref<uint64_t>(field).store(0, std::memory_order_relaxed);
+    }
   }
   // Per-signer slots: zero the hash FIRST (releases the slot), then the count.
   // Doing it in this order shrinks the restart-reset window in which a
@@ -326,6 +339,18 @@ void RecordServeHit(ServeStats* stats, ContentType content_type,
       break;
     default:
       break;
+  }
+  // v9: the same serve, split by the transfer encoding the mask names
+  // (bits 6-7).  kReserved is not a servable encoding and writes no row;
+  // the per-type totals above already counted the serve either way.
+  const int type_index = static_cast<int>(content_type);
+  const auto encoding = CapabilityMask::Decode(mask).transfer_encoding();
+  if (type_index >= 0 && type_index <= static_cast<int>(ContentType::kImage) &&
+      encoding != CapabilityMask::TransferEncoding::kReserved) {
+    const size_t t = static_cast<size_t>(type_index);
+    const size_t e = static_cast<size_t>(encoding);
+    RelaxedAdd(stats->serve_hits_by_encoding[t][e], 1);
+    RelaxedAdd(stats->serve_bytes_by_encoding[t][e], optimized_bytes);
   }
 }
 

@@ -284,6 +284,7 @@ curl http://localhost:9880/v1/stats
   "selector_invocations": 12000,
   "cache_read_retries": 5,
   "cache_read_failures": 1,
+  "started_at_ms": 1759230000000, "uptime_seconds": 3600,
   "svg": {
     "candidates_evaluated": 500,
     "candidates_rejected": 350,
@@ -310,10 +311,27 @@ curl http://localhost:9880/v1/stats
     "max": 32
   },
   "serve_savings": {
-    "html": { "original_bytes": 4200000, "optimized_bytes": 3990000, "hits": 120 },
-    "css": { "original_bytes": 880000, "optimized_bytes": 540000, "hits": 340 },
-    "js": { "original_bytes": 1300000, "optimized_bytes": 910000, "hits": 280 },
-    "image": { "original_bytes": 52000000, "optimized_bytes": 7800000, "hits": 1366 }
+    "html": { "original_bytes": 4200000, "optimized_bytes": 3990000, "hits": 120,
+              "by_encoding": { "identity": { "hits": 120, "bytes": 3990000 },
+                               "gzip": { "hits": 0, "bytes": 0 },
+                               "br": { "hits": 0, "bytes": 0 } } },
+    "css": { "original_bytes": 880000, "optimized_bytes": 540000, "hits": 340,
+             "by_encoding": { "identity": { "hits": 340, "bytes": 540000 },
+                              "gzip": { "hits": 0, "bytes": 0 },
+                              "br": { "hits": 0, "bytes": 0 } } },
+    "js": { "original_bytes": 1300000, "optimized_bytes": 910000, "hits": 280,
+            "by_encoding": { "identity": { "hits": 280, "bytes": 910000 },
+                             "gzip": { "hits": 0, "bytes": 0 },
+                             "br": { "hits": 0, "bytes": 0 } } },
+    "image": { "original_bytes": 52000000, "optimized_bytes": 7800000, "hits": 1366,
+               "by_encoding": { "identity": { "hits": 1366, "bytes": 7800000 },
+                                "gzip": { "hits": 0, "bytes": 0 },
+                                "br": { "hits": 0, "bytes": 0 } } }
+  },
+  "verdicts": {
+    "css": { "already_optimal": { "count": 4, "bytes": 210000 } },
+    "js": { "already_optimal": { "count": 1, "bytes": 88000 } },
+    "image": { "already_optimal": { "count": 40, "bytes": 3100000 } }
   },
   "serve_classes": {
     "optimized": 1366,
@@ -350,6 +368,9 @@ Key fields:
 | `serve_savings.*.original_bytes`  | Origin bytes for worker-processed HITs of this type     |
 | `serve_savings.*.optimized_bytes` | Bytes served from cache for those HITs                  |
 | `serve_savings.*.hits`            | Optimized HITs served, per content type                 |
+| `serve_savings.*.by_encoding.<enc>.hits` / `.bytes` | The same serves split by the transfer encoding actually served: `identity`, `gzip`, `br` |
+| `verdicts.*.already_optimal.count` / `.bytes` | Entries judged already optimal (no smaller variant produced) and their original bytes; counted once per entry, per worker restart |
+| `started_at_ms` / `uptime_seconds` | When this worker process started (epoch milliseconds) and how long it has been up |
 | `serve_classes.optimized`         | Serves answered from a worker-produced alternate        |
 | `serve_classes.original_*`        | Serves of origin bytes, split by cause (`cold`, `pending`, `declined`, `skew`) |
 | `serve_classes.notify_suppressed` | Optimizer notifications suppressed by front-end dedup/cooldown |
