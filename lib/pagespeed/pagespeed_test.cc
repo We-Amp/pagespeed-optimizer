@@ -6816,6 +6816,45 @@ TEST_F(PageSpeedServeStatsApiTest, RecordHitOtherTypeAndNullHandleAreNoOps) {
   EXPECT_EQ(stats_->image_optimized_bytes, 0u);
 }
 
+// ps_serve_stats_record_hit_host (PS_API 1.11): the same serve, attributed to
+// the host the front end served it for.
+
+TEST_F(PageSpeedServeStatsApiTest, RecordHitHostAttributesTheServeToItsHost) {
+  const char kHost[] = "Shop.Example.com:443";
+  ps_serve_stats_record_hit_host(handle_, PS_CONTENT_CSS, 1000, 600,
+                                 /*mask=*/0, kHost, sizeof(kHost) - 1);
+  ps_serve_stats_record_hit_host(handle_, PS_CONTENT_CSS, 1000, 600,
+                                 /*mask=*/0, kHost, sizeof(kHost) - 1);
+
+  EXPECT_EQ(stats_->css_optimized_hits, 2u);
+  EXPECT_EQ(stats_->css_original_bytes, 2000u);
+  const pagespeed::ServeSavingsByHost by_host =
+      pagespeed::ReadServeSavingsByHost(stats_,
+                                        pagespeed::kServeHostReportLimit);
+  ASSERT_EQ(by_host.hosts.size(), 1u);
+  EXPECT_EQ(by_host.hosts[0].host, "shop.example.com");
+  EXPECT_EQ(by_host.hosts[0].hits, 2u);
+  EXPECT_EQ(by_host.hosts[0].original_bytes, 2000u);
+  EXPECT_EQ(by_host.hosts[0].optimized_bytes, 1200u);
+}
+
+TEST_F(PageSpeedServeStatsApiTest, RecordHitWithoutAHostCountsUnderOther) {
+  ps_serve_stats_record_hit_host(handle_, PS_CONTENT_JS, 500, 100, 0, nullptr,
+                                 12);
+  ps_serve_stats_record_hit_host(handle_, PS_CONTENT_JS, 500, 100, 0, "", 0);
+  ps_serve_stats_record_hit(handle_, PS_CONTENT_JS, 500, 100, 0);
+  ps_serve_stats_record_hit_host(nullptr, PS_CONTENT_JS, 500, 100, 0,
+                                 "a.example", 9);
+
+  EXPECT_EQ(stats_->js_optimized_hits, 3u);
+  const pagespeed::ServeSavingsByHost by_host =
+      pagespeed::ReadServeSavingsByHost(stats_,
+                                        pagespeed::kServeHostReportLimit);
+  EXPECT_TRUE(by_host.hosts.empty());
+  EXPECT_EQ(by_host.other.hits, 3u);
+  EXPECT_EQ(by_host.other.original_bytes, 1500u);
+}
+
 // ps_html_config_init_sized (PS_API 1.9)
 // ================================================================
 //

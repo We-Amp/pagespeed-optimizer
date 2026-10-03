@@ -774,6 +774,19 @@ extern "C" void ps_serve_stats_record_hit(ps_serve_stats_t* h,
                             original_bytes, optimized_bytes, mask);
 }
 
+extern "C" void ps_serve_stats_record_hit_host(ps_serve_stats_t* h,
+                                               ps_content_type_t content_type,
+                                               uint64_t original_bytes,
+                                               uint64_t optimized_bytes,
+                                               uint32_t mask, const char* host,
+                                               size_t host_len) {
+  if (h == nullptr) return;
+  const std::string_view host_view =
+      host == nullptr ? std::string_view() : std::string_view(host, host_len);
+  pagespeed::RecordServeHit(h->stats, static_cast<ContentType>(content_type),
+                            original_bytes, optimized_bytes, mask, host_view);
+}
+
 extern "C" void ps_serve_stats_record_serve_class(ps_serve_stats_t* h,
                                                   ps_serve_class_t cls,
                                                   uint32_t flags) {

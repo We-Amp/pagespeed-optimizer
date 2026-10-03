@@ -4,6 +4,15 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Added: the C API gains `ps_serve_stats_record_hit_host`, which records a
+cache serve exactly like `ps_serve_stats_record_hit` and attributes it to
+the host the front end served the response for. Serves recorded without a
+host are attributed to "other". The shared serve-statistics file moves to a
+new layout version: its counters — including the serve savings the admin
+console shows — restart at zero once, when an updated worker first starts,
+and a front end built against the previous layout stops recording into it
+until it is updated too.
+
 Added: GET /v1/stats now reports how many entries of each type the
 optimizer judged already optimal — no smaller variant could be produced —
 with their original sizes, so a resource that serves at its original size

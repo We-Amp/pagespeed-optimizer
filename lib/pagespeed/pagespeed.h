@@ -44,7 +44,8 @@ extern "C" {
  * ps_vary_varies_accept and publishes PS_FLAG_ORIGIN_VARIES_ACCEPT. 1.8
  * publishes PS_FLAG_ORIGIN_HEADERS_NOT_REPRODUCIBLE. 1.9 adds
  * ps_html_config_init_sized and ps_critical_css_config_init_sized. 1.10
- * adds ps_read_shared_config_generation.
+ * adds ps_read_shared_config_generation. 1.11 adds
+ * ps_serve_stats_record_hit_host.
  *
  * A published constant is ABI surface too (see ABI.md), so a minor that adds
  * only one still moves the number: it is what a consumer compiles against to
@@ -58,7 +59,7 @@ extern "C" {
  * checked-in record of the current surface and is what the gate compares
  * against. */
 #define PS_API_VERSION_MAJOR 1
-#define PS_API_VERSION_MINOR 10
+#define PS_API_VERSION_MINOR 11
 #define PS_API_VERSION_PATCH 0
 
 PS_EXPORT int ps_version_major(void);
@@ -525,6 +526,19 @@ PS_EXPORT void ps_serve_stats_record_hit(ps_serve_stats_t* h,
                                          uint64_t original_bytes,
                                          uint64_t optimized_bytes,
                                          uint32_t mask);
+
+/* Record ONE worker-processed serve HIT exactly as ps_serve_stats_record_hit
+ * does, and attribute it to the host the front end served the response for
+ * (1.11). `host` is `host_len` bytes, not NUL-terminated; a port is ignored
+ * and case does not matter. A NULL or empty host, or one that is not a plain
+ * host name, attributes the serve to "other" -- as ps_serve_stats_record_hit
+ * does for every serve. No-op if h==NULL. */
+PS_EXPORT void ps_serve_stats_record_hit_host(ps_serve_stats_t* h,
+                                              ps_content_type_t content_type,
+                                              uint64_t original_bytes,
+                                              uint64_t optimized_bytes,
+                                              uint32_t mask, const char* host,
+                                              size_t host_len);
 
 /* Serve-class outcome for ONE response the front end judged optimizable.
  * Exactly one class per response: an optimized serve, or origin bytes for one

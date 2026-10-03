@@ -112,3 +112,4 @@ _ps_read_shared_config_volume_size
 _ps_html_config_init_sized
 _ps_critical_css_config_init_sized
 _ps_read_shared_config_generation
+_ps_serve_stats_record_hit_host

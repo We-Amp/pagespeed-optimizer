@@ -151,3 +151,8 @@ PAGESPEED_1.10 {
   global:
     ps_read_shared_config_generation;
 } PAGESPEED_1.9;
+
+PAGESPEED_1.11 {
+  global:
+    ps_serve_stats_record_hit_host;
+} PAGESPEED_1.10;

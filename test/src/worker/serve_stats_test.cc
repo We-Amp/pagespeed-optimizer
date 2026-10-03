@@ -380,13 +380,16 @@ TEST_F(ServeStatsTest, StructSize) {
   // per-signer slots, latency buckets, boot identity — overflowed the 256-byte
   // headroom); the version+size bump self-heals existing files.  v7 adds the
   // zero-copy serve-barrier + bounded-stale counters (40 bytes), still
-  // inside 512.  v8 adds the serve-class + saturation block (88 bytes).
-  EXPECT_EQ(ServeStats::kFileSize, 1024u);
-  EXPECT_EQ(ServeStats::kVersion, 9u);
+  // inside 512.  v8 adds the serve-class + saturation block (88 bytes).  v9
+  // adds the by-encoding rows and grows the file to 1024.  v10 adds the 64
+  // host slots and the other triple (10,776 bytes) and grows it to 16384.
+  EXPECT_EQ(ServeStats::kFileSize, 16384u);
+  EXPECT_EQ(ServeStats::kVersion, 10u);
   // The exact size is pinned in the header too; asserted here so the failure
   // names the surface rather than a translation unit.
-  EXPECT_EQ(sizeof(ServeStats), 672u);
-  EXPECT_EQ(ServeStats::kFileSize - sizeof(ServeStats), 352u)
+  EXPECT_EQ(sizeof(ServeStats), 11448u);
+  EXPECT_EQ(sizeof(ServeStats::HostSlot), 168u);
+  EXPECT_EQ(ServeStats::kFileSize - sizeof(ServeStats), 4936u)
       << "headroom shrank: the next append may need a kFileSize bump";
 }
 
@@ -1020,7 +1023,7 @@ TEST_F(ServeStatsTest, LegacyV7FileIsRejectedAndRecreatedWithWarning) {
   const std::vector<std::string> warnings = handler.warnings();
   ASSERT_EQ(warnings.size(), 1u) << "expected exactly one skew warning";
   EXPECT_NE(warnings[0].find("version 7"), std::string::npos) << warnings[0];
-  EXPECT_NE(warnings[0].find("version 9"), std::string::npos) << warnings[0];
+  EXPECT_NE(warnings[0].find("version 10"), std::string::npos) << warnings[0];
 
   ServeStats* reopened = OpenServeStats(path_);
   ASSERT_NE(reopened, nullptr);
@@ -1318,6 +1321,280 @@ TEST_F(ServeStatsTest, SaturationHwmIsRaceFreeUnderContention) {
   // Highest value any thread submitted: 49 + (kThreads - 1).
   EXPECT_EQ(stats->saturation_hwm, 49u + kThreads - 1);
   CloseServeStats(stats);
+}
+
+// ---- v10: serve savings by host ----
+
+const ServeHostRow* FindHost(const ServeSavingsByHost& by_host,
+                             const std::string& host) {
+  for (const ServeHostRow& row : by_host.hosts) {
+    if (row.host == host) return &row;
+  }
+  return nullptr;
+}
+
+TEST_F(ServeStatsTest, ServeHostsRecordPerHostAndReadBack) {
+  ServeStats* stats = CreateServeStats(path_);
+  ASSERT_NE(stats, nullptr);
+  RecordServeHit(stats, ContentType::kCss, 1000, 400, 0, "www.example.com");
+  RecordServeHit(stats, ContentType::kCss, 1000, 400, 0, "www.example.com");
+  RecordServeHit(stats, ContentType::kImage, 5000, 1000, 0,
+                 "static.example.com");
+
+  const ServeSavingsByHost by_host =
+      ReadServeSavingsByHost(stats, kServeHostReportLimit);
+  ASSERT_EQ(by_host.hosts.size(), 2u);
+  EXPECT_EQ(by_host.hosts[0].host, "www.example.com");
+  EXPECT_EQ(by_host.hosts[0].hits, 2u);
+  EXPECT_EQ(by_host.hosts[0].original_bytes, 2000u);
+  EXPECT_EQ(by_host.hosts[0].optimized_bytes, 800u);
+  EXPECT_EQ(by_host.hosts[1].host, "static.example.com");
+  EXPECT_EQ(by_host.hosts[1].hits, 1u);
+  EXPECT_EQ(by_host.hosts[1].original_bytes, 5000u);
+  EXPECT_EQ(by_host.hosts[1].optimized_bytes, 1000u);
+  EXPECT_EQ(by_host.other.hits, 0u);
+  // The per-type totals are counted exactly as before.
+  EXPECT_EQ(stats->css_optimized_hits, 2u);
+  EXPECT_EQ(stats->css_original_bytes, 2000u);
+  EXPECT_EQ(stats->image_optimized_hits, 1u);
+  CloseServeStats(stats);
+}
+
+TEST_F(ServeStatsTest, ServeHostsNormaliseCaseAndPort) {
+  ServeStats* stats = CreateServeStats(path_);
+  ASSERT_NE(stats, nullptr);
+  RecordServeHostHit(stats, "WWW.Example.COM", 10, 5);
+  RecordServeHostHit(stats, "www.example.com:8443", 10, 5);
+  RecordServeHostHit(stats, "www.example.com.", 10, 5);
+  RecordServeHostHit(stats, "[2001:DB8::1]:443", 10, 5);
+  RecordServeHostHit(stats, "[2001:db8::1]", 10, 5);
+
+  const ServeSavingsByHost by_host =
+      ReadServeSavingsByHost(stats, kServeHostReportLimit);
+  ASSERT_EQ(by_host.hosts.size(), 2u);
+  const ServeHostRow* www = FindHost(by_host, "www.example.com");
+  ASSERT_NE(www, nullptr);
+  EXPECT_EQ(www->hits, 3u);
+  const ServeHostRow* v6 = FindHost(by_host, "[2001:db8::1]");
+  ASSERT_NE(v6, nullptr);
+  EXPECT_EQ(v6->hits, 2u);
+  EXPECT_EQ(by_host.other.hits, 0u);
+
+  std::string out;
+  EXPECT_TRUE(NormalizeServeHost("Shop.Example.org:80", &out));
+  EXPECT_EQ(out, "shop.example.org");
+  CloseServeStats(stats);
+}
+
+TEST_F(ServeStatsTest, ServeHostsOutsideTheGrammarCountUnderOther) {
+  ServeStats* stats = CreateServeStats(path_);
+  ASSERT_NE(stats, nullptr);
+  const std::string long_host(200, 'a');
+  const std::string with_nul("a\0b.example", 11);
+  const std::vector<std::string> bad = {
+      "",
+      "bad host",
+      "a\"b.example",
+      "x\ny",
+      "<img src=x>",
+      "caf\xc3\xa9.example",
+      "example.com:99999999",
+      "[::1",
+      "a/b",
+      long_host,
+      with_nul,
+      ".",
+      "..",
+      "-",
+      "[:]",
+  };
+  for (const std::string& host : bad) {
+    std::string out;
+    EXPECT_FALSE(NormalizeServeHost(host, &out)) << host;
+    RecordServeHostHit(stats, host, 100, 50);
+  }
+  const ServeSavingsByHost by_host =
+      ReadServeSavingsByHost(stats, kServeHostReportLimit);
+  EXPECT_TRUE(by_host.hosts.empty());
+  EXPECT_EQ(by_host.other.hits, bad.size());
+  EXPECT_EQ(by_host.other.original_bytes, 100u * bad.size());
+  EXPECT_EQ(by_host.other.optimized_bytes, 50u * bad.size());
+  CloseServeStats(stats);
+}
+
+TEST_F(ServeStatsTest, RecordServeHitWithoutAHostCountsUnderOther) {
+  ServeStats* stats = CreateServeStats(path_);
+  ASSERT_NE(stats, nullptr);
+  RecordServeHit(stats, ContentType::kJs, 300, 200);  // no host
+  // Not a counted content type: neither the totals nor the hosts move.
+  RecordServeHit(stats, ContentType::kOther, 300, 200, 0, "www.example.com");
+
+  const ServeSavingsByHost by_host =
+      ReadServeSavingsByHost(stats, kServeHostReportLimit);
+  EXPECT_TRUE(by_host.hosts.empty());
+  EXPECT_EQ(by_host.other.hits, 1u);
+  EXPECT_EQ(by_host.other.original_bytes, 300u);
+  EXPECT_EQ(by_host.other.optimized_bytes, 200u);
+  EXPECT_EQ(stats->js_optimized_hits, 1u);
+  CloseServeStats(stats);
+}
+
+TEST_F(ServeStatsTest, ServeHostsPast64CountUnderOther) {
+  ServeStats* stats = CreateServeStats(path_);
+  ASSERT_NE(stats, nullptr);
+  for (int i = 0; i < 70; ++i) {
+    RecordServeHostHit(stats, "host" + std::to_string(i) + ".example", 10, 5);
+  }
+  const ServeSavingsByHost all = ReadServeSavingsByHost(stats, 1000);
+  EXPECT_EQ(all.hosts.size(), ServeStats::kHostSlots);
+  EXPECT_EQ(all.other.hits, 70u - ServeStats::kHostSlots);
+  uint64_t total = all.other.hits;
+  for (const ServeHostRow& row : all.hosts) total += row.hits;
+  EXPECT_EQ(total, 70u);
+  CloseServeStats(stats);
+}
+
+TEST_F(ServeStatsTest, ReadTopHostsFoldsTheRestIntoOther) {
+  ServeStats* stats = CreateServeStats(path_);
+  ASSERT_NE(stats, nullptr);
+  // Host i is served i + 1 times: 40 hosts, 820 serves.
+  for (int i = 0; i < 40; ++i) {
+    for (int n = 0; n <= i; ++n) {
+      RecordServeHostHit(stats, "h" + std::to_string(i) + ".example", 2, 1);
+    }
+  }
+  const ServeSavingsByHost top =
+      ReadServeSavingsByHost(stats, kServeHostReportLimit);
+  ASSERT_EQ(top.hosts.size(), kServeHostReportLimit);
+  EXPECT_EQ(top.hosts.front().host, "h39.example");
+  EXPECT_EQ(top.hosts.front().hits, 40u);
+  EXPECT_EQ(top.hosts.back().host, "h8.example");
+  EXPECT_EQ(top.hosts.back().hits, 9u);
+  EXPECT_EQ(top.other.hits, 36u);  // 1 + 2 + ... + 8
+  EXPECT_EQ(top.other.original_bytes, 72u);
+  CloseServeStats(stats);
+}
+
+TEST_F(ServeStatsTest, ReusedFileZeroesTheHostBlock) {
+  ServeStats* stats = CreateServeStats(path_);
+  ASSERT_NE(stats, nullptr);
+  RecordServeHostHit(stats, "www.example.com", 10, 5);
+  RecordServeHostHit(stats, "", 10, 5);
+  CloseServeStats(stats);
+
+  ServeStats* reused = CreateServeStats(path_);
+  ASSERT_NE(reused, nullptr);
+  const ServeSavingsByHost by_host =
+      ReadServeSavingsByHost(reused, kServeHostReportLimit);
+  EXPECT_TRUE(by_host.hosts.empty());
+  EXPECT_EQ(by_host.other.hits, 0u);
+  for (const ServeStats::HostSlot& slot : reused->serve_hosts) {
+    EXPECT_EQ(slot.key_hash, 0u);
+    EXPECT_EQ(slot.ready, 0u);
+    EXPECT_EQ(slot.name[0], '\0');
+  }
+  CloseServeStats(reused);
+}
+
+// The real v9 -> v10 upgrade artifact: a 1024-byte file with the right magic
+// and version 9, junk past the v9 struct.  Open must reject it, Create must
+// replace it with a zeroed v10 file and say so once, naming both versions --
+// an older layout must read as zeros, never as garbage host rows.
+TEST_F(ServeStatsTest, LegacyV9FileIsRejectedAndRecreatedZeroedWithWarning) {
+  std::string legacy(1024, '\0');
+  const uint32_t magic = ServeStats::kMagic;
+  const uint32_t version = 9;
+  std::memcpy(&legacy[0], &magic, sizeof(magic));
+  std::memcpy(&legacy[4], &version, sizeof(version));
+  legacy[700] = 0x2A;
+  legacy[1000] = static_cast<char>(0xFF);
+  FILE* f = fopen(path_.c_str(), "wb");
+  ASSERT_NE(f, nullptr);
+  ASSERT_EQ(legacy.size(), fwrite(legacy.data(), 1, legacy.size(), f));
+  fclose(f);
+
+  EXPECT_EQ(nullptr, OpenServeStats(path_));
+
+  RecordingHandler handler;
+  ServeStats* fresh = CreateServeStats(path_, &handler);
+  ASSERT_NE(fresh, nullptr);
+  EXPECT_EQ(fresh->version, ServeStats::kVersion);
+  const ServeSavingsByHost by_host =
+      ReadServeSavingsByHost(fresh, kServeHostReportLimit);
+  EXPECT_TRUE(by_host.hosts.empty());
+  EXPECT_EQ(by_host.other.hits, 0u);
+  CloseServeStats(fresh);
+
+  const std::vector<std::string> warnings = handler.warnings();
+  ASSERT_EQ(warnings.size(), 1u);
+  EXPECT_NE(warnings[0].find("version 9"), std::string::npos) << warnings[0];
+  EXPECT_NE(warnings[0].find("version 10"), std::string::npos) << warnings[0];
+
+  ServeStats* reopened = OpenServeStats(path_);
+  ASSERT_NE(reopened, nullptr);
+  CloseServeStats(reopened);
+}
+
+TEST_F(ServeStatsTest, ServeHostClaimIsRaceFreeUnderContention) {
+  ServeStats* stats = CreateServeStats(path_);
+  ASSERT_NE(stats, nullptr);
+  constexpr int kThreads = 8;
+  constexpr int kPerThread = 2000;
+  std::vector<std::thread> threads;
+  threads.reserve(kThreads);
+  for (int t = 0; t < kThreads; ++t) {
+    threads.emplace_back([stats] {
+      for (int j = 0; j < kPerThread; ++j) {
+        RecordServeHostHit(stats, (j % 2 == 0) ? "a.example" : "b.example", 3,
+                           1);
+      }
+    });
+  }
+  for (std::thread& t : threads) t.join();
+  const ServeSavingsByHost by_host =
+      ReadServeSavingsByHost(stats, kServeHostReportLimit);
+  ASSERT_EQ(by_host.hosts.size(), 2u);
+  for (const ServeHostRow& row : by_host.hosts) {
+    EXPECT_EQ(row.hits, static_cast<uint64_t>(kThreads * kPerThread / 2));
+    EXPECT_EQ(row.original_bytes,
+              static_cast<uint64_t>(3 * kThreads * kPerThread / 2));
+  }
+  EXPECT_EQ(by_host.other.hits, 0u);
+  CloseServeStats(stats);
+}
+
+// A ZeroCounters racing a claim can leave a slot whose name was torn across
+// the restart -- still grammar-valid ("www.exa"), but not the name the slot's
+// key_hash was claimed for.  Such a slot is never a host row (so never a JSON
+// key or a metrics label); its serves count under other.
+TEST_F(ServeStatsTest, ATornHostNameIsNeverReported) {
+  ServeStats* stats = CreateServeStats(path_);
+  ASSERT_NE(stats, nullptr);
+  RecordServeHostHit(stats, "www.example.com", 10, 5);
+  ServeStats::HostSlot* claimed = nullptr;
+  for (ServeStats::HostSlot& slot : stats->serve_hosts) {
+    if (slot.key_hash != 0) claimed = &slot;
+  }
+  ASSERT_NE(claimed, nullptr);
+  ASSERT_EQ(claimed->ready, 1u);
+  std::memset(claimed->name, 0, sizeof(claimed->name));
+  std::memcpy(claimed->name, "www.exa", 7);
+
+  const ServeSavingsByHost by_host =
+      ReadServeSavingsByHost(stats, kServeHostReportLimit);
+  EXPECT_TRUE(by_host.hosts.empty());
+  EXPECT_EQ(by_host.other.hits, 1u);
+  EXPECT_EQ(by_host.other.original_bytes, 10u);
+  EXPECT_EQ(by_host.other.optimized_bytes, 5u);
+  CloseServeStats(stats);
+}
+
+TEST_F(ServeStatsTest, ServeHostsNullStatsAreNoOps) {
+  RecordServeHostHit(nullptr, "www.example.com", 1, 1);
+  RecordServeHit(nullptr, ContentType::kCss, 1, 1, 0, "www.example.com");
+  const ServeSavingsByHost by_host = ReadServeSavingsByHost(nullptr, 32);
+  EXPECT_TRUE(by_host.hosts.empty());
+  EXPECT_EQ(by_host.other.hits, 0u);
 }
 
 }  // namespace

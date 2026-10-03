@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "lib/classify/content_type.h"
 
@@ -35,6 +36,8 @@ class MessageHandler;
 //       exactly one process writes these.
 //       By-encoding rows (v9) belong to this group: written by the front end
 //       inside RecordServeHit().
+//       Serve-by-host slots (v10) belong to this group too: claimed and
+//       counted by the front end inside RecordServeHit().
 //   * serve-class counters + notify_suppressed_total (v8)
 //       WRITER: the front end, through RecordServeClass() / the C API.
 //       LIVE where the 1.16 module fronts the cache: its module-side writer
@@ -60,7 +63,7 @@ class MessageHandler;
 // aarch64) because aligned 64-bit loads/stores are naturally atomic.
 struct ServeStats {
   static constexpr uint32_t kMagic = 0x50533032;  // "PS02"
-  static constexpr uint32_t kVersion = 9;
+  static constexpr uint32_t kVersion = 10;
   // 1024 (was 512 through v8, 256 through v5, 128 through v3): v6 adds the opt-in
   // counter apparatus (per-signer slots, overflow, verify-latency buckets, a
   // boot identity and a counting-since day) — 192 bytes of additions overflow
@@ -77,13 +80,30 @@ struct ServeStats {
   // or a mid-block insertion cannot slip past review.
   // v9 adds the by-transfer-encoding serve counters (two [4][3] arrays,
   // 192 bytes), past v8's 32-byte headroom, so the file grows to 1024 on
-  // the same version bump. HEADROOM AFTER v9 IS 352 BYTES.
-  static constexpr size_t kFileSize = 1024;
+  // the same version bump.
+  // v10 adds 64 host slots and the other triple (10,776 bytes), past v9's
+  // 352-byte headroom, so the file grows to 16384 on the same version bump.
+  // HEADROOM AFTER v10 IS 4936 BYTES.
+  static constexpr size_t kFileSize = 16384;
 
   // Web Bot Auth opt-in counter (experimental): the maximum
   // number of distinct verified signer identities we track by keyid; the
   // (N+1)-th and beyond fall into webbotauth_other_verified_bots.
   static constexpr size_t kMaxCountedBots = 8;
+
+  // Serve savings by host (v10): slots claimed first-come; see the v10 block.
+  static constexpr size_t kHostSlots = 64;
+  // A host name and its terminating NUL.  NormalizeServeHost accepts at most
+  // kHostNameCapacity - 1 bytes.
+  static constexpr size_t kHostNameCapacity = 128;
+  struct HostSlot {
+    uint64_t key_hash;  // FNV-1a-64 of the normalised name; 0 == free
+    uint64_t ready;     // 1 once `name` is written; read with acquire order
+    uint64_t hits;
+    uint64_t original_bytes;
+    uint64_t optimized_bytes;
+    char name[kHostNameCapacity];  // NUL-terminated, NUL-padded
+  };
 
   uint32_t magic;
   uint32_t version;
@@ -361,6 +381,30 @@ struct ServeStats {
   uint64_t serve_bytes_by_encoding[4][3];
   // ---- end v9 block (192 bytes) ----
 
+  // ---- v10: serve savings by host ----
+  // The same serves the per-type counters above total, attributed to the host
+  // the front end served them for.  A slot is claimed by a compare-and-swap
+  // of key_hash from 0, probing linearly from key_hash % kHostSlots, exactly
+  // like the signer slots; the claimer writes `name` and then stores
+  // ready = 1 with release order, and a reader trusts the name only after
+  // reading ready == 1 with acquire order, re-validating it, and checking
+  // that the hash of the stored name equals the stored key_hash -- so a name
+  // torn by a ZeroCounters racing a claim is never reported.  A serve with
+  // no host, a host NormalizeServeHost refuses, or a host that finds every
+  // slot taken counts in the other triple, so the slots plus the other triple
+  // always add up to the per-type totals over HTML, CSS, JS and images.
+  // WRITER: the front end, through RecordServeHit().  Slots are released only
+  // by ZeroCounters (a worker restart), so they fill first-come from the
+  // first 64 distinct hosts seen since then.  A ZeroCounters racing a claim
+  // or a counter add can leave one slot unnamed (its serves then read as
+  // other), or leave a few counts in a freed slot that the next claimer
+  // inherits -- cosmetic until the next restart, never corruption.
+  HostSlot serve_hosts[kHostSlots];
+  uint64_t serve_hosts_other_hits;
+  uint64_t serve_hosts_other_original_bytes;
+  uint64_t serve_hosts_other_optimized_bytes;
+  // ---- end v10 block (10,776 bytes) ----
+
   // Days since the Unix epoch when this counting file was first created fresh.
   // Day-granular ("since" date).  Minted in the create-fresh path only;
   // PRESERVED across same-version reuse/restart (NOT a counter).
@@ -380,10 +424,10 @@ struct ServeStats {
   uint8_t boot_id[16];
 };
 static_assert(sizeof(ServeStats) <= ServeStats::kFileSize);
-// Pin the EXACT size at v8.  The <= assert above only catches an overflow; it
+// Pin the EXACT size (v10).  The <= assert above only catches an overflow; it
 // would happily accept a field silently dropped or re-typed.  Anything that
 // changes the layout must change this number and the version together.
-static_assert(sizeof(ServeStats) == 672,
+static_assert(sizeof(ServeStats) == 11448,
               "ServeStats layout changed: bump kVersion and update this pin");
 static_assert(alignof(ServeStats) == 8);
 // The v8 block must stay 8-byte aligned so every u64 in it can be updated with
@@ -400,6 +444,12 @@ static_assert(offsetof(ServeStats, counting_since_unix_day) <
 static_assert(offsetof(ServeStats, serve_hits_by_encoding) % 8 == 0);
 static_assert(offsetof(ServeStats, serve_bytes_by_encoding) % 8 == 0);
 static_assert(offsetof(ServeStats, serve_bytes_by_encoding) <
+              offsetof(ServeStats, counting_since_unix_day));
+static_assert(sizeof(ServeStats::HostSlot) == 168);
+static_assert(offsetof(ServeStats, serve_hosts) % 8 == 0);
+static_assert(offsetof(ServeStats, serve_bytes_by_encoding) <
+              offsetof(ServeStats, serve_hosts));
+static_assert(offsetof(ServeStats, serve_hosts_other_optimized_bytes) <
               offsetof(ServeStats, counting_since_unix_day));
 
 // One serve-class outcome for a response the front end judged optimizable.
@@ -470,6 +520,58 @@ void CloseServeStats(ServeStats* stats);
 void RecordServeHit(ServeStats* stats, ContentType content_type,
                     uint64_t original_bytes, uint64_t optimized_bytes,
                     uint32_t mask = 0);
+
+// One host's share of the serve savings, as ReadServeSavingsByHost reports it.
+struct ServeHostRow {
+  std::string host;  // empty on the "other" row
+  uint64_t hits = 0;
+  uint64_t original_bytes = 0;
+  uint64_t optimized_bytes = 0;
+};
+
+// The by-host block as a reader sees it.  `hosts` holds at most the requested
+// number of rows, most hits first (ties by name); `other` holds every other
+// serve: the remaining slots, the serves that found no free slot, and the
+// serves recorded without an acceptable host.
+struct ServeSavingsByHost {
+  std::vector<ServeHostRow> hosts;
+  ServeHostRow other;
+};
+
+// How many hosts GET /v1/stats and /v1/metrics name; the rest are "other".
+inline constexpr size_t kServeHostReportLimit = 32;
+
+// Normalises the host a front end served a response for: ASCII-lowercase, a
+// ":port" of 1-5 digits dropped (after the ']' of a bracketed IPv6 literal),
+// one trailing '.' dropped.  Accepts [a-z0-9._-]+, or a bracketed literal of
+// [0-9a-f:.], of 1..kHostNameCapacity-1 bytes with at least one letter or
+// digit, and returns false for anything else (`out` is then unspecified).
+// Every name the by-host block reports passed this, so it is safe as a JSON
+// string and a Prometheus label value.
+bool NormalizeServeHost(std::string_view host, std::string* out);
+
+// Atomically attributes ONE serve's bytes to `host` (see the v10 block): a
+// refused host, or no free slot, counts in the other triple.  Same
+// relaxed-atomic, cross-process discipline as the other Record* helpers;
+// stats == nullptr is a no-op.  RecordServeHit() calls it; public for the
+// tests and the golden capture.
+void RecordServeHostHit(ServeStats* stats, std::string_view host,
+                        uint64_t original_bytes, uint64_t optimized_bytes);
+
+// RecordServeHit() with the host the front end served the response for:
+// counts exactly what the form above counts and, for the four counted content
+// types, attributes the serve to `host`.  The form above attributes the
+// serve to "other".
+void RecordServeHit(ServeStats* stats, ContentType content_type,
+                    uint64_t original_bytes, uint64_t optimized_bytes,
+                    uint32_t mask, std::string_view host);
+
+// Reads the by-host block: every claimed, ready slot whose name re-validates
+// and hashes to the slot's key_hash, sorted by hits (most first, ties by
+// name), at most `limit` of them; the rest folded into `other`.
+// stats == nullptr reads as empty.
+ServeSavingsByHost ReadServeSavingsByHost(const ServeStats* stats,
+                                          size_t limit);
 
 // Atomically record one Web Bot Auth classification of a SIGNED request
 // (observe-only telemetry).  `verified` == the signature
