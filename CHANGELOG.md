@@ -13,6 +13,13 @@ console shows — restart at zero once, when an updated worker first starts,
 and a front end built against the previous layout stops recording into it
 until it is updated too.
 
+Added: GET /v1/stats reports serve savings per host
+(`serve_savings_by_host`): optimized HITs, original and served bytes for up
+to 32 hosts, drawn from the first 64 distinct hosts seen since the optimizer
+started and ordered by HITs, and everything else — the remaining hosts and
+HITs a front end recorded without a host — under `other`. GET /v1/metrics
+carries the same numbers with a `host` label.
+
 Added: GET /v1/stats now reports how many entries of each type the
 optimizer judged already optimal — no smaller variant could be produced —
 with their original sizes, so a resource that serves at its original size

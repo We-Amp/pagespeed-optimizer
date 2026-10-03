@@ -832,6 +832,71 @@ TEST_F(ApiHandlersIntegrationTest, StatsEndpointServesByEncoding) {
   EXPECT_EQ(enc["br"]["bytes"], 0);
 }
 
+TEST_F(ApiHandlersIntegrationTest, StatsJsonReportsServeSavingsByHost) {
+  ServeStats ss{};
+  ss.magic = ServeStats::kMagic;
+  ss.version = ServeStats::kVersion;
+  RecordServeHit(&ss, ContentType::kCss, 1000, 400, 0, "www.example.com");
+  RecordServeHit(&ss, ContentType::kCss, 1000, 400, 0, "www.example.com");
+  RecordServeHit(&ss, ContentType::kImage, 5000, 1000, 0, "static.example.com");
+  RecordServeHit(&ss, ContentType::kJs, 300, 200);  // recorded without a host
+  ctx_->serve_stats = &ss;
+
+  std::string resp =
+      SendRequest("GET /v1/stats HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  json j = ParseJsonBody(resp);
+  ASSERT_TRUE(j.contains("serve_savings_by_host"));
+  auto& by_host = j["serve_savings_by_host"];
+  EXPECT_EQ(by_host["limit"], 32);
+  ASSERT_EQ(by_host["hosts"].size(), 2u);
+  EXPECT_EQ(by_host["hosts"][0]["host"], "www.example.com");
+  EXPECT_EQ(by_host["hosts"][0]["hits"], 2);
+  EXPECT_EQ(by_host["hosts"][0]["original_bytes"], 2000);
+  EXPECT_EQ(by_host["hosts"][0]["optimized_bytes"], 800);
+  EXPECT_EQ(by_host["hosts"][1]["host"], "static.example.com");
+  EXPECT_EQ(by_host["hosts"][1]["hits"], 1);
+  EXPECT_EQ(by_host["other"]["hits"], 1);
+  EXPECT_EQ(by_host["other"]["original_bytes"], 300);
+  EXPECT_EQ(by_host["other"]["optimized_bytes"], 200);
+}
+
+TEST_F(ApiHandlersIntegrationTest,
+       StatsJsonOmitsServeSavingsByHostWithoutTheFile) {
+  // No serve-statistics file: neither block is reported.
+  std::string resp =
+      SendRequest("GET /v1/stats HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  json j = ParseJsonBody(resp);
+  EXPECT_FALSE(j.contains("serve_savings_by_host"));
+}
+
+TEST_F(ApiHandlersIntegrationTest,
+       MetricsMirrorServeSavingsByHostWithAHostLabel) {
+  ServeStats ss{};
+  ss.magic = ServeStats::kMagic;
+  ss.version = ServeStats::kVersion;
+  RecordServeHit(&ss, ContentType::kCss, 1000, 400, 0, "www.example.com");
+  RecordServeHit(&ss, ContentType::kCss, 1000, 400, 0, "<b>evil\"host");
+  ctx_->serve_stats = &ss;
+
+  std::string resp =
+      SendRequest("GET /v1/metrics HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(resp.find("# TYPE pagespeed_host_hits_served_total counter"),
+            std::string::npos);
+  EXPECT_NE(
+      resp.find("pagespeed_host_hits_served_total{host=\"www.example.com\"} 1"),
+      std::string::npos);
+  EXPECT_NE(resp.find("pagespeed_host_original_bytes_served_total{host=\"www."
+                      "example.com\"} 1000"),
+            std::string::npos);
+  EXPECT_NE(resp.find("pagespeed_host_optimized_bytes_served_total{host=\"www."
+                      "example.com\"} 400"),
+            std::string::npos);
+  // A name outside the host grammar is never a label value: it counts as other.
+  EXPECT_NE(resp.find("pagespeed_host_hits_served_total{host=\"(other)\"} 1"),
+            std::string::npos);
+  EXPECT_EQ(resp.find("evil"), std::string::npos);
+}
+
 TEST_F(ApiHandlersIntegrationTest, StatsEndpointReportsAlreadyOptimalVerdicts) {
   stats_.css_already_optimal_count.store(1, std::memory_order_relaxed);
   stats_.css_already_optimal_bytes.store(110554, std::memory_order_relaxed);
@@ -1290,6 +1355,12 @@ TEST_F(ApiHandlersIntegrationTest, StatsResponseShapeIsStable) {
   ss.serve_bytes_by_encoding[css][0] = 200000;
   ss.serve_hits_by_encoding[image][0] = 2;
   ss.serve_bytes_by_encoding[image][0] = 100000;
+  // Two hosts whose serves add up to the per-type totals above.
+  RecordServeHostHit(&ss, "www.example.com", 100000, 100000);
+  RecordServeHostHit(&ss, "www.example.com", 50000, 50000);
+  RecordServeHostHit(&ss, "www.example.com", 50000, 50000);
+  RecordServeHostHit(&ss, "static.example.com", 250000, 50000);
+  RecordServeHostHit(&ss, "static.example.com", 250000, 50000);
   ctx_->serve_stats = &ss;
   stats_.css_already_optimal_count.store(1, std::memory_order_relaxed);
   stats_.css_already_optimal_bytes.store(110554, std::memory_order_relaxed);
@@ -1306,6 +1377,7 @@ TEST_F(ApiHandlersIntegrationTest, StatsResponseShapeIsStable) {
   ASSERT_TRUE(parsed.is_object());
   ASSERT_TRUE(parsed.contains("serve_savings"));
   ASSERT_TRUE(parsed.contains("verdicts"));
+  ASSERT_TRUE(parsed.contains("serve_savings_by_host"));
 
   // Substitute the ONE live value textually and in place (the fixture
   // backdates start_time, so uptime is 3600 plus scheduling skew), so every

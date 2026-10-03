@@ -365,6 +365,31 @@ json BuildStatsJson(ApiContext& ctx) {
           {"hits", load(ss->image_optimized_hits)},
           {"by_encoding", by_encoding(ss, 3)}}},
     };
+    // The same serves attributed to the host the front end served them for:
+    // up to 32 hosts (of the first 64 seen since the optimizer started),
+    // most serves first, and everything else -- the remaining
+    // hosts and serves recorded without a host -- under "other".  Host names
+    // passed NormalizeServeHost, so they are plain host names.
+    const ServeSavingsByHost by_host =
+        ReadServeSavingsByHost(ss, kServeHostReportLimit);
+    json hosts = json::array();
+    for (const ServeHostRow& row : by_host.hosts) {
+      json entry;
+      entry["host"] = row.host;
+      entry["hits"] = row.hits;
+      entry["original_bytes"] = row.original_bytes;
+      entry["optimized_bytes"] = row.optimized_bytes;
+      hosts.push_back(std::move(entry));
+    }
+    json other;
+    other["hits"] = by_host.other.hits;
+    other["original_bytes"] = by_host.other.original_bytes;
+    other["optimized_bytes"] = by_host.other.optimized_bytes;
+    json serve_by_host;
+    serve_by_host["hosts"] = std::move(hosts);
+    serve_by_host["limit"] = kServeHostReportLimit;
+    serve_by_host["other"] = std::move(other);
+    j["serve_savings_by_host"] = std::move(serve_by_host);
     // Zero-copy serve-barrier verdicts (from the same nginx mmap).
     j["zerocopy"] = {
         {"torn_aborts", load(ss->zerocopy_torn_aborts)},
@@ -876,6 +901,38 @@ std::string BuildPrometheusMetricsText(const PrometheusMetricsInputs& in) {
         load(ss->js_optimized_hits),
         "\npagespeed_optimized_hits_served_total{type=\"image\"} ",
         load(ss->image_optimized_hits), "\n");
+    // Serve savings by host: the hosts /v1/stats names, the rest under
+    // host="(other)" -- a value no host name can take, so it never collides.
+    const ServeSavingsByHost by_host =
+        ReadServeSavingsByHost(ss, kServeHostReportLimit);
+    struct HostSeries {
+      const char* name;
+      const char* help;
+      uint64_t ServeHostRow::* field;
+    };
+    for (const HostSeries& series :
+         {HostSeries{"pagespeed_host_hits_served_total",
+                     "Optimized cache HITs served, per host.",
+                     &ServeHostRow::hits},
+          HostSeries{"pagespeed_host_original_bytes_served_total",
+                     "Original content bytes of those HITs, per host.",
+                     &ServeHostRow::original_bytes},
+          HostSeries{"pagespeed_host_optimized_bytes_served_total",
+                     "Bytes served from cache for those HITs, per host.",
+                     &ServeHostRow::optimized_bytes}}) {
+      absl::StrAppend(&m, "# HELP ", series.name, " ", series.help,
+                      " Up to 32 hosts, drawn from the first 64 seen since "
+                      "the optimizer started, most HITs first; the rest, and "
+                      "HITs recorded without a host, under "
+                      "host=\"(other)\".\n",
+                      "# TYPE ", series.name, " counter\n");
+      for (const ServeHostRow& row : by_host.hosts) {
+        absl::StrAppend(&m, series.name, "{host=\"", row.host, "\"} ",
+                        row.*series.field, "\n");
+      }
+      absl::StrAppend(&m, series.name, "{host=\"(other)\"} ",
+                      by_host.other.*series.field, "\n");
+    }
     // Web Bot Auth (observe-only): request-time verdicts for
     // signed requests, incremented by the front-end at classify time.
     absl::StrAppend(
