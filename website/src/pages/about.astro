@@ -10,7 +10,7 @@ const jsonLd = {
   name: 'About — mod_pagespeed 2.1',
   url: 'https://modpagespeed.com/about/',
   description:
-    'The team behind mod_pagespeed 2.1, introduced as ModPageSpeed 2.0: We-Amp B.V., a Dutch software company founded in 2012 that helped build ngx_pagespeed and maintained mod_pagespeed, and today maintains the PageSpeed optimization lineage — led by Otto van der Schaaf, an Apache PageSpeed committer and IPMC member.',
+    'The team behind mod_pagespeed 2.1, introduced as ModPageSpeed 2.0: We-Amp B.V., a Dutch software company founded in 2012 that helped build ngx_pagespeed and maintained mod_pagespeed, and today maintains the PageSpeed optimization lineage — led by Otto van der Schaaf, an Apache PageSpeed (incubating) committer who release-managed its only Apache release, 1.14.36.1, and an Apache Traffic Server PMC member since 2012.',
   mainEntity: {
     '@type': 'Organization',
     '@id': 'https://we-amp.com/#organization',
@@ -57,9 +57,10 @@ const jsonLd = {
     <p class="lede mt-8 max-w-2xl">
       mod_pagespeed 2.1 is built by We-Amp B.V., a Dutch software company founded in 2012 in
       Castricum, on the coast north of Amsterdam. It's led by Otto van der Schaaf, an Apache
-      PageSpeed committer and IPMC member who helped build ngx_pagespeed, maintained mod_pagespeed,
-      and shipped open-source PageSpeed releases. One product in two parts, one shared optimization
-      core, and a line that traces back to the original mod_pagespeed in 2010.
+      PageSpeed (incubating) committer and Apache Traffic Server PMC member since 2012, who helped
+      build ngx_pagespeed, maintained mod_pagespeed, and release-managed 1.14.36.1, the project's
+      only Apache release. One product in two parts, one shared optimization core, and a line that
+      traces back to the original mod_pagespeed in 2010.
     </p>
   </section>
 
@@ -76,8 +77,8 @@ const jsonLd = {
         thousands of operators put in front of production traffic.
       </p>
       <p>
-        It set the standard. It's no longer actively developed upstream &mdash; Google retired the
-        project in 2020. The <a
+        It set the standard. It's no longer actively developed upstream &mdash; Google moved the
+        project to the Apache Incubator in 2017, and the podling retired in 2023. The <a
           href="/psol/"
           class="text-interactive hover:text-interactive-hover underline"
           >optimization libraries from the original mod_pagespeed</a
@@ -106,13 +107,14 @@ const jsonLd = {
         page is fast or slow.
       </p>
       <p>
-        Today We-Amp is led by Otto van der Schaaf, an Apache PageSpeed committer and IPMC member
-        who helped build ngx_pagespeed and drove the project's Apache incubation. After the
-        incubator was archived and upstream went quiet, We-Amp carried the lineage forward &mdash;
-        shipping optimization code continuously since 2010, across Apache, nginx, Envoy and IIS
-        ports of the 1.x line. The 2.0 re-architecture was We-Amp's independent rebuild, and
-        mod_pagespeed 2.1 brings it together with the module as one product: one shared optimization
-        core, one Cyclone Cache library underneath both parts.
+        Today We-Amp is led by Otto van der Schaaf, an Apache PageSpeed (incubating) committer and
+        Apache Traffic Server PMC member who helped build ngx_pagespeed and drove the project's
+        Apache incubation. After the podling retired and upstream went quiet, We-Amp carried the
+        lineage forward. The codebase has shipped optimization code since Google's first release
+        in 2010, and We-Amp has worked on it since 2012, across Apache, nginx, Envoy and IIS ports
+        of the 1.x line. The 2.0 re-architecture was We-Amp's
+        independent rebuild, and mod_pagespeed 2.1 brings it together with the module as one
+        product: one shared optimization core, one Cyclone Cache library underneath both parts.
       </p>
       <p>
         Self-hosted software fits the way we work: you run the binary on your infrastructure, you
@@ -172,7 +174,7 @@ const jsonLd = {
     <h2 class="h2-section text-text-body">Get in touch</h2>
     <p class="mt-6 text-text-muted">
       Questions about the product, the company, or the lineage &mdash; email or use the form.
-      Pricing is published; no sales call required to read it.
+      Support pricing is to be announced; the software is free.
     </p>
     <div class="mt-8 flex flex-wrap gap-4">
       <a href="/contact/" class="btn-primary"> Contact </a>

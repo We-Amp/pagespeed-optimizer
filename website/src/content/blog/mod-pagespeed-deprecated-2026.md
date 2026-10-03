@@ -8,6 +8,8 @@ draft: false
 lastUpdated: 2026-09-18
 ---
 
+_Disclosure: I founded We-Amp, which develops mod_pagespeed 2.1._
+
 Yes. `mod_pagespeed` is deprecated. The 1.13.35.2 binaries still install, but the project receives no maintenance and the dependency stack has not been patched in years. The maintained continuation is [mod_pagespeed 2.1](/), licensed under Apache-2.0, developed by We-Amp B.V.
 
 ## Practical paths forward
@@ -73,7 +75,7 @@ That's the state today. The code is public, the binaries are downloadable, the d
 
 The 1.13.35.2 binaries still install. They still build (against an increasingly narrow toolchain). And they still serve pages: image optimization, CSS/JS minification, critical CSS, all running.
 
-If you have a working install and your threat model accepts unpatched dependencies, you can keep running it. Some operators have. The accumulating cost shows up in several places. The bundled `libpng`, `libwebp`, `libjpeg`, and ICU versions have all racked up CVEs since the 1.13.35.2 release — `libwebp` shipped a cluster of buffer-overflow CVEs disclosed 2021–2024, including CVE-2023-4863, a heap overflow that hit every browser using the bundled decoder; `libpng` saw read-out-of-bounds issues in chunk parsing; ICU saw memory-safety issues in normalization — and `mod_pagespeed` decodes attacker-controlled image bytes on every rewrite, which is exactly the threat surface those CVEs hit. Builds against current Apache trunk fail, so distributions that ship newer Apache eventually stop being viable. WebP support landed before the freeze; AVIF never did. LCP, INP, and CLS signals are missing from the filter set. And the build still wants Bazel 0.x, Python 2, and old glibc constraints, so setting it up from scratch on a 2026 machine is a weekend project.
+If you have a working install and your threat model accepts unpatched dependencies, you can keep running it. Some operators have. The accumulating cost shows up in several places. The bundled `libpng`, `libwebp`, `libjpeg`, and ICU versions have all racked up CVEs since the 1.13.35.2 release — `libwebp` shipped a cluster of buffer-overflow CVEs disclosed 2021–2024, including CVE-2023-4863, a heap overflow that hit every browser using the bundled decoder; `libpng` saw read-out-of-bounds issues in chunk parsing; ICU saw memory-safety issues in normalization — and `mod_pagespeed` decodes attacker-controlled image bytes on every rewrite, which is exactly the threat surface those CVEs hit. Builds against current Apache trunk fail, so distributions that ship newer Apache eventually stop being viable. WebP support landed before the freeze; AVIF never did. LCP, INP, and CLS signals are missing from the filter set. And the released versions still build with a 2012-era gyp toolchain, Python 2, and old glibc constraints, so setting it up from scratch on a 2026 machine is a weekend project.
 
 The binaries work; the ecosystem around them is decaying.
 
