@@ -366,8 +366,8 @@ json BuildStatsJson(ApiContext& ctx) {
           {"by_encoding", by_encoding(ss, 3)}}},
     };
     // The same serves attributed to the host the front end served them for:
-    // up to 32 hosts (of the first 64 seen since the optimizer started),
-    // most serves first, and everything else -- the remaining
+    // up to 32 hosts (of the first 64 distinct hosts seen since the optimizer
+    // started), most serves first, and everything else -- the remaining
     // hosts and serves recorded without a host -- under "other".  Host names
     // passed NormalizeServeHost, so they are plain host names.
     const ServeSavingsByHost by_host =
@@ -921,10 +921,10 @@ std::string BuildPrometheusMetricsText(const PrometheusMetricsInputs& in) {
                      "Bytes served from cache for those HITs, per host.",
                      &ServeHostRow::optimized_bytes}}) {
       absl::StrAppend(&m, "# HELP ", series.name, " ", series.help,
-                      " Up to 32 hosts, drawn from the first 64 seen since "
-                      "the optimizer started, most HITs first; the rest, and "
-                      "HITs recorded without a host, under "
-                      "host=\"(other)\".\n",
+                      " Up to 32 hosts, drawn from the first 64 distinct "
+                      "hosts seen since the optimizer started, most HITs "
+                      "first; the rest, and HITs recorded without a host, "
+                      "under host=\"(other)\".\n",
                       "# TYPE ", series.name, " counter\n");
       for (const ServeHostRow& row : by_host.hosts) {
         absl::StrAppend(&m, series.name, "{host=\"", row.host, "\"} ",
