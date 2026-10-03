@@ -1638,6 +1638,30 @@ TEST_F(ServeStatsTest, AHostInTwoSlotsIsReportedOnceWithSummedCounters) {
   CloseServeStats(stats);
 }
 
+// A name the reader would never report (it does not survive a second
+// normalisation) must not take one of the 64 slots: its serves go straight
+// to other.
+TEST_F(ServeStatsTest, AHostThatCanNeverBeReportedClaimsNoSlot) {
+  ServeStats* stats = CreateServeStats(path_);
+  ASSERT_NE(stats, nullptr);
+  const std::vector<std::string> refused = {"www.example.com..", "a..:8080"};
+  for (const std::string& host : refused) {
+    std::string out;
+    EXPECT_FALSE(NormalizeServeHost(host, &out)) << host << " -> " << out;
+    RecordServeHostHit(stats, host, 100, 50);
+  }
+  for (const ServeStats::HostSlot& slot : stats->serve_hosts) {
+    EXPECT_EQ(slot.key_hash, 0u) << slot.name;
+  }
+  const ServeSavingsByHost by_host =
+      ReadServeSavingsByHost(stats, kServeHostReportLimit);
+  EXPECT_TRUE(by_host.hosts.empty());
+  EXPECT_EQ(by_host.other.hits, refused.size());
+  EXPECT_EQ(by_host.other.original_bytes, 100u * refused.size());
+  EXPECT_EQ(by_host.other.optimized_bytes, 50u * refused.size());
+  CloseServeStats(stats);
+}
+
 TEST_F(ServeStatsTest, ServeHostsNullStatsAreNoOps) {
   RecordServeHostHit(nullptr, "www.example.com", 1, 1);
   RecordServeHit(nullptr, ContentType::kCss, 1, 1, 0, "www.example.com");

@@ -473,7 +473,11 @@ size_t NormalizeServeHostInto(std::string_view host, char* buf) {
       v = v.substr(0, colon);
     }
     if (!v.empty() && v.back() == '.') v.remove_suffix(1);
-    if (v.empty()) return 0;
+    // Exactly one trailing dot is dropped.  A name still ending in one
+    // ("www.example.com..") would not survive the reader's second
+    // normalisation, so it could never be reported: refuse it here rather
+    // than let it take a slot.
+    if (v.empty() || v.back() == '.') return 0;
     for (const char c : v) {
       if (!IsHostNameByte(c)) return 0;
       has_alnum = has_alnum || IsAlnum(c);
