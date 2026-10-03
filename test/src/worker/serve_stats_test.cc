@@ -1480,6 +1480,8 @@ TEST_F(ServeStatsTest, ReusedFileZeroesTheHostBlock) {
   ASSERT_NE(stats, nullptr);
   RecordServeHostHit(stats, "www.example.com", 10, 5);
   RecordServeHostHit(stats, "", 10, 5);
+  ASSERT_EQ(ReadServeSavingsByHost(stats, kServeHostReportLimit).hosts.size(),
+            1u);
   CloseServeStats(stats);
 
   ServeStats* reused = CreateServeStats(path_);
@@ -1579,6 +1581,9 @@ TEST_F(ServeStatsTest, ATornHostNameIsNeverReported) {
   ASSERT_EQ(claimed->ready, 1u);
   std::memset(claimed->name, 0, sizeof(claimed->name));
   std::memcpy(claimed->name, "www.exa", 7);
+  // The torn name is itself grammar-valid: only the hash check rejects it.
+  std::string torn;
+  ASSERT_TRUE(NormalizeServeHost("www.exa", &torn) && torn == "www.exa");
 
   const ServeSavingsByHost by_host =
       ReadServeSavingsByHost(stats, kServeHostReportLimit);

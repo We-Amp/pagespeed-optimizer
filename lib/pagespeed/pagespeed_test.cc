@@ -6838,6 +6838,22 @@ TEST_F(PageSpeedServeStatsApiTest, RecordHitHostAttributesTheServeToItsHost) {
   EXPECT_EQ(by_host.hosts[0].optimized_bytes, 1200u);
 }
 
+// The host is exactly host_len bytes: whatever follows in the caller's buffer
+// (no NUL needed) is not part of it.
+TEST_F(PageSpeedServeStatsApiTest, RecordHitHostHonoursTheExplicitLength) {
+  const char kBuffer[] = "a.example.comJUNK";
+  ps_serve_stats_record_hit_host(handle_, PS_CONTENT_JS, 800, 300,
+                                 /*mask=*/0, kBuffer, 13);
+
+  const pagespeed::ServeSavingsByHost by_host =
+      pagespeed::ReadServeSavingsByHost(stats_,
+                                        pagespeed::kServeHostReportLimit);
+  ASSERT_EQ(by_host.hosts.size(), 1u);
+  EXPECT_EQ(by_host.hosts[0].host, "a.example.com");
+  EXPECT_EQ(by_host.hosts[0].hits, 1u);
+  EXPECT_EQ(by_host.other.hits, 0u);
+}
+
 TEST_F(PageSpeedServeStatsApiTest, RecordHitWithoutAHostCountsUnderOther) {
   ps_serve_stats_record_hit_host(handle_, PS_CONTENT_JS, 500, 100, 0, nullptr,
                                  12);
