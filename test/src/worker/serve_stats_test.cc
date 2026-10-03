@@ -1589,6 +1589,55 @@ TEST_F(ServeStatsTest, ATornHostNameIsNeverReported) {
   CloseServeStats(stats);
 }
 
+// A ZeroCounters racing a probe across a restart can leave one host in two
+// slots.  The host is still reported once, with both slots' serves summed, so
+// /v1/stats never lists it twice and /v1/metrics never repeats a series.
+TEST_F(ServeStatsTest, AHostInTwoSlotsIsReportedOnceWithSummedCounters) {
+  ServeStats* stats = CreateServeStats(path_);
+  ASSERT_NE(stats, nullptr);
+  RecordServeHostHit(stats, "www.example.com", 10, 5);
+  RecordServeHostHit(stats, "static.example.com", 7, 3);
+  ServeStats::HostSlot* claimed = nullptr;
+  for (ServeStats::HostSlot& slot : stats->serve_hosts) {
+    if (slot.ready == 1 && std::string(slot.name) == "www.example.com") {
+      claimed = &slot;
+    }
+  }
+  ASSERT_NE(claimed, nullptr);
+  ServeStats::HostSlot* twin = nullptr;
+  for (ServeStats::HostSlot& slot : stats->serve_hosts) {
+    if (slot.key_hash == 0) {
+      twin = &slot;
+      break;
+    }
+  }
+  ASSERT_NE(twin, nullptr);
+  std::memcpy(twin, claimed, sizeof(*twin));
+  twin->hits = 2;
+  twin->original_bytes = 20;
+  twin->optimized_bytes = 8;
+
+  const ServeSavingsByHost by_host =
+      ReadServeSavingsByHost(stats, kServeHostReportLimit);
+  ASSERT_EQ(by_host.hosts.size(), 2u);
+  EXPECT_EQ(by_host.hosts[0].host, "www.example.com");
+  EXPECT_EQ(by_host.hosts[0].hits, 3u);
+  EXPECT_EQ(by_host.hosts[0].original_bytes, 30u);
+  EXPECT_EQ(by_host.hosts[0].optimized_bytes, 13u);
+  EXPECT_EQ(by_host.hosts[1].host, "static.example.com");
+  EXPECT_EQ(by_host.hosts[1].hits, 1u);
+  EXPECT_EQ(by_host.other.hits, 0u);
+
+  // The merge happens before the reporting limit: one row, not two.
+  const ServeSavingsByHost top_one = ReadServeSavingsByHost(stats, 1);
+  ASSERT_EQ(top_one.hosts.size(), 1u);
+  EXPECT_EQ(top_one.hosts[0].host, "www.example.com");
+  EXPECT_EQ(top_one.hosts[0].hits, 3u);
+  EXPECT_EQ(top_one.other.hits, 1u);
+  EXPECT_EQ(top_one.other.original_bytes, 7u);
+  CloseServeStats(stats);
+}
+
 TEST_F(ServeStatsTest, ServeHostsNullStatsAreNoOps) {
   RecordServeHostHit(nullptr, "www.example.com", 1, 1);
   RecordServeHit(nullptr, ContentType::kCss, 1, 1, 0, "www.example.com");

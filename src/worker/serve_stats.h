@@ -398,7 +398,9 @@ struct ServeStats {
   // first 64 distinct hosts seen since then.  A ZeroCounters racing a claim
   // or a counter add can leave one slot unnamed (its serves then read as
   // other), or leave a few counts in a freed slot that the next claimer
-  // inherits -- cosmetic until the next restart, never corruption.
+  // inherits -- cosmetic until the next restart, never corruption.  A
+  // ZeroCounters racing a probe can leave one host in two slots; the reader
+  // merges slots with the same name, so the host is still reported once.
   HostSlot serve_hosts[kHostSlots];
   uint64_t serve_hosts_other_hits;
   uint64_t serve_hosts_other_original_bytes;

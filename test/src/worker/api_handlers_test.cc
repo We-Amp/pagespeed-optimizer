@@ -897,6 +897,53 @@ TEST_F(ApiHandlersIntegrationTest,
   EXPECT_EQ(resp.find("evil"), std::string::npos);
 }
 
+// A host left in two slots by a restart race is one row in /v1/stats and one
+// series per metric in /v1/metrics, with both slots' serves summed.
+TEST_F(ApiHandlersIntegrationTest, AHostInTwoSlotsIsReportedOnceInBothOutputs) {
+  ServeStats ss{};
+  ss.magic = ServeStats::kMagic;
+  ss.version = ServeStats::kVersion;
+  RecordServeHit(&ss, ContentType::kCss, 1000, 400, 0, "www.example.com");
+  ServeStats::HostSlot* claimed = nullptr;
+  ServeStats::HostSlot* twin = nullptr;
+  for (ServeStats::HostSlot& slot : ss.serve_hosts) {
+    if (slot.key_hash != 0) {
+      claimed = &slot;
+    } else if (twin == nullptr) {
+      twin = &slot;
+    }
+  }
+  ASSERT_NE(claimed, nullptr);
+  ASSERT_NE(twin, nullptr);
+  std::memcpy(twin, claimed, sizeof(*twin));
+  twin->hits = 2;
+  twin->original_bytes = 3000;
+  twin->optimized_bytes = 1000;
+  ctx_->serve_stats = &ss;
+
+  std::string resp =
+      SendRequest("GET /v1/stats HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  json j = ParseJsonBody(resp);
+  auto& hosts = j["serve_savings_by_host"]["hosts"];
+  ASSERT_EQ(hosts.size(), 1u);
+  EXPECT_EQ(hosts[0]["host"], "www.example.com");
+  EXPECT_EQ(hosts[0]["hits"], 3);
+  EXPECT_EQ(hosts[0]["original_bytes"], 4000);
+  EXPECT_EQ(hosts[0]["optimized_bytes"], 1400);
+
+  std::string metrics =
+      SendRequest("GET /v1/metrics HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  const std::string series =
+      "pagespeed_host_hits_served_total{host=\"www.example.com\"} ";
+  const size_t first = metrics.find(series);
+  ASSERT_NE(first, std::string::npos);
+  EXPECT_EQ(metrics.find(series, first + 1), std::string::npos);
+  EXPECT_EQ(metrics.compare(first, series.size() + 2, series + "3\n"), 0);
+  EXPECT_NE(metrics.find("pagespeed_host_original_bytes_served_total{host=\""
+                         "www.example.com\"} 4000\n"),
+            std::string::npos);
+}
+
 TEST_F(ApiHandlersIntegrationTest, StatsEndpointReportsAlreadyOptimalVerdicts) {
   stats_.css_already_optimal_count.store(1, std::memory_order_relaxed);
   stats_.css_already_optimal_bytes.store(110554, std::memory_order_relaxed);

@@ -597,6 +597,25 @@ ServeSavingsByHost ReadServeSavingsByHost(const ServeStats* stats,
       out.other.optimized_bytes += row.optimized_bytes;
     }
   }
+  // A ZeroCounters racing a probe can leave one host in two slots: report it
+  // once, both slots summed, before ranking and applying the limit, so no
+  // host is listed twice and no metrics series repeats.
+  std::sort(rows.begin(), rows.end(),
+            [](const ServeHostRow& a, const ServeHostRow& b) {
+              return a.host < b.host;
+            });
+  size_t kept = 0;
+  for (size_t i = 0; i < rows.size(); ++i) {
+    if (kept > 0 && rows[kept - 1].host == rows[i].host) {
+      rows[kept - 1].hits += rows[i].hits;
+      rows[kept - 1].original_bytes += rows[i].original_bytes;
+      rows[kept - 1].optimized_bytes += rows[i].optimized_bytes;
+    } else {
+      if (kept != i) rows[kept] = std::move(rows[i]);
+      ++kept;
+    }
+  }
+  rows.resize(kept);
   std::sort(rows.begin(), rows.end(),
             [](const ServeHostRow& a, const ServeHostRow& b) {
               return a.hits != b.hits ? a.hits > b.hits : a.host < b.host;
