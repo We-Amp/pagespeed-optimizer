@@ -897,6 +897,31 @@ TEST_F(ApiHandlersIntegrationTest,
   EXPECT_EQ(resp.find("evil"), std::string::npos);
 }
 
+// The per-host series state the host-name rule their label values follow.
+TEST_F(ApiHandlersIntegrationTest, MetricsHelpStatesTheHostNameRule) {
+  ServeStats ss{};
+  ss.magic = ServeStats::kMagic;
+  ss.version = ServeStats::kVersion;
+  ctx_->serve_stats = &ss;
+
+  const std::string resp =
+      SendRequest("GET /v1/metrics HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  for (const char* series : {"pagespeed_host_hits_served_total",
+                             "pagespeed_host_original_bytes_served_total",
+                             "pagespeed_host_optimized_bytes_served_total"}) {
+    const std::string help = std::string("# HELP ") + series + " ";
+    const size_t at = resp.find(help);
+    ASSERT_NE(at, std::string::npos) << series;
+    const std::string line = resp.substr(at, resp.find('\n', at) - at);
+    EXPECT_NE(line.find("A host name is lowercase, without a port or a "
+                        "trailing dot"),
+              std::string::npos)
+        << line;
+    EXPECT_NE(line.find("a bracketed IPv6 literal"), std::string::npos) << line;
+    EXPECT_NE(line.find("at most 127 bytes"), std::string::npos) << line;
+  }
+}
+
 // A host left in two slots by a restart race is one row in /v1/stats and one
 // series per metric in /v1/metrics, with both slots' serves summed.
 TEST_F(ApiHandlersIntegrationTest, AHostInTwoSlotsIsReportedOnceInBothOutputs) {

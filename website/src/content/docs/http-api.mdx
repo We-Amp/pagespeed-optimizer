@@ -399,12 +399,20 @@ classifies serves, so under another front end the block reads all-zero —
 which means "not instrumented", not "nothing happened".
 
 `serve_savings_by_host` attributes the same HITs to the host each response was
-served for, when the front end names it. Host names are lowercase, without a
-port; a value that is not a plain host name counts under `other`. The
-optimizer keeps a row for each of the first 64 distinct hosts it sees after it
-starts and reports up to 32 of them, ordered by HITs; a host seen after those
-64 counts under `other` until the optimizer restarts. The hosts and `other`
-together add up to the `serve_savings` totals.
+served for, when the front end names one. The optimizer reports a host under
+its host name: ASCII letters are lowercased, and a `:port` (1–5 digits) and one
+trailing `.` are dropped, so `WWW.Example.com:8443` and `www.example.com.` are
+both reported as `www.example.com`. What is left must be 1–127 bytes with at
+least one letter or digit, made of letters, digits, `.`, `-` and `_` (a DNS
+name or an IPv4 address such as `10.1.2.3`), or an IPv6 literal in brackets of
+hexadecimal digits, `:` and `.` (`[2001:db8::1]`; an IPv6 address without
+brackets is not accepted). Any other value — empty, longer, containing any
+other character, with a malformed bracket, or still ending in `.`
+(`www.example.com..`) — is never stored or reported: that HIT counts under
+`other`. The optimizer keeps a row for each of the first 64 distinct hosts it
+sees after it starts and reports up to 32 of them, ordered by HITs; a host seen
+after those 64 counts under `other` until the optimizer restarts. The hosts and
+`other` together add up to the `serve_savings` totals.
 
 ### GET /v1/metrics
 
@@ -436,8 +444,9 @@ counters.
 
 Serve savings per host are `pagespeed_host_hits_served_total`,
 `pagespeed_host_original_bytes_served_total` and
-`pagespeed_host_optimized_bytes_served_total`, labelled `host`; the rest is
-`host="(other)"`.
+`pagespeed_host_optimized_bytes_served_total`, labelled `host` with the host
+names `serve_savings_by_host` reports (the same host-name rule); the rest is
+`host="(other)"`, a value no host name can take.
 
 ---
 
