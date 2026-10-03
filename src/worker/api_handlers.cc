@@ -923,8 +923,11 @@ std::string BuildPrometheusMetricsText(const PrometheusMetricsInputs& in) {
       absl::StrAppend(&m, "# HELP ", series.name, " ", series.help,
                       " Up to 32 hosts, drawn from the first 64 distinct "
                       "hosts seen since the optimizer started, most HITs "
-                      "first; the rest, and HITs recorded without a host, "
-                      "under host=\"(other)\".\n",
+                      "first; the rest, and HITs recorded without a host "
+                      "name, under host=\"(other)\". A host name is "
+                      "lowercase, without a port or a trailing dot: "
+                      "letters, digits, '.', '-' and '_', or a bracketed "
+                      "IPv6 literal, at most 127 bytes.\n",
                       "# TYPE ", series.name, " counter\n");
       for (const ServeHostRow& row : by_host.hosts) {
         absl::StrAppend(&m, series.name, "{host=\"", row.host, "\"} ",

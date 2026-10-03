@@ -4,6 +4,10 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Changed: the help text of the per-host serve-savings series in GET
+/v1/metrics now states the host-name rule their `host` label values
+follow; the values and the series are unchanged.
+
 Added: the C API gains `ps_serve_stats_record_hit_host`, which records a
 cache serve exactly like `ps_serve_stats_record_hit` and attributes it to
 the host the front end served the response for. Serves recorded without a

@@ -543,13 +543,28 @@ struct ServeSavingsByHost {
 // How many hosts GET /v1/stats and /v1/metrics name; the rest are "other".
 inline constexpr size_t kServeHostReportLimit = 32;
 
-// Normalises the host a front end served a response for: ASCII-lowercase, a
-// ":port" of 1-5 digits dropped (after the ']' of a bracketed IPv6 literal),
-// one trailing '.' dropped.  Accepts [a-z0-9._-]+, or a bracketed literal of
-// [0-9a-f:.], of 1..kHostNameCapacity-1 bytes with at least one letter or
-// digit, and returns false for anything else (`out` is then unspecified).
-// Every name the by-host block reports passed this, so it is safe as a JSON
-// string and a Prometheus label value.
+// THE HOST-NAME RULE for serve savings per host -- its one statement in the
+// code; the HTTP API reference (serve_savings_by_host) and the /v1/metrics
+// help text repeat it in words.  NormalizeServeHost turns the host a front
+// end names into the name a row is reported under:
+//   - ASCII letters are lowercased; no other byte is changed;
+//   - a ":port" of 1-5 digits is dropped -- after the closing "]" of a
+//     bracketed IPv6 literal;
+//   - exactly one trailing "." is dropped.
+// What is left is a host name when it is 1..kHostNameCapacity-1 (127)
+// bytes with at least one letter or digit, and either
+//   - only letters, digits, ".", "-" and "_" (a DNS name, or an IPv4
+//     address), or
+//   - "[", then hexadecimal digits, ":" and ".", then "]" (an IPv6 literal;
+//     an IPv6 address without brackets is not a host name).
+// Anything else -- empty, longer, any other byte (space, quote, "*", "/",
+// non-ASCII), a malformed bracket, a name still ending in "." -- is not a
+// host name: NormalizeServeHost returns false (`out` is then unspecified),
+// the serve counts under "other", and the value is never stored or
+// reported.  A name this returns is a fixed point of it, which the reader
+// relies on (ReadServeSavingsByHost re-validates every stored name); every
+// reported name is therefore safe as a JSON string and a Prometheus label
+// value.
 bool NormalizeServeHost(std::string_view host, std::string* out);
 
 // Atomically attributes ONE serve's bytes to `host` (see the v10 block): a

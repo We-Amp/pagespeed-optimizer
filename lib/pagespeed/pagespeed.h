@@ -529,10 +529,12 @@ PS_EXPORT void ps_serve_stats_record_hit(ps_serve_stats_t* h,
 
 /* Record ONE worker-processed serve HIT exactly as ps_serve_stats_record_hit
  * does, and attribute it to the host the front end served the response for
- * (1.11). `host` is `host_len` bytes, not NUL-terminated; a port is ignored
- * and case does not matter. A NULL or empty host, or one that is not a plain
- * host name, attributes the serve to "other" -- as ps_serve_stats_record_hit
- * does for every serve. No-op if h==NULL. */
+ * (1.11). `host` is `host_len` bytes, not NUL-terminated. It is reduced to a
+ * host name by the host-name rule the HTTP API reference states for
+ * serve_savings_by_host (case, a port and one trailing dot do not matter); a
+ * NULL or empty host, or one that rule refuses, attributes the serve to
+ * "other" -- as ps_serve_stats_record_hit does for every serve. No-op if
+ * h==NULL. */
 PS_EXPORT void ps_serve_stats_record_hit_host(ps_serve_stats_t* h,
                                               ps_content_type_t content_type,
                                               uint64_t original_bytes,

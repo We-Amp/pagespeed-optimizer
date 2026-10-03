@@ -19,6 +19,7 @@
 #include <cstring>
 #include <ctime>
 #include <filesystem>
+#include <map>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -6869,6 +6870,43 @@ TEST_F(PageSpeedServeStatsApiTest, RecordHitWithoutAHostCountsUnderOther) {
   EXPECT_TRUE(by_host.hosts.empty());
   EXPECT_EQ(by_host.other.hits, 3u);
   EXPECT_EQ(by_host.other.original_bytes, 1500u);
+}
+
+// The C entry point applies the same host-name rule as the worker: every
+// spelling of one host is one row, an IPv6 literal keeps its brackets, and a
+// value the rule refuses is never named.
+TEST_F(PageSpeedServeStatsApiTest, RecordHitHostAppliesTheHostNameRule) {
+  const std::vector<std::string> accepted = {"[::1]", "[2001:DB8::1]:443",
+                                             "a_b.test", "www.example.com.",
+                                             "WWW.EXAMPLE.COM:80"};
+  const std::vector<std::string> refused = {"www.example.com..",
+                                            std::string(300, 'a'),
+                                            "",
+                                            "_",
+                                            "[::1]x",
+                                            "[zz::1]",
+                                            "[::1"};
+  for (const std::string& host : accepted) {
+    ps_serve_stats_record_hit_host(handle_, PS_CONTENT_CSS, 100, 40,
+                                   /*mask=*/0, host.data(), host.size());
+  }
+  for (const std::string& host : refused) {
+    ps_serve_stats_record_hit_host(handle_, PS_CONTENT_CSS, 100, 40,
+                                   /*mask=*/0, host.data(), host.size());
+  }
+  const pagespeed::ServeSavingsByHost by_host =
+      pagespeed::ReadServeSavingsByHost(stats_,
+                                        pagespeed::kServeHostReportLimit);
+  std::map<std::string, uint64_t> hits;
+  for (const pagespeed::ServeHostRow& row : by_host.hosts) {
+    hits[row.host] = row.hits;
+  }
+  const std::map<std::string, uint64_t> expected = {{"[2001:db8::1]", 1},
+                                                    {"[::1]", 1},
+                                                    {"a_b.test", 1},
+                                                    {"www.example.com", 2}};
+  EXPECT_EQ(hits, expected);
+  EXPECT_EQ(by_host.other.hits, refused.size());
 }
 
 // ps_html_config_init_sized (PS_API 1.9)

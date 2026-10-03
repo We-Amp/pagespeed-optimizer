@@ -440,10 +440,11 @@ bool IsAlnum(char c) {
 // Longest input worth looking at: a full name plus ":" and a 5-digit port.
 constexpr size_t kServeHostInputMax = ServeStats::kHostNameCapacity + 6;
 
-// The serve hot path's normaliser: no allocation.  Lowercases `host` into
-// `buf` (kServeHostInputMax bytes, on the caller's stack) and returns the
-// length of the normalised name, which is always a prefix of `buf`, or 0
-// when the host is refused.
+// The serve hot path's form of THE HOST-NAME RULE (serve_stats.h,
+// NormalizeServeHost): no allocation.  Lowercases `host` into `buf`
+// (kServeHostInputMax bytes, on the caller's stack) and returns the length
+// of the normalised name, which is always a prefix of `buf`, or 0 when the
+// host is refused.
 size_t NormalizeServeHostInto(std::string_view host, char* buf) {
   // Longer than any acceptable name plus a port: refuse before copying.
   if (host.empty() || host.size() > kServeHostInputMax) return 0;

@@ -13,6 +13,7 @@
 #include <cstdio>
 #include <cstring>
 #include <iterator>
+#include <set>
 #include <string>
 #include <thread>
 #include <vector>
@@ -1419,6 +1420,79 @@ TEST_F(ServeStatsTest, ServeHostsOutsideTheGrammarCountUnderOther) {
   EXPECT_EQ(by_host.other.hits, bad.size());
   EXPECT_EQ(by_host.other.original_bytes, 100u * bad.size());
   EXPECT_EQ(by_host.other.optimized_bytes, 50u * bad.size());
+  CloseServeStats(stats);
+}
+
+// The host-name rule (serve_stats.h, NormalizeServeHost) with the shapes a
+// real server meets.  Every accepted spelling becomes one name that the
+// reader's second pass accepts unchanged -- the write path and the read
+// path agree -- and every refused value only ever counts under "other".
+TEST_F(ServeStatsTest, ServeHostGrammarAgreesOnWriteAndRead) {
+  struct Case {
+    std::string input;
+    std::string name;  // empty: refused
+  };
+  const std::vector<Case> cases = {
+      {"www.example.com", "www.example.com"},
+      {"WWW.Example.COM", "www.example.com"},
+      {"www.example.com.", "www.example.com"},
+      {"www.example.com:8080", "www.example.com"},
+      {"www.example.com.:443", "www.example.com"},
+      {"a_b.test", "a_b.test"},
+      {"10.1.2.3", "10.1.2.3"},
+      {"[::1]", "[::1]"},
+      {"[2001:db8::1]", "[2001:db8::1]"},
+      {"[2001:DB8::1]:80", "[2001:db8::1]"},
+      {std::string(127, 'a'), std::string(127, 'a')},
+      {"www.example.com..", ""},
+      {std::string(128, 'a'), ""},
+      {std::string(300, 'a'), ""},
+      {"", ""},
+      {"_", ""},
+      {".", ""},
+      {"-", ""},
+      {"[]", ""},
+      {"[:]", ""},
+      {"[::1]x", ""},
+      {"[zz::1]", ""},
+      {"[::1", ""},
+      {"[::1].", ""},
+      {"a[b].test", ""},
+      {"::1", ""},
+      {"2001:db8::1", ""},
+      {"example.com:", ""},
+      {"example.com:123456", ""},
+      {"*.example.com", ""},
+      {"(other)", ""},
+  };
+  for (const Case& c : cases) {
+    std::string out;
+    const bool accepted = NormalizeServeHost(c.input, &out);
+    EXPECT_EQ(accepted, !c.name.empty()) << c.input;
+    if (!accepted) continue;
+    EXPECT_EQ(out, c.name) << c.input;
+    std::string again;
+    EXPECT_TRUE(NormalizeServeHost(out, &again)) << c.input;
+    EXPECT_EQ(again, out) << c.input;
+  }
+
+  ServeStats* stats = CreateServeStats(path_);
+  ASSERT_NE(stats, nullptr);
+  uint64_t refused = 0;
+  std::set<std::string> expected;
+  for (const Case& c : cases) {
+    RecordServeHostHit(stats, c.input, 10, 4);
+    if (c.name.empty()) {
+      ++refused;
+    } else {
+      expected.insert(c.name);
+    }
+  }
+  const ServeSavingsByHost by_host = ReadServeSavingsByHost(stats, 1000);
+  std::set<std::string> reported;
+  for (const ServeHostRow& row : by_host.hosts) reported.insert(row.host);
+  EXPECT_EQ(reported, expected);
+  EXPECT_EQ(by_host.other.hits, refused);
   CloseServeStats(stats);
 }
 
