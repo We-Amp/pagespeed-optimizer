@@ -116,3 +116,4 @@ EXPORTS
     ps_html_config_init_sized
     ps_critical_css_config_init_sized
     ps_read_shared_config_generation
+    ps_serve_stats_record_hit_host

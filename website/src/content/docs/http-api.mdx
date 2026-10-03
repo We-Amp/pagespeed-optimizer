@@ -328,6 +328,16 @@ curl http://localhost:9880/v1/stats
                                 "gzip": { "hits": 0, "bytes": 0 },
                                 "br": { "hits": 0, "bytes": 0 } } }
   },
+  "serve_savings_by_host": {
+    "hosts": [
+      { "host": "www.example.com", "hits": 1200,
+        "original_bytes": 41000000, "optimized_bytes": 9000000 },
+      { "host": "static.example.com", "hits": 900,
+        "original_bytes": 17000000, "optimized_bytes": 3300000 }
+    ],
+    "limit": 32,
+    "other": { "hits": 6, "original_bytes": 180000, "optimized_bytes": 60000 }
+  },
   "verdicts": {
     "css": { "already_optimal": { "count": 4, "bytes": 210000 } },
     "js": { "already_optimal": { "count": 1, "bytes": 88000 } },
@@ -369,6 +379,8 @@ Key fields:
 | `serve_savings.*.optimized_bytes` | Bytes served from cache for those HITs                  |
 | `serve_savings.*.hits`            | Optimized HITs served, per content type                 |
 | `serve_savings.*.by_encoding.<enc>.hits` / `.bytes` | The same serves split by the transfer encoding actually served: `identity`, `gzip`, `br` |
+| `serve_savings_by_host.hosts[]`  | Up to `limit` (32) hosts, drawn from the first 64 distinct hosts seen since the optimizer started, ordered by optimized HITs (most first): `host`, `hits`, `original_bytes`, `optimized_bytes` |
+| `serve_savings_by_host.other`    | Every other HIT: the remaining hosts, and HITs the front end recorded without a host |
 | `verdicts.*.already_optimal.count` / `.bytes` | Entries judged already optimal (no smaller variant produced) and their original bytes; counted once per entry, per worker restart |
 | `started_at_ms` / `uptime_seconds` | When this worker process started (epoch milliseconds) and how long it has been up |
 | `serve_classes.optimized`         | Serves answered from a worker-produced alternate        |
@@ -385,6 +397,14 @@ counters above. `serve_classes` partitions the serves a front end judged
 optimizable into exactly one class each; today only the module
 classifies serves, so under another front end the block reads all-zero —
 which means "not instrumented", not "nothing happened".
+
+`serve_savings_by_host` attributes the same HITs to the host each response was
+served for, when the front end names it. Host names are lowercase, without a
+port; a value that is not a plain host name counts under `other`. The
+optimizer keeps a row for each of the first 64 distinct hosts it sees after it
+starts and reports up to 32 of them, ordered by HITs; a host seen after those
+64 counts under `other` until the optimizer restarts. The hosts and `other`
+together add up to the `serve_savings` totals.
 
 ### GET /v1/metrics
 
@@ -413,6 +433,11 @@ pagespeed_cache_entries 3412
 All counters and gauges from `/v1/stats` are exposed as Prometheus metrics,
 including SVG stats, learned quality, content analysis, and browser analysis
 counters.
+
+Serve savings per host are `pagespeed_host_hits_served_total`,
+`pagespeed_host_original_bytes_served_total` and
+`pagespeed_host_optimized_bytes_served_total`, labelled `host`; the rest is
+`host="(other)"`.
 
 ---
 
