@@ -47,7 +47,7 @@ You can check the version gap yourself. As of mid-2026, nginx publishes 1.30 as 
 
 ## Why upstream stopped tracking nginx
 
-ngx_pagespeed was solid, open-source infrastructure, built and contributed to throughout the Google era. Google later retired the project, and the upstream `apache/incubator-pagespeed-ngx` repository is no longer actively developed. PSOL has not been rebuilt for new glibc, new compilers, or OpenSSL 3. nginx kept moving; the precompiled libraries did not.
+ngx_pagespeed was solid, open-source infrastructure, built and contributed to throughout the Google era. The project moved to the Apache Incubator in 2017 and the podling retired in 2023, and the upstream `apache/incubator-pagespeed-ngx` repository is no longer actively developed. PSOL has not been rebuilt for new glibc, new compilers, or OpenSSL 3. nginx kept moving; the precompiled libraries did not.
 
 So when you `git clone` upstream and point `--add-module` at it on a 2026 box, you are linking a years-old binary into a current toolchain. It fails, and `./configure` flags cannot fix a binary that references a symbol the C library no longer exports.
 

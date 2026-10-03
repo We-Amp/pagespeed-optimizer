@@ -8,6 +8,8 @@ tags: ['migration', 'comparison', 'alternatives']
 draft: false
 ---
 
+_Disclosure: I founded We-Amp, which develops mod_pagespeed 2.1._
+
 If you landed here, you are probably running mod_pagespeed or ngx_pagespeed on a server that is overdue for an OS upgrade, and you just discovered that the module does not compile against your new nginx version. Or you are evaluating web optimization tools for the first time and wondering whether the Google project is still a viable option.
 
 Short answer: the original Google project is [effectively no longer actively developed](/mod-pagespeed-still-maintained/). It has an actively maintained continuation, mod_pagespeed 2.1, built by We-Amp — the team that helped build ngx_pagespeed, maintained mod_pagespeed, and drove the project's Apache incubation. Here is the full picture.
@@ -30,7 +32,7 @@ There was an attempt to fix this. We-Amp helped drive mod_pagespeed into the Apa
 
 ## One product, two ways to deploy it
 
-I maintained the original project for years. When Google moved on, I continued the work commercially under We-Amp B.V. ([Why I rebuilt mod_pagespeed from scratch](/blog/why-i-rebuilt-mod-pagespeed/) is the longer version of that story.) The result is mod_pagespeed 2.1: one actively maintained product that meets two very different stacks, as a native server module or as a reverse proxy in front of your origin.
+I maintained the original project for years. When Google moved on, I continued the work under We-Amp B.V. ([Why I rebuilt mod_pagespeed from scratch](/blog/why-i-rebuilt-mod-pagespeed/) is the longer version of that story.) The result is mod_pagespeed 2.1: one actively maintained product that meets two very different stacks, as a native server module or as a reverse proxy in front of your origin.
 
 ### The native in-process module
 

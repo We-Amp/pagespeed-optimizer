@@ -23,7 +23,7 @@ import {
 // Every dated/numeric claim below is grounded in the verified change inventory
 // (2026-06-13): the last Google-era stable release (1.13.35.2, Feb 2018), the
 // move to the ASF incubator and its single incubating release (1.14.36.1, Aug
-// 2020), the incubator archival (2025-04-10), the commit-per-year gap (2024=0,
+// 2020), the podling retirement (2023-03-17), the GitHub repository archival (2025-04-10), the commit-per-year gap (2024=0,
 // 2025=0, 633+ in 2026 after development resumed 2026-01-24), the CVE
 // clearances (libwebp 1.1.0->1.5.0 clearing CVE-2023-4863; curl 8.x; nginx
 // CVE-2026-49975 ABI drift handled), and the pre-convergence product-line split. The inventory
@@ -72,14 +72,14 @@ const faqEntries = [
   },
   {
     q: 'Is mod_pagespeed dead or deprecated?',
-    a: `The original Google and Apache-incubator repositories are archived and read-only (the incubator was archived on 2025-04-10), so in that sense the upstream project stopped. The codebase itself is not dead: it is maintained — today as mod_pagespeed 2.1, ${LICENSE_CLAUSE} — with current dependencies and modern packaging. "Deprecated" describes the archived upstream, not the software you can run today.`,
+    a: `The original Google and Apache-incubator repositories are archived and read-only (the Apache podling retired on 2023-03-17, and its GitHub repositories were archived on 2025-04-10), so in that sense the upstream project stopped. The codebase itself is not dead: it is maintained — today as mod_pagespeed 2.1, ${LICENSE_CLAUSE} — with current dependencies and modern packaging. "Deprecated" describes the archived upstream, not the software you can run today.`,
   },
   {
     q: 'Why did mod_pagespeed go quiet?',
     a:
       'Google moved mod_pagespeed and ngx_pagespeed to an Apache Software Foundation incubator. The incubator produced one release, ' +
       LAST_UPSTREAM_VERSION +
-      ', in August 2020, then went inactive — zero commits in 2024 and zero in 2025 — before being archived in April 2025. The code was also effectively un-buildable on modern systems, because it built with a 2012-era gyp and Python 2 toolchain pinned to Ubuntu 14.',
+      ', in August 2020, then went inactive. The podling retired in March 2023, and its GitHub repositories — zero commits in 2024 and zero in 2025 — were archived in April 2025. The code was also effectively un-buildable on modern systems, because it built with a 2012-era gyp and Python 2 toolchain pinned to Ubuntu 14.',
   },
   {
     q: 'Who maintains mod_pagespeed now?',
@@ -128,7 +128,7 @@ const timeline = [
   },
   {
     when: '2024 – 2025',
-    what: 'Dormant. Zero commits in 2024, zero in 2025. The upstream incubator repositories are archived and made read-only on 2025-04-10.',
+    what: 'Dormant. Zero commits in 2024, zero in 2025. The podling had retired on 2023-03-17; its GitHub repositories are archived and made read-only on 2025-04-10.',
     tone: 'caution' as const,
   },
   {
@@ -227,9 +227,10 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
         repositories. Google moved the project to an Apache Software Foundation incubator, which
         published a single release, <code class="text-[0.9em] bg-bg-elevated px-1 rounded"
           >{LAST_UPSTREAM_VERSION}</code
-        >, in August 2020. The incubator then went quiet and was archived and made read-only on
-        <span class="whitespace-nowrap">2025-04-10</span>. That part is true: the original
-        repositories are frozen.
+        >, in August 2020. The incubator then went quiet: the podling retired on
+        <span class="whitespace-nowrap">2023-03-17</span>, and its GitHub repositories were archived
+        and made read-only on <span class="whitespace-nowrap">2025-04-10</span>. That part is true:
+        the original repositories are frozen.
       </p>
       <p class="mt-4 text-text-body">
         Two things are separate from that. First, the codebase had also become un-buildable on
