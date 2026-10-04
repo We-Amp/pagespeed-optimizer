@@ -109,6 +109,15 @@ struct WorkerStats {
   // error: it is the dedup set converging back to cache reality.
   std::atomic<uint64_t> notifications_dedup_healed{0};
   std::atomic<uint64_t> notifications_dedup_heal_rate_limited{0};
+  // Processed-set hits whose entry was erased because the optimized copy
+  // this process wrote for the key is no longer in the cache while other
+  // copies of the URL are: the notification is processed again, which
+  // normally writes the copy back.  Counted when that decision is taken,
+  // not when the copy is written: a re-processing that ends without a
+  // write (a write-failure cooldown, an unreadable source) is counted too.
+  // Shares the window of the heal above, which is kept per URL and client
+  // class (the key of the processed set).
+  std::atomic<uint64_t> notifications_missing_copy_healed{0};
   std::atomic<uint64_t> notifications_skipped_inflight{0};
   // Notifications refused at the socket, split by WHY, because the three
   // causes have three different fixes and are indistinguishable from the
@@ -830,6 +839,13 @@ class Worker {
     return in_flight_work_.load(std::memory_order_relaxed);
   }
 
+  // Number of optimized-copy records currently held (see
+  // copy_written_current_).  For tests and diagnostics.
+  size_t copy_record_count() const {
+    std::lock_guard<std::mutex> lock(processed_set_mutex_);
+    return copy_written_current_.size() + copy_written_previous_.size();
+  }
+
   // Get processing statistics
   const WorkerStats& stats() const { return stats_; }
 
@@ -1070,6 +1086,22 @@ class Worker {
                             std::string_view scheme, AlternateId id,
                             const PurgeDispatchGen& purge_gen = {});
 
+  // Record that this process wrote the optimized copy `id` of a URL, so a
+  // later notification can tell a copy that has gone missing from a copy
+  // that was never due.  Applies the same purge test as
+  // MarkVariantProcessed and is called right after it: that function clears
+  // any earlier record for the key, so only the latest verdict counts.  The
+  // record is kept only while the key's processed mark exists.
+  void MarkCopyWritten(const std::string& url, const std::string& hostname,
+                       std::string_view scheme, AlternateId id,
+                       const PurgeDispatchGen& purge_gen = {});
+
+  // Erase every processed mark of one URL -- all of its ids -- together
+  // with the copy records that belong to them.  `prefix` is the key up to
+  // and including the separator before the id.  The caller holds
+  // processed_set_mutex_.
+  void EraseUrlMarksLocked(const std::string& prefix);
+
   // Set a write-failure cooldown for a URL to prevent unbounded
   // re-processing loops when cache writes persistently fail.
   void SetWriteFailureCooldown(const std::string& url,
@@ -1308,6 +1340,27 @@ class Worker {
   mutable std::mutex processed_set_mutex_;
   std::unordered_set<std::string> processed_current_;
   std::unordered_set<std::string> processed_previous_;
+  // Keys, in the processed set's form, whose optimized copy THIS process
+  // wrote (stylesheets and scripts).  A processed-set hit for such a key is
+  // honoured only while that copy is still listed in the cache; when it is
+  // gone and other copies of the URL remain, the URL is processed again.
+  // Every verdict that writes no copy leaves no record here, which is what
+  // keeps "nothing was due" from ever being read as "something was lost".
+  // A record never exists without its mark: it is written into the
+  // generation that holds the mark, rotated with the processed set in the
+  // same step, and erased wherever the mark is erased (a new verdict, a
+  // heal, a purge of the URL or of everything, an integrity-pin
+  // registration, a content change).  Guarded by processed_set_mutex_.
+  //
+  // What the rule does not see: a copy this process did not write since
+  // the key's latest verdict.  When an already optimized URL is processed
+  // again while its copy is present -- after a restart, after its mark aged
+  // out, or for another client class -- the source read finds the optimized
+  // copy, nothing is written and no record is left; if that copy goes
+  // missing later, the notification is skipped as before and the URL is
+  // optimized again when its stored original is next recorded.
+  std::unordered_set<std::string> copy_written_current_;
+  std::unordered_set<std::string> copy_written_previous_;
 
   // Purge generation tracking: prevents in-flight workers from re-adding
   // stale dedup entries — or re-inserting purged content (issue #652) —
