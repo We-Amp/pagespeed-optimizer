@@ -4685,6 +4685,10 @@ TEST_F(WorkerTest, MgmtStatsCommand) {
   EXPECT_NE(response.find(R"("status":"ok")"), std::string::npos)
       << "Response: " << response;
   EXPECT_NE(response.find("\"notifications\""), std::string::npos);
+  // Both heal counters, as numbers, closing the notifications object.
+  EXPECT_NE(response.find(R"("dedup_healed":0,"missing_copy_healed":0})"),
+            std::string::npos)
+      << "Response: " << response;
   EXPECT_NE(response.find("\"variants\""), std::string::npos);
   EXPECT_NE(response.find("\"by_type\""), std::string::npos);
   EXPECT_NE(response.find("\"by_format\""), std::string::npos);
@@ -7256,6 +7260,75 @@ TEST_F(WorkerTest, AnEarlierCopyRecordDoesNotSurviveAPurgeAndANewVerdict) {
       << "the copy written before the purge must not count as missing now";
   EXPECT_EQ(1u, worker.stats().css_already_optimal_count.load());
   EXPECT_EQ(1u, worker.stats().css_processed.load());
+}
+
+TEST_F(WorkerTest, AMissingOptimizedScriptCopyIsCreatedAgain) {
+  // The same rule for a script: its optimized copy disappears while the
+  // compressed siblings stay, and the next notification writes it back.
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  std::string url = "http://example.com/missing-copy.js";
+  std::string js =
+      "// Main application script\n"
+      "function  hello( name )  {\n"
+      "  var  greeting  =  'Hello, '  +  name;\n"
+      "  return  greeting;\n"
+      "}\n";
+  CacheDurableOriginal(worker.cache(), url, js, "application/javascript",
+                       ContentType::kJs);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification notification;
+  notification.url = url;
+  notification.scheme = "https";
+  notification.content_type = ContentType::kJs;
+  notification.capability_mask = CapabilityMask().Encode();
+
+  SendNotification(notification);
+  for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (worker.stats().js_processed.load() >= 1) break;
+  }
+  ASSERT_EQ(1u, worker.stats().js_processed.load());
+  WaitForWorkerIdle(worker);
+
+  const std::string path = StripSchemeAuthority(url);
+  const AlternateId optimized_id =
+      MaskToAlternateId(static_cast<uint8_t>(CapabilityMask().Encode() & 0xFF));
+  CapabilityMask gzip_mask;
+  gzip_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kGzip);
+  const AlternateId gzip_id =
+      MaskToAlternateId(static_cast<uint8_t>(gzip_mask.Encode() & 0xFF));
+  ASSERT_TRUE(worker.cache()->AlternateExists(path, "", "https", optimized_id));
+  ASSERT_TRUE(worker.cache()->AlternateExists(path, "", "https", gzip_id));
+
+  ASSERT_TRUE(worker.cache()
+                  ->RemoveAlternate(path, "", "https", optimized_id)
+                  .has_value());
+  ASSERT_TRUE(worker.cache()->AlternateExists(path, "", "https", gzip_id));
+
+  SendNotification(notification);
+  for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (worker.stats().js_processed.load() >= 2) break;
+  }
+  EXPECT_EQ(2u, worker.stats().js_processed.load())
+      << "a script whose optimized copy is gone must be optimized again";
+  WaitForWorkerIdle(worker);
+  EXPECT_TRUE(worker.cache()->AlternateExists(path, "", "https", optimized_id))
+      << "the optimized copy was not written back";
+  EXPECT_EQ(1u, worker.stats().notifications_missing_copy_healed.load());
+  EXPECT_EQ(0u, worker.stats().notifications_dedup_healed.load());
 }
 
 TEST_F(WorkerTest, APurgedUrlKeepsNoCopyRecord) {
