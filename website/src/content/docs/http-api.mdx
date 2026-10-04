@@ -363,6 +363,7 @@ Key fields:
 | `notifications.received`         | Total notifications from nginx                                |
 | `notifications.skipped_dedup`    | Skipped because variant already exists                        |
 | `notifications.skipped_inflight` | Skipped because URL is already being processed                |
+| `notifications.missing_copy_healed` | Notifications for an already optimized URL whose optimized copy was no longer in the cache while its other copies were; the URL is optimized again (at most once per URL per 10 seconds) |
 | `variants.written`               | Total optimized variants written to cache                     |
 | `variants.proactive`             | Sibling variants (other format/viewport/density combinations) |
 | `variants.gzip` / `brotli`       | Pre-compressed text variants                                  |

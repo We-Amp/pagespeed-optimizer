@@ -6947,6 +6947,309 @@ TEST_F(WorkerTest, DedupHealIsRateLimitedForTerminalDecisions) {
   EXPECT_EQ(0u, worker.stats().variants_written.load());
 }
 
+TEST_F(WorkerTest, AMissingOptimizedCopyIsCreatedAgain) {
+  // A stylesheet is optimized: the optimized copy and its gzip and brotli
+  // siblings are written beside the stored original.  The optimized copy
+  // then disappears from the cache while its siblings stay -- the entry
+  // still looks optimized, and every request for it is answered with the
+  // original.  The next notification for the URL must write the copy back
+  // instead of being dropped as already done.
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  std::string url = "http://example.com/missing-copy.css";
+  std::string css = "body { margin: 0; } h1 { color: blue; }";
+  CacheDurableOriginal(worker.cache(), url, css, "text/css", ContentType::kCss);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification notification;
+  notification.url = url;
+  notification.scheme = "https";
+  notification.content_type = ContentType::kCss;
+  notification.capability_mask = CapabilityMask().Encode();
+
+  SendNotification(notification);
+  bool first_processed = false;
+  for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (worker.stats().css_processed.load() >= 1) {
+      first_processed = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(first_processed) << "CSS should have been processed once";
+  WaitForWorkerIdle(worker);
+
+  const std::string path = StripSchemeAuthority(url);
+  const AlternateId optimized_id =
+      MaskToAlternateId(static_cast<uint8_t>(CapabilityMask().Encode() & 0xFF));
+  CapabilityMask gzip_mask;
+  gzip_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kGzip);
+  const AlternateId gzip_id =
+      MaskToAlternateId(static_cast<uint8_t>(gzip_mask.Encode() & 0xFF));
+  ASSERT_TRUE(worker.cache()->AlternateExists(path, "", "https", optimized_id));
+  ASSERT_TRUE(worker.cache()->AlternateExists(path, "", "https", gzip_id));
+
+  // Lose the optimized copy and nothing else.
+  ASSERT_TRUE(worker.cache()
+                  ->RemoveAlternate(path, "", "https", optimized_id)
+                  .has_value());
+  ASSERT_FALSE(
+      worker.cache()->AlternateExists(path, "", "https", optimized_id));
+  ASSERT_TRUE(worker.cache()->AlternateExists(path, "", "https", gzip_id));
+
+  const uint64_t css_before = worker.stats().css_processed.load();
+  const uint64_t skipped_before =
+      worker.stats().notifications_skipped_dedup.load();
+
+  SendNotification(notification);
+  bool reprocessed = false;
+  for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (worker.stats().css_processed.load() > css_before) {
+      reprocessed = true;
+      break;
+    }
+  }
+  EXPECT_TRUE(reprocessed)
+      << "a URL whose optimized copy is gone must be optimized again, not "
+         "dropped as already processed";
+  WaitForWorkerIdle(worker);
+  EXPECT_TRUE(worker.cache()->AlternateExists(path, "", "https", optimized_id))
+      << "the optimized copy was not written back";
+  EXPECT_EQ(1u, worker.stats().notifications_missing_copy_healed.load());
+  EXPECT_EQ(0u, worker.stats().notifications_dedup_healed.load())
+      << "this is not the nothing-left-to-serve heal";
+  EXPECT_EQ(skipped_before, worker.stats().notifications_skipped_dedup.load())
+      << "a healed notification is not counted as a skip";
+}
+
+TEST_F(WorkerTest, AMissingCopyHealIsRateLimitedPerUrl) {
+  // The bound: a copy that keeps disappearing costs one re-optimization per
+  // URL per window, never one per notification.
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  std::string url = "http://example.com/missing-copy-bounded.css";
+  std::string css = "body { margin: 0; } h1 { color: blue; }";
+  CacheDurableOriginal(worker.cache(), url, css, "text/css", ContentType::kCss);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification notification;
+  notification.url = url;
+  notification.scheme = "https";
+  notification.content_type = ContentType::kCss;
+  notification.capability_mask = CapabilityMask().Encode();
+
+  const std::string path = StripSchemeAuthority(url);
+  const AlternateId optimized_id =
+      MaskToAlternateId(static_cast<uint8_t>(CapabilityMask().Encode() & 0xFF));
+
+  SendNotification(notification);
+  for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (worker.stats().css_processed.load() >= 1) break;
+  }
+  ASSERT_EQ(1u, worker.stats().css_processed.load());
+  WaitForWorkerIdle(worker);
+
+  // First loss: healed.
+  ASSERT_TRUE(worker.cache()
+                  ->RemoveAlternate(path, "", "https", optimized_id)
+                  .has_value());
+  SendNotification(notification);
+  for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (worker.stats().notifications_missing_copy_healed.load() >= 1) break;
+  }
+  ASSERT_EQ(1u, worker.stats().notifications_missing_copy_healed.load())
+      << "the first loss must be healed";
+  const auto healed_at = std::chrono::steady_clock::now();
+  WaitForWorkerIdle(worker);
+  ASSERT_EQ(2u, worker.stats().css_processed.load());
+
+  // Second loss inside the same window: deferred, not re-optimized.
+  ASSERT_TRUE(worker.cache()
+                  ->RemoveAlternate(path, "", "https", optimized_id)
+                  .has_value());
+  const uint64_t limited_before =
+      worker.stats().notifications_dedup_heal_rate_limited.load();
+  SendNotification(notification);
+  bool rate_limited = false;
+  for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (worker.stats().notifications_dedup_heal_rate_limited.load() >
+        limited_before) {
+      rate_limited = true;
+      break;
+    }
+  }
+  // The window is 10 s of real time.  A run slow enough to send the second
+  // notification after it (an instrumented build on a loaded host) has not
+  // tested the bound, and must not report that it failed.
+  if (std::chrono::steady_clock::now() - healed_at > std::chrono::seconds(8)) {
+    GTEST_SKIP() << "the second notification left too late to fall inside "
+                    "the 10 s window on this run";
+  }
+  EXPECT_TRUE(rate_limited)
+      << "a second heal for one URL inside the window must be deferred";
+  WaitForWorkerIdle(worker);
+  EXPECT_EQ(1u, worker.stats().notifications_missing_copy_healed.load());
+  EXPECT_EQ(2u, worker.stats().css_processed.load())
+      << "the deferred notification must not have re-optimized the URL";
+}
+
+TEST_F(WorkerTest, AnAlreadyMinimalStylesheetIsNeverHealed) {
+  // The state that looks exactly like a lost copy and is not one: for a
+  // stylesheet that is already minimal the optimizer stores compressed
+  // copies of the original and no optimized copy at all.  Repeat
+  // notifications must be dropped, every time, with nothing re-optimized.
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  std::string url = "http://example.com/already-minimal-never-healed.css";
+  std::string css = "body{margin:0}h1{color:red}";
+  CacheDurableOriginal(worker.cache(), url, css, "text/css", ContentType::kCss);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification notification;
+  notification.url = url;
+  notification.scheme = "https";
+  notification.content_type = ContentType::kCss;
+  notification.capability_mask = CapabilityMask().Encode();
+
+  SendNotification(notification);
+  for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (worker.stats().css_already_optimal_count.load() >= 1) break;
+  }
+  ASSERT_EQ(1u, worker.stats().css_already_optimal_count.load());
+  WaitForWorkerIdle(worker);
+
+  const std::string path = StripSchemeAuthority(url);
+  const AlternateId optimized_id =
+      MaskToAlternateId(static_cast<uint8_t>(CapabilityMask().Encode() & 0xFF));
+  CapabilityMask gzip_mask;
+  gzip_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kGzip);
+  const AlternateId gzip_id =
+      MaskToAlternateId(static_cast<uint8_t>(gzip_mask.Encode() & 0xFF));
+  ASSERT_FALSE(worker.cache()->AlternateExists(path, "", "https", optimized_id))
+      << "an already minimal stylesheet has no optimized copy";
+  ASSERT_TRUE(worker.cache()->AlternateExists(path, "", "https", gzip_id))
+      << "its compressed copies are what makes the entry look like a loss";
+
+  for (int round = 0; round < 3; ++round) {
+    const uint64_t skipped_before =
+        worker.stats().notifications_skipped_dedup.load();
+    SendNotification(notification);
+    for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      if (worker.stats().notifications_skipped_dedup.load() > skipped_before)
+        break;
+    }
+    EXPECT_GT(worker.stats().notifications_skipped_dedup.load(), skipped_before)
+        << "round " << round;
+    WaitForWorkerIdle(worker);
+  }
+  EXPECT_EQ(0u, worker.stats().notifications_missing_copy_healed.load());
+  EXPECT_EQ(0u, worker.stats().notifications_dedup_healed.load());
+  EXPECT_EQ(1u, worker.stats().css_already_optimal_count.load())
+      << "the stylesheet must not have been judged again";
+}
+
+TEST_F(WorkerTest, AnEarlierCopyRecordDoesNotSurviveAPurgeAndANewVerdict) {
+  // A URL is optimized (a copy is written), purged, and comes back with
+  // content that is already minimal (no copy is due).  The memory of the
+  // earlier copy must not turn the new, copy-less entry into a heal.
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  std::string url = "http://example.com/purged-then-minimal.css";
+  std::string css_v1 = "body { margin: 0; } h1 { color: blue; }";
+  std::string css_v2 = "body{margin:0}h1{color:red}";
+  CacheDurableOriginal(worker.cache(), url, css_v1, "text/css",
+                       ContentType::kCss);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification notification;
+  notification.url = url;
+  notification.scheme = "https";
+  notification.content_type = ContentType::kCss;
+  notification.capability_mask = CapabilityMask().Encode();
+
+  SendNotification(notification);
+  for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (worker.stats().css_processed.load() >= 1) break;
+  }
+  ASSERT_EQ(1u, worker.stats().css_processed.load());
+  WaitForWorkerIdle(worker);
+
+  // Purge, then the URL is recorded again with already minimal content.
+  worker.InvalidateUrl(url);
+  CacheDurableOriginal(worker.cache(), url, css_v2, "text/css",
+                       ContentType::kCss);
+  SendNotification(notification);
+  for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (worker.stats().css_already_optimal_count.load() >= 1) break;
+  }
+  ASSERT_EQ(1u, worker.stats().css_already_optimal_count.load());
+  WaitForWorkerIdle(worker);
+
+  // The entry now has compressed copies and no optimized copy -- by verdict.
+  const uint64_t skipped_before =
+      worker.stats().notifications_skipped_dedup.load();
+  SendNotification(notification);
+  for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (worker.stats().notifications_skipped_dedup.load() > skipped_before)
+      break;
+  }
+  EXPECT_GT(worker.stats().notifications_skipped_dedup.load(), skipped_before);
+  WaitForWorkerIdle(worker);
+  EXPECT_EQ(0u, worker.stats().notifications_missing_copy_healed.load())
+      << "the copy written before the purge must not count as missing now";
+  EXPECT_EQ(1u, worker.stats().css_already_optimal_count.load());
+  EXPECT_EQ(1u, worker.stats().css_processed.load());
+}
+
 // --- begin ported adversarial probes ---
 TEST_F(WorkerTest, AdvStaleTombstoneBlocksHealForChangedSource) {
   // ADVERSARIAL REVIEW PROBE, ported from the review of de600de8.  Against

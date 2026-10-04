@@ -897,6 +897,29 @@ TEST_F(ApiHandlersIntegrationTest,
   EXPECT_EQ(resp.find("evil"), std::string::npos);
 }
 
+TEST_F(ApiHandlersIntegrationTest, MissingCopyHealsAreReported) {
+  stats_.notifications_missing_copy_healed.store(3, std::memory_order_relaxed);
+
+  const std::string stats_resp =
+      SendRequest("GET /v1/stats HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  const size_t split = stats_resp.find("\r\n\r\n");
+  ASSERT_NE(split, std::string::npos);
+  const json parsed = json::parse(stats_resp.substr(split + 4), nullptr, false);
+  ASSERT_TRUE(parsed.is_object());
+  ASSERT_TRUE(parsed.contains("notifications"));
+  ASSERT_TRUE(parsed["notifications"].contains("missing_copy_healed"));
+  EXPECT_EQ(parsed["notifications"]["missing_copy_healed"], 3);
+
+  const std::string metrics =
+      SendRequest("GET /v1/metrics HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(
+      metrics.find(
+          "# TYPE pagespeed_notifications_missing_copy_healed_total counter"),
+      std::string::npos);
+  EXPECT_NE(metrics.find("pagespeed_notifications_missing_copy_healed_total 3"),
+            std::string::npos);
+}
+
 // The per-host series state the host-name rule their label values follow.
 TEST_F(ApiHandlersIntegrationTest, MetricsHelpStatesTheHostNameRule) {
   ServeStats ss{};

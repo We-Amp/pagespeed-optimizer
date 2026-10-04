@@ -4,6 +4,15 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Fixed: a stylesheet or script whose optimized copy went missing from the
+cache while its compressed copies stayed was served unoptimized until it
+was purged. The optimizer now notices on the next notification for the URL
+and optimizes it again, at most once per URL per 10 seconds. GET /v1/stats
+counts these as `notifications.missing_copy_healed`, and GET /v1/metrics as
+`pagespeed_notifications_missing_copy_healed_total`. Content that is served
+unoptimized on purpose (already minimal, not parseable, pinned by an
+integrity attribute) is not affected.
+
 Changed: the help text of the per-host serve-savings series in GET
 /v1/metrics now states the host-name rule their `host` label values
 follow; the values and the series are unchanged.

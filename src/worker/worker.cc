@@ -2703,13 +2703,40 @@ void Worker::MarkVariantProcessed(const std::string& url,
 
   std::string key = ComposeInternalKeyWithId(url, hostname, scheme, id);
   std::lock_guard<std::mutex> lock(processed_set_mutex_);
+  // A new verdict for this key starts without a copy record: the caller
+  // adds one (MarkCopyWritten) only when it wrote the copy this time.
+  copy_written_current_.erase(key);
+  copy_written_previous_.erase(key);
   processed_current_.insert(std::move(key));
   // Generational overflow: rotate current → previous instead of clearing
   // everything.  Recently-added entries survive in the new current set.
+  // The copy records rotate in the SAME step, so a key is never a
+  // processed-set hit whose record has already been dropped: the two sets
+  // age together and a record lives exactly as long as its mark.
   if (processed_current_.size() > config_.max_processed_entries) {
     processed_previous_ = std::move(processed_current_);
     processed_current_.clear();
+    copy_written_previous_ = std::move(copy_written_current_);
+    copy_written_current_.clear();
   }
+}
+
+void Worker::MarkCopyWritten(const std::string& url,
+                             const std::string& hostname,
+                             std::string_view scheme, AlternateId id,
+                             const PurgeDispatchGen& purge_gen) {
+  // The same test MarkVariantProcessed applies: a URL purged after this
+  // notification was dispatched keeps no record of a copy the purge removed.
+  if (WasPurgedSinceDispatch(url, hostname, purge_gen, scheme)) {
+    return;
+  }
+  std::string key = ComposeInternalKeyWithId(url, hostname, scheme, id);
+  std::lock_guard<std::mutex> lock(processed_set_mutex_);
+  // No rotation here: the records rotate with the processed set, in
+  // MarkVariantProcessed, which has just run for this key and added its
+  // mark.  One record per mark at most, so the record sets stay within the
+  // processed sets' bound.
+  copy_written_current_.insert(std::move(key));
 }
 
 void Worker::SetWriteFailureCooldown(const std::string& url,
@@ -3427,6 +3454,10 @@ void Worker::WriteTextVariant(const CacheNotification& notification,
       // observer polling the processed counter sees the entry present.
       MarkVariantProcessed(notification.url, notification.hostname,
                            notification.scheme, MaskToId(mask), purge_gen);
+      // The optimized copy is in the cache: remember that, so a later
+      // notification notices if it has gone missing.
+      MarkCopyWritten(notification.url, notification.hostname,
+                      notification.scheme, MaskToId(mask), purge_gen);
       stats_.variants_written.fetch_add(1, std::memory_order_relaxed);
       processed_stat.fetch_add(1, std::memory_order_relaxed);
       LogInfo(
@@ -3880,10 +3911,13 @@ void Worker::HandleNotification(const CacheNotification& notification,
         ComposeInternalKeyWithId(notification.url, notification.hostname,
                                  notification.scheme, target_id);
     bool dedup_hit = false;
+    bool copy_expected = false;
     {
       std::lock_guard<std::mutex> lock(processed_set_mutex_);
       dedup_hit = processed_current_.contains(dedup_key) ||
                   processed_previous_.contains(dedup_key);
+      copy_expected = copy_written_current_.contains(dedup_key) ||
+                      copy_written_previous_.contains(dedup_key);
     }
     if (dedup_hit) {
       // Orphaned-entry heal.  A dedup
@@ -3961,6 +3995,18 @@ void Worker::HandleNotification(const CacheNotification& notification,
         }
       }
       bool variant_family_present = true;  // no cache: keep today's skip
+      // MISSING COPY.  A family can be present and still lack the one copy
+      // this entry stands for: the optimized copy of a stylesheet or script
+      // is one alternate among several (its gzip and brotli siblings, the
+      // stored original), and it can go missing on its own -- the siblings
+      // then keep the family "present" for the test above while every
+      // request is answered with the original.  That is only a loss when
+      // this process actually wrote the copy (copy_expected): the verdicts
+      // that write none -- already minimal, a minify failure, an
+      // integrity-pinned URL -- leave no such record, so none of them can
+      // be mistaken for it.  Bounded by the same per-URL window as the heal
+      // below, which was checked above before any cache read.
+      bool expected_copy_missing = false;
       if (cache_ != nullptr) {
         auto alts = cache_->ListAlternates(
             notification.url, notification.hostname, notification.scheme);
@@ -3973,15 +4019,21 @@ void Worker::HandleNotification(const CacheNotification& notification,
           variant_family_present = true;
         } else {
           variant_family_present = false;
+          bool target_present = false;
           for (const auto& alt : *alts) {
-            if (!IsSentinel(static_cast<AlternateId>(alt.id))) {
+            const auto alt_id = static_cast<AlternateId>(alt.id);
+            if (!IsSentinel(alt_id)) {
               variant_family_present = true;
-              break;
+            }
+            if (alt_id == target_id) {
+              target_present = true;
             }
           }
+          expected_copy_missing =
+              copy_expected && variant_family_present && !target_present;
         }
       }
-      if (variant_family_present) {
+      if (variant_family_present && !expected_copy_missing) {
         LogInfo(
             "Variant already processed for %s (mask=0x%08x), "
             "skipping",
@@ -4018,12 +4070,26 @@ void Worker::HandleNotification(const CacheNotification& notification,
         std::lock_guard<std::mutex> lock(processed_set_mutex_);
         processed_current_.erase(dedup_key);
         processed_previous_.erase(dedup_key);
+        // The record is spent with the heal: it is written again only if
+        // the re-processing below writes the copy again.
+        copy_written_current_.erase(dedup_key);
+        copy_written_previous_.erase(dedup_key);
       }
-      stats_.notifications_dedup_healed.fetch_add(1, std::memory_order_relaxed);
-      LogInfo(
-          "Dedup entry for %s (mask=0x%08x) orphaned: no servable variant "
-          "remains in cache, healing (re-processing)",
-          notification.url.c_str(), notification.capability_mask);
+      if (expected_copy_missing) {
+        stats_.notifications_missing_copy_healed.fetch_add(
+            1, std::memory_order_relaxed);
+        LogInfo(
+            "Optimized copy for %s (mask=0x%08x) is missing from the cache "
+            "while other copies of the URL remain; creating it again",
+            notification.url.c_str(), notification.capability_mask);
+      } else {
+        stats_.notifications_dedup_healed.fetch_add(1,
+                                                    std::memory_order_relaxed);
+        LogInfo(
+            "Dedup entry for %s (mask=0x%08x) orphaned: no servable variant "
+            "remains in cache, healing (re-processing)",
+            notification.url.c_str(), notification.capability_mask);
+      }
       // Fall through to normal processing.
     }
   }
@@ -7364,6 +7430,8 @@ void Worker::HandleMgmtCommand(uv_stream_t* client,
         s.notifications_skipped_inflight.load(std::memory_order_relaxed),
         ",\"dedup_healed\":",
         s.notifications_dedup_healed.load(std::memory_order_relaxed),
+        ",\"missing_copy_healed\":",
+        s.notifications_missing_copy_healed.load(std::memory_order_relaxed),
         "},\"variants\":{\"written\":",
         s.variants_written.load(std::memory_order_relaxed), ",\"proactive\":",
         s.proactive_variants_written.load(std::memory_order_relaxed),
@@ -7722,6 +7790,8 @@ std::string Worker::ResetCache() {
     std::lock_guard<std::mutex> lock(processed_set_mutex_);
     processed_current_.clear();
     processed_previous_.clear();
+    copy_written_current_.clear();
+    copy_written_previous_.clear();
   }
   {
     std::lock_guard<std::mutex> lock(incomplete_retries_mutex_);
