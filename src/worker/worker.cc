@@ -4096,7 +4096,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
             1, std::memory_order_relaxed);
         LogInfo(
             "Optimized copy for %s (mask=0x%08x) is missing from the cache "
-            "while other copies of the URL remain; creating it again",
+            "while other copies of the URL remain; processing the URL again",
             notification.url.c_str(), notification.capability_mask);
       } else {
         stats_.notifications_dedup_healed.fetch_add(1,

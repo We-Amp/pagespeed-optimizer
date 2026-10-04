@@ -111,8 +111,12 @@ struct WorkerStats {
   std::atomic<uint64_t> notifications_dedup_heal_rate_limited{0};
   // Processed-set hits whose entry was erased because the optimized copy
   // this process wrote for the key is no longer in the cache while other
-  // copies of the URL are: the notification is processed again and the copy
-  // is written back.  Shares the per-URL window of the heal above.
+  // copies of the URL are: the notification is processed again, which
+  // normally writes the copy back.  Counted when that decision is taken,
+  // not when the copy is written: a re-processing that ends without a
+  // write (a write-failure cooldown, an unreadable source) is counted too.
+  // Shares the window of the heal above, which is kept per URL and client
+  // class (the key of the processed set).
   std::atomic<uint64_t> notifications_missing_copy_healed{0};
   std::atomic<uint64_t> notifications_skipped_inflight{0};
   // Notifications refused at the socket, split by WHY, because the three

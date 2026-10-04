@@ -7,11 +7,24 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 Fixed: a stylesheet or script whose optimized copy went missing from the
 cache while its compressed copies stayed was served unoptimized until it
 was purged. The optimizer now notices on the next notification for the URL
-and optimizes it again, at most once per URL per 10 seconds. GET /v1/stats
-counts these as `notifications.missing_copy_healed`, and GET /v1/metrics as
-`pagespeed_notifications_missing_copy_healed_total`. Content that is served
-unoptimized on purpose (already minimal, not parseable, pinned by an
-integrity attribute) is not affected.
+and processes it again, which writes the copy back, at most once per URL
+and client class (viewport, pixel density, Save-Data) per 10 seconds. The
+re-processing is counted when it starts: as
+`notifications.missing_copy_healed` in GET /v1/stats, as
+`pagespeed_notifications_missing_copy_healed_total` in GET /v1/metrics, and
+as `missing_copy_healed` in the management `STATS` line. Content that is
+served unoptimized on purpose (already minimal, not parseable, pinned by an
+integrity attribute) is not affected. The rule covers a copy the running
+optimizer wrote itself since it last judged the URL; a copy it found
+already in place (after a restart, or when the URL is requested by another
+client class) and that goes missing later is still restored only when the
+URL's stored original expires and is recorded again.
+
+Changed: the help text of
+`pagespeed_notifications_dedup_heal_rate_limited_total` in GET /v1/metrics
+now says that the series counts notifications dropped after either kind of
+heal, and when the table tracking recent heals is full; the series also
+moves for the new missing-copy heal.
 
 Changed: the help text of the per-host serve-savings series in GET
 /v1/metrics now states the host-name rule their `host` label values

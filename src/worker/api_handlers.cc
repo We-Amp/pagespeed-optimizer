@@ -176,19 +176,22 @@ json BuildStatsJson(ApiContext& ctx) {
       // Dedup entries erased because their variant family is gone from the
       // cache (eviction has no worker callback); the URL is reprocessed.
       {"dedup_healed", s.notifications_dedup_healed.load()},
-      // Notifications dropped by the per-URL window: the URL was
-      // re-processed by one of the two heals less than 10 seconds ago.
-      // That covers a family that looked orphaned, a missing optimized
-      // copy, and any repeat notification arriving right after either
-      // heal.  A steadily climbing value with no heals beside it means a
-      // URL is empty by decision (nothing servable will ever be produced
-      // for it), not that a heal is being lost.
+      // Notifications dropped by the heal window, which is kept per URL
+      // and client class: the URL was re-processed by one of the two heals
+      // less than 10 seconds ago, or the table that tracks those windows
+      // was full.  That covers a family that looked orphaned, a missing
+      // optimized copy, and any repeat notification arriving right after
+      // either heal.  A steadily climbing value with no heals beside it
+      // means a URL is empty by decision (nothing servable will ever be
+      // produced for it), not that a heal is being lost.
       {"dedup_heal_rate_limited",
        s.notifications_dedup_heal_rate_limited.load()},
       // Processed-set hits erased because the optimized copy this optimizer
       // wrote for the URL is gone from the cache while other copies remain;
-      // the URL is optimized again.  Sustained growth means copies are
-      // going missing, not that the cache is full.
+      // the URL is processed again.  Counted when the re-processing starts,
+      // whether or not it ends with the copy written back.  Sustained
+      // growth means single copies of URLs keep going missing while their
+      // other copies stay, whatever removes them.
       {"missing_copy_healed", s.notifications_missing_copy_healed.load()},
       // Refusals, split by cause.  A peer on another wire version and a peer
       // sending corrupt frames both show up as "nothing is being optimized";
@@ -492,7 +495,9 @@ std::string BuildPrometheusMetricsText(const PrometheusMetricsInputs& in) {
   counter("pagespeed_notifications_dedup_heal_rate_limited_total",
           "Notifications dropped because the URL was re-processed by a heal "
           "(orphaned entry or missing optimized copy) less than 10 seconds "
-          "before; the notification was skipped instead of re-processed.",
+          "before for the same client class, or because the table tracking "
+          "those heals was full; the notification was skipped instead of "
+          "re-processed.",
           s.notifications_dedup_heal_rate_limited.load());
   counter("pagespeed_notifications_dedup_healed_total",
           "Dedup-set hits erased because no servable variant remains in the "
@@ -501,7 +506,8 @@ std::string BuildPrometheusMetricsText(const PrometheusMetricsInputs& in) {
   counter("pagespeed_notifications_missing_copy_healed_total",
           "Notifications for an already optimized URL whose optimized copy "
           "was no longer in the cache while its other copies were; the URL "
-          "is optimized again, at most once per URL per window.",
+          "is processed again, at most once per URL and client class per 10 "
+          "seconds. Counted when the re-processing starts.",
           s.notifications_missing_copy_healed.load());
   counter("pagespeed_notifications_rejected_version_total",
           "Notifications refused because the sending peer speaks another "
