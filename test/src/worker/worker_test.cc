@@ -7258,6 +7258,127 @@ TEST_F(WorkerTest, AnEarlierCopyRecordDoesNotSurviveAPurgeAndANewVerdict) {
   EXPECT_EQ(1u, worker.stats().css_processed.load());
 }
 
+TEST_F(WorkerTest, APurgedUrlKeepsNoCopyRecord) {
+  // The record that the optimizer wrote a URL's optimized copy goes
+  // wherever the URL's processed mark goes: a purge of the URL, or clearing
+  // its processing state, leaves neither behind.
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string purged_url = "http://example.com/record-purged.css";
+  const std::string cleared_url = "http://example.com/record-cleared.css";
+  const std::string css = "body { margin: 0; } h1 { color: blue; }";
+  CacheDurableOriginal(worker.cache(), purged_url, css, "text/css",
+                       ContentType::kCss);
+  CacheDurableOriginal(worker.cache(), cleared_url, css, "text/css",
+                       ContentType::kCss);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  uint64_t expected_processed = 0;
+  for (const std::string& url : {purged_url, cleared_url}) {
+    CacheNotification notification;
+    notification.url = url;
+    notification.scheme = "https";
+    notification.content_type = ContentType::kCss;
+    notification.capability_mask = CapabilityMask().Encode();
+    SendNotification(notification);
+    ++expected_processed;
+    for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      if (worker.stats().css_processed.load() >= expected_processed) break;
+    }
+    ASSERT_EQ(expected_processed, worker.stats().css_processed.load());
+    WaitForWorkerIdle(worker);
+  }
+  ASSERT_EQ(2u, worker.copy_record_count())
+      << "each optimized stylesheet leaves one record";
+
+  worker.InvalidateUrl(purged_url);
+  EXPECT_EQ(1u, worker.copy_record_count())
+      << "a purged URL must not keep its record";
+
+  worker.ClearDedupAndCooldown(cleared_url, "", "https");
+  EXPECT_EQ(0u, worker.copy_record_count())
+      << "clearing a URL's processing state must drop its record too";
+}
+
+TEST_F(WorkerTest, CopyRecordsAgeOutWithTheirMarks) {
+  // The records are bounded by the processed set: when a mark ages out, its
+  // record goes with it, and a record whose mark was moved to the older
+  // generation still heals.
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+  // Every second mark rotates the processed set.
+  config.max_processed_entries = 1;
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string css = "body { margin: 0; } h1 { color: blue; }";
+  std::vector<std::string> urls;
+  for (int i = 0; i < 4; ++i) {
+    urls.push_back(absl::StrCat("http://example.com/record-aging-", i, ".css"));
+    CacheDurableOriginal(worker.cache(), urls.back(), css, "text/css",
+                         ContentType::kCss);
+  }
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  // One at a time, so the order of the marks is the order of the URLs.
+  CacheNotification notification;
+  notification.scheme = "https";
+  notification.content_type = ContentType::kCss;
+  notification.capability_mask = CapabilityMask().Encode();
+  for (size_t n = 0; n < urls.size(); ++n) {
+    notification.url = urls[n];
+    SendNotification(notification);
+    for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      if (worker.stats().css_processed.load() >= n + 1) break;
+    }
+    ASSERT_EQ(n + 1, worker.stats().css_processed.load());
+    WaitForWorkerIdle(worker);
+  }
+
+  // Two rotations happened.  The marks of the first two URLs are gone, and
+  // so are their records; the last two are in the older generation.
+  EXPECT_EQ(2u, worker.copy_record_count())
+      << "a record must not outlive its processed mark";
+
+  // The third URL's mark and record are in the older generation: losing its
+  // copy is still noticed.
+  const std::string path = StripSchemeAuthority(urls[2]);
+  const AlternateId optimized_id =
+      MaskToAlternateId(static_cast<uint8_t>(CapabilityMask().Encode() & 0xFF));
+  ASSERT_TRUE(worker.cache()
+                  ->RemoveAlternate(path, "", "https", optimized_id)
+                  .has_value());
+  notification.url = urls[2];
+  SendNotification(notification);
+  for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (worker.stats().notifications_missing_copy_healed.load() >= 1) break;
+  }
+  EXPECT_EQ(1u, worker.stats().notifications_missing_copy_healed.load());
+  WaitForWorkerIdle(worker);
+  EXPECT_TRUE(worker.cache()->AlternateExists(path, "", "https", optimized_id))
+      << "the optimized copy was not written back";
+}
+
 // --- begin ported adversarial probes ---
 TEST_F(WorkerTest, AdvStaleTombstoneBlocksHealForChangedSource) {
   // ADVERSARIAL REVIEW PROBE, ported from the review of de600de8.  Against

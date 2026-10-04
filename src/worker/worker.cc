@@ -2732,11 +2732,27 @@ void Worker::MarkCopyWritten(const std::string& url,
   }
   std::string key = ComposeInternalKeyWithId(url, hostname, scheme, id);
   std::lock_guard<std::mutex> lock(processed_set_mutex_);
-  // No rotation here: the records rotate with the processed set, in
-  // MarkVariantProcessed, which has just run for this key and added its
-  // mark.  One record per mark at most, so the record sets stay within the
-  // processed sets' bound.
-  copy_written_current_.insert(std::move(key));
+  // The record goes into the generation that holds the key's mark, and is
+  // not written at all when there is no mark (MarkVariantProcessed refused
+  // it, or a purge of the URL erased it in between).  A record therefore
+  // never exists without its mark, and the record sets stay within the
+  // processed sets' bound.  No rotation here: the records rotate with the
+  // processed set, in MarkVariantProcessed.
+  if (processed_current_.contains(key)) {
+    copy_written_current_.insert(std::move(key));
+  } else if (processed_previous_.contains(key)) {
+    copy_written_previous_.insert(std::move(key));
+  }
+}
+
+void Worker::EraseUrlMarksLocked(const std::string& prefix) {
+  const auto matches = [&prefix](const std::string& key) {
+    return key.starts_with(prefix);
+  };
+  std::erase_if(processed_current_, matches);
+  std::erase_if(processed_previous_, matches);
+  std::erase_if(copy_written_current_, matches);
+  std::erase_if(copy_written_previous_, matches);
 }
 
 void Worker::SetWriteFailureCooldown(const std::string& url,
@@ -4345,12 +4361,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
             std::string prefix =
                 absl::StrCat(notification.url, "|", notification.hostname, "|",
                              notification.scheme, "|");
-            std::erase_if(processed_current_, [&](const std::string& k) {
-              return k.starts_with(prefix);
-            });
-            std::erase_if(processed_previous_, [&](const std::string& k) {
-              return k.starts_with(prefix);
-            });
+            EraseUrlMarksLocked(prefix);
           }
         }
         // Refresh the content-hash binding ONLY when we have the true raw
@@ -5360,12 +5371,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
             std::string prefix =
                 absl::StrCat(notification.url, "|", notification.hostname, "|",
                              notification.scheme, "|");
-            std::erase_if(processed_current_, [&](const std::string& k) {
-              return k.starts_with(prefix);
-            });
-            std::erase_if(processed_previous_, [&](const std::string& k) {
-              return k.starts_with(prefix);
-            });
+            EraseUrlMarksLocked(prefix);
           }
         }
       }
@@ -7713,12 +7719,7 @@ void Worker::ClearUrlProcessingState(const std::string& norm_url,
     std::string prefix =
         absl::StrCat(norm_url, "|", norm_host, "|", scheme, "|");
     std::lock_guard<std::mutex> lock(processed_set_mutex_);
-    std::erase_if(processed_current_, [&prefix](const std::string& key) {
-      return key.starts_with(prefix);
-    });
-    std::erase_if(processed_previous_, [&prefix](const std::string& key) {
-      return key.starts_with(prefix);
-    });
+    EraseUrlMarksLocked(prefix);
   }
 
   // Clear incomplete retry tracking for this URL.
@@ -7813,12 +7814,7 @@ void Worker::ClearDedupAndCooldown(const std::string& url,
     std::string prefix =
         absl::StrCat(norm_url, "|", norm_host, "|", scheme, "|");
     std::lock_guard<std::mutex> lock(processed_set_mutex_);
-    std::erase_if(processed_current_, [&prefix](const std::string& key) {
-      return key.starts_with(prefix);
-    });
-    std::erase_if(processed_previous_, [&prefix](const std::string& key) {
-      return key.starts_with(prefix);
-    });
+    EraseUrlMarksLocked(prefix);
   }
   {
     std::string gen_key = ComposeInternalKey(norm_url, norm_host, scheme);
