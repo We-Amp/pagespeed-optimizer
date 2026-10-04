@@ -7093,6 +7093,9 @@ TEST_F(WorkerTest, AMissingCopyHealIsRateLimitedPerUrl) {
   const uint64_t limited_before =
       worker.stats().notifications_dedup_heal_rate_limited.load();
   SendNotification(notification);
+  const auto sent_at = std::chrono::steady_clock::now();
+  // Either outcome ends the wait: the notification was deferred (the bound
+  // holds) or the URL was healed a second time (the bound is broken).
   bool rate_limited = false;
   for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -7101,11 +7104,16 @@ TEST_F(WorkerTest, AMissingCopyHealIsRateLimitedPerUrl) {
       rate_limited = true;
       break;
     }
+    if (worker.stats().notifications_missing_copy_healed.load() >= 2) {
+      break;
+    }
   }
-  // The window is 10 s of real time.  A run slow enough to send the second
+  // The window is 10 s of real time.  A run slow enough to SEND the second
   // notification after it (an instrumented build on a loaded host) has not
-  // tested the bound, and must not report that it failed.
-  if (std::chrono::steady_clock::now() - healed_at > std::chrono::seconds(8)) {
+  // tested the bound, and must not report that it failed.  Only the time up
+  // to the send counts: how long the wait above took says nothing about
+  // whether the notification fell inside the window.
+  if (sent_at - healed_at > std::chrono::seconds(8)) {
     GTEST_SKIP() << "the second notification left too late to fall inside "
                     "the 10 s window on this run";
   }
