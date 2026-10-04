@@ -4,6 +4,24 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Fixed: when a web server recorded a URL's original at the same moment the
+optimizer wrote the optimized copy of that URL, the optimized copy could be
+dropped from the cache without any error, and the URL was then served
+unoptimized. The bundled cache library now notices that another process
+changed the entry between a write's two steps and redoes the write. The
+cache's on-disk format is unchanged and nothing needs to be configured. A
+web server module that shares the cache needs the same library version to
+be protected against the same loss on its side: a process still on the
+older library can drop a copy the same way, so update the optimizer and
+the module together.
+
+Changed: the bundled cache library no longer starts a background monitor
+thread and an idle worker thread for every open cache; they never had work
+to do. It also closes a moment, right after an entry was recorded again,
+in which the in-memory tier could briefly serve the entry's previous
+version, and a process that exits while a cache is still open no longer
+risks an abnormal termination on exit.
+
 Fixed: a stylesheet or script whose optimized copy went missing from the
 cache while its compressed copies stayed was served unoptimized until it
 was purged. The optimizer now notices on the next notification for the URL

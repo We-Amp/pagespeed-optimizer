@@ -131,3 +131,17 @@ gtest_test(
         "//lib/classify:alternate_metadata",
     ],
 )
+
+gtest_test(
+    name = "alternate_publish_race_test",
+    size = "medium",
+    srcs = ["alternate_publish_race_test.cc"],
+    # Reads one storage-layer statistic from another thread while a write is
+    # parked; the sanitizer run of this case adds nothing the default run
+    # does not show.
+    tags = ["no_tsan"],
+    deps = [
+        "//test/test_util:temp_dir",
+        "@cyclone",
+    ],
+)
