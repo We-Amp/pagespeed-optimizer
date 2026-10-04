@@ -281,10 +281,40 @@ new_git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl"
 # timeouts) tail-append to CacheStats, transparent to the field-by-field
 # stats copies; surfacing them is a follow-up. //third_party:cyclone.BUILD
 # lists sources explicitly and gains src/core/crc32c.cpp.
+#
+# Bumped to cyclone bb1d71a: two processes writing alternates of one key at
+# the same moment could lose one. An alternate write resolves the key's
+# chain before it writes and publishes afterwards; when another process
+# published or removed the same key in between, the write added a second
+# directory entry and the next write of the key cleared one of the two
+# chains -- an optimized copy written while a web server re-recorded the
+# original was dropped that way, with no error. The publish is now
+# conditional -- for a write and for the removal of a head alternate, which
+# WriteOriginalAlternate runs on every re-record -- and a write resolves
+# again until it is published, however many processes write the key; it
+# does not report CacheError::Busy for a lost race. On-disk format
+# UNCHANGED; no new sources, so //third_party:cyclone.BUILD is unchanged.
+# The other product pins the same commit. A process on the previous pin
+# still publishes unconditionally, so the loss stays possible until every
+# process sharing a volume runs this one: deploy the optimizer and the web
+# server module together.
+#
+# Four earlier library commits come along. The background optimization
+# engine is now off unless the embedder enables it; this repo never enabled
+# or fed it, so the only effect is that an open cache no longer starts its
+# load-monitor thread and idle pool worker. A process that exits with a
+# cache still open no longer risks terminating in a static destructor. The
+# RAM tier's conditional put re-checks the bucket version in single-process
+# mode too (a one-step dip in the served version around a re-record). The
+# fourth only touches the library's own sanitizer suppression lists. The
+# public headers change in comments and in that one default; the C API is
+# unchanged. The library's new test hook for the head removal is compiled
+# only with CYCLONE_TEST_SEAMS, which this build does not define; the write
+# hook the race test uses is unconditional, as before.
 new_git_repository(
     name = "cyclone",
     build_file = "//third_party:cyclone.BUILD",
-    commit = "97ed09e3da707d7579480b6dcdd2ec0f53d2a153",
+    commit = "bb1d71a2bc2dc3db444b575587a02884043deaed",
     remote = "https://github.com/We-Amp/cyclone-cache.git",
 )
 

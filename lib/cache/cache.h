@@ -648,6 +648,13 @@ class PageSpeedCache {
   //     and counted process-internally: OriginalsSupersededObserved(),
   //     OriginalsUnlinkFailed() (C++-side accessors; not yet on any exported
   //     stats surface, so in the field the log line is the observable).
+  //   * A WRITER OF ANOTHER CLASS RACING A RE-RECORD LOSES NOTHING.  The
+  //     storage layer publishes an alternate only into the directory state
+  //     the write resolved its chain against, and resolves again when
+  //     another process published or removed the key in between.  Before
+  //     that guarantee an optimized copy written while the original was
+  //     being re-recorded could be dropped without any error; it is pinned
+  //     by test/lib/cache/alternate_publish_race_test.cc.
   //
   // For THIS class the accumulation costs volume as well as depth: a
   // superseded node holds a whole response body, not a header block.
