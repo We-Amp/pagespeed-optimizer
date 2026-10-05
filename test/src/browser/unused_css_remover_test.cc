@@ -641,5 +641,38 @@ TEST(UnusedCssRemoverTest, MergeAllEmptyViewports) {
   EXPECT_TRUE(result.empty());
 }
 
+// An escaped quote in a selector opens no string. Inside a
+// block (here an @media), the brace matcher took `.a\'b` for the start of a
+// string, ran to the end of the sheet and swallowed every later rule into the
+// @media block.
+TEST(UnusedCssRemoverTest, EscapedQuoteInSelectorKeepsLaterRules) {
+  std::string css =
+      "@media (min-width:1px){.a\\'b{color:red}}\n.c{color:blue}\n"
+      ".d{color:green}";
+  const size_t media_end = css.find("}}") + 2;
+  const size_t c_start = css.find(".c");
+  const size_t c_end = css.find('}', c_start) + 1;
+  std::vector<std::pair<size_t, size_t>> used = {{0, media_end},
+                                                 {c_start, c_end}};
+  auto result = UnusedCssRemover::Remove(css, used);
+  EXPECT_EQ(result.rules_removed, 1u);
+  EXPECT_NE(result.cleaned_css.find(".a\\'b"), std::string::npos);
+  EXPECT_NE(result.cleaned_css.find(".c{"), std::string::npos);
+  EXPECT_EQ(result.cleaned_css.find(".d{"), std::string::npos)
+      << result.cleaned_css;
+}
+
+// A string missing its closing quote ends at the newline (a bad string), so
+// the block after it closes and the next rule is its own.
+TEST(UnusedCssRemoverTest, BadStringEndsAtNewline) {
+  std::string css = "@media (x){.a{content:\"open\n}}\n.c{color:blue}";
+  const size_t media_end = css.find("}}") + 2;
+  std::vector<std::pair<size_t, size_t>> used = {{0, media_end}};
+  auto result = UnusedCssRemover::Remove(css, used);
+  EXPECT_EQ(result.rules_removed, 1u);
+  EXPECT_EQ(result.cleaned_css.find(".c{"), std::string::npos)
+      << result.cleaned_css;
+}
+
 }  // namespace
 }  // namespace pagespeed

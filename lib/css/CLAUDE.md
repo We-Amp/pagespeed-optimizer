@@ -54,7 +54,18 @@ tracks strings, comments, and `url()` contexts. Five sequential phases:
    Skips content inside `url()` to avoid corrupting data URIs.
 5. **Phase 5** -- Collapse consecutive longhand properties into shorthands
    (padding, margin, border sides, overflow). Skips values containing `var()`,
-   `!important`, or CSS-wide keywords. Recurses into nested blocks.
+   `!important`, or CSS-wide keywords. Recurses into nested blocks. The
+   declaration splitter (`ParseBlockDecls`) ends a declaration only at a
+   `;` outside `(...)`/`[...]` (`a{--x:(a;;b)}` had the empty
+   segment between the `;;` dropped as an empty declaration), and the
+   top-level scan and the brace matcher never treat a `{` or `}` inside
+   an unclosed paren or bracket as a block edge (a nested simple block
+   in CSS Syntax 3, not a rule block; a `)` met inside that nested `{`
+   is content and does not close the paren). All three scanners share
+   `ValueNest`, which, like Phase 3's depth counter, does not
+   distinguish `)` from `]` — harmless, since a browser drops such a
+   declaration either way; what matters is that the phases agree on
+   where blocks are.
 
 ## CSS Minifier: Context Tracking
 

@@ -239,78 +239,205 @@ new_git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl"
 # The import was rewritten pre-flip (owner-ruled); the new pin's tree is
 # byte-identical to the old import a1637f8c776556f8c2e1417aa52e3f635bbfe91d.
 #
-# Bumped to cyclone 97ed09e (37 commits). Three things matter here.
+# Bumped to cyclone d453fc3 (We-Amp/cyclone-cache main, 32 commits past
+# e5503d1). What changes for this repo:
 #
-# 1. ON-DISK FORMAT MAJOR 8. The document checksum is now CRC-32C, with
-#    hardware paths on x86-64 (SSE4.2) and ARMv8 picked by a runtime CPU
-#    probe; the intrinsics sit behind per-function target attributes, so no
-#    new copts are needed. The mmap directory layout also moved to version 2.
-#    Both are mixed into the fingerprinted volume filename, so an upgraded
-#    binary opens a NEW file: the cache starts cold once after upgrade, the
-#    format-7 file is left on disk (reclaim it manually), and rollback is
-#    warm. nginx and the worker must run the same build, as with every
-#    format bump. Because the format changed, kCacheDirGeneration
-#    (src/worker/shared_config.h) moves from 1 to 2: the packaged default
-#    cache directory becomes /var/cache/pagespeed-optimizer/v2 and the
-#    worker publishes cache_dir_generation=2. The residency check before a
-#    readahead hint uses mincore(2), which the systemd unit now admits.
-#    Chain walks now reject a link that points at or above its own node
-#    with ChainCorrupted; RemoveAlternatesExcept drops the whole key on it.
+# 1. ON-DISK FORMAT 8 AND MMAP DIRECTORY VERSION 2. The document checksum is
+#    now CRC-32C (hardware path on x86-64 SSE4.2 and ARMv8, picked at run
+#    time), and the shared mmap directory gained a retention region. Both
+#    are mixed into the fingerprinted volume filename, so the new binary
+#    opens a NEW file next to the format-7 one and starts with an empty
+#    cache. The old file is left on disk; RemoveVolumeFiles only sweeps this
+#    format's files, so reclaiming it stays an operator step. Rollback is
+#    warm.
 #
-# 2. WRAP RETENTION IS THE DEFAULT. When a stripe's ring wraps, the previous
-#    pass stays readable until the forward fill needs its bytes instead of
-#    being dropped at once (a higher hit ratio under churn). The mode is
-#    persisted per volume and every process sharing a volume must use the
-#    same one; nginx and the worker both keep the library default, so they
-#    agree, and the format bump means no existing volume meets the new mode.
+# 2. WRAP RETENTION IS ON BY DEFAULT. When a stripe wraps, the previous pass
+#    stays readable until its bytes are actually overwritten, instead of all
+#    being dropped at once. A write that adds an alternate over a retained
+#    chain carries the key's other alternates forward, so the original,
+#    gzip and webp keep resolving after the optimization engine adds a new
+#    one. PageSpeedCacheConfig does not set the option, so the worker and
+#    the nginx module both run with the default and agree. The mode is
+#    recorded in the volume; every process sharing one cache must use the
+#    same setting, or the open fails with ResetRefusedLivePeer while the
+#    other process is alive.
 #
-# 3. LOCK AND LOOKUP SEMANTICS. Cross-process write locks wait out a live
-#    holder and give up with CacheError::Busy rather than taking the lock
-#    over; a dead holder is detected by a kernel-held liveness slot rather
-#    than by its PID, which also holds across PID namespaces. A lookup that
-#    cannot get a consistent directory read within its wait budget returns
-#    Busy instead of a false miss. MapError already maps Busy to
-#    PS_ERR_BUSY, and the serving paths treat any failed read as a miss, so
-#    no code change is needed.
+# 3. MIXED OLD/NEW PROCESSES. Because the filename changes, an old nginx
+#    module and a new worker (or the reverse) do not refuse each other: they
+#    silently open different files and stop sharing a cache. Upgrade both
+#    sides together. The format major moving after 2.1.0 shipped also moves
+#    kCacheDirGeneration (src/worker/shared_config.h) from 1 to 2: the
+#    packaged default cache directory becomes
+#    /var/cache/pagespeed-optimizer/v2 and the worker publishes
+#    cache_dir_generation=2. The mod_pagespeed 1.1 daemon adapter checks
+#    the generation, but only a NEW adapter (compiled for 2) whose config
+#    still names v1 refuses loudly: it reads the v1/pagespeed-shared.conf
+#    that 2.1.0 left saying 1. An OLD adapter next to this worker reads the
+#    same stale file, sees its own 1, and silently attaches to a volume the
+#    worker no longer writes; the 1.1 packages' exact-version Depends on
+#    pagespeed-optimizer is what prevents that pairing. This repo's nginx
+#    module as of 2.1.0 does not check the generation; for it, lockstep
+#    comes from the single image tag both containers ship under. The
+#    generation check added to the module after 2.1.0 covers only a new
+#    module next to an old worker.
 #
-# Also in the delta, with no config change on our side: cold-read and
-# sequential readahead hints (default on), every cache-file descriptor
-# opened close-on-exec, and a set of multi-process correctness fixes.
-# Opt-in features (write-behind, last-page fill, the KV-tier preset) are
-# not enabled here. New stats counters (retention, readahead, directory read
-# timeouts) tail-append to CacheStats, transparent to the field-by-field
-# stats copies; surfacing them is a follow-up. //third_party:cyclone.BUILD
-# lists sources explicitly and gains src/core/crc32c.cpp.
+# 4. CHAIN WALKS REJECT LINKS THAT POINT AT OR ABOVE THEIR OWN NODE. A
+#    corrupt self-linked or cyclic alternate chain no longer lists the same
+#    node over and over or refuses writes; the listing stops at the bad link,
+#    and removing an alternate that sits before it returns ChainCorrupted.
+#    PageSpeedCache::RemoveAlternatesExcept used to treat any removal error
+#    as transient and stop, which would have left the stale variant
+#    servable; it now treats ChainCorrupted as an unwalkable chain and drops
+#    the whole key, as it already did for the old no-op-success signature.
 #
-# Bumped to cyclone bb1d71a: two processes writing alternates of one key at
-# the same moment could lose one. An alternate write resolves the key's
-# chain before it writes and publishes afterwards; when another process
-# published or removed the same key in between, the write added a second
-# directory entry and the next write of the key cleared one of the two
-# chains -- an optimized copy written while a web server re-recorded the
-# original was dropped that way, with no error. The publish is now
-# conditional -- for a write and for the removal of a head alternate, which
-# WriteOriginalAlternate runs on every re-record -- and a write resolves
-# again until it is published, however many processes write the key; it
-# does not report CacheError::Busy for a lost race. On-disk format
-# UNCHANGED; no new sources, so //third_party:cyclone.BUILD is unchanged.
-# The other product pins the same commit. A process on the previous pin
-# still publishes unconditionally, so the loss stays possible until every
-# process sharing a volume runs this one: deploy the optimizer and the web
-# server module together.
+# Also in the delta: a stronger CRC-validation cache key (closes a 2^-16
+# chance of trusting a replaced document at the same offset), crash
+# recovery that completes a wrap a dead writer had committed, readahead for
+# large cold reads, and several borrow/lease accounting fixes. A lookup
+# that races a writer stalled mid-update now waits up to 5 ms and then
+# returns CacheError::Busy instead of a false NotFound; the wrappers here
+# already treat any unrecognised error as "not known absent". New stats
+# fields are tail-appended and are not read here. The fork-safe
+# Cache::stop() fix (a forked child does not join threads it never owned)
+# is still present. The C header now also compiles as C11; this repo does
+# not use the C API. //third_party:cyclone.BUILD gains src/core/crc32c.cpp;
+# no new copts or defines are needed, because the hardware CRC paths use
+# per-function target attributes.
 #
-# Four earlier library commits come along. The background optimization
-# engine is now off unless the embedder enables it; this repo never enabled
-# or fed it, so the only effect is that an open cache no longer starts its
-# load-monitor thread and idle pool worker. A process that exits with a
-# cache still open no longer risks terminating in a static destructor. The
-# RAM tier's conditional put re-checks the bucket version in single-process
-# mode too (a one-step dip in the served version around a re-record). The
-# fourth only touches the library's own sanitizer suppression lists. The
-# public headers change in comments and in that one default; the C API is
-# unchanged. The library's new test hook for the head removal is compiled
-# only with CYCLONE_TEST_SEAMS, which this build does not define; the write
-# hook the race test uses is unconditional, as before.
+# 5. CROSS-PROCESS LOCKS NO LONGER USURP A LIVE HOLDER. A writer used to
+#    presume a lock holder dead after tens of microseconds (phase lock) or
+#    about a millisecond (directory bucket), which a descheduled peer can
+#    easily exceed. A waiter now waits by time and recovers a lock only from
+#    a holder that kept it for the whole budget. Waits by inserts, removes,
+#    hit-count updates and write-slot reservation are capped: once the
+#    holders a waiter has seen add up to 250 ms, the operation returns
+#    CacheError::Busy and publishes nothing. So under heavy cross-process
+#    contention a write or a removal can now fail with Busy. The wrappers
+#    here treat it like any other failed write or removal: the write is
+#    dropped (the next miss or notification redoes it), a removal is not
+#    counted as done (UnlinkLeftEntryLinked's default arm reads it as
+#    "still linked", RemoveAlternatesExcept stops and leaves the rest to the
+#    next refresh, and ps_cache_remove reports PS_ERR_BUSY). See 7 for how
+#    a dead write-lock holder is now told apart from a live one.
+#
+# 6. PLAIN WRITES SKIP TWO BUFFER COPIES. commit_write writes the document
+#    head and then the content straight from the write handle's buffer
+#    instead of assembling the whole document in two fresh heap buffers.
+#    The bytes on disk are unchanged. WriteHandle::reserve() is new and
+#    additive (the producer fills the handle's buffer directly); nothing
+#    here uses it yet, and adopting it is optional.
+#
+# Also since e4c051e: on Linux the readahead hint for large cold reads is
+# issued in 64 KiB chunks over the first 4 MiB and skipped when the range is
+# already resident. Nothing to change here.
+#
+# 7. WRITE-LOCK LIVENESS NO LONGER USES PIDS. Each process holds a
+#    kernel byte-range lock on its own "liveness slot" in the volume file
+#    (fcntl OFD locks on Linux and macOS, LockFileEx on Windows), and a
+#    waiter recovers the write lock only when no process holds the holder's
+#    slot. The kernel drops the lock when the process dies, in any PID
+#    namespace, so the library no longer needs one shared PID namespace. An
+#    older build still probes the holder with kill(pid, 0), so the shared
+#    PID namespace in the Helm chart and compose files stays: it guards
+#    upgrades where old and new builds overlap on one volume. Caveats from
+#    Cyclone: open the cache after daemonizing (the worker and nginx workers
+#    already do), never close its file descriptors behind its back, and
+#    NFS/SMB volumes are unverified. No format change; no action needed.
+#
+# 8. COLD AND SEQUENTIAL READAHEAD FOR SMALL READS. The first,
+#    CRC-verified read of a document of 16 KiB or more gets a readahead hint
+#    (cold_readahead_min_bytes), extended by up to 1 MiB when reads follow
+#    the stripe's insertion order (sequential_readahead_bytes). It is active
+#    only with verify_checksum_on_read, which PageSpeedCacheConfig sets, so
+#    it is on here with the defaults. No action needed.
+#
+# 9. fill_large_document_tail is new, opt-in and off by default; it
+#    trades hit p99 for insert p99 under device saturation. Not enabled here.
+#
+# 10. EVERY CACHE FILE DESCRIPTOR IS CLOSE-ON-EXEC. A child the worker
+#    execs (agent_fetcher via posix_spawn) no longer inherits the volume fd.
+#    Before, while such a child ran it kept a dead worker's liveness slot
+#    held, so a waiter recovered that worker's write lock only after the 5 s
+#    fallback instead of about 50 ms. fork() still shares the fds, so the
+#    nginx master -> worker hand-off is unchanged. No action needed.
+#
+# No new source files since b5c31e8 (only tests were added), and the new
+# code needs no extra link flags: fcntl and pthread_atfork come from libc
+# (plus the existing -lpthread on Linux), LockFileEx from kernel32.
+#
+# Bumped to cyclone 97ed09e (5 commits past d453fc3). No on-disk format
+# change: no cache reset on upgrade or rollback against d453fc3. What is new:
+#
+# 11. write_behind is new, opt-in and off by default. With it on, the
+#    writer starts the kernel's write-back of a large document right after
+#    commit (Linux sync_file_range; a no-op elsewhere); the call can block
+#    while the device queue is full, so it is not meant for event-loop
+#    callers such as nginx. Not enabled here, so the worker's syscall
+#    allow-list needs no change.
+#
+# 12. CacheConfig::for_kv_tier() is a preset that turns on
+#    fill_large_document_tail and write_behind for KV-cache use. Library
+#    defaults are unchanged; not used here.
+#
+# CacheStats gains write_behind_ranges and write_behind_us at its tail
+# (both stay 0 with write_behind off); the field-by-field stats copies here
+# are unaffected. No new source files and no new link flags since d453fc3.
+#
+# Bumped to cyclone bb1d71a (5 commits past 97ed09e), the commit
+# mod_pagespeed 1.1 pins too. No on-disk format change (format 8, mmap
+# directory version 2, same fingerprinted volume filename): no cache reset
+# on upgrade or rollback against 97ed09e, and kCacheDirGeneration stays 2.
+# What is new:
+#
+# 13. ALTERNATE PUBLISHES ARE CONDITIONAL. Two processes writing
+#    alternates of one key at the same moment could lose one. An alternate
+#    write resolves the key's chain before it writes and publishes
+#    afterwards; when another process published or removed the same key in
+#    between, the write added a second directory entry and the next write of
+#    the key cleared one of the two chains. An optimized copy the worker
+#    wrote while a web server re-recorded the original was dropped that way,
+#    with no error on either side. The publish is now conditional, for a
+#    write and for the removal of a head alternate (which
+#    WriteOriginalAlternate runs on every re-record), and a write resolves
+#    again until it is published, however many processes write the key; it
+#    does not report CacheError::Busy for a lost race. A head removal keeps
+#    its bound of eight attempts and then reports Busy, which the wrappers
+#    already handle (see 5). A process on the previous pin still publishes
+#    unconditionally, so the loss stays possible until every process sharing
+#    a volume runs this one: deploy the worker and the web server module
+#    together.
+#
+# 14. THE BACKGROUND OPTIMIZATION ENGINE IS OPT-IN.
+#    OptimizationConfig::enabled now defaults to false and
+#    Cache::optimization_engine() returns nullptr unless it is set. Nothing
+#    here ever enabled, fed or dereferenced the engine, so the only effect
+#    is that an open cache no longer starts its load-monitor thread and idle
+#    pool worker.
+#
+# 15. EXIT WITH A CACHE STILL OPEN IS SAFE. A writer waiting on the
+#    cross-process write lock at exit could lock the process-wide liveness
+#    mutex after its static destructor had run and terminate the process;
+#    the mutex is now never destroyed.
+#
+# 16. THE RAM TIER'S CONDITIONAL PUT RE-CHECKS THE BUCKET VERSION IN EVERY
+#    MODE. Around a re-record a RAM hit could serve the previous
+#    version for a few microseconds after a reader had already seen the new
+#    one. The check no longer depends on cross_process_ram_coherence, which
+#    this build leaves at its default, so it now applies to the worker's
+#    cache as well: a declined put costs one more disk read and is counted
+#    in the existing ram_coherence_put_rejections.
+#
+# The fifth commit only touches the library's own sanitizer
+# suppression lists. The public headers change in comments and in the one
+# default named in 14; CacheStats and the C API are unchanged. No new source
+# files (only tests were added) and no new link flags, so
+# //third_party:cyclone.BUILD is unchanged. The library's new test hook for
+# the head removal is compiled only with CYCLONE_TEST_SEAMS, which this
+# build does not define; the write hook its race test uses is the existing
+# unconditional one, empty by default as before.
+#
+# mod_pagespeed 1.1 vendors its own copy of Cyclone and must move to the
+# same commit in lockstep wherever it shares a cache with this build.
 new_git_repository(
     name = "cyclone",
     build_file = "//third_party:cyclone.BUILD",

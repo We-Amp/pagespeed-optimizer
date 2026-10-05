@@ -22,6 +22,7 @@
 #include "lib/html/html_parse.h"
 #include "lib/image/image_dimensions.h"
 #include "src/worker/async_css_loader.h"
+#include "src/worker/cascade_layer_order.h"
 
 namespace pagespeed {
 
@@ -45,6 +46,102 @@ constexpr int kMaxPixelDimension = [] {
   for (size_t i = 0; i < kMaxPixelDimensionDigits; ++i) v *= 10;
   return v - 1;
 }();
+
+// HTML whitespace, for splitting a rel token list.
+bool IsHtmlSpace(char c) {
+  return c == ' ' || c == '\t' || c == '\n' || c == '\r' || c == '\f';
+}
+
+// True when `rel` (a space-separated token list) has `token`, matched per
+// token and case-insensitively: `alternate stylesheet` names a stylesheet, a
+// `rel="preload"` whose href merely contains "stylesheet" does not. The same
+// rule as the validator's LinkTagHasRelToken.
+bool RelHasToken(std::string_view rel, std::string_view token) {
+  size_t i = 0;
+  while (i < rel.size()) {
+    while (i < rel.size() && IsHtmlSpace(rel[i])) ++i;
+    size_t start = i;
+    while (i < rel.size() && !IsHtmlSpace(rel[i])) ++i;
+    if (i > start &&
+        net_instaweb::StringCaseEqual(rel.substr(start, i - start), token)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// An author's loadCSS preload: `<link rel=preload as=style onload=...>`, whose
+// handler turns this element into the stylesheet, so the browser applies the
+// sheet HERE (the scanner counts it at this position). The
+// worker's own preload hints carry data-pagespeed-hint and are not sheets.
+// The same rule as the validator's LinkTagIsLoadCssPreload.
+bool IsLoadCssPreload(const net_instaweb::HtmlElement* element) {
+  using net_instaweb::HtmlName;
+  const char* rel = element->AttributeValue(HtmlName::kRel);
+  const char* as = element->AttributeValue(HtmlName::kAs);
+  std::string_view as_value = as != nullptr ? as : "";
+  while (!as_value.empty() && IsHtmlSpace(as_value.front())) {
+    as_value.remove_prefix(1);
+  }
+  while (!as_value.empty() && IsHtmlSpace(as_value.back())) {
+    as_value.remove_suffix(1);
+  }
+  return rel != nullptr && RelHasToken(rel, "preload") &&
+         net_instaweb::StringCaseEqual(as_value, "style") &&
+         element->FindAttribute("onload") != nullptr &&
+         element->FindAttribute("data-pagespeed-hint") == nullptr;
+}
+
+// True when `element` sits inside a subtree a browser running scripts never
+// creates elements from: <noscript> (raw text whenever scripting is on, which
+// is every client the transforms are for), <noembed>/<noframes> (raw text in
+// current browsers; the lexer parses all three as markup, see
+// kSometimesLiteralTags in html_lexer.cc, and asks filters not to insert into
+// them) and <template> (inert). HtmlScanner's `inert` rule names the same
+// four.
+bool InsideInertSubtree(const net_instaweb::HtmlElement* element) {
+  using net_instaweb::HtmlName;
+  for (const net_instaweb::HtmlElement* p = element->parent(); p != nullptr;
+       p = p->parent()) {
+    switch (p->keyword()) {
+      case HtmlName::kNoscript:
+      case HtmlName::kNoembed:
+      case HtmlName::kNoframes:
+      case HtmlName::kTemplate:
+        return true;
+      default:
+        break;
+    }
+  }
+  return false;
+}
+
+// True when `element` sits inside a subtree where an inserted <style> is not a
+// document stylesheet for every client: the inert subtrees above, and foreign
+// content (<svg>/<math>, where <style> is not a raw-text element). A
+// stylesheet source in there cannot be the critical block's anchor. The
+// validator's StripStylesheetSources applies the same list.
+bool InsideNonDocumentSubtree(const net_instaweb::HtmlElement* element) {
+  using net_instaweb::HtmlName;
+  for (const net_instaweb::HtmlElement* p = element->parent(); p != nullptr;
+       p = p->parent()) {
+    switch (p->keyword()) {
+      case HtmlName::kNoscript:
+      case HtmlName::kNoembed:
+      case HtmlName::kNoframes:
+      case HtmlName::kTemplate:
+        return true;
+      default:
+        break;
+    }
+    std::string_view name(p->name_str().data(), p->name_str().size());
+    if (net_instaweb::StringCaseEqual(name, "svg") ||
+        net_instaweb::StringCaseEqual(name, "math")) {
+      return true;
+    }
+  }
+  return false;
+}
 
 }  // namespace
 
@@ -72,9 +169,11 @@ HtmlTransformFilter::HtmlTransformFilter(
 void HtmlTransformFilter::StartDocument() {
   modified_ = false;
   critical_css_injected_ = false;
+  critical_css_anchor_ = nullptr;
   in_head_ = false;
   in_body_ = false;
   fallback_priority_applied_ = false;
+  picture_has_source_srcset_ = false;
   body_img_count_ = 0;
   body_iframe_count_ = 0;
   lcp_preload_injected_ = false;
@@ -96,6 +195,19 @@ void HtmlTransformFilter::StartElement(net_instaweb::HtmlElement* element) {
     in_head_ = true;
   } else if (keyword == HtmlName::kBody) {
     in_body_ = true;
+  }
+
+  // A <picture>'s <source> siblings come before its <img>; remember whether
+  // one names a real source, so a src-less <img> in there is not taken for a
+  // lazy-load placeholder (ApplyLazyLoad).
+  if (keyword == HtmlName::kPicture) {
+    picture_has_source_srcset_ = false;
+  } else if (keyword == HtmlName::kSource && element->parent() != nullptr &&
+             element->parent()->keyword() == HtmlName::kPicture) {
+    const char* srcset = element->AttributeValue(HtmlName::kSrcset);
+    if (srcset != nullptr && srcset[0] != '\0') {
+      picture_has_source_srcset_ = true;
+    }
   }
 
   // Collect an enforcing <meta http-equiv="Content-Security-Policy"> so the
@@ -150,6 +262,11 @@ void HtmlTransformFilter::StartElement(net_instaweb::HtmlElement* element) {
     RemoveAsyncCssMarkers(element);
   }
 
+  // After the revalidation cleanup above (a deferred link is a stylesheet
+  // again by now, and our own previous block is gone) and before ApplyAsyncCss
+  // rewrites rel: does this element move the critical block's insertion point?
+  TrackCriticalCssAnchor(element);
+
   // Apply async CSS loading to <link rel="stylesheet">. Never re-process the
   // <noscript> fallback link we inject ourselves.
   //
@@ -163,13 +280,21 @@ void HtmlTransformFilter::StartElement(net_instaweb::HtmlElement* element) {
   //
   // Ordering: this runs at StartElement, so a <link rel=stylesheet> appearing
   // in source order BEFORE the CSP <meta> is converted without seeing that
-  // policy — yet the meta still governs the inline <style> injected at </head>.
+  // policy — yet the meta still governs the inline <style> whose injection is
+  // decided at </head>.
   // The check here is therefore an early-out, not the guarantee; RevertAsyncCss
   // (EndDocument) undoes any conversion whose inline block turned out not to
   // ship.
+  //
+  // Never a link inside <noscript> and the like: it does not
+  // load for a client running scripts, so there is nothing to defer, the
+  // scanner does not count it as a source the block was measured against,
+  // and converting it would hand no-JS clients a preload plus a nested
+  // <noscript> copy instead of the author's plain stylesheet.
   if (config_.enable_async_css && !critical_css_.empty() &&
       MetaCspAllowsInlineStyle() && keyword == HtmlName::kLink &&
-      element->FindAttribute("data-pagespeed-async-fallback") == nullptr) {
+      element->FindAttribute("data-pagespeed-async-fallback") == nullptr &&
+      !InsideNonDocumentSubtree(element)) {
     ApplyAsyncCss(element);
   }
 
@@ -279,12 +404,35 @@ void HtmlTransformFilter::InjectCriticalCss(
     if (match) return;  // Abort injection.
   }
 
-  // Create <style data-pagespeed-critical>...</style> and insert
-  // before the end tag of <head> (or <body> as fallback).
+  // Create <style data-pagespeed-critical>...</style>. It goes BEFORE the
+  // first stylesheet source seen (see the header: the block must lose every
+  // same-specificity tie against the sheets it duplicates, which source order
+  // decides), else before the end tag of <head> (or <body> as fallback) — a
+  // source that only appears later in the document still follows it.
+  //
+  // The anchor was queued earlier in this pass. Every entry point drives the
+  // filter with the whole document as one flush window, so it is rewritable;
+  // the check is the same guard RevertAsyncCss applies, and a node that has
+  // left the window is not touched (InsertNodeBeforeNode Checks on it).
   auto* style_element =
       parser_->NewElement(nullptr, net_instaweb::HtmlName::kStyle);
   parser_->AddAttribute(style_element, "data-pagespeed-critical", "");
-  parser_->InsertNodeBeforeCurrent(style_element);
+  //
+  // A block that names a cascade layer goes first only with the page's layer
+  // order in front of it, when that order is proven; otherwise it keeps the old
+  // placement before the end tag, where the page's own sheets mention every
+  // layer first (DecideCriticalCssLayerPlacement, cascade_layer_order.h). The
+  // statement goes in front wherever the block lands ahead of the sheets,
+  // including before the end tag when every sheet is in <body>.
+  const CriticalCssLayerPlacement layers =
+      DecideCriticalCssLayerPlacement(sanitized, layer_order_);
+  if (!layers.keep_fallback && critical_css_anchor_ != nullptr &&
+      parser_->IsRewritable(critical_css_anchor_)) {
+    parser_->InsertNodeBeforeNode(critical_css_anchor_, style_element);
+  } else {
+    parser_->InsertNodeBeforeCurrent(style_element);
+  }
+  if (!layers.prefix.empty()) sanitized.insert(0, layers.prefix);
 
   auto* css_text = parser_->NewCharactersNode(style_element, sanitized);
   parser_->AppendChild(style_element, css_text);
@@ -293,11 +441,77 @@ void HtmlTransformFilter::InjectCriticalCss(
   modified_ = true;
 }
 
+void HtmlTransformFilter::TrackCriticalCssAnchor(
+    net_instaweb::HtmlElement* element) {
+  using net_instaweb::HtmlName;
+
+  // The injection point is decided at </head> (or </body>); anything after
+  // that cannot move it.
+  if (critical_css_injected_) return;
+
+  const HtmlName::Keyword keyword = element->keyword();
+
+  // Head prelude: the block must not move ahead of these, so a stylesheet
+  // source seen before one of them stops being the anchor. Known, accepted
+  // edge: a sheet that precedes the prelude still precedes the block, so the
+  // block wins its ties against THAT sheet as it did before the block-first
+  // placement (a page with
+  // a stylesheet ahead of its charset declaration is rare, and every fix
+  // would move the block ahead of the prelude).
+  if (keyword == HtmlName::kBase) {
+    critical_css_anchor_ = nullptr;
+    return;
+  }
+  if (keyword == HtmlName::kMeta) {
+    if (element->FindAttribute(HtmlName::kCharset) != nullptr) {
+      critical_css_anchor_ = nullptr;
+      return;
+    }
+    const char* http_equiv = element->AttributeValue(HtmlName::kHttpEquiv);
+    if (http_equiv != nullptr &&
+        (net_instaweb::StringCaseEqual(http_equiv, "Content-Type") ||
+         net_instaweb::StringCaseEqual(http_equiv,
+                                       "Content-Security-Policy"))) {
+      critical_css_anchor_ = nullptr;
+    }
+    return;
+  }
+
+  if (critical_css_anchor_ != nullptr) return;  // first source wins
+
+  // Stylesheet sources: any <style> (our own previous block was deleted before
+  // this runs, so it cannot anchor its replacement), a <link> whose rel token
+  // list names a stylesheet (a deferred link has been put back to
+  // rel="stylesheet" by the time this runs), and an author's loadCSS preload,
+  // which a browser running scripts applies as a sheet at its own position.
+  // Never one inside <noscript> and the like — which also rules
+  // out the async fallback copy we inject.
+  const bool is_source =
+      keyword == HtmlName::kStyle ||
+      (keyword == HtmlName::kLink &&
+       element->FindAttribute("data-pagespeed-async-fallback") == nullptr &&
+       ((element->AttributeValue(HtmlName::kRel) != nullptr &&
+         RelHasToken(element->AttributeValue(HtmlName::kRel), "stylesheet")) ||
+        IsLoadCssPreload(element)));
+  if (is_source && !InsideNonDocumentSubtree(element)) {
+    critical_css_anchor_ = element;
+  }
+}
+
 void HtmlTransformFilter::ApplyLazyLoad(net_instaweb::HtmlElement* element) {
   using net_instaweb::HtmlName;
 
   // Skip if element already has a "loading" attribute.
   if (element->FindAttribute("loading") != nullptr) return;
+
+  // An <img> or <iframe> inside <noscript>, <template>, <noembed> or
+  // <noframes> does not exist for a browser running scripts
+  // (the lazy-load fallback `<noscript><img src=hero.jpg></noscript>`), so it
+  // gets no transform and consumes no above-fold slot: promoting it would
+  // spend the fetchpriority fallback on an element the page never creates,
+  // and counting it would push a real image out of the window. For a client
+  // without scripts it is the author's fallback, left as written.
+  if (InsideInertSubtree(element)) return;
 
   bool is_img = (element->keyword() == HtmlName::kImg);
 
@@ -313,10 +527,32 @@ void HtmlTransformFilter::ApplyLazyLoad(net_instaweb::HtmlElement* element) {
 
     const char* src = element->AttributeValue(HtmlName::kSrc);
     std::string_view src_view = (src != nullptr) ? src : "";
+    // An <img> with no usable source is a lazy-load placeholder the author's
+    // loader fills in (`<img data-src=hero.jpg class=lazy>`). It is never
+    // promoted: fetchpriority="high" on an element with no fetch
+    // of its own hints nothing, and the slot it took kept the fallback from
+    // the first image that does load. Inside the above-fold window it is
+    // left as the author wrote it (it may well be the hero); past the window
+    // it is lazy-loaded like any other image. An <img> that loads from its
+    // srcset without a src, or from a <source srcset> sibling in <picture>,
+    // has a source and is not a placeholder. A src that names a stand-in
+    // (`/blank.gif`, IsLazyStandInSrc) next to a lazy data attribute is no
+    // source either: the fetch it makes is not the picture.
+    const char* srcset = element->AttributeValue(HtmlName::kSrcset);
+    const bool has_srcset = srcset != nullptr && srcset[0] != '\0';
+    const bool in_picture = element->parent() != nullptr &&
+                            element->parent()->keyword() == HtmlName::kPicture;
+    const bool stand_in_src =
+        !src_view.empty() && !src_view.starts_with("data:") &&
+        HasLazySourceAttribute(*element) && IsLazyStandInSrc(src_view);
+    const bool placeholder =
+        (src_view.empty() || src_view.starts_with("data:") || stand_in_src) &&
+        !has_srcset && !(in_picture && picture_has_source_srcset_);
+    const bool has_candidate =
+        !lcp_candidate_.src.empty() && IsAllowedPreloadUrl(lcp_candidate_.src);
 
     // If we have a valid LCP candidate, match by src URL.
-    if (!lcp_candidate_.src.empty() &&
-        IsAllowedPreloadUrl(lcp_candidate_.src)) {
+    if (has_candidate) {
       if (src_view == lcp_candidate_.src) {
         // This is the LCP image: fetchpriority="high", no lazy.
         if (element->FindAttribute("fetchpriority") == nullptr) {
@@ -325,12 +561,15 @@ void HtmlTransformFilter::ApplyLazyLoad(net_instaweb::HtmlElement* element) {
         }
         return;
       }
-    } else if (!fallback_priority_applied_ &&
+    } else if (!placeholder && !lcp_candidate_.script_loaded_hero &&
+               !fallback_priority_applied_ &&
                body_img_count_ <= kAboveFoldImgWindow) {
       // No valid LCP candidate: the first plausible body img gets
       // fetchpriority (implausible images already returned above), and if
       // none qualifies within the above-fold window, no image is promoted
-      // (fail-safe).
+      // (fail-safe). With a script-loaded hero the scanner has
+      // decided that nothing on the page is right to promote: the hero's
+      // bytes are unknown and the next image is probably below the fold.
       if (element->FindAttribute("fetchpriority") == nullptr) {
         parser_->AddAttribute(element, "fetchpriority", "high");
         modified_ = true;
@@ -341,10 +580,11 @@ void HtmlTransformFilter::ApplyLazyLoad(net_instaweb::HtmlElement* element) {
 
     // Guard: when an LCP candidate is set, don't lazy-load the first
     // few body images (likely above-fold) in case the heuristic picked
-    // the wrong image. Without an LCP candidate, the first-plausible-img
-    // heuristic already protected one image above.
-    if (!lcp_candidate_.src.empty() &&
-        IsAllowedPreloadUrl(lcp_candidate_.src) &&
+    // the wrong image. The same goes for a script-loaded hero, which is a
+    // candidate the worker cannot name, and for a placeholder in the window.
+    // Without an LCP candidate, the first-plausible-img heuristic already
+    // protected one image above.
+    if ((has_candidate || lcp_candidate_.script_loaded_hero || placeholder) &&
         body_img_count_ <= kAboveFoldImgWindow) {
       return;
     }

@@ -34,6 +34,12 @@ struct RegressionResult {
   uint32_t diff_pixels = 0;
   uint32_t total_pixels = 0;
   uint32_t above_fold_height = 0;  // viewport height used
+  // Every compared pixel of the ORIGINAL (reference) screenshot is the same
+  // colour, within kChannelTolerance of the first: a blank render. Two blank
+  // renders compare equal, so a caller that confirms something on a match
+  // must refuse such a comparison (the critical-CSS validator does).
+  // `passed` is not changed by it.
+  bool reference_uniform = false;
 };
 
 // Captures screenshots and compares them for visual regression.

@@ -35,8 +35,7 @@
 #           result with /etc/default edited and at 0644 root:root: the
 #           ACTION REQUIRED half must stay silent -- backup-only old
 #           paths never earn it -- while the upgrade path re-pins BOTH
-#           env files to 0640 root:pagespeed and keeps the operator edit
-#           (#1486).
+#           env files to 0640 root:pagespeed and keeps the operator edit.
 #
 # Two deliberate emulations, both because a container has no PID 1 systemd
 # (the booted-container legs live in verify-daemon-systemd.sh):
@@ -490,12 +489,27 @@ DAEMON_PID=$!
 cleanup() { kill "$DAEMON_PID" 2>/dev/null || true; }
 trap cleanup EXIT
 
+# Wait for ALL THREE sockets this leg stats below, not just the first.  The
+# daemon binds notify, health and mgmt one after the other; notify.sock
+# appearing says nothing about the other two, and the files the next loop
+# waits on are written before any bind, so they do not cover the gap either.
+# The binds are normally microseconds apart, but on a host where bind() is
+# slow the gap grows to tens of milliseconds and the stat below found
+# notify.sock.mgmt (sometimes .health too) simply not there yet.  Same wait
+# as smoke-optimizer-modes.sh.
+DAEMON_SOCKS=(notify.sock notify.sock.health notify.sock.mgmt)
 for _ in $(seq 1 100); do
-  [[ -S "$RUN_DIR/notify.sock" ]] && break
+  MISSING_SOCK=""
+  for s in "${DAEMON_SOCKS[@]}"; do
+    [[ -S "$RUN_DIR/$s" ]] || { MISSING_SOCK="$s"; break; }
+  done
+  [[ -z "$MISSING_SOCK" ]] && break
   sleep 0.2
 done
-if [[ ! -S "$RUN_DIR/notify.sock" ]]; then
-  echo "FAIL: daemon did not create its socket; log follows" >&2
+# Name the socket that never showed up, so the reader goes after the one bind
+# that lagged rather than after "the daemon".
+if [[ -n "$MISSING_SOCK" ]]; then
+  echo "FAIL: daemon did not create $RUN_DIR/$MISSING_SOCK within 20s; log follows" >&2
   cat "$WORK/daemon.log" >&2
   exit 1
 fi
@@ -529,7 +543,7 @@ check "api token reached the process via the env file" "1" \
 check "purge token reached the process via the env file" "1" \
   "$(grep -c "^PAGESPEED_PURGE_TOKEN=$RIG_PURGE_TOKEN$" <<<"$ENVIRON" || true)"
 
-for s in notify.sock notify.sock.health notify.sock.mgmt; do
+for s in "${DAEMON_SOCKS[@]}"; do
   check "$s mode 0660" "660" "$(mode_of "$RUN_DIR/$s")"
   check "$s owner pagespeed:pagespeed" "pagespeed:pagespeed" "$(owner_of "$RUN_DIR/$s")"
 done

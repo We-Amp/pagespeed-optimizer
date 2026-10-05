@@ -54,7 +54,7 @@ if [ ${#MODES[@]} -eq 0 ]; then
 fi
 
 # The floor the gated/forced pair raises so the sufficiency gate refuses this
-# page. Well above the ~0.21 coverage the fixture actually achieves, so the
+# page. Well above the ~0.38 coverage the fixture actually achieves, so the
 # refusal is unambiguous and does not depend on extractor tuning.
 REFUSING_COVERAGE_FLOOR=0.95
 

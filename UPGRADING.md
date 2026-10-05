@@ -37,6 +37,30 @@ is now `2`.
   the generation refuses to attach when the generation published beside the
   configured path differs from its own, and says so in the error log; it
   does not go looking for another directory.
+- **The nginx module checks the generation for you.** At start, on every
+  reload, and whenever the optimizer rewrites `pagespeed-shared.conf`, it
+  compares the optimizer's `cache_dir_generation` with its own. On a
+  mismatch it keeps serving, with its cache turned off (requests go straight
+  to the origin; nothing is read, stored or sent to the optimizer), and logs
+  one error:
+
+  ```
+  [error] ... pagespeed: cache-directory generation mismatch: this module is
+  generation 2, the optimizer (/var/cache/pagespeed-optimizer/v1/pagespeed-shared.conf)
+  is generation 1 -- the optimizer is older than this module. ...
+  ```
+
+  Upgrade both packages to the same release, or run both containers from the
+  same image tag. The cache comes back on by itself, without a reload, once
+  the optimizer publishes the matching generation (the error log then says
+  "now matches"). The variable `$pagespeed_cache_generation` reads `match`,
+  `mismatch` or `unknown` (an optimizer that publishes no generation; the
+  module then warns once and uses the cache as before), and
+  `$pagespeed_cache_generation_module` / `$pagespeed_cache_generation_optimizer`
+  hold the two numbers. Put them in a `log_format`, or in a status location
+  restricted to your monitoring hosts. A module older than this release does
+  not check, so "upgrade together" (the last point in this list) still
+  applies.
 - **Containers: the old cache file stays in the volume.** The container
   images do not use a `v<N>` directory: the worker always opens
   `--cache-path /data/cache.vol`, and the cache library names the real file

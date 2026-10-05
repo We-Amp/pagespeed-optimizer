@@ -145,9 +145,16 @@ class PageAnalyzer {
                Callback callback, uint32_t timeout_ms = kDefaultTimeoutMs,
                std::shared_ptr<const AgentRenderOptions> agent = nullptr);
 
+  // How long after the page's load event the render collects when the page
+  // never reaches networkIdle (kSettleAfterLoadMs). For tests.
+  void set_settle_after_load_ms_for_testing(uint64_t ms) {
+    settle_after_load_ms_ = ms;
+  }
+
  private:
   struct Session;
   CdpClient* client_;
+  uint64_t settle_after_load_ms_;
 };
 
 }  // namespace pagespeed

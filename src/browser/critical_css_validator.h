@@ -24,7 +24,9 @@
 // SSRF defense (src/browser/visual_regression_gate.cc) and therefore not
 // tunable; the third is a property of what a record is attached to:
 //   1. Scripts do not run. A fold whose layout is established by JavaScript is
-//      validated against a DOM the visitor never sees.
+//      validated against a DOM the visitor never sees. (What the HTML parser
+//      does differently with scripting on IS reproduced: <noscript> content
+//      is left out of both documents.)
 //   2. Every subresource fails. Images, web fonts and @import-ed sheets load in
 //      NEITHER document, so a fold that depends on a dropped background-image
 //      or @font-face renders identically blank in both and diffs to zero.
@@ -49,13 +51,23 @@
 // them: its numbers exercise the mechanism, not a page production would
 // confirm.
 //
-// CASCADE ORDER. The synthesized documents move the page's own <style> bodies
-// into the single injected block, which is later in document order than they
-// were. Two rules of equal specificity can therefore resolve differently here
-// than in the served page, where the inlined block sits in <head> and the
-// deferred sheet applies afterwards. The direction is conservative — a
-// difference this introduces shows up as a diff and refuses — but it is a
-// reason a page can fail to be confirmed that has nothing to do with its fold.
+// CASCADE ORDER. The synthesized documents carry ONE block, placed where the
+// serve path puts the inlined block (HtmlTransformFilter::InjectCriticalCss):
+// where the page's first stylesheet source stood (an author's
+// loadCSS preload counts, though it is kept), unless that
+// source is inside <noscript> and the like, comes before a head-prelude element
+// (<meta charset>, a meta CSP, <base>) or after </head>; else at the </head>
+// (or </body>) fallback — and always at that fallback when the candidate block
+// names a cascade layer and the page's layer order is not proven (see
+// BuildValidationDocuments). On the served page the block precedes every sheet
+// it duplicates, so the sheets win their ties once they apply. The
+// reference block is the combined sheet in the combined order (inline <style>
+// bodies first, then the external sheets — see Worker::BuildCombinedCss), which
+// is not the page's document order when a <style> follows a <link>: two rules
+// of equal specificity can then resolve differently here than in the served
+// page. The direction is conservative — a difference this introduces shows up
+// as a diff and refuses — but it is a reason a page can fail to be confirmed
+// that has nothing to do with its fold.
 
 #ifndef PAGESPEED_SRC_BROWSER_CRITICAL_CSS_VALIDATOR_H_
 #define PAGESPEED_SRC_BROWSER_CRITICAL_CSS_VALIDATOR_H_
@@ -65,6 +77,10 @@
 #include <functional>
 #include <string>
 #include <string_view>
+#include <vector>
+
+#include "src/worker/cascade_layer_order.h"
+#include "src/worker/html_scanner.h"
 
 namespace pagespeed {
 
@@ -77,13 +93,16 @@ struct ValidationDocuments {
   bool ok = false;
   std::string error;
   // Page markup with every stylesheet <link> and every <style> removed, plus
-  // ONE injected <style> carrying the full combined sheet.
+  // ONE injected <style> carrying the full combined sheet, standing where the
+  // serve path puts the inlined block (see CASCADE ORDER above).
   std::string reference;
   // The same markup, the same injection point, carrying the candidate critical
   // block instead.
   std::string candidate;
   size_t stylesheet_links_removed = 0;
   size_t style_blocks_removed = 0;
+  // <noscript> elements left out (see BuildValidationDocuments).
+  size_t noscript_elements_removed = 0;
 };
 
 // Outcome of one viewport's validation.
@@ -138,7 +157,25 @@ inline constexpr float kDefaultValidationDiffThreshold = 0.005f;
 // Strips every <link rel=stylesheet> and every <style> element, comment- and
 // raw-text-aware (it reuses html_css_injector's scanner, so "where does this
 // <style> end" is answered once in the codebase), then injects exactly one
-// <style> per document at the same point via InjectCriticalCss.
+// <style> per document at the same point: the serve path's placement,
+// replayed on the stripped markup (see CASCADE ORDER above; the rule is
+// HtmlTransformFilter::TrackCriticalCssAnchor's, mirrored on the string
+// level), via InjectCriticalCssAt.
+//
+// Both documents also leave out every <noscript> element, contents and all
+// (StripNoscriptElements), the worker's own deferred-stylesheet
+// fallback copy included. The render runs with script execution disabled, in
+// which Blink renders <noscript> content, while the fold being judged is the
+// one a browser running scripts sees, where that content is raw text. That
+// removal runs first, so no <noscript> content is ever read as markup by the
+// stylesheet removal; a head-prelude element the serve path sees inside a
+// <noscript> still moves the placement, where that <noscript> stood. Also
+// fails closed when the removal is not reliable, or disagrees with the
+// scanner's reading (`scanned_elements`), or when a removed <noscript> and a
+// comment as the serve path's lexer reads it overlap without one holding the
+// other (the placement replay would read comment text differently from the
+// serve path): a page cut short renders blank in both
+// documents, and two blank renders compare equal.
 //
 // Fails closed — `ok == false` — when: either CSS is empty (an empty reference
 // would diff to zero against anything); the markup is empty; the resulting
@@ -146,10 +183,23 @@ inline constexpr float kDefaultValidationDiffThreshold = 0.005f;
 // `</style` abort, which reports success with an EMPTY document, so a caller
 // checking only `success` would synthesize a blank reference); or the two
 // documents end up differing anywhere outside the injected style body.
+//
+// `layer_order` is the page's cascade-layer order, as the serve path receives
+// it (Worker::BuildCombinedCss). The candidate block decides the placement for
+// both documents with DecideCriticalCssLayerPlacement, as the serve path does:
+// a layered candidate goes first only when the order is proven, and then BOTH
+// documents carry the order's `@layer` statement in front of their CSS, so the
+// reference renders the full sheet in the author's layer order too. The default
+// (not proven) keeps a layered candidate at the </head> fallback.
+//
+// `scanned_elements` is HtmlScanner's `elements` for the same
+// `pre_inline_html`, the independent reading the <noscript> removal is checked
+// against (NoscriptStripAgreesWithScan); null skips that check.
 ValidationDocuments BuildValidationDocuments(
     std::string_view pre_inline_html, std::string_view full_css,
-    std::string_view critical_css,
-    size_t max_document_bytes = kMaxValidationDocumentBytes);
+    std::string_view critical_css, const CascadeLayerOrder& layer_order = {},
+    size_t max_document_bytes = kMaxValidationDocumentBytes,
+    const std::vector<CollectedElement>* scanned_elements = nullptr);
 
 // True iff `reference` and `candidate` are byte-identical apart from the body
 // of the one injected <style data-pagespeed-critical> element. The fairness

@@ -22,7 +22,7 @@
     "svelte": "^5.55.9"
   },
   "devDependencies": {
-    "vitest": "^4.1.8",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.11"
   }
 }

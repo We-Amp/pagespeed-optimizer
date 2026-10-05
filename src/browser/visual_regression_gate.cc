@@ -3,7 +3,8 @@
 
 // 5. Fetch.enable + Fetch.failRequest for all requests  (SSRF defense)
 // 6. Emulation.setScriptExecutionDisabled({value: true}) (SSRF defense)
-// 7. Page.enable, Page.setLifecycleEventsEnabled
+// 7. Page.enable, Page.navigate(about:blank) for a fresh window
+//    (LoadFreshBlankDocument), Page.setLifecycleEventsEnabled
 // 8. Page.setDocumentContent({frameId, html})
 // 9. Wait for Page.lifecycleEvent("networkIdle")
 // 10. Page.captureScreenshot({format: "png", clip: viewport})
@@ -32,6 +33,8 @@
 #include "png.h"  // NOLINT
 #include "src/browser/cdp_client.h"
 #include "src/browser/cdp_types.h"
+#include "src/browser/device_emulation.h"
+#include "src/browser/render_support.h"
 #include "uv.h"  // NOLINT
 
 namespace pagespeed {
@@ -190,6 +193,8 @@ struct VisualRegressionGate::Session
   uint32_t viewport_height;
   uint32_t timeout_ms;
   bool completed = false;
+  // A refused Fetch.failRequest was reported already (FailPausedRequest).
+  bool fetch_error_reported = false;
 
   std::string target_id;
   std::string session_id;
@@ -397,155 +402,144 @@ void VisualRegressionGate::CaptureScreenshot(
         };
         attach_cmd.timeout_ms = 10000;
 
-        session->Send(
-            attach_cmd, [session](absl::StatusOr<CdpResponse> result) {
+        session->Send(attach_cmd, [session](
+                                      absl::StatusOr<CdpResponse> result) {
+          if (!result.ok() || result->is_error()) {
+            session->FinishError("attachToTarget failed");
+            return;
+          }
+          session->session_id = result->result.value("sessionId", "");
+          if (session->session_id.empty()) {
+            session->FinishError("no sessionId");
+            return;
+          }
+
+          auto s =  // NOLINT(performance-unnecessary-copy-initialization)
+              session;
+
+          // Step 3: Emulate the device (metrics, touch, UA).
+          EmulateDevice(s, s->viewport_width, s->viewport_height, [s]() {
+            // Step 4: Network offline (SSRF).
+            CdpCommand offline_cmd;
+            offline_cmd.method = "Network.emulateNetworkConditions";
+            offline_cmd.params = {
+                {"offline", true},
+                {"latency", 0},
+                {"downloadThroughput", -1},
+                {"uploadThroughput", -1},
+            };
+            offline_cmd.session_id = s->session_id;
+
+            s->Send(offline_cmd, [s](auto result) {
               if (!result.ok() || result->is_error()) {
-                session->FinishError("attachToTarget failed");
+                s->FinishError("Network offline setup failed");
                 return;
               }
-              session->session_id = result->result.value("sessionId", "");
-              if (session->session_id.empty()) {
-                session->FinishError("no sessionId");
-                return;
-              }
+              // Step 5: Fetch interception (SSRF).
+              CdpCommand fetch_cmd;
+              fetch_cmd.method = "Fetch.enable";
+              fetch_cmd.params = {
+                  {"patterns", json::array({{{"urlPattern", "*"}}})}};
+              fetch_cmd.session_id = s->session_id;
 
-              auto s =  // NOLINT(performance-unnecessary-copy-initialization)
-                  session;
-
-              // Step 3: Set viewport.
-              CdpCommand vp_cmd;
-              vp_cmd.method = "Emulation.setDeviceMetricsOverride";
-              vp_cmd.params = {
-                  {"width", s->viewport_width},
-                  {"height", s->viewport_height},
-                  {"deviceScaleFactor", 1},
-                  {"mobile", s->viewport_width < 768},
-              };
-              vp_cmd.session_id = s->session_id;
-
-              s->Send(vp_cmd, [s](auto result) {
+              s->Send(fetch_cmd, [s](auto result) {
                 if (!result.ok() || result->is_error()) {
-                  s->FinishError("viewport setup failed");
+                  s->FinishError("Fetch.enable setup failed");
                   return;
                 }
-                // Step 4: Network offline (SSRF).
-                CdpCommand offline_cmd;
-                offline_cmd.method = "Network.emulateNetworkConditions";
-                offline_cmd.params = {
-                    {"offline", true},
-                    {"latency", 0},
-                    {"downloadThroughput", -1},
-                    {"uploadThroughput", -1},
-                };
-                offline_cmd.session_id = s->session_id;
+                // Step 6: Disable JS (SSRF).
+                CdpCommand js_cmd;
+                js_cmd.method =
+                    "Emulation."
+                    "setScriptExecutionDisabled";
+                js_cmd.params = {{"value", true}};
+                js_cmd.session_id = s->session_id;
 
-                s->Send(offline_cmd, [s](auto result) {
+                s->Send(js_cmd, [s](auto result) {
                   if (!result.ok() || result->is_error()) {
-                    s->FinishError("Network offline setup failed");
+                    s->FinishError("JS disable setup failed");
                     return;
                   }
-                  // Step 5: Fetch interception (SSRF).
-                  CdpCommand fetch_cmd;
-                  fetch_cmd.method = "Fetch.enable";
-                  fetch_cmd.params = {
-                      {"patterns", json::array({{{"urlPattern", "*"}}})}};
-                  fetch_cmd.session_id = s->session_id;
+                  // Step 7: Enable Page + lifecycle.
+                  CdpCommand page_cmd;
+                  page_cmd.method = "Page.enable";
+                  page_cmd.session_id = s->session_id;
 
-                  s->Send(fetch_cmd, [s](auto result) {
+                  s->Send(page_cmd, [s](auto result) {
                     if (!result.ok() || result->is_error()) {
-                      s->FinishError("Fetch.enable setup failed");
+                      s->FinishError("Page.enable failed");
                       return;
                     }
-                    // Step 6: Disable JS (SSRF).
-                    CdpCommand js_cmd;
-                    js_cmd.method =
-                        "Emulation."
-                        "setScriptExecutionDisabled";
-                    js_cmd.params = {{"value", true}};
-                    js_cmd.session_id = s->session_id;
+                    // A fresh window for the document (LoadFreshBlankDocument).
+                    LoadFreshBlankDocument(s, [s]() {
+                      CdpCommand lc_cmd;
+                      lc_cmd.method =
+                          "Page."
+                          "setLifecycleEventsEnabled";
+                      lc_cmd.params = {{"enabled", true}};
+                      lc_cmd.session_id = s->session_id;
 
-                    s->Send(js_cmd, [s](auto result) {
-                      if (!result.ok() || result->is_error()) {
-                        s->FinishError("JS disable setup failed");
-                        return;
-                      }
-                      // Step 7: Enable Page + lifecycle.
-                      CdpCommand page_cmd;
-                      page_cmd.method = "Page.enable";
-                      page_cmd.session_id = s->session_id;
-
-                      s->Send(page_cmd, [s](auto result) {
+                      s->Send(lc_cmd, [s](auto result) {
                         if (!result.ok() || result->is_error()) {
-                          s->FinishError("Page.enable failed");
+                          s->FinishError(
+                              "lifecycle enable "
+                              "failed");
                           return;
                         }
-                        CdpCommand lc_cmd;
-                        lc_cmd.method =
-                            "Page."
-                            "setLifecycleEventsEnabled";
-                        lc_cmd.params = {{"enabled", true}};
-                        lc_cmd.session_id = s->session_id;
+                        // Step 8: Get frame + set
+                        // content.
+                        CdpCommand tree_cmd;
+                        tree_cmd.method = "Page.getFrameTree";
+                        tree_cmd.session_id = s->session_id;
 
-                        s->Send(lc_cmd, [s](auto result) {
-                          if (!result.ok() || result->is_error()) {
-                            s->FinishError(
-                                "lifecycle enable "
-                                "failed");
-                            return;
-                          }
-                          // Step 8: Get frame + set
-                          // content.
-                          CdpCommand tree_cmd;
-                          tree_cmd.method = "Page.getFrameTree";
-                          tree_cmd.session_id = s->session_id;
+                        s->Send(tree_cmd,
+                                [s](absl::StatusOr<CdpResponse> result) {
+                                  if (!result.ok() || result->is_error()) {
+                                    s->FinishError(
+                                        "getFrameTree "
+                                        "failed");
+                                    return;
+                                  }
+                                  s->frame_id =
+                                      result->result
+                                          .value("frameTree", json::object())
+                                          .value("frame", json::object())
+                                          .value("id", "");
 
-                          s->Send(tree_cmd,
-                                  [s](absl::StatusOr<CdpResponse> result) {
-                                    if (!result.ok() || result->is_error()) {
+                                  CdpCommand content_cmd;
+                                  content_cmd.method =
+                                      "Page."
+                                      "setDocumentContent";
+                                  content_cmd.params = {
+                                      {"frameId", s->frame_id},
+                                      {"html", s->html_content},
+                                  };
+                                  content_cmd.session_id = s->session_id;
+                                  content_cmd.timeout_ms = 15000;
+
+                                  s->Send(content_cmd, [s](auto r) {
+                                    s->html_content.clear();
+                                    s->html_content.shrink_to_fit();
+                                    if (!r.ok() || r->is_error()) {
                                       s->FinishError(
-                                          "getFrameTree "
+                                          "setDocument"
+                                          "Content "
                                           "failed");
                                       return;
                                     }
-                                    s->frame_id =
-                                        result->result
-                                            .value("frameTree", json::object())
-                                            .value("frame", json::object())
-                                            .value("id", "");
-
-                                    CdpCommand content_cmd;
-                                    content_cmd.method =
-                                        "Page."
-                                        "setDocumentContent";
-                                    content_cmd.params = {
-                                        {"frameId", s->frame_id},
-                                        {"html", s->html_content},
-                                    };
-                                    content_cmd.session_id = s->session_id;
-                                    content_cmd.timeout_ms = 15000;
-
-                                    s->Send(content_cmd, [s](auto r) {
-                                      s->html_content.clear();
-                                      s->html_content.shrink_to_fit();
-                                      if (!r.ok() || r->is_error()) {
-                                        s->FinishError(
-                                            "setDocument"
-                                            "Content "
-                                            "failed");
-                                        return;
-                                      }
-                                      // From here a networkIdle describes the
-                                      // document we asked for.
-                                      s->content_set = true;
-                                    });
+                                    // From here a networkIdle describes the
+                                    // document we asked for.
+                                    s->content_set = true;
                                   });
-                        });
+                                });
                       });
                     });
                   });
                 });
               });
             });
+          });
+        });
       });
 
   if (!send_result.ok()) {
@@ -561,15 +555,8 @@ void VisualRegressionGate::CaptureScreenshot(
 
     // Fail all network requests (SSRF defense).
     if (event.method == "Fetch.requestPaused") {
-      std::string request_id = event.params.value("requestId", "");
-      CdpCommand fail_cmd;
-      fail_cmd.method = "Fetch.failRequest";
-      fail_cmd.params = {
-          {"requestId", request_id},
-          {"reason", "BlockedByClient"},
-      };
-      fail_cmd.session_id = session->session_id;
-      session->Send(fail_cmd, [](auto) {});
+      FailPausedRequest(session, event.params.value("requestId", ""),
+                        "validation render");
       return;
     }
 
@@ -671,12 +658,20 @@ RegressionResult VisualRegressionGate::CompareScreenshots(
 
   result.total_pixels = compare_w * compare_h;
   uint32_t diff_count = 0;
+  bool reference_uniform = true;
 
   for (uint32_t y = 0; y < compare_h; ++y) {
     for (uint32_t x = 0; x < compare_w; ++x) {
       // RGBA, 4 bytes per pixel.
       size_t orig_idx = (static_cast<size_t>(y) * orig_w + x) * 4;
       size_t opt_idx = (static_cast<size_t>(y) * opt_w + x) * 4;
+
+      for (int c = 0; c < 4 && reference_uniform; ++c) {
+        if (std::abs(static_cast<int>(orig_pixels[orig_idx + c]) -
+                     static_cast<int>(orig_pixels[c])) > kChannelTolerance) {
+          reference_uniform = false;
+        }
+      }
 
       bool pixel_differs = false;
       for (int c = 0; c < 4; ++c) {
@@ -693,6 +688,7 @@ RegressionResult VisualRegressionGate::CompareScreenshots(
     }
   }
 
+  result.reference_uniform = reference_uniform;
   result.diff_pixels = diff_count;
   result.diff_ratio =
       static_cast<float>(diff_count) / static_cast<float>(result.total_pixels);

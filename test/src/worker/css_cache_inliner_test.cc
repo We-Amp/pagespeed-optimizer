@@ -9,6 +9,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <vector>
 
 #include "gtest/gtest.h"
 
@@ -761,6 +762,109 @@ TEST(InlineCachedStylesheets, RemovesEntityEncodedHrefLink) {
   EXPECT_NE(std::string::npos, result.find("body { margin: 0; }"));
   // The external link is gone despite the &amp; spelling.
   EXPECT_EQ(std::string::npos, result.find("href=\"/a.css"));
+}
+
+// Hrefs resolve against the document's <base href>, not the page
+// directory, as the serve path's combined-stylesheet gather resolves them.
+// Under a cross-host base a root-relative href is the base host's sheet and
+// the lookup is asked for it by that absolute URL; before the fix it asked for
+// the page host's "/css/site.css" and the sheet was never inlined.
+TEST(InlineCachedStylesheets, CrossHostBaseHrefResolvesToTheBaseHost) {
+  std::string html =
+      "<html><head><base href=\"https://cdn.example.com/assets/\">"
+      "<link rel=\"stylesheet\" href=\"/css/site.css\">"
+      "<link rel=\"stylesheet\" href=\"theme.css\">"
+      "</head><body></body></html>";
+
+  std::vector<std::string> looked_up;
+  auto lookup = MakeLookup(
+      {{"https://cdn.example.com/css/site.css", "body { margin: 0; }"},
+       {"https://cdn.example.com/assets/theme.css", "h1 { color: red; }"}});
+  css::CssLookupFn recording =
+      [&](std::string_view url) -> std::optional<std::string> {
+    looked_up.emplace_back(url);
+    return lookup(url);
+  };
+
+  CssInliningStats stats;
+  std::string result = InlineCachedStylesheets(
+      html, "https://example.com/page.html", recording, &stats);
+
+  EXPECT_EQ(
+      (std::vector<std::string>{"https://cdn.example.com/css/site.css",
+                                "https://cdn.example.com/assets/theme.css"}),
+      looked_up);
+  EXPECT_EQ(2u, stats.stylesheets_cached);
+  EXPECT_NE(std::string::npos, result.find("body { margin: 0; }"));
+  EXPECT_NE(std::string::npos, result.find("h1 { color: red; }"));
+  EXPECT_EQ(std::string::npos, result.find("rel=\"stylesheet\""));
+}
+
+// A protocol-relative href gets the document's scheme,
+// with no <base> at all, so the lookup is asked for a URL whose host and path
+// can be split: the CDN's "/c.css" keyed by the CDN host, the page's own
+// "/d.css" keyed by the page host. Before the fix the key was the literal
+// "//host/path" on the page host, which nginx never stores: a guaranteed miss,
+// so the sheet counted as missing and the page was marked for revalidation on
+// every request. The same resolution serves the combined-stylesheet gather.
+TEST(InlineCachedStylesheets, ProtocolRelativeHrefGetsTheDocumentScheme) {
+  std::string html =
+      "<html><head>"
+      "<link rel=\"stylesheet\" href=\"//cdn.example.com/c.css\">"
+      "<link rel=\"stylesheet\" href=\"//example.com/d.css\">"
+      "</head><body></body></html>";
+
+  std::vector<std::string> looked_up;
+  auto lookup = MakeLookup({{"https://cdn.example.com/c.css", "p{margin:0}"},
+                            {"https://example.com/d.css", "q{margin:0}"}});
+  css::CssLookupFn recording =
+      [&](std::string_view url) -> std::optional<std::string> {
+    looked_up.emplace_back(url);
+    return lookup(url);
+  };
+
+  CssInliningStats stats;
+  std::string result = InlineCachedStylesheets(
+      html, "https://example.com/page.html", recording, &stats);
+
+  EXPECT_EQ((std::vector<std::string>{"https://cdn.example.com/c.css",
+                                      "https://example.com/d.css"}),
+            looked_up);
+  EXPECT_EQ(2u, stats.stylesheets_cached);
+  EXPECT_NE(std::string::npos, result.find("p{margin:0}"));
+  EXPECT_NE(std::string::npos, result.find("q{margin:0}"));
+
+  // The worker hands over the cache-normalized page path with the scheme
+  // beside it; the href then takes that scheme.
+  looked_up.clear();
+  InlineCachedStylesheets(html, "/page.html", recording, &stats, "example.com",
+                          "http");
+  EXPECT_EQ((std::vector<std::string>{"http://cdn.example.com/c.css",
+                                      "http://example.com/d.css"}),
+            looked_up);
+}
+
+// A root-relative <base href> moves the directory relative hrefs resolve in
+// but names no host of its own, so the result stays the page's own path and
+// the caller keys it by the page host, as before.
+TEST(InlineCachedStylesheets, RootRelativeBaseHrefMovesTheDirectory) {
+  std::string html =
+      "<html><head><base href=\"/sub/\">"
+      "<link rel=\"stylesheet\" href=\"a.css\">"
+      "</head><body></body></html>";
+
+  std::string looked_up_url;
+  css::CssLookupFn lookup =
+      [&](std::string_view url) -> std::optional<std::string> {
+    looked_up_url = std::string(url);
+    return "p { margin: 0; }";
+  };
+
+  std::string result =
+      InlineCachedStylesheets(html, "https://example.com/page.html", lookup);
+
+  EXPECT_EQ("/sub/a.css", looked_up_url);
+  EXPECT_NE(std::string::npos, result.find("p { margin: 0; }"));
 }
 
 }  // namespace

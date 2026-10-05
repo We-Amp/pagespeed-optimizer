@@ -26,6 +26,7 @@ gtest_test(
 gtest_test(
     name = "optimization_profile_test",
     deps = [
+        "//lib/classify:capability_mask",
         "//src/browser:optimization_profile",
         "@com_google_absl//absl/status",
     ],
@@ -40,6 +41,7 @@ gtest_test(
         "//src/browser:cdp_types",
         "//src/worker:critical_css_extractor",
         "//test/test_util:cdp_pipe",
+        "//test/test_util:cdp_setup_order",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
@@ -57,7 +59,9 @@ gtest_test(
         "//src/browser:cdp_client",
         "//src/browser:cdp_types",
         "//src/browser:page_analysis",
+        "//src/browser:render_support",
         "//test/test_util:cdp_pipe",
+        "//test/test_util:cdp_setup_order",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@libuv",
@@ -97,11 +101,37 @@ gtest_test(
         "//src/browser:cdp_types",
         "//src/browser:visual_regression_gate",
         "//test/test_util:cdp_scripted_peer",
+        "//test/test_util:cdp_setup_order",
         "//test/test_util:png_image",
         "@com_google_absl//absl/status:statusor",
         "@libpng",
         "@libuv",
         "@nlohmann_json//:json",
+    ],
+)
+
+gtest_test(
+    name = "critical_css_placement_parity_test",
+    # Vendored lib/html headers name unused parameters (canonical idiom).
+    copts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-Wno-error=unused-parameter"],
+    }),
+    deps = [
+        "//lib/base:string_util",
+        "//lib/base:string_writer",
+        "//lib/html:compat",
+        "//lib/html:empty_html_filter",
+        "//lib/html:html_keywords",
+        "//lib/html:html_name",
+        "//lib/html:html_node",
+        "//lib/html:html_parse",
+        "//lib/html:html_writer_filter",
+        "//src/browser:critical_css_validator",
+        "//src/worker:cascade_layer_order",
+        "//src/worker:html_scanner",
+        "//src/worker:html_transform_filter",
+        "//src/worker:layer_order_sources",
     ],
 )
 
@@ -112,8 +142,11 @@ gtest_test(
         "//src/browser:cdp_client",
         "//src/browser:critical_css_validator",
         "//src/browser:visual_regression_gate",
+        "//src/worker:cascade_layer_order",
+        "//src/worker:html_scanner",
         "//test/test_util:cdp_scripted_peer",
         "//test/test_util:png_image",
+        "@com_google_absl//absl/strings",
         "@libpng",
         "@libuv",
         "@nlohmann_json//:json",
@@ -127,7 +160,9 @@ gtest_test(
         "//src/browser:cdp_client",
         "//src/browser:cdp_types",
         "//src/browser:font_glyph_scanner",
+        "//src/browser:render_support",
         "//test/test_util:cdp_pipe",
+        "//test/test_util:cdp_setup_order",
         "@com_google_absl//absl/status:statusor",
         "@libuv",
         "@nlohmann_json//:json",
@@ -143,6 +178,7 @@ gtest_test(
         "//src/browser:page_analysis",
         "//src/browser:script_coverage_analyzer",
         "//test/test_util:cdp_pipe",
+        "//test/test_util:cdp_setup_order",
         "@com_google_absl//absl/status:statusor",
         "@libuv",
         "@nlohmann_json//:json",
@@ -186,8 +222,35 @@ gtest_test(
         "//src/browser:script_coverage_analyzer",
         "//src/worker:analysis_resource_map",
         "//src/worker:browser_analysis_manager",
+        "//src/worker:css_cache_inliner",
         "//src/worker:html_scanner",
         "//test/test_util:temp_dir",
         "@libuv",
+    ],
+)
+
+gtest_test(
+    name = "device_emulation_test",
+    data = ["//src/browser:device_emulation.json"],
+    deps = [
+        "//lib/classify:capability_mask",
+        "//src/browser:cdp_types",
+        "//src/browser:device_emulation",
+        "@com_google_absl//absl/status",
+        "@libuv",
+        "@nlohmann_json//:json",
+    ],
+)
+
+gtest_test(
+    name = "render_support_test",
+    deps = [
+        "//src/browser:cdp_client",
+        "//src/browser:cdp_types",
+        "//src/browser:render_support",
+        "@com_google_absl//absl/status",
+        "@com_google_absl//absl/status:statusor",
+        "@libuv",
+        "@nlohmann_json//:json",
     ],
 )

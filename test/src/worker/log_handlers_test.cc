@@ -5,12 +5,14 @@
 // event loop, driven over TCP; plus direct reads of the ring on a loop the
 // test thread runs itself.
 
-#include <atomic>
 #include <chrono>
+#include <condition_variable>
+#include <cstdint>
 #include <cstdlib>
 #include <fstream>
 #include <iterator>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -20,6 +22,7 @@
 #include "src/worker/api_handlers.h"
 #include "src/worker/http_server.h"
 #include "src/worker/ws_handlers.h"
+#include "test/test_util/scoped_thread_join.h"
 #include "test/test_util/tcp_client.h"
 #include "uv.h"
 
@@ -148,6 +151,24 @@ class LogHandlersTest : public ::testing::Test {
                         "entry " + std::to_string(i));
     }
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
+  }
+
+  // Read until the ring's newest entry is `seq`: a wait that ends on
+  // progress, bounded by a number of reads rather than by the clock alone.
+  // False if the ring never got there, or at once if a read got no answer
+  // (each of those already cost the client's whole receive timeout).
+  bool WaitForNewestSeq(uint64_t seq) {
+    for (int attempt = 0; attempt < 500; ++attempt) {
+      const std::string resp = Get("/v1/logs?limit=1");
+      if (resp.empty()) return false;
+      json j = ParseJsonBody(resp);
+      if (j.is_object() && j["entries"].size() == 1 &&
+          j["newest_seq"].get<uint64_t>() == seq) {
+        return true;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    return false;
   }
 
   std::string SendRequest(const std::string& request) {
@@ -413,30 +434,108 @@ TEST_F(LogHandlersTest, OversizedMessagesStayWithinThePageBudget) {
 }
 
 TEST_F(LogHandlersTest, ConcurrentAppendsWhileReading) {
-  std::atomic<bool> stop{false};
-  std::thread poster([this, &stop] {
-    int i = 0;
-    while (!stop.load(std::memory_order_relaxed)) {
-      manager_->PostLog("info", "worker", "worker",
-                        "concurrent " + std::to_string(i++));
+  // A reader never sees a torn or out-of-order page while another thread
+  // appends.  The appender is bounded by the reader's progress, not by the
+  // clock: each read grants it one burst, so the loop thread's share of the
+  // work is the same on a fast host and on a starved sanitizer build.  (A
+  // free-running appender keeps the pending queue at its bound, so every
+  // loop iteration drains a full queue and one request costs several of
+  // those -- seconds per request under a sanitizer on a loaded host.)
+  //
+  // The numbers: the ring is filled first, so every page is a full one and
+  // every append evicts; 50 reads x 80 appends then turn the whole ring over
+  // twice underneath the reader.  One burst is far below the pending-queue
+  // bound, so nothing is shed and the sequence numbers are exact.
+  constexpr uint64_t kRingCapacity = 2000;  // what the ring retains
+  constexpr int kReads = 50;
+  constexpr int kAppendsPerRead = 80;
+  constexpr uint64_t kAppends = uint64_t{kReads} * kAppendsPerRead;
+  for (uint64_t i = 0; i < kRingCapacity; ++i) {
+    manager_->PostLog("info", "worker", "worker", "fill " + std::to_string(i));
+  }
+  ASSERT_TRUE(WaitForNewestSeq(kRingCapacity - 1));
+
+  std::mutex mutex;
+  std::condition_variable wake;
+  uint64_t granted = 0;  // appends the poster may have made so far
+  bool done = false;     // no further grants; guarded by `mutex` like granted
+  std::thread poster([&] {
+    uint64_t posted = 0;
+    for (;;) {
+      uint64_t target;
+      {
+        std::unique_lock<std::mutex> lock(mutex);
+        wake.wait(lock, [&] { return done || posted < granted; });
+        if (posted == granted) return;  // done, and every grant is used
+        target = granted;
+      }
+      for (; posted < target; ++posted) {
+        manager_->PostLog("info", "worker", "worker",
+                          "concurrent " + std::to_string(posted));
+      }
     }
   });
-  for (int req = 0; req < 50; ++req) {
+  test::ScopedThreadJoin poster_guard(poster, [&] {
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      done = true;
+    }
+    wake.notify_one();
+  });
+
+  uint64_t last_newest = kRingCapacity - 1;
+  int mid_burst = 0;
+  for (int req = 0; req < kReads; ++req) {
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      granted += kAppendsPerRead;
+    }
+    wake.notify_one();  // the burst lands while this read is in flight
     std::string resp = Get("/v1/logs?limit=500");
     ASSERT_EQ(StatusCode(resp), 200) << req;
     json j = ParseJsonBody(resp);
-    ASSERT_TRUE(j.is_object()) << req;  // never a torn document
+    ASSERT_TRUE(j.is_object()) << req;            // never a torn document
+    ASSERT_EQ(j["entries"].size(), 500u) << req;  // the ring stays full
     uint64_t prev = 0;
     bool first = true;
     for (const auto& e : j["entries"]) {
       const uint64_t seq = e.at("seq").get<uint64_t>();
       if (!first) EXPECT_EQ(seq, prev + 1) << req;  // contiguous, ascending
+      // One appender and nothing shed, so a seq names its message.
+      EXPECT_EQ(e.at("message").get<std::string>(),
+                seq < kRingCapacity
+                    ? "fill " + std::to_string(seq)
+                    : "concurrent " + std::to_string(seq - kRingCapacity))
+          << req;
       prev = seq;
       first = false;
     }
+    // The page ends at the newest entry, and the ring only moves forward.
+    const uint64_t newest = j["newest_seq"].get<uint64_t>();
+    EXPECT_EQ(prev, newest) << req;
+    EXPECT_GE(newest, last_newest) << req;
+    EXPECT_EQ(j["oldest_seq"].get<uint64_t>(), newest + 1 - kRingCapacity)
+        << req;
+    EXPECT_EQ(j["shed_total"].get<uint64_t>(), 0u) << req;
+    // Bursts are whole multiples of kAppendsPerRead, so any other count of
+    // appends in the ring means this page was built partway through one.
+    if ((newest + 1 - kRingCapacity) % kAppendsPerRead != 0) ++mid_burst;
+    last_newest = newest;
   }
-  stop.store(true);
-  poster.join();
+  // Reported, not asserted: where a burst lands relative to a read is the
+  // scheduler's choice, and no check above depends on it.
+  GTEST_LOG_(INFO) << mid_burst << " of " << kReads
+                   << " pages were built partway through a burst";
+
+  // Every granted append arrives, in order, with none shed.
+  poster_guard.StopAndJoin();
+  EXPECT_TRUE(WaitForNewestSeq(kRingCapacity + kAppends - 1));
+  json last = ParseJsonBody(Get("/v1/logs?limit=1"));
+  ASSERT_TRUE(last.is_object());
+  ASSERT_EQ(last["entries"].size(), 1u);
+  EXPECT_EQ(last["entries"][0]["message"].get<std::string>(),
+            "concurrent " + std::to_string(kAppends - 1));
+  EXPECT_EQ(last["shed_total"].get<uint64_t>(), 0u);
 }
 
 TEST_F(LogHandlersTest, ResponseShapeIsStable) {

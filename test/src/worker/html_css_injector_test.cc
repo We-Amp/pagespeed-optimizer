@@ -465,5 +465,98 @@ TEST(HtmlCssInjectorTest, HeadTagWithoutClosingAngleBracket) {
   EXPECT_EQ(result.html.find("<style data-pagespeed-critical>"), 0u);
 }
 
+// ---------------------------------------------------------------------------
+// InjectCriticalCssAt: the caller's position, the same sanitization
+// ---------------------------------------------------------------------------
+
+TEST(HtmlCssInjectorTest, InjectAtGivenOffset) {
+  std::string html = "<html><head><title>T</title><meta name=x></head></html>";
+  size_t pos = html.find("<meta");
+  auto result = InjectCriticalCssAt(html, pos, "a{}");
+  ASSERT_TRUE(result.success);
+  EXPECT_TRUE(result.injected);
+  EXPECT_EQ(result.html,
+            "<html><head><title>T</title>"
+            "<style data-pagespeed-critical>a{}</style>"
+            "<meta name=x></head></html>");
+}
+
+TEST(HtmlCssInjectorTest, InjectAtStartAndEnd) {
+  auto at_start = InjectCriticalCssAt("<p>x</p>", 0, "a{}");
+  ASSERT_TRUE(at_start.success);
+  EXPECT_EQ(at_start.html,
+            "<style data-pagespeed-critical>a{}</style><p>x</p>");
+  auto at_end = InjectCriticalCssAt("<p>x</p>", 8, "a{}");
+  ASSERT_TRUE(at_end.success);
+  EXPECT_EQ(at_end.html, "<p>x</p><style data-pagespeed-critical>a{}</style>");
+}
+
+TEST(HtmlCssInjectorTest, InjectAtRejectsOffsetPastEnd) {
+  auto result = InjectCriticalCssAt("<p>x</p>", 9, "a{}");
+  EXPECT_FALSE(result.success);
+  EXPECT_FALSE(result.injected);
+  EXPECT_TRUE(result.html.empty());
+}
+
+TEST(HtmlCssInjectorTest, InjectAtKeepsTheStyleTerminatorRefusal) {
+  // Same contract as InjectCriticalCss: success with an EMPTY document.
+  auto result = InjectCriticalCssAt("<html></html>", 6, "a{} </STYLE><script>");
+  EXPECT_TRUE(result.success);
+  EXPECT_FALSE(result.injected);
+  EXPECT_TRUE(result.html.empty());
+  EXPECT_FALSE(result.error_message.empty());
+
+  auto null_bytes = InjectCriticalCssAt("<html></html>", 6,
+                                        std::string("a{\0color:red}", 13));
+  ASSERT_TRUE(null_bytes.success);
+  EXPECT_NE(null_bytes.html.find("a{color:red}"), std::string::npos);
+  EXPECT_EQ(null_bytes.html.find('\0'), std::string::npos);
+}
+
+TEST(HtmlCssInjectorTest, InjectAtEmptyInputs) {
+  auto empty_css = InjectCriticalCssAt("<html></html>", 6, "");
+  EXPECT_TRUE(empty_css.success);
+  EXPECT_FALSE(empty_css.injected);
+  EXPECT_EQ(empty_css.html, "<html></html>");
+  auto empty_html = InjectCriticalCssAt("", 0, "a{}");
+  EXPECT_FALSE(empty_html.success);
+}
+
+// ---------------------------------------------------------------------------
+// CriticalCssNamesCascadeLayer: over-inclusive on purpose
+// ---------------------------------------------------------------------------
+
+TEST(HtmlCssInjectorTest, NamesCascadeLayer) {
+  EXPECT_TRUE(CriticalCssNamesCascadeLayer("@layer theme{a{}}"));
+  EXPECT_TRUE(CriticalCssNamesCascadeLayer("@layer theme, base, utilities;"));
+  EXPECT_TRUE(CriticalCssNamesCascadeLayer("a{} @LAYER x.y { b{} }"));
+  EXPECT_TRUE(CriticalCssNamesCascadeLayer("@layer /* c */ x{}"));
+  EXPECT_TRUE(CriticalCssNamesCascadeLayer("@import url(a.css) layer(lib);"));
+  EXPECT_TRUE(CriticalCssNamesCascadeLayer("@import 'a.css' layer;"));
+  EXPECT_TRUE(
+      CriticalCssNamesCascadeLayer("@media (min-width:1px){@layer x{}}"));
+
+  EXPECT_FALSE(CriticalCssNamesCascadeLayer(""));
+  EXPECT_FALSE(CriticalCssNamesCascadeLayer("a{color:red}"));
+  EXPECT_FALSE(CriticalCssNamesCascadeLayer("@layer{a{}} @layer {b{}}"));
+  EXPECT_FALSE(CriticalCssNamesCascadeLayer("@layer /* c */ {a{}}"));
+  EXPECT_FALSE(CriticalCssNamesCascadeLayer("@layers x{}"));
+  EXPECT_FALSE(CriticalCssNamesCascadeLayer("@import url(player.css);x{}"))
+      << "\"layer\" counts only as the import condition, not inside a URL";
+}
+
+// Comments end where the serve path's HtmlLexer ends them, not where a
+// browser does: the placement replayed on this reading must be
+// the serve path's.
+TEST(HtmlScanTest, CommentsEndWhereTheServePathLexerEndsThem) {
+  EXPECT_EQ(html_scan::ScanComment("<!---->x", 0), 7u);
+  EXPECT_EQ(html_scan::ScanComment("<!-- a -->x", 0), 10u);
+  // A browser ends these at once, or at `--!>`; the lexer runs on.
+  EXPECT_EQ(html_scan::ScanComment("<!-->x<!-- y -->", 0), 16u);
+  EXPECT_EQ(html_scan::ScanComment("<!--->x<!-- y -->", 0), 17u);
+  EXPECT_EQ(html_scan::ScanComment("<!-- a --!> b -->", 0), 17u);
+  EXPECT_EQ(html_scan::ScanComment("<!-- never closed", 0), std::string::npos);
+}
+
 }  // namespace
 }  // namespace pagespeed

@@ -112,10 +112,213 @@ const SHEET_PATH = PRIMITIVE.fixture_stylesheet_path;
 // src/browser/browser_analysis_manager.h — AnalysisContext::kViewportWidths /
 // kViewportHeights. The profile is stored per viewport, so the fold has to be
 // checked at each one.
+//
+// Each viewport is also a DEVICE CLASS, and the front end serves each class
+// its own variant with its own critical block: the class comes from the
+// User-Agent (ParseViewport in lib/classify/capability_mask.cc). With one
+// desktop UA for all three, every viewport was served the desktop block and
+// the mobile and tablet blocks were never measured. So:
+//
+//   mobile   Chrome on an Android phone: "Android" + "Mobile"  -> kMobile
+//   tablet   Chrome on an Android tablet: "Android", no
+//            "Mobile"                                          -> kTablet
+//   desktop  Playwright's own (desktop Linux) UA, unchanged     -> kDesktop
+//
+// iPadOS Safari is not used for the tablet: it sends a desktop "Macintosh"
+// UA, which lands in kDesktop. Since User-Agent emulation the product's renders
+// send
+// the same phone and tablet UAs (Emulation.setUserAgentOverride), and both
+// lanes read them from device_emulation.json's `user_agent_overrides`: a
+// mobile viewport at most `phone_max_width` px wide is the phone, a wider one
+// the tablet. applyDeviceOverrides repeats the product's exact call (UA
+// string, navigator.platform and client hints) on a CDP session of the page,
+// and assertDeviceParity checks what the served page sees.
+//
+// Layout mode is the product's own: every analysis render sets its device
+// emulation from src/browser/device_emulation.json (through
+// src/browser/device_emulation.h, which a unit test holds equal to the
+// file), and so does this lane, from the same file. A viewport at most
+// `mobile_max_width` px wide renders as a mobile device (`isMobile`), wider
+// as a desktop window. With `isMobile`, Chromium honours the page's meta
+// viewport and grows the layout viewport to the document's width when
+// content overflows, so an overflow anywhere in the document shifts the fold
+// and moves position:fixed elements, as on a phone or a tablet in portrait.
+// Without it the overflow only adds a scrollbar outside the screenshot:
+// the case was an unsized icon 13,000 px down widening the flash-state document
+// to 443 px, invisible in a desktop-mode render at 375 px. Since the
+// tablet-as-mobile change
+// the tablet (768 px) renders as a mobile device too, in the product and
+// here.
+//
+// A mobile device is a touch device when `mobile_has_touch`:
+// `hasTouch` here, Emulation.setTouchEmulationEnabled in the product, so
+// `(hover: none)` and `(pointer: coarse)` match on the phone and the tablet
+// and `(hover: hover)` / `(pointer: fine)` do not, as on a visitor's phone.
+// Playwright's hasTouch sends that call without a touch-point count (one
+// point); the product sends `max_touch_points`, so applyDeviceOverrides repeats
+// the product's exact call on a CDP session of the page and the two renders
+// report the same navigator.maxTouchPoints, and assertDeviceParity checks the
+// served page sees it. The desktop has no touch.
+//
+// The file is read from the checkout (src/browser/ next to tools/), or from
+// PROBE_DEVICE_EMULATION where only this directory is mounted (the nightly).
+const DEVICE_EMULATION_PATH =
+  process.env.PROBE_DEVICE_EMULATION ??
+  join(GOLDEN_DIR, "..", "..", "..", "src", "browser", "device_emulation.json");
+function readDeviceEmulation(path) {
+  try {
+    return JSON.parse(readFileSync(path, "utf-8"));
+  } catch (err) {
+    throw new Error(
+      `cannot read the device emulation file ${path} (${err.message}). ` +
+        "Outside a checkout (e.g. with PROBE_GOLDEN_DIR pointing into a " +
+        "container mount) set PROBE_DEVICE_EMULATION to the mounted " +
+        "src/browser/device_emulation.json.",
+    );
+  }
+}
+const DEVICE_EMULATION = readDeviceEmulation(DEVICE_EMULATION_PATH);
+for (const key of [
+  "mobile_max_width",
+  "mobile_has_touch",
+  "max_touch_points",
+  "phone_max_width",
+  "user_agent_overrides",
+]) {
+  if (!(key in DEVICE_EMULATION)) {
+    throw new Error(
+      `${DEVICE_EMULATION_PATH} has no "${key}": the probe reads the same ` +
+        "fields device_emulation_test holds the product to; a renamed or " +
+        "missing field must fail here, not emulate something else.",
+    );
+  }
+}
+// src/browser/device_emulation.h UserAgentOverrideParams: the phone's or the
+// tablet's Emulation.setUserAgentOverride params, null for a desktop window.
+function userAgentOverride(width) {
+  if (width > DEVICE_EMULATION.mobile_max_width) return null;
+  const overrides = DEVICE_EMULATION.user_agent_overrides;
+  const params =
+    width <= DEVICE_EMULATION.phone_max_width
+      ? overrides.phone
+      : overrides.tablet;
+  if (!params || !params.userAgent) {
+    throw new Error(
+      `${DEVICE_EMULATION_PATH}: no user agent override for a ${width} px ` +
+        "mobile viewport.",
+    );
+  }
+  return params;
+}
+// Playwright's options for the device at `width`.
+function emulate(width) {
+  const isMobile = width <= DEVICE_EMULATION.mobile_max_width;
+  const device = {
+    isMobile,
+    hasTouch: isMobile && DEVICE_EMULATION.mobile_has_touch,
+  };
+  const ua = userAgentOverride(width);
+  if (ua) device.userAgent = ua.userAgent;
+  return device;
+}
+// The product's touch and user agent calls, verbatim, on a page Playwright
+// made with hasTouch / userAgent (src/browser/device_emulation.h
+// TouchEmulationParams, UserAgentOverrideParams): same `enabled`, same
+// `maxTouchPoints`, and the same UA string, navigator.platform and client
+// hints (Playwright's userAgent sets only the string). A no-op for the
+// desktop. The session is left attached for the page's life on purpose:
+// Chromium reverts a session's emulation overrides when it detaches, and that
+// took the touch state of the whole page with it (hover: hover,
+// maxTouchPoints 0; Chromium 145). The page's close() ends it.
+async function applyDeviceOverrides(page, vp) {
+  if (!vp.device.hasTouch && !vp.uaOverride) return;
+  const cdp = await page.context().newCDPSession(page);
+  if (vp.device.hasTouch) {
+    await cdp.send("Emulation.setTouchEmulationEnabled", {
+      enabled: true,
+      maxTouchPoints: DEVICE_EMULATION.max_touch_points,
+    });
+  }
+  if (vp.uaOverride) {
+    await cdp.send("Emulation.setUserAgentOverride", vp.uaOverride);
+  }
+}
+// What the served page sees must be what the product's renders see for this
+// class, or the lane measures a fold the product never validated: a touch
+// viewport reports (hover: none), (pointer: coarse), their any-* forms (the
+// critical-CSS extractor decides on all four), the product's touch points
+// and `ontouchstart` (the page is navigated to, so its window postdates the
+// emulation, as the product's fresh windows do since User-Agent emulation); the
+// desktop
+// reports none of them. The phone and the tablet report the product's UA
+// string and navigator.platform, and, where the page is a secure context
+// (navigator.userAgentData exists only there; the nightly serves plain
+// http), its client hints' `mobile` and `platform`. The desktop keeps a
+// desktop UA. Read after the navigation, on the document the fold is
+// measured in.
+async function assertDeviceParity(page, vp) {
+  const seen = await page.evaluate(() => ({
+    hoverNone: matchMedia("(hover: none)").matches,
+    pointerCoarse: matchMedia("(pointer: coarse)").matches,
+    anyHoverNone: matchMedia("(any-hover: none)").matches,
+    anyPointerCoarse: matchMedia("(any-pointer: coarse)").matches,
+    maxTouchPoints: navigator.maxTouchPoints,
+    ontouchstart: "ontouchstart" in window,
+    userAgent: navigator.userAgent,
+    platform: navigator.platform,
+    uaDataMobile: navigator.userAgentData
+      ? navigator.userAgentData.mobile
+      : undefined,
+    uaDataPlatform: navigator.userAgentData
+      ? navigator.userAgentData.platform
+      : undefined,
+  }));
+  const want = {
+    hoverNone: vp.device.hasTouch,
+    pointerCoarse: vp.device.hasTouch,
+    anyHoverNone: vp.device.hasTouch,
+    anyPointerCoarse: vp.device.hasTouch,
+    maxTouchPoints: vp.device.hasTouch ? DEVICE_EMULATION.max_touch_points : 0,
+    ontouchstart: vp.device.hasTouch,
+  };
+  const ua = vp.uaOverride;
+  if (ua) {
+    want.userAgent = ua.userAgent;
+    want.platform = ua.platform;
+    if (seen.uaDataMobile !== undefined) {
+      want.uaDataMobile = ua.userAgentMetadata.mobile;
+      want.uaDataPlatform = ua.userAgentMetadata.platform;
+    }
+  } else if (/Android|Mobile|iPhone|iPad|Tablet/i.test(seen.userAgent)) {
+    throw new InfraError(
+      `${vp.name}: the page reports the user agent ${seen.userAgent}, which ` +
+        "the front end does not classify as a desktop; the product's desktop " +
+        "render sends no override.",
+    );
+  }
+  for (const key of Object.keys(want)) {
+    if (seen[key] !== want[key]) {
+      throw new InfraError(
+        `${vp.name}: the page reports ${key}=${seen[key]}, the product's ` +
+          `render has ${want[key]} (device_emulation.json): the device ` +
+          "emulation of this lane and the product differ.",
+      );
+    }
+  }
+}
+function viewport(name, width, height) {
+  return {
+    name,
+    width,
+    height,
+    device: emulate(width),
+    uaOverride: userAgentOverride(width),
+  };
+}
 const VIEWPORTS = [
-  { name: "mobile", width: 375, height: 667 },
-  { name: "tablet", width: 768, height: 1024 },
-  { name: "desktop", width: 1440, height: 900 },
+  viewport("mobile", 375, 667),
+  viewport("tablet", 768, 1024),
+  viewport("desktop", 1440, 900),
 ];
 
 // src/browser/visual_regression_gate.h.
@@ -182,69 +385,92 @@ async function prewarm(browser) {
   // origin bytes for a full 180s. Warm this way first and the browser is served
   // the deferred page on its FIRST navigation, in under two seconds. Warming
   // through the browser alone would file a false finding every night.
-  let sheetHit = false;
-  while (Date.now() < deadline) {
-    const r = await fetch(`${BASE_URL}${SHEET_PATH}`);
-    await r.arrayBuffer();
-    if (r.headers.get("x-pagespeed") === "HIT") {
-      sheetHit = true;
-      break;
-    }
-    await sleep(250);
-  }
-  if (!sheetHit) {
-    throw new InfraError(
-      `the stylesheet was never served from cache within ${WARM_BUDGET_MS / 1000}s.`,
-    );
-  }
-
+  //
+  // Once per device class: each viewport's UA is its own variant (see
+  // VIEWPORTS), so warming one class warms nothing the others are served. The
+  // desktop entry sends node's own UA over plain HTTP, which classifies as
+  // desktop like the browser's.
   const originHtml = Buffer.from(
     await (await fetch(`${ORIGIN_URL}/`)).arrayBuffer(),
   );
-  let served = null;
-  while (Date.now() < deadline) {
-    const r = await fetch(`${BASE_URL}/`);
-    const body = Buffer.from(await r.arrayBuffer());
-    if (r.headers.get("x-pagespeed") === "HIT" && !body.equals(originHtml)) {
-      served = body;
-      break;
+  for (const vp of VIEWPORTS) {
+    const headers = vp.device.userAgent
+      ? { "user-agent": vp.device.userAgent }
+      : {};
+    let sheetHit = false;
+    while (Date.now() < deadline) {
+      const r = await fetch(`${BASE_URL}${SHEET_PATH}`, { headers });
+      await r.arrayBuffer();
+      if (r.headers.get("x-pagespeed") === "HIT") {
+        sheetHit = true;
+        break;
+      }
+      await sleep(250);
     }
-    await sleep(250);
-  }
-  if (served === null) {
-    throw new InfraError(
-      "the page was never served as optimizer output within " +
-        `${WARM_BUDGET_MS / 1000}s.`,
-    );
-  }
-  if (!served.includes(PRIMITIVE.deferred_link_marker)) {
-    throw new InfraError(
-      "the optimized page carries no deferred stylesheet. The stack is not in " +
-        "the forced mode (README.md).",
-    );
+    if (!sheetHit) {
+      throw new InfraError(
+        `${vp.name}: the stylesheet was never served from cache within ` +
+          `${WARM_BUDGET_MS / 1000}s.`,
+      );
+    }
+
+    let served = null;
+    while (Date.now() < deadline) {
+      const r = await fetch(`${BASE_URL}/`, { headers });
+      const body = Buffer.from(await r.arrayBuffer());
+      if (r.headers.get("x-pagespeed") === "HIT" && !body.equals(originHtml)) {
+        served = body;
+        break;
+      }
+      await sleep(250);
+    }
+    if (served === null) {
+      throw new InfraError(
+        `${vp.name}: the page was never served as optimizer output within ` +
+          `${WARM_BUDGET_MS / 1000}s.`,
+      );
+    }
+    if (!served.includes(PRIMITIVE.deferred_link_marker)) {
+      throw new InfraError(
+        `${vp.name}: the optimized page carries no deferred stylesheet. The ` +
+          "stack is not in the forced mode (README.md).",
+      );
+    }
   }
 
   // Confirm through the browser before any measurement: the mask the browser
-  // is served must be the deferred one too.
-  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-  try {
-    while (Date.now() < deadline) {
-      await page.goto(`${BASE_URL}/`, { waitUntil: "load" });
-      const deferred = await page.evaluate(
-        (sel) => document.querySelectorAll(sel).length,
-        DEFERRED_LINK_SELECTOR,
-      );
-      if (deferred > 0) return;
-      await sleep(1000);
+  // is served must be the deferred one too, for every device class.
+  for (const vp of VIEWPORTS) {
+    const page = await browser.newPage({
+      viewport: { width: vp.width, height: vp.height },
+      ...vp.device,
+    });
+    await applyDeviceOverrides(page, vp);
+    let confirmed = false;
+    try {
+      while (Date.now() < deadline) {
+        await page.goto(`${BASE_URL}/`, { waitUntil: "load" });
+        const deferred = await page.evaluate(
+          (sel) => document.querySelectorAll(sel).length,
+          DEFERRED_LINK_SELECTOR,
+        );
+        if (deferred > 0) {
+          confirmed = true;
+          break;
+        }
+        await sleep(1000);
+      }
+    } finally {
+      await page.close();
     }
-  } finally {
-    await page.close();
+    if (!confirmed) {
+      throw new InfraError(
+        `${vp.name}: the front end serves a deferred page over plain HTTP but ` +
+          `not to the browser within ${WARM_BUDGET_MS / 1000}s — a ` +
+          "capability-mask variant the optimizer never produced.",
+      );
+    }
   }
-  throw new InfraError(
-    "the front end serves a deferred page over plain HTTP but not to the " +
-      `browser within ${WARM_BUDGET_MS / 1000}s — a capability-mask variant the ` +
-      "optimizer never produced.",
-  );
 }
 
 // Now that the fixture serves real fonts, a screenshot can land mid-swap: the
@@ -286,6 +512,11 @@ async function runViewport(browser, vp) {
 
   const page = await browser.newPage({
     viewport: { width: vp.width, height: vp.height },
+    // The device class this viewport stands for (see VIEWPORTS): its UA picks
+    // the variant, and isMobile + hasTouch (phone and tablet, from
+    // device_emulation.json) lay it out, and evaluate hover/pointer media
+    // queries, the way those devices do.
+    ...vp.device,
     deviceScaleFactor: 1,
     // The capture is a dark-mode-only site; pin the preference so a runner
     // default can never move the fold's colours out from under the golden.
@@ -299,6 +530,7 @@ async function runViewport(browser, vp) {
     // under it, so nothing about the comparison is one-sided.
     reducedMotion: "reduce",
   });
+  await applyDeviceOverrides(page, vp);
 
   try {
     // Count on the measured navigation only. A preload whose `as` does not match
@@ -310,6 +542,7 @@ async function runViewport(browser, vp) {
     });
     await page.goto(`${BASE_URL}/`, { waitUntil: "load" });
     await page.waitForTimeout(500);
+    await assertDeviceParity(page, vp);
     await settleFonts(page);
 
     const deferred = await page.evaluate(

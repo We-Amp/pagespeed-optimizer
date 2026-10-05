@@ -72,7 +72,12 @@
 // conservative-refusal guards for reorder-unstable garbage values
 // (#1211 — the strict oracle's last documented red-line; verified
 // zero idempotence violations across the 1,776-artifact PR-D-era
-// sweep set on current main).  Nothing is tracked open any more.
+// sweep set on current main); again when Phase 5's declaration
+// splitter learned paren/bracket depth (a ';' inside (...) or [...]
+// is value content — "a{--x:(a;;b)}" lost a ';' on VALID input) and
+// its top-level scan stopped opening a block on a '{' inside an
+// unclosed paren (the artifact's face).  Nothing is tracked open any
+// more.
 // What stays live is tooling, not minifier classes: the two NAMED
 // token-oracle over-catches
 // (NormalizeUrl's escape-unaware ')' strip on unterminated url() at
@@ -147,6 +152,20 @@ const char* const kValidCssSeeds[] = {
     "a{b:0.0.}",
     "-0.--.0-.0..4",
     "a{bax{.0-0-.0-.0-5-.0.t0505-0-0c}",
+    // Regression seeds: a ';' inside (...) or [...] in a
+    // declaration value is value content, never a declaration boundary
+    // (the empty segment between ";;" was dropped as an empty
+    // declaration), and a '{' inside an unclosed paren is not a block
+    // edge (the run-37097654289 artifact, crash-5e066d75).
+    "a{--x:(a;;b)}",
+    "a{--x:[a;;b]}",
+    "3-0:/(;--:{!aar;;;;;;;;;;;;;;y}",
+    // ...and the bracket twins found in review: Phase 5's brace
+    // matcher and top-level scan count '[' like '(' (an unclosed '['
+    // swallows the following '}'; a ')' inside a brace group inside
+    // parens must not close the paren).
+    "a{--x:[a}e{c:d;;}",
+    "a{--x:(a{b)c;;d}e)}",
 };
 
 // Normalize-invariant diagnostic (glue-normalization cutover): the

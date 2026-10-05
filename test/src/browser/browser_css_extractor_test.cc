@@ -8,6 +8,7 @@
 
 #include "src/browser/browser_css_extractor.h"
 
+#include <cstdint>
 #include <string>
 #include <utility>
 #include <vector>
@@ -20,6 +21,7 @@
 #include "src/browser/cdp_types.h"
 #include "src/worker/critical_css_extractor.h"
 #include "test/test_util/cdp_pipe.h"
+#include "test/test_util/cdp_setup_order.h"
 #include "uv.h"
 
 namespace pagespeed {
@@ -165,6 +167,20 @@ class BrowserCssExtractorTest : public ::testing::Test {
       std::string method = cmd.value("method", "");
       responded_ids_.insert(id);
 
+      if (method == "Page.setLifecycleEventsEnabled" &&
+          replay_blank_lifecycle_) {
+        // What Chromium does: enabling lifecycle events
+        // replays the current document's lifecycle, the blank tab's
+        // networkIdle included, ahead of the reply.
+        for (const char* name :
+             {"commit", "DOMContentLoaded", "load", "networkIdle"}) {
+          SendEvent("Page.lifecycleEvent",
+                    {{"name", name}, {"loaderId", "blank-loader"}},
+                    session_id_);
+        }
+        RespondToCommand(id, json::object());
+        continue;
+      }
       if (method == "Target.createTarget") {
         RespondToCommand(id, {{"targetId", "target-1"}});
       } else if (method == "Target.attachToTarget") {
@@ -173,6 +189,9 @@ class BrowserCssExtractorTest : public ::testing::Test {
                  method == "Emulation.setScriptExecutionDisabled" ||
                  method == "Fetch.enable" ||
                  method == "Emulation.setDeviceMetricsOverride" ||
+                 method == "Emulation.setTouchEmulationEnabled" ||
+                 method == "Emulation.setUserAgentOverride" ||
+                 method == "Page.navigate" || method == "DOM.enable" ||
                  method == "Page.enable" || method == "CSS.enable" ||
                  method == "Page.setLifecycleEventsEnabled" ||
                  method == "Target.closeTarget" ||
@@ -213,6 +232,9 @@ class BrowserCssExtractorTest : public ::testing::Test {
     }
   }
 
+  // Replay the blank tab's lifecycle on Page.setLifecycleEventsEnabled, as
+  // Chromium does.
+  bool replay_blank_lifecycle_ = false;
   uv_loop_t* loop_ = nullptr;
   test::PipePair chrome_to_client_;
   test::PipePair client_to_chrome_;
@@ -271,6 +293,62 @@ TEST_F(BrowserCssExtractorTest, SuccessfulExtraction) {
   EXPECT_GT(extraction_result_->critical_css_bytes, 0u);
   EXPECT_GT(extraction_result_->coverage_ratio, 0.0f);
   EXPECT_LE(extraction_result_->coverage_ratio, 1.0f);
+}
+
+// Chromium replays the blank tab's networkIdle when lifecycle
+// events are enabled, before the document is written. The CSS coverage render takes nothing
+// from the page before it is written: its first snapshot waits for the
+// page's firstContentfulPaint, which is not replayed. (Its "load" snapshot
+// may still count the replayed networkIdle: measured on the pinned Chromium
+// 145, waiting for the page's own networkIdle instead changes none of its
+// outputs and costs 0.5 s to 2 s per render.)
+TEST_F(BrowserCssExtractorTest, TakesNothingBeforeTheDocumentIsWritten) {
+  replay_blank_lifecycle_ = true;
+  BrowserCssExtractor extractor(client_.get());
+  extractor.Extract(
+      "<html><head><style>body{margin:0}</style></head>"
+      "<body><h1>Hello</h1></body></html>",
+      375, 667, [this](absl::StatusOr<BrowserCssResult> result) {
+        extraction_result_ = std::move(result);
+        extraction_done_ = true;
+      });
+  for (int i = 0; i < 20; ++i) {
+    AutoRespondAll();
+    RunLoop();
+  }
+  auto index_of = [this](const std::string& method) {
+    for (size_t i = 0; i < received_commands_.size(); ++i) {
+      if (received_commands_[i].value("method", "") == method) {
+        return static_cast<int>(i);
+      }
+    }
+    return -1;
+  };
+  const int content = index_of("Page.setDocumentContent");
+  ASSERT_GE(content, 0) << "the document was never written";
+  EXPECT_EQ(index_of("CSS.takeCoverageDelta"), -1)
+      << "CSS.takeCoverageDelta before the page painted";
+  EXPECT_EQ(index_of("CSS.stopRuleUsageTracking"), -1)
+      << "CSS.stopRuleUsageTracking before the page painted";
+  EXPECT_FALSE(extraction_done_);
+
+  SendEvent("Page.lifecycleEvent", {{"name", "firstContentfulPaint"}},
+            session_id_);
+  for (int i = 0; i < 10; ++i) {
+    AutoRespondAll();
+    RunLoop();
+  }
+  SendEvent("Page.lifecycleEvent", {{"name", "networkIdle"}}, session_id_);
+  for (int i = 0; i < 20 && !extraction_done_; ++i) {
+    AutoRespondAll();
+    RunLoop();
+  }
+  ASSERT_TRUE(extraction_done_);
+  EXPECT_TRUE(extraction_result_.ok()) << extraction_result_.status();
+  EXPECT_GT(index_of("CSS.takeCoverageDelta"), content)
+      << "CSS.takeCoverageDelta";
+  EXPECT_GT(index_of("CSS.stopRuleUsageTracking"), content)
+      << "CSS.stopRuleUsageTracking";
 }
 
 TEST_F(BrowserCssExtractorTest, CreateTargetFailure) {
@@ -414,6 +492,7 @@ TEST_F(BrowserCssExtractorTest, ViewportDimensionsSet) {
 
   // Find setDeviceMetricsOverride command.
   bool found = false;
+  bool found_touch = false;
   for (const auto& cmd : received_commands_) {
     if (cmd.value("method", "") == "Emulation.setDeviceMetricsOverride") {
       auto params = cmd.value("params", json::object());
@@ -421,10 +500,24 @@ TEST_F(BrowserCssExtractorTest, ViewportDimensionsSet) {
       EXPECT_EQ(params.value("height", 0), 667);
       EXPECT_TRUE(params.value("mobile", false));
       found = true;
+    }
+    // A phone is a touch device, on the same session, after the
+    // metrics.
+    if (cmd.value("method", "") == "Emulation.setTouchEmulationEnabled") {
+      EXPECT_TRUE(found) << "touch is emulated after the device metrics";
+      auto params = cmd.value("params", json::object());
+      EXPECT_TRUE(params.value("enabled", false));
+      EXPECT_EQ(params.value("maxTouchPoints", 0), 5);
+      EXPECT_EQ(cmd.value("sessionId", ""), session_id_);
+      found_touch = true;
       break;
     }
   }
   EXPECT_TRUE(found);
+  EXPECT_TRUE(found_touch);
+  // Then the phone's user agent, and the document goes into a
+  // fresh about:blank window.
+  test::ExpectFreshWindowRenderSetup(received_commands_, session_id_, 375, 667);
 
   // Clean up.
   SendEvent("Page.lifecycleEvent", {{"name", "firstContentfulPaint"}},
@@ -434,6 +527,38 @@ TEST_F(BrowserCssExtractorTest, ViewportDimensionsSet) {
     AutoRespondAll();
     RunLoop();
     if (extraction_done_) break;
+  }
+}
+
+// The setup order at the tablet (its own user agent) and the
+// desktop (no user agent override), each ending in a fresh window.
+TEST_F(BrowserCssExtractorTest, TabletAndDesktopSetupOrder) {
+  for (const auto& [width, height] :
+       {std::pair<uint32_t, uint32_t>{768, 1024}, {1440, 900}}) {
+    received_commands_.clear();
+    responded_ids_.clear();
+    extraction_done_ = false;
+    BrowserCssExtractor extractor(client_.get());
+    extractor.Extract("<html></html>", width, height,
+                      [this](absl::StatusOr<BrowserCssResult> result) {
+                        extraction_result_ = std::move(result);
+                        extraction_done_ = true;
+                      });
+    for (int i = 0; i < 20; ++i) {
+      AutoRespondAll();
+      RunLoop();
+    }
+    test::ExpectFreshWindowRenderSetup(received_commands_, session_id_, width,
+                                       height);
+    SendEvent("Page.lifecycleEvent", {{"name", "firstContentfulPaint"}},
+              session_id_);
+    SendEvent("Page.lifecycleEvent", {{"name", "networkIdle"}}, session_id_);
+    for (int i = 0; i < 15; ++i) {
+      AutoRespondAll();
+      RunLoop();
+      if (extraction_done_) break;
+    }
+    EXPECT_TRUE(extraction_done_) << width;
   }
 }
 
@@ -1076,8 +1201,12 @@ TEST_F(BrowserCssExtractorTest, FetchRequestBlockedDuringExtraction) {
   bool found_fail = false;
   for (const auto& cmd : received_commands_) {
     if (cmd.value("method", "") == "Fetch.failRequest") {
-      EXPECT_EQ(cmd.value("params", json::object()).value("reason", ""),
+      // Fetch.failRequest's parameter is `errorReason`: Chromium rejects a
+      // `reason` with "Invalid parameters" and leaves the request paused, so
+      // the page never reaches load or networkIdle.
+      EXPECT_EQ(cmd.value("params", json::object()).value("errorReason", ""),
                 "BlockedByClient");
+      EXPECT_FALSE(cmd.value("params", json::object()).contains("reason"));
       found_fail = true;
       break;
     }
@@ -1367,6 +1496,28 @@ TEST(BuildCoverageIdentitiesTest,
   EXPECT_FALSE(ids.contains(RuleIdentity{"utilities", "", ".flex"}));
   EXPECT_FALSE(ids.contains(
       RuleIdentity{"utilities", "(min-width: 768px)", ".md\\:flex"}));
+}
+
+// An escaped quote in a selector is part of the ident, so it
+// opens no string and every later rule is still seen.
+TEST(BuildCoverageIdentitiesTest, EscapedQuoteInSelectorKeepsLaterRules) {
+  absl::flat_hash_set<RuleIdentity> ids = BuildCoverageIdentities(
+      "@layer utilities{.a\\'b{color:red}.c{color:blue}}");
+  EXPECT_TRUE(ids.contains(RuleIdentity{"utilities", "", ".a\\'b"}));
+  EXPECT_TRUE(ids.contains(RuleIdentity{"utilities", "", ".c"}));
+}
+
+// A string missing its closing quote ends at the newline (a bad string), as
+// in the extractor, so the rule after it is still seen; a CRLF continuation
+// does not end it.
+TEST(BuildCoverageIdentitiesTest, BadStringEndsAtNewline) {
+  absl::flat_hash_set<RuleIdentity> ids =
+      BuildCoverageIdentities(".a{content:\"open\n}.b{color:red}");
+  EXPECT_TRUE(ids.contains(RuleIdentity{"", "", ".b"}));
+  absl::flat_hash_set<RuleIdentity> continued =
+      BuildCoverageIdentities(".a{content:\"x\\\r\n}y\"}.c{color:red}");
+  EXPECT_TRUE(continued.contains(RuleIdentity{"", "", ".c"}));
+  EXPECT_FALSE(continued.contains(RuleIdentity{"", "", "y\"}.c"}));
 }
 
 }  // namespace

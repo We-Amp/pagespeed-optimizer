@@ -22,7 +22,9 @@
 #include <functional>
 #include <memory>
 #include <string>
+#include <string_view>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
@@ -75,6 +77,16 @@ class CdpClient {
   // The event loop this client runs on.
   uv_loop_t* loop() const { return loop_; }
 
+  // Where the renders report problems that do not end them
+  // (a refused Fetch.failRequest). The worker sets this to its message
+  // handler; unset, reports are dropped.
+  void set_diagnostic_handler(std::function<void(std::string_view)> handler) {
+    diagnostic_handler_ = std::move(handler);
+  }
+  void Diagnose(std::string_view message) const {
+    if (diagnostic_handler_) diagnostic_handler_(message);
+  }
+
  private:
   // Per-command tracking: callback + timeout timer.
   struct PendingCommand {
@@ -115,6 +127,9 @@ class CdpClient {
 
   // Event callback for CDP notifications.
   CdpEventCallback event_callback_;
+
+  // See set_diagnostic_handler().
+  std::function<void(std::string_view)> diagnostic_handler_;
 
   // Alive flag for safe access from deferred callbacks (M10, M4).
   std::shared_ptr<bool> alive_;

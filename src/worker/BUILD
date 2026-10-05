@@ -82,6 +82,8 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         "//lib/base:string_util",
+        "//lib/base:url_util",
+        "//lib/classify:url_normalizer",
         "//lib/html:compat",
         "//lib/html:empty_html_filter",
         "//lib/html:html_keywords",
@@ -106,6 +108,40 @@ cc_library(
     hdrs = ["html_css_injector.h"],
     visibility = ["//visibility:public"],
     deps = ["//lib/base:string_util"],
+)
+
+# <noscript> removal for the browser-analysis renders
+cc_library(
+    name = "noscript_strip",
+    srcs = ["noscript_strip.cc"],
+    hdrs = ["noscript_strip.h"],
+    visibility = ["//visibility:public"],
+    deps = [":html_scanner"],
+)
+
+# Cascade-layer order of a page, and where a layered critical block may go
+cc_library(
+    name = "cascade_layer_order",
+    srcs = ["cascade_layer_order.cc"],
+    hdrs = ["cascade_layer_order.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":html_css_injector",
+        "//lib/base:string_util",
+    ],
+)
+
+# The scanner's stylesheet sources as cascade-layer inputs
+cc_library(
+    name = "layer_order_sources",
+    srcs = ["layer_order_sources.cc"],
+    hdrs = ["layer_order_sources.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":cascade_layer_order",
+        ":html_scanner",
+        "@com_google_absl//absl/strings",
+    ],
 )
 
 # CSS Cache Inliner - resolves CSS URLs from cache for inline injection
@@ -158,9 +194,12 @@ cc_library(
     hdrs = ["critical_css_extractor.h"],
     visibility = ["//visibility:public"],
     deps = [
+        ":cascade_layer_order",
+        ":html_css_injector",
         ":html_scanner",
         "//lib/base:string_util",
         "//lib/classify:capability_mask",
+        "//src/browser:device_emulation",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/strings",
@@ -228,6 +267,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":async_css_loader",
+        ":cascade_layer_order",
         ":html_scanner",
         "//lib/base:string_util",
         "//lib/cache:pagespeed_cache",
@@ -266,9 +306,11 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":analysis_resource_map",
+        ":cascade_layer_order",
         ":critical_css_extractor",
         ":css_cache_inliner",
         ":html_scanner",
+        ":noscript_strip",
         ":uv_helpers",
         "//lib/base:message_handler",
         "//lib/cache:pagespeed_cache",
@@ -285,6 +327,7 @@ cc_library(
         "//src/browser:cdp_types",
         "//src/browser:chrome_process",
         "//src/browser:critical_css_validator",
+        "//src/browser:device_emulation",
         "//src/browser:optimization_profile",
         "//src/browser:page_analysis",
         "//src/browser:script_coverage_analyzer",
@@ -330,7 +373,10 @@ cc_library(
 # that bypasses :json_dump.
 filegroup(
     name = "all_sources",
-    srcs = glob(["**/*.cc", "**/*.h"]),
+    srcs = glob([
+        "**/*.cc",
+        "**/*.h",
+    ]),
     visibility = ["//test/src/worker:__pkg__"],
 )
 
@@ -567,6 +613,7 @@ cc_library(
         "//lib/base:string_util",
         "//src/browser:cdp_client",
         "//src/browser:cdp_types",
+        "//src/browser:device_emulation",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@libuv",
@@ -611,6 +658,7 @@ cc_library(
         ":cache_dir",
         ":cache_handlers",
         ":capture_handlers",
+        ":cascade_layer_order",
         ":critical_css_extractor",
         ":font_url_extractor",
         ":host_aliases",
@@ -619,6 +667,7 @@ cc_library(
         ":html_transform_filter",
         ":http_server",
         ":image_transcoder",
+        ":layer_order_sources",
         ":llms_txt_builder",
         ":optimization_policy",
         ":pipe_dacl",

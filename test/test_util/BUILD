@@ -6,20 +6,36 @@ load("@rules_cc//cc:defs.bzl", "cc_library")
 cc_library(
     name = "temp_dir",
     hdrs = ["temp_dir.h"],
-    visibility = ["//test:__subpackages__", "//lib:__subpackages__"],
+    visibility = [
+        "//lib:__subpackages__",
+        "//test:__subpackages__",
+    ],
 )
 
 cc_library(
     name = "tcp_client",
     hdrs = ["tcp_client.h"],
-    visibility = ["//test:__subpackages__", "//lib:__subpackages__"],
+    visibility = [
+        "//lib:__subpackages__",
+        "//test:__subpackages__",
+    ],
     deps = ["//lib/base:string_util"],
+)
+
+cc_library(
+    name = "scoped_thread_join",
+    testonly = True,
+    hdrs = ["scoped_thread_join.h"],
+    visibility = ["//test:__subpackages__"],
 )
 
 cc_library(
     name = "cdp_pipe",
     hdrs = ["cdp_pipe.h"],
-    visibility = ["//test:__subpackages__", "//lib:__subpackages__"],
+    visibility = [
+        "//lib:__subpackages__",
+        "//test:__subpackages__",
+    ],
     deps = ["@libuv"],
 )
 
@@ -27,7 +43,10 @@ cc_library(
     name = "cdp_scripted_peer",
     testonly = True,
     hdrs = ["cdp_scripted_peer.h"],
-    visibility = ["//test:__subpackages__", "//lib:__subpackages__"],
+    visibility = [
+        "//lib:__subpackages__",
+        "//test:__subpackages__",
+    ],
     deps = [
         ":cdp_pipe",
         "//src/browser:cdp_client",
@@ -36,11 +55,28 @@ cc_library(
     ],
 )
 
+# The device-emulation setup order of a setDocumentContent render,
+# checked against a fake CDP peer's received commands.
+cc_library(
+    name = "cdp_setup_order",
+    testonly = True,
+    hdrs = ["cdp_setup_order.h"],
+    visibility = ["//test:__subpackages__"],
+    deps = [
+        "//src/browser:device_emulation",
+        "@com_google_googletest//:gtest",
+        "@nlohmann_json//:json",
+    ],
+)
+
 cc_library(
     name = "png_image",
     testonly = True,
     hdrs = ["png_image.h"],
-    visibility = ["//test:__subpackages__", "//lib:__subpackages__"],
+    visibility = [
+        "//lib:__subpackages__",
+        "//test:__subpackages__",
+    ],
     deps = ["@libpng"],
 )
 
@@ -57,7 +93,10 @@ cc_library(
     name = "cache_test_peer",
     testonly = True,
     hdrs = ["cache_test_peer.h"],
-    visibility = ["//test:__subpackages__", "//lib:__subpackages__"],
+    visibility = [
+        "//lib:__subpackages__",
+        "//test:__subpackages__",
+    ],
     deps = [
         "//lib/cache:pagespeed_cache",
         "@cyclone",

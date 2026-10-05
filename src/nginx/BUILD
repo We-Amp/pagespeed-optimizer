@@ -28,6 +28,17 @@ cc_library(
     ],
 )
 
+# Cache-directory generation check against the optimizer's published
+# generation - pure C++, testable without nginx headers.  Takes the generation
+# from the optimizer's own constant (kCacheDirGeneration) rather than a copy.
+cc_library(
+    name = "cache_generation_check",
+    srcs = ["cache_generation_check.cc"],
+    hdrs = ["cache_generation_check.h"],
+    visibility = ["//visibility:public"],
+    deps = ["//src/worker:shared_config"],
+)
+
 # Early Hints utilities - pure C++, testable without nginx headers.
 cc_library(
     name = "early_hints_util",
@@ -119,6 +130,7 @@ cc_library(
     visibility = ["//visibility:public"],
     deps = [
         ":authz_cache_gate",
+        ":cache_generation_check",
         ":early_hints",
         ":early_hints_util",
         ":etag_util",

@@ -22,8 +22,19 @@
 #include "lib/base/message_handler.h"
 #include "nlohmann/json.hpp"
 #include "src/worker/ws_handlers.h"
+#include "test/test_util/scoped_thread_join.h"
 #include "test/test_util/tcp_client.h"
 #include "uv.h"
+
+#ifdef _WIN32
+// The Windows headers that arrive with the includes above define the
+// object-like macro FormatMessage (-> FormatMessageA), which rewrites the
+// token before name lookup runs, so the unqualified call to the inherited
+// MessageHandler::FormatMessage below would become a call to the Win32 API.
+// Qualifying or parenthesising the name does not suppress an object-like
+// macro; only #undef does.
+#undef FormatMessage
+#endif
 
 namespace pagespeed {
 namespace {
@@ -1949,6 +1960,9 @@ TEST(WsAuthTimeoutWarningIntegrationTest, RepeatedTimeoutsLogOnlyOnce) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
   });
+  // A failed connect below must not leave the loop thread joinable.
+  test::ScopedThreadJoin loop_guard(loop_thread,
+                                    [&running] { running = false; });
 
   // Three connections, none authenticate; each times out in turn (well
   // under the 60s rate-limit window).
@@ -2030,6 +2044,9 @@ TEST(WsAuthTimeoutWarningIntegrationTest, RepeatedRefusalsLogOnlyOnce) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
   });
+  // A failed connect below must not leave the loop thread joinable.
+  test::ScopedThreadJoin loop_guard(loop_thread,
+                                    [&running] { running = false; });
 
   // First connection: fills the one pre-auth slot and holds it (never
   // authenticates, stays open for the rest of the test).

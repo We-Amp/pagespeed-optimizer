@@ -10,6 +10,7 @@
 
 #include <memory>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -20,6 +21,7 @@
 #include "src/browser/cdp_types.h"
 #include "src/browser/page_analysis.h"
 #include "test/test_util/cdp_pipe.h"
+#include "test/test_util/cdp_setup_order.h"
 #include "uv.h"
 
 namespace pagespeed {
@@ -495,6 +497,19 @@ class ScriptCoverageAnalyzerCdpTest : public ::testing::Test {
       std::string method = cmd.value("method", "");
       responded_ids_.insert(id);
 
+      if (method == "Page.setLifecycleEventsEnabled" &&
+          replay_blank_lifecycle_) {
+        // What Chromium does: enabling lifecycle events
+        // replays the current document's lifecycle, the blank tab's
+        // networkIdle included, ahead of the reply.
+        for (const char* name :
+             {"commit", "DOMContentLoaded", "load", "networkIdle"}) {
+          SendEvent("Page.lifecycleEvent",
+                    {{"name", name}, {"loaderId", "blank-loader"}}, "sess-1");
+        }
+        RespondToCommand(id, json::object());
+        continue;
+      }
       if (method == "Target.createTarget") {
         RespondToCommand(id, {{"targetId", "target-1"}});
       } else if (method == "Target.attachToTarget") {
@@ -513,6 +528,12 @@ class ScriptCoverageAnalyzerCdpTest : public ::testing::Test {
         json scripts = MakeScriptInfoResponse();
         RespondToCommand(
             id, {{"result", {{"type", "string"}, {"value", scripts.dump()}}}});
+      } else if (method == "Fetch.failRequest" && refuse_fail_request_) {
+        // What Chromium answered to the `reason` parameter.
+        json err = {
+            {"id", id},
+            {"error", {{"code", -32602}, {"message", "Invalid parameters"}}}};
+        SendFromChrome(err.dump());
       } else if (method == "Fetch.failRequest" ||
                  method ==
                      "Fetch.fulfillRequest") {  // NOLINT(bugprone-branch-clone)
@@ -523,6 +544,11 @@ class ScriptCoverageAnalyzerCdpTest : public ::testing::Test {
     }
   }
 
+  // Replay the blank tab's lifecycle on Page.setLifecycleEventsEnabled, as
+  // Chromium does.
+  bool replay_blank_lifecycle_ = false;
+  // Answer Fetch.failRequest with an error, as Chromium answered `reason`.
+  bool refuse_fail_request_ = false;
   uv_loop_t* loop_ = nullptr;
   test::PipePair chrome_to_client_;
   test::PipePair client_to_chrome_;
@@ -533,6 +559,23 @@ class ScriptCoverageAnalyzerCdpTest : public ::testing::Test {
   std::unique_ptr<CdpClient> client_;
   bool analyze_done_ = false;
   absl::StatusOr<ScriptCoverageResult> analyze_result_;
+  // Push the lifecycle events a render waits for (FCP, then networkIdle)
+  // and pump until it reports, so the session releases itself.
+  void FinishAnalysis() {
+    SendEvent("Page.lifecycleEvent", {{"name", "firstContentfulPaint"}},
+              "sess-1");
+    for (int i = 0; i < 5; ++i) {
+      AutoRespondAll();
+      RunLoop();
+    }
+    SendEvent("Page.lifecycleEvent", {{"name", "networkIdle"}}, "sess-1");
+    for (int i = 0; i < 15; ++i) {
+      AutoRespondAll();
+      RunLoop();
+      if (analyze_done_) break;
+    }
+  }
+
   std::vector<json> received_commands_;
   std::string received_data_;
   std::set<int> responded_ids_;
@@ -591,6 +634,155 @@ TEST_F(ScriptCoverageAnalyzerCdpTest, SuccessfulAnalysis) {
   }
   EXPECT_TRUE(found_app);
   EXPECT_TRUE(found_tracking);
+}
+
+// Chromium replays the blank tab's networkIdle when lifecycle
+// events are enabled, before the document is written. Script coverage takes nothing
+// from the page before it is written: its first snapshot waits for the
+// page's firstContentfulPaint, which is not replayed. (Its "load" snapshot
+// may still count the replayed networkIdle: measured on the pinned Chromium
+// 145, waiting for the page's own networkIdle instead changes none of its
+// outputs and costs 0.5 s to 2 s per render.)
+TEST_F(ScriptCoverageAnalyzerCdpTest, TakesNothingBeforeTheDocumentIsWritten) {
+  replay_blank_lifecycle_ = true;
+  ScriptCoverageAnalyzer analyzer(client_.get());
+  auto resources = std::make_shared<const PageAnalyzer::ResourceMap>();
+  analyzer.Analyze("<html><body><script src='app.js'></script></body></html>",
+                   resources, 375, 667,
+                   [this](absl::StatusOr<ScriptCoverageResult> result) {
+                     analyze_result_ = std::move(result);
+                     analyze_done_ = true;
+                   });
+  for (int i = 0; i < 20; ++i) {
+    AutoRespondAll();
+    RunLoop();
+  }
+  auto index_of = [this](const std::string& method) {
+    for (size_t i = 0; i < received_commands_.size(); ++i) {
+      if (received_commands_[i].value("method", "") == method) {
+        return static_cast<int>(i);
+      }
+    }
+    return -1;
+  };
+  const int content = index_of("Page.setDocumentContent");
+  ASSERT_GE(content, 0) << "the document was never written";
+  EXPECT_EQ(index_of("Profiler.takePreciseCoverage"), -1)
+      << "Profiler.takePreciseCoverage before the page painted";
+  EXPECT_EQ(index_of("Runtime.evaluate"), -1)
+      << "Runtime.evaluate before the page painted";
+  EXPECT_FALSE(analyze_done_);
+
+  SendEvent("Page.lifecycleEvent", {{"name", "firstContentfulPaint"}},
+            "sess-1");
+  for (int i = 0; i < 10; ++i) {
+    AutoRespondAll();
+    RunLoop();
+  }
+  SendEvent("Page.lifecycleEvent", {{"name", "networkIdle"}}, "sess-1");
+  for (int i = 0; i < 20 && !analyze_done_; ++i) {
+    AutoRespondAll();
+    RunLoop();
+  }
+  ASSERT_TRUE(analyze_done_);
+  EXPECT_TRUE(analyze_result_.ok()) << analyze_result_.status();
+  EXPECT_GT(index_of("Profiler.takePreciseCoverage"), content)
+      << "Profiler.takePreciseCoverage";
+  EXPECT_GT(index_of("Runtime.evaluate"), content) << "Runtime.evaluate";
+}
+
+// The script-coverage render emulates the device the way every
+// analysis render does (src/browser/device_emulation.h): the device metrics,
+// then touch, on the render's session and before the profiler. A phone is a
+// touch device.
+TEST_F(ScriptCoverageAnalyzerCdpTest, EmulatesAPhoneAsATouchDevice) {
+  ScriptCoverageAnalyzer analyzer(client_.get());
+  auto resources = std::make_shared<const PageAnalyzer::ResourceMap>();
+  analyzer.Analyze("<html></html>", resources, 375, 667,
+                   [this](absl::StatusOr<ScriptCoverageResult> result) {
+                     analyze_result_ = std::move(result);
+                     analyze_done_ = true;
+                   });
+  for (int i = 0; i < 20; ++i) {
+    AutoRespondAll();
+    RunLoop();
+  }
+
+  int metrics = -1;
+  int touch = -1;
+  int profiler = -1;
+  for (size_t i = 0; i < received_commands_.size(); ++i) {
+    const std::string method = received_commands_[i].value("method", "");
+    if (method == "Emulation.setDeviceMetricsOverride" && metrics < 0) {
+      metrics = static_cast<int>(i);
+    } else if (method == "Emulation.setTouchEmulationEnabled" && touch < 0) {
+      touch = static_cast<int>(i);
+    } else if (method == "Profiler.enable" && profiler < 0) {
+      profiler = static_cast<int>(i);
+    }
+  }
+  ASSERT_GE(metrics, 0) << "no device metrics";
+  ASSERT_GE(touch, 0) << "no touch emulation: the render bypassed "
+                         "EmulateDevice";
+  ASSERT_GE(profiler, 0);
+  EXPECT_LT(metrics, touch) << "touch follows the device metrics";
+  EXPECT_LT(touch, profiler) << "the emulation precedes the profiler";
+
+  const json metrics_params =
+      received_commands_[metrics].value("params", json::object());
+  EXPECT_EQ(metrics_params.value("width", 0), 375);
+  EXPECT_EQ(metrics_params.value("height", 0), 667);
+  EXPECT_TRUE(metrics_params.value("mobile", false));
+  EXPECT_EQ(received_commands_[metrics].value("sessionId", ""), "sess-1");
+  const json touch_params =
+      received_commands_[touch].value("params", json::object());
+  EXPECT_TRUE(touch_params.value("enabled", false));
+  EXPECT_EQ(touch_params.value("maxTouchPoints", 0), 5);
+  EXPECT_EQ(received_commands_[touch].value("sessionId", ""), "sess-1");
+  // Then the phone's user agent, and a fresh window.
+  test::ExpectFreshWindowRenderSetup(received_commands_, "sess-1", 375, 667);
+
+  // Drive the render to completion so its session releases itself (the
+  // client's callbacks hold it until then), as the other call-site tests do.
+  FinishAnalysis();
+  EXPECT_TRUE(analyze_done_);
+}
+
+// The desktop render is a window without touch; the call is still sent,
+// disabled, so no target inherits a state.
+TEST_F(ScriptCoverageAnalyzerCdpTest, EmulatesADesktopWindowWithoutTouch) {
+  ScriptCoverageAnalyzer analyzer(client_.get());
+  auto resources = std::make_shared<const PageAnalyzer::ResourceMap>();
+  analyzer.Analyze("<html></html>", resources, 1440, 900,
+                   [this](absl::StatusOr<ScriptCoverageResult> result) {
+                     analyze_result_ = std::move(result);
+                     analyze_done_ = true;
+                   });
+  for (int i = 0; i < 20; ++i) {
+    AutoRespondAll();
+    RunLoop();
+  }
+  bool found_metrics = false;
+  bool found_touch = false;
+  for (const auto& cmd : received_commands_) {
+    const std::string method = cmd.value("method", "");
+    if (method == "Emulation.setDeviceMetricsOverride") {
+      EXPECT_FALSE(cmd.value("params", json::object()).value("mobile", true));
+      found_metrics = true;
+    } else if (method == "Emulation.setTouchEmulationEnabled") {
+      EXPECT_TRUE(found_metrics) << "touch follows the device metrics";
+      const json params = cmd.value("params", json::object());
+      EXPECT_FALSE(params.value("enabled", true));
+      EXPECT_EQ(params.value("maxTouchPoints", 0), 5);
+      found_touch = true;
+    }
+  }
+  EXPECT_TRUE(found_metrics);
+  EXPECT_TRUE(found_touch);
+  // No user agent override on the desktop; a fresh window still.
+  test::ExpectFreshWindowRenderSetup(received_commands_, "sess-1", 1440, 900);
+  FinishAnalysis();
+  EXPECT_TRUE(analyze_done_);
 }
 
 TEST_F(ScriptCoverageAnalyzerCdpTest, CreateTargetFailure) {
@@ -741,8 +933,12 @@ TEST_F(ScriptCoverageAnalyzerCdpTest, FetchBlocksUnknownUrls) {
   bool found_fail = false;
   for (const auto& cmd : received_commands_) {
     if (cmd.value("method", "") == "Fetch.failRequest") {
-      EXPECT_EQ(cmd.value("params", json::object()).value("reason", ""),
+      // Fetch.failRequest's parameter is `errorReason`: Chromium rejects a
+      // `reason` with "Invalid parameters" and leaves the request paused, so
+      // the page never reaches load or networkIdle.
+      EXPECT_EQ(cmd.value("params", json::object()).value("errorReason", ""),
                 "BlockedByClient");
+      EXPECT_FALSE(cmd.value("params", json::object()).contains("reason"));
       found_fail = true;
       break;
     }
@@ -762,6 +958,110 @@ TEST_F(ScriptCoverageAnalyzerCdpTest, FetchBlocksUnknownUrls) {
   ASSERT_TRUE(analyze_done_);
   ASSERT_TRUE(analyze_result_.ok()) << analyze_result_.status().message();
   EXPECT_GE(analyze_result_->fetches_blocked, 1u);
+}
+
+// The redirect leg of the Fetch interception (a response-stage 3xx is never
+// followed) blocks through the same Fetch.failRequest, with Chromium's
+// `errorReason`, even for a URL the resource map holds.
+TEST_F(ScriptCoverageAnalyzerCdpTest, FetchBlocksRedirectResponses) {
+  ScriptCoverageAnalyzer analyzer(client_.get());
+  auto resources = std::make_shared<PageAnalyzer::ResourceMap>();
+  (*resources)["https://example.com/old.js"] = "var a = 1;";
+  auto const_resources =
+      std::static_pointer_cast<const PageAnalyzer::ResourceMap>(resources);
+  analyzer.Analyze("<html></html>", const_resources, 1440, 900,
+                   [this](absl::StatusOr<ScriptCoverageResult> result) {
+                     analyze_result_ = std::move(result);
+                     analyze_done_ = true;
+                   });
+  for (int i = 0; i < 20; ++i) {
+    AutoRespondAll();
+    RunLoop();
+  }
+  SendEvent("Fetch.requestPaused",
+            {{"requestId", "req-redirect"},
+             {"request", {{"url", "https://example.com/old.js"}}},
+             {"responseStatusCode", 302},
+             {"responseHeaders",
+              {{{"name", "Location"}, {"value", "https://evil.test/new.js"}}}}},
+            "sess-1");
+  for (int i = 0; i < 5; ++i) {
+    AutoRespondAll();
+    RunLoop();
+  }
+  bool found_fail = false;
+  bool found_fulfill = false;
+  for (const auto& cmd : received_commands_) {
+    const json params = cmd.value("params", json::object());
+    if (params.value("requestId", "") != "req-redirect") continue;
+    const std::string method = cmd.value("method", "");
+    if (method == "Fetch.failRequest") {
+      EXPECT_EQ(params.value("errorReason", ""), "BlockedByClient");
+      EXPECT_FALSE(params.contains("reason"));
+      EXPECT_EQ(cmd.value("sessionId", ""), "sess-1");
+      found_fail = true;
+    } else if (method == "Fetch.fulfillRequest") {
+      found_fulfill = true;
+    }
+  }
+  EXPECT_TRUE(found_fail);
+  EXPECT_FALSE(found_fulfill) << "a redirect is never followed";
+
+  SendEvent("Page.lifecycleEvent", {{"name", "firstContentfulPaint"}},
+            "sess-1");
+  SendEvent("Page.lifecycleEvent", {{"name", "networkIdle"}}, "sess-1");
+  for (int i = 0; i < 15 && !analyze_done_; ++i) {
+    AutoRespondAll();
+    RunLoop();
+  }
+  ASSERT_TRUE(analyze_done_);
+  ASSERT_TRUE(analyze_result_.ok()) << analyze_result_.status().message();
+  EXPECT_EQ(analyze_result_->fetches_blocked, 1u);
+}
+
+// A refused Fetch.failRequest (the request stays paused) is
+// reported through the client's diagnostic handler, once per render, instead
+// of being dropped unseen.
+TEST_F(ScriptCoverageAnalyzerCdpTest, ARefusedFailRequestIsReportedOnce) {
+  std::vector<std::string> reports;
+  client_->set_diagnostic_handler(
+      [&reports](std::string_view m) { reports.emplace_back(m); });
+  refuse_fail_request_ = true;
+  ScriptCoverageAnalyzer analyzer(client_.get());
+  auto resources = std::make_shared<const PageAnalyzer::ResourceMap>();
+  analyzer.Analyze("<html></html>", resources, 1440, 900,
+                   [this](absl::StatusOr<ScriptCoverageResult> result) {
+                     analyze_result_ = std::move(result);
+                     analyze_done_ = true;
+                   });
+  for (int i = 0; i < 20; ++i) {
+    AutoRespondAll();
+    RunLoop();
+  }
+  for (const char* id : {"req-1", "req-2"}) {
+    SendEvent("Fetch.requestPaused",
+              {{"requestId", id}, {"request", {{"url", "https://x.test/a"}}}},
+              "sess-1");
+  }
+  for (int i = 0; i < 5; ++i) {
+    AutoRespondAll();
+    RunLoop();
+  }
+  ASSERT_EQ(reports.size(), 1u) << "reported once per render";
+  EXPECT_NE(reports[0].find("script coverage"), std::string::npos)
+      << reports[0];
+  EXPECT_NE(reports[0].find("Invalid parameters"), std::string::npos)
+      << reports[0];
+
+  SendEvent("Page.lifecycleEvent", {{"name", "firstContentfulPaint"}},
+            "sess-1");
+  SendEvent("Page.lifecycleEvent", {{"name", "networkIdle"}}, "sess-1");
+  for (int i = 0; i < 15 && !analyze_done_; ++i) {
+    AutoRespondAll();
+    RunLoop();
+  }
+  EXPECT_TRUE(analyze_done_);
+  client_->set_diagnostic_handler(nullptr);
 }
 
 // Direct repro of the evidence gate: a script the DOM lists but the profiler

@@ -2488,6 +2488,67 @@ TEST(CssMinifyTest, BraceGroupsInDeclarationValuesAreOpaque) {
                "a{padding:1px}");
 }
 
+TEST(CssMinifyTest, SemicolonsInsideParensAreValueContent) {
+  // Phase 5's declaration splitter (ParseBlockDecls) cut
+  // at every ';' outside strings/url()/escapes with no paren or bracket
+  // depth, so the empty segment between the two ';' of a parenthesized
+  // group was an empty declaration and the rejoin dropped it.  A custom
+  // property reads its value back verbatim (Chromium applies
+  // --x:"(a;;b)" for the input and "(a;b)" for the old output), so this
+  // was served-bytes corruption of valid CSS.  CSS Syntax 3 ends a
+  // declaration only at a TOP-LEVEL ';'; the splitter now tracks the
+  // depth, as Phase 3's ';'-trim already did.
+  ExpectMinify("a{--x:(a;;b)}", "a{--x:(a;;b)}");
+  ExpectMinify("a{--x:[a;;b]}", "a{--x:[a;;b]}");
+  ExpectMinify("a{--x:f(a;;b)}", "a{--x:f(a;;b)}");
+  ExpectMinify("a{--x:(a{b;;c}d)}", "a{--x:(a{b;;c}d)}");
+  ExpectMinify("a{--x:(a;;b);c:d}", "a{--x:(a;;b);c:d}");
+  // Ordinary values go through the same splitter.
+  ExpectMinify("a{b:(a;;b)}", "a{b:(a;;b)}");
+  // The declaration after the group is still its own declaration:
+  // shorthand collapse keeps firing there.
+  ExpectMinify(("a{--x:(a;;b);padding-top:1px;padding-right:1px;"
+                "padding-bottom:1px;padding-left:1px}"),
+               "a{--x:(a;;b);padding:1px}");
+  // The fuzz artifact (crash-5e066d75, run 37097654289): an unclosed
+  // TOP-LEVEL '(' is a simple block that CSS Syntax 3 runs to EOF, so
+  // no browser applies anything after it (Chromium: 0 rules for input
+  // and old output alike) — but the Phase 5 top-level scan still opened
+  // a declaration block on the '{' inside it and dropped the empty
+  // declarations, while its own brace matcher treats a '{' inside
+  // parens as content.  Byte-stable now, both at top level and in a
+  // prelude function such as a container style query.
+  ExpectMinify("3-0:/(;--:{!aar;;;;;;;;;;;;;;y}",
+               "3-0:/(;--:{!aar;;;;;;;;;;;;;;y}");
+  ExpectMinify("(;--:{a;;b}", "(;--:{a;;b}");
+  ExpectMinify("@container style(--c:{a;;b}){x{y:z}}",
+               "@container style(--c:{a;;b}){x{y:z}}");
+  // Bracket twins (review of the fix): the brace matcher and the
+  // top-level scan count '[' like '('.  An unclosed '[' swallows the
+  // '}' that used to close a's block (the matcher then collapsed
+  // "c:d;;" as e's declarations), and a ')' inside a brace group inside
+  // parens must not close the paren.
+  ExpectMinify("a{--x:[a}e{c:d;;}", "a{--x:[a}e{c:d;;}");
+  ExpectMinify("a{--x:(a{b)c;;d}e)}", "a{--x:(a{b)c;;d}e)}");
+  ExpectMinify("[;--:{a;;b}", "[;--:{a;;b}");
+  // Guards: top-level ';' runs still trim, a stray closer at depth 0 is
+  // not an opener, and parens in a prelude close before the block.
+  ExpectMinify("a{b:c;;;d:e}", "a{b:c;d:e}");
+  ExpectMinify("a{;;b:c}", "a{b:c}");
+  ExpectMinify("a{b:c];;d:e}", "a{b:c];d:e}");
+  ExpectMinify("a){color:red;;}", "a){color:red}");
+  ExpectMinify(":is(a,b){color:red;;}", ":is(a,b){color:red}");
+  ExpectMinify("@media (min-width:1px){a{color:blue;;}}",
+               "@media (min-width:1px){a{color:blue}}");
+  // An unclosed paren inside a block makes one declaration to the
+  // block end: emitted verbatim, no collapse (same bytes as before —
+  // the paren-unbalanced refusal already produced them).
+  ExpectMinify(("a{padding-top:(1px;padding-right:1px;padding-bottom:1px;"
+                "padding-left:1px}"),
+               ("a{padding-top:(1px;padding-right:1px;padding-bottom:1px;"
+                "padding-left:1px}"));
+}
+
 TEST(CssMinifyTest, TrailingBackslashAtEofDoesNotCrash) {
   ExpectMinify("h1{color:red}\\", "h1{color:red}\\");
 }

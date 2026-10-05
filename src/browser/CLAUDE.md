@@ -267,6 +267,39 @@ but block all network via offline mode + Fetch interception + DNS blocking.
   `document.write` are not flagged.
 - **Visual regression JS limitation**: VisualRegressionGate disables JS
   (SSRF defense), so CSS-in-JS pages may show false positives.
+- **`<noscript>` and the JS-off renders**: with script execution
+  disabled Blink renders `<noscript>` content and applies its CSS. The two
+  JS-off renders must measure what a scripting browser renders, so only their
+  documents go through `StripNoscriptElements` (`src/worker/noscript_strip.h`):
+  the coverage render's (`browser_internal::BuildAnalysisDocuments`, after the
+  inliner, which needs a loadCSS `<noscript>` twin) and both validation
+  documents (`BuildValidationDocuments`, BEFORE the stylesheet removal, with
+  head-prelude placement carried over from the unstripped page). The page
+  analysis, script coverage and agent renders run scripts and get the page
+  unchanged. The removal is a spec tokenizer plus a light tree model (foreign
+  content, integration points), and it FAILS CLOSED: an unreliable result, or
+  one whose kept start tags disagree with HtmlScanner's `elements`
+  (`NoscriptStripAgreesWithScan`: the same names in order for `<body>` and the
+   200 elements after it, then a bounded shortest edit script over the
+  whole document that refuses any run of 3+ elements on one side only and
+   more than 2 * max(3, 1%) edits, with deletions held to 1 per run and
+   3 in all, counted gross so insertions cannot pair them away),
+  refuses validation and skips the coverage
+  render. The gate also refuses a uniform-colour reference render
+  (`RegressionResult::reference_uniform`). Never strip the markup the scanner
+  reads for the combined stylesheet: that changes the validation hash. Pages
+  whose `<noscript>` renders with scripts off (`noscript_affects_render`) get a
+  salted binding (`ValidationBindingFor`), and so do sheets that escape a quote,
+  brace or comma outside a string (`CombinedCssHasStructuralEscape`:
+  misread before that fix, so their records are made again once). Keep JS disabled; enabling it is not
+  the fix. `tools/async-css-probe/noscript_compare.mjs` checks the removal
+  against Chromium. Comments: the removal reads them as a browser does, but
+  `html_scan::ScanComment` (the validator's placement replay, the injector)
+  follows the serve path's vendored HtmlLexer, which runs `<!-->`, `<!--->`
+  and `--!>` on to the next `-->`; placement parity needs the lexer's view.
+  Where a removed `<noscript>` and a lexer-rule comment partially overlap,
+  the two readings disagree about which markup is comment text, so
+   `BuildValidationDocuments` refuses.
 - **Inline scripts get no per-element coverage**: V8's precise coverage
   collapses ALL inline scripts onto the document URL, so no per-element join
   exists. Inline scripts are reported (`is_inline`, empty url) but classify

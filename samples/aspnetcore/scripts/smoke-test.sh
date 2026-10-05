@@ -8,6 +8,14 @@
 #   Tier 1: Native API tests (P/Invoke + managed wrappers)
 #   Tier 2: ASP.NET Core integration (middleware via TestServer)
 #   Tier 3: Worker process lifecycle
+#
+# Crash diagnostics: the host runs with DOTNET_DbgEnableMiniDump so a
+# native crash leaves a dump under $SMOKE_DUMP_DIR (default
+# $RUNNER_TEMP/smoke-crash-dumps, else $TMPDIR/smoke-crash-dumps); the host
+# prints a [PHASE] line before every tier/block/teardown step, and the failure
+# banner names the exit code's meaning, the versions under test, the last
+# phase reached and any dumps written. SMOKE_DUMP_TYPE overrides the dump
+# type (default 4 = full).
 set -euo pipefail
 
 NUPKG_DIR="${1:?Usage: smoke-test.sh <nupkg-directory>}"
@@ -40,7 +48,47 @@ WORKDIR="$(mktemp -d)"
 # finished alongside it (exit 143; runs 27338112992/27338146826/27341095389).
 # Every factory_worker this script spawns runs from under $WORKDIR (isolated
 # NUGET_PACKAGES below), so the workdir prefix is exact.
-trap 'pkill -f "${WORKDIR}.*factory_worker" 2>/dev/null || true; sleep 0.5; rm -rf "$WORKDIR" 2>/dev/null || true' EXIT
+#
+# Git Bash on Windows ships no pkill, so there the kill goes through
+# PowerShell instead: every process whose image lives under $WORKDIR. Without
+# it the Tier 3 workers are still running when `rm -rf` reaches their
+# factory_worker.exe, and the MSYS runtime, unable to delete a running image,
+# renames it into the volume's recycle bin (C:\$RECYCLE.BIN\<SID>\.<msys><hex>)
+# where it stays for good: ~42 MB per Windows pkg-smoke run on a long-lived
+# CI machine, 46 GB before anyone noticed.
+# This runs from the EXIT trap under `set -euo pipefail`: an errexit in the
+# trap would replace the script's real exit code (a crash's 139 becomes 1) and
+# skip the rm -rf. So every step is allowed to fail, the trap calls this with
+# `|| true`, and the PowerShell/WMI query is bounded by `timeout`.
+kill_workdir_processes() {
+    if command -v pkill >/dev/null 2>&1; then
+        pkill -f "${WORKDIR}.*factory_worker" 2>/dev/null || true
+    elif command -v cygpath >/dev/null 2>&1; then
+        local ps_exe workdir_win
+        ps_exe="$(cygpath -u "${SYSTEMROOT:-C:\\Windows}")/System32/WindowsPowerShell/v1.0/powershell.exe" || return 0
+        # -l: long names. ExecutablePath is always the long form, so an 8.3
+        # TEMP (C:\Users\RUNNER~1\...) would otherwise never match.
+        workdir_win="$(cygpath -w -l "$WORKDIR")" || return 0
+        # Never sweep a whole drive: an empty or root-level WORKDIR would make
+        # the prefix below match every process on the volume.
+        [[ "$workdir_win" =~ ^[A-Za-z]:\\[^\\]+ ]] || return 0
+        SMOKE_WORKDIR_WIN="$workdir_win" timeout 60 "$ps_exe" -NoProfile \
+            -NonInteractive -Command '
+            $dir = $env:SMOKE_WORKDIR_WIN.TrimEnd("\") + "\"
+            if ($dir.Length -le 3) { exit 0 }
+            $procs = @(Get-CimInstance Win32_Process | Where-Object {
+                $_.ExecutablePath -and $_.ExecutablePath.StartsWith(
+                    $dir, [StringComparison]::OrdinalIgnoreCase) })
+            foreach ($p in $procs) {
+                Stop-Process -Id $p.ProcessId -Force -ErrorAction SilentlyContinue
+            }
+            foreach ($p in $procs) {
+                Wait-Process -Id $p.ProcessId -Timeout 10 -ErrorAction SilentlyContinue
+            }' 2>/dev/null || true
+    fi
+    return 0
+}
+trap 'kill_workdir_processes || true; sleep 0.5 || true; rm -rf "$WORKDIR" 2>/dev/null || true' EXIT
 echo "=== WeAmp.PageSpeed Smoke Test ==="
 echo "Package dir: $NUPKG_DIR"
 echo "Work dir:    $WORKDIR"
@@ -134,6 +182,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Reflection;
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
@@ -161,7 +210,30 @@ Console.WriteLine($"RID:        {rid}");
 Console.WriteLine($"OS:         {RuntimeInformation.OSDescription}");
 Console.WriteLine($"Arch:       {RuntimeInformation.ProcessArchitecture}");
 Console.WriteLine($"Output dir: {outputDir}");
+Console.WriteLine($"Runtime:    {RuntimeInformation.FrameworkDescription}");
 Console.WriteLine();
+
+// ---------- Phase markers ----------
+// A native crash kills this host with nothing but an exit code: no managed
+// stack, no catch block runs, and the [PASS] lines only say which assertion
+// was reached. So every tier, every block that opens a native cache, and
+// every teardown step announces itself FIRST; the last [PHASE] line in the
+// log names where the process died. The bash wrapper repeats it in the
+// failure banner.
+void Phase(string name) => Console.WriteLine($"[PHASE] {name}");
+
+// Native-side identity, filled in by Tier 0 and printed as one [VERSIONS]
+// line the failure banner can quote (two earlier crashes could not be tied
+// to a specific native build from the log alone).
+string nativeApi = "?", nativeCommit = "?", nativeProduct = "?";
+// Hosts that were StopAsync()'ed but never disposed. StopAsync only stops the
+// hosted services; the IPageSpeedCache singleton (and its native handle)
+// belong to the service provider and are closed by DisposeAsync. .NET runs no
+// finalizers at process exit, so these caches stay open — with Cyclone's
+// background threads alive — until the runtime tears the process down. The
+// exit [PHASE] line reports the count so a crash there can be read against
+// it.
+int undisposedHosts = 0;
 
 // ---------- Test helpers ----------
 void Assert(bool condition, string name)
@@ -194,6 +266,7 @@ string? FindFile(string name)
 // TIER 0: File existence and native library loading
 // ============================================================
 Console.WriteLine("──── Tier 0: File Existence & Native Loading ────");
+Phase("Tier 0: file existence + explicit NativeLibrary.TryLoad of the native library");
 
 // ---------- T0.1: Native library file exists ----------
 var libName = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
@@ -252,7 +325,8 @@ if (libPath != null)
                 var patch = patchPtr != IntPtr.Zero
                     ? Marshal.GetDelegateForFunctionPointer<VersionFunc>(patchPtr)() : 0;
 
-                Assert(true, $"PageSpeed native API version: {major}.{minor}.{patch}");
+                nativeApi = $"{major}.{minor}.{patch}";
+                Assert(true, $"PageSpeed native API version: {nativeApi}");
             }
             catch (Exception ex)
             {
@@ -320,6 +394,7 @@ if (libPath != null)
         {
             var gitCommitFn = Marshal.GetDelegateForFunctionPointer<StringReturnFunc>(gitCommitPtr);
             var commitStr = Marshal.PtrToStringUTF8(gitCommitFn()) ?? "";
+            nativeCommit = commitStr;
             Assert(commitStr.Length > 0, $"ps_git_commit() non-empty (got \"{commitStr}\")");
             Assert(commitStr != "0", $"ps_git_commit() != \"0\" (got \"{commitStr}\")");
             Assert(commitStr.Length <= 7, $"ps_git_commit() <= 7 chars (got {commitStr.Length})");
@@ -334,6 +409,7 @@ if (libPath != null)
         {
             var productVersionFn = Marshal.GetDelegateForFunctionPointer<StringReturnFunc>(productVersionPtr);
             var versionStr = Marshal.PtrToStringUTF8(productVersionFn()) ?? "";
+            nativeProduct = versionStr;
             Assert(versionStr.Length > 0, $"ps_product_version() non-empty (got \"{versionStr}\")");
             Assert(versionStr.Contains('.'), $"ps_product_version() contains dot (got \"{versionStr}\")");
         }
@@ -351,12 +427,27 @@ else
 {
     Console.WriteLine("[SKIP] Skipping load tests — native library not found");
 }
+{
+    // One line the failure banner greps back out: which package, which
+    // managed assembly, which native build (product version + git commit +
+    // C API version) and which runtime were under test.
+    var managedAsm = typeof(PageSpeedCache).Assembly;
+    var managedVersion = managedAsm
+        .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+        ?? managedAsm.GetName().Version?.ToString() ?? "?";
+    var packageVersion = Environment.GetEnvironmentVariable("SMOKE_PACKAGE_VERSION") ?? "?";
+    Console.WriteLine(
+        $"[VERSIONS] package={packageVersion} managed={managedVersion} " +
+        $"native-product={nativeProduct} native-commit={nativeCommit} native-api={nativeApi} " +
+        $"runtime={RuntimeInformation.FrameworkDescription} rid={rid}");
+}
 Console.WriteLine();
 
 // ============================================================
 // TIER 1: Native API Tests (managed wrappers + raw P/Invoke)
 // ============================================================
 Console.WriteLine("──── Tier 1: Native API Tests ────");
+Phase("Tier 1: native API via managed wrappers + raw P/Invoke");
 
 if (nativeHandle == IntPtr.Zero)
 {
@@ -583,6 +674,7 @@ else
             RamCacheSizeBytes = 1024 * 1024,      // 1 MB
             MaxMetadataSizeBytes = 4096,
         };
+        Phase("T1.6: open cache (PageSpeedCache ctor -> ps_cache_open)");
         using var cache = new PageSpeedCache(cacheOpts);
         Assert(true, "PageSpeedCache created successfully");
 
@@ -627,6 +719,9 @@ else
         var stats = cache.GetStats();
         Assert(stats.CurrentEntries >= 1, $"Cache stats: {stats.CurrentEntries} entries");
         // BytesWritten is not tracked per-operation in Cyclone (returns 0).
+        // `using var` disposes in reverse declaration order at the end of this
+        // block: both read results first, then the cache (ps_cache_close).
+        Phase("T1.6: dispose read results, then the cache (using-scope exit -> ps_cache_close)");
     }
     catch (Exception ex)
     {
@@ -648,6 +743,7 @@ else
             VolumePath = htmlCachePath,
             VolumeSizeBytes = 16 * 1024 * 1024,
         };
+        Phase("T1.7: open cache for HtmlProcessor (ps_cache_open)");
         using var htmlCache = new PageSpeedCache(htmlCacheOpts);
 
         var htmlOpts = new WeAmp.PageSpeed.HtmlProcessingOptions
@@ -675,6 +771,7 @@ else
         var outputMem = result.OutputMemory;
         Assert(outputMem.Length > 0 || !result.Modified,
             $"HTML result has output ({outputMem.Length} bytes, modified={result.Modified})");
+        Phase("T1.7: dispose HTML result, then the cache (using-scope exit -> ps_cache_close)");
     }
     catch (Exception ex)
     {
@@ -702,9 +799,11 @@ else
             RamCacheSizeBytes = 1024 * 1024,
             MaxMetadataSizeBytes = 4096,
         };
+        Phase("T1.8: open cache under a not-yet-existing parent dir (ps_cache_open)");
         using var autoCache = new PageSpeedCache(autoCacheOpts);
         Assert(true, "Auto-create: PageSpeedCache created with non-existent parent dir");
         Assert(Directory.Exists(autoParent), "Auto-create: parent directory was created");
+        Phase("T1.8: dispose cache (using-scope exit -> ps_cache_close)");
     }
     catch (Exception ex)
     {
@@ -715,7 +814,10 @@ else
         try { Directory.Delete(autoDirBase, true); } catch { }
     }
 
-    // Free native handle after all Tier 1 raw P/Invoke tests
+    // Free native handle after all Tier 1 raw P/Invoke tests. This drops only
+    // the explicit TryLoad reference; the P/Invoke resolver's own load of the
+    // same image stays mapped for Tiers 2-3.
+    Phase("Tier 1: NativeLibrary.Free of the explicit handle (P/Invoke's own load stays mapped)");
     NativeLibrary.Free(nativeHandle);
     nativeHandle = IntPtr.Zero;
 }
@@ -726,6 +828,7 @@ Console.WriteLine();
 // TIER 2: ASP.NET Core Integration (TestServer)
 // ============================================================
 Console.WriteLine("──── Tier 2: ASP.NET Core Integration ────");
+Phase("Tier 2: ASP.NET Core TestServer integration");
 
 var tier2CacheDir = Path.Combine(Path.GetTempPath(), $"ps_smoke_t2_{Guid.NewGuid():N}");
 try
@@ -746,6 +849,7 @@ try
     Assert(true, "AddPageSpeed() service registration succeeded");
 
     // ---- T2.2: Build app with middleware ----
+    Phase("T2.2: Build()+StartAsync() main app (opens DI cache; stays open until process exit)");
     var app = builder.Build();
 
     // Static HTML endpoint for testing
@@ -847,6 +951,11 @@ try
             opts.Worker.AutoStart = false;
         });
 
+        // This is the block the first observed crash died in (exit 127, 0.4 s
+        // after the assertion above, nothing else printed): the SECOND
+        // concurrently-open native cache in this process, the main app's
+        // still being open.
+        Phase("T2.10: Build()+StartAsync() DI auto-create app (2nd concurrently-open native cache; Worker.AutoStart=false)");
         var diApp = diBuilder.Build();
         diApp.UsePageSpeed();
         await diApp.StartAsync();
@@ -854,14 +963,41 @@ try
         Assert(Directory.Exists(Path.GetDirectoryName(diAutoCachePath)),
             "DI auto-create: parent directory was created via AddPageSpeed DI path");
 
+        IPageSpeedCache? diCacheRef;
         using (var scope = diApp.Services.CreateScope())
         {
-            var diCache = scope.ServiceProvider.GetService<IPageSpeedCache>();
-            Assert(diCache != null, "DI auto-create: IPageSpeedCache resolved from DI");
+            diCacheRef = scope.ServiceProvider.GetService<IPageSpeedCache>();
+            Assert(diCacheRef != null, "DI auto-create: IPageSpeedCache resolved from DI");
         }
 
+        // Teardown ordering, asserted step by step:
+        //   StopAsync  -> hosted services stop; the cache singleton is NOT
+        //                 disposed (it belongs to the service provider).
+        //   DisposeAsync -> service provider disposed -> PageSpeedCache.Dispose
+        //                 -> SafeCacheHandle -> ps_cache_close.
+        // A crash in either step now has its own [PHASE] line.
+        Phase("T2.10: StopAsync() (hosted services stop; cache singleton must stay open)");
         await diApp.StopAsync();
         Assert(true, "DI auto-create: app stopped cleanly");
+        if (diCacheRef != null)
+        {
+            var statsAfterStop = diCacheRef.GetStats();  // ObjectDisposedException if Stop disposed it
+            Assert(true,
+                $"DI auto-create: cache still open after StopAsync ({statsAfterStop.CurrentEntries} entries)");
+        }
+        else
+        {
+            Assert(false, "DI auto-create: cache still open after StopAsync (no cache resolved)");
+        }
+
+        Phase("T2.10: DisposeAsync() (service provider -> PageSpeedCache.Dispose -> ps_cache_close)");
+        await diApp.DisposeAsync();
+        Assert(true, "DI auto-create: DisposeAsync completed (native cache closed)");
+        bool rejectsUseAfterDispose = false;
+        try { diCacheRef?.GetStats(); }
+        catch (ObjectDisposedException) { rejectsUseAfterDispose = true; }
+        Assert(rejectsUseAfterDispose,
+            "DI auto-create: cache rejects use after DisposeAsync (ObjectDisposedException)");
     }
     catch (Exception ex)
     {
@@ -888,6 +1024,7 @@ try
             opts.Worker.AutoStart = false;
         });
 
+        Phase("T2.11: Build()+StartAsync() cache-hit app (another concurrently-open native cache)");
         var chApp = chBuilder.Build();
         chApp.MapGet("/cache-hit-test", () => Results.Content(
             "<!DOCTYPE html><html><head><title>Cache</title></head><body>Cached</body></html>",
@@ -921,7 +1058,9 @@ try
             Console.WriteLine("[INFO] Age header not present — middleware may not have cached this response");
         }
 
+        Phase("T2.11: StopAsync() cache-hit app (not disposed: its native cache stays open)");
         await chApp.StopAsync();
+        undisposedHosts++;
         Assert(true, "Cache-hit test app stopped cleanly");
     }
     catch (Exception ex)
@@ -947,7 +1086,9 @@ try
         Console.WriteLine("[INFO] X-PageSpeed header not present on second request");
     }
 
+    Phase("T2: StopAsync() main app (not disposed: its native cache stays open)");
     await app.StopAsync();
+    undisposedHosts++;
     Assert(true, "WebApplication stopped cleanly");
 }
 catch (Exception ex)
@@ -967,6 +1108,7 @@ Console.WriteLine();
 // TIER 3: Worker Process Integration
 // ============================================================
 Console.WriteLine("──── Tier 3: Worker Process Integration ────");
+Phase("Tier 3: worker process integration");
 
 var tier3CacheDir = Path.Combine(Path.GetTempPath(), $"ps_smoke_t3_{Guid.NewGuid():N}");
 try
@@ -988,6 +1130,7 @@ try
         opts.Worker.SocketPath = socketPath;
     });
 
+    Phase("T3.1: Build()+StartAsync() worker app (AutoStart=true: spawns factory_worker; opens native cache)");
     var workerApp = workerBuilder.Build();
     workerApp.UsePageSpeed();
 
@@ -1061,6 +1204,7 @@ try
                 opts.Worker.ApiPort = freePort;
             });
 
+            Phase("T3.6: Build()+StartAsync() worker-API app (spawns a 2nd factory_worker; opens native cache)");
             var apiApp = apiBuilder.Build();
             apiApp.UsePageSpeed();
             await apiApp.StartAsync();
@@ -1096,7 +1240,9 @@ try
                 Assert(false, $"T3.6: Worker API port {freePort} not reachable (factory_worker may not have started)");
             }
 
+            Phase("T3.6: StopAsync() worker-API app (not disposed: native cache stays open)");
             try { await apiApp.StopAsync(); } catch { }
+            undisposedHosts++;
             Assert(true, "Worker API port test app stopped cleanly");
         }
         catch (Exception ex)
@@ -1209,6 +1355,7 @@ try
 
             e2eApp.MapGet("/test-image.png", () => Results.File(testPng, "image/png"));
             e2eApp.UsePageSpeed();
+            Phase("T3.7: StartAsync() E2E app (spawns a 3rd factory_worker; opens native cache)");
             await e2eApp.StartAsync();
 
             // Wait for worker to be ready BEFORE first request.
@@ -1289,7 +1436,9 @@ try
                 }
             }
 
+            Phase("T3.7: StopAsync() E2E app (not disposed: native cache stays open)");
             try { await e2eApp.StopAsync(); } catch { }
+            undisposedHosts++;
             Assert(true, "E2E optimization test app stopped cleanly");
         }
         catch (Exception ex)
@@ -1307,7 +1456,9 @@ try
         Assert(false, "T3.7 skipped: factory_worker not found");
     }
 
+    Phase("T3.1: StopAsync() worker app (not disposed: native cache stays open)");
     await workerApp.StopAsync();
+    undisposedHosts++;
     Assert(true, "App with worker stopped cleanly");
 
     // Cleanup socket
@@ -1340,28 +1491,42 @@ Console.WriteLine($"Total: {passed + failures} tests — {passed} passed, {failu
 // timed-out T3.7 reports as a non-critical failure rather than tripping the
 // floor. The floor still catches a catastrophically broken smoke that ran
 // almost nothing.
-int MIN_EXPECTED_PASS = rid.StartsWith("win") ? 74 : 81;
+// (Three T2.10 teardown-ordering assertions were added; both floors moved by
+// the same three so the slack is unchanged.)
+int MIN_EXPECTED_PASS = rid.StartsWith("win") ? 77 : 84;
 if (passed < MIN_EXPECTED_PASS)
 {
     Console.WriteLine($"[FAIL] Only {passed} tests passed (minimum {MIN_EXPECTED_PASS} required)");
     failures++;
 }
 
+int exitCode;
 if (passed >= MIN_EXPECTED_PASS && failures == 0)
 {
     Console.WriteLine("=== ALL TESTS PASSED ===");
-    return 0;
+    exitCode = 0;
 }
 else if (passed >= MIN_EXPECTED_PASS)
 {
     Console.WriteLine($"=== PASSED ({passed}/{passed + failures}) — {failures} non-critical failure(s) ===");
-    return 0;
+    exitCode = 0;
 }
 else
 {
     Console.WriteLine($"=== {failures} TEST(S) FAILED (only {passed} passed, need {MIN_EXPECTED_PASS}) ===");
-    return failures;
+    exitCode = failures;
 }
+
+// The second observed crash was a segfault ~90 ms after "=== ALL TESTS PASSED
+// ==="
+// — i.e. here, in the runtime's process teardown, with the hosts below
+// stopped but never disposed. Anything after this line is runtime shutdown:
+// no finalizers run (.NET Core), the native caches of the undisposed hosts
+// are still open with Cyclone's threads alive, and the native library's
+// static destructors / DLL_PROCESS_DETACH run underneath them.
+Phase($"process exit: returning {exitCode} from Main; {undisposedHosts} host(s) StopAsync'ed but never disposed " +
+      "(their native caches stay open: .NET runs no finalizers at exit, so ps_cache_close never runs for them)");
+return exitCode;
 
 // ============================================================
 // Delegate types for raw P/Invoke
@@ -1398,6 +1563,222 @@ delegate int ScanStylesheetFunc(IntPtr result, nuint index, out IntPtr outHref, 
 delegate void ScanResultFreeFunc(IntPtr result);
 CSEOF
 
+# ---------- Crash diagnostics ----------
+# The host died twice on a Windows CI runner with nothing but an exit code:
+# 127 inside the DI auto-create block, 139 at process exit. Both passed on
+# rerun. Have the .NET runtime write a dump when the host dies -- native
+# faults included: the runtime's unhandled-exception / signal path runs
+# createdump before the process is torn down -- into a directory that
+# survives this script's EXIT trap (WORKDIR is wiped), so the workflow can
+# upload it (ci.yml: the "Upload smoke crash dumps" step after each Pkg
+# Smoke run). On CI that is RUNNER_TEMP; SMOKE_DUMP_DIR overrides it.
+IS_MSYS=false
+if command -v cygpath &>/dev/null; then IS_MSYS=true; fi
+
+DUMP_DIR="${SMOKE_DUMP_DIR:-${RUNNER_TEMP:-${TMPDIR:-/tmp}}/smoke-crash-dumps}"
+if $IS_MSYS; then
+    DUMP_DIR="$(cygpath -u "$DUMP_DIR")"   # RUNNER_TEMP arrives as a Windows path
+fi
+rm -rf "$DUMP_DIR"                         # only THIS run's dumps get uploaded
+mkdir -p "$DUMP_DIR"
+DUMP_DIR_NATIVE="$DUMP_DIR"
+DUMP_SEP="/"
+if $IS_MSYS; then
+    DUMP_DIR_NATIVE="$(cygpath -w "$DUMP_DIR")"
+    DUMP_SEP='\'
+fi
+export DOTNET_DbgEnableMiniDump=1
+# 4 = Full: all memory including the module images. The crash is native and
+# the faulting code lives in pagespeed.dll / libpagespeed.*, so the dump has
+# to carry the images to be readable away from the runner. Expect a few
+# hundred MB per dump; the artifact's retention is short.
+export DOTNET_DbgMiniDumpType="${SMOKE_DUMP_TYPE:-4}"
+# %e = executable name (dotnet), %p = pid, %t = epoch seconds.
+export DOTNET_DbgMiniDumpName="${DUMP_DIR_NATIVE}${DUMP_SEP}smoke-%e-%p-%t.dmp"
+# createdump reports its own progress and failures on the crashing host's
+# console, so a dump that could NOT be written says so in the job log.
+export DOTNET_CreateDumpDiagnostics=1
+case "$(uname -s)" in
+    Linux*|Darwin*)
+        # A JSON report of the faulting thread's stack next to the dump
+        # (<dump>.crashreport.json), readable straight from the job log --
+        # the banner below prints it. Not supported on Windows.
+        export DOTNET_EnableCrashReport=1
+        ;;
+esac
+if [[ "$(uname -s)" == Linux* ]]; then
+    # Secondary: a kernel core, if core_pattern puts it somewhere readable.
+    # createdump is the mechanism that is actually relied on.
+    ulimit -c unlimited 2>/dev/null || true
+fi
+echo "--- Crash dumps: $DUMP_DIR_NATIVE (DOTNET_DbgMiniDumpType=$DOTNET_DbgMiniDumpType) ---"
+echo ""
+
+# What an exit status means. The smoke host is `dotnet run` of a program that
+# returns its own [FAIL] count, so small positive codes are assertion
+# failures; 128+N is a signal; and under Git Bash a Windows crash arrives
+# folded (see run_host_windows). $2 is the raw Windows exit status when the
+# cmd.exe wrapper captured one.
+describe_exit() {
+    local code="$1" raw="${2:-}" hex
+    if [[ -n "$raw" && "$raw" =~ ^-?[0-9]+$ ]] && (( raw < 0 || raw > 255 )); then
+        hex="$(printf '0x%08X' $(( raw & 0xFFFFFFFF )))"
+        case "$hex" in
+            0xC0000005) echo "Windows $hex STATUS_ACCESS_VIOLATION -- native segfault (Git Bash folds it to 139)" ;;
+            0xC0000409) echo "Windows $hex STATUS_STACK_BUFFER_OVERRUN -- fail-fast: abort()/std::terminate in native code, __fastfail, or .NET Environment.FailFast (Git Bash folds it to 127)" ;;
+            0xC0000374) echo "Windows $hex STATUS_HEAP_CORRUPTION -- the native heap detected corruption (Git Bash folds it to 127)" ;;
+            0xC00000FD) echo "Windows $hex STATUS_STACK_OVERFLOW (Git Bash folds it to 127)" ;;
+            0xC000001D) echo "Windows $hex STATUS_ILLEGAL_INSTRUCTION (Git Bash folds it to 132)" ;;
+            0xC0000135) echo "Windows $hex STATUS_DLL_NOT_FOUND (Git Bash folds it to 127)" ;;
+            0xC0000142) echo "Windows $hex STATUS_DLL_INIT_FAILED (Git Bash folds it to 127)" ;;
+            0xC000013A) echo "Windows $hex STATUS_CONTROL_C_EXIT (Git Bash folds it to 130)" ;;
+            0xE0434352) echo "Windows $hex CLR exception code -- an unhandled managed exception; its text should be above (Git Bash folds it to 127)" ;;
+            0x80131623) echo "Windows $hex COR_E_FAILFAST -- .NET Environment.FailFast" ;;
+            0x80131506) echo "Windows $hex ExecutionEngineException -- CLR internal fatal error" ;;
+            *)          echo "Windows exit status $raw ($hex) -- not in this script's table" ;;
+        esac
+        return
+    fi
+    case "$code" in
+        0)   echo "success" ;;
+        126) echo "command found but not executable (dotnet?)" ;;
+        127)
+            if $IS_MSYS; then
+                echo "either dotnet is not on PATH, or -- once the host has printed anything -- the Windows host died with an NTSTATUS Git Bash does not map to a signal: fail-fast 0xC0000409 (abort/std::terminate/FailFast), heap corruption 0xC0000374, stack overflow 0xC00000FD, a DLL load failure, or an unhandled CLR exception 0xE0434352; cygwin's status_exit() folds all of those to 127. The raw status is captured by the cmd.exe wrapper and printed above when available."
+            else
+                echo "command not found -- dotnet is not on PATH"
+            fi ;;
+        130) echo "SIGINT" ;;
+        131) echo "SIGQUIT" ;;
+        132) echo "SIGILL -- illegal instruction (on Git Bash: STATUS_ILLEGAL_INSTRUCTION)" ;;
+        133) echo "SIGTRAP -- breakpoint/trap (e.g. __builtin_trap, Rust/absl hard failure)" ;;
+        134) echo "SIGABRT -- abort(): std::terminate / uncaught C++ exception / assertion in native code, or .NET FailFast on Unix" ;;
+        135) echo "SIGBUS (Linux) -- misaligned or unmapped mmap access; on Git Bash: STATUS_NO_MEMORY" ;;
+        136) echo "SIGFPE -- arithmetic fault" ;;
+        137) echo "SIGKILL -- killed externally (OOM killer, timeout)" ;;
+        138) echo "SIGBUS (macOS) -- misaligned or unmapped mmap access (Linux: SIGUSR1)" ;;
+        139) echo "SIGSEGV -- segfault in native code (on Git Bash: STATUS_ACCESS_VIOLATION 0xC0000005)" ;;
+        141) echo "SIGPIPE" ;;
+        143) echo "SIGTERM -- terminated externally (job cancellation, container stop)" ;;
+        *)
+            if (( code > 128 )); then
+                echo "killed by signal $(( code - 128 ))"
+            else
+                echo "the smoke returned its own [FAIL] count ($code assertion failure(s) below the pass floor), or dotnet run failed before the host ran"
+            fi ;;
+    esac
+}
+
+# Git Bash folds a Windows process's 32-bit exit status into a POSIX one:
+# cygwin's status_exit() keeps only STATUS_ACCESS_VIOLATION (-> SIGSEGV, 139),
+# STATUS_ILLEGAL_INSTRUCTION (-> 132), STATUS_NO_MEMORY (-> 135) and
+# STATUS_CONTROL_C_EXIT (-> 130); EVERY other 0xC... crash code becomes 127 --
+# which is all the first observed crash left behind. So on Windows the host runs
+# under cmd.exe, which writes the real %ERRORLEVEL% to a file; this script
+# then prints it and folds it the way Git Bash would have, so the banner's
+# exit code stays comparable with earlier runs.
+HOST_LOG="$WORKDIR/smoke-host.log"
+RAW_EXIT=""
+run_host_windows() {
+    local exit_file="$WORKDIR/host-exit-code.txt"
+    # Redirection FIRST: `echo %CODE%> file` with CODE=1 would parse as a
+    # handle-1 redirect and write "ECHO is on." instead of the code.
+    cat > "$WORKDIR/run-host.cmd" <<'CMDEOF'
+@echo off
+dotnet run --project "%~1" -r %~2 --no-build -c Release
+set HOST_CODE=%ERRORLEVEL%
+>"%~3" echo %HOST_CODE%
+exit /b 0
+CMDEOF
+    # Full path: an MSYS `cmd` on PATH would shadow System32\cmd.exe.
+    local cmd_exe
+    cmd_exe="$(cygpath -u "${SYSTEMROOT:-C:\\Windows}")/System32/cmd.exe"
+    # NOT `| tee` here (unlike run_host_posix). The Tier 3 hosts spawn
+    # factory_worker.exe with RedirectStandardOutput/Error, which .NET's
+    # Windows Process.Start does with bInheritHandles=TRUE -- so every worker
+    # also inherits a copy of this pipeline's stdout handle. Those hosts are
+    # never disposed (see the host's exit [PHASE] line) and the workers
+    # outlive the host until this script's EXIT trap kills them, and tee would
+    # wait for an EOF that only the runner's post-step orphan cleanup can
+    # deliver: the first Windows run with it sat in this step until cancelled.
+    # (On Unix the .NET child closes every fd above 2 before exec, so tee is
+    # fine there.) Redirect to the log file and stream it with tail, which
+    # stops when cmd.exe exits; a file handle held open by an orphan blocks
+    # nothing.
+    : > "$HOST_LOG"
+    "$cmd_exe" //c "$(cygpath -w "$WORKDIR/run-host.cmd")" \
+        "$(cygpath -w "$TEST_DIR/SmokeTest.csproj")" "$RID" \
+        "$(cygpath -w "$exit_file")" > "$HOST_LOG" 2>&1 &
+    local cmd_pid=$!
+    tail -n +1 -f --pid="$cmd_pid" "$HOST_LOG"
+    wait "$cmd_pid"
+    local cmd_status=$?
+    if [[ -s "$exit_file" ]]; then
+        RAW_EXIT="$(tr -d '[:space:]' < "$exit_file")"
+    fi
+    if [[ "$RAW_EXIT" =~ ^-?[0-9]+$ ]]; then
+        if (( RAW_EXIT >= 0 && RAW_EXIT <= 255 )); then
+            EXIT_CODE=$RAW_EXIT
+        else
+            case "$(printf '0x%08X' $(( RAW_EXIT & 0xFFFFFFFF )))" in
+                0xC0000005) EXIT_CODE=139 ;;
+                0xC000001D) EXIT_CODE=132 ;;
+                0xC0000017) EXIT_CODE=135 ;;
+                0xC000013A) EXIT_CODE=130 ;;
+                0xC*)       EXIT_CODE=127 ;;
+                *)          EXIT_CODE=$(( RAW_EXIT & 0xFF )) ;;
+            esac
+        fi
+    else
+        # The wrapper itself failed to run or to write the file: fall back to
+        # cmd.exe's own status (non-zero only if cmd.exe could not start it).
+        echo "WARNING: cmd.exe wrapper left no exit-code file (cmd.exe status $cmd_status)"
+        EXIT_CODE=$cmd_status
+        if (( EXIT_CODE == 0 )); then EXIT_CODE=1; fi
+    fi
+}
+
+run_host_posix() {
+    dotnet run --project "$TEST_DIR/SmokeTest.csproj" -r "$RID" --no-build -c Release 2>&1 | tee "$HOST_LOG"
+    EXIT_CODE=${PIPESTATUS[0]}
+}
+
+report_failure() {
+    echo "Exit code meaning:   $(describe_exit "$EXIT_CODE" "$RAW_EXIT")"
+    if [[ -n "$RAW_EXIT" ]]; then
+        echo "Raw Windows status:  $RAW_EXIT ($(printf '0x%08X' $(( RAW_EXIT & 0xFFFFFFFF ))))"
+    fi
+    echo "Package version:     $PACKAGE_VERSION (Directory.Build.props), RID $RID"
+    local versions
+    versions="$(grep -h '^\[VERSIONS\]' "$HOST_LOG" 2>/dev/null | tail -1 || true)"
+    if [[ -n "$versions" ]]; then
+        echo "Versions under test: ${versions#\[VERSIONS\] }"
+    else
+        echo "Versions under test: (host died before Tier 0 printed its [VERSIONS] line)"
+    fi
+    local last_phase last_assert
+    last_phase="$(grep -h '^\[PHASE\]' "$HOST_LOG" 2>/dev/null | tail -1 || true)"
+    last_phase="${last_phase:-[PHASE] (none printed)}"
+    last_assert="$(grep -h '^\[PASS\]\|^\[FAIL\]' "$HOST_LOG" 2>/dev/null | tail -1 || true)"
+    echo "Last phase reached:  ${last_phase#\[PHASE\] }"
+    echo "Last assertion:      ${last_assert:-(none printed)}"
+    echo "Dump directory:      $DUMP_DIR_NATIVE"
+    local dumps
+    dumps="$(find "$DUMP_DIR" -type f 2>/dev/null || true)"
+    if [[ -z "$dumps" ]]; then
+        echo "Dumps written:       none (no native crash, createdump could not run, or the process was killed outright; see any createdump lines above)"
+    else
+        echo "Dumps written:"
+        ls -la "$DUMP_DIR" | sed 's/^/                     /'
+        local report
+        while IFS= read -r report; do
+            echo "--- $(basename "$report") (first 16 KB) ---"
+            head -c 16384 "$report"
+            echo ""
+        done < <(find "$DUMP_DIR" -type f -name '*.crashreport.json' 2>/dev/null)
+    fi
+}
+
 # ---------- Restore and build ----------
 echo "--- Restoring packages ---"
 dotnet restore "$TEST_DIR/SmokeTest.csproj" -r "$RID" --verbosity quiet
@@ -1408,9 +1789,14 @@ dotnet build "$TEST_DIR/SmokeTest.csproj" -r "$RID" --no-restore -c Release --ve
 
 echo ""
 echo "--- Running smoke test ---"
+export SMOKE_PACKAGE_VERSION="$PACKAGE_VERSION"   # for the host's [VERSIONS] line
+EXIT_CODE=1
 set +e
-dotnet run --project "$TEST_DIR/SmokeTest.csproj" -r "$RID" --no-build -c Release
-EXIT_CODE=$?
+if $IS_MSYS; then
+    run_host_windows
+else
+    run_host_posix
+fi
 set -e
 
 echo ""
@@ -1418,5 +1804,6 @@ if [[ $EXIT_CODE -eq 0 ]]; then
     echo "=== SMOKE TEST PASSED ==="
 else
     echo "=== SMOKE TEST FAILED (exit code $EXIT_CODE) ==="
+    report_failure
 fi
 exit $EXIT_CODE

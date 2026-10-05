@@ -12,6 +12,7 @@
 #include <vector>
 
 #include "absl/status/statusor.h"
+#include "lib/classify/capability_mask.h"
 
 namespace pagespeed {
 
@@ -93,15 +94,25 @@ struct ViewportProfile {
 // enough steps that an independent reimplementation will drift:
 //
 //   1. Seed: `scan_result.inline_css` verbatim — the concatenated <style>
-//      bodies, exactly as HtmlScanner produced them.
-//   2. @import flattening of that seed is ALL-OR-NOTHING: the flattened result
+//      bodies, exactly as HtmlScanner produced them. Since the
+//      stylesheet-source rule that
+//      leaves out <style> inside <noscript>, <template>, <noembed>, <noframes>
+//      and <math> (and step 3 the links there), so a record made before it
+//      for a page with such CSS no longer matches and must be re-validated.
+//   2. @import flattening of that seed (relative URLs against the document's
+//      base URL, i.e. the page URL or its <base href>, since the block-first
+//      placement) is
+//      ALL-OR-NOTHING: the flattened result
 //      replaces the seed only when `imports_resolved > 0`; any unresolved
 //      import leaves the ORIGINAL bytes. Disabled entirely under
 //      `disable_css_import_flattening`.
 //   3. Then each declared external <link rel=stylesheet>, in the order
-//      HtmlScanner recorded them (document order), resolved from cache at the
-//      normalized URL. Hrefless sheets are skipped; a sheet that resolves with
-//      an EMPTY body contributes nothing and does not set the missing flag.
+//      HtmlScanner recorded them (document order), its href resolved against
+//      the document's base URL (the page URL or its <base href>; under a
+//      cross-host <base> a root-relative href is the base host's sheet)
+//      and read from cache at the normalized URL, keyed by that
+//      host. Hrefless sheets are skipped; a sheet that resolves with an EMPTY
+//      body contributes nothing and does not set the missing flag.
 //   4. Join: a single "\n" before each appended sheet, and only when the
 //      accumulator is already non-empty. No trailing newline, no separator
 //      before the first contribution.
@@ -123,6 +134,93 @@ struct ViewportProfile {
 //     treat a single mismatch as evidence the site changed.
 std::string CombinedCssValidationHash(std::string_view css);
 
+// As above, bound to the page's cascade-layer order as well:
+// `layer_order_binding` is CascadeLayerOrder::ValidationBinding(css)
+// (src/worker/cascade_layer_order.h), which says whether the order was proven
+// and, if so, the `@layer` statement put in front of a layered critical block;
+// it is empty for a sheet that uses no cascade layer, so those records still
+// hash the sheet alone.
+// That decides where the block goes and what both validation documents carry,
+// yet it is NOT in the combined sheet's bytes: a layer() / supports() @import
+// is never flattened into them, but the order reads its sheet from cache. An
+// import cached at analysis time and not at serve time (or the reverse, or
+// changed in between) flips the placement while the sheet hash still matches,
+// so the record binds to both. An empty binding hashes the sheet alone, as the
+// one-argument form does. Empty `css` still hashes to "".
+std::string CombinedCssValidationHash(std::string_view css,
+                                      std::string_view layer_order_binding);
+
+// The binding a validation record is made and checked under:
+// `layer_order_binding` as above, salted when the page's <noscript> content
+// changes what a render with script execution disabled shows
+// (HtmlScanResult::noscript_affects_render). The analysis renders render such
+// a page without that content now, so a record made while they rendered it is
+// about another fold: the salt makes it mismatch, and the page is validated
+// again once (BrowserAnalysisManager::RequestRevalidation). Pages without
+// such content, the GTM snippet's hidden iframe or a tracking pixel included,
+// keep their records. Both sides pass the result as `layer_order_binding`.
+//
+// Also salted when `combined_css` escapes a quote, a brace or a
+// comma outside a string (CombinedCssHasStructuralEscape): until that was fixed
+// the extractor misread such a sheet (an escaped quote opened a string that
+// never closed, an escaped brace nested, an escaped comma split a selector),
+// so the blocks validated for it lost most of their fold rules and its
+// records are mostly negative. The salt makes them mismatch once, so the page
+// is validated again with blocks derived from the whole sheet instead of
+// staying render-blocking until the profile expires. Other sheets keep their
+// records.
+//
+// And salted for the tablet viewport's records (`viewport` is
+// kTablet): before that the tablet viewport was analysed and validated
+// as a desktop window, so its blocks and verdicts are about a layout tablet
+// visitors do not get. Every tablet record mismatches once and the analysed
+// page is validated again, through the same rate-limited path. Mobile and
+// desktop records keep theirs.
+//
+// And salted for the mobile and tablet viewports' records
+// ("touch"): before touch emulation their renders emulated no touch screen, so
+// `(hover: hover)` / `(pointer: fine)` rules applied in the coverage and
+// validation renders and `(hover: none)` / `(pointer: coarse)` rules did not,
+// the reverse of a phone visitor's browser, and the extractor now reads those
+// features for the two classes (RetentionPointer). Every mobile and tablet
+// record mismatches once; desktop records keep theirs.
+//
+// And salted for the mobile and tablet viewports' records
+// ("ua"): before User-Agent emulation their renders reported the browser's
+// desktop user agent, and the renders that write the document with
+// Page.setDocumentContent wrote it into a window that predates the
+// emulation (`'ontouchstart' in window` false). Since then they report a
+// phone's or a tablet's UA (EmulateDevice) and write the document into a
+// fresh window (LoadFreshBlankDocument). Every mobile and tablet record
+// mismatches once, so the page is validated again by renders that are the
+// device in those respects as well; desktop records keep theirs (the desktop
+// window is sent no UA override).
+//
+// Also salted when the derivation of the block being served or
+// validated left every anonymous-layer rule out of it
+// (`anonymous_layers_dropped`, CriticalCssResult::anonymous_layers_dropped of
+// the same DeriveDomMatchedCriticalCss / Extract call on both sides). The
+// layer binding's `u2` marker says the same from the combined sheet alone;
+// this salt comes from the derivation itself, so it also covers a block that
+// only the extractor's check on the finished block moved after the sheets,
+// which the sheet-keyed marker cannot see. Both sides pass the flag of their
+// own derivation, made the same way from the same sheet and order. That
+// finished-block check is the flag's one element-dependent leg: on a page
+// whose markup differs between the analysis render and a later serve, with a
+// proven order, an anonymous layer and a trailing `@import ... layer()`, the
+// flag can differ between the two and the record mismatch, which takes the
+// rate-limited revalidation path like any other mismatch.
+std::string ValidationBindingFor(std::string_view layer_order_binding,
+                                 bool noscript_affects_render,
+                                 std::string_view combined_css,
+                                 CapabilityMask::Viewport viewport,
+                                 bool anonymous_layers_dropped);
+
+// True when `css` has a backslash escaping `'`, `"`, `{`, `}` or `,` outside
+// strings and comments (Tailwind v4 writes `'` in a class name as `\'`, as in
+// shadcn/ui's `[&_svg:not([class*='size-'])]:size-4`). See ValidationBindingFor.
+bool CombinedCssHasStructuralEscape(std::string_view css);
+
 // The serve path's accept test for a validation record (issue #1056).
 //
 // The byte/coverage floor is a proxy for "the inlined block covers the fold",
@@ -143,8 +241,12 @@ std::string CombinedCssValidationHash(std::string_view css);
 // It lives here, beside the hash it consults, so the code that PRODUCES a
 // record can be tested against the exact predicate that CONSUMES it rather
 // than against a second copy that can drift into agreeing with itself.
+//
+// `layer_order_binding` is the served page's layer-order binding, compared the
+// way the record was made (the two-argument CombinedCssValidationHash).
 bool AsyncCssValidatedForServedSheet(const ViewportProfile* vp,
-                                     std::string_view combined_css);
+                                     std::string_view combined_css,
+                                     std::string_view layer_order_binding = {});
 
 // Which record, if any, the accept test above may be applied to (issue #1216).
 //

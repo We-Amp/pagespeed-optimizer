@@ -4,16 +4,26 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Update recommended: three security fixes, a fix for optimized copies lost
+from a shared cache, a new on-disk cache format (the cache starts empty
+once), and more accurate critical CSS. The security fixes cover the
+management API and, on Windows, a local privilege escalation; each entry
+below names the affected versions. Also new: `GET /v1/logs`, serve
+statistics per host and per encoding, a Windows service mode for the
+optimizer, and an nginx check that the module and the optimizer use the same
+cache format.
+
 Fixed: when a web server recorded a URL's original at the same moment the
 optimizer wrote the optimized copy of that URL, the optimized copy could be
 dropped from the cache without any error, and the URL was then served
 unoptimized. The bundled cache library now notices that another process
-changed the entry between a write's two steps and redoes the write. The
-cache's on-disk format is unchanged and nothing needs to be configured. A
-web server module that shares the cache needs the same library version to
-be protected against the same loss on its side: a process still on the
-older library can drop a copy the same way, so update the optimizer and
-the module together.
+changed the entry between a write's two steps and redoes the write. This
+fix does not itself change the cache's on-disk format (the format change in
+this release is described below), and nothing needs to be configured. Every
+process
+that shares the cache needs the same library version to be protected: a
+process still on the older library can drop a copy the same way, so update
+the optimizer and the web server module together.
 
 Changed: the bundled cache library no longer starts a background monitor
 thread and an idle worker thread for every open cache; they never had work
@@ -52,10 +62,11 @@ Added: the C API gains `ps_serve_stats_record_hit_host`, which records a
 cache serve exactly like `ps_serve_stats_record_hit` and attributes it to
 the host the front end served the response for. Serves recorded without a
 host are attributed to "other". The shared serve-statistics file moves to a
-new layout version: its counters — including the serve savings the admin
-console shows — restart at zero once, when an updated worker first starts,
-and a front end built against the previous layout stops recording into it
-until it is updated too.
+new layout version, for this and for the split by encoding described below:
+its counters — including the serve savings the admin console shows — restart
+at zero once, when an updated worker first starts, and a front end or worker
+built against the previous layout stops recording into it until it is
+updated too.
 
 Added: GET /v1/stats reports serve savings per host
 (`serve_savings_by_host`): optimized HITs, original and served bytes for up
@@ -76,11 +87,10 @@ Added: GET /v1/stats now reports each content type's cache serves split by
 the transfer encoding actually served (identity, gzip or brotli), next to
 the totals it already reported. A serving front end that never serves the
 stored compressed variants becomes visible as an all-identity row instead
-of an unexplained saving. The shared counter file this comes from moves to
-a new layout version: its counters — including the serve savings the admin
-console shows — restart at zero once, when an updated worker first starts,
-and a worker older than this change stops recording into it until it is
-updated too.
+of an unexplained saving. The shared counter file this comes from changes
+layout with it; the one-time counter restart is described in the C API entry
+above.
+
 Fixed: the post-install scripts of the Linux packages no longer warn
 about outdated optimizer paths in backup or leftover web-server
 configuration files the web server does not load, such as a `.bak` copy
@@ -90,8 +100,618 @@ a file the server actually loads still references the old paths.
 Fixed: the management API's HTTP listener now releases a connection's
 resources correctly when accepting that connection fails.
 
+Changed: `--api-read-open` now opens exactly the documented read endpoints
+and the `stats`/`events` WebSocket streams, and nothing else -- a future GET
+endpoint stays behind the token under read-open unless it is explicitly
+added to that list. Separately, at most two WebSocket connections may be
+waiting to send their authentication message at once; a connection beyond
+that limit is refused the same way exceeding the overall connection limit
+is refused today. Repeated authentication timeouts are now logged at most
+once a minute. The bundled console stops reconnecting to a stream the
+server refused for a missing token, until a token is set.
+
 Security: under specific inputs, some management API reads and live-stream
-messages could stop the optimizer. Update recommended.
+messages could stop the optimizer. Affected: versions 2.0.0 through 2.1.0,
+and the optimizer packages through 1.16.0, when the management API is
+enabled. Update recommended.
+
+Added: `GET /v1/logs?since=<seq>&limit=<n>` reads the optimizer's recent log
+over plain HTTP, for clients that cannot hold a WebSocket open. Each page
+holds at most 500 entries and 512 KiB, oldest first after `since` or the
+newest without it; `next_since` is the cursor for the next read, `more` says
+another page is waiting, `gap` says entries were dropped between reads,
+`shed_total` counts entries the optimizer could not keep, and `stream_id`
+changes when the optimizer restarts.
+
+Changed: an optimizer log message carries at most 4 KiB of text; a longer
+message is cut on a character boundary and ends in "…[truncated N bytes]".
+Log entries on the live log stream carry a `seq` number that increases by
+one per entry while the process runs.
+
+Security: with `--api-read-open`, the optimizer's log lines are no longer
+readable without the API token. Both the `/v1/ws/logs` stream and the new
+`GET /v1/logs` require the token over TCP whenever one is configured; the
+other read endpoints and streams stay open, and the unix socket and
+`--api-no-auth` are unchanged. A read-only console that showed the log
+without a token no longer does. Affected: versions 2.0.0 through 2.1.0, and
+the optimizer packages through 1.16.0, when `--api-read-open` is set. Update
+recommended.
+
+Changed: browser analysis now reports a phone's or a tablet's User-Agent on
+those viewports. Until now every analysis render, and the capture endpoint,
+reported the headless desktop browser's User-Agent on every viewport, so a
+site that adapts to the User-Agent (server-side, or in a page script reading
+`navigator.userAgent` or client hints) was analysed in its desktop variant
+for phone and tablet visitors too. The phone viewport (375 px) now sends
+Chrome on an Android phone (`... Android 10; K ... Mobile Safari/537.36`,
+client hints `mobile: true`, platform `Android`) and the tablet viewport (768
+px) Chrome on an Android tablet (the same without `Mobile`, client hint
+`mobile: false`), with `navigator.platform` `Linux armv81`: the strings the
+front end classifies as the phone and the tablet class, so the variant a
+render analyses is the one that class is served. The tablet is an Android
+tablet rather than an iPad because iPadOS Safari sends a desktop User-Agent,
+which the front end serves the desktop variant. The desktop viewport (1440 px)
+is unchanged and keeps the browser's own User-Agent. The page analysis,
+script coverage and font scan renders, and the CSS coverage and deferral
+validation renders, now also write the page into a fresh blank window
+created after the device emulation: `'ontouchstart' in window` is now true on
+the phone and tablet viewports there, as `matchMedia` and
+`navigator.maxTouchPoints` already were. In Chromium's `--headless=new` mode
+(how the worker image runs its Chromium) the page analysis's
+largest-contentful-paint and layout-shift observers now run as well; they
+never ran in that mode before, so, now that page analysis reads the page
+(the next entry), it reports the page's LCP element there too, its
+first-paint time changes, and on the desktop viewport it reports the page's
+layout shifts (on the phone and tablet viewports Chromium's mobile emulation
+marks every shift as following user input, so their layout-shift score stays
+0). The LCP
+element is stored in the profile but decides nothing; the other two are not
+stored. The fresh window also roughly halves the desktop renders (from about 2.05 s to
+1.06 s in page analysis, the font scan and the validation render, measured
+on Chromium 145); it costs about 13 ms per render with `--headless=new` and
+under 1 ms with chrome-headless-shell. `navigator.userAgentData` exists only
+in a secure context, so page scripts in those renders see the User-Agent
+string and platform but no client hints; the capture endpoint, which loads
+the page from its URL, sends them.
+The async-CSS probe sends the same User-Agents from the same setting. Every
+phone and tablet validation record made before this change stops matching
+once and the page is validated again, through the same rate-limited path as
+other revalidations; desktop records are not affected.
+
+Fixed: browser analysis now reads the page it renders. Two bugs made several
+analysis passes read nothing, or wait out their timeout, on every page. First,
+page analysis collected its results as soon as Chromium reported the analysis
+tab idle, and Chromium reports the blank tab the page is written into as idle
+before the page is written, so it read an empty blank document: it returned
+no images, no above-the-fold elements and no largest-contentful-paint element,
+so the stored profile's measured fold and image dimensions were always empty
+and the critical CSS was derived from the extractor's own estimate of the
+fold. It now collects once the written page has settled: at the page's
+network idle, or 2 seconds after the page's load event when the network never
+goes idle (a page that polls or sends beacons at least every half second),
+whichever comes first. That takes about 0.6 s on the phone and tablet
+viewports and 2 s on the desktop one (measured on Chromium 145) instead of
+returning at once. The font glyph scan had the same defect and the same fix;
+the worker does not run it today. Second, every analysis render blocks the
+requests it does not serve itself, but asked Chromium to do so with a
+parameter name Chromium rejects, so a blocked request was never answered: the
+page never finished loading, and a script blocked that way stopped the page
+from being parsed any further. The deferral-validation render, which waits
+for the page to finish loading, ran into its 60 second timeout on any page
+with an image or another subresource at an absolute URL, so such pages were
+never validated and their stylesheets stayed render-blocking. Script
+coverage stopped at the first blocked synchronous script, so the scripts
+after it got no verdict; they now get one, and a script found safe to defer
+is now deferred on the served page like any other. Blocked requests now fail
+at once, as intended, and a refusal from Chromium is logged as a warning
+instead of being dropped. Existing profiles and validation records stay in
+use until they are analysed again: each was derived, and validated, against
+the fold of its own analysis.
+
+Changed: browser analysis now sees phones and tablets as touch devices. The
+analysis renders for the phone (375 px) and tablet (768 px) viewports already
+laid pages out as mobile devices, but emulated no touch screen, so in those
+renders `@media (hover: hover)` and `(pointer: fine)` rules applied and
+`(hover: none)` and `(pointer: coarse)` rules did not, the reverse of a phone
+or tablet visitor's browser: a rule that shows a control only on a touch
+screen was never in the phone's critical CSS, and the deferral check could
+confirm a phone's fold in a state no phone shows. The CSS coverage render,
+page analysis, the deferral-validation render, script coverage, the font glyph
+scan and the capture endpoint now emulate a touch screen with five touch
+points on both viewports, from the one setting the async-CSS probe reads as
+well, so `(hover: none)`, `(pointer: coarse)`, `(any-hover: none)` and
+`(any-pointer: coarse)` match in every render and `navigator.maxTouchPoints`
+is 5 (and, since the User-Agent change above, `'ontouchstart' in window` is
+true in every render). The desktop viewport (1440 px) keeps `hover: hover`,
+`pointer: fine` and no touch points. The critical CSS for
+phones and tablets follows: it now keeps `(hover: none)` / `(pointer: coarse)`
+blocks (and their `any-` forms) that match an element near the top of the
+page and leaves out `(hover: hover)` / `(pointer: fine)` blocks, which those
+visitors never match, so on pages built with Tailwind CSS v4 the phone and
+tablet blocks no longer carry the `hover:` variant blocks; a bar fixed to the
+screen only under `(hover: none)` now counts as on a phone's fold. The desktop
+critical CSS keeps both kinds, as before: a desktop User-Agent can be an
+iPad's (iPadOS Safari sends a desktop User-Agent) or a touch laptop's, and a
+rule it does not match costs nothing in the desktop render. A block placed
+after the page's stylesheets (a page using cascade layers whose order cannot
+be proven) keeps both kinds for every device, as it keeps every `@media`
+block any window could match. Every phone and tablet validation record made
+before this change stops matching once, so a validated page keeps its phone
+and tablet stylesheet render-blocking until the page it was validated on is
+analysed again, which the worker queues right away and rate-limits as for
+other revalidations. Desktop records are not affected.
+
+Fixed: on a page with a `<base href>`, the stylesheet bytes the critical-CSS
+work reads were fetched from the wrong place. The combined stylesheet the
+critical block is derived from and confirmed against, and the copy of the
+page the analysis browser renders, resolved each `<link rel="stylesheet">`
+against the page's own directory instead of the `<base>`: under `<base
+href="/sub/">` a link to `a.css` read `/a.css` instead of `/sub/a.css`, and
+under a `<base>` on another host (for example a CDN) a link to
+`/css/site.css` was read from the page's host, where it is not, so the sheet
+counted as missing, the page was marked for revalidation on every request and
+its stylesheet never deferred. Both now resolve the link exactly as the
+browser does, the same way the scanner already matched sheets, and the
+preload hints and SRI pins for those links follow the same rule. A
+same-host `<base>` with an explicit default port (`:443` on https) is still
+the page's own host. One shape without a `<base href>` changes as well: a
+stylesheet link with a protocol-relative `href` such as
+`//cdn.example.com/c.css` was looked up under a key the cache never holds, so
+it always counted as missing and the page was marked for revalidation on
+every request; it is now read as that host's `/c.css` (and
+`//example.com/d.css` as the page's own `/d.css`), which ends that loop. No
+stored validation record is affected by either change: such pages could not
+be validated while their sheet counted as missing. Pages without a `<base
+href>` and without protocol-relative stylesheet links, or with a `<base>` on
+the page's own host and directory, are unaffected.
+
+Fixed: on a page whose `<base href>` points at another host (for example a
+CDN), a stylesheet link with a root-relative `href` such as `/css/site.css`
+was taken to be the page host's sheet, while the browser fetches it from the
+`<base>` host. The two spellings of one sheet, `/css/site.css` and
+`https://cdn.example.com/css/site.css`, therefore did not match each other,
+and `https://example.com/css/site.css`, a different sheet, matched instead.
+This decided whether a script-loaded stylesheet (the loadCSS pattern, a
+preload with its `<noscript>` copy) counted as one of the page's sheets, and
+whether a `<noscript>` stylesheet was taken to change the no-JS render; both
+feed the combined stylesheet the critical-CSS block is confirmed against. The
+scanner now gives a hostless reference the `<base>` host, as it already did for
+the hero image's `<noscript>` copy; a root-relative `<base href="/sub/">`
+keeps the page's host, which that earlier change had left without one. Pages
+without a cross-host `<base>` are unaffected; a validated cross-host-`<base>`
+page whose sheet list changes is simply validated again, as after any change
+to its stylesheet.
+
+Fixed: the CSS minifier deleted an empty statement inside a parenthesized or
+bracketed group in a declaration value: `a{--x:(a;;b)}` was served as
+`a{--x:(a;b)}`, and `[a;;b]` or `f(a;;b)` lost a `;` the same way. A custom
+property stores its value as written, and `var()` and `getPropertyValue()`
+read it back verbatim, so the page saw a different value than the author
+wrote. The minifier's declaration splitter ended a declaration at every `;`,
+while CSS Syntax 3 ends one only at a `;` outside parentheses and brackets;
+the splitter now tracks that depth, as the trailing-semicolon trim already
+did. The same scan also opened a rule block on a `{` inside an unclosed
+parenthesis or bracket (the shape the CSS fuzz lane found; browsers apply
+nothing after such a parenthesis, so that face changed no page) and now
+passes such text through unchanged; the block matcher likewise no longer
+closes a rule at a `}` inside an unclosed bracket. Ordinary empty statements between declarations
+(`a{b:c;;d:e}`) are still removed.
+
+Changed: a page whose hero image is loaded by script no longer gets a
+high-priority hint for the wrong image. The common lazy-loading shape puts an
+`<img data-src="hero.jpg" class="lazy">` without a `src` in the hero container,
+followed by a `<noscript>` copy of it. Since the `<noscript>` copy stopped
+being the candidate, the preload link, the Early Hint and the
+`fetchpriority="high"` went to the next image on the page, which is often
+below the fold, while the hero itself, which the browser paints largest, got
+nothing. The optimizer now recognises this shape and emits no image hint for
+such a page: nothing in the markup says which bytes the loader will fetch, and
+a wrong high-priority hint costs more than none. In plain words, what changes:
+a hero container (a `<header>`, `<main>`, `<section>` or `<article>`, or an
+element with a hero-like class) whose only image is such a placeholder with
+its `<noscript>` copy gets no image hint, and neither does any image in a
+container that was already open at that point, for example everything else
+inside the `<main>` that wraps the hero. A later sibling section with an
+ordinary hero image does get hinted, as before, so a lazy-loaded logo in the
+`<header>` does not silence the real hero below it; this includes a content
+`<section>` or `<article>` further down the page, whose image is hinted as it
+was before. A lazy placeholder outside
+a hero container, or one without the `<noscript>` copy, or a page whose first
+image is simply later in the document, is handled as before. The
+`fetchpriority="high"` given to the first image when no candidate is found no
+longer goes to a placeholder without a source (an image with a `srcset`, or
+inside a `<picture>` with a `<source srcset>`, has one), and such a
+placeholder among the first three body images is left as the author wrote it.
+What counts as the placeholder: an `<img>` with a lazy data attribute or a
+lazy-loader class and no usable `src` (absent, empty or `data:`); one with a
+lazy data attribute whose `src` is a stand-in file
+(`<img src="/blank.gif" data-src="/hero.jpg">`, with a name such as blank,
+placeholder, pixel, spacer, 1x1, transparent, loading or lazy); and, inside a
+hero container, one with a lazy data attribute and any other real `src` (a
+low-quality preview) when its `<noscript>` copy names a different image (the
+same image spelled as an absolute URL does not count as different). Without
+such a copy, or with a lazy class alone, an image with a real `src` is
+handled as before. In every case the copy has to be a visible image: a
+tracking pixel's `<noscript>` fallback or a hidden image in the same
+container is not the copy of the hero, so such a page keeps its hero hint.
+A small icon inside the hero container (declared width x height under
+10,000 px², for example a 48x48 call-to-action icon) does not become the
+hint for a hero loaded by script either: such a page gets no image hint, as
+a hero without the icon does.
+
+Fixed: the inlined critical CSS block no longer carries a fragment of an
+at-rule whose prelude has a `;` inside parentheses (`@supports (a;b) { … }`,
+or an anonymous layer written `@l\61yer (a;b) { … }` inside an `@media`
+block copied whole). The optimizer read the `;` as the end of a statement and
+emitted the rest (`b) { … }`) as a rule of its own; browsers discard that
+fragment, so this only removes bytes from the block.
+
+Fixed: critical CSS no longer drops rules whose selectors contain a space or
+a `>`, `+` or `~` inside square brackets or parentheses, such as
+`li:nth-child(2n+1)`, `input[type=text i]`, `.note:not(.a > .b)` or
+`[class~=active]`. The optimizer split such selectors in the middle and could
+then not match them to the page, so the elements at the top of the page lost
+those styles until the stylesheet loaded. Rules that style the children of an
+element, such as Tailwind CSS v4's `space-y-*` and `divide-y` spacing
+utilities, are now kept when that element is near the top of the page. Rules
+scoped to a class or id that appears nowhere on the page, such as Tailwind
+Typography's `.prose` rules on a page without an article, or Bootstrap's
+`.input-group` and `.dropup` rules on a page without those components, are
+left out, which makes the critical CSS smaller on most pages. Classes that
+scripts commonly add to the page's root element before it is shown (`dark`,
+`light`, `js`, and any class on `html`, `body` or `:root`) do not count as
+missing.
+
+Changed: browser analysis now renders the tablet viewport (768 px wide) as a
+mobile device, as tablets in portrait lay out pages, instead of as a desktop
+window. The CSS coverage render, page analysis, the deferral-validation render
+and the other analysis renders all take this from one setting, which the
+async-CSS probe reads as well. On a page whose content is wider than 768 px at
+that size, tablets keep the page at device width but let the overflowing
+content widen the layout viewport, which fixed-position elements follow; the
+analysis now sees that layout. Every
+tablet validation record made before this change stops matching once, so a
+validated page keeps its tablet stylesheet render-blocking until the page it
+was validated on is analysed again, which the worker queues right away and
+rate-limits as for other revalidations. Phone and desktop records are not
+affected.
+
+Fixed: a backslash-escaped quote in a selector no longer hides the rest of
+the stylesheet from the critical CSS. Tailwind CSS v4 writes a `'` in a class
+name as `\'`; shadcn/ui's Button uses such a class
+(`[&_svg:not([class*='size-'])]:size-4`). The optimizer read that quote as the
+start of a text string that never ended, so every rule after it was skipped:
+the critical CSS of such a page could lose most of the rules for the top of
+the page, and the page would flash unstyled while its stylesheet loaded. The
+optimizer now reads backslash escapes as CSS defines them, also for escaped
+braces, commas and combinators in class names, and ends a string that is
+missing its closing quote at the end of the line, as browsers do. The same fix
+applies where browser analysis reads the CSS a page used and where unused CSS
+is removed. An unquoted `url(...)` containing a quote no longer starts a text
+string either. Pages whose stylesheets escape a quote, a brace or a comma
+outside a string are validated again once, instead of keeping their
+stylesheet render-blocking until their browser profile expires (24 hours by
+default): the earlier validation of such a page was made against critical CSS
+that missed most of its rules. Other pages keep their validation.
+
+Fixed: on phones and tablets, the page no longer shifts sideways while its
+deferred stylesheet loads because of an image, video or icon far below the
+fold. An image without a width, a YouTube embed with `width="560"`, or an
+inline `<svg>` without a width (300 px by default) can be wider than a phone
+screen until the stylesheet shrinks it. The inlined critical CSS only carried
+rules for elements near the top of the page, so before the full stylesheet
+arrived such an element further down could make the page wider than the
+screen. A phone browser then widens the page's layout to fit it, which moves
+the whole visible area, including floating buttons, partly off-screen. For
+phones and tablets, the rules that apply to these elements (`<img>`,
+`<iframe>`, `<video>`, `<canvas>`, `<embed>`, `<object>`, `<audio controls>`
+and `<svg>`, unless the markup gives them a width of at most 320 px) are now
+part of the critical CSS wherever the elements are on the page. They add at
+most 8 KiB, and never enough to push the critical CSS past the size limits
+above which it is not inlined at all. The desktop critical CSS is unchanged.
+Existing validations of deferred stylesheets are kept rather than redone: the
+added rules only size elements as the full stylesheet already does once it
+loads, and redoing them would validate nearly every page with an image
+again.
+
+Fixed: browser analysis now measures the page the way a browser with
+JavaScript sees it, so content inside `<noscript>` no longer counts as part of
+the fold. The CSS coverage render and the render that validates stylesheet
+deferral keep running with JavaScript turned off (part of the defense against
+server-side request forgery, and it keeps renders repeatable), and a browser
+with JavaScript off displays `<noscript>` content and applies its CSS. A
+"please enable JavaScript" banner at the top of the page therefore took the
+top of the fold in those two renders, and pushed the content that browsers with
+JavaScript show there out of view. The optimizer now removes the `<noscript>`
+elements, with everything inside them, from the documents those two renders
+load, reading the page the way a browser with JavaScript reads it (including
+inline SVG and MathML, comments and scripts). The renders that run JavaScript
+get the page unchanged. If the optimizer cannot be sure where a `<noscript>`
+ends (for example one that is never closed), it does not render the result: it
+skips the coverage render and does not validate the page, so the stylesheet
+stays render-blocking. A check guards the removal against the optimizer's own
+HTML scanner, an independent reading of the same page: `<body>` and the 200
+elements after it must be the same elements in the same order, and across the
+whole page the removal is refused when two elements in a row, or more than
+three in all, are missing or read as other elements. The removal follows the
+browser's rules for misnested markup (end tags across open elements, a
+paragraph closed by a block element, an `<a>`, `<nobr>`, `<button>` or
+`<form>` inside an open one, inline SVG and MathML, and the `<svg>` holding a
+`<template>` that streaming React and Next.js pages emit). Deferral
+validation is also refused when a `<noscript>` and an HTML comment overlap in
+a way that the optimizer's serving path and a browser read differently, since
+the critical CSS block could then be placed somewhere else in the validated
+page than in the served one; the placement that validation replays reads HTML
+comments exactly as the serving path does. The validation render is also
+refused when the full
+page renders as a single colour, since a blank page compares equal to any
+other blank page. The critical CSS extractor no longer matches the page's CSS
+against elements inside `<noscript>`, `<template>`, `<noembed>` or
+`<noframes>`. The page served to visitors is unchanged: it keeps its
+`<noscript>` elements, including the `<noscript>` stylesheet copy the optimizer
+adds for deferred stylesheets. The page-structure hash that keys browser
+profiles is unchanged, so no page is analyzed again early because of this. A
+page whose `<noscript>` holds something a browser without JavaScript shows (a
+`<style>`, a stylesheet that does not load for JavaScript browsers anyway,
+visible elements or text) or acts on (a `<meta http-equiv=refresh>`, which
+the validation render used to follow) was validated against the wrong fold.
+Its validation
+record no longer matches, so the page keeps its stylesheet render-blocking until
+it is validated again, which the worker queues right away for the page the
+record was made on. Pages whose `<noscript>` only holds hidden tracking
+elements, such as the Google Tag Manager iframe or a 1x1 tracking pixel, keep
+their records. A new `noscript_strip_refusals` counter in BROWSER-STATUS
+counts the analyses whose coverage render was skipped.
+
+Fixed: CSS inside `<noscript>` no longer reaches the inlined critical CSS
+block. The optimizer read `<style>` elements and `<link rel="stylesheet">`
+inside `<noscript>` as part of the page's CSS, so rules meant only for
+browsers without JavaScript could be copied into the block that every browser
+gets. The same now applies to `<template>`, `<noembed>`, `<noframes>` and
+`<math>`, and to a `<link>` inside inline `<svg>`; a `<style>` inside inline
+`<svg>` still counts, because it styles the whole page. The same goes for a
+`<style>` or stylesheet `<link>` whose `type` browsers do not treat as CSS,
+such as `type="text/tailwindcss"`, `text/plain` or `text/x-less`: browsers
+ignore these elements, and so does the optimizer now. One case still counts:
+the loadCSS pattern, where a `<link rel="preload" as="style">` with an
+`onload` handler turns itself into the stylesheet and a `<noscript>` link
+declares the same stylesheet for browsers without JavaScript. That stylesheet
+is read once, at the position of the preload, which is where browsers apply
+it; the two links are matched by the address they resolve to, so `/css/a.css`,
+`css/a.css` and `http://example.com/css/a.css` on the same page are one
+stylesheet. A preload without an `onload` handler does not make a `<noscript>`
+link count. The other `<noscript>` stylesheets are no longer sent as Early
+Hints, no longer rank as render-blocking when choosing preconnect origins, and
+a `<link rel="stylesheet">` inside `<noscript>` is no longer deferred. On
+pages with other CSS in `<noscript>`, the CSS that deferral was validated
+against changes, so a validated page stops deferring its stylesheet until it
+is validated again. It no longer waits for the browser profile to expire (24
+hours by default) for that: when the page a profile was validated on is served
+with a stylesheet that no longer matches the record, for this reason or
+because the stylesheet was changed, the worker now queues a new browser
+analysis for the page's template straight away, at most twice per template per
+profile lifetime and at least 30 seconds apart. Other pages that share the
+template do not trigger it, since their own inline styles always differ from
+the validated page's. Until that analysis finishes, the page keeps its
+stylesheet render-blocking, and a critical CSS block over 64 KiB is not
+inlined. Pages with a stylesheet link inside `<noscript>`, or whose only
+`<style>` is inside `<noscript>`, get a new browser profile on their next
+request, because the profile is keyed on a page-structure hash that counts
+stylesheets.
+
+Changed: the critical CSS extractor now reads media-query range syntax such as
+`@media (width >= 48rem)`, which Tailwind CSS v4 emits for its
+breakpoints, as well as `not`, `or` and nested conditions. It leaves out a
+width-conditioned `@media` block only when no window of the visitor's device
+class can match it. The device class comes from the User-Agent, and the
+windows a class can have overlap: a phone is 0 to 980 px wide (landscape, and
+pages without a `<meta name="viewport">`), a tablet 0 to 1480 px, and a
+desktop browser any width. The desktop block used to leave out `max-width`
+blocks for phone widths, and a desktop browser in a narrow window showed the
+desktop layout until the stylesheet loaded; it now keeps them. On a page whose
+CSS uses a cascade layer and whose layer order the optimizer cannot prove (see
+the cascade-layer entries below), the block goes after the stylesheets, so the
+extractor keeps every `@media` block that can match any window, for every
+device class. A phone zoomed out past 980 px can no longer lose a responsive
+override for as long as the page is open.
+
+Changed: `@media` blocks in the inlined critical CSS are now filtered rule by
+rule, like the rest of the stylesheet. A block whose rules match nothing above
+the fold is left out, unless one of them cannot be matched against elements
+at all (a `:root:not([data-theme=light])` dark palette, `[data-theme]`,
+`::selection`), and a large block keeps only the rules the fold needs and
+those that cannot be matched;
+before, every block that could apply was copied whole unless it sat inside a
+large cascade layer block. On a stock Bootstrap 5.3.3 page the desktop block
+shrinks from 105 KB, which was over the 64 KB inline limit, to 53 KB.
+
+Fixed: `@media not print { ... }` and `@media screen, print { ... }` apply on
+screen, but the critical CSS extractor left them out of the inlined block
+because the query contained the word `print`. Only blocks that no screen can
+match, such as `@media print` and `@media only print`, are left out now.
+
+Fixed: pages whose stylesheets use CSS cascade layers, which includes every
+Tailwind CSS v4 page, now also get the inlined critical CSS block before their
+stylesheets, so the full stylesheet wins every tie once it loads and a
+responsive rule the block left out is no longer overridden. The order of
+layers is set by where each layer is first mentioned, so the block now starts
+with an `@layer a, b, c;` statement that lists every layer of the page in the
+order the browser meets them in the original page: across all `<link>` and
+`<style>` stylesheets in document order, including layers declared by
+`@import … layer(x)` and nested layers such as `a.b`. That statement fixes
+the page's own layer order before anything else can. A block that uses only
+anonymous `@layer { }` rules gets the statement too, so its `!important`
+declarations cannot outrank the page's named layers. The stylesheets counted
+are the ones the optimizer reads for the inlined block (see the `<noscript>`
+entry above), in the order browsers apply them: a `<style>` or `<link>` whose
+`type` browsers do not treat as CSS (such as `text/tailwindcss`), stylesheets
+inside `<noscript>`, `<template>`, `<noembed>` or `<noframes>`, a `<link>`
+inside `<svg>` or `<math>`, a `<style>` inside `<math>`, and a
+`rel="preload" as="style"` link without an `onload` handler are not counted.
+A loadCSS preload (`rel="preload" as="style"` with an `onload` handler) counts
+at its own position, which is where browsers apply it.
+
+The optimizer only does this when it can prove the order; otherwise the block
+stays at the end of `<head>`, as before. It keeps the old place when a
+stylesheet on the page is not available to it (a stylesheet from another
+domain, one not cached yet, an `@import` it cannot read, a loadCSS preload
+without a `<noscript>` copy of its stylesheet, or an alternate, disabled or
+titled stylesheet, since browsers apply only the preferred set of titled
+stylesheets); when a layer is first declared inside `@media`,
+`@supports` or another conditional rule, or in a stylesheet with a `media`
+attribute other than `all` (browsers do not register a layer whose condition
+does not match, so its place depends on the visitor's window); when an
+anonymous `@layer { }` comes before a named layer; when a layer name or an
+at-rule keyword is written with an escape; when a stray `}` or `;` sits where
+a rule may start (browsers then drop the rule after it); and when a script
+that may insert a stylesheet comes before a stylesheet that declares a new
+layer. Such a script is a parser-blocking external script (no `async`,
+`defer` or `type="module"`), which can `document.write` one, or an inline
+script that mentions `document.write`, `insertRule`, `adoptedStyleSheets`,
+`CSSStyleSheet`, `@layer`, or creates a `style` or `link` element. Remaining
+risk: a stylesheet that an `async`, `defer` or module script inserts, or an
+inline script inserts without any of those signs, is not detected, and the
+statement overrides the layer order such a stylesheet would have set. A layer
+only that stylesheet declares ends up after the ones the statement lists, and
+a stylesheet inserted before the page's first stylesheet that declares the
+page's layers in a different order (for example `@layer b, a;` ahead of a
+stylesheet that declares `a` then `b`) no longer changes their order. A
+stylesheet inserted at the very start of `<head>`, before the inlined block,
+is not affected. A script the optimizer itself defers counts as the
+parser-blocking script it was.
+
+The empirical critical-CSS check places the block the same way and renders
+the full stylesheet with the same statement in front, and on pages whose
+stylesheet uses layers its record is now bound to the page's layer order as
+well as to the stylesheet bytes. Records of such pages therefore stop matching
+once; the page the profile was made on then queues a new browser analysis
+straight away, as for a changed stylesheet, and until it finishes the page's
+stylesheets stay render-blocking. Records of pages without layers are not
+affected. `@import` rules inside inline
+`<style>` elements now resolve against the page's `<base href>`, as browsers
+do, for the combined stylesheet and for the layer order. Re-processing a page
+replaces the block and its statement; nothing accumulates. Scripts that read
+`document.styleSheets[0]` or `querySelector('style')` on such pages now get the
+inlined block.
+
+Changed: on pages whose stylesheets use CSS cascade layers and whose layer
+order the optimizer proves (see the entry above), the inlined critical CSS
+block goes before the stylesheets, so it now leaves out width-conditioned
+`@media` blocks that no window of the visitor's device class can match, as on
+pages without layers: a phone 0 to 980 px, a tablet 0 to 1480 px, a desktop
+browser any width. On Tailwind CSS v4 pages the phone block no longer carries
+the `lg:` and wider breakpoint blocks; on one captured page it
+shrinks from 43,846 to 42,822 bytes, and the tablet and desktop blocks are
+unchanged. A window outside its class's range (a phone zoomed out past 980 px)
+lacks those blocks only until the stylesheet loads, which then wins every tie.
+Pages whose layer order is not proven keep every `@media` block that can match
+any window, because their block goes after the stylesheets; that now also
+covers pages that use only anonymous `@layer { }` blocks or an at-rule keyword
+written with an escape, which take the same place. Pages whose CSS has any
+anonymous layer (`@layer { }` or `@import … layer`) keep every width too, even
+when the order is proven: each anonymous layer is a separate layer, the
+block's comes first, and for `!important` declarations the earlier layer wins,
+so a dropped `!important` override would lose to the block's base rule for as
+long as the page is open. The decision is made from the same layer order that
+places the block, and the empirical critical-CSS check derives its block with
+that order too, so it renders the block that is served. Validation records of
+pages whose block now narrows are bound to that (the layer-order binding gains
+an `r2` marker), so they stop matching once: the page the profile was made on
+queues a new browser analysis straight away, at most twice per template per
+profile lifetime, and until it finishes the page's stylesheets stay
+render-blocking. Narrowing can add a rule as well as drop one (a coverage
+selector that becomes unambiguous within the narrower range), so an older
+record does not describe the new block.
+
+Fixed: on pages whose cascade layer order the optimizer cannot prove, the
+inlined critical CSS block now leaves out every rule inside an anonymous
+cascade layer (`@layer { … }`). There the block goes after the stylesheets, so
+its anonymous layer is registered after the stylesheet's, and for normal
+declarations a later layer wins whatever the selectors: the block's
+`.x{display:none}` beat the stylesheet's `.x.open{display:block}` for as long
+as the page was open. Anonymous layers nested in rules the block copies whole
+are left out too, and so is every at-rule whose keyword is written with an
+escape (`@l\61yer { … }`, which a browser reads as `@layer { … }`), whatever
+the keyword decodes to. Rules in named layers and outside layers stay, and
+pages whose block goes before the stylesheets keep their anonymous-layer rules
+(without their `!important` declarations, see the placement entry below). The
+empirical critical-CSS check derives the block the same way. On pages whose
+stylesheet has an anonymous layer and
+whose block goes after the stylesheets, validation records are bound to that
+(the layer-order binding gains a `u2` marker), so they stop matching once and
+the page the profile was made on queues a new browser analysis straight away.
+
+Fixed: on pages that load a stylesheet with the loadCSS pattern (a
+`<link rel="preload" as="style">` whose `onload` handler turns it into a
+stylesheet), the inlined critical CSS block now goes before that link instead
+of after it. Browsers apply the stylesheet at the link's position, so a block
+placed after it won every tie against that stylesheet for as long as the page
+stayed open. The empirical critical-CSS check places the block the same way.
+
+Fixed: the inlined critical CSS block now comes before the stylesheet it was
+taken from, instead of at the end of `<head>`. The block carries a copy of
+some of the stylesheet's rules, trimmed to the above-the-fold content and to
+the visitor's device class (mobile, tablet or desktop). When the block came
+after the stylesheet, its copies won every tie against the real stylesheet
+once that loaded, so a responsive rule the block had left out lost to the
+general rule it kept, for as long as the page stayed open: a phone in
+landscape, or a narrow desktop window, could keep desktop spacing on elements
+the stylesheet restyles for that width. With the block first, the full
+stylesheet decides as soon as it applies, and the block only shapes the first
+paint. The block goes before the page's first `<link rel="stylesheet">` or
+`<style>` in `<head>`; it stays after `<meta charset>`, a `<meta>`
+Content-Security-Policy and `<base>`, and is never placed inside `<noscript>`.
+A page with no stylesheet in `<head>` gets the block at the end of `<head>`, as
+before. One exception: on a page whose CSS uses cascade layers (every
+Tailwind CSS v4 page does) the block goes first only when the optimizer can
+prove the page's layer order, as the cascade-layer entry above describes;
+otherwise it stays at the end of `<head>`, after the page's stylesheets. The
+order of layers is set by where each layer is first mentioned, and a block
+placed first without that proof would list its layers in the order the
+optimizer read the page's CSS, which can differ from the page's own order. A
+block that goes first leaves out `!important` declarations that sit inside an
+anonymous cascade layer (`@layer { … }`), in every spelling a browser reads
+as `!important`, and anonymous `@import … layer` rules: each anonymous layer
+is a separate layer, the block's is registered first, and for `!important`
+declarations the earlier layer wins, so the block's copy would beat the
+stylesheet's own `!important` override for as long as the page stayed open.
+Scripts that read `document.styleSheets[0]` or `querySelector('style')` now
+get the inlined block, not the page's first stylesheet, when the block goes
+first.
+
+Fixed: the critical CSS the optimizer inlines without a browser profile now
+covers the above-the-fold content on pages with a large `<head>`. The
+heuristic extractor counted its above-the-fold element budget from the start
+of the document, so on a page whose `<head>` holds more elements than the
+budget (dozens of `<meta>`, `<link>` and `<script>` elements is normal today)
+the budget was spent before the first visible element and the inlined block
+carried none of the fold's layout rules. The budget now starts at `<body>`,
+its default grows from 25 to 300 elements (utility-class markup spends
+hundreds of elements on a header, its menus and a hero), and elements that a
+`position: fixed` rule selects — chat launchers, cookie banners, floating
+buttons at the end of `<body>` — are treated as above the fold wherever they
+sit in the document, together with their contents. The inlined block gets
+larger on such pages (on one measured home page it grows from 25 KB to
+45 KB against 118 KB of stylesheet), and the deferral gate is unchanged: a
+stylesheet is still only made non-render-blocking with a validated browser
+profile. The C API defaults `ps_html_config_t.critical_css_max_elements` and
+`ps_critical_css_config_t.max_elements` change from 25 to 300 to match.
+In the optimizer worker (not the C API's `ps_html_process` /
+`ps_critical_css_extract`, which have no inline cap), the block is also now
+subject to the same inline budget on both derivation paths: it is not inlined
+(and the stylesheet stays render-blocking) when it would be 60% or more of a
+combined stylesheet of 15 KB or more (the `--async-css-min-deferred-bytes`
+threshold; a smaller sheet is still inlined in full as before), or when it
+is larger than 64 KiB while the stylesheet stays render-blocking. A deferral
+authorised by a validated browser profile is never vetoed by the 64 KiB cap.
+The new `critical_css_skipped_byte_cap` counter on `/v1/stats` counts the
+blocks the cap dropped.
+
+Pages with a validated browser profile derive their block from the measured
+fold added to the estimate, so their block grows in the same direction; a
+validation record is keyed on the stylesheet alone and keeps authorising
+deferral of the larger block until the page is re-validated. The direction
+is a superset of what was validated, never a subset.
 
 Security: on Windows, a local privilege-escalation issue is fixed. A Windows
 host is exposed when other local code (for example another IIS application
@@ -117,6 +737,25 @@ it. If your web-server configuration names the cache path
 `v2`. Upgrade the optimizer and the serving module together: a pair
 linking different cache formats opens two different files instead of
 sharing one. See UPGRADING.md.
+
+Added: the nginx module checks that the optimizer uses the same cache format
+it does. It compares its own cache-directory generation with the
+`cache_dir_generation` the optimizer publishes in `pagespeed-shared.conf`. If
+they differ (an optimizer rolled back, or the two packages upgraded
+separately), nginx keeps serving but turns its cache off: requests go
+straight to the origin, and nothing is read from or written to the cache,
+and the optimizer is not notified. It logs one error that names both
+generations, says which side is older, and gives the fix (upgrade both to the
+same release, or run both from the same image tag). Before, such a pair
+opened two different cache files, never shared a cache, and logged nothing.
+The check runs at start and on every reload, and again whenever the optimizer
+rewrites its shared config, so a finished rolling upgrade turns the cache
+back on without an nginx reload. An optimizer that publishes no generation
+(older than 2.1.0) gets one warning and the cache is used as before. The new
+nginx variables `$pagespeed_cache_generation` (`match`, `mismatch` or
+`unknown`), `$pagespeed_cache_generation_module` and
+`$pagespeed_cache_generation_optimizer` expose the result for a log format
+or a status location.
 
 Fixed: in the container deployments the optimizer and nginx could overwrite
 each other's cache writes. They ran in separate PID namespaces, and the cache
@@ -165,37 +804,55 @@ to a file that can be read while the service runs; a log file that cannot be
 opened stops the service with service-specific exit code 90. Run from a
 console, `--service` is refused with a message saying so.
 
-Added: `GET /v1/logs?since=<seq>&limit=<n>` reads the optimizer's recent log
-over plain HTTP, for clients that cannot hold a WebSocket open. Each page
-holds at most 500 entries and 512 KiB, oldest first after `since` or the
-newest without it; `next_since` is the cursor for the next read, `more` says
-another page is waiting, `gap` says entries were dropped between reads,
-`shed_total` counts entries the optimizer could not keep, and `stream_id`
-changes when the optimizer restarts.
+Fixed: more images now get a WebP or AVIF variant. The optimizer encodes a
+variant, measures its perceptual quality, and re-encodes at a different
+quality when the measurement falls outside the accepted band; a variant that
+never reaches the band is not served. When the measurement came out BELOW the
+band, the search used to raise the quality by a fixed amount per attempt, so
+within its attempt budget it could only look a short distance above where it
+started -- and an image whose acceptable quality lay further up was refused
+even though an acceptable encode existed. Raising the quality now halves the
+range that is left on each attempt instead, which reaches the top of the
+quality range without spending more encodes, so those images get their
+variant. An image the optimizer has to encode near the top of the range to
+satisfy the band is what gains; the case this was diagnosed on was a
+photograph stored as a PNG, which was being served as the original PNG to
+every client.
 
-Changed: an optimizer log message carries at most 4 KiB of text; a longer
-message is cut on a character boundary and ends in "…[truncated N bytes]".
-Log entries on the live log stream carry a `seq` number that increases by
-one per entry while the process runs.
+An image that already received a variant may now receive a slightly
+different one, usually slightly larger: the optimizer stops at the first
+encode that lands inside the band, and it now arrives at the band from a
+different direction, so it settles on a different encode than before.
 
-Security: with `--api-read-open`, the optimizer's log lines are no longer
-readable without the API token. Both the `/v1/ws/logs` stream and the new
-`GET /v1/logs` require the token over TCP whenever one is configured; the
-other read endpoints and streams stay open, and the unix socket and
-`--api-no-auth` are unchanged. A read-only console that showed the log
-without a token no longer does. Update recommended.
+Two things are deliberately unchanged. The rule about what is servable is the
+same: an image that cannot reach the band is still refused. And the other
+direction is the same: when a variant measures ABOVE the band the optimizer
+still corrects it downward by at most the distance it always did, because an
+over-quality variant only costs bytes while an under-quality one is visible,
+so that correction stays cautious. Variants that were previously refused
+because the upward search could not reach them are retried the next time the
+optimizer works on that URL, with no cache clearing needed.
 
-Changed: `--api-read-open` now opens exactly the documented read endpoints
-and the `stats`/`events` WebSocket streams, and nothing else -- a future GET
-endpoint stays behind the token under read-open unless it is explicitly
-added to that list. Separately, at most two WebSocket connections may be
-waiting to send their authentication message at once; a connection beyond
-that limit is refused the same way exceeding the overall connection limit
-is refused today. Repeated authentication timeouts are now logged at most
-once a minute. The bundled console stops reconnecting to a stream the
-server refused for a missing token, until a token is set.
+Fixed: an image inside `<noscript>` is no longer treated as the page's largest
+image. A browser that runs scripts never creates the elements inside a
+`<noscript>` (nor those inside `<template>`, `<noembed>` or `<noframes>`), so
+the preload link, the Early Hint and the `fetchpriority="high"` the optimizer
+emitted for such an image fetched a file the page never shows, at the highest
+priority, ahead of the real content. The common case is the lazy-loading
+fallback `<img data-src="hero.jpg" class="lazy"><noscript><img
+src="hero.jpg"></noscript>`, where the optimizer picked the `<noscript>` copy.
+Such images are now passed over: the next image the page does create is the
+candidate, or none when there is no other. For a hero that is loaded by
+script (an `<img data-src>` without a `src`, plus the `<noscript>` copy) that
+next image may well be below the fold, so such a page gets no image hint at
+all; the script-loaded-hero entry above describes that rule. The
+`<noscript>` image also no
+longer takes the `fetchpriority="high"` given to the first image when no
+candidate is found, no longer counts toward the first images that are kept
+from lazy-loading, and is left as the author wrote it, without
+`loading="lazy"`; the same goes for an `<iframe>` inside `<noscript>`.
 
-## [2.1.0] - 2026-09-17
+## 2.1.0 — 2026-09-17
 
 Changed (plan for this before you upgrade): **the disk cache starts empty.**
 This release moves the optimizer to a new on-disk cache format. The new

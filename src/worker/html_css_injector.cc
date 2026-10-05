@@ -5,8 +5,11 @@
 
 #include "src/worker/html_css_injector.h"
 
+#include <cctype>
+#include <cstddef>
 #include <string>
 #include <string_view>
+#include <utility>
 
 #include "lib/base/string_util.h"
 
@@ -140,6 +143,13 @@ bool StartsComment(std::string_view html, size_t pos) {
 }
 
 size_t ScanComment(std::string_view html, size_t pos) {
+  // The serve path's HtmlLexer reading (lib/html, synced from mod_pagespeed
+  // 1.15 and not edited here): after `<!--`, the first `-->`. That is NOT the
+  // HTML tokenizer's rule for `<!-->`, `<!--->` and `--!>`:
+  // the block placement this module and the critical-CSS validator replay
+  // must agree with the serve path, which decides it on the lexer's tree.
+  // The <noscript> removal, which must agree with the browser instead, reads
+  // comments by the spec (noscript_strip.cc).
   size_t end = html.find("-->", pos + 4);
   if (end == std::string_view::npos) return std::string_view::npos;
   return end + 3;
@@ -181,10 +191,90 @@ size_t FindOutsideCommentsAndRawText(std::string_view html,
 
 }  // namespace html_scan
 
+bool CriticalCssNamesCascadeLayer(std::string_view css) {
+  auto at_keyword = [&css](size_t i, std::string_view kw) {
+    return i + kw.size() <= css.size() &&
+           CaseInsensitiveEqual(css.substr(i, kw.size()), kw);
+  };
+  for (size_t i = 0; i < css.size(); ++i) {
+    if (css[i] != '@') continue;
+    if (at_keyword(i, "@layer")) {
+      size_t j = i + 6;
+      // `@layers` or `@layer-x` is some other at-keyword.
+      if (j < css.size() &&
+          (std::isalnum(static_cast<unsigned char>(css[j])) != 0 ||
+           css[j] == '-' || css[j] == '_')) {
+        continue;
+      }
+      while (j < css.size() &&
+             (std::isspace(static_cast<unsigned char>(css[j])) != 0 ||
+              css[j] == '/')) {
+        // Skip whitespace and comments between the keyword and what follows.
+        if (css[j] == '/' && j + 1 < css.size() && css[j + 1] == '*') {
+          size_t end = css.find("*/", j + 2);
+          j = end == std::string_view::npos ? css.size() : end + 2;
+          continue;
+        }
+        if (css[j] == '/') break;
+        ++j;
+      }
+      // Anonymous `@layer {` names nothing; anything else might.
+      if (j < css.size() && css[j] == '{') continue;
+      return true;
+    }
+    if (at_keyword(i, "@import")) {
+      size_t end = css.find(';', i);
+      std::string_view rule = css.substr(
+          i, end == std::string_view::npos ? css.size() - i : end - i);
+      // The `layer` / `layer(name)` import condition, as a word: after
+      // whitespace or a closing paren, before `(`, `;`, whitespace or the end.
+      for (size_t k = 1; k + 5 <= rule.size(); ++k) {
+        if (!CaseInsensitiveEqual(rule.substr(k, 5), "layer")) continue;
+        const char before = rule[k - 1];
+        const char after = k + 5 < rule.size() ? rule[k + 5] : ';';
+        if ((std::isspace(static_cast<unsigned char>(before)) != 0 ||
+             before == ')' || before == '"' || before == '\'') &&
+            (after == '(' || after == ';' ||
+             std::isspace(static_cast<unsigned char>(after)) != 0)) {
+          return true;
+        }
+      }
+    }
+  }
+  return false;
+}
+
+size_t CriticalCssFallbackOffset(std::string_view html) {
+  // Strategy 1: before </head>, skipping matches inside comments and raw text
+  // elements (script, style, etc.).
+  size_t pos = html_scan::FindOutsideCommentsAndRawText(html, "</head>");
+  if (pos != std::string_view::npos) return pos;
+  // Strategy 2: before </body>.
+  pos = html_scan::FindOutsideCommentsAndRawText(html, "</body>");
+  if (pos != std::string_view::npos) return pos;
+  // Strategy 3: after <head> or <head ...>.
+  pos = FindOpenTagEnd(html, "head");
+  if (pos != std::string_view::npos) return pos;
+  // Strategy 4: at document start.
+  return 0;
+}
+
 CssInjectionResult InjectCriticalCss(std::string_view html,
                                      std::string_view critical_css) {
   if (html.empty()) {
     return {false, "Empty HTML input", {}, false};
+  }
+  return InjectCriticalCssAt(html, CriticalCssFallbackOffset(html),
+                             critical_css);
+}
+
+CssInjectionResult InjectCriticalCssAt(std::string_view html, size_t pos,
+                                       std::string_view critical_css) {
+  if (html.empty()) {
+    return {false, "Empty HTML input", {}, false};
+  }
+  if (pos > html.size()) {
+    return {false, "Injection offset past the end of the document", {}, false};
   }
 
   if (critical_css.empty()) {
@@ -197,45 +287,11 @@ CssInjectionResult InjectCriticalCss(std::string_view html,
         true, "CSS contains </style sequence; injection aborted", {}, false};
   }
 
-  // Strategy 1: Insert before </head>, skipping matches inside
-  // comments and raw text elements (script, style, etc.).
-  size_t pos = html_scan::FindOutsideCommentsAndRawText(html, "</head>");
-  if (pos != std::string_view::npos) {
-    std::string result;
-    result.reserve(html.size() + style_tag.size());
-    result.append(html.substr(0, pos));
-    result.append(style_tag);
-    result.append(html.substr(pos));
-    return {true, {}, std::move(result), true};
-  }
-
-  // Strategy 2: Insert before </body>.
-  pos = html_scan::FindOutsideCommentsAndRawText(html, "</body>");
-  if (pos != std::string_view::npos) {
-    std::string result;
-    result.reserve(html.size() + style_tag.size());
-    result.append(html.substr(0, pos));
-    result.append(style_tag);
-    result.append(html.substr(pos));
-    return {true, {}, std::move(result), true};
-  }
-
-  // Strategy 3: Insert after <head> or <head ...>.
-  pos = FindOpenTagEnd(html, "head");
-  if (pos != std::string_view::npos) {
-    std::string result;
-    result.reserve(html.size() + style_tag.size());
-    result.append(html.substr(0, pos));
-    result.append(style_tag);
-    result.append(html.substr(pos));
-    return {true, {}, std::move(result), true};
-  }
-
-  // Strategy 4: Insert at document start.
   std::string result;
   result.reserve(html.size() + style_tag.size());
+  result.append(html.substr(0, pos));
   result.append(style_tag);
-  result.append(html);
+  result.append(html.substr(pos));
   return {true, {}, std::move(result), true};
 }
 

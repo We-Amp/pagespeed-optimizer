@@ -35,6 +35,7 @@
 #include "src/worker/analysis_resource_map.h"
 #include "src/worker/browser_analysis_manager_internal.h"
 #include "src/worker/css_cache_inliner.h"
+#include "src/worker/noscript_strip.h"
 #include "src/worker/uv_helpers.h"
 
 namespace pagespeed {
@@ -191,6 +192,59 @@ int64_t ProfileExpiryFor(int64_t created_at, int64_t configured_ttl_seconds,
   return created_at + ttl;
 }
 
+AnalysisDocuments BuildAnalysisDocuments(std::string_view origin_html,
+                                         std::string_view url,
+                                         std::string_view hostname,
+                                         std::string_view scheme,
+                                         const css::CssLookupFn& lookup,
+                                         CssInliningStats* stats) {
+  AnalysisDocuments out;
+  // Inline cached stylesheets for browser CSS coverage. The item's hostname
+  // and scheme are the page's own: `url` is the cache-normalized path.
+  out.document = InlineCachedStylesheets(origin_html, url, lookup, stats,
+                                         hostname, scheme);
+
+  // Absolute <base> so relative subresource URLs resolve inside the
+  // about:blank analysis/agent documents and DOM .src reads are absolute —
+  // the join key for the ANALYSIS-side joins (resource map + profiler
+  // coverage).  The production suffix-matcher is a separate consumer: it only
+  // ever matches absolute-authored srcs (an absolute profile entry cannot be
+  // the suffix of a relative-authored src), so verdicts earned by
+  // relative-authored scripts stay analysis-only for now.  Author-<base>
+  // documents are left untouched.
+  out.document = InjectBaseHrefIfAbsent(out.document, url, hostname, scheme);
+
+  // The coverage render runs with script execution disabled, and Blink then
+  // renders <noscript> content and applies its CSS, so its coverage, and the
+  // fold it reflects, would be a no-JS client's. It gets the
+  // document a browser running scripts parses: no <noscript> elements. Only
+  // it: the renders that run scripts already read <noscript> as raw text and
+  // keep the document as it is. Last, after the inliner: its stylesheet list
+  // comes from the scanner, which needs a loadCSS preload's <noscript> twin
+  // to count that sheet.
+  NoscriptStripResult stripped = StripNoscriptElements(out.document);
+  if (!stripped.reliable) {
+    out.coverage_refusal = stripped.unreliable_reason;
+    return out;
+  }
+  // The independent reading: the scanner's element count of the same
+  // document must match what the removal left (NoscriptStripAgreesWithScan).
+  // Nothing removed means nothing to vouch for: the document is the input.
+  if (stripped.removed > 0) {
+    HtmlScanner scanner;
+    HtmlScanResult scan = scanner.Scan(url, out.document);
+    if (!scan.success ||
+        !NoscriptStripAgreesWithScan(stripped, scan.elements)) {
+      out.coverage_refusal =
+          "the <noscript> removal and the HTML scanner read the page "
+          "differently";
+      return out;
+    }
+  }
+  out.coverage_document = std::move(stripped.html);
+  return out;
+}
+
 ValidationInputs BuildValidationInputs(const CombinedCssBuilder& builder,
                                        const std::string& url,
                                        const std::string& hostname,
@@ -227,6 +281,8 @@ ValidationInputs BuildValidationInputs(const CombinedCssBuilder& builder,
 
   inputs.elements = std::move(scan.elements);
   inputs.combined_css = std::move(combined.css);
+  inputs.layer_order = std::move(combined.layer_order);
+  inputs.noscript_affects_render = scan.noscript_affects_render;
   inputs.ready = true;
   return inputs;
 }
@@ -307,7 +363,8 @@ const char* ValidationSkipMessage(ValidationSkip skip) {
 ValidationRequest PrepareCriticalCssValidation(
     const ViewportProfile& vp, const std::vector<CollectedElement>& elements,
     std::string_view combined_css, std::string_view pre_inline_html,
-    CapabilityMask::Viewport viewport, bool renderer_available) {
+    CapabilityMask::Viewport viewport, bool renderer_available,
+    const CascadeLayerOrder& layer_order) {
   ValidationRequest request;
 
   // Answer every cheap refusal BEFORE deriving anything. The derivation below
@@ -344,10 +401,10 @@ ValidationRequest PrepareCriticalCssValidation(
   // extractor can never admit (a bare attribute selector, say) can be masked in
   // the smaller block and visible in the larger, so the superset flashes while
   // the subset it was validated as does not.
-  std::string candidate =
-      DeriveDomMatchedCriticalCss(elements, combined_css, vp.critical_css,
-                                  viewport, vp.above_fold_selectors)
-          .critical_css;
+  CriticalCssResult derived = DeriveDomMatchedCriticalCss(
+      elements, combined_css, vp.critical_css, viewport,
+      vp.above_fold_selectors, layer_order);
+  std::string candidate = std::move(derived.critical_css);
 
   ValidationPlan plan = PlanCriticalCssValidation(vp, combined_css, candidate,
                                                   renderer_available);
@@ -356,11 +413,15 @@ ValidationRequest PrepareCriticalCssValidation(
     return request;
   }
 
-  request.docs =
-      BuildValidationDocuments(pre_inline_html, combined_css, candidate);
+  // `elements` is the scanner's reading of the same markup, the check on the
+  // <noscript> removal the documents go through.
+  request.docs = BuildValidationDocuments(
+      pre_inline_html, combined_css, candidate, layer_order,
+      kMaxValidationDocumentBytes, &elements);
   if (!request.docs.ok) return request;
 
   request.candidate_critical_css = std::move(candidate);
+  request.anonymous_layers_dropped = derived.anonymous_layers_dropped;
   request.run = true;
   return request;
 }
@@ -376,7 +437,8 @@ std::string ValidationRefusalMessage(const ValidationRequest& request) {
 void ApplyValidationVerdict(ViewportProfile& vp,
                             const ValidationVerdict& verdict,
                             std::string_view candidate_critical_css,
-                            std::string_view combined_css) {
+                            std::string_view combined_css,
+                            std::string_view layer_order_binding) {
   // Clear first: whatever else happens below, what is left behind must be a
   // record this run actually earned.
   vp.critical_css_validated = false;
@@ -387,7 +449,8 @@ void ApplyValidationVerdict(ViewportProfile& vp,
   if (!verdict.validated) return;
   if (candidate_critical_css.empty()) return;
 
-  std::string combined_hash = CombinedCssValidationHash(combined_css);
+  std::string combined_hash =
+      CombinedCssValidationHash(combined_css, layer_order_binding);
   // An empty sheet hashes to the empty string, which no stored hash can equal.
   // Recording the bit anyway would leave a record that reads as written wrong
   // rather than as never made.
@@ -685,6 +748,16 @@ void BrowserAnalysisManager::StartChrome() {
     return;
   }
 
+  // Problems a render reports without ending (a refused Fetch.failRequest)
+  // go to the worker's log.
+  if (handler_ != nullptr) {
+    chrome_->cdp_client()->set_diagnostic_handler(
+        [handler = handler_](std::string_view message) {
+          handler->Warning("Browser analysis: %s",
+                           std::string(message).c_str());
+        });
+  }
+
   // Create CDP components from the running Chrome instance.
   css_extractor_ = std::make_unique<BrowserCssExtractor>(chrome_->cdp_client());
   page_analyzer_ = std::make_unique<PageAnalyzer>(chrome_->cdp_client());
@@ -934,7 +1007,11 @@ void BrowserAnalysisManager::RunAnalysis(AnalysisQueue::Item item) {
   std::string pre_inline_html;
   if (combined_css_builder_) pre_inline_html = html_content;
 
-  // Inline cached stylesheets for browser CSS coverage.
+  // The documents the renders load: the stylesheets inlined and an absolute
+  // <base>; the coverage render's without <noscript> content (see
+  // BuildAnalysisDocuments).
+  std::string coverage_html;
+  std::string coverage_refusal;
   {
     auto lookup = [&](std::string_view url) -> std::optional<std::string> {
       // Use the CSS URL's hostname for cache lookup, falling back to the
@@ -955,8 +1032,13 @@ void BrowserAnalysisManager::RunAnalysis(AnalysisQueue::Item item) {
                          span.size());
     };
     CssInliningStats css_stats;
-    html_content =
-        InlineCachedStylesheets(html_content, item.url, lookup, &css_stats);
+    browser_internal::AnalysisDocuments docs =
+        browser_internal::BuildAnalysisDocuments(html_content, item.url,
+                                                 item.hostname, item.scheme,
+                                                 lookup, &css_stats);
+    html_content = std::move(docs.document);
+    coverage_html = std::move(docs.coverage_document);
+    coverage_refusal = std::move(docs.coverage_refusal);
     stats_.css_inlining_attempted.fetch_add(1, std::memory_order_relaxed);
     stats_.css_inlining_stylesheets_found.fetch_add(css_stats.stylesheets_found,
                                                     std::memory_order_relaxed);
@@ -966,22 +1048,23 @@ void BrowserAnalysisManager::RunAnalysis(AnalysisQueue::Item item) {
                                                 std::memory_order_relaxed);
   }
 
-  // Absolute <base> so relative subresource URLs resolve inside the
-  // about:blank analysis/agent documents and DOM .src reads are absolute —
-  // the join key for the ANALYSIS-side joins (resource map + profiler
-  // coverage).  The production suffix-matcher is a separate consumer: it only
-  // ever matches absolute-authored srcs (an absolute profile entry cannot be
-  // the suffix of a relative-authored src), so verdicts earned by
-  // relative-authored scripts stay analysis-only for now.  Author-<base>
-  // documents are left untouched.
-  html_content = InjectBaseHrefIfAbsent(html_content, item.url, item.hostname,
-                                        item.scheme);
-
   // Set up analysis context.
   current_analysis_ = std::make_unique<AnalysisContext>();
   current_analysis_->item = std::move(item);
   current_analysis_->html_content = std::move(html_content);
+  current_analysis_->coverage_html = std::move(coverage_html);
+  current_analysis_->coverage_refusal = std::move(coverage_refusal);
   current_analysis_->pre_inline_html = std::move(pre_inline_html);
+  if (!current_analysis_->coverage_refusal.empty()) {
+    stats_.noscript_strip_refusals.fetch_add(1, std::memory_order_relaxed);
+    if (handler_ != nullptr) {
+      handler_->Info(
+          "Browser analysis: CSS coverage skipped for %s: %s — the page is "
+          "treated as if its CSS had not been analysed",
+          current_analysis_->item.url.c_str(),
+          current_analysis_->coverage_refusal.c_str());
+    }
+  }
 
   // A forced per-URL agent render (warm template — the
   // perf profile already exists) does ONLY the agent render, skipping the
@@ -1093,6 +1176,8 @@ void BrowserAnalysisManager::PrepareValidationInputs() {
   ctx.validation_inputs_ready = inputs.ready;
   ctx.pre_inline_elements = std::move(inputs.elements);
   ctx.combined_css = std::move(inputs.combined_css);
+  ctx.layer_order = std::move(inputs.layer_order);
+  ctx.noscript_affects_render = inputs.noscript_affects_render;
 
   if (!inputs.ready && handler_ != nullptr) {
     handler_->Info(
@@ -1122,9 +1207,19 @@ void BrowserAnalysisManager::RunViewportAnalysis() {
                    height, current_analysis_->item.url.c_str());
   }
 
+  // Fail closed: a document the <noscript> removal could not
+  // vouch for is not rendered; the viewport goes on as if CSS extraction had
+  // failed, so nothing is derived from a coverage that may be of a page cut
+  // short.
+  if (!current_analysis_->coverage_refusal.empty()) {
+    OnCssExtractionDone(
+        absl::FailedPreconditionError(current_analysis_->coverage_refusal));
+    return;
+  }
+
   // Start with CSS extraction for this viewport.
   css_extractor_->Extract(
-      current_analysis_->html_content, width, height,
+      current_analysis_->coverage_html, width, height,
       [this](absl::StatusOr<BrowserCssResult> result) {
         OnCssExtractionDone(std::move(result));
       },
@@ -1221,7 +1316,7 @@ void BrowserAnalysisManager::RunCriticalCssValidation() {
   browser_internal::ValidationRequest request =
       browser_internal::PrepareCriticalCssValidation(
           *vp, ctx.pre_inline_elements, ctx.combined_css, ctx.pre_inline_html,
-          IndexToViewport(idx), renderer_available);
+          IndexToViewport(idx), renderer_available, ctx.layer_order);
 
   if (!request.run) {
     // Deliberately no record of any kind: the serve path reads the absence of
@@ -1238,9 +1333,12 @@ void BrowserAnalysisManager::RunCriticalCssValidation() {
     return;
   }
 
-  auto on_verdict = [this, candidate = request.candidate_critical_css](
+  auto on_verdict = [this, candidate = request.candidate_critical_css,
+                     anonymous_layers_dropped =
+                         request.anonymous_layers_dropped](
                         ValidationVerdict verdict) mutable {
-    OnCriticalCssValidationDone(std::move(candidate), std::move(verdict));
+    OnCriticalCssValidationDone(std::move(candidate), anonymous_layers_dropped,
+                                std::move(verdict));
   };
 
   if (validation_runner_) {
@@ -1306,14 +1404,19 @@ ViewportProfile BrowserAnalysisManager::TestRunViewportFromCssExtraction(
 }
 
 void BrowserAnalysisManager::OnCriticalCssValidationDone(
-    std::string candidate_critical_css, ValidationVerdict verdict) {
+    std::string candidate_critical_css, bool anonymous_layers_dropped,
+    ValidationVerdict verdict) {
   if (!current_analysis_) return;
   AnalysisContext& ctx = *current_analysis_;
   const int idx = ctx.viewport_index;
   ViewportProfile* vp = GetViewportProfile(ctx.profile, idx);
 
-  browser_internal::ApplyValidationVerdict(*vp, verdict, candidate_critical_css,
-                                           ctx.combined_css);
+  browser_internal::ApplyValidationVerdict(
+      *vp, verdict, candidate_critical_css, ctx.combined_css,
+      ValidationBindingFor(ctx.layer_order.ValidationBinding(ctx.combined_css),
+                           ctx.noscript_affects_render, ctx.combined_css,
+                           browser_internal::IndexToViewport(idx),
+                           anonymous_layers_dropped));
 
   if (handler_ != nullptr) {
     if (vp->critical_css_validated) {
@@ -1806,6 +1909,63 @@ std::optional<OptimizationProfile> BrowserAnalysisManager::LookupProfile(
   return std::move(*profile);
 }
 
+bool BrowserAnalysisManager::RequestRevalidation(
+    const std::string& url, const std::string& hostname,
+    const std::string& scheme, uint32_t mask, uint64_t template_hash,
+    std::string_view original_html,
+    std::optional<std::array<std::byte, 32>> origin_html_hash,
+    std::chrono::steady_clock::time_point now) {
+  if (shutting_down_) return false;
+  const auto window = std::chrono::seconds(
+      std::max<int64_t>(config_.browser_profile_ttl_seconds, 1));
+  const auto spacing = std::chrono::milliseconds(kReanalysisDelayMs);
+  {
+    std::lock_guard<std::mutex> lock(revalidation_mutex_);
+    if (revalidation_budgets_.size() >= kMaxRevalidationBudgets &&
+        !revalidation_budgets_.contains(template_hash)) {
+      std::erase_if(revalidation_budgets_, [&](const auto& entry) {
+        return now - entry.second.window_start >= window;
+      });
+      // Still full: evict the least recently used budget. Clearing the map
+      // would reset every template's budget at once, a way around the cap.
+      if (revalidation_budgets_.size() >= kMaxRevalidationBudgets) {
+        auto oldest = std::min_element(revalidation_budgets_.begin(),
+                                       revalidation_budgets_.end(),
+                                       [](const auto& a, const auto& b) {
+                                         return a.second.last < b.second.last;
+                                       });
+        revalidation_budgets_.erase(oldest);
+      }
+    }
+    RevalidationBudget& budget = revalidation_budgets_[template_hash];
+    if (budget.requests == 0 || now - budget.window_start >= window) {
+      budget.window_start = now;
+      budget.requests = 0;
+    }
+    if (budget.requests >= kMaxReanalysisRetries ||
+        (budget.requests > 0 && now - budget.last < spacing)) {
+      stats_.revalidations_rate_limited.fetch_add(1, std::memory_order_relaxed);
+      return false;
+    }
+    // Spend the budget before queueing: a full queue is not a reason to try
+    // again on the very next request.
+    ++budget.requests;
+    budget.last = now;
+  }
+  if (!EnqueueAnalysis(url, hostname, scheme, mask, template_hash,
+                       original_html, origin_html_hash)) {
+    return false;
+  }
+  stats_.revalidations_queued.fetch_add(1, std::memory_order_relaxed);
+  if (handler_ != nullptr) {
+    handler_->Info(
+        "Browser re-analysis: validation record for %s does not match the "
+        "served stylesheet, queued a new analysis",
+        url.c_str());
+  }
+  return true;
+}
+
 bool BrowserAnalysisManager::MaybeScheduleReanalysis() {
   if (!current_analysis_ || shutting_down_) return false;
 
@@ -1962,8 +2122,14 @@ std::string BrowserAnalysisManager::StatusJson() const {
       s.css_inlining_stylesheets_cached.load(std::memory_order_relaxed),
       ",\"css_inlining_bytes_inlined\":",
       s.css_inlining_bytes_inlined.load(std::memory_order_relaxed),
+      ",\"noscript_strip_refusals\":",
+      s.noscript_strip_refusals.load(std::memory_order_relaxed),
       ",\"reanalyses_scheduled\":",
       s.reanalyses_scheduled.load(std::memory_order_relaxed),
+      ",\"revalidations_queued\":",
+      s.revalidations_queued.load(std::memory_order_relaxed),
+      ",\"revalidations_rate_limited\":",
+      s.revalidations_rate_limited.load(std::memory_order_relaxed),
       ",\"scripts_analyzed\":",
       s.scripts_analyzed.load(std::memory_order_relaxed),
       ",\"scripts_deferrable\":",

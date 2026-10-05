@@ -69,6 +69,28 @@ gtest_test(
     name = "html_scanner_test",
     deps = [
         "//src/worker:html_scanner",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+gtest_test(
+    name = "cascade_layer_order_test",
+    deps = [
+        "//src/worker:cascade_layer_order",
+    ],
+)
+
+gtest_test(
+    name = "layer_order_sources_test",
+    # Vendored lib/html headers name unused parameters (canonical idiom).
+    copts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-Wno-error=unused-parameter"],
+    }),
+    deps = [
+        "//src/worker:cascade_layer_order",
+        "//src/worker:html_scanner",
+        "//src/worker:layer_order_sources",
     ],
 )
 
@@ -76,6 +98,15 @@ gtest_test(
     name = "html_css_injector_test",
     deps = [
         "//src/worker:html_css_injector",
+    ],
+)
+
+gtest_test(
+    name = "noscript_strip_test",
+    deps = [
+        "//src/worker:html_scanner",
+        "//src/worker:noscript_strip",
+        "@com_google_absl//absl/strings",
     ],
 )
 
@@ -97,9 +128,16 @@ gtest_test(
 
 gtest_test(
     name = "critical_css_extractor_test",
+    # The wide-replaced-element cases build large fixtures and take 30+ s
+    # each under TSan on a slow or busy machine; the default "small" 60 s
+    # budget timed the whole suite out there, while the same suite takes
+    # 12 s on a fast one.
+    size = "medium",
     deps = [
         "//lib/classify:capability_mask",
+        "//src/worker:cascade_layer_order",
         "//src/worker:critical_css_extractor",
+        "//src/worker:html_css_injector",
     ],
 )
 
@@ -135,6 +173,7 @@ gtest_test(
         "//lib/html:html_keywords",
         "//lib/html:html_parse",
         "//lib/html:html_writer_filter",
+        "//src/worker:cascade_layer_order",
         "//src/worker:html_transform_filter",
     ],
 )
@@ -259,6 +298,7 @@ gtest_test(
         "//lib/base:message_handler",
         "//src/worker:websocket",
         "//src/worker:ws_handlers",
+        "//test/test_util:scoped_thread_join",
         "//test/test_util:tcp_client",
         "@libuv",
         "@nlohmann_json//:json",
@@ -298,6 +338,7 @@ gtest_test(
         "//src/worker:shared_config",
         "//src/worker:worker_types",
         "//src/worker:ws_handlers",
+        "//test/test_util:scoped_thread_join",
         "//test/test_util:tcp_client",
         "@libuv",
         "@nlohmann_json//:json",
@@ -308,7 +349,9 @@ gtest_test(
     name = "capture_handlers_test",
     deps = [
         "//lib/base:message_handler",
+        "//src/browser:device_emulation",
         "//src/worker:capture_handlers",
+        "//test/test_util:cdp_scripted_peer",
         "//test/test_util:tcp_client",
         "@libuv",
         "@nlohmann_json//:json",
@@ -379,7 +422,10 @@ gtest_test(
         "//src/nginx:early_hints_util",
         "//src/proto:worker_ipc",
         "//src/worker:browser_analysis_manager",
+        "//src/worker:cascade_layer_order",
+        "//src/worker:critical_css_extractor",
         "//src/worker:html_scanner",
+        "//src/worker:layer_order_sources",
         "//src/worker:shared_config",
         "//src/worker:text_compressor",
         "//src/worker:url_registry",

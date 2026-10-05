@@ -58,6 +58,7 @@ cc_library(
     hdrs = ["optimization_profile.h"],
     visibility = ["//visibility:public"],
     deps = [
+        "//lib/classify:capability_mask",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -75,12 +76,48 @@ cc_library(
     deps = [
         ":cdp_client",
         ":cdp_types",
+        ":device_emulation",
+        ":render_support",
+        "//src/worker:cascade_layer_order",
         "//src/worker:critical_css_extractor",
         "@com_google_absl//absl/container:flat_hash_set",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
         "@nlohmann_json//:json",
+    ],
+)
+
+# Device emulation for every analysis render. The JSON is the
+# one source the async-css probe reads too; device_emulation_test keeps the
+# header's constants equal to it.
+exports_files(["device_emulation.json"])
+
+cc_library(
+    name = "device_emulation",
+    srcs = ["device_emulation.cc"],
+    hdrs = ["device_emulation.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":cdp_types",
+        "//lib/classify:capability_mask",
+        "@libuv",
+        "@nlohmann_json//:json",
+    ],
+)
+
+# Shared by the browser-analysis renders: the one
+# Fetch.failRequest, with its reply checked, and the settle timer.
+cc_library(
+    name = "render_support",
+    srcs = ["render_support.cc"],
+    hdrs = ["render_support.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":cdp_client",
+        ":cdp_types",
+        "@com_google_absl//absl/strings",
+        "@libuv",
     ],
 )
 
@@ -101,6 +138,8 @@ cc_library(
         ":cdp_client",
         ":cdp_types",
         ":cdp_utils",
+        ":device_emulation",
+        ":render_support",
         "//lib/html:markdown_extractor_filter",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
@@ -152,6 +191,8 @@ cc_library(
     deps = [
         ":cdp_client",
         ":cdp_types",
+        ":device_emulation",
+        ":render_support",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -170,7 +211,10 @@ cc_library(
         ":cdp_client",
         ":visual_regression_gate",
         "//lib/base:string_util",
+        "//src/worker:cascade_layer_order",
         "//src/worker:html_css_injector",
+        "//src/worker:html_scanner",
+        "//src/worker:noscript_strip",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
     ],
@@ -184,6 +228,8 @@ cc_library(
     deps = [
         ":cdp_client",
         ":cdp_types",
+        ":device_emulation",
+        ":render_support",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",
         "@com_google_absl//absl/strings",
@@ -202,7 +248,9 @@ cc_library(
         ":cdp_client",
         ":cdp_types",
         ":cdp_utils",
+        ":device_emulation",
         ":page_analysis",
+        ":render_support",
         "@com_google_absl//absl/container:flat_hash_map",
         "@com_google_absl//absl/status",
         "@com_google_absl//absl/status:statusor",

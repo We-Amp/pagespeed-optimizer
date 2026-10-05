@@ -9,6 +9,7 @@
 #define PAGESPEED_SRC_WORKER_CAPTURE_HANDLERS_INTERNAL_H_
 
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -16,6 +17,9 @@
 #include "nlohmann/json.hpp"
 
 namespace pagespeed {
+
+class CdpClient;
+
 namespace capture_internal {
 
 using json = nlohmann::json;
@@ -74,6 +78,23 @@ bool IsPrivateHost(std::string_view url);
 // literal-URL IsPrivateHost() pre-check. Empty/unparseable -> false (e.g.
 // data:/blob:/cached responses with no network peer).
 bool IsPrivateRemoteIp(std::string_view remote_ip);
+
+// The outcome of one capture, as the route handlers read it off their state.
+struct CaptureOutcome {
+  bool success = false;
+  std::string error_message;
+  json result_json;
+};
+
+// Test seam: starts the CDP pipeline the route handlers run (createTarget,
+// attachToTarget, the device emulation of src/browser/device_emulation.h,
+// Network.enable, Page.enable, Page.navigate, then the events) on `client`,
+// and calls `done` when it finishes. Unlike the handlers it does not spin
+// the loop, so a test drives its own scripted peer.
+void StartCaptureForTest(CdpClient* client, std::string url,
+                         uint32_t viewport_width, uint32_t viewport_height,
+                         bool is_waterfall, int timeout_ms,
+                         std::function<void(const CaptureOutcome&)> done);
 
 }  // namespace capture_internal
 }  // namespace pagespeed

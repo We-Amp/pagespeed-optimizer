@@ -8,7 +8,10 @@
 // Waterfall:
 //   1. Target.createTarget({url: "about:blank"})
 //   2. Target.attachToTarget({targetId, flatten: true})
-//   3. Emulation.setDeviceMetricsOverride (viewport)
+//   3. Emulation.setDeviceMetricsOverride + setTouchEmulationEnabled
+//      [+ setUserAgentOverride] (EmulateDevice,
+//      src/browser/device_emulation.h); the navigation of step 6 makes the
+//      page's window, so no blank document is loaded first
 //   4. Network.enable
 //   5. Page.enable + Page.setLifecycleEventsEnabled
 //   6. Page.navigate({url})
@@ -31,6 +34,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <functional>
 #include <memory>
 #include <string>
 #include <string_view>
@@ -43,6 +47,7 @@
 #include "nlohmann/json.hpp"
 #include "src/browser/cdp_client.h"
 #include "src/browser/cdp_types.h"
+#include "src/browser/device_emulation.h"
 #include "src/worker/browser_analysis_manager.h"
 #include "src/worker/capture_handlers_internal.h"
 #include "src/worker/json_dump.h"
@@ -395,6 +400,8 @@ struct CaptureState : public std::enable_shared_from_this<CaptureState> {
   json result_json;
   std::string error_message;
   bool success = false;
+  // Called once, after Finish/FinishError's cleanup (StartCaptureForTest).
+  std::function<void()> on_complete;
 
   // Timeout timer.
   uv_timer_t* timeout_timer = nullptr;
@@ -460,6 +467,7 @@ struct CaptureState : public std::enable_shared_from_this<CaptureState> {
     success = true;
     result_json = std::move(result);
     Cleanup();
+    if (on_complete) on_complete();
   }
 
   void FinishError(std::string_view msg) {
@@ -468,6 +476,7 @@ struct CaptureState : public std::enable_shared_from_this<CaptureState> {
     success = false;
     error_message = std::string(msg);
     Cleanup();
+    if (on_complete) on_complete();
   }
 
   void FinishWaterfall() {
@@ -676,23 +685,10 @@ void StartCdpSession(std::shared_ptr<CaptureState> state) {
             return;
           }
 
-          // Step 3: Set viewport.
-          CdpCommand vp_cmd;
-          vp_cmd.method = "Emulation.setDeviceMetricsOverride";
-          vp_cmd.params = {
-              {"width", self->viewport_width},
-              {"height", self->viewport_height},
-              {"deviceScaleFactor", 1},
-              {"mobile", self->viewport_width < 768},
-          };
-          vp_cmd.session_id = self->session_id;
-
-          self->Send(vp_cmd, [self](auto result) {
-            if (!result.ok() || result->is_error()) {
-              self->FinishError("viewport setup failed");
-              return;
-            }
-
+          // Step 3: Emulate the device (metrics, touch, UA).
+          const uint32_t width = self->viewport_width;
+          const uint32_t height = self->viewport_height;
+          EmulateDevice(self, width, height, [self]() {
             // Step 4: Enable Network domain.
             CdpCommand net_cmd;
             net_cmd.method = "Network.enable";
@@ -857,6 +853,36 @@ void RunCapture(std::shared_ptr<CaptureState> state) {
 }
 
 }  // namespace
+
+namespace capture_internal {
+
+void StartCaptureForTest(CdpClient* client, std::string url,
+                         uint32_t viewport_width, uint32_t viewport_height,
+                         bool is_waterfall, int timeout_ms,
+                         std::function<void(const CaptureOutcome&)> done) {
+  auto state = std::make_shared<CaptureState>();
+  state->client = client;
+  state->url = std::move(url);
+  state->viewport_width = viewport_width;
+  state->viewport_height = viewport_height;
+  state->timeout_ms = timeout_ms;
+  state->is_waterfall = is_waterfall;
+  // The state owns its continuation; a weak self-reference keeps the two
+  // from holding each other alive.
+  std::weak_ptr<CaptureState> weak = state;
+  state->on_complete = [weak, done = std::move(done)]() {
+    auto s = weak.lock();
+    if (!s || !done) return;
+    CaptureOutcome outcome;
+    outcome.success = s->success;
+    outcome.error_message = s->error_message;
+    outcome.result_json = s->result_json;
+    done(outcome);
+  };
+  StartCdpSession(state);
+}
+
+}  // namespace capture_internal
 
 // ---------------------------------------------------------------------------
 // POST /v1/capture/waterfall

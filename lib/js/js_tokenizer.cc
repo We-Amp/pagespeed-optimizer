@@ -1437,7 +1437,7 @@ bool JsTokenizer::TryConsumeIdentifierOrKeyword(JsKeywords::Type* type_out,
         int i = index;
         // Look for what follows the `let`, skipping whitespace AND
         // comments.  A comment between `let` and its binding must not flip
-        // the classification to identifier (RC-E, mpp #691 confirmation-
+        // the classification to identifier (RC-E, confirmation-
         // nightly triage): on the identifier reading the minifier dropped
         // linebreaks the declaration reading requires, emitting
         // unparseable output for valid input (`let /*c*/ row\n+4;`
@@ -1450,8 +1450,8 @@ bool JsTokenizer::TryConsumeIdentifierOrKeyword(JsKeywords::Type* type_out,
         // opens a line comment anywhere, and `-->` opens one at the start
         // of a line.  (Only the openers -- see the terminator caveat
         // below.)  Missing them
-        // reintroduced the RC-E defect for HTML-form comments (mpp #866,
-        // found by fuzzing): `let <!--c\n row\n +4;` is a valid
+        // reintroduced the RC-E defect for HTML-form comments (found
+        // by fuzzing): `let <!--c\n row\n +4;` is a valid
         // declaration, but the identifier reading dropped the linebreak the
         // declaration requires and emitted the syntax error `let row+4;`.
         // `at_line_start` tracks what the tokenizer tracks in
@@ -1467,8 +1467,8 @@ bool JsTokenizer::TryConsumeIdentifierOrKeyword(JsKeywords::Type* type_out,
         // as whitespace (kWhitespaceRegex).  A line comment terminated by
         // one of those over-runs here, the scan lands past the binding, and
         // `let` takes the identifier path -- the same pre-existing miss the
-        // `//` form has had since the mpp #691 fix, not one this change
-        // introduces.  Tracked in mpp #868; widening the whitespace branch
+        // `//` form has had since the original RC-E fix, not one this change
+        // introduces.  Widening the whitespace branch
         // to the full unicode set is a separate change.
         bool at_line_start = false;
         while (i < size) {

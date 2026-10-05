@@ -20,6 +20,18 @@ automatic one.
 
 Captured **2026-08-01**.
 
+### 2026-09-30 — goldens regenerated for the 2026-09-16 reword, no re-capture
+
+The 2026-09-16 amendment below predicted it: the reworded hero annotations
+are inside the tablet and desktop folds, and the rendered lane reported the
+fully-styled render diverging from `goldens/fold-tablet.png` (0.07805) and
+`goldens/fold-desktop.png` (0.04763) every night from 2026-09-17. Both goldens
+were regenerated inside the pinned Playwright image against the forced-mode
+stack, exactly as the README describes; the old and new goldens differ by
+those same two ratios and by nothing else, and the mobile golden came back
+byte-identical (the annotations sit below the 375x667 fold). The capture
+itself is unchanged; the owed re-capture still stands.
+
 ### Amended 2026-09-16 — surviving retired-licensing copy scrubbed, no re-capture
 
 Third deliberate non-refresh, same rules again: text-only edits, no element

@@ -10,6 +10,7 @@
 #define PAGESPEED_LIB_IMAGE_IMAGE_RESIZER_H_
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 
 #include "lib/base/message_handler.h"

@@ -53,11 +53,19 @@ class WorkerApiTest : public ::testing::Test {
     }
   }
 
-  void TearDown() override { std::filesystem::remove_all(tmp_dir_); }
+  // Stops and joins the worker a test left running.  A fatal assertion
+  // returns from the test body before its StopWorker() call; without this
+  // the worker would be destroyed under its own running loop and the still
+  // joinable thread would end the whole binary in std::terminate.
+  void TearDown() override {
+    StopWorker(worker_.get());
+    worker_.reset();
+    std::filesystem::remove_all(tmp_dir_);
+  }
 
-  // Start a Worker with the HTTP API enabled on a random port.
-  std::unique_ptr<Worker> StartWorker(bool with_console = false,
-                                      int num_threads = 0) {
+  // Start a Worker with the HTTP API enabled on a random port.  The fixture
+  // owns it (one per test); the pointer is null if it failed to initialize.
+  Worker* StartWorker(bool with_console = false, int num_threads = 0) {
     WorkerConfig config;
     config.socket_path = socket_path_;
     config.cache_path = cache_path_;
@@ -73,20 +81,25 @@ class WorkerApiTest : public ::testing::Test {
       config.console_dir = console_dir_;
     }
 
-    auto worker = std::make_unique<Worker>(config, handler_.get());
-    if (!worker->Initialize()) return nullptr;
+    worker_ = std::make_unique<Worker>(config, handler_.get());
+    if (!worker_->Initialize()) {
+      worker_.reset();
+      return nullptr;
+    }
 
     // Run the event loop in a background thread.
-    loop_thread_ = std::thread([&w = *worker] { w.Run(); });
+    loop_thread_ = std::thread([&w = *worker_] { w.Run(); });
     // Wait for the API server to be ready (port bound).
     for (int i = 0; i < 20; ++i) {
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
-      if (worker->api_port() > 0) break;
+      if (worker_->api_port() > 0) break;
     }
-    return worker;
+    return worker_.get();
   }
 
-  void StopWorker(std::unique_ptr<Worker>& worker) {
+  // Shuts the worker down and joins its loop thread.  Safe to call again
+  // (TearDown does); the worker itself lives until TearDown.
+  void StopWorker(Worker* worker) {
     if (worker) {
       worker->Shutdown();
       if (loop_thread_.joinable()) loop_thread_.join();
@@ -125,6 +138,7 @@ class WorkerApiTest : public ::testing::Test {
   std::string cache_path_;
   std::string console_dir_;
   std::unique_ptr<NullMessageHandler> handler_;
+  std::unique_ptr<Worker> worker_;
   std::thread loop_thread_;
 };
 
@@ -138,7 +152,7 @@ TEST_F(WorkerApiTest, ApiDisabledByDefault) {
 }
 
 TEST_F(WorkerApiTest, HealthEndpoint) {
-  auto worker = StartWorker();
+  Worker* worker = StartWorker();
   ASSERT_NE(worker, nullptr);
   int port = worker->api_port();
   ASSERT_GT(port, 0);
@@ -152,7 +166,7 @@ TEST_F(WorkerApiTest, HealthEndpoint) {
 }
 
 TEST_F(WorkerApiTest, StatsEndpoint) {
-  auto worker = StartWorker();
+  Worker* worker = StartWorker();
   ASSERT_NE(worker, nullptr);
   int port = worker->api_port();
 
@@ -165,7 +179,7 @@ TEST_F(WorkerApiTest, StatsEndpoint) {
 }
 
 TEST_F(WorkerApiTest, MetricsEndpoint) {
-  auto worker = StartWorker();
+  Worker* worker = StartWorker();
   ASSERT_NE(worker, nullptr);
   int port = worker->api_port();
 
@@ -178,7 +192,7 @@ TEST_F(WorkerApiTest, MetricsEndpoint) {
 }
 
 TEST_F(WorkerApiTest, CacheAlternatesEndpoint) {
-  auto worker = StartWorker();
+  Worker* worker = StartWorker();
   ASSERT_NE(worker, nullptr);
   int port = worker->api_port();
 
@@ -194,7 +208,7 @@ TEST_F(WorkerApiTest, CacheAlternatesEndpoint) {
 }
 
 TEST_F(WorkerApiTest, ConsoleRoute) {
-  auto worker = StartWorker(/*with_console=*/true);
+  Worker* worker = StartWorker(/*with_console=*/true);
   ASSERT_NE(worker, nullptr);
   int port = worker->api_port();
 
@@ -207,7 +221,7 @@ TEST_F(WorkerApiTest, ConsoleRoute) {
 }
 
 TEST_F(WorkerApiTest, EventLoopLag) {
-  auto worker = StartWorker();
+  Worker* worker = StartWorker();
   ASSERT_NE(worker, nullptr);
 
   // After a brief wait, event_loop_lag_us() should be available.
@@ -219,7 +233,7 @@ TEST_F(WorkerApiTest, EventLoopLag) {
 }
 
 TEST_F(WorkerApiTest, GracefulShutdown) {
-  auto worker = StartWorker();
+  Worker* worker = StartWorker();
   ASSERT_NE(worker, nullptr);
   int port = worker->api_port();
   ASSERT_GT(port, 0);
@@ -242,7 +256,7 @@ TEST_F(WorkerApiTest, GracefulShutdown) {
 // it stamps its pool width and samples its own backlog into the saturation
 // group.  Read the file the way an out-of-process consumer would.
 TEST_F(WorkerApiTest, ServeStatsSaturationBlockIsWrittenByTheWorker) {
-  auto worker = StartWorker(/*with_console=*/false, /*num_threads=*/4);
+  Worker* worker = StartWorker(/*with_console=*/false, /*num_threads=*/4);
   ASSERT_NE(worker, nullptr);
 
   const std::string stats_path = ServeStatsPath(cache_path_);
