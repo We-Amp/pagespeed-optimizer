@@ -16,6 +16,13 @@ Walks the given directory for ``*.vex.json`` files. For each file:
     OpenVEX 0.2 enum (or an ``impact_statement``) — a bare not_affected
     is an unsupported claim, not an assessment.
   * ``affected`` statements must carry an ``action_statement``.
+  * A ``not_affected`` statement whose ``impact_statement`` carries an
+    ``Expires: YYYY-MM-DD`` marker is time-boxed: once that date is in the
+    past the file fails validation, so a suppression nobody re-evaluates
+    reddens the scan instead of silently outliving its evidence. OpenVEX
+    has no expiry field, which is why the marker lives in the free-text
+    impact statement; the marker is optional, and a statement without one
+    is open-ended (as every pre-existing statement was).
 
 Exit 0 if the directory contains no VEX file (the security-gates job
 documents that this is allowed and grype will run without suppressions).
@@ -27,6 +34,7 @@ Usage:
     tools/ci/validate-vex.py sbom/
 """
 
+import datetime
 import json
 import os
 import re
@@ -51,12 +59,34 @@ TIMESTAMP_RE = re.compile(
 )
 
 
+# Time-box marker inside a not_affected impact_statement, e.g.
+# "Expires: 2026-12-02. Surface: ...". Word-bounded so prose such as
+# "expires" elsewhere in the statement cannot accidentally arm it.
+EXPIRES_RE = re.compile(r"\bExpires:\s*(\d{4}-\d{2}-\d{2})\b")
+
+
 def fail(path: str, msg: str) -> None:
     print(f"::error file={path}::{msg}", file=sys.stderr)
 
 
-def validate(path: str) -> bool:
-    """Return True if `path` is a structurally valid OpenVEX document."""
+def expiry_of(stmt: dict) -> "datetime.date | None":
+    """Return the statement's Expires date, or None when it has no marker."""
+    text = stmt.get("impact_statement")
+    if not isinstance(text, str):
+        return None
+    m = EXPIRES_RE.search(text)
+    if not m:
+        return None
+    return datetime.date.fromisoformat(m.group(1))
+
+
+def validate(path: str, today: "datetime.date | None" = None) -> bool:
+    """Return True if `path` is a structurally valid OpenVEX document.
+
+    `today` is injectable for tests; it defaults to the current UTC date.
+    """
+    if today is None:
+        today = datetime.datetime.now(datetime.timezone.utc).date()
     try:
         with open(path) as f:
             doc = json.load(f)
@@ -144,6 +174,24 @@ def validate(path: str) -> bool:
                     path,
                     f"statements[{i}].justification='{justification}' not one "
                     f"of {sorted(OPENVEX_JUSTIFICATIONS)}",
+                )
+                return False
+            try:
+                expires = expiry_of(stmt)
+            except ValueError:
+                fail(
+                    path,
+                    f"statements[{i}] ({vuln_name}) has a malformed "
+                    "'Expires: YYYY-MM-DD' marker in impact_statement",
+                )
+                return False
+            if expires is not None and expires < today:
+                fail(
+                    path,
+                    f"statements[{i}] ({vuln_name}) suppression expired on "
+                    f"{expires.isoformat()} — re-evaluate the finding and "
+                    "either bump the dependency or renew the statement with "
+                    "a new 'Expires: YYYY-MM-DD' and refreshed evidence",
                 )
                 return False
         if status == "affected" and not stmt.get("action_statement"):

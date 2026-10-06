@@ -41,7 +41,12 @@
 #   4. FAIL LOUD. When the artifact is genuinely gone from both the local disk
 #      and the CI hub, we exit non-zero with precise, actionable guidance
 #      ("rerun the full workflow, not just failed jobs") instead of a silent
-#      partial or a swallowed warning.
+#      partial or a swallowed warning. The first error line carries the
+#      `[vendor-tarball-unavailable]` marker: the Required Checks Gate greps
+#      failed-job logs for it and repeats the recovery in its own summary, so
+#      nobody has to find this message in a Windows test log first.
+#      The Windows and hub-local macOS consumer steps in ci.yml emit the same
+#      marker; keep the three spellings identical.
 #
 # Usage:
 #   extract-vendor-tarball.sh --sha <short_sha> --dest <workspace_dir> \
@@ -80,7 +85,9 @@
 # tools/ci/extract-vendor-tarball.sh. The only intentional divergences are:
 #   * the --prefix line is phrased for this repo's caller convention;
 #   * the extract-phase self-heal clears a partial $DEST before re-extracting
-#     (see step 2 in main).
+#     (see step 2 in main);
+#   * the fail-loud message carries the `[vendor-tarball-unavailable]` marker
+#     that this repo's Required Checks Gate greps for.
 # Port any other change to both copies in the same pass.
 
 set -euo pipefail
@@ -159,10 +166,20 @@ verify_tarball() {
     local want got
     want="$(awk '{print $1}' "$sha_file" 2>/dev/null | head -1)"
     if [ -n "$want" ]; then
+      # Distinguish "no hash tool" (degrade to the zstd -t floor) from "the
+      # hash tool FAILED" (the file vanished between zstd -t and here: a
+      # Windows consumer's `zstd --rm` deleted it on 2026-10-03, and
+      # `sha256sum: No such file or directory` left got="" which the old
+      # test passed as verified). A failed read is a failed verification.
+      local out
       if command -v sha256sum >/dev/null 2>&1; then
-        got="$(sha256sum "$path" | awk '{print $1}')"
+        out="$(sha256sum "$path" 2>/dev/null)" \
+          || { warn "tarball unreadable while hashing (vanished?): $path"; return 1; }
+        got="$(printf '%s\n' "$out" | awk '{print $1}')"
       elif command -v shasum >/dev/null 2>&1; then
-        got="$(shasum -a 256 "$path" | awk '{print $1}')"
+        out="$(shasum -a 256 "$path" 2>/dev/null)" \
+          || { warn "tarball unreadable while hashing (vanished?): $path"; return 1; }
+        got="$(printf '%s\n' "$out" | awk '{print $1}')"
       else
         got=""
       fi
@@ -248,10 +265,15 @@ fetch_from_hub() {
 # extract_workspace <path>
 #   Extracts a tarball that has ALREADY passed verify_tarball into $DEST.
 #   Returns tar's (or the pipeline's, under pipefail) exit status so the
-#   caller can self-heal: a verified file can still vanish -- or its DrvFs
-#   mount flap -- between verification and extraction (observed on the Linux
-#   Build lane: "Local tarball present and verified" followed seconds later
-#   by tar's "Cannot open: No such file or directory"). Called under `if`, so
+#   caller can self-heal: a verified file can still vanish between
+#   verification and extraction (observed on the Linux Build lane: "Local
+#   tarball present and verified" followed seconds later by tar's "Cannot
+#   open: No such file or directory"). Long blamed on a mount flap, the
+#   remover was a Windows build job on the same host: its `zstd -d --rm`
+#   deleted the shared tarball, which the Linux side sees through a mount of
+#   the same directory, ~10 s into the fan-out (since fixed in the
+#   workflows). The heal stays as defense in depth against any other
+#   remover. Called under `if`, so
 #   `set -e` is intentionally suppressed inside; the last command's status is
 #   the function's return value (pipefail keeps a zstd-side failure in the
 #   --stream pipeline from being masked by tar's exit code).
@@ -274,6 +296,16 @@ CHOSEN=""
 #    a WSL2 builder a Windows-written tarball under a DrvFs mount can be
 #    stat-present but EACCES for the WSL2 uid (DrvFs/NTFS ACL mismatch).
 if [ -n "$LOCAL_TARBALL" ] && [ -r "$LOCAL_TARBALL" ]; then
+  # Extend the LOCAL in-flight TTL first, like the hub fetch below does for
+  # the hub copy: the vendor job prunes this dir by age (2 h), and with a
+  # second runner instance on the host a vendor job on the sibling
+  # instance can run while this job is still reading. Re-stamping BEFORE the
+  # multi-second `zstd -t` + sha256 read makes the window count from the
+  # start of use. Best effort: a DrvFs mount may refuse the utime, and the
+  # vanish-mid-tar self-heal below still holds. The sidecar only when
+  # present (touch would CREATE an empty one).
+  touch "$LOCAL_TARBALL" 2>/dev/null || true
+  [ ! -f "${LOCAL_TARBALL}.sha256" ] || touch "${LOCAL_TARBALL}.sha256" 2>/dev/null || true
   if verify_tarball "$LOCAL_TARBALL"; then
     log "Local tarball present and verified: $LOCAL_TARBALL"
     CHOSEN="$LOCAL_TARBALL"
@@ -289,8 +321,8 @@ else
 fi
 
 # 2. Extract the verified local candidate. Verification passing is NOT the end
-#    of the story: the file can still vanish, or the DrvFs mount flap, between
-#    `zstd -t` and `tar` (the incident described above). Treat a failed
+#    of the story: the file can still vanish between `zstd -t` and `tar` (the
+#    Windows `zstd --rm` incident described above). Treat a failed
 #    extraction exactly like a failed integrity check -- heal from the CI hub
 #    below.
 if [ -n "$CHOSEN" ]; then
@@ -306,15 +338,25 @@ if [ -n "$CHOSEN" ]; then
 fi
 
 # 3. Fall back to the authoritative CI hub shared dir.
-FETCHED="/tmp/${BASENAME}"
+# Fetch into a private directory that is removed on exit. On a container
+# runner /tmp lives in the container's writable layer, so a copy left behind
+# by every job accumulates: one host's runners once held 750+ stale
+# ~245 MB copies, the host disk filled, and jobs failed with ENOSPC.
+# A private directory also keeps two jobs on one host from sharing a path.
+# Removed explicitly on every path below rather than by an EXIT trap: under
+# bash 3.2 (macOS runners) a trap turns a ${VAR:?} guard abort into exit 0.
+FETCH_DIR="$(mktemp -d "${TMPDIR:-/tmp}/vendor-fetch.XXXXXX")"
+FETCHED="${FETCH_DIR}/${BASENAME}"
 if fetch_from_hub "$FETCHED"; then
   # The fetched copy was verified by fetch_from_hub a moment ago, so an
   # extraction failure here is not a fetch/integrity problem; there is no
   # further fallback -- fail loud.
   if extract_workspace "$FETCHED"; then
+    rm -rf "$FETCH_DIR"
     log "Workspace extracted into ${DEST}"
     exit 0
   fi
+  rm -rf "$FETCH_DIR"
   err "Vendor tarball ${BASENAME} was fetched from the CI hub and passed integrity,"
   err "but extraction into ${DEST} still failed on $(hostname). Investigate the"
   err "runner's tar/zstd toolchain and the destination filesystem; re-running"
@@ -322,7 +364,10 @@ if fetch_from_hub "$FETCHED"; then
   exit 1
 fi
 
-err "Vendor tarball ${BASENAME} is unavailable on $(hostname) AND could not be"
+rm -rf "$FETCH_DIR"
+# The bracketed marker is a contract with the Required Checks Gate (ci.yml)
+# and is pinned by test_extract_vendor_tarball.sh case [3]; do not reword it.
+err "[vendor-tarball-unavailable] Vendor tarball ${BASENAME} is unavailable on $(hostname) AND could not be"
 err "fetched/verified from the CI hub after ${FETCH_RETRIES} attempts."
 err "Most likely the producing vendor job's artifact aged out of the CI hub's"
 err "retention window because only failed jobs were rerun -- GitHub does"

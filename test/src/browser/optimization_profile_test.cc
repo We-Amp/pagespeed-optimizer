@@ -9,6 +9,7 @@
 #include <string>
 
 #include "gtest/gtest.h"
+#include "lib/classify/capability_mask.h"
 
 namespace pagespeed {
 namespace {
@@ -482,6 +483,207 @@ TEST(OptimizationProfileTest, CombinedCssHashIsStableAndContentSensitive) {
 TEST(OptimizationProfileTest, EmptyCombinedCssHashesToNothingMatchable) {
   EXPECT_TRUE(CombinedCssValidationHash("").empty());
   EXPECT_NE(CombinedCssValidationHash(""), CombinedCssValidationHash("x"));
+}
+
+// The binding is salted only for pages whose <noscript> content
+// renders with scripts off, and the salted binding hashes differently.
+TEST(ValidationBindingTest, SaltsOnlyPagesWhoseNoscriptRenders) {
+  EXPECT_EQ(ValidationBindingFor("", false, "",
+                                 CapabilityMask::Viewport::kDesktop, false),
+            "");
+  EXPECT_EQ(ValidationBindingFor("unproven", false, "",
+                                 CapabilityMask::Viewport::kDesktop, false),
+            "unproven");
+  EXPECT_EQ(ValidationBindingFor("", true, "",
+                                 CapabilityMask::Viewport::kDesktop, false),
+            "noscript-render");
+  EXPECT_EQ(ValidationBindingFor("proven @layer a;", true, "",
+                                 CapabilityMask::Viewport::kDesktop, false),
+            "proven @layer a; noscript-render");
+  const std::string css = ".hero{color:red}";
+  EXPECT_EQ(
+      CombinedCssValidationHash(
+          css, ValidationBindingFor("", false, "",
+                                    CapabilityMask::Viewport::kDesktop, false)),
+      CombinedCssValidationHash(css));
+  EXPECT_NE(
+      CombinedCssValidationHash(
+          css, ValidationBindingFor("", true, "",
+                                    CapabilityMask::Viewport::kDesktop, false)),
+      CombinedCssValidationHash(css));
+}
+
+// A sheet that escapes a quote, a brace or a comma outside a
+// string was misread before the fix, so its records are salted once; every
+// other sheet, including one that escapes those characters only inside a
+// string or a comment, keeps its binding.
+TEST(ValidationBindingTest, SaltsOnlySheetsWithStructuralEscapes) {
+  EXPECT_TRUE(CombinedCssHasStructuralEscape(".a\\'b{color:red}"));
+  EXPECT_TRUE(CombinedCssHasStructuralEscape(".a\\\"b{}"));
+  EXPECT_TRUE(CombinedCssHasStructuralEscape(".a\\{b{}"));
+  EXPECT_TRUE(CombinedCssHasStructuralEscape(".a\\}b{}"));
+  EXPECT_TRUE(CombinedCssHasStructuralEscape(".a\\,b{}"));
+  EXPECT_TRUE(CombinedCssHasStructuralEscape(
+      ".\\[\\&_svg\\:not\\(\\[class\\*\\=\\'size-\\'\\]\\)\\]\\:size-4 svg{}"));
+
+  EXPECT_FALSE(CombinedCssHasStructuralEscape(""));
+  EXPECT_FALSE(CombinedCssHasStructuralEscape(
+      ".md\\:flex{display:flex}.w-\\[10px\\]{width:10px}.\\31 0{}"))
+      << "Tailwind's ordinary escapes are not structural";
+  EXPECT_FALSE(CombinedCssHasStructuralEscape(".a{content:\"it\\'s {,}\"}"))
+      << "escapes inside a string were always read right";
+  EXPECT_FALSE(CombinedCssHasStructuralEscape("/* .a\\'b */.c{}"));
+  EXPECT_FALSE(CombinedCssHasStructuralEscape(".a\\\\{color:red}"))
+      << "an escaped backslash, then a real brace";
+
+  const std::string escaped = ".a\\'b{color:red}.c{color:blue}";
+  EXPECT_EQ(ValidationBindingFor("", false, escaped,
+                                 CapabilityMask::Viewport::kDesktop, false),
+            "css-escape");
+  EXPECT_EQ(ValidationBindingFor("proven @layer a;", true, escaped,
+                                 CapabilityMask::Viewport::kDesktop, false),
+            "proven @layer a; noscript-render css-escape");
+  EXPECT_NE(CombinedCssValidationHash(
+                escaped, ValidationBindingFor(
+                             "", false, escaped,
+                             CapabilityMask::Viewport::kDesktop, false)),
+            CombinedCssValidationHash(escaped));
+  const std::string plain = ".md\\:flex{display:flex}";
+  EXPECT_EQ(ValidationBindingFor("unproven", false, plain,
+                                 CapabilityMask::Viewport::kDesktop, false),
+            "unproven");
+  EXPECT_EQ(CombinedCssValidationHash(
+                plain, ValidationBindingFor("", false, plain,
+                                            CapabilityMask::Viewport::kDesktop,
+                                            false)),
+            CombinedCssValidationHash(plain));
+}
+
+// The tablet viewport's records are salted, so every one made
+// while the tablet rendered as a desktop window mismatches once; desktop
+// records are not. Touch emulation adds the touch salt to the tablet's as well.
+TEST(ValidationBindingTest, SaltsTabletRecords) {
+  EXPECT_EQ(ValidationBindingFor("", false, "",
+                                 CapabilityMask::Viewport::kTablet, false),
+            "tablet-mobile touch ua");
+  EXPECT_EQ(ValidationBindingFor("proven @layer a;", true, "",
+                                 CapabilityMask::Viewport::kTablet, false),
+            "proven @layer a; noscript-render tablet-mobile touch ua");
+  const std::string css = ".hero{color:red}";
+  EXPECT_NE(
+      CombinedCssValidationHash(
+          css, ValidationBindingFor("", false, css,
+                                    CapabilityMask::Viewport::kTablet, false)),
+      CombinedCssValidationHash(css));
+  EXPECT_EQ(
+      CombinedCssValidationHash(
+          css, ValidationBindingFor("", false, css,
+                                    CapabilityMask::Viewport::kDesktop, false)),
+      CombinedCssValidationHash(css));
+}
+
+// The mobile and tablet viewports' records are salted ("touch"),
+// so every one made while their renders emulated no touch screen mismatches
+// once and the page is validated again; desktop records keep their hash.
+// User-Agent emulation adds "ua" after it (the phone's and tablet's user agent
+// and the
+// fresh window), for the same two classes only.
+TEST(ValidationBindingTest, SaltsMobileAndTabletRecordsForTouch) {
+  EXPECT_EQ(ValidationBindingFor("", false, "",
+                                 CapabilityMask::Viewport::kMobile, false),
+            "touch ua");
+  EXPECT_EQ(ValidationBindingFor("unproven", false, "",
+                                 CapabilityMask::Viewport::kMobile, false),
+            "unproven touch ua");
+  EXPECT_EQ(ValidationBindingFor("proven @layer a;", true, ".a\\'b{color:red}",
+                                 CapabilityMask::Viewport::kMobile, true),
+            "proven @layer a; noscript-render css-escape touch ua "
+            "anon-layers-dropped")
+      << "the salts have a fixed order";
+  EXPECT_EQ(ValidationBindingFor("", false, "",
+                                 CapabilityMask::Viewport::kDesktop, false),
+            "");
+  const std::string css = ".hero{color:red}";
+  const std::string mobile = CombinedCssValidationHash(
+      css, ValidationBindingFor("", false, css,
+                                CapabilityMask::Viewport::kMobile, false));
+  const std::string tablet = CombinedCssValidationHash(
+      css, ValidationBindingFor("", false, css,
+                                CapabilityMask::Viewport::kTablet, false));
+  const std::string desktop = CombinedCssValidationHash(
+      css, ValidationBindingFor("", false, css,
+                                CapabilityMask::Viewport::kDesktop, false));
+  EXPECT_NE(mobile, CombinedCssValidationHash(css));
+  EXPECT_NE(tablet, CombinedCssValidationHash(css));
+  EXPECT_NE(mobile, tablet) << "the tablet keeps its own salt as well";
+  EXPECT_EQ(desktop, CombinedCssValidationHash(css))
+      << "desktop records do not revalidate";
+}
+
+// A mobile or tablet record made since touch emulation but before the
+// user agent override ("touch" without "ua") mismatches once; the desktop's
+// binding bytes are those it had before either change.
+TEST(ValidationBindingTest, SaltsMobileAndTabletRecordsForUserAgent) {
+  const std::string css = ".hero{color:red}";
+  EXPECT_NE(
+      CombinedCssValidationHash(
+          css, ValidationBindingFor("", false, css,
+                                    CapabilityMask::Viewport::kMobile, false)),
+      CombinedCssValidationHash(css, "touch"))
+      << "an earlier mobile record is made again";
+  EXPECT_NE(
+      CombinedCssValidationHash(
+          css, ValidationBindingFor("", false, css,
+                                    CapabilityMask::Viewport::kTablet, false)),
+      CombinedCssValidationHash(css, "tablet-mobile touch"))
+      << "an earlier tablet record is made again";
+  EXPECT_EQ(ValidationBindingFor("proven @layer a;", true, ".a\\'b{c:d}",
+                                 CapabilityMask::Viewport::kDesktop, true),
+            "proven @layer a; noscript-render css-escape anon-layers-dropped")
+      << "no device salt on the desktop";
+  EXPECT_EQ(ValidationBindingFor("unproven", false, "",
+                                 CapabilityMask::Viewport::kDesktop, false),
+            "unproven");
+}
+
+// A record about a block whose derivation left every
+// anonymous-layer rule out (CriticalCssResult::anonymous_layers_dropped) is
+// salted, on both sides from the same derivation. The layer binding's `u2`
+// marker is keyed on the combined sheet; the salt comes from the derivation
+// itself, so a block that only the check on the finished block moved after
+// the sheets is covered too. A derivation that dropped nothing adds nothing.
+TEST(ValidationBindingTest, SaltsWhenTheDerivationDroppedAnonymousLayers) {
+  const std::string css = "@layer a{} @layer{.x{color:red}}";
+  EXPECT_EQ(ValidationBindingFor("unproven u2", false, css,
+                                 CapabilityMask::Viewport::kDesktop, true),
+            "unproven u2 anon-layers-dropped");
+  EXPECT_EQ(ValidationBindingFor("proven @layer a;", false, css,
+                                 CapabilityMask::Viewport::kDesktop, true),
+            "proven @layer a; anon-layers-dropped")
+      << "the finished-block check moved this one; the sheet's marker is "
+         "silent and the salt speaks";
+  EXPECT_EQ(ValidationBindingFor("proven @layer a;", true, ".a\\'b{color:red}",
+                                 CapabilityMask::Viewport::kDesktop, true),
+            "proven @layer a; noscript-render css-escape anon-layers-dropped");
+  EXPECT_EQ(ValidationBindingFor("unproven u2", false, css,
+                                 CapabilityMask::Viewport::kDesktop, false),
+            "unproven u2");
+  EXPECT_EQ(
+      ValidationBindingFor("unproven u2", true, css,
+                           CapabilityMask::Viewport::kTablet, true),
+      "unproven u2 noscript-render tablet-mobile touch ua anon-layers-dropped")
+      << "the salts have a fixed order";
+  EXPECT_EQ(ValidationBindingFor("", false, css,
+                                 CapabilityMask::Viewport::kDesktop, false),
+            "");
+  EXPECT_NE(
+      CombinedCssValidationHash(
+          css, ValidationBindingFor("unproven u2", false, css,
+                                    CapabilityMask::Viewport::kDesktop, true)),
+      CombinedCssValidationHash(
+          css,
+          ValidationBindingFor("unproven u2", false, css,
+                               CapabilityMask::Viewport::kDesktop, false)));
 }
 
 }  // namespace

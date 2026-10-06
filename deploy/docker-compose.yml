@@ -60,8 +60,14 @@ services:
     environment:
       - CACHE_SIZE=${CACHE_SIZE:-1073741824}
     restart: unless-stopped
+    # The probe only reads: the optimizer writes one status line on connect
+    # and closes. `-T 4` is how long socat waits for that line, kept one
+    # second inside `timeout` so a slow reply fails the attempt on its own
+    # exit status. Do not feed socat an empty stdin instead: it then gives up
+    # 0.5 s after connecting, whatever `timeout` says.
+    # tools/ci/check_health_probe.sh checks this command.
     healthcheck:
-      test: ["CMD-SHELL", "echo '' | socat - UNIX-CONNECT:/data/pagespeed.sock.health | grep -q '^OK'"]
+      test: ["CMD-SHELL", "socat -u -T 4 UNIX-CONNECT:/data/pagespeed.sock.health - | grep -q '^OK'"]
       interval: 10s
       timeout: 5s
       retries: 3

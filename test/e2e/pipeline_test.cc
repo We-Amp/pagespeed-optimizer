@@ -27,7 +27,9 @@
 #include "src/proto/worker_ipc.h"
 #include "src/worker/worker.h"
 #include "test/test_util/pipe_client.h"
+#include "test/test_util/scoped_thread_join.h"
 #include "test/test_util/temp_dir.h"
+#include "test/test_util/worker_quiescence.h"
 
 namespace pagespeed {
 namespace {
@@ -135,9 +137,20 @@ class PipelineTest : public ::testing::Test {
       6'000 / kPollIntervalMs;  // 6 s — WebP encode
   static constexpr int kGifAnimationPollIterations =
       2'000 / kPollIntervalMs;  // 2 s — best-effort, variant may not be written
-  static constexpr int kAvifPollIterations =
-      90'000 /
-      kPollIntervalMs;  // 90 s — Windows shared-runner AVIF (issue #307)
+
+  // Silence limit for WaitForNotificationsRetired: how long the worker may go
+  // without moving any progress counter before the wait gives up.  Not a
+  // deadline on the work; see test/test_util/worker_quiescence.h.  The
+  // slowest step here is one combination of a 150 KB JPEG, about two minutes
+  // on a heavily oversubscribed host, so 5 minutes in a plain build.
+  // Sanitizer builds run the encoders roughly an order of magnitude slower
+  // and get 20 minutes (the worker_test value).  No sanitizer config sets a
+  // test timeout (.bazelrc, CI), so the target's own timeout applies to every
+  // build; it is "eternal" (3600 s) in test/e2e/BUILD, which holds this
+  // binary's tests (unsharded) plus a 20-minute stall, so a stall reports
+  // through the wait's message rather than as a bare timeout.
+  static constexpr std::chrono::minutes kWorkerStallBudget{
+      pagespeed::test::kSanitizerBuild ? 20 : 5};
 
   // Poll for a variant to appear in cache (up to timeout).
   std::string PollVariant(PageSpeedCache* cache, const std::string& url,
@@ -478,6 +491,8 @@ TEST_F(PipelineTest, ImagePipelineAvifEndToEnd) {
 
   Worker worker(config, &handler_);
   auto thread = StartWorker(worker);
+  pagespeed::test::ScopedThreadJoin stop_worker(
+      thread, [&worker] { worker.Shutdown(); });
   // Pre-populate with a real JPEG test image (use large one for AVIF win).
   std::string jpeg = ReadTestFile("jpeg/sjpeg6.jpg");
   ASSERT_FALSE(jpeg.empty()) << "Test JPEG not found";
@@ -499,21 +514,22 @@ TEST_F(PipelineTest, ImagePipelineAvifEndToEnd) {
   auto send_result = SendNotification(socket_path_, notification);
   EXPECT_TRUE(send_result.success) << send_result.error_message;
 
-  // Poll for AVIF variant. kAvifPollIterations sizes the window at 90 s;
-  // AVIF encode on Windows under shared-runner load can exceed 30 s (issue
-  // #307, 3 Windows-only failures on unrelated PRs). Matches the
-  // worker_test kPollIterations bump in #265 for the same class of flake.
-  auto poll_start = std::chrono::steady_clock::now();
-  std::string variant =
-      PollVariant(worker.cache(), cache_url, avif_mask, kAvifPollIterations);
-  auto poll_elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
-                             std::chrono::steady_clock::now() - poll_start)
+  // Wait for the worker to finish with the notification, then read the
+  // variant once.  The AVIF is written only after every missing format of the
+  // requested combination has been encoded, which takes tens of seconds in an
+  // unoptimized build on an idle machine and several times that on a host
+  // whose cores are shared with other jobs -- a fixed polling window measured
+  // the host, and timed out with the worker still encoding.
+  auto wait_start = std::chrono::steady_clock::now();
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+  auto wait_elapsed_ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                             std::chrono::steady_clock::now() - wait_start)
                              .count();
-  // Surface observed AVIF poll latency so a creep past the historical ~30 s
-  // bound becomes visible before it silently consumes the 90 s ceiling
-  // (issue #307, follow-up #311).
-  GTEST_LOG_(INFO) << "AVIF encode poll cleared in " << poll_elapsed_ms
+  // Surface the observed latency so a creep stays visible in the logs.
+  GTEST_LOG_(INFO) << "AVIF notification retired in " << wait_elapsed_ms
                    << " ms";
+  std::string variant = ReadVariant(worker.cache(), cache_url, avif_mask);
   EXPECT_FALSE(variant.empty()) << "AVIF variant not written";
   if (variant.size() >= 12) {
     // Verify AVIF magic bytes: "ftyp" at offset 4.
@@ -522,9 +538,6 @@ TEST_F(PipelineTest, ImagePipelineAvifEndToEnd) {
     EXPECT_EQ('y', variant[6]);
     EXPECT_EQ('p', variant[7]);
   }
-
-  worker.Shutdown();
-  thread.join();
 }
 
 // =============================================================================

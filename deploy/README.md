@@ -225,6 +225,17 @@ curl http://localhost/health
 # Expected: OK
 ```
 
+The container health checks in `docker-compose.yml` and the Helm chart read
+the same socket with `socat`:
+```bash
+socat -u -T 4 UNIX-CONNECT:/data/pagespeed.sock.health - | grep -q '^OK'
+```
+`-u` makes socat read only, and `-T 4` is how long it waits for the status
+line: four seconds, one second inside the 5 s probe timeout. If you write your
+own probe, keep both options. A probe that pipes an empty input into socat
+(`echo '' | socat - UNIX-CONNECT:...`) gives up 0.5 s after connecting,
+whatever the probe timeout says, and reports a busy optimizer as unhealthy.
+
 ## Configuration
 
 See the [configuration reference](https://modpagespeed.com/docs/configuration/)

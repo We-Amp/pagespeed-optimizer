@@ -23,6 +23,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
@@ -61,8 +62,10 @@ struct WsConfig {
   int stats_min_interval_ms = 100;
   int stats_max_interval_ms = 60000;
   int event_batch_ms = 100;  // Event batch interval.
-  size_t event_hwm = 65536;  // Per-client event buffer high-water.
-  std::string auth_token;    // Empty = no credential configured.
+  // Per-client event buffer high-water.  Also the most bytes of log entries
+  // sent to a log-stream client in one write (one entry is always sent).
+  size_t event_hwm = 65536;
+  std::string auth_token;  // Empty = no credential configured.
   // An empty auth_token is only "no auth required" when the
   // operator deliberately opted out (--api-no-auth).  Otherwise a tokenless
   // server fails closed, here as in HttpServer::CheckAuth.
@@ -74,14 +77,27 @@ struct WsConfig {
   // under read_open, the same as the log stream does today.
   bool read_open = false;
   std::unordered_set<std::string> read_open_streams = {"stats", "events"};
-  // At most this many connections may be simultaneously waiting for
-  // in-band authentication (the WS handshake has no header a browser could
-  // carry a bearer token on, so the token -- when one is required -- is
-  // sent as the connection's first text frame instead).  An upgrade that
-  // would exceed this is refused the same way exceeding max_connections is.
+  // Bounds on the connections simultaneously waiting for in-band
+  // authentication (the WS handshake has no header a browser could carry a
+  // bearer token on, so the token -- when one is required -- is sent as the
+  // connection's first text frame instead).  An upgrade that would exceed
+  // either bound is refused the same way exceeding max_connections is.
   // Authenticated connections, and pre-authenticated read-open-stream
   // connections, never count against this budget.
-  int max_preauth_connections = 2;
+  //
+  // The per-peer bound (keyed by remote address) is what lets a client open
+  // several streams at once -- all three, or two browser tabs of the bundled
+  // console, which opens stats and logs per tab -- while a single
+  // never-authenticating peer can no longer pin the whole budget for
+  // everyone else.  The global bound caps the pre-auth state no matter how
+  // many distinct peers arrive; max_connections counts these connections
+  // too, so the global bound only takes effect when max_connections is
+  // above it (at the defaults, 8 is reached first).  A transport without a
+  // peer address counts against the global bound only.  (The worker's unix
+  // socket carries no token, so its connections never wait for in-band
+  // authentication and never reach the budget at all.)
+  int max_preauth_connections = 16;
+  int max_preauth_connections_per_peer = 4;
 };
 
 // Metrics for WebSocket subsystem.
@@ -90,7 +106,14 @@ struct WsMetrics {
   std::atomic<int> events_connections{0};
   std::atomic<int> logs_connections{0};
   std::atomic<uint64_t> messages_sent{0};
+  // Messages not delivered to a client: events over a client's buffer limit,
+  // frames refused at the pending-write limit, and log entries that left the
+  // ring before a slow log-stream client could be sent them (the client is
+  // told how many in an "overflow" message).
   std::atomic<uint64_t> messages_dropped{0};
+  // Log entries serialized for the live stream.  One per entry sent, however
+  // many clients received it.
+  std::atomic<uint64_t> log_entries_serialized{0};
 };
 
 // Rate-limits the WS auth-timeout warning to at most one emission per
@@ -126,6 +149,64 @@ class WsAuthTimeoutWarningLimiter {
   int64_t window_ms_;
   std::optional<int64_t> last_emit_ms_;
   int suppressed_since_last_ = 0;
+};
+
+// Bounds the connections simultaneously waiting for in-band authentication,
+// in the two dimensions WsConfig describes: a global cap and a per-peer cap
+// keyed by the caller-supplied peer key (an empty key counts against the
+// global cap only).  A refused TryAcquire records nothing; a successful one
+// must be paired with exactly one Release of the same key.  Not thread-safe;
+// WsManager calls it on the event loop thread only, like every other
+// WsManager field.  Pure and clockless, so tests can drive it with synthetic
+// keys.
+class WsPreauthBudget {
+ public:
+  // Which bound a TryAcquire tripped, so the refusal can name it.
+  enum class Verdict : std::uint8_t {
+    kAdmitted,
+    kRefusedGlobal,
+    kRefusedPerPeer
+  };
+
+  WsPreauthBudget(int global_max, int per_peer_max)
+      : global_max_(global_max), per_peer_max_(per_peer_max) {}
+
+  Verdict TryAcquire(std::string_view peer_key) {
+    if (pending_ >= global_max_) return Verdict::kRefusedGlobal;
+    if (peer_key.empty()) {
+      ++pending_;
+      return Verdict::kAdmitted;
+    }
+    auto [it, inserted] = by_peer_.try_emplace(std::string(peer_key), 0);
+    if (it->second >= per_peer_max_) {
+      if (inserted) by_peer_.erase(it);
+      return Verdict::kRefusedPerPeer;
+    }
+    ++it->second;
+    ++pending_;
+    return Verdict::kAdmitted;
+  }
+
+  void Release(const std::string& peer_key) {
+    --pending_;
+    if (peer_key.empty()) return;
+    auto it = by_peer_.find(peer_key);
+    if (it != by_peer_.end() && --it->second == 0) by_peer_.erase(it);
+  }
+
+  int pending() const { return pending_; }
+
+  // Slots currently held under `peer_key` (0 for a key holding none).
+  int pending_for(const std::string& peer_key) const {
+    auto it = by_peer_.find(peer_key);
+    return it == by_peer_.end() ? 0 : it->second;
+  }
+
+ private:
+  int global_max_;
+  int per_peer_max_;
+  int pending_ = 0;
+  std::unordered_map<std::string, int> by_peer_;
 };
 
 // Forward declaration — connection state is internal.
@@ -196,11 +277,16 @@ class WsManager {
 
   // This process's log stream identity: 16 lowercase hex digits (64 random
   // bits) drawn when the manager is constructed.  Sequence numbers start
-  // again at 0 in a new process; a reader that sees this change knows it.
+  // again at 1 in a new process; a reader that sees this change knows it.
   const std::string& stream_id() const { return stream_id_; }
 
   // Access metrics.
   const WsMetrics& metrics() const { return metrics_; }
+
+  // The pre-authentication budget, for tests that check a slot is returned
+  // on every path.  Loop thread only, like the budget itself (or with the
+  // loop stopped).
+  const WsPreauthBudget& preauth_budget() const { return preauth_budget_; }
 
   // Total active WebSocket connections.
   int active_connections() const;
@@ -239,6 +325,9 @@ class WsManager {
   void DrainPendingEvents();
   void DrainPendingLogs();
   void FlushLogBatch();
+  void PumpLogStream(WsConnection* conn);
+  const std::string& LogFrame(size_t index);
+  void TrimLogFrames();
   void SendLogSnapshot(WsConnection* conn);
 
   uv_loop_t* loop_;
@@ -272,6 +361,12 @@ class WsManager {
   std::mutex log_mutex_;
   std::vector<nlohmann::json> pending_logs_;
   std::deque<nlohmann::json> log_ring_;
+  // Parallel to log_ring_ (same length, same order): the serialized stream
+  // frame of each entry, empty until a stream client first needs it and
+  // emptied again once every client is past it.  See LogFrame, TrimLogFrames.
+  std::deque<std::string> log_frames_;
+  // Every frame below this position is known to be empty.
+  uint64_t log_frames_trimmed_to_ = 0;
   uint64_t log_total_ = 0;  // Total logs ever posted (for overflow count).
   // Posts dropped at a full pending queue.  They never receive a seq (no
   // phantom gap); the count lets a reader say that entries were not kept.
@@ -285,10 +380,12 @@ class WsManager {
   std::atomic<int> connection_count_{0};
 
   // Connections currently waiting for in-band authentication (loop thread
-  // only, like connections_).  Bounded by config_.max_preauth_connections;
-  // see AcceptUpgrade, HandleAuthMessage, and CloseWs for the single
-  // increment / exactly-once-decrement sites.
-  int preauth_pending_ = 0;
+  // only, like connections_).  Bounded globally and per peer by the config's
+  // two max_preauth_connections values; see AcceptUpgrade for the single
+  // acquire site and HandleAuthMessage / CloseWs for the exactly-once
+  // release.
+  WsPreauthBudget preauth_budget_{config_.max_preauth_connections,
+                                  config_.max_preauth_connections_per_peer};
 
   // Rate limiter for the "WS: auth timeout" warning (see OnAuthTimeout).
   WsAuthTimeoutWarningLimiter auth_timeout_warning_limiter_;

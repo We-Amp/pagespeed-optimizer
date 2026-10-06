@@ -11,19 +11,35 @@
 
 #include "src/worker/websocket.h"
 
+#ifndef _WIN32
+#include <signal.h>
+#endif
+
 #include <atomic>
 #include <chrono>
 #include <cstring>
 #include <mutex>
 #include <string>
 #include <thread>
+#include <vector>
 
 #include "gtest/gtest.h"
 #include "lib/base/message_handler.h"
 #include "nlohmann/json.hpp"
 #include "src/worker/ws_handlers.h"
+#include "test/test_util/scoped_thread_join.h"
 #include "test/test_util/tcp_client.h"
 #include "uv.h"
+
+#ifdef _WIN32
+// The Windows headers that arrive with the includes above define the
+// object-like macro FormatMessage (-> FormatMessageA), which rewrites the
+// token before name lookup runs, so the unqualified call to the inherited
+// MessageHandler::FormatMessage below would become a call to the Win32 API.
+// Qualifying or parenthesising the name does not suppress an object-like
+// macro; only #undef does.
+#undef FormatMessage
+#endif
 
 namespace pagespeed {
 namespace {
@@ -234,6 +250,17 @@ class WsManagerTest : public ::testing::Test {
   }
 
   void SetUp() override {
+#ifndef _WIN32
+    // Server and clients share this process, and tests close clients while
+    // the server may still write to them.  The daemon ignores SIGPIPE at
+    // start-up (the write then fails with EPIPE and closes the connection);
+    // give the server here the same process state.  The binary's own
+    // behaviour is pinned in worker_client_disconnect_test.
+    struct sigaction ignore{};
+    ignore.sa_handler = SIG_IGN;
+    sigemptyset(&ignore.sa_mask);
+    sigaction(SIGPIPE, &ignore, &saved_sigpipe_);
+#endif
     loop_ = new uv_loop_t;
     uv_loop_init(loop_);
     handler_ = std::make_unique<NullMessageHandler>();
@@ -249,6 +276,7 @@ class WsManagerTest : public ::testing::Test {
     ws_config_.auth_timeout_ms = 1000;
     ws_config_.stats_interval_ms = 200;
     ws_config_.event_batch_ms = 50;
+    Configure(ws_config_);
 
     manager_ = std::make_unique<WsManager>(loop_, ws_config_, handler_.get());
     stats_call_count_ = 0;
@@ -304,7 +332,13 @@ class WsManagerTest : public ::testing::Test {
     manager_.reset();
     uv_loop_close(loop_);
     delete loop_;
+#ifndef _WIN32
+    sigaction(SIGPIPE, &saved_sigpipe_, nullptr);
+#endif
   }
+
+  // Sub-fixtures change the manager's settings here, before it is built.
+  virtual void Configure(WsConfig& config) { (void)config; }
 
   void StartLoopThread() {
     loop_running_ = true;
@@ -418,6 +452,9 @@ class WsManagerTest : public ::testing::Test {
   }
 
   uv_loop_t* loop_ = nullptr;
+#ifndef _WIN32
+  struct sigaction saved_sigpipe_{};
+#endif
   uv_tcp_t listener_;
   int port_ = 0;
   std::unique_ptr<NullMessageHandler> handler_;
@@ -853,10 +890,10 @@ TEST_F(WsManagerTest, LogsEntriesCarryAscendingSeq) {
   ASSERT_FALSE(j.is_discarded());
   ASSERT_GE(j["entries"].size(), 3u);
   // Entries carry a per-process sequence number, ascending in ring order,
-  // starting at 0 on this fresh manager.
+  // starting at 1 on this fresh manager.
   for (size_t i = 0; i < 3; ++i) {
     ASSERT_TRUE(j["entries"][i].contains("seq")) << i;
-    EXPECT_EQ(j["entries"][i]["seq"].get<uint64_t>(), i) << i;
+    EXPECT_EQ(j["entries"][i]["seq"].get<uint64_t>(), i + 1) << i;
   }
 
   // A live entry drained after the snapshot continues the sequence.
@@ -867,7 +904,7 @@ TEST_F(WsManagerTest, LogsEntriesCarryAscendingSeq) {
   json lj = json::parse(live, nullptr, false);
   ASSERT_FALSE(lj.is_discarded());
   ASSERT_TRUE(lj.contains("seq"));
-  EXPECT_EQ(lj["seq"].get<uint64_t>(), 3u);
+  EXPECT_EQ(lj["seq"].get<uint64_t>(), 4u);
 
   test::CloseSocket(sock);
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
@@ -890,10 +927,10 @@ TEST_F(WsManagerTest, LogsSeqsContiguousAcrossRingWrap) {
   ASSERT_FALSE(j.is_discarded());
   ASSERT_EQ(j["entries"].size(), 2000u);
   // The oldest 50 entries were evicted; the retained seqs are contiguous
-  // and ascending: total - 2000 .. total - 1.
+  // and ascending: total - 1999 .. total.
   const uint64_t total = j["total"].get<uint64_t>();
   ASSERT_GE(total, 2050u);
-  uint64_t expect = total - 2000;
+  uint64_t expect = total - 1999;
   for (const auto& entry : j["entries"]) {
     ASSERT_TRUE(entry.contains("seq"));
     EXPECT_EQ(entry["seq"].get<uint64_t>(), expect);
@@ -952,6 +989,285 @@ TEST_F(WsManagerTest, LogsMetricsTracking) {
 }
 
 // ===================================================================
+// /v1/ws/logs live delivery: complete, in order, serialized once
+// ===================================================================
+
+class WsLogStreamTest : public WsManagerTest {
+ protected:
+  // No server ping while a test runs: these clients never answer one, and a
+  // sanitizer build can take longer than the base fixture's ping interval.
+  void Configure(WsConfig& config) override {
+    config.ping_interval_ms = 600000;
+  }
+
+  // What a client saw on the stream, checked as it arrives: every "log"
+  // message must carry the seq right after the previous message's, and an
+  // "overflow" message must name exactly the seqs it stands for.
+  struct StreamRead {
+    uint64_t next = 0;     // The seq the next message must start at.
+    uint64_t entries = 0;  // "log" messages received.
+    uint64_t dropped = 0;  // Sum of dropped_count over "overflow" messages.
+    std::vector<json> overflows;
+    std::string error;  // First violation, empty when there was none.
+  };
+
+  // Connects a log client and reads its snapshot.  Returns the socket, or
+  // -1; *next is set to the seq the live stream starts at -- the snapshot's
+  // total + 1, since total counts entries and seqs start at 1.
+  int ConnectLogClient(uint64_t* next) {
+    pending_endpoint_ = "logs";
+    int sock = ConnectRawSocket();
+    if (sock < 0) return -1;
+    ReadHandshake(sock);
+    json snapshot =
+        json::parse(ReadTextFrameByType(sock, "snapshot"), nullptr, false);
+    if (!snapshot.is_object() || !snapshot.contains("total")) {
+      test::CloseSocket(sock);
+      return -1;
+    }
+    *next = snapshot["total"].get<uint64_t>() + 1;
+    return sock;
+  }
+
+  // Reads the stream until every seq in [start, end) is accounted for --
+  // delivered, or named by an overflow message -- or the socket times out.
+  StreamRead ReadLogStream(int sock, uint64_t start, uint64_t end) {
+    StreamRead read;
+    read.next = start;
+    const auto fail = [&read](const std::string& what) {
+      if (read.error.empty()) read.error = what;
+    };
+    while (read.next < end) {
+      const std::string msg = ReadTextFrame(sock);
+      if (msg.empty()) {
+        fail("stream ended or timed out at seq " + std::to_string(read.next));
+        break;
+      }
+      if (msg[0] == '\x09' || msg[0] == '\x0A') continue;  // ping, pong
+      json j = json::parse(msg, nullptr, false);
+      if (!j.is_object() || !j.contains("type")) {
+        fail("not a JSON message: " + msg.substr(0, 80));
+        break;
+      }
+      if (j["type"] == "log") {
+        const uint64_t seq = j.value("seq", UINT64_MAX);
+        if (seq != read.next) {
+          fail("expected seq " + std::to_string(read.next) + ", got " +
+               std::to_string(seq));
+        }
+        if (j.value("message", "").rfind("entry " + std::to_string(seq), 0) !=
+            0) {
+          fail("seq " + std::to_string(seq) + " carries the wrong message");
+        }
+        read.next = seq + 1;
+        ++read.entries;
+      } else if (j["type"] == "overflow") {
+        const uint64_t first = j.value("first_seq", UINT64_MAX);
+        const uint64_t last = j.value("last_seq", UINT64_MAX);
+        const uint64_t count = j.value("dropped_count", uint64_t{0});
+        if (first != read.next || last < first || count != last - first + 1) {
+          fail("overflow message does not continue the stream: " + msg);
+          break;
+        }
+        read.dropped += count;
+        read.next = last + 1;
+        read.overflows.push_back(std::move(j));
+      }
+    }
+    return read;
+  }
+
+  // Posts `count` entries whose message is "entry <seq>" followed by
+  // `padding` filler bytes; `first_seq` is the seq the first one will get.
+  void PostEntries(uint64_t first_seq, uint64_t count, size_t padding = 0) {
+    const std::string filler(padding, 'x');
+    for (uint64_t i = 0; i < count; ++i) {
+      manager_->PostLog(
+          "info", "worker", "worker",
+          "entry " + std::to_string(first_seq + i) + " " + filler);
+    }
+  }
+};
+
+// A burst, however large, reaches a connected client completely and in
+// order as long as the ring can hold it.  (One frame per entry, at most 64
+// writes pending per client, and write callbacks one loop iteration later
+// used to cap a flush at 64 entries, the rest silently lost.)
+TEST_F(WsLogStreamTest, BurstIsDeliveredCompleteAndInOrder) {
+  uint64_t next = 0;
+  int sock = ConnectLogClient(&next);
+  ASSERT_GE(sock, 0);
+
+  for (uint64_t burst : {10u, 64u, 65u, 500u, 2000u}) {
+    SCOPED_TRACE("burst of " + std::to_string(burst));
+    PostEntries(next, burst);
+    StreamRead read = ReadLogStream(sock, next, next + burst);
+    GTEST_LOG_(INFO) << "burst of " << burst << ": received " << read.entries
+                     << " entries, " << read.overflows.size()
+                     << " overflow messages";
+    EXPECT_EQ(read.error, "");
+    EXPECT_EQ(read.entries, burst);
+    EXPECT_TRUE(read.overflows.empty());
+    next += burst;
+  }
+  EXPECT_EQ(manager_->metrics().messages_dropped.load(), 0u);
+
+  // The paged endpoint holds the same entries (the loop is stopped so the
+  // ring can be read from this thread).
+  StopLoopThread();
+  json page = manager_->BuildLogsResponse(next - 11, true, 100);
+  EXPECT_EQ(page["entries"].size(), 10u);
+  EXPECT_EQ(page["newest_seq"].get<uint64_t>(), next - 1);
+  EXPECT_FALSE(page["gap"].get<bool>());
+
+  test::CloseSocket(sock);
+}
+
+// Lines at the 4 KiB cap: 300 of them are far more than one write carries,
+// so this is the path where the next write waits for the previous one.
+TEST_F(WsLogStreamTest, LongLinesAreDeliveredCompleteAndInOrder) {
+  uint64_t next = 0;
+  int sock = ConnectLogClient(&next);
+  ASSERT_GE(sock, 0);
+
+  PostEntries(next, 300, 4000);
+  StreamRead read = ReadLogStream(sock, next, next + 300);
+  EXPECT_EQ(read.error, "");
+  EXPECT_EQ(read.entries, 300u);
+  EXPECT_TRUE(read.overflows.empty());
+  EXPECT_EQ(manager_->metrics().messages_dropped.load(), 0u);
+
+  test::CloseSocket(sock);
+}
+
+// Every client gets every entry, and an entry is serialized for the stream
+// once, not once per client.
+TEST_F(WsLogStreamTest, AnEntryIsSerializedOnceForAllClients) {
+  uint64_t next = 0;
+  int socks[3];
+  for (int& sock : socks) {
+    sock = ConnectLogClient(&next);
+    ASSERT_GE(sock, 0);
+  }
+  ASSERT_EQ(next, 1u);
+
+  PostEntries(next, 300);
+  for (int sock : socks) {
+    StreamRead read = ReadLogStream(sock, next, next + 300);
+    EXPECT_EQ(read.error, "");
+    EXPECT_EQ(read.entries, 300u);
+    EXPECT_TRUE(read.overflows.empty());
+  }
+  EXPECT_EQ(manager_->metrics().log_entries_serialized.load(), 300u);
+  EXPECT_EQ(manager_->metrics().messages_sent.load(),
+            3u * 300u + 3u /* snapshots */);
+
+  for (int sock : socks) test::CloseSocket(sock);
+}
+
+// No stream client, no stream serialization.
+TEST_F(WsLogStreamTest, NothingIsSerializedWithoutAClient) {
+  PostEntries(0, 300);
+  std::this_thread::sleep_for(std::chrono::milliseconds(200));
+  EXPECT_EQ(manager_->metrics().log_entries_serialized.load(), 0u);
+}
+
+// More entries than the ring holds arrive before the client can be sent any
+// of them: the ones that left the ring are named by one overflow message,
+// and the stream continues with the oldest entry the ring still has.  The
+// paged endpoint reports the same loss as a gap.
+TEST_F(WsLogStreamTest, EntriesThatLeftTheRingAreNamedByAnOverflowMessage) {
+  uint64_t next = 0;
+  int sock = ConnectLogClient(&next);
+  ASSERT_GE(sock, 0);
+  ASSERT_EQ(next, 1u);
+  // A first entry, delivered, so the client has a position to page from.
+  PostEntries(1, 1);
+  StreamRead first = ReadLogStream(sock, 1, 2);
+  ASSERT_EQ(first.error, "");
+
+  // One drain of 2500 entries into a ring of 2000 (seqs 2..2501, so 2..501
+  // leave it): with the loop stopped, all are queued before any is drained.
+  StopLoopThread();
+  PostEntries(2, 2500);
+  StartLoopThread();
+
+  StreamRead read = ReadLogStream(sock, 2, 2502);
+  EXPECT_EQ(read.error, "");
+  ASSERT_EQ(read.overflows.size(), 1u);
+  const json& overflow = read.overflows[0];
+  EXPECT_EQ(overflow["type"], "overflow");
+  EXPECT_EQ(overflow["dropped_count"].get<uint64_t>(), 500u);
+  EXPECT_EQ(overflow["first_seq"].get<uint64_t>(), 2u);
+  EXPECT_EQ(overflow["last_seq"].get<uint64_t>(), 501u);
+  // Everything the ring still held came through the stream, in order.
+  EXPECT_EQ(read.entries, 2000u);
+  EXPECT_EQ(read.next, 2502u);
+  EXPECT_EQ(manager_->metrics().messages_dropped.load(), 500u);
+
+  // A client that pages from the last entry it had (seq 1) is told the same
+  // thing: a gap, and the ring starting right after the dropped range.
+  StopLoopThread();
+  json page = manager_->BuildLogsResponse(1, true, 10);
+  EXPECT_TRUE(page["gap"].get<bool>());
+  EXPECT_EQ(page["oldest_seq"].get<uint64_t>(),
+            overflow["last_seq"].get<uint64_t>() + 1);
+  ASSERT_FALSE(page["entries"].empty());
+  EXPECT_EQ(page["entries"][0]["seq"].get<uint64_t>(), 502u);
+
+  test::CloseSocket(sock);
+}
+
+// A client that stops reading costs the others nothing and loses nothing
+// the ring still holds: when it reads again it gets an unbroken stream, with
+// an overflow message wherever entries left the ring first.
+TEST_F(WsLogStreamTest, AStalledClientLosesOnlyWhatLeftTheRing) {
+  uint64_t next = 0;
+  int stalled = ConnectLogClient(&next);
+  ASSERT_GE(stalled, 0);
+  int reader = ConnectLogClient(&next);
+  ASSERT_GE(reader, 0);
+  ASSERT_EQ(next, 1u);
+
+  // 4 rounds of 1000 lines at the 4 KiB cap, 16 MB in all.  The reading
+  // client takes each round; the stalled one reads nothing meanwhile.
+  constexpr uint64_t kRounds = 4;
+  constexpr uint64_t kPerRound = 1000;
+  constexpr uint64_t kTotal = kRounds * kPerRound;
+  for (uint64_t round = 0; round < kRounds; ++round) {
+    SCOPED_TRACE("round " + std::to_string(round));
+    PostEntries(round * kPerRound + 1, kPerRound, 4000);
+    StreamRead read = ReadLogStream(reader, round * kPerRound + 1,
+                                    (round + 1) * kPerRound + 1);
+    EXPECT_EQ(read.error, "");
+    EXPECT_EQ(read.entries, kPerRound);
+    EXPECT_TRUE(read.overflows.empty());
+  }
+  // One serialization per entry, although two clients are sent each.
+  EXPECT_EQ(manager_->metrics().log_entries_serialized.load(), kTotal);
+
+  // The stalled client wakes up.  Whether it lost anything depends on how
+  // much the socket buffers took; what must hold either way is that the
+  // stream accounts for every seq and skips nothing the ring still holds
+  // (the last 2000 entries, at least).
+  StreamRead read = ReadLogStream(stalled, 1, kTotal + 1);
+  GTEST_LOG_(INFO) << "stalled client: " << read.entries << " entries, "
+                   << read.overflows.size() << " overflow messages, "
+                   << read.dropped << " dropped";
+  EXPECT_EQ(read.error, "");
+  EXPECT_EQ(read.next, kTotal + 1);
+  EXPECT_EQ(read.entries + read.dropped, kTotal);
+  for (const json& overflow : read.overflows) {
+    EXPECT_LE(overflow["last_seq"].get<uint64_t>(), kTotal - 2000);
+  }
+  EXPECT_EQ(manager_->metrics().messages_dropped.load(), read.dropped);
+  EXPECT_EQ(manager_->metrics().log_entries_serialized.load(), kTotal);
+
+  test::CloseSocket(stalled);
+  test::CloseSocket(reader);
+}
+
+// ===================================================================
 // WsConfig and WsMetrics struct tests
 // ===================================================================
 
@@ -973,7 +1289,10 @@ TEST(WsConfigTest, Defaults) {
   EXPECT_TRUE(config.read_open_streams.contains("stats"));
   EXPECT_TRUE(config.read_open_streams.contains("events"));
   EXPECT_FALSE(config.read_open_streams.contains("logs"));
-  EXPECT_EQ(config.max_preauth_connections, 2);
+  EXPECT_EQ(config.max_preauth_connections, 16);
+  // The per-peer bound covers a client's full stream set (three streams)
+  // plus one slot of reconnect slack.
+  EXPECT_EQ(config.max_preauth_connections_per_peer, 4);
 }
 
 TEST(WsMetricsTest, Defaults) {
@@ -983,6 +1302,7 @@ TEST(WsMetricsTest, Defaults) {
   EXPECT_EQ(metrics.logs_connections.load(), 0);
   EXPECT_EQ(metrics.messages_sent.load(), 0u);
   EXPECT_EQ(metrics.messages_dropped.load(), 0u);
+  EXPECT_EQ(metrics.log_entries_serialized.load(), 0u);
 }
 
 // ===================================================================
@@ -1622,8 +1942,69 @@ TEST_F(WsManagerTest, UnknownStreamNotPreAuthenticatedUnderReadOpen) {
 }
 
 // ===================================================================
-// Pre-authentication budget (max_preauth_connections)
+// Pre-authentication budget (max_preauth_connections, per peer and global)
 // ===================================================================
+
+// Pure logic: the budget itself, driven with synthetic peer keys so every
+// dimension (global, per-peer, keyless transport, release pairing) is
+// covered without sockets -- a second source address is not portably
+// available to a socket test.
+TEST(WsPreauthBudgetTest, GlobalCapRefusesBeyondLimit) {
+  WsPreauthBudget budget(2, 4);
+  EXPECT_EQ(budget.TryAcquire("a"), WsPreauthBudget::Verdict::kAdmitted);
+  EXPECT_EQ(budget.TryAcquire("b"), WsPreauthBudget::Verdict::kAdmitted);
+  EXPECT_EQ(budget.TryAcquire("c"), WsPreauthBudget::Verdict::kRefusedGlobal);
+  EXPECT_EQ(budget.pending(), 2);
+  budget.Release("a");
+  EXPECT_EQ(budget.TryAcquire("c"), WsPreauthBudget::Verdict::kAdmitted);
+  EXPECT_EQ(budget.pending(), 2);
+}
+
+TEST(WsPreauthBudgetTest, PerPeerCapLeavesRoomForOtherPeers) {
+  WsPreauthBudget budget(16, 4);
+  for (int i = 0; i < 4; ++i) {
+    EXPECT_EQ(budget.TryAcquire("a"), WsPreauthBudget::Verdict::kAdmitted) << i;
+  }
+  // The per-peer cap is spent for "a" -- and only for "a".
+  EXPECT_EQ(budget.TryAcquire("a"), WsPreauthBudget::Verdict::kRefusedPerPeer);
+  EXPECT_EQ(budget.TryAcquire("b"), WsPreauthBudget::Verdict::kAdmitted);
+  EXPECT_EQ(budget.pending(), 5);
+}
+
+TEST(WsPreauthBudgetTest, PerPeerSlotsAreReleasedPerPeer) {
+  WsPreauthBudget budget(16, 2);
+  EXPECT_EQ(budget.TryAcquire("a"), WsPreauthBudget::Verdict::kAdmitted);
+  EXPECT_EQ(budget.TryAcquire("a"), WsPreauthBudget::Verdict::kAdmitted);
+  EXPECT_EQ(budget.TryAcquire("b"), WsPreauthBudget::Verdict::kAdmitted);
+  EXPECT_EQ(budget.TryAcquire("b"), WsPreauthBudget::Verdict::kAdmitted);
+  budget.Release("a");
+  // "a" has one slot back; "b" is still at its cap.
+  EXPECT_EQ(budget.TryAcquire("a"), WsPreauthBudget::Verdict::kAdmitted);
+  EXPECT_EQ(budget.TryAcquire("a"), WsPreauthBudget::Verdict::kRefusedPerPeer);
+  EXPECT_EQ(budget.TryAcquire("b"), WsPreauthBudget::Verdict::kRefusedPerPeer);
+}
+
+TEST(WsPreauthBudgetTest, EmptyKeyCountsAgainstTheGlobalCapOnly) {
+  WsPreauthBudget budget(3, 1);
+  EXPECT_EQ(budget.TryAcquire(""), WsPreauthBudget::Verdict::kAdmitted);
+  // No per-peer dimension: a second keyless acquire is admitted even with the
+  // per-peer cap at 1.
+  EXPECT_EQ(budget.TryAcquire(""), WsPreauthBudget::Verdict::kAdmitted);
+  EXPECT_EQ(budget.TryAcquire(""), WsPreauthBudget::Verdict::kAdmitted);
+  EXPECT_EQ(budget.TryAcquire(""), WsPreauthBudget::Verdict::kRefusedGlobal);
+  budget.Release("");
+  EXPECT_EQ(budget.TryAcquire(""), WsPreauthBudget::Verdict::kAdmitted);
+}
+
+TEST(WsPreauthBudgetTest, RefusedAcquireRecordsNothing) {
+  WsPreauthBudget budget(16, 1);
+  EXPECT_EQ(budget.TryAcquire("a"), WsPreauthBudget::Verdict::kAdmitted);
+  EXPECT_EQ(budget.TryAcquire("a"), WsPreauthBudget::Verdict::kRefusedPerPeer);
+  budget.Release("a");
+  // Had the refusal been recorded, "a" would still be at its cap.
+  EXPECT_EQ(budget.TryAcquire("a"), WsPreauthBudget::Verdict::kAdmitted);
+  EXPECT_EQ(budget.pending(), 1);
+}
 
 // An upgrade that would push the number of connections simultaneously
 // waiting for in-band auth past max_preauth_connections is refused the same
@@ -1676,6 +2057,82 @@ TEST_F(WsManagerTest, PreauthBudgetRejectsBeyondLimit) {
 
   test::CloseSocket(sock2);
   test::CloseSocket(sock3);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
+
+// One client opening its full stream set: all three upgrades are admitted
+// even though every one of them will sit in pre-authentication at once
+// (token set, read_open off) -- the default per-peer budget covers the
+// stream set plus reconnect slack, where the previous global budget of two
+// refused the third stream.
+TEST_F(WsManagerTest, PreauthBudgetAdmitsFullStreamSetFromOnePeer) {
+  ws_config_.auth_token = "secret-token";
+  ws_config_.allow_unauthenticated = false;
+  // read_open stays false: stats and events need in-band auth too.
+  ws_config_.max_connections = 8;
+  ws_config_.auth_timeout_ms = 5000;  // Outlasts the test.
+  StopLoopThread();
+  manager_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  manager_ = std::make_unique<WsManager>(loop_, ws_config_, handler_.get());
+  manager_->SetStatsProvider([]() -> json { return json{{"test", 1}}; });
+  manager_->Start();
+  StartLoopThread();
+
+  int socks[3];
+  int i = 0;
+  for (const char* endpoint : {"stats", "events", "logs"}) {
+    pending_endpoint_ = endpoint;
+    socks[i] = ConnectRawSocket();
+    ASSERT_GE(socks[i], 0) << endpoint;
+    ASSERT_NE(ReadHandshake(socks[i]).find("101"), std::string::npos)
+        << endpoint << " upgrade refused within the default budget";
+    ++i;
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  EXPECT_EQ(manager_->active_connections(), 3);
+
+  for (int sock : socks) test::CloseSocket(sock);
+  std::this_thread::sleep_for(std::chrono::milliseconds(100));
+}
+
+// The per-peer cap binds below the global one: all four test connections
+// come from this host's one address, so the fifth never-authenticating
+// connection is refused even though the global budget still has room.  (That
+// another peer is still admitted meanwhile is covered by the budget class's
+// own unit tests.)
+TEST_F(WsManagerTest, PreauthBudgetPerPeerCapBindsBelowGlobal) {
+  ws_config_.auth_token = "secret-token";
+  ws_config_.allow_unauthenticated = false;
+  ws_config_.max_connections = 8;
+  ws_config_.auth_timeout_ms = 5000;  // Outlasts the test.
+  StopLoopThread();
+  manager_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  manager_ = std::make_unique<WsManager>(loop_, ws_config_, handler_.get());
+  manager_->SetStatsProvider([]() -> json { return json{{"test", 1}}; });
+  manager_->Start();
+  StartLoopThread();
+
+  pending_endpoint_ = "stats";
+  int held[4];
+  for (int i = 0; i < 4; ++i) {
+    held[i] = ConnectRawSocket();
+    ASSERT_GE(held[i], 0) << i;
+    ASSERT_NE(ReadHandshake(held[i]).find("101"), std::string::npos) << i;
+  }
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  EXPECT_EQ(manager_->active_connections(), 4);
+
+  int fifth = ConnectRawSocket();
+  ASSERT_GE(fifth, 0);
+  EXPECT_TRUE(ReadHandshake(fifth).empty())
+      << "a fifth pre-auth connection from one peer was admitted past the "
+         "per-peer budget";
+  EXPECT_EQ(manager_->active_connections(), 4);
+
+  for (int sock : held) test::CloseSocket(sock);
+  test::CloseSocket(fifth);
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
@@ -1867,6 +2324,166 @@ TEST_F(WsManagerTest, PreauthBudgetFreedOnReadError) {
   std::this_thread::sleep_for(std::chrono::milliseconds(100));
 }
 
+// The release tests above bind the global bound (max_preauth_connections =
+// 1), so they would pass even if a path gave the slot back globally but not
+// to its address.  Every client here shares 127.0.0.1, as every client of a
+// loopback-bound or proxied optimizer does, and the per-address bound is 1
+// with the global bound out of the way: a slot one path fails to return to
+// the address refuses the next upgrade, which is what these tests read.
+
+TEST_F(WsManagerTest, PreauthPerAddressSlotReturnedOnEveryClosePath) {
+  ws_config_.auth_token = "secret-token";
+  ws_config_.allow_unauthenticated = false;
+  ws_config_.max_preauth_connections = 16;
+  ws_config_.max_preauth_connections_per_peer = 1;
+  ws_config_.max_connections = 8;
+  // No path here may be the timeout (it has its own test below), and the
+  // authenticated client, which never answers a ping, must not be closed
+  // by a pong timeout while the test runs.
+  ws_config_.auth_timeout_ms = 600000;
+  ws_config_.ping_interval_ms = 600000;
+  StopLoopThread();
+  manager_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  manager_ = std::make_unique<WsManager>(loop_, ws_config_, handler_.get());
+  manager_->SetStatsProvider([]() -> json { return json{{"test", 1}}; });
+  manager_->Start();
+  StartLoopThread();
+  pending_endpoint_ = "stats";
+  // A connection admitted into pre-authentication (it got its 101), or -1
+  // when the upgrade was refused.
+  const auto connect_admitted = [this]() {
+    int s = ConnectRawSocket();
+    if (s < 0) return -1;
+    if (ReadHandshake(s).find("101") == std::string::npos) {
+      test::CloseSocket(s);
+      return -1;
+    }
+    return s;
+  };
+  constexpr const char* kNotReturned =
+      "not admitted: the address's pre-auth slot was not returned";
+
+  // The bound that this test relies on is in force: with one connection
+  // waiting, a second one from the same address is refused.
+  const int authed = connect_admitted();
+  ASSERT_GE(authed, 0) << "first connection " << kNotReturned;
+  int refused = ConnectRawSocket();
+  ASSERT_GE(refused, 0);
+  ASSERT_TRUE(ReadHandshake(refused).empty())
+      << "a second pending connection from one address was admitted";
+  test::CloseSocket(refused);
+
+  // 1. Successful authentication.  The slot is returned before the
+  // snapshot and the acknowledgement are sent, so reading the
+  // acknowledgement orders the next upgrade after the release.
+  const std::string auth = BuildMaskedTextFrame(R"({"auth":"secret-token"})");
+  ASSERT_EQ(test::SocketWrite(authed, auth.data(), auth.size()),
+            static_cast<ssize_t>(auth.size()));
+  ASSERT_FALSE(ReadTextFrameByType(authed, "auth_ok").empty());
+  int sock = connect_admitted();
+  ASSERT_GE(sock, 0) << "after a successful authentication: " << kNotReturned;
+  // From here on: `authed` (authenticated, holds no slot) plus `sock`.
+
+  // 2. Failed authentication (wrong token): closed with 4001.
+  const std::string wrong = BuildMaskedTextFrame(R"({"auth":"wrong-token"})");
+  ASSERT_EQ(test::SocketWrite(sock, wrong.data(), wrong.size()),
+            static_cast<ssize_t>(wrong.size()));
+  ASSERT_EQ(WaitForActiveConnections(1), 1);
+  test::CloseSocket(sock);
+  sock = connect_admitted();
+  ASSERT_GE(sock, 0) << "after a failed authentication: " << kNotReturned;
+
+  // 3. Client closes with a close frame.
+  const std::string close_frame = BuildMaskedCloseFrame(1000);
+  ASSERT_EQ(test::SocketWrite(sock, close_frame.data(), close_frame.size()),
+            static_cast<ssize_t>(close_frame.size()));
+  ASSERT_EQ(WaitForActiveConnections(1), 1);
+  test::CloseSocket(sock);
+  sock = connect_admitted();
+  ASSERT_GE(sock, 0) << "after the client sent a close frame: " << kNotReturned;
+
+  // 4. Client closes the connection without a close frame (end of stream).
+  test::CloseSocket(sock);
+  ASSERT_EQ(WaitForActiveConnections(1), 1);
+  sock = connect_admitted();
+  ASSERT_GE(sock, 0) << "after the client closed the connection: "
+                     << kNotReturned;
+
+  // 5. Client resets the connection (a read error on the server side).
+  {
+    struct linger reset_on_close;
+    reset_on_close.l_onoff = 1;
+    reset_on_close.l_linger = 0;
+    ASSERT_EQ(setsockopt(sock, SOL_SOCKET, SO_LINGER,
+                         reinterpret_cast<const char*>(&reset_on_close),
+                         sizeof(reset_on_close)),
+              0);
+  }
+  test::CloseSocket(sock);
+  ASSERT_EQ(WaitForActiveConnections(1), 1);
+  sock = connect_admitted();
+  ASSERT_GE(sock, 0) << "after the client reset the connection: "
+                     << kNotReturned;
+
+  // 6. Shutdown.  Read with the loop stopped (the budget is loop-confined):
+  // one slot is held by `sock` before, none after.
+  StopLoopThread();
+  EXPECT_EQ(manager_->preauth_budget().pending(), 1);
+  EXPECT_EQ(manager_->preauth_budget().pending_for("127.0.0.1"), 1);
+  manager_->Stop();
+  EXPECT_EQ(manager_->preauth_budget().pending(), 0);
+  EXPECT_EQ(manager_->preauth_budget().pending_for("127.0.0.1"), 0)
+      << "shutdown did not return the address's pre-auth slot";
+
+  test::CloseSocket(sock);
+  test::CloseSocket(authed);
+}
+
+// The timeout path, with a short auth timeout: each iteration's connection
+// is admitted only if the previous one's timeout returned its slot to the
+// address.  Progress-based: the wait is on the connection count, which drops
+// only after the timeout has closed the connection and released its slot.
+TEST_F(WsManagerTest, PreauthPerAddressSlotReturnedOnTimeout) {
+  ws_config_.auth_token = "secret-token";
+  ws_config_.allow_unauthenticated = false;
+  ws_config_.max_preauth_connections = 16;
+  ws_config_.max_preauth_connections_per_peer = 1;
+  ws_config_.max_connections = 8;
+  ws_config_.auth_timeout_ms = 150;
+  StopLoopThread();
+  manager_->Stop();
+  uv_run(loop_, UV_RUN_NOWAIT);
+  manager_ = std::make_unique<WsManager>(loop_, ws_config_, handler_.get());
+  manager_->SetStatsProvider([]() -> json { return json{{"test", 1}}; });
+  manager_->Start();
+  StartLoopThread();
+  pending_endpoint_ = "stats";
+  // A connection admitted into pre-authentication (it got its 101), or -1
+  // when the upgrade was refused.
+  const auto connect_admitted = [this]() {
+    int s = ConnectRawSocket();
+    if (s < 0) return -1;
+    if (ReadHandshake(s).find("101") == std::string::npos) {
+      test::CloseSocket(s);
+      return -1;
+    }
+    return s;
+  };
+  constexpr const char* kNotReturned =
+      "not admitted: the address's pre-auth slot was not returned";
+
+  for (int i = 0; i < 3; ++i) {
+    const int sock = connect_admitted();
+    ASSERT_GE(sock, 0) << "iteration " << i << ": " << kNotReturned;
+    EXPECT_EQ(WaitForActiveConnections(0), 0) << "iteration " << i;
+    test::CloseSocket(sock);
+  }
+  StopLoopThread();
+  EXPECT_EQ(manager_->preauth_budget().pending_for("127.0.0.1"), 0);
+  StartLoopThread();
+}
+
 // ===================================================================
 // Auth-timeout warning rate limiting
 // ===================================================================
@@ -1949,6 +2566,9 @@ TEST(WsAuthTimeoutWarningIntegrationTest, RepeatedTimeoutsLogOnlyOnce) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
   });
+  // A failed connect below must not leave the loop thread joinable.
+  test::ScopedThreadJoin loop_guard(loop_thread,
+                                    [&running] { running = false; });
 
   // Three connections, none authenticate; each times out in turn (well
   // under the 60s rate-limit window).
@@ -2030,6 +2650,9 @@ TEST(WsAuthTimeoutWarningIntegrationTest, RepeatedRefusalsLogOnlyOnce) {
       std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
   });
+  // A failed connect below must not leave the loop thread joinable.
+  test::ScopedThreadJoin loop_guard(loop_thread,
+                                    [&running] { running = false; });
 
   // First connection: fills the one pre-auth slot and holds it (never
   // authenticates, stays open for the rest of the test).
@@ -2219,17 +2842,19 @@ TEST_F(WsManagerTest, ContinuationFrameClosesConnection) {
 }
 
 // ===================================================================
-// Coverage: Log buffer HWM overflow (lines 711-713)
+// Log stream with a write size smaller than one entry
 // ===================================================================
 
-TEST_F(WsManagerTest, LogBufferOverflow) {
-  // Reconfigure with very small event_hwm to trigger log buffer overflow.
+// event_hwm bounds one log-stream write, not what a client may receive: with
+// a limit below the size of a single entry, every entry still arrives, one
+// per write, in order.  (The limit used to be a per-flush budget, and the
+// entries over it were dropped.)
+TEST_F(WsManagerTest, LogEntriesLargerThanOneWriteAreAllDelivered) {
   StopLoopThread();
   manager_->Stop();
   uv_run(loop_, UV_RUN_NOWAIT);
 
-  ws_config_.event_hwm = 64;        // Very small buffer (shared for logs).
-  ws_config_.event_batch_ms = 500;  // Longer batch to accumulate.
+  ws_config_.event_hwm = 64;  // Smaller than any serialized entry.
 
   manager_ = std::make_unique<WsManager>(loop_, ws_config_, handler_.get());
   manager_->SetStatsProvider([]() -> json { return json{}; });
@@ -2240,21 +2865,19 @@ TEST_F(WsManagerTest, LogBufferOverflow) {
   int sock = ConnectRawSocket();
   ASSERT_GE(sock, 0);
   ReadHandshake(sock);
-  // Read the snapshot.
-  ReadTextFrame(sock);
+  ASSERT_FALSE(ReadTextFrameByType(sock, "snapshot").empty());
 
-  // Flood with log entries exceeding the 64-byte HWM.
   for (int i = 0; i < 50; ++i) {
     manager_->PostLog("info", "worker", "test",
                       "log entry with padding data " + std::to_string(i));
   }
 
-  // Wait for drain.
-  std::this_thread::sleep_for(std::chrono::milliseconds(400));
-
-  // Some messages should have been dropped due to HWM.
-  EXPECT_GT(manager_->metrics().messages_dropped.load(), 0u)
-      << "Some log entries should have been dropped due to HWM";
+  for (uint64_t seq = 1; seq <= 50; ++seq) {
+    json entry = json::parse(ReadTextFrameByType(sock, "log"), nullptr, false);
+    ASSERT_TRUE(entry.is_object()) << "entry " << seq << " did not arrive";
+    EXPECT_EQ(entry["seq"].get<uint64_t>(), seq);
+  }
+  EXPECT_EQ(manager_->metrics().messages_dropped.load(), 0u);
 
   test::CloseSocket(sock);
   std::this_thread::sleep_for(std::chrono::milliseconds(100));

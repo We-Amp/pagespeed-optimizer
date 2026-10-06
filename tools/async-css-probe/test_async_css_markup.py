@@ -21,6 +21,7 @@ import re
 
 import pytest
 from conftest import (
+    CRITICAL_BLOCK_MARKER,
     DEFERRED_LINK_MARKER,
     DEFERRED_SHEET_IS_EARLY_HINT_PROMOTED,
     DEFERS_WITHOUT_A_VALIDATED_PROFILE,
@@ -36,8 +37,11 @@ from conftest import (
     compose_run,
     forced_only,
     gated_only,
+    leading_layer_statement,
     link_headers,
+    names_cascade_layer,
     shipped_only,
+    top_level_layer_order,
 )
 
 
@@ -302,7 +306,7 @@ class TestShippedConfiguration:
         """Stock flags, warm cache, realistic page: does it defer?
 
         IT NO LONGER DOES. It used to, and that was the defect this effort is
-        about: the extractor produces ~25 KB of critical CSS against a ~115 KB
+        about: the extractor produces ~45 KB of critical CSS against a ~115 KB
         sheet — comfortably over the 0.10 coverage floor — so the byte-ratio
         gate permitted the deferral without anything ever having checked that
         the inlined block actually covers the fold. The floor is a proxy, and
@@ -333,6 +337,58 @@ class TestShippedConfiguration:
 
 class TestBothModes:
     """Invariants that must hold whichever way the worker was started."""
+
+    def test_critical_block_placement(self, home_markup, fixture_css_bytes):
+        """The inlined block duplicates rules of the page's sheets, filtered
+        to the fold and to the variant's viewport class. Equal-specificity
+        ties resolve by source order, so a block AFTER a sheet wins them for
+        good once the sheet applies: a responsive override the block dropped
+        loses to the base rule the block kept. So the block goes
+        before every stylesheet source. A layer's position is fixed by its
+        first mention, so a block that names a cascade layer goes first only
+        with an `@layer ...;` statement in front that lists the page's layers
+        in document order, when the worker can prove that order; otherwise it
+        keeps the old placement, after every head stylesheet. This fixture's
+        Tailwind v4 sheet is layered and same-origin, and its inline styles
+        name no layer, so the order is provable and the block must take the
+        statement branch. Either way the block follows <meta charset>, which
+        has to stay in the first 1024 bytes."""
+        blocks = home_markup.critical_block_positions()
+        assert len(blocks) == 1, (
+            f"expected exactly one <style {CRITICAL_BLOCK_MARKER}>, found {len(blocks)}"
+        )
+        block = blocks[0]
+        sources = home_markup.stylesheet_source_positions()
+        assert sources, "the served page has no stylesheet source at all"
+        assert any(
+            FIXTURE_CSS_PATH in (home_markup.elements[i].attrs.get("href") or "")
+            for i in sources
+        ), "the fixture stylesheet is not among the page's stylesheet sources"
+        els = home_markup.elements
+        text = els[block].text
+        statement = leading_layer_statement(text)
+        if names_cascade_layer(text) and statement is None:
+            pytest.fail(
+                "the critical block names a cascade layer but carries no "
+                "layer-order statement, so it took the old placement; this "
+                "fixture's layer order is provable (one same-origin layered "
+                "sheet, no layered inline style)"
+            )
+        if statement is not None:
+            expected = top_level_layer_order(fixture_css_bytes.decode("utf-8"))
+            assert statement == expected, (
+                f"layer-order statement {statement} is not the fixture "
+                f"sheet's order {expected}"
+            )
+        misplaced = [els[i] for i in sources if i < block]
+        assert not misplaced, (
+            "the critical block must precede every stylesheet source; "
+            f"these come before it: {misplaced}"
+        )
+        charset = [i for i, e in enumerate(els) if e.tag == "meta" and e.has("charset")]
+        assert charset and all(i < block for i in charset), (
+            "the critical block moved ahead of <meta charset>"
+        )
 
     def test_page_is_optimized_at_all(self, optimized_home):
         assert optimized_home.status_code == 200

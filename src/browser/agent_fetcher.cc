@@ -474,9 +474,23 @@ CurlSpawnOutcome PosixCurlSpawn(const std::vector<std::string>& argv,
   }
   c_env.push_back(nullptr);
 
+  // The daemon ignores SIGPIPE, and an ignored disposition is inherited
+  // across exec.  curl is an ordinary command-line tool whose output is a
+  // pipe to this process: give it back the default disposition, so it runs
+  // exactly as it would from a shell rather than with a signal state it was
+  // never started with before.
+  posix_spawnattr_t attr;
+  posix_spawnattr_init(&attr);
+  sigset_t default_signals;
+  sigemptyset(&default_signals);
+  sigaddset(&default_signals, SIGPIPE);
+  posix_spawnattr_setsigdefault(&attr, &default_signals);
+  posix_spawnattr_setflags(&attr, POSIX_SPAWN_SETSIGDEF);
+
   pid_t pid = -1;
-  int r = posix_spawnp(&pid, "curl", &actions, nullptr, c_argv.data(),
-                       c_env.data());
+  int r =
+      posix_spawnp(&pid, "curl", &actions, &attr, c_argv.data(), c_env.data());
+  posix_spawnattr_destroy(&attr);
   posix_spawn_file_actions_destroy(&actions);
   close(pipefd[1]);
 

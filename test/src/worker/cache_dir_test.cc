@@ -132,7 +132,7 @@ TEST_F(CacheDirTest, ForeignOwnedVolumeFileIsRefused) {
             CacheDirStatus::kForeignOwned);
   // The log detail must name the offending file and both uids.
   EXPECT_NE(detail.find("cache-6-0123456789abcdef"), std::string::npos);
-  ::chown(victim.c_str(), geteuid(), -1);
+  EXPECT_EQ(0, ::chown(victim.c_str(), geteuid(), -1));
 }
 
 TEST_F(CacheDirTest, ForeignOwnedSidecarIsRefused) {
@@ -144,7 +144,7 @@ TEST_F(CacheDirTest, ForeignOwnedSidecarIsRefused) {
   std::string detail;
   EXPECT_EQ(ValidateCacheDir(tmp_dir_.string(), "cache", &detail),
             CacheDirStatus::kForeignOwned);
-  ::chown(victim.c_str(), geteuid(), -1);
+  EXPECT_EQ(0, ::chown(victim.c_str(), geteuid(), -1));
 }
 
 TEST_F(CacheDirTest, ForeignOwnedUnrelatedFileIsTolerated) {
@@ -167,7 +167,7 @@ TEST_F(CacheDirTest, ForeignOwnedUnrelatedFileIsTolerated) {
             CacheDirStatus::kOk)
       << detail;
 
-  ::chown(bystander.c_str(), geteuid(), -1);
+  EXPECT_EQ(0, ::chown(bystander.c_str(), geteuid(), -1));
   ::rmdir(lost.c_str());
 }
 #endif

@@ -79,8 +79,10 @@ SRI-bearing stylesheet in the fixture — worth adding whenever the capture is n
 refreshed.
 
 `shipped` is a characterization test, not a wish. This page used to defer under
-stock flags: the extractor produces ~25 KB of critical CSS against the fixture's
-~115 KB sheet, which clears the 0.10 byte-ratio floor, so deferral was permitted
+stock flags: the extractor produces ~45 KB of critical CSS against ~118 KB of
+combined CSS (the fixture's 115 KB sheet plus the page's inline styles; the
+block was ~25 KB before the fold budget was counted from `<body>`), which
+clears the 0.10 byte-ratio floor, so deferral was permitted
 although nothing had checked that the inlined block covers the fold. That was the
 defect the wider effort is about. Deferral now additionally requires a validated
 profile whose stylesheet hash still matches the sheet being served; this fixture
@@ -126,6 +128,67 @@ a pixel differs when any channel differs by more than `kChannelTolerance = 2`,
 and the verdict is the differing-pixel ratio against `kDefaultThreshold = 0.005`
 (`src/browser/visual_regression_gate.h`). Lane and product agree by construction.
 
+Each viewport is rendered as its device class, so each is served the variant,
+and the critical block, a visitor of that class gets. The front end picks the
+class from the User-Agent (`ParseViewport` in
+`lib/classify/capability_mask.cc`): the mobile viewport sends an Android phone
+Chrome UA (`Android` + `Mobile`, so `kMobile`), the tablet an Android tablet
+Chrome UA (`Android` without `Mobile`, so `kTablet`; iPadOS Safari sends a
+desktop `Macintosh` UA and would land in `kDesktop`), and the desktop keeps
+Playwright's own UA. Until the unsized-media fix every viewport sent the desktop UA and
+was served the desktop block. Since User-Agent emulation the product's renders send the
+same phone and tablet UAs, and both read them from
+`src/browser/device_emulation.json` (`user_agent_overrides`; a mobile viewport
+at most `phone_max_width` px wide is the phone): the lane sets Playwright's
+`userAgent` and repeats the product's exact `Emulation.setUserAgentOverride`
+call (UA string, `navigator.platform`, client hints) on the page's CDP session.
+
+The layout mode is the product's own, from one file: every analysis render
+sets its device metrics from `src/browser/device_emulation.json` (through
+`src/browser/device_emulation.h`, which `device_emulation_test` holds equal to
+the file), and the rendered lane reads the same file. A viewport at most
+`mobile_max_width` (768) px wide renders as a mobile device (`isMobile`):
+Chromium honours the meta viewport and widens the layout viewport when the
+document overflows, as a phone or a tablet in portrait does. Without it an
+overflow only adds a scrollbar outside the screenshot, which is how an overflow far below
+the fold once went unseen. Wider viewports render as a desktop window. A mobile device is also a
+touch device (`mobile_has_touch`): `hasTouch`, plus the product's
+exact `Emulation.setTouchEmulationEnabled` call with `max_touch_points` on the
+page's CDP session, so `(hover: none)` and `(pointer: coarse)` match on the
+phone and the tablet and `(hover: hover)` / `(pointer: fine)` do not, as in the
+product's renders and on a visitor's phone; the desktop has no touch. Before
+measuring, the lane checks that the served page sees what the product's render
+of that class sees (`assertDeviceParity`): the four hover/pointer queries,
+`navigator.maxTouchPoints`, `'ontouchstart' in window`, the UA string and
+`navigator.platform`, and `navigator.userAgentData.mobile` / `.platform` where
+the page is a secure context (the nightly serves plain http, so not there); a
+mismatch is an infrastructure failure, not a finding. The nightly mounts the
+file into the container (`PROBE_DEVICE_EMULATION`), since only this directory
+is mounted otherwise.
+
+Since the tablet-as-mobile change the tablet renders as a mobile device too (it rendered as a
+desktop window before, as the product did). That moved one golden,
+`fold-tablet.png`, by 0.01111 (8,735 px): the fixture's `hidden md:flex` nav
+row (`md:flex` applies from 768 px) is 776 px wide, wider than the tablet, so
+the document is 800 px wide. A desktop window keeps its 768 px layout viewport
+and the nav overflows into a horizontal scroll; a mobile device widens the
+layout viewport to 801 px. The page itself stays at device width (body,
+header, main and the h1 sit at the same pixels in both modes); what moves is
+the fixture's two `position: fixed` bottom-right buttons, which anchor to the
+widened 801×1067 layout viewport and shift about 33 px right and 43 px down,
+half off-screen (6,978 of the differing pixels). The rest is glyph
+anti-aliasing on the nav labels. With that nav hidden the two modes render
+byte-identically (0 px), and
+so do the regenerated `fold-mobile.png` and `fold-desktop.png` (dropping
+`hasTouch` from the phone changed nothing). Touch emulation turned touch back on
+for the phone and the tablet; the fixture has no hover/pointer media query
+that paints the fold differently, so the goldens are expected to hold.
+User-Agent emulation changed the phone's and the tablet's UA strings to the product's
+(Chrome's reduced Android form, `Android 10; K`, instead of a Pixel 8 and a
+Galaxy Tab) and added `navigator.platform` and client hints; they classify to
+the same classes, and nothing in the fixture reads the UA, the platform or
+`ontouchstart`, so the goldens are expected to hold as well.
+
 **Regenerate only inside the pinned image**, or the goldens encode a different
 Chrome's rasterization:
 
@@ -136,9 +199,11 @@ NET=$(docker network ls --filter name=async-css-probe --format '{{.Name}}' | hea
 docker run --rm --network="$NET" \
   --user "$(id -u):$(id -g)" -e HOME=/tmp -e npm_config_cache=/tmp/.npm \
   -v "$PWD/tools/async-css-probe":/probe -w /tmp \
+  -v "$PWD/src/browser/device_emulation.json":/device_emulation.json:ro \
   -e PROBE_BASE_URL=http://nginx:8080 \
   -e PROBE_GOLDEN_DIR=/probe/goldens \
   -e PROBE_PRIMITIVE=/probe/primitive.json \
+  -e PROBE_DEVICE_EMULATION=/device_emulation.json \
   -e ASYNC_CSS_PROBE_REGENERATE_GOLDENS=1 \
   mcr.microsoft.com/playwright:v1.58.2-noble \
   bash -c 'npm install --no-save --no-audit --no-fund --silent playwright@1.58.2 pngjs@7 >/dev/null 2>&1 \
@@ -164,7 +229,8 @@ goldens regenerated inside that pinned image, and 30 consecutive clean nightlies
 Until then a finding opens or refreshes one tracking issue
 (`async-css-probe-finding`) and uploads the `async-css-probe-evidence` artifact;
 the next clean run closes it. A cross-Chrome-version pixel diff on a blocking
-check is a flake generator.
+check is a flake generator. Only scheduled runs on the default branch count toward
+the 30.
 
 ## Rendered lane: how the flash window is reconstructed
 
@@ -219,16 +285,47 @@ hunts.
   sufficiency gate so there is deferred markup to render at all; the findings
   file records the worker argv it measured against.
 
-> The nightly workflow's header comment still states the old "every font and
-> fold image 404s" limitation. It is stale as of this change and corrected on
-> the next PR that touches the nightly probe lane;
-> this file and `probe_rendered.mjs` are the current text.
+### Reading a finding: what did the extractor inline?
+
+The rendered lane measures the fold with only the inlined critical block
+applying, so the first question a flash finding raises is what that block
+contains. `dump_critical_css` prints it without a stack: the same scanner,
+the same combined-stylesheet assembly and the same extractor the worker runs
+when no browser profile exists (the probe stack has no browser, so that is
+always its case).
+
+```bash
+bazel build //tools/async-css-probe:dump_critical_css
+bazel-bin/tools/async-css-probe/dump_critical_css \
+  --fixture tools/async-css-probe/fixtures/modpagespeed-com \
+  --viewport desktop > critical.css        # stats on stderr
+```
+
+Two more fixtures exist for block-size comparisons across CSS frameworks,
+not for the rendered lane: `fixtures/bootstrap-5.3.3` (stock
+`bootstrap.min.css` 5.3.3 from jsDelivr, sha256
+`3c8f27e6009ccfd710a905e6dcf12d0ee3c6f2ac7da05b0572d3e0d12e736fc8`, with a
+navbar / hero / cards page) and `fixtures/tailwind-v3` (a landing page and the
+`tailwind.css` that `npx tailwindcss@3.4.17 --minify` generates for it from
+the three `@tailwind` directives and a default config). Both CSS files are
+MIT and keep their license comments. `--max-wholesale-media-bytes N`
+overrides the extractor's wholesale threshold for an @media block.
+
+That is how the first three months of findings were read: the block carried
+the sheet's `@font-face` rules and the whole `@property`/theme boilerplate but
+not one utility rule of the fold, because the element budget was counted
+from `<html>` and this page's `<body>` is element 42. Splice a candidate block
+into a served page with the deferred `<link>` left as `rel="preload"` and no
+loader, and the pinned image renders the flash state of that block directly.
 
 ### Warm-up (rendered lane)
 
-The lane pre-warms **once**, before the viewport loop, with a 180-second budget,
-and it warms over **plain HTTP** — the markup lane's exact sequence — before
-confirming through the browser.
+The lane pre-warms **once**, before the viewport loop, and it warms over
+**plain HTTP** — the markup lane's exact sequence — before confirming through
+the browser. It does so for each device class in turn (each class's User-Agent
+is its own variant, so warming one warms nothing the others are served),
+within one 180-second budget shared by all three: the first class pays for the
+stylesheet and the cold optimizer, the others usually take a few seconds.
 
 That ordering is the finding, and it is not the obvious one. The optimizer
 produces one variant per capability mask, and on a cold stack **the browser's own

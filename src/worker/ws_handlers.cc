@@ -87,6 +87,36 @@ int64_t SteadyNowMs() {
       .count();
 }
 
+// The per-peer pre-authentication key: the numeric remote address of a TCP
+// transport.  A transport without a peer address (the unix socket, whose
+// filesystem permissions already gate who can connect at all) gets an empty
+// key and counts against the global pre-auth bound only.
+std::string PreauthPeerKey(const uv_stream_t* handle) {
+  if (handle->type != UV_TCP) return "";
+  struct sockaddr_storage addr;
+  int len = sizeof(addr);
+  if (uv_tcp_getpeername(reinterpret_cast<const uv_tcp_t*>(handle),
+                         reinterpret_cast<struct sockaddr*>(&addr),
+                         &len) != 0) {
+    return "";
+  }
+  char name[INET6_ADDRSTRLEN];
+  if (addr.ss_family == AF_INET) {
+    if (uv_ip4_name(reinterpret_cast<const struct sockaddr_in*>(&addr), name,
+                    sizeof(name)) != 0) {
+      return "";
+    }
+  } else if (addr.ss_family == AF_INET6) {
+    if (uv_ip6_name(reinterpret_cast<const struct sockaddr_in6*>(&addr), name,
+                    sizeof(name)) != 0) {
+      return "";
+    }
+  } else {
+    return "";
+  }
+  return name;
+}
+
 // 64 random bits as 16 lowercase hex digits (two 32-bit draws).
 std::string NewLogStreamId() {
   std::random_device random;
@@ -162,12 +192,17 @@ struct WsConnection {
   bool timers_initialized = false;
   bool authenticated = false;
   bool auth_required = false;
-  // True while this connection is counted in manager->preauth_pending_.
+  // True while this connection is counted in manager->preauth_budget_.
   // Set at most once (in AcceptUpgrade, when auth_required is true) and
   // cleared at most once (in HandleAuthMessage on successful auth, or in
-  // CloseWs otherwise) so the budget is decremented exactly once per
+  // CloseWs otherwise) so the budget is released exactly once per
   // connection regardless of which of those paths runs.
   bool counted_preauth = false;
+  // The peer key the pre-auth slot was acquired under (empty for a
+  // transport without a peer address); meaningful only while
+  // counted_preauth is set, and handed back to the budget where that flag
+  // is cleared.
+  std::string preauth_peer_key;
   std::string endpoint;  // "stats", "events", or "logs"
   int stats_interval_ms = 0;
 
@@ -175,9 +210,14 @@ struct WsConnection {
   std::string event_buffer;
   size_t event_buffer_bytes = 0;
 
-  // Per-client log buffer (logs endpoint only).
-  std::vector<json> log_buffer;
-  size_t log_buffer_bytes = 0;
+  // Log stream position (logs endpoint only): the count of entries this
+  // client has been sent or had accounted dropped by an overflow marker.
+  // Positions count entries and seqs start at 1, so the next entry sent
+  // carries seq log_next_seq + 1.  Nothing is buffered per client -- entries
+  // are read from the manager's ring, at most one log write at a time, and
+  // the next write starts when the previous one completes (PumpLogStream).
+  uint64_t log_next_seq = 0;
+  bool log_write_in_flight = false;
 
   // Write backpressure: track pending writes to prevent memory exhaustion
   // from slow-reading clients.
@@ -195,6 +235,8 @@ struct WsWriteContext {
   uv_buf_t buf;
   WsConnection* conn;
   std::string data;
+  // A PumpLogStream write: paced by log_write_in_flight, not pending_writes.
+  bool log_chunk = false;
 };
 
 // ---------------------------------------------------------------------------
@@ -321,26 +363,41 @@ void WsManager::AcceptUpgrade(uv_stream_t* handle, std::string_view endpoint,
   // refuse the upgrade the same way the max_connections cap above does.
   const bool needs_preauth = !tokenless_open && !read_open_applies;
 
-  if (needs_preauth && preauth_pending_ >= config_.max_preauth_connections) {
-    // Reject: too many connections already waiting for in-band auth.  Rate
+  // The budget's per-peer dimension keys on the remote address; the key is
+  // stored on the connection at acquire time so the exactly-once release
+  // (HandleAuthMessage or CloseWs) returns the slot under the same key.
+  std::string preauth_peer_key =
+      needs_preauth ? PreauthPeerKey(handle) : std::string();
+
+  const WsPreauthBudget::Verdict preauth_verdict =
+      needs_preauth ? preauth_budget_.TryAcquire(preauth_peer_key)
+                    : WsPreauthBudget::Verdict::kAdmitted;
+  if (preauth_verdict != WsPreauthBudget::Verdict::kAdmitted) {
+    // Reject: too many connections already waiting for in-band auth; the
+    // verdict names the bound that tripped, and so does the warning.  Rate
     // limit this warning the same way the auth-timeout one is limited (its
     // own instance, since the two trips are independent and this one has no
     // 2s wait to slow it down): a refused upgrade costs the client nothing,
     // so unlike a timeout the rate of these lines is bounded only by how
     // fast upgrades arrive.
+    const bool per_peer =
+        preauth_verdict == WsPreauthBudget::Verdict::kRefusedPerPeer;
+    const char* bound_label = per_peer ? "per-peer" : "global";
+    const int bound_value = per_peer ? config_.max_preauth_connections_per_peer
+                                     : config_.max_preauth_connections;
     std::optional<int> suppressed =
         preauth_reject_warning_limiter_.RecordTimeout(SteadyNowMs());
     if (suppressed.has_value()) {
       if (*suppressed > 0) {
         handler_->Warning(
-            "WS: max connections awaiting authentication (%d) reached, "
-            "rejecting upgrade (%d more since the last report)",
-            config_.max_preauth_connections, *suppressed);
+            "WS: max connections awaiting authentication (%s limit %d) "
+            "reached, rejecting upgrade (%d more since the last report)",
+            bound_label, bound_value, *suppressed);
       } else {
         handler_->Warning(
-            "WS: max connections awaiting authentication (%d) reached, "
-            "rejecting upgrade",
-            config_.max_preauth_connections);
+            "WS: max connections awaiting authentication (%s limit %d) "
+            "reached, rejecting upgrade",
+            bound_label, bound_value);
       }
     }
     uv_close(reinterpret_cast<uv_handle_t*>(handle), [](uv_handle_t* h) {
@@ -358,8 +415,8 @@ void WsManager::AcceptUpgrade(uv_stream_t* handle, std::string_view endpoint,
   conn->auth_required = needs_preauth;
   conn->authenticated = tokenless_open || read_open_applies;
   if (conn->auth_required) {
-    ++preauth_pending_;
     conn->counted_preauth = true;
+    conn->preauth_peer_key = std::move(preauth_peer_key);
   }
   conn->stats_interval_ms =
       (interval_ms > 0) ? std::clamp(interval_ms, config_.stats_min_interval_ms,
@@ -701,11 +758,30 @@ void WsManager::OnRead(uv_stream_t* stream, ssize_t nread,
 void WsManager::OnWriteDone(uv_write_t* req, int status) {
   auto* wctx = reinterpret_cast<WsWriteContext*>(req);
   WsConnection* conn = wctx->conn;
+  const bool log_chunk = wctx->log_chunk;
   delete wctx;
-  if (conn != nullptr) conn->pending_writes--;
+  if (conn == nullptr) return;
+  if (log_chunk) {
+    conn->log_write_in_flight = false;
+  } else {
+    conn->pending_writes--;
+  }
   // Close connection on write error (broken pipe, reset, etc.).
-  if (status < 0 && (conn != nullptr) && !conn->closing) {
-    conn->manager->CloseWs(conn, 0);
+  if (status < 0) {
+    if (!conn->closing) conn->manager->CloseWs(conn, 0);
+    return;
+  }
+  if (log_chunk && !conn->closing) {
+    // The client took the previous chunk: send what the ring holds for it
+    // now.  Last-resort net; see OnAsyncEvent.
+    WsManager* self = conn->manager;
+    try {
+      self->PumpLogStream(conn);
+      self->TrimLogFrames();
+    } catch (const std::exception&) {
+      self->handler_->Warning(
+          "WS: dropping log batch flush after a serialization error");
+    }
   }
 }
 
@@ -800,7 +876,7 @@ void WsManager::HandleAuthMessage(WsConnection* conn,
   conn->authenticated = true;
   uv_timer_stop(&conn->auth_timer);
   if (conn->counted_preauth) {
-    --preauth_pending_;
+    preauth_budget_.Release(conn->preauth_peer_key);
     conn->counted_preauth = false;
   }
 
@@ -877,7 +953,7 @@ void WsManager::CloseWs(WsConnection* conn, uint16_t code) {
   // in HandleAuthMessage instead and clears the flag, so this is a no-op
   // there.
   if (conn->counted_preauth) {
-    --preauth_pending_;
+    preauth_budget_.Release(conn->preauth_peer_key);
     conn->counted_preauth = false;
   }
 
@@ -932,6 +1008,8 @@ void WsManager::RemoveConnection(WsConnection* conn) {
     metrics_.stats_connections.fetch_sub(1, std::memory_order_relaxed);
   } else if (conn->endpoint == "logs") {
     metrics_.logs_connections.fetch_sub(1, std::memory_order_relaxed);
+    // Frames kept only for this client are no longer needed.
+    TrimLogFrames();
   } else {
     metrics_.events_connections.fetch_sub(1, std::memory_order_relaxed);
   }
@@ -993,29 +1071,21 @@ void WsManager::DrainPendingLogs() {
     // thread: ordering is the ring order by construction, no atomic is
     // needed, the retained seqs stay contiguous, and entries shed at a full
     // pending queue (PostLog's drop path) never receive one -- so a reader
-    // never sees a phantom gap.
-    entry["seq"] = log_total_;
+    // never sees a phantom gap.  Seqs start at 1, never 0: an empty ring's
+    // page reports next_since 0, and 0 must stay a valid "from the
+    // beginning" cursor rather than skip the first entry (seq > since).
+    entry["seq"] = ++log_total_;
     // Append to ring buffer, evicting oldest if at capacity.
     if (log_ring_.size() >= kMaxLogRingSize) {
       log_ring_.pop_front();
+      log_frames_.pop_front();
     }
-    log_ring_.push_back(entry);
-    ++log_total_;
-
-    // Buffer into each logs connection.
-    for (auto* conn : connections_) {
-      if (conn->closing || !conn->authenticated) continue;
-      if (conn->endpoint != "logs") continue;
-
-      std::string serialized = DumpLog(entry);
-      if (conn->log_buffer_bytes + serialized.size() > config_.event_hwm) {
-        metrics_.messages_dropped.fetch_add(1, std::memory_order_relaxed);
-        continue;
-      }
-      conn->log_buffer_bytes += serialized.size();
-      conn->log_buffer.push_back(entry);
-    }
+    log_ring_.push_back(std::move(entry));
+    log_frames_.emplace_back();
   }
+  // Stream clients are not touched here: each one reads the ring from its
+  // own position when the batch timer fires (FlushLogBatch), so a drain
+  // costs the same with or without clients.
 }
 
 void WsManager::OnLogBatchTimer(uv_timer_t* timer) {
@@ -1030,22 +1100,131 @@ void WsManager::OnLogBatchTimer(uv_timer_t* timer) {
 }
 
 void WsManager::FlushLogBatch() {
-  for (auto* conn : connections_) {
+  // A copy: a failed write closes its connection, which edits connections_.
+  const std::vector<WsConnection*> conns = connections_;
+  for (auto* conn : conns) {
+    PumpLogStream(conn);
+  }
+  TrimLogFrames();
+}
+
+// Sends `conn` the entries the ring holds from its position on, oldest
+// first, as one write of whole frames -- one text frame per entry, the shape
+// clients have always received.  A write carries at most config_.event_hwm
+// bytes (but always at least one frame), and the next one starts only when
+// this one completes (OnWriteDone), so a client is sent data as fast as it
+// reads and the memory held for it is one chunk.
+//
+// Nothing the ring still holds is ever skipped.  A client that reads so
+// slowly that entries left the ring before they could be sent gets one
+// "overflow" message naming exactly those entries (first_seq..last_seq,
+// dropped_count of them), and the stream continues with the oldest entry the
+// ring still has.  GET /v1/logs reports the same loss as `gap`.
+void WsManager::PumpLogStream(WsConnection* conn) {
+  if (conn->closing || !conn->authenticated) return;
+  if (conn->endpoint != "logs") return;
+  if (conn->log_write_in_flight) return;
+  if (conn->log_next_seq >= log_total_) return;
+
+  // Positions, not wire seqs: a position counts the entries before a point
+  // (seqs start at 1, so the ring's front carries seq oldest_seq + 1 and the
+  // newest entry's seq is log_total_).  Only the overflow marker below
+  // converts to true seqs.
+  const uint64_t oldest_seq = log_total_ - log_ring_.size();
+  std::string chunk;
+  uint64_t messages = 0;
+  // The position and the drop count are worked out on the side and committed
+  // only once the whole chunk exists: if building it fails part-way, the
+  // client's state is untouched and the next flush starts over from the same
+  // entry, marker included.
+  uint64_t next_seq = conn->log_next_seq;
+  uint64_t dropped = 0;
+
+  if (next_seq < oldest_seq) {
+    dropped = oldest_seq - next_seq;
+    json overflow;
+    overflow["type"] = "overflow";
+    overflow["dropped_count"] = dropped;
+    // Positions count entries and seqs start at 1, so the dropped range in
+    // true seqs is next_seq + 1 .. oldest_seq -- and the stream then
+    // continues at last_seq + 1, as documented.
+    overflow["first_seq"] = next_seq + 1;
+    overflow["last_seq"] = oldest_seq;
+    chunk = WsBuildTextFrame(DumpLog(overflow));
+    ++messages;
+    next_seq = oldest_seq;
+  }
+
+  while (next_seq < log_total_) {
+    const std::string& frame =
+        LogFrame(static_cast<size_t>(next_seq - oldest_seq));
+    if (!chunk.empty() && chunk.size() + frame.size() > config_.event_hwm) {
+      break;
+    }
+    chunk.append(frame);
+    ++messages;
+    ++next_seq;
+  }
+
+  auto* wctx = new WsWriteContext;
+  wctx->conn = conn;
+  wctx->data = std::move(chunk);
+  wctx->buf = uv_buf_init(wctx->data.data(), wctx->data.size());
+  wctx->log_chunk = true;
+
+  conn->log_next_seq = next_seq;
+  if (dropped > 0) {
+    metrics_.messages_dropped.fetch_add(dropped, std::memory_order_relaxed);
+  }
+  conn->log_write_in_flight = true;
+
+  int r = uv_write(&wctx->req, reinterpret_cast<uv_stream_t*>(conn->handle),
+                   &wctx->buf, 1, OnWriteDone);
+  if (r != 0) {
+    conn->log_write_in_flight = false;
+    delete wctx;
+    CloseWs(conn, 0);
+    return;
+  }
+  metrics_.messages_sent.fetch_add(messages, std::memory_order_relaxed);
+}
+
+// The text frame for log_ring_[index], built the first time a stream client
+// needs it and reused for every other client: an entry is serialized for the
+// stream at most once, however many clients are connected, and not at all
+// when none is.
+const std::string& WsManager::LogFrame(size_t index) {
+  std::string& frame = log_frames_[index];
+  if (frame.empty()) {
+    frame = WsBuildTextFrame(DumpLog(log_ring_[index]));
+    metrics_.log_entries_serialized.fetch_add(1, std::memory_order_relaxed);
+  }
+  return frame;
+}
+
+// Frees the frames no stream client will ask for again: those below the
+// position of the client furthest behind (a new client starts at the newest
+// entry, after its snapshot), or all of them when no client is connected.
+// What stays is bounded by the ring: at most one frame per retained entry.
+void WsManager::TrimLogFrames() {
+  uint64_t needed_from = log_total_;
+  for (const auto* conn : connections_) {
     if (conn->closing || !conn->authenticated) continue;
     if (conn->endpoint != "logs") continue;
-    if (conn->log_buffer.empty()) continue;
-
-    // Send individual log entries (not batched array — matches
-    // frontend protocol expectation).
-    for (auto& entry : conn->log_buffer) {
-      SendText(conn, DumpLog(entry));
-    }
-    conn->log_buffer.clear();
-    conn->log_buffer_bytes = 0;
+    needed_from = std::min(needed_from, conn->log_next_seq);
   }
+  const uint64_t oldest_seq = log_total_ - log_ring_.size();
+  for (uint64_t seq = std::max(log_frames_trimmed_to_, oldest_seq);
+       seq < needed_from; ++seq) {
+    std::string().swap(log_frames_[static_cast<size_t>(seq - oldest_seq)]);
+  }
+  log_frames_trimmed_to_ = std::max(log_frames_trimmed_to_, needed_from);
 }
 
 void WsManager::SendLogSnapshot(WsConnection* conn) {
+  // The snapshot carries everything up to here; the live stream continues
+  // with the next entry drained.
+  conn->log_next_seq = log_total_;
   json snapshot;
   snapshot["type"] = "snapshot";
   snapshot["entries"] = json::array();

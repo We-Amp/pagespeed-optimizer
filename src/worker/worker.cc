@@ -70,6 +70,7 @@
 #include "src/worker/html_scanner.h"
 #include "src/worker/html_transform_filter.h"
 #include "src/worker/http_server.h"
+#include "src/worker/layer_order_sources.h"
 #include "src/worker/llms_txt_builder.h"
 #include "src/worker/pipe_dacl.h"
 #include "src/worker/posix_compat.h"
@@ -103,6 +104,30 @@ const char* CooldownReasonToString(CooldownReason r) {
 }
 
 namespace {
+
+// True when two page URLs name the same page for the purpose of a template's
+// validation record. By the time the serve path compares, notification.url is
+// the normalized path-and-query form, and the record's analyzed_url is the
+// notification URL the analysis was queued with (the same form), so both are
+// compared as path and query: any scheme and authority are dropped, and so is
+// a fragment. The profile carries no host, so two hosts sharing a template and
+// a path compare equal; the per-template revalidation budget bounds that.
+bool IsAnalyzedPage(std::string_view url, std::string_view analyzed_url) {
+  auto path_and_query = [](std::string_view u) {
+    size_t scheme_end = u.find("://");
+    if (scheme_end != std::string_view::npos) {
+      u.remove_prefix(scheme_end + 3);
+      size_t path = u.find_first_of("/?");
+      u = path == std::string_view::npos ? std::string_view("/")
+                                         : u.substr(path);
+    }
+    size_t fragment = u.find('#');
+    if (fragment != std::string_view::npos) u = u.substr(0, fragment);
+    return u;
+  };
+  return !analyzed_url.empty() &&
+         path_and_query(url) == path_and_query(analyzed_url);
+}
 
 // Minimal RAII scope-exit guard (the abseil cleanup utility is not vendored
 // in this tree).  Runs the wrapped callable when the guard goes out of scope,
@@ -1496,7 +1521,8 @@ bool Worker::Initialize() {
                   scan_result, n, *cfg, /*count_lookups=*/false);
               return BrowserAnalysisManager::CombinedCss{
                   std::move(built.css), built.external_css_missing,
-                  built.revalidatable_css_missing};
+                  built.revalidatable_css_missing,
+                  std::move(built.layer_order)};
             });
       }
     }
@@ -2787,19 +2813,24 @@ void Worker::SetWriteFailureCooldown(const std::string& url,
 }
 
 void Worker::RegisterIntegrityPinnedUrls(
-    const std::vector<std::string>& raw_urls,
-    const CacheNotification& notification) {
+    const HtmlScanResult& scan_result, const CacheNotification& notification) {
+  const std::vector<std::string>& raw_urls = scan_result.integrity_pinned_urls;
   if (raw_urls.empty()) return;
-  std::string_view page_dir = UrlDirectory(notification.url);
+  const DocumentBase document_base =
+      DocumentBaseOf(notification.url, scan_result, notification.hostname,
+                     notification.scheme);
   for (const auto& raw : raw_urls) {
     if (raw.empty()) continue;
     // Same resolution as the critical-CSS stylesheet lookup: resolve
-    // against the page, normalize, and key by the subresource's own
-    // hostname (falling back to the page hostname for relative URLs).
-    std::string resolved = ResolvePath(page_dir, raw);
+    // against the document base (the page, or its <base href>), normalize,
+    // and key by the subresource's own hostname (falling back to the page
+    // hostname for relative URLs).
+    std::string resolved = ResolveAgainstBase(document_base, raw);
     // Protocol-relative references ("//host/path") inherit the page's
-    // scheme; without it NormalizeCacheUrl/UrlHostname can't split
-    // hostname from path and the pin key would never match.
+    // scheme (ResolveAgainstBase gives them the document's; this is the
+    // fallback for a page URL without one); without it
+    // NormalizeCacheUrl/UrlHostname can't split hostname from path and the
+    // pin key would never match.
     if (resolved.starts_with("//")) {
       resolved = absl::StrCat(notification.scheme, ":", resolved);
     }
@@ -2905,16 +2936,22 @@ bool OriginalSlotCountsAsNoSavingsSkip(const MultiTranscodeResult& multi) {
 
 std::vector<DeclineTombstoneRecord> ParseDeclineTombstone(
     std::string_view blob, const std::array<std::byte, 32>& source_hash) {
-  // [1B version][32B hash][1B count][count x (1B slot, 1B quality)].
-  // Malformed input, an unknown future version, or a different source
-  // hash all read as "no tombstone": the reader re-runs the ladder rather
-  // than guessing (fail-open costs recompute, never correctness).
-  constexpr size_t kHeaderSize = 1 + 32 + 1;
+  // [1B version][1B search generation][32B hash][1B count]
+  // [count x (1B slot, 1B quality)].
+  // Malformed input, an unknown future version, a refusal recorded by a
+  // different quality search, or a different source hash all read as "no
+  // tombstone": the reader re-runs the ladder rather than guessing
+  // (fail-open costs recompute, never correctness).
+  constexpr size_t kHeaderSize = 1 + 1 + 32 + 1;
   if (blob.size() < kHeaderSize) return {};
   const auto* bytes = reinterpret_cast<const uint8_t*>(blob.data());
   if (bytes[0] != kDeclineTombstoneFormatVersion) return {};
-  if (std::memcmp(bytes + 1, source_hash.data(), 32) != 0) return {};
-  const size_t count = bytes[33];
+  // A refusal is only as good as the search that produced it: a variant an
+  // older search could not reach may be reachable now, so its refusals
+  // must not keep suppressing the slot.
+  if (bytes[1] != kVerifyQualitySearchVersion) return {};
+  if (std::memcmp(bytes + 2, source_hash.data(), 32) != 0) return {};
+  const size_t count = bytes[34];
   if (blob.size() != kHeaderSize + count * 2) return {};
   std::vector<DeclineTombstoneRecord> records;
   records.reserve(count);
@@ -2929,8 +2966,9 @@ std::string EncodeDeclineTombstone(
     const std::array<std::byte, 32>& source_hash,
     const std::vector<DeclineTombstoneRecord>& records) {
   std::string blob;
-  blob.reserve(1 + 32 + 1 + records.size() * 2);
+  blob.reserve(1 + 1 + 32 + 1 + records.size() * 2);
   blob.push_back(static_cast<char>(kDeclineTombstoneFormatVersion));
+  blob.push_back(static_cast<char>(kVerifyQualitySearchVersion));
   blob.append(reinterpret_cast<const char*>(source_hash.data()), 32);
   // The slot space is 3 formats x 3 viewports x 2 densities x 2 save-data
   // = 36 records, far under the uint8 count ceiling; clamp defensively.
@@ -3127,7 +3165,10 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
   // was on must not keep suppressing its slot after verification is
   // turned off -- that slot would now fill, so the consult is skipped
   // and the ladder re-runs, which makes the tombstone self-invalidating
-  // for this config axis.
+  // for this config axis. The stored quality-search generation is the
+  // same idea along the other axis: a refusal recorded by a search with a
+  // different reach is not evidence about this one, so it reads as no
+  // tombstone and the slot is tried again.
   std::vector<DeclineTombstoneRecord> tombstoned =
       cfg->quality_verify
           ? LoadDeclineTombstone(notification, existing_ids, origin_hash)
@@ -3612,6 +3653,14 @@ Worker::CombinedCssResult Worker::BuildCombinedCss(
   // Gather CSS: start with inline CSS from <style> tags.
   std::string& combined_css = out.css;
   combined_css = scan_result.inline_css;
+  // What every reference in the page resolves against: the page URL, or its
+  // <base href> when it has one (DocumentBaseOf, the rule the scanner's sheet
+  // identities and the analysis-side CSS inliner share). A
+  // relative @import inside an inline <style> resolves against its URL.
+  const DocumentBase document_base =
+      DocumentBaseOf(notification.url, scan_result, notification.hostname,
+                     notification.scheme);
+  const std::string& inline_base_url = document_base.url;
   static constexpr size_t kMaxCombinedCssBytes =
       static_cast<size_t>(10 * 1024 * 1024);
 
@@ -3634,10 +3683,11 @@ Worker::CombinedCssResult Worker::BuildCombinedCss(
                          span.size());
     };
 
-    // Flatten @imports in inline CSS (base URL = page URL).
+    // Flatten @imports in inline CSS against the document's base URL: the page
+    // URL, or its <base href> when it has one.
     if (!combined_css.empty()) {
       auto flat =
-          css::FlattenImports(combined_css, notification.url, import_lookup);
+          css::FlattenImports(combined_css, inline_base_url, import_lookup);
       // imports_resolved > 0 IS the all-or-nothing use-original
       // path: any skip yields 0.  Do not "simplify" this gate away.
       if (flat.imports_resolved > 0) {
@@ -3660,10 +3710,21 @@ Worker::CombinedCssResult Worker::BuildCombinedCss(
   // stylesheet render-blocking); this narrower flag drives only the
   // self-heal re-notify.
   bool& revalidatable_css_missing = out.revalidatable_css_missing;
-  std::string_view page_dir = UrlDirectory(notification.url);
+  // Each gathered sheet as read (before @import flattening) and its resolved
+  // URL, by index in scan_result.stylesheets, for the cascade-layer order
+  // below. A sheet the loop does not read stays nullopt.
+  std::vector<std::optional<GatheredSheet>> gathered_sheets(
+      scan_result.stylesheets.size());
+  size_t next_sheet = 0;
   for (const auto& stylesheet : scan_result.stylesheets) {
+    const size_t sheet_index = next_sheet++;
     if (stylesheet.href.empty()) continue;
-    std::string resolved_href = ResolvePath(page_dir, stylesheet.href);
+    // Resolved against the document base, so under <base href="/sub/"> a
+    // relative href is the sheet in /sub/, and under a cross-host <base> a
+    // root-relative href is the base host's sheet, as the browser fetches it.
+    // A hostless result is the page's own path.
+    std::string resolved_href =
+        ResolveAgainstBase(document_base, stylesheet.href);
     // Normalize for cache key consistency.
     std::string norm_href = NormalizeCacheUrl(resolved_href, url_norm_config_);
     count_lookup();
@@ -3698,6 +3759,10 @@ Worker::CombinedCssResult Worker::BuildCombinedCss(
           external_css_missing = true;
           break;
         }
+        gathered_sheets[sheet_index].emplace(GatheredSheet{
+            std::string(reinterpret_cast<const char*>(css_span.data()),
+                        css_span.size()),
+            resolved_href});
         if (import_lookup) {
           // Flatten @imports before combining — each stylesheet uses its
           // own URL as base so relative @import URLs resolve correctly.
@@ -3739,12 +3804,38 @@ Worker::CombinedCssResult Worker::BuildCombinedCss(
                             css_span.size());
         LogInfo("Gathered external CSS from %s (%zu bytes)",
                 resolved_href.c_str(), css_span.size());
+      } else {
+        // Cached and empty: known, and it declares no layer.
+        gathered_sheets[sheet_index].emplace(GatheredSheet{{}, resolved_href});
       }
     } else {
       external_css_missing = true;
       if (css_revalidatable) revalidatable_css_missing = true;
     }
   }
+
+  // The page's cascade-layer order over every stylesheet source in document
+  // order (cascade_layer_order.h). Not part of the byte contract
+  // above: it only decides where a layered critical block may go.
+  std::vector<LayerOrderSource> layer_sources = BuildLayerOrderSources(
+      scan_result.stylesheet_sources, inline_base_url, gathered_sheets);
+  LayerOrderImportLookup layer_import_lookup =
+      [&](std::string_view base_url,
+          std::string_view href) -> std::optional<LayerOrderImport> {
+    std::string resolved = ResolvePath(UrlDirectory(base_url), href);
+    std::string norm_url = NormalizeCacheUrl(resolved, url_norm_config_);
+    std::string_view host = UrlHostname(resolved);
+    if (host.empty()) host = notification.hostname;
+    auto result = cache_->ReadBestAlternate(norm_url, host, notification.scheme,
+                                            CapabilityMask());
+    if (!result.has_value()) return std::nullopt;
+    auto span = result->content();
+    return LayerOrderImport{
+        std::string(reinterpret_cast<const char*>(span.data()), span.size()),
+        std::move(resolved)};
+  };
+  out.layer_order =
+      ComputeCascadeLayerOrder(layer_sources, layer_import_lookup);
   return out;
 }
 
@@ -4416,8 +4507,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
       // SRI (issue #656): subresources referenced with an integrity
       // attribute must keep their original bytes — register them before
       // any further processing so CSS/JS notifications skip them.
-      RegisterIntegrityPinnedUrls(scan_result.integrity_pinned_urls,
-                                  notification);
+      RegisterIntegrityPinnedUrls(scan_result, notification);
 
       // Browser analysis: compute template hash and look up profile.
       uint64_t template_hash = 0;
@@ -4470,6 +4560,10 @@ void Worker::HandleNotification(const CacheNotification& notification,
       // <link> render-blocking, still inline (FOUC); mid -> inline + async
       // defer; coverage >= ShouldInlineCriticalCss cap -> skip BOTH (below).
       float critical_css_coverage = -1.0f;
+      // CriticalCssResult::anonymous_layers_dropped of whichever derivation
+      // below produced the block; salts the record's binding
+      // (ValidationBindingFor), as the validator's does.
+      bool anonymous_layers_dropped = false;
       // Issue A (high band): the budget decision is computed at profile-selection
       // time (where the viewport's coverage/byte stats are in scope) but APPLIED
       // just before has_critical_css below — NOT by clearing critical_css here,
@@ -4521,14 +4615,17 @@ void Worker::HandleNotification(const CacheNotification& notification,
             // The SAME derivation the browser-side validation renders, so the
             // record it produced is about these exact bytes (see
             // DeriveDomMatchedCriticalCss).
-            // The measured fold replaces the extractor's "first 25 elements"
-            // estimate for this viewport: on a page with a substantial <head>
-            // the estimate is spent before the first visible body element, so
-            // the classes that lay out the header were being judged below the
-            // fold.
+            // The measured fold is ADDED to the extractor's "first N body
+            // elements" estimate for this viewport, not substituted for it:
+            // the extractor ORs the two, so the derived block is a superset of
+            // what the estimate alone admits. A validation record is keyed on
+            // the sheet's hash only, so a record written under a smaller
+            // estimate keeps authorising deferral of this larger block until
+            // the page is re-validated.
             CriticalCssResult css_result = DeriveDomMatchedCriticalCss(
                 scan_result.elements, combined_css, vp->critical_css,
-                m.viewport(), vp->above_fold_selectors);
+                m.viewport(), vp->above_fold_selectors, combined.layer_order);
+            anonymous_layers_dropped = css_result.anonymous_layers_dropped;
             critical_css = std::move(css_result.critical_css);
             critical_rules = css_result.critical_rules;
             total_rules = css_result.total_rules;
@@ -4596,13 +4693,48 @@ void Worker::HandleNotification(const CacheNotification& notification,
       if (critical_css.empty() && !combined_css.empty()) {
         CapabilityMask notif_mask =
             CapabilityMask::Decode(notification.capability_mask);
-        CriticalCssExtractor extractor;
+        // The small-sheet threshold below which the coverage gate is not
+        // applied, so rules kept for wide replaced elements are
+        // bounded by the same gate this block is judged by.
+        CriticalCssConfig css_config;
+        css_config.inline_limit_min_sheet_bytes =
+            cfg->async_css_min_deferred_bytes;
+        CriticalCssExtractor extractor(std::move(css_config));
+        // The page's layer order decides where the block goes, and so which
+        // @media blocks it keeps, as on the profile path.
         CriticalCssResult css_result = extractor.Extract(
-            scan_result.elements, combined_css, notif_mask.viewport());
+            scan_result.elements, combined_css, notif_mask.viewport(),
+            /*force_include=*/nullptr, &combined.layer_order);
+        anonymous_layers_dropped = css_result.anonymous_layers_dropped;
         if (css_result.success && !css_result.critical_css.empty()) {
-          critical_css = std::move(css_result.critical_css);
-          critical_rules = css_result.critical_rules;
-          total_rules = css_result.total_rules;
+          // The same coverage budget the profile path applies, on the bytes
+          // actually derived: a block that is most of the sheet is not
+          // inlined and the original render-blocking <link> is kept. The
+          // estimate is document-order, so a long page with a small sheet can
+          // otherwise derive nearly the whole sheet. (The byte cap is applied
+          // further down, once the deferral decision is known.)
+          //
+          // Cold-cache pass, external_css_missing: combined_css is then the
+          // page's INLINE CSS alone, and the block derived from it is close to
+          // all of it. If that inline CSS is itself at least
+          // async_css_min_deferred_bytes the ratio clears 0.60 and nothing is
+          // inlined on this pass — the variant is marked for revalidation
+          // once the sheet caches, and the real decision is made then.
+          if (!browser_internal::ShouldInlineHeuristicCriticalCss(
+                  css_result.critical_css.size(), combined_css.size(),
+                  cfg->async_css_min_deferred_bytes)) {
+            stats_.critical_css_skipped_high_coverage.fetch_add(
+                1, std::memory_order_relaxed);
+            LogInfo(
+                "Skipping heuristic critical CSS for %s (%zu of %zu bytes over "
+                "the inline budget) — keeping external render-blocking <link>",
+                notification.url.c_str(), css_result.critical_css.size(),
+                combined_css.size());
+          } else {
+            critical_css = std::move(css_result.critical_css);
+            critical_rules = css_result.critical_rules;
+            total_rules = css_result.total_rules;
+          }
         }
       }
 
@@ -4643,8 +4775,60 @@ void Worker::HandleNotification(const CacheNotification& notification,
           external_css_missing, async_css_suff);
       // Empirical gate: the byte floor above is a proxy and can clear while the
       // fold is still left unstyled, so it is necessary but not sufficient.
-      const bool async_css_validated =
-          AsyncCssValidatedForServedSheet(validated_source_vp, combined_css);
+      const bool async_css_validated = AsyncCssValidatedForServedSheet(
+          validated_source_vp, combined_css,
+          ValidationBindingFor(
+              combined.layer_order.ValidationBinding(combined_css),
+              scan_result.noscript_affects_render, combined_css,
+              CapabilityMask::Decode(notification.capability_mask).viewport(),
+              anonymous_layers_dropped));
+      // A validation record made against other stylesheet bytes (a redeploy,
+      // or a change in how the bytes are assembled), or against
+      // another cascade-layer order on a layered page (the binding above),
+      // would keep
+      // deferral off until the profile's TTL ran out. Ask for the template to
+      // be validated again now instead (rate-limited per template). Not while
+      // a declared sheet is missing from cache: those bytes are incomplete,
+      // and a revalidation run on them would bind to the wrong sheet. Nor
+      // while an @import the layer order needs is missing: the order would
+      // bind as unproven and change once the import is cached.
+      //
+      // Only the page the record was made on may ask. The record's hash is of
+      // THAT page's combined sheet, which includes its own inline <style>; a
+      // sibling page of the same template with different inline CSS always
+      // mismatches, and letting it ask would move the record from page to
+      // page, burning the template's budget and taking deferral away from
+      // the page that had it.
+      if (browser_manager_ && browser_profile.has_value() &&
+          IsAnalyzedPage(notification.url, browser_profile->analyzed_url) &&
+          validated_source_vp != nullptr &&
+          validated_source_vp->critical_css_validated &&
+          !validated_source_vp->validated_combined_css_hash.empty() &&
+          !async_css_validated && !external_css_missing &&
+          !combined.layer_order.import_missing && !combined_css.empty()) {
+        browser_manager_->RequestRevalidation(
+            notification.url, notification.hostname, notification.scheme,
+            notification.capability_mask, template_hash,
+            /*original_html=*/html_content, agent_origin_html_hash);
+      }
+      // Byte cap on the inlined block — only while the sheet stays
+      // render-blocking. With a validated deferral the block REPLACES the
+      // render-blocking fetch and the validator rendered exactly these bytes;
+      // vetoing it would take away both the inline and the deferral a site
+      // had (kInlineCriticalCssMaxBytes for the rationale).
+      if (has_critical_css && !async_css_validated &&
+          critical_css.size() > browser_internal::kInlineCriticalCssMaxBytes) {
+        stats_.critical_css_skipped_byte_cap.fetch_add(
+            1, std::memory_order_relaxed);
+        LogInfo(
+            "Skipping critical CSS for %s (%zu bytes over the %zu-byte inline "
+            "cap with no validated deferral) — keeping external "
+            "render-blocking <link>",
+            notification.url.c_str(), critical_css.size(),
+            browser_internal::kInlineCriticalCssMaxBytes);
+        critical_css.clear();
+        has_critical_css = false;
+      }
       const bool async_css_sufficient =
           async_css_bytes_sufficient && async_css_validated;
       // Diagnostic override (--unsafe-force-async-css, CLI-only): defer even on
@@ -4757,15 +4941,20 @@ void Worker::HandleNotification(const CacheNotification& notification,
 
         std::string hints;
         size_t hint_count = 0;
-        std::string_view hints_page_dir = UrlDirectory(notification.url);
+        // Resolved as the combined-stylesheet gather resolves them (against
+        // the document base), so the hint names the sheet the
+        // browser fetches.
+        const DocumentBase hints_base =
+            DocumentBaseOf(notification.url, scan_result, notification.hostname,
+                           notification.scheme);
         for (const auto& stylesheet : scan_result.stylesheets) {
           if (stylesheet.href.empty()) continue;
           // A print sheet is never render-blocking for screen — hinting it
           // would only burn bandwidth priority.
           if (StylesheetMediaIsPrint(stylesheet.media)) continue;
           if (!hints.empty()) hints += '\n';
-          hints +=
-              sanitize_hint_url(ResolvePath(hints_page_dir, stylesheet.href));
+          hints += sanitize_hint_url(
+              ResolveAgainstBase(hints_base, stylesheet.href));
           ++hint_count;
         }
         // Add LCP image preload hint if detected.  An <img> inside <picture>
@@ -4885,6 +5074,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
           &transform_parser, transform_config, critical_css, cache_.get(),
           notification.hostname, notification.scheme, scan_result.lcp_candidate,
           scan_result.third_party_origins, speculation_urls, defer_scripts);
+      transform_filter.set_cascade_layer_order(combined.layer_order);
       transform_parser.AddFilter(&transform_filter);
 
       std::string output_html;

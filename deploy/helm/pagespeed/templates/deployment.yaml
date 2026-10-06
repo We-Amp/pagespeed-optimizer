@@ -64,12 +64,18 @@ spec:
           args:
             {{- toYaml . | nindent 12 }}
           {{- end }}
+          # All three probes only read: the optimizer writes one status line
+          # on connect and closes. `-T 4` is how long socat waits for that
+          # line, kept one second inside timeoutSeconds so a slow reply fails
+          # the attempt on its own exit status. Do not feed socat an empty
+          # stdin instead: it then gives up 0.5 s after connecting, whatever
+          # timeoutSeconds says. tools/ci/check_health_probe.sh checks these.
           startupProbe:
             exec:
               command:
                 - sh
                 - -c
-                - "echo '' | socat -T 2 - UNIX-CONNECT:/data/pagespeed.sock.health | grep -q '^OK\\|^DEGRADED'"
+                - "socat -u -T 4 UNIX-CONNECT:/data/pagespeed.sock.health - | grep -q '^OK\\|^DEGRADED'"
             periodSeconds: 2
             failureThreshold: 30
             timeoutSeconds: 5
@@ -78,7 +84,7 @@ spec:
               command:
                 - sh
                 - -c
-                - "echo '' | socat -T 2 - UNIX-CONNECT:/data/pagespeed.sock.health | grep -q '^OK'"
+                - "socat -u -T 4 UNIX-CONNECT:/data/pagespeed.sock.health - | grep -q '^OK'"
             initialDelaySeconds: 2
             periodSeconds: 5
             timeoutSeconds: 5
@@ -88,7 +94,7 @@ spec:
               command:
                 - sh
                 - -c
-                - "echo '' | socat -T 2 - UNIX-CONNECT:/data/pagespeed.sock.health | grep -q '^OK\\|^DEGRADED'"
+                - "socat -u -T 4 UNIX-CONNECT:/data/pagespeed.sock.health - | grep -q '^OK\\|^DEGRADED'"
             initialDelaySeconds: 5
             periodSeconds: 10
             timeoutSeconds: 5

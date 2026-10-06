@@ -7,19 +7,24 @@
 
 #include "src/browser/critical_css_validator.h"
 
+#include <cctype>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "lib/base/string_util.h"
 #include "src/browser/visual_regression_gate.h"
+#include "src/worker/cascade_layer_order.h"
 #include "src/worker/html_css_injector.h"
+#include "src/worker/noscript_strip.h"
 
 namespace pagespeed {
 
@@ -76,12 +81,13 @@ size_t FindTagEnd(std::string_view html, size_t pos) {
   return std::string_view::npos;
 }
 
-// True when the tag text (`<link ...>`) declares rel="stylesheet".  Parsed
-// rather than substring-matched: `href="/stylesheet.css"` on a rel=preload is
-// not a stylesheet link, and `rel="alternate stylesheet"` is.
-bool LinkTagIsStylesheet(std::string_view tag) {
+// Calls fn(name, value) for each attribute of the start-tag text `tag`
+// (`<name attr=... >`), value unquoted and empty when the attribute has none.
+// Stops early when fn returns true; returns whether it did.
+template <typename Fn>
+bool ForEachAttribute(std::string_view tag, Fn fn) {
   size_t i = 0;
-  // Skip "<link".
+  // Skip "<name".
   while (i < tag.size() && tag[i] != '>' && !IsHtmlSpace(tag[i])) ++i;
 
   while (i < tag.size()) {
@@ -112,23 +118,120 @@ bool LinkTagIsStylesheet(std::string_view tag) {
         value = tag.substr(value_start, i - value_start);
       }
     }
-
-    if (!EqualsIgnoreCase(name, "rel")) continue;
-
-    // rel is a space-separated token list.
-    size_t t = 0;
-    while (t < value.size()) {
-      while (t < value.size() && IsHtmlSpace(value[t])) ++t;
-      size_t token_start = t;
-      while (t < value.size() && !IsHtmlSpace(value[t])) ++t;
-      if (EqualsIgnoreCase(value.substr(token_start, t - token_start),
-                           "stylesheet")) {
-        return true;
-      }
-    }
-    return false;
+    if (fn(name, value)) return true;
   }
   return false;
+}
+
+// The first attribute called `name` (case-insensitive): whether it is present,
+// and its value.
+struct TagAttr {
+  bool present = false;
+  std::string_view value;
+};
+TagAttr FindTagAttribute(std::string_view tag, std::string_view name) {
+  TagAttr out;
+  ForEachAttribute(tag, [&](std::string_view n, std::string_view v) {
+    if (!EqualsIgnoreCase(n, name)) return false;
+    out.present = true;
+    out.value = v;
+    return true;
+  });
+  return out;
+}
+
+// True when the tag text (`<link ...>`) has `token` in its rel token list,
+// matched per token and case-insensitively.  Parsed rather than
+// substring-matched: `href="/stylesheet.css"` on a rel=preload is not a
+// stylesheet link, and `rel="alternate stylesheet"` is.  The same rule as
+// HtmlTransformFilter's RelHasToken.
+bool LinkTagHasRelToken(std::string_view tag, std::string_view token) {
+  TagAttr rel = FindTagAttribute(tag, "rel");
+  if (!rel.present) return false;
+  // rel is a space-separated token list.
+  std::string_view value = rel.value;
+  size_t t = 0;
+  while (t < value.size()) {
+    while (t < value.size() && IsHtmlSpace(value[t])) ++t;
+    size_t token_start = t;
+    while (t < value.size() && !IsHtmlSpace(value[t])) ++t;
+    if (t > token_start &&
+        EqualsIgnoreCase(value.substr(token_start, t - token_start), token)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool LinkTagIsStylesheet(std::string_view tag) {
+  return LinkTagHasRelToken(tag, "stylesheet");
+}
+
+// An author's loadCSS preload (`<link rel=preload as=style onload=...>`): a
+// browser running scripts applies its sheet at this position,
+// so it anchors the block like a stylesheet source. It is kept in the
+// document: the validator renders without scripts, where it applies nothing,
+// and its sheet is part of the inlined full stylesheet. The same rule as
+// HtmlTransformFilter's IsLoadCssPreload.
+bool LinkTagIsLoadCssPreload(std::string_view tag) {
+  if (!LinkTagHasRelToken(tag, "preload")) return false;
+  TagAttr as = FindTagAttribute(tag, "as");
+  std::string_view as_value = as.value;
+  while (!as_value.empty() && IsHtmlSpace(as_value.front())) {
+    as_value.remove_prefix(1);
+  }
+  while (!as_value.empty() && IsHtmlSpace(as_value.back())) {
+    as_value.remove_suffix(1);
+  }
+  return as.present && EqualsIgnoreCase(as_value, "style") &&
+         FindTagAttribute(tag, "onload").present &&
+         !FindTagAttribute(tag, "data-pagespeed-hint").present;
+}
+
+// html[pos] is '<'. The element name of the start or end tag there (and
+// whether it is an end tag), or an empty name when it is neither.
+struct TagName {
+  std::string_view name;
+  bool end_tag = false;
+};
+TagName ReadTagName(std::string_view html, size_t pos) {
+  TagName out;
+  size_t i = pos + 1;
+  if (i < html.size() && html[i] == '/') {
+    out.end_tag = true;
+    ++i;
+  }
+  size_t start = i;
+  while (i < html.size() &&
+         (std::isalnum(static_cast<unsigned char>(html[i])) != 0 ||
+          html[i] == '-')) {
+    ++i;
+  }
+  if (i == start ||
+      std::isalpha(static_cast<unsigned char>(html[start])) == 0) {
+    return {};
+  }
+  out.name = html.substr(start, i - start);
+  return out;
+}
+
+// Subtrees where an inserted <style> is not a document stylesheet for every
+// client, so a source inside one never anchors the block. The same list as
+// HtmlTransformFilter's InsideNonDocumentSubtree.
+constexpr std::string_view kNonDocumentSubtrees[] = {
+    "noscript", "noembed", "noframes", "template", "svg", "math"};
+
+// A head-prelude element the block must never move ahead of: <base>, <meta
+// charset>, <meta http-equiv="Content-Type" | "Content-Security-Policy">.
+// The same rule as HtmlTransformFilter::TrackCriticalCssAnchor.
+bool IsHeadPrelude(std::string_view name, std::string_view tag) {
+  if (EqualsIgnoreCase(name, "base")) return true;
+  if (!EqualsIgnoreCase(name, "meta")) return false;
+  if (FindTagAttribute(tag, "charset").present) return true;
+  TagAttr http_equiv = FindTagAttribute(tag, "http-equiv");
+  return http_equiv.present &&
+         (EqualsIgnoreCase(http_equiv.value, "content-type") ||
+          EqualsIgnoreCase(http_equiv.value, "content-security-policy"));
 }
 
 struct StripResult {
@@ -137,17 +240,76 @@ struct StripResult {
   std::string html;
   size_t links_removed = 0;
   size_t styles_removed = 0;
+  // Where the serve path would put the block, as an offset into `html` (the
+  // stripped output). See PlaceBlock.
+  size_t injection_pos = 0;
 };
+
+// One thing the placement rule reads, at its offset in the stripped output.
+struct PlacementEvent {
+  size_t pos;
+  bool prelude;  // else a stylesheet source that may anchor
+};
+
+// The serve path's placement (HtmlTransformFilter::InjectCriticalCss),
+// replayed on the stripped document: the decision is taken at the
+// </head> (else </body>) the string injector would use, and the block goes
+// before the first stylesheet source seen since the last head-prelude element
+// before that point, else at that point.
+size_t PlaceBlock(std::string_view stripped,
+                  const std::vector<PlacementEvent>& events) {
+  const size_t fallback = CriticalCssFallbackOffset(stripped);
+  size_t anchor = std::string_view::npos;
+  for (const PlacementEvent& e : events) {
+    // A removed source sits AT the offset of whatever followed it, so one that
+    // stood right before </head> has pos == fallback and still counts; a
+    // prelude element is kept, and cannot start where </head> does.
+    if (e.pos > fallback) break;
+    if (e.prelude) {
+      anchor = std::string_view::npos;
+    } else if (anchor == std::string_view::npos) {
+      anchor = e.pos;
+    }
+  }
+  return anchor != std::string_view::npos ? anchor : fallback;
+}
 
 // Remove every stylesheet <link> and every <style> element, leaving everything
 // else — including markup that only LOOKS like one because it sits inside a
-// comment or a <script> string — exactly where it was.
-StripResult StripStylesheetSources(std::string_view html) {
+// comment or a <script> string — exactly where it was, and work out where the
+// serve path would put the critical block (PlaceBlock).
+//
+// The worker's own markup is recognised the way the serve path recognises it
+// on a revalidation pass: a previous <style data-pagespeed-critical> is removed
+// and never anchors (the filter deletes it first), and a deferred primary
+// <link data-pagespeed-async> (rel=preload) is a stylesheet source again. An
+// author's loadCSS preload is kept, and anchors like a source.
+StripResult StripStylesheetSources(
+    std::string_view html, const std::vector<size_t>& noscript_preludes) {
   StripResult out;
   out.html.reserve(html.size());
+  std::vector<PlacementEvent> events;
+  size_t next_prelude = 0;
+  // A head-prelude element the serve path saw inside a <noscript> that is no
+  // longer here, at the input offset where that <noscript> stood.
+  auto emit_noscript_preludes = [&](size_t upto) {
+    while (next_prelude < noscript_preludes.size() &&
+           noscript_preludes[next_prelude] <= upto) {
+      events.push_back({out.html.size(), /*prelude=*/true});
+      ++next_prelude;
+    }
+  };
+  size_t subtree_depth[std::size(kNonDocumentSubtrees)] = {};
+  auto in_non_document_subtree = [&subtree_depth] {
+    for (size_t d : subtree_depth) {
+      if (d > 0) return true;
+    }
+    return false;
+  };
 
   size_t pos = 0;
   while (pos < html.size()) {
+    emit_noscript_preludes(pos);
     if (html_scan::StartsComment(html, pos)) {
       size_t end = html_scan::ScanComment(html, pos);
       if (end == std::string_view::npos) {
@@ -170,6 +332,15 @@ StripResult StripStylesheetSources(std::string_view html) {
         }
         if (EqualsIgnoreCase(rt.tag, "style")) {
           ++out.styles_removed;
+          size_t open_end = FindTagEnd(html, pos);
+          std::string_view open_tag = html.substr(
+              pos, (open_end == std::string_view::npos || open_end > rt.end)
+                       ? rt.end - pos
+                       : open_end - pos);
+          if (!FindTagAttribute(open_tag, "data-pagespeed-critical").present &&
+              !in_non_document_subtree()) {
+            events.push_back({out.html.size(), /*prelude=*/false});
+          }
         } else {
           out.html.append(html.substr(pos, rt.end - pos));
         }
@@ -183,13 +354,59 @@ StripResult StripStylesheetSources(std::string_view html) {
           out.error = "unterminated <link> tag";
           return out;
         }
-        if (LinkTagIsStylesheet(html.substr(pos, end - pos))) {
+        std::string_view tag = html.substr(pos, end - pos);
+        const bool fallback_copy =
+            FindTagAttribute(tag, "data-pagespeed-async-fallback").present;
+        const bool deferred_primary =
+            !fallback_copy &&
+            FindTagAttribute(tag, "data-pagespeed-async").present;
+        if (deferred_primary || LinkTagIsStylesheet(tag)) {
           ++out.links_removed;
+          if (!fallback_copy && !in_non_document_subtree()) {
+            events.push_back({out.html.size(), /*prelude=*/false});
+          }
         } else {
-          out.html.append(html.substr(pos, end - pos));
+          if (LinkTagIsLoadCssPreload(tag) && !in_non_document_subtree()) {
+            events.push_back({out.html.size(), /*prelude=*/false});
+          }
+          out.html.append(tag);
         }
         pos = end;
         continue;
+      }
+
+      // Any other tag is copied through below, character by character, as
+      // before; these few are only looked at on the way.
+      // Every other tag is copied character by character below, as before. A
+      // few are looked at on the way: the non-document subtree boundaries and
+      // the head prelude, which the placement rule reads.
+      TagName tn = ReadTagName(html, pos);
+      size_t subtree = std::size(kNonDocumentSubtrees);
+      for (size_t k = 0; k < std::size(kNonDocumentSubtrees); ++k) {
+        if (EqualsIgnoreCase(tn.name, kNonDocumentSubtrees[k])) subtree = k;
+      }
+      const bool maybe_prelude =
+          !tn.end_tag && (EqualsIgnoreCase(tn.name, "meta") ||
+                          EqualsIgnoreCase(tn.name, "base"));
+      if (subtree < std::size(kNonDocumentSubtrees) || maybe_prelude) {
+        size_t end = FindTagEnd(html, pos);
+        std::string_view tag = html.substr(
+            pos, end == std::string_view::npos ? html.size() - pos : end - pos);
+        if (subtree < std::size(kNonDocumentSubtrees)) {
+          // `/>` closes only in foreign content; <noscript/> still opens.
+          const bool foreign = EqualsIgnoreCase(tn.name, "svg") ||
+                               EqualsIgnoreCase(tn.name, "math");
+          const bool self_closed = foreign && tag.size() >= 2 &&
+                                   tag.back() == '>' &&
+                                   tag[tag.size() - 2] == '/';
+          if (tn.end_tag) {
+            if (subtree_depth[subtree] > 0) --subtree_depth[subtree];
+          } else if (!self_closed) {
+            ++subtree_depth[subtree];
+          }
+        } else if (IsHeadPrelude(tn.name, tag)) {
+          events.push_back({out.html.size(), /*prelude=*/true});
+        }
       }
     }
 
@@ -197,8 +414,84 @@ StripResult StripStylesheetSources(std::string_view html) {
     ++pos;
   }
 
+  emit_noscript_preludes(html.size());
+  out.injection_pos = PlaceBlock(out.html, events);
   out.ok = true;
   return out;
+}
+
+// True when the markup of a removed <noscript> holds a head-prelude element,
+// read the way the serve path's parser reads it: <noscript> content as markup
+// (the HtmlLexer parses it, kSometimesLiteralTags), comments skipped.
+bool NoscriptHoldsPrelude(std::string_view markup) {
+  size_t pos = 1;  // past the <noscript>'s own '<'
+  while ((pos = markup.find('<', pos)) != std::string_view::npos) {
+    if (html_scan::StartsComment(markup, pos)) {
+      const size_t end = html_scan::ScanComment(markup, pos);
+      if (end == std::string_view::npos) return false;
+      pos = end;
+      continue;
+    }
+    const TagName tn = ReadTagName(markup, pos);
+    if (!tn.end_tag && (EqualsIgnoreCase(tn.name, "meta") ||
+                        EqualsIgnoreCase(tn.name, "base"))) {
+      const size_t end = FindTagEnd(markup, pos);
+      const std::string_view tag = markup.substr(
+          pos, end == std::string_view::npos ? markup.size() - pos : end - pos);
+      if (IsHeadPrelude(tn.name, tag)) return true;
+    }
+    ++pos;
+  }
+  return false;
+}
+
+// The comments of `html` as the serve path's HtmlLexer reads them
+// (html_scan::ScanComment: after `<!--`, the first `-->`; an unterminated one
+// runs to the end), outside raw-text elements, <noscript> content read as
+// markup as the lexer does. [begin, end) in document order.
+std::vector<std::pair<size_t, size_t>> LexerCommentExtents(
+    std::string_view html) {
+  std::vector<std::pair<size_t, size_t>> out;
+  size_t pos = 0;
+  while ((pos = html.find('<', pos)) != std::string_view::npos) {
+    if (html_scan::StartsComment(html, pos)) {
+      size_t end = html_scan::ScanComment(html, pos);
+      if (end == std::string_view::npos) end = html.size();
+      out.emplace_back(pos, end);
+      pos = end;
+      continue;
+    }
+    const html_scan::RawTextElement rt =
+        html_scan::ScanRawTextElement(html, pos);
+    if (rt.matched && rt.closed) {
+      pos = rt.end;
+      continue;
+    }
+    ++pos;
+  }
+  return out;
+}
+
+// True when a removed <noscript> range and a lexer-rule comment overlap
+// without one holding the other. The removal reads comments as a browser
+// does and the placement replay as the serve path does; a comment whose
+// `-->` the lexer finds inside a removed <noscript> (or one that starts in
+// it and ends past it) would make the replay see markup the serve path took
+// for comment text, or the reverse.
+bool NoscriptCrossesALexerComment(
+    const std::vector<std::pair<size_t, size_t>>& removed,
+    const std::vector<std::pair<size_t, size_t>>& comments) {
+  size_t c = 0;
+  for (const auto& [rb, re] : removed) {
+    while (c < comments.size() && comments[c].second <= rb) ++c;
+    for (size_t k = c; k < comments.size() && comments[k].first < re; ++k) {
+      const auto& [cb, ce] = comments[k];
+      const bool comment_inside = cb >= rb && ce <= re;
+      const bool noscript_inside = rb >= cb && re <= ce;
+      if (!comment_inside && !noscript_inside) return true;
+    }
+  }
+  return false;
 }
 
 ValidationDocuments Refuse(std::string error) {
@@ -244,10 +537,11 @@ bool DocumentsDifferOnlyInStyleBody(std::string_view reference,
   return reference.substr(ref_close) == candidate.substr(cand_close);
 }
 
-ValidationDocuments BuildValidationDocuments(std::string_view pre_inline_html,
-                                             std::string_view full_css,
-                                             std::string_view critical_css,
-                                             size_t max_document_bytes) {
+ValidationDocuments BuildValidationDocuments(
+    std::string_view pre_inline_html, std::string_view full_css,
+    std::string_view critical_css, const CascadeLayerOrder& layer_order,
+    size_t max_document_bytes,
+    const std::vector<CollectedElement>* scanned_elements) {
   if (pre_inline_html.empty()) return Refuse("empty page markup");
   // An empty reference stylesheet renders the same unstyled fold as an empty
   // candidate: the diff would be zero and the page would validate on nothing.
@@ -255,20 +549,96 @@ ValidationDocuments BuildValidationDocuments(std::string_view pre_inline_html,
     return Refuse("no combined stylesheet to validate against");
   if (critical_css.empty()) return Refuse("no critical block to validate");
 
-  StripResult stripped = StripStylesheetSources(pre_inline_html);
+  // The serve path strips NUL bytes from the block BEFORE it decides where the
+  // block goes (HtmlTransformFilter::InjectCriticalCss), and `@la\0yer` is
+  // `@layer` after that. Decide on the same text here, or the two can place
+  // the block differently. (The injector strips them again; that is a no-op
+  // now.)
+  std::string block_without_nul;
+  block_without_nul.reserve(critical_css.size());
+  for (char c : critical_css) {
+    if (c != '\0') block_without_nul.push_back(c);
+  }
+  critical_css = block_without_nul;
+  if (critical_css.empty()) return Refuse("no critical block to validate");
+
+  // Both documents render with script execution disabled, where Blink renders
+  // <noscript> content; the served page's fold is a scripting browser's, which
+  // never renders it. So the documents leave the <noscript>
+  // elements out, contents and all, and that comes FIRST: a <noscript>'s
+  // content is raw text to a scripting browser, and reading it as markup (a
+  // <style> in it whose </style> comes after the </noscript>) would let the
+  // stylesheet removal below run through the page.
+  //
+  // FAIL CLOSED. A removal that could not be trusted (NoscriptStripResult::
+  // reliable), or that the scanner's independent reading of the same page
+  // disagrees with, could have cut the page short, and a blank reference
+  // compares equal to a blank candidate. No comparison is made.
+  NoscriptStripResult rendered = StripNoscriptElements(pre_inline_html);
+  if (!rendered.reliable) {
+    return Refuse(absl::StrCat("the <noscript> removal could not be trusted: ",
+                               rendered.unreliable_reason));
+  }
+  if (rendered.removed > 0 && scanned_elements != nullptr &&
+      !NoscriptStripAgreesWithScan(rendered, *scanned_elements)) {
+    return Refuse(
+        "the <noscript> removal and the HTML scanner read the page "
+        "differently");
+  }
+
+  if (rendered.removed > 0 &&
+      NoscriptCrossesALexerComment(rendered.removed_ranges,
+                                   LexerCommentExtents(pre_inline_html))) {
+    return Refuse(
+        "a removed <noscript> and an HTML comment, as the serve path reads "
+        "it, overlap; the block placement cannot be replayed");
+  }
+
+  // The placement is still the serve path's, decided on the page with its
+  // <noscript> elements: a head-prelude element inside one counts there (the
+  // parity test pins it), so it counts here, where that <noscript> stood.
+  std::vector<size_t> noscript_preludes;
+  for (const auto& [begin, end] : rendered.removed_ranges) {
+    if (NoscriptHoldsPrelude(pre_inline_html.substr(begin, end - begin))) {
+      noscript_preludes.push_back(rendered.MapOffset(begin));
+    }
+  }
+
+  StripResult stripped =
+      StripStylesheetSources(rendered.html, noscript_preludes);
   if (!stripped.ok) return Refuse(std::move(stripped.error));
 
-  const size_t largest_css = full_css.size() > critical_css.size()
-                                 ? full_css.size()
-                                 : critical_css.size();
+  // Where the serve path puts it (StripStylesheetSources / PlaceBlock), so both
+  // documents carry their one block exactly where the served page carries the
+  // inlined one.
+  // The serve path decides on the block it inlines — the candidate — so both
+  // documents take the candidate's answer (DecideCriticalCssLayerPlacement): a
+  // layered block goes first only with the page's proven layer order in front
+  // of it, and otherwise keeps the </head> fallback. The statement goes in
+  // front of BOTH documents' CSS, so the reference carries the author's layer
+  // order as well, and the two still differ only in the style body.
+  const CriticalCssLayerPlacement layers =
+      DecideCriticalCssLayerPlacement(critical_css, layer_order);
+  const size_t pos = layers.keep_fallback
+                         ? CriticalCssFallbackOffset(stripped.html)
+                         : stripped.injection_pos;
+
+  const std::string reference_css = absl::StrCat(layers.prefix, full_css);
+  const std::string candidate_css = absl::StrCat(layers.prefix, critical_css);
+
+  const size_t largest_css = reference_css.size() > candidate_css.size()
+                                 ? reference_css.size()
+                                 : candidate_css.size();
   if (stripped.html.size() + largest_css + kStyleOpen.size() +
           kStyleClose.size() >
       max_document_bytes) {
     return Refuse("validation document too large to render");
   }
 
-  CssInjectionResult reference = InjectCriticalCss(stripped.html, full_css);
-  CssInjectionResult candidate = InjectCriticalCss(stripped.html, critical_css);
+  CssInjectionResult reference =
+      InjectCriticalCssAt(stripped.html, pos, reference_css);
+  CssInjectionResult candidate =
+      InjectCriticalCssAt(stripped.html, pos, candidate_css);
 
   // The injector reports its `</style` refusal as success=TRUE with an EMPTY
   // document (html_css_injector.cc). Checking `success` alone would synthesize
@@ -293,6 +663,7 @@ ValidationDocuments BuildValidationDocuments(std::string_view pre_inline_html,
   out.candidate = std::move(candidate.html);
   out.stylesheet_links_removed = stripped.links_removed;
   out.style_blocks_removed = stripped.styles_removed;
+  out.noscript_elements_removed = rendered.removed;
   return out;
 }
 
@@ -333,6 +704,16 @@ void ValidateCriticalCss(VisualRegressionGate* gate,
         // total_pixels==0 for a degenerate compare region.
         if (result->total_pixels == 0) {
           callback(NotValidated("validation compared no pixels"));
+          return;
+        }
+        // A blank reference (the whole fold one colour) matches a blank
+        // candidate: two documents cut short, or a page whose fold paints
+        // nothing without its subresources, would confirm any block. Not a
+        // measurement either.
+        if (result->reference_uniform) {
+          callback(NotValidated(
+              "the reference render is a single uniform colour, so a "
+              "matching candidate proves nothing"));
           return;
         }
         ValidationVerdict verdict;

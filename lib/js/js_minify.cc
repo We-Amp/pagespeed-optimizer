@@ -326,8 +326,8 @@ bool JsMinifyingTokenizer::WhitespaceNeededBefore(JsKeywords::Type type,
   // decimal point, and 3) to prevent us from joining operators together to
   // form line comments or other operators.
   //
-  // Anti-glom boundary table (the "operator glomming" class, mpp #691
-  // triage): dropping whitespace between two operator/punctuator tokens
+  // Anti-glom boundary table (the "operator glomming" class, from the
+  // minifier-rewrite triage): dropping whitespace between two operator/punctuator tokens
   // must never let them re-lex as a DIFFERENT token (`&` `=` -> `&=`,
   // `= ` `=` -> `==`, `?` `?` -> `??`, `.` `0` -> `.0`, `5` `...` ->
   // `5...`, ...).  Keyed on the last char of the previous token and the
@@ -478,7 +478,7 @@ bool MinifyUtf8JsWithSourceMap(
         return true;
       case JsKeywords::kError:
         DCHECK(tokenizer.has_error());
-        // Decline-seam anti-fusion guard (RC-C, mpp #691 triage): the
+        // Decline-seam anti-fusion guard (RC-C, minifier-rewrite triage): the
         // passthrough remainder is appended verbatim, but whitespace
         // pending before the error token has already been dropped by the
         // minifying tokenizer — when the minified prefix ends with and the

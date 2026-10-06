@@ -22,6 +22,7 @@
 #include "src/browser/cdp_client.h"
 #include "src/browser/cdp_types.h"
 #include "test/test_util/cdp_scripted_peer.h"
+#include "test/test_util/cdp_setup_order.h"
 #include "test/test_util/png_image.h"
 #include "uv.h"
 
@@ -483,6 +484,15 @@ TEST_F(VisualRegressionGateCdpTest, FetchRequestBlocked) {
                   peer_.session_id(1));
   peer_.PumpUntil([&] { return peer_.SawCommand("Fetch.failRequest"); }, 10);
   EXPECT_TRUE(peer_.SawCommand("Fetch.failRequest"));
+  // With Chromium's parameter name, `errorReason`: a `reason` is rejected
+  // ("Invalid parameters") and the request stays paused, so the capture never
+  // reaches networkIdle and times out.
+  for (const auto& cmd : peer_.received_commands()) {
+    if (cmd.value("method", "") != "Fetch.failRequest") continue;
+    const json params = cmd.value("params", json::object());
+    EXPECT_EQ(params.value("errorReason", ""), "BlockedByClient");
+    EXPECT_FALSE(params.contains("reason"));
+  }
 
   peer_.SendEvent("Page.lifecycleEvent", {{"name", "networkIdle"}},
                   peer_.session_id(1));
@@ -509,6 +519,7 @@ TEST_F(VisualRegressionGateCdpTest, SessionIdPropagated) {
   EXPECT_TRUE(found_session);
 
   bool found_viewport = false;
+  bool found_touch = false;
   for (const auto& cmd : peer_.received_commands()) {
     if (cmd.value("method", "") == "Emulation.setDeviceMetricsOverride") {
       auto params = cmd.value("params", json::object());
@@ -516,14 +527,44 @@ TEST_F(VisualRegressionGateCdpTest, SessionIdPropagated) {
       EXPECT_EQ(params.value("height", 0), 667);
       EXPECT_TRUE(params.value("mobile", false));
       found_viewport = true;
+    }
+    // The validation render is a touch device at 375 px, as the
+    // coverage render that produced the block is.
+    if (cmd.value("method", "") == "Emulation.setTouchEmulationEnabled") {
+      EXPECT_TRUE(found_viewport) << "touch follows the device metrics";
+      auto params = cmd.value("params", json::object());
+      EXPECT_TRUE(params.value("enabled", false));
+      EXPECT_EQ(params.value("maxTouchPoints", 0), 5);
+      found_touch = true;
       break;
     }
   }
   EXPECT_TRUE(found_viewport);
+  EXPECT_TRUE(found_touch);
+  // Then the phone's user agent, and a fresh window.
+  test::ExpectFreshWindowRenderSetup(peer_.received_commands(),
+                                     peer_.session_id(1), 375, 667);
 
   peer_.SendEvent("Page.lifecycleEvent", {{"name", "networkIdle"}},
                   peer_.session_id(1));
   peer_.PumpUntil([&done] { return done; });
+}
+
+// The desktop validation render sends no user agent override,
+// so its commands up to the blank document are those before User-Agent emulation.
+TEST_F(VisualRegressionGateCdpTest, DesktopSetupOrder) {
+  VisualRegressionGate gate(client());
+  bool done = false;
+  gate.CaptureScreenshot(
+      "<html></html>", 1440, 900,
+      [&](absl::StatusOr<ScreenshotResult>) { done = true; });
+  SettleDocument();
+  test::ExpectFreshWindowRenderSetup(peer_.received_commands(),
+                                     peer_.session_id(1), 1440, 900);
+  peer_.SendEvent("Page.lifecycleEvent", {{"name", "networkIdle"}},
+                  peer_.session_id(1));
+  peer_.PumpUntil([&done] { return done; });
+  EXPECT_TRUE(done);
 }
 
 TEST_F(VisualRegressionGateCdpTest, CaptureIgnoresLifecycleFromTheBlankTab) {
@@ -892,6 +933,29 @@ TEST_F(VisualRegressionGateCdpTest, CompareLeavesNoEventSubscriberBehind) {
   peer_.PumpUntil([] { return false; }, 10);
   EXPECT_EQ(peer_.received_commands().size(), commands_at_completion)
       << "a stale event subscriber was still attached after Compare finished";
+}
+
+// The critical-CSS validator refuses a comparison whose reference is one
+// uniform colour; the gate reports it and leaves `passed` alone.
+TEST(VisualRegressionGateTest, ReportsAUniformReference) {
+  const uint32_t w = 10, h = 10;
+  auto solid = MakeSolidImage(w, h, 255, 255, 255);
+  auto solid_png = EncodePng(solid, w, h);
+  auto result =
+      VisualRegressionGate::CompareScreenshots(solid_png, solid_png, h);
+  EXPECT_TRUE(result.passed);
+  EXPECT_TRUE(result.reference_uniform);
+
+  auto two_tone = solid;
+  for (size_t i = 0; i < 4; ++i) two_tone[i] = 0;  // one pixel's channels
+  auto two_tone_png = EncodePng(two_tone, w, h);
+  result =
+      VisualRegressionGate::CompareScreenshots(two_tone_png, two_tone_png, h);
+  EXPECT_TRUE(result.passed);
+  EXPECT_FALSE(result.reference_uniform);
+  // Only the reference counts: a blank candidate is an ordinary diff.
+  result = VisualRegressionGate::CompareScreenshots(two_tone_png, solid_png, h);
+  EXPECT_FALSE(result.reference_uniform);
 }
 
 }  // namespace

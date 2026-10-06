@@ -2211,7 +2211,7 @@ extern "C" void ps_critical_css_config_init(ps_critical_css_config_t* config) {
   if (config == nullptr) return;
   std::memset(config, 0, kCriticalCssConfigSizeV1_8);
   config->struct_size = kCriticalCssConfigSizeV1_8;
-  config->max_elements = 25;
+  config->max_elements = 300;
   config->max_depth = 10;
   config->viewport = PS_VIEWPORT_DESKTOP;
   config->max_css_size = static_cast<size_t>(2 * 1024 * 1024);  // 2MB
@@ -2567,7 +2567,7 @@ extern "C" void ps_html_config_init(ps_html_config_t* config) {
   config->enable_preconnect = 1;
   config->enable_speculation_rules = 0;
   config->enable_async_css = 0;  // opt-in, requires critical CSS
-  config->critical_css_max_elements = 25;
+  config->critical_css_max_elements = 300;
   config->critical_css_max_depth = 10;
   config->css_import_max_depth = 5;
   config->viewport = PS_VIEWPORT_DESKTOP;

@@ -6,10 +6,12 @@
 #include "src/browser/page_analysis.h"
 
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <thread>
 #include <utility>
 #include <vector>
 
@@ -20,13 +22,18 @@
 #include "src/browser/agent_fetcher.h"
 #include "src/browser/cdp_client.h"
 #include "src/browser/cdp_types.h"
+#include "src/browser/render_support.h"
 #include "test/test_util/cdp_pipe.h"
+#include "test/test_util/cdp_setup_order.h"
 #include "uv.h"
 
 namespace pagespeed {
 namespace {
 
 using json = nlohmann::json;
+
+// The settle-after-load bound in the tests (kSettleAfterLoadMs is 2 s).
+constexpr uint64_t kTestSettleMs = 50;
 
 class PageAnalysisTest : public ::testing::Test {
  protected:
@@ -254,12 +261,43 @@ class PageAnalysisTest : public ::testing::Test {
       std::string method = cmd.value("method", "");
       responded_ids_.insert(id);
 
+      if (method == "Page.setLifecycleEventsEnabled" &&
+          replay_blank_lifecycle_) {
+        // What Chromium does: enabling lifecycle events
+        // replays the current document's lifecycle, the blank tab's
+        // networkIdle included, ahead of the reply.
+        for (const char* name :
+             {"commit", "DOMContentLoaded", "load", "networkIdle"}) {
+          SendEvent("Page.lifecycleEvent",
+                    {{"name", name}, {"loaderId", "blank-loader"}}, "sess-1");
+        }
+        RespondToCommand(id, json::object());
+        continue;
+      }
+      if (method == "Page.setDocumentContent" &&
+          (load_before_content_reply_ || hold_content_reply_)) {
+        // On a page with nothing left to fetch, Chromium fires the page's own
+        // load before it answers setDocumentContent.
+        SendEvent("Page.lifecycleEvent",
+                  {{"name", "load"}, {"loaderId", "blank-loader"}}, "sess-1");
+        if (hold_content_reply_) {
+          held_content_reply_id_ = id;
+        } else {
+          RespondToCommand(id, json::object());
+        }
+        continue;
+      }
       if (method == "Target.createTarget") {
         RespondToCommand(id, {{"targetId", "target-1"}});
       } else if (method == "Target.attachToTarget") {
         RespondToCommand(id, {{"sessionId", "sess-1"}});
       } else if (method == "Page.getFrameTree") {
-        RespondToCommand(id, {{"frameTree", {{"frame", {{"id", "frame-1"}}}}}});
+        json frame = {{"id", "frame-1"}};
+        if (!blank_loader_id_.empty()) frame["loaderId"] = blank_loader_id_;
+        RespondToCommand(id, {{"frameTree", {{"frame", frame}}}});
+      } else if (method == "Page.navigate" && !blank_loader_id_.empty()) {
+        RespondToCommand(
+            id, {{"frameId", "frame-1"}, {"loaderId", blank_loader_id_}});
       } else if (method == "Runtime.evaluate") {
         json eval_result = MakeEvalResult();
         RespondToCommand(
@@ -275,6 +313,36 @@ class PageAnalysisTest : public ::testing::Test {
     }
   }
 
+  // Fire the page's load ahead of the setDocumentContent reply, as Chromium
+  // does on a page with nothing left to fetch; with hold_content_reply_ the
+  // reply is held (held_content_reply_id_) until the test sends it.
+  bool load_before_content_reply_ = false;
+  bool hold_content_reply_ = false;
+  int held_content_reply_id_ = -1;
+  // Index of the first received command with `method`, or -1.
+  int IndexOf(const std::string& method) const {
+    for (size_t i = 0; i < received_commands_.size(); ++i) {
+      if (received_commands_[i].value("method", "") == method) {
+        return static_cast<int>(i);
+      }
+    }
+    return -1;
+  }
+  // Answer and pump for `d` of wall time (the settle timer is real).
+  void PumpFor(std::chrono::milliseconds d) {
+    const auto end = std::chrono::steady_clock::now() + d;
+    while (std::chrono::steady_clock::now() < end) {
+      AutoRespondAll();
+      RunLoop();
+      std::this_thread::sleep_for(std::chrono::milliseconds(2));
+    }
+  }
+  // Replay the blank tab's lifecycle on Page.setLifecycleEventsEnabled, as
+  // Chromium does.
+  bool replay_blank_lifecycle_ = false;
+  // When set, Page.navigate answers with this loader and Page.getFrameTree
+  // reports it, as Chromium does once the blank document has committed.
+  std::string blank_loader_id_;
   uv_loop_t* loop_ = nullptr;
   test::PipePair chrome_to_client_;
   test::PipePair client_to_chrome_;
@@ -350,10 +418,10 @@ TEST_F(PageAnalysisTest, SuccessfulAnalysis) {
 }
 
 // D1: the fold must be described by the elements that are actually visible, not
-// by the subset of them that happen to be images.  The live repro is a page
-// whose <head> exhausts the extractor's 25-element estimate long before the
-// first visible body element, so the utility classes that lay out the header
-// are never seen.
+// by the subset of them that happen to be images.  The live repro was a page
+// whose <head> exhausted the extractor's element estimate (then 25, counted
+// from <html>) long before the first visible body element, so the utility
+// classes that lay out the header were never seen.
 TEST_F(PageAnalysisTest, CollectsAboveFoldElementDescriptorsNotJustImages) {
   json eval = EmptyEvalResult();
   eval["elements"] = json::array({
@@ -569,8 +637,12 @@ TEST_F(PageAnalysisTest, FetchInterceptionBlocksUnknownUrls) {
   bool found_fail = false;
   for (const auto& cmd : received_commands_) {
     if (cmd.value("method", "") == "Fetch.failRequest") {
-      EXPECT_EQ(cmd.value("params", json::object()).value("reason", ""),
+      // Fetch.failRequest's parameter is `errorReason`: Chromium rejects a
+      // `reason` with "Invalid parameters" and leaves the request paused, so
+      // the page never reaches load or networkIdle.
+      EXPECT_EQ(cmd.value("params", json::object()).value("errorReason", ""),
                 "BlockedByClient");
+      EXPECT_FALSE(cmd.value("params", json::object()).contains("reason"));
       found_fail = true;
       break;
     }
@@ -636,7 +708,8 @@ TEST_F(PageAnalysisTest, FetchBlocksRedirectResponses) {
     if (params.value("requestId", "") != "req-redirect") continue;
     std::string method = cmd.value("method", "");
     if (method == "Fetch.failRequest") {
-      EXPECT_EQ(params.value("reason", ""), "BlockedByClient");
+      EXPECT_EQ(params.value("errorReason", ""), "BlockedByClient");
+      EXPECT_FALSE(params.contains("reason")) << "Chromium rejects it";
       found_fail = true;
     } else if (method == "Fetch.fulfillRequest") {
       found_fulfill = true;
@@ -1188,8 +1261,9 @@ TEST_F(PageAnalysisTest, MobileViewport) {
     RunLoop();
   }
 
-  // Verify mobile flag in viewport setup.
+  // Verify mobile flag in viewport setup, and touch.
   bool found_viewport = false;
+  bool found_touch = false;
   for (const auto& cmd : received_commands_) {
     if (cmd.value("method", "") == "Emulation.setDeviceMetricsOverride") {
       auto params = cmd.value("params", json::object());
@@ -1197,10 +1271,22 @@ TEST_F(PageAnalysisTest, MobileViewport) {
       EXPECT_EQ(params.value("height", 0), 667);
       EXPECT_TRUE(params.value("mobile", false));
       found_viewport = true;
+    }
+    if (cmd.value("method", "") == "Emulation.setTouchEmulationEnabled") {
+      EXPECT_TRUE(found_viewport) << "touch follows the device metrics";
+      auto params = cmd.value("params", json::object());
+      EXPECT_TRUE(params.value("enabled", false));
+      EXPECT_EQ(params.value("maxTouchPoints", 0), 5);
+      found_touch = true;
       break;
     }
   }
   EXPECT_TRUE(found_viewport);
+  EXPECT_TRUE(found_touch);
+  // Then the phone's user agent; the observers are registered
+  // before the fresh window, so they run in the window the document is
+  // written into.
+  test::ExpectFreshWindowRenderSetup(received_commands_, "sess-1", 375, 667);
 
   // Clean up.
   SendEvent("Page.lifecycleEvent", {{"name", "networkIdle"}}, "sess-1");
@@ -1209,6 +1295,168 @@ TEST_F(PageAnalysisTest, MobileViewport) {
     RunLoop();
     if (analysis_done_) break;
   }
+}
+
+// Enabling lifecycle events makes Chromium replay the blank
+// tab's networkIdle before the document is written. The page analysis must not
+// collect on it (it would read about:blank): it collects only on a
+// networkIdle that arrives after Page.setDocumentContent answered.
+TEST_F(PageAnalysisTest, IgnoresTheBlankTabsReplayedNetworkIdle) {
+  replay_blank_lifecycle_ = true;
+  PageAnalyzer analyzer(client_.get());
+  auto resources = std::make_shared<const PageAnalyzer::ResourceMap>();
+  analyzer.Analyze("<html><body><h1>Hi</h1></body></html>", resources, 375, 667,
+                   [this](absl::StatusOr<PageAnalysisResult> result) {
+                     analysis_result_ = std::move(result);
+                     analysis_done_ = true;
+                   });
+  for (int i = 0; i < 20; ++i) {
+    AutoRespondAll();
+    RunLoop();
+  }
+  int content = -1;
+  int evaluate = -1;
+  for (size_t i = 0; i < received_commands_.size(); ++i) {
+    const std::string method = received_commands_[i].value("method", "");
+    if (method == "Page.setDocumentContent" && content < 0) {
+      content = static_cast<int>(i);
+    }
+    if (method == "Runtime.evaluate" && evaluate < 0) {
+      evaluate = static_cast<int>(i);
+    }
+  }
+  ASSERT_GE(content, 0) << "the document was never written";
+  EXPECT_EQ(evaluate, -1)
+      << "collected on the blank tab's replayed networkIdle";
+  EXPECT_FALSE(analysis_done_);
+
+  // The page's own networkIdle, after the write: now it collects.
+  SendEvent("Page.lifecycleEvent",
+            {{"name", "networkIdle"}, {"loaderId", "blank-loader"}}, "sess-1");
+  for (int i = 0; i < 20 && !analysis_done_; ++i) {
+    AutoRespondAll();
+    RunLoop();
+  }
+  ASSERT_TRUE(analysis_done_);
+  EXPECT_TRUE(analysis_result_.ok()) << analysis_result_.status();
+  evaluate = -1;
+  for (size_t i = 0; i < received_commands_.size(); ++i) {
+    if (received_commands_[i].value("method", "") == "Runtime.evaluate") {
+      evaluate = static_cast<int>(i);
+      break;
+    }
+  }
+  EXPECT_GT(evaluate, content) << "the page is read after it was written";
+}
+
+// A page that keeps a request in flight at least every 500 ms
+// never reaches networkIdle. The page analysis then collects settle_after_load_ms
+// after the page's own load event, instead of running into its session
+// timeout; the replayed blank-tab load does not start that wait. (The bound
+// is shortened for the test.)
+TEST_F(PageAnalysisTest, CollectsAfterLoadWhenTheNetworkNeverGoesIdle) {
+  replay_blank_lifecycle_ = true;
+  PageAnalyzer analyzer(client_.get());
+  analyzer.set_settle_after_load_ms_for_testing(kTestSettleMs);
+  auto resources = std::make_shared<const PageAnalyzer::ResourceMap>();
+  analyzer.Analyze("<html><body><h1>Hi</h1></body></html>", resources, 375, 667,
+                   [this](absl::StatusOr<PageAnalysisResult> result) {
+                     analysis_result_ = std::move(result);
+                     analysis_done_ = true;
+                   });
+  for (int i = 0; i < 20; ++i) {
+    AutoRespondAll();
+    RunLoop();
+  }
+  const int content = IndexOf("Page.setDocumentContent");
+  ASSERT_GE(content, 0) << "the document was never written";
+  EXPECT_FALSE(analysis_done_) << "the replayed load started the settle wait";
+
+  // The page's load, after the reply; no networkIdle follows.
+  SendEvent("Page.lifecycleEvent", {{"name", "load"}}, "sess-1");
+  PumpFor(std::chrono::milliseconds(kTestSettleMs + 500));
+  ASSERT_TRUE(analysis_done_) << "no collection after the settle bound";
+  EXPECT_TRUE(analysis_result_.ok()) << analysis_result_.status();
+  EXPECT_GT(IndexOf("Runtime.evaluate"), content);
+}
+
+// On a page with nothing left to fetch, the page's load arrives
+// BEFORE the reply to setDocumentContent. It still starts the settle wait.
+TEST_F(PageAnalysisTest, LoadBeforeTheContentReplyStartsTheSettle) {
+  replay_blank_lifecycle_ = true;
+  load_before_content_reply_ = true;
+  PageAnalyzer analyzer(client_.get());
+  analyzer.set_settle_after_load_ms_for_testing(kTestSettleMs);
+  auto resources = std::make_shared<const PageAnalyzer::ResourceMap>();
+  analyzer.Analyze("<html><body><h1>Hi</h1></body></html>", resources, 375, 667,
+                   [this](absl::StatusOr<PageAnalysisResult> result) {
+                     analysis_result_ = std::move(result);
+                     analysis_done_ = true;
+                   });
+  PumpFor(std::chrono::milliseconds(kTestSettleMs + 500));
+  ASSERT_TRUE(analysis_done_) << "the load before the reply was dropped";
+  EXPECT_TRUE(analysis_result_.ok()) << analysis_result_.status();
+  EXPECT_GT(IndexOf("Runtime.evaluate"), IndexOf("Page.setDocumentContent"));
+}
+
+// The settle bound can run out before setDocumentContent is answered; the
+// page analysis then collects at the reply, never before the document is written.
+TEST_F(PageAnalysisTest, SettleBeforeTheContentReplyCollectsAtTheReply) {
+  replay_blank_lifecycle_ = true;
+  hold_content_reply_ = true;
+  PageAnalyzer analyzer(client_.get());
+  analyzer.set_settle_after_load_ms_for_testing(kTestSettleMs);
+  auto resources = std::make_shared<const PageAnalyzer::ResourceMap>();
+  analyzer.Analyze("<html><body><h1>Hi</h1></body></html>", resources, 375, 667,
+                   [this](absl::StatusOr<PageAnalysisResult> result) {
+                     analysis_result_ = std::move(result);
+                     analysis_done_ = true;
+                   });
+  PumpFor(std::chrono::milliseconds(kTestSettleMs + 200));
+  ASSERT_GE(held_content_reply_id_, 0) << "setDocumentContent was not sent";
+  EXPECT_EQ(IndexOf("Runtime.evaluate"), -1)
+      << "collected before the document was written";
+  EXPECT_FALSE(analysis_done_);
+  RespondToCommand(held_content_reply_id_, json::object());
+  PumpFor(std::chrono::milliseconds(500));
+  ASSERT_TRUE(analysis_done_);
+  EXPECT_TRUE(analysis_result_.ok()) << analysis_result_.status();
+}
+
+// The desktop render sends no user agent override, still gets a
+// fresh window, and waits for that window's document to commit (the frame's
+// loader is the navigation's) before it enables lifecycle events.
+TEST_F(PageAnalysisTest, DesktopSetupWaitsForTheBlankDocument) {
+  blank_loader_id_ = "loader-blank";
+  PageAnalyzer analyzer(client_.get());
+  auto resources = std::make_shared<const PageAnalyzer::ResourceMap>();
+  analyzer.Analyze("<html></html>", resources, 1440, 900,
+                   [this](absl::StatusOr<PageAnalysisResult> result) {
+                     analysis_result_ = std::move(result);
+                     analysis_done_ = true;
+                   });
+  for (int i = 0; i < 20; ++i) {
+    AutoRespondAll();
+    RunLoop();
+  }
+  test::ExpectFreshWindowRenderSetup(received_commands_, "sess-1", 1440, 900);
+  const int navigate =
+      test::IndexOfCommand(received_commands_, "Page.navigate");
+  const int poll = test::IndexOfCommand(received_commands_, "Page.getFrameTree",
+                                        static_cast<size_t>(navigate) + 1);
+  const int lifecycle = test::IndexOfCommand(received_commands_,
+                                             "Page.setLifecycleEventsEnabled");
+  ASSERT_GE(navigate, 0);
+  ASSERT_GE(poll, 0) << "no wait for the blank document's commit";
+  EXPECT_LT(poll, lifecycle);
+
+  SendEvent("Page.lifecycleEvent", {{"name", "networkIdle"}}, "sess-1");
+  for (int i = 0; i < 10; ++i) {
+    AutoRespondAll();
+    RunLoop();
+    if (analysis_done_) break;
+  }
+  EXPECT_TRUE(analysis_done_);
 }
 
 TEST_F(PageAnalysisTest, AttachToTargetFailure) {
@@ -1511,7 +1759,8 @@ TEST_F(PageAnalysisTest, AgentOptimizeBlocksRebindToPrivate) {
     if (params.value("requestId", "") != "req-js") continue;
     std::string method = cmd.value("method", "");
     if (method == "Fetch.failRequest") {
-      EXPECT_EQ(params.value("reason", ""), "BlockedByClient");
+      EXPECT_EQ(params.value("errorReason", ""), "BlockedByClient");
+      EXPECT_FALSE(params.contains("reason")) << "Chromium rejects it";
       found_fail = true;
     } else if (method == "Fetch.fulfillRequest") {
       found_fulfill = true;

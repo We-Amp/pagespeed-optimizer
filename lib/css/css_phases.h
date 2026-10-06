@@ -22,6 +22,8 @@
 #ifndef PAGESPEED_LIB_CSS_CSS_PHASES_H_
 #define PAGESPEED_LIB_CSS_CSS_PHASES_H_
 
+#include <cstddef>
+#include <cstdint>
 #include <string>
 #include <string_view>
 

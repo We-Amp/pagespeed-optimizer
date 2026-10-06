@@ -15,6 +15,16 @@
 #include "lib/net/fetch_policy.h"
 #include "lib/net/upstream_pin.h"
 
+#ifndef _WIN32
+#include <signal.h>
+#include <sys/stat.h>
+
+#include <cstdlib>
+#include <fstream>
+
+#include "test/test_util/temp_dir.h"
+#endif
+
 // Agent fetcher battery. The dangerous direction throughout is an
 // EGRESS that the policy should have refused — to a lateral/private host, an
 // un-allowlisted third party, a rebinding host, or a redirect target that re-points
@@ -629,6 +639,44 @@ TEST(SanitizeResponseHeaders, DropsControlCharAndBadNameHeaders) {
   }
   ASSERT_EQ(out.size(), 2u);  // Content-Type + X-Ok survive
 }
+
+#ifndef _WIN32
+// The daemon ignores SIGPIPE, and an ignored disposition is inherited across
+// exec.  The real spawn must hand the helper the default disposition back.
+// A stand-in `curl` on PATH reports which one it was started with: a shell
+// cannot un-ignore a signal that was ignored when it started, so sending
+// itself SIGPIPE either ends it (default) or does nothing (ignored).
+TEST(RealCurlSpawn, ChildStartsWithDefaultBrokenPipeDisposition) {
+  test::TempDir dir;
+  const std::string script = dir.path() + "/curl";
+  {
+    std::ofstream f(script);
+    f << "#!/bin/sh\nkill -PIPE $$\necho inherited-ignore\n";
+  }
+  ASSERT_EQ(::chmod(script.c_str(), 0755), 0);
+
+  const char* old_path_c = std::getenv("PATH");
+  const std::string old_path = old_path_c != nullptr ? old_path_c : "";
+  ASSERT_EQ(::setenv("PATH", (dir.path() + ":" + old_path).c_str(), 1), 0);
+
+  struct sigaction ignore{};
+  struct sigaction saved{};
+  ignore.sa_handler = SIG_IGN;
+  sigemptyset(&ignore.sa_mask);
+  ASSERT_EQ(::sigaction(SIGPIPE, &ignore, &saved), 0);
+
+  CurlSpawnOutcome out = RealCurlSpawn()({"curl"}, 4096);
+
+  ::sigaction(SIGPIPE, &saved, nullptr);
+  ::setenv("PATH", old_path.c_str(), 1);
+
+  ASSERT_TRUE(out.spawned) << out.error;
+  // Ended by the signal: no output, and not a normal exit.
+  EXPECT_EQ(out.output, "");
+  ASSERT_TRUE(out.exit_code.has_value());
+  EXPECT_EQ(*out.exit_code, -1);
+}
+#endif  // !_WIN32
 
 }  // namespace
 }  // namespace pagespeed

@@ -56,6 +56,7 @@ extern "C" {
 #include "src/crypto/webbotauth/rsl_cap_validator.h"
 #include "src/crypto/webbotauth/verifier.h"
 #include "src/nginx/authz_cache_gate.h"
+#include "src/nginx/cache_generation_check.h"
 #include "src/nginx/early_hints.h"
 #include "src/nginx/early_hints_util.h"
 #include "src/nginx/etag_util.h"
@@ -170,6 +171,11 @@ struct SharedConfig {
   // cannot do that, such as an out-of-process reader on another product's
   // release train, needs the real number and reads it through the C API.
   uint64_t volume_size = 0;
+  // The cache-directory generation the optimizer was compiled with; 0 = not
+  // stated (an optimizer predating the field).  Compared with this module's
+  // own generation by the cache-directory generation check (see
+  // src/nginx/cache_generation_check.h).
+  int cache_dir_generation = 0;
   std::string cache_mode;              // "safe" or "aggressive" (empty = safe)
   std::string strip_query_extensions;  // Comma-separated
   std::string strip_query_params;      // Comma-separated
@@ -348,6 +354,15 @@ static SharedConfig ReadSharedConfig(std::string_view cache_path,
           std::from_chars(value.data(), value.data() + value.size(), v);
       if (ec == std::errc{} && ptr == value.data() + value.size()) {
         config.volume_size = v;
+      }
+    } else if (key == "cache_dir_generation") {
+      // Same rule as the optimizer's own parser: anything but a positive
+      // integer leaves 0, "not stated".
+      int v = 0;
+      auto [ptr, ec] =
+          std::from_chars(value.data(), value.data() + value.size(), v);
+      if (ec == std::errc{} && ptr == value.data() + value.size() && v > 0) {
+        config.cache_dir_generation = v;
       }
     } else if (key == "cache_mode") {
       if (value == "safe" || value == "aggressive") {
@@ -680,6 +695,74 @@ static void RefreshRslCapKeysIfChanged(std::string_view cache_path,
   g_rslcap_keys_mtime = st.st_mtime;
 }
 
+// =================================================================
+// Cache-directory generation check
+// =================================================================
+// Compares the generation the optimizer published in pagespeed-shared.conf
+// (cache_dir_generation=) with this module's own, on every read of that file:
+// at configuration time (start and reload), and on the ~1s mtime poll, so a
+// completed rolling upgrade re-enables the cache without a reload.  On a
+// mismatch the module runs with the shared cache disabled (pass-through);
+// when the optimizer states no generation it carries on as before.  Why
+// pass-through and not "keep using our own volume":
+// src/nginx/cache_generation_check.h.
+//
+// Written under g_cache_mutex; read on the request path without it — same
+// single-threaded nginx worker argument as g_shared_config.
+static pagespeed::CacheGenerationMonitor g_cache_dir_gen(
+    pagespeed::ModuleCacheDirGeneration());
+// The shared config the verdict was read from, for the log line.
+static std::string g_cache_dir_gen_conf_path;
+
+static std::string SharedConfigPathFor(std::string_view cache_path) {
+  return (std::filesystem::path(cache_path).parent_path() /
+          "pagespeed-shared.conf")
+      .string();
+}
+
+// Log the verdict if it has not been logged yet (a change, or a new
+// configuration cycle).  A mismatch is an error, "unknown" a warning, a
+// match a notice.
+static void LogCacheDirGenerationIfPending(ngx_log_t* log) {
+  if (!g_cache_dir_gen.log_pending()) {
+    return;
+  }
+  const pagespeed::CacheGenerationVerdict& v = g_cache_dir_gen.verdict();
+  const std::string line = pagespeed::DescribeCacheGenerationVerdict(
+      v, g_cache_dir_gen.logged_state(), g_cache_dir_gen_conf_path);
+  ngx_uint_t level = NGX_LOG_NOTICE;
+  if (v.state == pagespeed::CacheGenerationState::kMismatch) {
+    level = NGX_LOG_ERR;
+  } else if (v.state == pagespeed::CacheGenerationState::kUnknown) {
+    level = NGX_LOG_WARN;
+  }
+  ngx_log_error(level, log, 0, "%s", line.c_str());
+  g_cache_dir_gen.MarkLogged();
+}
+
+// Re-evaluate the generation check against a freshly read g_shared_config.
+// Call after EVERY assignment of g_shared_config from ReadSharedConfig, with
+// g_cache_mutex held.  `log` == nullptr defers the log line (configuration
+// time: the error log is not open yet, so init_module logs it instead).
+static void ApplyCacheDirGeneration(std::string_view cache_path,
+                                    ngx_log_t* log) {
+  g_cache_dir_gen_conf_path = SharedConfigPathFor(cache_path);
+  g_cache_dir_gen.Update(g_shared_config.cache_dir_generation);
+  if (!g_cache_dir_gen.cache_enabled() && g_cache) {
+    // Mismatch: stop holding the volume.  In-flight requests keep the
+    // instance (and its mmap) alive through their own shared_ptr; GetCache
+    // reopens once the generations match again.
+    g_cache.reset();
+    if (g_cache_sendfile_fd != NGX_INVALID_FILE) {
+      ngx_close_file(g_cache_sendfile_fd);
+      g_cache_sendfile_fd = NGX_INVALID_FILE;
+    }
+  }
+  if (log != nullptr) {
+    LogCacheDirGenerationIfPending(log);
+  }
+}
+
 // Mtime of the last successfully loaded shared config file.
 // Used to avoid re-reading an unchanged file every second.
 static time_t g_shared_config_mtime = 0;
@@ -711,6 +794,7 @@ static void RefreshSharedConfigIfChanged(std::string_view cache_path,
     RebuildUrlNormConfig(cache_path, g_shared_config);
     RebuildWebBotAuthConfig(g_shared_config, log);
     RebuildRslCapConfig(g_shared_config, log);
+    ApplyCacheDirGeneration(cache_path, log);
   }
 
   // The warmed-key file has its own writer cadence (the worker's
@@ -766,6 +850,12 @@ static std::shared_ptr<PageSpeedCache> GetCache(std::string_view cache_path,
   if (g_cache) {
     return g_cache;
   }
+  // Cache-directory generation mismatch: run uncached.  The volume at
+  // cache_path is not the one the optimizer writes, so do not open (or
+  // create, or "recover") anything there.
+  if (!g_cache_dir_gen.cache_enabled()) {
+    return nullptr;
+  }
 
   PageSpeedCacheConfig config = MakeNginxCacheConfig(cache_path);
   auto result = PageSpeedCache::Create(config);
@@ -814,6 +904,8 @@ static std::shared_ptr<PageSpeedCache> GetCache(std::string_view cache_path,
 
     ngx_log_error(NGX_LOG_NOTICE, log, 0, "pagespeed: cache opened at %*s",
                   cache_path.size(), cache_path.data());
+    // Last: a mismatch found by this re-read releases the cache just opened.
+    ApplyCacheDirGeneration(cache_path, log);
   } else {
     ngx_log_error(NGX_LOG_ERR, log, 0,
                   "pagespeed: PageSpeedCache::Create failed for %*s "
@@ -882,6 +974,8 @@ static std::shared_ptr<PageSpeedCache> CheckGenerationAndGetCache(
                     "falling back to mmap serving",
                     path_str.size(), path_str.data());
     }
+    // Last: a mismatch found by this re-read releases the reopened cache.
+    ApplyCacheDirGeneration(cache_path, log);
   } else {
     // Reopen failed: drop the stale instance so the GetCache() fallback
     // recreates the cache from scratch (matches prior behavior, where
@@ -1167,6 +1261,8 @@ static ngx_int_t ngx_http_pagespeed_body_filter(ngx_http_request_t* r,
 static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r);
 static ngx_int_t ngx_http_pagespeed_init_process(ngx_cycle_t* cycle);
 static void ngx_http_pagespeed_exit_process(ngx_cycle_t* cycle);
+static ngx_int_t ngx_http_pagespeed_init_module(ngx_cycle_t* cycle);
+static ngx_int_t ngx_http_pagespeed_add_variables(ngx_conf_t* cf);
 }
 
 // Handler for pagespeed_disallow directive
@@ -1322,7 +1418,7 @@ static ngx_command_t ngx_http_pagespeed_commands[] = {
 
 // Module context
 static ngx_http_module_t ngx_http_pagespeed_module_ctx = {
-    nullptr,                             // preconfiguration
+    ngx_http_pagespeed_add_variables,    // preconfiguration
     ngx_http_pagespeed_init,             // postconfiguration
     nullptr,                             // create main configuration
     nullptr,                             // init main configuration
@@ -1341,7 +1437,7 @@ ngx_module_t ngx_http_pagespeed_module = {
     ngx_http_pagespeed_commands,      // module directives
     NGX_HTTP_MODULE,                  // module type
     nullptr,                          // init master
-    nullptr,                          // init module
+    ngx_http_pagespeed_init_module,   // init module
     ngx_http_pagespeed_init_process,  // init process
     nullptr,                          // init thread
     nullptr,                          // exit thread
@@ -1432,6 +1528,11 @@ static char* ngx_http_pagespeed_merge_loc_conf(ngx_conf_t* cf, void* parent,
       RebuildUrlNormConfig(cp, g_shared_config);
       RebuildWebBotAuthConfig(g_shared_config, cf->log);
       RebuildRslCapConfig(g_shared_config, cf->log);
+      // A new configuration cycle (start or reload) reports the
+      // cache-directory generation verdict again, even if unchanged.  The
+      // line itself is written by init_module, once the error log is open.
+      g_cache_dir_gen.Rearm();
+      ApplyCacheDirGeneration(cp, nullptr);
       // Warm the web-bot-auth key store at config time too.  The runtime
       // poll (RefreshSharedConfigIfChanged) fires on the request path AFTER
       // classify has already run, so without this the very first signed
@@ -2515,8 +2616,12 @@ static void ngx_http_pagespeed_record_response(ngx_http_request_t* r,
     cache = GetCache(cache_path_sv, r->connection->log);
   }
   if (!cache) {
-    ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                  "pagespeed: failed to open cache at %V", &conf->cache_path);
+    // A cache-directory generation mismatch detected while this response
+    // was in flight is not an open failure: it was logged once already.
+    if (g_cache_dir_gen.cache_enabled()) {
+      ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                    "pagespeed: failed to open cache at %V", &conf->cache_path);
+    }
     return;
   }
 
@@ -4486,6 +4591,16 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
     return NGX_DECLINED;
   }
 
+  // Cache-directory generation mismatch with the optimizer (logged once when
+  // detected, not per request): pass through uncached.  uncacheable keeps the
+  // header/body filters from recording the response or notifying the
+  // optimizer, exactly like a no-store response.  The poll above re-reads
+  // the shared config, so this lifts itself once the generations match.
+  if (!g_cache_dir_gen.cache_enabled()) {
+    ctx->uncacheable = 1;
+    return NGX_DECLINED;
+  }
+
   if (!cache) {
     cache = GetCache(cache_path_sv, r->connection->log);
   }
@@ -5648,6 +5763,92 @@ cache_miss:
   return NGX_DECLINED;
 }
 
+// Runs once per configuration cycle (start and every reload) after the
+// configuration is read and the error log is open, before worker processes
+// are forked: writes the cache-directory generation line that
+// merge_loc_conf evaluated but could not yet log.  The workers inherit the
+// "already logged" state, so the line appears once per cycle, not once per
+// worker.
+static ngx_int_t ngx_http_pagespeed_init_module(ngx_cycle_t* cycle) {
+  std::lock_guard<std::mutex> lock(g_cache_mutex);
+  LogCacheDirGenerationIfPending(cycle->log);
+  return NGX_OK;
+}
+
+// $pagespeed_cache_generation           match | mismatch | unknown
+// $pagespeed_cache_generation_module    this module's generation
+// $pagespeed_cache_generation_optimizer the optimizer's published generation
+//                                       (not found = the optimizer stated none)
+// The status of the cache-directory generation check as this nginx worker
+// process last evaluated it (at start/reload, then on every shared-config
+// change).  Operators expose it where they want it: a log_format field, or a
+// restricted status location (`return 200 "$pagespeed_cache_generation\n";`).
+enum : uintptr_t {
+  kCacheGenVarState = 0,
+  kCacheGenVarModule = 1,
+  kCacheGenVarOptimizer = 2,
+};
+
+static ngx_int_t ngx_http_pagespeed_cache_generation_variable(
+    ngx_http_request_t* r, ngx_http_variable_value_t* v, uintptr_t data) {
+  const pagespeed::CacheGenerationVerdict& verdict = g_cache_dir_gen.verdict();
+  std::string value;
+  switch (data) {
+    case kCacheGenVarState:
+      value = pagespeed::CacheGenerationStateName(verdict.state);
+      break;
+    case kCacheGenVarModule:
+      value = std::to_string(verdict.module_generation);
+      break;
+    case kCacheGenVarOptimizer:
+      if (verdict.optimizer_generation <= 0) {
+        v->not_found = 1;
+        return NGX_OK;
+      }
+      value = std::to_string(verdict.optimizer_generation);
+      break;
+    default:
+      v->not_found = 1;
+      return NGX_OK;
+  }
+  u_char* p = static_cast<u_char*>(ngx_pnalloc(r->pool, value.size()));
+  if (p == nullptr) {
+    return NGX_ERROR;
+  }
+  ngx_memcpy(p, value.data(), value.size());
+  v->data = p;
+  v->len = value.size();
+  v->valid = 1;
+  v->no_cacheable = 1;
+  v->not_found = 0;
+  return NGX_OK;
+}
+
+static ngx_int_t ngx_http_pagespeed_add_variables(ngx_conf_t* cf) {
+  struct VarDef {
+    const char* name;
+    uintptr_t data;
+  };
+  static const VarDef kVars[] = {
+      {"pagespeed_cache_generation", kCacheGenVarState},
+      {"pagespeed_cache_generation_module", kCacheGenVarModule},
+      {"pagespeed_cache_generation_optimizer", kCacheGenVarOptimizer},
+  };
+  for (const VarDef& def : kVars) {
+    ngx_str_t name;
+    name.data = reinterpret_cast<u_char*>(const_cast<char*>(def.name));
+    name.len = std::strlen(def.name);
+    ngx_http_variable_t* var =
+        ngx_http_add_variable(cf, &name, NGX_HTTP_VAR_NOCACHEABLE);
+    if (var == nullptr) {
+      return NGX_ERROR;
+    }
+    var->get_handler = ngx_http_pagespeed_cache_generation_variable;
+    var->data = def.data;
+  }
+  return NGX_OK;
+}
+
 // Process lifecycle hooks — on nginx reload (SIGHUP) the master forks
 // a new worker process.  The forked child inherits g_cache, but
 // Cyclone file descriptors may be stale.  Reinitialize to get a fresh
@@ -5783,6 +5984,7 @@ static ngx_int_t ngx_http_pagespeed_init(ngx_conf_t* cf) {
         std::lock_guard<std::mutex> lock(g_cache_mutex);
         g_shared_config = ReadSharedConfig(cache_path_sv, cf->log);
         RebuildUrlNormConfig(cache_path_sv, g_shared_config);
+        ApplyCacheDirGeneration(cache_path_sv, nullptr);
       }
     }
   }

@@ -41,7 +41,9 @@ RawTextElement ScanRawTextElement(std::string_view html, size_t pos);
 bool StartsComment(std::string_view html, size_t pos);
 
 // One past the "-->" closing the comment opened at html[pos], or npos when the
-// comment is never closed.
+// comment is never closed. This is the serve path's HtmlLexer reading, kept
+// for placement parity: unlike a browser, it runs `<!-->` and
+// `<!--->` on to the next "-->" and does not end a comment at `--!>`.
 size_t ScanComment(std::string_view html, size_t pos);
 
 // Position of the first case-insensitive `needle` that is NOT inside a comment
@@ -74,8 +76,46 @@ struct CssInjectionResult {
 // injected=false.
 //
 // If html is empty, returns failure.
+//
+// This string-level injector only knows the </head> / </body> order. The
+// SERVE path is HtmlTransformFilter::InjectCriticalCss, which places the block
+// before the page's first stylesheet source when that source precedes </head>;
+// the critical-CSS validator reproduces that placement with
+// CriticalCssFallbackOffset + InjectCriticalCssAt below.
 CssInjectionResult InjectCriticalCss(std::string_view html,
                                      std::string_view critical_css);
+
+// The offset InjectCriticalCss injects at: before the first </head> outside
+// comments and raw-text elements, else before such a </body>, else just after
+// the <head ...> open tag, else 0.
+size_t CriticalCssFallbackOffset(std::string_view html);
+
+// True when `css` may name a cascade layer: an `@layer <name>` block or an
+// `@layer a, b;` statement (anything after `@layer` other than an opening
+// brace), or an `@import ... layer` rule. Matching is textual and
+// case-insensitive, and deliberately over-inclusive — a mention inside a
+// comment or a string counts too — because the answer only ever makes the
+// block's placement MORE conservative.
+//
+// Why placement cares: a layer's position in the cascade is
+// fixed by its first mention in the document. A block placed before the
+// stylesheets mentions its layers first, in the COMBINED sheet's order (inline
+// <style> bodies first, then external sheets that were fetched), which is not
+// the document order when a <style> follows a <link>, and is incomplete when a
+// layered sheet is missing from the combined sheet (a cross-origin sheet, a
+// cold cache). So a block that names a layer goes first only behind the
+// page's proven layer order; this function is the first question
+// DecideCriticalCssLayerPlacement (cascade_layer_order.h) asks, and that is
+// what HtmlTransformFilter::InjectCriticalCss and the validator's placement
+// both apply.
+bool CriticalCssNamesCascadeLayer(std::string_view css);
+
+// As InjectCriticalCss, but at byte offset `pos` of `html` (0 <= pos <=
+// html.size()), with the same sanitization and the same `</style` refusal
+// (success=true, injected=false, empty html). Fails when `pos` is past the
+// end. The caller owns the choice of position: this does no scanning.
+CssInjectionResult InjectCriticalCssAt(std::string_view html, size_t pos,
+                                       std::string_view critical_css);
 
 }  // namespace pagespeed
 

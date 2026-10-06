@@ -47,7 +47,13 @@ build:libc++ --copt=-Wno-unused-command-line-argument
 
 # Platform-specific (auto-selected on macOS)
 build:macos --config=libc++
-build:macos --macos_minimum_os=10.15
+# Deployment target floor 11.0: CLT 27.0's libc++ (macOS 27 SDK) dropped
+# availability support below macOS 11.0, and its
+# __configuration/availability.h #warning "The selected platform is no longer
+# supported by libc++." fails the per-file -Werror build. 11.0 is also the
+# hardware floor for arm64 binaries, so this pin was already fiction on Apple
+# Silicon.
+build:macos --macos_minimum_os=11.0
 # ld64 warns about Bazel's duplicate -l flags
 build:macos --linkopt=-Wl,-no_warn_duplicate_libraries
 # Same abseil layering_check workaround as docker config (see comment above).
@@ -193,8 +199,7 @@ build:windows-asan --copt=/fsanitize=address
 #
 # The endpoint is addressed through the environment-neutral alias
 # `bazel-remote-cache`; NO environment-specific hostname or address is stored in
-# this tree (they live in GitHub repository variables -- see
-# docs/ci/ci-infrastructure-variables.md).
+# this tree (they live in the CI system's repository variables).
 #   * CI Linux jobs run in Docker and map the alias with
 #     `--add-host=bazel-remote-cache:${BAZEL_CACHE_HOST}`.
 #   * CI Windows jobs build natively and pass `--remote_cache` explicitly.

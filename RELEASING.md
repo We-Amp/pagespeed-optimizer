@@ -49,8 +49,7 @@ matching the exact-version package pair the module depends on, and the shipped
 daemon self-reports that build version — not `VERSION.txt`. The two numbers
 move together at a release but are not the same number: bump `VERSION.txt`
 with the product line, cut `optimizer-v*` tags with the package stream. (The
-1.1 manifest in the corp meta-repo likewise stays on its own `v1.15.x+rN`
-scheme.)
+1.x module line likewise stays on its own `v1.15.x+rN` scheme.)
 
 ## Cutting a release
 
@@ -126,20 +125,25 @@ hardening properties on both artifacts before they are packaged.
 
 ## The website tree
 
-`website/` (the modpagespeed.com site) is imported wholesale from the site's
-source-of-truth repository by the maintainer export flow; it is not edited
-here, because a direct edit would be overwritten by the next import. The
-import applies a token-only scrub for internal references, asserts none
-remain, and runs this repository's public-tree hygiene gate
-(`tools/ci/check-public-hygiene.sh`) over the result before anything is
-committed.
+`website/` (the modpagespeed.com site) is built and deployed from the public
+repository (We-Amp/pagespeed-optimizer). Its source is maintained in the
+maintainers' tree and reaches the public repository only by a wholesale
+export: the public `website/` is replaced with the maintained tree, so a
+direct edit there would be overwritten by the next export. A website change
+is therefore made in the source tree and shipped by an export, never edited
+in the public repository.
 
-What enforces the quality of an import is the `Website` workflow
-(`.github/workflows/website.yml`): on every push or pull request touching
-`website/**` it runs `npm ci`, the vitest unit suite, and a production build
-(with `PRICING_ALLOW_STALE=1` — a hosted build holds no pricing API
-credentials, so it builds on the committed pricing file). A broken import
-cannot merge.
+The export applies a token-only scrub for internal references (it changes
+no punctuation, whitespace or quotes), asserts none remain, and runs the
+public repository's own hygiene gate (its `tools/ci/check-public-hygiene.sh`)
+over the result before anything is committed on an export branch. The push
+and the pull request stay with the operator.
+
+What enforces the quality of an export is the public repository's `Website`
+workflow: on every push or pull request touching `website/**` it runs
+`npm ci`, the vitest unit suite, and a production build (with
+`PRICING_ALLOW_STALE=1` — a hosted build holds no pricing API credentials,
+so it builds on the committed pricing file). A broken export cannot merge.
 
 ## Vulnerability Scanning
 

@@ -23,6 +23,8 @@
 #include "src/browser/optimization_profile.h"
 #include "src/browser/page_analysis.h"
 #include "src/browser/script_coverage_analyzer.h"
+#include "src/worker/cascade_layer_order.h"
+#include "src/worker/css_cache_inliner.h"
 #include "src/worker/html_scanner.h"
 
 namespace pagespeed {
@@ -98,6 +100,40 @@ inline constexpr float kDegradedCoverageThreshold = 0.95f;
 // production floor genuinely 0.60.
 inline constexpr float kInlineCriticalCssMaxCoverage = 0.60f;
 
+// Hard cap on the bytes of a critical block the worker inlines while the
+// stylesheet STAYS render-blocking, whichever path derived it. The ratio gate
+// above keeps the block a genuine subset of the sheet; this keeps it a
+// genuine SMALL one when the sheet is huge. It is paid on every HTML response
+// for the template (the sheet is fetched once and cached; the HTML is not),
+// so 64 KiB — about half a typical utility-class sheet, and where the inline
+// bytes start to cost more transfer than the render-blocking fetch they sit
+// next to — is the ceiling. Above it the original render-blocking <link> is
+// kept and nothing is inlined. A VALIDATED deferral is never vetoed by this
+// cap: there the inline block replaces the render-blocking fetch rather than
+// duplicating it, which is the whole win, and the validator rendered exactly
+// that block (worker.cc applies the cap only when async_css_validated is
+// false).
+inline constexpr size_t kInlineCriticalCssMaxBytes = 64 * 1024;
+
+// True when a heuristically derived block may be inlined: once the sheet is
+// big enough for the ratio to mean anything, under the coverage gate measured
+// on the bytes actually derived (critical / combined, the same quantity the
+// profile path's coverage is). `small_sheet_bytes` is the sheet size below
+// which the ratio is not applied: a page whose whole CSS is a 2 KB <style>
+// block has always had that block inlined in full, and inlining all of a
+// small sheet costs nothing that deferring it would save (it is the same
+// threshold the deferral gate uses for its small-sheet escape,
+// WorkerConfig::async_css_min_deferred_bytes). The byte cap above is applied
+// separately, by the caller, once it knows whether the deferral is validated.
+inline bool ShouldInlineHeuristicCriticalCss(size_t critical_css_bytes,
+                                             size_t combined_css_bytes,
+                                             size_t small_sheet_bytes) {
+  if (combined_css_bytes < small_sheet_bytes) return true;
+  return static_cast<float>(critical_css_bytes) /
+             static_cast<float>(combined_css_bytes) <
+         kInlineCriticalCssMaxCoverage;
+}
+
 bool ShouldInlineCriticalCss(float coverage_ratio);
 
 // Build the re-analysis retry item from the current item.  Centralized + unit-
@@ -169,6 +205,29 @@ inline constexpr size_t kMaxAboveFoldSelectorTokenBytes = 128;
 void PopulateViewportFromPageAnalysis(PageAnalysisResult& result,
                                       ViewportProfile& vp);
 
+// The documents the analysis renders load, from the page as the origin
+// served it: cached stylesheets inlined (InlineCachedStylesheets) and an
+// absolute <base> when the author has none (InjectBaseHrefIfAbsent).
+struct AnalysisDocuments {
+  // For the renders that run scripts (page analysis, script coverage, the
+  // agent render).
+  std::string document;
+  // For the CSS coverage render, which runs with script execution disabled:
+  // `document` without its <noscript> elements (StripNoscriptElements),
+  // so it renders what a browser running scripts renders. Empty when
+  // that removal could not be trusted (it was unreliable, or the scanner read
+  // the page differently, NoscriptStripAgreesWithScan); `coverage_refusal`
+  // then says why, and the coverage render must not run.
+  std::string coverage_document;
+  std::string coverage_refusal;
+};
+AnalysisDocuments BuildAnalysisDocuments(std::string_view origin_html,
+                                         std::string_view url,
+                                         std::string_view hostname,
+                                         std::string_view scheme,
+                                         const css::CssLookupFn& lookup,
+                                         CssInliningStats* stats = nullptr);
+
 // ---------------------------------------------------------------------------
 // Empirical critical-CSS validation (issue #1056)
 // ---------------------------------------------------------------------------
@@ -184,6 +243,10 @@ struct CombinedCssBytes {
   // cross-origin sheet that will never cache here — the operator's next move is
   // "wait" in one case and "this page will never be confirmed" in the other.
   bool revalidatable_css_missing = false;
+  // The page's cascade-layer order, as the serve path receives it: the
+  // validator places a layered candidate with it exactly as the serve path
+  // places the block it inlines.
+  CascadeLayerOrder layer_order{};
 };
 
 // Injected, never reimplemented.  The byte sequence is a contract — it is the
@@ -224,6 +287,10 @@ struct ValidationInputs {
   // which has the stylesheet inlined into it.
   std::vector<CollectedElement> elements;
   std::string combined_css;
+  CascadeLayerOrder layer_order{};
+  // HtmlScanResult::noscript_affects_render of the same scan; salts the
+  // record's binding (ValidationBindingFor).
+  bool noscript_affects_render = false;
 };
 
 // Scan the page as the origin served it and take the combined stylesheet from
@@ -290,13 +357,21 @@ struct ValidationRequest {
   // The block that will be rendered, and that a resulting record describes.
   // Empty when !run.
   std::string candidate_critical_css;
+  // CriticalCssResult::anonymous_layers_dropped of the derivation that made
+  // the candidate; salts the record's binding (ValidationBindingFor).
+  // False when !run.
+  bool anonymous_layers_dropped = false;
   ValidationDocuments docs;
 };
 
+// `layer_order` is the page's cascade-layer order from the same assembly as
+// `combined_css` (CombinedCssBytes::layer_order); it reaches
+// BuildValidationDocuments so the validated placement is the served one.
 ValidationRequest PrepareCriticalCssValidation(
     const ViewportProfile& vp, const std::vector<CollectedElement>& elements,
     std::string_view combined_css, std::string_view pre_inline_html,
-    CapabilityMask::Viewport viewport, bool renderer_available);
+    CapabilityMask::Viewport viewport, bool renderer_available,
+    const CascadeLayerOrder& layer_order = {});
 
 // Why `request` will not run, for the analysis log.
 std::string ValidationRefusalMessage(const ValidationRequest& request);
@@ -308,10 +383,15 @@ std::string ValidationRefusalMessage(const ValidationRequest& request);
 // exists, against a stylesheet that exists.  "Validated against nothing" hashes
 // to nothing the serve path can match, but leaving the bit set with an empty
 // hash would still be a record that reads as a mistake rather than a refusal.
+//
+// `layer_order_binding` (CascadeLayerOrder::ValidationBinding of the page's
+// order from the same assembly) is folded into the stylesheet hash, so the
+// record also binds to the layer order the validation placed the block with.
 void ApplyValidationVerdict(ViewportProfile& vp,
                             const ValidationVerdict& verdict,
                             std::string_view candidate_critical_css,
-                            std::string_view combined_css);
+                            std::string_view combined_css,
+                            std::string_view layer_order_binding = {});
 
 }  // namespace browser_internal
 }  // namespace pagespeed

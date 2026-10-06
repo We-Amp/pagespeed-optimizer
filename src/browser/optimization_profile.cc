@@ -15,6 +15,7 @@
 #include "absl/status/statusor.h"
 #include "absl/strings/str_cat.h"
 #include "absl/strings/str_format.h"
+#include "lib/classify/capability_mask.h"
 #include "nlohmann/json.hpp"
 #include "sha256.hpp"
 
@@ -147,12 +148,87 @@ std::string CombinedCssValidationHash(std::string_view css) {
   return hex;
 }
 
+std::string CombinedCssValidationHash(std::string_view css,
+                                      std::string_view layer_order_binding) {
+  if (css.empty()) return {};
+  if (layer_order_binding.empty()) return CombinedCssValidationHash(css);
+  // A comment after the sheet: bytes no stylesheet can end with by accident
+  // collide with, and the binding cannot contain "*/" (it is layer names).
+  return CombinedCssValidationHash(absl::StrCat(
+      css, "\n/*pagespeed-layer-order:", layer_order_binding, "*/"));
+}
+
+bool CombinedCssHasStructuralEscape(std::string_view css) {
+  size_t i = 0;
+  while (i < css.size()) {
+    const char c = css[i];
+    if (c == '/' && i + 1 < css.size() && css[i + 1] == '*') {
+      const size_t end = css.find("*/", i + 2);
+      i = end == std::string_view::npos ? css.size() : end + 2;
+      continue;
+    }
+    if (c == '"' || c == '\'') {
+      // A string: its escapes are skipped, and it ends at the matching quote
+      // or, as a bad string, at a newline (CSS Syntax 3 §4.3.5).
+      for (++i; i < css.size(); ++i) {
+        if (css[i] == '\\') {
+          ++i;
+          continue;
+        }
+        if (css[i] == c) {
+          ++i;
+          break;
+        }
+        if (css[i] == '\n' || css[i] == '\r' || css[i] == '\f') break;
+      }
+      continue;
+    }
+    if (c == '\\') {
+      if (i + 1 < css.size()) {
+        const char next = css[i + 1];
+        if (next == '\'' || next == '"' || next == '{' || next == '}' ||
+            next == ',') {
+          return true;
+        }
+      }
+      i += 2;
+      continue;
+    }
+    ++i;
+  }
+  return false;
+}
+
+std::string ValidationBindingFor(std::string_view layer_order_binding,
+                                 bool noscript_affects_render,
+                                 std::string_view combined_css,
+                                 CapabilityMask::Viewport viewport,
+                                 bool anonymous_layers_dropped) {
+  // A layer binding starts with "proven " or is "unproven", and a proven one
+  // ends with the statement's ';', so a salt cannot be mistaken for one.
+  std::string binding(layer_order_binding);
+  auto salt = [&binding](std::string_view word) {
+    if (!binding.empty()) binding += ' ';
+    binding += word;
+  };
+  if (noscript_affects_render) salt("noscript-render");
+  if (CombinedCssHasStructuralEscape(combined_css)) salt("css-escape");
+  if (viewport == CapabilityMask::Viewport::kTablet) salt("tablet-mobile");
+  if (viewport != CapabilityMask::Viewport::kDesktop) {
+    salt("touch");  // touch emulation
+    salt("ua");     // User-Agent emulation
+  }
+  if (anonymous_layers_dropped) salt("anon-layers-dropped");
+  return binding;
+}
+
 bool AsyncCssValidatedForServedSheet(const ViewportProfile* vp,
-                                     std::string_view combined_css) {
+                                     std::string_view combined_css,
+                                     std::string_view layer_order_binding) {
   if (vp == nullptr || !vp->critical_css_validated) return false;
   if (vp->validated_combined_css_hash.empty()) return false;
   return vp->validated_combined_css_hash ==
-         CombinedCssValidationHash(combined_css);
+         CombinedCssValidationHash(combined_css, layer_order_binding);
 }
 
 const ViewportProfile* AsyncCssRecordForDerivedBlock(

@@ -21,7 +21,10 @@
 //   bazel build --config=opt //tools/async-css-probe:measure_validation_threshold
 //   measure_validation_threshold \
 //       --fixture tools/async-css-probe/fixtures/modpagespeed-com \
-//       --chrome /path/to/chrome-headless-shell
+//       --chrome /path/to/chrome-headless-shell \
+//       [--dump /dir]   # also writes each viewport's screenshots and the
+//                       # derived block (<viewport>-block.css), so a block can
+//                       # be read against the render that validated it
 //
 // The result table belongs in the PR description and in the comment beside
 // kDefaultValidationDiffThreshold. Report the block and sheet byte sizes with
@@ -45,6 +48,7 @@
 #include <filesystem>
 #include <fstream>
 #include <memory>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -54,8 +58,10 @@
 #include "src/browser/chrome_process.h"
 #include "src/browser/critical_css_validator.h"
 #include "src/browser/visual_regression_gate.h"
+#include "src/worker/cascade_layer_order.h"
 #include "src/worker/css_cache_inliner.h"
 #include "src/worker/html_scanner.h"
+#include "src/worker/layer_order_sources.h"
 #include "uv.h"
 
 namespace {
@@ -390,7 +396,10 @@ int main(int argc, char** argv) {
   // The combined sheet, assembled the way the serve path assembles it: inline
   // CSS first, then each declared sheet in document order, newline-joined.
   std::string combined_css = scan.inline_css;
-  for (const auto& sheet : scan.stylesheets) {
+  std::vector<std::optional<pagespeed::GatheredSheet>> gathered(
+      scan.stylesheets.size());
+  for (size_t n = 0; n < scan.stylesheets.size(); ++n) {
+    const auto& sheet = scan.stylesheets[n];
     if (sheet.href.empty()) continue;
     auto body = lookup(sheet.href);
     if (!body.has_value()) {
@@ -400,7 +409,16 @@ int main(int argc, char** argv) {
     }
     if (!combined_css.empty()) combined_css.append("\n");
     combined_css.append(*body);
+    gathered[n].emplace(pagespeed::GatheredSheet{*body, sheet.href});
   }
+  // The page's cascade-layer order, computed the way Worker::BuildCombinedCss
+  // computes it (as dump_critical_css does). No fixture has an @import, so an
+  // import would be reported as missing.
+  const pagespeed::CascadeLayerOrder layer_order =
+      pagespeed::ComputeCascadeLayerOrder(
+          pagespeed::BuildLayerOrderSources(scan.stylesheet_sources, page_url,
+                                            gathered),
+          {});
   double assemble_ms = static_cast<double>(uv_hrtime() - t0) / 1e6;
   std::fprintf(stdout, "page %zu B, combined stylesheet %zu B\n", html.size(),
                combined_css.size());
@@ -457,11 +475,22 @@ int main(int argc, char** argv) {
 
     // Production step 2: the DOM-matched derivation the serve path inlines.
     uint64_t t1 = uv_hrtime();
+    // No measured fold: this tool has no ViewportProfile, so it derives
+    // against the extractor's own fold estimate, explicitly.
     std::string good =
-        DeriveDomMatchedCriticalCss(scan.elements, combined_css,
-                                    coverage.critical_css, vp.enum_value)
+        DeriveDomMatchedCriticalCss(
+            scan.elements, combined_css, coverage.critical_css, vp.enum_value,
+            /*measured_above_fold_selectors=*/{}, layer_order)
             .critical_css;
     double derive_ms = static_cast<double>(uv_hrtime() - t1) / 1e6;
+    if (dump_dir != nullptr) {
+      const std::string path =
+          std::string(dump_dir) + "/" + vp.name + "-block.css";
+      std::ofstream out(path, std::ios::binary);
+      out << good;
+      std::fprintf(stdout, "  [%s] wrote %s (%zu B)\n", vp.name, path.c_str(),
+                   good.size());
+    }
     uint64_t t2 = uv_hrtime();
     ValidationDocuments timing_docs =
         BuildValidationDocuments(html, combined_css, good);

@@ -262,7 +262,7 @@ class TestHealthCheck:
             [
                 "sh",
                 "-c",
-                "echo | socat - UNIX-CONNECT:/tmp/pagespeed.sock.health",
+                "socat -u -T 4 UNIX-CONNECT:/tmp/pagespeed.sock.health -",
             ],
         )
         # If socat isn't available, try with a simple Python script

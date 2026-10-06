@@ -25,6 +25,14 @@ gtest_test(
 )
 
 gtest_test(
+    name = "cache_generation_check_test",
+    deps = [
+        "//src/nginx:cache_generation_check",
+        "//src/worker:shared_config",
+    ],
+)
+
+gtest_test(
     name = "revalidation_storability_test",
     deps = [
         "//lib/classify:alternate_metadata",

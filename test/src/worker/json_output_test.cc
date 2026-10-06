@@ -17,6 +17,10 @@
 //   - Gate: no bare nlohmann::json::dump( call remains under src/worker/
 //     outside the helper's own implementation.
 
+#ifndef _WIN32
+#include <signal.h>
+#endif
+
 #include <atomic>
 #include <cerrno>
 #include <chrono>
@@ -447,6 +451,19 @@ TEST_F(JsonOutputCacheApiTest, CooldownsServesWellFormedJsonForAnyUrl) {
 class JsonOutputWsTest : public ::testing::Test {
  protected:
   void SetUp() override {
+#ifndef _WIN32
+    // The WebSocket server under test and its clients live in this one
+    // process, and several tests close a client while the server still has
+    // frames to write to it.  The daemon ignores SIGPIPE at start-up, so
+    // that write is an EPIPE error that closes the connection; give the
+    // server side here the same process state, or the write ends the test
+    // process instead.  That the daemon binary itself survives a vanished
+    // client is pinned separately, in worker_client_disconnect_test.
+    struct sigaction ignore{};
+    ignore.sa_handler = SIG_IGN;
+    sigemptyset(&ignore.sa_mask);
+    sigaction(SIGPIPE, &ignore, &saved_sigpipe_);
+#endif
     loop_ = new uv_loop_t;
     uv_loop_init(loop_);
     handler_ = std::make_unique<NullMessageHandler>();
@@ -502,6 +519,9 @@ class JsonOutputWsTest : public ::testing::Test {
     manager_.reset();
     uv_loop_close(loop_);
     delete loop_;
+#ifndef _WIN32
+    sigaction(SIGPIPE, &saved_sigpipe_, nullptr);
+#endif
   }
 
   void StartLoopThread() {
@@ -589,6 +609,9 @@ class JsonOutputWsTest : public ::testing::Test {
   }
 
   uv_loop_t* loop_ = nullptr;
+#ifndef _WIN32
+  struct sigaction saved_sigpipe_{};
+#endif
   uv_tcp_t listener_;
   int port_ = 0;
   std::unique_ptr<NullMessageHandler> handler_;

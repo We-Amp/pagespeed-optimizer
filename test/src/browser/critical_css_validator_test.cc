@@ -12,10 +12,13 @@
 #include <string>
 #include <vector>
 
+#include "absl/strings/str_cat.h"
 #include "gtest/gtest.h"
 #include "nlohmann/json.hpp"
 #include "src/browser/cdp_client.h"
 #include "src/browser/visual_regression_gate.h"
+#include "src/worker/cascade_layer_order.h"
+#include "src/worker/html_scanner.h"
 #include "test/test_util/cdp_scripted_peer.h"
 #include "test/test_util/png_image.h"
 
@@ -205,6 +208,422 @@ TEST(BuildValidationDocumentsTest, HandlesHeadlessAndFragmentDocuments) {
       DocumentsDifferOnlyInStyleBody(fragment.reference, fragment.candidate));
 }
 
+// The serve path injects the block before the page's FIRST stylesheet source
+// (HtmlTransformFilter::InjectCriticalCss), so the validated pair
+// carries its one block where that source stood — not at </head>, which would
+// render a document shape the visitor never receives.
+TEST(BuildValidationDocumentsTest, BlockStandsWhereTheFirstSourceStood) {
+  auto docs = BuildValidationDocuments(kPage, ".a{color:red}", ".a{color:red}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  // kPage: <title> then the stylesheet <link>, then a preconnect, then <style>.
+  const std::string expected =
+      "<!doctype html><html><head>"
+      "<title>Home</title>"
+      "<style data-pagespeed-critical>.a{color:red}</style>"
+      "<link rel=\"preconnect\" href=\"https://fonts.example\">"
+      "</head><body><h1>Hi</h1></body></html>";
+  EXPECT_EQ(docs.reference, expected);
+  EXPECT_EQ(docs.candidate, expected);
+}
+
+TEST(BuildValidationDocumentsTest, AnInlineStyleBeforeTheLinkIsTheAnchor) {
+  auto docs = BuildValidationDocuments(
+      "<html><head><meta charset=utf-8><style>b{}</style><title>T</title>"
+      "<link rel=stylesheet href=/a.css></head><body>x</body></html>",
+      ".a{color:red}", ".a{}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_EQ(docs.candidate,
+            "<html><head><meta charset=utf-8>"
+            "<style data-pagespeed-critical>.a{}</style>"
+            "<title>T</title></head><body>x</body></html>");
+  EXPECT_TRUE(DocumentsDifferOnlyInStyleBody(docs.reference, docs.candidate));
+}
+
+TEST(BuildValidationDocumentsTest, ABodySourceIsTheAnchorWhenHeadHasNone) {
+  // Same as the serve path's </body> fallback with a sheet in the body: the
+  // block precedes the sheet, not the </body>.
+  auto docs = BuildValidationDocuments(
+      "<html><body><p>x</p><link rel=stylesheet href=/a.css><p>y</p>"
+      "</body></html>",
+      ".a{color:red}", ".a{}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_EQ(docs.candidate,
+            "<html><body><p>x</p>"
+            "<style data-pagespeed-critical>.a{}</style>"
+            "<p>y</p></body></html>");
+}
+
+TEST(BuildValidationDocumentsTest, ASourceInsideACommentIsNotTheAnchor) {
+  auto docs = BuildValidationDocuments(
+      "<html><head><!-- <link rel=stylesheet href=/dead.css> "
+      "--><title>T</title>"
+      "<link rel=stylesheet href=/live.css></head><body>x</body></html>",
+      ".a{color:red}", ".a{}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_EQ(docs.candidate,
+            "<html><head><!-- <link rel=stylesheet href=/dead.css> -->"
+            "<title>T</title>"
+            "<style data-pagespeed-critical>.a{}</style>"
+            "</head><body>x</body></html>");
+}
+
+TEST(BuildValidationDocumentsTest, ABodySourceDoesNotMoveTheBlockPastHeadEnd) {
+  // The serve path decides at </head>: a sheet that only appears in <body> is
+  // not seen yet, so the block goes before </head>, not into the body.
+  auto docs = BuildValidationDocuments(
+      "<html><head><title>T</title></head><body><p>x</p>"
+      "<link rel=stylesheet href=/a.css><p>y</p></body></html>",
+      ".a{color:red}", ".a{}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_EQ(docs.candidate,
+            "<html><head><title>T</title>"
+            "<style data-pagespeed-critical>.a{}</style>"
+            "</head><body><p>x</p><p>y</p></body></html>");
+}
+
+TEST(BuildValidationDocumentsTest, TheBlockNeverPrecedesTheHeadPrelude) {
+  // A sheet ahead of <meta charset> / a meta CSP / <base> is not the anchor;
+  // the next source after the prelude is, else the </head> fallback.
+  auto docs = BuildValidationDocuments(
+      "<html><head><link rel=stylesheet href=/early.css>"
+      "<META CHARSET=utf-8><title>T</title>"
+      "<link rel=stylesheet href=/late.css></head><body></body></html>",
+      ".a{color:red}", ".a{}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_EQ(docs.candidate,
+            "<html><head><META CHARSET=utf-8><title>T</title>"
+            "<style data-pagespeed-critical>.a{}</style>"
+            "</head><body></body></html>");
+
+  docs = BuildValidationDocuments(
+      "<html><head><style>b{}</style>"
+      "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src *\">"
+      "<base href=\"/x/\"><title>T</title></head><body></body></html>",
+      ".a{color:red}", ".a{}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_EQ(
+      docs.candidate,
+      "<html><head>"
+      "<meta http-equiv=\"Content-Security-Policy\" content=\"default-src *\">"
+      "<base href=\"/x/\"><title>T</title>"
+      "<style data-pagespeed-critical>.a{}</style>"
+      "</head><body></body></html>");
+}
+
+TEST(BuildValidationDocumentsTest, ANoscriptSourceIsNeverTheAnchor) {
+  auto docs = BuildValidationDocuments(
+      "<html><head><title>T</title>"
+      "<noscript><link rel=stylesheet href=/a.css></noscript>"
+      "<meta name=x><link rel=stylesheet href=/b.css>"
+      "</head><body>x</body></html>",
+      ".a{color:red}", ".a{}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_EQ(docs.candidate,
+            "<html><head><title>T</title><meta name=x>"
+            "<style data-pagespeed-critical>.a{}</style>"
+            "</head><body>x</body></html>");
+}
+
+TEST(BuildValidationDocumentsTest, TheWorkersOwnMarkupIsReadLikeTheServePath) {
+  // On the worker's own output: the previous block is removed and never
+  // anchors (the filter deletes it before it looks for a source), and a
+  // deferred primary (rel=preload + data-pagespeed-async) is a source again.
+  auto docs = BuildValidationDocuments(
+      "<html><head><style data-pagespeed-critical>.old{}</style>"
+      "<title>T</title>"
+      "<link rel=\"preload\" as=\"style\" href=\"/a.css\" data-pagespeed-async"
+      " data-pagespeed-media=\"all\">"
+      "<noscript data-pagespeed-async-fallback>"
+      "<link rel=\"stylesheet\" href=\"/a.css\"></noscript>"
+      "</head><body>x</body></html>",
+      ".a{color:red}", ".a{}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  // The deferred-link state: the block stands where the deferred sheet was,
+  // and the fallback copy, a <noscript>, is not rendered.
+  EXPECT_EQ(docs.candidate,
+            "<html><head><title>T</title>"
+            "<style data-pagespeed-critical>.a{}</style>"
+            "</head><body>x</body></html>");
+  // The fallback copy goes with its <noscript> before the stylesheet removal
+  // runs, so only the deferred primary is counted there.
+  EXPECT_EQ(docs.stylesheet_links_removed, 1u);
+  EXPECT_EQ(docs.noscript_elements_removed, 1u);
+}
+
+// The validation render runs with script execution disabled, in
+// which Blink renders <noscript> content: a no-JS banner would take the top of
+// both documents' fold and push the content the block is judged on out of it.
+// Both documents leave every <noscript> out, as a browser running scripts
+// parses it, and the placement is still the serve path's, decided with the
+// <noscript> elements in place.
+TEST(BuildValidationDocumentsTest, NoscriptContentIsNotRendered) {
+  auto docs = BuildValidationDocuments(
+      "<html><head><title>T</title>"
+      "<noscript><style>.hero{display:none}</style>"
+      "<link rel=stylesheet href=/nojs.css></noscript>"
+      "<link rel=stylesheet href=/a.css></head><body>"
+      "<NOSCRIPT><div class=nojs-banner>Enable JS</div></NOSCRIPT>"
+      "<div class=hero>Hero</div>"
+      "<noscript><img src=/pixel.gif></noscript></body></html>",
+      ".hero{color:red}.nojs-banner{height:300px}", ".hero{color:red}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_EQ(docs.noscript_elements_removed, 3u);
+  EXPECT_EQ(docs.candidate,
+            "<html><head><title>T</title>"
+            "<style data-pagespeed-critical>.hero{color:red}</style>"
+            "</head><body><div class=hero>Hero</div></body></html>");
+  EXPECT_EQ(docs.reference,
+            "<html><head><title>T</title>"
+            "<style data-pagespeed-critical>"
+            ".hero{color:red}.nojs-banner{height:300px}</style>"
+            "</head><body><div class=hero>Hero</div></body></html>");
+  for (const std::string* doc : {&docs.reference, &docs.candidate}) {
+    EXPECT_EQ(doc->find("noscript"), std::string::npos) << *doc;
+    EXPECT_EQ(doc->find("NOSCRIPT"), std::string::npos) << *doc;
+    EXPECT_EQ(doc->find("Enable JS"), std::string::npos) << *doc;
+  }
+}
+
+// Review pages: each renders the hero for a scripting browser,
+// and the first tokenizer either cut it out of both documents (two blank
+// renders, which validated any block) or edited script source. Both documents
+// must keep the page and leave only the <noscript> content out.
+TEST(BuildValidationDocumentsTest, ThePageSurvivesTheNoscriptRemoval) {
+  constexpr const char* kBodies[] = {
+      "<noscript class=it's>NOJS</noscript>",      // c02
+      "<noscript data-a=\"x\"\">NOJS</noscript>",  // c04, c23
+      "<p title=it's>Hi</p><script>// don't\n"
+      "if (a > b) { el.innerHTML = \"<noscript>\"; }</script>",  // c13, c24
+      "<script><!--\ndocument.write('<script src=x.js></script>');\n"
+      "var tag = \"<noscript>\";\n//--></script>",             // c22
+      "<svg class=a/><noscript/><rect/></svg>",                // c18
+      "<div><svg></div><noscript><div>NOJS</div></noscript>",  // c11
+  };
+  for (const char* body : kBodies) {
+    SCOPED_TRACE(body);
+    const std::string page = absl::StrCat(
+        "<!doctype html><html><head><title>T</title>"
+        "<link rel=stylesheet href=/app.css></head><body>",
+        body, "<div class=hero>HERO</div><p>AFTER</p></body></html>");
+    auto docs = BuildValidationDocuments(page, ".hero{color:red}.x{}",
+                                         ".hero{color:red}");
+    ASSERT_TRUE(docs.ok) << docs.error;
+    for (const std::string* doc : {&docs.reference, &docs.candidate}) {
+      EXPECT_NE(doc->find("<div class=hero>HERO</div><p>AFTER</p></body>"),
+                std::string::npos)
+          << *doc;
+      EXPECT_EQ(doc->find("NOJS"), std::string::npos) << *doc;
+    }
+  }
+}
+
+// The stylesheet removal used to read a <noscript>'s content as
+// markup before the <noscript> was removed. A <style> in it whose </style>
+// comes after the </noscript> then ran through the page and took the hero.
+TEST(BuildValidationDocumentsTest, NoscriptContentIsNeverReadAsMarkup) {
+  auto docs = BuildValidationDocuments(
+      "<html><head><title>T</title></head><body>"
+      "<noscript><style>.x{}</noscript><div class=hero>HERO</div>"
+      "<style>.y{}</style></body></html>",
+      ".hero{color:red}.y{}", ".hero{color:red}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_EQ(docs.candidate,
+            "<html><head><title>T</title>"
+            "<style data-pagespeed-critical>.hero{color:red}</style>"
+            "</head><body><div class=hero>HERO</div></body></html>");
+}
+
+// FAIL CLOSED: a removal that may have cut the page short is never compared,
+// since a blank reference matches a blank candidate.
+TEST(BuildValidationDocumentsTest, AnUntrustedNoscriptRemovalRefuses) {
+  auto docs = BuildValidationDocuments(
+      "<html><head><title>T</title></head><body>"
+      "<noscript><div class=hero>HERO</div><p>AFTER</p></body></html>",
+      ".hero{color:red}.x{}", ".hero{color:red}");
+  EXPECT_FALSE(docs.ok);
+  EXPECT_NE(docs.error.find("<noscript>"), std::string::npos) << docs.error;
+}
+
+// The removal reads comments as a browser does and the placement
+// replay as the serve path's lexer does. Where a lexer comment's "-->" sits in
+// a removed <noscript>, or a lexer comment starts in one and ends past it, the
+// two disagree about which markup is comment text, so the validator refuses.
+TEST(BuildValidationDocumentsTest, ANoscriptCrossingALexerCommentRefuses) {
+  for (const char* head :
+       {"<!--><noscript>x --></noscript><link rel=stylesheet href=/a.css>",
+        "<!---><noscript>x --></noscript><link rel=stylesheet href=/a.css>",
+        "<!-- a --!><noscript>x --></noscript><link rel=stylesheet "
+        "href=/a.css>",
+        "<noscript><!-- </noscript> --><link rel=stylesheet href=/a.css>"}) {
+    SCOPED_TRACE(head);
+    auto docs = BuildValidationDocuments(
+        absl::StrCat("<html><head><title>T</title>", head,
+                     "</head><body><div class=hero>HERO</div></body></html>"),
+        ".hero{color:red}.x{}", ".hero{color:red}");
+    EXPECT_FALSE(docs.ok);
+    EXPECT_NE(docs.error.find("overlap"), std::string::npos) << docs.error;
+  }
+  // A comment inside a <noscript>, or a <noscript> inside a lexer comment, is
+  // read the same way by both.
+  for (const char* head :
+       {"<noscript><!-- c --></noscript><link rel=stylesheet href=/a.css>",
+        "<!--><noscript>x</noscript> --><link rel=stylesheet href=/a.css>"}) {
+    SCOPED_TRACE(head);
+    auto docs = BuildValidationDocuments(
+        absl::StrCat("<html><head><title>T</title>", head,
+                     "</head><body><div class=hero>HERO</div></body></html>"),
+        ".hero{color:red}.x{}", ".hero{color:red}");
+    EXPECT_TRUE(docs.ok) << docs.error;
+  }
+}
+
+TEST(BuildValidationDocumentsTest, AScannerDisagreementRefuses) {
+  const std::string page =
+      "<html><head><title>T</title></head><body>"
+      "<noscript><div>NOJS</div></noscript><div class=hero>HERO</div>"
+      "</body></html>";
+  HtmlScanner scanner;
+  const HtmlScanResult scan = scanner.Scan("http://example.com/", page);
+  ASSERT_TRUE(scan.success);
+  auto agree =
+      BuildValidationDocuments(page, ".hero{color:red}.x{}", ".hero{color:red}",
+                               {}, kMaxValidationDocumentBytes, &scan.elements);
+  EXPECT_TRUE(agree.ok) << agree.error;
+  // A reading that kept other elements than the scanner after <body>.
+  std::vector<CollectedElement> other = scan.elements;
+  other.back().tag_name = "span";
+  auto disagree =
+      BuildValidationDocuments(page, ".hero{color:red}.x{}", ".hero{color:red}",
+                               {}, kMaxValidationDocumentBytes, &other);
+  EXPECT_FALSE(disagree.ok);
+  EXPECT_NE(disagree.error.find("scanner"), std::string::npos)
+      << disagree.error;
+}
+
+// The serve path places the block on the HtmlLexer's reading, which
+// runs `<!-->` on to the next "-->". The validator must place it the same way
+// (here: the first link sits in that comment for the serve path, so the block
+// goes before the second), although a browser ends the comment at once; and
+// a `<!-->` with no later "-->" reads to the end, where no placement can be
+// replayed, so the validator refuses instead.
+TEST(BuildValidationDocumentsTest, CommentsAreReadAsTheServePathReadsThem) {
+  auto docs = BuildValidationDocuments(
+      "<html><head><title>T</title><!--><link rel=stylesheet href=/a.css>"
+      "<!-- x --><link rel=stylesheet href=/b.css></head><body>x</body>"
+      "</html>",
+      ".a{color:red}.b{}", ".a{color:red}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_EQ(docs.candidate,
+            "<html><head><title>T</title><!--><link rel=stylesheet href=/a.css>"
+            "<!-- x --><style data-pagespeed-critical>.a{color:red}</style>"
+            "</head><body>x</body></html>");
+  auto open = BuildValidationDocuments(
+      "<html><head><title>T</title></head><body><!--><div class=hero>HERO"
+      "</div></body></html>",
+      ".a{color:red}.b{}", ".a{color:red}");
+  EXPECT_FALSE(open.ok);
+}
+
+TEST(BuildValidationDocumentsTest, APreludeInsideNoscriptStillPlacesTheBlock) {
+  // The serve path counts a prelude element inside <noscript> (the parity
+  // test pins that), so the block goes to </head>, not before /early.css,
+  // although the <noscript> itself is not rendered.
+  auto docs = BuildValidationDocuments(
+      "<html><head><link rel=stylesheet href=/early.css>"
+      "<noscript><meta http-equiv=\"content-type\" content=\"text/html\">"
+      "</noscript><title>T</title></head><body>x</body></html>",
+      ".a{color:red}", ".a{}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_EQ(docs.candidate,
+            "<html><head><title>T</title>"
+            "<style data-pagespeed-critical>.a{}</style>"
+            "</head><body>x</body></html>");
+
+  // Without the prelude, before the first sheet; the <noscript> that stood
+  // between them is gone either way.
+  docs = BuildValidationDocuments(
+      "<html><head><title>T</title><link rel=stylesheet href=/early.css>"
+      "<noscript><p>JS</p></noscript><link rel=stylesheet href=/late.css>"
+      "</head><body>x</body></html>",
+      ".a{color:red}", ".a{}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_EQ(docs.candidate,
+            "<html><head><title>T</title>"
+            "<style data-pagespeed-critical>.a{}</style>"
+            "</head><body>x</body></html>");
+}
+
+TEST(BuildValidationDocumentsTest, ALayeredCandidateTakesTheHeadEndFallback) {
+  // Without a proven layer order (the default), the serve path keeps a block
+  // that names a cascade layer after the page's sheets
+  // (DecideCriticalCssLayerPlacement); both documents follow the candidate's
+  // answer, whatever the reference carries.
+  const char* page =
+      "<html><head><title>T</title><link rel=stylesheet href=/app.css>"
+      "<style>@layer theme{.hero{}}</style><meta name=x></head>"
+      "<body>x</body></html>";
+  auto docs = BuildValidationDocuments(page, ".a{}", "@layer theme{.a{}}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_EQ(docs.candidate,
+            "<html><head><title>T</title><meta name=x>"
+            "<style data-pagespeed-critical>@layer theme{.a{}}</style>"
+            "</head><body>x</body></html>");
+  EXPECT_TRUE(DocumentsDifferOnlyInStyleBody(docs.reference, docs.candidate));
+
+  docs = BuildValidationDocuments(page, "@layer theme{.a{}}", ".a{}");
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_EQ(docs.candidate,
+            "<html><head><title>T</title>"
+            "<style data-pagespeed-critical>.a{}</style>"
+            "<meta name=x></head><body>x</body></html>");
+}
+
+TEST(BuildValidationDocumentsTest, ALayeredCandidateWithAProvenOrderGoesFirst) {
+  // With the page's layer order proven, a layered candidate stands where the
+  // first source stood, and BOTH documents carry the order's statement in
+  // front, so the reference also renders the full sheet in the author's layer
+  // order and the two still differ only in the style body.
+  const char* page =
+      "<html><head><title>T</title><link rel=stylesheet href=/app.css>"
+      "<style>@layer theme{.hero{}}</style><meta name=x></head>"
+      "<body>x</body></html>";
+  CascadeLayerOrder order;
+  order.proven = true;
+  order.reason.clear();
+  order.names = {"reset", "theme"};
+  auto docs =
+      BuildValidationDocuments(page, "@layer reset{.b{}} @layer theme{.a{}}",
+                               "@layer theme{.a{}}", order);
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_EQ(docs.candidate,
+            "<html><head><title>T</title>"
+            "<style data-pagespeed-critical>@layer reset,theme;"
+            "@layer theme{.a{}}</style>"
+            "<meta name=x></head><body>x</body></html>");
+  EXPECT_EQ(docs.reference,
+            "<html><head><title>T</title>"
+            "<style data-pagespeed-critical>@layer reset,theme;"
+            "@layer reset{.b{}} @layer theme{.a{}}</style>"
+            "<meta name=x></head><body>x</body></html>");
+  EXPECT_TRUE(DocumentsDifferOnlyInStyleBody(docs.reference, docs.candidate));
+
+  // An unlayered candidate gets no statement, even with an order.
+  docs = BuildValidationDocuments(page, "@layer theme{.a{}}", ".a{}", order);
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_EQ(docs.candidate,
+            "<html><head><title>T</title>"
+            "<style data-pagespeed-critical>.a{}</style>"
+            "<meta name=x></head><body>x</body></html>");
+
+  // A candidate naming a layer the order lacks keeps the fallback.
+  docs = BuildValidationDocuments(page, ".a{}", "@layer other{.a{}}", order);
+  ASSERT_TRUE(docs.ok) << docs.error;
+  EXPECT_EQ(docs.candidate,
+            "<html><head><title>T</title><meta name=x>"
+            "<style data-pagespeed-critical>@layer other{.a{}}</style>"
+            "</head><body>x</body></html>");
+}
+
 TEST(BuildValidationDocumentsTest, FullCssContainsStyleTerminatorFailsClosed) {
   // InjectCriticalCss refuses CSS containing `</style` — and reports that
   // refusal as success=TRUE with an EMPTY document. A caller checking only
@@ -252,7 +671,7 @@ TEST(BuildValidationDocumentsTest, EmptyInputsFailClosed) {
 
 TEST(BuildValidationDocumentsTest, OversizedDocumentFailsClosed) {
   std::string big_css(4096, 'x');
-  auto docs = BuildValidationDocuments(kPage, big_css, ".a{}",
+  auto docs = BuildValidationDocuments(kPage, big_css, ".a{}", {},
                                        /*max_document_bytes=*/1024);
   EXPECT_FALSE(docs.ok);
   EXPECT_NE(docs.error.find("too large"), std::string::npos) << docs.error;
@@ -282,12 +701,24 @@ TEST(BuildValidationDocumentsTest, UnterminatedCommentFailsClosed) {
 
 class CriticalCssValidatorCdpTest : public ::testing::Test {
  protected:
+  static std::vector<uint8_t> TwoToneImage() {
+    auto pixels = MakeSolidImage(10, 10, 128, 128, 128);
+    for (size_t i = 50 * 4; i < pixels.size(); i += 4) {
+      pixels[i + 0] = 60;
+      pixels[i + 1] = 60;
+      pixels[i + 2] = 60;
+    }
+    return pixels;
+  }
+
   void SetUp() override {
     ASSERT_TRUE(peer_.Start());
     gate_ = std::make_unique<VisualRegressionGate>(peer_.client());
-    identical_ = EncodePng(MakeSolidImage(10, 10, 128, 128, 128), 10, 10);
+    // Not one uniform colour: a blank reference is refused outright,
+    // so the fold drawn here has a darker lower half.
+    identical_ = EncodePng(TwoToneImage(), 10, 10);
     // 4 of 100 pixels black => diff ratio 0.04.
-    auto pixels = MakeSolidImage(10, 10, 128, 128, 128);
+    auto pixels = TwoToneImage();
     for (int i = 0; i < 4; ++i) {
       pixels[i * 4 + 0] = 0;
       pixels[i * 4 + 1] = 0;
@@ -479,6 +910,17 @@ TEST_F(CriticalCssValidatorCdpTest, ComparisonOfNoPixelsMarksNotValidated) {
   ASSERT_TRUE(done);
   EXPECT_FALSE(verdict.validated)
       << "a comparison over zero pixels validated the page";
+}
+
+// Defence in depth: a reference that renders as one uniform
+// colour (a blank page) matches a blank candidate, so it confirms nothing.
+TEST_F(CriticalCssValidatorCdpTest, AUniformReferenceIsNeverValidated) {
+  const auto blank = EncodePng(MakeSolidImage(10, 10, 255, 255, 255), 10, 10);
+  ScriptTwoCaptures(blank, blank);
+  ValidationVerdict verdict = RunValidation(kDefaultValidationDiffThreshold);
+  EXPECT_FALSE(verdict.validated);
+  EXPECT_NE(verdict.failure_reason.find("uniform"), std::string::npos)
+      << verdict.failure_reason;
 }
 
 TEST_F(CriticalCssValidatorCdpTest, BothDocumentsReachTheBrowserUnaltered) {
