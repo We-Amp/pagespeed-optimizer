@@ -133,12 +133,11 @@ direct edit there would be overwritten by the next export. A website change
 is therefore made in the source tree and shipped by an export, never edited
 in the public repository.
 
-The export applies a token-only scrub for internal references (deliberately
-no punctuation, whitespace or quote "cleanup", which once damaged an exported
-tree), asserts none remain, and runs the public repository's own hygiene
-gate (its `tools/ci/check-public-hygiene.sh`) over the result before anything
-is committed on a `website-export-<timestamp>` branch. The push and the pull
-request stay with the operator.
+The export applies a token-only scrub for internal references (it changes
+no punctuation, whitespace or quotes), asserts none remain, and runs the
+public repository's own hygiene gate (its `tools/ci/check-public-hygiene.sh`)
+over the result before anything is committed on an export branch. The push
+and the pull request stay with the operator.
 
 What enforces the quality of an export is the public repository's `Website`
 workflow: on every push or pull request touching `website/**` it runs

@@ -25,20 +25,18 @@ into your own manifests, replace it: a probe of the form
 `echo '' | socat - UNIX-CONNECT:...` has the half-second limit.
 
 Fixed: the optimizer no longer exits when a client closes its connection
-before the reply has been written — for example a container health check
-that gave up while the optimizer was busy, a monitoring script with its own
-timeout, or a management API client that disconnects in the middle of a long
-response. On Linux such a client ended the optimizer with exit status 141, so
-the container restarted and the work in progress was lost; in the combined
-image the web server in the same container stopped with it, so the site was
-briefly unavailable. Now only that one connection is closed. Affected: every
-2.0 and 2.1 release on Linux whenever the optimizer is not the first process
-of its container — the combined image (2.0.22 and later), a container started
-with `--init`, a pod or Compose project that shares the process namespace, or
-a wrapper script that does not `exec` it — or, outside a container, whenever
-it is not run by the packaged systemd service (for example started by hand
-or by another supervisor). The packaged systemd service and the worker image
-started as the container's own first process were not affected.
+before the reply has been written; only that one connection is closed. On
+Linux the optimizer stopped, so the container restarted and the work in
+progress was lost; in the combined image the web server in the same
+container stopped with it, so the site was briefly unavailable. Affected:
+every 2.0 and 2.1 release on Linux whenever the optimizer is not the first
+process of its container — the combined image (2.0.22 and later), a
+container started with `--init`, a pod or Compose project that shares the
+process namespace, or a wrapper script that does not `exec` it — or, outside
+a container, whenever it is not run by the packaged systemd service (for
+example started by hand or by another supervisor). The packaged systemd
+service and the worker image started as the container's own first process
+were not affected.
 
 Fixed: when a web server recorded a URL's original at the same moment the
 optimizer wrote the optimized copy of that URL, the optimized copy could be
@@ -149,26 +147,13 @@ configuration files the web server does not load, such as a `.bak` copy
 under Apache's `conf-available/`. The update notice now fires only when
 a file the server actually loads still references the old paths.
 
-Fixed: the management API's HTTP listener now releases a connection's
-resources correctly when accepting that connection fails.
+Changed: repeated authentication timeouts on the management API are now
+logged at most once a minute. The bundled console stops reconnecting to a
+stream the server refused for a missing token, until a token is set.
 
-Changed: `--api-read-open` now opens exactly the documented read endpoints
-and the `stats`/`events` WebSocket streams, and nothing else -- a future GET
-endpoint stays behind the token under read-open unless it is explicitly
-added to that list. Separately, at most four WebSocket connections from any
-one address may be waiting to send their authentication message at once --
-room for the bundled console, which opens two streams per browser tab --
-and at most sixteen in all, though the overall limit of eight connections
-is reached first. A connection beyond that limit is refused the same way
-exceeding the overall connection limit is refused today. Repeated
-authentication timeouts are now logged at most once a minute. The bundled
-console stops reconnecting to a stream the server refused for a missing
-token, until a token is set.
-
-Security: under specific inputs, some management API reads and live-stream
-messages could stop the optimizer. Affected: versions 2.0.0 through 2.1.0,
-and the optimizer packages through 1.16.0, when the management API is
-enabled. Update recommended.
+Security: a request to the management API could stop the optimizer.
+Affected: versions 2.0.0 through 2.1.0, and the optimizer packages through
+1.16.0, when the management API is enabled. Update recommended.
 
 Fixed: the live log stream (`/v1/ws/logs`) no longer loses lines without
 saying so. When more than 64 lines arrived within one batch interval (100 ms),
@@ -199,14 +184,14 @@ message is cut on a character boundary and ends in "…[truncated N bytes]".
 Log entries on the live log stream carry a `seq` number that starts at 1
 and increases by one per entry while the process runs.
 
-Security: with `--api-read-open`, the optimizer's log lines are no longer
-readable without the API token. Both the `/v1/ws/logs` stream and the new
-`GET /v1/logs` require the token over TCP whenever one is configured; the
-other read endpoints and streams stay open, and the unix socket and
-`--api-no-auth` are unchanged. A read-only console that showed the log
-without a token no longer does. Affected: versions 2.0.0 through 2.1.0, and
-the optimizer packages through 1.16.0, when `--api-read-open` is set. Update
-recommended.
+Security: with `--api-read-open`, more data could be read without the API
+token than intended. Read-open now opens exactly the documented read
+endpoints and the `stats`/`events` streams, and nothing else. Connection
+limits for clients that have not authenticated are tightened. A read-only
+console or script without a token no longer reads the optimizer log; give
+such clients the token. The unix socket and `--api-no-auth` are unchanged.
+Affected: versions 2.0.0 through 2.1.0, and the optimizer packages through
+1.16.0, when `--api-read-open` is set. Update recommended.
 
 Changed: browser analysis now reports a phone's or a tablet's User-Agent on
 those viewports. Until now every analysis render, and the capture endpoint,
@@ -336,23 +321,6 @@ be validated while their sheet counted as missing. Pages without a `<base
 href>` and without protocol-relative stylesheet links, or with a `<base>` on
 the page's own host and directory, are unaffected.
 
-Fixed: on a page whose `<base href>` points at another host (for example a
-CDN), a stylesheet link with a root-relative `href` such as `/css/site.css`
-was taken to be the page host's sheet, while the browser fetches it from the
-`<base>` host. The two spellings of one sheet, `/css/site.css` and
-`https://cdn.example.com/css/site.css`, therefore did not match each other,
-and `https://example.com/css/site.css`, a different sheet, matched instead.
-This decided whether a script-loaded stylesheet (the loadCSS pattern, a
-preload with its `<noscript>` copy) counted as one of the page's sheets, and
-whether a `<noscript>` stylesheet was taken to change the no-JS render; both
-feed the combined stylesheet the critical-CSS block is confirmed against. The
-scanner now gives a hostless reference the `<base>` host, as it already did for
-the hero image's `<noscript>` copy; a root-relative `<base href="/sub/">`
-keeps the page's host, which that earlier change had left without one. Pages
-without a cross-host `<base>` are unaffected; a validated cross-host-`<base>`
-page whose sheet list changes is simply validated again, as after any change
-to its stylesheet.
-
 Fixed: the CSS minifier deleted an empty statement inside a parenthesized or
 bracketed group in a declaration value: `a{--x:(a;;b)}` was served as
 `a{--x:(a;b)}`, and `[a;;b]` or `f(a;;b)` lost a `;` the same way. A custom
@@ -368,16 +336,15 @@ passes such text through unchanged; the block matcher likewise no longer
 closes a rule at a `}` inside an unclosed bracket. Ordinary empty statements between declarations
 (`a{b:c;;d:e}`) are still removed.
 
-Changed: a page whose hero image is loaded by script no longer gets a
-high-priority hint for the wrong image. The common lazy-loading shape puts an
-`<img data-src="hero.jpg" class="lazy">` without a `src` in the hero container,
-followed by a `<noscript>` copy of it. Since the `<noscript>` copy stopped
-being the candidate, the preload link, the Early Hint and the
-`fetchpriority="high"` went to the next image on the page, which is often
-below the fold, while the hero itself, which the browser paints largest, got
-nothing. The optimizer now recognises this shape and emits no image hint for
-such a page: nothing in the markup says which bytes the loader will fetch, and
-a wrong high-priority hint costs more than none. In plain words, what changes:
+Changed: a page whose hero image is loaded by script gets no image hint. The
+common lazy-loading shape puts an `<img data-src="hero.jpg" class="lazy">`
+without a `src` in the hero container, followed by a `<noscript>` copy of it.
+Now that the `<noscript>` copy is no longer the candidate (see the
+`<noscript>` image entry below), the next image on the page, which is often
+below the fold, would otherwise take the preload link, the Early Hint and the
+`fetchpriority="high"`. The optimizer recognises this shape and emits no
+image hint for such a page: nothing in the markup says which bytes the
+loader will fetch, and a wrong high-priority hint costs more than none. In plain words, what changes:
 a hero container (a `<header>`, `<main>`, `<section>` or `<article>`, or an
 element with a hero-like class) whose only image is such a placeholder with
 its `<noscript>` copy gets no image hint, and neither does any image in a
@@ -550,8 +517,9 @@ declares the same stylesheet for browsers without JavaScript. That stylesheet
 is read once, at the position of the preload, which is where browsers apply
 it; the two links are matched by the address they resolve to, so `/css/a.css`,
 `css/a.css` and `http://example.com/css/a.css` on the same page are one
-stylesheet. A preload without an `onload` handler does not make a `<noscript>`
-link count. The other `<noscript>` stylesheets are no longer sent as Early
+stylesheet, and under a `<base href>` on another host `/css/a.css` is that
+host's stylesheet, as browsers resolve it. A preload without an `onload`
+handler does not make a `<noscript>` link count. The other `<noscript>` stylesheets are no longer sent as Early
 Hints, no longer rank as render-blocking when choosing preconnect origins, and
 a `<link rel="stylesheet">` inside `<noscript>` is no longer deferred. On
 pages with other CSS in `<noscript>`, the CSS that deferral was validated
@@ -583,8 +551,10 @@ desktop layout until the stylesheet loaded; it now keeps them. On a page whose
 CSS uses a cascade layer and whose layer order the optimizer cannot prove (see
 the cascade-layer entries below), the block goes after the stylesheets, so the
 extractor keeps every `@media` block that can match any window, for every
-device class. A phone zoomed out past 980 px can no longer lose a responsive
-override for as long as the page is open.
+device class; so does a page whose CSS has an anonymous layer (`@layer { }`
+or `@import … layer`), even when its order is proven. A phone zoomed out
+past 980 px can no longer lose a responsive override for as long as the page
+is open.
 
 Changed: `@media` blocks in the inlined critical CSS are now filtered rule by
 rule, like the rest of the stylesheet. A block whose rules match nothing above
@@ -664,35 +634,6 @@ do, for the combined stylesheet and for the layer order. Re-processing a page
 replaces the block and its statement; nothing accumulates. Scripts that read
 `document.styleSheets[0]` or `querySelector('style')` on such pages now get the
 inlined block.
-
-Changed: on pages whose stylesheets use CSS cascade layers and whose layer
-order the optimizer proves (see the entry above), the inlined critical CSS
-block goes before the stylesheets, so it now leaves out width-conditioned
-`@media` blocks that no window of the visitor's device class can match, as on
-pages without layers: a phone 0 to 980 px, a tablet 0 to 1480 px, a desktop
-browser any width. On Tailwind CSS v4 pages the phone block no longer carries
-the `lg:` and wider breakpoint blocks; on one captured page it
-shrinks from 43,846 to 42,822 bytes, and the tablet and desktop blocks are
-unchanged. A window outside its class's range (a phone zoomed out past 980 px)
-lacks those blocks only until the stylesheet loads, which then wins every tie.
-Pages whose layer order is not proven keep every `@media` block that can match
-any window, because their block goes after the stylesheets; that now also
-covers pages that use only anonymous `@layer { }` blocks or an at-rule keyword
-written with an escape, which take the same place. Pages whose CSS has any
-anonymous layer (`@layer { }` or `@import … layer`) keep every width too, even
-when the order is proven: each anonymous layer is a separate layer, the
-block's comes first, and for `!important` declarations the earlier layer wins,
-so a dropped `!important` override would lose to the block's base rule for as
-long as the page is open. The decision is made from the same layer order that
-places the block, and the empirical critical-CSS check derives its block with
-that order too, so it renders the block that is served. Validation records of
-pages whose block now narrows are bound to that (the layer-order binding gains
-an `r2` marker), so they stop matching once: the page the profile was made on
-queues a new browser analysis straight away, at most twice per template per
-profile lifetime, and until it finishes the page's stylesheets stay
-render-blocking. Narrowing can add a rule as well as drop one (a coverage
-selector that becomes unambiguous within the narrower range), so an older
-record does not describe the new block.
 
 Fixed: on pages whose cascade layer order the optimizer cannot prove, the
 inlined critical CSS block now leaves out every rule inside an anonymous
@@ -784,13 +725,13 @@ validation record is keyed on the stylesheet alone and keeps authorising
 deferral of the larger block until the page is re-validated. The direction
 is a superset of what was validated, never a subset.
 
-Security: on Windows, a local privilege-escalation issue is fixed. A Windows
-host is exposed when other local code (for example another IIS application
-pool or a Windows service) runs next to an application that uses
-ModPageSpeed. Affected: the `WeAmp.PageSpeed.AspNetCore` and
-`WeAmp.PageSpeed.NativeAssets.Windows` NuGet packages (the latter carries
-`pagespeed.dll`), versions 2.0.0 through 2.1.0, and the Windows optimizer
-built from them. Update recommended. Linux and macOS are not affected.
+Security: on Windows, a local privilege-escalation issue is fixed: code
+already running locally on a Windows host could gain the privileges of an
+application that uses ModPageSpeed. Affected: the
+`WeAmp.PageSpeed.AspNetCore` and `WeAmp.PageSpeed.NativeAssets.Windows`
+NuGet packages (the latter carries `pagespeed.dll`), versions 2.0.0 through
+2.1.0, and the Windows optimizer built from them. Update recommended. Linux
+and macOS are not affected.
 
 Changed: the optimizer's cache moved to a new on-disk format, and with it
 to a new directory. The cache storage library now checksums documents with

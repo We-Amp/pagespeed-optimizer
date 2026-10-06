@@ -35,48 +35,6 @@ critical-CSS pass, which the compliance worker deliberately disables.
 ./tools/async-css-probe/run_probe.sh --prebuilt -k loader
 ```
 
-### Running the rendered lane against a branch
-
-The nightly workflow (`async-css-probe-nightly.yml`) can be dispatched on any
-branch. Off the default branch it is a dry run: it prints the `gh issue` calls
-it would make instead of touching the tracking issue.
-
-```bash
-# After the branch's PR has had a Linux Build (it publishes the bundle):
-gh workflow run async-css-probe-nightly.yml --ref my-branch
-# Name a specific bundle (any commit the CI hub holds a linux-x64 bundle for):
-gh workflow run async-css-probe-nightly.yml --ref my-branch -f bundle_sha=<40-hex>
-```
-
-The lane does not build anything: it stages the worker and nginx module from the
-CI hub's bundle, and a PR's Linux Build publishes that bundle under the PR's
-**merge commit** (`refs/pull/<n>/merge`), not under the branch head the dispatch
-runs at. The "Resolve bundle SHA" step therefore tries, in order, and prints
-each candidate with whether the hub has it:
-
-1. the `bundle_sha` input, if given (no fallback when it is missing);
-2. the branch head, for a branch whose own commit has a bundle;
-3. the merge commit of the branch's open PR.
-
-If none has a bundle the step fails and names every SHA it tried. The usual
-causes: the PR's Linux Build has not finished publishing, or `main` moved since
-that Build, so GitHub's current merge commit is newer than the published one
-(the step warns when the merge commit's head parent is not the branch head).
-Pass `bundle_sha` with the merge commit named in that Build's "Upload CI
-artifacts" step in that case.
-
-A scheduled run, or a dispatch on the default branch without `bundle_sha`, uses
-the run's own commit exactly as before. A run whose bundle is not its own commit
-never files or closes the tracking issue, even on the default branch.
-
-The job summary opens with a **Code under test** note: the worker and module
-come from the bundle SHA (and its producing Build run, from the bundle's
-`metadata.json`); the probe harness, goldens and compose files come from the
-run's checkout. For a PR's merge-commit bundle that is the branch merged onto
-`main`, which is what the PR's own checks test. Read the per-viewport numbers
-from the "Run rendered probe" step log; the evidence artifact upload is
-best-effort and can be refused when artifact storage is full.
-
 ## The deferral primitive lives in one file
 
 `primitive.json` holds how the optimizer makes a stylesheet non-render-blocking:
@@ -177,8 +135,8 @@ class from the User-Agent (`ParseViewport` in
 Chrome UA (`Android` + `Mobile`, so `kMobile`), the tablet an Android tablet
 Chrome UA (`Android` without `Mobile`, so `kTablet`; iPadOS Safari sends a
 desktop `Macintosh` UA and would land in `kDesktop`), and the desktop keeps
-   Playwright's own UA. Until the unsized-media fix every viewport sent the desktop UA and
-   was served the desktop block. Since User-Agent emulation the product's renders send the
+Playwright's own UA. Until the unsized-media fix every viewport sent the desktop UA and
+was served the desktop block. Since User-Agent emulation the product's renders send the
 same phone and tablet UAs, and both read them from
 `src/browser/device_emulation.json` (`user_agent_overrides`; a mobile viewport
 at most `phone_max_width` px wide is the phone): the lane sets Playwright's
@@ -194,7 +152,7 @@ Chromium honours the meta viewport and widens the layout viewport when the
 document overflows, as a phone or a tablet in portrait does. Without it an
 overflow only adds a scrollbar outside the screenshot, which is how an overflow far below
 the fold once went unseen. Wider viewports render as a desktop window. A mobile device is also a
-   touch device (`mobile_has_touch`): `hasTouch`, plus the product's
+touch device (`mobile_has_touch`): `hasTouch`, plus the product's
 exact `Emulation.setTouchEmulationEnabled` call with `max_touch_points` on the
 page's CDP session, so `(hover: none)` and `(pointer: coarse)` match on the
 phone and the tablet and `(hover: hover)` / `(pointer: fine)` do not, as in the
@@ -208,7 +166,7 @@ mismatch is an infrastructure failure, not a finding. The nightly mounts the
 file into the container (`PROBE_DEVICE_EMULATION`), since only this directory
 is mounted otherwise.
 
-   Since the tablet-as-mobile change the tablet renders as a mobile device too (it rendered as a
+Since the tablet-as-mobile change the tablet renders as a mobile device too (it rendered as a
 desktop window before, as the product did). That moved one golden,
 `fold-tablet.png`, by 0.01111 (8,735 px): the fixture's `hidden md:flex` nav
 row (`md:flex` applies from 768 px) is 776 px wide, wider than the tablet, so
@@ -272,8 +230,7 @@ Until then a finding opens or refreshes one tracking issue
 (`async-css-probe-finding`) and uploads the `async-css-probe-evidence` artifact;
 the next clean run closes it. A cross-Chrome-version pixel diff on a blocking
 check is a flake generator. Only scheduled runs on the default branch count toward
-the 30; a branch dispatch (see "Running the rendered lane against a branch") is
-a dry run for checking a change before it merges.
+the 30.
 
 ## Rendered lane: how the flash window is reconstructed
 
@@ -344,8 +301,8 @@ bazel-bin/tools/async-css-probe/dump_critical_css \
   --viewport desktop > critical.css        # stats on stderr
 ```
 
-   Two more fixtures exist for block-size comparisons across CSS frameworks,
-   not for the rendered lane: `fixtures/bootstrap-5.3.3` (stock
+Two more fixtures exist for block-size comparisons across CSS frameworks,
+not for the rendered lane: `fixtures/bootstrap-5.3.3` (stock
 `bootstrap.min.css` 5.3.3 from jsDelivr, sha256
 `3c8f27e6009ccfd710a905e6dcf12d0ee3c6f2ac7da05b0572d3e0d12e736fc8`, with a
 navbar / hero / cards page) and `fixtures/tailwind-v3` (a landing page and the
