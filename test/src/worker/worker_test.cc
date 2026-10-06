@@ -57,13 +57,17 @@ inline int unsetenv(const char* name) { return _putenv_s(name, ""); }
 #include "src/nginx/early_hints_util.h"
 #include "src/proto/worker_ipc.h"
 #include "src/worker/browser_analysis_manager.h"
+#include "src/worker/cascade_layer_order.h"
+#include "src/worker/critical_css_extractor.h"
 #include "src/worker/html_scanner.h"
+#include "src/worker/layer_order_sources.h"
 #include "src/worker/shared_config.h"
 #include "src/worker/text_compressor.h"
 #include "src/worker/url_registry.h"
 #include "test/test_util/pipe_client.h"
 #include "test/test_util/tcp_client.h"
 #include "test/test_util/temp_dir.h"
+#include "test/test_util/worker_quiescence.h"
 
 namespace pagespeed {
 namespace {
@@ -76,18 +80,9 @@ namespace {
 // polls that return the instant their condition holds, so a larger ceiling
 // never slows a passing test -- it only keeps a genuinely slow sanitizer run
 // from tripping a deadline that was sized for a release build.
-// Both the GCC-style define and the Clang __has_feature form are checked.
-#if defined(__SANITIZE_THREAD__) || defined(__SANITIZE_ADDRESS__)
-inline constexpr int kSanitizerBudgetScale = 12;
-#elif defined(__clang__)
-#if __has_feature(thread_sanitizer) || __has_feature(address_sanitizer)
-inline constexpr int kSanitizerBudgetScale = 12;
-#else
-inline constexpr int kSanitizerBudgetScale = 1;
-#endif
-#else
-inline constexpr int kSanitizerBudgetScale = 1;
-#endif
+// The detection lives in worker_quiescence.h (shared with the e2e tests).
+inline constexpr int kSanitizerBudgetScale =
+    pagespeed::test::kSanitizerBuild ? 12 : 1;
 
 // Poll ceiling for the proactive viewport-sibling tests.  Those variants are
 // produced asynchronously behind the image encoder queue, so the window has
@@ -107,6 +102,25 @@ inline constexpr int kSanitizerBudgetScale = 1;
 // the instant its variant appears, so widening it costs a passing run
 // nothing.
 inline constexpr int kViewportSiblingPollIterations = 900;
+
+// Silence limit for WaitForNotificationsRetired (worker_quiescence.h): how
+// long the worker may go without moving any progress counter before the wait
+// gives up.  It is not a deadline on the work -- a notification may take as
+// long as the host needs, provided the worker keeps reporting progress -- so
+// it has to cover one step only: the encodes of a single variant combination
+// (WebP, AVIF and the original format, each with its quality verification),
+// after which a write, a quality check or a decline is counted.  The slowest
+// such step measured here is the cache-full test's 150 KB JPEG: about 25 s on
+// an idle machine in an unoptimized build, and about two minutes on a host
+// oversubscribed four to five times.  Ten minutes leaves a factor of five
+// over that.  Sanitizer builds are roughly an order of magnitude slower on
+// the encoders and get 20 minutes.  The target's 60-minute timeout is per
+// shard, and a shard runs about a quarter of this file's tests, so the budget
+// has to leave room for the rest of the shard; at 20 minutes a stalled worker
+// still reports through the wait's message rather than as a bare timeout
+// (and CI's retry of a failed test doubles whatever a stall costs).
+inline constexpr std::chrono::minutes kWorkerStallBudget{
+    kSanitizerBudgetScale > 1 ? 20 : 10};
 
 // Helper to read a test image file into a string.
 std::string ReadTestFile(const std::string& filename) {
@@ -581,12 +595,17 @@ class WorkerTest : public ::testing::Test {
   // Seed a browser profile for `html`'s template, carrying (or withholding) the
   // validation record the async-CSS deferral gate requires.
   //
-  // All three viewports get the same record, so a caller does not have to
-  // mirror the capability-mask -> viewport mapping to know which one the worker
-  // will select. `validated_against_css` is the COMBINED stylesheet the
-  // validation is claimed to have been made against; pass the bytes the worker
-  // will actually assemble to authorize deferral, or different bytes to model
-  // a stylesheet-only redeploy.
+  // All three viewports get a record, so a caller does not have to mirror
+  // the capability-mask -> viewport mapping to know which one the worker will
+  // select. Each record's binding carries its own class's salts
+  // (ValidationBindingFor: "tablet-mobile" for the tablet since the
+  // tablet-as-mobile change,
+  // "touch" and "ua" for the mobile and tablet since touch emulation and
+  // User-Agent emulation), so it
+  // matches whichever class the test requests with. `validated_against_css`
+  // is the COMBINED stylesheet the validation is claimed to have been made
+  // against; pass the bytes the worker will actually assemble to authorize
+  // deferral, or different bytes to model a stylesheet-only redeploy.
   //
   // `validated_hash_override`, when engaged, writes that string into
   // validated_combined_css_hash instead of hashing anything. It exists to reach
@@ -597,35 +616,66 @@ class WorkerTest : public ::testing::Test {
       Worker& worker, const std::string& notification_url,
       const std::string& html, std::string_view profile_critical_css,
       bool validated, std::string_view validated_against_css,
-      std::optional<std::string> validated_hash_override = std::nullopt) {
+      std::optional<std::string> validated_hash_override = std::nullopt,
+      bool made_without_noscript = false) {
     HtmlScanner scanner;
     HtmlScanResult scan = scanner.Scan(notification_url, html);
     ASSERT_TRUE(scan.success);
 
-    ViewportProfile vp;
-    vp.critical_css = std::string(profile_critical_css);
-    // Under the 0.60 inline budget, so ShouldInlineCriticalCss keeps the block.
-    vp.css_coverage_ratio = 0.2f;
-    vp.total_css_bytes = profile_critical_css.size() * 5;
-    vp.unused_css_bytes = vp.total_css_bytes - profile_critical_css.size();
-    vp.critical_css_validated = validated;
-    vp.validation_diff_ratio = validated ? 0.001f : -1.0f;
-    if (validated) {
-      vp.validated_critical_css_hash =
-          CombinedCssValidationHash(profile_critical_css);
-      vp.validated_combined_css_hash =
-          CombinedCssValidationHash(validated_against_css);
-    }
-    if (validated_hash_override.has_value()) {
-      vp.validated_combined_css_hash = *validated_hash_override;
-    }
+    auto record_for = [&](CapabilityMask::Viewport viewport) {
+      ViewportProfile vp;
+      vp.critical_css = std::string(profile_critical_css);
+      // Under the 0.60 inline budget, so ShouldInlineCriticalCss keeps the
+      // block.
+      vp.css_coverage_ratio = 0.2f;
+      vp.total_css_bytes = profile_critical_css.size() * 5;
+      vp.unused_css_bytes = vp.total_css_bytes - profile_critical_css.size();
+      vp.critical_css_validated = validated;
+      vp.validation_diff_ratio = validated ? 0.001f : -1.0f;
+      if (validated) {
+        vp.validated_critical_css_hash =
+            CombinedCssValidationHash(profile_critical_css);
+        // Bound to the page's layer order, as a real record is.
+        // The seeded sheets declare no layers, so the order only
+        // depends on which sources the page has: compute it with every
+        // gathered sheet empty.
+        std::vector<std::optional<GatheredSheet>> gathered(
+            scan.stylesheets.size(), GatheredSheet{});
+        const CascadeLayerOrder order = ComputeCascadeLayerOrder(
+            BuildLayerOrderSources(scan.stylesheet_sources, notification_url,
+                                   gathered),
+            {});
+        // `made_without_noscript`: a record made since the <noscript> removal,
+        // by
+        // renders that leave <noscript> content out, carries that page's
+        // salt. Either way the record carries its class's salts (an empty
+        // sheet adds no other): it is a record for THIS viewport.
+        const std::string layer_binding =
+            order.ValidationBinding(validated_against_css);
+        vp.validated_combined_css_hash = CombinedCssValidationHash(
+            validated_against_css,
+            made_without_noscript
+                ? ValidationBindingFor(layer_binding,
+                                       scan.noscript_affects_render,
+                                       validated_against_css, viewport,
+                                       /*anonymous_layers_dropped=*/false)
+                : ValidationBindingFor(layer_binding,
+                                       /*noscript_affects_render=*/false,
+                                       /*combined_css=*/"", viewport,
+                                       /*anonymous_layers_dropped=*/false));
+      }
+      if (validated_hash_override.has_value()) {
+        vp.validated_combined_css_hash = *validated_hash_override;
+      }
+      return vp;
+    };
 
     OptimizationProfile profile;
     profile.template_hash_hex = "seeded";
     profile.analyzed_url = notification_url;
-    profile.mobile = vp;
-    profile.tablet = vp;
-    profile.desktop = vp;
+    profile.mobile = record_for(CapabilityMask::Viewport::kMobile);
+    profile.tablet = record_for(CapabilityMask::Viewport::kTablet);
+    profile.desktop = record_for(CapabilityMask::Viewport::kDesktop);
     profile.created_at = 0;
     profile.expires_at = 0;  // no TTL — LookupProfile keeps it
 
@@ -783,6 +833,67 @@ TEST_F(WorkerTest, HtmlNotificationInjectsCriticalCss) {
 
   worker.Shutdown();
   worker_thread.join();
+}
+
+// A rule inside <noscript> applies only to clients without
+// scripts, so it must never reach the inlined critical block, which every
+// browser is served. Before the fix the scanner folded <noscript> <style>
+// bodies (and <noscript> sheets) into the combined stylesheet, and the
+// heuristic extractor kept .nsonly because it matches the fold's <h1>.
+TEST_F(WorkerTest, NoscriptOnlyRuleNeverReachesTheInlinedBlock) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  Worker worker(config, nullptr);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string html =
+      "<html><head><style>h1 { color: red; }</style>"
+      "<noscript><style>.nsonly { display: block !important; }</style>"
+      "<link rel=\"stylesheet\" href=\"/noscript.css\"></noscript>"
+      "</head><body><h1 class=\"nsonly nslink\">Hello World</h1></body></html>";
+  const std::string cache_url = "/noscript.html";
+  CacheOriginal(worker.cache(), cache_url, html);
+  CacheOriginal(worker.cache(), "/noscript.css",
+                ".nslink { outline: 1px solid; }");
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification notification;
+  notification.url = "http://example.com/noscript.html";
+  notification.scheme = "https";
+  notification.content_type = ContentType::kHtml;
+  notification.capability_mask = 0;
+  SendNotification(notification);
+
+  CapabilityMask mask = CapabilityMask::Decode(0);
+  std::string variant;
+  for (int i = 0; i < 40 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    variant = ReadVariant(worker.cache(), cache_url, mask);
+    if (!variant.empty()) break;
+  }
+
+  worker.Shutdown();
+  worker_thread.join();
+
+  ASSERT_FALSE(variant.empty()) << "HTML variant not written";
+  const size_t block_start = variant.find("<style data-pagespeed-critical");
+  ASSERT_NE(block_start, std::string::npos) << variant;
+  const size_t block_end = variant.find("</style>", block_start);
+  ASSERT_NE(block_end, std::string::npos) << variant;
+  const std::string block =
+      variant.substr(block_start, block_end - block_start);
+  // The page's own rule is inlined; neither <noscript> source is.
+  EXPECT_NE(block.find("color: red"), std::string::npos) << block;
+  EXPECT_EQ(block.find("nsonly"), std::string::npos) << block;
+  EXPECT_EQ(block.find("nslink"), std::string::npos) << block;
+  // The author's <noscript> is still there for clients without scripts.
+  EXPECT_NE(variant.find("<noscript><style>.nsonly"), std::string::npos)
+      << variant;
 }
 
 // Regression (the /console/urls timeout fix): /v1/cache/urls must report a
@@ -1135,6 +1246,73 @@ TEST_F(WorkerTest, AsyncCssDefersWhenProfileValidatedAndHashMatches) {
   worker_thread.join();
 }
 
+// The 64 KiB inline cap applies while the sheet stays render-blocking. A
+// validated deferral is never vetoed by it: there the block REPLACES the
+// render-blocking fetch, and the validator rendered exactly those bytes. A
+// site with a big sheet, a validated profile and a >64 KiB derived block must
+// keep both the inline and the deferral.
+TEST_F(WorkerTest, ValidatedDeferralIsNotVetoedByTheInlineByteCap) {
+  using namespace async_css_gate;
+  WorkerConfig config = BrowserProfileConfig();
+
+  Worker worker(config, nullptr);
+  ASSERT_TRUE(worker.Initialize());
+
+  // One matched element and ~72 KB of rules that all apply to it, so the
+  // derived block is the whole sheet and well over the cap.
+  const std::string big_css_url = "http://example.com/big.css";
+  std::string big_css;
+  for (int i = 0; i < 1600; ++i) {
+    absl::StrAppend(&big_css, ".a{padding-top:.0001px;margin-top:.0001px}\n");
+  }
+  // kInlineCriticalCssMaxBytes (browser_analysis_manager_internal.h).
+  constexpr size_t kInlineCap = 64 * 1024;
+  ASSERT_GT(big_css.size(), kInlineCap);
+  const std::string url = "http://example.com/big.html";
+  const std::string html =
+      std::string("<html><head><link rel=\"stylesheet\" href=\"") +
+      big_css_url + "\"></head><body><div class=\"a\">x</div></body></html>";
+  CacheOriginal(worker.cache(), url, html);
+  CacheOriginal(worker.cache(), big_css_url, big_css, "example.com");
+  StoreBrowserProfile(worker, url, html, /*profile_critical_css=*/".a{}",
+                      /*validated=*/true, /*validated_against_css=*/big_css);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification notification;
+  notification.url = url;
+  notification.scheme = "https";
+  notification.content_type = ContentType::kHtml;
+  notification.capability_mask = 0;
+  SendNotification(notification);
+
+  CapabilityMask mask = CapabilityMask::Decode(0);
+  std::string variant;
+  for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    variant = ReadVariant(worker.cache(), url, mask);
+    if (variant.find("as=\"style\"") != std::string::npos) break;
+  }
+  ASSERT_FALSE(variant.empty()) << "HTML variant not written";
+
+  const size_t block_start = variant.find("<style data-pagespeed-critical");
+  ASSERT_NE(block_start, std::string::npos)
+      << "the validated block must still be inlined";
+  const size_t block_end = variant.find("</style>", block_start);
+  ASSERT_NE(block_end, std::string::npos);
+  EXPECT_GT(block_end - block_start, kInlineCap)
+      << "and it is the over-cap block, not a truncated one";
+  EXPECT_NE(variant.find("data-pagespeed-async"), std::string::npos)
+      << "the validated deferral must still happen";
+  EXPECT_NE(variant.find("as=\"style\""), std::string::npos);
+  EXPECT_EQ(worker.stats().critical_css_skipped_byte_cap.load(), 0u);
+  // A record that matches is never sent back for validation.
+  EXPECT_EQ(worker.TestBrowserManager()->stats().revalidations_queued.load(),
+            0u);
+}
+
 // #1216: the record is dropped the moment the derivation comes back empty for
 // THIS page, before anything else can take the derived block's place.
 //
@@ -1258,6 +1436,364 @@ TEST_F(WorkerTest, AsyncCssRefusedWhenCombinedCssHashDiverges) {
          "over to the redeployed sheet";
   EXPECT_EQ(variant.find("as=\"style\""), std::string::npos);
   EXPECT_NE(variant.find("data-pagespeed-critical"), std::string::npos);
+
+  // And the template is queued for validation again now, rather
+  // than the page waiting out the profile's TTL with deferral off.
+  BrowserAnalysisManager* mgr = worker.TestBrowserManager();
+  ASSERT_NE(mgr, nullptr);
+  EXPECT_EQ(mgr->stats().revalidations_queued.load(), 1u);
+  auto item = mgr->TestDequeue();
+  ASSERT_TRUE(item.has_value());
+  HtmlScanner scanner;
+  EXPECT_EQ(item->template_hash,
+            TemplateDetector::HashStructure(scanner.Scan(url, html)));
+  EXPECT_EQ(item->original_html, html);
+}
+
+// The record's hash is of the ANALYSED page's combined sheet,
+// which includes that page's own inline <style>. A sibling page of the same
+// template with different inline CSS always mismatches; if it could ask for a
+// revalidation, the record would move from page to page and every such
+// template would spend its budget daily. Only the analysed page asks.
+TEST_F(WorkerTest, OnlyTheAnalyzedPageRequestsRevalidation) {
+  using namespace async_css_gate;
+  WorkerConfig config = BrowserProfileConfig();
+
+  Worker worker(config, nullptr);
+  ASSERT_TRUE(worker.Initialize());
+
+  auto page = [](std::string_view inline_css) {
+    return absl::StrCat("<html><head><style>", inline_css,
+                        "</style><link rel=\"stylesheet\" href=\"", kCssUrl,
+                        "\"></head><body><div class=\"hero\">Hello</div>"
+                        "</body></html>");
+  };
+  const std::string analyzed_url = "http://example.com/analyzed.html";
+  const std::string sibling_url = "http://example.com/sibling.html";
+  const std::string analyzed_html = page(".a{color:red}");
+  const std::string sibling_html = page(".b{color:blue}");
+  HtmlScanner scanner;
+  ASSERT_EQ(
+      TemplateDetector::HashStructure(
+          scanner.Scan(analyzed_url, analyzed_html)),
+      TemplateDetector::HashStructure(scanner.Scan(sibling_url, sibling_html)))
+      << "precondition: one template";
+  CacheOriginal(worker.cache(), analyzed_url, analyzed_html);
+  CacheOriginal(worker.cache(), sibling_url, sibling_html);
+  CacheOriginal(worker.cache(), kCssUrl, kCss, "example.com");
+  // Validated on the analysed page, against a stylesheet since redeployed.
+  StoreBrowserProfile(worker, analyzed_url, analyzed_html, kProfileCriticalCss,
+                      /*validated=*/true,
+                      /*validated_against_css=*/".a{color:red}\n.old{}");
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  auto serve = [&](const std::string& url) {
+    CacheNotification notification;
+    notification.url = url;
+    notification.scheme = "https";
+    notification.content_type = ContentType::kHtml;
+    notification.capability_mask = 0;
+    SendNotification(notification);
+    CapabilityMask mask = CapabilityMask::Decode(0);
+    std::string variant;
+    for (int i = 0; i < 60 * kSanitizerBudgetScale; ++i) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      variant = ReadVariant(worker.cache(), url, mask);
+      if (!variant.empty()) break;
+    }
+    return variant;
+  };
+  BrowserAnalysisManager* mgr = worker.TestBrowserManager();
+  ASSERT_NE(mgr, nullptr);
+
+  const std::string sibling_variant = serve(sibling_url);
+  ASSERT_FALSE(sibling_variant.empty()) << "sibling variant not written";
+  EXPECT_NE(sibling_variant.find("data-pagespeed-critical"), std::string::npos)
+      << "precondition: the profile path served the sibling";
+  EXPECT_EQ(mgr->stats().revalidations_queued.load(), 0u)
+      << "a sibling page's own inline CSS is not a reason to revalidate";
+  EXPECT_EQ(mgr->stats().revalidations_rate_limited.load(), 0u);
+
+  ASSERT_FALSE(serve(analyzed_url).empty()) << "analysed variant not written";
+  EXPECT_EQ(mgr->stats().revalidations_queued.load(), 1u)
+      << "the analysed page's own stale record is";
+  auto item = mgr->TestDequeue();
+  ASSERT_TRUE(item.has_value());
+  // Queued in the serve path's normalized form, which is also what the new
+  // record's analyzed_url will be.
+  EXPECT_EQ(item->url, "/analyzed.html");
+}
+
+// The analysis renders now leave <noscript> content out, so a
+// record made while they rendered it is about another fold, but only on a page
+// whose <noscript> content shows something with scripts off. Such a page's
+// record no longer matches (the binding is salted) and the analysed page asks
+// for a new validation once; a record made since, with the salt, matches. A
+// page whose <noscript> holds only the GTM snippet's hidden iframe keeps its
+// record and its deferral, and asks for nothing.
+TEST_F(WorkerTest, NoscriptContentSaltsTheValidationBinding) {
+  using namespace async_css_gate;
+  WorkerConfig config = BrowserProfileConfig();
+
+  Worker worker(config, nullptr);
+  ASSERT_TRUE(worker.Initialize());
+
+  auto page = [](std::string_view noscript, std::string_view extra) {
+    return absl::StrCat("<html><head><link rel=\"stylesheet\" href=\"", kCssUrl,
+                        "\"></head><body>", noscript,
+                        "<div class=\"hero\">Hello</div>", extra,
+                        "</body></html>");
+  };
+  const std::string gtm_url = "http://example.com/gtm.html";
+  const std::string gtm_html = page(
+      "<noscript><iframe "
+      "src=\"https://www.googletagmanager.com/ns.html?id=GTM-X\" "
+      "height=\"0\" width=\"0\" "
+      "style=\"display:none;visibility:hidden\"></iframe></noscript>",
+      "");
+  const std::string banner_url = "http://example.com/banner.html";
+  const std::string banner_html =
+      page("<noscript><div class=\"nojs\">Enable JS</div></noscript>", "");
+  const std::string revalidated_url = "http://example.com/revalidated.html";
+  const std::string revalidated_html = page(
+      "<noscript><div class=\"nojs\">Enable JS</div></noscript>", "<p>x</p>");
+  HtmlScanner scanner;
+  ASSERT_FALSE(scanner.Scan(gtm_url, gtm_html).noscript_affects_render);
+  ASSERT_TRUE(scanner.Scan(banner_url, banner_html).noscript_affects_render);
+  CacheOriginal(worker.cache(), gtm_url, gtm_html);
+  CacheOriginal(worker.cache(), banner_url, banner_html);
+  CacheOriginal(worker.cache(), revalidated_url, revalidated_html);
+  CacheOriginal(worker.cache(), kCssUrl, kCss, "example.com");
+  // Records made before the <noscript> removal on the first two pages, one made
+  // since on the
+  // third. All against the served sheet.
+  StoreBrowserProfile(worker, gtm_url, gtm_html, kProfileCriticalCss,
+                      /*validated=*/true, /*validated_against_css=*/kCss);
+  StoreBrowserProfile(worker, banner_url, banner_html, kProfileCriticalCss,
+                      /*validated=*/true, /*validated_against_css=*/kCss);
+  StoreBrowserProfile(worker, revalidated_url, revalidated_html,
+                      kProfileCriticalCss, /*validated=*/true,
+                      /*validated_against_css=*/kCss, std::nullopt,
+                      /*made_without_noscript=*/true);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  auto serve = [&](const std::string& url, bool expect_deferral) {
+    CacheNotification notification;
+    notification.url = url;
+    notification.scheme = "https";
+    notification.content_type = ContentType::kHtml;
+    notification.capability_mask = 0;
+    SendNotification(notification);
+    CapabilityMask mask = CapabilityMask::Decode(0);
+    std::string variant;
+    for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      variant = ReadVariant(worker.cache(), url, mask);
+      if (!variant.empty() &&
+          (!expect_deferral ||
+           variant.find("as=\"style\"") != std::string::npos)) {
+        break;
+      }
+    }
+    return variant;
+  };
+  BrowserAnalysisManager* mgr = worker.TestBrowserManager();
+  ASSERT_NE(mgr, nullptr);
+
+  const std::string gtm = serve(gtm_url, /*expect_deferral=*/true);
+  EXPECT_NE(gtm.find("data-pagespeed-async"), std::string::npos)
+      << "a hidden tag-manager iframe changes no render: the record stands";
+  EXPECT_EQ(mgr->stats().revalidations_queued.load(), 0u);
+
+  const std::string banner = serve(banner_url, /*expect_deferral=*/false);
+  ASSERT_FALSE(banner.empty()) << "banner variant not written";
+  EXPECT_EQ(banner.find("data-pagespeed-async"), std::string::npos)
+      << "a record made while the banner was rendered is about another fold";
+  EXPECT_NE(banner.find("data-pagespeed-critical"), std::string::npos);
+  EXPECT_EQ(mgr->stats().revalidations_queued.load(), 1u)
+      << "so the page asks to be validated again";
+
+  const std::string revalidated =
+      serve(revalidated_url, /*expect_deferral=*/true);
+  EXPECT_NE(revalidated.find("data-pagespeed-async"), std::string::npos)
+      << "a record made with the salt matches";
+  EXPECT_EQ(mgr->stats().revalidations_queued.load(), 1u);
+}
+
+// The record binds to the page's cascade-layer order as well as to its sheet,
+// through the same combined-sheet hash, so a change of order
+// takes the path a changed sheet takes: the analysed page asks for a
+// new validation. A record of the same sheet made with the served order does
+// not ask. The notification's mask 0 is the mobile class, whose records carry
+// the "touch" and "ua" salts since touch emulation and User-Agent emulation
+// (ValidationBindingFor), so a record "made since" a fix below is one made
+// with those salts; a mobile record made before either is made again once, as
+// those changes intend.
+TEST_F(WorkerTest, ALayerOrderChangeRequestsRevalidation) {
+  using namespace async_css_gate;
+  const std::string url = "http://example.com/layered.html";
+  auto page = [](std::string_view inline_css) {
+    return absl::StrCat("<html><head><style>", inline_css,
+                        "</style><link rel=\"stylesheet\" href=\"", kCssUrl,
+                        "\"></head><body><div class=\"hero\">Hello</div>"
+                        "</body></html>");
+  };
+  // Serves `html` with a validation record of hash `record_hash` and returns
+  // how many revalidations the serve queued.
+  auto revalidations = [&](const std::string& html,
+                           const std::string& record_hash) -> uint64_t {
+    WorkerConfig config = BrowserProfileConfig();
+    Worker worker(config, nullptr);
+    EXPECT_TRUE(worker.Initialize());
+    CacheOriginal(worker.cache(), url, html);
+    CacheOriginal(worker.cache(), kCssUrl, kCss, "example.com");
+    StoreBrowserProfile(worker, url, html, kProfileCriticalCss,
+                        /*validated=*/true, /*validated_against_css=*/kCss,
+                        record_hash);
+    std::thread worker_thread([&worker]() { worker.Run(); });
+    WorkerStopper stopper(worker, worker_thread);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    CacheNotification notification;
+    notification.url = url;
+    notification.scheme = "https";
+    notification.content_type = ContentType::kHtml;
+    notification.capability_mask = 0;
+    SendNotification(notification);
+    CapabilityMask mask = CapabilityMask::Decode(0);
+    std::string variant;
+    for (int i = 0; i < 60 * kSanitizerBudgetScale; ++i) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      variant = ReadVariant(worker.cache(), url, mask);
+      if (!variant.empty()) break;
+    }
+    EXPECT_FALSE(variant.empty()) << "variant not written";
+    EXPECT_NE(variant.find("data-pagespeed-critical"), std::string::npos)
+        << "precondition: the profile path served the page";
+    return worker.TestBrowserManager()->stats().revalidations_queued.load();
+  };
+
+  // A layered page: the order is proven, `@layer base;`.
+  const std::string layered_inline = "@layer base{.a{color:red}}";
+  const std::string layered_sheet = absl::StrCat(layered_inline, "\n", kCss);
+  EXPECT_EQ(
+      revalidations(page(layered_inline),
+                    CombinedCssValidationHash(
+                        layered_sheet, "proven r2 @layer base; touch ua")),
+      0u)
+      << "a record of the served sheet and order still matches";
+  EXPECT_EQ(revalidations(page(layered_inline),
+                          CombinedCssValidationHash(layered_sheet,
+                                                    "proven r2 @layer base;")),
+            1u)
+      << "a mobile record made before touch emulation is made "
+         "again once";
+  EXPECT_EQ(revalidations(page(layered_inline),
+                          CombinedCssValidationHash(
+                              layered_sheet, "proven r2 @layer base; touch")),
+            1u)
+      << "a mobile record made before the user agent override "
+         "is made again once";
+  EXPECT_EQ(revalidations(page(layered_inline),
+                          CombinedCssValidationHash(layered_sheet,
+                                                    "proven @layer base;")),
+            1u)
+      << "a record made before @media retention narrowed on layered pages "
+         "describes another block and is made again";
+  EXPECT_EQ(revalidations(page(layered_inline),
+                          CombinedCssValidationHash(layered_sheet, "unproven")),
+            1u)
+      << "the same sheet validated under another order no longer matches";
+  EXPECT_EQ(revalidations(page(layered_inline),
+                          CombinedCssValidationHash(layered_sheet)),
+            1u)
+      << "a record made before the binding, on a layered page, is made again";
+
+  // A sheet with an !important in an anonymous layer binds with
+  // "a2" (the block leaves those declarations out), so a record made before
+  // is made again.
+  const std::string anon_inline =
+      "@layer base{.a{color:red}} @layer{.b{color:blue!important}}";
+  const std::string anon_sheet = absl::StrCat(anon_inline, "\n", kCss);
+  EXPECT_EQ(revalidations(page(anon_inline),
+                          CombinedCssValidationHash(
+                              anon_sheet, "proven a2 @layer base; touch ua")),
+            0u)
+      << "a record made with the a2 binding matches";
+  EXPECT_EQ(
+      revalidations(page(anon_inline), CombinedCssValidationHash(
+                                           anon_sheet, "proven @layer base;")),
+      1u)
+      << "a record made before the !important rule is made again";
+
+  // The anonymous layer is written as `@l\61yer {`,
+  // which a browser reads as `@layer {`. The optimizer does not decode it, so
+  // the order is not proven and the block goes after the sheets, where it
+  // carries no anonymous-layer rule: the sheet binds with "u2", and the record
+  // with the serve path's own derivation on top (anon-layers-dropped), the
+  // same salt the validator's derivation adds.
+  const std::string escaped_layer_inline =
+      "@layer base{.a{color:red}} @l\\61yer{.b{color:blue}}";
+  const std::string escaped_layer_sheet =
+      absl::StrCat(escaped_layer_inline, "\n", kCss);
+  EXPECT_EQ(revalidations(page(escaped_layer_inline),
+                          CombinedCssValidationHash(
+                              escaped_layer_sheet,
+                              "unproven u2 touch ua anon-layers-dropped")),
+            0u)
+      << "a record made with the u2 binding and the derivation's salt matches";
+  EXPECT_EQ(
+      revalidations(page(escaped_layer_inline),
+                    CombinedCssValidationHash(escaped_layer_sheet, "unproven")),
+      1u)
+      << "a record made before the anonymous-layer rule is made again";
+
+  // A layered page whose `@import … layer()` is not cached yet: the order is
+  // unproven for now and will change once the import caches, so the stale
+  // record does not trigger a revalidation that would bind to `unproven`.
+  const std::string import_inline =
+      "@import url(/lib-not-cached.css) layer(lib);@layer base{.a{color:red}}";
+  EXPECT_EQ(revalidations(page(import_inline),
+                          CombinedCssValidationHash(
+                              absl::StrCat(import_inline, "\n", kCss),
+                              "proven r2 @layer lib,base;")),
+            0u)
+      << "a missing layer() import holds the revalidation back";
+
+  // A page without layers: the layer binding is empty, so a record of the
+  // sheet alone (plus the class's salt) matches; the layer binding itself
+  // revalidates no page without layers.
+  const std::string plain_inline = ".a{color:red}";
+  EXPECT_EQ(
+      revalidations(page(plain_inline),
+                    CombinedCssValidationHash(
+                        absl::StrCat(plain_inline, "\n", kCss), "touch ua")),
+      0u)
+      << "the binding must not revalidate every page without layers";
+
+  // A sheet that escapes a quote outside a string was misread
+  // until that fix, so a record made before it (no salt) is made again once,
+  // and one made since (salted) stands. The plain page above shows that a
+  // sheet without such an escape keeps its record.
+  const std::string escaped_inline = ".a\\'b{color:red}";
+  const std::string escaped_sheet = absl::StrCat(escaped_inline, "\n", kCss);
+  ASSERT_TRUE(CombinedCssHasStructuralEscape(escaped_sheet));
+  ASSERT_FALSE(
+      CombinedCssHasStructuralEscape(absl::StrCat(plain_inline, "\n", kCss)));
+  EXPECT_EQ(revalidations(page(escaped_inline),
+                          CombinedCssValidationHash(escaped_sheet)),
+            1u)
+      << "a record made while the sheet was misread is made again";
+  EXPECT_EQ(revalidations(page(escaped_inline),
+                          CombinedCssValidationHash(escaped_sheet,
+                                                    "css-escape touch ua")),
+            0u)
+      << "a record made since the fix matches";
 }
 
 // M6(a): the stylesheet resolves from cache but its body is empty, so the
@@ -4018,7 +4554,7 @@ TEST_F(WorkerTest, CacheFullVariantWritesNotStarvedByOwnLease) {
   // cache_test ReleaseUnpinsFullStripeForWrites — timing there is fully
   // controlled.  This test guards the end-to-end outcome: with the write
   // cursor parked AT the wrap boundary, the worker's image pipeline must
-  // still land variants within the poll budget.
+  // still land a variant before it has worked through its matrix.
   WorkerConfig config;
   config.socket_path = socket_path_;
   config.cache_path = cache_path_;
@@ -4029,15 +4565,12 @@ TEST_F(WorkerTest, CacheFullVariantWritesNotStarvedByOwnLease) {
   config.read_lease_duration_ms = 500;
   // Park the anti-starvation valve out of reach: the default 60s
   // lease_wrap_ceiling force-admits one write per minute, which would
-  // mask genuine lease starvation right at this test's poll horizon.
-  // Post-fix nothing keeps the lease alive, so the ceiling is never
-  // needed; pre-fix (or with a reintroduced pin) the poll times out.
-  // Scaled with the poll budget below so it stays an order of magnitude
-  // beyond the poll horizon under a sanitizer's slowdown -- otherwise the
-  // ceiling would force-admit a write right at the horizon and mask a
-  // regression (the very failure mode this ceiling is parked out of reach of).
-  config.lease_wrap_ceiling_ms =
-      static_cast<uint64_t>(600000) * kSanitizerBudgetScale;
+  // mask genuine lease starvation -- a write the ceiling forced through
+  // looks exactly like one the decayed lease admitted.  Post-fix nothing
+  // keeps the lease alive, so the ceiling is never needed; pre-fix (or with
+  // a reintroduced pin) every write of the matrix is deferred and none
+  // lands.  A day is far beyond any run of this matrix, on any host.
+  config.lease_wrap_ceiling_ms = 24 * 60 * 60 * 1000;
   config.proactive_image_variants = true;
   // Trim the matrix to 6 combinations (viewport x density) to keep the
   // unoptimized-build runtime reasonable; still several transcode
@@ -4108,6 +4641,7 @@ TEST_F(WorkerTest, CacheFullVariantWritesNotStarvedByOwnLease) {
   std::this_thread::sleep_for(std::chrono::milliseconds(800));
 
   std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
   CapabilityMask mobile_webp(
@@ -4121,30 +4655,31 @@ TEST_F(WorkerTest, CacheFullVariantWritesNotStarvedByOwnLease) {
   notification.capability_mask = mobile_webp.Encode();
   SendNotification(notification);
 
-  // Poll worker stats only — a cache read here would stamp a fresh lease
-  // on the stripe and defer the very writes under test.  Pre-fix the
-  // counter stayed at zero (every write dropped behind the renewed
-  // lease).
-  // A real-time budget is the point here (the write must be admitted while
-  // the lease decays, not force-admitted by the wrap ceiling), so scale the
-  // budget by the sanitizer factor rather than replacing it with an idle
-  // wait; the ceiling above scales in lock-step to stay out of reach.
-  bool wrote = false;
-  for (int i = 0; i < 600 * kSanitizerBudgetScale; ++i) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    if (worker.stats().variants_written.load(std::memory_order_relaxed) >= 1) {
-      wrote = true;
-      break;
-    }
-  }
-  EXPECT_TRUE(wrote)
+  // Watch worker stats only — a cache read here would stamp a fresh lease
+  // on the stripe and defer the very writes under test.
+  //
+  // Wait for the whole matrix to retire, then judge the final counters: by
+  // then every combination has had its write attempt.  Pre-fix every write
+  // was dropped behind the renewed lease and the counter stayed at zero.  How
+  // long the encodes in front of those writes take is the host's business,
+  // not this test's: an unoptimized build needs tens of seconds per
+  // combination on an idle machine, and a fixed number of seconds for the
+  // first write reported starvation whenever the first combination was
+  // merely slow.  (Stopping at the first write would save nothing -- the
+  // worker's teardown waits for the rest of the matrix anyway.)
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+  EXPECT_GE(worker.stats().variants_written.load(std::memory_order_relaxed), 1u)
       << "no image variant admitted at cache-full: worker starved its own "
          "writes (issue #934); variant write failures: "
       << worker.stats().alternate_write_failures.load(
              std::memory_order_relaxed);
-
-  worker.Shutdown();
-  worker_thread.join();
+  // Reported, not asserted: post-fix every write lands long after the origin
+  // read's single lease stamp expired, so this is expected to be zero; a
+  // non-zero value means some writes were still deferred.
+  RecordProperty("alternate_write_failures",
+                 std::to_string(worker.stats().alternate_write_failures.load(
+                     std::memory_order_relaxed)));
 }
 
 TEST_F(WorkerTest, ReadLeaseDurationZeroDisablesLeases) {
@@ -6143,6 +6678,103 @@ TEST_F(WorkerTest, AsyncCssSuppressedWhenExternalCssMissing) {
   EXPECT_EQ(phase2->metadata.flags & AlternateMetadata::kFlagNeedsRevalidation,
             0)
       << "Phase 2: kFlagNeedsRevalidation should clear once the sheet caches";
+}
+
+TEST_F(WorkerTest, AsyncCssGathersTheSheetFromTheBaseHrefHost) {
+  // A page whose <base href> points at another host declares its
+  // stylesheet with a root-relative href. The browser fetches it from the
+  // <base> host; the combined-stylesheet gather used to resolve it against the
+  // page directory and read it from the page host, where it is not, so the
+  // sheet counted as missing on both the serve and the analysis side, and the
+  // page never deferred. Now both sides resolve it through the scan's
+  // DocumentBase and read the CDN host's sheet.
+  //
+  // End to end, with the serve/analysis parity made explicit: the record is
+  // seeded against the bytes the ANALYSIS side's own builder (the worker's
+  // BuildCombinedCss as wired into the browser manager) assembles, and the
+  // SERVE path has to accept it, which it only does when it gathers the same
+  // sheet from the same host and hashes the same bytes.
+  WorkerConfig config = BrowserProfileConfig();
+  config.ram_cache_size = 0;  // single-process test; see the sibling tests.
+
+  Worker worker(config, nullptr);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string hostname = "example.com";
+  const std::string url = "https://example.com/base.html";
+  const std::string html =
+      "<html><head>"
+      "<base href=\"https://cdn.example.com/assets/\">"
+      "<style>.hero{color:red}</style>"
+      "<link rel=\"stylesheet\" href=\"/css/site.css\">"
+      "</head><body>"
+      "<div class=\"hero\">Hello</div>"
+      "<img src=\"hero.jpg\">"
+      "</body></html>";
+  const std::string sheet_css =
+      ".hero{color:red;font-size:24px}.footer{display:none}"
+      "body{margin:0;font-family:system-ui}a{color:blue}";
+
+  CacheOriginal(worker.cache(), url, html, hostname);
+  // The sheet lives on the CDN host, at the root-relative path. Nothing is
+  // cached for the page host's /css/site.css.
+  CacheOriginal(worker.cache(), "https://cdn.example.com/css/site.css",
+                sheet_css, "cdn.example.com");
+
+  // The analysis side: the manager's builder is the worker's own assembly,
+  // handed the item as the manager holds it (the cache-normalized path, with
+  // the hostname and scheme beside it), as BuildValidationInputs hands it.
+  const std::string item_url = StripSchemeAuthority(url);
+  HtmlScanner scanner;
+  HtmlScanResult scan = scanner.Scan(item_url, html);
+  ASSERT_TRUE(scan.success);
+  ASSERT_NE(worker.TestBrowserManager(), nullptr);
+  const auto& builder = worker.TestBrowserManager()->TestCombinedCssBuilder();
+  ASSERT_TRUE(builder) << "the worker wires BuildCombinedCss into the manager";
+  BrowserAnalysisManager::CombinedCss analysis_side =
+      builder(scan, item_url, hostname, "https");
+  EXPECT_FALSE(analysis_side.external_css_missing)
+      << "the CDN host's sheet is in cache";
+  EXPECT_EQ(scan.inline_css + "\n" + sheet_css, analysis_side.css);
+
+  StoreBrowserProfile(worker, url, html, ".hero{color:red}",
+                      /*validated=*/true,
+                      /*validated_against_css=*/analysis_side.css);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification notification;
+  notification.url = url;
+  notification.hostname = hostname;
+  notification.scheme = "https";
+  notification.content_type = ContentType::kHtml;
+  notification.capability_mask = 0;
+  SendNotification(notification);
+
+  CapabilityMask mask = CapabilityMask::Decode(0);
+  std::optional<VariantWithMeta> variant;
+  for (int i = 0; i < 40 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    variant = ReadVariantWithMeta(worker.cache(), url, mask, hostname);
+    if (variant.has_value()) break;
+  }
+  ASSERT_TRUE(variant.has_value()) << "HTML variant not written";
+
+  // The serve path gathered the CDN host's sheet, hashed the same bytes the
+  // analysis side did, and so accepted the record: the sheet is deferred.
+  EXPECT_NE(variant->content.find("data-pagespeed-critical"), std::string::npos)
+      << variant->content;
+  EXPECT_NE(variant->content.find("as=\"style\""), std::string::npos)
+      << "the stylesheet should be async-deferred: " << variant->content;
+  EXPECT_NE(variant->content.find("data-pagespeed-async"), std::string::npos)
+      << variant->content;
+  // No declared sheet was missing, so nothing to revalidate.
+  EXPECT_EQ(variant->metadata.flags & AlternateMetadata::kFlagNeedsRevalidation,
+            0)
+      << "the sheet was gathered; the variant must not be marked for "
+         "revalidation";
 }
 
 TEST_F(WorkerTest, AsyncCssSuppressedWhenOneOfMultipleSheetsMissing) {
@@ -11149,6 +11781,36 @@ TEST(DeclineTombstoneCodec, DifferentSourceHashReadsAsNoTombstone) {
   EXPECT_EQ(pagespeed::ParseDeclineTombstone(blob, hash_a).size(), 1u);
 }
 
+TEST(DeclineTombstoneCodec, APayloadFromAnEarlierLayoutReadsAsNoTombstone) {
+  // A refusal recorded under the previous payload layout must not survive
+  // into a build whose quality search has a different reach: the variant
+  // that search could not find may be reachable now.
+  std::array<std::byte, 32> hash{};
+  std::string legacy;
+  legacy.push_back(static_cast<char>(1));  // the pre-generation layout
+  legacy.append(reinterpret_cast<const char*>(hash.data()), 32);
+  legacy.push_back(static_cast<char>(1));     // one record
+  legacy.push_back(static_cast<char>(0x11));  // slot
+  legacy.push_back(static_cast<char>(60));    // quality
+  EXPECT_TRUE(pagespeed::ParseDeclineTombstone(legacy, hash).empty());
+  // Non-vacuity: the same slot, written by this build, is honored.
+  EXPECT_EQ(pagespeed::ParseDeclineTombstone(
+                pagespeed::EncodeDeclineTombstone(hash, {{0x11, 60}}), hash)
+                .size(),
+            1u);
+}
+
+TEST(DeclineTombstoneCodec, ARefusalFromAnotherQualitySearchIsIgnored) {
+  // The generation byte is what makes a refusal expire when the search
+  // that produced it is replaced -- without it a warm cache would keep
+  // serving the old verdict forever.
+  std::array<std::byte, 32> hash{};
+  std::string blob = pagespeed::EncodeDeclineTombstone(hash, {{0x11, 60}});
+  ASSERT_EQ(blob[1], static_cast<char>(pagespeed::kVerifyQualitySearchVersion));
+  blob[1] = static_cast<char>(pagespeed::kVerifyQualitySearchVersion + 1);
+  EXPECT_TRUE(pagespeed::ParseDeclineTombstone(blob, hash).empty());
+}
+
 TEST(DeclineTombstoneCodec, MalformedBlobReadsAsNoTombstone) {
   std::array<std::byte, 32> hash{};
   // Truncated header.
@@ -11237,10 +11899,14 @@ TEST_F(WorkerTest, DeclineTombstoneStopsTheSecondNotificationsLadder) {
   // process, and both cross-format arms decline in each -- 6 declines, and
   // six tombstone records.
   notify(CapabilityMask::Viewport::kMobile);
-  for (int i = 0; i < 120 * kSanitizerBudgetScale; ++i) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    if (worker.stats().ssimulacra2_declines.load() >= 6) break;
-  }
+  // Wait for the work item to retire, not for the decline counter to reach
+  // six: the sixth decline is counted while the item is still running (it
+  // has yet to store the tombstone and leave the in-flight set), and a
+  // notification for the same URL that arrives in that window is rejected by
+  // the in-flight guard -- the second ladder below would then never start,
+  // however long the test waited for it.
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
   ASSERT_EQ(6u, worker.stats().ssimulacra2_declines.load())
       << "first notification must decline both cross-format arms at all "
          "three viewports";
@@ -11250,12 +11916,13 @@ TEST_F(WorkerTest, DeclineTombstoneStopsTheSecondNotificationsLadder) {
   // Second notification (desktop visitor): a different normalized mask, so
   // the dedup does not absorb it, and the same six slots are missing again
   // (declined variants are never stored). The tombstone must stop every
-  // ladder. Wait on the tombstone counter itself.
+  // ladder. Once this work item has retired too, the counters are final.
   notify(CapabilityMask::Viewport::kDesktop);
-  for (int i = 0; i < 120 * kSanitizerBudgetScale; ++i) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    if (worker.stats().ssimulacra2_decline_tombstone_hits.load() >= 6) break;
-  }
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 2,
+                                                           kWorkerStallBudget));
+  EXPECT_EQ(0u, worker.stats().notifications_skipped_inflight.load())
+      << "the re-notify was rejected as in-flight and never reached the "
+         "variant loops";
   EXPECT_EQ(6u, worker.stats().ssimulacra2_decline_tombstone_hits.load())
       << "every declined slot must hit the tombstone on the re-notify";
   EXPECT_EQ(6u, worker.stats().ssimulacra2_declines.load())
@@ -11887,6 +12554,77 @@ TEST_F(WorkerTest, HtmlEarlyHintsSentinelWriteContent) {
   // At minimum the CDN and analytics origins should appear.
   EXPECT_NE(hints.find("preconnect:"), std::string::npos)
       << "Hints should contain preconnect entries. Got: " << hints;
+}
+
+// A page whose hero is loaded by script (a src-less
+// `<img data-src>` placeholder plus its <noscript> copy, alone in the hero
+// container) gets no `image:` Early Hint at all. Before, the hint named the
+// next image, which may be below the fold; the hero's bytes are unknown to
+// the worker, so the right hint is none. The stylesheet hint is unaffected,
+// and the variant promotes nothing: no fetchpriority on the placeholder or
+// on /below.jpg, no image preload.
+TEST_F(WorkerTest, ScriptLoadedHeroGetsNoImageHint) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+  config.disable_async_css = true;
+
+  Worker worker(config, nullptr);
+  ASSERT_TRUE(worker.Initialize());
+
+  std::string url = "http://example.com/lazy-hero.html";
+  std::string html =
+      "<html><head>"
+      "<link rel=\"stylesheet\" href=\"/main.css\">"
+      "</head><body>"
+      "<div class=\"hero\">"
+      "<img data-src=\"/hero.jpg\" class=\"lazy\">"
+      "<noscript><img src=\"/hero.jpg\" width=\"1200\" height=\"600\">"
+      "</noscript>"
+      "</div>"
+      "<div><img src=\"/below.jpg\"></div>"
+      "</body></html>";
+  CacheOriginal(worker.cache(), url, html);
+  CacheOriginal(worker.cache(), "/main.css", "body { margin: 0; }");
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification notification;
+  notification.url = url;
+  notification.scheme = "https";
+  notification.content_type = ContentType::kHtml;
+  notification.capability_mask = CapabilityMask().Encode();
+  SendNotification(notification);
+
+  std::string hints;
+  for (int i = 0; i < 40 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    hints = ReadSentinel(worker.cache(), url, SentinelId::kEarlyHints);
+    if (!hints.empty()) break;
+  }
+  ASSERT_FALSE(hints.empty()) << "Early hints sentinel should be stored";
+  EXPECT_NE(hints.find("/main.css"), std::string::npos) << hints;
+  EXPECT_EQ(hints.find("image:"), std::string::npos)
+      << "a script-loaded hero yields no image hint. Got: " << hints;
+
+  CapabilityMask mask = CapabilityMask::Decode(CapabilityMask().Encode());
+  std::string variant;
+  for (int i = 0; i < 40 * kSanitizerBudgetScale; ++i) {
+    variant = ReadVariant(worker.cache(), url, mask);
+    if (!variant.empty()) break;
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+  ASSERT_FALSE(variant.empty()) << "the optimized variant should be stored";
+  EXPECT_EQ(variant.find("fetchpriority"), std::string::npos) << variant;
+  EXPECT_EQ(variant.find("as=\"image\""), std::string::npos) << variant;
+  EXPECT_NE(variant.find("<img data-src=\"/hero.jpg\" class=\"lazy\">"),
+            std::string::npos)
+      << variant;
+  EXPECT_NE(variant.find("<img src=\"/below.jpg\">"), std::string::npos)
+      << variant;
 }
 
 TEST_F(WorkerTest, DeferredSheetIsPreloadHinted) {
@@ -12772,7 +13510,7 @@ TEST_F(WorkerTest, UnknownContentTypeNotification) {
   // Total processing time should still accumulate (timing code runs
   // regardless of content type).
   // We can't assert exact values but the counter should be accessible.
-  worker.stats().total_processing_time_us.load();
+  (void)worker.stats().total_processing_time_us.load();
 
   worker.Shutdown();
   worker_thread.join();
@@ -14155,6 +14893,7 @@ TEST_F(WorkerTest, InvalidateUrlClearsIncompleteRetryState) {
   CacheOriginal(worker.cache(), url, image_data);
 
   std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
 
   CacheNotification notification;
@@ -14169,19 +14908,17 @@ TEST_F(WorkerTest, InvalidateUrlClearsIncompleteRetryState) {
                      CapabilityMask::TransferEncoding::kIdentity)
           .Encode();
 
-  // First notification — process and dedup-mark.
+  // First notification — process and dedup-mark.  Wait for the work item to
+  // retire rather than for a number of seconds: the requested combination's
+  // encodes take as long as the host lets them, and once the item has retired
+  // the counters are final.  Retired also means its in-flight entry is gone
+  // (InvalidateUrl clears dedup and retry state but NOT the in-flight set), so
+  // the re-notification below is not rejected by the in-flight guard.
   SendNotification(notification);
-  for (int i = 0; i < 40 * kSanitizerBudgetScale; ++i) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    if (worker.stats().images_processed.load() >= 1) break;
-  }
-  EXPECT_GE(worker.stats().images_processed.load(), 1u);
-
-  // images_processed moves before the in-flight entry is erased, and
-  // InvalidateUrl clears dedup and retry state but NOT the in-flight set.
-  // Drain first, or the re-notification below is rejected by the in-flight
-  // guard and never reprocesses.
-  WaitForWorkerIdle(worker);
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+  ASSERT_GE(worker.stats().images_processed.load(), 1u)
+      << "first notification wrote no image variant";
 
   // Purge the URL — this should clear dedup AND retry state.
   worker.InvalidateUrl(url, "");
@@ -14191,17 +14928,63 @@ TEST_F(WorkerTest, InvalidateUrlClearsIncompleteRetryState) {
 
   uint64_t processed_before = worker.stats().images_processed.load();
 
-  // Re-notify — should be processed (not dedup-skipped).
+  // Re-notify — should be processed (not dedup-skipped).  Same event: once
+  // this second work item has retired, either it reprocessed the image or it
+  // was skipped, and no amount of further waiting changes which.
   SendNotification(notification);
-  for (int i = 0; i < 40 * kSanitizerBudgetScale; ++i) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    if (worker.stats().images_processed.load() > processed_before) break;
-  }
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 2,
+                                                           kWorkerStallBudget));
   EXPECT_GT(worker.stats().images_processed.load(), processed_before)
-      << "After InvalidateUrl, re-notification should be processed";
+      << "After InvalidateUrl, re-notification should be processed "
+         "(dedup-skipped: "
+      << worker.stats().notifications_skipped_dedup.load()
+      << ", rejected as in-flight: "
+      << worker.stats().notifications_skipped_inflight.load() << ")";
+}
 
-  worker.Shutdown();
-  worker_thread.join();
+// The in-flight guard: a notification for a URL whose previous notification
+// is still being processed is dropped and counted, not queued behind it.  Two
+// frames sent in one write are dispatched from the same read callback, before
+// the first work item can finish, so the second is rejected
+// deterministically.  Should the kernel split the write into two reads, the
+// first item is still in flight: the URL has no cached original, so its
+// source read runs the retry backoff (about 310 ms) before it gives up, and
+// the second half of a split local write arrives far sooner than that.
+TEST_F(WorkerTest, NotificationWhileSameUrlInFlightIsRejected) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+
+  CacheNotification notification;
+  notification.url = "http://example.com/in-flight.jpg";
+  notification.scheme = "https";
+  notification.content_type = ContentType::kImage;
+  notification.capability_mask =
+      CapabilityMask(CapabilityMask::ImageFormat::kWebP,
+                     CapabilityMask::Viewport::kDesktop,
+                     CapabilityMask::PixelDensity::k1x,
+                     CapabilityMask::SaveData::kOff,
+                     CapabilityMask::TransferEncoding::kIdentity)
+          .Encode();
+  std::vector<char> frames = notification.Serialize();
+  const std::vector<char> one = frames;
+  frames.insert(frames.end(), one.begin(), one.end());
+  SendRawNotificationBytes(frames);
+
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 2,
+                                                           kWorkerStallBudget));
+  EXPECT_EQ(2u, worker.stats().notifications_received.load());
+  EXPECT_EQ(1u, worker.stats().notifications_skipped_inflight.load())
+      << "the second notification for a URL already in flight must be "
+         "rejected by the in-flight guard";
 }
 
 TEST_F(WorkerTest, ImageIncompleteMatricesCounterInApiMetrics) {
@@ -17712,16 +18495,18 @@ constexpr const char* kCss =
 // `.flex` the rule would be retained whether or not the measured fold works.
 constexpr const char* kProfileCriticalCss = "p{margin:0}";
 
-// A head-heavy page — the live shape this change exists for. Thirty <meta>
-// elements exhaust the 25-element estimate before the first body element, so
-// both body divs are judged below the fold by document position alone.
+// A long page. Three hundred paragraphs exhaust the extractor's body-element
+// estimate before the two divs of interest, so both are judged below the fold
+// by document position alone. (The original live shape was a head-heavy page,
+// thirty <meta> elements exhausting a 25-element estimate counted from <html>;
+// the estimate is now counted from <body>, so the fillers moved there.)
 std::string PageHtml() {
   std::string html = "<html><head><link rel=\"stylesheet\" href=\"";
   html += kCssUrl;
-  html += "\">";
-  for (int i = 0; i < 30; ++i) html += "<meta name=\"m\" content=\"v\">";
+  html += "\"></head><body>";
+  for (int i = 0; i < 300; ++i) html += "<p>x</p>";
   html +=
-      "</head><body><div class=\"flex\">a</div>"
+      "<div class=\"flex\">a</div>"
       "<div class=\"mt-96\">b</div></body></html>";
   return html;
 }
@@ -17758,6 +18543,60 @@ void StoreProfileWithMeasuredFold(
 }
 
 }  // namespace measured_fold
+
+// A regression shape, end to end with the DEFAULT
+// configuration and no browser profile: a <head> holding more elements than
+// the old 25-element budget, then a body element whose rule the fold needs.
+// Counted from <html> the budget was spent inside <head> and `.flex` never
+// reached the inlined block; counted from <body> it does.
+TEST_F(WorkerTest, HeadHeavyPageStillGetsItsBodyRulesInlined) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  Worker worker(config, nullptr);
+  ASSERT_TRUE(worker.Initialize());
+
+  std::string html =
+      "<html><head><style>.flex{display:flex}.footer-x{color:red}"
+      "</style>";
+  for (int i = 0; i < 40; ++i) html += "<meta name=\"m\" content=\"v\">";
+  html += "</head><body><div class=\"flex\">a</div></body></html>";
+  const std::string cache_url = "/head-heavy.html";
+  CacheOriginal(worker.cache(), cache_url, html);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification notification;
+  notification.url = "http://example.com/head-heavy.html";
+  notification.scheme = "https";
+  notification.content_type = ContentType::kHtml;
+  notification.capability_mask = 0;
+  SendNotification(notification);
+
+  CapabilityMask mask = CapabilityMask::Decode(0);
+  std::string variant;
+  for (int i = 0; i < 60 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    variant = ReadVariant(worker.cache(), cache_url, mask);
+    if (!variant.empty()) break;
+  }
+  ASSERT_FALSE(variant.empty()) << "HTML variant not written";
+
+  const size_t block_start = variant.find("<style data-pagespeed-critical");
+  ASSERT_NE(block_start, std::string::npos);
+  const size_t block_end = variant.find("</style>", block_start);
+  ASSERT_NE(block_end, std::string::npos);
+  const std::string block =
+      variant.substr(block_start, block_end - block_start);
+  EXPECT_NE(block.find("display:flex"), std::string::npos)
+      << "the first body element's rule must be in the inlined block";
+  EXPECT_EQ(block.find("color:red"), std::string::npos)
+      << "a rule no fold element uses stays out of the block";
+}
 
 // The negative half of the A/B. A profile with NO measured fold reproduces the
 // old behaviour exactly: both body divs sit past the estimate and neither
@@ -17850,6 +18689,133 @@ TEST_F(WorkerTest, MeasuredFoldAdmitsLateElementsIntoCriticalCss) {
   // same distance past the estimate and was NOT measured above the fold.
   EXPECT_EQ(variant.find("24rem"), std::string::npos)
       << "an unmeasured element must stay out of the critical block";
+}
+
+// End to end: on a layered page whose layer order is proven, the
+// served block goes first behind the page's `@layer` statement, and its
+// @media blocks are kept for the device class's windows, so the mobile block
+// drops Tailwind's `lg:` block while the desktop block keeps it. When a
+// parser-blocking script comes before the sheet, the order is not proven: the
+// block goes before </head>, after the sheet, and keeps every width. Both the
+// heuristic path (no browser profile) and the profile path are served.
+TEST_F(WorkerTest, ProvenLayerOrderNarrowsTheServedMobileBlock) {
+  static constexpr const char* kCssUrl = "http://example.com/tw.css";
+  const std::string css =
+      "@layer theme,base,utilities;\n"
+      "@layer base{nav{margin:0}}\n"
+      "@layer utilities{.hidden{display:none}"
+      "@media (width>=64rem){.lg\\:block{display:block}}}\n";
+  auto page = [&](bool with_script) {
+    return absl::StrCat("<html><head>",
+                        with_script ? "<script src=\"/s.js\"></script>" : "",
+                        "<link rel=\"stylesheet\" href=\"", kCssUrl,
+                        "\"></head><body><nav class=\"hidden lg:block\">x</nav>"
+                        "<img src=\"/a.png\"></body></html>");
+  };
+
+  struct Served {
+    std::string variant;
+    std::string block;  // the inlined <style> body
+    size_t block_at = std::string::npos;
+    size_t link_at = std::string::npos;
+  };
+  auto serve = [&](bool profile_path, bool with_script,
+                   CapabilityMask::Viewport viewport) {
+    Served out;
+    WorkerConfig config;
+    if (profile_path) {
+      config = BrowserProfileConfig();
+    } else {
+      config.socket_path = socket_path_;
+      config.cache_path = cache_path_;
+      config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+    }
+    Worker worker(config, nullptr);
+    EXPECT_TRUE(worker.Initialize());
+    // A URL per serve: the workers share one cache directory.
+    static int serial = 0;
+    const std::string url =
+        absl::StrCat("http://example.com/tw", ++serial, ".html");
+    const std::string html = page(with_script);
+    CacheOriginal(worker.cache(), url, html);
+    CacheOriginal(worker.cache(), kCssUrl, css, "example.com");
+    if (profile_path) {
+      HtmlScanner scanner;
+      HtmlScanResult scan = scanner.Scan(url, html);
+      EXPECT_TRUE(scan.success);
+      ViewportProfile vp;
+      vp.critical_css = ".hidden{display:none}";
+      vp.css_coverage_ratio = 0.2f;
+      vp.total_css_bytes = 5000;
+      vp.unused_css_bytes = 4000;
+      OptimizationProfile profile;
+      profile.template_hash_hex = "layered";
+      profile.analyzed_url = url;
+      profile.mobile = vp;
+      profile.tablet = vp;
+      profile.desktop = vp;
+      profile.created_at = 0;
+      profile.expires_at = 0;
+      EXPECT_NE(worker.TestBrowserManager(), nullptr);
+      worker.TestBrowserManager()->TestStoreProfile(
+          TemplateDetector::HashStructure(scan), profile);
+    }
+    std::thread worker_thread([&worker]() { worker.Run(); });
+    WorkerStopper stopper(worker, worker_thread);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    CapabilityMask mask;
+    mask.set_viewport(viewport);
+    CacheNotification notification;
+    notification.url = url;
+    notification.scheme = "https";
+    notification.content_type = ContentType::kHtml;
+    notification.capability_mask = mask.Encode();
+    SendNotification(notification);
+    for (int i = 0; i < 60 * kSanitizerBudgetScale; ++i) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      out.variant = ReadVariant(worker.cache(), url, mask);
+      if (!out.variant.empty()) break;
+    }
+    out.block_at = out.variant.find("<style data-pagespeed-critical");
+    if (out.block_at != std::string::npos) {
+      const size_t body = out.variant.find('>', out.block_at) + 1;
+      out.block =
+          out.variant.substr(body, out.variant.find("</style>", body) - body);
+    }
+    out.link_at = out.variant.find(kCssUrl);
+    return out;
+  };
+
+  for (bool profile_path : {false, true}) {
+    SCOPED_TRACE(profile_path ? "profile path" : "heuristic path");
+    // Proven: first, with the statement; mobile drops lg:, desktop keeps it.
+    Served mobile = serve(profile_path, /*with_script=*/false,
+                          CapabilityMask::Viewport::kMobile);
+    ASSERT_FALSE(mobile.variant.empty()) << "variant not written";
+    ASSERT_NE(mobile.block_at, std::string::npos) << mobile.variant;
+    EXPECT_LT(mobile.block_at, mobile.link_at) << "the block goes first";
+    EXPECT_EQ(mobile.block.rfind("@layer theme,base,utilities;", 0), 0u)
+        << mobile.block;
+    EXPECT_NE(mobile.block.find("display:none"), std::string::npos);
+    EXPECT_EQ(mobile.block.find("64rem"), std::string::npos)
+        << "a proven page's mobile block drops the lg: block: " << mobile.block;
+
+    Served desktop = serve(profile_path, /*with_script=*/false,
+                           CapabilityMask::Viewport::kDesktop);
+    ASSERT_NE(desktop.block_at, std::string::npos) << desktop.variant;
+    EXPECT_NE(desktop.block.find("64rem"), std::string::npos) << desktop.block;
+
+    // Not proven: after the sheet, every width kept on mobile too.
+    Served unproven = serve(profile_path, /*with_script=*/true,
+                            CapabilityMask::Viewport::kMobile);
+    ASSERT_NE(unproven.block_at, std::string::npos) << unproven.variant;
+    EXPECT_GT(unproven.block_at, unproven.link_at)
+        << "the fallback block goes after the sheet";
+    EXPECT_NE(unproven.block.find("64rem"), std::string::npos)
+        << "a page whose order is not proven keeps the lg: block: "
+        << unproven.block;
+  }
 }
 
 // =============================================================================
@@ -18494,6 +19460,14 @@ TEST_F(WorkerTest, DecodeFailingImageKeepsOriginBytesAtTheOriginalFormatId) {
 
   worker.Shutdown();
   worker_thread.join();
+}
+
+// The extractor's default small-sheet threshold for the coverage gate is the
+// worker's default (the worker also passes its configured value): rules kept
+// for wide replaced elements are bounded by the gate the block is judged by.
+TEST(WorkerConfigTest, ExtractorSmallSheetThresholdMatchesTheWorkers) {
+  EXPECT_EQ(CriticalCssConfig{}.inline_limit_min_sheet_bytes,
+            WorkerConfig{}.async_css_min_deferred_bytes);
 }
 
 }  // namespace

@@ -3,17 +3,15 @@
 
 // PageSpeed 2.0 - Safe JSON Serialization
 //
-// DumpJson() is the one choke point: every JSON response and stream message
-// the worker emits is serialized through it instead of calling
+// DumpJson() is the one serialization point: every JSON response and stream
+// message the worker emits goes through it instead of calling
 // nlohmann::json::dump() directly (test/src/worker:json_output_test gates
-// this with a source-tree scan). A handler that fails this way answers 500
-// instead of stopping the optimizer; here, the equivalent failure mode for
-// a stream message is to drop that one message and keep serving.
+// this with a source-tree scan).
 //
-// For valid input the output is byte-identical to calling dump() with the
-// same arguments. For a string value nlohmann cannot losslessly encode as
-// strict JSON, the offending bytes are replaced with U+FFFD instead of
-// dump() throwing, so the result is always well-formed JSON.
+// What it guarantees: the result is always well-formed JSON, whatever the
+// values hold, and serializing never fails on a value's content. For
+// well-formed input the output is byte-identical to calling dump() with the
+// same arguments.
 
 #ifndef PAGESPEED_SRC_WORKER_JSON_DUMP_H_
 #define PAGESPEED_SRC_WORKER_JSON_DUMP_H_

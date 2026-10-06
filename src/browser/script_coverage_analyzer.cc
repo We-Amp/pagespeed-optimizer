@@ -3,10 +3,12 @@
 
 // 4. Fetch.enable({patterns: [{urlPattern: "*"}]})
 //    + Fetch.requestPaused handler to serve from cache
-// 5. Emulation.setDeviceMetricsOverride({width, height, ...})
+// 5. Emulation.setDeviceMetricsOverride + setTouchEmulationEnabled
+//    [+ setUserAgentOverride] (EmulateDevice, src/browser/device_emulation.h)
 // 6. Profiler.enable
 // 7. Profiler.startPreciseCoverage({callCount: false, detailed: true})
-// 8. Page.enable, Page.setLifecycleEventsEnabled
+// 8. Page.enable, Page.navigate(about:blank) for a fresh window
+//    (LoadFreshBlankDocument), Page.setLifecycleEventsEnabled
 // 9. Page.getFrameTree -> frameId
 // 10. Page.setDocumentContent({frameId, html})
 // 11. Wait for Page.lifecycleEvent("firstContentfulPaint")
@@ -36,6 +38,8 @@
 #include "src/browser/cdp_client.h"
 #include "src/browser/cdp_types.h"
 #include "src/browser/cdp_utils.h"
+#include "src/browser/device_emulation.h"
+#include "src/browser/render_support.h"
 #include "uv.h"
 
 namespace pagespeed {
@@ -211,6 +215,8 @@ struct ScriptCoverageAnalyzer::Session
   bool got_network_idle = false;
   bool fcp_coverage_done = false;
   bool completed = false;
+  // A refused Fetch.failRequest was reported already (FailPausedRequest).
+  bool fetch_error_reported = false;
 
   // Coverage data captured at FCP and at load.
   json fcp_coverage;
@@ -303,14 +309,7 @@ struct ScriptCoverageAnalyzer::Session
     int response_status = params.value("responseStatusCode", 0);
     if (response_status >= 300 && response_status < 400) {
       ++fetches_blocked;
-      CdpCommand fail_cmd;
-      fail_cmd.method = "Fetch.failRequest";
-      fail_cmd.params = {
-          {"requestId", request_id},
-          {"reason", "BlockedByClient"},
-      };
-      fail_cmd.session_id = session_id;
-      Send(fail_cmd, [](auto) {});
+      FailPausedRequest(shared_from_this(), request_id, "script coverage");
       return;
     }
 
@@ -332,14 +331,7 @@ struct ScriptCoverageAnalyzer::Session
       Send(fulfill_cmd, [](auto) {});
     } else {
       ++fetches_blocked;
-      CdpCommand fail_cmd;
-      fail_cmd.method = "Fetch.failRequest";
-      fail_cmd.params = {
-          {"requestId", request_id},
-          {"reason", "BlockedByClient"},
-      };
-      fail_cmd.session_id = session_id;
-      Send(fail_cmd, [](auto) {});
+      FailPausedRequest(shared_from_this(), request_id, "script coverage");
     }
   }
 
@@ -591,22 +583,8 @@ void ScriptCoverageAnalyzer::Analyze(
                 s->FinishError("Fetch.enable setup failed");
                 return;
               }
-              // Step 5: Set viewport.
-              CdpCommand vp_cmd;
-              vp_cmd.method = "Emulation.setDeviceMetricsOverride";
-              vp_cmd.params = {
-                  {"width", s->viewport_width},
-                  {"height", s->viewport_height},
-                  {"deviceScaleFactor", 1},
-                  {"mobile", s->viewport_width < 768},
-              };
-              vp_cmd.session_id = s->session_id;
-
-              s->Send(vp_cmd, [s](auto result) {
-                if (!result.ok() || result->is_error()) {
-                  s->FinishError("viewport setup failed");
-                  return;
-                }
+              // Step 5: Emulate the device (metrics, touch, UA).
+              EmulateDevice(s, s->viewport_width, s->viewport_height, [s]() {
                 // Step 6: Profiler.enable.
                 CdpCommand prof_cmd;
                 prof_cmd.method = "Profiler.enable";
@@ -657,62 +635,66 @@ void ScriptCoverageAnalyzer::Analyze(
                           s->FinishError("Page.enable failed");
                           return;
                         }
-                        CdpCommand lc_cmd;
-                        lc_cmd.method =
-                            "Page."
-                            "setLifecycleEventsEnabled";
-                        lc_cmd.params = {{"enabled", true}};
-                        lc_cmd.session_id = s->session_id;
+                        // A fresh window for the document (LoadFreshBlankDocument).
+                        LoadFreshBlankDocument(s, [s]() {
+                          CdpCommand lc_cmd;
+                          lc_cmd.method =
+                              "Page."
+                              "setLifecycleEventsEnabled";
+                          lc_cmd.params = {{"enabled", true}};
+                          lc_cmd.session_id = s->session_id;
 
-                        s->Send(lc_cmd, [s](auto result) {
-                          if (!result.ok() || result->is_error()) {
-                            s->FinishError(
-                                "lifecycle enable "
-                                "failed");
-                            return;
-                          }
-                          // Step 10: Get frame + set
-                          // content.
-                          CdpCommand tree_cmd;
-                          tree_cmd.method = "Page.getFrameTree";
-                          tree_cmd.session_id = s->session_id;
+                          s->Send(lc_cmd, [s](auto result) {
+                            if (!result.ok() || result->is_error()) {
+                              s->FinishError(
+                                  "lifecycle enable "
+                                  "failed");
+                              return;
+                            }
+                            // Step 10: Get frame + set
+                            // content.
+                            CdpCommand tree_cmd;
+                            tree_cmd.method = "Page.getFrameTree";
+                            tree_cmd.session_id = s->session_id;
 
-                          s->Send(tree_cmd,
-                                  [s](absl::StatusOr<CdpResponse> result) {
-                                    if (!result.ok() || result->is_error()) {
-                                      s->FinishError(
-                                          "getFrameTree "
-                                          "failed");
-                                      return;
-                                    }
-                                    s->frame_id =
-                                        result->result
-                                            .value("frameTree", json::object())
-                                            .value("frame", json::object())
-                                            .value("id", "");
-
-                                    CdpCommand content_cmd;
-                                    content_cmd.method =
-                                        "Page."
-                                        "setDocumentContent";
-                                    content_cmd.params = {
-                                        {"frameId", s->frame_id},
-                                        {"html", s->html_content},
-                                    };
-                                    content_cmd.session_id = s->session_id;
-                                    content_cmd.timeout_ms = 15000;
-
-                                    s->Send(content_cmd, [s](auto r) {
-                                      s->html_content.clear();
-                                      s->html_content.shrink_to_fit();
-                                      if (!r.ok() || r->is_error()) {
+                            s->Send(tree_cmd,
+                                    [s](absl::StatusOr<CdpResponse> result) {
+                                      if (!result.ok() || result->is_error()) {
                                         s->FinishError(
-                                            "setDocument"
-                                            "Content "
+                                            "getFrameTree "
                                             "failed");
+                                        return;
                                       }
+                                      s->frame_id =
+                                          result->result
+                                              .value("frameTree",
+                                                     json::object())
+                                              .value("frame", json::object())
+                                              .value("id", "");
+
+                                      CdpCommand content_cmd;
+                                      content_cmd.method =
+                                          "Page."
+                                          "setDocumentContent";
+                                      content_cmd.params = {
+                                          {"frameId", s->frame_id},
+                                          {"html", s->html_content},
+                                      };
+                                      content_cmd.session_id = s->session_id;
+                                      content_cmd.timeout_ms = 15000;
+
+                                      s->Send(content_cmd, [s](auto r) {
+                                        s->html_content.clear();
+                                        s->html_content.shrink_to_fit();
+                                        if (!r.ok() || r->is_error()) {
+                                          s->FinishError(
+                                              "setDocument"
+                                              "Content "
+                                              "failed");
+                                        }
+                                      });
                                     });
-                                  });
+                          });
                         });
                       });
                     });

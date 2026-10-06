@@ -9,6 +9,8 @@
 #ifndef PAGESPEED_LIB_IMAGE_QUALITY_PREDICTOR_H_
 #define PAGESPEED_LIB_IMAGE_QUALITY_PREDICTOR_H_
 
+#include <cstdint>
+
 #include "lib/image/quality_features.h"
 
 namespace pagespeed {

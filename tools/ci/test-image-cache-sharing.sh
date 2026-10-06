@@ -36,7 +36,7 @@ info() { echo "  ..    $*"; }
 head_() { echo; echo "== $* =="; }
 
 cleanup() {
-  docker rm -f "${RUN_ID}-worker" "${RUN_ID}-nginx" "${RUN_ID}-racer" >/dev/null 2>&1 || true
+  docker rm -f "${RUN_ID}-worker" "${RUN_ID}-nginx" "${RUN_ID}-mig" >/dev/null 2>&1 || true
   docker rmi -f "${RUN_ID}-harness" >/dev/null 2>&1 || true
   for v in fresh migrate sandbox chrome chromeneg hostile peervol peerjson peersib peergen emptygen genmode modes asuser harness comb; do
     docker volume rm "${RUN_ID}-${v}" >/dev/null 2>&1 || true
@@ -534,20 +534,51 @@ head_ "7. Hostile peer: a symlink swap during migration must not escape /data"
 # it.  On a pre-2.1 volume /data is 0777, so the peer -- a uid that handles
 # untrusted requests -- can rename an entry away and drop a symlink in its place
 # between the check and the chown, and a plain chown FOLLOWS it.  Two things
-# stop that: `chown -h` cannot dereference, and the directory is held at 0700
-# for the whole scan so no other uid can stage anything at all.
+# stop that: the directory is held at 2700 for the whole scan so no other uid
+# can stage anything at all, and `chown -h` cannot dereference.
 #
-# A NEGATIVE CONTROL runs first: the same race against a deliberately vulnerable
-# shape (path chown, no directory lock), which must succeed in chowning the
-# out-of-tree file.  Without it a green result could just mean the race never
-# landed.
+# DETERMINISTIC, NOT RACED.  This section used to start a racer that
+# hammered the stem name and hoped to land inside the check-to-chown window,
+# and demanded that it landed at least once in 25 tries.  On a host whose CPUs
+# another heavy job saturates the racer loses every round, so the control
+# failed with every product leg green.  Now the migration is PAUSED inside the
+# window and the swap is performed while it waits, so every leg below runs with
+# the swap landed exactly where a winning racer would put it, on the first try,
+# whatever the load.
+#
+# The pause lives in THIS HARNESS, not in the shipped code: nothing under
+# docker/ knows about it.  The shipped leg sources the unmodified library and
+# shadows `chown` with a bash function (functions win over PATH lookup) that
+# waits for the harness when, and only when, the target is the stem, and then
+# runs the real chown with the arguments it was given.  Every check the library
+# makes before that call has already run on the real entry; every line after it
+# runs on whatever the swap left there.  The shadow matches on the TARGET, not
+# on the flags, so a regression to a plain dereferencing `chown` still pauses,
+# still gets the swap, and still fails the sentinel legs below.
+#
+# Three legs, one migration each:
+#   control  a deliberately vulnerable shape (check by path, no directory lock,
+#            chown without -h) with the PEER's swap landed in its window must
+#            chown the out-of-tree sentinel -- proving the swap reaches the
+#            window and the sentinel detects a dereference
+#   peer     the shipped migration, paused in the window: the peer's swap must
+#            be REFUSED by the directory lock, and the migration must complete
+#   root     the shipped migration, paused in the window, with the swap made by
+#            a uid the directory lock does not stop: `chown -h` plus the -L
+#            re-check must refuse the entry without touching the sentinel
+#            (defence in depth behind the lock)
 SECRET_DIR="$(mktemp -d)"
 chmod 755 "$SECRET_DIR"
+# The pause handshake: the migration creates `paused` and waits for `go`.  World
+# writable so the root-in-container side and this unprivileged shell can both
+# create and remove the two flag files.
+SYNC_DIR="$(mktemp -d)"
+chmod 777 "$SYNC_DIR"
+MIG_LOG="$(mktemp)"
 
-# The sentinel is recreated (not chowned back) between races: once a losing race
-# has chowned it to uid 918, this unprivileged shell can no longer chown it back,
-# and a stale owner would make the next race look like an instant loss. Deleting
-# and recreating only needs write on the directory, which we own.
+# The sentinel is recreated (not chowned back) between legs: once a leg has
+# chowned it to uid 918, this unprivileged shell can no longer chown it back.
+# Deleting and recreating only needs write on the directory, which we own.
 SENTINEL_UID=""
 reset_sentinel() {
   rm -f "$SECRET_DIR/SENTINEL"
@@ -555,76 +586,186 @@ reset_sentinel() {
   chmod 600 "$SECRET_DIR/SENTINEL"
   SENTINEL_UID="$(stat -c '%u' "$SECRET_DIR/SENTINEL")"
 }
+sentinel_moved() { [ "$(stat -c '%u' "$SECRET_DIR/SENTINEL")" != "$SENTINEL_UID" ]; }
 
+# A pre-2.1 shared volume: /data 0777, a root-owned cache volume, and the
+# 0-byte stem owned by the peer (a state seen in the field).  The stem is what
+# every
+# leg's window is on.
 seed_open_volume() {
   docker run --rm -v "${RUN_ID}-hostile:/data" --entrypoint sh "$WORKER_IMAGE" -c '
     rm -rf /data/..?* /data/.[!.]* /data/* 2>/dev/null || true
     chmod 777 /data
     dd if=/dev/zero of=/data/cache-6-deadbeefdeadbeef.vol bs=1M count=1 status=none
-    chown 0:0 /data/cache-6-deadbeefdeadbeef.vol; chmod 666 /data/cache-6-deadbeefdeadbeef.vol' >/dev/null 2>&1
+    chown 0:0 /data/cache-6-deadbeefdeadbeef.vol; chmod 666 /data/cache-6-deadbeefdeadbeef.vol
+    : > /data/cache.vol; chown 999:999 /data/cache.vol; chmod 666 /data/cache.vol' >/dev/null 2>&1
 }
 
-# The racer: the peer identity (uid 999, member of 918) hammering the stem name
-# between a real empty file and a symlink pointing outside the cache.
-racer='while :; do
-  ln -sf /secret/SENTINEL /data/cache.vol 2>/dev/null
-  rm -f /data/cache.vol 2>/dev/null
-  : > /data/cache.vol 2>/dev/null
-  rm -f /data/cache.vol 2>/dev/null
-done'
+# Defined in front of every migration body.  Bounded: if the harness never
+# says go, the migration carries on after 60 s and the leg reports it.
+# shellcheck disable=SC2016 # expanded inside the migration container
+window_fn='ps_test_window() {
+  : > /sync/paused
+  for _ in $(seq 1 600); do [ -e /sync/go ] && return 0; sleep 0.1; done
+  echo "harness: window released by timeout, not by the harness" >&2
+}'
 
-run_race() {
-  local body="$1" i
-  for i in $(seq 1 25); do
-    seed_open_volume
-    docker run -d --name "${RUN_ID}-racer" --user 999:918 \
-      -v "${RUN_ID}-hostile:/data" -v "$SECRET_DIR:/secret" \
-      --entrypoint sh "$WORKER_IMAGE" -c "$racer" >/dev/null 2>&1
-    docker run --rm -v "${RUN_ID}-hostile:/data" -v "$SECRET_DIR:/secret" \
-      --entrypoint bash "$WORKER_IMAGE" -c "$body" >/dev/null 2>&1
-    docker rm -f "${RUN_ID}-racer" >/dev/null 2>&1
-    if [ "$(stat -c '%u' "$SECRET_DIR/SENTINEL")" != "$SENTINEL_UID" ]; then
-      echo "$i"
-      return 0
-    fi
+# swap_in_window <migration-body> <swap-uid:gid>
+#
+# Seeds the volume, starts the migration, waits for it to reach its window,
+# performs the swap as <swap-uid:gid> (rename the stem away, put a symlink to
+# the out-of-tree sentinel in its place), releases the migration and waits for
+# it.  Results in PAUSED (yes|no), SWAP_RC/SWAP_OUT, MIG_RC/MIG_OUT.
+PAUSED="" SWAP_RC="" SWAP_OUT="" MIG_RC="" MIG_OUT=""
+swap_in_window() {
+  local body="$1" swap_user="$2" pid
+  rm -f "$SYNC_DIR/paused" "$SYNC_DIR/go"
+  seed_open_volume
+  docker run --rm --name "${RUN_ID}-mig" -v "${RUN_ID}-hostile:/data" \
+    -v "$SECRET_DIR:/secret" -v "$SYNC_DIR:/sync" \
+    --entrypoint bash "$WORKER_IMAGE" -c "$window_fn
+$body" >"$MIG_LOG" 2>&1 &
+  pid=$!
+  PAUSED=no SWAP_RC="" SWAP_OUT="(no swap attempted: the migration never reached its window)"
+  for _ in $(seq 1 600); do
+    if [ -e "$SYNC_DIR/paused" ]; then PAUSED=yes; break; fi
+    kill -0 "$pid" 2>/dev/null || break
+    sleep 0.1
   done
-  echo ""
-  return 1
+  if [ "$PAUSED" = yes ]; then
+    SWAP_OUT="$(docker run --rm --user "$swap_user" -v "${RUN_ID}-hostile:/data" \
+      --entrypoint sh "$WORKER_IMAGE" -c '
+        mv -f /data/cache.vol /data/cache.vol.moved-by-peer &&
+        ln -s /secret/SENTINEL /data/cache.vol && echo SWAPPED' 2>&1)"
+    SWAP_RC=$?
+  fi
+  : > "$SYNC_DIR/go"
+  wait "$pid"
+  MIG_RC=$?
+  MIG_OUT="$(cat "$MIG_LOG")"
+}
+
+show_leg() {
+  info "paused=$PAUSED swap_rc=${SWAP_RC:-none} migration_rc=$MIG_RC sentinel_uid=$(stat -c '%u' "$SECRET_DIR/SENTINEL")"
+  echo "$SWAP_OUT" | tail -3 | sed 's/^/          swap: /'
+  echo "$MIG_OUT" | head -14 | sed 's/^/          migration: /'
+}
+
+# Why the last swap_in_window did NOT exercise the window, or nothing if it did.
+# A window released by its own timeout means the swap (if any) landed after the
+# migration had moved on, so whatever the leg observed proves nothing.
+window_problem() {
+  if [ "$PAUSED" != yes ]; then
+    echo "the migration never reached its window (does the chown shadow still match the adoption call?)"
+  elif echo "$MIG_OUT" | grep -qF "window released by timeout"; then
+    echo "the window was released by its 60 s timeout, so the swap did not land inside it"
+  fi
 }
 
 docker volume create "${RUN_ID}-hostile" >/dev/null
 
-# Control: the vulnerable shape this PR replaces — stat-then-chown by path, no
-# directory lock, chown without -h.
+# Control: the vulnerable shape this design replaces -- stat-then-chown by path,
+# no directory lock, chown without -h -- with the window between the check and
+# the chown.
+# shellcheck disable=SC2016 # expanded inside the migration container
 vuln='for p in /data/cache.vol; do
         [ -e "$p" ] || continue
         [ -L "$p" ] && continue
+        ps_test_window
         chown 918:918 "$p" 2>/dev/null
       done'
 reset_sentinel
-hit="$(run_race "$vuln")"
-if [ -n "$hit" ]; then
-  pass "control: the vulnerable shape loses the race (SENTINEL chowned on iteration $hit) — the test can detect the bug"
+swap_in_window "$vuln" 999:918
+why="$(window_problem)"
+if [ -z "$why" ] && [ "$SWAP_RC" = "0" ] && sentinel_moved; then
+  pass "control: with the peer's swap landed in its window, the vulnerable shape chowns the out-of-tree sentinel -- the legs below can detect the bug"
 else
-  fail "control: the race never landed in 25 iterations; the hostile-peer legs below prove nothing"
+  fail "control (HARNESS, not product): the vulnerable shape did not chown the sentinel through the peer's swap${why:+ ($why)}; the hostile-peer legs below prove nothing"
+  show_leg
 fi
 
-# The real thing: the shipped entrypoint library.
-reset_sentinel
-real='. /docker/lib-cache-perms.sh; ps_prepare_data_dir /data /data/cache.vol'
-hit="$(run_race "$real")"
-if [ -z "$hit" ]; then
-  pass "the shipped migration never dereferences the peer's symlink (25 iterations, SENTINEL still root-owned)"
+# The shipped library, unmodified, with `chown` shadowed to pause on the stem --
+# only when the caller is _ps_adopt, the one function that adopts an entry, so
+# an earlier chown of the stem elsewhere cannot open the window early.
+# shellcheck disable=SC2016 # expanded inside the migration container
+shipped='. /docker/lib-cache-perms.sh
+chown() {
+  if [ "${FUNCNAME[1]}" = _ps_adopt ] && [ "${!#}" = /data/cache.vol ]; then
+    ps_test_window
+  fi
+  command chown "$@"
+}
+ps_prepare_data_dir /data /data/cache.vol'
+
+# The shadow only sees chown calls that resolve to it.  A chown that bypasses
+# it -- by path, through `command`/`builtin`/`env`/`exec`, or via find -exec /
+# xargs -- would run unobserved, so a dereferencing call placed before the
+# shadowed one would act on the real entry before the swap and the legs below
+# would still pass.  Pin the shape the legs rely on in the library actually
+# shipped in this image: _ps_adopt makes exactly one chown call, and nothing in
+# the library reaches chown around the shadow.
+# shellcheck disable=SC2016 # expanded inside the container
+shape="$(docker run --rm --entrypoint bash "$WORKER_IMAGE" -c '
+  . /docker/lib-cache-perms.sh
+  body="$(declare -f _ps_adopt)" || { echo "NO _ps_adopt IN THE LIBRARY"; exit 1; }
+  n="$(printf "%s\n" "$body" | grep -cE "(^[[:space:]]*|(;|&&|\|\||\||\(|\{|!)[[:space:]]*)chown[[:space:]]")"
+  echo "_ps_adopt chown calls: $n"
+  bypass="$(grep -nE "[^[:space:]]/chown|(command|builtin|env|exec|eval|xargs)[[:space:]]+([^|;&]*[[:space:]])?chown" \
+    /docker/lib-cache-perms.sh | grep -vE "^[0-9]+:[[:space:]]*#")"
+  [ -z "$bypass" ] || { echo "chown calls that bypass the shadow:"; echo "$bypass"; }
+  [ "$n" = 1 ] && [ -z "$bypass" ]' 2>&1)"
+shape_rc=$?
+if [ "$shape_rc" = 0 ]; then
+  pass "the shipped _ps_adopt makes exactly one chown call and nothing in the library reaches chown around the shadow"
 else
-  fail "the shipped migration chowned an out-of-tree file on iteration $hit"
+  fail "HARNESS, not product: the shipped library no longer has the shape the window legs below rely on (one chown in _ps_adopt, no chown that bypasses a function shadow); update this harness before trusting them"
+  while IFS= read -r l; do echo "          $l"; done <<<"$shape"
 fi
-sentinel_owner="$(stat -c '%u' "$SECRET_DIR/SENTINEL")"
-if [ "$sentinel_owner" = "$SENTINEL_UID" ]; then
+
+# Peer leg: the directory lock must stop the peer from staging anything.
+reset_sentinel
+swap_in_window "$shipped" 999:918
+why="$(window_problem)"
+if [ -n "$why" ]; then
+  fail "peer leg (HARNESS, not product): $why; nothing was tested"
+  show_leg
+elif [ "$SWAP_RC" = "0" ]; then
+  fail "PRODUCT FAILURE: the peer's swap LANDED inside the shipped migration's check-to-chown window -- the 2700 directory lock is not in force during the scan (sentinel uid $(stat -c '%u' "$SECRET_DIR/SENTINEL"), was $SENTINEL_UID; migration exit $MIG_RC)"
+  show_leg
+elif ! echo "$SWAP_OUT" | grep -qF "Permission denied"; then
+  fail "peer leg (HARNESS, not product): the peer's swap failed, but not with 'Permission denied' from the directory lock, so the lock was not what stopped it"
+  show_leg
+elif sentinel_moved || [ "$MIG_RC" != "0" ]; then
+  fail "PRODUCT FAILURE: with the peer's swap refused, the shipped migration still $(sentinel_moved && echo "chowned the out-of-tree sentinel" || echo "did not complete (exit $MIG_RC, expected 0)")"
+  show_leg
+else
+  pass "the peer cannot stage a symlink inside /data mid-migration (Permission denied: directory lock in force); the migration completes"
+fi
+
+# Root leg: past the lock (a swap by a uid it does not constrain), `chown -h`
+# must act on the link itself and the -L re-check must refuse the entry.
+reset_sentinel
+swap_in_window "$shipped" 0:0
+why="$(window_problem)"
+if [ -n "$why" ] || [ "$SWAP_RC" != "0" ]; then
+  fail "root leg (HARNESS, not product): the swap did not land in the shipped migration's window (${why:-swap exit ${SWAP_RC:-none}})"
+  show_leg
+elif sentinel_moved; then
+  fail "PRODUCT FAILURE: the shipped migration chowned the out-of-tree sentinel through a symlink swapped in between its check and its chown (uid now $(stat -c '%u' "$SECRET_DIR/SENTINEL"), was $SENTINEL_UID)"
+  show_leg
+elif [ "$MIG_RC" = "78" ] && echo "$MIG_OUT" | grep -q "became a SYMLINK during adoption"; then
+  pass "with a symlink swapped into the window, the shipped migration never dereferences it and refuses the entry (exit 78)"
+else
+  fail "PRODUCT FAILURE: the shipped migration did not refuse a stem that became a symlink mid-adoption (exit $MIG_RC, expected 78 with 'became a SYMLINK during adoption')"
+  show_leg
+fi
+
+if ! sentinel_moved; then
   pass "the out-of-tree sentinel still belongs to uid $SENTINEL_UID"
 else
-  fail "the out-of-tree sentinel is now owned by uid $sentinel_owner (was $SENTINEL_UID)"
+  fail "the out-of-tree sentinel is now owned by uid $(stat -c '%u' "$SECRET_DIR/SENTINEL") (was $SENTINEL_UID)"
 fi
-rm -rf "$SECRET_DIR"
+rm -rf "$SECRET_DIR" "$SYNC_DIR" "$MIG_LOG"
 docker volume rm "${RUN_ID}-hostile" >/dev/null 2>&1 || true
 
 # --------------------------------------------------------------------------

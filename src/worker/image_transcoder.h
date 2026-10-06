@@ -94,7 +94,12 @@ struct ImageTranscoderConfig {
   // below-floor score declines the variant with no rescue re-encode
   // attempt (#1381). 2+ = re-encode attempts before the verdict.
   int ssimulacra2_max_attempts = 4;
-  int ssimulacra2_quality_step = 5;  // Quality adjustment per attempt
+  // How far BELOW its starting quality the search may look, as
+  // |ssimulacra2_quality_step| x (|ssimulacra2_max_attempts| - 1) points.
+  // It bounds only that direction: upward the search may reach the whole
+  // quality range, because a variant that scores under the floor is not
+  // served at all, while an over-quality one only costs bytes.
+  int ssimulacra2_quality_step = 5;
 
   // Learned quality prediction: use per-format ML models to predict
   // the encoder quality parameter for the target SSIMULACRA2 score.
@@ -310,6 +315,13 @@ struct Ssimulacra2VerifyResult {
   float band_lo = -1.0f;
 };
 
+// Generation of the quality search below.  A refusal is only as good as the
+// search that produced it: when the search changes, a variant it could not
+// reach before may now be reachable, so anything that REMEMBERS a refusal
+// must record this value and ignore what an older generation wrote.  Bump it
+// whenever the search's reach changes.
+inline constexpr std::uint8_t kVerifyQualitySearchVersion = 2;
+
 // Whether a below-floor final score refuses the variant.
 enum class VerifyDeclinePolicy : std::uint8_t {
   // Below-floor scores ship as today. The same-format JPEG arm: the
@@ -328,12 +340,23 @@ enum class VerifyDeclinePolicy : std::uint8_t {
 // re-encode with adjusted quality until the score falls within the asymmetric
 // tolerance band [target - 0.6*tol, target + 1.6*tol].
 //
+// The search is a BISECTION: a below-floor score means the band lies above
+// the probed quality, an above-ceiling score means it lies below, and the
+// next probe is the midpoint of what remains.  The attempt budget
+// (|max_attempts|, the initial encode included) is unchanged.  Upward those
+// attempts reach all the way to |max_quality|, which is what stops an
+// encodable variant being refused as unreachable; downward they reach
+// |quality_step| x (|max_attempts| - 1) points below the starting quality
+// and no further.  The asymmetry is deliberate and is explained at the
+// search itself.
+//
 // Attempt selection is band-closest (mpp #790 D2): an attempt landing inside
 // the band terminates the search and ships; otherwise the attempt closest to
 // the band ships (below the floor: the highest score; above the ceiling: the
-// down-stepped body, which is also the smallest), ties broken by smaller byte
-// size. The shipped attempt's quality is written back through |quality| and
-// |reencoded| reports whether it is a retry rather than the initial encode.
+// smaller-scoring body, which is also the smallest), ties broken by smaller
+// byte size. The shipped attempt's quality is written back through |quality|
+// and |reencoded| reports whether it is a retry rather than the initial
+// encode.
 //
 // Decline: with |decline_policy| == kDeclineBelowFloor a SHIPPED score
 // below the floor refuses the variant (verify.declined) -- INCLUDING
@@ -433,27 +456,72 @@ Ssimulacra2VerifyResult VerifySsimulacra2Quality(
   };
   std::vector<Attempt> retries;
 
+  // The quality search bisects the window it is allowed to probe: a
+  // below-floor score proves the band lies ABOVE the probed quality and an
+  // above-ceiling score proves it lies BELOW, so each verdict excludes the
+  // probed quality along with everything on the wrong side of it and the
+  // next probe splits what is left.  The window shrinks strictly, so no
+  // quality is probed twice and the loop ends on its own.
+  //
+  // The window is deliberately ASYMMETRIC.  Upward it is the whole range:
+  // an image whose band opens near the top used to be refused for being
+  // out of the SEARCH's reach rather than out of the encoder's, since a
+  // fixed step could only travel |quality_step| x (max_attempts - 1)
+  // points from where it started.  Downward it keeps exactly that reach,
+  // because the two directions are not equally costly to get wrong -- see
+  // |quality_verify| above: under-quality is user-visible, over-quality
+  // only wastes bytes, which is why the band itself is asymmetric.  A
+  // metric that reads generously on a small or flat source must not be
+  // able to talk the encoder down an order of magnitude on the strength of
+  // one reading, so the cheap direction stays the timid one.
+  //
+  // One consequence worth knowing: the window bounds are monotone, so a
+  // verdict is irreversible.  A fixed walk could turn around after a
+  // misleading reading; this cannot.  Encoder curves are gentle enough
+  // over an 11-point score band that this trades far more in-band encodes
+  // found than lost, but a genuinely non-monotonic curve is the case where
+  // it costs.
+  int search_lo =
+      std::max(min_quality, quality - quality_step * (max_attempts - 1));
+  int search_hi = max_quality;
+
   if (score >= 0.0f && max_attempts > 1) {
     for (int attempt = 1; attempt < max_attempts; ++attempt) {
       if (score >= lo && score <= hi) break;
 
-      int next_quality = (score < lo)
-                             ? std::min(max_quality, quality + quality_step)
-                             : std::max(min_quality, quality - quality_step);
-      if (next_quality == quality) {
-        // The search has run into the ceiling or the floor.  Re-encoding at
-        // the same quality would only reproduce the same output, so accept
-        // what we have instead of spending another encode on it.
+      // The window the verdict is about to close, kept for the log: once
+      // the clamp below crosses the bounds they no longer name a range.
+      const int window_lo = search_lo;
+      const int window_hi = search_hi;
+      if (score < lo) {
+        search_lo = std::max(search_lo, quality + 1);
+      } else {
+        search_hi = std::min(search_hi, quality - 1);
+      }
+      if (search_lo > search_hi) {
+        // Nothing untried is left on the side the score points to.
+        // Re-encoding could only reproduce an output already measured, so
+        // accept what we have instead of spending another encode on it.
         if (handler != nullptr) {
-          handler->Info(
-              "SSIMULACRA2 %.1f outside [%.1f, %.1f] but %s quality q=%d is at "
-              "the %s of the allowed range -- accepting this encode",
-              score, lo, hi, format_name[0] == '\0' ? "JPEG" : format_name,
-              quality, score < lo ? "ceiling" : "floor");
+          const bool at_range_end =
+              (score < lo) ? quality >= max_quality : quality <= min_quality;
+          if (at_range_end) {
+            handler->Info(
+                "SSIMULACRA2 %.1f outside [%.1f, %.1f] but %s quality q=%d is "
+                "at the %s of the allowed range -- accepting this encode",
+                score, lo, hi, format_name[0] == '\0' ? "JPEG" : format_name,
+                quality, score < lo ? "ceiling" : "floor");
+          } else {
+            handler->Info(
+                "SSIMULACRA2 %.1f outside [%.1f, %.1f] but no untried %s "
+                "quality is left in q=[%d, %d] -- accepting this encode",
+                score, lo, hi, format_name[0] == '\0' ? "JPEG" : format_name,
+                window_lo, window_hi);
+          }
         }
         break;
       }
-      quality = next_quality;
+      quality = search_lo + (search_hi - search_lo) / 2;
 
       if (handler) {
         handler->Info(

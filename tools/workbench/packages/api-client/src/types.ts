@@ -559,6 +559,9 @@ export interface WsLogSnapshot {
 export interface WsLogOverflow {
   type: 'overflow';
   dropped_count: number;
+  /** First and last seq of the entries that were not sent. */
+  first_seq?: number;
+  last_seq?: number;
 }
 
 export type WsLogMessage = LogEntry | WsLogSnapshot | WsLogOverflow;

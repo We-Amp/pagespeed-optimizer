@@ -3,9 +3,9 @@
 # Copyright (c) 2024-2026 We-Amp B.V.
 #
 # Surface report-only dependency-scan findings as a single, idempotent GitHub
-# issue (phase A). Meant to run ONLY on scheduled / manual cron runs —
-# the per-PR gates are elsewhere; this turns the otherwise-invisible daily
-# report into an actionable, tracked signal.
+# issue (phase A). Meant to act ONLY for runs on the default branch (push /
+# schedule / dispatch on main) — the per-PR gates are elsewhere; this turns
+# the otherwise-invisible daily report into an actionable, tracked signal.
 #
 #   post-findings-issue.sh <label> <title> <findings-md-file> [resolve-hint]
 #
@@ -21,7 +21,13 @@
 #   LABEL_DESC  env — description used when the marker label is created.
 #   CLEAN_NOTE  env — phrase used in the auto-close comment.
 #
-# Needs `gh` + GH_TOKEN with `issues: write`. Set DRY_RUN=1 to echo, not act.
+# Needs `gh` + GH_TOKEN with `issues: write`. DRY_RUN=1 makes every write a
+# no-op: the gh calls are echoed instead of made, and the verdict (what the
+# live run would have done to which issue) is written to the log and, in
+# Actions, to the step summary. The callers set it off the default branch —
+# pull_request runs and branch dispatches — so a PR's evidence can never
+# close or re-file the tracker. The open-issue lookup is read-only
+# and still runs, so the dry-run verdict names the real issue number.
 set -uo pipefail
 
 LABEL="${1:?label}"; TITLE="${2:?title}"; BODY_FILE="${3:?findings md file}"
@@ -30,7 +36,22 @@ REPO="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY unset}"
 RUN_URL="${GITHUB_SERVER_URL:-https://github.com}/${REPO}/actions/runs/${GITHUB_RUN_ID:-}"
 NOW="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 
-gh_() { if [ "${DRY_RUN:-0}" = "1" ]; then echo "DRY: gh $*" >&2; else gh "$@"; fi; }
+dry() { [ "${DRY_RUN:-0}" = "1" ]; }
+gh_() { if dry; then echo "DRY: gh $*" >&2; else gh "$@"; fi; }
+
+# verdict <what happened>: the one-line outcome, on the log. In a dry run it
+# reads "would <what>" and also lands on the step summary, so a PR run shows
+# what the live run on the default branch would have done without doing it.
+verdict() {
+  if dry; then
+    echo "DRY RUN: would $*" >&2
+    if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+      printf -- '**Findings issue (dry run — not the default branch, nothing touched):** would %s.\n\n' "$*" >>"$GITHUB_STEP_SUMMARY"
+    fi
+  else
+    echo "$*" >&2
+  fi
+}
 
 # Ensure the marker label exists (idempotent); harmless if it already does.
 gh_ label create "$LABEL" --repo "$REPO" --color B60205 \
@@ -50,17 +71,17 @@ if [ "$has_findings" = "1" ]; then
 _Automated by \`${GITHUB_WORKFLOW:-dep-scan}\` at ${NOW} — [run](${RUN_URL}). ${HINT}_"
   if [ -n "$existing" ]; then
     gh_ issue edit "$existing" --repo "$REPO" --body "$body"
-    echo "updated issue #$existing" >&2
+    verdict "update open issue #$existing with the current findings"
   else
     gh_ issue create --repo "$REPO" --title "$TITLE" --label "$LABEL" --body "$body"
-    echo "created tracking issue" >&2
+    verdict "create the \`$LABEL\` tracking issue (findings present, none open)"
   fi
 else
   if [ -n "$existing" ]; then
     gh_ issue comment "$existing" --repo "$REPO" --body "✅ ${CLEAN_NOTE:-No medium+ findings} as of ${NOW} ([run](${RUN_URL})). Auto-closing."
     gh_ issue close "$existing" --repo "$REPO"
-    echo "closed issue #$existing (clean)" >&2
+    verdict "close issue #$existing (clean)"
   else
-    echo "clean, no open issue — nothing to do" >&2
+    verdict "do nothing (clean, no open \`$LABEL\` issue)"
   fi
 fi

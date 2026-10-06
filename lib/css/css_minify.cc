@@ -1176,6 +1176,81 @@ bool HasBalancedNesting(std::string_view v) {
   return pd == 0 && bd == 0;
 }
 
+// Nesting of simple blocks opened by '(' or '[', shared by the
+// three Phase 5 scanners (ParseBlockDecls, the top-level scan, the
+// brace matcher) so they agree on where a rule's block and a
+// declaration's end are.  CSS Syntax 3 consumes a simple block for
+// every opener up to its matching closer, so inside an open (...) or
+// [...]:
+//   * a ';' is value content, not a declaration boundary
+//     ("a{--x:(a;;b)}" was served "--x:(a;b)" — the empty segment
+//     between the ';' parsed as an empty declaration and the rejoin
+//     dropped it; a custom property reads its value back verbatim);
+//   * a '{' opens a nested block, never a rule's block, and the ')' or
+//     '}' met inside THAT block is content ("a{--x:(a{b)c;;d}e)}" had
+//     the ')' close the paren and the ';;' collapse; "a{--x:[a}e{c:d;;}"
+//     had the '}' inside the unclosed '[' close a's block).
+// ')' and ']' are interchangeable (the shared-counter semantics Phase
+// 3's pd has as well): a mismatched closer makes a declaration the
+// browser drops anyway, and what matters is that the phases agree.
+//
+// Hot path: the three scanners call Feed once per character, and on a
+// real sheet nearly every character arrives at depth 0 and is neither
+// an opener nor a closer.  That case is answered in Feed, forced
+// inline; the std::string stack work lives in FeedSlow, forced out of
+// line (measured: with the whole thing out of line, large
+// sheets minified 10-13% slower; left to the optimizer, clang folded
+// the slow path INTO Feed and still called it per character, +5-8%).
+#if defined(__GNUC__) || defined(__clang__)
+#define CSS_ALWAYS_INLINE inline __attribute__((always_inline))
+#define CSS_NOINLINE __attribute__((noinline))
+#elif defined(_MSC_VER)
+#define CSS_ALWAYS_INLINE __forceinline
+#define CSS_NOINLINE __declspec(noinline)
+#else
+#define CSS_ALWAYS_INLINE inline
+#define CSS_NOINLINE
+#endif
+
+class ValueNest {
+ public:
+  bool empty() const { return s_.empty(); }
+  void clear() { s_.clear(); }
+  // Feeds one char outside strings/url()/escapes.  Returns true when
+  // the char is nesting bookkeeping or content inside an open block
+  // (the caller copies it and moves on), false when it is structural
+  // at depth 0 (';', ':', '{', '}' and everything else).
+  CSS_ALWAYS_INLINE bool Feed(char c) {
+    if (s_.empty() && c != '(' && c != '[' && c != ')' && c != ']') {
+      return false;
+    }
+    return FeedSlow(c);
+  }
+
+ private:
+  CSS_NOINLINE bool FeedSlow(char c);
+  std::string s_;
+};
+
+bool ValueNest::FeedSlow(char c) {
+  if (c == '(' || c == '[') {
+    s_.push_back('(');
+    return true;
+  }
+  if (c == ')' || c == ']') {
+    if (!s_.empty() && s_.back() == '(') s_.pop_back();
+    return true;  // A stray closer at depth 0 is content, as before.
+  }
+  // Inside an open block: everything is content; a '{' nests and the
+  // '}' that matches it un-nests.
+  if (c == '{') {
+    s_.push_back('{');
+  } else if (c == '}' && s_.back() == '{') {
+    s_.pop_back();
+  }
+  return true;
+}
+
 std::vector<Decl5> ParseBlockDecls(std::string_view block) {
   std::vector<Decl5> decls;
   size_t i = 0;
@@ -1183,6 +1258,11 @@ std::vector<Decl5> ParseBlockDecls(std::string_view block) {
     size_t start = i;
     size_t colon_pos = std::string_view::npos;
     bool in_sq = false, in_dq = false;
+    // A ';' inside (...) or [...] is value content, not a
+    // declaration boundary — CSS Syntax 3 splits declarations only at
+    // TOP-LEVEL semicolons (see ValueNest).  The first ':' is likewise
+    // only a name/value colon at depth 0.
+    ValueNest nest;
     while (i < block.size()) {
       char c = block[i];
       if (in_sq) {
@@ -1216,6 +1296,8 @@ std::vector<Decl5> ParseBlockDecls(std::string_view block) {
           in_sq = true;
         } else if (c == '"') {
           in_dq = true;
+        } else if (nest.Feed(c)) {
+          // Nesting bookkeeping or content inside (...) / [...].
         } else if (c == ':' && colon_pos == std::string_view::npos) {
           colon_pos = i;
         } else if (c == ';') {
@@ -1405,7 +1487,7 @@ std::string Phase5(std::string_view input, int recursion_depth = 0) {
   // "--"); bare top-level declarations are invalid CSS otherwise.
   size_t seg_begin = 0;  // index into result: current segment start
   size_t seg_colon = std::string::npos;  // first top-level ':' in it
-  int seg_pd = 0;                        // paren depth within the segment
+  ValueNest seg_nest;  // open (...) / [...] blocks within the segment
   int seg_group = -1;  // cached IsValueGroupBrace verdict (-1 = unknown)
 
   while (i < input.size()) {
@@ -1453,31 +1535,29 @@ std::string Phase5(std::string_view input, int recursion_depth = 0) {
     }
 
     // Segment boundaries and the first top-level ':' (string/url/escape
-    // content above never reaches these; '(' ')' tracking keeps ';'/'}'
-    // inside functions — valid in declaration values — from resetting
-    // the segment).
-    if (c == '(') {
-      ++seg_pd;
+    // content above never reaches these; the (...) / [...] nesting
+    // keeps ';'/'}' inside functions — valid in declaration values —
+    // from resetting the segment, and a '{' inside an open paren or
+    // bracket from opening a rule block (see ValueNest: in CSS
+    // Syntax 3 it opens a simple block nested in the (...) block, never
+    // a rule's block — "(;--:{!a;;;y}", a fuzz artifact, had
+    // its '{...}' collapsed as a declaration block, which dropped the
+    // empty declarations between the ';'s).
+    if (seg_nest.Feed(c)) {
       result += c;
       ++i;
       continue;
     }
-    if (c == ')') {
-      if (seg_pd > 0) --seg_pd;
-      result += c;
-      ++i;
-      continue;
-    }
-    if (seg_pd == 0 && (c == ';' || c == '}')) {
+    if (c == ';' || c == '}') {
       result += c;
       ++i;
       seg_begin = result.size();
       seg_colon = std::string::npos;
-      seg_pd = 0;
+      seg_nest.clear();
       seg_group = -1;
       continue;
     }
-    if (c == ':' && seg_pd == 0 && seg_colon == std::string::npos) {
+    if (c == ':' && seg_colon == std::string::npos) {
       seg_colon = result.size();
       result += c;
       ++i;
@@ -1494,7 +1574,12 @@ std::string Phase5(std::string_view input, int recursion_depth = 0) {
     // Find matching closing brace.
     size_t j = i + 1;
     int depth = 1;
-    int pd = 0;  // Paren depth: braces inside (...) are not block edges.
+    // Braces inside (...) or [...] are not block edges (ValueNest,
+    // "a{--x:[a}e{c:d;;}" closed a's block at the first '}' with
+    // a paren-only count although the '[' block swallows it, and
+    // "a{--x:(a{b)c;;d}e)}" had the ')' inside the nested '{' close the
+    // paren).
+    ValueNest nest;
     bool has_nested = false;
     while (j < input.size() && depth > 0) {
       char bc = input[j];
@@ -1526,27 +1611,19 @@ std::string Phase5(std::string_view input, int recursion_depth = 0) {
         j = url_end;
         continue;
       }
-      // Track paren depth so a brace inside a function — e.g. a custom
+      // Track paren nesting so a brace inside a function — e.g. a custom
       // property value like foo(a;}) — is not mistaken for the block
       // edge (audit P3-d companion fix; without it the matcher closed
       // the block early and the ';' inside the parens was lost).
-      if (bc == '(') {
-        ++pd;
+      if (nest.Feed(bc)) {
         ++j;
         continue;
       }
-      if (bc == ')' && pd > 0) {
-        --pd;
-        ++j;
-        continue;
-      }
-      if (pd == 0) {
-        if (bc == '{') {
-          ++depth;
-          has_nested = true;
-        } else if (bc == '}') {
-          --depth;
-        }
+      if (bc == '{') {
+        ++depth;
+        has_nested = true;
+      } else if (bc == '}') {
+        --depth;
       }
       if (depth > 0) ++j;
     }
@@ -1595,7 +1672,7 @@ std::string Phase5(std::string_view input, int recursion_depth = 0) {
     // A completed block ends the segment (e.g. selector prelude done).
     seg_begin = result.size();
     seg_colon = std::string::npos;
-    seg_pd = 0;
+    seg_nest.clear();
     seg_group = -1;
   }
 

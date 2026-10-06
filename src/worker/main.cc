@@ -583,6 +583,26 @@ static int WorkerMain(int argc,  // NOLINT(bugprone-exception-escape)
     }
   }
 
+#ifndef _WIN32
+  // Ignore SIGPIPE for the whole process, before any thread or the event
+  // loop exists.  Every listener (the health, management and notification
+  // sockets, the HTTP API and its WebSocket streams) and the browser pipe
+  // write through libuv, which does not suppress the signal per call on
+  // Linux; left at its default disposition, a peer that closed its end before
+  // the reply was written -- a health check that gave up, a client that
+  // disconnected mid-response, a browser that exited -- terminated the whole
+  // daemon.  Ignored, the same write returns EPIPE, which every write path
+  // already answers by closing that one connection.  The same holds for
+  // stdout/stderr when they are a pipe whose reader went away.
+  //
+  // An ignored disposition survives execve, so it matters how children are
+  // started: the browser is spawned through libuv, which resets every
+  // disposition to the default in the child, and the curl helper's spawn
+  // attributes reset this one explicitly (src/browser/agent_fetcher.cc).
+  // Windows has no such signal.
+  std::signal(SIGPIPE, SIG_IGN);
+#endif
+
   pagespeed::WorkerConfig config;
   std::string log_level_str = "info";
   std::string log_format_str = "text";
@@ -1287,8 +1307,9 @@ static int WorkerMain(int argc,  // NOLINT(bugprone-exception-escape)
   // settings go through PATCH /v1/config.  Left unhandled, SIGHUP's default
   // disposition terminates the process, which turned `systemctl reload`
   // (SIGHUP when the unit declares no ExecReload=) and any stray SIGHUP into
-  // an unannounced restart.  SIG_IGN survives execve, so spawned children
-  // (Chrome, curl) inherit the disposition; none of them uses SIGHUP.
+  // an unannounced restart.  SIG_IGN survives execve, so the curl helper
+  // inherits it (curl does not use SIGHUP); the browser does not, because
+  // it is spawned through libuv, which resets every disposition in the child.
   std::signal(SIGHUP, SIG_IGN);
 #endif
 

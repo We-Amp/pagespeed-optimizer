@@ -161,7 +161,9 @@ std::string RemoveInlinedStylesheetLinks(
 std::string InlineCachedStylesheets(std::string_view html,
                                     std::string_view page_url,
                                     const css::CssLookupFn& lookup,
-                                    CssInliningStats* stats) {
+                                    CssInliningStats* stats,
+                                    std::string_view page_host,
+                                    std::string_view page_scheme) {
   HtmlScanner scanner;
   HtmlScanResult scan = scanner.Scan(page_url, html);
   if (!scan.success || scan.stylesheets.empty()) {
@@ -170,7 +172,12 @@ std::string InlineCachedStylesheets(std::string_view html,
 
   if (stats != nullptr) stats->stylesheets_found = scan.stylesheets.size();
 
-  std::string_view page_dir = UrlDirectory(page_url);
+  // What each href resolves against: the page URL, or its <base href> when it
+  // has one, the same rule as the serve path's combined-stylesheet gather
+  // (DocumentBaseOf), so the coverage render inlines the sheet
+  // the browser fetches.
+  const DocumentBase document_base =
+      DocumentBaseOf(page_url, scan, page_host, page_scheme);
   std::string collected_styles;
   size_t cached_count = 0;
   size_t bytes_inlined = 0;
@@ -189,8 +196,9 @@ std::string InlineCachedStylesheets(std::string_view html,
     if (link.href.starts_with("data:") || link.href.starts_with("javascript:"))
       continue;
 
-    // Resolve relative URL against page URL.
-    std::string resolved = ResolvePath(page_dir, link.href);
+    // Resolve against the document base; a hostless result is the page's own
+    // path and the lookup keys it by the page host.
+    std::string resolved = ResolveAgainstBase(document_base, link.href);
 
     // Look up in cache.
     auto content = lookup(resolved);

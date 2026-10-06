@@ -219,6 +219,47 @@ TEST(TemplateDetectorTest, ReprocessedOutputHashesSameAsRawOrigin) {
             TemplateDetector::HashStructure(optimized_result));
 }
 
+// The scanner leaves the elements inside <noscript> (and
+// <template>, <noembed>, <noframes>) out of `elements`, and HashStructure
+// merges them back in, so a page with them keeps the template hash it had
+// when they were collected. A changed hash would send every such template
+// back to analysis at once.
+TEST(TemplateDetectorTest, LeftOutNoscriptElementsKeepTheHash) {
+  HtmlScanner scanner;
+  HtmlScanResult scan = scanner.Scan(
+      "http://example.com/",
+      "<html><head><noscript><link rel=\"stylesheet\" href=\"/n.css\">"
+      "</noscript></head><body><noscript><div><p>JS</p></div></noscript>"
+      "<div>Hero</div><template><span></span></template>"
+      "<p>x</p><noscript><img src=\"/p.gif\"></noscript></body></html>");
+  ASSERT_TRUE(scan.success);
+  ASSERT_FALSE(scan.inert_elements.empty());
+
+  // Every element, in document order, as the scanner collected them before.
+  HtmlScanResult all = MakeResult({{"html", 0},
+                                   {"head", 1},
+                                   {"noscript", 2},
+                                   {"link", 3},
+                                   {"body", 1},
+                                   {"noscript", 2},
+                                   {"div", 3},
+                                   {"p", 4},
+                                   {"div", 2},
+                                   {"template", 2},
+                                   {"span", 3},
+                                   {"p", 2},
+                                   {"noscript", 2},
+                                   {"img", 3}});
+  EXPECT_EQ(TemplateDetector::HashStructure(scan),
+            TemplateDetector::HashStructure(all));
+
+  // And the left-out elements still count: without them the hash differs.
+  HtmlScanResult rendered_only = scan;
+  rendered_only.inert_elements.clear();
+  EXPECT_NE(TemplateDetector::HashStructure(rendered_only),
+            TemplateDetector::HashStructure(all));
+}
+
 // --- Profile tracking tests ---
 
 TEST(TemplateDetectorTest, HasProfileReturnsFalseInitially) {

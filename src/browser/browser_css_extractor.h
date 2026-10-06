@@ -19,6 +19,7 @@
 
 #include "absl/container/flat_hash_set.h"
 #include "absl/status/statusor.h"
+#include "src/worker/cascade_layer_order.h"
 #include "src/worker/critical_css_extractor.h"  // for RuleIdentity
 
 namespace pagespeed {
@@ -68,11 +69,19 @@ absl::flat_hash_set<RuleIdentity> BuildCoverageIdentities(
 // the serve path produces a block about bytes no visitor receives — and when
 // that caller is the deferral validation, the result is a confirmation of a
 // block nobody is served. Pass `{}` to mean "no measurement", explicitly.
+//
+// `layer_order` is the page's cascade-layer order (Worker::BuildCombinedCss),
+// the one the block's placement is decided with. It decides which @media
+// blocks are kept (the device class's windows for a block that
+// goes before the sheets, every width for one that goes after), so it has no
+// default either: the serve path and the validation must pass the same order
+// or they derive different blocks.
 CriticalCssResult DeriveDomMatchedCriticalCss(
     const std::vector<CollectedElement>& elements,
     std::string_view combined_css, std::string_view profile_critical_css,
     CapabilityMask::Viewport viewport,
-    const std::vector<std::string>& measured_above_fold_selectors);
+    const std::vector<std::string>& measured_above_fold_selectors,
+    const CascadeLayerOrder& layer_order);
 
 // Result of browser-based critical CSS extraction.
 struct BrowserCssResult {

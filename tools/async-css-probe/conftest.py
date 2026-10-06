@@ -71,6 +71,7 @@ PRIMITIVE_AS = PRIMITIVE["primitive_as"]
 DEFERRED_LINK_MARKER = PRIMITIVE["deferred_link_marker"]
 LOADER_MARKER = PRIMITIVE["loader_marker"]
 FALLBACK_MARKER = PRIMITIVE["fallback_marker"]
+CRITICAL_BLOCK_MARKER = PRIMITIVE["critical_block_marker"]
 SAVED_MEDIA_ATTR = PRIMITIVE["saved_media_attr"]
 DEFERRED_SHEET_IS_EARLY_HINT_PROMOTED = PRIMITIVE["early_hint_promoted"]
 
@@ -138,7 +139,7 @@ UNSAFE_FORCE_WARNING = _unsafe_force_warning_text()
 # What the product does today, on this page, with stock flags
 # ---------------------------------------------------------------------------
 # FALSE since the empirical gate landed. It used to be TRUE, and that was the
-# defect: on a warm cache the extractor produces ~25 KB of critical CSS against
+# defect: on a warm cache the extractor produces ~45 KB of critical CSS against
 # the fixture's ~115 KB sheet — over the 0.10 byte-ratio floor — so the deferral
 # was permitted although nothing had checked that the inlined block actually
 # covers the fold. The floor is a proxy; this page was its counter-example.
@@ -151,12 +152,83 @@ UNSAFE_FORCE_WARNING = _unsafe_force_warning_text()
 DEFERS_WITHOUT_A_VALIDATED_PROFILE = False
 
 
-class Element:
-    """One start tag: its name, its attributes, and whether it was inside
-    <noscript>."""
+def names_cascade_layer(css: str) -> bool:
+    """Mirror of CriticalCssNamesCascadeLayer (src/worker/html_css_injector.h):
+    does the block name a cascade layer? Such a block goes first only with the
+    page's proven layer order in front of it (leading_layer_statement), and
+    otherwise keeps the old placement, before </head> after every head
+    stylesheet."""
+    for m in re.finditer(r"@layer(?![\w-])\s*(?:/\*.*?\*/\s*)*(.)", css, re.I | re.S):
+        if m.group(1) != "{":
+            return True
+    return any(
+        re.search(r"[\s)\"'](layer)[\s(;]|[\s)\"']layer$", rule, re.I)
+        for rule in re.findall(r"@import[^;]*;?", css, re.I)
+    )
 
-    def __init__(self, tag: str, attrs: list, in_noscript: bool):
+
+LAYER_STATEMENT_RE = re.compile(r"@layer\s+([\w.-]+(?:\s*,\s*[\w.-]+)*)\s*;")
+
+
+def leading_layer_statement(css: str) -> list[str] | None:
+    """The `@layer a,b,...;` statement the worker puts in front of a layered
+    block it places before the sheets (cascade_layer_order.h),
+    as a name list; None when the block does not start with one."""
+    m = LAYER_STATEMENT_RE.match(css)
+    if not m:
+        return None
+    return [n.strip() for n in m.group(1).split(",")]
+
+
+def top_level_layer_order(css: str) -> list[str]:
+    """Named layers of a sheet in first-mention order, for a sheet whose
+    layers are all top-level `@layer name{` blocks or statements (the probe
+    fixture's Tailwind v4 output). Not a general parser: the unit tests of
+    cascade_layer_order cover the general case."""
+    names: list[str] = []
+    depth = 0
+    i = 0
+    while i < len(css):
+        c = css[i]
+        if c == "\\":
+            # An escape is part of an ident: `.a\{` opens no block.
+            i += 2
+            continue
+        if c in "\"'":
+            # Strings, escapes inside included, end at the matching quote or
+            # a newline (CSS Syntax 3 bad string).
+            j = i + 1
+            while j < len(css) and css[j] not in (c, "\n"):
+                j += 2 if css[j] == "\\" else 1
+            i = j + 1 if j < len(css) and css[j] == c else j
+            continue
+        if css.startswith("/*", i):
+            end = css.find("*/", i + 2)
+            i = len(css) if end < 0 else end + 2
+            continue
+        if c == "{":
+            depth += 1
+        elif c == "}":
+            depth -= 1
+        elif depth == 0 and css.startswith("@layer", i):
+            m = re.match(r"@layer\s*([^{;]*)[{;]", css[i:])
+            if m:
+                for n in m.group(1).split(","):
+                    n = n.strip()
+                    if n and n not in names:
+                        names.append(n)
+        i += 1
+    return names
+
+
+class Element:
+    """One start tag: its name, its attributes, whether it was inside
+    <noscript> and whether it came before </head>; for a <style>, its body."""
+
+    def __init__(self, tag: str, attrs: list, in_noscript: bool, in_head=True):
         self.tag = tag
+        self.in_head = in_head
+        self.text = ""
         # Attribute order is not semantic; presence-with-no-value is (a bare
         # `crossorigin` must stay bare), so keep None distinct from "".
         self.attrs = {k: v for k, v in attrs}
@@ -177,6 +249,8 @@ class MarkupIndex(HTMLParser):
         self.elements: list[Element] = []
         self.styles: list[str] = []
         self._noscript_depth = 0
+        self._head_done = False
+        self._style_el: Element | None = None
         self._in_style = False
         self._style_buf: list[str] = []
         self.feed(html)
@@ -185,20 +259,30 @@ class MarkupIndex(HTMLParser):
     def handle_starttag(self, tag, attrs):
         if tag == "noscript":
             self._noscript_depth += 1
+        if tag == "body":
+            self._head_done = True
+        el = Element(tag, attrs, self._noscript_depth > 0, not self._head_done)
         if tag == "style":
             self._in_style = True
             self._style_buf = []
-        self.elements.append(Element(tag, attrs, self._noscript_depth > 0))
+            self._style_el = el
+        self.elements.append(el)
 
     def handle_startendtag(self, tag, attrs):
-        self.elements.append(Element(tag, attrs, self._noscript_depth > 0))
+        self.elements.append(
+            Element(tag, attrs, self._noscript_depth > 0, not self._head_done)
+        )
 
     def handle_endtag(self, tag):
+        if tag == "head":
+            self._head_done = True
         if tag == "noscript" and self._noscript_depth > 0:
             self._noscript_depth -= 1
         if tag == "style" and self._in_style:
             self._in_style = False
             self.styles.append("".join(self._style_buf))
+            if self._style_el is not None:
+                self._style_el.text = self.styles[-1]
 
     def handle_data(self, data):
         if self._in_style:
@@ -217,6 +301,33 @@ class MarkupIndex(HTMLParser):
     def deferred_links(self) -> list[Element]:
         return [
             e for e in self.elements if e.tag == "link" and e.has(DEFERRED_LINK_MARKER)
+        ]
+
+    def critical_block_positions(self) -> list[int]:
+        """Document-order positions of the inlined critical <style>."""
+        return [
+            i
+            for i, e in enumerate(self.elements)
+            if e.tag == "style" and e.has(CRITICAL_BLOCK_MARKER)
+        ]
+
+    def stylesheet_source_positions(self) -> list[int]:
+        """Document-order positions of every stylesheet source that applies
+        when scripts run: each <style> other than the critical block, each
+        <link> whose rel names a stylesheet, and each deferred <link> (which
+        the loader turns back into one). <noscript> content is excluded — it
+        is raw text whenever scripts run."""
+
+        def is_source(e: Element) -> bool:
+            if e.tag == "style":
+                return not e.has(CRITICAL_BLOCK_MARKER)
+            if e.tag == "link":
+                rel = (e.attrs.get("rel") or "").lower().split()
+                return "stylesheet" in rel or e.has(DEFERRED_LINK_MARKER)
+            return False
+
+        return [
+            i for i, e in enumerate(self.elements) if not e.in_noscript and is_source(e)
         ]
 
     def loader_scripts(self, loader_path: str) -> list[Element]:

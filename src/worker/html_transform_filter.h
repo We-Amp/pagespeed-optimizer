@@ -6,6 +6,7 @@
 
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "lib/html/empty_html_filter.h"
@@ -13,6 +14,7 @@
 #include "lib/html/html_name.h"
 #include "lib/html/html_node.h"
 #include "lib/html/html_parse.h"
+#include "src/worker/cascade_layer_order.h"
 #include "src/worker/html_scanner.h"
 
 namespace pagespeed {
@@ -82,6 +84,15 @@ class HtmlTransformFilter : public net_instaweb::EmptyHtmlFilter {
   void EndElement(net_instaweb::HtmlElement* element) override;
   void EndDocument() override;
 
+  // The page's cascade-layer order (Worker::BuildCombinedCss).
+  // Decides, with DecideCriticalCssLayerPlacement, whether a critical block
+  // that names a layer can still go before the sheets, with an `@layer`
+  // statement in front. Unset (the default) is "not proven": a layered block
+  // keeps the old placement.
+  void set_cascade_layer_order(CascadeLayerOrder order) {
+    layer_order_ = std::move(order);
+  }
+
   // Returns true if any transformation was applied.
   bool modified() const { return modified_; }
 
@@ -98,8 +109,50 @@ class HtmlTransformFilter : public net_instaweb::EmptyHtmlFilter {
   static bool IsAllowedPreloadUrl(std::string_view url);
 
  private:
-  // Inject critical CSS before the given element (typically </head>).
+  // Inject the critical <style>. Called at </head> (or </body> as fallback);
+  // the block is placed BEFORE the first stylesheet source seen so far
+  // (critical_css_anchor_; a <style>, a stylesheet <link>, or an author's
+  // loadCSS preload) when there is one, else before the current
+  // end tag.
+  //
+  // WHY BEFORE THE SHEET. The block duplicates rules of the
+  // page's own stylesheets, filtered to the fold and to the variant's viewport
+  // class. Two rules of equal specificity resolve by source order, so a block
+  // that FOLLOWS the sheet wins every tie against it once the sheet applies —
+  // permanently, in the fully-styled page, not only during the flash window.
+  // Concretely: the extractor drops a `@media` override that does not apply to
+  // the variant's viewport class while keeping the element's base rule, and a
+  // visitor whose actual window falls under that override (a desktop-UA browser
+  // at 375 px, a phone in landscape) then sees the block's base rule beat the
+  // sheet's override. Placed before every stylesheet source it derives from,
+  // the block is a first-paint bridge only: whatever it carries, the author's
+  // cascade wins as soon as the real sheets apply.
+  //
+  // CASCADE LAYERS. A layer's position is fixed by its first mention, and a
+  // block placed first would mention its layers in the combined sheet's order,
+  // which is not the document's when an inline <style> follows a <link> or a
+  // layered sheet is missing from the combined sheet. So a block that names a
+  // layer goes first only with an `@layer a, b, …;` statement in front that
+  // lists every layer of the page in the document's order, and only when that
+  // order is proven (layer_order_; DecideCriticalCssLayerPlacement,
+  // cascade_layer_order.h). Otherwise it keeps the end-of-head placement before
+  // the end tag, and with it the end-of-head behaviour for overrides the block
+  // dropped.
   void InjectCriticalCss(net_instaweb::HtmlElement* head_element);
+
+  // Maintain critical_css_anchor_: the first <link rel="stylesheet"> or <style>
+  // seen since the last head-prelude element (<meta charset>, <meta
+  // http-equiv="Content-Type" | "Content-Security-Policy">, <base>), outside
+  // <noscript>/<noembed>/<noframes>/<template>/<svg>/<math> (a block inserted
+  // there would not apply, or not as CSS). The block must precede the
+  // stylesheet sources it duplicates (see InjectCriticalCss) but must never
+  // move ahead of the charset declaration (which has to stay in the first 1024
+  // bytes), a meta CSP (a policy governs only what follows it) or <base>; a
+  // stylesheet source that precedes one of those is not a valid anchor, and
+  // the next source after it is. The validator's StripStylesheetSources
+  // (critical_css_validator.cc) mirrors this rule on the string level; change
+  // both together.
+  void TrackCriticalCssAnchor(net_instaweb::HtmlElement* element);
 
   // Apply loading="lazy" or fetchpriority="high" to img/iframe.
   void ApplyLazyLoad(net_instaweb::HtmlElement* element);
@@ -142,11 +195,11 @@ class HtmlTransformFilter : public net_instaweb::EmptyHtmlFilter {
   // when that inline block turns out not to ship, the deferral has no bridge
   // and must not ship either. The decision cannot be made at conversion time:
   // the <link> is converted at StartElement, and a CSP <meta> LATER in the head
-  // still governs the inline <style> injected at </head>, so a source order of
-  // <link> before <meta> would otherwise defer past the very policy that
-  // suppresses the bridge. Reverting at EndDocument is when the answer is
-  // known, and the whole document is one flush window on every entry point the
-  // filter is driven from, so the nodes are still rewritable.
+  // still governs the inline <style> whose injection is decided at </head>, so
+  // a source order of <link> before <meta> would otherwise defer past the very
+  // policy that suppresses the bridge. Reverting at EndDocument is when the
+  // answer is known, and the whole document is one flush window on every entry
+  // point the filter is driven from, so the nodes are still rewritable.
   void RevertAsyncCss();
 
   // Add defer to scripts identified as safe to defer.
@@ -168,6 +221,7 @@ class HtmlTransformFilter : public net_instaweb::EmptyHtmlFilter {
   net_instaweb::HtmlParse* parser_;
   HtmlTransformConfig config_;
   std::string critical_css_;
+  CascadeLayerOrder layer_order_;
   PageSpeedCache* cache_;
   std::string hostname_;
   std::string scheme_;
@@ -186,9 +240,16 @@ class HtmlTransformFilter : public net_instaweb::EmptyHtmlFilter {
 
   bool modified_ = false;
   bool critical_css_injected_ = false;
+  // See TrackCriticalCssAnchor. Null until a stylesheet source is seen; reset
+  // by a head-prelude element. Only dereferenced through the parser after an
+  // IsRewritable check, so a node flushed out of the window is skipped, not
+  // touched.
+  net_instaweb::HtmlElement* critical_css_anchor_ = nullptr;
   bool in_head_ = false;
   bool in_body_ = false;
   bool fallback_priority_applied_ = false;
+  // Whether the current <picture> has a <source srcset> (see StartElement).
+  bool picture_has_source_srcset_ = false;
   int body_img_count_ = 0;
   int body_iframe_count_ = 0;
   LcpCandidate lcp_candidate_;

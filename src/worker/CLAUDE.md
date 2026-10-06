@@ -172,18 +172,162 @@ CSS once available, clears flag. All transforms are idempotent.
    (px/em/rem, comma-separated query lists, conservative fallback for unrecognized).
    CSS selector escape handling: backslash-literal (`\:`) and hex (`\3a`) per
    CSS Syntax Module Level 3 §4.3.11. XSS prevention: null-byte stripping then
-   `</style` check. Always includes `*`, `html`, `body`, `:root`, first 25 DOM
-   elements, header/nav/hero patterns. Excludes footer/lazy/below-fold, depth > 10,
+   `</style` check. Always includes `*`, `html`, `body`, `:root`, the first 300
+   elements inside `<body>`, position:fixed elements and their subtree,
+   for mobile/tablet the rules of replaced elements that may be wider than a
+   phone (`img`, `iframe`, `video`, unsized `svg`, ... without a markup width
+   <= 320 px; one anywhere can widen the document; at most
+   `kMaxWideReplacedBytes` = 8 KiB and never past the worker's inline limits),
+   header/nav/hero patterns. Excludes footer/lazy/below-fold, depth > 10,
    `@media print`. Inside `@layer`, large `@media` blocks (>4KB) are filtered
    per-rule instead of included wholesale (`max_wholesale_media_bytes`).
    See `src/worker/critical_css_extractor.h`.
+   **Placement**: before the page's first stylesheet source (an
+   author's loadCSS preload counts), so the full sheets win every tie. A block that names a cascade layer goes there
+   only with an `@layer …;` statement in front listing the page's layers in
+   document order, computed in `BuildCombinedCss` from
+   `HtmlScanResult::stylesheet_sources` (`layer_order_sources.h`,
+   `cascade_layer_order.h`) and refused (old placement before `</head>`) when a
+   source is not gathered or titled, a layer is first declared under a
+   condition, an anonymous layer precedes a named one, the CSS has a stray
+   `}`/`;` or an escaped at-keyword, or a script that may insert a sheet comes
+   before a sheet declaring a new layer. The sources are exactly the sheets
+   the combined CSS reads (the scanner's stylesheet-source rule: `StyleScope`, the `type`
+   checks, the loadCSS preload at its own position), plus links a browser
+   applies that the gather does not read, which leave the order unproven. On
+   a layered sheet the validation record binds to the order
+   (`ValidationBinding`, folded into the combined-sheet hash, so a change
+   triggers `RequestRevalidation`). The validator applies the same rule
+   (`DecideCriticalCssLayerPlacement`) with the same order. `@media`
+   retention follows placement: the device class's window range
+   (`RetentionWidthRange`) when the block goes first and the CSS has no
+   anonymous layer (`CriticalCssRetentionMayNarrow` on the combined sheet,
+   confirmed on the NUL-stripped finished block; an anonymous layer is a
+   separate, earlier layer, which wins for `!important`), every width
+   otherwise; the binding then reads `proven r2 <statement>`. Inside an
+   anonymous layer the block carries no `!important` declaration (the
+   block's anonymous layer comes before the sheet's, and the earlier layer
+   wins for `!important`; moving the block after the sheet would make its
+   later layer win normal declarations instead), and pages whose sheet may
+   have one bind with an `a2` marker (`proven a2 …` / `unproven a2`).
+   A block that goes after the sheets carries no anonymous layer at all
+   (there its anonymous layer comes after the sheet's and wins normal
+   declarations); decided from the combined sheet
+   (`CriticalCssBlockGoesFirst`) and checked on the finished block, binding
+   marker `u2`. An at-rule keyword written with an escape (`@l\61yer {`) is
+   a possible anonymous layer on both sides (`CssTextHasAnonymousLayer`,
+   `CssAtRuleKeywordHasEscape`; the placement side never decoded it either),
+   so such a rule is left out whole of a block that goes after the sheets, and
+   the record's binding is also salted with the derivation's
+   `CriticalCssResult::anonymous_layers_dropped` (`ValidationBindingFor`,
+   `anon-layers-dropped`), which covers a block that only the finished-block
+   check moves after the sheets. The full binding grammar is documented at
+   `CascadeLayerOrder::ValidationBinding`. The order is passed to
+   `CriticalCssExtractor::Extract` / `DeriveDomMatchedCriticalCss`
+   on the serve and validation paths alike.
 2. **LCP preload** — `<link rel="preload" as="image" fetchpriority="high">` in
    `<head>` for LCP candidate detected by HtmlScanner. Includes `imagesrcset` and
    `imagesizes` when available. URL scheme validation rejects `javascript:`/`data:`.
    Also written to Early Hints sentinel with `image:` prefix. Both preloads are
    suppressed for an `<img>` inside `<picture>` (a `<source>` sibling may win
    selection — the preload could double-download); the `<img>` itself still gets
-   `fetchpriority="high"`, which stays correct whichever source wins.
+   `fetchpriority="high"`, which stays correct whichever source wins. An
+   `<img>` inside `<noscript>`, `<template>`, `<noembed>` or `<noframes>` is
+   never the candidate (a browser running scripts does not create it,
+   so the preload and Early Hint would fetch an image the page never shows;
+   the scanner's `inert` rule, the same one that keeps such elements out of
+   `elements`). It still advances `element_index`, so
+   `lcp_candidate.element_index` stays comparable. That scope is the lexer's
+   markup parse of `<noscript>` (`kSometimesLiteralTags` in
+   `lib/html/html_lexer.cc`), not the browser's RAWTEXT "first `</noscript>`
+   byte sequence" rule, so they diverge on a nested `<noscript>`, a
+   `</noscript>` inside a comment or script string within the noscript, and a
+   `<noscript>` inside `<svg>`; where they differ the scanner's scope is the
+   longer one, so an image the browser does create is skipped and a later
+   real image is the candidate (less harmful than the earlier preload of a
+   URL the browser never fetches). A **script-loaded hero** yields no
+   candidate at all (`LcpCandidate::script_loaded_hero`): the first
+   hero container (`IsHeroContainer`: `<header>`/`<main>`/`<section>`/
+   `<article>` or a hero class) holds a lazy-load placeholder
+   (`IsLazyLoadPlaceholder`: no usable `src`, plus a `data-*src*`/
+   `data-original` attribute or a `lazy` class), followed by its `<noscript>`
+   copy, and no eligible image of its own. Chromium reports the loader-filled
+   `<img>` as the LCP, but the markup does not say which bytes the loader
+   fetches (`data-src` is a convention; the twin's URL may differ in size or
+   format), so nothing is hinted: no preload, no Early Hint, and no
+   `fetchpriority` fallback either, rather than hinting the next image, which
+   is probably below the fold. The decision drops an earlier fallback and
+   rules out every later image except one in a hero container opened after
+   the decision (`open_hero_containers_` marks each open container with
+   whether it opened after the decision; the innermost one must be fresh,
+   whatever its depth, so a sibling shallower than a nested decided
+   container counts), so a lazy logo with its copy alone in `<header>` does
+   not silence the real hero in the `<section>` after it, while an image
+   elsewhere inside the `<main>` that wraps the lazy hero stays unhinted;
+   such a later hero image withdraws the decision. "A later sibling
+   section" includes a content `<section>`/`<article>` below the fold: an
+   image in a later section inside the wrapping `<main>` is hinted, as
+   before this rule. A
+   placeholder outside a hero container, without the copy, in a container
+   that also holds an eligible image, or whose only hero class is its own
+   (no ancestor container to hold the copy) changes nothing. Two
+   refinements. **Stand-in `src`**: the placeholder may carry a
+   real-looking `src`. One whose file name is a common stand-in
+   (`IsLazyStandInSrc`: blank, placeholder, pixel, spacer, 1x1,
+   transparent, loading, lazy, optionally with a size or number, as the
+   whole name after splitting on `-`/`_`/`.`; `/blank.gif`,
+   `/placeholder-300x200.png`) next to a lazy data attribute
+   (`HasLazySourceAttribute`) is a placeholder outright, twin or not, in or
+   out of a hero container. Any other `src` with a lazy data attribute is
+   taken as the hero candidate as before, provisionally
+   (`lazy_hero_stand_in_src_`): if its `<noscript>` copy in the same hero
+   container carries a DIFFERENT `src`, the copy says what the real image
+   is, the candidate is withdrawn and the `<img>` is the pending
+   placeholder from then on (`<img src=/hero-lqip.jpg data-src=/hero.jpg>`
+   + `<noscript><img src=/hero.jpg>` gives no candidate); no copy, or a
+   copy with the same `src`, and it stays the candidate. "Same" is the
+   resolved reference (`ImageIdentity`, SheetIdentity's reduction: host,
+   path and query, scheme and fragment dropped; a reference without a host
+   takes the base URL's (`BaseOf`, shared with the stylesheet matching in
+   `EndDocument`), so under a cross-host `<base href>` a
+   root-relative src is the CDN's image, as the browser resolves it, while
+   a root-relative `<base href="/sub/">` keeps the page's host), so
+   `http://example.com/hero.jpg` is `/hero.jpg` while `/hero.jpg?v=2` is
+   not known to be; percent-encoding and an explicit default port are
+   compared literally. In every leg the copy has to be plausible: a
+   `<noscript>` image that `IsUnlikelyLcpImage` (a 1x1 tracking pixel's
+   no-JS fallback in the same `<main>`, a `hidden` image) confirms nothing,
+   for the src-less placeholder too (a placeholder whose only copy
+   is a pixel is handled as one without a copy). That test is
+   markup-declared only, so a 2x2 `<noscript>` image, or one hidden by a
+   CSS class, still counts as a copy; real tracking pixels are 1x1 and
+   attribute-hidden, so this is accepted. A lazy class alone never
+   makes a real `src` a stand-in (`<img src=/hero.jpg class=lazy>` is the
+   hero, and so is `<img src=/blank.gif class=lazy>` whatever its copy
+   says: the rule asks for the data attribute); outside a hero container
+   the twin leg does not apply (the fallback candidate is not retracted).
+   Scanner/filter asymmetry, pre-existing: the scanner's leg 1
+   does not read `srcset`, the filter's does, so `<img src="data:..."
+   srcset=/hero.jpg data-src=/x>` is a placeholder for the scanner and a
+   loading image for the filter. **Small icon**: an eligible image
+   inside the pending placeholder's container whose declared size is small
+   (`IsSmallDeclaredImage`: inline `width:`/`height:` px or the attributes,
+   both axes, product under `kSmallImageAreaPx2` = 10,000, so below
+   100x100; unknown is not small) is set aside instead of taken
+   (`deferred_small_`): it cancels nothing, and with the copy seen it is
+   dropped, so the page gets no candidate rather than the 48x48
+   call-to-action icon. Without the copy the pattern is not confirmed and
+   the icon is the candidate, as the first-eligible-image rule picked it
+   before (also when a larger image of the container's own follows); a page
+   without a placeholder is untouched: an icon that is its first eligible
+   image is the candidate exactly as before. The threshold is the only area
+   rule in the heuristic (`IsUnlikelyLcpImage` rejects 0/1 px and hidden
+   only) and is used nowhere else. The tolerance applies while a
+   placeholder is pending: an icon that PRECEDES the placeholder in the
+   container is the first eligible image and the candidate, as before; and
+   a second placeholder+copy in a fresh container after a decision does not
+   start a new pattern (as before), so an icon there is that container's
+   candidate.
    Disable: `--no-lcp-preload`.
 3. **Lazy load** — `loading="lazy"` on `<img>`/`<iframe>`. LCP candidate image gets
    `fetchpriority="high"` instead; without a candidate, the first *plausible* body
@@ -195,7 +339,23 @@ CSS once available, clears flag. All transforms are idempotent.
    is set (above-fold guard); the first VISIBLE body iframe is exempt (likely
    above-fold embed). Invisible iframes (`IsInvisibleElement`, same evidence as
    images — the GTM-noscript tracking-frame shape) get no transform at any
-   position and do not consume the exemption slot. Disable:
+   position and do not consume the exemption slot. An `<img>` or `<iframe>`
+   inside `<noscript>`, `<template>`, `<noembed>` or `<noframes>`
+   (`InsideInertSubtree`) gets no transform either and consumes no img or
+   iframe slot: a scripting browser never creates it, and for a
+   no-JS client it is the author's fallback, left as written. An `<img>`
+   without a usable source (no `src`, empty or `data:`, or a stand-in name
+   such as `/blank.gif` next to a lazy data attribute; and no
+   `srcset`, nor a `<source srcset>` sibling in `<picture>`) is a lazy-load
+   placeholder the author's loader fills in: it never takes the
+   fetchpriority fallback, is left as written inside the 3-image
+   window, and is lazy-loaded past it like any image; it does count toward
+   the window. The filter cannot see a `<noscript>` copy that comes after
+   the `<img>`, so a real `src` with a lazy data attribute is an image that
+   loads here; the scanner's twin leg reaches the filter as
+   `script_loaded_hero`. With
+   `lcp_candidate.script_loaded_hero` set nothing is promoted and the window
+   guard applies as with a named candidate. Disable:
    `--no-lazy-load-images`.
 4. **Image dimensions** — Injects `width`/`height` from cached image headers (no full
    decode). Disable: `--no-image-dimensions`.
@@ -301,7 +461,15 @@ CSS once available, clears flag. All transforms are idempotent.
    candidate the whole sheet and validate everything;
    (b) the combined sheet comes from `Worker::BuildCombinedCss` through the
    injected `set_combined_css_builder` seam, never a second assembly, or every
-   record fails the serve-time hash comparison and the feature is inert;
+   record fails the serve-time hash comparison and the feature is inert; and
+   that assembly, like the analysis-side CSS inliner, resolves each `<link>`
+   href through `DocumentBaseOf` / `ResolveAgainstBase` (`html_scanner.h`):
+   the page URL or its first `<base href>`, with a hostless href
+   fetched from the `<base>` host when that is not the page's own, so under a
+   cross-host `<base>` the CDN's sheet is gathered on both sides instead of
+   counting as missing on both (the worker's page URL is the cache-normalized
+   path, so the page's own host and scheme come from the notification or the
+   queue item);
    (c) every failure path (no Chrome, injector abort, screenshot failure,
    oversized document, a comparison over zero pixels) records NOTHING, and
    `ApplyValidationVerdict` clears before it writes.
@@ -518,6 +686,38 @@ Pipeline: HtmlScanner -> cache lookup -> FlattenImports -> XSS sanitize -> injec
 When flattening skips (all-or-nothing), the original sheet — imports intact — is
 inlined for the analysis browser, which cannot fetch them: coverage may
 under-measure in mixed-cache states until the import tree is fully cached.
+
+Each href resolves against the document base, the one rule `BuildCombinedCss`,
+the stylesheet Early Hints, the SRI pins and the scanner's sheet and image
+   identities share (`DocumentBaseOf` / `ResolveAgainstBase` in `html_scanner.h`):
+   the page URL, or the first `<base href>` resolved against it; a
+hostless result is the page's own path (the lookup keys it by the page host)
+unless the base names another host, when it gets that host and the document's
+scheme, as the browser fetches it (`<base href="https://cdn.example.com/x/">`
+with `href="/css/a.css"` is `https://cdn.example.com/css/a.css`; `<base
+href="/sub/">` with `href="a.css"` is `/sub/a.css` on the page host). A
+protocol-relative href gets the document's scheme whether or not the page has
+a `<base>`: `href="//cdn.example.com/c.css"` is looked up as the CDN host's
+`/c.css` (and `//example.com/d.css` as the page's own `/d.css`), where before
+that the literal `//host/path` was looked up on the page host, a key nginx
+never stores, so the sheet always counted as missing and the page was marked
+for revalidation on every request; a `data:` or `javascript:` href, or any
+other reference with a scheme, is returned as it is. Two edge
+cases are documented, not handled: a `<link>` parsed BEFORE the `<base href>`
+(a base after the first link, or inside `<body>`) is resolved against the base
+here and by the scanner's identities, while the browser fetched it from the
+page because the base did not exist yet — serve and analysis still agree, so
+only that non-conforming page's sheet is looked up on the wrong host or its
+twin pairing is wrong; and a same-host base with an explicit default port
+(`<base href="https://example.com:443/">`) is the page's own host for fetching
+(the default port is dropped for that comparison) while `SheetIdentity`
+compares the port literally, so under it `/a.css` and
+`https://example.com/a.css` are different identities (the same class as the
+literal default-port comparison in the hero-copy test). Only `:443` on https and `:80` on
+http are dropped for that comparison: a page served with a non-default port in
+its Host header (`example.com:8443`) and a `<base href="https://example.com/">`
+without the port counts as cross-host, which is what the browser does too, so
+the hostless hrefs are fetched from `example.com` without the port.
 Guards: 50 stylesheet cap, 2MB per-stylesheet cap, 10MB total HTML cap.
 Stats: `css_inlining_attempted`, `css_inlining_stylesheets_cached`,
 `css_inlining_bytes_inlined` (in BROWSER-STATUS, STATS, METRICS).

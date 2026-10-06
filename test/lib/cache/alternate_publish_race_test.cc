@@ -242,7 +242,8 @@ TEST(AlternatePublishRaceTest,
     std::cout << "alternates after the race, through the optimizer's view: "
               << Printed(through_optimizer) << "\n"
               << "alternates after the race, through the web server's view: "
-              << Printed(through_server) << std::endl;
+              << Printed(through_server) << "\n"
+              << std::flush;
 
     EXPECT_TRUE(Contains(through_optimizer, 0x08))
         << "the optimized copy written during the race is gone; the key "

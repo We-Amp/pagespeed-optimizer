@@ -2,8 +2,10 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 
 // 4. Emulation.setScriptExecutionDisabled({value: true})
-// 5. Emulation.setDeviceMetricsOverride({width, height, ...})
-// 6. Page.enable, CSS.enable, Page.setLifecycleEventsEnabled
+// 5. Emulation.setDeviceMetricsOverride + setTouchEmulationEnabled
+//    [+ setUserAgentOverride] (EmulateDevice, src/browser/device_emulation.h)
+// 6. Page.enable, CSS.enable, Page.navigate(about:blank) for a fresh window
+//    (LoadFreshBlankDocument), Page.setLifecycleEventsEnabled
 // 7. CSS.startRuleUsageTracking
 // 8. Page.setDocumentContent({frameId, html})
 // 9. Wait for Page.lifecycleEvent("firstContentfulPaint")
@@ -35,6 +37,8 @@
 #include "nlohmann/json.hpp"
 #include "src/browser/cdp_client.h"
 #include "src/browser/cdp_types.h"
+#include "src/browser/device_emulation.h"
+#include "src/browser/render_support.h"
 #include "src/worker/critical_css_extractor.h"
 
 namespace pagespeed {
@@ -75,6 +79,8 @@ struct BrowserCssExtractor::Session
   bool got_network_idle = false;
   bool stop_requested = false;  // CSS.stopRuleUsageTracking already sent
   bool completed = false;
+  // A refused Fetch.failRequest was reported already (FailPausedRequest).
+  bool fetch_error_reported = false;
 
   // Start the overall session timeout. Must be called after
   // the shared_ptr is fully constructed (i.e., from Extract(),
@@ -361,14 +367,15 @@ CriticalCssResult DeriveDomMatchedCriticalCss(
     const std::vector<CollectedElement>& elements,
     std::string_view combined_css, std::string_view profile_critical_css,
     CapabilityMask::Viewport viewport,
-    const std::vector<std::string>& measured_above_fold_selectors) {
+    const std::vector<std::string>& measured_above_fold_selectors,
+    const CascadeLayerOrder& layer_order) {
   absl::flat_hash_set<RuleIdentity> coverage_identities =
       BuildCoverageIdentities(profile_critical_css);
   CriticalCssConfig config;
   config.measured_above_fold_selectors = measured_above_fold_selectors;
   CriticalCssExtractor extractor(std::move(config));
   return extractor.Extract(elements, combined_css, viewport,
-                           &coverage_identities);
+                           &coverage_identities, &layer_order);
 }
 
 absl::flat_hash_set<RuleIdentity> BuildCoverageIdentities(
@@ -387,16 +394,30 @@ absl::flat_hash_set<RuleIdentity> BuildCoverageIdentities(
   for (size_t i = 0; i < n; ++i) {
     char c = css[i];
 
+    // An escape is part of an ident: an escaped quote opens no string and an
+    // escaped brace no block (`.a\'b`, Tailwind v4's `[class*=\'size-\']`;
+    // CSS Syntax 3 §4.3.7).
+    if (c == '\\') {
+      ++i;
+      continue;
+    }
     // Skip CSS strings so braces/semicolons inside them do not corrupt nesting.
     if (c == '"' || c == '\'') {
       char quote = c;
       ++i;
       while (i < n) {
         if (css[i] == '\\') {
-          i += 2;
+          // An escaped newline continues the string; CRLF is one newline.
+          i += (i + 2 < n && css[i + 1] == '\r' && css[i + 2] == '\n') ? 3 : 2;
           continue;
         }
         if (css[i] == quote) break;
+        // An unescaped newline ends a bad string (CSS Syntax 3 §4.3.5); the
+        // newline itself is not part of it.
+        if (css[i] == '\n' || css[i] == '\r' || css[i] == '\f') {
+          --i;
+          break;
+        }
         ++i;
       }
       continue;
@@ -565,24 +586,8 @@ void BrowserCssExtractor::Extract(std::string_view html_content,
                   s->FinishError("Fetch.enable setup failed");
                   return;
                 }
-                // 4. Set viewport
-                CdpCommand viewport_cmd;
-                viewport_cmd.method =
-                    "Emulation."
-                    "setDeviceMetricsOverride";
-                viewport_cmd.params = {
-                    {"width", s->viewport_width},
-                    {"height", s->viewport_height},
-                    {"deviceScaleFactor", 1},
-                    {"mobile", s->viewport_width < 768},
-                };
-                viewport_cmd.session_id = s->session_id;
-
-                s->Send(viewport_cmd, [s](auto result) {
-                  if (!result.ok() || result->is_error()) {
-                    s->FinishError("viewport setup failed");
-                    return;
-                  }
+                // 4. Emulate the device (metrics, touch, UA)
+                EmulateDevice(s, s->viewport_width, s->viewport_height, [s]() {
                   // 5. Enable domains
                   CdpCommand page_cmd;
                   page_cmd.method = "Page.enable";
@@ -612,75 +617,80 @@ void BrowserCssExtractor::Extract(std::string_view html_content,
                           s->FinishError("CSS.enable failed");
                           return;
                         }
-                        // 6. Enable lifecycle events
-                        CdpCommand lifecycle_cmd;
-                        lifecycle_cmd.method = "Page.setLifecycleEventsEnabled";
-                        lifecycle_cmd.params = {{"enabled", true}};
-                        lifecycle_cmd.session_id = s->session_id;
+                        // 6. A fresh window for the document
+                        // (LoadFreshBlankDocument), then lifecycle events.
+                        LoadFreshBlankDocument(s, [s]() {
+                          CdpCommand lifecycle_cmd;
+                          lifecycle_cmd.method =
+                              "Page.setLifecycleEventsEnabled";
+                          lifecycle_cmd.params = {{"enabled", true}};
+                          lifecycle_cmd.session_id = s->session_id;
 
-                        s->Send(lifecycle_cmd, [s](auto result) {
-                          if (!result.ok() || result->is_error()) {
-                            s->FinishError("lifecycle enable failed");
-                            return;
-                          }
-                          // 7. Start rule usage tracking
-                          CdpCommand track_cmd;
-                          track_cmd.method = "CSS.startRuleUsageTracking";
-                          track_cmd.session_id = s->session_id;
-
-                          s->Send(track_cmd, [s](auto result) {
+                          s->Send(lifecycle_cmd, [s](auto result) {
                             if (!result.ok() || result->is_error()) {
-                              s->FinishError("startRuleUsageTracking failed");
+                              s->FinishError("lifecycle enable failed");
                               return;
                             }
+                            // 7. Start rule usage tracking
+                            CdpCommand track_cmd;
+                            track_cmd.method = "CSS.startRuleUsageTracking";
+                            track_cmd.session_id = s->session_id;
 
-                            // 8. Get the main frame ID and set content.
-                            CdpCommand tree_cmd;
-                            tree_cmd.method = "Page.getFrameTree";
-                            tree_cmd.session_id = s->session_id;
+                            s->Send(track_cmd, [s](auto result) {
+                              if (!result.ok() || result->is_error()) {
+                                s->FinishError("startRuleUsageTracking failed");
+                                return;
+                              }
 
-                            s->Send(
-                                tree_cmd,
-                                [s](absl::StatusOr<CdpResponse> result) {
-                                  if (!result.ok() || result->is_error()) {
-                                    s->FinishError("getFrameTree failed");
-                                    return;
-                                  }
+                              // 8. Get the main frame ID and set content.
+                              CdpCommand tree_cmd;
+                              tree_cmd.method = "Page.getFrameTree";
+                              tree_cmd.session_id = s->session_id;
 
-                                  // Extract frameId from the tree.
-                                  s->frame_id =
-                                      result->result
-                                          .value("frameTree", json::object())
-                                          .value("frame", json::object())
-                                          .value("id", "");
-
-                                  if (s->frame_id.empty()) {
-                                    s->FinishError("getFrameTree: no frameId");
-                                    return;
-                                  }
-
-                                  CdpCommand set_content_cmd;
-                                  set_content_cmd.method =
-                                      "Page.setDocumentContent";
-                                  set_content_cmd.params = {
-                                      {"frameId", s->frame_id},
-                                      {"html", s->html_content},
-                                  };
-                                  set_content_cmd.session_id = s->session_id;
-                                  set_content_cmd.timeout_ms = 15000;
-
-                                  s->Send(set_content_cmd, [s](auto result) {
+                              s->Send(
+                                  tree_cmd,
+                                  [s](absl::StatusOr<CdpResponse> result) {
                                     if (!result.ok() || result->is_error()) {
-                                      s->FinishError(
-                                          "setDocumentContent failed");
+                                      s->FinishError("getFrameTree failed");
                                       return;
                                     }
-                                    // Content is set. Now we wait for
-                                    // lifecycle events via the event
-                                    // callback. The event handler is
-                                    // set up before Extract() returns.
+
+                                    // Extract frameId from the tree.
+                                    s->frame_id =
+                                        result->result
+                                            .value("frameTree", json::object())
+                                            .value("frame", json::object())
+                                            .value("id", "");
+
+                                    if (s->frame_id.empty()) {
+                                      s->FinishError(
+                                          "getFrameTree: no frameId");
+                                      return;
+                                    }
+
+                                    CdpCommand set_content_cmd;
+                                    set_content_cmd.method =
+                                        "Page.setDocumentContent";
+                                    set_content_cmd.params = {
+                                        {"frameId", s->frame_id},
+                                        {"html", s->html_content},
+                                    };
+                                    set_content_cmd.session_id = s->session_id;
+                                    set_content_cmd.timeout_ms = 15000;
+
+                                    s->Send(set_content_cmd, [s](auto result) {
+                                      if (!result.ok() || result->is_error()) {
+                                        s->FinishError(
+                                            "setDocumentContent failed");
+                                        return;
+                                      }
+                                      // Content is set. Now we wait for
+                                      // lifecycle events via the event
+                                      // callback. The event handler is
+                                      // set up before Extract() returns.
+                                    });
                                   });
-                                });
+                            });
                           });
                         });
                       });
@@ -709,15 +719,8 @@ void BrowserCssExtractor::Extract(std::string_view html_content,
     // Fetch interception: fail all requests (defense in
     // depth alongside offline mode for CSS-only extraction).
     if (event.method == "Fetch.requestPaused") {
-      std::string request_id = event.params.value("requestId", "");
-      CdpCommand fail_cmd;
-      fail_cmd.method = "Fetch.failRequest";
-      fail_cmd.params = {
-          {"requestId", request_id},
-          {"reason", "BlockedByClient"},
-      };
-      fail_cmd.session_id = session->session_id;
-      session->Send(fail_cmd, [](auto) {});
+      FailPausedRequest(session, event.params.value("requestId", ""),
+                        "css coverage render");
       return;
     }
 

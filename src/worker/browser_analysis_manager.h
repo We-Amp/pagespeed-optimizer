@@ -17,6 +17,7 @@
 
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -25,6 +26,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 #include "lib/cache/cache.h"
@@ -34,12 +36,14 @@
 #include "src/browser/browser_sandbox.h"
 #include "src/browser/chrome_process.h"
 #include "src/browser/critical_css_validator.h"
+#include "src/browser/device_emulation.h"
 #include "src/browser/optimization_profile.h"
 #include "src/browser/page_analysis.h"
 #include "src/browser/script_coverage_analyzer.h"
 #include "src/browser/template_detector.h"
 #include "src/browser/visual_regression_gate.h"
 #include "src/worker/browser_analysis_manager_internal.h"
+#include "src/worker/cascade_layer_order.h"
 #include "src/worker/html_scanner.h"
 #include "uv.h"
 
@@ -134,10 +138,18 @@ struct BrowserStats {
   std::atomic<uint64_t> queue_dropped{0};
   std::atomic<uint64_t> queue_processed{0};
   std::atomic<uint64_t> css_inlining_attempted{0};
+  // Analyses whose CSS coverage render was skipped because the <noscript>
+  // removal for it could not be trusted.
+  std::atomic<uint64_t> noscript_strip_refusals{0};
   std::atomic<uint64_t> css_inlining_stylesheets_found{0};
   std::atomic<uint64_t> css_inlining_stylesheets_cached{0};
   std::atomic<uint64_t> css_inlining_bytes_inlined{0};
   std::atomic<uint64_t> reanalyses_scheduled{0};
+  // Analyses queued because a template's validation record no longer matched
+  // the stylesheet its page is served with (RequestRevalidation), and requests
+  // the per-template rate limit turned away.
+  std::atomic<uint64_t> revalidations_queued{0};
+  std::atomic<uint64_t> revalidations_rate_limited{0};
   std::atomic<uint64_t> scripts_analyzed{0};
   std::atomic<uint64_t> scripts_deferrable{0};
   // Analysis-resource-map + script-evidence-gate observability.
@@ -178,6 +190,27 @@ class BrowserAnalysisManager {
       std::string_view original_html = {},
       std::optional<std::array<std::byte, 32>> origin_html_hash = std::nullopt,
       bool force_agent_render = false);
+
+  // A page's profile carries a validation record, but the record was made
+  // against different stylesheet bytes than the page is served with now (a
+  // stylesheet redeploy, or a change in how those bytes are assembled).
+  // Deferral stays off until the template is validated again;
+  // without this that would wait for the profile's TTL
+  // (browser_profile_ttl_seconds). Queues a fresh analysis for the template,
+  // leaving the current profile in place until the new one is stored.
+  //
+  // Rate-limited per template the way the degraded-profile retry is: at most
+  // kMaxReanalysisRetries requests per profile-TTL window, at least
+  // kReanalysisDelayMs apart, so bytes that never settle (a sheet whose cache
+  // entry flips between variants) cost two analyses a day, not one per
+  // request. Thread-safe. Returns true when an analysis was queued.
+  bool RequestRevalidation(
+      const std::string& url, const std::string& hostname,
+      const std::string& scheme, uint32_t mask, uint64_t template_hash,
+      std::string_view original_html,
+      std::optional<std::array<std::byte, 32>> origin_html_hash = std::nullopt,
+      std::chrono::steady_clock::time_point now =
+          std::chrono::steady_clock::now());
 
   // Thread-safe cache lookup for an existing profile.
   std::optional<OptimizationProfile> LookupProfile(uint64_t template_hash);
@@ -221,6 +254,13 @@ class BrowserAnalysisManager {
   // browser_analysis_manager_internal.h for why that matters.
   using CombinedCss = browser_internal::CombinedCssBytes;
   using CombinedCssBuilder = browser_internal::CombinedCssBuilder;
+  // Test-only: the builder the analysis side assembles the combined stylesheet
+  // with (the worker wires its own BuildCombinedCss here), so a test can seed
+  // a record against exactly the bytes that side would hash and check the
+  // serve path accepts it.
+  const CombinedCssBuilder& TestCombinedCssBuilder() const {
+    return combined_css_builder_;
+  }
   void set_combined_css_builder(CombinedCssBuilder builder) {
     combined_css_builder_ = std::move(builder);
   }
@@ -312,7 +352,10 @@ class BrowserAnalysisManager {
   // here must be derived from the same fold the serve path will derive from.
   // Run it earlier and it confirms a block no visitor receives.
   void RunCriticalCssValidation();
+  // `anonymous_layers_dropped`: of the derivation that made the candidate
+  // (ValidationRequest), for the record's binding.
   void OnCriticalCssValidationDone(std::string candidate_critical_css,
+                                   bool anonymous_layers_dropped,
                                    ValidationVerdict verdict);
   // Tail of one viewport: advance the schedule, or finish the item.
   void AdvanceToNextViewport();
@@ -396,6 +439,16 @@ class BrowserAnalysisManager {
   bool reanalysis_timer_active_ = false;
   std::optional<AnalysisQueue::Item> pending_reanalysis_;
 
+  // RequestRevalidation's per-template rate limit.
+  struct RevalidationBudget {
+    std::chrono::steady_clock::time_point window_start;
+    std::chrono::steady_clock::time_point last;
+    int requests = 0;
+  };
+  static constexpr size_t kMaxRevalidationBudgets = 4096;
+  std::mutex revalidation_mutex_;
+  std::unordered_map<uint64_t, RevalidationBudget> revalidation_budgets_;
+
   TemplateDetector template_detector_;
 
   bool analysis_in_progress_ = false;
@@ -411,6 +464,12 @@ class BrowserAnalysisManager {
     // is already in it, so a "critical only" candidate built from it would
     // carry the whole sheet as well.
     std::string html_content;
+    // The CSS coverage render's document: html_content without its <noscript>
+    // elements (that render runs with script execution
+    // disabled). Empty when `coverage_refusal` says why it may not be
+    // rendered.
+    std::string coverage_html;
+    std::string coverage_refusal;
     // The page as the origin served it, captured before either rewrite above.
     std::string pre_inline_html;
     // Elements the origin document declares, for the DOM-matched derivation.
@@ -419,6 +478,11 @@ class BrowserAnalysisManager {
     // the injected builder.  Empty when nothing was gathered or a declared
     // sheet was not in cache — in which case no record can usefully be made.
     std::string combined_css;
+    // The page's cascade-layer order from the same assembly.
+    CascadeLayerOrder layer_order{};
+    // The page's <noscript> content changes a JS-off render; salts the
+    // record's binding (ValidationBindingFor).
+    bool noscript_affects_render = false;
     bool validation_inputs_ready = false;
     // Set when page analysis has completed for the CURRENT viewport, i.e. when
     // this viewport's above-the-fold set has been measured (or has definitively
@@ -445,9 +509,13 @@ class BrowserAnalysisManager {
     // Ordered viewport schedule: [first_from_mask, then remaining].
     int viewport_order[3] = {0, 1, 2};
     // Viewports to analyze: Mobile(375x667), Tablet(768x1024),
-    // Desktop(1440x900).
-    static constexpr uint32_t kViewportWidths[] = {375, 768, 1440};
-    static constexpr uint32_t kViewportHeights[] = {667, 1024, 900};
+    // Desktop(1440x900), from src/browser/device_emulation.h, which also
+    // decides what each one emulates (mobile device with touch, or a desktop
+    // window) and which the critical-CSS extractor reads per class.
+    static constexpr const uint32_t (&kViewportWidths)[3] =
+        kAnalysisViewportWidths;
+    static constexpr const uint32_t (&kViewportHeights)[3] =
+        kAnalysisViewportHeights;
     static constexpr int kNumViewports = 3;
   };
   std::unique_ptr<AnalysisContext> current_analysis_;

@@ -44,16 +44,31 @@ uint64_t TemplateDetector::HashStructure(const HtmlScanResult& scan_result) {
   // Hash the tag hierarchy: for each element, hash (depth, tag_name).
   // This captures the DOM tree structure while ignoring content,
   // attribute values, ids, and classes.
-  for (const auto& elem : scan_result.elements) {
+  auto hash_element = [&hash](int elem_depth, const std::string& tag_name) {
     // Hash depth as a single byte (depths > 255 are clamped).
-    uint8_t depth = static_cast<uint8_t>(elem.depth > 255 ? 255 : elem.depth);
+    uint8_t depth = static_cast<uint8_t>(elem_depth > 255 ? 255 : elem_depth);
     hash = FnvHashByte(hash, depth);
 
     // Hash tag name bytes.
-    hash = FnvHash(hash, elem.tag_name.data(), elem.tag_name.size());
+    hash = FnvHash(hash, tag_name.data(), tag_name.size());
 
     // Separator byte to prevent tag name concatenation collisions.
     hash = FnvHashByte(hash, 0xFF);
+  };
+  // Every element in document order, the ones the scanner leaves out of
+  // `elements` (inside <noscript> and the like) merged back in where they
+  // stood, so the hash is the one these pages had before they were left out.
+  const auto& inert = scan_result.inert_elements;
+  size_t next_inert = 0;
+  for (size_t i = 0; i <= scan_result.elements.size(); ++i) {
+    while (next_inert < inert.size() && inert[next_inert].position <= i) {
+      hash_element(inert[next_inert].depth, inert[next_inert].tag_name);
+      ++next_inert;
+    }
+    if (i < scan_result.elements.size()) {
+      hash_element(scan_result.elements[i].depth,
+                   scan_result.elements[i].tag_name);
+    }
   }
 
   // Also hash the number of stylesheet links and whether inline CSS

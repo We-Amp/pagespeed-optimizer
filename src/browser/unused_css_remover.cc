@@ -88,10 +88,17 @@ CssCharAction ParseCssChar(std::string_view css, size_t& pos,
   char ch = css[pos];
   if (state.in_string) {
     if (ch == '\\' && pos + 1 < css.size()) {
-      ++pos;  // Skip escaped character.
+      // Skip the escaped character; an escaped newline continues the string,
+      // and CRLF is one newline.
+      pos +=
+          (pos + 2 < css.size() && css[pos + 1] == '\r' && css[pos + 2] == '\n')
+              ? 2
+              : 1;
       return CssCharAction::kContinue;
     }
-    if (ch == state.string_char) {
+    // The closing quote ends the string, and so does an unescaped newline (a
+    // bad string, CSS Syntax 3 §4.3.5), which is not part of it.
+    if (ch == state.string_char || ch == '\n' || ch == '\r' || ch == '\f') {
       state.in_string = false;
     }
     return CssCharAction::kContinue;
@@ -100,6 +107,13 @@ CssCharAction ParseCssChar(std::string_view css, size_t& pos,
     size_t end = css.find("*/", pos + 2);
     if (end == std::string_view::npos) return CssCharAction::kEndOfInput;
     pos = end + 1;  // Loop increment brings us past '*/'.
+    return CssCharAction::kContinue;
+  }
+  if (ch == '\\' && pos + 1 < css.size()) {
+    // An escape outside a string (`.a\'b`, `.a\{`) is part of an ident: the
+    // escaped quote opens no string and the escaped brace no block (CSS
+    // Syntax 3 §4.3.7).
+    ++pos;
     return CssCharAction::kContinue;
   }
   if (ch == '\'' || ch == '"') {

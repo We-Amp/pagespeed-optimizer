@@ -20,7 +20,9 @@
 #include "gtest/gtest.h"
 #include "lib/base/message_handler.h"
 #include "nlohmann/json.hpp"
+#include "src/browser/device_emulation.h"
 #include "src/worker/capture_handlers_internal.h"
+#include "test/test_util/cdp_scripted_peer.h"
 #include "test/test_util/tcp_client.h"
 #include "uv.h"
 
@@ -1418,6 +1420,200 @@ TEST(IsPrivateRemoteIpTest, AllowsPublicIpv6) {
 
 TEST(IsPrivateRemoteIpTest, EmptyOrNoPeerNotBlocked) {
   EXPECT_FALSE(IsPrivateRemoteIp(""));
+}
+
+// ---------------------------------------------------------------------------
+// The CDP pipeline against a scripted peer (test/test_util/cdp_scripted_peer.h)
+// ---------------------------------------------------------------------------
+
+class CaptureCdpTest : public ::testing::Test {
+ protected:
+  void SetUp() override {
+    ASSERT_TRUE(peer_.Start());
+    peer_.set_screenshot_b64(test::Base64Encode({0x89, 'P', 'N', 'G'}));
+  }
+  void TearDown() override { peer_.Stop(); }
+
+  // Starts a screenshot capture at `width` x `height` and drives it to the
+  // navigation; the caller then pushes the events that finish it.
+  void StartScreenshot(uint32_t width, uint32_t height) {
+    capture_internal::StartCaptureForTest(
+        peer_.client(), "https://example.com/", width, height,
+        /*is_waterfall=*/false, /*timeout_ms=*/30000,
+        [this](const capture_internal::CaptureOutcome& outcome) {
+          outcome_ = outcome;
+          done_ = true;
+        });
+    peer_.PumpUntil([this] { return peer_.SawCommand("Page.navigate"); }, 60);
+  }
+
+  // Finishes a started screenshot capture: networkIdle takes the screenshot
+  // and the state reports through `done`. Every capture a test starts is
+  // finished (or fails), so Cleanup() runs: it closes the target, stops the
+  // timeout timer and releases the client's event callback, the last owner
+  // of the CaptureState outside the answered command callbacks. After it the
+  // peer sees Target.closeTarget and nothing else references the state.
+  void FinishCapture() {
+    peer_.SendEvent("Page.lifecycleEvent", {{"name", "networkIdle"}},
+                    peer_.session_id(1));
+    peer_.PumpUntil([this] { return done_; }, 60);
+    ASSERT_TRUE(done_) << "the capture did not finish";
+    peer_.PumpUntil([this] { return peer_.SawCommand("Target.closeTarget"); },
+                    20);
+    EXPECT_TRUE(peer_.SawCommand("Target.closeTarget"))
+        << "Cleanup() did not run";
+  }
+
+  // Index of the first command with `method`, or -1.
+  int IndexOf(const std::string& method) const {
+    const auto& cmds = peer_.received_commands();
+    for (size_t i = 0; i < cmds.size(); ++i) {
+      if (cmds[i].value("method", "") == method) return static_cast<int>(i);
+    }
+    return -1;
+  }
+
+  test::ScriptedCdpPeer peer_;
+  capture_internal::CaptureOutcome outcome_;
+  bool done_ = false;
+};
+
+// The capture emulates the device the way every analysis render
+// does (src/browser/device_emulation.h): the device metrics, then touch, on
+// the capture's own session and before anything is enabled or navigated. A
+// phone viewport is a touch device.
+TEST_F(CaptureCdpTest, EmulatesAPhoneAsATouchDeviceBeforeNavigating) {
+  StartScreenshot(375, 667);
+  const int metrics = IndexOf("Emulation.setDeviceMetricsOverride");
+  const int touch = IndexOf("Emulation.setTouchEmulationEnabled");
+  const int network = IndexOf("Network.enable");
+  const int navigate = IndexOf("Page.navigate");
+  ASSERT_GE(metrics, 0) << "no device metrics";
+  ASSERT_GE(touch, 0) << "no touch emulation: the capture bypassed "
+                         "EmulateDevice";
+  ASSERT_GE(navigate, 0);
+  EXPECT_LT(metrics, touch) << "touch follows the device metrics";
+  // Then the phone's user agent, before the domains, so the
+  // navigation's requests and the page's window carry it.
+  const int ua = IndexOf("Emulation.setUserAgentOverride");
+  ASSERT_GE(ua, 0) << "a phone reports a phone's user agent";
+  EXPECT_LT(touch, ua) << "the user agent follows touch";
+  EXPECT_LT(ua, network) << "the emulation precedes the domains";
+  EXPECT_LT(network, navigate);
+
+  const auto& cmds = peer_.received_commands();
+  const json metrics_params = cmds[metrics].value("params", json::object());
+  EXPECT_EQ(metrics_params.value("width", 0), 375);
+  EXPECT_EQ(metrics_params.value("height", 0), 667);
+  EXPECT_TRUE(metrics_params.value("mobile", false));
+  EXPECT_EQ(cmds[metrics].value("sessionId", ""), peer_.session_id(1));
+  const json touch_params = cmds[touch].value("params", json::object());
+  EXPECT_TRUE(touch_params.value("enabled", false));
+  EXPECT_EQ(touch_params.value("maxTouchPoints", 0), 5);
+  EXPECT_EQ(cmds[touch].value("sessionId", ""), peer_.session_id(1));
+  EXPECT_EQ(cmds[ua].value("params", json::object()),
+            *UserAgentOverrideParams(375));
+  EXPECT_EQ(cmds[ua].value("sessionId", ""), peer_.session_id(1));
+  // The capture navigates to the page itself, which makes the page's window:
+  // no blank document first (LoadFreshBlankDocument is for the renders that
+  // write their document with Page.setDocumentContent).
+  int navigations = 0;
+  for (const auto& cmd : cmds) {
+    if (cmd.value("method", "") == "Page.navigate") ++navigations;
+  }
+  EXPECT_EQ(navigations, 1);
+  EXPECT_EQ(cmds[navigate].value("params", json::object()).value("url", ""),
+            "https://example.com/");
+
+  // The capture still completes: networkIdle takes the screenshot.
+  FinishCapture();
+  EXPECT_TRUE(outcome_.success) << outcome_.error_message;
+  EXPECT_EQ(outcome_.result_json.value("viewport_width", 0), 375);
+}
+
+// The desktop default (1280 px) is a window without touch, and the call is
+// still sent, disabled, so no target inherits a state.
+TEST_F(CaptureCdpTest, EmulatesADesktopWindowWithoutTouch) {
+  StartScreenshot(1280, 800);
+  const int metrics = IndexOf("Emulation.setDeviceMetricsOverride");
+  const int touch = IndexOf("Emulation.setTouchEmulationEnabled");
+  ASSERT_GE(metrics, 0);
+  ASSERT_GE(touch, 0);
+  EXPECT_LT(metrics, touch);
+  const auto& cmds = peer_.received_commands();
+  EXPECT_FALSE(
+      cmds[metrics].value("params", json::object()).value("mobile", true));
+  const json touch_params = cmds[touch].value("params", json::object());
+  EXPECT_FALSE(touch_params.value("enabled", true));
+  EXPECT_EQ(touch_params.value("maxTouchPoints", 0), 5);
+  // The desktop keeps the browser's own user agent.
+  EXPECT_EQ(IndexOf("Emulation.setUserAgentOverride"), -1);
+  FinishCapture();
+}
+
+// A tablet viewport reports a tablet's user agent.
+TEST_F(CaptureCdpTest, EmulatesATabletUserAgent) {
+  StartScreenshot(768, 1024);
+  const int touch = IndexOf("Emulation.setTouchEmulationEnabled");
+  const int ua = IndexOf("Emulation.setUserAgentOverride");
+  ASSERT_GE(touch, 0);
+  ASSERT_GE(ua, 0);
+  EXPECT_LT(touch, ua);
+  EXPECT_LT(ua, IndexOf("Page.navigate"));
+  EXPECT_EQ(peer_.received_commands()[ua].value("params", json::object()),
+            *UserAgentOverrideParams(768));
+  FinishCapture();
+}
+
+// A failed user agent override ends the capture with an error and navigates
+// nothing.
+TEST_F(CaptureCdpTest, AFailedUserAgentOverrideEndsTheCapture) {
+  peer_.SetResponder([this](int id, const std::string& method, const json&) {
+    if (method != "Emulation.setUserAgentOverride") return false;
+    peer_.RespondError(id, -32000, "no ua");
+    return true;
+  });
+  capture_internal::StartCaptureForTest(
+      peer_.client(), "https://example.com/", 375, 667,
+      /*is_waterfall=*/false, /*timeout_ms=*/30000,
+      [this](const capture_internal::CaptureOutcome& outcome) {
+        outcome_ = outcome;
+        done_ = true;
+      });
+  peer_.PumpUntil([this] { return done_; }, 60);
+  ASSERT_TRUE(done_);
+  EXPECT_FALSE(outcome_.success);
+  EXPECT_EQ(outcome_.error_message, "user agent setup failed");
+  EXPECT_FALSE(peer_.SawCommand("Page.navigate"));
+  peer_.PumpUntil([this] { return peer_.SawCommand("Target.closeTarget"); },
+                  20);
+  EXPECT_TRUE(peer_.SawCommand("Target.closeTarget"))
+      << "Cleanup() did not run";
+}
+
+// A failed emulation ends the capture with an error and navigates nothing.
+TEST_F(CaptureCdpTest, AFailedTouchEmulationEndsTheCapture) {
+  peer_.SetResponder([this](int id, const std::string& method, const json&) {
+    if (method != "Emulation.setTouchEmulationEnabled") return false;
+    peer_.RespondError(id, -32000, "no touch");
+    return true;
+  });
+  capture_internal::StartCaptureForTest(
+      peer_.client(), "https://example.com/", 375, 667,
+      /*is_waterfall=*/false, /*timeout_ms=*/30000,
+      [this](const capture_internal::CaptureOutcome& outcome) {
+        outcome_ = outcome;
+        done_ = true;
+      });
+  peer_.PumpUntil([this] { return done_; }, 60);
+  ASSERT_TRUE(done_);
+  EXPECT_FALSE(outcome_.success);
+  EXPECT_EQ(outcome_.error_message, "touch emulation setup failed");
+  EXPECT_FALSE(peer_.SawCommand("Page.navigate"));
+  peer_.PumpUntil([this] { return peer_.SawCommand("Target.closeTarget"); },
+                  20);
+  EXPECT_TRUE(peer_.SawCommand("Target.closeTarget"))
+      << "Cleanup() did not run";
 }
 
 }  // namespace

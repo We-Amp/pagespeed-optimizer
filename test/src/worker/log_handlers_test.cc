@@ -5,12 +5,14 @@
 // event loop, driven over TCP; plus direct reads of the ring on a loop the
 // test thread runs itself.
 
-#include <atomic>
 #include <chrono>
+#include <condition_variable>
+#include <cstdint>
 #include <cstdlib>
 #include <fstream>
 #include <iterator>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <thread>
 
@@ -20,6 +22,7 @@
 #include "src/worker/api_handlers.h"
 #include "src/worker/http_server.h"
 #include "src/worker/ws_handlers.h"
+#include "test/test_util/scoped_thread_join.h"
 #include "test/test_util/tcp_client.h"
 #include "uv.h"
 
@@ -150,6 +153,24 @@ class LogHandlersTest : public ::testing::Test {
     std::this_thread::sleep_for(std::chrono::milliseconds(200));
   }
 
+  // Read until the ring's newest entry is `seq`: a wait that ends on
+  // progress, bounded by a number of reads rather than by the clock alone.
+  // False if the ring never got there, or at once if a read got no answer
+  // (each of those already cost the client's whole receive timeout).
+  bool WaitForNewestSeq(uint64_t seq) {
+    for (int attempt = 0; attempt < 500; ++attempt) {
+      const std::string resp = Get("/v1/logs?limit=1");
+      if (resp.empty()) return false;
+      json j = ParseJsonBody(resp);
+      if (j.is_object() && j["entries"].size() == 1 &&
+          j["newest_seq"].get<uint64_t>() == seq) {
+        return true;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    return false;
+  }
+
   std::string SendRequest(const std::string& request) {
     return test::SendRequest(server_->bound_port(), request, 5);
   }
@@ -183,7 +204,7 @@ TEST_F(LogHandlersTest, DefaultsReturnNewestPageAscending) {
   ASSERT_EQ(j["entries"].size(), 3u);
   for (size_t i = 0; i < 3; ++i) {
     const json& e = j["entries"][i];
-    EXPECT_EQ(e.at("seq").get<uint64_t>(), i) << i;
+    EXPECT_EQ(e.at("seq").get<uint64_t>(), i + 1) << i;
     EXPECT_EQ(e["type"], "log");
     EXPECT_EQ(e["level"], "info");
     EXPECT_EQ(e["source"], "worker");
@@ -191,9 +212,9 @@ TEST_F(LogHandlersTest, DefaultsReturnNewestPageAscending) {
     EXPECT_EQ(e["message"], "entry " + std::to_string(i));
     EXPECT_TRUE(e.contains("timestamp"));
   }
-  EXPECT_EQ(j["next_since"].get<uint64_t>(), 2u);
-  EXPECT_EQ(j["oldest_seq"].get<uint64_t>(), 0u);
-  EXPECT_EQ(j["newest_seq"].get<uint64_t>(), 2u);
+  EXPECT_EQ(j["next_since"].get<uint64_t>(), 3u);
+  EXPECT_EQ(j["oldest_seq"].get<uint64_t>(), 1u);
+  EXPECT_EQ(j["newest_seq"].get<uint64_t>(), 3u);
   EXPECT_FALSE(j["gap"].get<bool>());
   EXPECT_FALSE(j["more"].get<bool>());
   EXPECT_EQ(j["shed_total"].get<uint64_t>(), 0u);
@@ -214,15 +235,46 @@ TEST_F(LogHandlersTest, EmptyRing) {
   EXPECT_TRUE(IsStreamId(j["stream_id"])) << j["stream_id"];
 }
 
+TEST_F(LogHandlersTest, CursorFromEmptyReadReturnsFirstEntry) {
+  // A first read of the empty ring hands out a cursor; the entries that
+  // arrive after it must all be returned to a poll carrying that cursor.
+  // (With numbering from 0, the empty read's next_since of 0 was also the
+  // first entry's own seq, and seq > since skipped that entry forever.)
+  json empty = ParseJsonBody(Get("/v1/logs"));
+  ASSERT_TRUE(empty.is_object());
+  ASSERT_EQ(empty["entries"].size(), 0u);
+  const uint64_t cursor = empty["next_since"].get<uint64_t>();
+
+  // Posted without PostLogs' fixed sleep: wait on progress (the ring's
+  // newest seq) instead, so a loaded runner cannot read before the drain.
+  for (int i = 0; i < 2; ++i) {
+    manager_->PostLog("info", "worker", "worker", "entry " + std::to_string(i));
+  }
+  ASSERT_TRUE(WaitForNewestSeq(2));
+  json j = ParseJsonBody(Get("/v1/logs?since=" + std::to_string(cursor)));
+  ASSERT_TRUE(j.is_object());
+  ASSERT_EQ(j["entries"].size(), 2u);
+  // Numbering starts at 1: seq 0 is never assigned, which is what keeps the
+  // empty ring's next_since of 0 unambiguous as "from the beginning".
+  EXPECT_EQ(j["entries"][0]["seq"].get<uint64_t>(), 1u);
+  EXPECT_EQ(j["entries"][0]["message"].get<std::string>(), "entry 0");
+  EXPECT_EQ(j["entries"][1]["seq"].get<uint64_t>(), 2u);
+  EXPECT_EQ(j["next_since"].get<uint64_t>(), 2u);
+  EXPECT_EQ(j["oldest_seq"].get<uint64_t>(), 1u);
+  EXPECT_FALSE(j["gap"].get<bool>());
+  EXPECT_FALSE(j["more"].get<bool>());
+}
+
 TEST_F(LogHandlersTest, SinceFiltersOlderEntries) {
   PostLogs(5);
   json j = ParseJsonBody(Get("/v1/logs?since=2"));
   ASSERT_TRUE(j.is_object());
-  ASSERT_EQ(j["entries"].size(), 2u);
+  ASSERT_EQ(j["entries"].size(), 3u);
   EXPECT_EQ(j["entries"][0]["seq"].get<uint64_t>(), 3u);
   EXPECT_EQ(j["entries"][1]["seq"].get<uint64_t>(), 4u);
-  EXPECT_EQ(j["next_since"].get<uint64_t>(), 4u);
-  EXPECT_EQ(j["oldest_seq"].get<uint64_t>(), 0u);
+  EXPECT_EQ(j["entries"][2]["seq"].get<uint64_t>(), 5u);
+  EXPECT_EQ(j["next_since"].get<uint64_t>(), 5u);
+  EXPECT_EQ(j["oldest_seq"].get<uint64_t>(), 1u);
   EXPECT_FALSE(j["gap"].get<bool>());
   EXPECT_FALSE(j["more"].get<bool>());
 }
@@ -236,7 +288,7 @@ TEST_F(LogHandlersTest, SinceBeyondNewestReturnsEmptyPage) {
   ASSERT_TRUE(j.is_object());
   EXPECT_EQ(j["entries"].size(), 0u);
   EXPECT_EQ(j["next_since"].get<uint64_t>(), 99u);  // the cursor survives
-  EXPECT_EQ(j["newest_seq"].get<uint64_t>(), 2u);
+  EXPECT_EQ(j["newest_seq"].get<uint64_t>(), 3u);
   EXPECT_FALSE(j["gap"].get<bool>());
   EXPECT_FALSE(j["more"].get<bool>());
   EXPECT_EQ(j["stream_id"], manager_->stream_id());
@@ -247,9 +299,9 @@ TEST_F(LogHandlersTest, LimitIsRespected) {
   // No since: the NEWEST limit entries, ascending; nothing newer is left.
   json newest = ParseJsonBody(Get("/v1/logs?limit=3"));
   ASSERT_EQ(newest["entries"].size(), 3u);
-  EXPECT_EQ(newest["entries"][0]["seq"].get<uint64_t>(), 7u);
-  EXPECT_EQ(newest["entries"][2]["seq"].get<uint64_t>(), 9u);
-  EXPECT_EQ(newest["next_since"].get<uint64_t>(), 9u);
+  EXPECT_EQ(newest["entries"][0]["seq"].get<uint64_t>(), 8u);
+  EXPECT_EQ(newest["entries"][2]["seq"].get<uint64_t>(), 10u);
+  EXPECT_EQ(newest["next_since"].get<uint64_t>(), 10u);
   EXPECT_FALSE(newest["more"].get<bool>());
 
   // With since: the OLDEST matching entries, so a burst pages through, and
@@ -261,24 +313,25 @@ TEST_F(LogHandlersTest, LimitIsRespected) {
   EXPECT_EQ(paged["next_since"].get<uint64_t>(), 3u);
   EXPECT_TRUE(paged["more"].get<bool>());
 
-  json last = ParseJsonBody(Get("/v1/logs?since=6&limit=3"));
+  json last = ParseJsonBody(Get("/v1/logs?since=7&limit=3"));
   ASSERT_EQ(last["entries"].size(), 3u);
-  EXPECT_EQ(last["next_since"].get<uint64_t>(), 9u);
+  EXPECT_EQ(last["entries"][0]["seq"].get<uint64_t>(), 8u);
+  EXPECT_EQ(last["next_since"].get<uint64_t>(), 10u);
   EXPECT_FALSE(last["more"].get<bool>());
 }
 
 TEST_F(LogHandlersTest, LimitDefaultsAndClamps) {
   PostLogs(505);
-  // Absent -> 500 (the newest 500 of 505: seqs 5..504).
+  // Absent -> 500 (the newest 500 of 505: seqs 6..505).
   json def = ParseJsonBody(Get("/v1/logs"));
   ASSERT_EQ(def["entries"].size(), 500u);
-  EXPECT_EQ(def["entries"][0]["seq"].get<uint64_t>(), 5u);
-  EXPECT_EQ(def["next_since"].get<uint64_t>(), 504u);
+  EXPECT_EQ(def["entries"][0]["seq"].get<uint64_t>(), 6u);
+  EXPECT_EQ(def["next_since"].get<uint64_t>(), 505u);
 
   // Over the maximum -> clamped to 500, not a 400.
   json clamped = ParseJsonBody(Get("/v1/logs?limit=600"));
   ASSERT_EQ(clamped["entries"].size(), 500u);
-  EXPECT_EQ(clamped["entries"][0]["seq"].get<uint64_t>(), 5u);
+  EXPECT_EQ(clamped["entries"][0]["seq"].get<uint64_t>(), 6u);
 
   // Zero -> the default, mirroring /v1/cache/urls.
   json zero = ParseJsonBody(Get("/v1/logs?limit=0"));
@@ -286,7 +339,7 @@ TEST_F(LogHandlersTest, LimitDefaultsAndClamps) {
 
   json seven = ParseJsonBody(Get("/v1/logs?limit=7"));
   ASSERT_EQ(seven["entries"].size(), 7u);
-  EXPECT_EQ(seven["entries"][0]["seq"].get<uint64_t>(), 498u);
+  EXPECT_EQ(seven["entries"][0]["seq"].get<uint64_t>(), 499u);
 }
 
 TEST_F(LogHandlersTest, MalformedParamsAre400) {
@@ -318,28 +371,28 @@ TEST_F(LogHandlersTest, UnknownParamsAreIgnoredLikeOtherEndpoints) {
 }
 
 TEST_F(LogHandlersTest, GapAfterRingWrap) {
-  PostLogs(2050);  // the ring retains seqs 50..2049
+  PostLogs(2050);  // the ring retains seqs 51..2050
   json gap = ParseJsonBody(Get("/v1/logs?since=10"));
   EXPECT_TRUE(gap["gap"].get<bool>());
-  EXPECT_EQ(gap["oldest_seq"].get<uint64_t>(), 50u);
-  EXPECT_EQ(gap["newest_seq"].get<uint64_t>(), 2049u);
+  EXPECT_EQ(gap["oldest_seq"].get<uint64_t>(), 51u);
+  EXPECT_EQ(gap["newest_seq"].get<uint64_t>(), 2050u);
   ASSERT_EQ(gap["entries"].size(), 500u);  // default page, oldest first
-  EXPECT_EQ(gap["entries"][0]["seq"].get<uint64_t>(), 50u);
-  EXPECT_EQ(gap["next_since"].get<uint64_t>(), 549u);
+  EXPECT_EQ(gap["entries"][0]["seq"].get<uint64_t>(), 51u);
+  EXPECT_EQ(gap["next_since"].get<uint64_t>(), 550u);
   EXPECT_TRUE(gap["more"].get<bool>());
 
   // since + 1 == oldest_seq: nothing was dropped, no gap.
-  json contiguous = ParseJsonBody(Get("/v1/logs?since=49&limit=1"));
+  json contiguous = ParseJsonBody(Get("/v1/logs?since=50&limit=1"));
   EXPECT_FALSE(contiguous["gap"].get<bool>());
   ASSERT_EQ(contiguous["entries"].size(), 1u);
-  EXPECT_EQ(contiguous["entries"][0]["seq"].get<uint64_t>(), 50u);
+  EXPECT_EQ(contiguous["entries"][0]["seq"].get<uint64_t>(), 51u);
 
   // Up to date: empty page, no gap, cursor preserved, nothing more.
-  json current = ParseJsonBody(Get("/v1/logs?since=2049"));
+  json current = ParseJsonBody(Get("/v1/logs?since=2050"));
   EXPECT_EQ(current["entries"].size(), 0u);
   EXPECT_FALSE(current["gap"].get<bool>());
   EXPECT_FALSE(current["more"].get<bool>());
-  EXPECT_EQ(current["next_since"].get<uint64_t>(), 2049u);
+  EXPECT_EQ(current["next_since"].get<uint64_t>(), 2050u);
 }
 
 TEST_F(LogHandlersTest, HeadSendsNoBody) {
@@ -384,7 +437,7 @@ TEST_F(LogHandlersTest, OversizedMessagesStayWithinThePageBudget) {
   ASSERT_TRUE(newest.is_object());
   ASSERT_GE(newest["entries"].size(), 1u);
   EXPECT_LT(newest["entries"].size(), 500u);
-  EXPECT_EQ(newest["entries"].back()["seq"].get<uint64_t>(), 499u);
+  EXPECT_EQ(newest["entries"].back()["seq"].get<uint64_t>(), 500u);
   EXPECT_FALSE(newest["more"].get<bool>());
   EXPECT_EQ(newest["entries"][0]["message"].get<std::string>(), cut);
 
@@ -409,34 +462,113 @@ TEST_F(LogHandlersTest, OversizedMessagesStayWithinThePageBudget) {
     more = j["more"].get<bool>();
   }
   EXPECT_FALSE(more);
-  EXPECT_EQ(since, 499u);
+  EXPECT_EQ(since, 500u);
 }
 
 TEST_F(LogHandlersTest, ConcurrentAppendsWhileReading) {
-  std::atomic<bool> stop{false};
-  std::thread poster([this, &stop] {
-    int i = 0;
-    while (!stop.load(std::memory_order_relaxed)) {
-      manager_->PostLog("info", "worker", "worker",
-                        "concurrent " + std::to_string(i++));
+  // A reader never sees a torn or out-of-order page while another thread
+  // appends.  The appender is bounded by the reader's progress, not by the
+  // clock: each read grants it one burst, so the loop thread's share of the
+  // work is the same on a fast host and on a starved sanitizer build.  (A
+  // free-running appender keeps the pending queue at its bound, so every
+  // loop iteration drains a full queue and one request costs several of
+  // those -- seconds per request under a sanitizer on a loaded host.)
+  //
+  // The numbers: the ring is filled first, so every page is a full one and
+  // every append evicts; 50 reads x 80 appends then turn the whole ring over
+  // twice underneath the reader.  One burst is far below the pending-queue
+  // bound, so nothing is shed and the sequence numbers are exact.
+  constexpr uint64_t kRingCapacity = 2000;  // what the ring retains
+  constexpr int kReads = 50;
+  constexpr int kAppendsPerRead = 80;
+  constexpr uint64_t kAppends = uint64_t{kReads} * kAppendsPerRead;
+  for (uint64_t i = 0; i < kRingCapacity; ++i) {
+    manager_->PostLog("info", "worker", "worker", "fill " + std::to_string(i));
+  }
+  ASSERT_TRUE(WaitForNewestSeq(kRingCapacity));
+
+  std::mutex mutex;
+  std::condition_variable wake;
+  uint64_t granted = 0;  // appends the poster may have made so far
+  bool done = false;     // no further grants; guarded by `mutex` like granted
+  std::thread poster([&] {
+    uint64_t posted = 0;
+    for (;;) {
+      uint64_t target;
+      {
+        std::unique_lock<std::mutex> lock(mutex);
+        wake.wait(lock, [&] { return done || posted < granted; });
+        if (posted == granted) return;  // done, and every grant is used
+        target = granted;
+      }
+      for (; posted < target; ++posted) {
+        manager_->PostLog("info", "worker", "worker",
+                          "concurrent " + std::to_string(posted));
+      }
     }
   });
-  for (int req = 0; req < 50; ++req) {
+  test::ScopedThreadJoin poster_guard(poster, [&] {
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      done = true;
+    }
+    wake.notify_one();
+  });
+
+  uint64_t last_newest = kRingCapacity;
+  int mid_burst = 0;
+  for (int req = 0; req < kReads; ++req) {
+    {
+      std::lock_guard<std::mutex> lock(mutex);
+      granted += kAppendsPerRead;
+    }
+    wake.notify_one();  // the burst lands while this read is in flight
     std::string resp = Get("/v1/logs?limit=500");
     ASSERT_EQ(StatusCode(resp), 200) << req;
     json j = ParseJsonBody(resp);
-    ASSERT_TRUE(j.is_object()) << req;  // never a torn document
+    ASSERT_TRUE(j.is_object()) << req;            // never a torn document
+    ASSERT_EQ(j["entries"].size(), 500u) << req;  // the ring stays full
     uint64_t prev = 0;
     bool first = true;
     for (const auto& e : j["entries"]) {
       const uint64_t seq = e.at("seq").get<uint64_t>();
       if (!first) EXPECT_EQ(seq, prev + 1) << req;  // contiguous, ascending
+      // One appender and nothing shed, so a seq names its message (seqs
+      // start at 1: fill i carries seq i + 1).
+      EXPECT_EQ(e.at("message").get<std::string>(),
+                seq <= kRingCapacity
+                    ? "fill " + std::to_string(seq - 1)
+                    : "concurrent " + std::to_string(seq - kRingCapacity - 1))
+          << req;
       prev = seq;
       first = false;
     }
+    // The page ends at the newest entry, and the ring only moves forward.
+    const uint64_t newest = j["newest_seq"].get<uint64_t>();
+    EXPECT_EQ(prev, newest) << req;
+    EXPECT_GE(newest, last_newest) << req;
+    EXPECT_EQ(j["oldest_seq"].get<uint64_t>(), newest + 1 - kRingCapacity)
+        << req;
+    EXPECT_EQ(j["shed_total"].get<uint64_t>(), 0u) << req;
+    // Bursts are whole multiples of kAppendsPerRead, so any other count of
+    // appends in the ring means this page was built partway through one.
+    if ((newest - kRingCapacity) % kAppendsPerRead != 0) ++mid_burst;
+    last_newest = newest;
   }
-  stop.store(true);
-  poster.join();
+  // Reported, not asserted: where a burst lands relative to a read is the
+  // scheduler's choice, and no check above depends on it.
+  GTEST_LOG_(INFO) << mid_burst << " of " << kReads
+                   << " pages were built partway through a burst";
+
+  // Every granted append arrives, in order, with none shed.
+  poster_guard.StopAndJoin();
+  EXPECT_TRUE(WaitForNewestSeq(kRingCapacity + kAppends));
+  json last = ParseJsonBody(Get("/v1/logs?limit=1"));
+  ASSERT_TRUE(last.is_object());
+  ASSERT_EQ(last["entries"].size(), 1u);
+  EXPECT_EQ(last["entries"][0]["message"].get<std::string>(),
+            "concurrent " + std::to_string(kAppends - 1));
+  EXPECT_EQ(last["shed_total"].get<uint64_t>(), 0u);
 }
 
 TEST_F(LogHandlersTest, ResponseShapeIsStable) {
@@ -574,12 +706,12 @@ TEST_F(LogRingTest, ShedEntriesAreCountedNotSequenced) {
   Drain();
   json page = manager_->BuildLogsResponse(0, false, 500);
   EXPECT_EQ(page["shed_total"].get<uint64_t>(), 50u);
-  // Shed posts burned no seq: 10000 entries, seqs 0..9999, the ring keeps
+  // Shed posts burned no seq: 10000 entries, seqs 1..10000, the ring keeps
   // the newest 2000.
-  EXPECT_EQ(page["newest_seq"].get<uint64_t>(), 9999u);
-  EXPECT_EQ(page["oldest_seq"].get<uint64_t>(), 8000u);
+  EXPECT_EQ(page["newest_seq"].get<uint64_t>(), 10000u);
+  EXPECT_EQ(page["oldest_seq"].get<uint64_t>(), 8001u);
   ASSERT_EQ(page["entries"].size(), 500u);
-  EXPECT_EQ(page["entries"][0]["seq"].get<uint64_t>(), 9500u);
+  EXPECT_EQ(page["entries"][0]["seq"].get<uint64_t>(), 9501u);
   // A cursor inside the ring maps straight to the next entry.
   json from = manager_->BuildLogsResponse(8999, true, 2);
   ASSERT_EQ(from["entries"].size(), 2u);

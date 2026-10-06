@@ -246,7 +246,9 @@ json BuildStatsJson(ApiContext& ctx) {
                         {"skipped", s.html_assembly_skipped.load()},
                         {"css_aborted", s.critical_css_aborted.load()},
                         {"critical_css_skipped_high_coverage",
-                         s.critical_css_skipped_high_coverage.load()}};
+                         s.critical_css_skipped_high_coverage.load()},
+                        {"critical_css_skipped_byte_cap",
+                         s.critical_css_skipped_byte_cap.load()}};
   j["alternates"] = {
       {"writes", s.alternate_writes.load()},
       {"write_failures", s.alternate_write_failures.load()},

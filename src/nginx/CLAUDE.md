@@ -228,6 +228,15 @@ every ~1 second for changes.
 - `socket_path` — Unix socket for worker notifications
 - `disable_html` — Whether HTML optimization is disabled (`true`/`false`);
   when `true`, nginx sets `pagespeed_critical_css off` behavior
+- `cache_dir_generation` — the optimizer's compiled-in cache-directory
+  generation, compared with the module's own (`kCacheDirGeneration`, shared,
+  not copied) by `src/nginx/cache_generation_check.h`. Mismatch = pass-through
+  with the cache off (the GetCache gate + `ctx->uncacheable` in the ACCESS
+  handler), one `[error]` per change / config cycle; absent = unknown, cache
+  used as before, one `[warn]`. Re-evaluated on every shared-config read, so
+  recovery needs no reload. Exposed as `$pagespeed_cache_generation`,
+  `$pagespeed_cache_generation_module`, `$pagespeed_cache_generation_optimizer`.
+  Integration test: `t/106-cache-generation.t`.
 
 This replaces the former `pagespeed_worker_socket` and `pagespeed_critical_css`
 directives. Both are now configured on the worker side and shared automatically.

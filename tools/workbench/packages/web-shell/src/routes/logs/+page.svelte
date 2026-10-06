@@ -229,7 +229,7 @@
         <div class="toolbar-info">
           <span class="log-count">{filteredLogs.length.toLocaleString()} / {logs.length.toLocaleString()} entries</span>
           {#if droppedCount > 0}
-            <span class="ps-badge ps-badge-warning" title="Log entries dropped because the worker's ring buffer overflowed. Increase buffer size or reduce log verbosity.">{droppedCount} dropped</span>
+            <span class="ps-badge ps-badge-warning" title="Log lines that were not shown here: they left the optimizer's log buffer (its most recent 2000 lines) before they could be sent, and they are not kept anywhere else. GET /v1/logs returns what the buffer still holds.">{droppedCount} dropped</span>
           {/if}
         </div>
 

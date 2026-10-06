@@ -125,8 +125,9 @@ enum class SentinelPayload : uint8_t {
 // guessing, which is the whole reason the byte is spent.
 inline constexpr uint8_t kHeadersSidecarFormatVersion = 1;   // kHeadersSidecar
 inline constexpr uint8_t kNegativeVerdictFormatVersion = 1;  // kNegativeVerdict
-// Payload format version of the kDeclineTombstone class.
-inline constexpr uint8_t kDeclineTombstoneFormatVersion = 1;
+// Payload format version of the kDeclineTombstone class.  v2 added the
+// quality-search generation byte that the payload carries after this one.
+inline constexpr uint8_t kDeclineTombstoneFormatVersion = 2;
 
 // WHO may write an entry class through the generic sentinel write surface —
 // a different question from whether the class exists.

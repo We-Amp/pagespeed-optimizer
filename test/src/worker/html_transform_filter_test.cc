@@ -11,6 +11,7 @@
 #include <span>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -24,6 +25,7 @@
 #include "lib/html/html_keywords.h"
 #include "lib/html/html_parse.h"
 #include "lib/html/html_writer_filter.h"
+#include "src/worker/cascade_layer_order.h"
 #include "src/worker/html_scanner.h"
 
 namespace pagespeed {
@@ -397,6 +399,317 @@ TEST(HtmlTransformFilterTest, TrackingPixelNotPromotedToFetchpriority) {
       << "The first plausible image should take the promotion instead";
   EXPECT_EQ(tag_around("hero.jpg").find("loading=\"lazy\""), std::string::npos)
       << "The promoted image must not be lazy-loaded";
+}
+
+// An <img> or <iframe> inside <noscript> (and <template>,
+// <noembed>, <noframes>) does not exist for a browser running scripts. It
+// gets no transform, does not take the fetchpriority fallback, and does not
+// use up the above-fold window; the author's no-JS fallback is left as
+// written.
+TEST(HtmlTransformFilterTest, ElementsInsideNoscriptGetNoTransformNorSlot) {
+  HtmlTransformConfig config;
+  config.enable_critical_css = false;
+  config.enable_lazy_load = true;
+  config.enable_image_dimensions = false;
+  config.enable_lcp_preload = false;
+
+  auto tag_around = [](const std::string& result, std::string_view needle) {
+    auto pos = result.find(needle);
+    EXPECT_NE(pos, std::string::npos) << needle;
+    auto start = result.rfind('<', pos);
+    auto end = result.find('>', pos);
+    return result.substr(start, end - start + 1);
+  };
+
+  // No LCP candidate: the fallback promotion goes to the first image the
+  // page creates, not to the <noscript> one before it.
+  std::string no_candidate = TransformHtml(
+      "<html><head></head><body>"
+      "<noscript><img src=\"/ns.jpg\" width=\"1200\" height=\"600\">"
+      "</noscript>"
+      "<img src=\"/first.jpg\">"
+      "<img src=\"/second.jpg\">"
+      "</body></html>",
+      "http://example.com/", config);
+  EXPECT_EQ(tag_around(no_candidate, "/ns.jpg"),
+            "<img src=\"/ns.jpg\" width=\"1200\" height=\"600\">")
+      << no_candidate;
+  EXPECT_NE(
+      tag_around(no_candidate, "/first.jpg").find("fetchpriority=\"high\""),
+      std::string::npos)
+      << no_candidate;
+  EXPECT_NE(tag_around(no_candidate, "/second.jpg").find("loading=\"lazy\""),
+            std::string::npos)
+      << no_candidate;
+
+  // With a candidate, the above-fold window (3 images) is counted over the
+  // images the page creates: the third real image is still inside it, the
+  // fourth is not. A <noscript> iframe does not take the one iframe slot
+  // either.
+  LcpCandidate lcp;
+  lcp.src = "/first.jpg";
+  std::string with_candidate = TransformHtml(
+      "<html><head></head><body>"
+      "<template><img src=\"/tpl.jpg\"></template>"
+      "<noscript><img src=\"/ns.jpg\" width=\"1200\" height=\"600\">"
+      "<iframe src=\"/nojs-embed.html\"></iframe></noscript>"
+      "<img src=\"/first.jpg\">"
+      "<img src=\"/second.jpg\">"
+      "<img src=\"/third.jpg\">"
+      "<img src=\"/fourth.jpg\">"
+      "<iframe src=\"/embed.html\"></iframe>"
+      "</body></html>",
+      "http://example.com/", config, "", nullptr, "", lcp);
+  EXPECT_EQ(tag_around(with_candidate, "/tpl.jpg"), "<img src=\"/tpl.jpg\">");
+  EXPECT_EQ(tag_around(with_candidate, "/ns.jpg"),
+            "<img src=\"/ns.jpg\" width=\"1200\" height=\"600\">");
+  EXPECT_EQ(tag_around(with_candidate, "/nojs-embed.html"),
+            "<iframe src=\"/nojs-embed.html\">");
+  EXPECT_NE(
+      tag_around(with_candidate, "/first.jpg").find("fetchpriority=\"high\""),
+      std::string::npos);
+  EXPECT_EQ(tag_around(with_candidate, "/third.jpg").find("loading=\"lazy\""),
+            std::string::npos)
+      << "the third real image is still inside the above-fold window: "
+      << with_candidate;
+  EXPECT_NE(tag_around(with_candidate, "/fourth.jpg").find("loading=\"lazy\""),
+            std::string::npos)
+      << with_candidate;
+  EXPECT_EQ(tag_around(with_candidate, "/embed.html").find("loading=\"lazy\""),
+            std::string::npos)
+      << "the first iframe the page creates keeps the exemption: "
+      << with_candidate;
+}
+
+// The script-loaded hero and the lazy-load placeholder.
+TEST(HtmlTransformFilterTest, ScriptLoadedHeroPromotesNothing) {
+  HtmlTransformConfig config;
+  config.enable_critical_css = false;
+  config.enable_lazy_load = true;
+  config.enable_image_dimensions = false;
+  config.enable_lcp_preload = true;
+
+  auto tag_around = [](const std::string& result, std::string_view needle) {
+    auto pos = result.find(needle);
+    EXPECT_NE(pos, std::string::npos) << needle;
+    auto start = result.rfind('<', pos);
+    auto end = result.find('>', pos);
+    return result.substr(start, end - start + 1);
+  };
+
+  const std::string page =
+      "<html><head></head><body>"
+      "<div class=\"hero\">"
+      "<img data-src=\"/hero.jpg\" class=\"lazy\">"
+      "<noscript><img src=\"/hero.jpg\" width=\"1200\" height=\"600\">"
+      "</noscript>"
+      "</div>"
+      "<div><img src=\"/below.jpg\"></div>"
+      "<div><img src=\"/second.jpg\"></div>"
+      "<div><img src=\"/third.jpg\"></div>"
+      "<div><img src=\"/fourth.jpg\"></div>"
+      "</body></html>";
+
+  // What the scanner reports for this page: no candidate, hero loaded by
+  // script. Nothing is promoted (the placeholder has nothing to fetch and
+  // the next image is probably below the fold), no preload is injected, and
+  // the above-fold window is kept as it is with a named candidate: the first
+  // three body images, placeholder included, are not lazy-loaded.
+  LcpCandidate script_loaded;
+  script_loaded.script_loaded_hero = true;
+  std::string out = TransformHtml(page, "http://example.com/", config, "",
+                                  nullptr, "", script_loaded);
+  EXPECT_EQ(out.find("fetchpriority"), std::string::npos) << out;
+  EXPECT_EQ(out.find("rel=\"preload\""), std::string::npos) << out;
+  EXPECT_EQ(tag_around(out, "/hero.jpg\" class"),
+            "<img data-src=\"/hero.jpg\" class=\"lazy\">")
+      << out;
+  EXPECT_EQ(tag_around(out, "/below.jpg"), "<img src=\"/below.jpg\">") << out;
+  EXPECT_EQ(tag_around(out, "/second.jpg"), "<img src=\"/second.jpg\">") << out;
+  EXPECT_NE(tag_around(out, "/third.jpg").find("loading=\"lazy\""),
+            std::string::npos)
+      << out;
+  EXPECT_NE(tag_around(out, "/fourth.jpg").find("loading=\"lazy\""),
+            std::string::npos)
+      << out;
+
+  // Without the scanner's verdict (a placeholder that is not a script-loaded
+  // hero, and no candidate found), the placeholder still never takes the
+  // fetchpriority fallback: it goes to the first image that loads. Inside the
+  // window the placeholder is left as written.
+  std::string no_candidate = TransformHtml(page, "http://example.com/", config);
+  EXPECT_EQ(tag_around(no_candidate, "/hero.jpg\" class"),
+            "<img data-src=\"/hero.jpg\" class=\"lazy\">")
+      << no_candidate;
+  EXPECT_NE(
+      tag_around(no_candidate, "/below.jpg").find("fetchpriority=\"high\""),
+      std::string::npos)
+      << no_candidate;
+  EXPECT_NE(tag_around(no_candidate, "/second.jpg").find("loading=\"lazy\""),
+            std::string::npos)
+      << no_candidate;
+
+  // A placeholder past the above-fold window is lazy-loaded like any image,
+  // and a data: stand-in src counts as no src.
+  std::string late = TransformHtml(
+      "<html><head></head><body>"
+      "<img src=\"/a.jpg\"><img src=\"/b.jpg\"><img src=\"/c.jpg\">"
+      "<img src=\"data:image/gif;base64,R0lGOD\" data-src=\"/d.jpg\">"
+      "</body></html>",
+      "http://example.com/", config);
+  EXPECT_NE(tag_around(late, "/a.jpg").find("fetchpriority=\"high\""),
+            std::string::npos)
+      << late;
+  EXPECT_NE(tag_around(late, "/d.jpg").find("loading=\"lazy\""),
+            std::string::npos)
+      << late;
+  std::string data_first = TransformHtml(
+      "<html><head></head><body>"
+      "<img src=\"data:image/gif;base64,R0lGOD\" data-src=\"/d.jpg\">"
+      "<img src=\"/a.jpg\">"
+      "</body></html>",
+      "http://example.com/", config);
+  EXPECT_EQ(tag_around(data_first, "/d.jpg"),
+            "<img src=\"data:image/gif;base64,R0lGOD\" data-src=\"/d.jpg\">")
+      << data_first;
+  EXPECT_NE(tag_around(data_first, "/a.jpg").find("fetchpriority=\"high\""),
+            std::string::npos)
+      << data_first;
+
+  // An <img> that loads from its srcset without a src, or from a <source
+  // srcset> sibling in <picture>, has a source: it is not a placeholder and
+  // keeps the fallback promotion, as before.
+  std::string srcset_only = TransformHtml(
+      "<html><head></head><body>"
+      "<img srcset=\"/hero.jpg 1x, /hero@2x.jpg 2x\" sizes=\"100vw\" alt=\"h\">"
+      "<img src=\"/a.jpg\">"
+      "</body></html>",
+      "http://example.com/", config);
+  EXPECT_NE(
+      tag_around(srcset_only, "/hero.jpg 1x").find("fetchpriority=\"high\""),
+      std::string::npos)
+      << srcset_only;
+  EXPECT_EQ(tag_around(srcset_only, "/a.jpg").find("fetchpriority"),
+            std::string::npos)
+      << srcset_only;
+  std::string picture = TransformHtml(
+      "<html><head></head><body>"
+      "<picture><source srcset=\"/hero.webp\" type=\"image/webp\">"
+      "<img alt=\"h\"></picture>"
+      "<img src=\"/a.jpg\">"
+      "</body></html>",
+      "http://example.com/", config);
+  EXPECT_NE(picture.find("<img alt=\"h\" fetchpriority=\"high\">"),
+            std::string::npos)
+      << picture;
+  EXPECT_EQ(tag_around(picture, "/a.jpg").find("fetchpriority"),
+            std::string::npos)
+      << picture;
+  // A <picture> whose <source> only has a data-srcset gives the loader the
+  // choice: its src-less <img> is a placeholder.
+  std::string lazy_picture = TransformHtml(
+      "<html><head></head><body>"
+      "<picture><source data-srcset=\"/hero.webp\" type=\"image/webp\">"
+      "<img data-src=\"/hero.jpg\" class=\"lazy\"></picture>"
+      "<img src=\"/a.jpg\">"
+      "</body></html>",
+      "http://example.com/", config);
+  EXPECT_EQ(tag_around(lazy_picture, "/hero.jpg\" class"),
+            "<img data-src=\"/hero.jpg\" class=\"lazy\">")
+      << lazy_picture;
+  EXPECT_NE(tag_around(lazy_picture, "/a.jpg").find("fetchpriority=\"high\""),
+            std::string::npos)
+      << lazy_picture;
+}
+
+// A stand-in src (`/blank.gif`) next to a lazy data attribute is
+// a placeholder for the lazy-load pass too: it never takes the fetchpriority
+// fallback, is left as written inside the above-fold window, and is
+// lazy-loaded past it. A real src with a lazy data attribute is an image that
+// loads, and keeps the fallback; the transform filter cannot see the
+// <noscript> copy that comes after it (that is the scanner's leg, and its
+// verdict arrives as script_loaded_hero).
+TEST(HtmlTransformFilterTest, StandInPlaceholderNeverTakesTheFallback) {
+  HtmlTransformConfig config;
+  config.enable_critical_css = false;
+  config.enable_lazy_load = true;
+  config.enable_image_dimensions = false;
+  config.enable_lcp_preload = true;
+
+  auto tag_around = [](const std::string& result, std::string_view needle) {
+    auto pos = result.find(needle);
+    EXPECT_NE(pos, std::string::npos) << needle;
+    auto start = result.rfind('<', pos);
+    auto end = result.find('>', pos);
+    return result.substr(start, end - start + 1);
+  };
+
+  // Before the fix /blank.gif, the first body image, took the fallback.
+  std::string out = TransformHtml(
+      "<html><head></head><body>"
+      "<img src=\"/blank.gif\" data-src=\"/hero.jpg\" class=\"lazy\">"
+      "<img src=\"/a.jpg\"><img src=\"/b.jpg\"><img src=\"/c.jpg\">"
+      "</body></html>",
+      "http://example.com/", config);
+  EXPECT_EQ(tag_around(out, "/blank.gif"),
+            "<img src=\"/blank.gif\" data-src=\"/hero.jpg\" class=\"lazy\">")
+      << out;
+  EXPECT_NE(tag_around(out, "/a.jpg").find("fetchpriority=\"high\""),
+            std::string::npos)
+      << out;
+  // Without a candidate the promoted image is the one protected; the rest
+  // are lazy-loaded, as before.
+  EXPECT_NE(tag_around(out, "/b.jpg").find("loading=\"lazy\""),
+            std::string::npos)
+      << out;
+  EXPECT_NE(tag_around(out, "/c.jpg").find("loading=\"lazy\""),
+            std::string::npos)
+      << out;
+
+  // Past the window the stand-in is lazy-loaded like any image.
+  std::string late = TransformHtml(
+      "<html><head></head><body>"
+      "<img src=\"/a.jpg\"><img src=\"/b.jpg\"><img src=\"/c.jpg\">"
+      "<img src=\"/img/placeholder.png\" data-src=\"/d.jpg\">"
+      "</body></html>",
+      "http://example.com/", config);
+  EXPECT_NE(tag_around(late, "/placeholder.png").find("loading=\"lazy\""),
+            std::string::npos)
+      << late;
+
+  // A real src with a lazy data attribute loads and keeps the fallback, as
+  // before; so does a stand-in name without the data attribute.
+  for (const auto& [first, needle] :
+       std::vector<std::pair<std::string, std::string>>{
+           {"<img src=\"/hero-lqip.jpg\" data-src=\"/hero.jpg\">",
+            "/hero-lqip.jpg"},
+           {"<img src=\"/blank.gif\" class=\"lazy\">", "/blank.gif"},
+       }) {
+    std::string real = TransformHtml("<html><head></head><body>" + first +
+                                         "<img src=\"/a.jpg\"></body></html>",
+                                     "http://example.com/", config);
+    EXPECT_NE(tag_around(real, needle).find("fetchpriority=\"high\""),
+              std::string::npos)
+        << first << " in " << real;
+    EXPECT_EQ(tag_around(real, "/a.jpg"),
+              "<img src=\"/a.jpg\" loading=\"lazy\">")
+        << first << " in " << real;
+  }
+
+  // The scanner's verdict for the hero shape: nothing promoted, the stand-in
+  // and the next image left as written.
+  LcpCandidate script_loaded;
+  script_loaded.script_loaded_hero = true;
+  std::string hero = TransformHtml(
+      "<html><head></head><body><div class=\"hero\">"
+      "<img src=\"/blank.gif\" data-src=\"/hero.jpg\" class=\"lazy\">"
+      "<noscript><img src=\"/hero.jpg\"></noscript></div>"
+      "<div><img src=\"/below.jpg\"></div>"
+      "</body></html>",
+      "http://example.com/", config, "", nullptr, "", script_loaded);
+  EXPECT_EQ(hero.find("fetchpriority"), std::string::npos) << hero;
+  EXPECT_EQ(hero.find("rel=\"preload\""), std::string::npos) << hero;
+  EXPECT_EQ(tag_around(hero, "/below.jpg"), "<img src=\"/below.jpg\">") << hero;
 }
 
 TEST(HtmlTransformFilterTest, HiddenImagesGetNoTransform) {
@@ -4073,6 +4386,576 @@ TEST(HtmlTransformFilterTest, PermissiveMetaCspAllowsSpeculationRules) {
       "http://example.com/", config, "", nullptr, "", {}, {}, spec_urls);
 
   EXPECT_NE(result.find("speculationrules"), std::string::npos);
+}
+
+// ========== Critical CSS placement ==========
+//
+// The block duplicates rules of the page's stylesheets, filtered to the fold
+// and to the variant's viewport class. Equal-specificity ties resolve by source
+// order, so the block must PRECEDE every stylesheet source it duplicates or it
+// overrides the sheet's responsive rules in the fully-styled page (a @media
+// override dropped for the variant's viewport class loses to the block's base
+// rule for a visitor whose window is under that override).
+
+// Positions of the pieces the placement tests reason about; npos when absent.
+struct Placement {
+  size_t block;
+  size_t first_link;
+  size_t head_end;
+};
+
+Placement FindPlacement(const std::string& html) {
+  return {html.find("data-pagespeed-critical"), html.find("<link"),
+          html.find("</head>")};
+}
+
+HtmlTransformConfig PlacementConfig() {
+  HtmlTransformConfig config;
+  config.enable_critical_css = true;
+  config.enable_lazy_load = false;
+  config.enable_image_dimensions = false;
+  config.enable_lcp_preload = false;
+  config.enable_preconnect_injection = false;
+  return config;
+}
+
+TEST(HtmlTransformFilterTest, CriticalCssPrecedesTheSingleStylesheetLink) {
+  std::string result = TransformHtml(
+      "<html><head><meta charset=\"utf-8\"><title>T</title>"
+      "<link rel=\"stylesheet\" href=\"/a.css\">"
+      "<script src=\"/x.js\"></script></head><body><p>x</p></body></html>",
+      "http://example.com/", PlacementConfig(), ".a{color:red}");
+
+  Placement p = FindPlacement(result);
+  ASSERT_NE(p.block, std::string::npos);
+  ASSERT_NE(p.first_link, std::string::npos);
+  EXPECT_LT(p.block, p.first_link)
+      << "block must precede the sheet: " << result;
+  EXPECT_LT(result.find("<title>"), p.block)
+      << "the block goes right before the sheet, not to the top of head";
+  EXPECT_LT(result.find("<meta charset"), p.block);
+  EXPECT_EQ(CountOccurrences(result, "data-pagespeed-critical"), 1u);
+  // Exact shape, so a regression in either direction is visible.
+  EXPECT_NE(
+      result.find("<title>T</title>"
+                  "<style data-pagespeed-critical=\"\">.a{color:red}</style>"
+                  "<link rel=\"stylesheet\" href=\"/a.css\">"),
+      std::string::npos)
+      << result;
+}
+
+TEST(HtmlTransformFilterTest, CriticalCssPrecedesTheFirstOfSeveralLinks) {
+  std::string result = TransformHtml(
+      "<html><head><title>T</title>"
+      "<link rel=\"stylesheet\" href=\"/a.css\">"
+      "<link rel=\"stylesheet\" href=\"/b.css\">"
+      "<link rel=\"stylesheet\" href=\"/c.css\" media=\"print\">"
+      "</head><body></body></html>",
+      "http://example.com/", PlacementConfig(), ".a{}");
+
+  size_t block = result.find("data-pagespeed-critical");
+  ASSERT_NE(block, std::string::npos);
+  EXPECT_LT(block, result.find("/a.css"))
+      << "one block, before the FIRST covered sheet: " << result;
+  EXPECT_EQ(CountOccurrences(result, "data-pagespeed-critical"), 1u);
+}
+
+TEST(HtmlTransformFilterTest, CriticalCssPrecedesAnInlineStyleBeforeTheLink) {
+  // The page's own <style> bodies are part of the combined sheet the block is
+  // derived from, so the block must precede them too.
+  std::string result = TransformHtml(
+      "<html><head><meta charset=\"utf-8\">"
+      "<style>.a{color:blue}</style>"
+      "<link rel=\"stylesheet\" href=\"/a.css\">"
+      "</head><body></body></html>",
+      "http://example.com/", PlacementConfig(), ".a{color:red}");
+
+  size_t block = result.find("data-pagespeed-critical");
+  ASSERT_NE(block, std::string::npos);
+  EXPECT_LT(block, result.find("<style>.a{color:blue}</style>"))
+      << "block must precede the page's own inline style: " << result;
+  EXPECT_LT(result.find("<meta charset"), block);
+}
+
+TEST(HtmlTransformFilterTest, CriticalCssStaysInHeadWhenTheLinkIsInBody) {
+  // A sheet that only appears in <body> follows a block injected at </head>
+  // anyway; the block must not be pushed into the body after it.
+  std::string result = TransformHtml(
+      "<html><head><title>T</title></head><body><p>x</p>"
+      "<link rel=\"stylesheet\" href=\"/a.css\"><p>y</p></body></html>",
+      "http://example.com/", PlacementConfig(), ".a{}");
+
+  Placement p = FindPlacement(result);
+  ASSERT_NE(p.block, std::string::npos);
+  EXPECT_LT(p.block, p.head_end) << result;
+  EXPECT_LT(p.block, p.first_link) << result;
+}
+
+TEST(HtmlTransformFilterTest, CriticalCssPrecedesABodyLinkWithoutHeadEndTag) {
+  // No </head>: the </body> fallback would put the block AFTER a body sheet,
+  // which is the hazard; the sheet seen earlier is the anchor instead.
+  std::string result = TransformHtml(
+      "<html><body><p>x</p><link rel=\"stylesheet\" href=\"/a.css\">"
+      "<p>y</p></body></html>",
+      "http://example.com/", PlacementConfig(), ".a{}");
+
+  Placement p = FindPlacement(result);
+  ASSERT_NE(p.block, std::string::npos);
+  ASSERT_NE(p.first_link, std::string::npos);
+  EXPECT_LT(p.block, p.first_link) << result;
+  EXPECT_LT(result.find("<p>x</p>"), p.block)
+      << "before the sheet, not before content that precedes it: " << result;
+}
+
+TEST(HtmlTransformFilterTest,
+     CriticalCssWithoutAnyStylesheetGoesBeforeHeadEnd) {
+  // No source to precede: the end-of-head placement, after the injected hints.
+  HtmlTransformConfig config = PlacementConfig();
+  config.enable_lcp_preload = true;
+  LcpCandidate lcp;
+  lcp.src = "/hero.jpg";
+  std::string result = TransformHtml(
+      "<html><head><title>T</title></head><body><img src=\"/hero.jpg\">"
+      "</body></html>",
+      "http://example.com/", config, ".a{}", nullptr, "", lcp);
+
+  Placement p = FindPlacement(result);
+  ASSERT_NE(p.block, std::string::npos);
+  EXPECT_LT(result.find("rel=\"preload\""), p.block);
+  EXPECT_LT(p.block, p.head_end);
+  EXPECT_EQ(result.find("data-pagespeed-critical", p.block + 1),
+            std::string::npos);
+}
+
+TEST(HtmlTransformFilterTest, CriticalCssNeverMovesAheadOfCharsetCspOrBase) {
+  // A sheet that precedes the charset declaration, a meta CSP or <base> is not
+  // a valid anchor: the charset must stay in the first 1024 bytes, a CSP
+  // governs only what follows it, and <base> resolves the URLs after it. The
+  // block then goes before the NEXT source after the last of them.
+  for (const char* prelude : {"<meta charset=\"utf-8\">",
+                              "<meta http-equiv=\"Content-Type\" "
+                              "content=\"text/html; charset=utf-8\">",
+                              "<meta http-equiv=\"Content-Security-Policy\" "
+                              "content=\"style-src 'self' 'unsafe-inline'\">",
+                              "<base href=\"https://example.com/\">"}) {
+    std::string html = std::string("<html><head>") +
+                       "<link rel=\"stylesheet\" href=\"/early.css\">" +
+                       prelude + "<title>T</title>" +
+                       "<link rel=\"stylesheet\" href=\"/late.css\">"
+                       "</head><body></body></html>";
+    std::string result =
+        TransformHtml(html, "http://example.com/", PlacementConfig(), ".a{}");
+    size_t block = result.find("data-pagespeed-critical");
+    ASSERT_NE(block, std::string::npos) << prelude << "\n" << result;
+    EXPECT_LT(result.find(prelude), block) << prelude << "\n" << result;
+    EXPECT_LT(result.find("early.css"), block) << prelude << "\n" << result;
+    EXPECT_LT(block, result.find("late.css")) << prelude << "\n" << result;
+  }
+
+  // With no source after the prelude the block falls back to </head>.
+  std::string result = TransformHtml(
+      "<html><head><link rel=\"stylesheet\" href=\"/early.css\">"
+      "<meta charset=\"utf-8\"><title>T</title></head><body></body></html>",
+      "http://example.com/", PlacementConfig(), ".a{}");
+  Placement p = FindPlacement(result);
+  ASSERT_NE(p.block, std::string::npos);
+  EXPECT_LT(result.find("<title>T</title>"), p.block) << result;
+  EXPECT_LT(p.block, p.head_end) << result;
+}
+
+TEST(HtmlTransformFilterTest, CriticalCssAnchorsOnATokenListRel) {
+  std::string result = TransformHtml(
+      "<html><head><title>T</title>"
+      "<link rel=\"alternate STYLESHEET\" title=\"x\" href=\"/alt.css\">"
+      "<link rel=\"stylesheet\" href=\"/a.css\">"
+      "</head><body></body></html>",
+      "http://example.com/", PlacementConfig(), ".a{}");
+  size_t block = result.find("data-pagespeed-critical");
+  ASSERT_NE(block, std::string::npos);
+  EXPECT_LT(block, result.find("/alt.css")) << result;
+}
+
+TEST(HtmlTransformFilterTest, CriticalCssNeverAnchorsInsideNoscript) {
+  // The loadCSS pattern: the first rel=stylesheet in the document is the
+  // author's <noscript> twin. A block inserted in there is raw text for every
+  // client that runs scripts, i.e. it would not apply at all.
+  std::string result = TransformHtml(
+      "<html><head><title>T</title>"
+      "<link rel=\"preload\" as=\"style\" href=\"/a.css\">"
+      "<noscript><link rel=\"stylesheet\" href=\"/a.css\"></noscript>"
+      "<link rel=\"stylesheet\" href=\"/b.css\">"
+      "</head><body></body></html>",
+      "http://example.com/", PlacementConfig(), ".a{}");
+  size_t block = result.find("<style data-pagespeed-critical");
+  ASSERT_NE(block, std::string::npos) << result;
+  EXPECT_LT(result.find("</noscript>"), block) << result;
+  EXPECT_LT(block, result.find("/b.css")) << result;
+
+  // Only a <noscript> source: the </head> fallback, outside it.
+  result = TransformHtml(
+      "<html><head><title>T</title>"
+      "<noscript><style>.n{}</style></noscript><meta name=\"x\" content=\"y\">"
+      "</head><body></body></html>",
+      "http://example.com/", PlacementConfig(), ".a{}");
+  block = result.find("<style data-pagespeed-critical");
+  ASSERT_NE(block, std::string::npos) << result;
+  EXPECT_LT(result.find("<meta name"), block) << result;
+  EXPECT_LT(block, result.find("</head>")) << result;
+}
+
+TEST(HtmlTransformFilterTest,
+     CriticalCssNeverAnchorsInTemplateOrForeignContent) {
+  // No </head>, so the decision is taken at </body> with these seen: an inert
+  // <template> and an <svg> <style> are not places to put the block.
+  std::string result = TransformHtml(
+      "<html><body><template><style>.t{}</style></template>"
+      "<svg><style>.s{}</style></svg>"
+      "<math><style>.m{}</style></math><p>x</p></body></html>",
+      "http://example.com/", PlacementConfig(), ".a{}");
+  size_t block = result.find("<style data-pagespeed-critical");
+  ASSERT_NE(block, std::string::npos) << result;
+  EXPECT_LT(result.find("<p>x</p>"), block) << result;
+  EXPECT_LT(block, result.find("</body>")) << result;
+}
+
+// An author's <noscript> stylesheet does not load for a client
+// running scripts, so it is not deferred (the scanner does not count it as a
+// source either), and the deferral's own <noscript> twin of the real sheet is
+// never a second source when the output is processed again: the output is a
+// fixed point and scans exactly like the raw page.
+TEST(HtmlTransformFilterTest, AuthorNoscriptStylesheetIsNotDeferred) {
+  const std::string raw =
+      "<html><head><title>T</title>"
+      "<link rel=\"stylesheet\" href=\"/a.css\">"
+      "<noscript><link rel=\"stylesheet\" href=\"/n.css\">"
+      "<style>.n{display:block!important}</style></noscript>"
+      "<template><link rel=\"stylesheet\" href=\"/t.css\"></template>"
+      "</head><body><p>x</p></body></html>";
+  const HtmlTransformConfig config = AsyncCssOnlyConfig();
+  const std::string once =
+      TransformHtml(raw, "http://example.com/", config, "p{color:red}");
+  ASSERT_NE(once.find("data-pagespeed-async=\"\""), std::string::npos) << once;
+  // Only /a.css was deferred: one preload, one twin, and the author's
+  // <noscript> and <template> links are untouched.
+  EXPECT_EQ(once.find("rel=\"preload\""), once.rfind("rel=\"preload\""))
+      << once;
+  EXPECT_NE(once.find("<noscript><link rel=\"stylesheet\" href=\"/n.css\">"),
+            std::string::npos)
+      << once;
+  EXPECT_NE(once.find("<template><link rel=\"stylesheet\" href=\"/t.css\">"),
+            std::string::npos)
+      << once;
+  EXPECT_EQ(once.find("data-pagespeed-media=\"all\" data-pagespeed-async"),
+            once.rfind("data-pagespeed-media=\"all\" data-pagespeed-async"))
+      << once;
+  size_t twins = 0;
+  for (size_t pos = once.find("<noscript data-pagespeed-async-fallback");
+       pos != std::string::npos;
+       pos = once.find("<noscript data-pagespeed-async-fallback", pos + 1)) {
+    ++twins;
+  }
+  EXPECT_EQ(1u, twins) << once;
+
+  const std::string twice =
+      TransformHtml(once, "http://example.com/", config, "p{color:red}");
+  EXPECT_EQ(once, twice);
+
+  HtmlScanner scanner;
+  for (const std::string& html : {raw, once, twice}) {
+    HtmlScanResult scan = scanner.Scan("http://example.com/", html);
+    ASSERT_TRUE(scan.success);
+    ASSERT_EQ(1u, scan.stylesheets.size()) << html;
+    EXPECT_EQ("/a.css", scan.stylesheets[0].href) << html;
+    EXPECT_EQ("", scan.inline_css) << html;
+  }
+
+  // Output of a build that did defer the author's <noscript> link converges
+  // on the same page.
+  const std::string legacy =
+      "<html><head><title>T</title>"
+      "<link rel=\"stylesheet\" href=\"/a.css\">"
+      "<noscript><link rel=\"preload\" href=\"/n.css\" as=\"style\" "
+      "data-pagespeed-media=\"all\" data-pagespeed-async=\"\">"
+      "<noscript data-pagespeed-async-fallback=\"\">"
+      "<link rel=\"stylesheet\" href=\"/n.css\" "
+      "data-pagespeed-async-fallback=\"\"></noscript>"
+      "<style>.n{display:block!important}</style></noscript>"
+      "<template><link rel=\"stylesheet\" href=\"/t.css\"></template>"
+      "</head><body><p>x</p></body></html>";
+  EXPECT_EQ(once, TransformHtml(legacy, "http://example.com/", config,
+                                "p{color:red}"));
+}
+
+// Cascade layers: a layer's position is fixed by its first
+// mention, so a block placed first would impose the COMBINED sheet's layer
+// order on the page. Without a proven page order (the default here), a block
+// that names a layer keeps the old placement.
+TEST(HtmlTransformFilterTest, LayeredCriticalCssKeepsTheOldPlacement) {
+  // Case A: an inline <style> after the <link>. The combined sheet puts that
+  // style first, so the block mentions theme before reset; placed first, it
+  // would reorder app.css's reset < theme into theme < reset and flip every
+  // h1 from navy to black.
+  const std::string case_a =
+      "<html><head><title>T</title>"
+      "<link rel=\"stylesheet\" href=\"/app.css\">"
+      "<style>@layer theme{.hero{padding:0}}</style>"
+      "</head><body><h1 class=\"hero\">x</h1></body></html>";
+  std::string result =
+      TransformHtml(case_a, "http://example.com/", PlacementConfig(),
+                    "@layer theme{.hero{padding:0}}\n"
+                    "@layer reset{h1{color:black}}\n"
+                    "@layer theme{h1{color:navy}}");
+  size_t block = result.find("<style data-pagespeed-critical");
+  ASSERT_NE(block, std::string::npos) << result;
+  EXPECT_LT(result.find("/app.css"), block) << result;
+  EXPECT_LT(result.find("<style>@layer theme"), block) << result;
+  EXPECT_LT(block, result.find("</head>")) << result;
+
+  // Case B: a cross-origin layered sheet the combined sheet never contains,
+  // then the same-origin one the block was derived from.
+  result = TransformHtml(
+      "<html><head><link rel=\"stylesheet\" href=\"https://cdn.example/x.css\">"
+      "<link rel=\"stylesheet\" href=\"/app.css\"></head><body></body></html>",
+      "http://example.com/", PlacementConfig(), "@layer app{h1{color:navy}}");
+  block = result.find("<style data-pagespeed-critical");
+  ASSERT_NE(block, std::string::npos) << result;
+  EXPECT_LT(result.find("/app.css"), block) << result;
+  EXPECT_LT(block, result.find("</head>")) << result;
+
+  // A layer-order statement alone is enough, and so is a layered import.
+  for (const char* css : {"@layer theme, base;\nh1{color:navy}",
+                          "@import url(/lib.css) layer(lib);\nh1{}"}) {
+    result = TransformHtml(
+        "<html><head><link rel=\"stylesheet\" href=\"/app.css\"></head>"
+        "<body></body></html>",
+        "http://example.com/", PlacementConfig(), css);
+    block = result.find("<style data-pagespeed-critical");
+    ASSERT_NE(block, std::string::npos) << result;
+    EXPECT_LT(result.find("/app.css"), block) << css << "\n" << result;
+  }
+
+  // An anonymous layer too: first, it would be registered ahead of every
+  // named layer, where its !important declarations win.
+  result = TransformHtml(
+      "<html><head><link rel=\"stylesheet\" href=\"/app.css\"></head>"
+      "<body></body></html>",
+      "http://example.com/", PlacementConfig(), "@layer{h1{color:navy}}");
+  block = result.find("<style data-pagespeed-critical");
+  ASSERT_NE(block, std::string::npos) << result;
+  EXPECT_LT(result.find("/app.css"), block) << result;
+}
+
+TEST(HtmlTransformFilterTest, LayeredCriticalCssFallbackIsAFixedPoint) {
+  HtmlTransformConfig config = PlacementConfig();
+  config.enable_async_css = true;
+  const std::string html =
+      "<html><head><meta charset=\"utf-8\">"
+      "<link rel=\"stylesheet\" href=\"/app.css\">"
+      "<style>@layer theme{.x{}}</style></head><body></body></html>";
+  const std::string css = "@layer theme{.x{}}";
+  std::string first = TransformHtml(html, "http://example.com/", config, css);
+  std::string second = TransformHtml(first, "http://example.com/", config, css);
+  EXPECT_EQ(first, second);
+  size_t block = second.find("<style data-pagespeed-critical");
+  ASSERT_NE(block, std::string::npos);
+  EXPECT_LT(second.find("data-pagespeed-async"), block) << second;
+  EXPECT_LT(block, second.find("</head>")) << second;
+}
+
+// As TransformHtml, with the page's cascade-layer order set on the filter.
+std::string TransformHtmlWithLayers(std::string_view html,
+                                    const HtmlTransformConfig& config,
+                                    std::string_view critical_css,
+                                    const CascadeLayerOrder& order) {
+  net_instaweb::HtmlKeywords::Init();
+  net_instaweb::NullMessageHandler message_handler;
+  net_instaweb::HtmlParse parser(&message_handler);
+  HtmlTransformFilter transform(&parser, config, critical_css, nullptr, "",
+                                "https");
+  transform.set_cascade_layer_order(order);
+  parser.AddFilter(&transform);
+  std::string output;
+  net_instaweb::StringWriter writer(&output);
+  net_instaweb::HtmlWriterFilter writer_filter(&parser);
+  writer_filter.set_writer(&writer);
+  parser.AddFilter(&writer_filter);
+  if (!parser.StartParse("http://example.com/")) return "";
+  parser.ParseText(html);
+  parser.FinishParse();
+  return output;
+}
+
+CascadeLayerOrder ProvenLayerOrder(std::vector<std::string> names) {
+  CascadeLayerOrder order;
+  order.proven = true;
+  order.reason.clear();
+  order.names = std::move(names);
+  return order;
+}
+
+// Case A of the review, with the page's order proven: app.css
+// declares reset before theme and the inline <style> after it mentions theme.
+// The block goes before the sheet with the page's order in front of it, so the
+// block's own theme-first mention cannot reorder anything.
+constexpr std::string_view kLayeredCaseA =
+    "<html><head><meta charset=\"utf-8\"><title>T</title>"
+    "<link rel=\"stylesheet\" href=\"/app.css\">"
+    "<style>@layer theme{.hero{padding:0}}</style>"
+    "</head><body><h1 class=\"hero\">x</h1></body></html>";
+constexpr std::string_view kLayeredCaseABlock =
+    "@layer theme{.hero{padding:0}}\n@layer reset{h1{color:black}}\n"
+    "@layer theme{h1{color:navy}}";
+
+TEST(HtmlTransformFilterTest, LayeredCriticalCssGoesFirstWithTheProvenOrder) {
+  std::string result = TransformHtmlWithLayers(
+      kLayeredCaseA, PlacementConfig(), kLayeredCaseABlock,
+      ProvenLayerOrder({"reset", "theme"}));
+  size_t block = result.find(
+      "<style data-pagespeed-critical=\"\">@layer reset,theme;@layer theme{");
+  ASSERT_NE(block, std::string::npos) << result;
+  EXPECT_LT(block, result.find("/app.css")) << result;
+  EXPECT_LT(result.find("<meta charset"), block) << result;
+  EXPECT_EQ(CountOccurrences(result, "@layer reset,theme;"), 1u) << result;
+}
+
+TEST(HtmlTransformFilterTest, LayeredCriticalCssWithoutAProvenOrder) {
+  // Not proven (case B: a sheet that was not gathered), or proven but missing
+  // a layer the block names: the old placement, and no statement.
+  CascadeLayerOrder unproven;
+  unproven.reason = "the sheet was not gathered";
+  for (const CascadeLayerOrder& order :
+       {unproven, ProvenLayerOrder({"theme"})}) {
+    std::string result = TransformHtmlWithLayers(
+        kLayeredCaseA, PlacementConfig(), kLayeredCaseABlock, order);
+    size_t block = result.find("<style data-pagespeed-critical");
+    ASSERT_NE(block, std::string::npos) << result;
+    EXPECT_LT(result.find("/app.css"), block) << result;
+    EXPECT_LT(result.find("<style>@layer theme"), block) << result;
+    EXPECT_LT(block, result.find("</head>")) << result;
+    EXPECT_EQ(result.find("@layer reset,theme;"), std::string::npos) << result;
+  }
+}
+
+TEST(HtmlTransformFilterTest, LayerOrderStatementDoesNotAccumulate) {
+  // Re-processing the worker's own output (revalidation) replaces the block,
+  // statement included: byte-identical over three passes, async off and on.
+  for (bool async_css : {false, true}) {
+    HtmlTransformConfig config = PlacementConfig();
+    config.enable_async_css = async_css;
+    const CascadeLayerOrder order = ProvenLayerOrder({"reset", "theme"});
+    std::string first = TransformHtmlWithLayers(kLayeredCaseA, config,
+                                                kLayeredCaseABlock, order);
+    std::string second =
+        TransformHtmlWithLayers(first, config, kLayeredCaseABlock, order);
+    std::string third =
+        TransformHtmlWithLayers(second, config, kLayeredCaseABlock, order);
+    EXPECT_EQ(first, second) << (async_css ? "async" : "sync");
+    EXPECT_EQ(second, third) << (async_css ? "async" : "sync");
+    EXPECT_EQ(CountOccurrences(third, "@layer reset,theme;"), 1u) << third;
+    EXPECT_EQ(CountOccurrences(third, "data-pagespeed-critical"), 1u) << third;
+    size_t block = third.find("<style data-pagespeed-critical");
+    ASSERT_NE(block, std::string::npos);
+    EXPECT_LT(block, third.find("/app.css")) << third;
+  }
+}
+
+TEST(HtmlTransformFilterTest, LayerOrderStatementWhenEverySheetIsInBody) {
+  // No head source: the block stays before </head>, which is still ahead of
+  // the body sheet, so the statement goes in front there too.
+  std::string result = TransformHtmlWithLayers(
+      "<html><head><title>T</title></head><body>"
+      "<link rel=\"stylesheet\" href=\"/app.css\"></body></html>",
+      PlacementConfig(), "@layer app{h1{}}", ProvenLayerOrder({"base", "app"}));
+  size_t block = result.find(
+      "<style data-pagespeed-critical=\"\">@layer base,app;@layer app{");
+  ASSERT_NE(block, std::string::npos) << result;
+  EXPECT_LT(block, result.find("</head>")) << result;
+}
+
+TEST(HtmlTransformFilterTest, CriticalCssPrecedesTheDeferredSheetAndItsLoader) {
+  HtmlTransformConfig config = PlacementConfig();
+  config.enable_async_css = true;
+  std::string result = TransformHtml(
+      "<html><head><meta charset=\"utf-8\"><title>T</title>"
+      "<link rel=\"stylesheet\" href=\"/a.css\">"
+      "</head><body></body></html>",
+      "http://example.com/", config, ".a{}");
+
+  size_t block = result.find("data-pagespeed-critical");
+  size_t preload = result.find("rel=\"preload\"");
+  size_t noscript = result.find("<noscript");
+  size_t loader = result.find("data-pagespeed-async-loader");
+  ASSERT_NE(block, std::string::npos);
+  ASSERT_NE(preload, std::string::npos);
+  ASSERT_NE(noscript, std::string::npos);
+  ASSERT_NE(loader, std::string::npos);
+  EXPECT_LT(block, preload) << "block before the deferred preload: " << result;
+  EXPECT_LT(block, noscript) << result;
+  EXPECT_LT(block, loader) << result;
+  EXPECT_NE(result.find("data-pagespeed-async"), std::string::npos);
+}
+
+TEST(HtmlTransformFilterTest, CriticalCssPlacementIsAFixedPointOnReprocessing) {
+  // The worker re-processes its own output on revalidation: the old block is
+  // deleted at StartElement (before the sheet is seen, so it never anchors its
+  // own replacement) and the deferred link is a stylesheet again by the time
+  // the anchor is chosen. Byte-identical output across passes, deferred or
+  // not.
+  for (bool async : {false, true}) {
+    HtmlTransformConfig config = PlacementConfig();
+    config.enable_async_css = async;
+    std::string html =
+        "<html><head><meta charset=\"utf-8\"><title>T</title>"
+        "<style>.x{}</style>"
+        "<link rel=\"stylesheet\" href=\"/a.css\" media=\"screen\">"
+        "<link rel=\"stylesheet\" href=\"/b.css\">"
+        "</head><body><p>x</p></body></html>";
+    std::string first =
+        TransformHtml(html, "http://example.com/", config, ".a{color:red}");
+    std::string second =
+        TransformHtml(first, "http://example.com/", config, ".a{color:red}");
+    std::string third =
+        TransformHtml(second, "http://example.com/", config, ".a{color:red}");
+    EXPECT_EQ(first, second) << "async=" << async;
+    EXPECT_EQ(second, third) << "async=" << async;
+    EXPECT_EQ(CountOccurrences(third, "data-pagespeed-critical"), 1u);
+    size_t block = third.find("data-pagespeed-critical");
+    EXPECT_LT(block, third.find("<style>.x{}</style>")) << third;
+    EXPECT_LT(block, third.find("/a.css")) << third;
+  }
+}
+
+TEST(HtmlTransformFilterTest,
+     CriticalCssReinjectedBeforeTheSheetWhenTheOldBlockFollowedIt) {
+  // Output of the end-of-head placement (block after the sheet) on its way
+  // through a revalidation pass: the stale block is removed and the fresh one
+  // lands before the sheet.
+  std::string result = TransformHtml(
+      "<html><head><title>T</title>"
+      "<link rel=\"stylesheet\" href=\"/a.css\">"
+      "<style data-pagespeed-critical>old{}</style>"
+      "</head><body></body></html>",
+      "http://example.com/", PlacementConfig(), "fresh{}");
+  EXPECT_EQ(result.find("old{}"), std::string::npos);
+  EXPECT_EQ(CountOccurrences(result, "data-pagespeed-critical"), 1u);
+  EXPECT_LT(result.find("data-pagespeed-critical"), result.find("/a.css"))
+      << result;
+}
+
+TEST(HtmlTransformFilterTest, CriticalCssRefusedByLaterMetaCspStillReverts) {
+  // The anchor is chosen at the sheet, the injection is decided at </head>
+  // with every meta seen: a CSP after the sheet still refuses the block, and
+  // the deferral it would have bridged is reverted.
+  HtmlTransformConfig config = PlacementConfig();
+  config.enable_async_css = true;
+  std::string result = TransformHtml(
+      "<html><head><link rel=\"stylesheet\" href=\"/a.css\">"
+      "<meta http-equiv=\"Content-Security-Policy\" "
+      "content=\"style-src 'self'\"></head><body></body></html>",
+      "http://example.com/", config, ".a{}");
+  EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos);
+  EXPECT_EQ(result.find("data-pagespeed-async"), std::string::npos);
+  EXPECT_NE(result.find("rel=\"stylesheet\""), std::string::npos);
 }
 
 }  // namespace

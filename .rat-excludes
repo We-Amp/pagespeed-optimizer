@@ -114,6 +114,13 @@ text-only\.html
 modpagespeed-com
 
 # --- Third-party test inputs ---------------------------------------------------
+# tools/async-css-probe/fixtures/bootstrap-5.3.3 and .../tailwind-v3: stock
+# Bootstrap 5.3.3 CSS and Tailwind CSS v3.4.17 output (both MIT, license
+# comments kept in the CSS), byte-frozen inputs for dump_critical_css block-size
+# comparisons. The two index.html pages are first-party and
+# carry the SPDX header.
+bootstrap-5\.3\.3
+tailwind-v3
 # test/lib/js/testdata: AngularJS, jQuery and Prototype (MIT) as the
 # .original/.minified pairs the minifier tests run against.
 .*\.original

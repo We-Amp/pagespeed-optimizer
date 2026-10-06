@@ -33,6 +33,7 @@
 #include "lib/classify/url_normalizer.h"
 #include "src/proto/worker_ipc.h"
 #include "src/worker/browser_analysis_manager.h"
+#include "src/worker/cascade_layer_order.h"
 #include "src/worker/image_transcoder.h"
 #include "src/worker/serve_stats.h"
 #include "src/worker/webbotauth_warmer.h"
@@ -55,16 +56,20 @@ struct DeclineTombstoneRecord {
 
 // Parse a decline-tombstone payload (kDeclineTombstone sentinel, format
 // version kDeclineTombstoneFormatVersion) and return its records -- but
-// ONLY when the blob is well-formed and was written for exactly
+// ONLY when the blob is well-formed, was written by the current quality
+// search (kVerifyQualitySearchVersion) and was written for exactly
 // |source_hash|. Anything else reads as no tombstone: fail-open is the
 // correct direction here, since a lost or unread tombstone only costs a
-// re-run of the attempt ladder, never a wrong variant.
+// re-run of the attempt ladder, never a wrong variant. Recording the
+// search generation is what keeps a refusal from outliving the search that
+// made it: a variant an older search could not reach is retried rather
+// than suppressed forever.
 std::vector<DeclineTombstoneRecord> ParseDeclineTombstone(
     std::string_view blob, const std::array<std::byte, 32>& source_hash);
 
 // Serialize a tombstone payload for |source_hash|. Records are stored in
-// the order given; the payload is [1B version][32B hash][1B count][2B per
-// record: slot, quality].
+// the order given; the payload is [1B version][1B search generation][32B
+// hash][1B count][2B per record: slot, quality].
 std::string EncodeDeclineTombstone(
     const std::array<std::byte, 32>& source_hash,
     const std::vector<DeclineTombstoneRecord>& records);
@@ -221,6 +226,9 @@ struct WorkerStats {
   // coverage/byte budget judged it too close to the whole sheet to inline
   // (would bloat the body + double-ship the CSS via async re-download).
   std::atomic<uint64_t> critical_css_skipped_high_coverage{0};
+  // Critical blocks dropped by the inline byte cap
+  // (kInlineCriticalCssMaxBytes) with no validated deferral to justify them.
+  std::atomic<uint64_t> critical_css_skipped_byte_cap{0};
 
   // Alternate write tracking
   std::atomic<uint64_t> alternate_writes{0};
@@ -995,6 +1003,12 @@ class Worker {
     // A sheet that could plausibly enter this cache was not gathered. Narrower;
     // drives only the self-heal re-notify.
     bool revalidatable_css_missing = false;
+    // The page's cascade-layer order over every stylesheet source in document
+    // order, or why it is not known. Decides whether a critical
+    // block that names a layer can go before the sheets, with an `@layer`
+    // statement in front (DecideCriticalCssLayerPlacement). Not part of the
+    // byte contract above.
+    CascadeLayerOrder layer_order{};
   };
 
   // Assemble the combined stylesheet: the page's inline CSS, then each declared
@@ -1110,12 +1124,13 @@ class Worker {
 
   // SRI (issue #656): register subresource URLs referenced from HTML with
   // an integrity attribute.  Optimized variants at the same URL would fail
-  // the browser's hash check.  raw_urls are unresolved href/src values from
-  // the HTML scan; notification is the HTML page's notification (provides
-  // base URL, hostname, scheme).  On first registration of a URL, any
-  // already-written variant is dropped (whole cache key) so nginx
-  // re-caches the original.
-  void RegisterIntegrityPinnedUrls(const std::vector<std::string>& raw_urls,
+  // the browser's hash check.  The scan's integrity_pinned_urls are
+  // unresolved href/src values, resolved against the document base (the page
+  // URL or its <base href>, DocumentBaseOf); notification is the HTML page's
+  // notification (provides the page URL, hostname, scheme).  On first
+  // registration of a URL, any already-written variant is dropped (whole
+  // cache key) so nginx re-caches the original.
+  void RegisterIntegrityPinnedUrls(const HtmlScanResult& scan_result,
                                    const CacheNotification& notification);
 
   // True if the notification's URL was registered as integrity-pinned.

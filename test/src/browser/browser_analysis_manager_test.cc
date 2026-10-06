@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
@@ -25,11 +26,13 @@
 #include "lib/cache/cache.h"
 #include "lib/classify/capability_mask.h"
 #include "lib/classify/url_normalizer.h"
+#include "src/browser/browser_css_extractor.h"
 #include "src/browser/optimization_profile.h"
 #include "src/browser/page_analysis.h"
 #include "src/browser/script_coverage_analyzer.h"
 #include "src/worker/analysis_resource_map.h"
 #include "src/worker/browser_analysis_manager_internal.h"
+#include "src/worker/css_cache_inliner.h"
 #include "test/test_util/temp_dir.h"
 #include "uv.h"
 
@@ -205,6 +208,78 @@ TEST_F(BrowserAnalysisManagerTest, EnqueueMultipleItems) {
   }
   EXPECT_EQ(5u, mgr_->queue_depth());
   EXPECT_EQ(5u, mgr_->stats().queue_enqueued.load());
+}
+
+// A template whose validation record stopped matching the served
+// stylesheet is queued for a fresh analysis instead of waiting out the profile
+// TTL, at most kMaxReanalysisRetries (2) times per TTL window and at least
+// kReanalysisDelayMs (30 s) apart, per template.
+TEST_F(BrowserAnalysisManagerTest, RevalidationIsRateLimitedPerTemplate) {
+  using std::chrono::hours;
+  using std::chrono::seconds;
+  const auto t0 = std::chrono::steady_clock::now();
+  auto request = [&](uint64_t hash, std::chrono::steady_clock::time_point at) {
+    bool queued = mgr_->RequestRevalidation("http://example.com/p",
+                                            "example.com", "http", 0x08, hash,
+                                            "<html></html>", std::nullopt, at);
+    // Drain so the queue's own per-template dedup is not what is measured.
+    while (mgr_->TestDequeue().has_value()) {
+    }
+    return queued;
+  };
+
+  EXPECT_TRUE(request(7, t0));
+  EXPECT_FALSE(request(7, t0 + seconds(5))) << "too soon after the first";
+  EXPECT_TRUE(request(8, t0 + seconds(5))) << "budgets are per template";
+  EXPECT_TRUE(request(7, t0 + seconds(31)));
+  EXPECT_FALSE(request(7, t0 + seconds(120))) << "two per window";
+  EXPECT_FALSE(request(7, t0 + hours(23)));
+  // A new TTL window (browser_profile_ttl_seconds, 24 h by default).
+  EXPECT_TRUE(request(7, t0 + hours(24) + seconds(1)));
+
+  EXPECT_EQ(4u, mgr_->stats().revalidations_queued.load());
+  EXPECT_EQ(3u, mgr_->stats().revalidations_rate_limited.load());
+
+  // The queued item is an ordinary analysis of the template: the page's own
+  // bytes, keyed on the template hash.
+  ASSERT_TRUE(mgr_->RequestRevalidation("http://example.com/q", "example.com",
+                                        "https", 0x08, 9, "<p>q</p>"));
+  auto item = mgr_->TestDequeue();
+  ASSERT_TRUE(item.has_value());
+  EXPECT_EQ(9u, item->template_hash);
+  EXPECT_EQ("http://example.com/q", item->url);
+  EXPECT_EQ("<p>q</p>", item->original_html);
+  EXPECT_FALSE(item->force_agent_render);
+}
+
+// When the per-template budget map is full, only the least recently used
+// budget is evicted; the other templates keep theirs (clearing the map would
+// reset every budget at once, a way around the cap).
+TEST_F(BrowserAnalysisManagerTest, RevalidationBudgetOverflowEvictsTheOldest) {
+  using std::chrono::minutes;
+  using std::chrono::seconds;
+  const auto t0 = std::chrono::steady_clock::now();
+  auto request = [&](uint64_t hash, std::chrono::steady_clock::time_point at) {
+    bool queued = mgr_->RequestRevalidation("http://example.com/p",
+                                            "example.com", "http", 0x08, hash,
+                                            "<html></html>", std::nullopt, at);
+    while (mgr_->TestDequeue().has_value()) {
+    }
+    return queued;
+  };
+  // Template 1 spends its budget first; template 2 spends it later.
+  ASSERT_TRUE(request(1, t0));
+  ASSERT_TRUE(request(1, t0 + seconds(31)));
+  ASSERT_TRUE(request(2, t0 + minutes(1)));
+  ASSERT_TRUE(request(2, t0 + minutes(2)));
+  // Fill the map (4096 budgets) with templates used after both.
+  for (uint64_t h = 3; h <= 4096; ++h) {
+    ASSERT_TRUE(request(1000 + h, t0 + minutes(3)));
+  }
+  // One more template: the map is full, template 1 is the oldest.
+  ASSERT_TRUE(request(99999, t0 + minutes(4)));
+  EXPECT_FALSE(request(2, t0 + minutes(5))) << "kept, still spent";
+  EXPECT_TRUE(request(1, t0 + minutes(5))) << "evicted, so a fresh budget";
 }
 
 TEST_F(BrowserAnalysisManagerTest, ForceAgentRenderDedupsByUrlNotTemplate) {
@@ -1115,6 +1190,16 @@ TEST(ShouldInlineCriticalCssTest, BetweenHalfAndCapStillInlines) {
   EXPECT_TRUE(ShouldInlineCriticalCss(0.55f));
 }
 
+// The extractor keeps its rules for wide replaced elements within what the
+// worker will inline; its copy of the two limits must be these.
+TEST(ShouldInlineCriticalCssTest, ExtractorInlineLimitsMatchTheWorkers) {
+  const CriticalCssConfig config;
+  EXPECT_EQ(config.inline_limit_bytes,
+            browser_internal::kInlineCriticalCssMaxBytes);
+  EXPECT_EQ(config.inline_limit_coverage,
+            browser_internal::kInlineCriticalCssMaxCoverage);
+}
+
 // Coverage at/above the cap suppresses.
 TEST(ShouldInlineCriticalCssTest, AtCoverageCapSuppresses) {
   EXPECT_FALSE(ShouldInlineCriticalCss(kInlineCriticalCssMaxCoverage));
@@ -1430,6 +1515,215 @@ TEST(ValidationInputsTest, TheSheetBuilderSeesTheOriginDocumentAndItsIdentity) {
   EXPECT_TRUE(saw_hero);
 }
 
+// The element list the candidate block is derived against is the
+// page a browser running scripts renders, so a <noscript> banner's classes do
+// not pull its rules into the block, while the sheet is still assembled from
+// the page as the origin served it (the loadCSS <noscript> twin counts).
+TEST(ValidationInputsTest, NoscriptElementsDoNotReachTheDerivation) {
+  constexpr char kPage[] =
+      "<html><head><link rel=preload as=style href=/s.css "
+      "onload=\"this.rel='stylesheet'\">"
+      "<noscript><link rel=stylesheet href=/s.css></noscript></head><body>"
+      "<noscript><div class=nojs-banner id=nojs>Enable JS</div></noscript>"
+      "<div class=hero>x</div></body></html>";
+  size_t seen_stylesheets = 0;
+  auto inputs = browser_internal::BuildValidationInputs(
+      [&](const HtmlScanResult& scan, const std::string&, const std::string&,
+          const std::string&) {
+        seen_stylesheets = scan.stylesheets.size();
+        return browser_internal::CombinedCssBytes{
+            ".nojs-banner{height:300px}#nojs{color:red}.hero{display:flex}",
+            false};
+      },
+      "http://example.com/p", "example.com", "https", kPage);
+  ASSERT_TRUE(inputs.ready);
+  EXPECT_EQ(seen_stylesheets, 1u) << "the loadCSS twin must still count";
+
+  for (const auto& e : inputs.elements) {
+    EXPECT_NE(e.tag_name, "noscript");
+    EXPECT_NE(e.id, "nojs");
+    for (const auto& c : e.classes) EXPECT_NE(c, "nojs-banner");
+  }
+
+  CriticalCssResult derived = DeriveDomMatchedCriticalCss(
+      inputs.elements, inputs.combined_css, /*profile_critical_css=*/"",
+      CapabilityMask::Viewport::kMobile, /*measured_above_fold_selectors=*/{},
+      inputs.layer_order);
+  EXPECT_NE(derived.critical_css.find(".hero"), std::string::npos)
+      << derived.critical_css;
+  EXPECT_EQ(derived.critical_css.find("nojs"), std::string::npos)
+      << derived.critical_css;
+}
+
+// The CSS coverage render runs with script execution disabled,
+// so it loads the page without its <noscript> elements, stylesheets inlined.
+// The removal comes after the inliner, which finds a loadCSS sheet through its
+// <noscript> twin. The renders that run scripts (page analysis, script
+// coverage, the agent render) load the page with them: a scripting browser
+// already reads them as raw text, and the removal would edit script source.
+namespace {
+std::optional<std::string> SheetLookup(std::string_view url) {
+  if (url.ends_with("/s.css")) return std::string(".hero{color:red}");
+  return std::nullopt;
+}
+}  // namespace
+
+TEST(AnalysisDocumentsTest, OnlyTheCoverageDocumentLosesNoscript) {
+  constexpr char kPage[] =
+      "<html><head><title>T</title>"
+      "<link rel=preload as=style href=/s.css onload=\"this.rel='stylesheet'\">"
+      "<noscript><link rel=stylesheet href=/s.css>"
+      "<style>.hero{display:none}</style></noscript></head><body>"
+      "<noscript><div class=nojs-banner>Enable JS</div></noscript>"
+      "<div class=hero>x</div></body></html>";
+  CssInliningStats stats;
+  browser_internal::AnalysisDocuments docs =
+      browser_internal::BuildAnalysisDocuments(kPage, "http://example.com/p",
+                                               "example.com", "https",
+                                               SheetLookup, &stats);
+  EXPECT_EQ(stats.stylesheets_cached, 1u);
+  ASSERT_TRUE(docs.coverage_refusal.empty()) << docs.coverage_refusal;
+  for (const std::string* doc : {&docs.document, &docs.coverage_document}) {
+    EXPECT_NE(
+        doc->find("<style data-pagespeed-inlined>.hero{color:red}</style>"),
+        std::string::npos)
+        << *doc;
+    EXPECT_NE(doc->find("<base href="), std::string::npos) << *doc;
+    EXPECT_NE(doc->find("<div class=hero>x</div>"), std::string::npos) << *doc;
+  }
+  const std::string& coverage = docs.coverage_document;
+  EXPECT_EQ(coverage.find("noscript"), std::string::npos) << coverage;
+  EXPECT_EQ(coverage.find("Enable JS"), std::string::npos) << coverage;
+  EXPECT_EQ(coverage.find("display:none"), std::string::npos) << coverage;
+  // The document the scripting renders load keeps them.
+  EXPECT_NE(docs.document.find("Enable JS"), std::string::npos)
+      << docs.document;
+  EXPECT_NE(docs.document.find("display:none"), std::string::npos)
+      << docs.document;
+}
+
+// The analysis documents resolve a stylesheet href against the
+// page's <base href>, as the serve path's combined-stylesheet gather does.
+// Under a cross-host base a root-relative href is the base host's sheet: the
+// inliner asks the cache for it at that absolute URL (the manager's lookup
+// keys the read by that URL's host) and inlines it into both documents.
+// Before the fix it asked for the page host's "/css/site.css", the sheet was
+// never inlined, and the coverage render ran unstyled.
+TEST(AnalysisDocumentsTest, CrossHostBaseHrefSheetIsInlinedFromTheBaseHost) {
+  constexpr char kPage[] =
+      "<html><head><title>T</title>"
+      "<base href=\"https://cdn.example.com/assets/\">"
+      "<link rel=stylesheet href=/css/site.css></head><body>"
+      "<div class=hero>x</div></body></html>";
+  std::vector<std::string> looked_up;
+  auto lookup = [&](std::string_view url) -> std::optional<std::string> {
+    looked_up.emplace_back(url);
+    if (url == "https://cdn.example.com/css/site.css") {
+      return std::string(".hero{color:red}");
+    }
+    return std::nullopt;
+  };
+  CssInliningStats stats;
+  browser_internal::AnalysisDocuments docs =
+      browser_internal::BuildAnalysisDocuments(kPage, "https://example.com/p",
+                                               "example.com", "https", lookup,
+                                               &stats);
+  EXPECT_EQ((std::vector<std::string>{"https://cdn.example.com/css/site.css"}),
+            looked_up);
+  EXPECT_EQ(stats.stylesheets_cached, 1u);
+  ASSERT_TRUE(docs.coverage_refusal.empty()) << docs.coverage_refusal;
+  for (const std::string* doc : {&docs.document, &docs.coverage_document}) {
+    EXPECT_NE(
+        doc->find("<style data-pagespeed-inlined>.hero{color:red}</style>"),
+        std::string::npos)
+        << *doc;
+    // The author's <base> is kept, and no second one is injected.
+    EXPECT_NE(doc->find("<base href=\"https://cdn.example.com/assets/\">"),
+              std::string::npos)
+        << *doc;
+    EXPECT_EQ(doc->find("<base href=\"https://example.com"), std::string::npos)
+        << *doc;
+  }
+}
+
+TEST(AnalysisDocumentsTest, ScriptSourceIsNeverEdited) {
+  // A "<noscript>" inside a script string is script source, not an element.
+  constexpr char kPage[] =
+      "<html><head><title>T</title></head><body>"
+      "<p title=it's>Hi</p><script>// don't\n"
+      "if (a > b) { el.innerHTML = \"<noscript>\"; }</script>"
+      "<div class=hero>HERO</div></body></html>";
+  browser_internal::AnalysisDocuments docs =
+      browser_internal::BuildAnalysisDocuments(
+          kPage, "http://example.com/p", "example.com", "https", SheetLookup);
+  ASSERT_TRUE(docs.coverage_refusal.empty()) << docs.coverage_refusal;
+  EXPECT_NE(docs.coverage_document.find("el.innerHTML = \"<noscript>\"; }"),
+            std::string::npos)
+      << docs.coverage_document;
+  EXPECT_NE(docs.coverage_document.find("<div class=hero>HERO</div>"),
+            std::string::npos)
+      << docs.coverage_document;
+}
+
+TEST(AnalysisDocumentsTest, AnUntrustedRemovalRefusesTheCoverageRender) {
+  // An unclosed <noscript> with markup after it: rendering what is left
+  // would measure a page cut short. The coverage render is skipped; the
+  // scripting renders still get the page.
+  constexpr char kPage[] =
+      "<html><head><title>T</title></head><body>"
+      "<noscript data-a=\"x\"<div class=hero>HERO</div><p>AFTER</p>"
+      "</body></html>";
+  browser_internal::AnalysisDocuments docs =
+      browser_internal::BuildAnalysisDocuments(
+          kPage, "http://example.com/p", "example.com", "https", SheetLookup);
+  EXPECT_TRUE(docs.coverage_document.empty()) << docs.coverage_document;
+  EXPECT_NE(docs.coverage_refusal.find("<noscript>"), std::string::npos)
+      << docs.coverage_refusal;
+  EXPECT_NE(docs.document.find("HERO"), std::string::npos);
+}
+
+TEST(ValidationInputsTest, NoscriptRenderEffectTravelsWithTheSheet) {
+  auto builder = [](const HtmlScanResult&, const std::string&,
+                    const std::string&, const std::string&) {
+    return browser_internal::CombinedCssBytes{".hero{display:flex}", false};
+  };
+  auto banner = browser_internal::BuildValidationInputs(
+      builder, "http://example.com/p", "example.com", "https",
+      "<html><head><link rel=stylesheet href=/s.css></head><body>"
+      "<noscript><div>Enable JS</div></noscript><div class=hero>x</div>"
+      "</body></html>");
+  ASSERT_TRUE(banner.ready);
+  EXPECT_TRUE(banner.noscript_affects_render);
+  auto pixel = browser_internal::BuildValidationInputs(
+      builder, "http://example.com/p", "example.com", "https",
+      "<html><head><link rel=stylesheet href=/s.css></head><body>"
+      "<noscript><img height=1 width=1 style=\"display:none\" "
+      "src=\"https://t.example/p.gif\"></noscript><div class=hero>x</div>"
+      "</body></html>");
+  ASSERT_TRUE(pixel.ready);
+  EXPECT_FALSE(pixel.noscript_affects_render);
+}
+
+TEST(ValidationInputsTest, TheLayerOrderTravelsWithTheSheet) {
+  // The validator places a layered candidate with the page's layer order from
+  // the same assembly as the sheet, so the order must reach the
+  // inputs unchanged.
+  auto inputs = browser_internal::BuildValidationInputs(
+      [](const HtmlScanResult&, const std::string&, const std::string&,
+         const std::string&) {
+        browser_internal::CombinedCssBytes bytes;
+        bytes.css = "@layer base{.hero{display:flex}}";
+        bytes.layer_order.proven = true;
+        bytes.layer_order.reason.clear();
+        bytes.layer_order.names = {"base"};
+        return bytes;
+      },
+      "http://example.com/p", "example.com", "https", kOriginPage);
+  ASSERT_TRUE(inputs.ready);
+  EXPECT_TRUE(inputs.layer_order.proven);
+  EXPECT_EQ(inputs.layer_order.Statement(), "@layer base;");
+}
+
 TEST(ValidationInputsTest, AnUncachedStylesheetProducesNoInputs) {
   bool called = false;
   auto inputs = browser_internal::BuildValidationInputs(
@@ -1567,6 +1861,12 @@ BrowserAnalysisManager::CombinedCssBuilder GlueSheetBuilder() {
   };
 }
 
+// The layer-order binding of a page whose order the builder did not prove
+// (GlueSheetBuilder sets none), which the manager's records bind to.
+std::string UnprovenBinding() {
+  return CascadeLayerOrder{}.ValidationBinding(kGlueSheet);
+}
+
 }  // namespace
 
 TEST_F(BrowserAnalysisManagerCacheTest, ValidatesTheBlockTheServePathInlines) {
@@ -1610,13 +1910,260 @@ TEST_F(BrowserAnalysisManagerCacheTest, ValidatesTheBlockTheServePathInlines) {
   std::string expected =
       DeriveDomMatchedCriticalCss(scan.elements, kGlueSheet, seed.critical_css,
                                   CapabilityMask::Viewport::kDesktop,
-                                  /*measured_above_fold_selectors=*/{})
+                                  /*measured_above_fold_selectors=*/{},
+                                  CascadeLayerOrder{})
           .critical_css;
   EXPECT_EQ(rendered_block, expected);
   EXPECT_NE(rendered_block, std::string(kGlueCoverageBlob))
       << "the raw coverage blob was rendered instead of the derived block";
   EXPECT_NE(rendered_block, std::string(kGlueSheet))
       << "the whole sheet was rendered instead of the derived block";
+}
+
+// On a layered page the layer order decides which @media blocks
+// the block keeps, so the validation must derive with the order the serve
+// path derives with, or it renders a different block from the one served. A
+// Tailwind v4-shaped page at the mobile viewport: with the order proven the
+// block goes first behind the statement and drops the `lg:` block; without it
+// the block goes before </head> and keeps it. Either way the rendered block
+// is the serve path's derivation under the same order.
+namespace {
+
+constexpr char kLayeredPage[] =
+    "<html><head><link rel=stylesheet href=/s.css></head>"
+    "<body><nav class=\"hidden lg:block\">x</nav></body></html>";
+constexpr char kLayeredSheet[] =
+    "@layer base,utilities;\n"
+    "@layer base{nav{margin:0}}\n"
+    "@layer utilities{.hidden{display:none}"
+    "@media (width>=64rem){.lg\\:block{display:block}}}\n"
+    "@layer utilities{.nowhere-on-this-page{display:grid}}";
+
+CascadeLayerOrder LayeredOrder(bool proven) {
+  CascadeLayerOrder order;
+  if (proven) {
+    order.proven = true;
+    order.reason.clear();
+    order.names = {"base", "utilities"};
+  }
+  return order;
+}
+
+}  // namespace
+
+TEST_F(BrowserAnalysisManagerCacheTest,
+       ValidatesTheServedBlockUnderThePagesLayerOrder) {
+  for (bool proven : {true, false}) {
+    SCOPED_TRACE(proven ? "order proven" : "order not proven");
+    const CascadeLayerOrder order = LayeredOrder(proven);
+    mgr_->set_combined_css_builder(
+        [order](const HtmlScanResult&, const std::string&, const std::string&,
+                const std::string&) {
+          return browser_internal::CombinedCssBytes{kLayeredSheet, false, false,
+                                                    order};
+        });
+    ValidationDocuments seen;
+    mgr_->set_validation_runner(
+        [&seen](const ValidationDocuments& docs, uint32_t, uint32_t,
+                std::function<void(ValidationVerdict)> done) {
+          seen = docs;
+          ValidationVerdict v;
+          v.validated = true;
+          v.diff_ratio = 0.0f;
+          done(std::move(v));
+        });
+
+    ViewportProfile seed;
+    seed.css_coverage_ratio = 0.21f;
+    seed.critical_css = ".hidden{display:none}";
+    mgr_->TestValidateOneViewport(GlueItem(), kLayeredPage, seed,
+                                  /*viewport_index=*/0);  // mobile, 375 px
+    ASSERT_TRUE(seen.ok) << seen.error;
+
+    // The serve path's block for this page and order (worker.cc passes
+    // CombinedCssResult::layer_order), placed by the serve path's rule.
+    HtmlScanner scanner;
+    HtmlScanResult scan = scanner.Scan("http://example.com/p", kLayeredPage);
+    ASSERT_TRUE(scan.success);
+    const std::string served =
+        DeriveDomMatchedCriticalCss(scan.elements, kLayeredSheet,
+                                    seed.critical_css,
+                                    CapabilityMask::Viewport::kMobile,
+                                    /*measured_above_fold_selectors=*/{}, order)
+            .critical_css;
+    const CriticalCssLayerPlacement placement =
+        DecideCriticalCssLayerPlacement(served, order);
+    const std::string open = "<style data-pagespeed-critical>";
+    std::string expected_style = open;
+    expected_style.append(placement.prefix).append(served).append("</style>");
+    const size_t at = seen.candidate.find(expected_style);
+    EXPECT_NE(at, std::string::npos)
+        << "the validated block must be the block the visitor is served";
+
+    const size_t link_or_head = seen.candidate.find("</head>");
+    if (proven) {
+      EXPECT_FALSE(placement.keep_fallback);
+      EXPECT_EQ(placement.prefix, "@layer base,utilities;");
+      EXPECT_EQ(served.find("64rem"), std::string::npos)
+          << "a proven page's mobile block drops the lg: block";
+    } else {
+      EXPECT_TRUE(placement.keep_fallback);
+      EXPECT_NE(served.find("64rem"), std::string::npos)
+          << "a page whose order is not proven keeps it";
+      EXPECT_EQ(
+          at + open.size() + served.size() + std::string("</style>").size(),
+          link_or_head)
+          << "the fallback block sits right before </head>";
+    }
+  }
+}
+
+// On a page whose layer order is not proven, the block goes
+// after the sheets and carries no anonymous-layer rule. The validation renders
+// the block the serve path derives under the same order, so it renders that
+// too.
+TEST_F(BrowserAnalysisManagerCacheTest,
+       ValidatesTheServedBlockWithoutAnonymousLayersWhenUnproven) {
+  static constexpr char kSheet[] =
+      "@layer base{nav{margin:0}}\n"
+      "@layer { .hidden{display:none} .hidden.open{display:block} }\n"
+      ".nowhere-on-this-page{display:grid}";
+  static constexpr char kPage[] =
+      "<html><head><link rel=stylesheet href=/s.css></head>"
+      "<body><nav class=\"hidden\">x</nav></body></html>";
+  const CascadeLayerOrder unproven;
+  mgr_->set_combined_css_builder([unproven](
+                                     const HtmlScanResult&, const std::string&,
+                                     const std::string&, const std::string&) {
+    return browser_internal::CombinedCssBytes{kSheet, false, false, unproven};
+  });
+  ValidationDocuments seen;
+  mgr_->set_validation_runner(
+      [&seen](const ValidationDocuments& docs, uint32_t, uint32_t,
+              std::function<void(ValidationVerdict)> done) {
+        seen = docs;
+        ValidationVerdict v;
+        v.validated = true;
+        v.diff_ratio = 0.0f;
+        done(std::move(v));
+      });
+  ViewportProfile seed;
+  seed.css_coverage_ratio = 0.21f;
+  seed.critical_css = "nav{margin:0}";
+  ViewportProfile out = mgr_->TestValidateOneViewport(GlueItem(), kPage, seed,
+                                                      /*viewport_index=*/0);
+  ASSERT_TRUE(seen.ok) << seen.error;
+
+  HtmlScanner scanner;
+  HtmlScanResult scan = scanner.Scan("http://example.com/p", kPage);
+  ASSERT_TRUE(scan.success);
+  CriticalCssResult served = DeriveDomMatchedCriticalCss(
+      scan.elements, kSheet, seed.critical_css,
+      CapabilityMask::Viewport::kMobile,
+      /*measured_above_fold_selectors=*/{}, unproven);
+  EXPECT_TRUE(served.anonymous_layers_dropped);
+  EXPECT_EQ(served.critical_css.find("display:none"), std::string::npos)
+      << served.critical_css;
+  EXPECT_NE(served.critical_css.find("margin:0"), std::string::npos)
+      << served.critical_css;
+  std::string expected_style = "<style data-pagespeed-critical>";
+  expected_style.append(served.critical_css).append("</style>");
+  EXPECT_NE(seen.candidate.find(expected_style), std::string::npos)
+      << "the validated block must be the block the visitor is served";
+  // The record binds to that derivation: the sheet's `u2`
+  // marker and the derivation's own salt, exactly what the serve path's
+  // accept test computes for the block it inlines.
+  ASSERT_TRUE(out.critical_css_validated);
+  EXPECT_EQ(unproven.ValidationBinding(kSheet), "unproven u2");
+  EXPECT_TRUE(AsyncCssValidatedForServedSheet(
+      &out, kSheet,
+      ValidationBindingFor(unproven.ValidationBinding(kSheet),
+                           scan.noscript_affects_render, kSheet,
+                           CapabilityMask::Viewport::kMobile,
+                           served.anonymous_layers_dropped)));
+  EXPECT_FALSE(AsyncCssValidatedForServedSheet(
+      &out, kSheet,
+      ValidationBindingFor(unproven.ValidationBinding(kSheet),
+                           scan.noscript_affects_render, kSheet,
+                           CapabilityMask::Viewport::kMobile,
+                           /*anonymous_layers_dropped=*/false)))
+      << "a record made before the salt existed is made again";
+}
+
+// The same with the anonymous layer written as `@l\61yer {`,
+// which the placement side already read as a possible layer (the order is
+// refused for the escape) while the drop path matched the literal `@layer`
+// only. The validated block is the served one, without the escaped rules, and
+// the record carries the derivation's salt.
+TEST_F(BrowserAnalysisManagerCacheTest,
+       ValidatesTheServedBlockWithoutEscapedAnonymousLayers) {
+  static constexpr char kSheet[] =
+      "@layer base{nav{margin:0}}\n"
+      "@media screen { @l\\61yer { .hidden{display:none} } }\n"
+      "@l\\61yer { .hidden.open{display:block} }";
+  static constexpr char kPage[] =
+      "<html><head><link rel=stylesheet href=/s.css></head>"
+      "<body><nav class=\"hidden\">x</nav></body></html>";
+  // Computed as BuildCombinedCss computes it: refused for the escape.
+  std::vector<LayerOrderSource> sources(1);
+  sources[0].available = true;
+  sources[0].css = kSheet;
+  const CascadeLayerOrder order = ComputeCascadeLayerOrder(sources, {});
+  ASSERT_FALSE(order.proven);
+  ASSERT_NE(order.reason.find("escape"), std::string::npos) << order.reason;
+  mgr_->set_combined_css_builder([order](const HtmlScanResult&,
+                                         const std::string&, const std::string&,
+                                         const std::string&) {
+    return browser_internal::CombinedCssBytes{kSheet, false, false, order};
+  });
+  ValidationDocuments seen;
+  mgr_->set_validation_runner(
+      [&seen](const ValidationDocuments& docs, uint32_t, uint32_t,
+              std::function<void(ValidationVerdict)> done) {
+        seen = docs;
+        ValidationVerdict v;
+        v.validated = true;
+        v.diff_ratio = 0.0f;
+        done(std::move(v));
+      });
+  ViewportProfile seed;
+  seed.css_coverage_ratio = 0.21f;
+  seed.critical_css = "nav{margin:0}";
+  ViewportProfile out = mgr_->TestValidateOneViewport(GlueItem(), kPage, seed,
+                                                      /*viewport_index=*/0);
+  ASSERT_TRUE(seen.ok) << seen.error;
+
+  HtmlScanner scanner;
+  HtmlScanResult scan = scanner.Scan("http://example.com/p", kPage);
+  ASSERT_TRUE(scan.success);
+  CriticalCssResult served =
+      DeriveDomMatchedCriticalCss(scan.elements, kSheet, seed.critical_css,
+                                  CapabilityMask::Viewport::kMobile,
+                                  /*measured_above_fold_selectors=*/{}, order);
+  EXPECT_TRUE(served.anonymous_layers_dropped);
+  EXPECT_EQ(served.critical_css.find("61yer"), std::string::npos)
+      << served.critical_css;
+  EXPECT_EQ(served.critical_css.find("display:"), std::string::npos)
+      << served.critical_css;
+  EXPECT_NE(served.critical_css.find("margin:0"), std::string::npos)
+      << served.critical_css;
+  std::string expected_style = "<style data-pagespeed-critical>";
+  expected_style.append(served.critical_css).append("</style>");
+  EXPECT_NE(seen.candidate.find(expected_style), std::string::npos)
+      << "the validated block must be the block the visitor is served";
+  ASSERT_TRUE(out.critical_css_validated);
+  EXPECT_EQ(order.ValidationBinding(kSheet), "unproven u2");
+  EXPECT_TRUE(AsyncCssValidatedForServedSheet(
+      &out, kSheet,
+      ValidationBindingFor(
+          order.ValidationBinding(kSheet), scan.noscript_affects_render, kSheet,
+          CapabilityMask::Viewport::kMobile, served.anonymous_layers_dropped)));
+  EXPECT_FALSE(AsyncCssValidatedForServedSheet(
+      &out, kSheet,
+      ValidationBindingFor(order.ValidationBinding(kSheet),
+                           scan.noscript_affects_render, kSheet,
+                           CapabilityMask::Viewport::kMobile,
+                           /*anonymous_layers_dropped=*/false)));
 }
 
 TEST_F(BrowserAnalysisManagerCacheTest, AConfirmationBindsToTheServedSheet) {
@@ -1639,12 +2186,22 @@ TEST_F(BrowserAnalysisManagerCacheTest, AConfirmationBindsToTheServedSheet) {
   // Asserted through the SERVE path's own accept test, against the sheet the
   // builder produced. Bound to anything else — the critical block, say — and
   // this is false while every "a record was written" assertion stays true.
-  EXPECT_TRUE(AsyncCssValidatedForServedSheet(&out, kGlueSheet));
+  EXPECT_TRUE(
+      AsyncCssValidatedForServedSheet(&out, kGlueSheet, UnprovenBinding()));
   EXPECT_FALSE(AsyncCssValidatedForServedSheet(&out, "@layer base{.hero{}}"));
+  // The record binds to the layer order the validation placed the block with
+  // too: the same sheet served with another order does not
+  // match, and neither does the unbound hash of the sheet alone.
+  CascadeLayerOrder proven;
+  proven.proven = true;
+  proven.names = {"base"};
+  EXPECT_FALSE(AsyncCssValidatedForServedSheet(
+      &out, kGlueSheet, proven.ValidationBinding(kGlueSheet)));
+  EXPECT_FALSE(AsyncCssValidatedForServedSheet(&out, kGlueSheet));
   EXPECT_NE(out.validated_critical_css_hash, out.validated_combined_css_hash);
   // Bound to the SHEET, not to either block-shaped thing in play here.
   EXPECT_EQ(out.validated_combined_css_hash,
-            CombinedCssValidationHash(kGlueSheet));
+            CombinedCssValidationHash(kGlueSheet, UnprovenBinding()));
   EXPECT_NE(out.validated_combined_css_hash,
             CombinedCssValidationHash(kGlueCoverageBlob));
 }
@@ -1686,7 +2243,8 @@ TEST_F(BrowserAnalysisManagerCacheTest, ValidationRefusesAnUnmeasuredFold) {
   // stylesheet render-blocking", which is the benign outcome.
   EXPECT_FALSE(out.critical_css_validated);
   EXPECT_TRUE(out.validated_combined_css_hash.empty());
-  EXPECT_FALSE(AsyncCssValidatedForServedSheet(&out, kGlueSheet));
+  EXPECT_FALSE(
+      AsyncCssValidatedForServedSheet(&out, kGlueSheet, UnprovenBinding()));
 
   // Control: the SAME inputs with the fold measured do validate, so the refusal
   // above is the flag's doing and not some other precondition failing.
@@ -1704,7 +2262,8 @@ TEST_F(BrowserAnalysisManagerCacheTest, ValidationRefusesAnUnmeasuredFold) {
       GlueItem(), kGluePage, seed, /*viewport_index=*/2,
       /*fold_measured=*/true);
   EXPECT_TRUE(control_invoked);
-  EXPECT_TRUE(AsyncCssValidatedForServedSheet(&measured, kGlueSheet));
+  EXPECT_TRUE(AsyncCssValidatedForServedSheet(&measured, kGlueSheet,
+                                              UnprovenBinding()));
 }
 
 // The ordering itself, driven through the real continuation.
@@ -1757,7 +2316,8 @@ TEST_F(BrowserAnalysisManagerCacheTest, PageAnalysisRunsBeforeValidation) {
   EXPECT_NE(std::find(out.above_fold_selectors.begin(),
                       out.above_fold_selectors.end(), ".hero"),
             out.above_fold_selectors.end());
-  EXPECT_TRUE(AsyncCssValidatedForServedSheet(&out, kGlueSheet))
+  EXPECT_TRUE(
+      AsyncCssValidatedForServedSheet(&out, kGlueSheet, UnprovenBinding()))
       << "a viewport that ran in the right order still gets confirmed";
 }
 
@@ -1788,7 +2348,8 @@ TEST_F(BrowserAnalysisManagerCacheTest, ASkippedViewportIsLeftUnstamped) {
   EXPECT_FALSE(out.critical_css_validated);
   EXPECT_TRUE(out.validated_combined_css_hash.empty());
   EXPECT_TRUE(out.validated_critical_css_hash.empty());
-  EXPECT_FALSE(AsyncCssValidatedForServedSheet(&out, kGlueSheet));
+  EXPECT_FALSE(
+      AsyncCssValidatedForServedSheet(&out, kGlueSheet, UnprovenBinding()));
 }
 
 TEST_F(BrowserAnalysisManagerCacheTest, AnEmptyBlockSkipsAndStampsNothing) {
@@ -1811,7 +2372,8 @@ TEST_F(BrowserAnalysisManagerCacheTest, AnEmptyBlockSkipsAndStampsNothing) {
       mgr_->TestValidateOneViewport(GlueItem(), kGluePage, seed, 2);
 
   EXPECT_FALSE(runner_called);
-  EXPECT_FALSE(AsyncCssValidatedForServedSheet(&out, kGlueSheet));
+  EXPECT_FALSE(
+      AsyncCssValidatedForServedSheet(&out, kGlueSheet, UnprovenBinding()));
 }
 
 TEST_F(BrowserAnalysisManagerCacheTest,
@@ -1833,7 +2395,8 @@ TEST_F(BrowserAnalysisManagerCacheTest,
   ViewportProfile out =
       mgr_->TestValidateOneViewport(GlueItem(), kGluePage, seed, 2);
 
-  EXPECT_FALSE(AsyncCssValidatedForServedSheet(&out, kGlueSheet));
+  EXPECT_FALSE(
+      AsyncCssValidatedForServedSheet(&out, kGlueSheet, UnprovenBinding()));
   EXPECT_FLOAT_EQ(out.validation_diff_ratio, 0.31f)
       << "the measurement is still worth keeping; the confirmation is not";
 }
@@ -1880,12 +2443,11 @@ TEST(PrepareCriticalCssValidationTest, DerivesAgainstTheServedMeasuredFold) {
   const std::string sheet =
       ".btn{color:#000}\n.promo{color:#f00}\n[data-promo]{color:#000}\n";
 
-  // Head-heavy page: the anchor lands past the 25-element estimate, so only a
-  // measured fold can admit it.
-  std::string html = "<html><head>";
-  for (int i = 0; i < 30; ++i) html += "<meta name=\"m\" content=\"v\">";
-  html +=
-      "</head><body><a class=\"btn promo\" data-promo>Buy</a></body></html>";
+  // A long page: the anchor lands past the 300-body-element estimate, so only
+  // a measured fold can admit it.
+  std::string html = "<html><head></head><body>";
+  for (int i = 0; i < 300; ++i) html += "<p>x</p>";
+  html += "<a class=\"btn promo\" data-promo>Buy</a></body></html>";
 
   HtmlScanner scanner;
   HtmlScanResult scan = scanner.Scan("http://example.com/p", html);
@@ -1908,12 +2470,13 @@ TEST(PrepareCriticalCssValidationTest, DerivesAgainstTheServedMeasuredFold) {
   const std::string served =
       DeriveDomMatchedCriticalCss(scan.elements, sheet, vp.critical_css,
                                   CapabilityMask::Viewport::kDesktop,
-                                  vp.above_fold_selectors)
+                                  vp.above_fold_selectors, CascadeLayerOrder{})
           .critical_css;
   // The block an EMPTY fold would derive — what the bug validated instead.
   const std::string unmeasured =
       DeriveDomMatchedCriticalCss(scan.elements, sheet, vp.critical_css,
-                                  CapabilityMask::Viewport::kDesktop, {})
+                                  CapabilityMask::Viewport::kDesktop, {},
+                                  CascadeLayerOrder{})
           .critical_css;
 
   ASSERT_NE(served, unmeasured)
@@ -2026,11 +2589,12 @@ TEST(PopulateViewportFromPageAnalysisTest, AboveFoldSelectorTokensAreCapped) {
 // fold through. A signature that accepts it and drops it would leave every
 // extractor-level test green while the feature does nothing in production.
 TEST(DeriveDomMatchedCriticalCssTest, ForwardsTheMeasuredFoldToTheExtractor) {
-  // A head-heavy page: the body elements sit well past the 25-element estimate.
-  std::string html = "<html><head>";
-  for (int i = 0; i < 30; ++i) html += "<meta name=\"m\" content=\"v\">";
+  // A long page: the elements of interest sit past the 300-body-element
+  // estimate.
+  std::string html = "<html><head></head><body>";
+  for (int i = 0; i < 300; ++i) html += "<p>x</p>";
   html +=
-      "</head><body><div class=\"flex\">a</div>"
+      "<div class=\"flex\">a</div>"
       "<div class=\"mt-96\">b</div></body></html>";
 
   HtmlScanner scanner;
@@ -2043,14 +2607,14 @@ TEST(DeriveDomMatchedCriticalCssTest, ForwardsTheMeasuredFoldToTheExtractor) {
   CriticalCssResult unmeasured = DeriveDomMatchedCriticalCss(
       scan.elements, sheet, /*profile_critical_css=*/"",
       CapabilityMask::Viewport::kDesktop,
-      /*measured_above_fold_selectors=*/{});
+      /*measured_above_fold_selectors=*/{}, CascadeLayerOrder{});
   EXPECT_EQ(unmeasured.critical_css.find("display:flex"), std::string::npos)
       << "precondition: the estimate alone excludes these elements";
 
   CriticalCssResult measured = DeriveDomMatchedCriticalCss(
       scan.elements, sheet, /*profile_critical_css=*/"",
       CapabilityMask::Viewport::kDesktop,
-      /*measured_above_fold_selectors=*/{".flex"});
+      /*measured_above_fold_selectors=*/{".flex"}, CascadeLayerOrder{});
   EXPECT_NE(measured.critical_css.find("display:flex"), std::string::npos)
       << "the measured token must reach the extractor";
   EXPECT_EQ(measured.critical_css.find("24rem"), std::string::npos)

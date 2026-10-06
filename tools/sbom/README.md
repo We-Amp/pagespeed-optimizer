@@ -118,7 +118,12 @@ blocking:
 
 1. Land report-only; the severity table appears on each run's Summary tab.
 2. Triage findings into `sbom/*.vex.json` — `not_affected` + justification, or
-   bump the real ones.
+   bump the real ones. A `not_affected` statement for a finding that has no
+   fix yet should be time-boxed: put an `Expires: YYYY-MM-DD` marker at the
+   start of its `impact_statement` (OpenVEX has no expiry field), and
+   `tools/ci/validate-vex.py` — run before every grype invocation — fails the
+   file once that date has passed, so the suppression gets re-evaluated
+   instead of quietly outliving its evidence.
 3. Once a surface is clean at medium+, add it to the blocking gate's
    `--surfaces` in the per-PR blocking job.
 
@@ -134,9 +139,14 @@ blocking:
   gated per-PR because PRs never rebuild images.
 - **.NET stays report-only** (when added) until triaged clean.
 
-Every event (push / PR / schedule / dispatch) also files-or-closes a single
-`dependencies-cve` tracking issue on medium+ findings, so a newly disclosed CVE
-notifies immediately even on the non-blocking push/PR sweep.
+Every run on the default branch (push / schedule / dispatch on `main`) also
+files-or-closes a single `dependencies-cve` tracking issue on medium+ findings,
+so a newly disclosed CVE notifies immediately even on the non-blocking push
+sweep. A pull_request run is a **dry run** of that step: it prints what the
+live run would do (create / update / close / nothing, with the issue number)
+to the log and the step summary and touches nothing — a PR's scan, clean only
+because of a suppression the PR carries, must not close the tracker before it
+   merges.
 
 ### Retiring the curated `generate-sbom.py` rows — deliberately deferred
 

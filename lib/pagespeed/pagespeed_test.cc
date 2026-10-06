@@ -959,7 +959,7 @@ TEST(PageSpeedCApi, HtmlConfigInit) {
   EXPECT_EQ(config.enable_lazy_load, 1);
   EXPECT_EQ(config.enable_speculation_rules, 0);
   EXPECT_EQ(config.enable_async_css, 0);  // opt-in
-  EXPECT_EQ(config.critical_css_max_elements, 25);
+  EXPECT_EQ(config.critical_css_max_elements, 300);
   EXPECT_EQ(config.viewport, PS_VIEWPORT_DESKTOP);
   EXPECT_EQ(config.max_html_size, 5u * 1024 * 1024);
 }
@@ -972,7 +972,7 @@ TEST(PageSpeedCApi, CriticalCssConfigInit) {
   ps_critical_css_config_t config;
   ps_critical_css_config_init(&config);
   EXPECT_EQ(config.struct_size, sizeof(ps_critical_css_config_t));
-  EXPECT_EQ(config.max_elements, 25);
+  EXPECT_EQ(config.max_elements, 300);
   EXPECT_EQ(config.max_depth, 10);
   EXPECT_EQ(config.viewport, PS_VIEWPORT_DESKTOP);
 }

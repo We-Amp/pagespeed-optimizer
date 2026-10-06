@@ -8,8 +8,12 @@
   "engines": {
     "vscode": "^1.96.0"
   },
-  "categories": ["Other"],
-  "activationEvents": ["onStartupFinished"],
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "viewsContainers": {
@@ -23,14 +27,29 @@
     },
     "views": {
       "pagespeed": [
-        { "id": "pagespeed.connection", "name": "Connection" },
-        { "id": "pagespeed.urls", "name": "URLs" }
+        {
+          "id": "pagespeed.connection",
+          "name": "Connection"
+        },
+        {
+          "id": "pagespeed.urls",
+          "name": "URLs"
+        }
       ]
     },
     "commands": [
-      { "command": "pagespeed.connect", "title": "PageSpeed: Connect" },
-      { "command": "pagespeed.disconnect", "title": "PageSpeed: Disconnect" },
-      { "command": "pagespeed.setToken", "title": "PageSpeed: Set API Token" },
+      {
+        "command": "pagespeed.connect",
+        "title": "PageSpeed: Connect"
+      },
+      {
+        "command": "pagespeed.disconnect",
+        "title": "PageSpeed: Disconnect"
+      },
+      {
+        "command": "pagespeed.setToken",
+        "title": "PageSpeed: Set API Token"
+      },
       {
         "command": "pagespeed.showDashboard",
         "title": "PageSpeed: Show Dashboard"
@@ -47,7 +66,10 @@
         "command": "pagespeed.showConfig",
         "title": "PageSpeed: Show Configuration"
       },
-      { "command": "pagespeed.inspectUrl", "title": "PageSpeed: Inspect URL" },
+      {
+        "command": "pagespeed.inspectUrl",
+        "title": "PageSpeed: Inspect URL"
+      },
       {
         "command": "pagespeed.refreshUrls",
         "title": "PageSpeed: Refresh URLs",
@@ -84,7 +106,10 @@
     },
     "menus": {
       "commandPalette": [
-        { "command": "pagespeed.disconnect", "when": "pagespeed.connected" },
+        {
+          "command": "pagespeed.disconnect",
+          "when": "pagespeed.connected"
+        },
         {
           "command": "pagespeed.showDashboard",
           "when": "pagespeed.connected"
@@ -101,7 +126,10 @@
           "command": "pagespeed.showConfig",
           "when": "pagespeed.connected"
         },
-        { "command": "pagespeed.inspectUrl", "when": "pagespeed.connected" },
+        {
+          "command": "pagespeed.inspectUrl",
+          "when": "pagespeed.connected"
+        },
         {
           "command": "pagespeed.purgeUrlFromTree",
           "when": "false"
@@ -141,11 +169,11 @@
     "@pagespeed/ui": "workspace:*"
   },
   "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@types/vscode": "^1.96.0",
     "svelte": "^5.55.9",
-    "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "typescript": "^5.7.0",
     "vite": "^6.0.0",
-    "vitest": "^4.1.8",
-    "typescript": "^5.7.0"
+    "vitest": "^4.1.11"
   }
 }

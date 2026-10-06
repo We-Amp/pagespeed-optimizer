@@ -13,7 +13,9 @@
 #                         tar; self-heals from the (valid) hub copy.
 #   3. empty-source       local missing AND hub source empty/missing ->
 #                         fails LOUD (exit 1) with "rerun the full workflow"
-#                         guidance; no partial extraction.
+#                         guidance carrying the `[vendor-tarball-unavailable]`
+#                         marker the Required Checks Gate greps for;
+#                         no partial extraction.
 #   4. fallback/aux       no local candidate (aux runner) + valid hub copy
 #                         -> fetches, verifies, extracts.
 #   5. sha-mismatch       local .zst is a *valid* zstd frame but its sidecar
@@ -42,6 +44,9 @@ command -v zstd  >/dev/null || { echo "SKIP: zstd not installed"; exit 0; }
 TEST_TMP="$(mktemp -d)"
 cleanup() { rm -rf "$TEST_TMP"; }
 trap cleanup EXIT
+# Every hub fetch below lands under this TMPDIR; check [8] asserts none of
+# them left a tarball behind (a leftover per job filled a runner's disk).
+export TMPDIR="$TEST_TMP/fetch-tmp"; mkdir -p "$TMPDIR"
 
 FAKE_BIN="$TEST_TMP/bin"
 SHARED="$TEST_TMP/hub-shared"    # stand-in for the hub's shared vendor dir
@@ -49,6 +54,9 @@ mkdir -p "$FAKE_BIN" "$SHARED"
 
 SHA="deadbee"
 NAME="mod_pagespeed-${SHA}.tar.zst"
+# The pre-fix helper left /tmp/<name> behind on shared runners; clear this
+# test's fake-SHA name so a stale copy from an old run can't fail check [8].
+rm -f "/tmp/$NAME" "/tmp/$NAME.sha256"
 
 # ---------------------------------------------------------------------------
 # Build a real, valid vendor tarball (a tiny workspace with GIT_COMMIT).
@@ -183,6 +191,15 @@ if [ "$rc" -ne 0 ]; then
   else
     bad "failed but without actionable rerun guidance"; cat "$TEST_TMP/out3.log"
   fi
+  # The gate's contract: the marker rides on an ::error:: line, which
+  # the runner renders as "##[error][vendor-tarball-unavailable] ..." in the
+  # job log. The gate matches that rendered form, so the marker must be the
+  # very first thing after the workflow command, with nothing in between.
+  if grep -qF '::error::[vendor-tarball-unavailable] ' "$TEST_TMP/out3.log"; then
+    ok "fail-loud message carries the [vendor-tarball-unavailable] gate marker"
+  else
+    bad "fail-loud message lost the [vendor-tarball-unavailable] gate marker"; cat "$TEST_TMP/out3.log"
+  fi
 else
   bad "MISSING artifact did NOT fail (the silent-success bug)"; cat "$TEST_TMP/out3.log"
 fi
@@ -287,6 +304,18 @@ if (
   ok "local-only extract works with no hub variables set"
 else
   bad "local-only extract should not require hub variables"; cat "$TEST_TMP/out7b.log"
+fi
+
+# ===========================================================================
+echo "[8] hub fetches leave no tarball behind"
+# ===========================================================================
+left="$(find "$TMPDIR" -type f 2>/dev/null | head -5)"
+# The pre-fix helper ignored TMPDIR and wrote /tmp/<name>; catch that too.
+if [ -e "/tmp/$NAME" ]; then left="$left /tmp/$NAME"; fi
+if [ -z "$left" ]; then
+  ok "no fetched tarball or sidecar left behind"
+else
+  bad "fetched files left behind: $left"
 fi
 
 echo ""

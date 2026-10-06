@@ -3,9 +3,13 @@
 
 // 4. Fetch.enable({patterns: [{urlPattern: "*"}]})
 //    + Fetch.requestPaused handler to serve from cache
-// 5. Emulation.setDeviceMetricsOverride({width, height, ...})
+// 5. Emulation.setDeviceMetricsOverride + setTouchEmulationEnabled
+//    [+ setUserAgentOverride] (EmulateDevice, src/browser/device_emulation.h)
 // 6. Page.addScriptToEvaluateOnNewDocument() for LCP + CLS observers
-// 7. Page.enable, Page.setLifecycleEventsEnabled
+// 7. Page.enable, Page.navigate(about:blank) for a fresh window
+//    (LoadFreshBlankDocument, which also makes the observers of step 6
+//    run in the window the document is written into),
+//    Page.setLifecycleEventsEnabled
 // 8. Page.setDocumentContent({frameId, html})
 // 9. Wait for Page.lifecycleEvent("networkIdle") + 2s stability
 // 10. Runtime.evaluate to collect:
@@ -31,6 +35,8 @@
 #include "src/browser/cdp_client.h"
 #include "src/browser/cdp_types.h"
 #include "src/browser/cdp_utils.h"
+#include "src/browser/device_emulation.h"
+#include "src/browser/render_support.h"
 #include "uv.h"
 
 namespace pagespeed {
@@ -255,10 +261,34 @@ struct PageAnalyzer::Session : public std::enable_shared_from_this<Session> {
   std::string session_id;
   std::string frame_id;
   bool got_network_idle = false;
+  // The requested document is in the frame (Page.setDocumentContent
+  // answered). The target starts at about:blank, and enabling lifecycle
+  // events makes Chromium replay that blank document's lifecycle, its
+  // networkIdle included, before the document is written: a networkIdle that
+  // arrives before this is set describes the blank tab, and collecting on it
+  // reads about:blank instead of the page.
+  bool content_set = false;
+  // Page.setDocumentContent was sent. Chromium replays the blank tab's
+  // lifecycle while lifecycle events are enabled, before this is sent, so a
+  // load event after it is the page's own. On a page with nothing left to
+  // fetch that load arrives BEFORE the reply to setDocumentContent.
+  bool content_sent = false;
+  // The settle bound ran out before the reply (content_set): collect at the
+  // reply.
+  bool settled_before_reply = false;
+  // kSettleAfterLoadMs, or the analyzer's test override.
+  uint64_t settle_after_load_ms = kSettleAfterLoadMs;
   bool completed = false;
+  // A refused Fetch.failRequest was reported already (FailPausedRequest).
+  bool fetch_error_reported = false;
 
   // Overall session timeout timer.
   uv_timer_t* timeout_timer = nullptr;
+
+  // Collect at the page's networkIdle or kSettleAfterLoadMs after its load
+  // event, whichever comes first (OnPageSettled): a page that keeps a request
+  // in flight at least every 500 ms never reaches networkIdle.
+  OneShotTimer load_settle_timer;
 
   // agent_optimize settle timer (between networkIdle and the rendered-DOM read).
   // Owned like timeout_timer: self-cleaned on fire, or cleaned by Finish().
@@ -313,6 +343,8 @@ struct PageAnalyzer::Session : public std::enable_shared_from_this<Session> {
     // callback via a Send failure). Without this, the rest of Finish() would run
     // on a freed `this`.
     auto keep_alive = shared_from_this();
+
+    load_settle_timer.Cancel();
 
     // Cancel the overall session timeout.
     if (timeout_timer != nullptr && timeout_timer->data != nullptr) {
@@ -411,16 +443,9 @@ struct PageAnalyzer::Session : public std::enable_shared_from_this<Session> {
     }
   }
 
-  // Fetch.failRequest(BlockedByClient).
+  // Fetch.failRequest(BlockedByClient), reply checked (FailPausedRequest).
   void FailRequest(const std::string& request_id) {
-    CdpCommand fail_cmd;
-    fail_cmd.method = "Fetch.failRequest";
-    fail_cmd.params = {
-        {"requestId", request_id},
-        {"reason", "BlockedByClient"},
-    };
-    fail_cmd.session_id = session_id;
-    Send(fail_cmd, [](auto) {});
+    FailPausedRequest(shared_from_this(), request_id, "page analysis");
   }
 
   // Fetch.fulfillRequest from an in-memory cached resource (legacy path).
@@ -583,6 +608,27 @@ struct PageAnalyzer::Session : public std::enable_shared_from_this<Session> {
   }
 
   // Collect results from the page after networkIdle.
+  // The page settled (networkIdle, or the settle bound after load): collect,
+  // once.
+  void OnPageSettled() {
+    if (completed || got_network_idle) return;
+    if (!content_set) {
+      // Not before the document is written (the reply to setDocumentContent
+      // collects then).
+      settled_before_reply = true;
+      return;
+    }
+    got_network_idle = true;
+    load_settle_timer.Cancel();
+    if (agent && agent->policy) {
+      // agent_optimize: settle, then read the rendered DOM -> markdown.
+      ScheduleRenderedHtmlRead();
+    } else {
+      // Legacy perf path: collect LCP/CLS/image metrics now.
+      CollectResults();
+    }
+  }
+
   void CollectResults() {
     CdpCommand eval_cmd;
     eval_cmd.method = "Runtime.evaluate";
@@ -716,7 +762,8 @@ struct PageAnalyzer::Session : public std::enable_shared_from_this<Session> {
   }
 };
 
-PageAnalyzer::PageAnalyzer(CdpClient* client) : client_(client) {}
+PageAnalyzer::PageAnalyzer(CdpClient* client)
+    : client_(client), settle_after_load_ms_(kSettleAfterLoadMs) {}
 
 void PageAnalyzer::Analyze(std::string_view html_content,
                            std::shared_ptr<const ResourceMap> cached_resources,
@@ -732,6 +779,7 @@ void PageAnalyzer::Analyze(std::string_view html_content,
   session->viewport_width = viewport_width;
   session->viewport_height = viewport_height;
   session->timeout_ms = timeout_ms;
+  session->settle_after_load_ms = settle_after_load_ms_;
   session->agent = std::move(agent);
 
   // Start overall session timeout.
@@ -807,22 +855,8 @@ void PageAnalyzer::Analyze(std::string_view html_content,
                 s->FinishError("Fetch.enable setup failed");
                 return;
               }
-              // Step 5: Set viewport.
-              CdpCommand vp_cmd;
-              vp_cmd.method = "Emulation.setDeviceMetricsOverride";
-              vp_cmd.params = {
-                  {"width", s->viewport_width},
-                  {"height", s->viewport_height},
-                  {"deviceScaleFactor", 1},
-                  {"mobile", s->viewport_width < 768},
-              };
-              vp_cmd.session_id = s->session_id;
-
-              s->Send(vp_cmd, [s](auto result) {
-                if (!result.ok() || result->is_error()) {
-                  s->FinishError("viewport setup failed");
-                  return;
-                }
+              // Step 5: Emulate the device (metrics, touch, UA).
+              EmulateDevice(s, s->viewport_width, s->viewport_height, [s]() {
                 // Step 6: Inject observer script.
                 CdpCommand script_cmd;
                 script_cmd.method =
@@ -846,56 +880,67 @@ void PageAnalyzer::Analyze(std::string_view html_content,
                       s->FinishError("Page.enable failed");
                       return;
                     }
-                    CdpCommand lc_cmd;
-                    lc_cmd.method =
-                        "Page."
-                        "setLifecycleEventsEnabled";
-                    lc_cmd.params = {{"enabled", true}};
-                    lc_cmd.session_id = s->session_id;
+                    // A fresh window for the document (LoadFreshBlankDocument).
+                    LoadFreshBlankDocument(s, [s]() {
+                      CdpCommand lc_cmd;
+                      lc_cmd.method =
+                          "Page."
+                          "setLifecycleEventsEnabled";
+                      lc_cmd.params = {{"enabled", true}};
+                      lc_cmd.session_id = s->session_id;
 
-                    s->Send(lc_cmd, [s](auto result) {
-                      if (!result.ok() || result->is_error()) {
-                        s->FinishError("lifecycle enable failed");
-                        return;
-                      }
-                      // Step 8: Get frame + set content.
-                      CdpCommand tree_cmd;
-                      tree_cmd.method = "Page.getFrameTree";
-                      tree_cmd.session_id = s->session_id;
+                      s->Send(lc_cmd, [s](auto result) {
+                        if (!result.ok() || result->is_error()) {
+                          s->FinishError("lifecycle enable failed");
+                          return;
+                        }
+                        // Step 8: Get frame + set content.
+                        CdpCommand tree_cmd;
+                        tree_cmd.method = "Page.getFrameTree";
+                        tree_cmd.session_id = s->session_id;
 
-                      s->Send(tree_cmd,
-                              [s](absl::StatusOr<CdpResponse> result) {
-                                if (!result.ok() || result->is_error()) {
-                                  s->FinishError("getFrameTree failed");
+                        s->Send(
+                            tree_cmd, [s](absl::StatusOr<CdpResponse> result) {
+                              if (!result.ok() || result->is_error()) {
+                                s->FinishError("getFrameTree failed");
+                                return;
+                              }
+                              s->frame_id =
+                                  result->result
+                                      .value("frameTree", json::object())
+                                      .value("frame", json::object())
+                                      .value("id", "");
+
+                              CdpCommand content_cmd;
+                              content_cmd.method = "Page.setDocumentContent";
+                              content_cmd.params = {
+                                  {"frameId", s->frame_id},
+                                  {"html", s->html_content},
+                              };
+                              content_cmd.session_id = s->session_id;
+                              content_cmd.timeout_ms = 15000;
+
+                              s->content_sent = true;
+                              s->Send(content_cmd, [s](auto r) {
+                                // Release HTML memory — no
+                                // longer needed after loading.
+                                s->html_content.clear();
+                                s->html_content.shrink_to_fit();
+                                if (!r.ok() || r->is_error()) {
+                                  s->FinishError(
+                                      "setDocumentContent "
+                                      "failed");
                                   return;
                                 }
-                                s->frame_id =
-                                    result->result
-                                        .value("frameTree", json::object())
-                                        .value("frame", json::object())
-                                        .value("id", "");
-
-                                CdpCommand content_cmd;
-                                content_cmd.method = "Page.setDocumentContent";
-                                content_cmd.params = {
-                                    {"frameId", s->frame_id},
-                                    {"html", s->html_content},
-                                };
-                                content_cmd.session_id = s->session_id;
-                                content_cmd.timeout_ms = 15000;
-
-                                s->Send(content_cmd, [s](auto r) {
-                                  // Release HTML memory — no
-                                  // longer needed after loading.
-                                  s->html_content.clear();
-                                  s->html_content.shrink_to_fit();
-                                  if (!r.ok() || r->is_error()) {
-                                    s->FinishError(
-                                        "setDocumentContent "
-                                        "failed");
-                                  }
-                                });
+                                // From here a networkIdle describes the
+                                // page.
+                                s->content_set = true;
+                                if (s->settled_before_reply) {
+                                  s->OnPageSettled();
+                                }
                               });
+                            });
+                      });
                     });
                   });
                 });
@@ -920,15 +965,18 @@ void PageAnalyzer::Analyze(std::string_view html_content,
       session->HandleFetchRequest(event.params);
     } else if (event.method == "Page.lifecycleEvent") {
       std::string name = event.params.value("name", "");
-      if (name == "networkIdle" && !session->got_network_idle) {
-        session->got_network_idle = true;
-        if (session->agent && session->agent->policy) {
-          // agent_optimize: settle, then read the rendered DOM -> markdown.
-          session->ScheduleRenderedHtmlRead();
-        } else {
-          // Legacy perf path: collect LCP/CLS/image metrics immediately.
-          session->CollectResults();
-        }
+      // The replayed lifecycle of the blank tab is not the page's:
+      // it all arrives before setDocumentContent is sent. The page
+      // settles at its networkIdle (after the reply), or settle_after_load_ms
+      // after its own load event if networkIdle never comes.
+      if (name == "networkIdle" && session->content_set) {
+        session->OnPageSettled();
+      } else if (name == "load" && session->content_sent) {
+        std::weak_ptr<Session> weak = session;
+        session->load_settle_timer.Start(
+            session->client->loop(), session->settle_after_load_ms, [weak]() {
+              if (auto s = weak.lock()) s->OnPageSettled();
+            });
       }
     }
   });

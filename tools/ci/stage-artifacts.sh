@@ -28,10 +28,17 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # metadata.json is absent (old/foreign bundle) — same behaviour as before.
 # Mirrors the same stale-bundle guard the packaging/native-asset consumers
 # already apply (ci.yml "Download CI artifacts for packaging"). Skip when
-# GITHUB_SHA is unset (local/dev invocation) so we never wipe based on an
+# the bundle SHA is unset (local/dev invocation) so we never wipe based on an
 # empty expected SHA.
-if [[ "${GITHUB_SHA:-}" =~ ^[0-9a-f]{40}$ ]]; then
-  "${SCRIPT_DIR}/invalidate-stale-artifacts.sh" "${SRC}/.ci-artifacts" "${GITHUB_SHA}"
+#
+# BUNDLE_SHA is the commit the bundle was published under. It is GITHUB_SHA
+# unless CI_ARTIFACTS_SHA names another commit: a pull_request Build publishes
+# under the PR's MERGE commit, while a workflow_dispatch on the same branch runs
+# with GITHUB_SHA = the branch HEAD, for which no bundle exists. The
+# dispatching workflow resolves the merge commit and passes it here.
+BUNDLE_SHA="${CI_ARTIFACTS_SHA:-${GITHUB_SHA:-}}"
+if [[ "${BUNDLE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+  "${SCRIPT_DIR}/invalidate-stale-artifacts.sh" "${SRC}/.ci-artifacts" "${BUNDLE_SHA}"
 fi
 
 # If artifacts don't exist locally, try fetching from the CI hub via rsync.
@@ -43,12 +50,16 @@ if [ ! -f "${SRC}/.ci-artifacts/factory_worker" ]; then
   echo "::warning::Local CI artifacts not found in ${SRC}/.ci-artifacts/ — fetching from the CI hub"
   mkdir -p "${SRC}/.ci-artifacts"
 
-  # Defensive: GITHUB_SHA is normally a 40-char hex SHA injected by GHA, but
-  # validate before splicing it into a remote rsync path so an unexpected
-  # value can't traverse outside the artifacts tree.
-  if ! [[ "${GITHUB_SHA:-}" =~ ^[0-9a-f]{40}$ ]]; then
-    echo "::error::GITHUB_SHA is missing or not a 40-char hex SHA (got: '${GITHUB_SHA:-<unset>}'); refusing to construct rsync path." >&2
+  # Defensive: the bundle SHA is normally a 40-char hex SHA (GITHUB_SHA from
+  # GHA, or CI_ARTIFACTS_SHA from the dispatching workflow), but validate before
+  # splicing it into a remote rsync path so an unexpected value can't traverse
+  # outside the artifacts tree.
+  if ! [[ "${BUNDLE_SHA}" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "::error::bundle SHA is missing or not a 40-char hex SHA (CI_ARTIFACTS_SHA='${CI_ARTIFACTS_SHA:-<unset>}', GITHUB_SHA='${GITHUB_SHA:-<unset>}'); refusing to construct rsync path." >&2
     exit 1
+  fi
+  if [ -n "${CI_ARTIFACTS_SHA:-}" ] && [ "${CI_ARTIFACTS_SHA}" != "${GITHUB_SHA:-}" ]; then
+    echo "Fetching the bundle published under ${CI_ARTIFACTS_SHA} (this run's GITHUB_SHA is ${GITHUB_SHA:-<unset>})."
   fi
   # CI_ARTIFACTS_PLATFORM selects the shared-dir variant to fetch. Default
   # linux-x64 is ci.yml's push bundle (--config=ci, with nginx-version +
@@ -60,7 +71,7 @@ if [ ! -f "${SRC}/.ci-artifacts/factory_worker" ]; then
   # environment-specific is hardcoded here.
   : "${CI_HUB_SSH:?CI_HUB_SSH must be set (GitHub repository variable)}"
   : "${CI_HUB_ARTIFACTS_ROOT:?CI_HUB_ARTIFACTS_ROOT must be set (GitHub repository variable)}"
-  RSYNC_REMOTE="${CI_HUB_SSH}:${CI_HUB_ARTIFACTS_ROOT}/${GITHUB_SHA}/${CI_ARTIFACTS_PLATFORM:-linux-x64}/"
+  RSYNC_REMOTE="${CI_HUB_SSH}:${CI_HUB_ARTIFACTS_ROOT}/${BUNDLE_SHA}/${CI_ARTIFACTS_PLATFORM:-linux-x64}/"
   RSYNC_SSH='ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=10'
 
   attempt=1
@@ -84,7 +95,7 @@ if [ ! -f "${SRC}/.ci-artifacts/factory_worker" ]; then
     #     without evidence of a class of failure that retry masks.
     if [ "$rc" -eq 23 ] || [ "$rc" -eq 24 ]; then
       echo "::error::No artifacts at ${RSYNC_REMOTE} (rsync exit ${rc})." >&2
-      echo "::error::The upstream Linux Build job for SHA ${GITHUB_SHA} did not publish artifacts — check that job's log first; this rsync failure is a cascade." >&2
+      echo "::error::The upstream Linux Build job for SHA ${BUNDLE_SHA} did not publish artifacts — check that job's log first; this rsync failure is a cascade. (A pull_request Build publishes under the PR merge commit, not the branch head; a workflow_dispatch on a PR branch must name that commit via CI_ARTIFACTS_SHA / the bundle_sha input.)" >&2
       exit 1
     fi
     if [ "$attempt" -ge "$max_attempts" ]; then

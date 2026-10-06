@@ -1377,20 +1377,35 @@ TEST_F(ImageTranscoderTest, AvifVerifyFloorEngages) {
 TEST_F(ImageTranscoderTest, AvifVerifyFloorReencodes) {
   // #1274 made the floor engage; mpp #790 made the verdict binding: a
   // below-band AVIF that the search cannot lift into the band is now
-  // DECLINED, not shipped. Force every attempt below the band by aiming
-  // the band above what the low starting quality can reach
-  // (content-independent: sjpeg-class content can score ~75 even at
-  // q=5, which the default [67,78] band would accept). Learned-quality
-  // prediction and content-analysis presets are disabled or they
-  // override the fixed quality with an on-target one
-  // (TranscodeMultiResized). The loop still re-encodes toward the
-  // target on the way down — the climb shows up in the final quality.
+  // DECLINED, not shipped. The band is aimed at the top of what the
+  // METRIC can award, so no encode at any quality clears its floor and
+  // the refusal is a property of this fixture rather than of how far the
+  // search happens to travel -- the search may look all the way to q=100
+  // and still find nothing.
+  //
+  // The refusal RULE under a curve that never clears the floor is pinned
+  // deterministically elsewhere, by the injected-scorer test
+  // (ACurveThatNeverClearsTheFloorIsStillDeclined); what this fixture
+  // uniquely covers is the plumbing -- that a real encoder's refusal
+  // reaches avif_ssimulacra2_declined, the error message and the evidence
+  // score through the transcoder. Learned-quality prediction and
+  // content-analysis presets are disabled or they override the fixed
+  // quality with an on-target one (TranscodeMultiResized). The loop still
+  // re-encodes toward the target — the climb shows up in the final
+  // quality.
   pagespeed::NullMessageHandler handler;
   pagespeed::ImageTranscoderConfig config;
   config.learned_quality_avif = false;
-  config.content_analysis = false;    // preset factors also override quality
-  config.avif_quality = 5;            // low starting quality
-  config.target_ssimulacra2 = 95.0f;  // band [92,103]: unreachable from q=5
+  config.content_analysis = false;  // preset factors also override quality
+  config.avif_quality = 5;          // low starting quality
+  // Band [99.4, 101.6]: a lossy AVIF of a photograph does not reach it.
+  // Measured here: 97.5 at the top of the climb, 1.9 points of headroom
+  // under the floor. A codec change that closes that gap turns this red,
+  // and that is the intended signal -- the decline assertion below fires
+  // first, so the message reads "it shipped when it should have been
+  // refused" rather than a bare score mismatch.
+  config.target_ssimulacra2 = 100.0f;
+  config.ssimulacra2_tolerance = 1.0f;
   pagespeed::ImageTranscoder transcoder(config, &handler);
 
   std::string jpeg = ReadTestFile("jpeg/sjpeg6.jpg");
@@ -1406,9 +1421,9 @@ TEST_F(ImageTranscoderTest, AvifVerifyFloorReencodes) {
       << result.avif.error_message;
   EXPECT_TRUE(result.avif_ssimulacra2_declined);
   // ...but the measured score stays as decline evidence, and the search
-  // genuinely climbed before giving up (5 -> 10 -> 15 -> 20).
+  // genuinely climbed before giving up (5 -> 53 -> 77 -> 89).
   EXPECT_GE(result.avif_ssimulacra2_score, 0.0f);
-  EXPECT_LT(result.avif_ssimulacra2_score, 92.0f);
+  EXPECT_LT(result.avif_ssimulacra2_score, 99.4f);
   EXPECT_GT(result.final_avif_quality, 5)
       << "below-band AVIF declined without re-encode attempts (score="
       << result.avif_ssimulacra2_score
@@ -6761,7 +6776,8 @@ TEST(Ssimulacra2DefaultsTest, UpdatedDefaults) {
   EXPECT_EQ(config.ssimulacra2_max_attempts, 4)
       << "Default max_attempts should be 4 (3 re-encode attempts)";
   EXPECT_EQ(config.ssimulacra2_quality_step, 5)
-      << "Default quality_step should be 5 for finer adjustment";
+      << "Default quality_step should be 5, which puts the downward reach "
+         "at 15 quality points below where a search starts";
 }
 
 // Test that the re-encode loop adjusts quality when score is below target band.
@@ -8762,8 +8778,16 @@ TEST_F(ImageTranscoderTest, VerifyDeclinesWhenEveryAttemptIsBelowFloor) {
   pagespeed::ImageTranscoderConfig config;
   config.learned_quality_webp = false;
   config.content_analysis = false;
-  config.webp_quality = 5;            // low starting quality
-  config.target_ssimulacra2 = 95.0f;  // band [92,103]: unreachable
+  config.webp_quality = 5;  // low starting quality
+  // Band [99.4, 101.6]: aimed at the top of what the metric can award, so
+  // no encode at any quality clears the floor and the refusal does not
+  // depend on how far the search travels. The climb is 5 -> 53 -> 77 ->
+  // 89 and measures 94.6 at the top, 4.8 points under the floor. The rule
+  // itself is pinned by the injected-scorer test
+  // (ACurveThatNeverClearsTheFloorIsStillDeclined); what this covers is
+  // that a real encoder's refusal reaches the per-arm fields.
+  config.target_ssimulacra2 = 100.0f;
+  config.ssimulacra2_tolerance = 1.0f;
   pagespeed::ImageTranscoder transcoder(config, &handler);
 
   std::string jpeg = ReadTestFile("jpeg/sjpeg6.jpg");
@@ -8778,7 +8802,8 @@ TEST_F(ImageTranscoderTest, VerifyDeclinesWhenEveryAttemptIsBelowFloor) {
       << result.webp.error_message;
   EXPECT_TRUE(result.webp_ssimulacra2_declined);
   EXPECT_GE(result.webp_ssimulacra2_score, 0.0f) << "score is the evidence";
-  EXPECT_LT(result.webp_ssimulacra2_score, 92.0f);
+  EXPECT_LT(result.webp_ssimulacra2_score, 99.4f);
+  EXPECT_GT(result.final_webp_quality, 5) << "the search must have run";
   EXPECT_FALSE(result.webp_ssimulacra2_reencoded);  // shipped-none
 }
 
@@ -8791,8 +8816,8 @@ TEST_F(ImageTranscoderTest, VerifyShipsInBandRetryOverBelowFloorFirstTry) {
   config.learned_quality_avif = false;
   config.content_analysis = false;
   config.avif_quality = 5;
-  // Band [79,90]: sjpeg6 at q=5 scores ~75 (below the floor); the first
-  // retry (q=10) lands inside the band.
+  // Band [79,90]: sjpeg6 at q=5 scores ~75, below the floor, so the search
+  // looks upward and the retry it finds lands inside the band.
   config.target_ssimulacra2 = 82.0f;
   config.ssimulacra2_tolerance = 5.0f;
   config.ssimulacra2_max_attempts = 4;
@@ -8812,15 +8837,19 @@ TEST_F(ImageTranscoderTest, VerifyShipsInBandRetryOverBelowFloorFirstTry) {
       << ", final_avif_quality=" << result.final_avif_quality << ")";
   EXPECT_GE(result.avif_ssimulacra2_score, 79.0f);
   EXPECT_LE(result.avif_ssimulacra2_score, 90.0f);
-  // (c) The quality out-param reports the SHIPPED attempt's quality.
-  EXPECT_EQ(result.final_avif_quality, 10);
+  // (c) The quality out-param reports the SHIPPED attempt's quality --
+  // the first upward probe, q=17, not the q=5 the encode started at.
+  EXPECT_EQ(result.final_avif_quality, 17);
 }
 
 // (b)+(c) Band-closest selection, above-band leg: every attempt scores
-// above the ceiling, so the DOWN-STEPPED body ships (the last attempt —
-// closest to the band and smallest), not the first higher-scoring one.
-// Shipping the highest-scoring attempt here would undo the byte savings
-// of the whole down-step chain.
+// above the ceiling, so the lowest-quality attempt ships (closest to the
+// band and smallest), not the first higher-scoring one. Shipping the
+// highest-scoring attempt here would undo the byte savings of the whole
+// downward search. The search reaches no further down than
+// quality_step * (max_attempts - 1) = 15 points below q=90, which is what
+// keeps an above-ceiling reading from talking the encoder into the
+// ground.
 TEST_F(ImageTranscoderTest, VerifyShipsDownSteppedBodyAboveTheBand) {
   pagespeed::NullMessageHandler handler;
   pagespeed::ImageTranscoderConfig config;
@@ -8841,12 +8870,15 @@ TEST_F(ImageTranscoderTest, VerifyShipsDownSteppedBodyAboveTheBand) {
   ASSERT_TRUE(result.webp.success) << result.webp.error_message;
   // Above-band encodes ship (over-quality wastes bytes, it does not
   // degrade the user) — but the shipped one is the smallest, closest
-  // attempt: q=90 stepped down three times.
+  // attempt: the bottom of the window the search is allowed to reach,
+  // which is q=75, plus the one point the halving leaves behind.
   EXPECT_TRUE(result.webp_ssimulacra2_reencoded);
-  EXPECT_EQ(result.final_webp_quality, 75)
-      << "must ship the down-stepped last attempt, not the first "
+  EXPECT_EQ(result.final_webp_quality, 76)
+      << "must ship the lowest-quality attempt, not the first "
          "higher-scoring one (score="
       << result.webp_ssimulacra2_score << ")";
+  EXPECT_GE(result.final_webp_quality, 75)
+      << "the downward reach is bounded at quality_step * (max_attempts - 1)";
   EXPECT_GT(result.webp_ssimulacra2_score, 16.0f);  // still above the band
   EXPECT_FALSE(result.webp_ssimulacra2_declined);
 }
@@ -9319,6 +9351,15 @@ TEST_F(ImageTranscoderTest, ResizedSameFormatWebpDeclineCarriesEvidence) {
   config.learned_quality_webp = false;
   config.content_analysis = false;
   config.webp_quality = 5;
+  // Band [99.4, 101.6]: aimed at the top of what the metric can award, so
+  // the decline this test is about is a property of the fixture and not of
+  // how far the quality search travels. The climb is 5 -> 53 -> 77 -> 89
+  // and measures 81.3 at the top, 18.1 points under the floor. The rule
+  // itself is pinned by the injected-scorer test
+  // (ACurveThatNeverClearsTheFloorIsStillDeclined); what this covers is
+  // that the RESIZED leg's refusal reaches the per-arm fields.
+  config.target_ssimulacra2 = 100.0f;
+  config.ssimulacra2_tolerance = 1.0f;
   // Pin the resize threshold so a future default change cannot quietly
   // re-vacuate this test.
   config.viewport_widths.mobile = 480;
@@ -9329,12 +9370,12 @@ TEST_F(ImageTranscoderTest, ResizedSameFormatWebpDeclineCarriesEvidence) {
   EXPECT_FALSE(result.optimized_original.success);
   EXPECT_TRUE(result.ssimulacra2_declined)
       << "resized-path decline must be visible to the per-arm counter";
-  // Below the serve floor, not necessarily negative: since the explicit
+  // Below the band floor, not necessarily negative: since the explicit
   // resized leg (#1380) the verdict is measured against the RESIZED
   // encode source, and the downscale smooths the stripe field -- the
   // negative-verdict class itself is pinned by the non-resizing test
   // above.
-  EXPECT_LT(result.ssimulacra2_score, 67.0f);
+  EXPECT_LT(result.ssimulacra2_score, 99.4f);
   EXPECT_FALSE(result.ssimulacra2_reencoded);
 }
 
@@ -9499,4 +9540,218 @@ TEST(VerifyLoopTest, InBandVerdictShipsWithoutDecline) {
   EXPECT_FALSE(verify.declined);
   EXPECT_FALSE(verify.verdict_missing);
   EXPECT_EQ(verify.score, 70.0f);
+}
+
+// ===========================================================================
+// The quality search inside VerifySsimulacra2Quality. A verdict is a
+// direction: below the floor the band lies at HIGHER quality, above the
+// ceiling at lower. The search bisects on that, so the same attempt budget
+// reaches the whole allowed range -- the property that decides whether a
+// variant is refused because it is unencodable or merely because the search
+// stopped short of it. Driven through synthetic quality->score curves: a
+// real encoder's curve is monotone and gentle, which is exactly the shape
+// that hides a reach bug.
+// Band below: target 70, tolerance 5 -> [67, 78].
+// ===========================================================================
+
+namespace {
+
+// Bytes rise with quality, the way a real encoder's do, so the selection
+// rule's size tiebreak sees a realistic ordering. The width is taken before
+// the multiplication rather than after it, so the arithmetic happens in the
+// type the result is in; |quality| is a quality value here, never negative.
+size_t CurveBytes(int quality) { return 64 + static_cast<size_t>(quality) * 4; }
+
+TranscodeResult CurveEncode(int quality) {
+  return {true, std::string(CurveBytes(quality), '\x11'), "image/webp", {}};
+}
+
+struct CurveRun {
+  // Qualities the search actually re-encoded at, in order. The initial
+  // encode is the caller's and is not listed.
+  std::vector<int> probed;
+  pagespeed::Ssimulacra2VerifyResult verify;
+  int final_quality = 0;
+};
+
+// Runs |curve| through the verify loop from |start_quality|. The loop sets
+// the quality it wants before calling the encoder, so both the encoder and
+// the scorer read it back -- which is what makes the search observable.
+template <typename Curve>
+CurveRun RunQualityCurve(int start_quality, int min_quality, int max_quality,
+                         int max_attempts, Curve curve,
+                         pagespeed::VerifyDeclinePolicy policy) {
+  NullMessageHandler handler;
+  DecodedImage reference = MakeVerifyReference();
+  TranscodeResult encoded = CurveEncode(start_quality);
+  int quality = start_quality;
+  CurveRun run;
+  run.verify = pagespeed::VerifySsimulacra2Quality(
+      reference, encoded,
+      [&](const DecodedImage&) {
+        run.probed.push_back(quality);
+        return CurveEncode(quality);
+      },
+      [](std::string_view) { return MakeMatchingDecode(); },
+      [&](const pagespeed::ComparablePixels&) -> std::optional<float> {
+        return curve(quality);
+      },
+      quality, min_quality, max_quality, "WebP", 70.0f, 5.0f, max_attempts, 5,
+      policy, &handler);
+  run.final_quality = quality;
+  return run;
+}
+
+// Crosses the floor (67) only at q >= 93 and never reaches the ceiling:
+// the shape of a photo-like source that both lossy codecs find hard.
+float LateCrossingCurve(int quality) {
+  return 30.0f + static_cast<float>(quality) * 0.4f;
+}
+
+// Same shape, but the whole curve stays under the floor: no encode at any
+// quality is good enough.
+float UnreachableCurve(int quality) {
+  return 30.0f + static_cast<float>(quality) * 0.2f;
+}
+
+bool AllDistinct(std::vector<int> values) {
+  std::sort(values.begin(), values.end());
+  return std::adjacent_find(values.begin(), values.end()) == values.end();
+}
+
+}  // namespace
+
+TEST(VerifyQualitySearchTest, ReachesABandThatOpensNearTheTopOfTheRange) {
+  // The reported miss: starting at q=65, the band opens only at q>=93. A
+  // fixed +5 walk spends its three retries on 70, 75 and 80 and lands 13
+  // quality points short, so the variant is refused for being out of the
+  // SEARCH's reach. Bisection covers the same distance with the same
+  // budget.
+  CurveRun run =
+      RunQualityCurve(65, 0, 100, 4, LateCrossingCurve,
+                      pagespeed::VerifyDeclinePolicy::kDeclineBelowFloor);
+
+  EXPECT_EQ(run.probed, (std::vector<int>{83, 92, 96}))
+      << "each verdict must halve the remaining range";
+  EXPECT_FALSE(run.verify.declined);
+  EXPECT_GE(run.verify.score, 67.0f);
+  EXPECT_LE(run.verify.score, 78.0f);
+  EXPECT_EQ(run.final_quality, 96);
+  // Non-vacuity: the search had to go beyond where a fixed +5 walk could
+  // have reached (65 + 3 * 5 = 80), or this curve proves nothing.
+  EXPECT_GT(*std::max_element(run.probed.begin(), run.probed.end()), 80);
+}
+
+TEST(VerifyQualitySearchTest, SpendsNoMoreEncodesThanTheAttemptBudget) {
+  // Reach grew; cost did not. Four attempts means the caller's initial
+  // encode plus at most three re-encodes.
+  CurveRun run =
+      RunQualityCurve(65, 0, 100, 4, LateCrossingCurve,
+                      pagespeed::VerifyDeclinePolicy::kDeclineBelowFloor);
+  EXPECT_LE(run.probed.size(), 3u);
+}
+
+TEST(VerifyQualitySearchTest, ACurveThatNeverClearsTheFloorIsStillDeclined) {
+  // The refusal policy is untouched: a wider search finds encodes it used
+  // to miss, it does not admit bad ones. The recorded score is the best
+  // evidence seen, so the decline says how far short the source fell.
+  CurveRun run =
+      RunQualityCurve(65, 0, 100, 4, UnreachableCurve,
+                      pagespeed::VerifyDeclinePolicy::kDeclineBelowFloor);
+
+  EXPECT_TRUE(run.verify.declined);
+  EXPECT_FALSE(run.verify.verdict_missing);
+  EXPECT_LT(run.verify.score, 67.0f);
+  // The evidence is the best attempt's score, computed from the curve over
+  // everything the search actually encoded (the start included), not a
+  // number copied from the expected trace.
+  float best = UnreachableCurve(65);
+  for (int q : run.probed) best = std::max(best, UnreachableCurve(q));
+  EXPECT_FLOAT_EQ(run.verify.score, best)
+      << "the highest-scoring attempt is the decline evidence";
+  // The search still tried, and tried upward.
+  EXPECT_EQ(run.probed, (std::vector<int>{83, 92, 96}));
+}
+
+TEST(VerifyQualitySearchTest, AboveTheCeilingTheSearchWalksDownAndConverges) {
+  // The over-quality direction is the mirror image: the band lies below,
+  // so the interval shrinks from the top.
+  CurveRun run = RunQualityCurve(
+      90, 0, 100, 4, [](int q) { return 30.0f + static_cast<float>(q) * 0.6f; },
+      pagespeed::VerifyDeclinePolicy::kDeclineBelowFloor);
+
+  EXPECT_FALSE(run.verify.declined);
+  EXPECT_GE(run.verify.score, 67.0f);
+  EXPECT_LE(run.verify.score, 78.0f);
+  EXPECT_LT(run.final_quality, 90) << "over-quality must cost fewer bytes";
+}
+
+TEST(VerifyQualitySearchTest, TheDownwardSearchNeverGoesBelowMinQuality) {
+  // A curve that is above the ceiling even at the bottom of the allowed
+  // range, with the numbers chosen so the two bounds on the downward
+  // window COLLIDE: from q=45 the step reach is 45 - 5*3 = 30, below the
+  // min quality of 40, so min quality is what stops the search and the
+  // lowest probe must be exactly 40. An off-by-one at the bottom shows up
+  // here as a probe at 39.
+  CurveRun run = RunQualityCurve(
+      45, 40, 100, 4,
+      [](int q) { return 80.0f + static_cast<float>(q) * 0.2f; },
+      pagespeed::VerifyDeclinePolicy::kDeclineBelowFloor);
+
+  ASSERT_FALSE(run.probed.empty());
+  EXPECT_EQ(*std::min_element(run.probed.begin(), run.probed.end()), 40)
+      << "the search must reach the min quality and stop there";
+  EXPECT_FALSE(run.verify.declined)
+      << "an above-ceiling encode is servable, only a below-floor one is not";
+}
+
+TEST(VerifyQualitySearchTest, AStartAtTheCeilingSpendsNoEncodeAtAll) {
+  // Nothing higher is allowed, so there is nothing to try: the refusal
+  // fires on the one encode that exists.
+  CurveRun run =
+      RunQualityCurve(100, 0, 100, 4, UnreachableCurve,
+                      pagespeed::VerifyDeclinePolicy::kDeclineBelowFloor);
+
+  EXPECT_TRUE(run.probed.empty());
+  EXPECT_TRUE(run.verify.declined);
+  EXPECT_EQ(run.final_quality, 100);
+}
+
+TEST(VerifyQualitySearchTest, NoQualityIsEverProbedTwice) {
+  // Each verdict excludes the probed quality along with everything on the
+  // wrong side of it, so the interval shrinks strictly and the search
+  // terminates on its own -- here well before a generous attempt budget.
+  CurveRun run =
+      RunQualityCurve(65, 0, 100, 12, UnreachableCurve,
+                      pagespeed::VerifyDeclinePolicy::kDeclineBelowFloor);
+
+  std::vector<int> all = run.probed;
+  all.push_back(65);
+  EXPECT_TRUE(AllDistinct(all)) << "a repeated quality is a wasted encode";
+  EXPECT_LT(run.probed.size(), 11u) << "the closed interval ends the search";
+  EXPECT_TRUE(run.verify.declined);
+}
+
+TEST(VerifyQualitySearchTest, ASingleAttemptBudgetStillSearchesNothing) {
+  // max_attempts == 1 is "verify the first encode, verdict binding": no
+  // rescue re-encode, before or after the search change.
+  CurveRun run =
+      RunQualityCurve(65, 0, 100, 1, LateCrossingCurve,
+                      pagespeed::VerifyDeclinePolicy::kDeclineBelowFloor);
+
+  EXPECT_TRUE(run.probed.empty());
+  EXPECT_TRUE(run.verify.declined);
+}
+
+TEST(VerifyQualitySearchTest, TheShipBelowFloorArmSearchesButDoesNotRefuse) {
+  // The same-format arm keeps its accept-at-ceiling policy: it benefits
+  // from the wider reach and still ships its best attempt when the band is
+  // genuinely unreachable.
+  CurveRun run =
+      RunQualityCurve(65, 1, 100, 4, UnreachableCurve,
+                      pagespeed::VerifyDeclinePolicy::kShipBelowFloor);
+
+  EXPECT_FALSE(run.verify.declined);
+  EXPECT_FALSE(run.probed.empty());
+  EXPECT_FLOAT_EQ(run.verify.score, UnreachableCurve(96));
 }
