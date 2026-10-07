@@ -1199,14 +1199,19 @@ const DENYLIST: DenyRule[] = [
     // Whole documents that are a record of a past line rather than a claim
     // about the product on offer. Pinned file-by-file below.
     exemptFile: (rel) =>
-      /^src\/content\/docs\/release-notes\.mdx$/.test(rel) ||
+      /^src\/content\/docs\/release-notes(?:-\d+-\d+)?\.mdx$/.test(rel) ||
       /^src\/pages\/(?:privacy|terms|license)\.astro$/.test(rel),
     exemptFileExpectation: [
       // Release history: every entry is what shipped, under the name it
-      // shipped under, on the date it shipped. The docs-1.1 collection,
-      // docs/release-notes-2-1.mdx and the frozen /1.1/docs/[slug] route
-      // that also carried this exemption are retired — this is the one
-      // converged page now.
+      // shipped under, on the date it shipped. The docs-1.1 collection and
+      // the frozen /1.1/docs/[slug] route that also carried this exemption
+      // are retired; the history is the release-notes index plus one page
+      // per line (2.2, 2.1, the 2.0 worker, the 1.15 and 1.1 module).
+      'src/content/docs/release-notes-1-1.mdx',
+      'src/content/docs/release-notes-1-15.mdx',
+      'src/content/docs/release-notes-2-0.mdx',
+      'src/content/docs/release-notes-2-1.mdx',
+      'src/content/docs/release-notes-2-2.mdx',
       'src/content/docs/release-notes.mdx',
       // The legal pages, which enumerate the predecessor lines by name because
       // the terms they state apply to each of them.
