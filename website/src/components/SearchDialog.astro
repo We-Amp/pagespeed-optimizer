@@ -1,0 +1,269 @@
+---
+/**
+ * SearchDialog — the site-wide search modal, backed by Pagefind.
+ *
+ * Rendered once per page by BaseLayout. The dialog is a native <dialog>
+ * (focus trap, Escape, backdrop for free) and costs nothing until it is
+ * opened: the only JavaScript on the page is the small inline opener below.
+ * On first open it injects /pagefind/pagefind-ui.css and
+ * /pagefind/pagefind-ui.js — same-origin files that `npm run build` writes
+ * into dist/client/pagefind/ (see scripts/build-search-index.mjs) — and
+ * mounts Pagefind's UI into #site-search-ui. If the bundle cannot load (the
+ * dev server has no index) the dialog explains that instead of failing
+ * silently.
+ *
+ * Openers: any element with `data-search-open` (header buttons, the docs hub
+ * search box), the `/` key outside form fields, and Cmd/Ctrl+K.
+ *
+ * Styling maps Pagefind's CSS variables onto the site tokens — no new
+ * colours. Pagefind's own classes are scoped with hashed Svelte classes, so
+ * the few overrides that must beat them hang off the #site-search id.
+ */
+import Icon from './Icon.astro';
+---
+
+<dialog id="site-search" class="site-search" aria-labelledby="site-search-title">
+  <div class="site-search__panel">
+    <div class="site-search__head">
+      <h2 id="site-search-title" class="site-search__title">Search</h2>
+      <p class="site-search__hint" aria-hidden="true"><kbd>Esc</kbd> closes</p>
+      <button type="button" class="site-search__close" data-search-close aria-label="Close search">
+        <Icon name="x" class="h-5 w-5" />
+      </button>
+    </div>
+    <div id="site-search-ui" class="site-search__ui"></div>
+    <p id="site-search-status" class="site-search__status" role="status" hidden></p>
+  </div>
+</dialog>
+
+<style is:global>
+  .site-search {
+    /* Pagefind UI tokens → site tokens (Caliber dark identity). */
+    --pagefind-ui-scale: 0.85;
+    --pagefind-ui-primary: var(--color-interactive);
+    --pagefind-ui-text: var(--color-text-body);
+    --pagefind-ui-background: var(--color-bg-secondary);
+    --pagefind-ui-border: var(--color-border-strong);
+    --pagefind-ui-tag: var(--color-bg-secondary);
+    --pagefind-ui-border-width: 1px;
+    --pagefind-ui-border-radius: var(--radius-control);
+    --pagefind-ui-font: var(--font-sans);
+
+    width: min(40rem, calc(100vw - 2rem));
+    max-height: min(80vh, 44rem);
+    margin: 8vh auto auto;
+    padding: 0;
+    border: 1px solid var(--color-border-strong);
+    border-radius: var(--radius-card);
+    background-color: var(--color-bg-elevated);
+    color: var(--color-text-body);
+    box-shadow: inset 0 1px 0 var(--color-specular);
+  }
+  .site-search::backdrop {
+    background-color: rgba(7, 8, 10, 0.72);
+  }
+  .site-search__panel {
+    display: flex;
+    flex-direction: column;
+    max-height: min(80vh, 44rem);
+  }
+  .site-search__head {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.5rem 0.5rem 0.5rem 1rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .site-search__title {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+  .site-search__hint {
+    margin: 0 0 0 auto;
+    font-size: 0.75rem;
+    color: var(--color-text-annotation);
+  }
+  .site-search__hint kbd {
+    font-family: var(--font-mono);
+    border: 1px solid var(--color-border);
+    border-radius: 0.25rem;
+    padding: 0 0.3rem;
+  }
+  .site-search__close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+    border: 0;
+    border-radius: var(--radius-chip);
+    background: transparent;
+    color: var(--color-text-muted);
+    cursor: pointer;
+  }
+  .site-search__close:hover {
+    color: var(--color-text-body);
+    background-color: var(--color-bg-secondary);
+  }
+  .site-search__ui {
+    padding: 1rem;
+    overflow-y: auto;
+    min-height: 4rem;
+  }
+  .site-search__status {
+    margin: 0;
+    padding: 0 1rem 1rem;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    color: var(--color-text-muted);
+  }
+
+  /* Pagefind renders with hashed Svelte classes; the id wins where a plain
+     class would lose. */
+  #site-search .pagefind-ui__search-input::placeholder {
+    color: var(--color-text-annotation);
+    opacity: 1;
+  }
+  #site-search .pagefind-ui__search-input:focus-visible {
+    outline: 2px solid var(--color-focus-ring);
+    outline-offset: 2px;
+  }
+  #site-search mark {
+    background-color: color-mix(in srgb, var(--color-interactive) 28%, transparent);
+    color: inherit;
+    border-radius: 2px;
+  }
+  #site-search .pagefind-ui__result-link:hover {
+    color: var(--color-interactive);
+  }
+  #site-search .pagefind-ui__result-tag {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-border);
+  }
+  #site-search .pagefind-ui__message {
+    color: var(--color-text-muted);
+  }
+</style>
+
+<script is:inline>
+  /* Site search opener. Plain inline JS, no module: this is the whole
+     per-page cost of the feature. Pagefind's bundle loads on first open. */
+  (function () {
+    var dialog = document.getElementById('site-search');
+    if (!dialog || typeof dialog.showModal !== 'function') return;
+    var status = document.getElementById('site-search-status');
+    var openers = document.querySelectorAll('[data-search-open]');
+    var closers = dialog.querySelectorAll('[data-search-close]');
+    var state = 'idle'; /* idle | loading | ready | failed */
+    var opener = null;
+
+    function setStatus(text) {
+      if (!status) return;
+      status.textContent = text;
+      status.hidden = !text;
+    }
+
+    function focusInput() {
+      var input = dialog.querySelector('input.pagefind-ui__search-input');
+      if (input) input.focus();
+    }
+
+    function failed() {
+      state = 'failed';
+      setStatus(
+        'Search is not available here. The search index is generated when the site is built, so a development server has none; on the published site this loads instantly.',
+      );
+    }
+
+    function load() {
+      state = 'loading';
+      setStatus('Loading search…');
+      var css = document.createElement('link');
+      css.rel = 'stylesheet';
+      css.href = '/pagefind/pagefind-ui.css';
+      document.head.appendChild(css);
+      var script = document.createElement('script');
+      script.src = '/pagefind/pagefind-ui.js';
+      script.onload = function () {
+        if (!window.PagefindUI) return failed();
+        try {
+          new window.PagefindUI({
+            element: '#site-search-ui',
+            bundlePath: '/pagefind/',
+            showImages: false,
+            showSubResults: true,
+            excerptLength: 24,
+            pageSize: 8,
+            autofocus: true,
+            translations: {
+              placeholder: 'Search the docs, blog and site',
+              clear_search: 'Clear',
+              zero_results: 'No results for [SEARCH_TERM]',
+            },
+          });
+          state = 'ready';
+          setStatus('');
+          focusInput();
+        } catch (e) {
+          failed();
+        }
+      };
+      script.onerror = failed;
+      document.head.appendChild(script);
+    }
+
+    function open(source) {
+      opener = source || document.activeElement;
+      if (!dialog.open) dialog.showModal();
+      if (state === 'idle') load();
+      else if (state === 'ready') focusInput();
+    }
+
+    function close() {
+      if (dialog.open) dialog.close();
+    }
+
+    dialog.addEventListener('close', function () {
+      if (opener && typeof opener.focus === 'function') opener.focus();
+      opener = null;
+    });
+    /* A click on the backdrop lands on the <dialog> itself, not the panel. */
+    dialog.addEventListener('click', function (e) {
+      if (e.target === dialog) close();
+    });
+    for (var i = 0; i < openers.length; i++) {
+      openers[i].addEventListener('click', function (e) {
+        e.preventDefault();
+        open(e.currentTarget);
+      });
+    }
+    for (var j = 0; j < closers.length; j++) {
+      closers[j].addEventListener('click', close);
+    }
+    document.addEventListener('keydown', function (e) {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey && (e.key === 'k' || e.key === 'K')) {
+        e.preventDefault();
+        if (dialog.open) close();
+        else open();
+        return;
+      }
+      if (e.key !== '/' || e.metaKey || e.ctrlKey || e.altKey || dialog.open) return;
+      var t = e.target;
+      var tag = t && t.tagName;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (t && t.isContentEditable)) {
+        return;
+      }
+      e.preventDefault();
+      open();
+    });
+  })();
+</script>

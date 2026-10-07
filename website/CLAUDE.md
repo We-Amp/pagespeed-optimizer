@@ -47,6 +47,22 @@ such a session start the dev server first (`npm run dev`, which backgrounds itse
 `npx playwright test` with `CI` unset so it reuses the running server, and finish with
 `npx astro dev stop`. A human terminal and CI are not affected.
 
+## Site search
+
+Search is [Pagefind](https://pagefind.app/), a static index built after the Astro build:
+the `postbuild` script (`scripts/build-search-index.mjs`) indexes `dist/client/` and writes
+`dist/client/pagefind/`, which the node server serves at `/pagefind/`. Which pages are
+indexed is decided in the HTML: `BaseLayout.astro` puts `data-pagefind-body` on `<main>`
+for every page that is not noindex and not a utility route (`/api/`, `/go/`, `/buy/`,
+`/error/`, 404, 500); pages without the attribute, including the static `/1.0/` archive,
+are skipped, and `data-pagefind-ignore` keeps navigation chrome out of the excerpts.
+`SearchDialog.astro` (rendered by the layout) is a native `<dialog>` opened by the header
+buttons, the docs hub search box, `/` and Ctrl/Cmd+K; it lazy-loads Pagefind's UI from
+`/pagefind/` on first open, so a page that never opens search loads no search code.
+`astro dev` has no build output and therefore no index: the dialog says so instead of
+searching, and the Playwright suite asserts that message. Pagefind runs WebAssembly, so a
+Content-Security-Policy on the serving host must allow `'wasm-unsafe-eval'` in `script-src`.
+
 ## Directory map
 
 ```
