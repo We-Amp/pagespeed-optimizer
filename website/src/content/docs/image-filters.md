@@ -643,7 +643,9 @@ pagespeed ImageMaxRewritesAtOnce 8;
 
 ## Design background: how server-side image rewriting works
 
-> **Historical context.** This summarizes a design decision from the original mod_pagespeed project (Google, 2010), included as background. The filter behavior documented above is the current reference for mod_pagespeed 2.1.
+:::note[Historical context]
+This summarizes a design decision from the original mod_pagespeed project (Google, 2010), included as background. The filter behavior documented above is the current reference for mod_pagespeed 2.1.
+:::
 
 The image filters above descend from a 2010 design for server-side image rewriting. Four invariants from that design still shape how `rewrite_images` works:
 

@@ -8,7 +8,9 @@ lastUpdated: 2026-07-04
 
 mod_pagespeed 2.1 organizes its optimizations as filters. Each filter performs a specific transformation on HTML responses as they pass through the web server. Enable filters individually with directives, or activate them in groups via `RewriteLevel` presets (`CoreFilters`, `OptimizeForBandwidth`). See [filter selection](/docs/filter-selection/) for how to configure them, or the [complete filter reference](/docs/filter-reference/) for every filter and its default level.
 
-> **See these filters live.** The [optimization examples gallery](/examples/) runs each filter on a small page through Apache + mod_pagespeed 1.15 — original vs optimized, side by side, with the source diff and measured byte/request savings.
+:::tip[See these filters live]
+The [optimization examples gallery](/examples/) runs each filter on a small page through Apache + mod_pagespeed 1.15 — original vs optimized, side by side, with the source diff and measured byte/request savings.
+:::
 
 ## Image filters
 

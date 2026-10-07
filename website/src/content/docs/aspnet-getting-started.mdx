@@ -122,14 +122,15 @@ Check the terminal output for the URL your app is listening on (e.g.
 `http://localhost:5123`). Three checks confirm the install end to end, from
 quickest to most thorough.
 
-> **`dotnet run` honors `launchSettings.json`.** When a
-> `Properties/launchSettings.json` exists, `dotnet run` applies its
-> `applicationUrl` and environment variables and **overrides**
-> `ASPNETCORE_URLS` / `ASPNETCORE_ENVIRONMENT` from your shell. If the app comes
-> up on an unexpected port or environment, that file is why. Pass
-> `dotnet run --no-launch-profile` to ignore it (and fall back to
-> `ASPNETCORE_URLS` / `ASPNETCORE_ENVIRONMENT`), or edit `launchSettings.json`
-> directly to set the port and environment.
+:::note[dotnet run honors launchSettings.json]
+When a `Properties/launchSettings.json` exists, `dotnet run` applies its
+`applicationUrl` and environment variables and **overrides**
+`ASPNETCORE_URLS` / `ASPNETCORE_ENVIRONMENT` from your shell. If the app comes
+up on an unexpected port or environment, that file is why. Pass
+`dotnet run --no-launch-profile` to ignore it (and fall back to
+`ASPNETCORE_URLS` / `ASPNETCORE_ENVIRONMENT`), or edit `launchSettings.json`
+directly to set the port and environment.
+:::
 
 ### 1. The `X-PageSpeed` header on a content route
 
@@ -186,10 +187,12 @@ image; yours will differ.) View the HTML source to see the rest: inlined
 critical CSS, lazy-loaded images, and deferred scripts where coverage analysis
 allows (tiny scripts may legitimately stay inline-blocking).
 
-> **Coming from 1.x?** The middleware emits no `.pagespeed.` magic URLs. The HTML
-> stays clean and the original URLs serve optimized bytes through content
-> negotiation. If you're looking for rewritten asset URLs in the page source,
-> you won't find them — that's expected.
+:::note[Coming from 1.x?]
+The middleware emits no `.pagespeed.` magic URLs. The HTML stays clean and the
+original URLs serve optimized bytes through content negotiation. If you're
+looking for rewritten asset URLs in the page source, you won't find them —
+that's expected.
+:::
 
 ## My dashboard shows zeros and nothing is moving
 

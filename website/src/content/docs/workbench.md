@@ -23,7 +23,9 @@ from your network. It loads no third-party scripts and makes no outbound network
   class="rounded-lg border border-border"
 />
 
-**See it live:** the [read-only web console](https://we-amp.com/console/) runs on our own production deployment — the dashboard above shows real optimization stats from the traffic that deployment serves. It runs in [Public Demo Mode](#public-demo-mode), so you can browse every view without a login.
+:::tip[See it live]
+The [read-only web console](https://we-amp.com/console/) runs on our own production deployment — the dashboard above shows real optimization stats from the traffic that deployment serves. It runs in [public demo mode](#public-demo-mode), so you can browse every view without a login.
+:::
 
 ## Accessing the Console
 
@@ -35,23 +37,26 @@ factory_worker --cache-path /data/cache.vol --api-port 9880
 
 Then open `http://<your-server>:9880/console/` in a browser.
 
-> **In-process ASP.NET Core middleware:** The `:9880` port here is the
-> **standalone worker's** API port. With the in-process ASP.NET Core middleware
-> ([`WeAmp.PageSpeed.AspNetCore`](/docs/aspnet-getting-started/)), the console is
-> served on **your app's own port** (the port your ASP.NET Core app listens on,
-> e.g. `http://localhost:5123/console/`), not on `:9880`. There is no separate
-> `--api-port` to set — open `/console/` on your app's origin.
+:::note[In-process ASP.NET Core middleware]
+The `:9880` port here is the **standalone worker's** API port. With the
+in-process ASP.NET Core middleware
+([`WeAmp.PageSpeed.AspNetCore`](/docs/aspnet-getting-started/)), the console is
+served on **your app's own port** (the port your ASP.NET Core app listens on,
+e.g. `http://localhost:5123/console/`), not on `:9880`. There is no separate
+`--api-port` to set — open `/console/` on your app's origin.
+:::
 
 If you configured an API token (`--api-token` or `PAGESPEED_API_TOKEN` env var),
 the console prompts for it on first load and stores it in the browser's session
 storage.
 
-> **Security:** The console API port (default 9880) should not be exposed to
-> untrusted networks. It provides full read/write access to configuration
-> and cache purge. In production, either bind it to
-> localhost only (`--api-bind 127.0.0.1`) or restrict access with a firewall.
-> When proxied through nginx (e.g., at `/console/`), use `allow`/`deny`
-> directives to limit access to trusted IPs.
+:::warning[Security]
+The console API port (default 9880) should not be exposed to untrusted
+networks. It provides full read/write access to configuration and cache purge.
+In production, either bind it to localhost only (`--api-bind 127.0.0.1`) or
+restrict access with a firewall. When proxied through nginx (e.g., at
+`/console/`), use `allow`/`deny` directives to limit access to trusted IPs.
+:::
 
 ### Public Demo Mode
 

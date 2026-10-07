@@ -23,11 +23,13 @@ and worker command-line flags. This page is the full reference for all of them,
 plus cache tuning and the capability mask format. Everything past the two
 required directives is optional tuning.
 
-> **New to mod_pagespeed?** This is the configuration reference. If you are just
-> getting oriented, start with the [product overview](/) or
-> [Getting Started](/docs/getting-started/), then come back here once it is
-> installed. To install first, see [Install with Docker](/docs/installation-docker/)
-> or [Install the nginx module](/docs/installation-module/).
+:::tip[New to mod_pagespeed?]
+This is the configuration reference. If you are just getting oriented, start
+with the [product overview](/) or [Getting started](/docs/getting-started/),
+then come back here once it is installed. To install first, see
+[Install with Docker](/docs/installation-docker/) or
+[Install the nginx module](/docs/installation-module/).
+:::
 
 To work out which of these directives your own pages actually need, run them
 through a [PageSpeed Insights test](/analyze/): every failing audit is mapped to
@@ -877,28 +879,29 @@ stylesheet structure. Used together with [async CSS](#async-css) so the
 remaining stylesheets stop blocking render. (module equivalent:
 `prioritize_critical_css`.)
 
-> **Gotcha — critical-CSS inlining can break dark mode.** Critical-CSS
-> extraction analyses the page in its rendered state at extraction time. That
-> render happens without a `.dark` class on `<html>` (or whatever toggles your
-> dark theme), so the extractor never sees the `.dark` / `dark:` selectors and
-> never inlines them as critical CSS. Any dark-mode style on an above-the-fold
-> element then flashes the light value (or a missing element) until the full
-> stylesheet finishes loading. The fix is to add an inline dark-mode override in
-> the page `<head>` — a small `<style>` block that hard-sets the dark values for
-> critical-render-path elements, for example:
->
-> ```html
-> <style>
->   html.dark {
->     background: #0c0a09;
->   }
-> </style>
-> ```
->
-> Add one override per dark-mode utility that lands on a critical element
-> (background, header/nav colors, logo `dark:hidden`/`dark:block` swaps, card
-> backgrounds). This is required whenever you ship both critical-CSS inlining and
-> a class-based dark theme.
+:::caution[Critical-CSS inlining can break dark mode]
+Critical-CSS extraction analyses the page in its rendered state at extraction
+time. That render happens without a `.dark` class on `<html>` (or whatever
+toggles your dark theme), so the extractor never sees the `.dark` / `dark:`
+selectors and never inlines them as critical CSS. Any dark-mode style on an
+above-the-fold element then flashes the light value (or a missing element)
+until the full stylesheet finishes loading. The fix is to add an inline
+dark-mode override in the page `<head>` — a small `<style>` block that
+hard-sets the dark values for critical-render-path elements, for example:
+
+```html
+<style>
+  html.dark {
+    background: #0c0a09;
+  }
+</style>
+```
+
+Add one override per dark-mode utility that lands on a critical element
+(background, header/nav colors, logo `dark:hidden`/`dark:block` swaps, card
+backgrounds). This is required whenever you ship both critical-CSS inlining and
+a class-based dark theme.
+:::
 
 ### Async CSS {#async-css}
 

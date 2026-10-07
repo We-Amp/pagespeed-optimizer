@@ -21,7 +21,9 @@ Two endpoints are exposed: `/pagespeed_admin` is the per-vhost admin handler, an
   class="rounded-lg border border-border"
 />
 
-**See it live:** explore the [mod_pagespeed 1.15 admin console](https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/#/console) running on our public Apache demo — live statistics, caches, histograms, and message history, no install required.
+:::tip[See it live]
+Explore the [mod_pagespeed 1.15 admin console](https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/#/console) running on our public Apache demo — live statistics, caches, histograms, and message history, no install required.
+:::
 
 ## Admin pages
 

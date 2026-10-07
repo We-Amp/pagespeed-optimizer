@@ -6,10 +6,11 @@ group: 'Configure'
 lastUpdated: 2026-09-19
 ---
 
-> **Requires ModPageSpeed 2.0.x or later** with conditional revalidation support.
-> Without conditional revalidation, `must-revalidate` causes full origin
-> re-fetches on every stale request. Upgrade before following these
-> recommendations.
+:::note[Since 2.0]
+The recommendations on this page rely on conditional revalidation, which the
+2.0 line introduced. Without it, `must-revalidate` causes full origin
+re-fetches on every stale request. Upgrade before following them.
+:::
 
 Your origin's `Cache-Control` headers directly control how mod_pagespeed caches
 and serves your content. Getting these right prevents stale content and cuts
