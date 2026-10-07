@@ -3,7 +3,7 @@ title: 'Troubleshoot common issues'
 description: 'Fix common mod_pagespeed 2.1 issues: cache misses, images not converting to WebP or AVIF, the optimizer worker not processing, and socket diagnostics.'
 order: 33
 group: 'Operate'
-lastUpdated: 2026-09-19
+lastUpdated: 2026-09-25
 ---
 
 Most mod_pagespeed 2.1 problems surface in one place: the `X-PageSpeed`
@@ -68,7 +68,25 @@ been requested before.
    sudo systemctl reload nginx
    ```
 
-4. **Cache size too small.** If the cache is full, LRU eviction removes older
+4. **Worker and module from different releases.** If the error log has a
+   line starting `pagespeed: cache-directory generation mismatch`, the worker
+   and the nginx module use different cache formats (typically one was rolled
+   back, or the packages were upgraded separately). The module then serves
+   with its cache off, so every response is a `MISS`. The line names both
+   generations and which side is older. Install the same release of both, or
+   run both containers from the same image tag; the module turns its cache
+   back on by itself once they match. Check the current state:
+
+   ```bash
+   grep 'cache-directory generation' /var/log/nginx/error.log | tail -1
+   grep cache_dir_generation /var/cache/pagespeed-optimizer/v2/pagespeed-shared.conf
+   ```
+
+   Or expose `$pagespeed_cache_generation` (`match`, `mismatch`, `unknown`)
+   in a log format or status location, see the
+   [configuration reference](/docs/configuration/#cache-directory-generation-check).
+
+5. **Cache size too small.** If the cache is full, LRU eviction removes older
    entries before they can be served. Check cache utilization via the management
    socket:
 

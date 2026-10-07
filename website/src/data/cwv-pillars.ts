@@ -149,7 +149,7 @@ export const pillars: CwvPillar[] = [
       },
       {
         heading: 'Inline critical CSS to remove the render-blocking chain',
-        body: 'This attacks element render delay. The optimizer worker extracts heuristic <a href="/blog/critical-css-heuristics/">critical CSS</a> with no headless browser &mdash; it scans the HTML and matches selectors against the DOM (first 25 elements; header/nav/hero patterns; <code>html</code>/<code>body</code>/<code>:root</code>/universal selectors) &mdash; then injects the result as a <code>&lt;style&gt;</code> tag before <code>&lt;/head&gt;</code>, removing render-blocking stylesheet requests. The module does the same via <code>prioritize_critical_css</code>. An optional <code>--enable-browser-analysis</code> pipeline adds coverage validation and async CSS loading.',
+        body: 'This attacks element render delay. The optimizer worker extracts heuristic <a href="/blog/critical-css-heuristics/">critical CSS</a> with no headless browser &mdash; it scans the HTML and matches selectors against the DOM (first 300 body elements; fixed-position elements; header/nav/hero patterns; <code>html</code>/<code>body</code>/<code>:root</code>/universal selectors) &mdash; then injects the result as a <code>&lt;style&gt;</code> tag before <code>&lt;/head&gt;</code>, removing render-blocking stylesheet requests. The module does the same via <code>prioritize_critical_css</code>. An optional <code>--enable-browser-analysis</code> pipeline adds coverage validation and async CSS loading.',
         layer: 'server',
       },
       {

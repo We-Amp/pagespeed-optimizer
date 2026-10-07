@@ -6,6 +6,12 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+# src/data/product-facts.mjs imports ../../../shared/product-facts.mjs, which
+# lives one level above this build context. The builder supplies that directory
+# as the named context "shared" (compose: build.additional_contexts; plain
+# docker: --build-context shared=../shared), and it lands where the relative
+# import resolves from /app/src/data.
+COPY --from=shared . /shared/
 # A build inside an image has no route to FastSpring credentials. Default 0
 # keeps the strict behaviour (a stale committed price list fails the build);
 # a harness that only needs the site to render sets it to 1.

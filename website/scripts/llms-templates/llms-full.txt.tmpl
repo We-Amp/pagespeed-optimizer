@@ -36,7 +36,7 @@ mod_pagespeed is the open-source optimization core this product continues. Per B
 - Four-phase minification: comment stripping, whitespace collapsing, trailing semicolon removal, decimal optimization (0.5 to .5)
 - Heuristic-based critical CSS extraction (works standalone, optional browser pipeline for Lighthouse validation)
 - Async CSS loading: render-blocking stylesheets made non-blocking by switching them to rel="preload" as="style" and turning them back into stylesheets, with their real media, once loaded, driven by a CSP-safe external loader served at a content-hashed path under /pagespeed_static/ (e.g. /pagespeed_static/async_css.<hash>.js; the hash changes when the loader changes, so it is cached immutably). No inline onload, so it works under script-src 'self', with a <noscript> fallback for clients without JavaScript. The inlined critical CSS paints first; the full sheet applies once loaded. Activated whenever critical CSS is present. Disable: --no-async-css
-- Critical selectors: universal/html/body/:root (always), first 25 DOM elements, semantic patterns (header, nav, hero, banner, masthead)
+- Critical selectors: universal/html/body/:root (always), first 300 body elements, position:fixed elements, semantic patterns (header, nav, hero, banner, masthead)
 - Exclusion patterns: footer, lazy, defer, below-fold, @media print
 - Critical CSS injected as a <style> tag before </head>
 - Size-gated: only writes minified variant if actually smaller
@@ -126,8 +126,8 @@ This section describes the reverse-proxy deployment, where nginx and the worker 
 
 Three containers sharing a named volume:
 1. Your origin server (any HTTP server)
-2. ghcr.io/we-amp/pagespeed-worker:2.1.0 (optimizer worker)
-3. ghcr.io/we-amp/pagespeed-nginx:2.1.0 (nginx with pagespeed module)
+2. ghcr.io/we-amp/pagespeed-worker:2.2.0 (optimizer worker)
+3. ghcr.io/we-amp/pagespeed-nginx:2.2.0 (nginx with pagespeed module)
 
 Shared volume at /shared contains the cache file and Unix socket.
 Key: chmod 777 /shared, chmod 666 cache.vol for cross-process access.
@@ -154,7 +154,7 @@ This is the Docker / nginx reverse-proxy deployment installed without containers
 
 ### Shared Configuration (pagespeed-shared.conf)
 
-The worker writes a `pagespeed-shared.conf` file next to the cache file, mode 0640 (owner + group `pagespeed`). Nginx reads it automatically (polled every ~1s). Fields: socket_path, disable_html, cache_dir_generation. This eliminates the need for separate nginx directives for these settings.
+The worker writes a `pagespeed-shared.conf` file next to the cache file, mode 0640 (owner + group `pagespeed`). Nginx reads it automatically (polled every ~1s). Fields: socket_path, disable_html, cache_dir_generation. This eliminates the need for separate nginx directives for these settings. If cache_dir_generation differs from the module's own, nginx keeps serving with its cache off (pass-through), logs one "cache-directory generation mismatch" error naming both generations, and turns the cache back on without a reload once they match; $pagespeed_cache_generation (match, mismatch, unknown), $pagespeed_cache_generation_module and $pagespeed_cache_generation_optimizer expose the state.
 
 ### Key Worker Flags
 

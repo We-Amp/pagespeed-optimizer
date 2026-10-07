@@ -257,10 +257,12 @@ When no API token is configured, all endpoints are open. With a token and
 WebSocket streams are open — except the log stream, `/v1/ws/logs`, which
 still needs the token sent as its first message — while mutating operations
 require authentication. The health endpoint (`/v1/health`) is always
-unauthenticated. At most two WebSocket connections may be simultaneously
-waiting to send that first-message token before the worker refuses further
-upgrades (see [Connection Limits](/docs/http-api/#connection-limits)); an
-authenticated or read-open-stream connection never counts against that.
+unauthenticated. At most four WebSocket connections from one address may be
+simultaneously waiting to send that first-message token before the worker
+refuses further upgrades from that address (see
+[Connection Limits](/docs/http-api/#connection-limits)); the console opens
+two streams per browser tab, statistics and log, and an authenticated or
+read-open-stream connection never counts against that limit.
 
 The console is a self-contained single-page app — it loads no third-party
 scripts, uses no external UI toolkit, and renders its time-series charts with a

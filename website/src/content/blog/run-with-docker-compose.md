@@ -38,7 +38,7 @@ services:
     restart: unless-stopped
     healthcheck:
       test:
-        ['CMD-SHELL', "echo '' | socat - UNIX-CONNECT:/data/pagespeed.sock.health | grep -q '^OK'"]
+        ['CMD-SHELL', "socat -u -T 4 UNIX-CONNECT:/data/pagespeed.sock.health - | grep -q '^OK'"]
       interval: 10s
       timeout: 5s
       retries: 3

@@ -75,7 +75,7 @@ services:
     restart: unless-stopped
 
   worker:
-    image: ghcr.io/we-amp/pagespeed-worker:${PAGESPEED_VERSION:-2.1.0}
+    image: ghcr.io/we-amp/pagespeed-worker:${PAGESPEED_VERSION:-2.2.0}
     pid: 'service:pidns'
     depends_on:
       pidns:
@@ -102,7 +102,7 @@ services:
         max-file: '3'
 
   nginx:
-    image: ghcr.io/we-amp/pagespeed-nginx:${PAGESPEED_VERSION:-2.1.0}
+    image: ghcr.io/we-amp/pagespeed-nginx:${PAGESPEED_VERSION:-2.2.0}
     pid: 'service:pidns'
     ports:
       - '${NGINX_PORT:-80}:80'
@@ -500,6 +500,19 @@ s.close()
 Response: `OK 5/128 notifs=1542 variants=986 proactive=724 errors=3 cache_entries=2048`
 
 Use this for load balancer health checks and basic uptime monitoring.
+
+The worker image ships `socat`, and the Compose file and the Helm chart use it
+for their container health checks:
+
+```bash
+socat -u -T 4 UNIX-CONNECT:/data/pagespeed.sock.health - | grep -q '^OK'
+```
+
+`-u` makes socat read only, and `-T 4` is how long it waits for the status
+line: four seconds, one second inside the 5 s probe timeout. If you write your
+own probe, keep both options. A probe that pipes an empty input into socat
+(`echo '' | socat - UNIX-CONNECT:...`) gives up 0.5 s after connecting,
+whatever the probe timeout says, and reports a busy optimizer as unhealthy.
 
 ### Management Socket STATS
 

@@ -3,7 +3,7 @@ title: 'CSS Filters'
 description: 'Reference for CSS optimization filters in mod_pagespeed 2.1: minify, combine, inline, and flatten @import CSS, plus critical-CSS extraction. Apache, nginx, and IIS syntax with tuning parameters.'
 order: 44
 group: 'Filters'
-lastUpdated: 2026-07-11
+lastUpdated: 2026-10-06
 ---
 
 ## Overview
@@ -35,7 +35,7 @@ See [IIS Configuration](/docs/iis-configuration/) for the full file format refer
 | [`inline_import_to_link`](#inline_import_to_link)                | Yes  | No  | Converts `@import` in `<style>` to `<link>`           | Generally safe |
 | [`inline_google_font_css`](#inline_google_font_css)              | No   | No  | Inlines Google Fonts CSS                              | Generally safe |
 | [`outline_css`](#outline_css)                                    | No   | No  | Externalizes large inline CSS                         | Experimental   |
-| [`prioritize_critical_css`](#prioritize_critical_css)            | No   | No  | Inlines above-the-fold CSS, defers the rest           | Test first     |
+| [`prioritize_critical_css`](#prioritize_critical_css)            | No   | No  | Inlines the CSS a page uses, loads the rest async     | Test first     |
 | [`move_css_above_scripts`](#move_css_above_scripts)              | No   | No  | Moves CSS `<link>` above `<script>` elements          | Generally safe |
 | [`move_css_to_head`](#move_css_to_head)                          | No   | No  | Moves CSS `<link>` elements into `<head>`             | Generally safe |
 
@@ -191,7 +191,7 @@ pagespeed EnableFilters outline_css;
 
 ### prioritize_critical_css {#prioritize_critical_css}
 
-Not a core filter. Test before deploying. Identifies CSS rules needed to render above-the-fold content, inlines those rules in the `<head>`, and defers loading the rest. Uses a JavaScript beacon to collect critical CSS data from real user visits. The beacon endpoint must be accessible for data collection to work. Can cut perceived load time, but test it against your own page layouts first. In v1.15.0+r18 and later, the filter honors a restrictive `Content-Security-Policy` when `HonorCsp` is enabled: on pages whose policy disallows inline styles or scripts, it passes the page through unchanged instead of injecting content the policy would block. For the trade-offs behind critical-CSS extraction, see [how critical CSS is identified](/blog/critical-css-heuristics/).
+Not a core filter. Test before deploying. Inlines the CSS rules a page uses and loads each full stylesheet without blocking the first paint. The full stylesheet is preloaded from the place its `<link>` had in the page and takes effect there as soon as it has arrived, so the order in which your rules apply does not change; a `<noscript>` copy of the link covers visitors without scripts, and inline `<style>` blocks are left as they are. By default the inlined rules cover every element in the page as visitors' browsers last saw it, so content further down the page is styled from the first paint too. Uses a JavaScript beacon to collect critical CSS data from real user visits. The beacon endpoint must be accessible for data collection to work. Can cut perceived load time, but test it against your own page layouts first. In v1.15.0+r18 and later, the filter honors a restrictive `Content-Security-Policy` when `HonorCsp` is enabled: on pages whose policy disallows inline styles or scripts, it passes the page through unchanged instead of injecting content the policy would block. For the trade-offs behind critical-CSS extraction, see [how critical CSS is identified](/blog/critical-css-heuristics/).
 
 Enable:
 
@@ -204,6 +204,12 @@ ModPagespeedEnableFilters prioritize_critical_css
 # Nginx
 pagespeed EnableFilters prioritize_critical_css;
 ```
+
+If you prefer a smaller inline block and accept that content below the first screen may be partly styled until the full stylesheet arrives, turn on `CriticalCssAboveTheFoldOnly` (off by default): `ModPagespeedCriticalCssAboveTheFoldOnly on` on Apache, `pagespeed CriticalCssAboveTheFoldOnly on;` on nginx, `pagespeed CriticalCssAboveTheFoldOnly on` on IIS.
+
+**What to expect.** After you deploy a changed stylesheet, the filter leaves that page's stylesheets blocking for a few page views, until visitors' browsers have reported on the new rules. After a page's markup changes without its stylesheets changing, rules that newly apply can be late until a visitor's browser reports on the new markup; the module asks for a report again after about a minute by default (twelve times `BeaconReinstrumentTimeSec`), and the wait is longer when the visitor who is asked does not report. The browser reports which rules the page uses once the page has loaded, so content that a script removes, hides or gives other class names before then can be painted without the rules that applied only to its earlier state, until the full stylesheet arrives. Content a script adds while the page is loading takes its rules from the full stylesheet. The full stylesheet is turned on by a small inline script: if something in front of your server delays inline scripts, the full styles arrive when that script runs. For pages whose markup differs from visitor to visitor under one URL, leave the filter off (`DisableFilters prioritize_critical_css` for that location).
+
+A stylesheet keeps its ordinary blocking `<link>` when it uses an `@import` the server cannot merge into it, when nearly all of it would be inline anyway, or when its `<link>` carries an event-handler attribute, a `title` or `disabled`. A page with more matching selectors than one report can carry keeps its blocking stylesheets until a complete report arrives (see the `beacon_overflow_count` statistic). The filter needs the beacon and therefore does nothing on Envoy.
 
 ### move_css_above_scripts {#move_css_above_scripts}
 

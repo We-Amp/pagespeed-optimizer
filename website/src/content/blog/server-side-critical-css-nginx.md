@@ -80,7 +80,7 @@ several, not a separate tool.
 
 The heuristic is documented in detail at [Critical CSS Without a Headless
 Browser](/blog/critical-css-heuristics/). Short version: scan the first
-25 DOM elements, match selectors semantically (`header`, `nav`, `hero`,
+300 elements inside `<body>` plus any fixed-position element, match selectors semantically (`header`, `nav`, `hero`,
 `banner` are always critical; `footer`, `lazy`, `defer`, `below-fold` are
 always excluded), exclude elements deeper than 10 levels, exclude
 `@media print`. Tuned for over-inclusion (a small amount of extra CSS is

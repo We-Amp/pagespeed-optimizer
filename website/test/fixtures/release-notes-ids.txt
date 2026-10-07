@@ -121,3 +121,7 @@ v110--ga--2026-05-15
 
 # Readable alias for the preserved #115-history id
 since-upstream
+
+# The paired 2.2.0 release
+v2-2-0
+v1-17-0

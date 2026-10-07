@@ -32,10 +32,10 @@ product:
 status: active
 
 release:
-  semver: "2.1.0"
+  semver: "2.2.0"
   revision: null # plain SemVer; +rN not used on the converged line
-  tag: "v2.1.0"
-  released_on: "2026-09-17" # GA release
+  tag: "v2.2.0"
+  released_on: "2026-10-06"
 
 artifacts:
   # Docker images published to GHCR (ghcr.io/we-amp) — same channels as the
@@ -84,5 +84,5 @@ compat:
 display:
   # The 2.1 line derives every customer-facing version string from
   # release.semver (same invariant the 2.0 collection enforces).
-  header_version: "2.1.0"
-  badge_version: "v2.1.0"
+  header_version: "2.2.0"
+  badge_version: "v2.2.0"

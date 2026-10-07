@@ -303,7 +303,7 @@ export const FILTERS: Filter[] = [
   {
     name: 'prioritize_critical_css',
     category: 'CSS',
-    description: 'Inlines above-fold CSS, defers the rest',
+    description: 'Inlines the CSS a page uses, loads the rest async',
     href: '/docs/css-filters/#prioritize_critical_css',
   },
   {

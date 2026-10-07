@@ -60,9 +60,10 @@ sudo apt-get install nginx-module-pagespeed
 # AlmaLinux / RHEL / Rocky 9 and 10
 sudo dnf install nginx-module-pagespeed</code></pre>
       <p class="mt-4 text-sm text-text-muted">
-        The native nginx module runs on its own; to use the optimizer worker with nginx, run the <a
-          href="/docs/installation-docker/"
-          class="text-interactive underline">reverse-proxy deployment</a
+        The native nginx module runs on its own by default; to use the optimizer worker with it,
+        install <code class="font-mono">pagespeed-optimizer</code> and <a
+          href="/docs/installation-module/#using-the-optimizer-daemon-with-nginx"
+          class="text-interactive underline">point the module at it</a
         >.
       </p>
       <p class="mt-4 text-sm text-text-muted">

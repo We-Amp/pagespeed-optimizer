@@ -56,7 +56,7 @@ const faqPage = {
       name: 'How does critical CSS extraction work?',
       acceptedAnswer: {
         '@type': 'Answer',
-        text: 'The optimizer worker uses heuristic critical CSS extraction that runs standalone — no headless browser required. The worker scans HTML and matches CSS selectors against the DOM structure, analyzing the first 25 elements, semantic patterns (header, nav, hero), and universal selectors. Critical CSS is injected as a style tag before </head>, eliminating render-blocking stylesheet requests. An optional browser analysis pipeline adds CSS coverage validation, waterfall capture, and visual comparison for advanced use cases.',
+        text: 'The optimizer worker uses heuristic critical CSS extraction that runs standalone — no headless browser required. The worker scans HTML and matches CSS selectors against the DOM structure, analyzing the first 300 elements inside the body, fixed-position elements, semantic patterns (header, nav, hero), and universal selectors. Critical CSS is injected as a style tag before </head>, eliminating render-blocking stylesheet requests. An optional browser analysis pipeline adds CSS coverage validation, waterfall capture, and visual comparison for advanced use cases.',
       },
     },
     {
@@ -514,7 +514,7 @@ const jsonLd = [softwareApplication, faqPage];
                   for <code class="text-xs bg-bg-elevated px-1 rounded">html</code>, <code
                     class="text-xs bg-bg-elevated px-1 rounded">body</code
                   >, <code class="text-xs bg-bg-elevated px-1 rounded">:root</code>,
-                  first 25 DOM elements, and header/nav/hero patterns. Optional browser pipeline
+                  first 300 body elements, fixed-position elements, and header/nav/hero patterns. Optional browser pipeline
                   adds Lighthouse validation, waterfall capture, and visual comparison.
                 </p>
               </div>

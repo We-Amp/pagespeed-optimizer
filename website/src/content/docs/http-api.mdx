@@ -496,6 +496,7 @@ volume.
 ```bash
 curl -X PATCH http://localhost:9880/v1/config \
   -H "Content-Type: application/json" \
+  -H "X-Requested-With: XMLHttpRequest" \
   -d '{"jpeg_quality": 80, "svg_mode": "auto"}'
 ```
 
@@ -769,13 +770,18 @@ X-Capability-Mask: 9
 
 ### POST /v1/cache/purge
 
-Delete cached variants for a URL, or purge the entire cache.
+Delete cached variants for a URL, or purge the entire cache. Like every
+`POST` or `PATCH` under `/v1/`, a purge sent over the unix socket, or to a TCP
+API without a token, must carry `X-Requested-With: XMLHttpRequest`; without it
+the optimizer answers 400. The examples on this page send it, which does no
+harm when a token is configured.
 
 **Single URL purge:**
 
 ```bash
 curl -X POST http://localhost:9880/v1/cache/purge \
   -H "Content-Type: application/json" \
+  -H "X-Requested-With: XMLHttpRequest" \
   -d '{"url": "/images/hero.jpg", "hostname": "example.com"}'
 ```
 
@@ -800,6 +806,7 @@ recreates it from scratch. Requires explicit confirmation.
 ```bash
 curl -X POST http://localhost:9880/v1/cache/purge \
   -H "Content-Type: application/json" \
+  -H "X-Requested-With: XMLHttpRequest" \
   -d '{"scope": "all", "confirm": "purge-all"}'
 ```
 
@@ -824,6 +831,7 @@ original from cache and regenerates all optimized variants.
 ```bash
 curl -X POST http://localhost:9880/v1/cache/reprocess \
   -H "Content-Type: application/json" \
+  -H "X-Requested-With: XMLHttpRequest" \
   -d '{"url": "/style.css", "hostname": "example.com"}'
 ```
 
@@ -900,6 +908,7 @@ Chrome.
 ```bash
 curl -X POST http://localhost:9880/v1/capture/waterfall \
   -H "Content-Type: application/json" \
+  -H "X-Requested-With: XMLHttpRequest" \
   -d '{"url": "https://example.com", "viewport_width": 1280}'
 ```
 
@@ -937,6 +946,7 @@ Capture a PNG screenshot of a URL using headless Chrome.
 ```bash
 curl -X POST http://localhost:9880/v1/capture/screenshot \
   -H "Content-Type: application/json" \
+  -H "X-Requested-With: XMLHttpRequest" \
   -d '{"url": "https://example.com", "viewport_width": 1440, "full_page": true}'
 ```
 
@@ -1017,7 +1027,7 @@ entries, and `more` says when to read again.
   "more": false,
   "newest_seq": 1842,
   "next_since": 1842,
-  "oldest_seq": 0,
+  "oldest_seq": 1,
   "shed_total": 0,
   "stream_id": "9f2c4e1a7b3d5c80"
 }
@@ -1031,7 +1041,7 @@ entries, and `more` says when to read again.
 | `gap`        | Entries between your `since` and `oldest_seq` were dropped from the ring before you read them. |
 | `oldest_seq` / `newest_seq` | The oldest and newest entry the ring still holds. |
 | `shed_total` | Entries not recorded because the optimizer was logging faster than it could keep; increases over the process's life. |
-| `stream_id`  | Identifies this optimizer process. When it changes, the optimizer restarted and `seq` started again at 0: drop your `since` and read the newest entries. |
+| `stream_id`  | Identifies this optimizer process. When it changes, the optimizer restarted and `seq` started again at 1: drop your `since` and read the newest entries. |
 
 A `since` or `limit` that is not a whole number is a 400.
 
@@ -1052,16 +1062,29 @@ the same connection lifecycle:
 | Parameter                                  | Value |
 | ------------------------------------------- | ----- |
 | Max WebSocket connections (all streams)     | 8     |
-| Max connections awaiting authentication     | 2     |
+| Max connections awaiting authentication     | 16    |
+| … of which from any one remote address      | 4     |
 | Ping interval                               | 30s   |
 | Pong timeout                                | 10s   |
 | Auth timeout                                | 2s    |
 
-The "max connections awaiting authentication" limit is separate from, and
-tighter than, the overall connection cap above (which counts every stream
-together, not per endpoint): at most 2 WebSocket connections may be
+The "max connections awaiting authentication" limit is counted separately
+from the overall connection cap above (which counts every stream
+together, not per endpoint): at most 16 WebSocket connections may be
 simultaneously holding a slot while waiting for the in-band
-`{"auth": "..."}` message (see [Authentication Modes](#authentication-modes)).
+`{"auth": "..."}` message (see [Authentication Modes](#authentication-modes)),
+and at most 4 of those may share one remote address — enough for a client
+to open several streams at once (the bundled web console opens two per
+browser tab, statistics and log) while it authenticates, without a single
+never-authenticating address being able to take every slot for everyone
+else. Connections waiting to authenticate also count toward the overall cap
+of 8, which is reached first: in practice at most 8 can be waiting at once,
+and the limit of 16 applies only where the overall cap is higher than 16.
+From one address the limit of 4 is the one that applies. Clients that reach
+the optimizer through the same proxy or address share those 4 slots; an
+honest client holds one only until its token arrives. Connections on the
+unix socket need no token, so they never wait to authenticate and never
+count against these limits.
 A connection that is already authenticated — including one pre-authenticated
 under `--api-read-open` on an allow-listed stream — never counts against
 this budget, so it only bounds the number of handshakes that have completed
@@ -1168,14 +1191,27 @@ ws.onmessage = (event) => {
 | ---------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `snapshot` | Ring buffer on connect: `{type: "snapshot", entries: LogEntry[], total: N}`                                                              |
 | `log`      | Single log entry: `{type: "log", seq: N, timestamp: MS, source: "...", level: "...", module: "...", message: "...", details?: {...}}` |
-| `overflow` | `{type: "overflow", dropped_count: N}`                                                                                                   |
+| `overflow` | Entries this client was not sent: `{type: "overflow", dropped_count: N, first_seq: A, last_seq: B}`                                      |
 
 Every entry carries `seq`, a sequence number that increases by one per entry
-for as long as the optimizer process runs (it starts again at 0 after a
-restart). `message` is always valid UTF-8 — bytes that are not are shown as
+for as long as the optimizer process runs (the first entry is `seq` 1, and
+numbering starts again at 1 after a restart, so `since=0` always reads from
+the beginning). `message` is always valid UTF-8 — bytes that are not are shown as
 U+FFFD — and its content is capped at 4 KiB: a longer message keeps its first
 4 KiB (cut on a character boundary) followed by a `…[truncated N bytes]`
 suffix, so a truncated message is slightly longer than 4 KiB overall.
+
+New entries are sent in batches (about every 100 ms), one `log` message per
+entry, in `seq` order, and as fast as the client reads them. Every entry the
+optimizer still holds reaches the client: the stream reads from the same ring
+of the most recent 2000 entries that the snapshot and
+[`GET /v1/logs`](#get-v1logs) read from. A client only misses entries that
+left that ring before it could be sent them — it reads too slowly, or more
+than 2000 entries arrived at once. It then receives one `overflow` message in
+their place: `dropped_count` entries, `seq` `first_seq` through `last_seq`,
+were not sent, and the next `log` message is `last_seq + 1`. Those entries are
+gone from `GET /v1/logs` as well, which reports them as a `gap`. A client
+that does not need the exact range can read `dropped_count` alone.
 
 Under `--api-read-open` with a token configured, this stream still requires
 it: the handshake succeeds, but the connection is closed unless the token
