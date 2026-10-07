@@ -164,3 +164,50 @@ test.describe('Navigation', () => {
     await expect(closeIcon).toBeVisible();
   });
 });
+
+test.describe('Site search', () => {
+  test('header search button opens the dialog; Escape closes it and returns focus', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    const button = page.locator('header button[data-search-open]:has-text("Search")');
+    await expect(button).toBeVisible();
+    await expect(button).toHaveAttribute('aria-haspopup', 'dialog');
+    const dialog = page.locator('dialog#site-search');
+    await expect(dialog).toBeHidden();
+
+    await button.click();
+    await expect(dialog).toBeVisible();
+    await expect(dialog).toHaveAttribute('open', '');
+    // The dev server has no Pagefind index; the dialog must say so rather than
+    // fail silently (the production build writes /pagefind/ at build time).
+    await expect(dialog.locator('#site-search-status')).toContainText(/search/i);
+
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+    await expect(button).toBeFocused();
+  });
+
+  test('"/" and Ctrl/Cmd+K open the search dialog', async ({ page }) => {
+    await page.goto('/pricing/');
+    const dialog = page.locator('dialog#site-search');
+    await page.keyboard.press('/');
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+
+    await page.keyboard.press('Control+k');
+    await expect(dialog).toBeVisible();
+    await page.keyboard.press('Escape');
+    await expect(dialog).toBeHidden();
+  });
+
+  test('mobile header has an icon-only search button', async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto('/');
+    const button = page.locator('header button[data-search-open][aria-label="Search"]');
+    await expect(button).toBeVisible();
+    await button.click();
+    await expect(page.locator('dialog#site-search')).toBeVisible();
+  });
+});

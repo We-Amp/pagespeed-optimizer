@@ -101,6 +101,15 @@
   font-weight: var(--shiki-dark-font-weight);
   text-decoration: var(--shiki-dark-text-decoration);
 }
+/* github-dark paints comments #6A737D, which is 3.05:1 on the block's own
+   #24292e ground — under the 4.5:1 AA floor for body-size text. Re-colour
+   that one token with the annotation grey (4.56:1 on the same ground); every
+   other github-dark token already clears the floor. Shiki emits the colour as
+   a per-span style, so the attribute selector is the hook; the `i` flag covers
+   either hex case. */
+.dark .astro-code span[style*='--shiki-dark:#6a737d' i] {
+  color: var(--color-text-annotation);
+}
 
 .prose :not(pre) > code {
   overflow-wrap: break-word;
