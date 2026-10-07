@@ -7,7 +7,9 @@ import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
 import { getCollection, render } from 'astro:content';
 import { createMarkdownProcessor } from '@astrojs/markdown-remark';
 import { getRelease } from '../../lib/release';
+import { gitLastModified } from '../../lib/git-date';
 import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
+import { basename } from 'node:path';
 
 //: the JSON-LD HowTo schema for aspnet-getting-started cites
 // the literal `dotnet add package …` command shown on the page. Source it
@@ -78,6 +80,33 @@ const sidebarGroups: { label: string; docs: typeof allDocs }[] = [];
   }
 }
 
+// Previous / next: neighbours in the sidebar's reading order (group, then
+// `order`), taken from the groups themselves so the two can never disagree.
+const navDocs = sidebarGroups.flatMap((g) => g.docs);
+const docIndex = navDocs.findIndex((d) => d.id === doc.id);
+const prevDoc = docIndex > 0 ? navDocs[docIndex - 1] : undefined;
+const nextDoc = docIndex >= 0 && docIndex < navDocs.length - 1 ? navDocs[docIndex + 1] : undefined;
+
+// "Last updated": the date of the last commit that touched the content file,
+// read from git at build time (the deploy builds from a fresh, full clone),
+// with the frontmatter `lastUpdated` as the fallback when history cannot
+// answer (a shallow CI checkout, an exported tree). The visible date and the
+// JSON-LD `dateModified` below are one and the same value.
+const contentFile = doc.filePath ? basename(doc.filePath) : `${doc.id}.md`;
+const lastUpdated =
+  (doc.filePath ? gitLastModified(doc.filePath) : null) ??
+  doc.data.lastUpdated?.toISOString().split('T')[0] ??
+  null;
+const lastUpdatedLabel = lastUpdated
+  ? new Date(`${lastUpdated}T00:00:00Z`).toLocaleDateString('en-GB', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+      timeZone: 'UTC',
+    })
+  : null;
+const editUrl = `https://github.com/We-Amp/pagespeed-optimizer/edit/main/website/src/content/docs/${contentFile}`;
+
 // Docs have no per-page OG cards (the og-cards generator is blog-only), so the
 // schema `image` is the same /og-default.png the page's og:image meta resolves
 // to in BaseLayout — never a URL that could 404.
@@ -109,9 +138,7 @@ jsonLd = {
   ...(doc.data.datePublished && {
     datePublished: doc.data.datePublished.toISOString().split('T')[0],
   }),
-  ...(doc.data.lastUpdated && {
-    dateModified: doc.data.lastUpdated.toISOString().split('T')[0],
-  }),
+  ...(lastUpdated && { dateModified: lastUpdated }),
   about: {
     '@type': 'SoftwareApplication',
     name: 'mod_pagespeed',
@@ -256,7 +283,7 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
       ]}
     >
       <!-- Sidebar navigation -->
-      <nav class="hidden lg:block" aria-label="Documentation">
+      <nav class="hidden lg:block" aria-label="Documentation" data-pagefind-ignore>
         {
           sidebarGroups.map((group) => (
             <div class="mb-6">
@@ -268,6 +295,7 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
                   <li>
                     <a
                       href={`/docs/${d.id}/`}
+                      aria-current={d.id === doc.id ? 'page' : undefined}
                       class:list={[
                         'block rounded-md px-3 py-2 text-sm transition-colors',
                         d.id === doc.id
@@ -284,24 +312,10 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
           ))
         }
         {
-          /* Release notes live outside the `docs` collection, so they are not
-            in `sidebarGroups`; surface them statically here. */
+          /* Release notes are a docs collection entry (release-notes.mdx) and
+            appear in `sidebarGroups` like every other page — no second,
+            hand-written link to a different destination. */
         }
-        <div class="mb-6">
-          <p class="px-3 mb-2 text-xs font-semibold uppercase tracking-wider text-text-annotation">
-            Releases
-          </p>
-          <ul class="space-y-1">
-            <li>
-              <a
-                href="/blog/"
-                class="block rounded-md px-3 py-2 text-sm transition-colors text-text-muted hover:bg-bg-secondary hover:text-text-body"
-              >
-                Release notes
-              </a>
-            </li>
-          </ul>
-        </div>
 
         {/* Sidebar install CTA — quietly persistent on every docs page */}
         <a
@@ -316,37 +330,57 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
         </p>
       </nav>
 
-      <!-- Mobile navigation -->
-      <div class="lg:hidden mb-8 space-y-4">
-        <div>
-          <label for="docs-nav" class="block text-sm font-medium text-text-body">
-            Navigate docs
-          </label>
-          <select
-            id="docs-nav"
-            class="mt-1 block w-full rounded-md border border-border-strong bg-bg-elevated text-text-body px-3 py-2 text-sm shadow-sm focus:border-interactive focus:ring-2 focus:ring-interactive/40"
-          >
-            {
-              sidebarGroups.map((group) => (
-                <optgroup label={group.label}>
+      <!-- Mobile navigation: a disclosure listing the same groups as the
+           sidebar. Plain links, so nothing navigates on a change of input
+           (WCAG 3.2.2); it works without JavaScript. -->
+      <details
+        id="docs-menu"
+        class="lg:hidden mb-8 rounded-lg border border-border bg-bg-elevated"
+        data-pagefind-ignore
+      >
+        <summary
+          class="flex cursor-pointer items-center justify-between gap-4 px-4 py-3 text-sm font-semibold text-text-body"
+        >
+          Docs menu
+          <Icon
+            name="chevron-down"
+            class="docs-menu-chevron h-4 w-4 shrink-0 text-text-annotation transition-transform"
+          />
+        </summary>
+        <nav aria-label="Documentation menu" class="border-t border-border px-2 pb-3">
+          {
+            sidebarGroups.map((group) => (
+              <div class="pt-3">
+                <p class="px-2 mb-1 text-xs font-semibold uppercase tracking-wider text-text-annotation">
+                  {group.label}
+                </p>
+                <ul class="space-y-0.5">
                   {group.docs.map((d) => (
-                    <option value={`/docs/${d.id}/`} selected={d.id === doc.id}>
-                      {d.data.title}
-                    </option>
+                    <li>
+                      <a
+                        href={`/docs/${d.id}/`}
+                        aria-current={d.id === doc.id ? 'page' : undefined}
+                        class:list={[
+                          'block rounded-md px-2 py-2 text-sm transition-colors',
+                          d.id === doc.id
+                            ? 'bg-interactive/10 font-medium text-interactive'
+                            : 'text-text-muted hover:bg-bg-secondary hover:text-text-body',
+                        ]}
+                      >
+                        {d.data.title}
+                      </a>
+                    </li>
                   ))}
-                </optgroup>
-              ))
-            }
-            <optgroup label="Releases">
-              <option value="/blog/">Release notes</option>
-            </optgroup>
-          </select>
-        </div>
-      </div>
+                </ul>
+              </div>
+            ))
+          }
+        </nav>
+      </details>
 
       <!-- Content -->
       <article class="min-w-0">
-        <nav class="mb-6 text-sm text-text-annotation" aria-label="Breadcrumb">
+        <nav class="mb-6 text-sm text-text-annotation" aria-label="Breadcrumb" data-pagefind-ignore>
           <a href="/" class="hover:text-text-body">Home</a>
           <span class="mx-1">/</span>
           <a href="/docs/" class="hover:text-text-body">Docs</a>
@@ -356,11 +390,30 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
         <h1 class="text-3xl font-bold tracking-tight text-text-body">
           {doc.data.title}
         </h1>
-        <p class="mt-3 lede">{doc.data.description}</p>
+        <p
+          class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-annotation"
+          data-pagefind-ignore
+        >
+          {
+            lastUpdated && (
+              <span>
+                Last updated <time datetime={lastUpdated}>{lastUpdatedLabel}</time>
+              </span>
+            )
+          }
+          <a
+            href={editUrl}
+            rel="noopener noreferrer"
+            class="underline underline-offset-2 hover:text-interactive transition-colors"
+          >
+            Edit this page
+          </a>
+        </p>
+        <p class="mt-4 lede">{doc.data.description}</p>
 
         {
           showToc && (
-            <div class="mt-8 xl:hidden">
+            <div class="mt-8 xl:hidden" data-pagefind-ignore>
               <OnThisPage variant="inline" headings={tocHeadings} />
             </div>
           )
@@ -374,6 +427,7 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
               class="mt-6 flex gap-1 overflow-x-auto -mx-1 px-1 sticky top-16 z-40 bg-bg-elevated py-2"
               role="group"
               aria-label="Select platform"
+              data-pagefind-ignore
             >
               <button
                 type="button"
@@ -445,14 +499,58 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
           )
         }
 
-        <ShareButtons
-          title={doc.data.title}
-          url={`https://modpagespeed.com/docs/${doc.id}/`}
-          surface="docs"
-        />
+        {
+          (prevDoc || nextDoc) && (
+            <nav
+              class="mt-12 grid gap-3 border-t border-border pt-6 sm:grid-cols-2"
+              aria-label="Previous and next pages"
+              data-pagefind-ignore
+            >
+              {prevDoc ? (
+                <a
+                  rel="prev"
+                  href={`/docs/${prevDoc.id}/`}
+                  class="block rounded-lg border border-border bg-bg-elevated p-4 hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
+                >
+                  <span class="block text-xs font-semibold uppercase tracking-wider text-text-annotation">
+                    Previous
+                  </span>
+                  <span class="mt-1 block text-sm font-medium text-interactive">
+                    <span aria-hidden="true">←</span> {prevDoc.data.title}
+                  </span>
+                </a>
+              ) : (
+                <span aria-hidden="true" />
+              )}
+              {nextDoc && (
+                <a
+                  rel="next"
+                  href={`/docs/${nextDoc.id}/`}
+                  class="block rounded-lg border border-border bg-bg-elevated p-4 text-right hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
+                >
+                  <span class="block text-xs font-semibold uppercase tracking-wider text-text-annotation">
+                    Next
+                  </span>
+                  <span class="mt-1 block text-sm font-medium text-interactive">
+                    {nextDoc.data.title} <span aria-hidden="true">→</span>
+                  </span>
+                </a>
+              )}
+            </nav>
+          )
+        }
+
+        <div data-pagefind-ignore>
+          <ShareButtons
+            title={doc.data.title}
+            url={`https://modpagespeed.com/docs/${doc.id}/`}
+            surface="docs"
+          />
+        </div>
 
         <aside
           class="mt-12 rounded-lg border border-interactive/40 bg-interactive/10 p-6 text-center"
+          data-pagefind-ignore
         >
           <p class="text-sm font-semibold text-text-body">
             Done reading? Download and run it &mdash; it optimizes immediately, free and open
@@ -482,7 +580,7 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
 
       {
         showToc && (
-          <div class="hidden xl:block">
+          <div class="hidden xl:block" data-pagefind-ignore>
             <div class="sticky top-20 max-h-[calc(100vh-7rem)] overflow-y-auto pb-8">
               <OnThisPage variant="rail" headings={tocHeadings} />
             </div>
@@ -493,11 +591,6 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
   </div>
 
   <script>
-    const select = document.getElementById('docs-nav') as HTMLSelectElement;
-    select?.addEventListener('change', () => {
-      window.location.href = select.value;
-    });
-
     // Platform selector
     const tabs = document.querySelectorAll<HTMLButtonElement>('[data-platform-tab]');
     const announce = document.getElementById('platform-announce');
@@ -549,6 +642,9 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
     }
     details > summary::-webkit-details-marker {
       display: none;
+    }
+    #docs-menu[open] > summary .docs-menu-chevron {
+      transform: rotate(180deg);
     }
 
     /* Platform selector tabs — Caliber dark-only tokens (no light-mode pair). */
