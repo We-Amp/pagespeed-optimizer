@@ -1,5 +1,5 @@
 ---
-title: 'CSS Filters'
+title: 'CSS filters'
 description: 'Reference for CSS optimization filters in mod_pagespeed 2.1: minify, combine, inline, and flatten @import CSS, plus critical-CSS extraction. Apache, nginx, and IIS syntax with tuning parameters.'
 order: 44
 group: 'Filters'
@@ -19,7 +19,7 @@ pagespeed EnableFilters rewrite_css,combine_css
 pagespeed CssInlineMaxBytes 4096
 ```
 
-See [IIS Configuration](/docs/iis-configuration/) for the full file format reference.
+See [IIS configuration](/docs/iis-configuration/) for the full file format reference.
 
 ## Quick reference
 
@@ -272,7 +272,7 @@ pagespeed CssImageInlineMaxBytes 2048;
 
 ## See also
 
-- [Filter Selection](/docs/filter-selection/)
-- [Filter Reference](/docs/filter-reference/)
-- [JavaScript Filters](/docs/javascript-filters/) — the matching minify, combine, and inline filters for JS
+- [Filter selection](/docs/filter-selection/)
+- [Filter reference](/docs/filter-reference/)
+- [JavaScript filters](/docs/javascript-filters/) — the matching minify, combine, and inline filters for JS
 - [How CSS parsing works](/how-it-works/css-parsing/) — the syntax-tree layer beneath the CSS filters

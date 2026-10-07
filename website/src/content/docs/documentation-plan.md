@@ -1,5 +1,5 @@
 ---
-title: 'Where the Documentation Lives'
+title: 'Where the documentation lives'
 description: 'Where the mod_pagespeed 2.1 documentation lives, and what happened to the pages written before the 2.0 re-architecture converged into it.'
 order: 62
 group: 'Reference'

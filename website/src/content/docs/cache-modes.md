@@ -598,7 +598,7 @@ in the configuration reference.
 
 <a id="in-place-resource-optimization-ipro"></a>
 
-### In-Place Resource Optimization (IPRO) considerations
+### In-place resource optimization (IPRO) considerations
 
 IPRO optimizes resources served from your origin without changing their URLs. This is useful for resources referenced by third-party code or cached at CDN edge nodes where you cannot change the URL.
 

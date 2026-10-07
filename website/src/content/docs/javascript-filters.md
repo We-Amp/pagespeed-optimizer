@@ -1,5 +1,5 @@
 ---
-title: 'JavaScript Filters'
+title: 'JavaScript filters'
 description: 'Minify, combine, inline, and defer JavaScript in mod_pagespeed 2.1. Directives, defaults, and the trade-offs for each JS filter on Apache, nginx, and IIS.'
 order: 45
 group: 'Filters'
@@ -32,7 +32,7 @@ pagespeed EnableFilters rewrite_javascript,combine_javascript
 pagespeed JsInlineMaxBytes 2048
 ```
 
-See [IIS Configuration](/docs/iis-configuration/) for the full file format reference.
+See [IIS configuration](/docs/iis-configuration/) for the full file format reference.
 
 ## rewrite_javascript {#rewrite_javascript}
 
@@ -168,7 +168,7 @@ pagespeed JsOutlineMinBytes 3000;
 
 ## See also
 
-- [Filter Selection](/docs/filter-selection/)
-- [Filter Reference](/docs/filter-reference/)
+- [Filter selection](/docs/filter-selection/)
+- [Filter reference](/docs/filter-reference/)
 - [Safe JavaScript minification and semicolon insertion](/blog/safe-javascript-minification-semicolon-insertion/)
 - [Remove unused JavaScript with Chrome coverage](/blog/remove-unused-javascript-chrome-coverage/)

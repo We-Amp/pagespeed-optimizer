@@ -1,5 +1,5 @@
 ---
-title: 'Image Filters'
+title: 'Image filters'
 description: 'Configure image optimization filters in mod_pagespeed 2.1 for Apache, nginx, and IIS: recompression, WebP and opt-in AVIF conversion, resizing, lazy loading, and responsive images.'
 order: 43
 group: 'Filters'
@@ -19,7 +19,7 @@ pagespeed EnableFilters rewrite_images
 pagespeed ImageRecompressionQuality 75
 ```
 
-See [IIS Configuration](/docs/iis-configuration/) for the full file format reference.
+See [IIS configuration](/docs/iis-configuration/) for the full file format reference.
 
 ## Quick reference
 
@@ -254,7 +254,7 @@ pagespeed EnableFilters convert_to_avif_animated;
 pagespeed EnableFilters recompress_avif;
 ```
 
-On IIS, use the same filter names in `pagespeed.config` without the trailing semicolon — see [IIS Configuration](/docs/iis-configuration/).
+On IIS, use the same filter names in `pagespeed.config` without the trailing semicolon — see [IIS configuration](/docs/iis-configuration/).
 
 ### Configuration
 
@@ -660,6 +660,6 @@ _Adapted from the original mod_pagespeed image-rewriting design (Google, 2010), 
 
 ## See also
 
-- [Filter Selection](/docs/filter-selection/) -- how to enable and disable filters
-- [Filter Reference](/docs/filter-reference/) -- all filters at a glance
+- [Filter selection](/docs/filter-selection/) -- how to enable and disable filters
+- [Filter reference](/docs/filter-reference/) -- all filters at a glance
 - [How the metadata cache works](/how-it-works/metadata-cache/) -- how an image is optimized once and served from cache thereafter

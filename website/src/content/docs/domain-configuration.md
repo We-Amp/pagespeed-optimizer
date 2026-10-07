@@ -1,5 +1,5 @@
 ---
-title: 'Domain Configuration'
+title: 'Domain configuration'
 description: 'Authorize and map domains in mod_pagespeed 2.1 on nginx, Apache, and IIS. Reference for the Domain, MapOriginDomain, MapRewriteDomain, MapProxyDomain, ShardDomain, and LoadFromFile directives.'
 order: 24
 group: 'Configure'
@@ -233,4 +233,4 @@ The first argument is the URL prefix. The second is the filesystem path that cor
 
 - [Configuration](/docs/configuration/) — general configuration reference
 - [Caching](/docs/cache-control/#rewrite_domains) — how domain configuration affects caching behavior
-- [Directive Index](/docs/directive-index/) — the full list of mod_pagespeed 2.1 directives
+- [Directive index](/docs/directive-index/) — the full list of mod_pagespeed 2.1 directives

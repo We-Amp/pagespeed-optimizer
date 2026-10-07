@@ -1,5 +1,5 @@
 ---
-title: 'Filter Selection'
+title: 'Filter selection'
 description: 'Choose which mod_pagespeed 2.1 filters to run: RewriteLevel presets, the CoreFilters default set, EnableFilters, DisableFilters, ForbidFilters, and tuning thresholds.'
 order: 41
 group: 'Filters'

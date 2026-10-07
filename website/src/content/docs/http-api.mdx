@@ -38,7 +38,7 @@ your app's origin for `localhost:9880` in the examples below.
 All endpoints are prefixed with `/v1/`. The server supports HTTP/1.1 only
 (no HTTP/2). Keep-alive connections are supported.
 
-### Server Limits
+### Server limits
 
 | Parameter        | Default | Flag                |
 | ---------------- | ------- | ------------------- |
@@ -111,7 +111,7 @@ Also refused at startup: `--api-socket` together with `--api-port` (one
 transport only), and an `--api-bind` that is not an IPv4 literal (`localhost`
 and `::1` included — the API binds IPv4 only).
 
-### Authentication Modes
+### Authentication modes
 
 | Mode                       | Behavior                                          |
 | -------------------------- | ------------------------------------------------- |
@@ -151,7 +151,7 @@ only enable it behind a reverse proxy that performs its own
 authentication (IP allow-listing, a login prompt, etc.) — never expose it
 directly to the open internet.
 
-### Error Responses
+### Error responses
 
 When auth fails, the API returns:
 
@@ -177,7 +177,7 @@ status 204.
 
 ---
 
-## Health and Status
+## Health and status
 
 ### GET /v1/health
 
@@ -544,7 +544,7 @@ request are still applied. All boolean toggle fields (`disable_async_css`,
 
 ---
 
-## Cache Operations
+## Cache operations
 
 ### GET /v1/cache/urls
 
@@ -897,7 +897,7 @@ curl http://localhost:9880/v1/cache/cooldowns
 
 ---
 
-## Browser Capture
+## Browser capture
 
 These endpoints require `--enable-browser-analysis` and a running Chrome
 instance. If Chrome is unavailable, the API returns 503.
@@ -971,7 +971,7 @@ curl -X POST http://localhost:9880/v1/capture/screenshot \
 
 The `png_base64` field contains the screenshot as a base64-encoded PNG image.
 
-### Browser Capture Errors
+### Browser capture errors
 
 | Status | Condition                                               |
 | ------ | ------------------------------------------------------- |
@@ -1049,7 +1049,7 @@ A `since` or `limit` that is not a whole number is a 400.
 
 ---
 
-## WebSocket Endpoints
+## WebSocket endpoints
 
 WebSocket endpoints provide real-time streaming data. All three endpoints follow
 the same connection lifecycle:
@@ -1059,7 +1059,7 @@ the same connection lifecycle:
 3. Server sends initial snapshot
 4. Server pushes updates at regular intervals
 
-### Connection Limits
+### Connection limits
 
 | Parameter                                  | Value |
 | ------------------------------------------- | ----- |
@@ -1228,7 +1228,7 @@ a tokenless API opened with `--api-no-auth`, the stream is open.
 
 ---
 
-## Static Files
+## Static files
 
 ### GET /console/\*
 
@@ -1244,7 +1244,7 @@ not return JSON.
 
 ---
 
-## Error Response Format
+## Error response format
 
 All API errors follow a consistent JSON structure:
 
@@ -1269,7 +1269,7 @@ Some errors include a `details` field with additional context:
 }
 ```
 
-### Error Codes
+### Error codes
 
 | HTTP Status | Code                  | Description                                          |
 | ----------- | --------------------- | ---------------------------------------------------- |
@@ -1286,7 +1286,7 @@ Some errors include a `details` field with additional context:
 
 ---
 
-## Endpoint Summary
+## Endpoint summary
 
 | Method | Path                     | Auth | Description                    |
 | ------ | ------------------------ | ---- | ------------------------------ |
@@ -1309,13 +1309,13 @@ Some errors include a `details` field with additional context:
 | WS     | `/v1/ws/logs`            | Yes  | Real-time log streaming        |
 | GET    | `/console/*`             | No   | Web console static files       |
 
-## Next Steps
+## Next steps
 
 - [Web Console](/docs/workbench/) -- The console is built on this API — see it
   in action
 - [Configuration Reference](/docs/configuration/) -- Worker flags and nginx
   directives
-- [API Reference](/docs/api-reference/) -- IPC wire format, management socket,
+- [API reference](/docs/api-reference/) -- IPC wire format, management socket,
   capability mask encoding, and C API
 - [Browser Analysis](/docs/browser-analysis/) -- How the capture endpoints
   use headless Chrome

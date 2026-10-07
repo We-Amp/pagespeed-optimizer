@@ -1,5 +1,5 @@
 ---
-title: 'IIS Configuration'
+title: 'IIS configuration'
 description: 'Configure mod_pagespeed on IIS via pagespeed.config — the native IIS module and successor to IISpeed. Directive syntax, path-based regex matching, server and site-level config, and environment-variable expansion.'
 order: 26
 group: 'Configure'
@@ -302,9 +302,9 @@ The module checks the modification timestamp of `pagespeed.config` periodically 
 ## See also
 
 - [Configuration](/docs/configuration/) — general configuration reference (all platforms)
-- [Filter Selection](/docs/filter-selection/) — choosing and tuning filters
+- [Filter selection](/docs/filter-selection/) — choosing and tuning filters
 - [IIS Tuning](/docs/iis-configuration/#iis-tuning) — IIS-specific web server tuning
-- [Getting Started](/docs/getting-started/) — installation guide
+- [Getting started](/docs/getting-started/) — installation guide
 
 ## IIS tuning
 
@@ -413,6 +413,6 @@ All supported Windows Server versions (2019 and later) default to an initial con
 
 ### See also
 
-- [Getting Started](/docs/getting-started/) — IIS installation guide
+- [Getting started](/docs/getting-started/) — IIS installation guide
 - [Configuration](/docs/configuration/) — general configuration reference
-- [IIS Configuration](/docs/iis-configuration/) — pagespeed.config format reference
+- [IIS configuration](/docs/iis-configuration/) — pagespeed.config format reference

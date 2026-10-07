@@ -27,7 +27,7 @@ from your network. It loads no third-party scripts and makes no outbound network
 The [read-only web console](https://we-amp.com/console/) runs on our own production deployment — the dashboard above shows real optimization stats from the traffic that deployment serves. It runs in [public demo mode](#public-demo-mode), so you can browse every view without a login.
 :::
 
-## Accessing the Console
+## Accessing the console
 
 Start the worker with the `--api-port` flag:
 
@@ -58,7 +58,7 @@ restrict access with a firewall. When proxied through nginx (e.g., at
 `/console/`), use `allow`/`deny` directives to limit access to trusted IPs.
 :::
 
-### Public Demo Mode
+### Public demo mode
 
 To expose the console as a read-only public dashboard, add `--api-read-open`
 to the worker. Concretely, this makes the following readable without the
@@ -77,7 +77,7 @@ on `--api-read-open` behind a reverse proxy that does its own
 authentication** (e.g., `allow`/`deny` by IP, or a proxy-level login) rather
 than exposing it directly to the internet.
 
-## Console Pages
+## Console pages
 
 The console has nine pages, accessible from the sidebar navigation.
 
@@ -107,7 +107,7 @@ All data updates in real time via the `/v1/ws/stats` and `/v1/ws/events`
 WebSocket streams. An alert banner surfaces issues like rising error rates
 or connection saturation.
 
-### URL Inspector (/urls)
+### URL inspector (/urls)
 
 Browse and inspect every URL in the cache.
 
@@ -141,7 +141,7 @@ Click a URL to open the inspector detail view:
 - **URL Groups** -- organize URLs into named groups for batch monitoring
 - **Clear Cache** -- reset the entire cache volume (with confirmation)
 
-### Waterfall Viewer (/waterfall)
+### Waterfall viewer (/waterfall)
 
 Network waterfall visualization powered by headless Chrome (requires
 `--enable-browser-analysis`).
@@ -160,7 +160,7 @@ Network waterfall visualization powered by headless Chrome (requires
 - **Export JSON** -- download the full waterfall data for external analysis
 - **Link to Visual Diff** -- jump to the diff page with context
 
-### Visual Diff (/diff)
+### Visual diff (/diff)
 
 Screenshot comparison between original and optimized pages (requires
 `--enable-browser-analysis`).
@@ -203,7 +203,7 @@ Complete flat view of every worker metric.
 - **Auto-refresh** -- polls `/v1/stats` every 2 seconds
 - **Export JSON** -- download raw metrics for Grafana or custom dashboards
 
-### Bandwidth Savings (/savings)
+### Bandwidth savings (/savings)
 
 Dedicated view for optimization impact measurement.
 
@@ -218,7 +218,7 @@ Dedicated view for optimization impact measurement.
   time window
 - **Export** -- JSON and CSV
 
-### Debug Console (/logs)
+### Debug console (/logs)
 
 Real-time log streaming from the worker.
 
@@ -245,7 +245,7 @@ System information, support, and legal links.
 - **Legal links** -- Privacy Policy and Terms of Service (inline overlay
   or external link)
 
-## API Connection
+## API connection
 
 The console connects to the worker's HTTP API using the `@pagespeed/api-client`
 TypeScript package, which offers:
@@ -273,7 +273,7 @@ The console is a self-contained single-page app — it loads no third-party
 scripts, uses no external UI toolkit, and renders its time-series charts with a
 lightweight built-in charting library.
 
-## Next Steps
+## Next steps
 
 - [HTTP API Reference](/docs/http-api/) — Full reference for the REST and WebSocket
   endpoints the console uses

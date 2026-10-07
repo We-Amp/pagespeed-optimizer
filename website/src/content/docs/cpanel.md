@@ -46,7 +46,7 @@ The RPM drops the module file but does not flip it on. Apache loads `mod_pagespe
 3. Tick the checkbox, then _Review_ → _Provision_. EasyApache 4 rebuilds Apache.
 4. When the provision finishes the module is loaded and the filter runs on every vhost served by `ea-apache24-httpd`.
 
-The package installs its configuration to `/etc/apache2/conf.d/pagespeed.conf` (marked `%config(noreplace)`, so your edits survive a reinstall or upgrade). Tune it the same way you would on any RHEL Apache host — see [Getting Started](/docs/getting-started/) for the directive reference.
+The package installs its configuration to `/etc/apache2/conf.d/pagespeed.conf` (marked `%config(noreplace)`, so your edits survive a reinstall or upgrade). Tune it the same way you would on any RHEL Apache host — see [Getting started](/docs/getting-started/) for the directive reference.
 
 ### 4. Open the admin console
 

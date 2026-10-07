@@ -43,7 +43,7 @@ below — use port 80 in those commands, since the single container publishes on
 - Docker Engine 20.10+
 - Docker Compose v2
 
-## Directory Structure
+## Directory structure
 
 Create a project directory with the following layout:
 
@@ -54,7 +54,7 @@ modpagespeed/
 └── entrypoint-worker.sh
 ```
 
-## Docker Compose Configuration
+## Docker Compose configuration
 
 Create `docker-compose.yml`:
 
@@ -129,7 +129,7 @@ recreated anchor takes both services down mid-upgrade. Stopping `pidns`
 stops both; `docker compose up -d` brings them back. Any other container you point at the volume needs the
 same `pid:` line.
 
-## Nginx Configuration
+## nginx configuration
 
 Create `nginx.conf`:
 
@@ -178,7 +178,7 @@ The worker socket path and other shared settings are read
 automatically from `pagespeed-shared.conf`, which the worker writes next to
 the cache file.
 
-## Worker Entrypoint
+## Worker entrypoint
 
 Create `entrypoint-worker.sh` and make it executable (`chmod +x`). Delegate to
 the image's own entrypoint rather than starting `factory_worker` yourself — it
@@ -279,7 +279,7 @@ Exit code `78` always means "the configuration or the volume, not a transient
 fault" — it is worth distinguishing from the optimizer's own exit `1` in any
 restart alerting you have.
 
-## Start the Stack
+## Start the stack
 
 ```bash
 docker compose up -d
@@ -293,7 +293,7 @@ docker compose ps
 
 You should see `origin`, `worker`, and `nginx` all in a running state.
 
-## Verify It Works
+## Verify it works
 
 Test with a simple request:
 
@@ -346,7 +346,7 @@ and [Images Not Converting to WebP/AVIF](/docs/troubleshooting/#images-not-conve
 CSS and JavaScript are minified in place at their original URLs — mod_pagespeed does not
 combine or rewrite them into new URLs, so the page source stays clean.
 
-## View Logs
+## View logs
 
 ```bash
 # All services
@@ -362,7 +362,7 @@ docker compose logs -f nginx
 The worker logs show optimization activity — you'll see messages when it
 processes images, CSS, and JavaScript files.
 
-## Cache Size
+## Cache size
 
 By default, the cache size is 1 GB. To change it, pass the `--cache-size`
 flag to the worker (in bytes):
@@ -374,7 +374,7 @@ exec factory_worker \
   --cache-size 536870912  # 512 MB
 ```
 
-## Stopping and Restarting
+## Stopping and restarting
 
 ```bash
 # Stop all containers
@@ -487,9 +487,9 @@ Check worker logs with `docker compose logs worker`. Verify the worker is writin
 `pagespeed-shared.conf` next to the cache file (nginx reads the socket path from
 this file automatically).
 
-## Next Steps
+## Next steps
 
-- [Getting Started](/docs/getting-started/) — Architecture overview and how the
+- [Getting started](/docs/getting-started/) — Architecture overview and how the
   worker, nginx, and origin fit together
 - [Deploy to production (Docker / nginx)](/docs/deployment/) — Hardened
   multi-service setup, image tags, and rollout

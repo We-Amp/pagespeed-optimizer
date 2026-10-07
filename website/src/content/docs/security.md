@@ -12,7 +12,7 @@ mod_pagespeed rewrites your HTML and the resources it references. That rewriting
 
 ## Restrict admin page access
 
-The admin pages at `/pagespeed_admin/` can purge caches and reveal configuration details. The process-wide `/pagespeed_global_admin/` endpoint is at least as sensitive. Always restrict access in production. See [Admin Console](/docs/admin-console/) for setup.
+The admin pages at `/pagespeed_admin/` can purge caches and reveal configuration details. The process-wide `/pagespeed_global_admin/` endpoint is at least as sensitive. Always restrict access in production. See [Admin console](/docs/admin-console/) for setup.
 
 ### Hardening admin endpoints
 
@@ -22,7 +22,7 @@ On nginx, the admin, statistics, console and message pages are restricted with `
 
 ## Domain authorization
 
-mod_pagespeed only fetches resources from explicitly authorized domains. This prevents it from being used as an open proxy. Authorize only domains you control. See [Domain Configuration](/docs/domain-configuration/).
+mod_pagespeed only fetches resources from explicitly authorized domains. This prevents it from being used as an open proxy. Authorize only domains you control. See [Domain configuration](/docs/domain-configuration/).
 
 ## Untrusted content
 
@@ -41,7 +41,7 @@ mod_pagespeed caches optimized resources keyed by URL. If an attacker can manipu
 
 ## HTTPS
 
-mod_pagespeed verifies SSL certificates when fetching HTTPS resources. Do not disable certificate verification in production. See [HTTPS Configuration](/docs/https-configuration/).
+mod_pagespeed verifies SSL certificates when fetching HTTPS resources. Do not disable certificate verification in production. See [HTTPS configuration](/docs/https-configuration/).
 
 ## Security patches
 
@@ -49,7 +49,7 @@ mod_pagespeed 2.1 includes patches for all known CVEs from the open-source proje
 
 ## See also
 
-- [Admin Console](/docs/admin-console/) — restricting admin access
-- [Domain Configuration](/docs/domain-configuration/) — domain authorization
-- [HTTPS Configuration](/docs/https-configuration/) — SSL/TLS setup
+- [Admin console](/docs/admin-console/) — restricting admin access
+- [Domain configuration](/docs/domain-configuration/) — domain authorization
+- [HTTPS configuration](/docs/https-configuration/) — SSL/TLS setup
 - [Configuring Content-Security-Policy with mod_pagespeed](/blog/mod-pagespeed-content-security-policy/) — keeping optimization CSP-safe

@@ -1,5 +1,5 @@
 ---
-title: 'Getting Started'
+title: 'Getting started'
 description: 'Install mod_pagespeed 2.1. Three integrations share one optimization pipeline: the native Apache/nginx module, the native IIS module, or a Docker / nginx reverse proxy.'
 order: 1
 group: 'Start here'

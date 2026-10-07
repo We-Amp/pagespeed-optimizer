@@ -80,7 +80,7 @@ which it evicts aggressively.
 classes, or strip User-Agent from Vary and rely on mod_pagespeed's internal
 classification.
 
-### Other CDNs / No CDN
+### Other CDNs / no CDN
 
 If mod_pagespeed is your edge (no CDN in front), the Vary headers work correctly.
 Downstream browser caches and ISP proxies handle `Vary: User-Agent` at the
