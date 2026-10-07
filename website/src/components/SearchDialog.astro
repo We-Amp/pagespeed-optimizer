@@ -9,8 +9,9 @@
  * /pagefind/pagefind-ui.js — same-origin files that `npm run build` writes
  * into dist/client/pagefind/ (see scripts/build-search-index.mjs) — and
  * mounts Pagefind's UI into #site-search-ui. If the bundle cannot load (the
- * dev server has no index) the dialog explains that instead of failing
- * silently.
+ * dev server has no index), or WebAssembly is blocked by the host's
+ * Content-Security-Policy, the dialog says so instead of failing silently,
+ * and the next open tries again.
  *
  * Openers: any element with `data-search-open` (header buttons, the docs hub
  * search box), the `/` key outside form fields, and Cmd/Ctrl+K.
@@ -177,6 +178,8 @@ import Icon from './Icon.astro';
       if (input) input.focus();
     }
 
+    /* 'failed' is not terminal: the next open probes and loads again, so a
+       transient script-load failure costs one retry, not the session. */
     function failed() {
       state = 'failed';
       setStatus(
@@ -184,48 +187,79 @@ import Icon from './Icon.astro';
       );
     }
 
+    function blocked() {
+      state = 'failed';
+      setStatus("Search is unavailable: WebAssembly is blocked by this site's security policy.");
+    }
+
+    /* Pagefind runs WebAssembly. A Content-Security-Policy whose script-src
+       lacks 'wasm-unsafe-eval' lets the script load but throws on compile,
+       which would leave the input "Searching…" forever. Compile the smallest
+       valid module (the "\0asm" magic plus version 1) first; it throws the
+       same way, before any bundle is fetched. */
+    function wasmUsable() {
+      try {
+        new WebAssembly.Module(new Uint8Array([0, 97, 115, 109, 1, 0, 0, 0]));
+        return true;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    function init() {
+      try {
+        new window.PagefindUI({
+          element: '#site-search-ui',
+          bundlePath: '/pagefind/',
+          showImages: false,
+          showSubResults: true,
+          excerptLength: 24,
+          pageSize: 8,
+          autofocus: true,
+          translations: {
+            placeholder: 'Search the docs, blog and site',
+            clear_search: 'Clear',
+            zero_results: 'No results for [SEARCH_TERM]',
+          },
+        });
+        state = 'ready';
+        setStatus('');
+        focusInput();
+      } catch (e) {
+        failed();
+      }
+    }
+
     function load() {
       state = 'loading';
       setStatus('Loading search…');
-      var css = document.createElement('link');
-      css.rel = 'stylesheet';
-      css.href = '/pagefind/pagefind-ui.css';
-      document.head.appendChild(css);
+      if (!document.querySelector('link[href="/pagefind/pagefind-ui.css"]')) {
+        var css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = '/pagefind/pagefind-ui.css';
+        document.head.appendChild(css);
+      }
+      if (window.PagefindUI) return init();
       var script = document.createElement('script');
       script.src = '/pagefind/pagefind-ui.js';
       script.onload = function () {
-        if (!window.PagefindUI) return failed();
-        try {
-          new window.PagefindUI({
-            element: '#site-search-ui',
-            bundlePath: '/pagefind/',
-            showImages: false,
-            showSubResults: true,
-            excerptLength: 24,
-            pageSize: 8,
-            autofocus: true,
-            translations: {
-              placeholder: 'Search the docs, blog and site',
-              clear_search: 'Clear',
-              zero_results: 'No results for [SEARCH_TERM]',
-            },
-          });
-          state = 'ready';
-          setStatus('');
-          focusInput();
-        } catch (e) {
-          failed();
-        }
+        if (window.PagefindUI) init();
+        else failed();
       };
-      script.onerror = failed;
+      script.onerror = function () {
+        script.remove();
+        failed();
+      };
       document.head.appendChild(script);
     }
 
     function open(source) {
       opener = source || document.activeElement;
       if (!dialog.open) dialog.showModal();
-      if (state === 'idle') load();
-      else if (state === 'ready') focusInput();
+      if (state === 'ready') return focusInput();
+      if (state === 'loading') return;
+      if (typeof WebAssembly === 'undefined' || !wasmUsable()) return blocked();
+      load();
     }
 
     function close() {

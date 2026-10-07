@@ -341,4 +341,25 @@ test.describe('Docs mechanics', () => {
     // Opening the menu changes nothing but the disclosure: same page.
     await expect(page).toHaveURL('/docs/configuration/');
   });
+
+  // Pagefind runs WebAssembly; a Content-Security-Policy without
+  // 'wasm-unsafe-eval' makes compilation throw. The dialog must say so
+  // visibly instead of leaving the input "Searching…" forever. Simulated by
+  // making the probe compile throw, the way a blocked CSP does.
+  test('search dialog reports when WebAssembly is blocked', async ({ page }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(WebAssembly, 'Module', {
+        configurable: true,
+        value: function () {
+          throw new Error('CompileError: WebAssembly is blocked');
+        },
+      });
+    });
+    await page.goto('/docs/');
+    await page.locator('main button[data-search-open]').click();
+    const status = page.locator('#site-search-status');
+    await expect(status).toBeVisible();
+    await expect(status).toContainText(/WebAssembly is blocked/);
+    await expect(page.locator('#site-search input.pagefind-ui__search-input')).toHaveCount(0);
+  });
 });
