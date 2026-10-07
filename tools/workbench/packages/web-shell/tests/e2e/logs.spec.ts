@@ -28,20 +28,29 @@ test.describe('Logs (/console/logs)', () => {
 
   // -- Log entries or empty state ---------------------------------------------
 
+  // Scope to the Logs page: the docked Debug Console (LogPanel) renders its
+  // own "No log entries yet." empty state, so an unscoped getByText matches
+  // two elements whenever both views are empty.
+  //
+  // The demo runs the worker with an API token AND read-open, and the console
+  // holds no token. Read-open covers only the stats and events streams, so the
+  // log stream is rejected (close 4001) and stays empty: the Logs page then
+  // shows its "No log entries yet" message. A console that has the token, or
+  // a deployment that serves logs without one, shows entries instead.
   test('shows log entries or empty state message', async ({ page }) => {
+    const logPage = page.locator('.log-page');
+    const emptyState = logPage.getByText(/no log entries yet/i);
     // Wait for either log entries or empty state to render
     await Promise.race([
-      page.locator('.log-line').first().waitFor({ state: 'visible', timeout: 15000 }),
-      page.getByText(/no log entries yet/i).waitFor({ state: 'visible', timeout: 15000 })
+      logPage.locator('.log-line').first().waitFor({ state: 'visible', timeout: 15000 }),
+      emptyState.waitFor({ state: 'visible', timeout: 15000 })
     ]).catch(() => {});  // One will succeed
-    const hasEntries = await page.locator('.log-line').count();
+    const hasEntries = await logPage.locator('.log-line').count();
     if (hasEntries > 0) {
-      await expect(page.locator('.log-line').first()).toBeVisible();
+      await expect(logPage.locator('.log-line').first()).toBeVisible();
     } else {
       // Should show the empty state message
-      await expect(
-        page.getByText(/no log entries yet/i),
-      ).toBeVisible();
+      await expect(emptyState).toBeVisible();
     }
   });
 
@@ -179,9 +188,10 @@ test.describe('Logs (/console/logs)', () => {
     // Clear all logs first
     await logPage.getByRole('button', { name: /clear/i }).click();
 
-    // Should show "No log entries yet" empty state
+    // Should show "No log entries yet" empty state (scoped to the Logs page;
+    // the docked LogPanel has its own empty state)
     await expect(
-      page.getByText(/no log entries yet/i),
+      logPage.getByText(/no log entries yet/i),
     ).toBeVisible();
   });
 

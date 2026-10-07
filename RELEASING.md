@@ -45,9 +45,11 @@ goes red to say so.
 identity the website, release notes, and the NuGet middleware line share. The
 optimizer's own release lane is versioned independently: tags are
 `optimizer-v<X.Y.Z>` in the 1.16 packaging stream (e.g. `optimizer-v1.16.0`),
-matching the exact-version package pair the module depends on, and the shipped
-daemon self-reports that build version — not `VERSION.txt`. The two numbers
-move together at a release but are not the same number: bump `VERSION.txt`
+matching the exact-version package pair the module depends on. The shipped
+daemon reports `VERSION.txt` (the product-line version) and the source commit,
+in `--version` and in `/v1/health`. The package version appears only in the
+package metadata and the release tag: the `optimizer-v1.17.0` packages report
+2.2.0. The two numbers move together at a release but are not the same number: bump `VERSION.txt`
 with the product line, cut `optimizer-v*` tags with the package stream. (The
 1.x module line likewise stays on its own `v1.15.x+rN` scheme.)
 
@@ -71,19 +73,19 @@ Two ways to start a run:
 
 - **Push an `optimizer-v*` tag** — a real run: build, validate, publish.
 - **Dispatch the workflow by hand** with inputs `tag` and `dry_run`:
-  - `dry_run: true` (the default) builds all four packages, validates the
-    asset set and SHA256SUMS fail-closed, and uploads the result as a
-    workflow artifact. It creates NO release and NO tag, and it may name a
-    tag that does not exist yet (it then builds the dispatched ref). This is
-    the rehearsal — run it before every real release.
+  - `dry_run: true` (the default) builds the four packages and the Windows
+    zip, validates the asset set and SHA256SUMS fail-closed, and uploads the
+    result as a workflow artifact. It creates NO release and NO tag, and it
+    may name a tag that does not exist yet (it then builds the dispatched
+    ref). This is the rehearsal — run it before every real release.
   - `dry_run: false` is a real run and requires the tag on the remote.
 
 Runs are serialized per tag and never cancelled in progress: two real
 releases for the same tag cannot race, and a release build always runs out.
 
-### The five-asset contract
+### The six-asset contract
 
-A real run publishes a GitHub release with exactly five assets — no more,
+A real run publishes a GitHub release with exactly six assets — no more,
 no fewer:
 
 | Asset | Contents |
@@ -92,7 +94,8 @@ no fewer:
 | `pagespeed-optimizer-<version>-1.aarch64.rpm` | the same, arm64 |
 | `pagespeed-optimizer_<version>_amd64.deb` | the same, deb hosts |
 | `pagespeed-optimizer_<version>_arm64.deb` | the same, arm64 |
-| `SHA256SUMS` | checksums for the four packages |
+| `pagespeed-optimizer-<version>-win-x64.zip` | worker + client library for Windows x64 (`factory_worker.exe`, `pagespeed.dll`, `LICENSE`, `NOTICE`) |
+| `SHA256SUMS` | checksums for the other five assets |
 
 The serving-module packages download these assets by name and verify them
 against SHA256SUMS, so the set and the names are a contract. Asset names
@@ -102,7 +105,7 @@ derived from the tag, never hand-typed. A `-<pre>` tag produces a release
 marked as a prerelease.
 
 Validation is fail-closed at two points. The manifest job checks that the
-set is exactly the five assets, all present and non-empty, that
+set is exactly the six assets, all present and non-empty, that
 `sha256sum -c` passes, and that the package-internal versions are the
 derived tilde form. The release job re-verifies SHA256SUMS across the job
 boundary before publishing anything.
