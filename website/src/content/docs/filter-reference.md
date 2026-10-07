@@ -1,6 +1,6 @@
 ---
 title: 'PageSpeed filter reference'
-description: 'Every PageSpeed filter in mod_pagespeed 2.1 — all 66, with category, CoreFilters and OptimizeForBandwidth status, a safety rating, and a one-line description. nginx, Apache, and IIS syntax included.'
+description: 'All 66 PageSpeed filters in mod_pagespeed 2.1 with category, CoreFilters and OptimizeForBandwidth status, safety rating and a one-line description.'
 order: 42
 group: 'Filters'
 lastUpdated: 2026-10-06

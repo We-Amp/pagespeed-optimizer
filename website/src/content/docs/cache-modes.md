@@ -1,6 +1,6 @@
 ---
 title: 'Choose a cache mode: safe vs aggressive'
-description: 'Control the Cache-Control headers mod_pagespeed 2.1 sets on optimized responses — safe mode (default) adds must-revalidate for fast recovery, aggressive mode uses long TTLs with stale-if-error — plus the in-process module cache reference: Cyclone storage, memcached and Redis, purging, sizing and IPRO.'
+description: 'Safe or aggressive Cache-Control for optimized responses in mod_pagespeed 2.1, plus the module cache reference: Cyclone, memcached, Redis, purging, IPRO.'
 order: 22
 group: 'Configure'
 lastUpdated: 2026-10-06

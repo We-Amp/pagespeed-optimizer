@@ -1,6 +1,6 @@
 ---
 title: 'Filter selection'
-description: 'Choose which mod_pagespeed 2.1 filters to run: RewriteLevel presets, the CoreFilters default set, EnableFilters, DisableFilters, ForbidFilters, and tuning thresholds.'
+description: 'Choose which mod_pagespeed 2.1 filters run: RewriteLevel presets, the CoreFilters default, EnableFilters, DisableFilters, ForbidFilters and thresholds.'
 order: 41
 group: 'Filters'
 lastUpdated: 2026-07-12

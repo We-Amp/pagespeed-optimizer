@@ -1,6 +1,6 @@
 ---
 title: 'Image filters'
-description: 'Configure image optimization filters in mod_pagespeed 2.1 for Apache, nginx, and IIS: recompression, WebP and opt-in AVIF conversion, resizing, lazy loading, and responsive images.'
+description: 'Image filters in mod_pagespeed 2.1 for Apache, nginx and IIS: recompression, WebP and opt-in AVIF conversion, resizing, lazy loading and responsive images.'
 order: 43
 group: 'Filters'
 lastUpdated: 2026-07-12

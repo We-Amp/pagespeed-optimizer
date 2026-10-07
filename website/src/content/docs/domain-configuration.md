@@ -1,6 +1,6 @@
 ---
 title: 'Domain configuration'
-description: 'Authorize and map domains in mod_pagespeed 2.1 on nginx, Apache, and IIS. Reference for the Domain, MapOriginDomain, MapRewriteDomain, MapProxyDomain, ShardDomain, and LoadFromFile directives.'
+description: 'Domain mapping in mod_pagespeed 2.1 on nginx, Apache and IIS: Domain, MapOriginDomain, MapRewriteDomain, MapProxyDomain, ShardDomain and LoadFromFile.'
 order: 24
 group: 'Configure'
 lastUpdated: 2026-07-04

@@ -1,6 +1,6 @@
 ---
 title: 'Filters overview'
-description: 'The complete mod_pagespeed 2.1 filter set, grouped by category — image, CSS, JavaScript, HTML, and caching filters — with what each one does and how to enable it.'
+description: 'The mod_pagespeed 2.1 filter set by category (image, CSS, JavaScript, HTML and caching filters) with what each one does and how to enable it.'
 order: 40
 group: 'Filters'
 lastUpdated: 2026-07-04

@@ -1,6 +1,6 @@
 ---
 title: 'mod_pagespeed admin console'
-description: 'mod_pagespeed 2.1 admin console: an overview page with alerts, statistics, cache inspection, message history, and config. Setup and access control for nginx, Apache, and IIS at /pagespeed_admin/.'
+description: 'mod_pagespeed 2.1 admin console: alerts, statistics, cache inspection, message history and config, with setup and access control for nginx, Apache and IIS.'
 order: 37
 group: 'Operate'
 lastUpdated: 2026-10-06

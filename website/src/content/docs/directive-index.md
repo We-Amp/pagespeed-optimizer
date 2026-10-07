@@ -1,6 +1,6 @@
 ---
 title: 'mod_pagespeed directive index (Apache & nginx)'
-description: 'Alphabetical reference of every mod_pagespeed 2.1 configuration directive — Apache and nginx syntax, default values, and links to the full caching, image, CSS/JS, and domain docs.'
+description: 'Alphabetical reference of every mod_pagespeed 2.1 directive: Apache and nginx syntax, defaults, and links to the caching, image, CSS/JS and domain docs.'
 order: 73
 group: 'Reference'
 lastUpdated: 2026-09-19

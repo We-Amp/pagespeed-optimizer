@@ -1,6 +1,6 @@
 ---
 title: 'IIS configuration'
-description: 'Configure mod_pagespeed on IIS via pagespeed.config — the native IIS module and successor to IISpeed. Directive syntax, path-based regex matching, server and site-level config, and environment-variable expansion.'
+description: 'mod_pagespeed on IIS via pagespeed.config, the native IIS module and successor to IISpeed: directive syntax, path matching, server and site-level config.'
 order: 26
 group: 'Configure'
 lastUpdated: 2026-07-12

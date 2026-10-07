@@ -1,6 +1,6 @@
 ---
 title: 'HTTPS configuration'
-description: 'Fetch HTTPS resources in mod_pagespeed 2.1 on nginx, Apache, and IIS: FetchHttps with SSL certificate verification, MapOriginDomain to an HTTP backend, or LoadFromFile.'
+description: 'Fetch HTTPS resources on nginx, Apache and IIS with mod_pagespeed 2.1: FetchHttps with certificate checks, MapOriginDomain to HTTP, or LoadFromFile.'
 order: 25
 group: 'Configure'
 lastUpdated: 2026-07-12

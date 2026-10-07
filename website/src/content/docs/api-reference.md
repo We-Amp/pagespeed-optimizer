@@ -1,6 +1,6 @@
 ---
 title: 'API reference: IPC, sockets, and C API'
-description: 'Reference for mod_pagespeed 2.1 internal interfaces: the module-to-worker IPC wire format, the health and management sockets (STATS, PURGE, METRICS), the capability-mask encoding, and the ps_ C API.'
+description: 'mod_pagespeed 2.1 internal interfaces: the module-to-worker IPC wire format, the health and management sockets, the capability mask and the ps_ C API.'
 order: 60
 group: 'Reference'
 lastUpdated: 2026-09-19

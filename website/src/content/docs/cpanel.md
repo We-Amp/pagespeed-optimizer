@@ -1,6 +1,6 @@
 ---
 title: 'cPanel / EasyApache 4'
-description: 'Install, uninstall, and maintain mod_pagespeed on cPanel / EasyApache 4: the signed EA4 RPM, enabling it in WHM Customize, the cpanel/elevate OS-upgrade runbook, and how the Apache Module Magic Number keeps routine ea-apache24 updates from breaking the module.'
+description: 'Install, uninstall and maintain mod_pagespeed on cPanel / EasyApache 4: the signed EA4 RPM, WHM setup, the cpanel/elevate runbook and ea-apache24 updates.'
 order: 12
 group: 'Install'
 datePublished: 2026-05-20

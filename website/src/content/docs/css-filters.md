@@ -1,6 +1,6 @@
 ---
 title: 'CSS filters'
-description: 'Reference for CSS optimization filters in mod_pagespeed 2.1: minify, combine, inline, and flatten @import CSS, plus critical-CSS extraction. Apache, nginx, and IIS syntax with tuning parameters.'
+description: 'CSS filters in mod_pagespeed 2.1: minify, combine, inline and flatten @import CSS, plus critical-CSS extraction. Apache, nginx and IIS syntax with tuning.'
 order: 44
 group: 'Filters'
 lastUpdated: 2026-10-06

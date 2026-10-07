@@ -68,7 +68,9 @@ const docs = defineCollection({
   loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/docs' }),
   schema: z.object({
     title: z.string(),
-    description: z.string(),
+    // Search engines truncate snippets past roughly 155 characters, so a
+    // longer description is cut mid-claim. The build fails on a regression.
+    description: z.string().max(155, 'docs description must be 155 characters or fewer'),
     order: z.number().default(0),
     group: z.string().optional(),
     // Optional dateModified for TechArticle JSON-LD (parity with docs-1.1).
