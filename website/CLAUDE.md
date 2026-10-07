@@ -43,7 +43,7 @@ the agent files, so a build never ships stale generated output.
 Astro 7 detects an AI-agent session and then starts `astro dev` as a background
 process (`npx astro dev status|logs|stop` manage it). Playwright's `webServer` sees
 that parent exit and fails with "Process from config.webServer exited early", so in
-such a session start the dev server first (`npm run dev`, which daemonizes), run
+such a session start the dev server first (`npm run dev`, which backgrounds itself), run
 `npx playwright test` with `CI` unset so it reuses the running server, and finish with
 `npx astro dev stop`. A human terminal and CI are not affected.
 
