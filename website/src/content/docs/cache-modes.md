@@ -3,7 +3,7 @@ title: 'Choose a cache mode: safe vs aggressive'
 description: 'Control the Cache-Control headers mod_pagespeed 2.1 sets on optimized responses — safe mode (default) adds must-revalidate for fast recovery, aggressive mode uses long TTLs with stale-if-error — plus the in-process module cache reference: Cyclone storage, memcached and Redis, purging, sizing and IPRO.'
 order: 22
 group: 'Configure'
-lastUpdated: 2026-09-19
+lastUpdated: 2026-10-06
 ---
 
 mod_pagespeed 2.1 transforms your origin's content — optimizing images, minifying
@@ -524,18 +524,21 @@ mod_pagespeed checks for this file every `CacheFlushPollIntervalSec` seconds (de
 
 #### Purge via admin page
 
-Send a purge request through the built-in admin interface:
+Purging through the admin interface is a `POST` that carries the `X-Requested-With: XMLHttpRequest` header; a command-line client such as `curl` works, as in the examples below. A plain `GET` answers `405`, and a `POST` without the header answers `403`. It also needs `EnableCachePurge` on (see [below](#purge-via-http-purge-method)): with it off, the page answers a normal response whose JSON body says `"success":false`, so a script should check that field rather than the status code alone. Send it from a client that your [access rules for the admin pages](/docs/admin-console/#setup) allow.
+
+The per-vhost admin page (`/pagespeed_admin`) purges only URLs on the host name it was opened under, and refuses a URL on another host with `403`. Purging everything is accepted from the global admin page (`/pagespeed_global_admin`) only. A purge target that ends in `*` is a whole-cache purge (it does not purge only the URLs that start with it), so the per-vhost page refuses it too.
 
 ```bash
-# Purge everything
-curl 'http://example.com/pagespeed_admin/cache?purge=*'
+# Purge a specific URL (per-vhost admin page)
+curl -X POST -H 'X-Requested-With: XMLHttpRequest' \
+  'http://example.com/pagespeed_admin/cache?purge=http://example.com/style.css'
 
-# Purge a specific URL
-curl 'http://example.com/pagespeed_admin/cache?purge=http://example.com/style.css'
-
-# Purge with a wildcard
-curl 'http://example.com/pagespeed_admin/cache?purge=http://example.com/images/*'
+# Purge everything (global admin page only)
+curl -X POST -H 'X-Requested-With: XMLHttpRequest' \
+  'http://example.com/pagespeed_global_admin/cache?purge=*'
 ```
+
+Releases up to and including 1.16.0 accepted a plain `GET` for these URLs. Scripts that purge by URL can also use the [HTTP PURGE method](#purge-via-http-purge-method) below, which is unchanged and needs no header.
 
 #### Purge via HTTP PURGE method
 

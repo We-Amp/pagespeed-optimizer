@@ -1661,7 +1661,7 @@ describe('canonical sources hold ground-truth product facts', () => {
   // cite an older line's tag (e.g. run-with-docker-compose.md, migrating-from-1x.md)
   // and must not be flagged.
   it('docker image tags for the converged line match the 2.1 manifest semver', () => {
-    expect(V2_1_SEMVER).toMatch(/^2\.1\.\d+$/);
+    expect(V2_1_SEMVER).toMatch(/^2\.[1-9]\d*\.\d+$/);
     const files = [
       path.join(CONTENT_DIR, 'docs/installation-docker.md'),
       path.join(CONTENT_DIR, 'docs/deployment.mdx'),

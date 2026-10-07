@@ -3,7 +3,7 @@ title: 'Configuration reference'
 description: 'Reference for mod_pagespeed 2.1: nginx and Apache directives, optimizer-worker flags, and cache tuning, plus the native module directive reference.'
 order: 20
 group: 'Configure'
-lastUpdated: 2026-09-19
+lastUpdated: 2026-09-25
 faq:
   - q: 'What is the difference between safe and aggressive cache modes?'
     a: 'Safe mode adds `must-revalidate` to non-HTML responses, suppresses stale-while-revalidate synthesis, and strips `immutable`. Aggressive mode adds `public` and `stale-if-error=86400` and allows SWR synthesis. HTML always gets `no-cache` in both modes.'
@@ -98,6 +98,51 @@ takes care of this: it runs as the unprivileged `pagespeed` user and sets
 every shared file explicitly to 0660 owner+group, so the only setup the web
 side needs is membership in group `pagespeed` (the module package's postinst
 adds it).
+
+The module also checks that the worker beside this path uses the same cache
+format. It compares its own cache-directory generation with the
+`cache_dir_generation` the worker publishes in the
+[shared configuration file](#shared-configuration-file). See
+[Cache-directory generation check](#cache-directory-generation-check).
+
+### Cache-directory generation check
+
+A cache directory holds one cache format, and the format is part of the
+volume file's name. A module and a worker built for different formats would
+open two different files in the same directory and never share a cache. So
+the module compares its compiled-in generation with the worker's
+`cache_dir_generation`: at start, on every reload, and whenever the worker
+rewrites its shared config (the ~1s poll).
+
+| Result     | What the module does                                                                                                                                                                    |
+| ---------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `match`    | Uses the cache as normal.                                                                                                                                                               |
+| `mismatch` | Keeps serving with its cache **off**: requests go to the origin, nothing is read or stored, and the worker is not notified. Logs one `[error]` naming both generations and the older side. |
+| `unknown`  | The worker publishes no generation (older than 2.1.0), or there is no shared config yet. Uses the cache as before and logs one `[warn]`.                                                   |
+
+A mismatch clears itself: once the worker publishes the matching generation,
+the module turns its cache back on without a reload and logs "now matches".
+The fix is to run the same release of both, from packages or from one image
+tag.
+
+Three variables expose the result, as this nginx worker last saw it:
+
+| Variable                                | Value                                              |
+| --------------------------------------- | -------------------------------------------------- |
+| `$pagespeed_cache_generation`           | `match`, `mismatch` or `unknown`                   |
+| `$pagespeed_cache_generation_module`    | The module's generation                            |
+| `$pagespeed_cache_generation_optimizer` | The worker's published generation (empty if none) |
+
+```nginx
+log_format pagespeed_gen '$remote_addr "$request" $status '
+                         'cache_generation=$pagespeed_cache_generation';
+
+location = /pagespeed-generation {
+    allow 127.0.0.1;
+    deny all;
+    return 200 "$pagespeed_cache_generation module=$pagespeed_cache_generation_module optimizer=$pagespeed_cache_generation_optimizer\n";
+}
+```
 
 ### `pagespeed_disallow`
 
@@ -202,7 +247,7 @@ for changes.
 | -------------- | ------------------------------------------------------ | ------------------- |
 | `socket_path`           | Unix socket path for nginx-to-worker notifications   | `--socket PATH`     |
 | `disable_html`          | Whether HTML optimization is disabled (`true`/`false`) | `--disable-html`  |
-| `cache_dir_generation`  | Cache-directory generation N (skew = loud handshake failure) | (compiled in) |
+| `cache_dir_generation`  | Cache-directory generation N (skew = loud handshake failure; nginx turns its cache off, see [the check](#cache-directory-generation-check)) | (compiled in) |
 
 The file is written atomically at mode 0640 `pagespeed:pagespeed`: readable
 by the worker and its group-`pagespeed` peers, not by the world.

@@ -3,7 +3,7 @@ title: 'Security'
 description: 'Security guidance for mod_pagespeed 2.1: restricting admin pages, domain authorization, untrusted content, CSS/XSS, cache poisoning, HTTPS, and CVE patching.'
 order: 38
 group: 'Operate'
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-06
 ---
 
 ## Overview
@@ -16,7 +16,9 @@ The admin pages at `/pagespeed_admin/` can purge caches and reveal configuration
 
 ### Hardening admin endpoints
 
-Gate `/pagespeed_admin` and `/pagespeed_global_admin` at the web server's normalized location/handler layer — `location =` / `^~` on nginx, `<Location>` on Apache, the handler-bound check on IIS. A WAF or upstream filter that string-matches the literal URL is bypassable via path-normalization tricks (`//`, `/./`, `%2e`, mixed case, trailing slash, `;param`). Copy-pasteable snippets and the full bypass-class list live in [Admin Console — URL-path ACLs are brittle](/docs/admin-console/#url-path-acls-are-brittle).
+Gate `/pagespeed_admin` and `/pagespeed_global_admin` where the web server itself decides which page a request reaches — `location =` / `^~` on nginx, `<Location>` on Apache, the module's `InfoUrlsLocalOnly` check on IIS. A WAF or upstream filter that matches the text of the URL can be bypassed. See [Admin Console — URL-path ACLs are brittle](/docs/admin-console/#url-path-acls-are-brittle).
+
+On nginx, the admin, statistics, console and message pages are restricted with `location` blocks, and every `server` block that serves one of these pages needs them. A path set in the `http` block — `GlobalAdminPath` and `GlobalStatisticsPath` can only be set there — is served by every `server` block, including the default server. After updating from 1.16.0 or earlier, replace your access rules for these pages with the example under [Admin Console — Setup](/docs/admin-console/#setup), in every `server` block; the update does not change rules that are already in your configuration.
 
 ## Domain authorization
 

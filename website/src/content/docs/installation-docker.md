@@ -29,7 +29,7 @@ evaluation and small single-host deployments; for production, run the worker and
 nginx as separate services (below) so you can scale and update them
 independently — see the [production deployment guide](/docs/deployment/) for the
 hardened setup. `:latest` is published only on the combined image — the worker
-and nginx images ship immutable version tags (for example `:2.1.0`).
+and nginx images ship immutable version tags (for example `:2.2.0`).
 
 `ACCEPT_EULA=Y` acknowledges the
 [Terms of Service](https://modpagespeed.com/terms/), which govern your use of the
@@ -80,7 +80,7 @@ services:
 
   # Factory Worker — optimizes cached content
   worker:
-    image: ghcr.io/we-amp/pagespeed-worker:2.1.0
+    image: ghcr.io/we-amp/pagespeed-worker:2.2.0
     pid: 'service:pidns'
     entrypoint: /entrypoint-worker.sh
     environment:
@@ -95,7 +95,7 @@ services:
 
   # Nginx with PageSpeed module
   nginx:
-    image: ghcr.io/we-amp/pagespeed-nginx:2.1.0
+    image: ghcr.io/we-amp/pagespeed-nginx:2.2.0
     pid: 'service:pidns'
     ports:
       - '8080:8080'
@@ -404,7 +404,7 @@ spec:
   shareProcessNamespace: true
   containers:
     - name: nginx
-      image: ghcr.io/we-amp/pagespeed-nginx:2.1.0
+      image: ghcr.io/we-amp/pagespeed-nginx:2.2.0
       ports:
         - containerPort: 8080
       volumeMounts:
@@ -412,7 +412,7 @@ spec:
           mountPath: /shared
 
     - name: worker
-      image: ghcr.io/we-amp/pagespeed-worker:2.1.0
+      image: ghcr.io/we-amp/pagespeed-worker:2.2.0
       command: ['/entrypoint-worker.sh']
       env:
         # Acknowledges the Terms of Service: https://modpagespeed.com/terms/
@@ -456,7 +456,7 @@ gh attestation verify oci://ghcr.io/we-amp/pagespeed-combined:latest \
 ```
 
 The same commands work for `pagespeed-worker` and `pagespeed-nginx` (use a
-pinned tag such as `:2.1.0`).
+pinned tag such as `:2.2.0`).
 
 ## Troubleshooting
 

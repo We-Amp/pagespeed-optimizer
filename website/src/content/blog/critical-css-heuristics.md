@@ -6,7 +6,7 @@ author: 'Otto van der Schaaf'
 tags: ['critical-css', 'css', 'performance', 'headless-chrome', 'core-web-vitals', 'deep-dive']
 draft: false
 product: '2.0'
-lastUpdated: 2026-07-04
+lastUpdated: 2026-09-30
 ---
 
 ## Two ways to find the critical CSS
@@ -45,7 +45,7 @@ The heuristics in `CriticalCssExtractor` use a layered set of rules, each keyed 
 
 Universal selectors (`*`), `html`, `body`, and `:root` are included unconditionally. These set base typography, box-sizing resets, CSS custom properties, and background colors that affect every page. Excluding them would cause a visible flash of unstyled content on almost any site.
 
-The first 25 DOM elements (configurable via `CriticalCssConfig::max_elements`) are treated as above-the-fold. Any CSS rule whose selector matches one of these elements is included. The threshold of 25 was chosen because it typically captures the full header, navigation bar, hero section, and the start of the main content. For most layouts, that covers everything visible in a 1080px-tall viewport before scrolling.
+The first 300 elements inside `<body>` (configurable via `CriticalCssConfig::max_elements`) are treated as above-the-fold, together with the root `<html>` element. Any CSS rule whose selector matches one of these elements is included. The budget is counted from `<body>` because nothing in `<head>` paints, and a modern page spends dozens of elements there; it is sized for utility-class markup, where a header, its hidden menus and a hero run to a few hundred elements. Elements that a `position: fixed` rule selects are above the fold wherever they sit in the document, so they and their contents are included too — the chat launcher or cookie banner at the end of `<body>` is on screen from the first paint.
 
 Elements whose tag names, class names, or IDs contain `header`, `nav`, `hero`, `banner`, `masthead`, or `above-fold` are always treated as critical, regardless of position in the DOM. These conventions are near-universal across CSS frameworks and custom sites, so matching on them catches above-the-fold content that sits deeper in the tree behind wrapper elements.
 
@@ -136,7 +136,7 @@ Browser critical CSS is *on* once analysis is enabled; `--no-browser-critical-cs
 
 Browser analysis closed the heuristic path's biggest gap: real rendering. A few items remain.
 
-The element-count and depth thresholds are still global constants. A future version will let operators tune `max_elements` and `max_depth` per site through the worker configuration, for layouts where 25 elements or 10 levels is the wrong cut.
+The element-count and depth thresholds are still global constants. A future version will let operators tune `max_elements` and `max_depth` per site through the worker configuration, for layouts where 300 elements or 10 levels is the wrong cut.
 
 CSS Container Queries (`@container`) are seeing real adoption for component-level responsive design. The heuristic selector matching will be extended to handle container-query blocks, treating them much like `@media` rules with format-specific inclusion. (The browser path already sees their real effect at paint, since Chrome resolves them natively.)
 

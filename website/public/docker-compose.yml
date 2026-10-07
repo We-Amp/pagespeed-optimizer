@@ -36,7 +36,7 @@ services:
     restart: unless-stopped
 
   worker:
-    image: ghcr.io/we-amp/pagespeed-worker:2.1.0
+    image: ghcr.io/we-amp/pagespeed-worker:2.2.0
     pid: 'service:pidns'
     depends_on:
       pidns:
@@ -46,7 +46,7 @@ services:
     restart: unless-stopped
     healthcheck:
       test:
-        ['CMD-SHELL', "echo '' | socat - UNIX-CONNECT:/data/pagespeed.sock.health | grep -q '^OK'"]
+        ['CMD-SHELL', "socat -u -T 4 UNIX-CONNECT:/data/pagespeed.sock.health - | grep -q '^OK'"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -55,7 +55,7 @@ services:
     #   - "9880:9880"  # Optional: worker HTTP API + web console
 
   nginx:
-    image: ghcr.io/we-amp/pagespeed-nginx:2.1.0
+    image: ghcr.io/we-amp/pagespeed-nginx:2.2.0
     pid: 'service:pidns'
     ports:
       - '80:80'

@@ -57,8 +57,8 @@ describe('release-notes id contract (source fixture)', () => {
   // Fixture sanity: this is the pre-deploy gate, so a shrinking fixture must
   // fail loudly rather than silently pass with fewer checks. Bump this
   // count in the same change that appends a row.
-  it('carries all 103 ids the converged page must expose', () => {
-    expect(IDS.length).toBe(103);
+  it('carries all 105 ids the converged page must expose', () => {
+    expect(IDS.length).toBe(105);
   });
 
   it('has no duplicate ids (each id attribute must be unique in valid HTML)', () => {

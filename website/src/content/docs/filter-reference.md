@@ -3,7 +3,7 @@ title: 'PageSpeed Filter Reference'
 description: 'Every PageSpeed filter in mod_pagespeed 2.1 — all 66, with category, CoreFilters and OptimizeForBandwidth status, a safety rating, and a one-line description. nginx, Apache, and IIS syntax included.'
 order: 42
 group: 'Filters'
-lastUpdated: 2026-07-12
+lastUpdated: 2026-10-06
 ---
 
 Directive-level reference for every filter in mod_pagespeed 2.1: name, category, whether it runs under CoreFilters or OptimizeForBandwidth (OFB), safety rating, and a one-line description. For how the filters group together conceptually, start with the [PageSpeed filters](/docs/filters/) overview; to turn them on and off, see [Filter Selection](/docs/filter-selection/).
@@ -67,7 +67,7 @@ IIS uses the same `pagespeed` prefix as nginx but without the trailing semicolon
 | <a id="outline_css"></a>[`outline_css`](/docs/css-filters/#outline_css)                                                          | CSS        | No   | No  | Externalizes large inline CSS blocks                   | Experimental   |
 | <a id="outline_javascript"></a>[`outline_javascript`](/docs/javascript-filters/#outline_javascript)                              | JavaScript | No   | No  | Externalizes large inline JS blocks                    | Experimental   |
 | <a id="pedantic"></a>[`pedantic`](/docs/html-filters/#pedantic)                                                                  | HTML       | No   | No  | Adds `type` attributes for HTML4 validation            | Generally safe |
-| <a id="prioritize_critical_css"></a>[`prioritize_critical_css`](/docs/css-filters/#prioritize_critical_css)                      | CSS        | No   | No  | Inlines above-fold CSS, defers the rest                | Test first     |
+| <a id="prioritize_critical_css"></a>[`prioritize_critical_css`](/docs/css-filters/#prioritize_critical_css)                      | CSS        | No   | No  | Inlines the CSS a page uses, loads the rest async     | Test first     |
 | <a id="prioritize_critical_images"></a>[`prioritize_critical_images`](/docs/image-filters/#prioritize_critical_images)           | Image      | No   | No  | Sets `fetchpriority=high` on the LCP image             | Test first     |
 | <a id="recompress_avif"></a>[`recompress_avif`](/docs/image-filters/#avif)                                                       | Image      | No   | No  | AVIF-specific recompression                            | Test first     |
 | <a id="recompress_images"></a>[`recompress_images`](/docs/image-filters/#recompress_images)                                      | Image      | Yes  | Yes | Recompresses and converts images (lossy re-encode)     | Generally safe |
