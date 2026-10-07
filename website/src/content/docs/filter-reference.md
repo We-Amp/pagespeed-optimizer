@@ -1,12 +1,12 @@
 ---
-title: 'PageSpeed Filter Reference'
-description: 'Every PageSpeed filter in mod_pagespeed 2.1 — all 66, with category, CoreFilters and OptimizeForBandwidth status, a safety rating, and a one-line description. nginx, Apache, and IIS syntax included.'
+title: 'PageSpeed filter reference'
+description: 'All 66 PageSpeed filters in mod_pagespeed 2.1 with category, CoreFilters and OptimizeForBandwidth status, safety rating and a one-line description.'
 order: 42
 group: 'Filters'
 lastUpdated: 2026-10-06
 ---
 
-Directive-level reference for every filter in mod_pagespeed 2.1: name, category, whether it runs under CoreFilters or OptimizeForBandwidth (OFB), safety rating, and a one-line description. For how the filters group together conceptually, start with the [PageSpeed filters](/docs/filters/) overview; to turn them on and off, see [Filter Selection](/docs/filter-selection/).
+Directive-level reference for every filter in mod_pagespeed 2.1: name, category, whether it runs under CoreFilters or OptimizeForBandwidth (OFB), safety rating, and a one-line description. For how the filters group together conceptually, start with the [PageSpeed filters](/docs/filters/) overview; to turn them on and off, see [Filter selection](/docs/filter-selection/).
 
 ## Platform syntax
 
@@ -18,7 +18,7 @@ Filter names are the same across all platforms. The directive syntax differs:
 | Apache   | `ModPagespeedEnableFilters rewrite_images` | `ModPagespeedDisableFilters rewrite_images` |
 | IIS      | `pagespeed EnableFilters rewrite_images`   | `pagespeed DisableFilters rewrite_images`   |
 
-IIS uses the same `pagespeed` prefix as nginx but without the trailing semicolon. All directives go in `pagespeed.config`. See [IIS Configuration](/docs/iis-configuration/) for the full file format reference.
+IIS uses the same `pagespeed` prefix as nginx but without the trailing semicolon. All directives go in `pagespeed.config`. See [IIS configuration](/docs/iis-configuration/) for the full file format reference.
 
 ## All filters
 
@@ -95,7 +95,7 @@ IIS uses the same `pagespeed` prefix as nginx but without the trailing semicolon
 
 ## Notes
 
-- **Core** filters are enabled by default with `RewriteLevel CoreFilters`. Some image sub-filters (e.g., `recompress_images`, `jpeg_subsampling`, `strip_image_meta_data`) are implicitly enabled by their parent filter `rewrite_images` and are marked Core for that reason. See [Filter Selection](/docs/filter-selection/) for the explicit CoreFilters list.
+- **Core** filters are enabled by default with `RewriteLevel CoreFilters`. Some image sub-filters (e.g., `recompress_images`, `jpeg_subsampling`, `strip_image_meta_data`) are implicitly enabled by their parent filter `rewrite_images` and are marked Core for that reason. See [Filter selection](/docs/filter-selection/) for the explicit CoreFilters list.
 - **OFB** filters are active under `RewriteLevel OptimizeForBandwidth`, which optimizes resources in-place without rewriting URLs.
 - The four **AVIF** filters (`convert_jpeg_to_avif`, `convert_to_avif_lossless`, `convert_to_avif_animated`, `recompress_avif`) are outside both sets and outside `rewrite_images`, so you enable them by name. `RewriteLevel AllFilters` does switch all four on. See [AVIF filters](/docs/image-filters/#avif).
 - **"Test first"** filters are safe for most sites but can cause issues with specific JavaScript frameworks or CSS patterns. Test on a staging environment before enabling in production.
@@ -112,5 +112,5 @@ These filters remain available for backward compatibility but target retired or 
 
 ## See also
 
-- [Filters Overview](/docs/filters-overview/) — filters organized by category with descriptions
-- [Filter Selection](/docs/filter-selection/) — how to enable and disable filters
+- [Filters overview](/docs/filters-overview/) — filters organized by category with descriptions
+- [Filter selection](/docs/filter-selection/) — how to enable and disable filters

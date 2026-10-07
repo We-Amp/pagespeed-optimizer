@@ -23,17 +23,19 @@ and worker command-line flags. This page is the full reference for all of them,
 plus cache tuning and the capability mask format. Everything past the two
 required directives is optional tuning.
 
-> **New to mod_pagespeed?** This is the configuration reference. If you are just
-> getting oriented, start with the [product overview](/) or
-> [Getting Started](/docs/getting-started/), then come back here once it is
-> installed. To install first, see [Install with Docker](/docs/installation-docker/)
-> or [Install the nginx module](/docs/installation-module/).
+:::tip[New to mod_pagespeed?]
+This is the configuration reference. If you are just getting oriented, start
+with the [product overview](/) or [Getting started](/docs/getting-started/),
+then come back here once it is installed. To install first, see
+[Install with Docker](/docs/installation-docker/) or
+[Install the nginx module](/docs/installation-module/).
+:::
 
 To work out which of these directives your own pages actually need, run them
 through a [PageSpeed Insights test](/analyze/): every failing audit is mapped to
 the transform that fixes it, so the report doubles as a configuration checklist.
 
-## Nginx Directives
+## nginx directives
 
 These directives are available in `http`, `server`, and `location` contexts.
 Values set at a higher level are inherited by nested blocks.
@@ -214,7 +216,7 @@ server {
 }
 ```
 
-### Cache-Control Directives
+### Cache-Control directives
 
 The following directives control how the module sets `Cache-Control` and
 `Age` headers on cache-served responses. See the
@@ -232,7 +234,7 @@ The following directives control how the module sets `Cache-Control` and
 | `pagespeed_force_refresh_html`       | `on`                                 | Force revalidation on browser force-refresh (Ctrl+F5) for HTML                                                                        |
 | `pagespeed_force_refresh`            | `off`                                | Force revalidation on browser force-refresh (Ctrl+F5) for all non-HTML types                                                          |
 
-## Shared Configuration File
+## Shared configuration file
 
 The worker writes a `pagespeed-shared.conf` file next to the cache file
 (in the parent directory of `--cache-path`). Nginx reads this file automatically
@@ -261,7 +263,7 @@ a fire-and-forget notification to the worker. If the socket is not available
 (worker not running, socket not yet created), the notification is silently
 dropped. The original content continues to be served from the cache.
 
-## Worker Command-Line Flags
+## Worker command-line flags
 
 The `factory_worker` binary accepts these flags:
 
@@ -495,7 +497,7 @@ factory_worker --log-format json
 
 JSON format is recommended for production environments with log aggregation.
 
-## Proactive Variant Generation
+## Proactive variant generation
 
 When the worker receives an image notification, it can generate multiple
 variants from a single decode pass. This avoids decoding the same image
@@ -546,7 +548,7 @@ For 2x+ density, the viewport target width is doubled before resizing. For
 example, a Mobile/2x variant uses a target width of 960px instead of 480px,
 providing sharper images for Retina displays.
 
-### Variant Matrix
+### Variant matrix
 
 With all proactive flags enabled (the default), a single image notification
 can produce up to:
@@ -567,7 +569,7 @@ threshold (`pagespeed_hot_threshold`), it sends a warmup sentinel to the worker.
 With warmup enabled, the worker pre-generates all missing variants for that URL.
 Without this flag (the default), warmup notifications are ignored.
 
-### Viewport Resize Widths
+### Viewport resize widths
 
 Control the target width for viewport-based image resizing. Images wider than
 the target are downscaled (preserving aspect ratio). Images already smaller
@@ -583,7 +585,7 @@ factory_worker --mobile-width 480 --tablet-width 768 --desktop-width 0
 | `--tablet-width`  | `768`   | Target width for tablet viewport (0=disable)    |
 | `--desktop-width` | `0`     | Target width for desktop viewport (0=no resize) |
 
-## URL Normalization
+## URL normalization
 
 ### `--strip-query-extensions LIST`
 
@@ -622,12 +624,12 @@ Allow capture and waterfall requests for private/loopback URLs. Off by default
 for security. Enable only in development or when the worker needs to analyze
 sites on private networks.
 
-## Image Quality Flags
+## Image quality flags
 
 Override the default image encoding quality at runtime. These flags apply to
 all image transcoding performed by the worker.
 
-### Normal Quality
+### Normal quality
 
 | Flag             | Default | Range | Description                          |
 | ---------------- | ------- | ----- | ------------------------------------ |
@@ -635,7 +637,7 @@ all image transcoding performed by the worker.
 | `--webp-quality` | `75`    | 0-100 | WebP output quality                  |
 | `--avif-quality` | `60`    | 0-100 | AVIF output quality                  |
 
-### Save-Data Quality
+### Save-Data quality
 
 These are used when the request includes `Save-Data: on`:
 
@@ -653,7 +655,7 @@ factory_worker --cache-path /data/cache.vol \
   --savedata-jpeg-quality 55 --savedata-webp-quality 40 --savedata-avif-quality 40
 ```
 
-## Learned Quality Prediction
+## Learned quality prediction
 
 Per-format ML models predict the optimal encoder quality parameter for a target
 SSIMULACRA2 score. The models are trained LightGBM decision trees compiled to C
@@ -687,7 +689,7 @@ factory_worker --cache-path /data/cache.vol --no-learned-quality-avif
 factory_worker --cache-path /data/cache.vol --no-learned-quality
 ```
 
-## SSIMULACRA2 Quality Tuning
+## SSIMULACRA2 quality tuning
 
 The worker uses SSIMULACRA2 perceptual quality scoring to verify that encoded
 images meet a target visual quality. These flags control the target score and
@@ -708,7 +710,7 @@ adjusted quality.
 Disabling verification (`--no-quality-verify`) skips the SSIMULACRA2 measurement
 pass entirely, reducing CPU cost at the risk of inconsistent visual quality.
 
-## Content Analysis and Denoising
+## Content analysis and denoising
 
 The worker classifies image content (photo, screenshot, illustration, noisy) and
 applies content-aware encoding presets. A bilateral filter denoises images that
@@ -725,7 +727,7 @@ Content analysis is fast (runs on the already-decoded pixel buffer) and feeds
 into both the learned quality model and the denoising decision. Disabling it
 falls back to the `Unknown` content class for all images.
 
-## HTML Optimization Flags
+## HTML optimization flags
 
 These flags control individual HTML transforms applied by the worker. All are
 enabled by default.
@@ -877,28 +879,29 @@ stylesheet structure. Used together with [async CSS](#async-css) so the
 remaining stylesheets stop blocking render. (module equivalent:
 `prioritize_critical_css`.)
 
-> **Gotcha — critical-CSS inlining can break dark mode.** Critical-CSS
-> extraction analyses the page in its rendered state at extraction time. That
-> render happens without a `.dark` class on `<html>` (or whatever toggles your
-> dark theme), so the extractor never sees the `.dark` / `dark:` selectors and
-> never inlines them as critical CSS. Any dark-mode style on an above-the-fold
-> element then flashes the light value (or a missing element) until the full
-> stylesheet finishes loading. The fix is to add an inline dark-mode override in
-> the page `<head>` — a small `<style>` block that hard-sets the dark values for
-> critical-render-path elements, for example:
->
-> ```html
-> <style>
->   html.dark {
->     background: #0c0a09;
->   }
-> </style>
-> ```
->
-> Add one override per dark-mode utility that lands on a critical element
-> (background, header/nav colors, logo `dark:hidden`/`dark:block` swaps, card
-> backgrounds). This is required whenever you ship both critical-CSS inlining and
-> a class-based dark theme.
+:::caution[Critical-CSS inlining can break dark mode]
+Critical-CSS extraction analyses the page in its rendered state at extraction
+time. That render happens without a `.dark` class on `<html>` (or whatever
+toggles your dark theme), so the extractor never sees the `.dark` / `dark:`
+selectors and never inlines them as critical CSS. Any dark-mode style on an
+above-the-fold element then flashes the light value (or a missing element)
+until the full stylesheet finishes loading. The fix is to add an inline
+dark-mode override in the page `<head>` — a small `<style>` block that
+hard-sets the dark values for critical-render-path elements, for example:
+
+```html
+<style>
+  html.dark {
+    background: #0c0a09;
+  }
+</style>
+```
+
+Add one override per dark-mode utility that lands on a critical element
+(background, header/nav colors, logo `dark:hidden`/`dark:block` swaps, card
+backgrounds). This is required whenever you ship both critical-CSS inlining and
+a class-based dark theme.
+:::
 
 ### Async CSS {#async-css}
 
@@ -986,7 +989,7 @@ the default) keeps that cheap by answering with `304 Not Modified` when
 the cached body still matches. HTML caching runs in the optimizer worker; the
 module always passes HTML through to the origin and rewrites in flight.
 
-## Browser Analysis
+## Browser analysis
 
 Browser analysis uses headless Chrome to generate per-template optimization
 profiles. It replaces heuristic-based critical CSS extraction with
@@ -999,7 +1002,7 @@ The flags below are the config-reference summary; the
 [Browser Analysis guide](/docs/browser-analysis/) covers the CDP pipeline,
 template profiling, and tuning in depth.
 
-### Browser Analysis Flags
+### Browser analysis flags
 
 | Flag                           | Default                          | Description                                              |
 | ------------------------------ | -------------------------------- | -------------------------------------------------------- |
@@ -1017,7 +1020,7 @@ template profiling, and tuning in depth.
 | `--browser-queue-size`         | `1000`                           | Maximum pending analysis queue items                     |
 | `--browser-profile-ttl`        | `86400`                          | Profile cache expiry in seconds (24 hours default)       |
 
-### How It Works
+### How it works
 
 When browser analysis is enabled, the worker spawns headless Chrome with
 `--remote-debugging-pipe` and communicates over CDP (Chrome DevTools Protocol).
@@ -1032,14 +1035,14 @@ Subsequent HTML processing for pages matching the same template structure uses
 the cached profile instead of heuristics. Profiles expire after
 `--browser-profile-ttl` seconds.
 
-### Chrome Memory Management
+### Chrome memory management
 
 Chrome is recycled after `--chrome-recycle-interval` pages to prevent memory
 growth. On Linux, the worker monitors Chrome's RSS via `/proc/pid/status` and
 kills the process if it exceeds `--chrome-max-memory` MB. On other platforms,
 RSS monitoring is not available and only page-count recycling applies.
 
-### Fallback Behavior
+### Fallback behavior
 
 All browser analysis failures fall back to the heuristic path. If Chrome fails
 to start, crashes, or times out, the worker logs the error and continues with
@@ -1057,7 +1060,7 @@ factory_worker --cache-path /data/cache.vol \
   --chrome-page-timeout 30000
 ```
 
-## HTTP Management API
+## HTTP management API
 
 The worker embeds an HTTP/1.1 server for programmatic access and the web console.
 It is **off** until you enable a transport.
@@ -1206,7 +1209,7 @@ The default thread count is based on available CPU cores. The RAM cache uses
 write-around semantics: writes go directly to disk, reads populate the RAM
 cache on miss. This prevents cross-process staling between nginx and the worker.
 
-## Pre-Compressed Text Variants
+## Pre-compressed text variants
 
 The worker produces gzip and brotli pre-compressed alternates for all text
 resources (HTML, CSS, JS) after optimization. This eliminates dynamic
@@ -1239,7 +1242,7 @@ factory_worker --cache-path /data/cache.vol \
   --gzip-level 6 --brotli-level 6
 ```
 
-## SVG Auto-Vectorization
+## SVG auto-vectorization
 
 Format slot `11` (in the capability mask) is used for SVG auto-vectorization.
 
@@ -1258,7 +1261,7 @@ If a browser sends `image/jxl` in the `Accept` header, it maps to Original
 format (no special handling). The JXL format slot in the capability mask is
 fully repurposed for SVG and is never set from client headers.
 
-### SVG Operational Modes
+### SVG operational modes
 
 The `--svg-mode` flag controls how far the SVG pipeline runs:
 
@@ -1271,7 +1274,7 @@ The `--svg-mode` flag controls how far the SVG pipeline runs:
 Start with `detect` to see which images qualify, then move to `preview` for
 inspection, and finally `auto` for production serving.
 
-### SVG Flags
+### SVG flags
 
 | Flag                        | Default  | Range     | Description                                          |
 | --------------------------- | -------- | --------- | ---------------------------------------------------- |
@@ -1302,13 +1305,13 @@ factory_worker --cache-path /data/cache.vol \
   --svg-mode auto --svg-candidacy-threshold 65 --svg-max-paths 300
 ```
 
-## Management Socket
+## Management socket
 
 The worker exposes a management socket at `{socket_path}.mgmt` (e.g.,
 `/var/lib/pagespeed/pagespeed.sock.mgmt`). This socket accepts newline-terminated
 text commands and returns a response before closing the connection.
 
-### Connecting to the Management Socket
+### Connecting to the management socket
 
 ```bash
 # Using socat
@@ -1325,7 +1328,7 @@ s.close()
 "
 ```
 
-### `STATS` Command
+### `STATS` command
 
 Returns a JSON object with worker statistics:
 
@@ -1351,7 +1354,7 @@ Returns a JSON object with worker statistics:
 The `us` fields are cumulative processing time in microseconds. Divide by
 the count (`n`) to get the average processing time per item.
 
-### `PURGE` Command
+### `PURGE` command
 
 Invalidates all cached variants for a URL. The command format is `PURGE`
 followed by the hostname and URL:
@@ -1369,7 +1372,7 @@ After a PURGE, the next request for that URL will be a cache miss. Nginx will
 proxy to the origin, re-cache the response, and send a new notification to the
 worker.
 
-### Cache Invalidation
+### Cache invalidation
 
 The PURGE command is the primary mechanism for cache invalidation. Common
 use cases:
@@ -1390,13 +1393,13 @@ for url in /style.css /app.js /hero.jpg; do
 done
 ```
 
-## Capability Mask
+## Capability mask
 
 The module classifies each request into a 32-bit capability mask based on
 the client's capabilities. This mask is used as part of the cache key, allowing
 different optimized variants to be served to different clients.
 
-### Bitmask Layout
+### Bitmask layout
 
 | Bits | Field          | Values                                               |
 | ---- | -------------- | ---------------------------------------------------- |
@@ -1406,7 +1409,7 @@ different optimized variants to be served to different clients.
 | 5    | Save-Data      | `0` off, `1` on                                      |
 | 6-7  | Transfer Enc.  | `00` Identity, `01` Gzip, `10` Brotli, `11` Reserved |
 
-### How Classification Works
+### How classification works
 
 The nginx module determines these values from request headers:
 
@@ -1418,14 +1421,14 @@ The nginx module determines these values from request headers:
 - **Save-Data:** From the `Save-Data: on` request header.
 - **Transfer Encoding:** From the `Accept-Encoding` header (br > gzip > identity).
 
-### Cache Key Format
+### Cache key format
 
 Variants are stored as alternates within a `SHA-256(URL, hostname)` cache key.
 The capability mask determines which alternate a client receives. For example,
 a WebP-capable desktop client with brotli requesting `/style.css` gets a different
 variant than a mobile client with gzip requesting the same URL.
 
-### Variant Fallback
+### Variant fallback
 
 When an exact match isn't found in the cache, nginx tries progressively
 degraded fallback masks before falling back to mask `0x08` (the default for
@@ -1433,7 +1436,7 @@ original content stored at Desktop/Identity). This means a client always
 gets a response — either the optimized variant, a close variant, or the
 original.
 
-## Content Types
+## Content types
 
 The worker processes these content types when notified by nginx:
 
@@ -1448,7 +1451,7 @@ The worker only writes an optimized variant if it is smaller than the original.
 If minification doesn't reduce the size, the original is kept and no variant
 is written.
 
-## Cross-Process Cache Sharing
+## Cross-process cache sharing
 
 Both nginx and the worker access the same Cyclone cache file. For this
 to work correctly:
@@ -1463,7 +1466,7 @@ to work correctly:
    directory sharing enabled (this is automatic). Without it, each process would
    have its own in-memory directory and writes would be invisible to the other.
 
-## Example: Complete Configuration
+## Example: complete configuration
 
 ### nginx.conf
 
@@ -1484,7 +1487,7 @@ http {
 
     server {
         listen 80;
-        server_name example.com;
+        server_name <your-domain>;
 
         pagespeed on;
         pagespeed_cache_path /var/lib/pagespeed/cache.vol;
@@ -1533,7 +1536,7 @@ hardening set: empty `CapabilityBoundingSet`, `ProtectSystem=strict`,
 `ProtectHome=yes`, `PrivateTmp=yes`, `NoNewPrivileges=yes`, and a secrets
 `EnvironmentFile`. Use it as the reference.)
 
-## Response Headers
+## Response headers
 
 mod_pagespeed adds the following response header:
 
@@ -1547,7 +1550,7 @@ hasn't processed it yet. The worker runs asynchronously, so there's a brief
 window after the first request where the cache contains the original. Subsequent
 requests will get the optimized version once the worker has written it.
 
-## Sizing the Cache
+## Sizing the cache
 
 The cache size depends on your site's content:
 
@@ -1575,7 +1578,7 @@ Monitor cache effectiveness by checking the ratio of `HIT` to `MISS` responses
 in your nginx access logs, or use the management socket `STATS` command to
 inspect cache entry counts and size.
 
-## Disabling PageSpeed Per-Location
+## Disabling PageSpeed per-location
 
 You can enable PageSpeed at the server level and disable it for specific paths:
 
@@ -1602,7 +1605,7 @@ server {
 }
 ```
 
-## URL Pattern Exclusions
+## URL pattern exclusions
 
 The `pagespeed_disallow` directive excludes URL patterns from optimization.
 Unlike `pagespeed off` (which disables the entire module for a location block),
@@ -1698,7 +1701,7 @@ Site-level settings override server-level settings. If `pagespeed.config` is not
 
 Enable optimization by adding to your `pagespeed.config`:
 
-```
+```text
 pagespeed on
 ```
 
@@ -1738,7 +1741,7 @@ ModPagespeed standby
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed standby
 ```
 
@@ -1801,7 +1804,7 @@ ModPagespeedListOutstandingUrlsOnError off
 
 In IIS, use `pagespeed.config` with one directive per line. Prefix each directive with `pagespeed`.
 
-```
+```text
 pagespeed HonorCsp on
 pagespeed RespectVary on
 pagespeed DisableRewriteOnNoTransform on
@@ -1946,7 +1949,7 @@ If you raise them, watch request latency rather than only optimization
 throughput. The reason optimization is capped at half the machine is that the
 remaining half is serving traffic.
 
-## URL Segment Length Limits {#max-url-segments}
+## URL segment length limits {#max-url-segments}
 
 Set the maximum length (in characters) of any single URL segment — the
 text between two `/` separators — that the in-process module (Apache, nginx,
@@ -1983,7 +1986,7 @@ ModPagespeedMaxSegmentLength 250
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed MaxSegmentLength 250
 ```
 
@@ -2106,21 +2109,21 @@ Place a `pagespeed.config` file in each website's root directory. Each file can 
 
 **Site A** (`C:\inetpub\site-a\pagespeed.config`):
 
-```
+```text
 pagespeed on
 pagespeed EnableFilters rewrite_images
 ```
 
 **Site B** (`C:\inetpub\site-b\pagespeed.config`):
 
-```
+```text
 pagespeed on
 pagespeed EnableFilters collapse_whitespace
 ```
 
 Alternatively, use match rules in the server-level config to scope directives by hostname:
 
-```
+```text
 hostname: ^site-a\.example\.com$
 pagespeed EnableFilters rewrite_images
 
@@ -2143,7 +2146,7 @@ When mod_pagespeed runs behind a reverse proxy (such as nginx, Varnish, or a CDN
 
 See also [CDN integration](/docs/cdn-integration/).
 
-## Notification Deduplication
+## Notification deduplication
 
 The worker automatically skips processing when the target cache variant
 already exists. This prevents redundant work when multiple requests arrive for
@@ -2153,7 +2156,7 @@ For example, if 10 requests for `/photo.jpg` with WebP capability arrive in
 quick succession, only the first notification triggers image transcoding. The
 remaining 9 are skipped because the WebP variant is already in the cache.
 
-## Health Check
+## Health check
 
 The worker exposes a health check socket at `{socket_path}.health`.
 Connect to it to get the current status:

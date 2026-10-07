@@ -1,6 +1,6 @@
 ---
 title: 'Call the worker HTTP API'
-description: 'Optimizer worker HTTP API reference for mod_pagespeed 2.1: health, stats, Prometheus metrics, cache management, live config, and WebSocket streaming endpoints — all callable with curl.'
+description: 'Optimizer worker HTTP API for mod_pagespeed 2.1: health, stats, Prometheus metrics, cache management, live config and WebSocket streaming, all via curl.'
 order: 61
 group: 'Reference'
 lastUpdated: 2026-09-19
@@ -20,23 +20,25 @@ yourself. Every endpoint documented here works with `curl` or any HTTP client.
 The API listens on `127.0.0.1:9880` by default. Configure with `--api-port`.
 Set port to `0` to disable the HTTP API entirely.
 
-```
+```text
 http://127.0.0.1:9880/v1/...
 ```
 
-> **In-process ASP.NET Core middleware:** The `:9880` examples throughout this
-> page describe the **standalone worker**. With the in-process ASP.NET Core
-> middleware ([`WeAmp.PageSpeed.AspNetCore`](/docs/aspnet-getting-started/)), the
-> `/console/` and `/v1/*` surfaces are served on **your app's own port** — the
-> port your ASP.NET Core app listens on (e.g. `http://localhost:5123/console/`)
-> — not on `:9880`. The worker's own HTTP API stays bound to `127.0.0.1` on an
-> ephemeral loopback port unless you set `Worker.ApiPort` explicitly. Substitute
-> your app's origin for `localhost:9880` in the examples below.
+:::note[In-process ASP.NET Core middleware]
+The `:9880` examples throughout this page describe the **standalone worker**.
+With the in-process ASP.NET Core middleware
+([`WeAmp.PageSpeed.AspNetCore`](/docs/aspnet-getting-started/)), the
+`/console/` and `/v1/*` surfaces are served on **your app's own port** — the
+port your ASP.NET Core app listens on (e.g. `http://localhost:5123/console/`)
+— not on `:9880`. The worker's own HTTP API stays bound to `127.0.0.1` on an
+ephemeral loopback port unless you set `Worker.ApiPort` explicitly. Substitute
+your app's origin for `localhost:9880` in the examples below.
+:::
 
 All endpoints are prefixed with `/v1/`. The server supports HTTP/1.1 only
 (no HTTP/2). Keep-alive connections are supported.
 
-### Server Limits
+### Server limits
 
 | Parameter        | Default | Flag                |
 | ---------------- | ------- | ------------------- |
@@ -85,7 +87,7 @@ except `/v1/health` and the `/console/` static bundle (GET/HEAD only) requires
 a Bearer header.
 
 ```bash
-curl -H "Authorization: Bearer my-secret-token" http://localhost:9880/v1/stats
+curl -H "Authorization: Bearer <your-token>" http://localhost:9880/v1/stats
 ```
 
 ### The invariant
@@ -109,7 +111,7 @@ Also refused at startup: `--api-socket` together with `--api-port` (one
 transport only), and an `--api-bind` that is not an IPv4 literal (`localhost`
 and `::1` included — the API binds IPv4 only).
 
-### Authentication Modes
+### Authentication modes
 
 | Mode                       | Behavior                                          |
 | -------------------------- | ------------------------------------------------- |
@@ -149,7 +151,7 @@ only enable it behind a reverse proxy that performs its own
 authentication (IP allow-listing, a login prompt, etc.) — never expose it
 directly to the open internet.
 
-### Error Responses
+### Error responses
 
 When auth fails, the API returns:
 
@@ -175,7 +177,7 @@ status 204.
 
 ---
 
-## Health and Status
+## Health and status
 
 ### GET /v1/health
 
@@ -428,7 +430,7 @@ curl http://localhost:9880/v1/metrics
 
 **Response** (`Content-Type: text/plain; version=0.0.4; charset=utf-8`):
 
-```
+```text
 # HELP pagespeed_notifications_total Total notifications received.
 # TYPE pagespeed_notifications_total counter
 pagespeed_notifications_total 4821
@@ -542,7 +544,7 @@ request are still applied. All boolean toggle fields (`disable_async_css`,
 
 ---
 
-## Cache Operations
+## Cache operations
 
 ### GET /v1/cache/urls
 
@@ -760,7 +762,7 @@ content includes a restrictive `Content-Security-Policy`.
 
 **Response headers:**
 
-```
+```http
 Content-Type: image/webp
 Content-Disposition: attachment
 X-Content-Type-Options: nosniff
@@ -895,7 +897,7 @@ curl http://localhost:9880/v1/cache/cooldowns
 
 ---
 
-## Browser Capture
+## Browser capture
 
 These endpoints require `--enable-browser-analysis` and a running Chrome
 instance. If Chrome is unavailable, the API returns 503.
@@ -969,7 +971,7 @@ curl -X POST http://localhost:9880/v1/capture/screenshot \
 
 The `png_base64` field contains the screenshot as a base64-encoded PNG image.
 
-### Browser Capture Errors
+### Browser capture errors
 
 | Status | Condition                                               |
 | ------ | ------------------------------------------------------- |
@@ -1047,7 +1049,7 @@ A `since` or `limit` that is not a whole number is a 400.
 
 ---
 
-## WebSocket Endpoints
+## WebSocket endpoints
 
 WebSocket endpoints provide real-time streaming data. All three endpoints follow
 the same connection lifecycle:
@@ -1057,7 +1059,7 @@ the same connection lifecycle:
 3. Server sends initial snapshot
 4. Server pushes updates at regular intervals
 
-### Connection Limits
+### Connection limits
 
 | Parameter                                  | Value |
 | ------------------------------------------- | ----- |
@@ -1226,7 +1228,7 @@ a tokenless API opened with `--api-no-auth`, the stream is open.
 
 ---
 
-## Static Files
+## Static files
 
 ### GET /console/\*
 
@@ -1242,7 +1244,7 @@ not return JSON.
 
 ---
 
-## Error Response Format
+## Error response format
 
 All API errors follow a consistent JSON structure:
 
@@ -1267,7 +1269,7 @@ Some errors include a `details` field with additional context:
 }
 ```
 
-### Error Codes
+### Error codes
 
 | HTTP Status | Code                  | Description                                          |
 | ----------- | --------------------- | ---------------------------------------------------- |
@@ -1284,7 +1286,7 @@ Some errors include a `details` field with additional context:
 
 ---
 
-## Endpoint Summary
+## Endpoint summary
 
 | Method | Path                     | Auth | Description                    |
 | ------ | ------------------------ | ---- | ------------------------------ |
@@ -1307,13 +1309,13 @@ Some errors include a `details` field with additional context:
 | WS     | `/v1/ws/logs`            | Yes  | Real-time log streaming        |
 | GET    | `/console/*`             | No   | Web console static files       |
 
-## Next Steps
+## Next steps
 
 - [Web Console](/docs/workbench/) -- The console is built on this API — see it
   in action
 - [Configuration Reference](/docs/configuration/) -- Worker flags and nginx
   directives
-- [API Reference](/docs/api-reference/) -- IPC wire format, management socket,
+- [API reference](/docs/api-reference/) -- IPC wire format, management socket,
   capability mask encoding, and C API
 - [Browser Analysis](/docs/browser-analysis/) -- How the capture endpoints
   use headless Chrome

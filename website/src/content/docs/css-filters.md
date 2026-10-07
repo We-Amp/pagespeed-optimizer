@@ -1,6 +1,6 @@
 ---
-title: 'CSS Filters'
-description: 'Reference for CSS optimization filters in mod_pagespeed 2.1: minify, combine, inline, and flatten @import CSS, plus critical-CSS extraction. Apache, nginx, and IIS syntax with tuning parameters.'
+title: 'CSS filters'
+description: 'CSS filters in mod_pagespeed 2.1: minify, combine, inline and flatten @import CSS, plus critical-CSS extraction. Apache, nginx and IIS syntax with tuning.'
 order: 44
 group: 'Filters'
 lastUpdated: 2026-10-06
@@ -14,12 +14,12 @@ mod_pagespeed 2.1 includes filters for CSS minification, combining, inlining, im
 
 On IIS, use the same filter names with the `pagespeed` prefix in `pagespeed.config` (no semicolons):
 
-```
+```text
 pagespeed EnableFilters rewrite_css,combine_css
 pagespeed CssInlineMaxBytes 4096
 ```
 
-See [IIS Configuration](/docs/iis-configuration/) for the full file format reference.
+See [IIS configuration](/docs/iis-configuration/) for the full file format reference.
 
 ## Quick reference
 
@@ -47,7 +47,7 @@ Core filter. Minifies CSS by removing whitespace, comments, and shortening prope
 
 Enable:
 
-```apacheconf
+```apache
 # Apache
 ModPagespeedEnableFilters rewrite_css
 ```
@@ -63,7 +63,7 @@ Core filter. Rewrites resource URLs embedded in CSS files even when CSS parsing 
 
 Enable:
 
-```apacheconf
+```apache
 # Apache
 ModPagespeedEnableFilters fallback_rewrite_css_urls
 ```
@@ -79,7 +79,7 @@ pagespeed EnableFilters fallback_rewrite_css_urls;
 
 Enable:
 
-```apacheconf
+```apache
 # Apache
 ModPagespeedEnableFilters rewrite_style_attributes
 # or, for URL-only (enabled by default as a CoreFilter):
@@ -99,7 +99,7 @@ Core filter. Combines multiple `<link rel="stylesheet">` elements into a single 
 
 Enable:
 
-```apacheconf
+```apache
 # Apache
 ModPagespeedEnableFilters combine_css
 ```
@@ -115,7 +115,7 @@ Core filter. Replaces CSS `@import` rules with the contents of the imported file
 
 Enable:
 
-```apacheconf
+```apache
 # Apache
 ModPagespeedEnableFilters flatten_css_imports
 ```
@@ -131,7 +131,7 @@ Core filter. Inlines small external CSS files directly into the HTML as `<style>
 
 Enable:
 
-```apacheconf
+```apache
 # Apache
 ModPagespeedEnableFilters inline_css
 ```
@@ -147,7 +147,7 @@ Core filter. Converts `<style>@import url(...);</style>` to `<link rel="styleshe
 
 Enable:
 
-```apacheconf
+```apache
 # Apache
 ModPagespeedEnableFilters inline_import_to_link
 ```
@@ -163,7 +163,7 @@ Not a core filter. Fetches the CSS from the Google Fonts API and inlines it dire
 
 Enable:
 
-```apacheconf
+```apache
 # Apache
 ModPagespeedEnableFilters inline_google_font_css
 ```
@@ -179,7 +179,7 @@ Experimental. The inverse of `inline_css`: externalizes large inline `<style>` b
 
 Enable:
 
-```apacheconf
+```apache
 # Apache
 ModPagespeedEnableFilters outline_css
 ```
@@ -195,7 +195,7 @@ Not a core filter. Test before deploying. Inlines the CSS rules a page uses and 
 
 Enable:
 
-```apacheconf
+```apache
 # Apache
 ModPagespeedEnableFilters prioritize_critical_css
 ```
@@ -217,7 +217,7 @@ Not a core filter. Moves `<link rel="stylesheet">` elements above `<script>` ele
 
 Enable:
 
-```apacheconf
+```apache
 # Apache
 ModPagespeedEnableFilters move_css_above_scripts
 ```
@@ -233,7 +233,7 @@ Not a core filter. Moves `<link rel="stylesheet">` elements from the `<body>` in
 
 Enable:
 
-```apacheconf
+```apache
 # Apache
 ModPagespeedEnableFilters move_css_to_head
 ```
@@ -254,7 +254,7 @@ pagespeed EnableFilters move_css_to_head;
 
 Apache syntax:
 
-```apacheconf
+```apache
 ModPagespeedCssInlineMaxBytes 4096
 ModPagespeedCssFlattenMaxBytes 204800
 ModPagespeedCssOutlineMinBytes 5000
@@ -272,7 +272,7 @@ pagespeed CssImageInlineMaxBytes 2048;
 
 ## See also
 
-- [Filter Selection](/docs/filter-selection/)
-- [Filter Reference](/docs/filter-reference/)
-- [JavaScript Filters](/docs/javascript-filters/) — the matching minify, combine, and inline filters for JS
+- [Filter selection](/docs/filter-selection/)
+- [Filter reference](/docs/filter-reference/)
+- [JavaScript filters](/docs/javascript-filters/) — the matching minify, combine, and inline filters for JS
 - [How CSS parsing works](/how-it-works/css-parsing/) — the syntax-tree layer beneath the CSS filters

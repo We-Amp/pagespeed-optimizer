@@ -1,6 +1,6 @@
 ---
 title: 'Browser analysis with headless Chrome'
-description: 'How the optimizer worker renders pages in headless Chrome to extract critical CSS, detect the LCP element, measure JavaScript coverage, and gate optimizations against visual regressions.'
+description: 'How the optimizer worker renders pages in headless Chrome to extract critical CSS, find the LCP element, measure JS coverage and gate visual regressions.'
 order: 32
 group: 'Operate'
 lastUpdated: 2026-09-19
@@ -18,7 +18,7 @@ precise heuristic pipeline. The trade-off is accuracy for latency: a rendered
 profile is more precise than a [heuristic critical-CSS estimate](/blog/critical-css-heuristics/),
 but it costs a headless render the first time a page template is seen.
 
-## Enabling Browser Analysis
+## Enabling browser analysis
 
 Browser analysis is off by default. Enable it with the `--enable-browser-analysis`
 flag and ensure Chrome (or `chrome-headless-shell`) is available in the
@@ -77,7 +77,7 @@ renders without a kill.
 
 ## Architecture
 
-```
+```text
 Worker (libuv event loop)
   |
   +-- BrowserAnalysisManager
@@ -100,7 +100,7 @@ Worker (libuv event loop)
 CDP pipeline. It runs on the main libuv event loop (where CDP must operate).
 Worker thread pool threads enqueue analysis requests via `uv_async_send()`.
 
-### CDP Pipe Transport
+### CDP pipe transport
 
 Chrome DevTools Protocol communication happens over `--remote-debugging-pipe`
 (file descriptors 3 and 4), not over a WebSocket. Messages are null-byte
@@ -113,7 +113,7 @@ Design decisions:
 - Large CDP messages (>64KB) parsed off the event loop via `uv_queue_work()`
 - `CancelAll()` on pipe EOF resolves all pending callbacks
 
-## How It Works
+## How it works
 
 1. The worker thread runs `HtmlScanner::Scan()` to extract page structure
 2. `TemplateDetector::HashStructure()` computes an FNV-1a hash of the DOM
@@ -129,7 +129,7 @@ Design decisions:
 7. The resulting `OptimizationProfile` is stored in the cache with
    `SentinelId::kBrowserProfile`
 
-### CSS Cache Inlining
+### CSS cache inlining
 
 Before passing HTML to Chrome, the worker resolves `<link rel="stylesheet">`
 tags against the Cyclone cache and injects `<style>` blocks into the HTML.
@@ -142,7 +142,7 @@ step recovers accurate numbers.
 Guards prevent abuse: 50 stylesheet cap, 2MB per-stylesheet cap, 10MB total
 HTML cap.
 
-## Analysis Components
+## Analysis components
 
 | Component                  | Purpose                                                                                                                            |
 | -------------------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
@@ -203,7 +203,7 @@ their stylesheet are not deferred at all — inlining most of a sheet and then
 downloading it again is a loss — so those pages are never checked, because
 there is nothing to authorize.
 
-## Script Coverage Analysis
+## Script coverage analysis
 
 When browser analysis is enabled, the `ScriptCoverageAnalyzer` component uses
 Chrome's Profiler domain to measure JavaScript code coverage. This identifies
@@ -211,14 +211,14 @@ scripts that are safe to defer, improving page load performance by reducing
 parser-blocking JavaScript. The same Coverage-API technique drives
 [removing unused JavaScript with Chrome coverage](/blog/remove-unused-javascript-chrome-coverage/).
 
-### How It Works
+### How it works
 
 1. The analyzer loads the page with JavaScript enabled (Profiler + Coverage APIs)
 2. Each external script's coverage is measured during page load
 3. Scripts are classified into deferral categories based on coverage data and
    execution timing
 
-### Deferral Categories
+### Deferral categories
 
 | Category             | Description                                                        |
 | -------------------- | ------------------------------------------------------------------ |
@@ -227,7 +227,7 @@ parser-blocking JavaScript. The same Coverage-API technique drives
 | `kAlreadyAsync`      | Script already has `async` or `defer` attribute                    |
 | `kKeepSynchronous`   | Script must execute synchronously (DOM-dependent, inline handlers) |
 
-### SSRF Defense
+### SSRF defense
 
 Script analysis enables JavaScript execution in Chrome (required for accurate
 coverage measurement). The other three SSRF defense layers remain active:
@@ -243,20 +243,20 @@ make outbound connections even with JavaScript enabled.
 Script analysis results feed into the optimization policy engine, which decides
 whether to enable script deferral for each URL template.
 
-## Optimization Policy
+## Optimization policy
 
 The optimization policy engine computes per-template decisions about optional
 HTML transforms based on browser analysis data. It runs after profile generation
 and stores the policy alongside the optimization profile in cache.
 
-### Policy Fields
+### Policy fields
 
 | Field                     | Condition                   | Description                                          |
 | ------------------------- | --------------------------- | ---------------------------------------------------- |
 | `async_css_enabled`       | Avg CSS coverage < 50%      | Advises that async loading is worth considering for this template. Advisory only — it does not enable deferral. Deferral additionally requires a confirmed above-the-fold result for the page, bound to the stylesheet being served. |
 | `script_deferral_enabled` | Deferrable scripts detected | Enable `defer` attribute on safe scripts             |
 
-### Stats Counters
+### Stats counters
 
 | Counter                          | Description                                 |
 | -------------------------------- | ------------------------------------------- |
@@ -270,7 +270,7 @@ and stores the policy alongside the optimization profile in cache.
 These counters appear in `/v1/stats` JSON, `/v1/metrics` Prometheus output,
 the management socket `STATS` command, and the web console metrics page.
 
-## Chrome Process Management
+## Chrome process management
 
 ### Lifecycle
 
@@ -280,7 +280,7 @@ the management socket `STATS` command, and the web console metrics page.
 4. At the recycle threshold, `Stop()` sends SIGTERM (then SIGKILL after 5s)
 5. A fresh Chrome process starts for the next batch
 
-### Launch Flags
+### Launch flags
 
 Chrome is spawned with strict isolation flags:
 
@@ -327,14 +327,14 @@ note that a stock container already reports `"filtered"` because of its
 runtime's default profile, so the field does not by itself tell you which
 profile is in force.
 
-### RSS Monitoring
+### RSS monitoring
 
 On Linux, the worker reads `/proc/pid/status` VmRSS every 5 seconds. When
 Chrome exceeds `--chrome-max-memory` (default 512MB), the worker stops it
 and starts a fresh instance. This prevents memory leaks from accumulating
 across hundreds of pages.
 
-## SSRF Defense (4 Layers)
+## SSRF defense (4 layers)
 
 Browser analysis operates on cached content, not live network requests. Four
 layers prevent Chrome from making any outbound connections (the reasoning
@@ -350,7 +350,7 @@ behind this air-gapped design is covered in
 Font Glyph Scanner and Script Coverage Analyzer enable JavaScript (they need
 it for accurate analysis) but still enforce the other three layers.
 
-## Configuration Flags
+## Configuration flags
 
 | Flag                           | Default                          | Description                                |
 | ------------------------------ | -------------------------------- | ------------------------------------------ |
@@ -372,7 +372,7 @@ All flags are also hot-reloadable via `PATCH /v1/config` from the web console.
 
 ## Monitoring
 
-### Stats Counters
+### Stats counters
 
 Browser analysis stats appear in the management socket `STATS` and
 `BROWSER-STATUS` commands, and in the web console dashboard:
@@ -390,7 +390,7 @@ Browser analysis stats appear in the management socket `STATS` and
 | `browser.css_inlining_stylesheets_cached` | Stylesheets found in cache             |
 | `browser.css_inlining_bytes_inlined`      | Total CSS bytes injected               |
 
-### Management Socket
+### Management socket
 
 The `BROWSER-STATUS` command on the management socket returns detailed JSON
 including Chrome state, queue contents, and per-profile statistics:
@@ -399,7 +399,7 @@ including Chrome state, queue contents, and per-profile statistics:
 echo "BROWSER-STATUS" | socat - UNIX-CONNECT:/data/pagespeed.sock.mgmt
 ```
 
-## Error Handling
+## Error handling
 
 Every failure falls back to the heuristic path:
 
@@ -444,14 +444,14 @@ If `profiles_generated` stays at zero while traffic flows:
 3. Check `css_inlining_stylesheets_cached` -- if external CSS is not yet
    cached, the worker waits for it before running browser analysis.
 
-### Visual Regression Gate false positives
+### Visual regression gate false positives
 
 The visual regression gate disables JavaScript (SSRF defense). Pages that
 rely on CSS-in-JS frameworks (styled-components, Emotion, etc.) will show
 differences because their styles are injected by JavaScript. This is a known
 limitation. The heuristic path optimizes these pages correctly.
 
-## Next Steps
+## Next steps
 
 - [Web Console](/docs/workbench/) — Use the waterfall viewer and visual diff
   tools powered by browser analysis

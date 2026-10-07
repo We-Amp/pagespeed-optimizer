@@ -1,6 +1,6 @@
 ---
 title: 'Integrate with a CDN'
-description: 'Run mod_pagespeed 2.1 behind Cloudflare, CloudFront, or Fastly: how Vary headers affect edge caching, per-CDN cache-key settings, and how to keep hit rates high.'
+description: 'Run mod_pagespeed 2.1 behind Cloudflare, CloudFront or Fastly: how Vary headers affect edge caching, per-CDN cache-key settings and keeping hit rates high.'
 order: 23
 group: 'Configure'
 lastUpdated: 2026-09-19
@@ -80,7 +80,7 @@ which it evicts aggressively.
 classes, or strip User-Agent from Vary and rely on mod_pagespeed's internal
 classification.
 
-### Other CDNs / No CDN
+### Other CDNs / no CDN
 
 If mod_pagespeed is your edge (no CDN in front), the Vary headers work correctly.
 Downstream browser caches and ISP proxies handle `Vary: User-Agent` at the

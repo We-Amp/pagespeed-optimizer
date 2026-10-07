@@ -1,6 +1,6 @@
 ---
-title: 'Filter Selection'
-description: 'Choose which mod_pagespeed 2.1 filters to run: RewriteLevel presets, the CoreFilters default set, EnableFilters, DisableFilters, ForbidFilters, and tuning thresholds.'
+title: 'Filter selection'
+description: 'Choose which mod_pagespeed 2.1 filters run: RewriteLevel presets, the CoreFilters default, EnableFilters, DisableFilters, ForbidFilters and thresholds.'
 order: 41
 group: 'Filters'
 lastUpdated: 2026-07-12
@@ -42,7 +42,7 @@ ModPagespeedRewriteLevel CoreFilters
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed RewriteLevel CoreFilters
 ```
 
@@ -76,7 +76,7 @@ ModPagespeedRewriteLevel PassThrough
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed RewriteLevel PassThrough
 ```
 
@@ -110,7 +110,7 @@ ModPagespeedRewriteLevel OptimizeForBandwidth
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed RewriteLevel OptimizeForBandwidth
 ```
 
@@ -165,7 +165,7 @@ ModPagespeedEnableFilters collapse_whitespace,remove_comments
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed EnableFilters collapse_whitespace,remove_comments
 ```
 
@@ -199,7 +199,7 @@ ModPagespeedDisableFilters combine_css,combine_javascript
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed DisableFilters combine_css,combine_javascript
 ```
 
@@ -233,7 +233,7 @@ ModPagespeedForbidFilters inline_javascript,inline_css
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed ForbidFilters inline_javascript,inline_css
 ```
 
@@ -267,7 +267,7 @@ ModPagespeedForbidAllDisabledFilters on
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed ForbidAllDisabledFilters on
 ```
 
@@ -319,7 +319,7 @@ ModPagespeedImageRecompressionQuality 75
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed CssInlineMaxBytes 4096
 pagespeed ImageRecompressionQuality 75
 ```
@@ -358,7 +358,7 @@ ModPagespeedJsPreserveURLs on
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed ImagePreserveURLs on
 pagespeed CssPreserveURLs on
 pagespeed JsPreserveURLs on

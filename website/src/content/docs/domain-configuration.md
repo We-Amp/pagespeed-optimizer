@@ -1,6 +1,6 @@
 ---
-title: 'Domain Configuration'
-description: 'Authorize and map domains in mod_pagespeed 2.1 on nginx, Apache, and IIS. Reference for the Domain, MapOriginDomain, MapRewriteDomain, MapProxyDomain, ShardDomain, and LoadFromFile directives.'
+title: 'Domain configuration'
+description: 'Domain mapping in mod_pagespeed 2.1 on nginx, Apache and IIS: Domain, MapOriginDomain, MapRewriteDomain, MapProxyDomain, ShardDomain and LoadFromFile.'
 order: 24
 group: 'Configure'
 lastUpdated: 2026-07-04
@@ -38,7 +38,7 @@ ModPagespeedDomain *.example.com
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed Domain cdn.example.com
 pagespeed Domain *.example.com
 ```
@@ -75,7 +75,7 @@ ModPagespeedMapOriginDomain localhost www.example.com
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed MapOriginDomain localhost www.example.com
 ```
 
@@ -111,7 +111,7 @@ ModPagespeedMapRewriteDomain cdn.example.com www.example.com
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed MapRewriteDomain cdn.example.com www.example.com
 ```
 
@@ -147,7 +147,7 @@ ModPagespeedShardDomain www.example.com shard1.example.com,shard2.example.com
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed ShardDomain www.example.com shard1.example.com,shard2.example.com
 ```
 
@@ -183,7 +183,7 @@ ModPagespeedMapProxyDomain www.example.com/external https://other-site.example.c
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed MapProxyDomain www.example.com/external https://other-site.example.com
 ```
 
@@ -219,7 +219,7 @@ ModPagespeedLoadFromFile "http://www.example.com/static/" "/var/www/static/"
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed LoadFromFile "http://www.example.com/static/" "C:\inetpub\wwwroot\static\"
 ```
 
@@ -233,4 +233,4 @@ The first argument is the URL prefix. The second is the filesystem path that cor
 
 - [Configuration](/docs/configuration/) — general configuration reference
 - [Caching](/docs/cache-control/#rewrite_domains) — how domain configuration affects caching behavior
-- [Directive Index](/docs/directive-index/) — the full list of mod_pagespeed 2.1 directives
+- [Directive index](/docs/directive-index/) — the full list of mod_pagespeed 2.1 directives

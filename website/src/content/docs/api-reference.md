@@ -1,6 +1,6 @@
 ---
-title: 'API Reference: IPC, Sockets, and C API'
-description: 'Reference for mod_pagespeed 2.1 internal interfaces: the module-to-worker IPC wire format, the health and management sockets (STATS, PURGE, METRICS), the capability-mask encoding, and the ps_ C API.'
+title: 'API reference: IPC, sockets, and C API'
+description: 'mod_pagespeed 2.1 internal interfaces: the module-to-worker IPC wire format, the health and management sockets, the capability mask and the ps_ C API.'
 order: 60
 group: 'Reference'
 lastUpdated: 2026-09-19
@@ -12,17 +12,17 @@ the management socket protocol (STATS, PURGE, METRICS, BROWSER-STATUS), the
 capability mask encoding, and the `ps_` C API for embedding the cache and HTML
 processor into other applications.
 
-## IPC Wire Format
+## IPC wire format
 
 The nginx module sends fire-and-forget notifications to the worker over
 a Unix socket. There is no response — the worker reads the notification,
 processes the content from the shared cache, and writes optimized variants back.
 
-### Message Structure
+### Message structure
 
 Each message consists of a 4-byte length header followed by the payload:
 
-```
+```text
 [4 bytes: payload_length (big-endian uint32)]
 [4 bytes: url_length (big-endian uint32)]
 [url_length bytes: URL string]
@@ -36,7 +36,7 @@ The `payload_length` field does not include itself — it is the total size of
 everything after the first 4 bytes. The hostname is required for cache key
 computation (`SHA-256(URL, hostname)`).
 
-### Content Type Values
+### Content type values
 
 | Value | Type       |
 | ----- | ---------- |
@@ -51,7 +51,7 @@ computation (`SHA-256(URL, hostname)`).
 For URL `/style.css` (10 bytes), hostname `localhost` (9 bytes), content type
 CSS (`0x01`), capability mask `0x00000008` (Desktop/Identity):
 
-```
+```text
 00 00 00 20          # payload_length = 32 bytes
 00 00 00 0A          # url_length = 10
 2F 73 74 79 6C 65 2E 63 73 73  # "/style.css"
@@ -61,7 +61,7 @@ CSS (`0x01`), capability mask `0x00000008` (Desktop/Identity):
 00 00 00 08          # capability_mask = 0x08
 ```
 
-### Connection Lifecycle
+### Connection lifecycle
 
 1. Nginx opens a new Unix socket connection for each notification.
 2. Nginx writes the serialized message.
@@ -72,19 +72,19 @@ CSS (`0x01`), capability mask `0x00000008` (Desktop/Identity):
 5. If all retries fail, the notification is dropped. The cache serves the
    original content. Subsequent requests for the same URL re-notify.
 
-## Health Endpoint
+## Health endpoint
 
 The worker listens on a Unix socket at `{socket_path}.health`. On connection,
 it immediately writes a status line and closes.
 
-### Socket Path
+### Socket path
 
 If the worker socket is `/var/lib/pagespeed/pagespeed.sock`, the health socket
 is `/var/lib/pagespeed/pagespeed.sock.health`.
 
-### Response Format
+### Response format
 
-```
+```text
 OK {active_connections}/{max_connections} notifs={N} variants={N} proactive={N} errors={N} cache_entries={N}\n
 ```
 
@@ -102,7 +102,7 @@ OK {active_connections}/{max_connections} notifs={N} variants={N} proactive={N} 
 
 ### Example
 
-```
+```text
 OK 3/128 notifs=4821 variants=2106 proactive=1580 errors=7 cache_entries=3412
 ```
 
@@ -122,13 +122,13 @@ The health endpoint is designed for automated health checks (Docker
 `HEALTHCHECK`, Kubernetes liveness probes, load balancer checks). It accepts
 a connection, writes the response, and closes. No request data is needed.
 
-## Management Socket Protocol
+## Management socket protocol
 
 The worker listens on a Unix socket at `{socket_path}.mgmt` for
 newline-terminated text commands. After processing a command, the worker writes
 a response and closes the connection.
 
-### Socket Path
+### Socket path
 
 If the worker socket is `/var/lib/pagespeed/pagespeed.sock`, the management
 socket is `/var/lib/pagespeed/pagespeed.sock.mgmt`.
@@ -220,7 +220,7 @@ x 2 densities x 2 Save-Data x 4 encodings) plus 2 sentinel entries = 194.
 Authenticates the connection for PURGE commands. Required when the
 `PAGESPEED_PURGE_TOKEN` environment variable is set on the worker.
 
-**Request:** `AUTH my-secret-token\n`
+**Request:** `AUTH <your-token>\n`
 
 **Response:** `OK\n` on success, or `ERR invalid token\n` on failure.
 
@@ -241,7 +241,7 @@ direct Prometheus scraping via a simple exporter script.
 
 **Response:**
 
-```
+```text
 # HELP pagespeed_notifications_total Total notifications received.
 # TYPE pagespeed_notifications_total counter
 pagespeed_notifications_total 4821
@@ -351,24 +351,24 @@ enabled, returns `{"enabled":false}`.
 
 Any command other than `AUTH`, `STATS`, `PURGE`, `METRICS`, or `BROWSER-STATUS` returns:
 
-```
+```text
 ERR unknown command\n
 ```
 
-### Connection Safety
+### Connection safety
 
 The management socket disconnects clients whose buffer exceeds 16 KB without
 containing a newline. This prevents denial-of-service from malformed input.
 
-## Capability Mask Encoding
+## Capability mask encoding
 
 The 32-bit capability mask encodes client characteristics as a bitmask. Only
 the lowest 8 bits are used; bits 8-31 are reserved and must be zero (except
 for sentinel values).
 
-### Bit Layout
+### Bit layout
 
-```
+```text
 Bit:    7    6    5    4    3    2    1    0
       +----+----+----+----+----+----+----+----+
       |  Transfer  |Save| Px |  Viewport | Format |
@@ -376,7 +376,7 @@ Bit:    7    6    5    4    3    2    1    0
       +----+----+----+----+----+----+----+----+
 ```
 
-### Field Definitions
+### Field definitions
 
 | Bits | Field             | Width | Values                                               |
 | ---- | ----------------- | ----- | ---------------------------------------------------- |
@@ -386,7 +386,7 @@ Bit:    7    6    5    4    3    2    1    0
 | 5    | Save-Data         | 1     | `0` off, `1` on                                      |
 | 6-7  | Transfer Encoding | 2     | `00` Identity, `01` Gzip, `10` Brotli, `11` Reserved |
 
-### Common Mask Values
+### Common mask values
 
 | Mask   | Hex    | Description                                                   |
 | ------ | ------ | ------------------------------------------------------------- |
@@ -399,7 +399,7 @@ Bit:    7    6    5    4    3    2    1    0
 | `0x01` | `0x01` | Mobile, Identity, WebP                                        |
 | `0x05` | `0x05` | Tablet, Identity, WebP                                        |
 
-### Sentinel Values
+### Sentinel values
 
 These alternate IDs are reserved for special purposes and are never produced by
 header classification:
@@ -419,7 +419,7 @@ header classification:
 `ps_cache_write_sentinel()`, and neither is ever returned by selection — read
 them by id when you want them.
 
-### Cache Key Format
+### Cache key format
 
 Cache entries are keyed by `SHA-256(URL, hostname)` using Cyclone's native key
 system. Multiple variants of the same URL are stored as alternates within this
@@ -429,7 +429,7 @@ mask). Per-alternate metadata carries the full 32-bit mask and content type.
 Lookups use `PageSpeedSelector` for best-fit alternate selection in a single
 pass over all stored alternates (O(alternates), not O(fallback_masks)).
 
-### Variant Fallback
+### Variant fallback
 
 When no exact match exists among the stored alternates, the `PageSpeedSelector`
 scores alternates by mask similarity and returns the closest match. The original
@@ -444,7 +444,7 @@ the cache, HTML processor, CSS minifier, and capability mask logic into custom
 applications. All functions use the `ps_` prefix. The API uses opaque handle
 types and C linkage, so it can be called from any language with a C FFI.
 
-### Handle Types
+### Handle types
 
 | Type                       | Description                              |
 | -------------------------- | ---------------------------------------- |
@@ -456,7 +456,7 @@ types and C linkage, so it can be called from any language with a C FFI.
 | `ps_critical_css_result_t` | Result from critical CSS extraction      |
 | `ps_html_transform_t`      | HTML transform handle (opaque)           |
 
-### Error Handling
+### Error handling
 
 All fallible functions return `ps_error_t` (marked `PS_NODISCARD`):
 
@@ -492,7 +492,7 @@ if (err != PS_OK) {
 | `ps_strerror()`           | `const char* ps_strerror(ps_error_t err)`   | Returns a human-readable error description                    |
 | `ps_last_error_message()` | `const char* ps_last_error_message(void)`   | Returns thread-local detail message from the last failed call |
 
-### Content Type Constants
+### Content type constants
 
 | Constant           | Value | MIME type                |
 | ------------------ | ----- | ------------------------ |
@@ -505,7 +505,7 @@ if (err != PS_OK) {
 Use `ps_classify_content_type(header)` to map a `Content-Type` header string
 to a `ps_content_type_t`, and `ps_content_type_mime(type)` for the reverse.
 
-### Sentinel Constants
+### Sentinel constants
 
 | Constant                      | Value  | Purpose                           |
 | ----------------------------- | ------ | --------------------------------- |
@@ -517,7 +517,7 @@ to a `ps_content_type_t`, and `ps_content_type_mime(type)` for the reverse.
 | `PS_SENTINEL_BROWSER_PROFILE` | `0x5C` | Browser analysis profile data     |
 | `PS_SENTINEL_HEADERS_SIDECAR` | `0x6C` | Verbatim request-independent headers |
 
-### Cache Functions
+### Cache functions
 
 **Opening and closing:**
 
@@ -815,7 +815,7 @@ RFC 9111 treats them as one list.
 | `ps_version_minor()` | `int ps_version_minor(void)` | Minor version number |
 | `ps_version_patch()` | `int ps_version_patch(void)` | Patch version number |
 
-### Capability Mask Helpers
+### Capability mask helpers
 
 ```c
 // Classify request headers into a 32-bit capability mask
@@ -837,7 +837,7 @@ int len = ps_normalize_hostname("WWW.Example.COM:443", normalized, sizeof(normal
 | ------------------------- | --------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------- |
 | `ps_normalize_hostname()` | `int ps_normalize_hostname(const char* hostname, char* out_buf, size_t buf_size)` | Lowercases hostname, strips `www.` prefix and port suffix. Returns length of normalized string, or `-1` on error. |
 
-### HTML Processing
+### HTML processing
 
 Single-call HTML processing with cache-backed resource lookup:
 
@@ -928,7 +928,7 @@ ps_scan_result_free(scan);
 | `ps_critical_css_stats()`       | `void ps_critical_css_stats(const ps_critical_css_result_t* result, int* out_total_rules, int* out_critical_rules)` | Total and critical rule counts |
 | `ps_critical_css_result_free()` | `void ps_critical_css_result_free(ps_critical_css_result_t* result)`                                                | Free a critical CSS result     |
 
-### CSS Processing
+### CSS processing
 
 ```c
 // Minify CSS (single call, no minifier object)
@@ -953,7 +953,7 @@ ps_css_flatten_imports(css, css_len, css_url, my_lookup_fn, user_data,
 ps_free(flat_css);
 ```
 
-### Configuration Structs
+### Configuration structs
 
 **`ps_cache_stats_t`** — returned by `ps_cache_stats()`:
 
@@ -985,7 +985,7 @@ content and set `*out_len` to its length. Return `NULL` if the URL cannot be
 resolved (counted as `unresolved`). The `user_data` pointer is passed through
 from `ps_css_flatten_imports()`.
 
-### Worker Notification
+### Worker notification
 
 ```c
 // Send a fire-and-forget notification to the worker over a Unix socket
@@ -1052,20 +1052,20 @@ byte-identical payloads indefinitely; a reimplementation that drifts by one byte
 has every notification it sends refused, because the receiver re-derives the
 signature from the payload rather than trusting the one on the wire.
 
-### Memory Management
+### Memory management
 
 Buffers allocated by the API (`ps_css_minify`, `ps_html_transform_run`) must
 be freed with `ps_free()`. Opaque result types have dedicated free functions
 (`ps_read_free`, `ps_html_result_free`, etc.).
 
-### Thread Safety
+### Thread safety
 
 Cache operations are thread-safe (the underlying Cyclone cache uses lock-free
 reads and per-bucket write locks). `ps_html_result_t`, `ps_scan_result_t`,
 `ps_html_transform_t`, and write handles are not thread-safe — use one per
 thread.
 
-## Next Steps
+## Next steps
 
 - [Configuration Reference](/docs/configuration/) — Worker flags including
   management socket and proactive variant options

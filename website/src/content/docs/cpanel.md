@@ -1,6 +1,6 @@
 ---
 title: 'cPanel / EasyApache 4'
-description: 'Install, uninstall, and maintain mod_pagespeed on cPanel / EasyApache 4: the signed EA4 RPM, enabling it in WHM Customize, the cpanel/elevate OS-upgrade runbook, and how the Apache Module Magic Number keeps routine ea-apache24 updates from breaking the module.'
+description: 'Install, uninstall and maintain mod_pagespeed on cPanel / EasyApache 4: the signed EA4 RPM, WHM setup, the cpanel/elevate runbook and ea-apache24 updates.'
 order: 12
 group: 'Install'
 datePublished: 2026-05-20
@@ -46,14 +46,14 @@ The RPM drops the module file but does not flip it on. Apache loads `mod_pagespe
 3. Tick the checkbox, then _Review_ → _Provision_. EasyApache 4 rebuilds Apache.
 4. When the provision finishes the module is loaded and the filter runs on every vhost served by `ea-apache24-httpd`.
 
-The package installs its configuration to `/etc/apache2/conf.d/pagespeed.conf` (marked `%config(noreplace)`, so your edits survive a reinstall or upgrade). Tune it the same way you would on any RHEL Apache host — see [Getting Started](/docs/getting-started/) for the directive reference.
+The package installs its configuration to `/etc/apache2/conf.d/pagespeed.conf` (marked `%config(noreplace)`, so your edits survive a reinstall or upgrade). Tune it the same way you would on any RHEL Apache host — see [Getting started](/docs/getting-started/) for the directive reference.
 
 ### 4. Open the admin console
 
 The global admin console lives at:
 
-```
-https://your-host.example.com/pagespeed_global_admin
+```text
+https://<your-domain>/pagespeed_global_admin
 ```
 
 Open `/pagespeed_global_admin` on any vhost — the admin route is global to the server, not scoped to one vhost (`/pagespeed_admin/` is the per-vhost statistics endpoint). The module installs and fully optimizes out of the box: mod_pagespeed is licensed under the Apache License 2.0, free in development and in production. See [Downloads & Licensing](/download/).

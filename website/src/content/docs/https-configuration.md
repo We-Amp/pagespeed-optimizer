@@ -1,6 +1,6 @@
 ---
-title: 'HTTPS Configuration'
-description: 'Fetch HTTPS resources in mod_pagespeed 2.1 on nginx, Apache, and IIS: FetchHttps with SSL certificate verification, MapOriginDomain to an HTTP backend, or LoadFromFile.'
+title: 'HTTPS configuration'
+description: 'Fetch HTTPS resources on nginx, Apache and IIS with mod_pagespeed 2.1: FetchHttps with certificate checks, MapOriginDomain to HTTP, or LoadFromFile.'
 order: 25
 group: 'Configure'
 lastUpdated: 2026-07-12
@@ -38,7 +38,7 @@ ModPagespeedFetchHttps enable
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed FetchHttps enable
 ```
 
@@ -102,7 +102,7 @@ ModPagespeedMapOriginDomain "http://localhost" "https://www.example.com"
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed MapOriginDomain "http://localhost" "https://www.example.com"
 ```
 
@@ -138,7 +138,7 @@ ModPagespeedLoadFromFile "https://www.example.com/static/" "/var/www/static/"
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed LoadFromFile "https://www.example.com/static/" "C:\inetpub\wwwroot\static\"
 ```
 
@@ -154,5 +154,5 @@ mod_pagespeed rewrites resource URLs to match the scheme of the page. Pages serv
 
 ## See also
 
-- [Domain Configuration](/docs/domain-configuration/) — domain authorization and mapping
+- [Domain configuration](/docs/domain-configuration/) — domain authorization and mapping
 - [Configuration](/docs/configuration/) — general configuration reference

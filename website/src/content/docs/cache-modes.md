@@ -1,6 +1,6 @@
 ---
 title: 'Choose a cache mode: safe vs aggressive'
-description: 'Control the Cache-Control headers mod_pagespeed 2.1 sets on optimized responses — safe mode (default) adds must-revalidate for fast recovery, aggressive mode uses long TTLs with stale-if-error — plus the in-process module cache reference: Cyclone storage, memcached and Redis, purging, sizing and IPRO.'
+description: 'Safe or aggressive Cache-Control for optimized responses in mod_pagespeed 2.1, plus the module cache reference: Cyclone, memcached, Redis, purging, IPRO.'
 order: 22
 group: 'Configure'
 lastUpdated: 2026-10-06
@@ -202,7 +202,7 @@ ModPagespeedFileCacheSizeKb 2097152
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed FileCachePath %ProgramData%\We-Amp\PageSpeed\Cache
 pagespeed FileCacheSizeKb 2097152
 ```
@@ -292,7 +292,7 @@ ModPagespeedCycloneRamCacheKb 8192
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed CycloneRamCacheKb 8192
 ```
 
@@ -337,7 +337,7 @@ ModPagespeedCycloneZeroCopyServe on
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed CycloneZeroCopy on
 pagespeed CycloneZeroCopyServe on
 ```
@@ -382,7 +382,7 @@ ModPagespeedDefaultSharedMemoryCacheKB 100000
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed DefaultSharedMemoryCacheKB 100000
 ```
 
@@ -433,7 +433,7 @@ ModPagespeedMemcachedTimeoutUs 500000
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed MemcachedServers 127.0.0.1:11211
 pagespeed MemcachedTimeoutUs 500000
 ```
@@ -447,7 +447,7 @@ On Windows, install memcached as a Windows service:
 
 The default memory pool is 64 MB. To increase it, modify the service's `ImagePath` in the registry at `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\memcached`:
 
-```
+```text
 "C:\memcached\memcached.exe" -m 256 -d runservice
 ```
 
@@ -492,7 +492,7 @@ ModPagespeedRedisTimeoutUs 50000
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed RedisServer "cache.example.com:6379"
 pagespeed RedisTimeoutUs 50000
 ```
@@ -568,7 +568,7 @@ ModPagespeedEnableCachePurge on
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed EnableCachePurge on
 ```
 
@@ -598,7 +598,7 @@ in the configuration reference.
 
 <a id="in-place-resource-optimization-ipro"></a>
 
-### In-Place Resource Optimization (IPRO) considerations
+### In-place resource optimization (IPRO) considerations
 
 IPRO optimizes resources served from your origin without changing their URLs. This is useful for resources referenced by third-party code or cached at CDN edge nodes where you cannot change the URL.
 
@@ -635,7 +635,7 @@ ModPagespeedInPlaceSMaxAgeSec 10
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed InPlaceResourceOptimization on
 pagespeed InPlaceSMaxAgeSec 10
 ```
@@ -693,7 +693,7 @@ ModPagespeedHttpCacheCompressionLevel 6
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed FetcherTimeoutMs 10000
 pagespeed RewriteDeadlinePerFlushMs 20
 pagespeed ImplicitCacheTtlMs 600000

@@ -1,5 +1,5 @@
 ---
-title: 'HTML Filters'
+title: 'HTML filters'
 description: 'HTML optimization filters in mod_pagespeed 2.1: collapse whitespace, strip comments, elide attributes, DNS prefetch, and resource preload hints.'
 order: 46
 group: 'Filters'
@@ -8,7 +8,7 @@ lastUpdated: 2026-09-19
 
 ## Overview
 
-mod_pagespeed 2.1 includes filters that optimize HTML structure, cut unnecessary bytes, and add performance hints. Two of them (`add_head`, `convert_meta_tags`) are CoreFilters and run by default; the rest are opt-in — see [Filter Selection](/docs/filter-selection/) to turn them on. For resources rather than markup, see the [CSS Filters](/docs/css-filters/), [JavaScript Filters](/docs/javascript-filters/), and [Image Filters](/docs/image-filters/) pages.
+mod_pagespeed 2.1 includes filters that optimize HTML structure, cut unnecessary bytes, and add performance hints. Two of them (`add_head`, `convert_meta_tags`) are CoreFilters and run by default; the rest are opt-in — see [Filter selection](/docs/filter-selection/) to turn them on. For resources rather than markup, see the [CSS filters](/docs/css-filters/), [JavaScript filters](/docs/javascript-filters/), and [Image filters](/docs/image-filters/) pages.
 
 ## Quick reference
 
@@ -31,11 +31,11 @@ mod_pagespeed 2.1 includes filters that optimize HTML structure, cut unnecessary
 
 On IIS, use the same filter names with the `pagespeed` prefix in `pagespeed.config` (no semicolons):
 
-```
+```text
 pagespeed EnableFilters collapse_whitespace,remove_comments
 ```
 
-See [IIS Configuration](/docs/iis-configuration/) for the full file format reference.
+See [IIS configuration](/docs/iis-configuration/) for the full file format reference.
 
 ## CoreFilters
 
@@ -135,6 +135,6 @@ Since v1.15.0+r18, with `HonorCsp` (default on) nothing is injected on pages who
 
 ## See also
 
-- [Filters Overview](/docs/filters-overview/)
-- [Filter Selection](/docs/filter-selection/)
-- [Filter Reference](/docs/filter-reference/)
+- [Filters overview](/docs/filters-overview/)
+- [Filter selection](/docs/filter-selection/)
+- [Filter reference](/docs/filter-reference/)

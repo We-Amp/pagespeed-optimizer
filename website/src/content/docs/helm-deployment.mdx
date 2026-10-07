@@ -1,6 +1,6 @@
 ---
 title: 'Deploy with Helm'
-description: 'Install mod_pagespeed 2.1 on Kubernetes with the official Helm chart: a two-container pod (module + optimizer worker), values reference, autoscaling, and upgrades.'
+description: 'Install mod_pagespeed 2.1 on Kubernetes with the official Helm chart: a two-container pod (module + optimizer worker), values, autoscaling and upgrades.'
 order: 13
 group: 'Install'
 lastUpdated: 2026-09-19
@@ -27,7 +27,7 @@ required.
 
 Each pod contains two containers:
 
-```
+```text
 +-----------------------------------------+
 |  Pod                                    |
 |  +----------------+  +---------------+  |
@@ -69,18 +69,18 @@ helm repo add weamp https://modpagespeed.com/charts
 helm repo update
 ```
 
-### Quick Start
+### Quick start
 
 ```bash
 helm install pagespeed weamp/pagespeed \
-  --set backend.host=my-origin.default.svc.cluster.local \
+  --set backend.host=<your-origin>.default.svc.cluster.local \
   --set backend.port=8080
 ```
 
-Replace `my-origin.default.svc.cluster.local` with the Kubernetes service name
+Replace `<your-origin>.default.svc.cluster.local` with the Kubernetes service name
 (or IP) of your origin server.
 
-### With a Custom Values File
+### With a custom values file
 
 Create a `my-values.yaml`:
 
@@ -88,7 +88,7 @@ Create a `my-values.yaml`:
 replicaCount: 2
 
 backend:
-  host: my-origin.default.svc.cluster.local
+  host: <your-origin>.default.svc.cluster.local
   port: 8080
 
 worker:
@@ -101,14 +101,14 @@ ingress:
   enabled: true
   className: nginx
   hosts:
-    - host: cdn.example.com
+    - host: <your-domain>
       paths:
         - path: /
           pathType: Prefix
   tls:
     - secretName: cdn-tls
       hosts:
-        - cdn.example.com
+        - <your-domain>
 ```
 
 Install with:
@@ -117,9 +117,9 @@ Install with:
 helm install pagespeed weamp/pagespeed -f my-values.yaml
 ```
 
-## Configuration Reference
+## Configuration reference
 
-### Backend (Origin Server)
+### Backend (origin server)
 
 | Value          | Default     | Description                  |
 | -------------- | ----------- | ---------------------------- |
@@ -147,14 +147,14 @@ worker:
     - --no-proactive-savedata-variants
 ```
 
-### Nginx
+### nginx
 
 | Value                    | Default                          | Description           |
 | ------------------------ | -------------------------------- | --------------------- |
 | `nginx.image.repository` | `ghcr.io/we-amp/pagespeed-nginx` | Nginx container image |
 | `nginx.image.tag`        | `2.2.0`                          | Image tag             |
 
-### Cache Volume
+### Cache volume
 
 | Value             | Default | Description         |
 | ----------------- | ------- | ------------------- |
@@ -182,12 +182,12 @@ temporary data. A good rule: set `sizeLimit` to at least 1.5x `worker.cacheSize`
 | `autoscaling.maxReplicas`                    | `10`    | Maximum pod count      |
 | `autoscaling.targetCPUUtilizationPercentage` | `70`    | CPU target for scaling |
 
-## Resource Recommendations
+## Resource recommendations
 
 The worker is CPU-intensive (image encoding) and benefits from memory for the
 decode/encode pipeline. Nginx is lightweight.
 
-### Small Deployment (< 500 images)
+### Small deployment (< 500 images)
 
 ```yaml
 worker:
@@ -201,7 +201,7 @@ nginx:
     limits: { cpu: 500m, memory: 256Mi }
 ```
 
-### Medium Deployment (500-5000 images)
+### Medium deployment (500-5000 images)
 
 ```yaml
 worker:
@@ -215,7 +215,7 @@ nginx:
     limits: { cpu: '1', memory: 512Mi }
 ```
 
-### Large Deployment (5000+ images)
+### Large deployment (5000+ images)
 
 ```yaml
 worker:
@@ -272,7 +272,7 @@ helm uninstall pagespeed
 This removes all Kubernetes resources created by the chart (Deployment, Service,
 Ingress, HPA, ConfigMap, Secret). The emptyDir volumes are deleted with the pods.
 
-## Verifying the Deployment
+## Verifying the deployment
 
 After installation, check that both containers are running:
 
@@ -282,7 +282,7 @@ kubectl get pods -l app.kubernetes.io/name=pagespeed
 
 Both containers in the pod should show `READY`:
 
-```
+```text
 NAME                         READY   STATUS    RESTARTS   AGE
 pagespeed-6d4b8f9c7-x2k9m   2/2     Running   0          45s
 ```
@@ -295,7 +295,7 @@ curl -I http://localhost:8080/
 # Look for: X-PageSpeed: MISS (first request)
 ```
 
-## Next Steps
+## Next steps
 
 - [Configuration Reference](/docs/configuration/) -- All worker flags and nginx
   directives

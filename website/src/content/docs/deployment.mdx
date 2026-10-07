@@ -1,6 +1,6 @@
 ---
 title: 'Deploy to production: Docker, Helm, systemd'
-description: 'Run the optimizer worker and the module in production with Docker Compose, Kubernetes (Helm), or systemd — covering file permissions, logging, monitoring, and cache sizing.'
+description: 'Run the optimizer worker and the module in production with Docker Compose, Kubernetes (Helm) or systemd: permissions, logging, monitoring and cache sizing.'
 order: 30
 group: 'Operate'
 lastUpdated: 2026-09-19
@@ -33,7 +33,7 @@ by digest and never follows the release tag, so an upgrade does not recreate
 it. Stopping `pidns` itself stops both; `docker compose up -d` brings them
 back.
 
-### Environment File
+### Environment file
 
 Copy the example environment file and adjust for your setup:
 
@@ -59,7 +59,7 @@ NGINX_PORT=80
 NGINX_SSL_PORT=443
 ```
 
-### Docker Compose File
+### Docker Compose file
 
 The production `deploy/docker-compose.yml` runs the worker and nginx:
 
@@ -129,7 +129,7 @@ volumes:
     driver: local
 ```
 
-### Starting the Stack
+### Starting the stack
 
 <pre>
   <code class="language-bash">
@@ -146,7 +146,7 @@ docker compose -f deploy/docker-compose.yml ps`}
   </code>
 </pre>
 
-### SSL Configuration
+### SSL configuration
 
 To enable HTTPS, mount your certificate and key files into the nginx container
 and provide a custom nginx config:
@@ -191,20 +191,20 @@ helm repo add weamp https://modpagespeed.com/charts
 helm repo update
 
 helm install pagespeed weamp/pagespeed \
-  --set backend.host=my-origin.default.svc.cluster.local \
+  --set backend.host=<your-origin>.default.svc.cluster.local \
   --set backend.port=8080
 ```
 
-### Common Overrides
+### Common overrides
 
 ```bash
 helm install pagespeed weamp/pagespeed \
-  --set backend.host=my-origin \
+  --set backend.host=<your-origin> \
   --set backend.port=8080 \
   --set worker.cacheSize=1073741824 \
   --set replicaCount=3 \
   --set ingress.enabled=true \
-  --set ingress.hosts[0].host=cdn.example.com \
+  --set ingress.hosts[0].host=<your-domain> \
   --set ingress.hosts[0].paths[0].path=/ \
   --set ingress.hosts[0].paths[0].pathType=Prefix
 ```
@@ -231,12 +231,12 @@ helm install pagespeed weamp/pagespeed \
   --set autoscaling.maxReplicas=10
 ```
 
-## systemd Service
+## systemd service
 
 For bare-metal or VM deployments without Docker, run the worker as a
 systemd service.
 
-### Service File
+### Service file
 
 Install the service file at `/etc/systemd/system/pagespeed-worker.service`:
 
@@ -296,7 +296,7 @@ SyslogIdentifier=pagespeed-worker
 WantedBy=multi-user.target
 ```
 
-### Enable and Start
+### Enable and start
 
 ```bash
 sudo systemctl daemon-reload
@@ -305,7 +305,7 @@ sudo systemctl start pagespeed-worker
 sudo systemctl status pagespeed-worker
 ```
 
-### Key systemd Settings
+### Key systemd settings
 
 - **`User=pagespeed` / `Group=pagespeed`** — The optimizer worker runs unprivileged.
   The serving module's web-server user joins group `pagespeed`;
@@ -342,7 +342,7 @@ own authentication. Package installs generate the token into
 API does not mean inventing a credential. See
 [HTTP API Reference](/docs/http-api/) for the auth model.
 
-## File Permissions
+## File permissions
 
 Cross-process cache sharing between nginx and the worker is scoped to one
 shared group. The worker runs as the unprivileged `pagespeed` user and owns
@@ -351,7 +351,7 @@ every file it creates; nginx worker processes (`nobody`, `www-data`,
 Nothing is world-accessible, and no mode is umask-derived — the optimizer worker sets
 each one explicitly after creating the file.
 
-### Required Permissions
+### Required permissions
 
 | Path                                   | Owner:group           | Mode | Reason                                                                                                                                           |
 | -------------------------------------- | --------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
@@ -364,7 +364,7 @@ each one explicitly after creating the file.
 | `notify.sock.mgmt`                     | `pagespeed:pagespeed` | 0660 | Management socket access (PURGE)                                                                                                                 |
 | `/etc/pagespeed-optimizer/daemon.env`  | `root:pagespeed`      | 0640 | API token, off the command line                                                                                                                  |
 
-### Ensuring Correct Permissions
+### Ensuring correct permissions
 
 The packaged `pagespeed-optimizer` deb/rpm does all of this: sysusers.d
 creates the identity, tmpfiles.d creates the versioned cache directory, the
@@ -394,7 +394,7 @@ abandoned in place; the optimizer worker cold-starts into the fresh directory).
 Delete or move the old content yourself when you are ready to reclaim the
 disk.
 
-### Verifying Permissions
+### Verifying permissions
 
 If you see persistent `MISS` responses or worker processing errors, check
 permissions:
@@ -417,7 +417,7 @@ ls -la /run/pagespeed-optimizer/
 id www-data   # (or apache / nginx) — must list "pagespeed"
 ```
 
-## Log Rotation
+## Log rotation
 
 ### systemd (journald)
 
@@ -438,11 +438,11 @@ sudo journalctl -u pagespeed-worker --since "1 hour ago"
 sudo journalctl -u pagespeed-worker -o cat | jq .
 ```
 
-### nginx Log Rotation
+### nginx log rotation
 
 Install the logrotate configuration at `/etc/logrotate.d/pagespeed`:
 
-```
+```text
 /var/log/nginx/pagespeed*.log {
     daily
     missingok
@@ -461,7 +461,7 @@ Install the logrotate configuration at `/etc/logrotate.d/pagespeed`:
 This rotates PageSpeed-related nginx logs daily, keeping 14 days of compressed
 history.
 
-### Docker Log Rotation
+### Docker log rotation
 
 The Docker Compose configuration includes built-in log rotation:
 
@@ -482,7 +482,7 @@ docker compose -f deploy/docker-compose.yml logs -f nginx
 
 ## Monitoring
 
-### Health Check
+### Health check
 
 The worker exposes a health check socket at `{socket_path}.health`. Connect
 to get a one-line status:
@@ -514,7 +514,7 @@ own probe, keep both options. A probe that pipes an empty input into socat
 (`echo '' | socat - UNIX-CONNECT:...`) gives up 0.5 s after connecting,
 whatever the probe timeout says, and reports a busy optimizer as unhealthy.
 
-### Management Socket STATS
+### Management socket STATS
 
 For detailed metrics, connect to the management socket at
 `{socket_path}.mgmt`:
@@ -534,7 +534,7 @@ The response is a JSON object containing:
 - **`by_format`** — Per image format generation counts
 - **`timing_us`** — Total cumulative processing time in microseconds
 
-### Prometheus Metrics
+### Prometheus metrics
 
 The management socket also supports a `METRICS` command that returns stats in
 Prometheus text exposition format:
@@ -544,13 +544,13 @@ echo "METRICS" | socat -t 5 - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.
 ```
 
 This outputs `# HELP`, `# TYPE`, and metric lines for all counters and gauges.
-See the [API Reference](/docs/api-reference/) for the full metric list.
+See the [API reference](/docs/api-reference/) for the full metric list.
 
 For Prometheus scraping, create a simple exporter that connects to the
 management socket and exposes the output on an HTTP endpoint, or use a
 cron-based approach to push metrics to Pushgateway.
 
-### Monitoring Script
+### Monitoring script
 
 A simple monitoring script that collects stats periodically:
 
@@ -569,7 +569,7 @@ while true; do
 done
 ```
 
-### Key Metrics to Watch
+### Key metrics to watch
 
 - **`errors`** increasing steadily indicates processing failures. Check worker
   logs for details.
@@ -581,16 +581,16 @@ done
 - **`connections.active`** near `connections.max` means the worker is
   connection-limited. Increase `--max-connections`.
 
-## Cache Sizing Recommendations
+## Cache sizing recommendations
 
 The cache stores both original content and optimized variants. With proactive
 variant generation enabled, each image can produce many variants.
 
-### Estimating Cache Size
+### Estimating cache size
 
 A rough formula:
 
-```
+```text
 cache_size = num_unique_urls * avg_original_size * variant_multiplier
 ```
 
@@ -603,7 +603,7 @@ Where `variant_multiplier` depends on your content mix:
 | Images (default) | 10-20x             | Multiple formats, viewports, density, Save-Data |
 | Images (minimal) | 3-4x               | With all proactive flags disabled               |
 
-### Recommended Sizes
+### Recommended sizes
 
 | Deployment Size            | Cache Size | Flag Value   |
 | -------------------------- | ---------- | ------------ |
@@ -618,25 +618,25 @@ past RAM pages to disk instead. A [head-to-head benchmark of Cyclone against the
 file-per-entry cache](/blog/cyclone-cache-vs-file-cache-benchmark/) measures that
 effect and the concurrency and eviction gains.
 
-### Signs the Cache Is Too Small
+### Signs the cache is too small
 
 - Frequent `MISS` responses for previously-seen URLs (evicted content)
 - `cache.entries` in STATS is stable while `notifications.received` keeps
   growing (cache is full, new entries evict old ones)
 - Worker processing the same URL repeatedly (check logs for duplicate URLs)
 
-### Signs the Cache Is Oversized
+### Signs the cache is oversized
 
 - `cache.size` is consistently well below `--cache-size` — you are
   allocating disk space that is never used
 - Not a problem per se, but the pre-allocated cache file consumes disk space
 
-## Next Steps
+## Next steps
 
 - [Configuration Reference](/docs/configuration/) — All worker flags and nginx
   directives
 - [Troubleshooting](/docs/troubleshooting/) — Common issues and solutions
-- [API Reference](/docs/api-reference/) — IPC protocol, health endpoint, and
+- [API reference](/docs/api-reference/) — IPC protocol, health endpoint, and
   management socket details
 - [HTTP API Reference](/docs/http-api/) — REST and WebSocket endpoints
 - [Web Console](/docs/workbench/) — Visual cache inspector and real-time

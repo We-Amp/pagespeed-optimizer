@@ -1,5 +1,5 @@
 ---
-title: 'JavaScript Filters'
+title: 'JavaScript filters'
 description: 'Minify, combine, inline, and defer JavaScript in mod_pagespeed 2.1. Directives, defaults, and the trade-offs for each JS filter on Apache, nginx, and IIS.'
 order: 45
 group: 'Filters'
@@ -27,12 +27,12 @@ mod_pagespeed 2.1 includes filters for JavaScript minification, combining, inlin
 
 On IIS, use the same filter names with the `pagespeed` prefix in `pagespeed.config` (no semicolons):
 
-```
+```text
 pagespeed EnableFilters rewrite_javascript,combine_javascript
 pagespeed JsInlineMaxBytes 2048
 ```
 
-See [IIS Configuration](/docs/iis-configuration/) for the full file format reference.
+See [IIS configuration](/docs/iis-configuration/) for the full file format reference.
 
 ## rewrite_javascript {#rewrite_javascript}
 
@@ -42,7 +42,7 @@ The minifier is conservative around edge cases that change behavior — see [how
 
 **Apache:**
 
-```apacheconf
+```apache
 ModPagespeedEnableFilters rewrite_javascript
 ```
 
@@ -58,7 +58,7 @@ Core filter. Combines multiple `<script src>` elements into a single file. Like 
 
 **Apache:**
 
-```apacheconf
+```apache
 ModPagespeedEnableFilters combine_javascript
 ```
 
@@ -74,7 +74,7 @@ Core filter. Inlines small external JS files into the HTML. `JsInlineMaxBytes` (
 
 **Apache:**
 
-```apacheconf
+```apache
 ModPagespeedEnableFilters inline_javascript
 ModPagespeedJsInlineMaxBytes 2048
 ```
@@ -92,7 +92,7 @@ Not a core filter. Test thoroughly before enabling. Defers execution of all Java
 
 **Apache:**
 
-```apacheconf
+```apache
 ModPagespeedEnableFilters defer_javascript
 ```
 
@@ -117,7 +117,7 @@ Experimental. Externalizes large inline `<script>` blocks into separate files. `
 
 **Apache:**
 
-```apacheconf
+```apache
 ModPagespeedEnableFilters outline_javascript
 ModPagespeedJsOutlineMinBytes 3000
 ```
@@ -135,7 +135,7 @@ Not a core filter. Preserves JavaScript source maps through minification by addi
 
 **Apache:**
 
-```apacheconf
+```apache
 ModPagespeedEnableFilters include_js_source_maps
 ```
 
@@ -154,7 +154,7 @@ pagespeed EnableFilters include_js_source_maps;
 
 **Apache:**
 
-```apacheconf
+```apache
 ModPagespeedJsInlineMaxBytes 2048
 ModPagespeedJsOutlineMinBytes 3000
 ```
@@ -168,7 +168,7 @@ pagespeed JsOutlineMinBytes 3000;
 
 ## See also
 
-- [Filter Selection](/docs/filter-selection/)
-- [Filter Reference](/docs/filter-reference/)
+- [Filter selection](/docs/filter-selection/)
+- [Filter reference](/docs/filter-reference/)
 - [Safe JavaScript minification and semicolon insertion](/blog/safe-javascript-minification-semicolon-insertion/)
 - [Remove unused JavaScript with Chrome coverage](/blog/remove-unused-javascript-chrome-coverage/)

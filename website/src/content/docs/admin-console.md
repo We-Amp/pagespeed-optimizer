@@ -1,6 +1,6 @@
 ---
-title: 'mod_pagespeed Admin Console'
-description: 'mod_pagespeed 2.1 admin console: an overview page with alerts, statistics, cache inspection, message history, and config. Setup and access control for nginx, Apache, and IIS at /pagespeed_admin/.'
+title: 'mod_pagespeed admin console'
+description: 'mod_pagespeed 2.1 admin console: alerts, statistics, cache inspection, message history and config, with setup and access control for nginx, Apache and IIS.'
 order: 37
 group: 'Operate'
 lastUpdated: 2026-10-06
@@ -21,7 +21,9 @@ Two endpoints are exposed: `/pagespeed_admin` is the per-vhost admin handler, an
   class="rounded-lg border border-border"
 />
 
-**See it live:** explore the [mod_pagespeed 1.15 admin console](https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/#/console) running on our public Apache demo — live statistics, caches, histograms, and message history, no install required.
+:::tip[See it live]
+Explore the [mod_pagespeed 1.15 admin console](https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/#/console) running on our public Apache demo — live statistics, caches, histograms, and message history, no install required.
+:::
 
 ## Admin pages
 
@@ -55,7 +57,7 @@ http {
 
     server {
         listen 80;
-        server_name example.com;
+        server_name <your-domain>;
 
         pagespeed AdminPath /pagespeed_admin;
         pagespeed StatisticsPath /ngx_pagespeed_statistics;
@@ -131,7 +133,7 @@ Module versions before the one that made the handler lookup case-sensitive (see 
 
 Add admin path directives to your `pagespeed.config`:
 
-```
+```text
 pagespeed AdminPath /pagespeed_admin
 pagespeed GlobalAdminPath /pagespeed_global_admin
 pagespeed StatisticsPath /pagespeed_statistics
@@ -142,7 +144,7 @@ pagespeed ConsolePath /pagespeed_console
 
 By default, admin pages are accessible only from `localhost`. To allow access from other hosts:
 
-```
+```text
 pagespeed InfoUrlsLocalOnly off
 ```
 
@@ -186,7 +188,7 @@ ModPagespeedAdminDomains Allow 10.0.0.*
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed AdminDomains Allow localhost
 pagespeed AdminDomains Allow 10.0.0.*
 ```
@@ -287,7 +289,7 @@ ModPagespeedUsePerVhostStatistics on
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed Statistics on
 pagespeed UsePerVhostStatistics on
 ```
@@ -356,7 +358,7 @@ ModPagespeedLogDir /var/log/pagespeed
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed StatisticsLogging on
 pagespeed LogDir %ProgramData%\We-Amp\PageSpeed\Logs
 ```
@@ -401,7 +403,7 @@ ModPagespeedMessageBufferSize 100000
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed MessageBufferSize 100000
 ```
 

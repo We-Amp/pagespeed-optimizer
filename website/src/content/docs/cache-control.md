@@ -6,10 +6,11 @@ group: 'Configure'
 lastUpdated: 2026-09-19
 ---
 
-> **Requires ModPageSpeed 2.0.x or later** with conditional revalidation support.
-> Without conditional revalidation, `must-revalidate` causes full origin
-> re-fetches on every stale request. Upgrade before following these
-> recommendations.
+:::note[Since 2.0]
+The recommendations on this page rely on conditional revalidation, which the
+2.0 line introduced. Without it, `must-revalidate` causes full origin
+re-fetches on every stale request. Upgrade before following them.
+:::
 
 Your origin's `Cache-Control` headers directly control how mod_pagespeed caches
 and serves your content. Getting these right prevents stale content and cuts
@@ -21,9 +22,9 @@ configurable defaults (HTML: `no-cache`, CSS/JS: 300s, images: 1800s in
 a warning. Explicit headers are better than relying on
 [these fallback TTLs](/blog/default-cache-ttl-heuristic-freshness/).
 
-## Recommended Headers by Content Type
+## Recommended headers by content type
 
-### HTML Pages
+### HTML pages
 
 ```http
 Cache-Control: public, max-age=60, must-revalidate
@@ -39,7 +40,7 @@ Use `max-age=0` only when absolute real-time freshness is required (stock
 tickers, live scores). Every request with `max-age=0` triggers a conditional
 revalidation, which means an origin round-trip even when content hasn't changed.
 
-### Hashed Static Assets (CSS/JS with Fingerprints)
+### Hashed static assets (CSS/JS with fingerprints)
 
 ```http
 Cache-Control: public, max-age=31536000, immutable
@@ -50,7 +51,7 @@ mod_pagespeed strips `immutable` from its transformed output — the optimized
 bytes depend on mutable config and software version — but preserves the long
 TTL, capping max-age at `pagespeed_immutable_max_age` (default: 7 days).
 
-### Non-Hashed Static Assets
+### Non-hashed static assets
 
 ```http
 Cache-Control: public, max-age=3600, must-revalidate
@@ -60,7 +61,7 @@ ETag: "file-mtime-and-size"
 The URL is stable but content may change. Short max-age with `must-revalidate`
 keeps content fresh. Conditional revalidation makes the revalidation cheap.
 
-### User-Uploaded Images
+### User-uploaded images
 
 ```http
 Cache-Control: public, max-age=86400
@@ -69,7 +70,7 @@ Cache-Control: public, max-age=86400
 User images rarely change at the same URL. 24-hour caching is reasonable.
 If images can be replaced at the same URL, add `must-revalidate` and an `ETag`.
 
-### API Responses and Dynamic Content
+### API responses and dynamic content
 
 ```http
 Cache-Control: no-store
@@ -78,7 +79,7 @@ Cache-Control: no-store
 mod_pagespeed does not cache `no-store` responses. The response passes through
 unchanged.
 
-## Framework Configuration
+## Framework configuration
 
 | Framework          | Where to Set Headers                | HTML                          | Hashed Assets                 |
 | ------------------ | ----------------------------------- | ----------------------------- | ----------------------------- |
@@ -89,7 +90,7 @@ unchanged.
 | **Rails 7+**       | `config.public_file_server.headers` | `max-age=60, must-revalidate` | Automatic via Propshaft       |
 | **WordPress**      | Cache plugin or `.htaccess`         | `max-age=60, must-revalidate` | Theme-dependent               |
 
-## PURGE vs Natural Expiration
+## PURGE vs natural expiration
 
 `PURGE` immediately invalidates all cached variants for a URL. Use it for
 urgent content corrections. For routine deploys, let `must-revalidate` handle
@@ -98,7 +99,7 @@ because it preserves optimized image variants (AVIF, WebP) when only the HTML
 changed. See [304 conditional revalidation vs PURGE](/blog/conditional-revalidation-304-vs-active-purge/)
 for when each is the right invalidation strategy.
 
-## Cache Mode
+## Cache mode
 
 The `pagespeed_cache_mode` directive controls how mod_pagespeed assembles
 Cache-Control headers on optimized responses. Safe mode (the default) adds
@@ -108,7 +109,7 @@ cache efficiency. See [Cache Modes](/docs/cache-modes/) for full details, or
 [the safety math behind must-revalidate vs aggressive TTLs](/blog/cache-mode-safety-must-revalidate-vs-aggressive/)
 for how each mode trades freshness against origin load.
 
-## mod_pagespeed Directives {#modpagespeed-directives}
+## mod_pagespeed directives {#modpagespeed-directives}
 
 These directives control the default max-age values applied when origin
 responses lack a `Cache-Control` header. They do not override explicit
@@ -124,7 +125,7 @@ When `pagespeed_html_max_age` is 0 and the origin sends no `Cache-Control`,
 HTML responses are served with `Cache-Control: no-cache` — the client must
 revalidate on every request.
 
-### Conditional Revalidation
+### Conditional revalidation
 
 ```nginx
 pagespeed_conditional_revalidation on;   # default: on
@@ -135,7 +136,7 @@ trigger conditional requests (`If-None-Match` / `If-Modified-Since`) instead of
 full re-fetches. On 304, the cached content is refreshed without re-downloading
 or re-optimizing. Disable only if your origin mishandles conditional requests.
 
-### Browser Force-Refresh
+### Browser force-refresh
 
 ```nginx
 pagespeed_force_refresh_html on;   # default: on
@@ -175,7 +176,7 @@ The sub-filters `extend_cache_css`, `extend_cache_images`, and `extend_cache_scr
 
 **Not a CoreFilter.** Applies the same content-hash-based cache extension to PDF file links. Enable this filter if your site serves PDFs that change infrequently.
 
-```apacheconf
+```apache
 # Apache
 ModPagespeedEnableFilters extend_cache_pdfs
 ```
@@ -189,7 +190,7 @@ pagespeed EnableFilters extend_cache_pdfs;
 
 **Not a CoreFilter. Test before deploying.** Rewrites resource URLs to use domains specified by `MapRewriteDomain` or `ShardDomain` directives. Useful for CDN integration or domain sharding.
 
-```apacheconf
+```apache
 # Apache
 ModPagespeedEnableFilters rewrite_domains
 ```
@@ -201,13 +202,13 @@ pagespeed EnableFilters rewrite_domains;
 
 This filter only affects resources that mod_pagespeed does not otherwise optimize. Resources already rewritten by other filters ([`rewrite_css`](/docs/css-filters/#rewrite_css), [`rewrite_images`](/docs/image-filters/#rewrite_images), etc.) already have their domains set by those filters.
 
-See [Domain Configuration](/docs/domain-configuration/) for `MapRewriteDomain` and `ShardDomain` setup.
+See [Domain configuration](/docs/domain-configuration/) for `MapRewriteDomain` and `ShardDomain` setup.
 
 ### local_storage_cache {#local_storage_cache}
 
 **Experimental.** Stores inlined CSS and JavaScript in the browser's `localStorage` on first visit, then loads from `localStorage` on subsequent visits instead of re-inlining. This reduces HTML payload on repeat views at the cost of JavaScript complexity and reliance on `localStorage` availability.
 
-```apacheconf
+```apache
 # Apache
 ModPagespeedEnableFilters local_storage_cache
 ```
@@ -221,7 +222,7 @@ Not recommended for most deployments. Browser `localStorage` has size limits (ty
 
 On IIS the same directives use the syntax described in [IIS configuration](/docs/iis-configuration/).
 
-## Auditing Your Origin
+## Auditing your origin
 
 The [web console](https://we-amp.com/console/) flags URLs where the origin sends no `Cache-Control`
 header. Use the URL inspector to check freshness status and identify origins that

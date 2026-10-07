@@ -1,6 +1,6 @@
 ---
 title: 'Run in production'
-description: 'Production deployment guide for the mod_pagespeed 2.1 ASP.NET Core middleware: configuration, health probes, multi-instance scale, and zero-downtime restarts.'
+description: 'Production deployment of the mod_pagespeed 2.1 ASP.NET Core middleware: configuration, health probes, multi-instance scale and zero-downtime restarts.'
 order: 52
 group: 'ASP.NET Core'
 lastUpdated: 2026-09-06
@@ -104,12 +104,12 @@ After deploy, confirm the middleware is active:
 
 <pre>
   <code class="language-bash">
-    {`curl -I https://your-app.example.com/
+    {`curl -I https://<your-domain>/
 # `}
     <XPageSpeedExample line="2.1" surface="middleware" />
     {`
 
-curl -s https://your-app.example.com/healthz | jq .
+curl -s https://<your-domain>/healthz | jq .
 # "status": "Healthy"
 # entries, version`}
   </code>

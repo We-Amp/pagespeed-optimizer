@@ -170,6 +170,9 @@ export default defineConfig({
     // forward to the software-license page.
     '/claim-license/': '/license/',
     '/community-license/': '/license/',
+    // The release notes are the product's changelog; the conventional URL
+    // forwards to the index page that lists every line.
+    '/changelog/': '/docs/release-notes/',
   },
   markdown: {
     // remarkDirective parses `:::caution[…]:::` container syntax; remarkCallouts

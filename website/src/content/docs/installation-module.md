@@ -1,6 +1,6 @@
 ---
 title: 'Install the nginx module'
-description: 'Install the native mod_pagespeed 2.1 module for Apache and nginx from the signed packages.modpagespeed.com repository, or run the Docker / nginx reverse proxy.'
+description: 'Install the native mod_pagespeed 2.1 module for Apache and nginx from the signed packages.modpagespeed.com repository, or run the Docker reverse proxy.'
 order: 11
 group: 'Install'
 lastUpdated: 2026-10-06
@@ -113,7 +113,7 @@ Set both directives in each `server` block that should use the optimizer:
 ```nginx
 server {
     listen 80;
-    server_name example.com;
+    server_name <your-domain>;
 
     pagespeed on;
     pagespeed FileCachePath /var/cache/ngx_pagespeed;

@@ -13,7 +13,7 @@ then jump to the symptom
 below that matches what you see. Flags referenced throughout are documented in
 the [configuration reference](/docs/configuration/).
 
-## Cache Miss on Every Request
+## Cache miss on every request
 
 **Symptom:** Every response has `X-PageSpeed: MISS`, even for URLs that have
 been requested before.
@@ -97,7 +97,7 @@ been requested before.
    Look at `cache.size` relative to your `--cache-size` setting. If they are
    close, increase the cache size.
 
-## X-PageSpeed: MISS on Every Reload in Chrome
+## X-PageSpeed: MISS on every reload in Chrome
 
 **Symptom:** In Chrome you keep seeing `X-PageSpeed: MISS` and the original
 image on every reload, and you are not sure optimization is working.
@@ -118,7 +118,7 @@ no-cache header to see the variant directly:
 curl -sI http://localhost:5050/hero.jpg -H 'Accept: image/webp'
 ```
 
-## Worker Not Processing Content
+## Worker not processing content
 
 **Symptom:** The cache has original content (`X-PageSpeed: HIT`) but images
 are not transcoded, CSS/JS are not minified, and no optimized variants appear.
@@ -166,7 +166,7 @@ are not transcoded, CSS/JS are not minified, and no optimized variants appear.
    Increase limits with `--max-html-size`, `--max-css-size`, `--max-js-size`,
    or `--max-image-size` as needed.
 
-## ASP.NET Core Dashboard Shows Zeros
+## ASP.NET Core dashboard shows zeros
 
 **Symptom:** The Dashboard shows zeros and nothing moves in DevTools when using
 the ASP.NET Core middleware.
@@ -203,7 +203,7 @@ curl -sI http://localhost:5050/hero.jpg -H 'Accept: image/webp'
 A full walkthrough is in the
 [getting-started guide](/docs/aspnet-getting-started/#verify-the-install).
 
-## Images Not Converting to WebP/AVIF
+## Images not converting to WebP/AVIF
 
 **Symptom:** Image requests with `Accept: image/webp` still return the original
 JPEG or PNG.
@@ -240,7 +240,7 @@ JPEG or PNG.
    WebP variants are only created when a WebP-capable client triggers the
    first notification.
 
-## Debug Logging
+## Debug logging
 
 Enable debug-level logging to see detailed processing information:
 
@@ -274,11 +274,11 @@ Parse JSON logs with `jq`:
 sudo journalctl -u pagespeed-worker -o cat | jq 'select(.level == "ERROR")'
 ```
 
-## Management Socket Diagnostics
+## Management socket diagnostics
 
 The management socket provides real-time insight into the worker's state.
 
-### Check Overall Health
+### Check overall health
 
 ```bash
 echo "STATS" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
@@ -294,7 +294,7 @@ Look for:
   receives notifications but fails to write variants. Check for permission
   issues or content processing errors.
 
-### Purge and Re-test a Specific URL
+### Purge and re-test a specific URL
 
 To force the worker to re-process a URL:
 
@@ -313,7 +313,7 @@ curl -H "Accept: image/webp,*/*" http://localhost/images/photo.jpg -o /dev/null 
 If the second request returns a smaller size, the worker is processing
 correctly for that URL.
 
-### Cannot Connect to Management Socket
+### Cannot connect to management socket
 
 If `socat` or Python fails to connect to the management socket:
 
@@ -332,7 +332,7 @@ The management socket is created when the worker starts and removed when it
 shuts down. If the socket file does not exist, the worker is not running or
 failed during initialization.
 
-## Common Error Messages
+## Common error messages
 
 ### "Failed to open cache at ..." {#failed-to-open-cache-at}
 
@@ -376,13 +376,13 @@ The notification URL exceeds `--max-url-length` (default 8192 bytes). Increase
 the limit if your site uses very long URLs, or consider whether the long URL
 is intentional.
 
-## Browser Analysis Issues
+## Browser analysis issues
 
 Browser analysis requires headless Chrome and is disabled by default. Enable it
 with `--enable-browser-analysis`. These issues only apply when browser analysis
 is active.
 
-### Chrome Not Found
+### Chrome not found
 
 **Symptom:** Worker logs `Failed to start Chrome` or `chrome binary not found`
 on startup with browser analysis enabled.
@@ -402,7 +402,7 @@ factory_worker --enable-browser-analysis --chrome-binary /usr/bin/chromium
 In Docker containers, install `chrome-headless-shell` or `chromium`. The
 workbench-demo Docker image includes it by default.
 
-### CDP Connection Failures
+### CDP connection failures
 
 **Symptom:** Worker logs `CDP pipe read error` or `Chrome pipe EOF` during
 analysis. Browser profiles are not generated.
@@ -431,7 +431,7 @@ analysis. Browser profiles are not generated.
    factory_worker --enable-browser-analysis --chrome-startup-timeout 20000
    ```
 
-### Analysis Timeouts
+### Analysis timeouts
 
 **Symptom:** Worker logs `session timeout` for browser analysis. Some pages
 never get browser-validated profiles.
@@ -449,7 +449,7 @@ echo "BROWSER-STATUS" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.m
 The response includes `analysis_errors`, `chrome_crashes`, and `queue_depth`
 counters.
 
-### Browser Analysis Not Improving Results
+### Browser analysis not improving results
 
 **Symptom:** Browser analysis is enabled and running, but HTML output is
 identical to heuristic-only mode.
@@ -470,14 +470,14 @@ identical to heuristic-only mode.
    `--no-browser-image-sizing` flags are set. Each disables a specific browser
    analysis output.
 
-## SVG Vectorization Issues
+## SVG vectorization issues
 
 SVG auto-vectorization converts suitable raster images (logos, icons, flat
 illustrations) to SVG format. It runs in `detect` mode by default, which only
 evaluates candidacy without producing SVG output. Set `--svg-mode auto` for
 production serving.
 
-### No SVG Variants Produced
+### No SVG variants produced
 
 **Symptom:** The worker processes images but no SVG variants appear in the cache.
 
@@ -511,7 +511,7 @@ production serving.
 4. **Image processing disabled.** If `--disable-image` is set, all image
    processing is skipped, including SVG vectorization.
 
-### SVG Variants Larger Than Raster
+### SVG variants larger than raster
 
 **Symptom:** Debug logs show `svg_size_rejected` counter increasing. SVGs are
 produced but discarded.
@@ -521,7 +521,7 @@ the raster original (which is common for photos and complex images), the SVG
 variant is discarded. The `svg_bytes_saved` stat shows cumulative savings for
 SVGs that did pass the gate.
 
-### SVG Path Count Exceeded
+### SVG path count exceeded
 
 **Symptom:** Debug logs show `svg_path_count_rejected` counter increasing.
 
@@ -536,7 +536,7 @@ factory_worker --svg-max-paths 1000
 Be cautious: SVGs with thousands of paths can cause rendering jank on mobile
 devices.
 
-### LCP Images Not Vectorized
+### LCP images not vectorized
 
 **Symptom:** The LCP hero image qualifies for SVG but no SVG variant is produced.
 
@@ -550,7 +550,7 @@ If your LCP image is a simple logo or icon that renders quickly as SVG:
 factory_worker --svg-exclude-lcp false
 ```
 
-## Vary Header and Cache Poisoning
+## Vary header and cache poisoning
 
 **Symptom:** All responses are cache misses. The cache never populates even
 though nginx and the worker are running correctly.
@@ -752,11 +752,11 @@ sudo chcon -R -t httpd_sys_content_t /var/cache/pagespeed/
 
 </div>
 
-## Next Steps
+## Next steps
 
 - [Configuration Reference](/docs/configuration/) — All worker flags and tuning
   options
-- [API Reference](/docs/api-reference/) — Protocol details for management socket
+- [API reference](/docs/api-reference/) — Protocol details for management socket
   and IPC
 - [HTTP API Reference](/docs/http-api/) — REST and WebSocket endpoints for
   programmatic access

@@ -20,7 +20,7 @@ The software is the same for everyone. Paid tiers are support subscriptions:
 the tiers and what each one includes are on the [pricing page](/pricing/), and
 the [Terms of Service](/terms/) govern a subscription.
 
-## Next Steps
+## Next steps
 
 - [Configuration Reference](/docs/configuration/) -- All worker flags and nginx
   directives

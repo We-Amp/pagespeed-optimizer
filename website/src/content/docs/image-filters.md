@@ -1,6 +1,6 @@
 ---
-title: 'Image Filters'
-description: 'Configure image optimization filters in mod_pagespeed 2.1 for Apache, nginx, and IIS: recompression, WebP and opt-in AVIF conversion, resizing, lazy loading, and responsive images.'
+title: 'Image filters'
+description: 'Image filters in mod_pagespeed 2.1 for Apache, nginx and IIS: recompression, WebP and opt-in AVIF conversion, resizing, lazy loading and responsive images.'
 order: 43
 group: 'Filters'
 lastUpdated: 2026-07-12
@@ -14,12 +14,12 @@ mod_pagespeed 2.1 includes image filters for recompression, format conversion, r
 
 On IIS, use the same filter names with the `pagespeed` prefix in `pagespeed.config` (no semicolons):
 
-```
+```text
 pagespeed EnableFilters rewrite_images
 pagespeed ImageRecompressionQuality 75
 ```
 
-See [IIS Configuration](/docs/iis-configuration/) for the full file format reference.
+See [IIS configuration](/docs/iis-configuration/) for the full file format reference.
 
 ## Quick reference
 
@@ -254,7 +254,7 @@ pagespeed EnableFilters convert_to_avif_animated;
 pagespeed EnableFilters recompress_avif;
 ```
 
-On IIS, use the same filter names in `pagespeed.config` without the trailing semicolon — see [IIS Configuration](/docs/iis-configuration/).
+On IIS, use the same filter names in `pagespeed.config` without the trailing semicolon — see [IIS configuration](/docs/iis-configuration/).
 
 ### Configuration
 
@@ -643,7 +643,9 @@ pagespeed ImageMaxRewritesAtOnce 8;
 
 ## Design background: how server-side image rewriting works
 
-> **Historical context.** This summarizes a design decision from the original mod_pagespeed project (Google, 2010), included as background. The filter behavior documented above is the current reference for mod_pagespeed 2.1.
+:::note[Historical context]
+This summarizes a design decision from the original mod_pagespeed project (Google, 2010), included as background. The filter behavior documented above is the current reference for mod_pagespeed 2.1.
+:::
 
 The image filters above descend from a 2010 design for server-side image rewriting. Four invariants from that design still shape how `rewrite_images` works:
 
@@ -658,6 +660,6 @@ _Adapted from the original mod_pagespeed image-rewriting design (Google, 2010), 
 
 ## See also
 
-- [Filter Selection](/docs/filter-selection/) -- how to enable and disable filters
-- [Filter Reference](/docs/filter-reference/) -- all filters at a glance
+- [Filter selection](/docs/filter-selection/) -- how to enable and disable filters
+- [Filter reference](/docs/filter-reference/) -- all filters at a glance
 - [How the metadata cache works](/how-it-works/metadata-cache/) -- how an image is optimized once and served from cache thereafter
