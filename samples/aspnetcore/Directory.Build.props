@@ -13,7 +13,7 @@
 
   <!-- NuGet package metadata (only applies to packable projects) -->
   <PropertyGroup Condition="'$(IsPackable)' != 'false'">
-    <Version>2.1.0</Version>
+    <Version>2.2.0</Version>
     <Authors>We-Amp</Authors>
     <Company>We-Amp B.V.</Company>
     <Copyright>Copyright (c) 2024-2026 We-Amp B.V.</Copyright>
@@ -22,7 +22,7 @@
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <PackageIcon>icon.png</PackageIcon>
-    <PackageReleaseNotes>2.1.0: mod_pagespeed 2.1 general availability — the converged module + optimizer line, relicensed Apache-2.0, hardened by default. Full release notes: https://modpagespeed.com/docs/release-notes-2-1/
+    <PackageReleaseNotes>2.2.0: Update recommended: three security fixes, a fix for optimized copies lost from a shared cache, a new on-disk cache format (the cache starts empty once), and more accurate critical CSS. Full release notes: https://modpagespeed.com/docs/release-notes/#v2-2-0
 See CHANGELOG.md in the repository for earlier releases.</PackageReleaseNotes>
     <!-- Source repo is private — strip ALL git-detected repository metadata.
          Belt-and-braces: kill SourceLink auto-detection, then null the fields

@@ -6,7 +6,7 @@ type: application
 # defaults to appVersion. Removing the two per-image tag keys is a
 # values-API change, hence the minor bump.
 version: 0.3.6
-appVersion: "2.1.0"
+appVersion: "2.2.0"
 keywords:
   - pagespeed
   - nginx

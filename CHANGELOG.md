@@ -2,7 +2,7 @@
 
 All notable changes to mod_pagespeed 2.1 are documented in this file.
 
-## Unreleased
+## 2.2.0 — 2026-10-06
 
 Update recommended: three security fixes, a fix for optimized copies lost
 from a shared cache, a new on-disk cache format (the cache starts empty

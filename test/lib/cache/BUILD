@@ -145,3 +145,19 @@ gtest_test(
         "@cyclone",
     ],
 )
+
+# A full purge while other threads read and write through the cache layer.
+# Its memory-safety proof is the sanitizer run (linux-asan / linux-tsan jobs);
+# Linux only, so it runs in the Linux containers.
+gtest_test(
+    name = "purge_under_load_test",
+    size = "large",
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "//lib/cache:pagespeed_cache",
+        "//lib/classify:alternate_id",
+        "//lib/classify:alternate_metadata",
+        "//lib/classify:capability_mask",
+        "//test/test_util:temp_dir",
+    ],
+)
