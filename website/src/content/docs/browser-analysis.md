@@ -77,7 +77,7 @@ renders without a kill.
 
 ## Architecture
 
-```
+```text
 Worker (libuv event loop)
   |
   +-- BrowserAnalysisManager

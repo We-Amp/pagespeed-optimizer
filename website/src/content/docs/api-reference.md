@@ -22,7 +22,7 @@ processes the content from the shared cache, and writes optimized variants back.
 
 Each message consists of a 4-byte length header followed by the payload:
 
-```
+```text
 [4 bytes: payload_length (big-endian uint32)]
 [4 bytes: url_length (big-endian uint32)]
 [url_length bytes: URL string]
@@ -51,7 +51,7 @@ computation (`SHA-256(URL, hostname)`).
 For URL `/style.css` (10 bytes), hostname `localhost` (9 bytes), content type
 CSS (`0x01`), capability mask `0x00000008` (Desktop/Identity):
 
-```
+```text
 00 00 00 20          # payload_length = 32 bytes
 00 00 00 0A          # url_length = 10
 2F 73 74 79 6C 65 2E 63 73 73  # "/style.css"
@@ -84,7 +84,7 @@ is `/var/lib/pagespeed/pagespeed.sock.health`.
 
 ### Response Format
 
-```
+```text
 OK {active_connections}/{max_connections} notifs={N} variants={N} proactive={N} errors={N} cache_entries={N}\n
 ```
 
@@ -102,7 +102,7 @@ OK {active_connections}/{max_connections} notifs={N} variants={N} proactive={N} 
 
 ### Example
 
-```
+```text
 OK 3/128 notifs=4821 variants=2106 proactive=1580 errors=7 cache_entries=3412
 ```
 
@@ -220,7 +220,7 @@ x 2 densities x 2 Save-Data x 4 encodings) plus 2 sentinel entries = 194.
 Authenticates the connection for PURGE commands. Required when the
 `PAGESPEED_PURGE_TOKEN` environment variable is set on the worker.
 
-**Request:** `AUTH my-secret-token\n`
+**Request:** `AUTH <your-token>\n`
 
 **Response:** `OK\n` on success, or `ERR invalid token\n` on failure.
 
@@ -241,7 +241,7 @@ direct Prometheus scraping via a simple exporter script.
 
 **Response:**
 
-```
+```text
 # HELP pagespeed_notifications_total Total notifications received.
 # TYPE pagespeed_notifications_total counter
 pagespeed_notifications_total 4821
@@ -351,7 +351,7 @@ enabled, returns `{"enabled":false}`.
 
 Any command other than `AUTH`, `STATS`, `PURGE`, `METRICS`, or `BROWSER-STATUS` returns:
 
-```
+```text
 ERR unknown command\n
 ```
 
@@ -368,7 +368,7 @@ for sentinel values).
 
 ### Bit Layout
 
-```
+```text
 Bit:    7    6    5    4    3    2    1    0
       +----+----+----+----+----+----+----+----+
       |  Transfer  |Save| Px |  Viewport | Format |

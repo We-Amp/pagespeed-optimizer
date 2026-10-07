@@ -175,7 +175,7 @@ The sub-filters `extend_cache_css`, `extend_cache_images`, and `extend_cache_scr
 
 **Not a CoreFilter.** Applies the same content-hash-based cache extension to PDF file links. Enable this filter if your site serves PDFs that change infrequently.
 
-```apacheconf
+```apache
 # Apache
 ModPagespeedEnableFilters extend_cache_pdfs
 ```
@@ -189,7 +189,7 @@ pagespeed EnableFilters extend_cache_pdfs;
 
 **Not a CoreFilter. Test before deploying.** Rewrites resource URLs to use domains specified by `MapRewriteDomain` or `ShardDomain` directives. Useful for CDN integration or domain sharding.
 
-```apacheconf
+```apache
 # Apache
 ModPagespeedEnableFilters rewrite_domains
 ```
@@ -207,7 +207,7 @@ See [Domain Configuration](/docs/domain-configuration/) for `MapRewriteDomain` a
 
 **Experimental.** Stores inlined CSS and JavaScript in the browser's `localStorage` on first visit, then loads from `localStorage` on subsequent visits instead of re-inlining. This reduces HTML payload on repeat views at the cost of JavaScript complexity and reliance on `localStorage` availability.
 
-```apacheconf
+```apache
 # Apache
 ModPagespeedEnableFilters local_storage_cache
 ```

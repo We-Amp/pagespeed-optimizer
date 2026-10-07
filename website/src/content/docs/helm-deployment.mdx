@@ -27,7 +27,7 @@ required.
 
 Each pod contains two containers:
 
-```
+```text
 +-----------------------------------------+
 |  Pod                                    |
 |  +----------------+  +---------------+  |
@@ -73,11 +73,11 @@ helm repo update
 
 ```bash
 helm install pagespeed weamp/pagespeed \
-  --set backend.host=my-origin.default.svc.cluster.local \
+  --set backend.host=<your-origin>.default.svc.cluster.local \
   --set backend.port=8080
 ```
 
-Replace `my-origin.default.svc.cluster.local` with the Kubernetes service name
+Replace `<your-origin>.default.svc.cluster.local` with the Kubernetes service name
 (or IP) of your origin server.
 
 ### With a Custom Values File
@@ -88,7 +88,7 @@ Create a `my-values.yaml`:
 replicaCount: 2
 
 backend:
-  host: my-origin.default.svc.cluster.local
+  host: <your-origin>.default.svc.cluster.local
   port: 8080
 
 worker:
@@ -101,14 +101,14 @@ ingress:
   enabled: true
   className: nginx
   hosts:
-    - host: cdn.example.com
+    - host: <your-domain>
       paths:
         - path: /
           pathType: Prefix
   tls:
     - secretName: cdn-tls
       hosts:
-        - cdn.example.com
+        - <your-domain>
 ```
 
 Install with:
@@ -282,7 +282,7 @@ kubectl get pods -l app.kubernetes.io/name=pagespeed
 
 Both containers in the pod should show `READY`:
 
-```
+```text
 NAME                         READY   STATUS    RESTARTS   AGE
 pagespeed-6d4b8f9c7-x2k9m   2/2     Running   0          45s
 ```

@@ -33,7 +33,7 @@ Start the worker with the `--api-port` flag:
 factory_worker --cache-path /data/cache.vol --api-port 9880
 ```
 
-Then open `http://your-server:9880/console/` in a browser.
+Then open `http://<your-server>:9880/console/` in a browser.
 
 > **In-process ASP.NET Core middleware:** The `:9880` port here is the
 > **standalone worker's** API port. With the in-process ASP.NET Core middleware

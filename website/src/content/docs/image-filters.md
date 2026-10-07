@@ -14,7 +14,7 @@ mod_pagespeed 2.1 includes image filters for recompression, format conversion, r
 
 On IIS, use the same filter names with the `pagespeed` prefix in `pagespeed.config` (no semicolons):
 
-```
+```text
 pagespeed EnableFilters rewrite_images
 pagespeed ImageRecompressionQuality 75
 ```

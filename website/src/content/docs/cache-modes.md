@@ -202,7 +202,7 @@ ModPagespeedFileCacheSizeKb 2097152
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed FileCachePath %ProgramData%\We-Amp\PageSpeed\Cache
 pagespeed FileCacheSizeKb 2097152
 ```
@@ -292,7 +292,7 @@ ModPagespeedCycloneRamCacheKb 8192
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed CycloneRamCacheKb 8192
 ```
 
@@ -337,7 +337,7 @@ ModPagespeedCycloneZeroCopyServe on
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed CycloneZeroCopy on
 pagespeed CycloneZeroCopyServe on
 ```
@@ -382,7 +382,7 @@ ModPagespeedDefaultSharedMemoryCacheKB 100000
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed DefaultSharedMemoryCacheKB 100000
 ```
 
@@ -433,7 +433,7 @@ ModPagespeedMemcachedTimeoutUs 500000
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed MemcachedServers 127.0.0.1:11211
 pagespeed MemcachedTimeoutUs 500000
 ```
@@ -447,7 +447,7 @@ On Windows, install memcached as a Windows service:
 
 The default memory pool is 64 MB. To increase it, modify the service's `ImagePath` in the registry at `HKEY_LOCAL_MACHINE\SYSTEM\CurrentControlSet\Services\memcached`:
 
-```
+```text
 "C:\memcached\memcached.exe" -m 256 -d runservice
 ```
 
@@ -492,7 +492,7 @@ ModPagespeedRedisTimeoutUs 50000
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed RedisServer "cache.example.com:6379"
 pagespeed RedisTimeoutUs 50000
 ```
@@ -568,7 +568,7 @@ ModPagespeedEnableCachePurge on
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed EnableCachePurge on
 ```
 
@@ -635,7 +635,7 @@ ModPagespeedInPlaceSMaxAgeSec 10
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed InPlaceResourceOptimization on
 pagespeed InPlaceSMaxAgeSec 10
 ```
@@ -693,7 +693,7 @@ ModPagespeedHttpCacheCompressionLevel 6
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed FetcherTimeoutMs 10000
 pagespeed RewriteDeadlinePerFlushMs 20
 pagespeed ImplicitCacheTtlMs 600000

@@ -38,7 +38,7 @@ ModPagespeedFetchHttps enable
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed FetchHttps enable
 ```
 
@@ -102,7 +102,7 @@ ModPagespeedMapOriginDomain "http://localhost" "https://www.example.com"
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed MapOriginDomain "http://localhost" "https://www.example.com"
 ```
 
@@ -138,7 +138,7 @@ ModPagespeedLoadFromFile "https://www.example.com/static/" "/var/www/static/"
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed LoadFromFile "https://www.example.com/static/" "C:\inetpub\wwwroot\static\"
 ```
 

@@ -47,7 +47,7 @@ below — use port 80 in those commands, since the single container publishes on
 
 Create a project directory with the following layout:
 
-```
+```text
 modpagespeed/
 ├── docker-compose.yml
 ├── nginx.conf
@@ -64,7 +64,7 @@ services:
   origin:
     image: nginx:stable
     volumes:
-      - ./your-site:/usr/share/nginx/html:ro
+      - ./<your-site>:/usr/share/nginx/html:ro
     expose:
       - '8081'
 
@@ -243,7 +243,7 @@ created them first — usually root, sometimes the nginx user. On first start th
 entrypoint takes ownership of the files the optimizer authors, logs each one,
 and keeps your existing cache:
 
-```
+```text
 NOTE: adopted 0-byte cache stem /shared/cache.vol (was uid 999); no content was migrated.
 NOTE: adopted existing cache volume /shared/cache-6-2f1c….vol (536870912 bytes, was uid 0) into pagespeed:pagespeed mode 0660.
 ```
@@ -325,13 +325,13 @@ header, so there are no `.pagespeed.` URLs to look for. Request the same image
 three ways and compare:
 
 ```bash
-curl -s -o /dev/null -D - http://localhost:8080/your-image.jpg -H 'Accept: image/jpeg'
+curl -s -o /dev/null -D - http://localhost:8080/<your-image>.jpg -H 'Accept: image/jpeg'
 # Content-Type: image/jpeg   — original
 
-curl -s -o /dev/null -D - http://localhost:8080/your-image.jpg -H 'Accept: image/webp'
+curl -s -o /dev/null -D - http://localhost:8080/<your-image>.jpg -H 'Accept: image/webp'
 # Content-Type: image/webp   — smaller
 
-curl -s -o /dev/null -D - http://localhost:8080/your-image.jpg -H 'Accept: image/avif'
+curl -s -o /dev/null -D - http://localhost:8080/<your-image>.jpg -H 'Accept: image/avif'
 # Content-Type: image/avif   — smaller
 ```
 

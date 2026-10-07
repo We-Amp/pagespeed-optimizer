@@ -38,7 +38,7 @@ ModPagespeedDomain *.example.com
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed Domain cdn.example.com
 pagespeed Domain *.example.com
 ```
@@ -75,7 +75,7 @@ ModPagespeedMapOriginDomain localhost www.example.com
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed MapOriginDomain localhost www.example.com
 ```
 
@@ -111,7 +111,7 @@ ModPagespeedMapRewriteDomain cdn.example.com www.example.com
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed MapRewriteDomain cdn.example.com www.example.com
 ```
 
@@ -147,7 +147,7 @@ ModPagespeedShardDomain www.example.com shard1.example.com,shard2.example.com
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed ShardDomain www.example.com shard1.example.com,shard2.example.com
 ```
 
@@ -183,7 +183,7 @@ ModPagespeedMapProxyDomain www.example.com/external https://other-site.example.c
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed MapProxyDomain www.example.com/external https://other-site.example.com
 ```
 
@@ -219,7 +219,7 @@ ModPagespeedLoadFromFile "http://www.example.com/static/" "/var/www/static/"
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed LoadFromFile "http://www.example.com/static/" "C:\inetpub\wwwroot\static\"
 ```
 

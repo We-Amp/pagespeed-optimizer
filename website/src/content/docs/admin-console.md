@@ -55,7 +55,7 @@ http {
 
     server {
         listen 80;
-        server_name example.com;
+        server_name <your-domain>;
 
         pagespeed AdminPath /pagespeed_admin;
         pagespeed StatisticsPath /ngx_pagespeed_statistics;
@@ -131,7 +131,7 @@ Module versions before the one that made the handler lookup case-sensitive (see 
 
 Add admin path directives to your `pagespeed.config`:
 
-```
+```text
 pagespeed AdminPath /pagespeed_admin
 pagespeed GlobalAdminPath /pagespeed_global_admin
 pagespeed StatisticsPath /pagespeed_statistics
@@ -142,7 +142,7 @@ pagespeed ConsolePath /pagespeed_console
 
 By default, admin pages are accessible only from `localhost`. To allow access from other hosts:
 
-```
+```text
 pagespeed InfoUrlsLocalOnly off
 ```
 
@@ -186,7 +186,7 @@ ModPagespeedAdminDomains Allow 10.0.0.*
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed AdminDomains Allow localhost
 pagespeed AdminDomains Allow 10.0.0.*
 ```
@@ -287,7 +287,7 @@ ModPagespeedUsePerVhostStatistics on
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed Statistics on
 pagespeed UsePerVhostStatistics on
 ```
@@ -356,7 +356,7 @@ ModPagespeedLogDir /var/log/pagespeed
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed StatisticsLogging on
 pagespeed LogDir %ProgramData%\We-Amp\PageSpeed\Logs
 ```
@@ -401,7 +401,7 @@ ModPagespeedMessageBufferSize 100000
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed MessageBufferSize 100000
 ```
 

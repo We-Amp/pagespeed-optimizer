@@ -31,7 +31,7 @@ mod_pagespeed 2.1 includes filters that optimize HTML structure, cut unnecessary
 
 On IIS, use the same filter names with the `pagespeed` prefix in `pagespeed.config` (no semicolons):
 
-```
+```text
 pagespeed EnableFilters collapse_whitespace,remove_comments
 ```
 

@@ -52,8 +52,8 @@ The package installs its configuration to `/etc/apache2/conf.d/pagespeed.conf` (
 
 The global admin console lives at:
 
-```
-https://your-host.example.com/pagespeed_global_admin
+```text
+https://<your-domain>/pagespeed_global_admin
 ```
 
 Open `/pagespeed_global_admin` on any vhost — the admin route is global to the server, not scoped to one vhost (`/pagespeed_admin/` is the per-vhost statistics endpoint). The module installs and fully optimizes out of the box: mod_pagespeed is licensed under the Apache License 2.0, free in development and in production. See [Downloads & Licensing](/download/).

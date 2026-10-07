@@ -41,7 +41,7 @@ For local development with IIS Express, add the module to `applicationhost.confi
 
 To disable optimization for a site, either delete or rename its `pagespeed.config` file, or add:
 
-```
+```text
 pagespeed off
 ```
 
@@ -59,7 +59,7 @@ On IIS the module emits `X-Page-Speed`, the same as nginx — check for it with 
 
 Since v1.15.0+r18, config parsing is more robust and more diagnosable: a malformed line no longer prevents module startup, unknown options are reported instead of silently ignored, and option scoping is enforced.
 
-```
+```text
 # Enable optimization
 pagespeed on
 
@@ -89,7 +89,7 @@ The module searches for configuration files in two locations:
 
 ### Server-level config
 
-```
+```text
 %ProgramData%\We-Amp\PageSpeed\pagespeed.config
 ```
 
@@ -97,7 +97,7 @@ The server-level file is `%ProgramData%\We-Amp\PageSpeed\pagespeed.config`. Inst
 
 ### Site-level config
 
-```
+```text
 <website root>\pagespeed.config
 ```
 
@@ -120,7 +120,7 @@ The IIS worker process needs write access to the cache directory set by `FileCac
 
 Set the path explicitly with `FileCachePath`:
 
-```
+```text
 pagespeed FileCachePath %ProgramData%\We-Amp\IISWebSpeed\Cache
 ```
 
@@ -132,7 +132,7 @@ From **v1.1.0+r11** onward, the module creates each website's cache subdirectory
 
 To require that the cache directory already exist instead, turn auto-creation off:
 
-```
+```text
 pagespeed AutoCreateCachePath off
 ```
 
@@ -144,7 +144,7 @@ A site that serves a local-only diagnostic page reporting that the configured `F
 
 Windows environment variables are expanded in path values:
 
-```
+```text
 pagespeed FileCachePath %ProgramData%\We-Amp\IISWebSpeed\Cache
 pagespeed LogDir %ProgramData%\We-Amp\IISWebSpeed\Logs
 ```
@@ -167,7 +167,7 @@ Use match rules to apply different settings based on the request hostname or URL
 
 Match by hostname:
 
-```
+```text
 # Only optimize requests for this domain
 hostname: ^www\.example\.com$
 
@@ -179,7 +179,7 @@ pagespeed EnableFilters rewrite_images,rewrite_css
 
 Match by URL path:
 
-```
+```text
 # Aggressive optimization for the blog
 path: ^/blog/
 
@@ -195,7 +195,7 @@ pagespeed RewriteLevel OptimizeForBandwidth
 
 Match rules apply sequentially. Each rule sets a match context; directives following a rule apply only when that rule matches. A new match rule starts a new context.
 
-```
+```text
 # Server-wide defaults
 pagespeed on
 pagespeed RewriteLevel CoreFilters
@@ -217,7 +217,7 @@ pagespeed EnableFilters prioritize_critical_css
 
 Use `clear` to reset accumulated options before applying new ones:
 
-```
+```text
 hostname: ^special\.example\.com$
 clear
 pagespeed on
@@ -231,7 +231,7 @@ The `clear` directive discards all previously accumulated options for this reque
 
 Add custom headers to resource fetch requests using the `header_` prefix:
 
-```
+```text
 pagespeed header_X-PageSpeed-Fetch true
 pagespeed header_Authorization "Bearer token123"
 ```
@@ -242,14 +242,14 @@ The `header_` prefix is stripped; the remaining text becomes the header name.
 
 ### Minimal configuration
 
-```
+```text
 pagespeed on
 pagespeed FileCachePath %ProgramData%\We-Amp\IISWebSpeed\Cache
 ```
 
 ### Production configuration
 
-```
+```text
 # Enable optimization with CoreFilters
 pagespeed on
 pagespeed FileCachePath %ProgramData%\We-Amp\IISWebSpeed\Cache
@@ -275,7 +275,7 @@ pagespeed LogDir %ProgramData%\We-Amp\IISWebSpeed\Logs
 
 ### Multi-site configuration
 
-```
+```text
 # Server-wide defaults
 pagespeed on
 pagespeed FileCachePath %ProgramData%\We-Amp\IISWebSpeed\Cache

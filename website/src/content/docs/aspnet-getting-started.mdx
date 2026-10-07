@@ -140,13 +140,13 @@ curl -i http://localhost:<port>/
 Look for the `X-PageSpeed` header on HTML responses. It reports the cache
 outcome:
 
-```
+```http
 X-PageSpeed: MISS
 ```
 
 or, once the worker has built the variant:
 
-```
+```http
 X-PageSpeed: HIT
 ```
 

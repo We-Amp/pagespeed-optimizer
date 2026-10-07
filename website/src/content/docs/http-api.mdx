@@ -20,7 +20,7 @@ yourself. Every endpoint documented here works with `curl` or any HTTP client.
 The API listens on `127.0.0.1:9880` by default. Configure with `--api-port`.
 Set port to `0` to disable the HTTP API entirely.
 
-```
+```text
 http://127.0.0.1:9880/v1/...
 ```
 
@@ -85,7 +85,7 @@ except `/v1/health` and the `/console/` static bundle (GET/HEAD only) requires
 a Bearer header.
 
 ```bash
-curl -H "Authorization: Bearer my-secret-token" http://localhost:9880/v1/stats
+curl -H "Authorization: Bearer <your-token>" http://localhost:9880/v1/stats
 ```
 
 ### The invariant
@@ -428,7 +428,7 @@ curl http://localhost:9880/v1/metrics
 
 **Response** (`Content-Type: text/plain; version=0.0.4; charset=utf-8`):
 
-```
+```text
 # HELP pagespeed_notifications_total Total notifications received.
 # TYPE pagespeed_notifications_total counter
 pagespeed_notifications_total 4821
@@ -760,7 +760,7 @@ content includes a restrictive `Content-Security-Policy`.
 
 **Response headers:**
 
-```
+```http
 Content-Type: image/webp
 Content-Disposition: attachment
 X-Content-Type-Options: nosniff

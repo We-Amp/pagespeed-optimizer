@@ -104,12 +104,12 @@ After deploy, confirm the middleware is active:
 
 <pre>
   <code class="language-bash">
-    {`curl -I https://your-app.example.com/
+    {`curl -I https://<your-domain>/
 # `}
     <XPageSpeedExample line="2.1" surface="middleware" />
     {`
 
-curl -s https://your-app.example.com/healthz | jq .
+curl -s https://<your-domain>/healthz | jq .
 # "status": "Healthy"
 # entries, version`}
   </code>

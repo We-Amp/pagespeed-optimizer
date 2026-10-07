@@ -1484,7 +1484,7 @@ http {
 
     server {
         listen 80;
-        server_name example.com;
+        server_name <your-domain>;
 
         pagespeed on;
         pagespeed_cache_path /var/lib/pagespeed/cache.vol;
@@ -1698,7 +1698,7 @@ Site-level settings override server-level settings. If `pagespeed.config` is not
 
 Enable optimization by adding to your `pagespeed.config`:
 
-```
+```text
 pagespeed on
 ```
 
@@ -1738,7 +1738,7 @@ ModPagespeed standby
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed standby
 ```
 
@@ -1801,7 +1801,7 @@ ModPagespeedListOutstandingUrlsOnError off
 
 In IIS, use `pagespeed.config` with one directive per line. Prefix each directive with `pagespeed`.
 
-```
+```text
 pagespeed HonorCsp on
 pagespeed RespectVary on
 pagespeed DisableRewriteOnNoTransform on
@@ -1983,7 +1983,7 @@ ModPagespeedMaxSegmentLength 250
 
 <div data-platform="iis" data-platform-label="IIS">
 
-```
+```text
 pagespeed MaxSegmentLength 250
 ```
 
@@ -2106,21 +2106,21 @@ Place a `pagespeed.config` file in each website's root directory. Each file can 
 
 **Site A** (`C:\inetpub\site-a\pagespeed.config`):
 
-```
+```text
 pagespeed on
 pagespeed EnableFilters rewrite_images
 ```
 
 **Site B** (`C:\inetpub\site-b\pagespeed.config`):
 
-```
+```text
 pagespeed on
 pagespeed EnableFilters collapse_whitespace
 ```
 
 Alternatively, use match rules in the server-level config to scope directives by hostname:
 
-```
+```text
 hostname: ^site-a\.example\.com$
 pagespeed EnableFilters rewrite_images
 

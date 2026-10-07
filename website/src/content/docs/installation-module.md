@@ -113,7 +113,7 @@ Set both directives in each `server` block that should use the optimizer:
 ```nginx
 server {
     listen 80;
-    server_name example.com;
+    server_name <your-domain>;
 
     pagespeed on;
     pagespeed FileCachePath /var/cache/ngx_pagespeed;

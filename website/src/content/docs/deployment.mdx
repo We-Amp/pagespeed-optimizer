@@ -191,7 +191,7 @@ helm repo add weamp https://modpagespeed.com/charts
 helm repo update
 
 helm install pagespeed weamp/pagespeed \
-  --set backend.host=my-origin.default.svc.cluster.local \
+  --set backend.host=<your-origin>.default.svc.cluster.local \
   --set backend.port=8080
 ```
 
@@ -199,12 +199,12 @@ helm install pagespeed weamp/pagespeed \
 
 ```bash
 helm install pagespeed weamp/pagespeed \
-  --set backend.host=my-origin \
+  --set backend.host=<your-origin> \
   --set backend.port=8080 \
   --set worker.cacheSize=1073741824 \
   --set replicaCount=3 \
   --set ingress.enabled=true \
-  --set ingress.hosts[0].host=cdn.example.com \
+  --set ingress.hosts[0].host=<your-domain> \
   --set ingress.hosts[0].paths[0].path=/ \
   --set ingress.hosts[0].paths[0].pathType=Prefix
 ```
@@ -442,7 +442,7 @@ sudo journalctl -u pagespeed-worker -o cat | jq .
 
 Install the logrotate configuration at `/etc/logrotate.d/pagespeed`:
 
-```
+```text
 /var/log/nginx/pagespeed*.log {
     daily
     missingok
@@ -590,7 +590,7 @@ variant generation enabled, each image can produce many variants.
 
 A rough formula:
 
-```
+```text
 cache_size = num_unique_urls * avg_original_size * variant_multiplier
 ```
 
