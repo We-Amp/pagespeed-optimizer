@@ -61,7 +61,9 @@ buttons, the docs hub search box, `/` and Ctrl/Cmd+K; it lazy-loads Pagefind's U
 `/pagefind/` on first open, so a page that never opens search loads no search code.
 `astro dev` has no build output and therefore no index: the dialog says so instead of
 searching, and the Playwright suite asserts that message. Pagefind runs WebAssembly, so a
-Content-Security-Policy on the serving host must allow `'wasm-unsafe-eval'` in `script-src`.
+Content-Security-Policy on the serving host must allow `'wasm-unsafe-eval'` in `script-src`;
+the dialog probes for that before loading and reports a blocked policy visibly. The docs
+sitemap `lastmod` comes from the same git-derived date as the page (`src/lib/git-date.ts`).
 
 ## Directory map
 

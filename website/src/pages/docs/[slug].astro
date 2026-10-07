@@ -156,6 +156,7 @@ if (doc.id === 'installation-docker') {
     description:
       'Deploy mod_pagespeed using Docker Compose with three containers: nginx, the optimizer worker, and your origin server.',
     totalTime: 'PT10M',
+    ...(lastUpdated && { dateModified: lastUpdated }),
     tool: [
       { '@type': 'HowToTool', name: 'Docker Engine 20.10+' },
       { '@type': 'HowToTool', name: 'Docker Compose v2' },
@@ -207,6 +208,7 @@ if (doc.id === 'installation-docker') {
     description:
       'Add PageSpeed optimization to an ASP.NET Core application via the WeAmp.PageSpeed.AspNetCore NuGet package.',
     totalTime: 'PT5M',
+    ...(lastUpdated && { dateModified: lastUpdated }),
     tool: [
       { '@type': 'HowToTool', name: '.NET 8 SDK or .NET 10 SDK' },
       { '@type': 'HowToTool', name: 'ASP.NET Core application' },
