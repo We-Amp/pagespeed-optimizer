@@ -2,6 +2,7 @@
 import NewsletterSignup from '../components/NewsletterSignup.astro';
 import QuickMessage from '../components/QuickMessage.astro';
 import ShareFloat from '../components/ShareFloat.astro';
+import SearchDialog from '../components/SearchDialog.astro';
 import Icon from '../components/Icon.astro';
 import { PRODUCT_DISPLAY_NAME, CURRENT_LINE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
 
@@ -271,6 +272,25 @@ const jsonLdScripts = [...jsonLdEntries, breadcrumbJsonLd].filter(
 // hidden tap target.
 const stickyCtaPath = rawPath.endsWith('/') ? rawPath : `${rawPath}/`;
 const showStickyCta = ['/', '/pricing/', '/features/', '/demo/'].includes(stickyCtaPath);
+
+// Site search (Pagefind; see SearchDialog.astro and scripts/build-search-index.mjs).
+// The index is built from exactly the pages whose <main> carries
+// `data-pagefind-body`, so this flag is the whole inclusion rule: noindex
+// pages and the utility routes stay out, and so does the static /1.0/
+// archive, which never carries the attribute. The section meta is shown on
+// every result as a tag ("Section: Docs").
+const searchExcluded =
+  noindex || /^\/(api|go|buy|error|1\.0)(\/|$)/.test(rawPath) || /^\/(404|500)\/?$/.test(rawPath);
+const sectionNames: Record<string, string> = {
+  docs: 'Docs',
+  blog: 'Blog',
+  'how-it-works': 'How it works',
+  examples: 'Examples',
+  vs: 'Compare',
+  alternatives: 'Compare',
+  'core-web-vitals': 'Compare',
+};
+const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
 ---
 
 <!doctype html>
@@ -565,6 +585,21 @@ const showStickyCta = ['/', '/pricing/', '/features/', '/demo/'].includes(sticky
                 ),
               )
             }
+            <button
+              type="button"
+              data-search-open
+              data-umami-event="search_open"
+              aria-haspopup="dialog"
+              aria-controls="site-search"
+              class="text-sm font-medium tracking-wide transition-colors inline-flex items-center gap-1.5 text-text-muted hover:text-interactive"
+            >
+              <Icon name="search" class="h-4 w-4" />
+              Search
+              <kbd
+                class="hidden lg:inline-block rounded border border-border px-1 font-mono text-[10px] leading-4 text-text-annotation"
+                aria-hidden="true">/</kbd
+              >
+            </button>
             <a
               href="https://github.com/We-Amp/mod_pagespeed"
               aria-label="Source on GitHub"
@@ -605,35 +640,48 @@ const showStickyCta = ['/', '/pricing/', '/features/', '/demo/'].includes(sticky
               rendered exclusively on the instrument-black canvas. */
           }
 
-          {/* Mobile menu button */}
-          <button
-            id="mobile-menu-btn"
-            class="md:hidden p-2 text-text-muted hover:text-text-body"
-            aria-label="Toggle menu"
-            aria-expanded="false"
-          >
-            <svg
-              class="h-6 w-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              aria-hidden="true"
+          {/* Mobile: search + menu buttons */}
+          <div class="flex items-center md:hidden">
+            <button
+              type="button"
+              data-search-open
+              data-umami-event="search_open_mobile"
+              aria-label="Search"
+              aria-haspopup="dialog"
+              aria-controls="site-search"
+              class="p-2 text-text-muted hover:text-text-body"
             >
-              <path
-                id="menu-icon-open"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 6h16M4 12h16M4 18h16"></path>
-              <path
-                id="menu-icon-close"
-                class="hidden"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-          </button>
+              <Icon name="search" class="h-6 w-6" />
+            </button>
+            <button
+              id="mobile-menu-btn"
+              class="md:hidden p-2 text-text-muted hover:text-text-body"
+              aria-label="Toggle menu"
+              aria-expanded="false"
+            >
+              <svg
+                class="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  id="menu-icon-open"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 6h16M4 12h16M4 18h16"></path>
+                <path
+                  id="menu-icon-close"
+                  class="hidden"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
         </div>
 
         {/* Mobile nav */}
@@ -715,7 +763,12 @@ const showStickyCta = ['/', '/pricing/', '/features/', '/demo/'].includes(sticky
         </div>
       </nav>
     </header>
-    <main id="main-content" class="flex-1">
+    <main
+      id="main-content"
+      class="flex-1"
+      data-pagefind-body={searchExcluded ? undefined : ''}
+      data-pagefind-meta={searchExcluded ? undefined : `section:${searchSection}`}
+    >
       <slot />
     </main>
 
@@ -998,6 +1051,12 @@ const showStickyCta = ['/', '/pricing/', '/features/', '/demo/'].includes(sticky
         maintainer via the existing contact -> Telegram pipeline. */
     }
     <QuickMessage />
+
+    {
+      /* Site search modal (Pagefind). Costs one small inline script per page;
+         the search bundle loads from /pagefind/ on first open. */
+    }
+    <SearchDialog />
 
     {
       /* Site-wide floating "Share this page" widget — stacked above the Message

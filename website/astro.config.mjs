@@ -10,6 +10,7 @@ import node from '@astrojs/node';
 import remarkCustomHeadingId from 'remark-custom-heading-id';
 import remarkDirective from 'remark-directive';
 import remarkCallouts from './src/lib/remark-callouts.mjs';
+import { gitLastModified } from './src/lib/git-date';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,15 +44,22 @@ function extractFrontmatterDate(filePath) {
   }
 }
 
-/** @returns {Map<string, string>} */
+/**
+ * Docs date themselves from the content file's last commit (the same helper
+ * the docs page uses for its visible "Last updated" and JSON-LD dateModified),
+ * with the frontmatter as the fallback, so the sitemap agrees with the page.
+ * Blog posts are frozen content whose pages date themselves from frontmatter;
+ * the sitemap follows the frontmatter for them too.
+ * @returns {Map<string, string>}
+ */
 function buildLastmodMap() {
   /** @type {Map<string, string>} */
   const map = new Map();
   const collections = [
-    { dir: 'src/content/blog', prefix: '/blog/' },
-    { dir: 'src/content/docs', prefix: '/docs/' },
+    { dir: 'src/content/blog', prefix: '/blog/', fromGit: false },
+    { dir: 'src/content/docs', prefix: '/docs/', fromGit: true },
   ];
-  for (const { dir, prefix } of collections) {
+  for (const { dir, prefix, fromGit } of collections) {
     /** @type {string[]} */
     let files = [];
     try {
@@ -61,7 +69,9 @@ function buildLastmodMap() {
     }
     for (const file of files) {
       if (!/\.mdx?$/.test(file)) continue;
-      const iso = extractFrontmatterDate(resolve(__dirname, dir, file));
+      const filePath = resolve(__dirname, dir, file);
+      const gitDate = fromGit ? gitLastModified(filePath) : null;
+      const iso = gitDate ? new Date(gitDate).toISOString() : extractFrontmatterDate(filePath);
       if (iso) map.set(`${prefix}${file.replace(/\.mdx?$/, '')}/`, iso);
     }
   }
