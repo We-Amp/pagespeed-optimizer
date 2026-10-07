@@ -128,25 +128,27 @@ hardening properties on both artifacts before they are packaged.
 
 ## The website tree
 
-`website/` (the modpagespeed.com site) is built and deployed from the public
-repository (We-Amp/pagespeed-optimizer). Its source is maintained in the
-maintainers' tree and reaches the public repository only by a wholesale
-export: the public `website/` is replaced with the maintained tree, so a
-direct edit there would be overwritten by the next export. A website change
-is therefore made in the source tree and shipped by an export, never edited
-in the public repository.
+`website/` (the modpagespeed.com site) is maintained in this repository and is
+the site's source of truth: a website change is an ordinary pull request here,
+and `website/CLAUDE.md` is the guide to the tree. The `Website` workflow gates
+every push or pull request touching `website/**`: the content guards (no
+version-pinned URLs in non-frozen content; the 2.1 manifest does not lag the
+latest stable release tag), `npm ci`, the vitest unit suite, a production build
+(with `PRICING_ALLOW_STALE=1` — a hosted build holds no pricing API credentials,
+so it builds on the committed pricing file), and the Playwright browser suite.
+Deploying the site is the operator's step, from this tree; nothing in CI deploys.
 
-The export applies a token-only scrub for internal references (it changes
-no punctuation, whitespace or quotes), asserts none remain, and runs the
-public repository's own hygiene gate (its `tools/ci/check-public-hygiene.sh`)
-over the result before anything is committed on an export branch. The push
-and the pull request stay with the operator.
+## Publishing the Helm chart
 
-What enforces the quality of an export is the public repository's `Website`
-workflow: on every push or pull request touching `website/**` it runs
-`npm ci`, the vitest unit suite, and a production build (with
-`PRICING_ALLOW_STALE=1` — a hosted build holds no pricing API credentials,
-so it builds on the committed pricing file). A broken export cannot merge.
+The chart source is `deploy/helm/pagespeed/`; the chart repository customers add
+(`helm repo add weamp https://modpagespeed.com/charts`) is the static directory
+`website/public/charts/`. To publish a chart version: bump `version` (and
+`appVersion` when the product version moved) in `deploy/helm/pagespeed/Chart.yaml`,
+run `deploy/helm/package-chart.sh` (needs the `helm` CLI; `HELM=/path/to/helm`
+overrides), and commit the packaged `pagespeed-<version>.tgz` together with the
+regenerated `website/public/charts/index.yaml` in one pull request. The script
+merges into the existing index, so earlier entries keep their timestamps. Merging
+publishes nothing by itself; the chart is live once the site is deployed.
 
 ## Vulnerability Scanning
 

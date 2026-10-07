@@ -5,7 +5,7 @@ Component-specific details live in sub-CLAUDE.md files: `src/worker/`, `src/ngin
 `src/browser/`, `src/crypto/`, `lib/image/`, `lib/html/`, `lib/cache/`, `lib/classify/`,
 `lib/css/`, `lib/js/`, `lib/base/`, `lib/pagespeed/` (C API: `libpagespeed.so` Linux / `pagespeed.dll` Windows),
 `tools/workbench/`, `tools/e2e/`, `tools/stress/`, `tools/http-compliance/`,
-`samples/aspnetcore/`. Also
+`samples/aspnetcore/`, `website/` (the modpagespeed.com site). Also
 `reference/mod_pagespeed/` (gitignored, absent on a fresh clone; original Google
 project, not 2.1 conventions — see Reference Code Locations below).
 
@@ -30,6 +30,7 @@ absent by default) — code edits never belong under `reference/`.
 | Outbound fetch / SSRF policy | `lib/net/` (`ssrf_guard`, `fetch_policy`, `curl_fetcher`, `upstream_pin`) | — |
 | ASP.NET Core middleware | `samples/aspnetcore/src/WeAmp.PageSpeed.AspNetCore/PageSpeedMiddleware.cs` | `samples/aspnetcore/CLAUDE.md` |
 | Web Bot Auth / RSL-CAP verification | `src/crypto/webbotauth/` | `src/crypto/CLAUDE.md` |
+| Website (modpagespeed.com) | `website/` | `website/CLAUDE.md` |
 
 Per-component tests are in the "What to Test After Changes" table below.
 Load-bearing jargon (PSOL, AlternateId vs SentinelId, capability mask, kIdentity,

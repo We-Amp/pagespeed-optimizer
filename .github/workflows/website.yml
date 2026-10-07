@@ -3,21 +3,23 @@
 
 name: Website
 
-# Website gate: website/ (the modpagespeed.com site) is imported wholesale
-# by the maintainer export flow rather than edited here, so the failure this
-# workflow prevents is a broken import landing on main -- pages that no
-# longer build, or unit tests that a bad scrub or a partial copy broke. It
-# runs the same checks the site's own repo enforces (npm ci + the vitest
-# unit suite) plus a production build, so nothing that cannot render ships.
+# Website gate: website/ is the modpagespeed.com site, and this tree is its
+# source of truth -- every site change lands here through a pull request.
+# This workflow is what stands between such a change and main:
 #
-# Scope cuts, mirroring the CI workflow's hosted-runner budget:
-#   * The Playwright browser suite and the eslint/astro check lint leg stay
-#     out: they need browsers and minutes that outweigh the import risk they
-#     cover, and the unit suite already pins the site's content contracts
-#     (sync guards against drift between generated files and their sources).
-#   * The build runs with PRICING_ALLOW_STALE=1: a hosted PR build cannot
-#     hold pricing API credentials, so it proceeds on the committed pricing
-#     file, loudly (fetch-pricing.js refuses without this).
+#   website-build       the content guards (no version-pinned URLs in
+#                       non-frozen content; the 2.1 manifest does not lag the
+#                       shipped release), npm ci, the vitest unit + sync
+#                       gates, and a production build, so nothing that cannot
+#                       render or that contradicts its own data ships.
+#   website-playwright  the browser suite in website/tests/ against the dev
+#                       server, so the pages behave, not just build.
+#
+# Both run on GitHub-hosted runners with first-party actions only. The build
+# runs with PRICING_ALLOW_STALE=1: a hosted build holds no pricing API
+# credentials, so it proceeds on the committed pricing file, loudly
+# (fetch-pricing.js refuses without this). Deploying the site is the
+# operator's step, from this tree; nothing in this workflow deploys.
 #
 # Triggers mirror the CI workflow (push to main + pull requests), filtered
 # to the tree this gate owns. A push that merges a website pull request
@@ -26,10 +28,10 @@ name: Website
 on:
   push:
     branches: [main]
-    paths: ['website/**']
+    paths: ['website/**', 'shared/product-facts.mjs', '.github/workflows/website.yml']
   pull_request:
     branches: [main]
-    paths: ['website/**']
+    paths: ['website/**', 'shared/product-facts.mjs', '.github/workflows/website.yml']
 
 concurrency:
   group: website-${{ github.ref }}
@@ -49,9 +51,120 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
+      # Every version-coupled fragment on the site flows through getRelease()
+      # or the release-aware components in website/src/components/release/,
+      # so the rendered version follows the manifest. A literal
+      # /releases/vX.Y.Z/ URL in docs, pages, components or layouts bypasses
+      # that and goes stale on the next release. Blog posts under
+      # website/src/content/blog/ are frozen by design (dated announcements)
+      # and exempt.
+      - name: Guard against version-pinned URLs in non-frozen content
+        working-directory: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          violations=$(find website/src/content website/src/pages website/src/components website/src/layouts \
+            -type f \( -name '*.md' -o -name '*.mdx' -o -name '*.astro' \) \
+            -not -path '*/content/blog/*' \
+            -exec grep -lE 'releases/v[0-9]+\.[0-9]+\.[0-9]+/' {} + 2>/dev/null || true)
+          if [ -n "$violations" ]; then
+            echo "::error::version-pinned /releases/vX.Y.Z/ URLs in non-frozen content:"
+            echo "$violations"
+            echo ""
+            echo "Use getRelease() or the components in website/src/components/release/ instead;"
+            echo "see website/src/components/release/README.md."
+            exit 1
+          fi
+          echo "No version-pinned URLs in non-frozen content."
+
+      # The 2.1 manifest (website/src/content/releases-2.1/release.yaml) is
+      # what <Version /> and getRelease() render, so if it lags the latest
+      # shipped release the whole site quietly advertises an old version.
+      # The authoritative "shipped" marker is the latest stable v2.* tag of
+      # the public mod_pagespeed repository (the serving module's home; a
+      # 2.1 release carries that tag). The comparison is "must not lag": a
+      # manifest ahead of every tag never fires.
+      #
+      # A fresh tag legitimately precedes the manifest bump for a short
+      # while, so a lag is a warning until the tag is GRACE_HOURS old and an
+      # error after that. The tag date comes from the GitHub API (ls-remote
+      # carries no dates); if it cannot be read the lag is treated as stale
+      # and fails -- closed, not open.
+      #
+      # Only the current line is checked here. The 2.0 and 1.1 manifests
+      # describe frozen or end-of-life lines whose versions no longer move,
+      # and the Helm chart's appVersion is checked where the chart is
+      # packaged, not here.
+      - name: Guard against 2.1 version drift
+        working-directory: ${{ github.workspace }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GRACE_HOURS: "6"
+        run: |
+          set -euo pipefail
+          manifest=$(grep -E '^[[:space:]]*semver:' website/src/content/releases-2.1/release.yaml \
+            | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+          if [ -z "$manifest" ]; then
+            echo "::error::could not read release.semver from website/src/content/releases-2.1/release.yaml"
+            exit 1
+          fi
+          latest_stable=$(git ls-remote --tags --refs https://github.com/We-Amp/mod_pagespeed.git 'v2.*' \
+            | awk '{ print $2 }' | sed 's#^refs/tags/##' \
+            | grep -vE -- '-(rc|beta|alpha|preview)' | sort -V | tail -1 | sed 's/^v//')
+          if [ -z "$latest_stable" ]; then
+            echo "::error::no stable v2.* tag found on We-Amp/mod_pagespeed -- cannot verify the manifest (network?)"
+            exit 1
+          fi
+          fail=0
+          if [ "$(printf '%s\n%s\n' "$latest_stable" "$manifest" | sort -V | tail -1)" != "$manifest" ]; then
+            # Resolve the tag's date: an annotated tag carries its own
+            # tagger date, a lightweight tag borrows its commit's.
+            tag_date=""
+            ref_json=$(gh api "repos/We-Amp/mod_pagespeed/git/refs/tags/v${latest_stable}" 2>/dev/null || true)
+            if [ -n "$ref_json" ]; then
+              obj_type=$(printf '%s' "$ref_json" | jq -r '.object.type // empty')
+              obj_sha=$(printf '%s' "$ref_json" | jq -r '.object.sha // empty')
+              case "$obj_type" in
+                tag)    tag_date=$(gh api "repos/We-Amp/mod_pagespeed/git/tags/${obj_sha}" --jq '.tagger.date // empty' 2>/dev/null || true) ;;
+                commit) tag_date=$(gh api "repos/We-Amp/mod_pagespeed/git/commits/${obj_sha}" --jq '.committer.date // empty' 2>/dev/null || true) ;;
+              esac
+            fi
+            tag_ct=0
+            if [ -n "$tag_date" ]; then
+              tag_ct=$(date -u -d "$tag_date" +%s 2>/dev/null || echo 0)
+            fi
+            now=$(date -u +%s)
+            tag_age_h=$(( (now - tag_ct) / 3600 ))
+            if [ "$tag_ct" -gt 0 ] && [ "$tag_age_h" -lt "$GRACE_HOURS" ]; then
+              echo "::warning::the 2.1 manifest (${manifest}) lags the latest stable tag v${latest_stable}, tagged ${tag_age_h}h ago -- within the ${GRACE_HOURS}h grace window. Passing; this fails once the tag is older than that. Bump release.yaml."
+            else
+              echo "::error::the 2.1 manifest (${manifest}) lags the latest stable tag v${latest_stable} (tag age ${tag_age_h}h, or tag date unreadable). Bump website/src/content/releases-2.1/release.yaml."
+              fail=1
+            fi
+          fi
+          # Hand-pinned image tags: a ghcr.io/we-amp/pagespeed-*:2.X.Y literal
+          # in non-frozen content (same scope as the URL guard: blog exempt)
+          # must equal the manifest semver. These are copy-paste install
+          # commands, and a stale one pulls an old image. .md cannot use the
+          # <ImageTag /> component, so this keeps those literals honest.
+          esc="${manifest//./\\.}"
+          stale=$(find website/src/content website/src/pages website/src/components website/src/layouts \
+            -type f \( -name '*.md' -o -name '*.mdx' -o -name '*.astro' \) \
+            -not -path '*/content/blog/*' \
+            -exec grep -Eoh 'ghcr\.io/we-amp/pagespeed-[a-z]+:2\.[0-9]+\.[0-9]+' {} + 2>/dev/null \
+            | sort -u | grep -vE ":${esc}\$" || true)
+          if [ -n "$stale" ]; then
+            echo "::error::stale image tag(s) in non-frozen content (must be :${manifest}):"
+            echo "$stale"
+            fail=1
+          fi
+          if [ "$fail" = 0 ]; then
+            echo "2.1 version-drift guard OK: manifest=${manifest} latest_stable_tag=v${latest_stable}; no stale image tags."
+          fi
+          exit "$fail"
+
       # Node 22 LTS, matching the site's own test environment. npm cache is
       # keyed on the site's lockfile so dependency installs stay warm across
-      # import-only changes.
+      # content-only changes.
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -68,3 +181,59 @@ jobs:
         env:
           PRICING_ALLOW_STALE: "1"
         run: npm run build
+
+  # The browser suite: website/tests/*.spec.ts against the Astro dev server,
+  # which playwright.config.ts starts itself (webServer: npm run dev, baseURL
+  # http://localhost:4321) -- no production build is needed, and the specs
+  # that touch legacy static paths the dev server does not serve skip
+  # themselves. Chromium only, as the config's projects declare (the mobile
+  # project is a Chromium device profile). Nothing in the suite reaches the
+  # live site or a third-party service: external targets are asserted as
+  # hrefs or intercepted with page.route(), so the job runs on a hosted
+  # runner with no secrets and no specs are excluded.
+  website-playwright:
+    name: Website browser suite (Playwright, ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium (with system dependencies)
+        run: npx playwright install --with-deps chromium
+
+      # CI=true switches the config to CI mode (one worker, one retry,
+      # forbidOnly, always a fresh dev server). PRICING_ALLOW_STALE is set
+      # for parity with the build job: the dev server does not run the
+      # pricing prebuild, but nothing in this job may fail on missing
+      # pricing credentials.
+      - name: Playwright
+        env:
+          CI: "true"
+          PRICING_ALLOW_STALE: "1"
+        run: npx playwright test
+
+      # Traces, screenshots and the HTML report of a failed run, for
+      # forensics. Paths are workspace-relative (upload-artifact ignores
+      # the job's working-directory default).
+      - name: Upload Playwright forensics
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: website-playwright-forensics
+          path: |
+            website/test-results/**
+            website/playwright-report/**
+          retention-days: 7
+          if-no-files-found: ignore
