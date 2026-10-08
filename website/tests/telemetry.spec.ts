@@ -95,6 +95,7 @@ test.describe('Telemetry strip', () => {
   });
 
   test('no field value is clipped at 360, 390, 414 or 1440', async ({ browser }) => {
+    const failures: string[] = [];
     for (const width of [360, 390, 414, 1440]) {
       const context = await browser.newContext({ viewport: { width, height: 844 } });
       // Keep the strip in its captured state: a failed probe applies nothing.
@@ -125,18 +126,37 @@ test.describe('Telemetry strip', () => {
           out.push(`strip overflow: scrollWidth ${el0.scrollWidth} > clientWidth ${el0.clientWidth}`);
         if (document.documentElement.scrollWidth > window.innerWidth)
           out.push(`page horizontal overflow: ${document.documentElement.scrollWidth} > ${window.innerWidth}`);
+        // The row clips what overflows it, so scrollWidth alone cannot see a
+        // value that runs past its field: also compare each value's rendered
+        // right edge with the right edges of its field and of the row.
+        const rowRight = el0
+          .querySelector<HTMLElement>('.telemetry-row')!
+          .getBoundingClientRect().right;
         el0.querySelectorAll<HTMLElement>('[data-t]').forEach((el) => {
           if (el.getClientRects().length === 0) return; // not rendered at this width
           if (el.scrollWidth > el.clientWidth)
             out.push(
               `[data-t="${el.dataset.t}"] clipped: scrollWidth ${el.scrollWidth} > clientWidth ${el.clientWidth} ("${el.textContent}")`,
             );
+          const range = document.createRange();
+          range.selectNodeContents(el);
+          const right = range.getBoundingClientRect().right;
+          const field = el.closest<HTMLElement>('.t-f, .t-state');
+          if (field && right > field.getBoundingClientRect().right + 0.5)
+            out.push(
+              `[data-t="${el.dataset.t}"] past its field: content ends ${right.toFixed(1)} > field right ${field.getBoundingClientRect().right.toFixed(1)} ("${el.textContent}")`,
+            );
+          if (right > rowRight + 0.5)
+            out.push(
+              `[data-t="${el.dataset.t}"] past the row: content ends ${right.toFixed(1)} > row right ${rowRight.toFixed(1)} ("${el.textContent}")`,
+            );
         });
         return out;
       });
-      expect(problems, `viewport ${width}px`).toEqual([]);
+      failures.push(...problems.map((p) => `${width}px: ${p}`));
       await context.close();
     }
+    expect(failures).toEqual([]);
   });
 
   test('the strip is 32px tall at first paint with the CSS sheet blocked', async ({ page }) => {
