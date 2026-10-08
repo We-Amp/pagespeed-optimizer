@@ -1,0 +1,84 @@
+{
+  "origin": "https://modpagespeed.com",
+  "capturedAt": "2026-10-08T13:28:31.392Z",
+  "paths": {
+    "/": {
+      "status": 200,
+      "wireBytes": 27460,
+      "decodedBytes": 119410,
+      "headers": {
+        "x-mod-pagespeed": "1.17.0",
+        "vary": "Save-Data,Accept-Encoding",
+        "content-encoding": "gzip",
+        "content-type": "text/html",
+        "cache-control": "max-age=0, no-cache",
+        "content-length": "27460"
+      }
+    },
+    "/docs/": {
+      "status": 200,
+      "wireBytes": 35632,
+      "decodedBytes": 166415,
+      "headers": {
+        "x-mod-pagespeed": "1.17.0",
+        "vary": "Save-Data,Accept-Encoding",
+        "content-encoding": "gzip",
+        "content-type": "text/html",
+        "cache-control": "max-age=0, no-cache",
+        "content-length": "35632"
+      }
+    },
+    "/download/": {
+      "status": 200,
+      "wireBytes": 23890,
+      "decodedBytes": 104872,
+      "headers": {
+        "x-mod-pagespeed": "1.17.0",
+        "vary": "Accept-Encoding",
+        "content-encoding": "gzip",
+        "content-type": "text/html",
+        "cache-control": "max-age=0, no-cache",
+        "content-length": "23890"
+      }
+    },
+    "/pricing/": {
+      "status": 200,
+      "wireBytes": 36989,
+      "decodedBytes": 172613,
+      "headers": {
+        "x-mod-pagespeed": "1.17.0",
+        "vary": "Save-Data,Accept-Encoding",
+        "content-encoding": "gzip",
+        "content-type": "text/html",
+        "cache-control": "max-age=0, no-cache",
+        "content-length": "36989"
+      }
+    },
+    "/features/": {
+      "status": 200,
+      "wireBytes": 35379,
+      "decodedBytes": 163733,
+      "headers": {
+        "x-mod-pagespeed": "1.17.0",
+        "vary": "Accept-Encoding",
+        "content-encoding": "gzip",
+        "content-type": "text/html",
+        "cache-control": "max-age=0, no-cache",
+        "content-length": "35379"
+      }
+    },
+    "/demo/": {
+      "status": 200,
+      "wireBytes": 28841,
+      "decodedBytes": 150230,
+      "headers": {
+        "x-mod-pagespeed": "1.17.0",
+        "vary": "Save-Data,Accept-Encoding",
+        "content-encoding": "gzip",
+        "content-type": "text/html",
+        "cache-control": "max-age=0, no-cache",
+        "content-length": "28841"
+      }
+    }
+  }
+}
