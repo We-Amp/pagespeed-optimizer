@@ -789,11 +789,23 @@ const jsonLd = [
     // submit. render() only runs after loadMapping() has resolved (directly
     // from runAnalysis, or from an edition toggle after a completed run).
     let mappingCache: AuditMapping[] | null = null;
+    // Set when the mapping chunk failed to load (typically deploy skew: a
+    // deploy replaced the _astro/ hashes after the page was loaded). Once
+    // set, retrying cannot recover — the browser caches the failed module
+    // fetch — so the run is blocked before spending PSI calls, and the user
+    // is told to reload the page.
+    let mappingFailed = false;
     async function loadMapping(): Promise<AuditMapping[]> {
       if (!mappingCache) {
         mappingCache = (await import('../data/psi-mps-mapping')).PSI_MPS_MAPPING;
       }
       return mappingCache;
+    }
+    function reloadError(): Error {
+      return Object.assign(
+        new Error('Part of this page failed to load. Reload the page and run the analysis again.'),
+        { reload: true },
+      );
     }
 
     // ---- Which part the reader is configuring ----
@@ -1850,6 +1862,12 @@ const jsonLd = [
     }
 
     function classifyError(err: unknown): { title: string; body: string } {
+      if ((err as { reload?: boolean })?.reload) {
+        return {
+          title: 'This page needs a reload.',
+          body: (err as { message?: string }).message ?? '',
+        };
+      }
       const status = (err as { status?: number })?.status;
       const message = (err as { message?: string })?.message ?? 'Unknown error.';
       if (status === 429) {
@@ -1893,12 +1911,22 @@ const jsonLd = [
         /* analytics must never break the run */
       }
       try {
+        // A failed chunk fetch is cached by the browser, so once the mapping
+        // table is known to be unloadable a retry can never succeed — stop
+        // before firing the PSI requests and ask for a page reload instead.
+        if (mappingFailed && !mappingCache) {
+          throw reloadError();
+        }
         // We fire both fetches in parallel for speed but report progress
         // sequentially so the user sees a deterministic two-step indicator
         // instead of a vague "loading…". Whichever returns first flips the
         // label to step 2. The mapping table loads alongside — it is split
         // out of the initial bundle and only fetched on first use.
         const mappingP = loadMapping();
+        // Awaited below; attaching a no-op handler now keeps a rejection
+        // that lands while the PSI fetches are still in flight from being
+        // reported as an unhandled rejection.
+        mappingP.catch(() => {});
         let stepTwoShown = false;
         const advance = () => {
           if (!stepTwoShown) {
@@ -1957,8 +1985,15 @@ const jsonLd = [
           throw new Error('PageSpeed Insights returned no usable result for this URL.');
         }
         // Surfaced before render() so a failed chunk load takes the error
-        // path instead of rendering an empty report.
-        await mappingP;
+        // path instead of rendering an empty report. The error is a
+        // reload-only condition: retrying reuses the browser's cached
+        // failure, so the run is blocked above until the page is reloaded.
+        try {
+          await mappingP;
+        } catch {
+          mappingFailed = true;
+          throw reloadError();
+        }
         render(targetUrl, mobile, desktop);
       } catch (err) {
         const { title, body } = classifyError(err);
