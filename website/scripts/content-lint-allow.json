@@ -1,0 +1,19 @@
+{
+  "/404.html": "machine-generated redirect stub to /error/404/ — no content, noindex",
+  "/500.html": "machine-generated redirect stub to /error/500/ — no content, noindex",
+  "/go/nuget/": "client-side redirect stub for click tracking — noindex,nofollow, no content heading",
+  "/demos/blog/": "static demo fixture site (public/demos/), third-party-style HTML by design, not a site page",
+  "/demos/ecommerce/": "static demo fixture site (public/demos/), third-party-style HTML by design, not a site page",
+  "/demos/news/": "static demo fixture site (public/demos/), third-party-style HTML by design, not a site page",
+  "/demos/portfolio/": "static demo fixture site (public/demos/), third-party-style HTML by design, not a site page",
+  "/cyclone-benchmark/": "standalone static benchmark page (public/cyclone-benchmark/), no BaseLayout",
+  "/examples/combine_heads/": "generated examples data has no blurb for this filter, so the page has no meta description; needs generator/data work",
+  "/examples/inline_import_to_link/": "generated examples data has no blurb for this filter, so the page has no meta description; needs generator/data work",
+  "/examples/move_css_to_head/": "generated examples data has no blurb for this filter, so the page has no meta description; needs generator/data work",
+  "/examples/outline_css/": "generated examples data has no blurb for this filter, so the page has no meta description; needs generator/data work",
+  "/examples/outline_javascript/": "generated examples data has no blurb for this filter, so the page has no meta description; needs generator/data work",
+  "/docs/admin-console/": "term-drift-daemon: quotes the serving module's admin-console UI labels (\"Optimizer daemon\" panels), verified in the public mod_pagespeed repo",
+  "/docs/configuration/": "term-drift-daemon: names the module's real /v1/daemon/* management endpoints and Daemon* directives (generated reference region)",
+  "/docs/release-notes-1-15/": "term-drift-daemon: \"time daemon\" is ntpd, not the optimizer worker",
+  "/docs/release-notes-2-1/": "term-drift-daemon: \"daemon paths\" refers to the DaemonSocketPath/DaemonVolumePath directive names"
+}

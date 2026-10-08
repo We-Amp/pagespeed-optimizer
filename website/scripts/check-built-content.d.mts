@@ -1,0 +1,41 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2024-2026 We-Amp B.V.
+//
+// Types for scripts/check-built-content.mjs (the built-output content lint),
+// so the vitest suite in test/check-built-content.test.ts imports it with
+// `astro check` none the wiser. Keep in sync with the .mjs exports.
+
+export type RuleLevel = 'error' | 'warn';
+export type RuleConfig = { level: RuleLevel; indexableOnly: boolean };
+export type RuleName =
+  | 'title-count'
+  | 'title-length'
+  | 'description-present'
+  | 'description-length'
+  | 'description-duplicate'
+  | 'h1-count'
+  | 'term-drift-daemon'
+  | 'product-naming'
+  | 'canonical';
+export type Failure = { url: string; rule: string; level: RuleLevel; message: string };
+export type Page = { url: string; html: string };
+
+export const RULES: Record<RuleName, RuleConfig>;
+export function decodeEntities(text: string): string;
+export function collapseWhitespace(text: string): string;
+export function titleInfo(html: string): { count: number; text: string };
+export function descriptionInfo(html: string): { count: number; text: string };
+export function isNoindex(html: string): boolean;
+export function stripNonVisible(html: string): string;
+export function visibleText(html: string): string;
+export function h1Count(html: string): number;
+export function canonicalHrefs(html: string): string[];
+export function canonicalProblem(href: string): string | null;
+export function lintPage(html: string): { rule: RuleName; message: string }[];
+export function lintPages(
+  pages: Page[],
+  allowlist?: Record<string, string>,
+): { failures: Failure[]; warnings: Failure[] };
+export function urlOf(distRoot: string, file: string): string;
+export function collectPages(distRoot: string): string[];
+export function loadAllowlist(file: string): Record<string, string>;
