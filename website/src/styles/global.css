@@ -6,12 +6,44 @@
 
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* Inter (SIL OFL 1.1), variable: wght 400-900 (the weights the site uses) and
+   the full opsz axis, Latin plus the punctuation, arrows and math signs the
+   pages carry. Subset with fonttools pyftsubset; the budget is a vitest guard
+   (test/font-budget.test.ts). */
 @font-face {
   font-family: 'Inter';
   font-style: normal;
-  font-weight: 100 900;
+  font-weight: 400 900;
   font-display: swap;
   src: url('/fonts/inter-variable-subset.woff2') format('woff2');
+}
+
+/* Metric-matched fallbacks: the local font that renders before the web font
+   arrives is scaled to Inter's average glyph width and given Inter's vertical
+   metrics, so the swap does not move text. size-adjust is the ratio of the
+   frequency-weighted average advance width (Inter 400 vs Arial, from the fonts'
+   hmtx tables over the site's own text); the overrides are Inter's typo
+   ascender/descender (1984/-494 at 2048 upm) divided by size-adjust. Arial,
+   Helvetica and Liberation Sans share the same advance widths. */
+@font-face {
+  font-family: 'Inter Fallback';
+  src: local('Arial'), local('Helvetica'), local('Liberation Sans');
+  size-adjust: 104.26%;
+  ascent-override: 92.92%;
+  descent-override: 23.14%;
+  line-gap-override: 0%;
+}
+
+/* IBM Plex Mono fallback: Menlo (advance 0.602 em) against Plex Mono's 0.600 em
+   and 1025/-275 at 1000 upm. Courier New (0.600 em) is within 0.3% of the same
+   numbers. */
+@font-face {
+  font-family: 'IBM Plex Mono Fallback';
+  src: local('Menlo'), local('Courier New');
+  size-adjust: 99.66%;
+  ascent-override: 102.85%;
+  descent-override: 27.59%;
+  line-gap-override: 0%;
 }
 
 /* IBM Plex Mono (SIL OFL 1.1) — self-hosted, no Google Fonts call. Carries all
@@ -174,10 +206,12 @@
    interactive == live == optimized. All ratios WCAG 2.2 AA verified per surface.
    ========================================================================== */
 @theme {
-  --font-sans: 'Inter', system-ui, sans-serif;
+  --font-sans: 'Inter', 'Inter Fallback', system-ui, sans-serif;
   /* IBM Plex Mono (OFL) carries ALL numerics, labels, code, status & logo.
      Falls back to platform mono until the self-hosted subset ships. */
-  --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  --font-mono:
+    'IBM Plex Mono', 'IBM Plex Mono Fallback', ui-monospace, SFMono-Regular, Menlo, Consolas,
+    monospace;
 
   /* ===== LIGHT (subordinate — dark is home; see .dark) ===== */
   --color-bg-primary: #fbfaf8; /* paper */
