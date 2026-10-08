@@ -16,6 +16,12 @@
 //     input) over load + 3s, at both widths, plus horizontal-scroll metrics
 //     at 360/390/1440, written to JSON.
 //
+// Gates (the process exits non-zero when any holds): a serious/critical axe
+// violation in dark (whole page) or in light inside [data-ui], CLS > 0.02 at
+// either width, or horizontal scroll at any checked width. The per-path
+// summary line prints every count; the light whole-page axe run is
+// report-only (legacy chrome outside [data-ui] is allowed to trip it).
+//
 // Usage:
 //   node scripts/visual-snapshots.mjs --base http://localhost:4321 --out <dir> <path...>
 // Example:
@@ -51,6 +57,11 @@ const VIEWPORTS = [
 const SCROLL_WIDTHS = [360, 390, 1440];
 
 const slug = (p) => (p === '/' ? 'index' : p.replace(/^\/|\/$/g, '').replaceAll('/', '-'));
+
+const CLS_GATE = 0.02;
+const seriousCritical = (axe) =>
+  (axe.violations ?? []).filter((v) => v.impact === 'serious' || v.impact === 'critical').length;
+const failures = [];
 
 const CLS_INIT = `
 window.__cls = 0;
@@ -89,6 +100,7 @@ try {
         resolve(out, `${name}-${vp.name}.axe-dark.json`),
         JSON.stringify(axeDark, null, 2),
       );
+      const darkSC = seriousCritical(axeDark);
 
       // Screenshots, dark: first viewport, then full page.
       await page.screenshot({ path: resolve(out, `${name}-${vp.name}-dark-viewport.png`) });
@@ -109,9 +121,11 @@ try {
         resolve(out, `${name}-${vp.name}.axe-light.json`),
         JSON.stringify(axeLight, null, 2),
       );
+      const lightSC = seriousCritical(axeLight);
       // The [data-ui]-scoped run only makes sense on pages that carry new
       // components; axe throws when an include selector matches nothing.
       const hasUi = await page.evaluate(() => Boolean(document.querySelector('[data-ui]')));
+      let uiSC = null;
       if (hasUi) {
         const axeLightUi = await new AxeBuilder({ page })
           .withTags(AXE_TAGS)
@@ -121,12 +135,27 @@ try {
           resolve(out, `${name}-${vp.name}.axe-light-dataui.json`),
           JSON.stringify(axeLightUi, null, 2),
         );
+        uiSC = seriousCritical(axeLightUi);
       } else {
         writeFileSync(
           resolve(out, `${name}-${vp.name}.axe-light-dataui.json`),
           JSON.stringify({ skipped: 'no [data-ui] regions on this page' }, null, 2),
         );
       }
+
+      clsResult.widths[vp.width].axe = {
+        darkSeriousCritical: darkSC,
+        lightDataUiSeriousCritical: uiSC,
+        lightWholePageSeriousCritical: lightSC, // report-only, never gated
+      };
+      const cls = clsResult.widths[vp.width].cls;
+      if (darkSC > 0)
+        failures.push(`${path} @${vp.name}: ${darkSC} serious/critical axe violation(s), dark`);
+      if (uiSC !== null && uiSC > 0)
+        failures.push(
+          `${path} @${vp.name}: ${uiSC} serious/critical axe violation(s), light [data-ui]`,
+        );
+      if (cls > CLS_GATE) failures.push(`${path} @${vp.name}: CLS ${cls.toFixed(4)} > ${CLS_GATE}`);
 
       await page.screenshot({ path: resolve(out, `${name}-${vp.name}-light-viewport.png`) });
       await page.screenshot({
@@ -146,11 +175,9 @@ try {
       const page = await context.newPage();
       await page.goto(url, { waitUntil: 'load' });
       await page.waitForTimeout(500);
-      clsResult.scroll[w] = {
-        scrollWidth: await page.evaluate(() => document.documentElement.scrollWidth),
-        innerWidth: w,
-        ok: (await page.evaluate(() => document.documentElement.scrollWidth)) <= w,
-      };
+      const sw = await page.evaluate(() => document.documentElement.scrollWidth);
+      clsResult.scroll[w] = { scrollWidth: sw, innerWidth: w, ok: sw <= w };
+      if (sw > w) failures.push(`${path} @${w}: horizontal scroll (scrollWidth ${sw} > ${w})`);
       await context.close();
     }
 
@@ -161,8 +188,23 @@ try {
         `hscroll360=${clsResult.scroll[360].ok} hscroll390=${clsResult.scroll[390].ok} ` +
         `hscroll1440=${clsResult.scroll[1440].ok}`,
     );
+    for (const vp of VIEWPORTS) {
+      const a = clsResult.widths[vp.width].axe;
+      console.log(
+        `  @${vp.name}: axe serious/critical dark=${a.darkSeriousCritical} ` +
+          `light[data-ui]=${a.lightDataUiSeriousCritical ?? 'n/a'} ` +
+          `light-whole-page=${a.lightWholePageSeriousCritical} (report-only)`,
+      );
+    }
   }
 } finally {
   await browser.close();
+}
+if (failures.length > 0) {
+  process.exitCode = 1;
+  console.log('gate: FAIL');
+  for (const f of failures) console.log(`  - ${f}`);
+} else {
+  console.log('gate: PASS');
 }
 console.log(`snapshots written to ${resolve(out)}`);
