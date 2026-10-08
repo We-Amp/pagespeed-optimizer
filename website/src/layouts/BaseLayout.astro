@@ -54,12 +54,11 @@ const {
 
 const is11Section = Astro.url.pathname.startsWith('/1.1/');
 
-// Sitewide banner, section-aware: suppressed on /1.1/*. Dismissal is
-// versioned — bump the key suffix whenever the copy or link changes so
-// previously-dismissed users see the new banner.
-const bannerText = is11Section
-  ? ''
-  : `${PRODUCT_DISPLAY_NAME} ${CURRENT_LINE} is here — open source (Apache-2.0): the module you know, plus the optimizer worker`;
+// Sitewide banner. Empty text renders no banner (the 2.1 launch banner was
+// retired after general availability). When a banner returns, keep it off
+// /1.1/* (is11Section) and bump the dismissal key suffix whenever the copy or
+// link changes, so previously-dismissed users see the new banner.
+const bannerText: string = '';
 const bannerHref = '/docs/getting-started/';
 const bannerDismissKey = 'banner-dismissed:mps21-ga-2026a';
 
