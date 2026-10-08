@@ -31,6 +31,9 @@ interface Props {
   // intermediate segment that has no page of its own (the /1.1/docs/[slug]
   // route this covered is retired; kept for any future segment-less page).
   breadcrumbSkipSegments?: string[];
+  // The page's Markdown twin (/docs/<slug>.md), advertised with
+  // <link rel="alternate" type="text/markdown"> so agents can ask for the text.
+  alternateMarkdown?: string;
 }
 
 const {
@@ -41,6 +44,7 @@ const {
   noindex = false,
   breadcrumbLeafName,
   breadcrumbSkipSegments = [],
+  alternateMarkdown,
 } = Astro.props;
 
 const is11Section = Astro.url.pathname.startsWith('/1.1/');
@@ -420,6 +424,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
       title={`${PRODUCT_DISPLAY_NAME} Blog`}
       href="/blog/rss.xml"
     />
+    {alternateMarkdown && <link rel="alternate" type="text/markdown" href={alternateMarkdown} />}
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="icon" href="/favicon.ico" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

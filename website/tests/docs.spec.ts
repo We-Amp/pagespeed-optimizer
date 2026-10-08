@@ -335,6 +335,53 @@ test.describe('Docs mechanics', () => {
     expect(await edit.getAttribute('href')).toContain('/configuration.md');
   });
 
+  // Every docs page is also served as Markdown at its URL with a .md suffix
+  // (src/pages/docs/[slug].md.ts), the body the agent files carry: the title
+  // as the one H1, the lede, the canonical URL, absolute links.
+  test('/docs/getting-started.md serves the page as Markdown', async ({ request }) => {
+    const res = await request.get('/docs/getting-started.md');
+    expect(res.status()).toBe(200);
+    expect(res.headers()['content-type']).toMatch(/^text\/markdown/);
+    const body = await res.text();
+    expect(body.startsWith('# Getting started\n')).toBe(true);
+    expect(body).toContain('Canonical URL: https://modpagespeed.com/docs/getting-started/');
+    expect(body).toContain('](https://modpagespeed.com/docs/is-it-working/)');
+    expect(body).not.toContain('](/docs/');
+    expect(body).not.toMatch(/^import |<[A-Z][A-Za-z]*\b[^>]*\/>/m);
+  });
+
+  test('the HTML page advertises its Markdown twin in <head> and beside the edit link', async ({
+    page,
+  }) => {
+    await page.goto('/docs/getting-started/');
+    const alternate = page.locator('head link[rel="alternate"][type="text/markdown"]');
+    await expect(alternate).toHaveCount(1);
+    await expect(alternate).toHaveAttribute('href', '/docs/getting-started.md');
+    const view = page.locator('main a', { hasText: 'View as Markdown' });
+    await expect(view).toBeVisible();
+    await expect(view).toHaveAttribute('href', '/docs/getting-started.md');
+    // The twin a page points at is the one the server serves.
+    const res = await page.request.get((await view.getAttribute('href'))!);
+    expect(res.status()).toBe(200);
+    expect(res.headers()['content-type']).toMatch(/^text\/markdown/);
+  });
+
+  test('an unknown slug has no Markdown twin', async ({ request }) => {
+    const res = await request.get('/docs/no-such-page.md');
+    expect(res.status()).toBe(404);
+  });
+
+  // The trailing-slash scheme applies to pages; a file-like URL is served
+  // without one and has no slash variant, the same answer /llms.txt/ and
+  // /api/product.json/ give. The Markdown route follows that scheme.
+  test('the Markdown route is a file-like URL under the trailing-slash scheme', async ({
+    request,
+  }) => {
+    expect((await request.get('/docs/getting-started.md')).status()).toBe(200);
+    expect((await request.get('/docs/getting-started.md/')).status()).toBe(404);
+    expect((await request.get('/llms.txt/')).status()).toBe(404);
+  });
+
   test('code blocks have a copy button that copies the code', async ({ page, context }) => {
     await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await page.goto('/docs/installation-docker/');

@@ -35,7 +35,7 @@ Run everything from `website/`.
 | `npm run lint` | ESLint plus `astro check`. |
 | `npx vitest run` | Unit tests and the sync/content gates in `test/`. Fast; run this first. |
 | `npx playwright test` | Browser suite in `tests/`. Starts the dev server itself (`webServer` in `playwright.config.ts`); run `npx playwright install chromium` once. |
-| `npm run gen:llms` | Regenerate `public/llms.txt`, `public/llms-full.txt` and `public/.well-known/ai-plugin.json`. |
+| `npm run gen:llms` | Regenerate `public/llms.txt` and `public/llms-full.txt` from the docs collection, and `public/.well-known/ai-plugin.json` from its template (see "The agent files"). |
 | `MOD_PAGESPEED_SRC=<clone> npm run gen:references` | Regenerate `src/data/reference/*.json` from the mod_pagespeed clone at the tag in `source-pin.json` plus this tree's worker and thin-module sources, and re-render the generated regions of `configuration.md` and `worker-configuration.md`. |
 
 The prebuild step also regenerates the blog title cards (`public/og-cards/`) and
@@ -82,21 +82,25 @@ src/content.config.ts        Collection schemas: the frontmatter contracts below
 src/components/              UI components. src/components/release/ holds the
                              release-aware components; its README.md is the manual.
 src/data/                    product-facts.mjs (single-source facts; re-exports the
-                             repo-root shared/product-facts.mjs), filters.ts (a
-                             typed view of reference/filters.json), reference/
-                             (generated JSON, overlays and notes; see below),
-                             examples.ts + examples-data.json, demo-metrics.json,
+                             repo-root shared/product-facts.mjs), agent-files.mjs
+                             (the prose and page list of the generated agent
+                             files), filters.ts (a typed view of
+                             reference/filters.json), reference/ (generated JSON,
+                             overlays and notes; see below), examples.ts +
+                             examples-data.json, demo-metrics.json,
                              fastspring-pricing.json, JSON-LD builders
 src/layouts/BaseLayout.astro The one layout: <head>, nav, footer, JSON-LD, the
                              critical-CSS dark-mode overrides, the provenance notice
 src/lib/release.ts           getRelease(line) and artifactUrl(): typed manifest access
+src/lib/docs-markdown.mjs    The docs collection as Markdown: the render behind
+                             /docs/<slug>.md and public/llms-full.txt
 public/                      Served as-is: fonts, images, og-cards/, charts/ (the
                              Helm repository: packaged charts + index.yaml), robots.txt,
                              llms.txt, llms-full.txt, .well-known/ai-plugin.json
 scripts/                     Build-time generators: fetch-pricing.js, generate-llms.mjs,
                              generate-title-cards.mjs, generate-references.mjs +
                              render-references.mjs (lib/reference-parsers.mjs);
-                             templates in scripts/llms-templates/
+                             the ai-plugin.json template in scripts/llms-templates/
 test/                        vitest: unit tests and the gates listed below (CI runs these)
 tests/                       Playwright specs (the browser suite)
 ```
@@ -156,7 +160,10 @@ few hours.
   on the two configuration pages, the generated regions equal a fresh render, and
   every fragment link on them resolves.
 - `sync/llms-generated.test.ts` — the committed `public/llms*.txt` and
-  `ai-plugin.json` are byte-equal to a fresh render of the templates and facts.
+  `ai-plugin.json` are byte-equal to a fresh render; every docs page is in the
+  index and, in full, in `llms-full.txt`; the Distribution section names every
+  channel and package; no retired framing outside the release-notes entries;
+  `/docs/<slug>.md` serves the same body.
 - `sync/source-publication-sync.test.ts` — license and publication facts agree across
   `product-facts.mjs`, `/api/product.json` and `/license/`, and retired commercial
   wording (license keys, trials, per-site pricing) stays out.
@@ -175,15 +182,11 @@ new tag, run `MOD_PAGESPEED_SRC=<clone> npm run gen:references` and commit the J
 the two pages. Prose the source does not carry lives in `src/data/reference/notes/*.md`
 and the two `*-overlay.json` files; never hand-edit the JSON or a generated region.
 
-## Regenerating the agent files
+## The agent files
 
-`public/llms.txt`, `public/llms-full.txt` and `public/.well-known/ai-plugin.json` are
-generated: `scripts/generate-llms.mjs` fills the `{{TOKEN}}` holes in
-`scripts/llms-templates/*.tmpl` from `LLMS_TOKENS` in `src/data/product-facts.mjs`.
-When a docs change alters something these files describe (features, configuration,
-install steps, versions, support terms), edit the fact or the template, run
-`npm run gen:llms`, and commit the regenerated files. Never hand-edit them: the
-byte-equivalence gate rejects it.
+`public/llms.txt` and `public/llms-full.txt` are generated by `scripts/generate-llms.mjs` from the docs collection (every page, grouped as the sidebar groups it), the release manifests and `src/data/product-facts.mjs`, with the summary, the about paragraphs and the non-docs page list in `src/data/agent-files.mjs`; the full file carries the Markdown of every page, rendered by `src/lib/docs-markdown.mjs`, which is also what `/docs/<slug>.md` (`src/pages/docs/[slug].md.ts`) serves.
+A docs change regenerates them at prebuild; run `npm run gen:llms` and commit the result (the byte-equivalence gate in `test/sync/llms-generated.test.ts` rejects a stale or hand-edited file). `public/.well-known/ai-plugin.json` still renders from `scripts/llms-templates/ai-plugin.json.tmpl` and `LLMS_TOKENS`.
+A new MDX component used in a docs page needs its text form in `docs-markdown.mjs` (the generator fails on an unknown one); prose about the product that no docs page carries goes in `agent-files.mjs`, never in a generated file.
 
 ## Copy rules
 

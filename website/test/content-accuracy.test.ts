@@ -233,9 +233,12 @@ const SCAN_BUCKETS: ScanBucket[] = [
   },
   { name: 'layouts', files: walk(path.join(WEBSITE_ROOT, 'src/layouts'), ['.astro']), floor: 1 },
   {
+    // One template is left: the AI-plugin manifest. llms.txt and llms-full.txt
+    // are generated from the docs collection (scanned as content), the release
+    // manifests and src/data/agent-files.mjs (scanned as data).
     name: 'templates',
     files: walk(path.join(WEBSITE_ROOT, 'scripts/llms-templates'), ['.tmpl']),
-    floor: 3,
+    floor: 1,
   },
   {
     name: 'public',
@@ -1200,8 +1203,15 @@ const DENYLIST: DenyRule[] = [
     // about the product on offer. Pinned file-by-file below.
     exemptFile: (rel) =>
       /^src\/content\/docs\/release-notes(?:-\d+-\d+)?\.mdx$/.test(rel) ||
-      /^src\/pages\/(?:privacy|terms|license)\.astro$/.test(rel),
+      /^src\/pages\/(?:privacy|terms|license)\.astro$/.test(rel) ||
+      rel === 'public/llms-full.txt',
     exemptFileExpectation: [
+      // The generated full agent file embeds the release-notes pages below
+      // verbatim (every docs page, in fact). Its own prose is scanned at its
+      // sources — the docs bodies, src/data/agent-files.mjs — and
+      // test/sync/llms-generated.test.ts gates the generated index and the
+      // non-archival pages for retired product framing.
+      'public/llms-full.txt',
       // Release history: every entry is what shipped, under the name it
       // shipped under, on the date it shipped. The docs-1.1 collection and
       // the frozen /1.1/docs/[slug] route that also carried this exemption
@@ -1601,8 +1611,8 @@ function scanForRule(rule: DenyRule): Violation[] {
 // (3) CANONICAL-SOURCE consistency — the ground truth the denylist relies on.
 // ---------------------------------------------------------------------------
 describe('canonical sources hold ground-truth product facts', () => {
-  it('product-facts.mjs SIDECAR_NGINX_VERSION === 1.30.2', () => {
-    expect(facts.SIDECAR_NGINX_VERSION).toBe('1.30.2');
+  it('product-facts.mjs SIDECAR_NGINX_VERSION === 1.30.4', () => {
+    expect(facts.SIDECAR_NGINX_VERSION).toBe('1.30.4');
   });
 
   // The social-card generator rasterizes a wordmark onto all 72 cards, and a
@@ -1672,7 +1682,6 @@ describe('canonical sources hold ground-truth product facts', () => {
       path.join(CONTENT_DIR, 'docs/deployment.mdx'),
       path.join(CONTENT_DIR, 'docs/web-bot-auth.md'),
       path.join(WEBSITE_ROOT, 'src/pages/docs/[slug].astro'),
-      path.join(WEBSITE_ROOT, 'scripts/llms-templates/llms-full.txt.tmpl'),
       path.join(WEBSITE_ROOT, 'public/docker-compose.yml'),
     ];
     // The tag is a literal semver ("...pagespeed-worker:2.1.0"), the same

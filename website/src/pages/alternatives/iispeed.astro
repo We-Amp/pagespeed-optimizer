@@ -1,6 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
-import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
+import { FREE_TO_RUN_LINE, SIDECAR_NGINX_VERSION } from '../../data/product-facts.mjs';
 
 const faq = [
   {
@@ -49,7 +49,7 @@ const jsonLd = [
     operatingSystem: ['Linux'],
     softwareRequirements: 'ASP.NET Core 6 or newer',
     description:
-      'GA 1.15 ASP.NET Core integration: your Kestrel app is the public front door, and the bundled nginx (1.30.2) runs on loopback behind it as the optimize-proxy. Image optimization, CSS/JS minification, and critical CSS, powered by the mod_pagespeed 1.15 core.',
+      'GA 1.15 ASP.NET Core integration: your Kestrel app is the public front door, and the bundled nginx (' + SIDECAR_NGINX_VERSION + ') runs on loopback behind it as the optimize-proxy. Image optimization, CSS/JS minification, and critical CSS, powered by the mod_pagespeed 1.15 core.',
     sameAs: 'https://www.nuget.org/packages/WeAmp.PageSpeed.Sidecar',
     publisher: {
       '@type': 'Organization',
@@ -198,7 +198,7 @@ app.Run();`}</code></pre>
       <pre><code>dotnet add package WeAmp.PageSpeed.Sidecar</code></pre>
 
       <p>
-        The package bundles the mod_pagespeed 1.15 core (nginx 1.30.2) and starts it on loopback
+        The package bundles the mod_pagespeed core (nginx {SIDECAR_NGINX_VERSION}) and starts it on loopback
         automatically &mdash; no IIS module registration, no <code>web.config</code> editing, no
         <code>gacutil</code>. It is Linux-only (linux-x64 / linux-arm64), for container and Linux
         deployments of ASP.NET Core.

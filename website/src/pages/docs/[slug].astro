@@ -106,6 +106,9 @@ const lastUpdatedLabel = lastUpdated
     })
   : null;
 const editUrl = `https://github.com/We-Amp/pagespeed-optimizer/edit/main/website/src/content/docs/${contentFile}`;
+// The page as Markdown (src/pages/docs/[slug].md.ts): linked beside the edit
+// link and advertised in <head> as the text/markdown alternate.
+const markdownUrl = `/docs/${doc.id}.md`;
 
 // Docs have no per-page OG cards (the og-cards generator is blog-only), so the
 // schema `image` is the same /og-default.png the page's og:image meta resolves
@@ -271,6 +274,7 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
   description={doc.data.description}
   jsonLd={jsonLdEntries}
   breadcrumbLeafName={doc.data.title}
+  alternateMarkdown={markdownUrl}
 >
   <div
     class:list={[
@@ -409,6 +413,13 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
             class="underline underline-offset-2 hover:text-interactive transition-colors"
           >
             Edit this page
+          </a>
+          <a
+            href={markdownUrl}
+            type="text/markdown"
+            class="underline underline-offset-2 hover:text-interactive transition-colors"
+          >
+            View as Markdown
           </a>
         </p>
         <p class="mt-4 lede">{doc.data.description}</p>
