@@ -70,12 +70,28 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [CSS filters](https://modpagespeed.com/docs/css-filters/): CSS filters in mod_pagespeed 2.1: minify, combine, inline and flatten @import CSS, plus critical-CSS extraction. Apache, nginx and IIS syntax with tuning.
 - [JavaScript filters](https://modpagespeed.com/docs/javascript-filters/): Minify, combine, inline, and defer JavaScript in mod_pagespeed 2.1. Directives, defaults, and the trade-offs for each JS filter on Apache, nginx, and IIS.
 - [HTML filters](https://modpagespeed.com/docs/html-filters/): HTML optimization filters in mod_pagespeed 2.1: collapse whitespace, strip comments, elide attributes, DNS prefetch, and resource preload hints.
+- [Collapse whitespace (collapse_whitespace)](https://modpagespeed.com/docs/filters/collapse_whitespace/): Removes excess whitespace from HTML.
+- [Combine CSS (combine_css)](https://modpagespeed.com/docs/filters/combine_css/): Combines multiple CSS files into one.
+- [Combine JavaScript (combine_javascript)](https://modpagespeed.com/docs/filters/combine_javascript/): Combines multiple JS files into one.
+- [Convert JPEG to WebP (convert_jpeg_to_webp)](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/): Converts JPEG to WebP for capable browsers.
 - [Defer JavaScript (defer_javascript)](https://modpagespeed.com/docs/filters/defer_javascript/): Defers JS execution until after page load.
+- [Inline CSS (inline_css)](https://modpagespeed.com/docs/filters/inline_css/): Inlines small external CSS into HTML.
 - [Inline images (inline_images)](https://modpagespeed.com/docs/filters/inline_images/): Inlines small images as data: URIs.
+- [Inline JavaScript (inline_javascript)](https://modpagespeed.com/docs/filters/inline_javascript/): Inlines small external JS into HTML.
+- [Insert DNS prefetch (insert_dns_prefetch)](https://modpagespeed.com/docs/filters/insert_dns_prefetch/): Adds <link rel=dns-prefetch> for third-party domains.
 - [Lazy-load images (lazyload_images)](https://modpagespeed.com/docs/filters/lazyload_images/): Defers offscreen image loading.
 - [Prioritize critical CSS (prioritize_critical_css)](https://modpagespeed.com/docs/filters/prioritize_critical_css/): Inlines the CSS a page uses, loads the rest async.
 - [Prioritize critical images (prioritize_critical_images)](https://modpagespeed.com/docs/filters/prioritize_critical_images/): Sets fetchpriority=high on the LCP image.
+- [Remove comments (remove_comments)](https://modpagespeed.com/docs/filters/remove_comments/): Strips HTML comments.
 - [Resize images (resize_images)](https://modpagespeed.com/docs/filters/resize_images/): Resizes images to match <img> dimensions.
+- [Minify CSS (rewrite_css)](https://modpagespeed.com/docs/filters/rewrite_css/): Minifies CSS, rewrites embedded URLs.
+- [Minify external JavaScript (rewrite_javascript_external)](https://modpagespeed.com/docs/filters/rewrite_javascript_external/): Minifies external JavaScript files.
+- [Minify inline JavaScript (rewrite_javascript_inline)](https://modpagespeed.com/docs/filters/rewrite_javascript_inline/): Minifies inline JavaScript.
+- [Sprite images (sprite_images)](https://modpagespeed.com/docs/filters/sprite_images/): Combines CSS background images into sprites.
+- [Trim URLs (trim_urls)](https://modpagespeed.com/docs/filters/trim_urls/): Shortens URLs relative to base URL.
+- [Extend cache (extend_cache)](https://modpagespeed.com/docs/filters/extend_cache/): Content-hashed URLs with a 1-year browser cache for CSS, images and scripts.
+- [Optimize images (rewrite_images)](https://modpagespeed.com/docs/filters/rewrite_images/): Master image optimization: recompress, convert, resize and inline (enables the sub-filters).
+- [Minify JavaScript (rewrite_javascript)](https://modpagespeed.com/docs/filters/rewrite_javascript/): Minifies external and inline JavaScript (enables both sub-filters).
 
 ## Operate
 
@@ -6460,9 +6476,40 @@ lifetime on CSS, JS, and image URLs.
 
 [Full guide →](https://modpagespeed.com/docs/filters/extend_cache/)
 
-**Core filter.** Rewrites resource URLs (CSS, JS, images) to include a content hash, then serves the optimized resource with a 1-year `Cache-Control: max-age` header. When the original resource changes, the hash changes, generating a new URL that bypasses the browser cache.
+**Core filter.** `extend_cache` rewrites the URLs of stylesheets, scripts, and images to carry a content hash, giving each resource a `.pagespeed.ce.` URL, and serves those resources with a one-year `Cache-Control: max-age`. When the original file changes, its hash changes, the page points at a new URL, and no purge is ever needed. Live demo: [extend_cache](https://modpagespeed.com/examples/extend_cache/).
 
-Resources that previously had short or no cache lifetimes gain a 1-year cache lifetime. Because the URL carries the content hash, a changed resource gets a new URL and is never served stale.
+```html
+<!-- before -->
+<link rel="stylesheet" href="/css/site.css">
+
+<!-- after: served with Cache-Control: max-age=31536000 -->
+<link rel="stylesheet" href="/css/site.css.pagespeed.ce.HASH.css">
+```
+
+#### When it helps and when it does not
+
+It helps wherever the origin cannot set long cache lifetimes itself, which is common on shared hosting and legacy applications: first visits cache every static resource for a year, and repeat visits stop revalidating them. It does nothing for resources that already carry a fingerprint and a long max-age from the build pipeline, since those URLs are already immutable in practice. It also does not make HTML cacheable: the page itself keeps its own short lifetime, because the page is what hands out the new hashed URLs after a deploy.
+
+#### How it decides
+
+Only resources on domains the module is authorized to rewrite are candidates, and resources already rewritten by another filter (a minified stylesheet, an optimized image) already carry a content hash, so there is nothing to extend. The one-year lifetime is safe precisely because the URL is derived from the bytes: serving a stale resource at a stale URL is impossible once the referencing page has been refreshed. The name is compound: it switches on `extend_cache_css`, `extend_cache_images`, and `extend_cache_scripts`, and each member can be disabled on its own.
+
+#### Risks
+
+- HTML and the resources it references must share one configuration; a setup where two virtual hosts disagree on the same file can serve a hash that does not match. See [Virtual hosts](https://modpagespeed.com/docs/configuration/#virtual-hosts).
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-extend_cache` comparison; [Is it working?](https://modpagespeed.com/docs/is-it-working/) has the steps.
+
+#### Configuration
+
+```apache
+# Apache
+ModPagespeedEnableFilters extend_cache
+```
+
+```nginx
+# Nginx
+pagespeed EnableFilters extend_cache;
+```
 
 The sub-filters `extend_cache_css`, `extend_cache_images`, and `extend_cache_scripts` are included when you enable `extend_cache`, which turns on all three. Each can also be enabled individually with `EnableFilters` (for example, `extend_cache_images` alone).
 
@@ -11307,7 +11354,23 @@ See [IIS configuration](https://modpagespeed.com/docs/iis-configuration/) for th
 
 ### What it does
 
-`rewrite_images` is the master image optimization CoreFilter. Enabling it activates a family of sub-filters that recompress images, convert formats where beneficial, resize to declared dimensions, and inline small images as data: URIs.
+`rewrite_images` is the compound image filter: one name switches on the whole optimization pipeline, covering recompression, format conversion, resizing to declared dimensions, metadata stripping, and inlining of small images. Every `<img>` on the page, and every image referenced from CSS, is a candidate. The first request for an image is served the original bytes while optimization runs in the background within the rewrite deadline; once the optimized variant is cached, later requests are served it from a rewritten `.pagespeed.ic.` URL. Live demo: [rewrite_images](https://modpagespeed.com/examples/rewrite_images/).
+
+```html
+<!-- before -->
+<img src="/photos/team.jpg" width="400" height="300">
+
+<!-- after, to a WebP-capable browser: recompressed, resized, cache-extended -->
+<img src="/photos/xteam.jpg.pagespeed.ic.HASH.webp" width="400" height="300">
+```
+
+### When it helps and when it does not
+
+The compound pays on sites whose images are uploaded as-is: photos exported at full resolution, opaque PNGs that would be far smaller as JPEG or WebP, files carrying camera metadata nobody reads. A site that already runs a disciplined image pipeline, with build-time resizing, modern formats, and stripped metadata, leaves it little to do, while the CPU cost of the first rewrite of every image still applies. It also does nothing for images on domains the configuration does not authorize, or for sources over `ImageResolutionLimitBytes` (default 33554432 bytes).
+
+### How it decides
+
+Each member filter applies its own test: resizing only happens when `width` and `height` are declared, WebP only when the browser advertises support, inlining only below `ImageInlineMaxBytes`. Every recompression or conversion is kept only when the result is actually smaller than the best alternative, as bounded by `ImageLimitOptimizedPercent` (default 100). A losing rewrite is remembered, so a losing image is not re-encoded on every request. Some members are also part of OptimizeForBandwidth; the compound itself is a CoreFilter.
 
 ### Sub-filters enabled by default
 
@@ -11324,6 +11387,12 @@ When `rewrite_images` is active, the following sub-filters are enabled automatic
 - `jpeg_subsampling`
 - `resize_images`
 - `inline_images`
+
+### Risks
+
+- Recompression is lossy. The default quality levels are conservative, but check quality-critical imagery such as logos and screenshots with text after enabling.
+- The first optimization of each image costs server CPU; `ImageMaxRewritesAtOnce` (default 8) bounds how many run in parallel on a cold cache.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-rewrite_images` comparison; [Is it working?](https://modpagespeed.com/docs/is-it-working/) has the steps.
 
 ### Directives
 
@@ -11423,6 +11492,8 @@ Format conversion filters serve images in the most efficient format for each bro
 - **`convert_gif_to_png`** converts non-animated GIF images to PNG, which uses better compression.
 - **`convert_to_webp_animated`** converts animated GIF images to animated WebP. Not a CoreFilter.
 - **`convert_to_webp_lossless`** uses lossless WebP encoding instead of lossy. Produces larger files than lossy WebP but preserves every pixel. A CoreFilter, enabled by default through `rewrite_images`.
+
+`convert_jpeg_to_webp` is the member of the family with the widest reach, because JPEG is where photographic weight usually sits. When a request advertises `Accept: image/webp`, the filter encodes a WebP candidate at `WebpRecompressionQuality` (default 80) and keeps it only when it is smaller than the recompressed JPEG that request would otherwise get. A request without the header receives the optimized JPEG unchanged, so one URL serves both browser populations. Responses vary on `Accept`, and a proxy that rewrites the header or ignores `Vary` can cross-serve the formats, so test with your CDN in the path. The filter runs in CoreFilters through `rewrite_images`, and it is part of OptimizeForBandwidth too, where the conversion happens in place at the original URL.
 
 ### Directives
 
@@ -11784,7 +11855,31 @@ pagespeed ResponsiveImageDensities 1.5,2,3;
 
 ### What it does
 
-`sprite_images` combines multiple CSS background images into a single sprite sheet and rewrites the CSS `background-position` values to reference the correct region within the sprite.
+`sprite_images` merges small CSS background images into one sprite sheet and rewrites the stylesheet so each rule shows its own region: the `background-image` URL becomes the sheet at a `.pagespeed.is.` URL, and the `background-position` shifts to the element's slice. A toolbar of icons that cost a request each then arrives in one fetch. Not a CoreFilter; enable it by name. Live demo: [sprite_images](https://modpagespeed.com/examples/sprite_images/).
+
+```css
+/* before */
+.icon-cart { background: url(/img/cart.png) no-repeat; }
+.icon-user { background: url(/img/user.png) no-repeat; }
+
+/* after */
+.icon-cart { background: url(/img/sprites.png.pagespeed.is.HASH.png) 0 0 no-repeat; }
+.icon-user { background: url(/img/sprites.png.pagespeed.is.HASH.png) -16px 0 no-repeat; }
+```
+
+### When it helps and when it does not
+
+Spriting is an HTTP/1.1 technique: it exists because browsers used to open few connections per host and every icon queued. With HTTP/2 multiplexing the latency benefit is minimal, and the costs remain. Changing one icon invalidates the whole sheet, and a page that shows two icons downloads every icon packed beside them. It can still pay on icon-heavy pages with a stable icon set and a large HTTP/1.1 audience; elsewhere, measure before keeping it.
+
+### How it decides
+
+Only images referenced from a CSS `background` or `background-image` declaration are candidates; `<img>` tags never join a sprite. The module must be able to fetch the image and learn its dimensions, backgrounds that tile in either direction stay out, and a declaration the CSS parser cannot understand is left alone rather than guessed at. Positions in the rewritten rules are computed from the packed layout, so existing `background-position` offsets are preserved relative to the slice.
+
+### Risks
+
+- Spriting increases cache invalidation scope: changing one image invalidates the entire sprite.
+- Only CSS `background-image` references are sprited. Inline `<img>` tags are not affected.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-sprite_images` comparison; [Is it working?](https://modpagespeed.com/docs/is-it-working/) has the steps.
 
 ### Directives
 
@@ -11799,12 +11894,6 @@ ModPagespeedEnableFilters sprite_images
 ```nginx
 pagespeed EnableFilters sprite_images;
 ```
-
-### Risks
-
-- With HTTP/2 multiplexing, the latency benefit of spriting is minimal. Multiple small requests over a single connection are often as fast as one large sprite request.
-- Spriting increases cache invalidation scope: changing one image invalidates the entire sprite.
-- Only CSS `background-image` references are sprited. Inline `<img>` tags are not affected.
 
 ## In-place browser optimization
 
@@ -12037,9 +12126,36 @@ See [IIS configuration](https://modpagespeed.com/docs/iis-configuration/) for th
 
 [Full guide →](https://modpagespeed.com/docs/filters/rewrite_css/)
 
-Core filter. Minifies CSS by removing whitespace, comments, and shortening property values. Also rewrites embedded image URLs so they go through mod_pagespeed's image optimization pipeline. In OptimizeForBandwidth mode, minifies CSS in-place without changing the URL.
+#### What it does
 
-Enable:
+`rewrite_css` parses each stylesheet, minifies it, and rewrites the `url()` references inside it so images and fonts go through mod_pagespeed's optimization and cache-extension pipeline. The result is served from a rewritten `.pagespeed.cf.` URL with a long cache lifetime; the original file on disk is never touched. In OptimizeForBandwidth mode the minified bytes replace the original response in place and the URL stays as authored. Live demo: [rewrite_css](https://modpagespeed.com/examples/rewrite_css/).
+
+```css
+/* before */
+/* Site header, see ticket 412 */
+.header {
+  margin: 0px 0px 16px 0px;
+  background: #ffffff url(/img/banner.png) no-repeat;
+}
+
+/* after */
+.header{margin:0 0 16px;background:#fff url(/img/banner.png.pagespeed.ce.HASH.png) no-repeat}
+```
+
+#### When it helps and when it does not
+
+Minification helps most on hand-maintained CSS with comments and generous formatting, and the URL rewriting helps wherever stylesheet-referenced images are not already optimized. A build pipeline that already minifies and fingerprints its CSS leaves the filter little to do; running it anyway only adds a rewrite step. Because the parser declines a stylesheet it cannot fully parse rather than guessing, heavily hack-laden legacy CSS may pass through unminified — the companion `fallback_rewrite_css_urls` still rewrites the URLs inside such files.
+
+#### How it decides
+
+The filter runs a real CSS parser over the file. On a parse failure it produces no minified output and leaves minification to no one: only URL rewriting can still happen, through `fallback_rewrite_css_urls`. Values are shortened only where the equivalence is exact, such as `0px` to `0` and `#ffffff` to `#fff`. The stylesheet must sit on a domain the module is authorized to fetch, and the rewritten URL embeds a content hash so a changed file is picked up without a purge.
+
+#### Risks
+
+- A stylesheet that relies on parser-error recovery (old browser hacks) can be declined or rewritten differently than a browser would interpret it; test such files before rolling out.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-rewrite_css` comparison; [Is it working?](https://modpagespeed.com/docs/is-it-working/) has the steps.
+
+#### Configuration
 
 ```apache
 # Apache
@@ -12095,18 +12211,45 @@ pagespeed EnableFilters rewrite_style_attributes_with_url;
 
 [Full guide →](https://modpagespeed.com/docs/filters/combine_css/)
 
-Core filter. Combines multiple `<link rel="stylesheet">` elements into a single CSS file, reducing HTTP requests. Each combined file groups stylesheets that appear consecutively in the HTML. A `<script>` tag or other non-CSS element between two `<link>` tags breaks the combination boundary.
+#### What it does
 
-Enable:
+`combine_css` concatenates consecutive `<link rel="stylesheet">` references into one stylesheet and swaps the group for a single `<link>` to the combined file at a `.pagespeed.cc.` URL. Three stylesheets in a row become one request, and the rules keep their original order so the cascade is unchanged. Live demo: [combine_css](https://modpagespeed.com/examples/combine_css/).
+
+```html
+<!-- before -->
+<link rel="stylesheet" href="/css/reset.css">
+<link rel="stylesheet" href="/css/layout.css">
+<link rel="stylesheet" href="/css/theme.css">
+
+<!-- after -->
+<link rel="stylesheet" href="/css/reset.css+layout.css+theme.css.pagespeed.cc.HASH.css">
+```
+
+#### When it helps and when it does not
+
+Combining was designed for HTTP/1.1 connection limits. CSS is render-blocking, so even over HTTP/2 one combined fetch can beat several discovered-in-parallel fetches, but the margin is much smaller than it was: multiplexing removes the queueing that made combining essential. The counter-costs are real: the combined file invalidates as a whole when any member changes, and first paint waits for the entire combined download. Sites that already ship one bundled stylesheet gain nothing.
+
+#### How it decides
+
+Only consecutive links with the same `media` value combine; a different `media` attribute starts a new group, as does a `<script>` or other non-stylesheet element between two links, an IE conditional comment, or a `<link>` inside `<noscript>`. Every member must come from a domain the module is authorized to fetch. `MaxCombinedCssBytes` caps the combined size and defaults to -1, no limit.
+
+#### Risks
+
+- Relative `url()` paths inside combined files are resolved against each member's own location, so members from different directories combine safely; what does not survive is markup that depends on the exact set of `<link>` elements, such as scripts that toggle stylesheets by index.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-combine_css` comparison; [Is it working?](https://modpagespeed.com/docs/is-it-working/) has the steps.
+
+#### Configuration
 
 ```apache
 # Apache
 ModPagespeedEnableFilters combine_css
+ModPagespeedMaxCombinedCssBytes 102400
 ```
 
 ```nginx
 # Nginx
 pagespeed EnableFilters combine_css;
+pagespeed MaxCombinedCssBytes 102400;
 ```
 
 ### flatten_css_imports
@@ -12131,18 +12274,43 @@ pagespeed EnableFilters flatten_css_imports;
 
 [Full guide →](https://modpagespeed.com/docs/filters/inline_css/)
 
-Core filter. Inlines small external CSS files directly into the HTML as `<style>` blocks. The `CssInlineMaxBytes` parameter (default: 2048) controls the size threshold.
+#### What it does
 
-Enable:
+`inline_css` replaces a small external stylesheet with an inline `<style>` block holding the file's contents, so first paint no longer waits on that fetch. Relative `url()` paths inside the stylesheet are made absolute first, so images and fonts keep resolving from the page's location. Live demo: [inline_css](https://modpagespeed.com/examples/inline_css/).
+
+```html
+<!-- before: a render-blocking request for a 1.8 KB file -->
+<link rel="stylesheet" href="/css/header.css">
+
+<!-- after: the rules sit inside the page -->
+<style>.site-header{display:flex;gap:1rem}.site-header img{height:2rem}</style>
+```
+
+#### When it helps and when it does not
+
+CSS is render-blocking, so for a tiny stylesheet the removed round trip is worth more than the bytes: the request, its headers, and its connection setup all cost more than a kilobyte of inline text. The trade flips as files grow or get shared. An inlined stylesheet is not cached on its own, so it downloads again with every page view, and a file inlined into twenty pages is transferred twenty times. Stylesheets shared across many pages, and anything well above the threshold, are better left external with a long cache lifetime. `inline_css` is a CoreFilter, so the trade is already live on a default install.
+
+#### How it decides
+
+Only stylesheets whose contents are no larger than `CssInlineMaxBytes` (default 2048 bytes) qualify, and only files on domains the module is authorized to fetch. A stylesheet whose `media` attribute cannot affect the screen, such as `print`, stays external: inlining it would make every page pay for rules no screen visitor needs.
+
+#### Risks
+
+- The page grows by the stylesheet's size on every view, so keep `CssInlineMaxBytes` small. Raising it to inline a large file delays the HTML itself, which is worse than the fetch it removes.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-inline_css` comparison; [Is it working?](https://modpagespeed.com/docs/is-it-working/) has the steps.
+
+#### Configuration
 
 ```apache
 # Apache
 ModPagespeedEnableFilters inline_css
+ModPagespeedCssInlineMaxBytes 2048
 ```
 
 ```nginx
 # Nginx
 pagespeed EnableFilters inline_css;
+pagespeed CssInlineMaxBytes 2048;
 ```
 
 ### inline_import_to_link
@@ -12376,9 +12544,41 @@ See [IIS configuration](https://modpagespeed.com/docs/iis-configuration/) for th
 
 [Full guide →](https://modpagespeed.com/docs/filters/rewrite_javascript/) · Also: [`rewrite_javascript_external`](https://modpagespeed.com/docs/filters/rewrite_javascript_external/), [`rewrite_javascript_inline`](https://modpagespeed.com/docs/filters/rewrite_javascript_inline/)
 
-Core filter. Minifies JavaScript by removing whitespace, comments, and shortening variable names where safe. In OFB mode, minifies in-place. The sub-filters `rewrite_javascript_external` and `rewrite_javascript_inline` control scope but are implicitly enabled by the parent filter.
+### What it does
 
-The minifier is conservative around edge cases that change behavior — see [how safe JavaScript minification handles automatic semicolon insertion](https://modpagespeed.com/blog/safe-javascript-minification-semicolon-insertion/). Since v1.15.0+r21 there is a single minifier — the tokenizer-based one — and files containing template literals (backtick strings) minify normally. The `UseExperimentalJsMinifier` directive that previously selected it is deprecated: it is accepted for compatibility but ignored, and logs a deprecation warning at configuration load (`ModPagespeedUseExperimentalJsMinifier` on Apache, `pagespeed UseExperimentalJsMinifier` on nginx). Remove it from your configuration.
+The three filters on this section share one minifier. It removes comments, collapses whitespace, and shortens the names of local variables and functions where a scope analysis proves the rename safe. String literals, regular expressions, and property names are left alone, so the output behaves exactly like the input. The minifier is conservative around the constructs that change meaning when text moves: it keeps line breaks where automatic semicolon insertion could otherwise merge two statements into one, and it renames nothing in the scope of a `with` statement or an `eval` call. [How safe JavaScript minification handles automatic semicolon insertion](https://modpagespeed.com/blog/safe-javascript-minification-semicolon-insertion/) has the details. Since v1.15.0+r21 this tokenizer-based minifier is the only one, and files that use template literals (backtick strings) minify normally.
+
+```js
+/* before: sum a shopping cart */
+function cartTotal(cart) {
+  var total = 0;  // running sum
+  for (var i = 0; i < cart.items.length; i++) {
+    total = total + cart.items[i].price;
+  }
+  return total;
+}
+
+/* after */
+function cartTotal(n){for(var t=0,o=0;o<n.items.length;o++)t+=n.items[o].price;return t}
+```
+
+`rewrite_javascript` is the compound CoreFilter for JavaScript minification: enabling it switches on the external and the inline sub-filter together, so every script on the page is minified wherever it lives. It is also part of OptimizeForBandwidth, the level that minifies resources in place without changing their URLs. To minify only one scope, enable `rewrite_javascript` and disable the other sub-filter by name. Under CoreFilters the compound is on already. A script delivered with an `integrity` attribute is left untouched by the whole family, because subresource integrity pins the file's bytes. Live demo: [rewrite_javascript](https://modpagespeed.com/examples/rewrite_javascript/).
+
+`rewrite_javascript_external` handles the external half. Each `<script src>` file on a domain the module is authorized to fetch is minified and served from a rewritten `.pagespeed.jm.` URL with a long cache lifetime, so repeat visitors download the minified file once and keep it; the original file on disk is never modified. In OptimizeForBandwidth mode the minified bytes replace the original response in place and the URL stays as authored. Minification saves the most on hand-formatted source; a file a bundler already minified gains nothing and only costs rewrite time. `rewrite_javascript_external` runs as part of the compound and can also be enabled on its own.
+
+Enabled on its own, `rewrite_javascript_external` leaves inline `<script>` blocks exactly as authored; minifying those is the inline sub-filter's job. Files on domains the configuration does not authorize keep their original URLs as well, so a page that mixes own and third-party scripts sees only the own files rewritten.
+
+`rewrite_javascript_inline` minifies the contents of `<script>` blocks in the HTML itself, in place. No URL changes and nothing new is cached; the smaller script simply rides along inside every page view. Blocks whose `type` does not denote executable JavaScript, such as JSON-LD data islands and HTML templates, are left as they are. Inline scripts tend to be short, so the saving per block is small; the filter's job inside the compound is to leave no script unminified. Like the external half, `rewrite_javascript_inline` is in CoreFilters and in OptimizeForBandwidth, and it can be enabled by itself.
+
+`rewrite_javascript_inline` never moves a block or changes when it runs; it only shrinks the text between `<script>` and `</script>`. On pages whose HTML is served many times between deploys that small saving repeats on every serve, which is where the filter earns its place.
+
+### Risks
+
+- Renames are limited to proven-local scopes, so behavior changes are rare. The historical failure mode is a script that inspects its own source, for example through `Function.prototype.toString()`, and reacts to the changed formatting.
+- Verify on a live page: the response carries an `X-Mod-Pagespeed` (or `X-Page-Speed`) header, and loading the page with `?PageSpeedFilters=-rewrite_javascript` shows the unminified form for comparison. [Is it working?](https://modpagespeed.com/docs/is-it-working/) walks through the checks.
+- The deprecated `UseExperimentalJsMinifier` directive is accepted for compatibility but ignored, and logs a warning at configuration load (`ModPagespeedUseExperimentalJsMinifier` on Apache, `pagespeed UseExperimentalJsMinifier` on nginx). Remove it from your configuration.
+
+### Configuration
 
 **Apache:**
 
@@ -12396,25 +12596,78 @@ pagespeed EnableFilters rewrite_javascript;
 
 [Full guide →](https://modpagespeed.com/docs/filters/combine_javascript/)
 
-Core filter. Combines multiple `<script src>` elements into a single file. Like [`combine_css`](https://modpagespeed.com/docs/css-filters/#combine_css), combination boundaries are broken by inline scripts or other non-script elements between script tags.
+### What it does
+
+`combine_javascript` concatenates consecutive external scripts into one file and replaces the group of `<script src>` tags with a single tag that loads the combined file from a `.pagespeed.jc.` URL. A page that loads five scripts back to back makes one request instead of five. The scripts run in their original order, so dependencies between them keep working. Live demo: [combine_javascript](https://modpagespeed.com/examples/combine_javascript/).
+
+```html
+<!-- before -->
+<script src="/js/jquery.js"></script>
+<script src="/js/carousel.js"></script>
+<script src="/js/forms.js"></script>
+
+<!-- after -->
+<script src="/js/jquery.js+carousel.js+forms.js.pagespeed.jc.HASH.js"></script>
+```
+
+### When it helps and when it does not
+
+Combining was designed for HTTP/1.1, where a browser opens only a few connections per host and extra requests queue. Over HTTP/2 and HTTP/3 requests multiplex over one connection, so the saving shrinks to per-request overhead. The costs cut the other way too: the combined file is refetched in full when any member changes, and the browser cannot run the first script until the whole combined file has arrived. On a legacy page loading a dozen small files, combining still pays. On a page with two or three scripts over HTTP/2, measure with the filter on and off before keeping it.
+
+### How it decides
+
+Only consecutive, synchronously executing external scripts join a group. An inline `<script>`, a script with `async` or `defer`, a `type="module"` script, a script of an unknown type, and a script carrying `integrity=` each end the current group, as does other markup between two script tags. Modules are excluded because the combination evaluates member scripts inside one shared file, which cannot represent a module's isolated scope and deferred execution. A group stops growing when the combined uncompressed contents would pass `MaxCombinedJsBytes` (default 92160), and every member must come from a domain the module is authorized to fetch.
+
+### Risks
+
+- If a page misbehaves after combining, load it with `?PageSpeedFilters=-combine_javascript` and compare behavior and the console; the `X-Mod-Pagespeed` response header confirms whether the filter ran. [Is it working?](https://modpagespeed.com/docs/is-it-working/) covers the routine.
+
+### Configuration
 
 **Apache:**
 
 ```apache
 ModPagespeedEnableFilters combine_javascript
+ModPagespeedMaxCombinedJsBytes 92160
 ```
 
 **Nginx:**
 
 ```nginx
 pagespeed EnableFilters combine_javascript;
+pagespeed MaxCombinedJsBytes 92160;
 ```
 
 ## inline_javascript
 
 [Full guide →](https://modpagespeed.com/docs/filters/inline_javascript/)
 
-Core filter. Inlines small external JS files into the HTML. `JsInlineMaxBytes` (default: 2048) controls the threshold.
+### What it does
+
+`inline_javascript` replaces a small external script with an inline `<script>` block that holds the file's contents, so the browser skips a request. The element keeps its place in the page, so execution order does not change. Live demo: [inline_javascript](https://modpagespeed.com/examples/inline_javascript/).
+
+```html
+<!-- before: one extra request for a 1.4 KB file -->
+<script src="/js/newsletter-popup.js"></script>
+
+<!-- after: the file's contents sit inside the page -->
+<script>document.addEventListener("DOMContentLoaded",function(){var d=document.getElementById("newsletter");d&&setTimeout(function(){d.hidden=!1},4e3)});</script>
+```
+
+### When it helps and when it does not
+
+Inlining pays when a script is tiny: for a few hundred bytes, the request with its headers and round trip costs more than the bytes it fetches. The trade runs the other way as files grow or get shared. An inlined script is not cached on its own, so it downloads again with every page view, and a file inlined into ten pages is transferred ten times. Scripts that several pages share, and anything well above the default threshold, are better served external with a long cache lifetime. `inline_javascript` is a CoreFilter, so this trade is already live on a default install; the threshold is the knob.
+
+### How it decides
+
+Only external scripts whose contents are no larger than `JsInlineMaxBytes` (default 2048 bytes) qualify, and only files on domains the module is authorized to fetch. A script with `async` or `defer`, or with the IE-specific `for` and `event` attributes, is left external: those attributes change when the script runs, and an inline block cannot express that timing. Everything else about the element, including its position in the document, stays as authored.
+
+### Risks
+
+- The page grows by the script's size on every view, so keep `JsInlineMaxBytes` small. Raising it to inline a large file usually costs more than the saved request returns.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-inline_javascript` comparison; [Is it working?](https://modpagespeed.com/docs/is-it-working/) has the steps.
+
+### Configuration
 
 **Apache:**
 
@@ -12671,24 +12924,88 @@ These filters reduce HTML payload size by removing unnecessary bytes.
 
 [Full guide →](https://modpagespeed.com/docs/filters/collapse_whitespace/)
 
-Removes excess whitespace from HTML. Preserves whitespace inside `<pre>`, `<script>`, `<style>`, and `<textarea>` elements. Never removes whitespace entirely between inline elements.
+#### What it does
+
+`collapse_whitespace` shrinks the HTML payload by folding every run of whitespace (spaces, tabs, carriage returns, newlines) down to a single character. The markup keeps its structure; only the formatting bytes go. Live demo: [collapse_whitespace](https://modpagespeed.com/examples/collapse_whitespace/).
+
+```html
+<!-- before -->
+<ul class="nav">
+    <li>  <a href="/a">Alpha</a>  </li>
+    <li>  <a href="/b">Beta</a>   </li>
+</ul>
+
+<!-- after -->
+<ul class="nav"> <li> <a href="/a">Alpha</a> </li> <li> <a href="/b">Beta</a> </li> </ul>
+```
+
+#### When it helps and when it does not
+
+The saving scales with how much pretty-printing the templates do: indented server-side templates carry many collapsible bytes, already-compacted HTML almost none. Gzip and Brotli compress whitespace runs well, so the on-the-wire saving is much smaller than the source saving suggests. The filter earns most where HTML is served uncompressed, and least on an already minified template. Not a CoreFilter; enable it by name.
+
+#### How it decides
+
+A whitespace run that contains a newline collapses to a newline, any other run to a single space; a run never collapses to nothing, so inline elements keep their separating space and text layout is preserved. Content inside `pre`, `code`, `script`, `style`, and `textarea` is never touched, because whitespace is meaningful there.
+
+#### Risks
+
+- Pages whose rendering depends on whitespace-sensitive CSS, such as `white-space: pre` on ordinary elements, can change appearance; the filter sees the markup, not the stylesheet. Test such pages before enabling.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-collapse_whitespace` comparison; [Is it working?](https://modpagespeed.com/docs/is-it-working/) has the steps.
+
+#### Configuration
+
+```apache
+# Apache
+ModPagespeedEnableFilters collapse_whitespace
+```
+
+```nginx
+# Nginx
+pagespeed EnableFilters collapse_whitespace;
+```
 
 ### remove_comments
 
 [Full guide →](https://modpagespeed.com/docs/filters/remove_comments/)
 
-Strips HTML comments from the page. Use `RetainComment` to keep specific comments matching a wildcard pattern.
+#### What it does
 
-Configuration for nginx:
+`remove_comments` deletes HTML comments (`<!-- ... -->`) from the served page, cutting bytes that only developers read. The document tree is unchanged apart from the removed nodes. Live demo: [remove_comments](https://modpagespeed.com/examples/remove_comments/).
 
-```nginx
-pagespeed RetainComment "*copyright*";
+```html
+<!-- before -->
+<!-- TODO: replace with the component version -->
+<div class="banner">Sale ends Friday</div>
+
+<!-- after -->
+<div class="banner">Sale ends Friday</div>
 ```
 
-Configuration for Apache:
+#### When it helps and when it does not
+
+It helps on pages whose templates carry heavy commentary: build markers, TODO notes, and section labels add up on large documents. It does nothing for pages that ship few comments, and it must not remove comments that carry a function. Comments you are obliged or willing to ship stay behind a `RetainComment` wildcard, and IE conditional comments (`<!--[if IE]> ... <![endif]-->`) are parsed as directives rather than comments, so they always survive.
+
+#### How it decides
+
+Every comment node is dropped unless its text matches one of the configured `RetainComment` wildcard patterns. There is no size threshold and no content analysis beyond the pattern match.
+
+#### Risks
+
+- Copyright or license notices that must ship with the page need a `RetainComment` entry before the filter goes on.
+- A rare third-party snippet that reads the page's own comments breaks; retain its marker comment or disable the filter for that path. Verify with the `X-Mod-Pagespeed` header and `?PageSpeedFilters=-remove_comments`; [Is it working?](https://modpagespeed.com/docs/is-it-working/) has the steps.
+
+#### Configuration
 
 ```apache
+# Apache
+ModPagespeedEnableFilters remove_comments
 ModPagespeedRetainComment "*copyright*"
+```
+
+```nginx
+# Nginx
+pagespeed EnableFilters remove_comments;
+pagespeed RetainComment "*copyright*";
 ```
 
 ### elide_attributes
@@ -12707,7 +13024,45 @@ Removes unnecessary quotation marks around HTML attribute values when the value 
 
 [Full guide →](https://modpagespeed.com/docs/filters/trim_urls/)
 
-Shortens absolute URLs to relative URLs where the base URL matches the page URL. Reduces HTML payload at the cost of less portable HTML. Disable this filter if you serve the same HTML from multiple domains.
+#### What it does
+
+`trim_urls` shortens URLs inside the page by stripping the parts that repeat the page's own origin. An absolute URL whose scheme, host, and port all match the page becomes a relative path; one that differs only in scheme drops the scheme and becomes scheme-relative. `left_trim_urls` is an accepted alternate spelling of the same filter; both names switch on the same code. Live demo: [trim_urls](https://modpagespeed.com/examples/trim_urls/).
+
+```html
+<!-- page: https://example.com/shop/ -->
+<!-- before -->
+<a href="https://example.com/shop/cart">Cart</a>
+<img src="https://example.com/img/logo.png">
+
+<!-- after -->
+<a href="/shop/cart">Cart</a>
+<img src="/img/logo.png">
+```
+
+#### When it helps and when it does not
+
+It saves a few bytes per URL on pages dense with same-origin absolute links, which is typical of CMS output that expands every URL in full; under gzip or Brotli the saving shrinks further, since the repeated origin strings compress well. It does not help pages that already use relative URLs throughout. Keep it off for HTML that lives beyond its origin: a saved page, an emailed copy, or markup served under a second domain resolves relative URLs against the wrong base.
+
+#### How it decides
+
+Each URL-valued attribute is resolved against the page's base URL, and a `<base>` tag wins when present and is never itself rewritten. Only what matches gets trimmed: a full origin match leaves the path, a scheme-only difference leaves a scheme-relative URL, and anything on another domain is left untouched.
+
+#### Risks
+
+- Serving the same cached HTML from multiple domains, or any flow that detaches the markup from its origin, turns the trimming into broken links; disable `trim_urls` for that content.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-trim_urls` comparison; [Is it working?](https://modpagespeed.com/docs/is-it-working/) has the steps.
+
+#### Configuration
+
+```apache
+# Apache
+ModPagespeedEnableFilters trim_urls
+```
+
+```nginx
+# Nginx
+pagespeed EnableFilters trim_urls;
+```
 
 ## Structural filters
 
@@ -12749,7 +13104,40 @@ Adds `type="text/javascript"` and `type="text/css"` attributes to `<script>` and
 
 [Full guide →](https://modpagespeed.com/docs/filters/insert_dns_prefetch/)
 
-Adds `<link rel="dns-prefetch" href="//example.com">` tags for third-party domains referenced in the page. This allows the browser to resolve DNS for external domains in parallel with page loading, reducing latency for subsequent resource fetches.
+#### What it does
+
+`insert_dns_prefetch` adds connection warm-up hints for the third-party origins a page loads from. A `<link rel="dns-prefetch">` hint starts the DNS lookup early, while the browser is still busy with the HTML; a `<link rel="preconnect">` hint goes further and opens the connection, TCP and for HTTPS also TLS, before the resource tag is even seen. Live demo: [insert_dns_prefetch](https://modpagespeed.com/examples/insert_dns_prefetch/).
+
+```html
+<!-- inserted into <head> -->
+<link rel="preconnect" href="https://fonts.examplecdn.com">
+<link rel="dns-prefetch" href="//analytics.example.com">
+```
+
+#### When it helps and when it does not
+
+It helps when a page pulls from a few stable third-party origins, such as font CDNs or analytics hosts: the lookup and handshake then overlap with the HTML download instead of starting when the resource is discovered. It does nothing for same-origin resources, since the connection to the page's own origin is already open. It also does nothing when the set of third-party domains churns between page views, because the hints are learned from observed traffic and an unstable set is never hinted.
+
+#### How it decides
+
+The filter records which origins a page's resources come from across loads and emits hints only once that set is stable: the stored list may drift by at most two domains between rewrites, otherwise that page gets no hints for the round. A page earns at most eight `dns-prefetch` hints and two `preconnect` hints. Early views contribute data and get nothing; later views get the hints. Domains the author already hinted in the markup are not duplicated.
+
+#### Risks
+
+- Every hint costs the browser work, and a preconnect costs an open connection held for an origin the visitor might not need; the built-in caps of eight and two bound that overhead.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-insert_dns_prefetch` comparison; [Is it working?](https://modpagespeed.com/docs/is-it-working/) has the steps.
+
+#### Configuration
+
+```apache
+# Apache
+ModPagespeedEnableFilters insert_dns_prefetch
+```
+
+```nginx
+# Nginx
+pagespeed EnableFilters insert_dns_prefetch;
+```
 
 ### hint_preload_subresources
 
