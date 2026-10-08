@@ -4,6 +4,7 @@ import QuickMessage from '../components/QuickMessage.astro';
 import ShareFloat from '../components/ShareFloat.astro';
 import SearchDialog from '../components/SearchDialog.astro';
 import Icon from '../components/Icon.astro';
+import TelemetryStrip from '../components/instrument/TelemetryStrip.astro';
 import { PRODUCT_DISPLAY_NAME, CURRENT_LINE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
 
 // Derived chrome label (lowercase everywhere) — one product name,
@@ -472,6 +473,13 @@ const searchExcluded =
   (noindex && !searchable) ||
   /^\/(api|go|buy|error|1\.0)(\/|$)/.test(rawPath) ||
   /^\/(404|500)\/?$/.test(rawPath);
+
+// Telemetry strip exclusion: the archived product sections, utility and error
+// routes, and any noindex page that is not kept in site search.
+const telemetryExcluded =
+  (noindex && !searchable) ||
+  /^\/(1\.1|1\.0|api|go|error)(\/|$)/.test(rawPath) ||
+  /^\/(404|500)(\/|$)/.test(rawPath);
 const sectionNames: Record<string, string> = {
   docs: 'Docs',
   blog: 'Blog',
@@ -558,7 +566,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
         border-color: #2a2e34 !important;
       }
       /* Dropdown panel: prevent white flash before dark variant loads */
-      html.dark .group .rounded-lg {
+      html.dark .group .nav-panel-box {
         background-color: #191c20 !important;
         border-color: #2a2e34 !important;
       }
@@ -682,6 +690,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
     >
       Skip to main content
     </a>
+    {!telemetryExcluded && <TelemetryStrip path={rawPath} />}
     {
       bannerText && (
         <div
@@ -746,7 +755,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
                       class:list={[
                         'nav-dropdown-btn text-sm font-medium tracking-wide transition-colors flex items-center gap-1',
                         link.children.some((c) => currentPath.startsWith(c.href))
-                          ? 'text-interactive'
+                          ? 'text-interactive nav-item-active'
                           : 'text-text-muted hover:text-text-body',
                       ]}
                       aria-controls={`nav-panel-${index}`}
@@ -759,7 +768,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
                       id={`nav-panel-${index}`}
                       class="nav-dropdown-panel absolute left-0 pt-4 hidden z-50"
                     >
-                      <div class="w-64 rounded-lg border border-border bg-bg-elevated shadow-lg dark:shadow-stone-900/50 py-2">
+                      <div class="nav-panel-box w-64 rounded-[var(--radius-card)] border border-border bg-bg-elevated py-2">
                         {link.children.map((child) => (
                           <a
                             href={child.href}
@@ -783,7 +792,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
                                 {child.label}
                               </span>
                               {child.badge && (
-                                <span class="rounded-full bg-interactive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-interactive">
+                                <span class="badge-interactive">
                                   {child.badge}
                                 </span>
                               )}
@@ -805,13 +814,13 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
                       'text-sm font-medium tracking-wide transition-colors inline-flex items-center gap-1.5',
                       link.desktopOnlyFromLg ? 'hidden lg:inline-flex' : '',
                       currentPath.startsWith(link.href!)
-                        ? 'text-interactive'
+                        ? 'text-interactive nav-item-active'
                         : 'text-text-muted hover:text-text-body',
                     ]}
                   >
                     {link.label}
                     {link.badge && (
-                      <span class="rounded-full bg-interactive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-interactive">
+                      <span class="badge-interactive">
                         {link.badge}
                       </span>
                     )}
@@ -917,7 +926,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
             navLinks.map((link) =>
               link.children ? (
                 <div>
-                  <p class="py-2 text-xs font-semibold uppercase tracking-wider text-text-annotation">
+                  <p class="eyebrow py-2">
                     {link.label}
                   </p>
                   {link.children.map((child) => (
@@ -942,7 +951,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
                       <span class="inline-flex items-center gap-1.5">
                         {child.label}
                         {child.badge && (
-                          <span class="rounded-full bg-interactive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-interactive">
+                          <span class="badge-interactive">
                             {child.badge}
                           </span>
                         )}
@@ -967,7 +976,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
                 >
                   <span>{link.label}</span>
                   {link.badge && (
-                    <span class="rounded-full bg-interactive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-interactive">
+                    <span class="badge-interactive">
                       {link.badge}
                     </span>
                   )}
@@ -984,6 +993,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
           </a>
         </div>
       </nav>
+      <div class="rule-ticked" role="presentation" aria-hidden="true"></div>
     </header>
     <main
       id="main-content"
@@ -994,6 +1004,9 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
       <slot />
     </main>
 
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+    </div>
     <footer class="border-t border-border bg-bg-secondary">
       <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-12">
         <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-8">
@@ -1026,7 +1039,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
                 rel="noopener"
                 aria-label={`${PRODUCT_DISPLAY_NAME} on GitHub`}
                 title="GitHub"
-                class="text-stone-500 hover:text-text-muted dark:hover:text-stone-200 transition-colors"
+                class="text-text-annotation hover:text-text-body transition-colors"
               >
                 <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path
@@ -1040,7 +1053,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
                 href="/blog/rss.xml"
                 aria-label="Blog RSS feed"
                 title="RSS feed"
-                class="text-stone-500 hover:text-text-muted dark:hover:text-stone-200 transition-colors"
+                class="text-text-annotation hover:text-text-body transition-colors"
               >
                 <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
                   <path
@@ -1054,7 +1067,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
           {
             footerGroups.map((group) => (
               <div>
-                <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">
+                <p class="eyebrow uppercase text-text-annotation">
                   {group.title}
                 </p>
                 <ul class="mt-3 space-y-2">
@@ -1100,7 +1113,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
           <address class="not-italic text-xs leading-relaxed text-text-annotation">
             <a
               href="https://www.we-amp.com/"
-              class="font-medium text-[#8a857d] hover:text-text-body dark:hover:text-stone-200 transition-colors"
+              class="font-medium text-text-annotation hover:text-text-body transition-colors"
               >We-Amp B.V.</a
             >
             &middot; Castricum, The Netherlands &middot; KvK 57898138 &middot; BTW NL852784429B01 &middot;
@@ -1419,5 +1432,25 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
         }
       })();
     </script>
+
+    <style>
+      /* Active top-level nav item: the interactive color plus a 2px inset rule
+         under the link or dropdown button, so state never rides on color
+         alone. Dropdown buttons whose child is active get the same. */
+      .nav-item-active {
+        box-shadow: inset 0 -2px 0 var(--color-interactive);
+      }
+      /* Dropdown panel: the specular inset of .card-featured instead of a drop
+         shadow; the frame is the 1px token border. */
+      .nav-panel-box {
+        box-shadow:
+          inset 0 1px 0 var(--color-specular),
+          inset 0 0 0 1px var(--color-border);
+      }
+      /* Mobile menu: a hairline divider on every item row. */
+      #mobile-menu a:not(.btn-primary) {
+        border-top: 1px solid var(--color-border);
+      }
+    </style>
   </body>
 </html>

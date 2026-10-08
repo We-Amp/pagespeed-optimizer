@@ -1,0 +1,280 @@
+---
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2024-2026 We-Amp B.V.
+//
+// TelemetryStrip — this page's own response measurements, on a thin recessed
+// strip above the banner and the header. Server-rendered from the dated
+// capture file (src/data/telemetry-capture.json) so the page is complete and
+// honest with JS disabled; a bundled script then upgrades the strip to this
+// view's live values (one same-origin HEAD plus PerformanceNavigationTiming).
+// The strip never fakes liveness: captured values always carry their capture
+// date, a missing live header renders as "not present", and a failed probe
+// keeps the captured fallback untouched.
+//
+// CLS discipline: the row is a fixed 32px at every width, each field has a
+// ch-based min-inline-size, and the script only ever replaces textContent.
+
+import { formatBytes } from '../../lib/instrument';
+import capture from '../../data/telemetry-capture.json';
+
+interface Props {
+  // The page's own URL path (Astro.url.pathname), supplied by the layout.
+  path: string;
+}
+
+interface CaptureEntry {
+  status: number;
+  wireBytes: number;
+  decodedBytes: number;
+  headers: Record<string, string | null>;
+}
+
+const { path } = Astro.props;
+
+const paths = capture.paths as Record<string, CaptureEntry>;
+const entry = paths[path];
+// Paths the capture does not list still show the site-level fields from the
+// "/" entry (the header value and vary) and "—" in the byte slots.
+const site = paths['/'];
+const header = (name: string): string =>
+  entry?.headers[name] ?? site?.headers[name] ?? 'not present';
+
+const stateText = `captured ${capture.capturedAt.slice(0, 10)}`;
+const fields = [
+  {
+    term: 'x-mod-pagespeed:',
+    value: header('x-mod-pagespeed'),
+    width: '22ch',
+    wide: false,
+    t: 'xmps',
+  },
+  {
+    term: 'wire',
+    value: entry ? formatBytes(entry.wireBytes) : '—',
+    width: '16ch',
+    wide: false,
+    t: 'wire',
+  },
+  {
+    term: 'decoded',
+    value: entry ? formatBytes(entry.decodedBytes) : '—',
+    width: '17ch',
+    wide: true,
+    t: 'decoded',
+  },
+  { term: 'vary:', value: header('vary'), width: '32ch', wide: true, t: 'vary' },
+  { term: 'ttfb', value: '—', width: '10ch', wide: true, t: 'ttfb' },
+];
+---
+
+<aside
+  class="telemetry"
+  data-ui="telemetry-strip"
+  aria-label="Response measurements for this page"
+  data-pagefind-ignore
+>
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 telemetry-row">
+    <span class="t-state">
+      <i class="t-led" aria-hidden="true"></i>
+      <a class="t-state-link" href="/pagespeed-markers/"><span data-t="state">{stateText}</span></a>
+      <span class="t-state-plain"><span data-t="state">{stateText}</span></span>
+    </span>
+    <dl class="t-fields">
+      {
+        fields.map((f) => (
+          <div class:list={['t-f', f.wide && 't-wide']} style={`--w:${f.width}`}>
+            <dt>{f.term}</dt>
+            <dd data-t={f.t}>{f.value}</dd>
+          </div>
+        ))
+      }
+    </dl>
+    <a class="t-more" href="/pagespeed-markers/">what these headers mean</a>
+  </div>
+</aside>
+
+<style>
+  .telemetry {
+    background-color: var(--color-bg-recessed);
+    border-bottom: 1px solid var(--color-border);
+    font-family: var(--font-mono);
+    font-weight: 500;
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--color-text-muted);
+    font-variant-numeric: tabular-nums;
+  }
+  @media (max-width: 399px) {
+    .telemetry {
+      font-size: 0.6875rem;
+    }
+  }
+  .telemetry-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 0.25rem 1.125rem;
+    /* One line, always: the box is fixed so the client-side upgrade can never
+       move the page. */
+    block-size: 32px;
+    overflow: hidden;
+    white-space: nowrap;
+  }
+  .t-state {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.375rem;
+    flex: none;
+    color: var(--color-text-annotation);
+  }
+  .telemetry.is-live .t-state {
+    color: var(--color-interactive);
+  }
+  .t-state a {
+    color: inherit;
+    text-decoration: none;
+    /* >=24px target inside the 32px row. */
+    padding-block: 4px;
+  }
+  /* Narrow viewports: the state label doubles as the link to
+     /pagespeed-markers/; >=1024px shows the plain label plus .t-more. */
+  .t-state-plain {
+    display: none;
+  }
+  .t-more {
+    display: none;
+    margin-inline-start: auto;
+    flex: none;
+    color: var(--color-interactive);
+    text-decoration: none;
+    padding-block: 4px;
+  }
+  .t-more:hover {
+    color: var(--color-interactive-hover);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+  @media (min-width: 1024px) {
+    .t-state-link {
+      display: none;
+    }
+    .t-state-plain {
+      display: inline;
+    }
+    .t-more {
+      display: block;
+    }
+  }
+  .t-led {
+    inline-size: 7px;
+    block-size: 7px;
+    border-radius: 1px;
+    background-color: var(--color-border-strong);
+    flex: none;
+  }
+  .telemetry.is-live .t-led.led-ok {
+    background-color: var(--color-success);
+  }
+  .telemetry.is-live .t-led.led-warn {
+    background-color: var(--color-accent);
+  }
+  .t-fields {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 0.25rem 1.125rem;
+    margin: 0;
+    min-inline-size: 0;
+    overflow: hidden;
+  }
+  .t-f {
+    display: inline-flex;
+    gap: 0.375rem;
+    flex: none;
+    min-inline-size: var(--w);
+  }
+  .t-f dt {
+    color: var(--color-text-annotation);
+  }
+  .t-f dd {
+    margin: 0;
+    color: var(--color-text-body);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  @media (max-width: 767px) {
+    .t-wide {
+      display: none;
+    }
+  }
+  /* A single <=600ms opacity flash when a live value replaces the captured
+     fallback. Opacity only, gated on no-preference; the global reduce rule
+     caps it to a frame regardless. */
+  @media (prefers-reduced-motion: no-preference) {
+    .t-flash {
+      animation: t-flash 500ms ease-out 1;
+    }
+    @keyframes t-flash {
+      from {
+        opacity: 0.2;
+      }
+      to {
+        opacity: 1;
+      }
+    }
+  }
+</style>
+
+<script>
+  import { formatBytes } from '../../lib/instrument';
+
+  const strip = document.querySelector<HTMLElement>('[data-ui="telemetry-strip"]');
+  if (strip) {
+    const upgrade = async () => {
+      // All or nothing: the state label must be true of every field, so a
+      // failed probe leaves the captured fallback (and its date) untouched.
+      let res: Response;
+      try {
+        res = await fetch(location.pathname + location.search, {
+          method: 'HEAD',
+          cache: 'no-store',
+          credentials: 'same-origin',
+          signal: AbortSignal.timeout(3000),
+        });
+      } catch {
+        return;
+      }
+      const set = (key: string, value: string) => {
+        strip.querySelectorAll<HTMLElement>(`[data-t="${key}"]`).forEach((el) => {
+          el.textContent = value;
+          el.classList.remove('t-flash');
+          void el.offsetWidth;
+          el.classList.add('t-flash');
+        });
+      };
+      const nav = performance.getEntriesByType('navigation')[0] as
+        | PerformanceNavigationTiming
+        | undefined;
+      if (nav && nav.encodedBodySize > 0) {
+        set(
+          'wire',
+          formatBytes(nav.encodedBodySize) + (nav.transferSize === 0 ? ' (browser cache)' : ''),
+        );
+        set('decoded', formatBytes(nav.decodedBodySize));
+      }
+      if (nav) {
+        const ttfb = Math.round(nav.responseStart);
+        if (ttfb > 0) set('ttfb', `${ttfb}\u00a0ms`);
+      }
+      set('xmps', res.headers.get('x-mod-pagespeed') ?? 'not present');
+      set('vary', res.headers.get('vary') ?? 'not present');
+      set('state', 'this view · live');
+      strip.classList.add('is-live');
+      strip.querySelector('.t-led')?.classList.add(res.ok ? 'led-ok' : 'led-warn');
+    };
+    const idle = (window as Window & { requestIdleCallback?: (cb: () => void) => void })
+      .requestIdleCallback;
+    if (idle) idle(upgrade);
+    else setTimeout(upgrade, 1500);
+  }
+</script>
