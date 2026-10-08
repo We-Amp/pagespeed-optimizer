@@ -886,6 +886,14 @@
       "platform": null
     },
     {
+      "name": "--agent-render-allow-hosts",
+      "arg": "HOSTS",
+      "default": "none",
+      "description": "Opt-in third-party hosts the agent render may fetch; comma-separated, exact host match, still SSRF-guarded (default: none)",
+      "section": "Agent Optimize (EXPERIMENTAL — off by default)",
+      "platform": null
+    },
+    {
       "name": "--web-bot-auth",
       "arg": null,
       "default": null,

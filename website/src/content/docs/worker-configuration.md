@@ -394,7 +394,7 @@ Boolean `--no-…` flags switch off a transform that is on by default; the
 
 <!-- generated:begin worker-flags -->
 
-Sections: [General options](#flags-general-options) (88) · [Windows service](#flags-windows-service) (2) · [Cache key normalization](#flags-cache-key-normalization) (4) · [SVG auto-vectorization](#flags-svg-auto-vectorization) (11) · [Agent optimize (experimental, off by default)](#flags-agent-optimize-experimental-off-by-default) (7) · [Web Bot Auth (observe-only, off by default)](#flags-web-bot-auth-observe-only-off-by-default) (4).
+Sections: [General options](#flags-general-options) (88) · [Windows service](#flags-windows-service) (2) · [Cache key normalization](#flags-cache-key-normalization) (4) · [SVG auto-vectorization](#flags-svg-auto-vectorization) (11) · [Agent optimize (experimental, off by default)](#flags-agent-optimize-experimental-off-by-default) (8) · [Web Bot Auth (observe-only, off by default)](#flags-web-bot-auth-observe-only-off-by-default) (4).
 
 ### General options {#flags-general-options}
 
@@ -1458,7 +1458,7 @@ Min cluster area (default: 4)
 
 ### Agent optimize (experimental, off by default) {#flags-agent-optimize-experimental-off-by-default}
 
-[`--agent-optimize`](#--agent-optimize), [`--agent-optimize-paths`](#--agent-optimize-paths), [`--agent-optimize-llms-txt`](#--agent-optimize-llms-txt), [`--agent-optimize-sitemap-url`](#--agent-optimize-sitemap-url), [`--[no-]agent-optimize-respect-ai-directives`](#--no-agent-optimize-respect-ai-directives), [`--agent-optimize-llms-summary-fetch-cap`](#--agent-optimize-llms-summary-fetch-cap), [`--agent-optimize-cache-ttl`](#--agent-optimize-cache-ttl)
+[`--agent-optimize`](#--agent-optimize), [`--agent-optimize-paths`](#--agent-optimize-paths), [`--agent-optimize-llms-txt`](#--agent-optimize-llms-txt), [`--agent-optimize-sitemap-url`](#--agent-optimize-sitemap-url), [`--[no-]agent-optimize-respect-ai-directives`](#--no-agent-optimize-respect-ai-directives), [`--agent-optimize-llms-summary-fetch-cap`](#--agent-optimize-llms-summary-fetch-cap), [`--agent-optimize-cache-ttl`](#--agent-optimize-cache-ttl), [`--agent-render-allow-hosts`](#--agent-render-allow-hosts)
 
 #### --agent-optimize {#--agent-optimize}
 
@@ -1511,6 +1511,13 @@ Max summary fetches (default: 200)
 - **Default:** `86400`
 
 /llms.txt cache TTL (default: 86400)
+
+#### --agent-render-allow-hosts {#--agent-render-allow-hosts}
+
+- **Syntax:** `--agent-render-allow-hosts HOSTS`
+- **Default:** `none`
+
+Opt-in third-party hosts the agent render may fetch; comma-separated, exact host match, still SSRF-guarded (default: none)
 
 ### Web Bot Auth (observe-only, off by default) {#flags-web-bot-auth-observe-only-off-by-default}
 
