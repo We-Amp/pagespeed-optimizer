@@ -51,7 +51,7 @@ See [IIS configuration](/docs/iis-configuration/) for the full file format refer
 
 `rewrite_css` parses each stylesheet, minifies it, and rewrites the `url()` references inside it so images and fonts go through mod_pagespeed's optimization and cache-extension pipeline. The result is served from a rewritten `.pagespeed.cf.` URL with a long cache lifetime; the original file on disk is never touched. In OptimizeForBandwidth mode the minified bytes replace the original response in place and the URL stays as authored. Live demo: [rewrite_css](/examples/rewrite_css/).
 
-```css
+```text
 /* before */
 /* Site header, see ticket 412 */
 .header {
@@ -140,12 +140,12 @@ pagespeed EnableFilters rewrite_style_attributes_with_url;
 
 ```html
 <!-- before -->
-<link rel="stylesheet" href="/css/reset.css">
-<link rel="stylesheet" href="/css/layout.css">
-<link rel="stylesheet" href="/css/theme.css">
+<link rel="stylesheet" href="/css/reset.css" />
+<link rel="stylesheet" href="/css/layout.css" />
+<link rel="stylesheet" href="/css/theme.css" />
 
 <!-- after -->
-<link rel="stylesheet" href="/css/reset.css+layout.css+theme.css.pagespeed.cc.HASH.css">
+<link rel="stylesheet" href="/css/reset.css+layout.css+theme.css.pagespeed.cc.HASH.css" />
 ```
 
 #### When it helps and when it does not
@@ -201,7 +201,7 @@ pagespeed EnableFilters flatten_css_imports;
 
 `inline_css` replaces a small external stylesheet with an inline `<style>` block holding the file's contents, so first paint no longer waits on that fetch. Relative `url()` paths inside the stylesheet are made absolute first, so images and fonts keep resolving from the page's location. Live demo: [inline_css](/examples/inline_css/).
 
-```html
+```text
 <!-- before: a render-blocking request for a 1.8 KB file -->
 <link rel="stylesheet" href="/css/header.css">
 

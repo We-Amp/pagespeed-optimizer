@@ -72,10 +72,10 @@ See [IIS configuration](/docs/iis-configuration/) for the full file format refer
 
 ```html
 <!-- before -->
-<img src="/photos/team.jpg" width="400" height="300">
+<img src="/photos/team.jpg" width="400" height="300" />
 
 <!-- after, to a WebP-capable browser: recompressed, resized, cache-extended -->
-<img src="/photos/xteam.jpg.pagespeed.ic.HASH.webp" width="400" height="300">
+<img src="/photos/xteam.jpg.pagespeed.ic.HASH.webp" width="400" height="300" />
 ```
 
 ### When it helps and when it does not
@@ -585,12 +585,20 @@ pagespeed ResponsiveImageDensities 1.5,2,3;
 
 ```css
 /* before */
-.icon-cart { background: url(/img/cart.png) no-repeat; }
-.icon-user { background: url(/img/user.png) no-repeat; }
+.icon-cart {
+  background: url(/img/cart.png) no-repeat;
+}
+.icon-user {
+  background: url(/img/user.png) no-repeat;
+}
 
 /* after */
-.icon-cart { background: url(/img/sprites.png.pagespeed.is.HASH.png) 0 0 no-repeat; }
-.icon-user { background: url(/img/sprites.png.pagespeed.is.HASH.png) -16px 0 no-repeat; }
+.icon-cart {
+  background: url(/img/sprites.png.pagespeed.is.HASH.png) 0 0 no-repeat;
+}
+.icon-user {
+  background: url(/img/sprites.png.pagespeed.is.HASH.png) -16px 0 no-repeat;
+}
 ```
 
 ### When it helps and when it does not

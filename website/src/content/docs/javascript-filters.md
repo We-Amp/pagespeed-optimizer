@@ -51,7 +51,7 @@ See [IIS configuration](/docs/iis-configuration/) for the full file format refer
 
 The three filters on this section share one minifier. It removes comments, collapses whitespace, and shortens the names of local variables and functions where a scope analysis proves the rename safe. String literals, regular expressions, and property names are left alone, so the output behaves exactly like the input. The minifier is conservative around the constructs that change meaning when text moves: it keeps line breaks where automatic semicolon insertion could otherwise merge two statements into one, and it renames nothing in the scope of a `with` statement or an `eval` call. [How safe JavaScript minification handles automatic semicolon insertion](/blog/safe-javascript-minification-semicolon-insertion/) has the details. Since v1.15.0+r21 this tokenizer-based minifier is the only one, and files that use template literals (backtick strings) minify normally.
 
-```js
+```text
 /* before: sum a shopping cart */
 function cartTotal(cart) {
   var total = 0;  // running sum
@@ -149,7 +149,7 @@ pagespeed MaxCombinedJsBytes 92160;
 
 `inline_javascript` replaces a small external script with an inline `<script>` block that holds the file's contents, so the browser skips a request. The element keeps its place in the page, so execution order does not change. Live demo: [inline_javascript](/examples/inline_javascript/).
 
-```html
+```text
 <!-- before: one extra request for a 1.4 KB file -->
 <script src="/js/newsletter-popup.js"></script>
 

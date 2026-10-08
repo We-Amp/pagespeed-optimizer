@@ -71,7 +71,7 @@ These filters reduce HTML payload size by removing unnecessary bytes.
 
 `collapse_whitespace` shrinks the HTML payload by folding every run of whitespace (spaces, tabs, carriage returns, newlines) down to a single character. The markup keeps its structure; only the formatting bytes go. Live demo: [collapse_whitespace](/examples/collapse_whitespace/).
 
-```html
+```text
 <!-- before -->
 <ul class="nav">
     <li>  <a href="/a">Alpha</a>  </li>
@@ -177,11 +177,11 @@ Removes unnecessary quotation marks around HTML attribute values when the value 
 <!-- page: https://example.com/shop/ -->
 <!-- before -->
 <a href="https://example.com/shop/cart">Cart</a>
-<img src="https://example.com/img/logo.png">
+<img src="https://example.com/img/logo.png" />
 
 <!-- after -->
 <a href="/shop/cart">Cart</a>
-<img src="/img/logo.png">
+<img src="/img/logo.png" />
 ```
 
 #### When it helps and when it does not
@@ -255,8 +255,8 @@ Adds `type="text/javascript"` and `type="text/css"` attributes to `<script>` and
 
 ```html
 <!-- inserted into <head> -->
-<link rel="preconnect" href="https://fonts.examplecdn.com">
-<link rel="dns-prefetch" href="//analytics.example.com">
+<link rel="preconnect" href="https://fonts.examplecdn.com" />
+<link rel="dns-prefetch" href="//analytics.example.com" />
 ```
 
 #### When it helps and when it does not

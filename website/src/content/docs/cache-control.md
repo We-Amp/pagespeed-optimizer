@@ -172,10 +172,10 @@ lifetime on CSS, JS, and image URLs.
 
 ```html
 <!-- before -->
-<link rel="stylesheet" href="/css/site.css">
+<link rel="stylesheet" href="/css/site.css" />
 
 <!-- after: served with Cache-Control: max-age=31536000 -->
-<link rel="stylesheet" href="/css/site.css.pagespeed.ce.HASH.css">
+<link rel="stylesheet" href="/css/site.css.pagespeed.ce.HASH.css" />
 ```
 
 #### When it helps and when it does not

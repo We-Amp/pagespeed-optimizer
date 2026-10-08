@@ -6480,10 +6480,10 @@ lifetime on CSS, JS, and image URLs.
 
 ```html
 <!-- before -->
-<link rel="stylesheet" href="/css/site.css">
+<link rel="stylesheet" href="/css/site.css" />
 
 <!-- after: served with Cache-Control: max-age=31536000 -->
-<link rel="stylesheet" href="/css/site.css.pagespeed.ce.HASH.css">
+<link rel="stylesheet" href="/css/site.css.pagespeed.ce.HASH.css" />
 ```
 
 #### When it helps and when it does not
@@ -11358,10 +11358,10 @@ See [IIS configuration](https://modpagespeed.com/docs/iis-configuration/) for th
 
 ```html
 <!-- before -->
-<img src="/photos/team.jpg" width="400" height="300">
+<img src="/photos/team.jpg" width="400" height="300" />
 
 <!-- after, to a WebP-capable browser: recompressed, resized, cache-extended -->
-<img src="/photos/xteam.jpg.pagespeed.ic.HASH.webp" width="400" height="300">
+<img src="/photos/xteam.jpg.pagespeed.ic.HASH.webp" width="400" height="300" />
 ```
 
 ### When it helps and when it does not
@@ -11859,12 +11859,20 @@ pagespeed ResponsiveImageDensities 1.5,2,3;
 
 ```css
 /* before */
-.icon-cart { background: url(/img/cart.png) no-repeat; }
-.icon-user { background: url(/img/user.png) no-repeat; }
+.icon-cart {
+  background: url(/img/cart.png) no-repeat;
+}
+.icon-user {
+  background: url(/img/user.png) no-repeat;
+}
 
 /* after */
-.icon-cart { background: url(/img/sprites.png.pagespeed.is.HASH.png) 0 0 no-repeat; }
-.icon-user { background: url(/img/sprites.png.pagespeed.is.HASH.png) -16px 0 no-repeat; }
+.icon-cart {
+  background: url(/img/sprites.png.pagespeed.is.HASH.png) 0 0 no-repeat;
+}
+.icon-user {
+  background: url(/img/sprites.png.pagespeed.is.HASH.png) -16px 0 no-repeat;
+}
 ```
 
 ### When it helps and when it does not
@@ -12130,7 +12138,7 @@ See [IIS configuration](https://modpagespeed.com/docs/iis-configuration/) for th
 
 `rewrite_css` parses each stylesheet, minifies it, and rewrites the `url()` references inside it so images and fonts go through mod_pagespeed's optimization and cache-extension pipeline. The result is served from a rewritten `.pagespeed.cf.` URL with a long cache lifetime; the original file on disk is never touched. In OptimizeForBandwidth mode the minified bytes replace the original response in place and the URL stays as authored. Live demo: [rewrite_css](https://modpagespeed.com/examples/rewrite_css/).
 
-```css
+```text
 /* before */
 /* Site header, see ticket 412 */
 .header {
@@ -12217,12 +12225,12 @@ pagespeed EnableFilters rewrite_style_attributes_with_url;
 
 ```html
 <!-- before -->
-<link rel="stylesheet" href="/css/reset.css">
-<link rel="stylesheet" href="/css/layout.css">
-<link rel="stylesheet" href="/css/theme.css">
+<link rel="stylesheet" href="/css/reset.css" />
+<link rel="stylesheet" href="/css/layout.css" />
+<link rel="stylesheet" href="/css/theme.css" />
 
 <!-- after -->
-<link rel="stylesheet" href="/css/reset.css+layout.css+theme.css.pagespeed.cc.HASH.css">
+<link rel="stylesheet" href="/css/reset.css+layout.css+theme.css.pagespeed.cc.HASH.css" />
 ```
 
 #### When it helps and when it does not
@@ -12278,7 +12286,7 @@ pagespeed EnableFilters flatten_css_imports;
 
 `inline_css` replaces a small external stylesheet with an inline `<style>` block holding the file's contents, so first paint no longer waits on that fetch. Relative `url()` paths inside the stylesheet are made absolute first, so images and fonts keep resolving from the page's location. Live demo: [inline_css](https://modpagespeed.com/examples/inline_css/).
 
-```html
+```text
 <!-- before: a render-blocking request for a 1.8 KB file -->
 <link rel="stylesheet" href="/css/header.css">
 
@@ -12548,7 +12556,7 @@ See [IIS configuration](https://modpagespeed.com/docs/iis-configuration/) for th
 
 The three filters on this section share one minifier. It removes comments, collapses whitespace, and shortens the names of local variables and functions where a scope analysis proves the rename safe. String literals, regular expressions, and property names are left alone, so the output behaves exactly like the input. The minifier is conservative around the constructs that change meaning when text moves: it keeps line breaks where automatic semicolon insertion could otherwise merge two statements into one, and it renames nothing in the scope of a `with` statement or an `eval` call. [How safe JavaScript minification handles automatic semicolon insertion](https://modpagespeed.com/blog/safe-javascript-minification-semicolon-insertion/) has the details. Since v1.15.0+r21 this tokenizer-based minifier is the only one, and files that use template literals (backtick strings) minify normally.
 
-```js
+```text
 /* before: sum a shopping cart */
 function cartTotal(cart) {
   var total = 0;  // running sum
@@ -12646,7 +12654,7 @@ pagespeed MaxCombinedJsBytes 92160;
 
 `inline_javascript` replaces a small external script with an inline `<script>` block that holds the file's contents, so the browser skips a request. The element keeps its place in the page, so execution order does not change. Live demo: [inline_javascript](https://modpagespeed.com/examples/inline_javascript/).
 
-```html
+```text
 <!-- before: one extra request for a 1.4 KB file -->
 <script src="/js/newsletter-popup.js"></script>
 
@@ -12928,7 +12936,7 @@ These filters reduce HTML payload size by removing unnecessary bytes.
 
 `collapse_whitespace` shrinks the HTML payload by folding every run of whitespace (spaces, tabs, carriage returns, newlines) down to a single character. The markup keeps its structure; only the formatting bytes go. Live demo: [collapse_whitespace](https://modpagespeed.com/examples/collapse_whitespace/).
 
-```html
+```text
 <!-- before -->
 <ul class="nav">
     <li>  <a href="/a">Alpha</a>  </li>
@@ -13032,11 +13040,11 @@ Removes unnecessary quotation marks around HTML attribute values when the value 
 <!-- page: https://example.com/shop/ -->
 <!-- before -->
 <a href="https://example.com/shop/cart">Cart</a>
-<img src="https://example.com/img/logo.png">
+<img src="https://example.com/img/logo.png" />
 
 <!-- after -->
 <a href="/shop/cart">Cart</a>
-<img src="/img/logo.png">
+<img src="/img/logo.png" />
 ```
 
 #### When it helps and when it does not
@@ -13110,8 +13118,8 @@ Adds `type="text/javascript"` and `type="text/css"` attributes to `<script>` and
 
 ```html
 <!-- inserted into <head> -->
-<link rel="preconnect" href="https://fonts.examplecdn.com">
-<link rel="dns-prefetch" href="//analytics.example.com">
+<link rel="preconnect" href="https://fonts.examplecdn.com" />
+<link rel="dns-prefetch" href="//analytics.example.com" />
 ```
 
 #### When it helps and when it does not
