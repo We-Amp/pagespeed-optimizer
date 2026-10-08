@@ -33,6 +33,30 @@ const SCAN_OK = {
   },
 };
 
+// Same minimal scan, but the signed-agent probe fires the agentpass wedge, so
+// the per-wedge lead form (and its disclosure) renders.
+const SCAN_AGENTPASS = {
+  report: {
+    ...SCAN_OK.report,
+    signedAgentVerification: {
+      status: 'ok',
+      classification: 'verifying',
+      evidence: ['valid signature accepted, corrupted signature rejected'],
+      probes: [{ name: 'valid' }, { name: 'corrupted' }, { name: 'unsigned' }],
+    },
+  },
+};
+
+// Score 0 must survive the signup lead message as "0/100" — a `||` fallback
+// would blank it.
+const SCAN_ZERO = {
+  report: {
+    ...SCAN_OK.report,
+    grade: 'F',
+    score: 0,
+  },
+};
+
 // Minimal PSI response: a 0.9 performance score and one flagged audit
 // (render-blocking-resources maps to mod_pagespeed coverage "full").
 const PSI_OK = {
@@ -61,12 +85,12 @@ async function stubContact(page: Page, status = 200) {
   return posted;
 }
 
-async function runScan(page: Page) {
+async function runScan(page: Page, scanBody: unknown = SCAN_OK) {
   await page.route('**/ai-readability/api/scan**', async (route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify(SCAN_OK),
+      body: JSON.stringify(scanBody),
     });
   });
   await page.goto('/ai-readability/');
@@ -165,7 +189,7 @@ test.describe('AI-readability checker capture cards', () => {
     await expect(page.locator('#ar-h-agents')).toHaveText('Working on agent access at the origin');
     const section = page.locator('section[aria-labelledby="ar-h-agents"]');
     await expect(section).toContainText(
-      'Submitting this sends us your email, your answer and this scan’s URL so we can follow up.',
+      'Submitting this sends us your email, your answer and this scan’s URL. We use them only for this request; see our privacy policy.',
     );
     const placeholder = page.locator('#ar-agents-need option[value=""]');
     await expect(placeholder).toHaveText('Choose one');
@@ -177,6 +201,7 @@ test.describe('AI-readability checker capture cards', () => {
     await page.click('#ar-agents-form button[type="submit"]');
 
     await expect(page.locator('#ar-agents-msg')).toContainText('Thanks');
+    await expect(page.locator('#ar-agents-msg')).not.toContainText('in touch');
     await expect(page.locator('#ar-agents-form')).toHaveCount(0);
     expect(posted).toHaveLength(1);
     expect(posted[0]).toMatchObject({
@@ -221,7 +246,47 @@ test.describe('AI-readability checker capture cards', () => {
     expect(events.filter((e) => e.name === 'lead_submit')).toHaveLength(0);
   });
 
-  test('the operator log is optional and capped at 1500 characters', async ({ page }) => {
+  test('the wedge form posts the fired wedge and its copy promises no follow-up', async ({
+    page,
+  }) => {
+    const posted = await stubContact(page);
+    await stubUmami(page);
+    await runScan(page, SCAN_AGENTPASS);
+
+    // The per-request disclosure states what is sent without promising follow-up.
+    const disclosure = page.locator('p.ar-disclosure', { hasText: 'summary of this scan' });
+    await expect(disclosure).toContainText('We use them only for this request');
+    await expect(disclosure).not.toContainText('follow up');
+
+    await page.fill('#ar-next-email', 'operator@example.com');
+    await page.click('#ar-next-form button[type="submit"]');
+
+    await expect(page.locator('#ar-next-msg')).toContainText('Thanks');
+    await expect(page.locator('#ar-next-msg')).not.toContainText('in touch');
+    await expect(page.locator('#ar-next-form')).toHaveCount(0);
+    expect(posted).toHaveLength(1);
+    expect(posted[0]).toMatchObject({
+      topic: 'agentpass',
+      email: 'operator@example.com',
+      wedge: 'agentpass',
+      url: 'https://example.com/',
+    });
+  });
+
+  test('a score of 0 posts as 0/100 in the signup lead message', async ({ page }) => {
+    const posted = await stubContact(page);
+    await stubUmami(page);
+    await runScan(page, SCAN_ZERO);
+
+    await page.fill('#ar-watch-email', 'watcher@example.com');
+    await page.check('#ar-watch-consent');
+    await page.click('#ar-watch-form button[type="submit"]');
+
+    await expect(page.locator('#ar-watch-msg')).toContainText('Thanks');
+    expect(String(posted[0].message)).toContain('Grade: F (0/100)');
+  });
+
+  test('the operator log is optional', async ({ page }) => {
     const posted = await stubContact(page);
     await stubUmami(page);
     await runScan(page);
@@ -230,7 +295,27 @@ test.describe('AI-readability checker capture cards', () => {
     await page.fill('#ar-agents-email', 'operator@example.com');
     await page.click('#ar-agents-form button[type="submit"]');
     await expect(page.locator('#ar-agents-msg')).toContainText('Thanks');
+    await expect(page.locator('#ar-agents-msg')).not.toContainText('in touch');
     expect(String(posted[0].message)).not.toContain('AI-crawler request counts');
+  });
+
+  test('the operator log posts at most 1500 characters', async ({ page }) => {
+    const posted = await stubContact(page);
+    await stubUmami(page);
+    await runScan(page);
+
+    await page.selectOption('#ar-agents-need', 'ai-crawler-content');
+    await page.fill('#ar-agents-email', 'operator@example.com');
+    // A scripted submit bypasses the textarea's maxlength, so set the value
+    // directly: the submit handler slices it to 1500.
+    await page.evaluate(() => {
+      (document.querySelector('#ar-agents-log') as HTMLTextAreaElement).value = 'x'.repeat(1600);
+    });
+    await page.click('#ar-agents-form button[type="submit"]');
+    await expect(page.locator('#ar-agents-msg')).toContainText('Thanks');
+    const message = String(posted[0].message);
+    expect(message).toContain('AI-crawler request counts:\n' + 'x'.repeat(1500));
+    expect(message).not.toContain('x'.repeat(1501));
   });
 
   test('a 500 from the contact endpoint shows the error path and fires no lead', async ({
@@ -265,6 +350,18 @@ test.describe('PageSpeed analyzer report download', () => {
     await expect(page.locator('#psi-report-form')).toHaveCount(0);
     await expect(page.locator('#psi-report-email')).toHaveCount(0);
 
+    // "No network" is checked, not assumed: between the click and the
+    // completed download, no request may carry report content out (umami is
+    // stubbed in-page, so even the analytics event stays local). Static
+    // chrome assets can still settle during the window; a non-GET request or
+    // report text in any URL/body fails the test.
+    const leaks: string[] = [];
+    page.on('request', (req) => {
+      const sent = req.url() + '\n' + (req.postData() ?? '');
+      if (req.method() !== 'GET' || /PageSpeed report|render-blocking/.test(sent)) {
+        leaks.push(`${req.method()} ${req.url()}`);
+      }
+    });
     const downloadPromise = page.waitForEvent('download');
     await page.click('#psi-report-download');
     const download = await downloadPromise;
@@ -279,8 +376,10 @@ test.describe('PageSpeed analyzer report download', () => {
     expect(content).toContain('desktop 90/100');
     expect(content).toContain('Eliminate render-blocking resources');
 
-    // The download posts nothing to the contact endpoint…
+    // The download posts nothing to the contact endpoint and no request
+    // carries report content — the Blob save is fully client-side.
     expect(posted).toHaveLength(0);
+    expect(leaks, `requests carrying report content: ${leaks.join(', ')}`).toEqual([]);
     // …and fires exactly one analyze_report_download per click.
     const events = await trackedEvents(page);
     expect(events.filter((e) => e.name === 'analyze_report_download')).toHaveLength(1);

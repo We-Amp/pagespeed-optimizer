@@ -1834,12 +1834,12 @@ const jsonLd = [webApp, faqPage];
             ? '<button type="button" id="ar-notify-btn" data-umami-event="airead-capture">Email me this result instead</button>' +
               '<p class="ar-disclosure">That just emails you this result — we won’t add you to a mailing list.</p>'
             : '';
-        // Per-path consent scoping (Legal H5): the broad follow-up disclosure applies only when
+        // Per-path consent scoping (Legal H5): the per-request disclosure applies only when
         // the form submits a wedge lead to /contact. When no wedge fires the form IS the /notify
         // result-email path, so it carries the narrow "used only to send you this result" promise.
         const disclosure = wedgeActive
-          ? '<p class="ar-disclosure">Submitting this sends us your email and a summary of this scan’s findings so we can follow up. ' +
-            'See our <a href="/privacy/">Privacy policy</a>.</p>'
+          ? '<p class="ar-disclosure">Submitting this sends us your email and a summary of this scan’s findings. ' +
+            'We use them only for this request; see our <a href="/privacy/">privacy policy</a>.</p>'
           : '<p class="ar-disclosure">Used only to send you this result. We won’t add you to a mailing list. ' +
             'See our <a href="/privacy/">Privacy policy</a>.</p>';
         return (
@@ -1887,8 +1887,8 @@ const jsonLd = [webApp, faqPage];
           '<textarea id="ar-agents-log" rows="3" maxlength="1500"></textarea></label>' +
           '<button type="submit" data-umami-event="airead-agents">Tell us</button>' +
           '</form>' +
-          '<p class="ar-disclosure">Submitting this sends us your email, your answer and this scan’s URL so we can follow up. ' +
-          'See our <a href="/privacy/">privacy policy</a>.</p>' +
+          '<p class="ar-disclosure">Submitting this sends us your email, your answer and this scan’s URL. ' +
+          'We use them only for this request; see our <a href="/privacy/">privacy policy</a>.</p>' +
           '<div id="ar-agents-msg" class="ar-next-msg" role="status" aria-live="polite" tabindex="-1"></div>';
         return (
           '<section class="ar-sec" aria-labelledby="ar-h-watch">' +
@@ -2202,7 +2202,7 @@ const jsonLd = [webApp, faqPage];
               if (res.ok) {
                 leadSubmit(topic, topic);
                 if (msg) {
-                  msg.textContent = 'Thanks — we’ll be in touch.';
+                  msg.textContent = 'Thanks — your answer is in.';
                   msg.focus && msg.focus();
                 }
                 form.remove();
@@ -2274,7 +2274,7 @@ const jsonLd = [webApp, faqPage];
             const message = [
               '[ai-readability-updates] updates signup from RenderPeek result',
               'Scanned: ' + (r.url || ''),
-              'Grade: ' + (r.grade || '') + ' (' + (r.score || '') + '/100)',
+              'Grade: ' + (r.grade || '') + ' (' + (r.score ?? '') + '/100)',
             ].join('\n');
             const ok = await postLead({
               topic: 'ai-readability-updates',
@@ -2339,7 +2339,7 @@ const jsonLd = [webApp, faqPage];
             if (ok) {
               leadSubmit('agents', need);
               if (msg) {
-                msg.textContent = 'Thanks — we’ll be in touch.';
+                msg.textContent = 'Thanks — your answer is in.';
                 msg.focus && msg.focus();
               }
               agentsForm.remove();
