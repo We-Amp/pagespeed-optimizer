@@ -2,6 +2,19 @@
 
 All notable changes to mod_pagespeed 2.1 are documented in this file.
 
+## Unreleased
+
+Added: the worker's `--help` output now lists `--agent-render-allow-hosts`
+with its default and semantics, so the generated configuration reference on
+the website documents it. The flag itself is unchanged; only the usage text
+was missing.
+
+Changed: the packaged systemd unit describes the service as the "PageSpeed
+Optimizer Worker" (what `systemctl status` shows) and the README calls the
+optimizer process the worker throughout. Names that carry the word daemon
+for compatibility — the `pagespeed_daemon.conf` file, CLI flags, API paths
+and metric names — are unchanged.
+
 ## 2.2.0 — 2026-10-06
 
 Update recommended: three security fixes, a fix for optimized copies lost
