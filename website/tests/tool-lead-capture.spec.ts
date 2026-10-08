@@ -494,7 +494,7 @@ test.describe('AI-readability result link (copy replaces the email-me path)', ()
     // viewport where the un-fixed shift measured worst (0.063).
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.addInitScript(() => {
-      const w = window as Window & { __cls: number };
+      const w = window as unknown as { __cls: number };
       w.__cls = 0;
       new PerformanceObserver((list) => {
         for (const entry of list.getEntries()) {
@@ -517,7 +517,7 @@ test.describe('AI-readability result link (copy replaces the email-me path)', ()
     await expect(page.locator('#ar-watch-form')).toBeVisible({ timeout: 15000 });
     // Let any post-render shifts flush before reading the accumulator.
     await page.waitForTimeout(500);
-    const cls = await page.evaluate(() => (window as Window & { __cls: number }).__cls);
+    const cls = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
     expect(cls).toBeLessThanOrEqual(0.02);
   });
 });
