@@ -8,7 +8,7 @@ lastUpdated: 2026-07-12
 
 mod_pagespeed 2.1 applies a set of filters to optimize your pages. You control which filters run through the `RewriteLevel` directive and per-filter enable/disable directives.
 
-For what each filter does, see the [mod_pagespeed 2.1 filter reference](/docs/filter-reference/). This page covers how to select them.
+For what each filter does, see the [PageSpeed filters](/docs/filters/) table. This page covers how to select them.
 
 ## RewriteLevel
 
@@ -281,13 +281,13 @@ Open the admin page at `/pagespeed_admin/config` in your browser to see the full
 
 Several directives control size thresholds and quality levels for filter behavior. The table below lists commonly adjusted parameters with their defaults.
 
-| Parameter                   | Default | Description                                                   |
-| --------------------------- | ------- | ------------------------------------------------------------- |
-| `CssInlineMaxBytes`         | 2048    | Maximum size (bytes) of a CSS file to inline into HTML        |
-| `JsInlineMaxBytes`          | 2048    | Maximum size (bytes) of a JavaScript file to inline into HTML |
-| `ImageInlineMaxBytes`       | 3072    | Maximum size (bytes) of an image to inline as a data URI      |
+| Parameter                   | Default | Description                                                                                |
+| --------------------------- | ------- | ------------------------------------------------------------------------------------------ |
+| `CssInlineMaxBytes`         | 2048    | Maximum size (bytes) of a CSS file to inline into HTML                                     |
+| `JsInlineMaxBytes`          | 2048    | Maximum size (bytes) of a JavaScript file to inline into HTML                              |
+| `ImageInlineMaxBytes`       | 3072    | Maximum size (bytes) of an image to inline as a data URI                                   |
 | `ImageRecompressionQuality` | 85      | Quality level (-1 to 100; -1 uses the source image's quality) for recompressed JPEG images |
-| `CssFlattenMaxBytes`        | 1024000 | Maximum size (bytes) of CSS after flattening `@import` rules  |
+| `CssFlattenMaxBytes`        | 1024000 | Maximum size (bytes) of CSS after flattening `@import` rules                               |
 
 Since v1.15.0+r18, out-of-range values for bounded parameters fail configuration load instead of being silently clamped, so check ranges when tuning.
 
@@ -370,6 +370,5 @@ With URL preservation enabled, mod_pagespeed still optimizes the resource conten
 
 ## Links
 
-- [Filters overview](/docs/filters-overview/) — catalog of all available filters
-- [Filter reference](/docs/filter-reference/) — complete filter table with descriptions
+- [PageSpeed filters](/docs/filters/) — every filter, what it does and which level enables it
 - [Configuration](/docs/configuration/) — general configuration directives

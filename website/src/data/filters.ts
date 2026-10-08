@@ -1,456 +1,127 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
-// Flat reference of every PageSpeed optimization filter, rendered as the
-// scannable table on /docs/filters/ (the canonical "PageSpeed filters" hub)
-// and mirrored into that page's ItemList JSON-LD.
+// Typed view of src/data/reference/filters.json, the filter reference that
+// scripts/generate-references.mjs derives from the module source (the gperf
+// filter-name table, the enum/id/label vector, the CoreFilters,
+// OptimizeForBandwidth and dangerous sets, the compound-name expansions) and
+// from src/data/reference/filters-overlay.json (category, summary, risk, note)
+// and src/data/examples.ts (the demo per filter).
 //
-// SINGLE SOURCE: the canonical, human-authored store is the markdown table in
-// src/content/docs/filter-reference.md ("All filters"). This array is a
-// machine-consumable PROJECTION of the four fields the hub page needs — name,
-// category, plain-text description, and the per-filter deep-link. Core/OFB/Safe
-// columns are deliberately omitted so the hub stays a 3-column overview, visibly
-// distinct from the 6-column 1.15 directive reference (anti-cannibalization).
+// Consumers: /docs/filters/ (src/pages/docs/filters.astro) renders the
+// complete table and its ItemList JSON-LD from FILTERS; the drift gates in
+// test/reference/ assert that every name here has a section on exactly one
+// group page and that the JSON still matches the pinned source.
 //
-// ANTI-DRIFT: test/sync/filters-sync.test.ts parses filter-reference.md and
-// asserts this array matches it field-for-field and row-for-row. Editing one
-// file without the other turns CI red. Keep entries in the SAME order as the
-// markdown table (alphabetical by filter name) so the drift check compares
-// index-by-index.
+// Do not hand-edit filters.json: regenerate it (`npm run gen:references`).
+
+import data from './reference/filters.json';
 
 export type FilterCategory = 'Image' | 'CSS' | 'JavaScript' | 'HTML' | 'Caching';
 
 export interface Filter {
   /** Filter name, exactly as passed to EnableFilters/DisableFilters. */
   name: string;
-  /** Content type the filter transforms. */
+  /** Content type the filter transforms; decides the group page. */
   category: FilterCategory;
-  /** One-line "what it does", plain text (markdown code-ticks stripped). */
+  /** One-line "what it does", plain text. */
   description: string;
-  /** Deep-link to the per-category directive reference, verbatim from filter-reference.md. */
+  /** Deep link to the filter's own anchor on its group page. */
   href: string;
+  /** In the CoreFilters set (true), partly (an alias whose members differ) or not. */
+  core: boolean | 'partial';
+  /** In the OptimizeForBandwidth set. */
+  optimizeForBandwidth: boolean | 'partial';
+  /** Risk rating: from the source (Dangerous, Deprecated) or these docs; null when neither states one. */
+  risk: string | null;
+  /** A compound name that expands to member filters (rewrite_images, extend_cache, ...). */
+  alias: boolean;
+  /** Member filters of an alias. */
+  members: string[];
+  /** Canonical spelling when this name is an accepted alternate (left_trim_urls -> trim_urls). */
+  alternateSpellingOf: string | null;
+  /** Accepted but ignored by the module. */
+  deprecated: boolean;
+  /** In the dangerous set: never enabled by AllFilters, for testing only. */
+  dangerous: boolean;
+  /** /examples/<slug>/ demo that isolates this filter, when the gallery has one. */
+  example: string | null;
+  /** Short platform or status note from the overlay. */
+  note: string | null;
 }
 
-/** Display order for grouping the flat table and JSON-LD. */
+/** Display order for grouping the table and JSON-LD. */
 export const CATEGORY_ORDER: FilterCategory[] = ['Image', 'CSS', 'JavaScript', 'HTML', 'Caching'];
 
-/**
- * Deep-link used for the two `rewrite_javascript` sub-filters, which have no
- * standalone anchor in the source table — they share the parent filter's page.
- */
-export const REWRITE_JS_FALLBACK_HREF = '/docs/javascript-filters/#rewrite_javascript';
+/** The docs page that documents each category's filters. */
+export const PAGE_BY_CATEGORY: Record<FilterCategory, string> = {
+  Image: 'image-filters',
+  CSS: 'css-filters',
+  JavaScript: 'javascript-filters',
+  HTML: 'html-filters',
+  Caching: 'cache-control',
+};
 
-// Ordered alphabetically to match the filter-reference.md "All filters" table.
-export const FILTERS: Filter[] = [
-  {
-    name: 'add_head',
-    category: 'HTML',
-    description: 'Adds <head> element if missing',
-    href: '/docs/html-filters/#add_head',
-  },
-  {
-    name: 'add_instrumentation',
-    category: 'HTML',
-    description: 'Injects JavaScript to measure page load time',
-    href: '/docs/html-filters/#add_instrumentation',
-  },
-  {
-    name: 'collapse_whitespace',
-    category: 'HTML',
-    description: 'Removes excess whitespace from HTML',
-    href: '/docs/html-filters/#collapse_whitespace',
-  },
-  {
-    name: 'combine_css',
-    category: 'CSS',
-    description: 'Combines multiple CSS files into one',
-    href: '/docs/css-filters/#combine_css',
-  },
-  {
-    name: 'combine_heads',
-    category: 'HTML',
-    description: 'Merges multiple <head> elements',
-    href: '/docs/html-filters/#combine_heads',
-  },
-  {
-    name: 'combine_javascript',
-    category: 'JavaScript',
-    description: 'Combines multiple JS files into one',
-    href: '/docs/javascript-filters/#combine_javascript',
-  },
-  {
-    name: 'convert_gif_to_png',
-    category: 'Image',
-    description: 'Converts GIF to PNG',
-    href: '/docs/image-filters/#convert_formats',
-  },
-  {
-    name: 'convert_jpeg_to_avif',
-    category: 'Image',
-    description: 'Converts photographic JPEG to AVIF for capable browsers',
-    href: '/docs/image-filters/#avif',
-  },
-  {
-    name: 'convert_jpeg_to_progressive',
-    category: 'Image',
-    description: 'Converts large JPEGs to progressive format',
-    href: '/docs/image-filters/#recompress_images',
-  },
-  {
-    name: 'convert_jpeg_to_webp',
-    category: 'Image',
-    description: 'Converts JPEG to WebP for capable browsers',
-    href: '/docs/image-filters/#convert_formats',
-  },
-  {
-    name: 'convert_meta_tags',
-    category: 'HTML',
-    description: 'Adds HTTP headers from <meta http-equiv> tags',
-    href: '/docs/html-filters/#convert_meta_tags',
-  },
-  {
-    name: 'convert_png_to_jpeg',
-    category: 'Image',
-    description: 'Converts PNG to JPEG when no transparency',
-    href: '/docs/image-filters/#convert_formats',
-  },
-  {
-    name: 'convert_to_avif_animated',
-    category: 'Image',
-    description: 'Converts animated images to AVIF',
-    href: '/docs/image-filters/#avif',
-  },
-  {
-    name: 'convert_to_avif_lossless',
-    category: 'Image',
-    description: 'Converts PNG/GIF to lossless AVIF',
-    href: '/docs/image-filters/#avif',
-  },
-  {
-    name: 'convert_to_webp_animated',
-    category: 'Image',
-    description: 'Converts animated GIF to WebP',
-    href: '/docs/image-filters/#convert_formats',
-  },
-  {
-    name: 'convert_to_webp_lossless',
-    category: 'Image',
-    description: 'Converts PNG/GIF to lossless WebP',
-    href: '/docs/image-filters/#convert_formats',
-  },
-  {
-    name: 'dedup_inlined_images',
-    category: 'Image',
-    description: 'Replaces repeated inlined images with JS reference',
-    href: '/docs/image-filters/#inline_images',
-  },
-  {
-    name: 'defer_javascript',
-    category: 'JavaScript',
-    description: 'Defers JS execution until after page load',
-    href: '/docs/javascript-filters/#defer_javascript',
-  },
-  {
-    name: 'elide_attributes',
-    category: 'HTML',
-    description: 'Removes default-value HTML attributes',
-    href: '/docs/html-filters/#elide_attributes',
-  },
-  {
-    name: 'extend_cache',
-    category: 'Caching',
-    description: 'Content-hashed URLs with 1-year browser cache',
-    href: '/docs/cache-control/#extend_cache',
-  },
-  {
-    name: 'extend_cache_pdfs',
-    category: 'Caching',
-    description: 'Cache extension for PDF links',
-    href: '/docs/cache-control/#extend_cache_pdfs',
-  },
-  {
-    name: 'fallback_rewrite_css_urls',
-    category: 'CSS',
-    description: 'Rewrites resource URLs in unparseable CSS',
-    href: '/docs/css-filters/#fallback_rewrite_css_urls',
-  },
-  {
-    name: 'flatten_css_imports',
-    category: 'CSS',
-    description: 'Inlines CSS @import rules',
-    href: '/docs/css-filters/#flatten_css_imports',
-  },
-  {
-    name: 'hint_preload_subresources',
-    category: 'HTML',
-    description: 'Adds Link: rel=preload headers',
-    href: '/docs/html-filters/#hint_preload_subresources',
-  },
-  {
-    name: 'in_place_optimize_for_browser',
-    category: 'Image',
-    description: 'Browser-specific in-place optimization',
-    href: '/docs/image-filters/#in_place_optimize_for_browser',
-  },
-  {
-    name: 'include_js_source_maps',
-    category: 'JavaScript',
-    description: 'Preserves JavaScript source maps',
-    href: '/docs/javascript-filters/#include_js_source_maps',
-  },
-  {
-    name: 'inline_css',
-    category: 'CSS',
-    description: 'Inlines small external CSS into HTML',
-    href: '/docs/css-filters/#inline_css',
-  },
-  {
-    name: 'inline_google_font_css',
-    category: 'CSS',
-    description: 'Inlines Google Fonts CSS',
-    href: '/docs/css-filters/#inline_google_font_css',
-  },
-  {
-    name: 'inline_images',
-    category: 'Image',
-    description: 'Inlines small images as data: URIs',
-    href: '/docs/image-filters/#inline_images',
-  },
-  {
-    name: 'inline_import_to_link',
-    category: 'CSS',
-    description: 'Converts <style>@import</style> to <link>',
-    href: '/docs/css-filters/#inline_import_to_link',
-  },
-  {
-    name: 'inline_javascript',
-    category: 'JavaScript',
-    description: 'Inlines small external JS into HTML',
-    href: '/docs/javascript-filters/#inline_javascript',
-  },
-  {
-    name: 'inline_preview_images',
-    category: 'Image',
-    description: 'Inserts low-quality image placeholders',
-    href: '/docs/image-filters/#inline_images',
-  },
-  {
-    name: 'insert_dns_prefetch',
-    category: 'HTML',
-    description: 'Adds <link rel=dns-prefetch> for third-party domains',
-    href: '/docs/html-filters/#insert_dns_prefetch',
-  },
-  {
-    name: 'insert_image_dimensions',
-    category: 'Image',
-    description: 'Adds width and height attributes to <img> tags',
-    href: '/docs/image-filters/#resize_images',
-  },
-  {
-    name: 'insert_speculation_rules',
-    category: 'HTML',
-    description: 'Injects a same-origin prefetch speculation-rules script',
-    href: '/docs/html-filters/#insert_speculation_rules',
-  },
-  {
-    name: 'jpeg_subsampling',
-    category: 'Image',
-    description: 'Reduces chroma sampling to 4:2:0',
-    href: '/docs/image-filters/#recompress_images',
-  },
-  {
-    name: 'lazyload_images',
-    category: 'Image',
-    description: 'Defers offscreen image loading',
-    href: '/docs/image-filters/#lazyload_images',
-  },
-  {
-    name: 'local_storage_cache',
-    category: 'Caching',
-    description: 'Caches inlined resources in localStorage',
-    href: '/docs/cache-control/#local_storage_cache',
-  },
-  {
-    name: 'move_css_above_scripts',
-    category: 'CSS',
-    description: 'Moves CSS <link> above <script> tags',
-    href: '/docs/css-filters/#move_css_above_scripts',
-  },
-  {
-    name: 'move_css_to_head',
-    category: 'CSS',
-    description: 'Moves CSS <link> into <head>',
-    href: '/docs/css-filters/#move_css_to_head',
-  },
-  {
-    name: 'outline_css',
-    category: 'CSS',
-    description: 'Externalizes large inline CSS blocks',
-    href: '/docs/css-filters/#outline_css',
-  },
-  {
-    name: 'outline_javascript',
-    category: 'JavaScript',
-    description: 'Externalizes large inline JS blocks',
-    href: '/docs/javascript-filters/#outline_javascript',
-  },
-  {
-    name: 'pedantic',
-    category: 'HTML',
-    description: 'Adds type attributes for HTML4 validation',
-    href: '/docs/html-filters/#pedantic',
-  },
-  {
-    name: 'prioritize_critical_css',
-    category: 'CSS',
-    description: 'Inlines the CSS a page uses, loads the rest async',
-    href: '/docs/css-filters/#prioritize_critical_css',
-  },
-  {
-    name: 'prioritize_critical_images',
-    category: 'Image',
-    description: 'Sets fetchpriority=high on the LCP image',
-    href: '/docs/image-filters/#prioritize_critical_images',
-  },
-  {
-    name: 'recompress_avif',
-    category: 'Image',
-    description: 'AVIF-specific recompression',
-    href: '/docs/image-filters/#avif',
-  },
-  {
-    name: 'recompress_images',
-    category: 'Image',
-    description: 'Recompresses and converts images (lossy re-encode)',
-    href: '/docs/image-filters/#recompress_images',
-  },
-  {
-    name: 'recompress_jpeg',
-    category: 'Image',
-    description: 'JPEG-specific recompression',
-    href: '/docs/image-filters/#recompress_images',
-  },
-  {
-    name: 'recompress_png',
-    category: 'Image',
-    description: 'PNG-specific recompression',
-    href: '/docs/image-filters/#recompress_images',
-  },
-  {
-    name: 'recompress_webp',
-    category: 'Image',
-    description: 'WebP-specific recompression',
-    href: '/docs/image-filters/#recompress_images',
-  },
-  {
-    name: 'remove_comments',
-    category: 'HTML',
-    description: 'Strips HTML comments',
-    href: '/docs/html-filters/#remove_comments',
-  },
-  {
-    name: 'remove_quotes',
-    category: 'HTML',
-    description: 'Removes unnecessary attribute quotes',
-    href: '/docs/html-filters/#remove_quotes',
-  },
-  {
-    name: 'resize_images',
-    category: 'Image',
-    description: 'Resizes images to match <img> dimensions',
-    href: '/docs/image-filters/#resize_images',
-  },
-  {
-    name: 'resize_mobile_images',
-    category: 'Image',
-    description: 'Smaller placeholders for mobile',
-    href: '/docs/image-filters/#resize_images',
-  },
-  {
-    name: 'resize_rendered_image_dimensions',
-    category: 'Image',
-    description: 'Resizes to rendered dimensions',
-    href: '/docs/image-filters/#resize_images',
-  },
-  {
-    name: 'responsive_images',
-    category: 'Image',
-    description: 'Generates srcset for multiple resolutions',
-    href: '/docs/image-filters/#responsive_images',
-  },
-  {
-    name: 'rewrite_css',
-    category: 'CSS',
-    description: 'Minifies CSS, rewrites embedded URLs',
-    href: '/docs/css-filters/#rewrite_css',
-  },
-  {
-    name: 'rewrite_domains',
-    category: 'Caching',
-    description: 'Applies domain mappings to original resources',
-    href: '/docs/cache-control/#rewrite_domains',
-  },
-  {
-    name: 'rewrite_images',
-    category: 'Image',
-    description: 'Master image optimization (enables sub-filters)',
-    href: '/docs/image-filters/#rewrite_images',
-  },
-  {
-    name: 'rewrite_javascript',
-    category: 'JavaScript',
-    description: 'Minifies JavaScript',
-    href: '/docs/javascript-filters/#rewrite_javascript',
-  },
-  {
-    name: 'rewrite_javascript_external',
-    category: 'JavaScript',
-    description: 'Minifies external JavaScript files',
-    href: REWRITE_JS_FALLBACK_HREF,
-  },
-  {
-    name: 'rewrite_javascript_inline',
-    category: 'JavaScript',
-    description: 'Minifies inline JavaScript',
-    href: REWRITE_JS_FALLBACK_HREF,
-  },
-  {
-    name: 'rewrite_style_attributes',
-    category: 'CSS',
-    description: 'Applies CSS rewriting to inline style attributes',
-    href: '/docs/css-filters/#rewrite_style_attributes',
-  },
-  {
-    name: 'rewrite_style_attributes_with_url',
-    category: 'CSS',
-    description: 'Same, only for styles containing url()',
-    href: '/docs/css-filters/#rewrite_style_attributes',
-  },
-  {
-    name: 'sprite_images',
-    category: 'Image',
-    description: 'Combines CSS background images into sprites',
-    href: '/docs/image-filters/#sprite_images',
-  },
-  {
-    name: 'strip_image_color_profile',
-    category: 'Image',
-    description: 'Removes ICC color profiles',
-    href: '/docs/image-filters/#strip_metadata',
-  },
-  {
-    name: 'strip_image_meta_data',
-    category: 'Image',
-    description: 'Removes EXIF and other metadata',
-    href: '/docs/image-filters/#strip_metadata',
-  },
-  {
-    name: 'trim_urls',
-    category: 'HTML',
-    description: 'Shortens URLs relative to base URL',
-    href: '/docs/html-filters/#trim_urls',
-  },
-];
+/** The pinned module source the data was generated from. */
+export const FILTERS_SOURCE = data.source;
+
+/** CoreFilters, OptimizeForBandwidth and dangerous set membership, by name. */
+export const FILTER_SETS = data.sets;
+
+function asCategory(name: string, category: string | null): FilterCategory {
+  if (category && (CATEGORY_ORDER as string[]).includes(category))
+    return category as FilterCategory;
+  throw new Error(`filters.json: ${name} has no category (add it to filters-overlay.json)`);
+}
+
+function hrefFor(category: FilterCategory, name: string): string {
+  return `/docs/${PAGE_BY_CATEGORY[category]}/#${name}`;
+}
+
+const single: Filter[] = data.filters.map((f) => {
+  const category = asCategory(f.name, f.category);
+  return {
+    name: f.name,
+    category,
+    description: f.summary ?? f.label ?? f.name,
+    href: hrefFor(category, f.name),
+    core: f.core,
+    optimizeForBandwidth: f.optimizeForBandwidth,
+    risk: f.risk,
+    alias: false,
+    members: [],
+    alternateSpellingOf: f.alternateSpellingOf,
+    deprecated: f.deprecated,
+    dangerous: f.dangerous,
+    example: f.example,
+    note: f.note,
+  };
+});
+
+const aliases: Filter[] = data.aliases.map((a) => {
+  const category = asCategory(a.name, a.category);
+  return {
+    name: a.name,
+    category,
+    description: a.summary ?? a.name,
+    href: hrefFor(category, a.name),
+    core: a.core as boolean | 'partial',
+    optimizeForBandwidth: a.optimizeForBandwidth as boolean | 'partial',
+    risk: a.risk,
+    alias: true,
+    members: a.members,
+    alternateSpellingOf: null,
+    deprecated: false,
+    dangerous: false,
+    example: a.example,
+    note: a.note,
+  };
+});
+
+/** Every filter name the module accepts, plus the compound names, alphabetical. */
+export const FILTERS: Filter[] = [...single, ...aliases].sort((a, b) =>
+  a.name.localeCompare(b.name, 'en'),
+);
 
 /** Filters grouped by category in display order, for the table and JSON-LD. */
 export function filtersByCategory(): { category: FilterCategory; filters: Filter[] }[] {

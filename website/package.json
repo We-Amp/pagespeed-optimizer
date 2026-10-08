@@ -9,6 +9,7 @@
     "build": "astro build",
     "postbuild": "node scripts/build-search-index.mjs",
     "gen:llms": "node scripts/generate-llms.mjs",
+    "gen:references": "node scripts/generate-references.mjs --module-src \"${MOD_PAGESPEED_SRC:-../../mod_pagespeed}\" && node scripts/render-references.mjs",
     "preview": "astro preview",
     "astro": "astro",
     "lint": "eslint . && astro check",

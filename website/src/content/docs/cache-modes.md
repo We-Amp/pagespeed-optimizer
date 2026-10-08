@@ -593,7 +593,7 @@ For example, if your site serves 500 MB of images, CSS, and JavaScript, set the 
 In v1.15.0+r18 and later, the default cache size is 1 GB (earlier revisions defaulted to 100 MB). Cache files are sparse, so the larger default raises the ceiling rather than reserving the space up front — disk grows only as content is cached, and Cyclone self-evicts at the target. On hosts where disk is tight, set an explicit lower `FileCacheSizeKb`.
 
 This is the native module's own cache file; the reverse-proxy worker's Cyclone
-volume is sized separately — see [Sizing the Cache](/docs/configuration/#sizing-the-cache)
+volume is sized separately — see [Sizing the Cache](/docs/worker-configuration/#sizing-the-cache)
 in the configuration reference.
 
 <a id="in-place-resource-optimization-ipro"></a>
@@ -708,7 +708,7 @@ The 1.15 IIS module uses WinHTTP for resource fetching. WinHTTP handles SSL cert
 ### Additional cache directives
 
 A few more cache-related directives are covered by their one-line summary in
-the [directive index](/docs/directive-index/): `CacheFragment` (default:
+the [configuration reference](/docs/configuration/): `CacheFragment` (default:
 auto) sets the cache partition key; `PurgeMethod` (default: none) sets the
 HTTP method used for cache purge; `RateLimitBackgroundFetches` (default: on)
 rate-limits background fetches; `RedisReconnectionDelayMs` (default: 1000)
@@ -716,5 +716,5 @@ sets the Redis reconnection delay. `InPlaceRewriteDeadlineMs` (default: 10)
 sets the IPRO rewrite deadline per flush, alongside `InPlaceSMaxAgeSec`
 above.
 
-See the [directive index](/docs/directive-index/) for the full list of native
+See the [configuration reference](/docs/configuration/) for the full list of native
 module directives and their defaults.

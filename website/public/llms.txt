@@ -90,7 +90,7 @@ mod_pagespeed is an open-source project originally developed at Google. mod_page
 - [cPanel / EasyApache 4](https://modpagespeed.com/docs/cpanel/)
 - [apt/yum repository](https://modpagespeed.com/download/apt-yum/)
 - [Upgrading from 1.15 to 2.1](https://modpagespeed.com/docs/migrating-to-2-1/#upgrading-from-1-15)
-- [Filter Reference](https://modpagespeed.com/docs/filter-reference/)
+- [PageSpeed filters](https://modpagespeed.com/docs/filters/)
 - [FAQ](https://modpagespeed.com/pricing/#faq)
 - [Legacy Docs (1.0)](https://modpagespeed.com/1.0/)
 - [machine-readable product summary](https://modpagespeed.com/api/product.json)

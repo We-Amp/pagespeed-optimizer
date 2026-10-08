@@ -36,6 +36,7 @@ Run everything from `website/`.
 | `npx vitest run` | Unit tests and the sync/content gates in `test/`. Fast; run this first. |
 | `npx playwright test` | Browser suite in `tests/`. Starts the dev server itself (`webServer` in `playwright.config.ts`); run `npx playwright install chromium` once. |
 | `npm run gen:llms` | Regenerate `public/llms.txt`, `public/llms-full.txt` and `public/.well-known/ai-plugin.json`. |
+| `MOD_PAGESPEED_SRC=<clone> npm run gen:references` | Regenerate `src/data/reference/*.json` from the mod_pagespeed clone at the tag in `source-pin.json` plus this tree's worker and thin-module sources, and re-render the generated regions of `configuration.md` and `worker-configuration.md`. |
 
 The prebuild step also regenerates the blog title cards (`public/og-cards/`) and
 the agent files, so a build never ships stale generated output.
@@ -81,7 +82,9 @@ src/content.config.ts        Collection schemas: the frontmatter contracts below
 src/components/              UI components. src/components/release/ holds the
                              release-aware components; its README.md is the manual.
 src/data/                    product-facts.mjs (single-source facts; re-exports the
-                             repo-root shared/product-facts.mjs), filters.ts,
+                             repo-root shared/product-facts.mjs), filters.ts (a
+                             typed view of reference/filters.json), reference/
+                             (generated JSON, overlays and notes; see below),
                              examples.ts + examples-data.json, demo-metrics.json,
                              fastspring-pricing.json, JSON-LD builders
 src/layouts/BaseLayout.astro The one layout: <head>, nav, footer, JSON-LD, the
@@ -91,7 +94,9 @@ public/                      Served as-is: fonts, images, og-cards/, charts/ (th
                              Helm repository: packaged charts + index.yaml), robots.txt,
                              llms.txt, llms-full.txt, .well-known/ai-plugin.json
 scripts/                     Build-time generators: fetch-pricing.js, generate-llms.mjs,
-                             generate-title-cards.mjs; templates in scripts/llms-templates/
+                             generate-title-cards.mjs, generate-references.mjs +
+                             render-references.mjs (lib/reference-parsers.mjs);
+                             templates in scripts/llms-templates/
 test/                        vitest: unit tests and the gates listed below (CI runs these)
 tests/                       Playwright specs (the browser suite)
 ```
@@ -142,8 +147,14 @@ few hours.
   `/ai-readability/` still match their golden contract.
 - `sync/console-facts-sync.test.ts` — the repo-root `shared/product-facts.mjs` (also
   consumed by the management console) and `src/data/product-facts.mjs` stay in lockstep.
-- `sync/filters-sync.test.ts` — `src/data/filters.ts` matches the filter table in
-  `src/content/docs/filter-reference.md` row for row.
+- `reference/source-parity.test.ts` — `worker-flags.json` and
+  `thin-module-directives.json` equal a fresh parse of `src/worker/main.cc` and
+  `src/nginx/ngx_pagespeed_module.cc`; the module data names the pinned tag.
+- `reference/filters-pages.test.ts` — every filter in `filters.json` is a row of
+  `/docs/filters/` and has a section on exactly one group page.
+- `reference/configuration-pages.test.ts` — every directive and flag has its block
+  on the two configuration pages, the generated regions equal a fresh render, and
+  every fragment link on them resolves.
 - `sync/llms-generated.test.ts` — the committed `public/llms*.txt` and
   `ai-plugin.json` are byte-equal to a fresh render of the templates and facts.
 - `sync/source-publication-sync.test.ts` — license and publication facts agree across
@@ -151,6 +162,18 @@ few hours.
   wording (license keys, trials, per-site pricing) stays out.
 - `sync/terms-version-sync.test.ts` — the terms-of-service version stamp is identical
   on `/terms/` and `/buy/`.
+
+## Generated references
+
+`src/data/reference/{module-directives,filters}.json` are generated from the public
+mod_pagespeed tree at the `v2.*` tag in `src/data/reference/source-pin.json`, and
+`worker-flags.json` / `thin-module-directives.json` from this tree (`scripts/generate-references.mjs`);
+`scripts/render-references.mjs` renders them into the marked regions of
+`configuration.md` and `worker-configuration.md`. The `website-reference-drift` CI job
+re-clones the pin and fails on any diff. At release time bump `source-pin.json` to the
+new tag, run `MOD_PAGESPEED_SRC=<clone> npm run gen:references` and commit the JSON and
+the two pages. Prose the source does not carry lives in `src/data/reference/notes/*.md`
+and the two `*-overlay.json` files; never hand-edit the JSON or a generated region.
 
 ## Regenerating the agent files
 

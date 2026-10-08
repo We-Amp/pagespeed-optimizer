@@ -68,6 +68,20 @@ const PENDING_KEY_TALK = new Set<string>();
 // retired software-licence apparatus guard 6 is about. Pinned to pages that
 // really are about that feature — see guard 6b.
 const CONTENT_LICENSING_FEATURE_PAGES = new Set(['src/content/docs/rsl-cap.md']);
+// The native-module configuration reference and the generated data behind it
+// carry the module's own help text for the RslCap* directives ("an
+// Authorization: License token is validated"): the content-licensing token of
+// RSL-CAP, not a software licence. Only those entries are taken out before
+// guard 6 scans the file; the rest of both files is scanned like any other.
+const STRIP_RSL_CAP_ENTRIES: Record<string, (text: string) => string> = {
+  'src/content/docs/configuration.md': (text) =>
+    text.replace(/^#### RslCap[\s\S]*?(?=^#### (?!RslCap)|^### |^<!-- generated:end)/gm, ''),
+  'src/data/reference/module-directives.json': (text) => {
+    const data = JSON.parse(text);
+    data.directives = data.directives.filter((d: { name: string }) => !/^RslCap/.test(d.name));
+    return JSON.stringify(data);
+  },
+};
 // The derivation itself lives here and legitimately spells out both forms.
 const DERIVATION_SOURCE = 'src/data/product-facts.mjs';
 // Comment-only mentions of the retired per-site/Business ladder as history or
@@ -172,7 +186,8 @@ describe('software-license single-source drift guard', () => {
       for (const file of copySources(resolve(ROOT, dir))) {
         const rel = file.slice(ROOT.length + 1);
         if (skip.has(rel) || rel === DERIVATION_SOURCE) continue;
-        if (pattern.test(readFileSync(file, 'utf8'))) out.push(rel);
+        const text = (STRIP_RSL_CAP_ENTRIES[rel] ?? ((t: string) => t))(readFileSync(file, 'utf8'));
+        if (pattern.test(text)) out.push(rel);
       }
     }
     return out;

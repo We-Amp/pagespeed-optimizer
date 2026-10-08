@@ -173,6 +173,13 @@ export default defineConfig({
     // The release notes are the product's changelog; the conventional URL
     // forwards to the index page that lists every line.
     '/changelog/': '/docs/release-notes/',
+    // Reference pages folded into the generated references (2026-10): the
+    // alphabetical directive index became the configuration reference (every
+    // directive, generated from the module source), and the two filter hubs
+    // merged into the one filters table at /docs/filters/.
+    '/docs/directive-index/': '/docs/configuration/',
+    '/docs/filter-reference/': '/docs/filters/',
+    '/docs/filters-overview/': '/docs/filters/',
     // Docs structure: retired pages forward to their successors (one block,
     // kept contiguous so parallel docs branches merge cleanly).
     '/docs/documentation-plan/': '/docs/',
