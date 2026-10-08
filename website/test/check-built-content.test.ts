@@ -41,6 +41,13 @@ describe('decodeEntities', () => {
   it('leaves unknown entities alone', () => {
     expect(decodeEntities('&nosuch; 5 &amp; 6')).toBe('&nosuch; 5 & 6');
   });
+
+  it('leaves digit-bearing named entities it does not know as raw text', () => {
+    // &frac12; and &sup2; are real HTML entities with digits in their names;
+    // they are not in the table, so they must pass through unchanged rather
+    // than being half-matched as "&frac" + "12;".
+    expect(decodeEntities('&frac12; &sup2;')).toBe('&frac12; &sup2;');
+  });
 });
 
 describe('collapseWhitespace', () => {
@@ -353,17 +360,59 @@ describe('lintPage', () => {
     expect(lintPage(coded).map((f) => f.rule)).not.toContain('term-drift-daemon');
   });
 
-  it('does not match daemons (plural) for the word-boundary rule', () => {
+  it('matches daemons (plural) too', () => {
     const html = `<html><head>${goodHead}</head><body><h1>H</h1><p>Two daemons were considered.</p></body></html>`;
-    expect(lintPage(html).map((f) => f.rule)).not.toContain('term-drift-daemon');
+    expect(lintPage(html).map((f) => f.rule)).toContain('term-drift-daemon');
   });
 
-  it('flags both product-naming spellings, not the current product', () => {
-    const old = (t: string) =>
-      `<html><head>${goodHead}</head><body><h1>H</h1><p>${t}</p></body></html>`;
-    expect(lintPage(old('Runs ModPageSpeed 2.0 today')).map((f) => f.rule)).toContain('product-naming');
-    expect(lintPage(old('Runs mod_pagespeed 2.0 today')).map((f) => f.rule)).toContain('product-naming');
-    expect(lintPage(old('Runs mod_pagespeed 2.1 today')).map((f) => f.rule)).not.toContain('product-naming');
+  it('flags daemon in the title, description and og surfaces a search result shows', () => {
+    const og = `<html><head>${goodHead}<meta property="og:description" content="Restart the daemon for new settings."></head><body><h1>H</h1></body></html>`;
+    const titled = `<html><head>${goodHead.replace('A title of usable length', 'The daemon settings explained well')}</head><body><h1>H</h1></body></html>`;
+    const ogHit = lintPage(og).find((f) => f.rule === 'term-drift-daemon');
+    expect(ogHit?.message).toMatch(/^og:description: /);
+    expect(lintPage(titled).some((f) => f.rule === 'term-drift-daemon' && f.message.startsWith('<title>: '))).toBe(true);
+  });
+
+  it('flags never-valid product names in text, title and description', () => {
+    const page = (body: string, title = 'A title of usable length', description?: string) =>
+      `<html><head><title>${title}</title>${
+        description ? `<meta name="description" content="${description}">` : ''
+      }<link rel="canonical" href="https://modpagespeed.com/x/"></head><body><h1>H</h1><p>${body}</p></body></html>`;
+
+    // Never valid, in any case, with underscore or space.
+    expect(lintPage(page('Runs mod_pagespeed 2.0 today')).map((f) => f.rule)).toContain('product-naming');
+    expect(lintPage(page('Runs MOD_PAGESPEED 2.0 today')).map((f) => f.rule)).toContain('product-naming');
+    expect(lintPage(page('Runs mod pagespeed 2.0 today')).map((f) => f.rule)).toContain('product-naming');
+    // The current line under its old CamelCase name.
+    expect(lintPage(page('Runs ModPageSpeed 2.1 today')).map((f) => f.rule)).toContain('product-naming');
+    // In the title and description, not only in body text.
+    expect(lintPage(page('All fine', 'Upgrading from mod_pagespeed 2.0 explained')).map((f) => f.rule)).toContain(
+      'product-naming',
+    );
+    expect(
+      lintPage(page('All fine', undefined, 'How mod_pagespeed 2.0 installs differ from this release here')).map(
+        (f) => f.rule,
+      ),
+    ).toContain('product-naming');
+
+    // The predecessor line under its real CamelCase name is history, and
+    // the current product name is fine.
+    expect(lintPage(page('Migrating from ModPageSpeed 2.0 today')).map((f) => f.rule)).not.toContain('product-naming');
+    expect(lintPage(page('Runs mod_pagespeed 2.1 today')).map((f) => f.rule)).not.toContain('product-naming');
+    expect(lintPage(page('Runs mod_pagespeed 1.15 today')).map((f) => f.rule)).not.toContain('product-naming');
+
+    // The message quotes the name that actually matched.
+    const hit = lintPage(page('Runs mod pagespeed 2.0 today')).find((f) => f.rule === 'product-naming');
+    expect(hit?.message).toMatch(/"mod pagespeed 2\.0" never named a product line/);
+  });
+
+  it('flags more than one description meta under description-present', () => {
+    const html =
+      `<html><head>${goodHead}` +
+      '<meta name="description" content="A second description that is also long enough to matter here">' +
+      '</head><body><h1>H</h1></body></html>';
+    const hit = lintPage(html).find((f) => f.rule === 'description-present');
+    expect(hit?.message).toBe('2 <meta name="description"> elements');
   });
 
   it('flags missing, multiple and malformed canonicals', () => {
@@ -425,7 +474,7 @@ describe('lintPages', () => {
     expect(stale?.message).toMatch(/matches no built page/);
   });
 
-  it('routes warn-level rules to warnings and error rules to failures', () => {
+  it('routes the never-valid product name to an error-level failure', () => {
     const naming = {
       url: '/x/',
       html:
@@ -434,8 +483,10 @@ describe('lintPages', () => {
         '<body><h1>H</h1><p>mod_pagespeed 2.0 mentioned</p></body></html>',
     };
     const { failures, warnings } = lintPages([naming]);
-    expect(warnings.some((w) => w.rule === 'product-naming')).toBe(true);
-    expect(failures).toEqual([]);
+    const hit = failures.find((f) => f.rule === 'product-naming');
+    expect(hit?.level).toBe('error');
+    expect(hit?.message).toMatch(/mod_pagespeed 2\.0/);
+    expect(warnings).toEqual([]);
   });
 });
 

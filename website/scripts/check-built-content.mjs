@@ -25,15 +25,20 @@
  *                        canonical links, description/robots/viewport metas,
  *                        charset) where a crawler or parser expects them
  *                        (every page)
- *   term-drift-daemon    "daemon" absent from visible text (indexable pages);
- *                        the process is the worker. <script>, <style>, <code>
- *                        and <pre> contents are stripped first, so code
- *                        samples may name anything.
- *   product-naming       "ModPageSpeed 2.0"/"mod_pagespeed 2.0" absent from
- *                        visible text (every page); the product line on this
- *                        site is mod_pagespeed 2.1, and 2.0 names the
- *                        predecessor — historical mentions belong in frozen
- *                        blog posts, which the allowlist covers.
+ *   term-drift-daemon    "daemon"/"daemons" absent from what a search result
+ *                        shows — visible text, <title>, description,
+ *                        og:title and og:description (indexable pages); the
+ *                        process is the worker. <script>, <style>, <code>
+ *                        and <pre> contents are stripped from visible text
+ *                        first, so code samples may name anything.
+ *   product-naming       spellings that never named a product —
+ *                        "mod_pagespeed 2.0"/"mod pagespeed 2.0" in any case
+ *                        (the 2.0 predecessor is CamelCase "ModPageSpeed
+ *                        2.0") and CamelCase "ModPageSpeed 2.1"+ (the
+ *                        current line is lowercase mod_pagespeed) — absent
+ *                        from visible text, <title> and description (every
+ *                        page). The real predecessor names are legitimate
+ *                        history and stay allowed.
  *   canonical            exactly one <link rel="canonical"> with an absolute
  *                        https://modpagespeed.com URL ending in "/" or a file
  *                        extension (indexable pages)
@@ -82,13 +87,11 @@ export const RULES = {
   'h1-count': { level: 'error', indexableOnly: false },
   'document-structure': { level: 'error', indexableOnly: false },
   'term-drift-daemon': { level: 'error', indexableOnly: true },
-  // Warn-only: on the 2026-10 calibration the string appeared in the visible
-  // text of 79 of 331 pages — overwhelmingly the docs sidebar's "Migrate
-  // from ModPageSpeed 2.0" item, a legitimate reference to the predecessor
-  // line. Visible-text matching cannot tell that history from drift; making
-  // the rule blocking needs a narrower scope (own-page content, not shared
-  // navigation) first. Printed so a new occurrence is still seen in the log.
-  'product-naming': { level: 'warn', indexableOnly: false },
+  // Error-level on purpose: both patterns had zero hits when the rule was
+  // narrowed (2026-10), because they match only spellings that never named
+  // a product line. The CamelCase predecessor "ModPageSpeed 2.0" — 79 hits
+  // in visible text at the time, all legitimate history — stays allowed.
+  'product-naming': { level: 'error', indexableOnly: false },
   canonical: { level: 'error', indexableOnly: true },
 };
 
@@ -114,7 +117,7 @@ const NAMED_ENTITIES = {
 
 /** Decode the entities Astro emits into title/description/body text. */
 export function decodeEntities(text) {
-  return text.replace(/&(#x?[0-9a-f]+|[a-z]+);/gi, (whole, name) => {
+  return text.replace(/&(#x?[0-9a-f]+|[a-z][a-z0-9]*);/gi, (whole, name) => {
     if (name[0] === '#') {
       const code = name[1] === 'x' || name[1] === 'X' ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
       return Number.isFinite(code) && code > 0 ? String.fromCodePoint(code) : whole;
@@ -237,6 +240,12 @@ export function descriptionInfo(html) {
     count: tags.length,
     text: decodeEntities(collapseWhitespace(tags[0] ? attrValue(tags[0].attrs, 'content') : '')),
   };
+}
+
+/** Decoded content of the first <meta property="…"> ('' when absent). */
+function metaProperty(html, property) {
+  const tag = openTokens(html, 'meta').find((t) => attrValue(t.attrs, 'property').toLowerCase() === property);
+  return decodeEntities(collapseWhitespace(tag ? attrValue(tag.attrs, 'content') : ''));
 }
 
 /** A page is non-indexable when robots says so, however the value is ordered. */
@@ -371,8 +380,12 @@ export function canonicalProblem(href) {
   return null;
 }
 
-const DAEMON_RE = /\bdaemon\b/i;
-const NAMING_RE = /\b(?:mod_pagespeed|modpagespeed)\s*2\.0\b/i;
+const DAEMON_RE = /\bdaemons?\b/i;
+// Spellings that never named a product line: the 2.0 predecessor is the
+// CamelCase "ModPageSpeed 2.0" (legitimate history, allowed), and the
+// current line is lowercase mod_pagespeed — so "mod_pagespeed 2.0" in any
+// case, and CamelCase "ModPageSpeed 2.1"+, are always drift.
+const NAMING_RES = [/\bmod[_ ]pagespeed\s*2\.0\b/i, /\bModPageSpeed\s*2\.[1-9]\b/];
 
 /** A ~100-char window around the match, so the failure names the copy. */
 function around(text, match) {
@@ -405,6 +418,8 @@ export function lintPage(html) {
   if (indexable) {
     if (description.count === 0 || description.text === '') {
       fails('description-present', 'no <meta name="description"> content');
+    } else if (description.count > 1) {
+      fails('description-present', `${description.count} <meta name="description"> elements`);
     } else {
       const n = length(description.text);
       if (n < DESCRIPTION_MIN || n > DESCRIPTION_MAX) {
@@ -424,14 +439,28 @@ export function lintPage(html) {
   }
 
   if (indexable) {
-    const text = visibleText(html);
-    const daemon = DAEMON_RE.exec(text);
-    if (daemon) fails('term-drift-daemon', `…${around(text, daemon)}…`);
+    const daemonSurfaces = [
+      ['visible text', visibleText(html)],
+      ['<title>', title.text],
+      ['<meta name="description">', description.text],
+      ['og:title', metaProperty(html, 'og:title')],
+      ['og:description', metaProperty(html, 'og:description')],
+    ];
+    for (const [where, text] of daemonSurfaces) {
+      const daemon = DAEMON_RE.exec(text);
+      if (daemon) {
+        fails('term-drift-daemon', `${where}: …${around(text, daemon)}…`);
+        break;
+      }
+    }
   }
-  const namingText = visibleText(html);
-  const naming = NAMING_RE.exec(namingText);
-  if (naming) {
-    fails('product-naming', `"mod_pagespeed 2.0" names the predecessor line: …${around(namingText, naming)}…`);
+
+  for (const text of [visibleText(html), title.text, description.text]) {
+    const naming = NAMING_RES.map((re) => re.exec(text)).find(Boolean);
+    if (naming) {
+      fails('product-naming', `"${naming[0]}" never named a product line: …${around(text, naming)}…`);
+      break;
+    }
   }
 
   if (indexable) {
