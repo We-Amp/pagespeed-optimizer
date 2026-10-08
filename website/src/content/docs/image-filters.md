@@ -68,14 +68,14 @@ See [IIS configuration](/docs/iis-configuration/) for the full file format refer
 
 ### What it does
 
-`rewrite_images` is the compound image filter: one name switches on the whole optimization pipeline, covering recompression, format conversion, resizing to declared dimensions, metadata stripping, and inlining of small images. Every `<img>` on the page, and every image referenced from CSS, is a candidate. The first request for an image is served the original bytes while optimization runs in the background within the rewrite deadline; once the optimized variant is cached, later requests are served it from a rewritten `.pagespeed.ic.` URL. Live demo: [rewrite_images](/examples/rewrite_images/).
+`rewrite_images` is the compound image filter: one name switches on the whole optimization pipeline, covering recompression, format conversion, resizing to declared dimensions, metadata stripping, and inlining of small images. Every `<img>` on the page, and every image referenced from CSS, is a candidate. If optimization finishes within the rewrite deadline, the first view already gets the `.pagespeed.ic.` URL; otherwise that view keeps the original and later views get the optimized one. Live demo: [rewrite_images](/examples/rewrite_images/).
 
 ```html
 <!-- before -->
 <img src="/photos/team.jpg" width="400" height="300" />
 
 <!-- after, to a WebP-capable browser: recompressed, resized, cache-extended -->
-<img src="/photos/xteam.jpg.pagespeed.ic.HASH.webp" width="400" height="300" />
+<img src="/photos/400x300xteam.jpg.pagespeed.ic.HASH.webp" width="400" height="300" />
 ```
 
 ### When it helps and when it does not
@@ -84,7 +84,7 @@ The compound pays on sites whose images are uploaded as-is: photos exported at f
 
 ### How it decides
 
-Each member filter applies its own test: resizing only happens when `width` and `height` are declared, WebP only when the browser advertises support, inlining only below `ImageInlineMaxBytes`. Every recompression or conversion is kept only when the result is actually smaller than the best alternative, as bounded by `ImageLimitOptimizedPercent` (default 100). A losing rewrite is remembered, so a losing image is not re-encoded on every request. Some members are also part of OptimizeForBandwidth; the compound itself is a CoreFilter.
+Each member filter applies its own test: resizing only happens when `width` and `height` are declared, WebP only when the browser advertises support, inlining only below `ImageInlineMaxBytes`. Every recompression or conversion is kept only when the result is smaller than the original, by the margin `ImageLimitOptimizedPercent` sets (default 100: any reduction). A losing rewrite is remembered, so a losing image is not re-encoded on every request. Some members are also part of OptimizeForBandwidth; the compound itself is a CoreFilter.
 
 ### Sub-filters enabled by default
 
@@ -211,7 +211,7 @@ Format conversion filters serve images in the most efficient format for each bro
 - **`convert_to_webp_animated`** converts animated GIF images to animated WebP. Not a CoreFilter.
 - **`convert_to_webp_lossless`** uses lossless WebP encoding instead of lossy. Produces larger files than lossy WebP but preserves every pixel. A CoreFilter, enabled by default through `rewrite_images`.
 
-`convert_jpeg_to_webp` is the member of the family with the widest reach, because JPEG is where photographic weight usually sits. When a request advertises `Accept: image/webp`, the filter encodes a WebP candidate at `WebpRecompressionQuality` (default 80) and keeps it only when it is smaller than the recompressed JPEG that request would otherwise get. A request without the header receives the optimized JPEG unchanged, so one URL serves both browser populations. Responses vary on `Accept`, and a proxy that rewrites the header or ignores `Vary` can cross-serve the formats, so test with your CDN in the path. The filter runs in CoreFilters through `rewrite_images`, and it is part of OptimizeForBandwidth too, where the conversion happens in place at the original URL.
+`convert_jpeg_to_webp` is the member of the family with the widest reach, because JPEG is where photographic weight usually sits. For a WebP-capable request, the filter encodes a WebP candidate at `WebpRecompressionQuality` (default 80) and keeps it when it is smaller than the original JPEG. WebP-capable requests (by `Accept: image/webp` or a known user agent) get HTML pointing at a `.webp` URL; others get the JPEG URL, so the HTML differs per browser; a CDN caching rewritten HTML must not share it across browsers. The filter runs in CoreFilters through `rewrite_images` and is listed in OptimizeForBandwidth, but in that level's in-place mode no WebP is selected.
 
 ### Directives
 
@@ -248,7 +248,7 @@ pagespeed EnableFilters convert_to_webp_lossless;
 ### Risks
 
 - `convert_png_to_jpeg` drops the alpha channel on opaque PNGs. mod_pagespeed checks for alpha before converting, but semi-transparent pixels at the boundary may cause subtle edge artifacts.
-- `convert_jpeg_to_webp` relies on the browser's `Accept` header. Some CDNs strip or ignore `Vary: Accept`, which can cause incorrect format delivery. Test with your CDN configuration.
+- `convert_jpeg_to_webp` decides per request, so the rewritten HTML names a `.webp` image for some browsers and a JPEG for others. A CDN or proxy that caches the HTML must not serve one browser's copy to another; test with your CDN configuration.
 - `convert_to_webp_animated` can produce large files for complex animations. Verify output sizes.
 
 ## AVIF filters {#avif}
@@ -587,17 +587,27 @@ pagespeed ResponsiveImageDensities 1.5,2,3;
 /* before */
 .icon-cart {
   background: url(/img/cart.png) no-repeat;
+  width: 16px;
+  height: 16px;
 }
 .icon-user {
   background: url(/img/user.png) no-repeat;
+  width: 16px;
+  height: 16px;
 }
 
-/* after */
+/* after: the images are stacked vertically in one sheet */
 .icon-cart {
-  background: url(/img/sprites.png.pagespeed.is.HASH.png) 0 0 no-repeat;
+  background: url(/img/cart.png+user.png.pagespeed.is.HASH.png) no-repeat;
+  width: 16px;
+  height: 16px;
+  background-position: 0 0;
 }
 .icon-user {
-  background: url(/img/sprites.png.pagespeed.is.HASH.png) -16px 0 no-repeat;
+  background: url(/img/cart.png+user.png.pagespeed.is.HASH.png) no-repeat;
+  width: 16px;
+  height: 16px;
+  background-position: 0 -16px;
 }
 ```
 
@@ -607,7 +617,7 @@ Spriting is an HTTP/1.1 technique: it exists because browsers used to open few c
 
 ### How it decides
 
-Only images referenced from a CSS `background` or `background-image` declaration are candidates; `<img>` tags never join a sprite. The module must be able to fetch the image and learn its dimensions, backgrounds that tile in either direction stay out, and a declaration the CSS parser cannot understand is left alone rather than guessed at. Positions in the rewritten rules are computed from the packed layout, so existing `background-position` offsets are preserved relative to the slice.
+Only images referenced from a CSS `background` or `background-image` declaration are candidates; `<img>` tags never join a sprite. Only PNG or GIF backgrounds in rules that declare both `width` and `height` are sprited, and GIFs are converted to PNG in the sheet. The module must be able to fetch the image and learn its dimensions, and a declaration the CSS parser cannot understand is left alone rather than guessed at. Positions in the rewritten rules are computed from the packed layout: an existing `background-position` is shifted to the slice, and a rule without one gets a new `background-position` declaration.
 
 ### Risks
 

@@ -49,7 +49,7 @@ See [IIS configuration](/docs/iis-configuration/) for the full file format refer
 
 ### What it does
 
-The three filters on this section share one minifier. It removes comments, collapses whitespace, and shortens the names of local variables and functions where a scope analysis proves the rename safe. String literals, regular expressions, and property names are left alone, so the output behaves exactly like the input. The minifier is conservative around the constructs that change meaning when text moves: it keeps line breaks where automatic semicolon insertion could otherwise merge two statements into one, and it renames nothing in the scope of a `with` statement or an `eval` call. [How safe JavaScript minification handles automatic semicolon insertion](/blog/safe-javascript-minification-semicolon-insertion/) has the details. Since v1.15.0+r21 this tokenizer-based minifier is the only one, and files that use template literals (backtick strings) minify normally.
+The three filters on this section share one minifier. It removes comments and collapses whitespace; identifiers, string literals, regular expressions and property names are emitted unchanged. It keeps a line break wherever automatic semicolon insertion could otherwise merge two statements into one. [How safe JavaScript minification handles automatic semicolon insertion](/blog/safe-javascript-minification-semicolon-insertion/) has the details.
 
 ```text
 /* before: sum a shopping cart */
@@ -62,10 +62,10 @@ function cartTotal(cart) {
 }
 
 /* after */
-function cartTotal(n){for(var t=0,o=0;o<n.items.length;o++)t+=n.items[o].price;return t}
+function cartTotal(cart){var total=0;for(var i=0;i<cart.items.length;i++){total=total+cart.items[i].price;}return total;}
 ```
 
-`rewrite_javascript` is the compound CoreFilter for JavaScript minification: enabling it switches on the external and the inline sub-filter together, so every script on the page is minified wherever it lives. It is also part of OptimizeForBandwidth, the level that minifies resources in place without changing their URLs. To minify only one scope, enable `rewrite_javascript` and disable the other sub-filter by name. Under CoreFilters the compound is on already. A script delivered with an `integrity` attribute is left untouched by the whole family, because subresource integrity pins the file's bytes. Live demo: [rewrite_javascript](/examples/rewrite_javascript/).
+`rewrite_javascript` is the compound CoreFilter for JavaScript minification: enabling it switches on the external and the inline sub-filter together, so every script on the page is minified wherever it lives. It is also part of OptimizeForBandwidth, the level that minifies resources in place without changing their URLs. To minify only one scope, enable `rewrite_javascript` and disable the other sub-filter by name. Under CoreFilters the compound is on already. A script delivered with an `integrity` attribute is left untouched by the whole family, because subresource integrity pins the file's bytes. Since v1.15.0+r21 the tokenizer-based minifier is the only one behind `rewrite_javascript`, and files that use template literals (backtick strings) minify normally; IE conditional-compilation comments (`/*@ ... @*/`) are the one kind of comment it keeps. Live demo: [rewrite_javascript](/examples/rewrite_javascript/).
 
 `rewrite_javascript_external` handles the external half. Each `<script src>` file on a domain the module is authorized to fetch is minified and served from a rewritten `.pagespeed.jm.` URL with a long cache lifetime, so repeat visitors download the minified file once and keep it; the original file on disk is never modified. In OptimizeForBandwidth mode the minified bytes replace the original response in place and the URL stays as authored. Minification saves the most on hand-formatted source; a file a bundler already minified gains nothing and only costs rewrite time. `rewrite_javascript_external` runs as part of the compound and can also be enabled on its own.
 
@@ -77,9 +77,9 @@ Enabled on its own, `rewrite_javascript_external` leaves inline `<script>` block
 
 ### Risks
 
-- Renames are limited to proven-local scopes, so behavior changes are rare. The historical failure mode is a script that inspects its own source, for example through `Function.prototype.toString()`, and reacts to the changed formatting.
-- Verify on a live page: the response carries an `X-Mod-Pagespeed` (or `X-Page-Speed`) header, and loading the page with `?PageSpeedFilters=-rewrite_javascript` shows the unminified form for comparison. [Is it working?](/docs/is-it-working/) walks through the checks.
-- The deprecated `UseExperimentalJsMinifier` directive is accepted for compatibility but ignored, and logs a warning at configuration load (`ModPagespeedUseExperimentalJsMinifier` on Apache, `pagespeed UseExperimentalJsMinifier` on nginx). Remove it from your configuration.
+- The minifier never renames identifiers; the historical failure mode is a script that inspects its own source text, for example through `Function.prototype.toString()`, and reacts to the changed formatting.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-rewrite_javascript` comparison; [Is it working?](/docs/is-it-working/) has the steps.
+- `rewrite_javascript` ignores the deprecated `UseExperimentalJsMinifier` directive, which is accepted for compatibility and logs a warning at configuration load (`ModPagespeedUseExperimentalJsMinifier` on Apache, `pagespeed UseExperimentalJsMinifier` on nginx). Remove it from your configuration.
 
 ### Configuration
 
@@ -101,16 +101,18 @@ pagespeed EnableFilters rewrite_javascript;
 
 ### What it does
 
-`combine_javascript` concatenates consecutive external scripts into one file and replaces the group of `<script src>` tags with a single tag that loads the combined file from a `.pagespeed.jc.` URL. A page that loads five scripts back to back makes one request instead of five. The scripts run in their original order, so dependencies between them keep working. Live demo: [combine_javascript](/examples/combine_javascript/).
+`combine_javascript` concatenates consecutive external scripts into one file, loads the combined file from a `.pagespeed.jc.` URL, and replaces each original tag with a small inline script, `eval(…)`, that runs that member in order. A page that loads five scripts back to back makes one request instead of five. The scripts run in their original order, so dependencies between them keep working. Live demo: [combine_javascript](/examples/combine_javascript/).
 
-```html
+```text
 <!-- before -->
 <script src="/js/jquery.js"></script>
 <script src="/js/carousel.js"></script>
 <script src="/js/forms.js"></script>
 
 <!-- after -->
-<script src="/js/jquery.js+carousel.js+forms.js.pagespeed.jc.HASH.js"></script>
+<script src="/js/jquery.js+carousel.js+forms.js.pagespeed.jc.HASH.js"></script><script>eval(mod_pagespeed_HASH1);</script>
+<script>eval(mod_pagespeed_HASH2);</script>
+<script>eval(mod_pagespeed_HASH3);</script>
 ```
 
 ### When it helps and when it does not
@@ -119,7 +121,7 @@ Combining was designed for HTTP/1.1, where a browser opens only a few connection
 
 ### How it decides
 
-Only consecutive, synchronously executing external scripts join a group. An inline `<script>`, a script with `async` or `defer`, a `type="module"` script, a script of an unknown type, and a script carrying `integrity=` each end the current group, as does other markup between two script tags. Modules are excluded because the combination evaluates member scripts inside one shared file, which cannot represent a module's isolated scope and deferred execution. A group stops growing when the combined uncompressed contents would pass `MaxCombinedJsBytes` (default 92160), and every member must come from a domain the module is authorized to fetch.
+Only consecutive, synchronously executing external scripts join a group. An inline `<script>`, a script with `async` or `defer`, a `type="module"` script, a script of an unknown type, and a script carrying `integrity=` each end the current group, as does other markup between two script tags. Modules are excluded because the combination evaluates member scripts inside one shared file, which cannot represent a module's isolated scope and deferred execution. A group stops growing when the combined uncompressed contents would pass `MaxCombinedJsBytes` (default 92160), and every member must come from a domain the module is authorized to fetch. Pages whose Content-Security-Policy forbids `eval` or inline scripts are not combined, because the browser would block the inline `eval` tags.
 
 ### Risks
 
@@ -163,7 +165,7 @@ Inlining pays when a script is tiny: for a few hundred bytes, the request with i
 
 ### How it decides
 
-Only external scripts whose contents are no larger than `JsInlineMaxBytes` (default 2048 bytes) qualify, and only files on domains the module is authorized to fetch. A script with `async` or `defer`, or with the IE-specific `for` and `event` attributes, is left external: those attributes change when the script runs, and an inline block cannot express that timing. Everything else about the element, including its position in the document, stays as authored.
+Only external scripts whose contents are no larger than `JsInlineMaxBytes` (default 2048 bytes) qualify, and only files on domains the module is authorized to fetch. A script with `async` or `defer`, or with the IE-specific `for` and `event` attributes, is left external: those attributes change when the script runs, and an inline block cannot express that timing. Module scripts (`type="module"`) are never inlined, since inlining would change how their relative imports resolve. Nothing is inlined when the page's Content-Security-Policy forbids inline scripts. Everything else about the element, including its position in the document, stays as authored.
 
 ### Risks
 

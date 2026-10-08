@@ -60,7 +60,7 @@ See [IIS configuration](/docs/iis-configuration/) for the full file format refer
 }
 
 /* after */
-.header{margin:0 0 16px;background:#fff url(/img/banner.png.pagespeed.ce.HASH.png) no-repeat}
+.header{margin:0 0 16px 0;background:#fff url(/img/banner.png.pagespeed.ce.HASH.png) no-repeat}
 ```
 
 #### When it helps and when it does not
@@ -154,7 +154,7 @@ Combining was designed for HTTP/1.1 connection limits. CSS is render-blocking, s
 
 #### How it decides
 
-Only consecutive links with the same `media` value combine; a different `media` attribute starts a new group, as does a `<script>` or other non-stylesheet element between two links, an IE conditional comment, or a `<link>` inside `<noscript>`. Every member must come from a domain the module is authorized to fetch. `MaxCombinedCssBytes` caps the combined size and defaults to -1, no limit.
+Only consecutive links with the same `media` value combine; a different `media` attribute starts a new group, as does an inline `<style>` block, an IE conditional comment, a `<link>` inside `<noscript>`, or a link carrying extra attributes such as `id` or `title`, which is left as authored. Every member must come from a domain the module is authorized to fetch. `MaxCombinedCssBytes` caps the combined size and defaults to -1, no limit.
 
 #### Risks
 
@@ -215,7 +215,7 @@ CSS is render-blocking, so for a tiny stylesheet the removed round trip is worth
 
 #### How it decides
 
-Only stylesheets whose contents are no larger than `CssInlineMaxBytes` (default 2048 bytes) qualify, and only files on domains the module is authorized to fetch. A stylesheet whose `media` attribute cannot affect the screen, such as `print`, stays external: inlining it would make every page pay for rules no screen visitor needs.
+Only stylesheets whose contents are no larger than `CssInlineMaxBytes` (default 2048 bytes) qualify, and only files on domains the module is authorized to fetch. A stylesheet whose `media` attribute cannot affect the screen, such as `print`, stays external: inlining it would make every page pay for rules no screen visitor needs. A file that contains the text `</style>` stays external too, since it would end the inline block early. Nothing is inlined when the page's Content-Security-Policy forbids inline styles.
 
 #### Risks
 

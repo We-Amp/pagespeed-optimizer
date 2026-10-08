@@ -168,7 +168,7 @@ lifetime on CSS, JS, and image URLs.
 
 [Full guide →](/docs/filters/extend_cache/)
 
-**Core filter.** `extend_cache` rewrites the URLs of stylesheets, scripts, and images to carry a content hash, giving each resource a `.pagespeed.ce.` URL, and serves those resources with a one-year `Cache-Control: max-age`. When the original file changes, its hash changes, the page points at a new URL, and no purge is ever needed. Live demo: [extend_cache](/examples/extend_cache/).
+**Core filter.** `extend_cache` rewrites the URLs of stylesheets, scripts, and images to carry a content hash, giving each resource a `.pagespeed.ce.` URL, and serves those resources with a one-year `Cache-Control: max-age`. When the original file changes, its hash changes too: once the module's cached copy of the original expires (origin lifetime, or `ImplicitCacheTtlMs` when none is set), the page points at a new URL. Live demo: [extend_cache](/examples/extend_cache/).
 
 ```html
 <!-- before -->
@@ -184,7 +184,7 @@ It helps wherever the origin cannot set long cache lifetimes itself, which is co
 
 #### How it decides
 
-Only resources on domains the module is authorized to rewrite are candidates, and resources already rewritten by another filter (a minified stylesheet, an optimized image) already carry a content hash, so there is nothing to extend. The one-year lifetime is safe precisely because the URL is derived from the bytes: serving a stale resource at a stale URL is impossible once the referencing page has been refreshed. The name is compound: it switches on `extend_cache_css`, `extend_cache_images`, and `extend_cache_scripts`, and each member can be disabled on its own.
+Only resources on domains the module is authorized to rewrite are candidates, and resources already rewritten by another filter (a minified stylesheet, an optimized image) already carry a content hash, so there is nothing to extend. The one-year lifetime works because the URL is derived from the bytes: changed content gets a new URL rather than new bytes at the old one, so visitors pick it up once they load a page that references the new URL. The name is compound: it switches on `extend_cache_css`, `extend_cache_images`, and `extend_cache_scripts`, and each member can be disabled on its own.
 
 #### Risks
 

@@ -78,8 +78,11 @@ These filters reduce HTML payload size by removing unnecessary bytes.
     <li>  <a href="/b">Beta</a>   </li>
 </ul>
 
-<!-- after -->
-<ul class="nav"> <li> <a href="/a">Alpha</a> </li> <li> <a href="/b">Beta</a> </li> </ul>
+<!-- after: each run that held a newline keeps one newline -->
+<ul class="nav">
+<li> <a href="/a">Alpha</a> </li>
+<li> <a href="/b">Beta</a> </li>
+</ul>
 ```
 
 #### When it helps and when it does not
@@ -171,7 +174,7 @@ Removes unnecessary quotation marks around HTML attribute values when the value 
 
 #### What it does
 
-`trim_urls` shortens URLs inside the page by stripping the parts that repeat the page's own origin. An absolute URL whose scheme, host, and port all match the page becomes a relative path; one that differs only in scheme drops the scheme and becomes scheme-relative. `left_trim_urls` is an accepted alternate spelling of the same filter; both names switch on the same code. Live demo: [trim_urls](/examples/trim_urls/).
+`trim_urls` shortens URLs inside the page by stripping the parts that repeat the page's own origin. An absolute URL whose scheme, host and port match the page loses its origin, and the page's own directory prefix is trimmed too; URLs on any other origin, including the same host over another scheme, are left untouched. `left_trim_urls` is an accepted alternate spelling of the same filter; both names switch on the same code. Live demo: [trim_urls](/examples/trim_urls/).
 
 ```html
 <!-- page: https://example.com/shop/ -->
@@ -180,7 +183,7 @@ Removes unnecessary quotation marks around HTML attribute values when the value 
 <img src="https://example.com/img/logo.png" />
 
 <!-- after -->
-<a href="/shop/cart">Cart</a>
+<a href="cart">Cart</a>
 <img src="/img/logo.png" />
 ```
 
@@ -190,7 +193,7 @@ It saves a few bytes per URL on pages dense with same-origin absolute links, whi
 
 #### How it decides
 
-Each URL-valued attribute is resolved against the page's base URL, and a `<base>` tag wins when present and is never itself rewritten. Only what matches gets trimmed: a full origin match leaves the path, a scheme-only difference leaves a scheme-relative URL, and anything on another domain is left untouched.
+Each URL-valued attribute is resolved against the page's base URL, and a `<base>` tag wins when present and is never itself rewritten. Only what matches gets trimmed: a full origin match drops the origin, a path under the page's own directory then drops that directory as well, and a URL on another origin keeps its full form. A trim is kept only when the shorter URL resolves back to exactly the original one.
 
 #### Risks
 
@@ -251,7 +254,7 @@ Adds `type="text/javascript"` and `type="text/css"` attributes to `<script>` and
 
 #### What it does
 
-`insert_dns_prefetch` adds connection warm-up hints for the third-party origins a page loads from. A `<link rel="dns-prefetch">` hint starts the DNS lookup early, while the browser is still busy with the HTML; a `<link rel="preconnect">` hint goes further and opens the connection, TCP and for HTTPS also TLS, before the resource tag is even seen. Live demo: [insert_dns_prefetch](/examples/insert_dns_prefetch/).
+`insert_dns_prefetch` adds connection warm-up hints for the origins of resources referenced in the body that the head does not already reference. A `<link rel="dns-prefetch">` hint starts the DNS lookup early, while the browser is still busy with the HTML; a `<link rel="preconnect">` hint goes further and opens the connection, TCP and for HTTPS also TLS, before the resource tag is even seen. Live demo: [insert_dns_prefetch](/examples/insert_dns_prefetch/).
 
 ```html
 <!-- inserted into <head> -->
@@ -261,15 +264,15 @@ Adds `type="text/javascript"` and `type="text/css"` attributes to `<script>` and
 
 #### When it helps and when it does not
 
-It helps when a page pulls from a few stable third-party origins, such as font CDNs or analytics hosts: the lookup and handshake then overlap with the HTML download instead of starting when the resource is discovered. It does nothing for same-origin resources, since the connection to the page's own origin is already open. It also does nothing when the set of third-party domains churns between page views, because the hints are learned from observed traffic and an unstable set is never hinted.
+It helps when a page pulls from a few stable third-party origins, such as font CDNs or analytics hosts: the lookup and handshake then overlap with the HTML download instead of starting when the resource is discovered. It does nothing for same-origin resources, since the connection to the page's own origin is already open. It also does little when the set of third-party domains churns between page views, because the hints are learned from earlier rewrites of the page and may name domains it no longer uses.
 
 #### How it decides
 
-The filter records which origins a page's resources come from across loads and emits hints only once that set is stable: the stored list may drift by at most two domains between rewrites, otherwise that page gets no hints for the round. A page earns at most eight `dns-prefetch` hints and two `preconnect` hints. Early views contribute data and get nothing; later views get the hints. Domains the author already hinted in the markup are not duplicated.
+The filter records which origins a page's body resources come from, in order of first appearance. Hints are emitted once the number of hinted domains changes by at most two between rewrites; the check counts domains, so a page whose domains change but whose count holds still gets hints for the stored list. A page gets at most eight hints in total; the first two domains get `preconnect`, the rest `dns-prefetch`. Early views contribute data and get nothing; later views get the hints. Domains the author already hinted or referenced in the head are not duplicated.
 
 #### Risks
 
-- Every hint costs the browser work, and a preconnect costs an open connection held for an origin the visitor might not need; the built-in caps of eight and two bound that overhead.
+- Every hint costs the browser work, and a preconnect costs an open connection held for an origin the visitor might not need; the built-in caps of eight hints, at most two of them preconnects, bound that overhead.
 - Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-insert_dns_prefetch` comparison; [Is it working?](/docs/is-it-working/) has the steps.
 
 #### Configuration

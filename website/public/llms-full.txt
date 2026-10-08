@@ -6476,7 +6476,7 @@ lifetime on CSS, JS, and image URLs.
 
 [Full guide →](https://modpagespeed.com/docs/filters/extend_cache/)
 
-**Core filter.** `extend_cache` rewrites the URLs of stylesheets, scripts, and images to carry a content hash, giving each resource a `.pagespeed.ce.` URL, and serves those resources with a one-year `Cache-Control: max-age`. When the original file changes, its hash changes, the page points at a new URL, and no purge is ever needed. Live demo: [extend_cache](https://modpagespeed.com/examples/extend_cache/).
+**Core filter.** `extend_cache` rewrites the URLs of stylesheets, scripts, and images to carry a content hash, giving each resource a `.pagespeed.ce.` URL, and serves those resources with a one-year `Cache-Control: max-age`. When the original file changes, its hash changes too: once the module's cached copy of the original expires (origin lifetime, or `ImplicitCacheTtlMs` when none is set), the page points at a new URL. Live demo: [extend_cache](https://modpagespeed.com/examples/extend_cache/).
 
 ```html
 <!-- before -->
@@ -6492,7 +6492,7 @@ It helps wherever the origin cannot set long cache lifetimes itself, which is co
 
 #### How it decides
 
-Only resources on domains the module is authorized to rewrite are candidates, and resources already rewritten by another filter (a minified stylesheet, an optimized image) already carry a content hash, so there is nothing to extend. The one-year lifetime is safe precisely because the URL is derived from the bytes: serving a stale resource at a stale URL is impossible once the referencing page has been refreshed. The name is compound: it switches on `extend_cache_css`, `extend_cache_images`, and `extend_cache_scripts`, and each member can be disabled on its own.
+Only resources on domains the module is authorized to rewrite are candidates, and resources already rewritten by another filter (a minified stylesheet, an optimized image) already carry a content hash, so there is nothing to extend. The one-year lifetime works because the URL is derived from the bytes: changed content gets a new URL rather than new bytes at the old one, so visitors pick it up once they load a page that references the new URL. The name is compound: it switches on `extend_cache_css`, `extend_cache_images`, and `extend_cache_scripts`, and each member can be disabled on its own.
 
 #### Risks
 
@@ -11354,14 +11354,14 @@ See [IIS configuration](https://modpagespeed.com/docs/iis-configuration/) for th
 
 ### What it does
 
-`rewrite_images` is the compound image filter: one name switches on the whole optimization pipeline, covering recompression, format conversion, resizing to declared dimensions, metadata stripping, and inlining of small images. Every `<img>` on the page, and every image referenced from CSS, is a candidate. The first request for an image is served the original bytes while optimization runs in the background within the rewrite deadline; once the optimized variant is cached, later requests are served it from a rewritten `.pagespeed.ic.` URL. Live demo: [rewrite_images](https://modpagespeed.com/examples/rewrite_images/).
+`rewrite_images` is the compound image filter: one name switches on the whole optimization pipeline, covering recompression, format conversion, resizing to declared dimensions, metadata stripping, and inlining of small images. Every `<img>` on the page, and every image referenced from CSS, is a candidate. If optimization finishes within the rewrite deadline, the first view already gets the `.pagespeed.ic.` URL; otherwise that view keeps the original and later views get the optimized one. Live demo: [rewrite_images](https://modpagespeed.com/examples/rewrite_images/).
 
 ```html
 <!-- before -->
 <img src="/photos/team.jpg" width="400" height="300" />
 
 <!-- after, to a WebP-capable browser: recompressed, resized, cache-extended -->
-<img src="/photos/xteam.jpg.pagespeed.ic.HASH.webp" width="400" height="300" />
+<img src="/photos/400x300xteam.jpg.pagespeed.ic.HASH.webp" width="400" height="300" />
 ```
 
 ### When it helps and when it does not
@@ -11370,7 +11370,7 @@ The compound pays on sites whose images are uploaded as-is: photos exported at f
 
 ### How it decides
 
-Each member filter applies its own test: resizing only happens when `width` and `height` are declared, WebP only when the browser advertises support, inlining only below `ImageInlineMaxBytes`. Every recompression or conversion is kept only when the result is actually smaller than the best alternative, as bounded by `ImageLimitOptimizedPercent` (default 100). A losing rewrite is remembered, so a losing image is not re-encoded on every request. Some members are also part of OptimizeForBandwidth; the compound itself is a CoreFilter.
+Each member filter applies its own test: resizing only happens when `width` and `height` are declared, WebP only when the browser advertises support, inlining only below `ImageInlineMaxBytes`. Every recompression or conversion is kept only when the result is smaller than the original, by the margin `ImageLimitOptimizedPercent` sets (default 100: any reduction). A losing rewrite is remembered, so a losing image is not re-encoded on every request. Some members are also part of OptimizeForBandwidth; the compound itself is a CoreFilter.
 
 ### Sub-filters enabled by default
 
@@ -11493,7 +11493,7 @@ Format conversion filters serve images in the most efficient format for each bro
 - **`convert_to_webp_animated`** converts animated GIF images to animated WebP. Not a CoreFilter.
 - **`convert_to_webp_lossless`** uses lossless WebP encoding instead of lossy. Produces larger files than lossy WebP but preserves every pixel. A CoreFilter, enabled by default through `rewrite_images`.
 
-`convert_jpeg_to_webp` is the member of the family with the widest reach, because JPEG is where photographic weight usually sits. When a request advertises `Accept: image/webp`, the filter encodes a WebP candidate at `WebpRecompressionQuality` (default 80) and keeps it only when it is smaller than the recompressed JPEG that request would otherwise get. A request without the header receives the optimized JPEG unchanged, so one URL serves both browser populations. Responses vary on `Accept`, and a proxy that rewrites the header or ignores `Vary` can cross-serve the formats, so test with your CDN in the path. The filter runs in CoreFilters through `rewrite_images`, and it is part of OptimizeForBandwidth too, where the conversion happens in place at the original URL.
+`convert_jpeg_to_webp` is the member of the family with the widest reach, because JPEG is where photographic weight usually sits. For a WebP-capable request, the filter encodes a WebP candidate at `WebpRecompressionQuality` (default 80) and keeps it when it is smaller than the original JPEG. WebP-capable requests (by `Accept: image/webp` or a known user agent) get HTML pointing at a `.webp` URL; others get the JPEG URL, so the HTML differs per browser; a CDN caching rewritten HTML must not share it across browsers. The filter runs in CoreFilters through `rewrite_images` and is listed in OptimizeForBandwidth, but in that level's in-place mode no WebP is selected.
 
 ### Directives
 
@@ -11530,7 +11530,7 @@ pagespeed EnableFilters convert_to_webp_lossless;
 ### Risks
 
 - `convert_png_to_jpeg` drops the alpha channel on opaque PNGs. mod_pagespeed checks for alpha before converting, but semi-transparent pixels at the boundary may cause subtle edge artifacts.
-- `convert_jpeg_to_webp` relies on the browser's `Accept` header. Some CDNs strip or ignore `Vary: Accept`, which can cause incorrect format delivery. Test with your CDN configuration.
+- `convert_jpeg_to_webp` decides per request, so the rewritten HTML names a `.webp` image for some browsers and a JPEG for others. A CDN or proxy that caches the HTML must not serve one browser's copy to another; test with your CDN configuration.
 - `convert_to_webp_animated` can produce large files for complex animations. Verify output sizes.
 
 ## AVIF filters
@@ -11861,17 +11861,27 @@ pagespeed ResponsiveImageDensities 1.5,2,3;
 /* before */
 .icon-cart {
   background: url(/img/cart.png) no-repeat;
+  width: 16px;
+  height: 16px;
 }
 .icon-user {
   background: url(/img/user.png) no-repeat;
+  width: 16px;
+  height: 16px;
 }
 
-/* after */
+/* after: the images are stacked vertically in one sheet */
 .icon-cart {
-  background: url(/img/sprites.png.pagespeed.is.HASH.png) 0 0 no-repeat;
+  background: url(/img/cart.png+user.png.pagespeed.is.HASH.png) no-repeat;
+  width: 16px;
+  height: 16px;
+  background-position: 0 0;
 }
 .icon-user {
-  background: url(/img/sprites.png.pagespeed.is.HASH.png) -16px 0 no-repeat;
+  background: url(/img/cart.png+user.png.pagespeed.is.HASH.png) no-repeat;
+  width: 16px;
+  height: 16px;
+  background-position: 0 -16px;
 }
 ```
 
@@ -11881,7 +11891,7 @@ Spriting is an HTTP/1.1 technique: it exists because browsers used to open few c
 
 ### How it decides
 
-Only images referenced from a CSS `background` or `background-image` declaration are candidates; `<img>` tags never join a sprite. The module must be able to fetch the image and learn its dimensions, backgrounds that tile in either direction stay out, and a declaration the CSS parser cannot understand is left alone rather than guessed at. Positions in the rewritten rules are computed from the packed layout, so existing `background-position` offsets are preserved relative to the slice.
+Only images referenced from a CSS `background` or `background-image` declaration are candidates; `<img>` tags never join a sprite. Only PNG or GIF backgrounds in rules that declare both `width` and `height` are sprited, and GIFs are converted to PNG in the sheet. The module must be able to fetch the image and learn its dimensions, and a declaration the CSS parser cannot understand is left alone rather than guessed at. Positions in the rewritten rules are computed from the packed layout: an existing `background-position` is shifted to the slice, and a rule without one gets a new `background-position` declaration.
 
 ### Risks
 
@@ -12147,7 +12157,7 @@ See [IIS configuration](https://modpagespeed.com/docs/iis-configuration/) for th
 }
 
 /* after */
-.header{margin:0 0 16px;background:#fff url(/img/banner.png.pagespeed.ce.HASH.png) no-repeat}
+.header{margin:0 0 16px 0;background:#fff url(/img/banner.png.pagespeed.ce.HASH.png) no-repeat}
 ```
 
 #### When it helps and when it does not
@@ -12239,7 +12249,7 @@ Combining was designed for HTTP/1.1 connection limits. CSS is render-blocking, s
 
 #### How it decides
 
-Only consecutive links with the same `media` value combine; a different `media` attribute starts a new group, as does a `<script>` or other non-stylesheet element between two links, an IE conditional comment, or a `<link>` inside `<noscript>`. Every member must come from a domain the module is authorized to fetch. `MaxCombinedCssBytes` caps the combined size and defaults to -1, no limit.
+Only consecutive links with the same `media` value combine; a different `media` attribute starts a new group, as does an inline `<style>` block, an IE conditional comment, a `<link>` inside `<noscript>`, or a link carrying extra attributes such as `id` or `title`, which is left as authored. Every member must come from a domain the module is authorized to fetch. `MaxCombinedCssBytes` caps the combined size and defaults to -1, no limit.
 
 #### Risks
 
@@ -12300,7 +12310,7 @@ CSS is render-blocking, so for a tiny stylesheet the removed round trip is worth
 
 #### How it decides
 
-Only stylesheets whose contents are no larger than `CssInlineMaxBytes` (default 2048 bytes) qualify, and only files on domains the module is authorized to fetch. A stylesheet whose `media` attribute cannot affect the screen, such as `print`, stays external: inlining it would make every page pay for rules no screen visitor needs.
+Only stylesheets whose contents are no larger than `CssInlineMaxBytes` (default 2048 bytes) qualify, and only files on domains the module is authorized to fetch. A stylesheet whose `media` attribute cannot affect the screen, such as `print`, stays external: inlining it would make every page pay for rules no screen visitor needs. A file that contains the text `</style>` stays external too, since it would end the inline block early. Nothing is inlined when the page's Content-Security-Policy forbids inline styles.
 
 #### Risks
 
@@ -12554,7 +12564,7 @@ See [IIS configuration](https://modpagespeed.com/docs/iis-configuration/) for th
 
 ### What it does
 
-The three filters on this section share one minifier. It removes comments, collapses whitespace, and shortens the names of local variables and functions where a scope analysis proves the rename safe. String literals, regular expressions, and property names are left alone, so the output behaves exactly like the input. The minifier is conservative around the constructs that change meaning when text moves: it keeps line breaks where automatic semicolon insertion could otherwise merge two statements into one, and it renames nothing in the scope of a `with` statement or an `eval` call. [How safe JavaScript minification handles automatic semicolon insertion](https://modpagespeed.com/blog/safe-javascript-minification-semicolon-insertion/) has the details. Since v1.15.0+r21 this tokenizer-based minifier is the only one, and files that use template literals (backtick strings) minify normally.
+The three filters on this section share one minifier. It removes comments and collapses whitespace; identifiers, string literals, regular expressions and property names are emitted unchanged. It keeps a line break wherever automatic semicolon insertion could otherwise merge two statements into one. [How safe JavaScript minification handles automatic semicolon insertion](https://modpagespeed.com/blog/safe-javascript-minification-semicolon-insertion/) has the details.
 
 ```text
 /* before: sum a shopping cart */
@@ -12567,10 +12577,10 @@ function cartTotal(cart) {
 }
 
 /* after */
-function cartTotal(n){for(var t=0,o=0;o<n.items.length;o++)t+=n.items[o].price;return t}
+function cartTotal(cart){var total=0;for(var i=0;i<cart.items.length;i++){total=total+cart.items[i].price;}return total;}
 ```
 
-`rewrite_javascript` is the compound CoreFilter for JavaScript minification: enabling it switches on the external and the inline sub-filter together, so every script on the page is minified wherever it lives. It is also part of OptimizeForBandwidth, the level that minifies resources in place without changing their URLs. To minify only one scope, enable `rewrite_javascript` and disable the other sub-filter by name. Under CoreFilters the compound is on already. A script delivered with an `integrity` attribute is left untouched by the whole family, because subresource integrity pins the file's bytes. Live demo: [rewrite_javascript](https://modpagespeed.com/examples/rewrite_javascript/).
+`rewrite_javascript` is the compound CoreFilter for JavaScript minification: enabling it switches on the external and the inline sub-filter together, so every script on the page is minified wherever it lives. It is also part of OptimizeForBandwidth, the level that minifies resources in place without changing their URLs. To minify only one scope, enable `rewrite_javascript` and disable the other sub-filter by name. Under CoreFilters the compound is on already. A script delivered with an `integrity` attribute is left untouched by the whole family, because subresource integrity pins the file's bytes. Since v1.15.0+r21 the tokenizer-based minifier is the only one behind `rewrite_javascript`, and files that use template literals (backtick strings) minify normally; IE conditional-compilation comments (`/*@ ... @*/`) are the one kind of comment it keeps. Live demo: [rewrite_javascript](https://modpagespeed.com/examples/rewrite_javascript/).
 
 `rewrite_javascript_external` handles the external half. Each `<script src>` file on a domain the module is authorized to fetch is minified and served from a rewritten `.pagespeed.jm.` URL with a long cache lifetime, so repeat visitors download the minified file once and keep it; the original file on disk is never modified. In OptimizeForBandwidth mode the minified bytes replace the original response in place and the URL stays as authored. Minification saves the most on hand-formatted source; a file a bundler already minified gains nothing and only costs rewrite time. `rewrite_javascript_external` runs as part of the compound and can also be enabled on its own.
 
@@ -12582,9 +12592,9 @@ Enabled on its own, `rewrite_javascript_external` leaves inline `<script>` block
 
 ### Risks
 
-- Renames are limited to proven-local scopes, so behavior changes are rare. The historical failure mode is a script that inspects its own source, for example through `Function.prototype.toString()`, and reacts to the changed formatting.
-- Verify on a live page: the response carries an `X-Mod-Pagespeed` (or `X-Page-Speed`) header, and loading the page with `?PageSpeedFilters=-rewrite_javascript` shows the unminified form for comparison. [Is it working?](https://modpagespeed.com/docs/is-it-working/) walks through the checks.
-- The deprecated `UseExperimentalJsMinifier` directive is accepted for compatibility but ignored, and logs a warning at configuration load (`ModPagespeedUseExperimentalJsMinifier` on Apache, `pagespeed UseExperimentalJsMinifier` on nginx). Remove it from your configuration.
+- The minifier never renames identifiers; the historical failure mode is a script that inspects its own source text, for example through `Function.prototype.toString()`, and reacts to the changed formatting.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-rewrite_javascript` comparison; [Is it working?](https://modpagespeed.com/docs/is-it-working/) has the steps.
+- `rewrite_javascript` ignores the deprecated `UseExperimentalJsMinifier` directive, which is accepted for compatibility and logs a warning at configuration load (`ModPagespeedUseExperimentalJsMinifier` on Apache, `pagespeed UseExperimentalJsMinifier` on nginx). Remove it from your configuration.
 
 ### Configuration
 
@@ -12606,16 +12616,18 @@ pagespeed EnableFilters rewrite_javascript;
 
 ### What it does
 
-`combine_javascript` concatenates consecutive external scripts into one file and replaces the group of `<script src>` tags with a single tag that loads the combined file from a `.pagespeed.jc.` URL. A page that loads five scripts back to back makes one request instead of five. The scripts run in their original order, so dependencies between them keep working. Live demo: [combine_javascript](https://modpagespeed.com/examples/combine_javascript/).
+`combine_javascript` concatenates consecutive external scripts into one file, loads the combined file from a `.pagespeed.jc.` URL, and replaces each original tag with a small inline script, `eval(…)`, that runs that member in order. A page that loads five scripts back to back makes one request instead of five. The scripts run in their original order, so dependencies between them keep working. Live demo: [combine_javascript](https://modpagespeed.com/examples/combine_javascript/).
 
-```html
+```text
 <!-- before -->
 <script src="/js/jquery.js"></script>
 <script src="/js/carousel.js"></script>
 <script src="/js/forms.js"></script>
 
 <!-- after -->
-<script src="/js/jquery.js+carousel.js+forms.js.pagespeed.jc.HASH.js"></script>
+<script src="/js/jquery.js+carousel.js+forms.js.pagespeed.jc.HASH.js"></script><script>eval(mod_pagespeed_HASH1);</script>
+<script>eval(mod_pagespeed_HASH2);</script>
+<script>eval(mod_pagespeed_HASH3);</script>
 ```
 
 ### When it helps and when it does not
@@ -12624,7 +12636,7 @@ Combining was designed for HTTP/1.1, where a browser opens only a few connection
 
 ### How it decides
 
-Only consecutive, synchronously executing external scripts join a group. An inline `<script>`, a script with `async` or `defer`, a `type="module"` script, a script of an unknown type, and a script carrying `integrity=` each end the current group, as does other markup between two script tags. Modules are excluded because the combination evaluates member scripts inside one shared file, which cannot represent a module's isolated scope and deferred execution. A group stops growing when the combined uncompressed contents would pass `MaxCombinedJsBytes` (default 92160), and every member must come from a domain the module is authorized to fetch.
+Only consecutive, synchronously executing external scripts join a group. An inline `<script>`, a script with `async` or `defer`, a `type="module"` script, a script of an unknown type, and a script carrying `integrity=` each end the current group, as does other markup between two script tags. Modules are excluded because the combination evaluates member scripts inside one shared file, which cannot represent a module's isolated scope and deferred execution. A group stops growing when the combined uncompressed contents would pass `MaxCombinedJsBytes` (default 92160), and every member must come from a domain the module is authorized to fetch. Pages whose Content-Security-Policy forbids `eval` or inline scripts are not combined, because the browser would block the inline `eval` tags.
 
 ### Risks
 
@@ -12668,7 +12680,7 @@ Inlining pays when a script is tiny: for a few hundred bytes, the request with i
 
 ### How it decides
 
-Only external scripts whose contents are no larger than `JsInlineMaxBytes` (default 2048 bytes) qualify, and only files on domains the module is authorized to fetch. A script with `async` or `defer`, or with the IE-specific `for` and `event` attributes, is left external: those attributes change when the script runs, and an inline block cannot express that timing. Everything else about the element, including its position in the document, stays as authored.
+Only external scripts whose contents are no larger than `JsInlineMaxBytes` (default 2048 bytes) qualify, and only files on domains the module is authorized to fetch. A script with `async` or `defer`, or with the IE-specific `for` and `event` attributes, is left external: those attributes change when the script runs, and an inline block cannot express that timing. Module scripts (`type="module"`) are never inlined, since inlining would change how their relative imports resolve. Nothing is inlined when the page's Content-Security-Policy forbids inline scripts. Everything else about the element, including its position in the document, stays as authored.
 
 ### Risks
 
@@ -12943,8 +12955,11 @@ These filters reduce HTML payload size by removing unnecessary bytes.
     <li>  <a href="/b">Beta</a>   </li>
 </ul>
 
-<!-- after -->
-<ul class="nav"> <li> <a href="/a">Alpha</a> </li> <li> <a href="/b">Beta</a> </li> </ul>
+<!-- after: each run that held a newline keeps one newline -->
+<ul class="nav">
+<li> <a href="/a">Alpha</a> </li>
+<li> <a href="/b">Beta</a> </li>
+</ul>
 ```
 
 #### When it helps and when it does not
@@ -13034,7 +13049,7 @@ Removes unnecessary quotation marks around HTML attribute values when the value 
 
 #### What it does
 
-`trim_urls` shortens URLs inside the page by stripping the parts that repeat the page's own origin. An absolute URL whose scheme, host, and port all match the page becomes a relative path; one that differs only in scheme drops the scheme and becomes scheme-relative. `left_trim_urls` is an accepted alternate spelling of the same filter; both names switch on the same code. Live demo: [trim_urls](https://modpagespeed.com/examples/trim_urls/).
+`trim_urls` shortens URLs inside the page by stripping the parts that repeat the page's own origin. An absolute URL whose scheme, host and port match the page loses its origin, and the page's own directory prefix is trimmed too; URLs on any other origin, including the same host over another scheme, are left untouched. `left_trim_urls` is an accepted alternate spelling of the same filter; both names switch on the same code. Live demo: [trim_urls](https://modpagespeed.com/examples/trim_urls/).
 
 ```html
 <!-- page: https://example.com/shop/ -->
@@ -13043,7 +13058,7 @@ Removes unnecessary quotation marks around HTML attribute values when the value 
 <img src="https://example.com/img/logo.png" />
 
 <!-- after -->
-<a href="/shop/cart">Cart</a>
+<a href="cart">Cart</a>
 <img src="/img/logo.png" />
 ```
 
@@ -13053,7 +13068,7 @@ It saves a few bytes per URL on pages dense with same-origin absolute links, whi
 
 #### How it decides
 
-Each URL-valued attribute is resolved against the page's base URL, and a `<base>` tag wins when present and is never itself rewritten. Only what matches gets trimmed: a full origin match leaves the path, a scheme-only difference leaves a scheme-relative URL, and anything on another domain is left untouched.
+Each URL-valued attribute is resolved against the page's base URL, and a `<base>` tag wins when present and is never itself rewritten. Only what matches gets trimmed: a full origin match drops the origin, a path under the page's own directory then drops that directory as well, and a URL on another origin keeps its full form. A trim is kept only when the shorter URL resolves back to exactly the original one.
 
 #### Risks
 
@@ -13114,7 +13129,7 @@ Adds `type="text/javascript"` and `type="text/css"` attributes to `<script>` and
 
 #### What it does
 
-`insert_dns_prefetch` adds connection warm-up hints for the third-party origins a page loads from. A `<link rel="dns-prefetch">` hint starts the DNS lookup early, while the browser is still busy with the HTML; a `<link rel="preconnect">` hint goes further and opens the connection, TCP and for HTTPS also TLS, before the resource tag is even seen. Live demo: [insert_dns_prefetch](https://modpagespeed.com/examples/insert_dns_prefetch/).
+`insert_dns_prefetch` adds connection warm-up hints for the origins of resources referenced in the body that the head does not already reference. A `<link rel="dns-prefetch">` hint starts the DNS lookup early, while the browser is still busy with the HTML; a `<link rel="preconnect">` hint goes further and opens the connection, TCP and for HTTPS also TLS, before the resource tag is even seen. Live demo: [insert_dns_prefetch](https://modpagespeed.com/examples/insert_dns_prefetch/).
 
 ```html
 <!-- inserted into <head> -->
@@ -13124,15 +13139,15 @@ Adds `type="text/javascript"` and `type="text/css"` attributes to `<script>` and
 
 #### When it helps and when it does not
 
-It helps when a page pulls from a few stable third-party origins, such as font CDNs or analytics hosts: the lookup and handshake then overlap with the HTML download instead of starting when the resource is discovered. It does nothing for same-origin resources, since the connection to the page's own origin is already open. It also does nothing when the set of third-party domains churns between page views, because the hints are learned from observed traffic and an unstable set is never hinted.
+It helps when a page pulls from a few stable third-party origins, such as font CDNs or analytics hosts: the lookup and handshake then overlap with the HTML download instead of starting when the resource is discovered. It does nothing for same-origin resources, since the connection to the page's own origin is already open. It also does little when the set of third-party domains churns between page views, because the hints are learned from earlier rewrites of the page and may name domains it no longer uses.
 
 #### How it decides
 
-The filter records which origins a page's resources come from across loads and emits hints only once that set is stable: the stored list may drift by at most two domains between rewrites, otherwise that page gets no hints for the round. A page earns at most eight `dns-prefetch` hints and two `preconnect` hints. Early views contribute data and get nothing; later views get the hints. Domains the author already hinted in the markup are not duplicated.
+The filter records which origins a page's body resources come from, in order of first appearance. Hints are emitted once the number of hinted domains changes by at most two between rewrites; the check counts domains, so a page whose domains change but whose count holds still gets hints for the stored list. A page gets at most eight hints in total; the first two domains get `preconnect`, the rest `dns-prefetch`. Early views contribute data and get nothing; later views get the hints. Domains the author already hinted or referenced in the head are not duplicated.
 
 #### Risks
 
-- Every hint costs the browser work, and a preconnect costs an open connection held for an origin the visitor might not need; the built-in caps of eight and two bound that overhead.
+- Every hint costs the browser work, and a preconnect costs an open connection held for an origin the visitor might not need; the built-in caps of eight hints, at most two of them preconnects, bound that overhead.
 - Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-insert_dns_prefetch` comparison; [Is it working?](https://modpagespeed.com/docs/is-it-working/) has the steps.
 
 #### Configuration
