@@ -25,15 +25,13 @@ const docSlugs = [
   'html-filters',
   'image-filters',
   'javascript-filters',
-  'filters-overview',
   'filter-selection',
-  'filter-reference',
   'iis-configuration',
   'https-configuration',
   'domain-configuration',
   'admin-console',
   'security',
-  'directive-index',
+  'worker-configuration',
 ];
 
 // Platform-tabbed pages among the converged set (see docSlugs above) — pages
@@ -123,7 +121,7 @@ test.describe('Docs', () => {
   test('converged pages appear in the docs sidebar navigation', async ({ page }) => {
     await page.goto('/docs/getting-started/');
     const sidebar = page.locator('nav[aria-label="Documentation"]');
-    for (const slug of ['css-filters', 'filter-reference', 'admin-console', 'iis-configuration']) {
+    for (const slug of ['css-filters', 'filter-selection', 'admin-console', 'iis-configuration']) {
       await expect(sidebar.locator(`a[href="/docs/${slug}/"]`)).toBeAttached();
     }
   });

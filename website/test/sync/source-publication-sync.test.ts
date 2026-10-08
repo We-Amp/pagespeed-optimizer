@@ -67,7 +67,15 @@ const PENDING_KEY_TALK = new Set<string>();
 // are its own protocol vocabulary (the rows of its HTTP status table), not the
 // retired software-licence apparatus guard 6 is about. Pinned to pages that
 // really are about that feature — see guard 6b.
-const CONTENT_LICENSING_FEATURE_PAGES = new Set(['src/content/docs/rsl-cap.md']);
+const CONTENT_LICENSING_FEATURE_PAGES = new Set([
+  'src/content/docs/rsl-cap.md',
+  // The native-module configuration reference and the generated data behind
+  // it carry the module's own help text for the RslCap* directives
+  // ("an Authorization: License token is validated"): the content-licensing
+  // token of RSL-CAP, not a software licence.
+  'src/content/docs/configuration.md',
+  'src/data/reference/module-directives.json',
+]);
 // The derivation itself lives here and legitimately spells out both forms.
 const DERIVATION_SOURCE = 'src/data/product-facts.mjs';
 // Comment-only mentions of the retired per-site/Business ladder as history or
