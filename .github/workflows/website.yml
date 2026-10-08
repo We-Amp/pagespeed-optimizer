@@ -10,16 +10,21 @@ name: Website
 #   website-build       the content guards (no version-pinned URLs in
 #                       non-frozen content; the 2.1 manifest does not lag the
 #                       shipped release), npm ci, the vitest unit + sync
-#                       gates, and a production build, so nothing that cannot
-#                       render or that contradicts its own data ships.
+#                       gates, a production build, and the built-output
+#                       content lint (npm run check:content), so nothing that
+#                       cannot render or that contradicts its own data ships.
 #   website-reference-drift
 #                       the generated configuration and filter references
 #                       still match the product source at the pinned tag.
 #   website-playwright  the browser suite in website/tests/ against the dev
 #                       server, so the pages behave, not just build.
+#   website-lighthouse  Lighthouse budgets (mobile, median of 3 runs) on the
+#                       built site: accessibility, best-practices and SEO
+#                       must not regress; performance is warn-only because a
+#                       hosted runner is too noisy to gate on.
 #
-# Both run on GitHub-hosted runners with first-party actions only. The build
-# runs with PRICING_ALLOW_STALE=1: a hosted build holds no pricing API
+# All jobs run on GitHub-hosted runners with first-party actions only. The
+# build runs with PRICING_ALLOW_STALE=1: a hosted build holds no pricing API
 # credentials, so it proceeds on the committed pricing file, loudly
 # (fetch-pricing.js refuses without this). Deploying the site is the
 # operator's step, from this tree; nothing in this workflow deploys.
@@ -198,6 +203,17 @@ jobs:
           PRICING_ALLOW_STALE: "1"
         run: npm run build
 
+      # Lint what the build actually wrote: every page under dist/ (the
+      # frozen /1.0/ archive aside) must carry exactly one <title> (15-65
+      # chars) and one <h1>, indexable pages a 50-165 char description and
+      # an absolute canonical, no two pages the same description, and the
+      # visible text free of "daemon" (the process is the worker) and of
+      # "mod_pagespeed 2.0" naming the current product. Justified exceptions
+      # live in website/scripts/content-lint-allow.json. See
+      # scripts/check-built-content.mjs for the rule table.
+      - name: Built-output content lint
+        run: npm run check:content
+
   # The configuration and filter references on the site are generated from
   # the product's source (website/scripts/generate-references.mjs): the
   # native module's option tables and filter tables come from the public
@@ -305,3 +321,74 @@ jobs:
             website/playwright-report/**
           retention-days: 7
           if-no-files-found: ignore
+
+  # Lighthouse budgets over the BUILT site, so the gate measures what ships:
+  # the key landing and docs pages, served by `astro preview` (the node
+  # adapter's own standalone server) on 127.0.0.1, mobile form factor
+  # (Lighthouse's default; desktop is the opt-in), median of 3 runs per URL
+  # (aggregationMethod: median in the assertions — lhci's default is the
+  # optimistic best-of-N) — see website/lighthouserc.json. Accessibility,
+  # best-practices and SEO budgets are errors; performance is a warning
+  # because a hosted runner's timing noise would fail good changes.
+  # Everything runs inside the runner: @lhci/cli writes its HTML reports to
+  # website/.lighthouseci/ with upload.target=filesystem (nothing is sent
+  # anywhere), and those reports are attached as the job artifact. The
+  # analytics host is blocked (blockedUrlPatterns), so a CI run records no
+  # pageview and the best-practices score owes nothing to a third-party
+  # host. The Chromium comes from Playwright (already a dev dependency) via
+  # CHROME_PATH, so no extra browser download source; it runs with
+  # --no-sandbox because the ubuntu-24.04 hosted image restricts
+  # unprivileged user namespaces and that Chromium ships no setuid sandbox
+  # helper. package.json forces lighthouse 13.5.0 under @lhci/cli, whose own
+  # pin (12.6.1) cannot audit current Chrome builds.
+  website-lighthouse:
+    name: Website Lighthouse budgets (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Chromium
+        run: npx playwright install chromium
+
+      - name: Production build
+        env:
+          PRICING_ALLOW_STALE: "1"
+        run: npm run build
+
+      - name: Resolve Playwright Chromium path
+        id: chrome
+        run: >
+          echo "path=$(node -e 'const {chromium} = require("playwright-core");
+          process.stdout.write(chromium.executablePath())')" >> "$GITHUB_OUTPUT"
+
+      - name: Run Lighthouse CI
+        env:
+          CHROME_PATH: ${{ steps.chrome.outputs.path }}
+        run: npx lhci autorun
+
+      # The HTML reports of every run, whether the budgets held or not —
+      # a failed assertion is exactly when they are needed for forensics.
+      # Paths are workspace-relative (upload-artifact ignores the job's
+      # working-directory default).
+      - name: Upload Lighthouse reports
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: website-lighthouse-reports
+          path: website/.lighthouseci/*.html
+          include-hidden-files: true
+          retention-days: 7
+          if-no-files-found: warn
