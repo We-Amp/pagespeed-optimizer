@@ -6,36 +6,11 @@ group: 'Configure'
 lastUpdated: 2026-07-12
 ---
 
-mod_pagespeed runs on IIS as a native, in-process module — the successor to IISpeed. This page documents the `pagespeed.config` file format it reads. For the directives that apply across every platform (Apache, nginx, IIS), see [Configuration](/docs/configuration/); to install the module first, see [Requirements](#requirements) below.
+mod_pagespeed runs on IIS as a native, in-process module — the successor to IISpeed. This page documents the `pagespeed.config` file format it reads. For the directives that apply across every platform (Apache, nginx, IIS), see [Configuration](/docs/configuration/); to install the module first, see [Install on IIS](/docs/install-iis/).
 
-## Requirements
+## Install the module {#install-the-module}
 
-- Windows Server 2019 or later (IIS 10+)
-- 64-bit only
-- Visual C++ Redistributable 2022
-- IIS worker process identity needs write permissions on the cache directory
-
-## Install the module
-
-Download the [IIS MSI installer](/download/) — each binary has a `.asc` signature next to it — and run it on your Windows Server. The installer registers the module in IIS as a native HTTP module automatically and creates the default cache directory at `%ProgramData%\We-Amp\IISWebSpeed\Cache`.
-
-### Migrating from IISpeed
-
-If IISpeed is installed on this host, **uninstall it before running the MSI**. The two modules register the same handler in IIS and cannot coexist — leaving IISpeed in place will cause one or both to fail at site startup. Open _Apps & features_ (or _Programs and Features_), remove "IISpeed", `iisreset`, and then run the installer.
-
-If you are migrating from the open-source module on IIS:
-
-1. Uninstall the existing IISpeed or mod_pagespeed module from IIS Manager
-2. Install the module
-3. Restart IIS: `iisreset`
-
-### IIS Express
-
-For local development with IIS Express, add the module to `applicationhost.config` in `%userprofile%\Documents\IISExpress\config\`:
-
-1. Copy the module DLL to a known location
-2. Add the module registration under `<globalModules>` and `<modules>`
-3. Restart IIS Express
+<a id="requirements"></a><a id="migrating-from-iispeed"></a><a id="iis-express"></a><a id="verify-it-works"></a>Installation moved to [Install on IIS](/docs/install-iis/): requirements, the signed MSI, IIS Express and the optional optimizer service. Coming from IISpeed, read [Migrate from IISpeed](/docs/migrate-from-iispeed/) first.
 
 ### Disable optimization
 
@@ -43,14 +18,6 @@ To disable optimization for a site, either delete or rename its `pagespeed.confi
 
 ```text
 pagespeed off
-```
-
-### Verify it works
-
-On IIS the module emits `X-Page-Speed`, the same as nginx — check for it with PowerShell:
-
-```powershell
-(Invoke-WebRequest http://localhost/ -Method Head).Headers["X-Page-Speed"]
 ```
 
 ## File format
@@ -304,7 +271,7 @@ The module checks the modification timestamp of `pagespeed.config` periodically 
 - [Configuration](/docs/configuration/) — general configuration reference (all platforms)
 - [Filter selection](/docs/filter-selection/) — choosing and tuning filters
 - [IIS Tuning](/docs/iis-configuration/#iis-tuning) — IIS-specific web server tuning
-- [Getting started](/docs/getting-started/) — installation guide
+- [Install on IIS](/docs/install-iis/) — installation guide
 
 ## IIS tuning
 
@@ -413,6 +380,6 @@ All supported Windows Server versions (2019 and later) default to an initial con
 
 ### See also
 
-- [Getting started](/docs/getting-started/) — IIS installation guide
+- [Install on IIS](/docs/install-iis/) — IIS installation guide
 - [Configuration](/docs/configuration/) — general configuration reference
 - [IIS configuration](/docs/iis-configuration/) — pagespeed.config format reference

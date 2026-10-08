@@ -1,8 +1,8 @@
 ---
 title: 'Validate RSL license capability tokens'
 description: 'Validate Authorization: License capability tokens at your origin and return 401/402/pass — experimental operator access control, off by default.'
-order: 36
-group: 'Operate'
+order: 62
+group: 'Agents'
 lastUpdated: 2026-07-04
 faq:
   - q: 'Does it handle payment or billing?'

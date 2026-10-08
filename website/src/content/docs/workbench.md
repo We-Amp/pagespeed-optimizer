@@ -1,7 +1,7 @@
 ---
 title: 'Use the web console'
 description: 'Inspect cache contents, monitor live throughput and bandwidth savings, and hot-reload configuration from the mod_pagespeed 2.1 web console at /console/.'
-order: 31
+order: 53
 group: 'Operate'
 lastUpdated: 2026-09-19
 ---

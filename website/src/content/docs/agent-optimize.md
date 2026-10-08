@@ -1,8 +1,8 @@
 ---
 title: 'Serve Markdown to AI agents'
 description: 'Serve AI agents a rendered Markdown copy of your pages at the same URL, and synthesize an /llms.txt — off by default, nothing leaves your server.'
-order: 34
-group: 'Operate'
+order: 60
+group: 'Agents'
 lastUpdated: 2026-09-06
 faq:
   - q: 'Does this change what browsers and search engines see?'

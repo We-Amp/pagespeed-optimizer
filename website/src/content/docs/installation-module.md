@@ -1,7 +1,7 @@
 ---
-title: 'Install the nginx module'
-description: 'Install the native mod_pagespeed 2.1 module for Apache and nginx from the signed packages.modpagespeed.com repository, or run the Docker reverse proxy.'
-order: 11
+title: 'Install the module on Apache and nginx'
+description: 'Install the native mod_pagespeed 2.1 module for Apache and nginx from the signed package repository: distributions, nginx compatibility, worker pairing.'
+order: 3
 group: 'Install'
 lastUpdated: 2026-10-06
 faq:
@@ -55,18 +55,19 @@ distribution matrix (including the yum packages) and the nginx module.
 
 The signed repository at `packages.modpagespeed.com` ships the nginx module
 (`nginx-module-pagespeed`) — the same channel mod_pagespeed 1.15 uses — for
-Debian and Ubuntu on amd64 and arm64. Each build is pinned to that
-distribution's stock nginx (1.18 through 1.26), so there is no version to
-match by hand:
+Debian and Ubuntu on amd64 and arm64, and for AlmaLinux, RHEL and Rocky 9 and
+10. Each build is pinned to that distribution's stock nginx (1.18 through
+1.26), so there is no version to match by hand:
 
 ```bash
 curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
-sudo apt-get install nginx-module-pagespeed
+sudo apt-get install nginx-module-pagespeed   # Debian/Ubuntu
+sudo dnf install nginx-module-pagespeed       # AlmaLinux/RHEL/Rocky
 ```
 
 The native nginx module runs on its own by default. To have it use the
 optimizer worker, set the two directives described in
-[Using the optimizer daemon with nginx](#using-the-optimizer-daemon-with-nginx).
+[Using the optimizer worker with nginx](#using-the-optimizer-daemon-with-nginx).
 
 See [Install from packages.modpagespeed.com](/download/apt-yum/) for the full
 distribution matrix (including the yum packages) and the Apache module. The
@@ -74,11 +75,32 @@ signed packages also sidestep the
 [ngx_pagespeed build failures on modern nginx](/blog/ngx-pagespeed-wont-build-modern-nginx/)
 that come from compiling the old module from source.
 
-## Using the optimizer daemon with nginx
+## nginx compatibility
+
+Two shapes, two nginx stories. The native module runs inside the nginx your
+distribution ships and is built for exactly that version; the Docker reverse
+proxy brings its own nginx inside the image.
+
+| Shape                                                                          | nginx version                   | Where it comes from                                |
+| ------------------------------------------------------------------------------ | ------------------------------- | -------------------------------------------------- |
+| Native module (`nginx-module-pagespeed`) on Debian 12 bookworm                 | 1.22.1                          | the distribution's stock nginx (amd64 + arm64)     |
+| Native module on Debian 13 trixie                                              | 1.26.3                          | the distribution's stock nginx (amd64 + arm64)     |
+| Native module on Ubuntu 22.04 jammy                                            | 1.18.0                          | the distribution's stock nginx (amd64 + arm64)     |
+| Native module on Ubuntu 24.04 noble                                            | 1.24.0                          | the distribution's stock nginx (amd64 + arm64)     |
+| Native module on AlmaLinux / RHEL / Rocky 9                                    | 1.20.1                          | the distribution's stock nginx (x86_64 + aarch64)  |
+| Native module on AlmaLinux / RHEL / Rocky 10                                   | the distribution's stock nginx  | the distribution's stock nginx (x86_64)            |
+| Docker / nginx reverse proxy (`pagespeed-nginx` and `pagespeed-combined` images) | 1.30.4                        | bundled in the image                               |
+
+nginx refuses to load a module built for a different version, and
+`--with-compat` does not relax that check, so the native module follows your
+distribution's nginx package, not nginx.org's. Running an nginx we do not
+package? [Contact us](/contact/) for a matching pinned build. Debian 11
+(bullseye) stays on the repository's final 1.15.0 module packages.
+
+## Using the optimizer worker with nginx {#using-the-optimizer-daemon-with-nginx}
 
 The native nginx module can hand in-place optimization to the optimizer
-worker (the `pagespeed-optimizer` package, also called the optimizer daemon),
-as the Apache module does. With two directives set in a `server` block, the
+worker (the `pagespeed-optimizer` package), as the Apache module does. With two directives set in a `server` block, the
 module records each eligible resource into the optimizer's cache, the
 optimizer builds optimized variants of it, and the module serves the variant
 that fits each client from that cache. With both directives unset, in-place
@@ -118,7 +140,7 @@ server {
     pagespeed on;
     pagespeed FileCachePath /var/cache/ngx_pagespeed;
 
-    # The optimizer daemon: its notification socket and its cache volume.
+    # The optimizer worker: its notification socket and its cache volume.
     pagespeed DaemonSocketPath /run/pagespeed-optimizer/notify.sock;
     pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v2/cache;
 }
@@ -156,7 +178,7 @@ to reach its files — then for that server:
 - in-place optimization is off, and nginx serves every request normally;
 - nginx logs the reason. When nginx is not allowed to reach the optimizer's
   files, the log does not name the `pagespeed` group: nginx repeats a warning
-  that the optimizer's cache volume "cannot be used yet" because the daemon
+  that the optimizer's cache volume "cannot be used yet" because the worker
   "does not publish the size of its cache volume", once per attempt, and
   nothing is optimized; after about six minutes it stops retrying and logs one
   error. If the optimizer is running, add the nginx user to the `pagespeed`
@@ -182,7 +204,7 @@ and restart nginx.
    `ipro_daemon_served` rises. If only `ipro_daemon_fallthrough` rises, see
    [Limits](#limits).
 
-The admin console's [optimizer daemon panels](/docs/admin-console/#optimizer-daemon-panels)
+The admin console's [optimizer worker panels](/docs/admin-console/#optimizer-daemon-panels)
 read the optimizer's management API through the separate
 `DaemonApiSocketPath` directive.
 
