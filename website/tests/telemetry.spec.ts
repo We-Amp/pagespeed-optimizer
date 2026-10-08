@@ -114,6 +114,10 @@ test.describe('Telemetry strip', () => {
           ),
         )
         .toBe('32px');
+      // Measure in the self-hosted mono font, not whatever fallback is
+      // rendering while it loads — fallback metrics are wider and differ
+      // between platforms.
+      await page.evaluate(() => document.fonts.ready);
       const problems = await page.evaluate(() => {
         const el0 = document.querySelector<HTMLElement>('[data-ui="telemetry-strip"]')!;
         const out: string[] = [];

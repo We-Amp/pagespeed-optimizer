@@ -14,15 +14,17 @@
 // CLS discipline: the row is a fixed 32px at every width, each field has a
 // fixed ch-based inline-size, and the script only ever replaces textContent.
 //
-// Sizing, measured not guessed: at the spec's 12px the five fields plus the
-// state label and the "what these headers mean" link need ~1110px while the
-// max-w-6xl container with lg:px-8 gutters offers 1088px — so at 11px (the
-// size the spec itself uses under 400px) every field fits at every width.
-// Field reserves cover the real content so the live upgrade never shifts
-// neighbours: the state label reserves the longer of its two strings (19ch),
-// xmps 28ch also fits "x-mod-pagespeed: not present" (the honest answer when
-// a deployment emits no such header), ttfb 12ch fits a three-digit
-// millisecond value.
+// Sizing, measured not guessed: each field reserves its dt, the 0.375rem
+// dt–dd gap and the field's widest realistic value, plus ~12% slack on the
+// value. The slack covers platforms where the self-hosted Plex Mono (a
+// 0.600em advance, 6.6px per ch at 11px) is not in effect and fallback
+// fonts render wider than the ch unit — measured at ~7px per glyph on
+// Linux. The wire field shows from 480px up, the wide fields (decoded,
+// vary, ttfb) from 1024px up and the "what these headers mean" link from
+// 1280px up; below those widths a field does not render at all rather than
+// clip. The state label reserves the longer of its two strings
+// ("captured 2026-10-08", 19ch, vs "this view · live", 16ch), so the live
+// upgrade never moves the fields sideways.
 
 import { formatBytes } from '../../lib/instrument';
 import capture from '../../data/telemetry-capture.json';
@@ -62,7 +64,7 @@ const fields = [
   {
     term: 'wire',
     value: entry ? formatBytes(entry.wireBytes) : '—',
-    width: '16ch',
+    width: '14ch',
     wide: false,
     mid: true,
     t: 'wire',
@@ -70,12 +72,12 @@ const fields = [
   {
     term: 'decoded',
     value: entry ? formatBytes(entry.decodedBytes) : '—',
-    width: '17ch',
+    width: '18.5ch',
     wide: true,
     mid: false,
     t: 'decoded',
   },
-  { term: 'vary:', value: header('vary'), width: '32ch', wide: true, mid: false, t: 'vary' },
+  { term: 'vary:', value: header('vary'), width: '35.5ch', wide: true, mid: false, t: 'vary' },
   { term: 'ttfb', value: '—', width: '12ch', wide: true, mid: false, t: 'ttfb' },
 ];
 ---
@@ -138,11 +140,12 @@ const fields = [
   }
   /* Reserve the longer of the two state strings ("captured 2026-10-08",
      19ch, vs "this view · live", 16ch) so the live upgrade never moves
-     the fields sideways. The extra 0.1ch absorbs ch-unit rounding, so the
-     19-glyph captured string also sits inside the reserve. */
+     the fields sideways. 20.5ch also keeps the 19-glyph date inside the
+     reserve where fallback fonts render ~7px per glyph against the 6.6px
+     ch — at exactly 19.1ch the text would bleed into the row gap there. */
   .t-state [data-t='state'] {
     display: inline-block;
-    min-inline-size: 19.1ch;
+    min-inline-size: 20.5ch;
   }
   .telemetry.is-live .t-state {
     color: var(--color-interactive);
@@ -154,7 +157,7 @@ const fields = [
     padding-block: 4px;
   }
   /* Narrow viewports: the state label doubles as the link to
-     /pagespeed-markers/; >=1216px shows the plain label plus .t-more (below
+     /pagespeed-markers/; >=1280px shows the plain label plus .t-more (below
      that the full row plus the link measurably does not fit the container). */
   .t-state-plain {
     display: none;
@@ -172,7 +175,7 @@ const fields = [
     text-decoration: underline;
     text-underline-offset: 3px;
   }
-  @media (min-width: 1216px) {
+  @media (min-width: 1280px) {
     .t-state-link {
       display: none;
     }
@@ -199,7 +202,9 @@ const fields = [
   .t-fields {
     display: flex;
     flex-wrap: nowrap;
-    gap: 0.25rem 0.875rem;
+    /* 10px between fields keeps all five plus the link inside the 1088px
+       container at >=1280px. */
+    gap: 0.25rem 0.625rem;
     margin: 0;
     min-inline-size: 0;
     overflow: hidden;
@@ -207,11 +212,12 @@ const fields = [
   .t-f {
     display: inline-flex;
     gap: 0.375rem;
-    /* Fixed field box: the live upgrade changes text only, never the layout.
-       When the row runs out of room the field may shrink and the dd below
-       ellipsizes — a value is either complete or visibly truncated, never
-       hard-clipped mid-glyph. */
-    inline-size: var(--w);
+    /* Fixed field box: --w reserves the dt and the widest realistic value
+       with ~12% slack for wider fallback-font metrics, and the 0.375rem
+       dt–dd gap is added on top. When the row runs out of room the field
+       may shrink and the dd below ellipsizes — a value is either complete
+       or visibly truncated, never hard-clipped mid-glyph. */
+    inline-size: calc(var(--w) + 0.375rem);
     min-inline-size: 0;
   }
   .t-f dt {
@@ -227,13 +233,14 @@ const fields = [
     text-overflow: ellipsis;
   }
   /* Below 480px the wire byte count cannot fit complete next to the state
-     label and the header field, so it does not render at all. */
+     label and the header field, so it does not render at all. The wide
+     fields follow from 1024px, where the row can hold them in full. */
   @media (max-width: 479px) {
     .t-mid {
       display: none;
     }
   }
-  @media (max-width: 959px) {
+  @media (max-width: 1023px) {
     .t-wide {
       display: none;
     }
