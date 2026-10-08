@@ -2,6 +2,7 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 
 import { test, expect } from '@playwright/test';
+import { stubUmami, trackedEvents } from './helpers/umami';
 
 // The QuickMessage widget is mounted in BaseLayout, so it renders on every page.
 test.describe('QuickMessage widget', () => {
@@ -29,13 +30,32 @@ test.describe('QuickMessage widget', () => {
     await expect(launcher).toBeFocused();
   });
 
-  test('optional email field is collapsed by default and reveals on demand', async ({ page }) => {
+  test('optional email field is visible from the start and not required', async ({ page }) => {
     await page.goto('/');
     await page.locator('[data-qm-launcher]').click();
-    await expect(page.locator('[data-qm-email-wrap]')).toBeHidden();
-    await page.locator('[data-qm-email-toggle]').click();
     await expect(page.locator('[data-qm-email-wrap]')).toBeVisible();
-    await expect(page.locator('[data-qm-email]')).toBeFocused();
+    await expect(page.locator('[data-qm-email]')).toBeVisible();
+    await expect(page.locator('[data-qm-email]')).not.toHaveAttribute('required', /.*/);
+    await expect(page.locator('label[for="qm-email"]')).toContainText('optional');
+  });
+
+  test('a sent message reports lead_submit next to quick_message_sent', async ({ page }) => {
+    await page.route('**/ai-readability/api/contact', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+    });
+    await stubUmami(page);
+    await page.goto('/pricing/');
+    await page.locator('[data-qm-launcher]').click();
+    await page.locator('[data-qm-message]').fill('Hello');
+    await page.locator('[data-qm-email]').fill('reply@example.com');
+    await page.locator('[data-qm-submit]').click();
+    await expect(page.locator('[data-qm-success]')).toBeVisible();
+    const events = await trackedEvents(page);
+    expect(events).toContainEqual({ name: 'quick_message_sent', data: { with_email: true } });
+    expect(events).toContainEqual({
+      name: 'lead_submit',
+      data: { channel: 'quick', topic: 'quick-message', wedge: '', source_path: '/pricing/' },
+    });
   });
 
   test('sends a one-way message (no email) and shows success', async ({ page }) => {
@@ -84,7 +104,6 @@ test.describe('QuickMessage widget', () => {
     await page.goto('/');
     await page.locator('[data-qm-launcher]').click();
     await page.locator('[data-qm-message]').fill('hello there');
-    await page.locator('[data-qm-email-toggle]').click();
     await page.locator('[data-qm-email]').fill('not-an-email');
     await page.locator('[data-qm-submit]').click();
     await expect(page.locator('[data-qm-status]')).toContainText("doesn't look right");

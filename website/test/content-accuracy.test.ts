@@ -2071,3 +2071,112 @@ describe('canary fixtures: the scan path (walker, filter, splitter) still works'
     });
   }
 });
+
+// ---------------------------------------------------------------------------
+// Commercial copy rules (owner rulings, support-as-the-product).
+//
+// (1) No price amounts and no per-tier response-hour targets on /pricing/ and
+//     /support/ — including everything those pages render from (the tier
+//     cards, the FAQ data, the tier rows in product-facts.mjs). Prices and
+//     targets are stated in quotes until the owner publishes them; a number
+//     slipping into one of these sources would publish it. Scanned RAW, as
+//     the denylist is: a price in a comment drifts into copy next.
+// (2) One commercial address (COMMERCIAL_EMAIL) everywhere commercial,
+//     security@modpagespeed.com for disclosure only; the retired sales
+//     address and the support alias stay off the site. Both literals are
+//     assembled from parts so this file does not carry them either.
+// ---------------------------------------------------------------------------
+const RETIRED_SALES = ['sales', 'we-amp.com'].join('@');
+const NOT_A_CONTACT = ['support', 'we-amp.com'].join('@');
+const COMMERCIAL_PAGE_SOURCES = [
+  'src/pages/pricing.astro',
+  'src/pages/support.astro',
+  'src/components/SupportTiers.astro',
+  'src/data/faq-pricing.ts',
+  'src/data/faq-support.ts',
+].map((rel) => path.join(WEBSITE_ROOT, rel));
+
+// A currency symbol or code next to a number, a per-period rate ("/yr",
+// "/mo", "per year"), or an hours target ("7 business hours", "within 3
+// hours"). Deliberately blind to the bands and step counts the pages do
+// state ("up to 25 production servers", "within 3 business days").
+const PRICE_AMOUNT =
+  /[€$£]\s?\d|\b\d[\d.,]*\s?(?:EUR|USD|GBP|euros?|dollars?)\b|\d[\d.,]*\s*\/\s*(?:yr|year|mo|month)\b|\bper (?:year|month)\b|\b\d+\s*(?:business\s+)?hours?\b/i;
+
+function priceAmountHits(files: string[]): string[] {
+  const hits: string[] = [];
+  for (const file of files) {
+    readFileSync(file, 'utf8')
+      .split('\n')
+      .forEach((line, i) => {
+        const m = line.match(PRICE_AMOUNT);
+        if (m) hits.push(`${path.relative(WEBSITE_ROOT, file)}:${i + 1}: ${m[0]}`);
+      });
+  }
+  return hits;
+}
+
+describe('commercial copy: no price amounts, one commercial address', () => {
+  it('the price matcher flags amounts, rates and hour targets', () => {
+    for (const bad of [
+      'Standard support €123/yr',
+      'from $4,567 a year',
+      '6,789 EUR',
+      'or €45/mo',
+      'billed per year',
+      'severity 1 within 7 business hours',
+      'first response 3 hours',
+    ]) {
+      expect(PRICE_AMOUNT.test(bad), bad).toBe(true);
+    }
+    for (const good of [
+      'up to 25 production servers',
+      'within 3 business days',
+      'Under 1 million pageviews a month',
+      'early subscribers keep their quoted rate for three years',
+      'SPDX 2.3 SBOM for the 2.1 line',
+    ]) {
+      expect(PRICE_AMOUNT.test(good), good).toBe(false);
+    }
+  });
+
+  it('every commercial page source exists', () => {
+    for (const file of COMMERCIAL_PAGE_SOURCES) expect(existsSync(file), file).toBe(true);
+  });
+
+  it('no price amount or hour target on /pricing/ and /support/ sources', () => {
+    const hits = priceAmountHits(COMMERCIAL_PAGE_SOURCES);
+    expect(hits, hits.length ? `\n${hits.join('\n')}\n` : undefined).toEqual([]);
+  });
+
+  it('no price amount or hour target in the support tier rows', () => {
+    const rows = JSON.stringify(facts.SUPPORT_TIERS) + facts.PRICING_ON_REQUEST;
+    expect(rows).not.toMatch(PRICE_AMOUNT);
+    for (const tier of facts.SUPPORT_TIERS) {
+      expect(tier.prices.annualUsd).toBeNull();
+      expect(tier.prices.monthlyUsd).toBeNull();
+    }
+  });
+
+  it('no retired sales address anywhere on the scan surface', () => {
+    const files = [...SCAN_FILES, ...COMMERCIAL_PAGE_SOURCES];
+    const hits = files.filter((f) => readFileSync(f, 'utf8').includes(RETIRED_SALES));
+    expect(
+      hits.map((f) => path.relative(WEBSITE_ROOT, f)),
+      'the retired sales address is back; use COMMERCIAL_EMAIL',
+    ).toEqual([]);
+  });
+
+  it('no support alias anywhere on the scan surface', () => {
+    const files = [...SCAN_FILES, ...COMMERCIAL_PAGE_SOURCES];
+    const hits = files.filter((f) => readFileSync(f, 'utf8').includes(NOT_A_CONTACT));
+    expect(
+      hits.map((f) => path.relative(WEBSITE_ROOT, f)),
+      'that address is not a contact channel; use COMMERCIAL_EMAIL',
+    ).toEqual([]);
+  });
+
+  it('the commercial address is the single-sourced one', () => {
+    expect(facts.COMMERCIAL_EMAIL).toBe('info@we-amp.com');
+  });
+});

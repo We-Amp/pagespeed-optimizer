@@ -15,15 +15,17 @@ What it does:
 - Variant-aware caching keyed on a 32-bit capability mask (image format, viewport, pixel density, Save-Data, transfer encoding), served zero-copy from the shared Cyclone cache
 - The module's classic filter set: CSS and JavaScript combining, image spriting, in-place resource optimization, domain mapping, and the built-in admin console
 
-mod_pagespeed 2.1 is open source under the Apache License 2.0: free to install and run, in development and in production, with free standard signed packages. What We-Amp sells is support, and hardened, attested builds:
+mod_pagespeed 2.1 is open source under the Apache License 2.0: free to install and run, in development and in production, with free standard signed packages. What We-Amp sells is support, in three tiers, with hardened builds included from Priority up:
 
-- Support subscription — support from the people who build the product, with agreed response times and SLA-backed delivery of security updates
-- Hardened attested builds — builds of the same code with a signed SBOM and build provenance, delivered through the subscriber repository
+- Standard support — a direct channel to the engineers who build the product, for up to 5 production servers
+- Priority support — everything in Standard plus hardened builds through the subscriber repository, for up to 25 production servers
+- Enterprise — everything in Priority plus a named engineer and custom build targets, for one organization without a server limit
+- Pricing on request: published once agreements with current customers close; early subscribers keep their quoted rate for three years. Response targets by severity are stated in your quote.
 - No bandwidth fees, no per-request charges, no feature gates; the software itself costs nothing. Support terms: https://we-amp.com/licensing/
 
 Every documentation page below is also served as Markdown at its URL with a `.md` suffix (for example https://modpagespeed.com/docs/getting-started.md), and https://modpagespeed.com/llms-full.txt carries this index followed by the full text of every page.
 
-We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@modpagespeed.com, enterprise@modpagespeed.com, security@modpagespeed.com. License: Apache License 2.0; the LICENSE, NOTICE and THIRD-PARTY-NOTICES files ship with every distribution. mod_pagespeed is an open-source project originally developed at Google. mod_pagespeed 2.1 is developed by We-Amp B.V. and is not affiliated with or endorsed by Google.
+We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for support, hardened builds, partnerships and consulting; security@modpagespeed.com for vulnerability reports only. License: Apache License 2.0; the LICENSE, NOTICE and THIRD-PARTY-NOTICES files ship with every distribution. mod_pagespeed is an open-source project originally developed at Google. mod_pagespeed 2.1 is developed by We-Amp B.V. and is not affiliated with or endorsed by Google.
 
 ## Start here
 
@@ -117,10 +119,11 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@modpagespeed.com
 - [Download](https://modpagespeed.com/download/): Signed apt/yum packages for Apache and nginx, Docker and Helm for Kubernetes, the ASP.NET Core middleware and the IIS module.
 - [The apt/yum repository](https://modpagespeed.com/download/apt-yum/): The signed apt and yum repository for the Apache and nginx modules and the optimizer worker: one line sets it up.
 - [Features](https://modpagespeed.com/features/): Self-hosted WebP/AVIF/SVG transcoding, heuristic critical CSS, and variant-aware caching: the full feature set.
-- [Support plans](https://modpagespeed.com/pricing/): What We-Amp sells: Support subscription (support from the people who build the product, with agreed response times and SLA-backed delivery of security updates); Hardened attested builds (builds of the same code with a signed SBOM and build provenance, delivered through the subscriber repository). The software is free to run.
+- [Support](https://modpagespeed.com/support/): What a support subscription buys, the three tiers, hardened builds and how to verify what ships today, the hosting partner program and consulting.
+- [Pricing](https://modpagespeed.com/pricing/): What We-Amp sells: Standard support (a direct channel to the engineers who build the product, for up to 5 production servers); Priority support (everything in Standard plus hardened builds through the subscriber repository, for up to 25 production servers); Enterprise (everything in Priority plus a named engineer and custom build targets, for one organization without a server limit). The software is free to run. Pricing on request, with a quote form.
 - [Software license](https://modpagespeed.com/license/): mod_pagespeed 2.1 is open source under the Apache License 2.0: free to install and run, in development and in production.
 - [Security](https://modpagespeed.com/security/): Security policy: how to report a vulnerability, the threat model, supply-chain security and the safe harbor for researchers.
-- [Contact](https://modpagespeed.com/contact/): Setup help, enterprise and volume questions, and security disclosure; replies in about a business day (CET).
+- [Contact](https://modpagespeed.com/contact/): Setup help, support subscriptions, hardened builds, the hosting partner program, consulting and IISpeed license transfers; replies within one business day (CET). Security disclosure has its own channel.
 - [Is mod_pagespeed still maintained?](https://modpagespeed.com/mod-pagespeed-still-maintained/): Yes: who maintains it, what shipped, and how the archived open-source module and ngx_pagespeed move to the current product.
 - [Blog](https://modpagespeed.com/blog/): Engineering posts and Core Web Vitals fix guides; each post keeps the version strings of its day.
 - [Alternatives](https://modpagespeed.com/alternatives/): Structured comparisons for readers coming from mod_pagespeed, ngx_pagespeed, the Google PageSpeed module and IISpeed.
@@ -2393,7 +2396,7 @@ what changed and what did not; the archived 1.0 docs are at [/1.0/](https://modp
 
 mod_pagespeed 2.1 is licensed under the Apache License 2.0, free in
 development and in production. What We-Amp sells on the converged line is
-[support — and hardened, attested builds](https://modpagespeed.com/pricing/) from the people who build
+[support and hardened builds](https://modpagespeed.com/support/) from the people who build
 the product; the standard signed packages stay free.
 
 ## Frequently asked questions
@@ -2534,10 +2537,10 @@ Security fixes ship as regular releases through the channel you installed
 from, and every one is listed under Security in the
 [release notes](https://modpagespeed.com/docs/release-notes/#security-updates) by impact class, with
 "update recommended" and the affected versions. The standard signed packages
-are free for everyone. A [support subscription](https://modpagespeed.com/pricing/) adds support from
+are free for everyone. A [support subscription](https://modpagespeed.com/support/) adds support from
 the people who build the product, with agreed response times and SLA-backed
-delivery of security updates; hardened attested builds ship the same code with
-a signed SBOM and build provenance through the subscriber repository.
+delivery of security updates; from the Priority tier up, hardened builds of the
+same code come through the subscriber repository ahead of the public release.
 
 ## Roll back
 
@@ -2557,7 +2560,7 @@ No. They are a matched pair: install, upgrade and roll them back together, and s
 
 **How do security updates reach me?**
 
-As regular releases through the channel you installed from, listed under Security in the release notes by impact class with "update recommended". A support subscription adds agreed response times and SLA-backed delivery of security updates; hardened attested builds ship the same code with a signed SBOM and build provenance through the subscriber repository.
+As regular releases through the channel you installed from, listed under Security in the release notes by impact class with "update recommended". A support subscription adds agreed response times and SLA-backed delivery of security updates; from the Priority tier up, hardened builds of the same code come through the subscriber repository ahead of the public release.
 
 ---
 

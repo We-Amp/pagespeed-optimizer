@@ -146,11 +146,15 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           <div>
             <h3 class="font-semibold text-text-body">SBOM</h3>
             <p class="mt-2 text-text-muted">
-              We aim to publish an SBOM (CycloneDX format); it is on our roadmap. Enterprise
-              customers can request a snapshot in the meantime via <a
-                href="/contact/"
+              An SPDX 2.3 SBOM for the 2.1 line, with a VEX document, is published in the <a
+                href="https://github.com/We-Amp/pagespeed-optimizer/tree/main/sbom"
+                rel="noopener noreferrer"
                 class="text-interactive hover:text-interactive-hover underline"
-                >contact</a
+                ><code>sbom/</code> directory</a
+              > of the source tree. The apt and yum repositories are GPG-signed and every release
+              asset is listed in <code>SHA256SUMS</code>. What hardened builds add is on the <a
+                href="/support/#hardened-builds"
+                class="text-interactive hover:text-interactive-hover underline">support page</a
               >.
             </p>
           </div>
