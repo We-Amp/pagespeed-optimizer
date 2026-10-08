@@ -61,9 +61,7 @@ export const LICENSING_TERMS_URL = 'https://we-amp.com/licensing/';
 // The ONE address the site gives for anything commercial: support
 // subscriptions, hardened builds, the hosting partner program, consulting,
 // IISpeed transfers. Security disclosure keeps its own address
-// (security@modpagespeed.com) and is never routed here. The support@ address
-// at we-amp.com is a PUBLIC mailing list, never a commercial or support
-// channel: it must not appear on the site (content-accuracy.test.ts guards it).
+// (security@modpagespeed.com) and is never routed here.
 export const COMMERCIAL_EMAIL = 'info@we-amp.com';
 
 // --- Offerings (converged line — no published prices) ------------------------

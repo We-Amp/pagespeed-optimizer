@@ -170,7 +170,7 @@ test.describe('Pricing page', () => {
 
   test('no checkout links and no retired addresses', async ({ page }) => {
     await expect(page.locator('a[href^="/buy/"]')).toHaveCount(0);
-    await expect(page.locator('a[href*="sales@we-amp.com"]')).toHaveCount(0);
+    await expect(page.locator(`a[href*="${['sales', 'we-amp.com'].join('@')}"]`)).toHaveCount(0);
     await expect(page.locator('a[href="mailto:info@we-amp.com"]').first()).toBeVisible();
   });
 

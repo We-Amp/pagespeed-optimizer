@@ -2081,9 +2081,13 @@ describe('canary fixtures: the scan path (walker, filter, splitter) still works'
 //     targets are stated in quotes until the owner publishes them; a number
 //     slipping into one of these sources would publish it. Scanned RAW, as
 //     the denylist is: a price in a comment drifts into copy next.
-// (2) sales@we-amp.com is retired: one commercial address (COMMERCIAL_EMAIL)
-//     everywhere commercial, security@modpagespeed.com for disclosure only.
+// (2) One commercial address (COMMERCIAL_EMAIL) everywhere commercial,
+//     security@modpagespeed.com for disclosure only; the retired sales
+//     address and the support alias stay off the site. Both literals are
+//     assembled from parts so this file does not carry them either.
 // ---------------------------------------------------------------------------
+const RETIRED_SALES = ['sales', 'we-amp.com'].join('@');
+const NOT_A_CONTACT = ['support', 'we-amp.com'].join('@');
 const COMMERCIAL_PAGE_SOURCES = [
   'src/pages/pricing.astro',
   'src/pages/support.astro',
@@ -2093,7 +2097,7 @@ const COMMERCIAL_PAGE_SOURCES = [
 ].map((rel) => path.join(WEBSITE_ROOT, rel));
 
 // A currency symbol or code next to a number, a per-period rate ("/yr",
-// "/mo", "per year"), or an hours target ("4 business hours", "within 8
+// "/mo", "per year"), or an hours target ("7 business hours", "within 3
 // hours"). Deliberately blind to the bands and step counts the pages do
 // state ("up to 25 production servers", "within 3 business days").
 const PRICE_AMOUNT =
@@ -2115,13 +2119,13 @@ function priceAmountHits(files: string[]): string[] {
 describe('commercial copy: no price amounts, one commercial address', () => {
   it('the price matcher flags amounts, rates and hour targets', () => {
     for (const bad of [
-      'Standard support €990/yr',
-      'from $9,500 a year',
-      '2,900 EUR',
-      'or €99/mo',
+      'Standard support €123/yr',
+      'from $4,567 a year',
+      '6,789 EUR',
+      'or €45/mo',
       'billed per year',
-      'severity 1 within 8 business hours',
-      'first response 4 hours',
+      'severity 1 within 7 business hours',
+      'first response 3 hours',
     ]) {
       expect(PRICE_AMOUNT.test(bad), bad).toBe(true);
     }
@@ -2154,21 +2158,21 @@ describe('commercial copy: no price amounts, one commercial address', () => {
     }
   });
 
-  it('no sales@we-amp.com anywhere on the scan surface', () => {
+  it('no retired sales address anywhere on the scan surface', () => {
     const files = [...SCAN_FILES, ...COMMERCIAL_PAGE_SOURCES];
-    const hits = files.filter((f) => readFileSync(f, 'utf8').includes('sales@we-amp.com'));
+    const hits = files.filter((f) => readFileSync(f, 'utf8').includes(RETIRED_SALES));
     expect(
       hits.map((f) => path.relative(WEBSITE_ROOT, f)),
-      'sales@we-amp.com is retired; use COMMERCIAL_EMAIL',
+      'the retired sales address is back; use COMMERCIAL_EMAIL',
     ).toEqual([]);
   });
 
-  it('no support@we-amp.com anywhere on the scan surface (a public mailing list)', () => {
+  it('no support alias anywhere on the scan surface', () => {
     const files = [...SCAN_FILES, ...COMMERCIAL_PAGE_SOURCES];
-    const hits = files.filter((f) => readFileSync(f, 'utf8').includes('support@we-amp.com'));
+    const hits = files.filter((f) => readFileSync(f, 'utf8').includes(NOT_A_CONTACT));
     expect(
       hits.map((f) => path.relative(WEBSITE_ROOT, f)),
-      'support@we-amp.com is a public mailing list; use COMMERCIAL_EMAIL',
+      'that address is not a contact channel; use COMMERCIAL_EMAIL',
     ).toEqual([]);
   });
 

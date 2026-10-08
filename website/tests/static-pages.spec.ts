@@ -39,7 +39,7 @@ test.describe('Static pages', () => {
     // The contact page leads with a form; the one commercial address is
     // info@we-amp.com and security disclosures go to a separate channel. The
     // support subscription is a Topic option on the form (the old
-    // enterprise@modpagespeed.com and sales@we-amp.com addresses are retired).
+    // enterprise and sales addresses are retired).
     await expect(page.locator('a[href="mailto:info@we-amp.com"]').first()).toBeVisible();
     await expect(page.locator('a[href="mailto:security@modpagespeed.com"]')).toBeVisible();
     await expect(page.locator('#contact-topic option[value="support"]')).toBeAttached();
