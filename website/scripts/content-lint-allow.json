@@ -1,23 +1,6 @@
 {
   "/demos/blog/": {
-    "description-present": "static demo fixture site (public/demos/), no metadata by design — follow-up: #63",
-    "h1-count": "static demo fixture site (public/demos/), third-party-style markup — follow-up: #63",
-    "canonical": "static demo fixture site (public/demos/), no metadata by design — follow-up: #63"
-  },
-  "/demos/ecommerce/": {
-    "description-present": "static demo fixture site (public/demos/), no metadata by design — follow-up: #63",
-    "canonical": "static demo fixture site (public/demos/), no metadata by design — follow-up: #63"
-  },
-  "/demos/news/": {
-    "description-present": "static demo fixture site (public/demos/), no metadata by design — follow-up: #63",
-    "canonical": "static demo fixture site (public/demos/), no metadata by design — follow-up: #63"
-  },
-  "/demos/portfolio/": {
-    "description-present": "static demo fixture site (public/demos/), no metadata by design — follow-up: #63",
-    "canonical": "static demo fixture site (public/demos/), no metadata by design — follow-up: #63"
-  },
-  "/cyclone-benchmark/": {
-    "canonical": "standalone static benchmark page (public/cyclone-benchmark/), no BaseLayout — follow-up: #64"
+    "h1-count": "static demo fixture site (public/demos/, noindex): its fixture markup carries more than one h1 by design"
   },
   "/docs/admin-console/": {
     "term-drift-daemon": "quotes the serving module's admin-console UI labels (\"Optimizer daemon\" panels), verified in the public mod_pagespeed repo"
