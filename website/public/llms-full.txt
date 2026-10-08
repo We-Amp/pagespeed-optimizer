@@ -86,7 +86,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [Browser analysis with headless Chrome](https://modpagespeed.com/docs/browser-analysis/): How the optimizer worker renders pages in headless Chrome to extract critical CSS, find the LCP element, measure JS coverage and gate visual regressions.
 - [Monitoring](https://modpagespeed.com/docs/monitoring/): Monitor mod_pagespeed 2.1: the admin console, the worker health socket and /v1/health, /v1/stats and Prometheus /v1/metrics, logs, and what to alert on.
 - [Uninstall and rollback](https://modpagespeed.com/docs/uninstall/): Remove mod_pagespeed 2.1 per shape (apt, dnf, cPanel, Docker, Helm, IIS, NuGet), what each leaves behind, cache cleanup, and rolling back a release.
-- [Security](https://modpagespeed.com/docs/security/): Security guidance for mod_pagespeed 2.1: restricting admin pages, domain authorization, untrusted content, CSS/XSS, cache poisoning, HTTPS, CVE patching.
+- [Security hardening guide](https://modpagespeed.com/docs/security/): Security guidance for mod_pagespeed 2.1: restricting admin pages, domain authorization, untrusted content, CSS/XSS, cache poisoning, HTTPS, CVE patching.
 - [Troubleshoot common issues](https://modpagespeed.com/docs/troubleshooting/): Fix common mod_pagespeed 2.1 issues: cache misses, images not converting to WebP or AVIF, the optimizer worker not processing, and socket diagnostics.
 
 ## Agents
@@ -15173,7 +15173,7 @@ Yes. Roll the module and the `pagespeed-optimizer` worker back together, optimiz
 
 ---
 
-# Security
+# Security hardening guide
 
 Security guidance for mod_pagespeed 2.1: restricting admin pages, domain authorization, untrusted content, CSS/XSS, cache poisoning, HTTPS, CVE patching.
 

@@ -2,6 +2,7 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { pillars, spokeFor, type CwvPillar } from '../../data/cwv-pillars';
 import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
+import { FILTERS } from '../../data/filters';
 
 // Metric-pillar pages (D3): /core-web-vitals/{lcp,cls,inp}/. Content
 // lives in src/data/cwv-pillars.ts; spoke links are derived so the pillar never
@@ -12,6 +13,13 @@ export function getStaticPaths() {
 
 const { pillar } = Astro.props as { pillar: CwvPillar };
 const spokes = spokeFor(pillar.metric);
+// The "Fix it at the server" box: each named filter resolved against the
+// generated filter reference, so a renamed or removed filter fails the build.
+const serverFilters = (pillar.serverFilters ?? []).map((name) => {
+  const filter = FILTERS.find((f) => f.name === name);
+  if (!filter) throw new Error(`cwv-pillars: unknown filter ${name} on ${pillar.slug}`);
+  return filter;
+});
 const url = `https://modpagespeed.com${pillar.slug}`;
 
 const layerLabel: Record<string, string> = {
@@ -86,6 +94,44 @@ const jsonLd = [
         >Poor: {pillar.thresholds.poor} {pillar.thresholds.unit}</span
       >
     </div>
+
+    {
+      serverFilters.length > 0 && (
+        <aside
+          class="mt-8 rounded-2xl border border-interactive/40 bg-interactive/10 p-6"
+          aria-labelledby="fix-at-the-server"
+        >
+          <h2 id="fix-at-the-server" class="text-lg font-semibold text-text-body">
+            Fix it at the server
+          </h2>
+          <p class="mt-2 text-sm text-text-muted">
+            These mod_pagespeed filters act on {pillar.abbr} in the web server itself. Each name
+            links to what the filter changes and how to enable it.
+          </p>
+          <ul class="mt-4 space-y-2 text-sm">
+            {serverFilters.map((filter) => (
+              <li>
+                <a
+                  href={filter.href}
+                  class="font-mono text-interactive hover:text-interactive-hover underline underline-offset-2"
+                >
+                  {filter.name}
+                </a>
+                <span class="text-text-muted"> &mdash; {filter.description}</span>
+              </li>
+            ))}
+          </ul>
+          <p class="mt-4 text-sm">
+            <a
+              href="/docs/filters/"
+              class="text-interactive hover:text-interactive-hover underline underline-offset-2"
+            >
+              All PageSpeed filters
+            </a>
+          </p>
+        </aside>
+      )
+    }
 
     <!-- What it measures -->
     <section class="mt-14">

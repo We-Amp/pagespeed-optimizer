@@ -1,6 +1,6 @@
 ---
 title: 'Automatic WebP/AVIF on nginx: one decode, 37 variants'
-description: 'Serve WebP and AVIF automatically on nginx, self-hosted. The mod_pagespeed 2.1 optimizer worker decodes each image once and generates up to 37 responsive variants across format, viewport, and pixel density.'
+description: 'Serve WebP and AVIF automatically on nginx, self-hosted. The mod_pagespeed 2.1 worker decodes each image once and builds up to 37 responsive variants.'
 date: 2026-02-03
 lastUpdated: 2026-07-04
 author: 'Otto van der Schaaf'

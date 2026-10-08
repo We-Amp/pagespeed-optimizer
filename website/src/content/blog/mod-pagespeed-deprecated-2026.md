@@ -1,6 +1,6 @@
 ---
 title: 'Is mod_pagespeed deprecated? (2026)'
-description: "Yes, mod_pagespeed is deprecated: the 1.13.35.2 binaries run but haven't had security updates in years. What to use instead on Apache, nginx, IIS, and ASP.NET Core."
+description: 'Yes, mod_pagespeed 1.13.35.2 is deprecated: the binaries run but have had no security updates in years. What to use on Apache, nginx, IIS and ASP.NET Core.'
 date: 2026-05-20
 author: 'Otto van der Schaaf'
 tags: ['deprecation', 'migration', 'security']

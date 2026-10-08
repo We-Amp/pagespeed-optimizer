@@ -1,5 +1,5 @@
 ---
-title: 'Security'
+title: 'Security hardening guide'
 description: 'Security guidance for mod_pagespeed 2.1: restricting admin pages, domain authorization, untrusted content, CSS/XSS, cache poisoning, HTTPS, CVE patching.'
 order: 57
 group: 'Operate'

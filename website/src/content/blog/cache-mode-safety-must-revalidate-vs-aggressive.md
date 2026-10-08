@@ -1,6 +1,6 @@
 ---
-title: 'Cache mode safety math: must-revalidate vs aggressive TTL and stale-if-error'
-description: 'Cache-Control safety in mod_pagespeed 2.1: why must-revalidate, not max-age, is the real safety net, and when aggressive TTLs with stale-if-error and stale-while-revalidate are the right call.'
+title: 'Cache mode safety: must-revalidate vs aggressive TTLs'
+description: 'Why must-revalidate, not max-age, is the real safety net in mod_pagespeed 2.1, and when aggressive TTLs with stale-if-error are the right call.'
 date: 2026-06-13
 lastUpdated: 2026-07-04
 author: 'Otto van der Schaaf'

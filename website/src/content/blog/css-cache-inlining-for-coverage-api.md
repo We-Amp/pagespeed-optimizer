@@ -1,5 +1,5 @@
 ---
-title: "Feeding Chrome's Coverage API: inlining cached CSS for accurate critical CSS"
+title: "Chrome's Coverage API: inlining cached CSS for critical CSS"
 description: "How mod_pagespeed 2.1 feeds the Chrome Coverage API critical CSS: the worker inlines cached stylesheets into a network-blocked sandbox to see real usage."
 date: 2026-06-13
 lastUpdated: 2026-09-06

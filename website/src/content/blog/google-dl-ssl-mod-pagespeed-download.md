@@ -1,6 +1,6 @@
 ---
 title: 'mod_pagespeed download: dl-ssl.google.com is frozen'
-description: "The dl-ssl.google.com mod_pagespeed .deb is Google's last stable build, 1.13.35.2 (2018), with years of unpatched CVEs. Get the maintained download for Apache, nginx, and IIS instead."
+description: 'The dl-ssl.google.com mod_pagespeed .deb is the last stable build, 1.13.35.2 (2018), with years of unpatched CVEs. Get the maintained download instead.'
 date: 2026-05-20
 author: 'Otto van der Schaaf'
 tags: ['deprecation', 'history', 'downloads']

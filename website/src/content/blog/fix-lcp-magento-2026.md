@@ -138,6 +138,7 @@ Cases where mod_pagespeed alone isn't enough on Magento:
 
 - [How to fix INP on Magento](/blog/fix-inp-magento-2026/)
 - [How to fix CLS on Magento](/blog/fix-cls-magento-2026/)
+- [How to fix Cumulative Layout Shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
 - [How to fix LCP on nginx](/blog/fix-lcp-nginx-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)
 - [Self-hosted image optimization](/blog/self-hosted-image-optimization/)

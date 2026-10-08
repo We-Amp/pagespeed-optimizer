@@ -1,6 +1,6 @@
 ---
-title: 'Extract critical CSS without a browser — or with headless Chrome when you need it'
-description: 'How the mod_pagespeed 2.1 optimizer worker extracts and inlines critical CSS two ways: static heuristics in under 5ms on every page, plus an optional headless-Chrome path for true above-the-fold rules at First Contentful Paint.'
+title: 'Critical CSS without a browser, or with headless Chrome'
+description: 'How the mod_pagespeed 2.1 optimizer worker inlines critical CSS two ways: static heuristics in under 5ms per page, or an optional headless-Chrome path.'
 date: 2026-02-08
 author: 'Otto van der Schaaf'
 tags: ['critical-css', 'css', 'performance', 'headless-chrome', 'core-web-vitals', 'deep-dive']

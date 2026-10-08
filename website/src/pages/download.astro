@@ -4,6 +4,9 @@ import Icon from '../components/Icon.astro';
 import { getRelease, artifactUrl, archiveUrl, dockerTag } from '../lib/release';
 import { offerJsonLd } from '../data/offer-jsonld';
 import { LICENSE_CLAUSE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
+import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../data/software-jsonld';
+
+const softwareVersion = await productSoftwareVersion();
 
 // Single source of truth: corp/releases/1.1.yaml synced into
 // src/content/releases-1.1/release.yaml by corp's sync-manifests-to-mps2
@@ -118,7 +121,8 @@ const jsonLd = {
   '@type': ['Product', 'SoftwareApplication'],
   name: 'mod_pagespeed 2.1',
   applicationCategory: 'WebApplication',
-  operatingSystem: 'Linux, Windows',
+  operatingSystem: PRODUCT_OPERATING_SYSTEMS,
+  softwareVersion,
   image: 'https://modpagespeed.com/og-default.png?v=2',
   brand: { '@type': 'Brand', name: 'mod_pagespeed' },
   offers: offerJsonLd({
@@ -129,7 +133,7 @@ const jsonLd = {
 
 <BaseLayout
   title="Download mod_pagespeed 2.1 — Apache, nginx, Docker & Helm"
-  description={`The mod_pagespeed 2.1 download: signed apt/yum packages for Apache and nginx, Docker and Helm for Kubernetes, plus ASP.NET Core middleware and the IIS module. ${LICENSE_CLAUSE_CAP}.`}
+  description={`Signed apt/yum packages for Apache and nginx, Docker and Helm, ASP.NET Core middleware and the IIS module. ${LICENSE_CLAUSE_CAP}.`}
   jsonLd={jsonLd}
 >
   <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-16 lg:py-20 text-center">

@@ -1,6 +1,6 @@
 ---
-title: 'Sentinel cache keys: reserving alternate IDs for 103 Early Hints'
-description: 'How the mod_pagespeed 2.1 optimizer worker precomputes 103 Early Hints preloads and lets nginx serve them from cache, using sentinel cache keys — the reserved Viewport=3 trick — to store them alongside per-URL content variants.'
+title: 'Sentinel cache keys: alternate IDs for 103 Early Hints'
+description: 'How the mod_pagespeed 2.1 worker precomputes 103 Early Hints preloads that nginx serves from cache, stored under reserved sentinel keys beside each URL.'
 date: 2026-06-13
 author: 'Otto van der Schaaf'
 tags: ['caching', 'architecture', 'deep-dive', 'performance', 'nginx']

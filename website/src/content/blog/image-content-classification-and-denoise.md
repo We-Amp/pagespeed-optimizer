@@ -1,6 +1,6 @@
 ---
-title: 'Classify, denoise, then encode: content-aware image optimization before the codec'
-description: 'Content-aware image optimization classifies decoded images and denoises noisy sources before encoding, so photos, screenshots, and logos get the right codec.'
+title: 'Classify, denoise, then encode: content-aware image encoding'
+description: 'Content-aware image optimization classifies each image and denoises noisy sources before encoding, so photos, screenshots and logos get the right codec.'
 date: 2026-06-13
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'

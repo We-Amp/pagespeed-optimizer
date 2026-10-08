@@ -1,6 +1,6 @@
 ---
 title: 'mod_pagespeed 1.15: what six years of stewardship look like'
-description: 'mod_pagespeed 1.15 ships 765 merges since 1.13.35.2: image-decoder hardening, a full sanitizer matrix, a current dependency graph, and the IIS port in the C++ tree.'
+description: 'mod_pagespeed 1.15 ships 765 merges since 1.13.35.2: image-decoder hardening, a full sanitizer matrix, current dependencies and the IIS port in the tree.'
 date: 2026-05-17
 lastUpdated: 2026-07-04
 tags: [release, security, dependencies]

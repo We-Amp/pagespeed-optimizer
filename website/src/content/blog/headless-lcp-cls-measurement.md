@@ -1,5 +1,5 @@
 ---
-title: 'Measuring LCP and CLS in a headless browser to drive optimization'
+title: 'Headless LCP and CLS measurement to drive optimization'
 description: "Headless LCP and CLS measurement in mod_pagespeed 2.1: the optimizer worker's PerformanceObservers capture the LCP element and shifts to drive preloads."
 date: 2026-06-14
 lastUpdated: 2026-09-06

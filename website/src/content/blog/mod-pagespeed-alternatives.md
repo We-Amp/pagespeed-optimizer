@@ -14,7 +14,7 @@ If you landed here, you are probably running mod_pagespeed or ngx_pagespeed on a
 
 Short answer: the original Google project is [effectively no longer actively developed](/mod-pagespeed-still-maintained/). It has an actively maintained continuation, mod_pagespeed 2.1, built by We-Amp — the team that helped build ngx_pagespeed, maintained mod_pagespeed, and drove the project's Apache incubation. Here is the full picture.
 
-## The current state of Google's mod_pagespeed
+## The current state of the original mod_pagespeed
 
 Google open-sourced mod_pagespeed in 2010. It was a full-stack optimization module that could rewrite HTML, transcode images, minify CSS and JavaScript, inline critical resources, combine files, and defer loading. All automatically, with no application code changes. The nginx port (ngx_pagespeed) followed in 2013.
 
@@ -36,7 +36,7 @@ I maintained the original project for years. When Google moved on, I continued t
 
 ### The native in-process module
 
-mod_pagespeed 2.1 runs inside Apache and nginx as a native in-process module, with no reverse-proxy hop and the heavy optimization work handed to a separate optimizer worker. If you are running Google's mod_pagespeed today and want the closest drop-in replacement, this is it.
+mod_pagespeed 2.1 runs inside Apache and nginx as a native in-process module, with no reverse-proxy hop and the heavy optimization work handed to a separate optimizer worker. If you are running the archived mod_pagespeed today and want the closest drop-in replacement, this is it.
 
 **What stayed the same:** The filter architecture. The Apache and nginx module integration. The configuration directives. Your existing `ModPagespeed*` directives work. Your Disallow patterns work. The optimization pipeline you know (rewrite_images, rewrite_css, rewrite_javascript, prioritize_critical_css) is the same pipeline, actively maintained and tested.
 
@@ -82,7 +82,7 @@ The practical effect: the first request gets the original content (`X-PageSpeed:
 | **Admin UI**                              | Built-in `/pagespeed_admin/` console                                | Worker console and stats                                              |
 | **Windows / IIS**                         | The IIS package ships from the 1.15 packaging channel.              | In front of IIS as a reverse proxy                                    |
 | **ASP.NET Core**                          | Separately available NuGet packages                                 | Separately available NuGet packages                                   |
-| **Migration from Google's mod_pagespeed** | Drop-in (same directives)                                           | Config mapping required ([migration guide](/blog/migrating-from-1x/)) |
+| **Migration from the archived mod_pagespeed** | Drop-in (same directives)                                           | Config mapping required ([migration guide](/blog/migrating-from-1x/)) |
 | **Pricing**                               | Free (Apache-2.0); paid support optional ([see pricing](/pricing/)) | Free (Apache-2.0); paid support optional ([see pricing](/pricing/))   |
 
 **If you are already running mod_pagespeed on Apache** and it works, the native in-process module is the direct path. It integrates directly into Apache's output filter chain, reads your exact `ModPagespeed*` directives, and is maintained and tested on current distributions.
@@ -114,7 +114,7 @@ curl -I http://localhost:8080/
 # X-PageSpeed: HIT  → subsequent requests, optimized
 ```
 
-See the [getting started guide](/docs/getting-started/) for full setup instructions, or the [migration guide](/blog/migrating-from-1x/) if you are moving from Google's mod_pagespeed.
+See the [getting started guide](/docs/getting-started/) for full setup instructions, or the [migration guide](/blog/migrating-from-1x/) if you are moving from the archived mod_pagespeed.
 
 **The native module** ships prebuilt packages for Apache (`.deb`/`.rpm`) and a prebuilt, signed `nginx-module-pagespeed` for Debian 11/12/13 and Ubuntu 22.04/24.04 (amd64 + arm64), plus AlmaLinux/RHEL/Rocky 9 (x86_64 + aarch64) and 10 (x86_64) — see [Downloads](https://modpagespeed.com/download/) or [packages.modpagespeed.com](https://packages.modpagespeed.com/) for the signed apt/yum repo.
 

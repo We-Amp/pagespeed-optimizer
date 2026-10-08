@@ -1,6 +1,6 @@
 ---
-title: '304 conditional revalidation vs PURGE: when revalidation is the cheaper invalidation'
-description: 'Conditional revalidation vs purge: when a 304 ETag round-trip beats PURGE and preserves optimized AVIF/WebP variants on an HTML-only deploy with no rebuild.'
+title: '304 revalidation vs PURGE: which invalidation is cheaper'
+description: 'When a 304 ETag round-trip beats PURGE and keeps optimized AVIF and WebP variants on an HTML-only deploy with no rebuild.'
 date: 2026-06-13
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'

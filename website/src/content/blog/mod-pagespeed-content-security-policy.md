@@ -1,6 +1,6 @@
 ---
 title: "mod_pagespeed and Content-Security-Policy (CSP)"
-description: "Does mod_pagespeed break a strict Content-Security-Policy? Where automatic rewriting collides with a CSP, feature by feature, and how the HonorCsp directive keeps optimized pages policy-compliant."
+description: 'Does mod_pagespeed break a strict Content-Security-Policy? Where rewriting collides with a CSP, feature by feature, and how HonorCsp keeps pages compliant.'
 date: 2026-06-13
 lastUpdated: 2026-09-06
 tags: ["security", "csp", "configuration", "mod_pagespeed"]

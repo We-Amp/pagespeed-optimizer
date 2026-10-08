@@ -1,5 +1,6 @@
 ---
 title: 'Install the module on Apache and nginx'
+seoTitle: 'Install mod_pagespeed on Apache and nginx: 2.1 packages'
 description: 'Install the native mod_pagespeed 2.1 module for Apache and nginx from the signed package repository: distributions, nginx compatibility, worker pairing.'
 order: 3
 group: 'Install'

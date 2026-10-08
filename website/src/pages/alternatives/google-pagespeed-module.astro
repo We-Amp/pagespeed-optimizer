@@ -2,11 +2,26 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
 import { FREE_TO_RUN_LINE, LICENSE_CLAUSE } from '../../data/product-facts.mjs';
+import { stripHtml } from '../../data/faq-shared';
+import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../../data/software-jsonld';
 
-const faq = [
+const softwareVersion = await productSoftwareVersion();
+
+// `html`, when set, is the visible answer with links; the FAQPage JSON-LD
+// carries its text, so the structured data and the page say the same thing.
+const faq: Array<{ q: string; a: string; html?: string }> = [
   {
     q: 'Is the Google PageSpeed Module the same as PageSpeed Insights?',
     a: 'No. The PageSpeed Module (mod_pagespeed / ngx_pagespeed) was a server-side optimization module that rewrote HTML, CSS, JS, and images at request time. PageSpeed Insights (pagespeed.web.dev) is a diagnostic tool that scores a URL on Core Web Vitals. The first is deprecated; the second is active.',
+  },
+  {
+    q: 'Is the Google PageSpeed module still available?',
+    a: 'Only as an archive. The original code is read-only on GitHub (apache/incubator-pagespeed-mod), and the 1.13.35.2 binaries still install, without security patches. The maintained continuation, mod_pagespeed 2.1, installs from signed apt and yum packages for Apache and nginx, with the same directives and filter names.',
+  },
+  {
+    q: 'Where did the PageSpeed browser extension go?',
+    a: '',
+    html: 'It was retired. Google no longer offers the PageSpeed browser extensions for Chrome and Firefox; the same audits now run in PageSpeed Insights at <a href="https://pagespeed.web.dev/" rel="noopener noreferrer">pagespeed.web.dev</a> and in Lighthouse, which is built into Chrome DevTools. For a free test that maps each failing audit to the mod_pagespeed filter that fixes it, use <a href="/analyze/">our PageSpeed analyzer</a>.',
   },
   {
     q: 'Is the Google PageSpeed Module still maintained?',
@@ -40,7 +55,8 @@ const jsonLd = [
     '@type': 'SoftwareApplication',
     name: 'mod_pagespeed 2.1',
     applicationCategory: 'DeveloperApplication',
-    operatingSystem: ['Linux'],
+    operatingSystem: PRODUCT_OPERATING_SYSTEMS,
+    softwareVersion,
     description:
       'Maintained continuation of the Google PageSpeed Module: the native in-process module for Apache and nginx with the optimizer worker alongside it. Zero-copy cache serving, variant-aware fan-out, AVIF + WebP.',
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
@@ -70,25 +86,33 @@ const jsonLd = [
     mainEntity: faq.map((entry) => ({
       '@type': 'Question',
       name: entry.q,
-      acceptedAnswer: { '@type': 'Answer', text: entry.a },
+      acceptedAnswer: { '@type': 'Answer', text: entry.html ? stripHtml(entry.html) : entry.a },
     })),
   },
 ];
 ---
 
 <BaseLayout
-  title="Google PageSpeed Module: maintained alternative (2026)"
-  description="The Google PageSpeed Module (mod_pagespeed / ngx_pagespeed) is no longer developed. mod_pagespeed 2.1 is the maintained continuation — not PageSpeed Insights."
+  title="What is the Google PageSpeed module, and what replaced it"
+  description="The Google PageSpeed module (mod_pagespeed, ngx_pagespeed) optimized pages on the server. It is archived; mod_pagespeed 2.1 is its maintained continuation."
   jsonLd={jsonLd}
 >
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-20">
     <header>
-      <h1 class="h1-hero text-text-body">Google PageSpeed Module alternative</h1>
+      <h1 class="h1-hero text-text-body">
+        What is the Google PageSpeed module, and what replaced it
+      </h1>
       <p class="lede mt-6">
-        Two different Google products share the "PageSpeed" name, and they do completely different
-        things. One is the server-side module that rewrites your pages at request time; the other is
-        a diagnostic tool that scores them. The module is no longer developed &mdash; here's what
-        continues it, and how not to confuse the two.
+        The Google PageSpeed module is an open-source web server module, originally developed at
+        Google, that optimizes pages as the server sends them: it rewrites HTML, CSS, JavaScript and
+        images at request time. It shipped as <code>mod_pagespeed</code> for Apache and
+        <code>ngx_pagespeed</code> for nginx. The original project is archived; its maintained continuation
+        is mod_pagespeed 2.1.
+      </p>
+      <p class="mt-4 text-text-muted">
+        Two different Google products share the "PageSpeed" name. One is the server-side module that
+        rewrites your pages; the other is PageSpeed Insights, a diagnostic tool that scores them.
+        Here is what the module was, what continues it, and how not to confuse the two.
       </p>
       <div class="mt-6 flex flex-wrap gap-3">
         <a href="/download/" class="btn-primary" data-umami-event="cta_alternatives_google_download"
@@ -138,6 +162,23 @@ const jsonLd = [
         tells you whether you need one.
       </p>
 
+      <h2>Is it still available?</h2>
+      <p>
+        Only as an archive. The original code is read-only on GitHub at
+        <a
+          href="https://github.com/apache/incubator-pagespeed-mod"
+          rel="noopener noreferrer external">apache/incubator-pagespeed-mod</a
+        >, and the last 1.13.35.2 binaries still install and run. They have not had a security patch
+        in years, and ngx_pagespeed does not build against current nginx.
+      </p>
+      <p>
+        The maintained version is mod_pagespeed 2.1: signed apt and yum packages for Apache and
+        nginx, a Docker image and a Helm chart, with the same directives and filter names, so an
+        existing configuration carries over. <a href="/docs/getting-started/">Install it</a>, or
+        read
+        <a href="/docs/migrate-from-google-mod-pagespeed/">migrating from the archived module</a>.
+      </p>
+
       <h2>The deprecated module</h2>
       <p>
         Google released <code>mod_pagespeed</code> in 2010 as an Apache module. The
@@ -166,8 +207,8 @@ const jsonLd = [
       <p>
         We-Amp B.V. &mdash; the team that helped build ngx_pagespeed, maintained mod_pagespeed, and
         drove the project's Apache incubation &mdash; develops it. The optimization libraries that
-        served billions of pages through Google's module are the same ones inside it: the PSOL core
-        and the Cyclone cache, on a modernized, secured filter stack with new optimizers. What
+        served billions of pages through the original module are the same ones inside it: the PSOL
+        core and the Cyclone cache, on a modernized, secured filter stack with new optimizers. What
         changed is how it is packaged and how it runs, not whose code it is.
       </p>
 
@@ -345,7 +386,7 @@ dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
         faq.map((entry) => (
           <>
             <h3>{entry.q}</h3>
-            <p>{entry.a}</p>
+            {entry.html ? <p set:html={entry.html} /> : <p>{entry.a}</p>}
           </>
         ))
       }
