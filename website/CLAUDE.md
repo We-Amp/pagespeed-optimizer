@@ -48,11 +48,6 @@ such a session start the dev server first (`npm run dev`, which backgrounds itse
 `npx playwright test` with `CI` unset so it reuses the running server, and finish with
 `npx astro dev stop`. A human terminal and CI are not affected.
 
-## Stylesheet strategy
-
-`build.inlineStylesheets: 'always'` inlines the site CSS (about 113 KB raw, 17 KB gzip) into every page: no render-blocking request, first paint about 150 ms sooner on simulated mobile, at the cost of 17 KB per page view that a shared external sheet would cache.
-An external sheet loaded non-blocking (preload + onload) measured the same LCP without build-time critical CSS and flashes unstyled content, so it was not chosen; fonts are the LCP bound, guarded by `test/font-budget.test.ts`.
-
 ## Site search
 
 Search is [Pagefind](https://pagefind.app/), a static index built after the Astro build:
