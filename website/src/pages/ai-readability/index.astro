@@ -1848,30 +1848,31 @@ const jsonLd = [webApp, faqPage];
         );
       }
 
-      // Lead-capture cards that ship with every result, independent of which wedge
-      // fired: the "Watch this URL" monitor signup (topic monitor-url, explicit
-      // consent checkbox) and the agentic-interest line (topic agents, the select's
-      // value rides as the wedge). The re-check is run by hand from the lead ledger,
-      // so the copy says "we re-check" and promises no automation.
+      // Capture cards that ship with every result, independent of which wedge
+      // fired: an interest signup for AI-readability updates (topic
+      // ai-readability-updates, explicit consent checkbox) and the
+      // agentic-interest line (topic agents, the select's value rides as the
+      // wedge). Copy promises no automation and no follow-up email.
       function captureBlocks() {
         const watch =
-          '<h3 id="ar-h-watch" class="ar-h3">Watch this URL</h3>' +
-          '<p class="ar-v">We re-check this URL monthly and email you only when the result changes.</p>' +
+          '<h3 id="ar-h-watch" class="ar-h3">Follow AI-readability work</h3>' +
+          '<p class="ar-v">Leave your email if you want to hear when we publish new checks or research on AI crawlers. We send nothing else.</p>' +
           '<form id="ar-watch-form" class="ar-next-form">' +
           '<label class="ar-field"><span class="ar-field-label">Your email</span>' +
           '<input id="ar-watch-email" type="email" autocomplete="email" required /></label>' +
           '<label class="ar-consent"><input id="ar-watch-consent" type="checkbox" required />' +
-          '<span>Email me when this URL’s result changes. I can unsubscribe anytime; see the <a href="/privacy/">privacy policy</a>.</span></label>' +
-          '<button type="submit" data-umami-event="airead-watch">Watch this URL</button>' +
+          '<span>Email me about new checks and research. I can ask to be removed at any time; see the <a href="/privacy/">privacy policy</a>.</span></label>' +
+          '<button type="submit" data-umami-event="airead-watch">Keep me posted</button>' +
           '</form>' +
           // Own explicit aria-live for the same reason as #ar-next-msg (see nextStep).
           '<div id="ar-watch-msg" class="ar-next-msg" role="status" aria-live="polite" tabindex="-1"></div>';
         const agents =
-          '<h3 id="ar-h-agents" class="ar-h3">Working on agent access at the origin? Tell us what you need</h3>' +
+          '<h3 id="ar-h-agents" class="ar-h3">Working on agent access at the origin</h3>' +
           '<form id="ar-agents-form" class="ar-next-form">' +
           '<label class="ar-field"><span class="ar-field-label">What do you need?</span>' +
           '<select id="ar-agents-need" required>' +
-          '<option value="signed-agent-verification">Signed-agent verification</option>' +
+          '<option value="" selected disabled>Choose one</option>' +
+          '<option value="agent-verification">Signed-agent verification</option>' +
           '<option value="ai-crawler-content">Content for AI crawlers</option>' +
           '<option value="provenance">Provenance of served content</option>' +
           '<option value="other">Something else</option>' +
@@ -1882,6 +1883,8 @@ const jsonLd = [webApp, faqPage];
           '<textarea id="ar-agents-log" rows="3" maxlength="1500"></textarea></label>' +
           '<button type="submit" data-umami-event="airead-agents">Tell us</button>' +
           '</form>' +
+          '<p class="ar-disclosure">Submitting this sends us your email, your answer and this scan’s URL so we can follow up. ' +
+          'See our <a href="/privacy/">privacy policy</a>.</p>' +
           '<div id="ar-agents-msg" class="ar-next-msg" role="status" aria-live="polite" tabindex="-1"></div>';
         return (
           '<section class="ar-sec" aria-labelledby="ar-h-watch">' +
@@ -2265,12 +2268,12 @@ const jsonLd = [webApp, faqPage];
             const btn = watchForm.querySelector('button[type="submit"]');
             if (btn) btn.disabled = true;
             const message = [
-              '[monitor-url] watch request from RenderPeek result',
+              '[ai-readability-updates] updates signup from RenderPeek result',
               'Scanned: ' + (r.url || ''),
               'Grade: ' + (r.grade || '') + ' (' + (r.score || '') + '/100)',
             ].join('\n');
             const ok = await postLead({
-              topic: 'monitor-url',
+              topic: 'ai-readability-updates',
               email: email,
               name: '',
               url: r.url || '',
@@ -2278,9 +2281,9 @@ const jsonLd = [webApp, faqPage];
               message: message,
             });
             if (ok) {
-              leadSubmit('monitor-url', '');
+              leadSubmit('ai-readability-updates', '');
               if (msg) {
-                msg.textContent = 'Thanks — we’ll email you when this URL’s result changes.';
+                msg.textContent = 'Thanks — you’re on the list.';
                 msg.focus && msg.focus();
               }
               watchForm.remove();

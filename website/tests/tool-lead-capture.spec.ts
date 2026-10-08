@@ -3,12 +3,16 @@
 
 import { test, expect } from '@playwright/test';
 import type { Page, Route } from '@playwright/test';
+import { readFile } from 'node:fs/promises';
 import { stubUmami, trackedEvents } from './helpers/umami';
 
-// Lead capture on the free tools (tranche T4a): the AI-readability checker
-// (/ai-readability/) and the PageSpeed analyzer (/analyze/). Both post to the
-// shared lead endpoint /ai-readability/api/contact; every successful submit
-// fires umami lead_submit with {channel, topic, wedge, source_path}.
+// Capture on the free tools: the AI-readability checker (/ai-readability/)
+// and the PageSpeed analyzer (/analyze/). The checker cards post to the
+// shared endpoint /ai-readability/api/contact; every successful submit fires
+// umami lead_submit with {channel, topic, wedge, source_path} and removes the
+// form. The analyzer's report download is fully client-side (Blob, no
+// network) and fires analyze_report_download once per click. No card on
+// either page promises a re-check or an emailed report.
 
 // Minimal scanner response that renders the full result card without firing
 // any wedge (no tollbooth/agentpass/compliancefix signals).
@@ -29,11 +33,18 @@ const SCAN_OK = {
   },
 };
 
-// Minimal PSI response: one score per strategy, no flagged audits.
+// Minimal PSI response: a 0.9 performance score and one flagged audit
+// (render-blocking-resources maps to mod_pagespeed coverage "full").
 const PSI_OK = {
   lighthouseResult: {
     categories: { performance: { score: 0.9 } },
-    audits: {},
+    audits: {
+      'render-blocking-resources': {
+        id: 'render-blocking-resources',
+        title: 'Eliminate render-blocking resources',
+        score: 0.4,
+      },
+    },
   },
 };
 
@@ -77,23 +88,38 @@ async function runAnalysis(page: Page) {
   await page.fill('#psi-url', 'https://example.com');
   await page.click('#psi-submit');
   // Generous timeout: the dev server compiles the page on first hit.
-  await expect(page.locator('#psi-report-form')).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('#psi-report-download')).toBeVisible({ timeout: 15000 });
 }
 
-test.describe('AI-readability checker lead capture', () => {
-  test('Watch this URL posts monitor-url with the scanned URL and grade', async ({ page }) => {
+test.describe('AI-readability checker capture cards', () => {
+  test('Follow AI-readability work posts ai-readability-updates, then the form is gone', async ({
+    page,
+  }) => {
     const posted = await stubContact(page);
     await stubUmami(page);
     await runScan(page);
+
+    // The reframed card: no promise of a re-check or of an emailed report.
+    const section = page.locator('section[aria-labelledby="ar-h-watch"]');
+    await expect(page.locator('#ar-h-watch')).toHaveText('Follow AI-readability work');
+    await expect(section).toContainText(
+      'Leave your email if you want to hear when we publish new checks or research on AI crawlers. We send nothing else.',
+    );
+    await expect(section).toContainText(
+      'Email me about new checks and research. I can ask to be removed at any time',
+    );
+    await expect(section).not.toContainText('re-check');
 
     await page.fill('#ar-watch-email', 'watcher@example.com');
     await page.check('#ar-watch-consent');
     await page.click('#ar-watch-form button[type="submit"]');
 
     await expect(page.locator('#ar-watch-msg')).toContainText('Thanks');
+    // The form removes itself on success, so a repeat click cannot post again.
+    await expect(page.locator('#ar-watch-form')).toHaveCount(0);
     expect(posted).toHaveLength(1);
     expect(posted[0]).toMatchObject({
-      topic: 'monitor-url',
+      topic: 'ai-readability-updates',
       email: 'watcher@example.com',
       url: 'https://example.com/',
     });
@@ -107,7 +133,7 @@ test.describe('AI-readability checker lead capture', () => {
         name: 'lead_submit',
         data: {
           channel: 'scan',
-          topic: 'monitor-url',
+          topic: 'ai-readability-updates',
           wedge: '',
           source_path: '/ai-readability/',
         },
@@ -115,7 +141,7 @@ test.describe('AI-readability checker lead capture', () => {
     ]);
   });
 
-  test('the consent checkbox is required for Watch this URL', async ({ page }) => {
+  test('the consent checkbox is required for the updates signup', async ({ page }) => {
     const posted = await stubContact(page);
     await stubUmami(page);
     await runScan(page);
@@ -124,28 +150,42 @@ test.describe('AI-readability checker lead capture', () => {
     await page.click('#ar-watch-form button[type="submit"]');
     // Native validation blocks the submit; nothing is posted, no lead fires.
     await expect(page.locator('#ar-watch-msg')).toHaveText('');
+    await expect(page.locator('#ar-watch-form')).toBeVisible();
     expect(posted).toHaveLength(0);
   });
 
-  test('the agents form posts topic agents with the chosen need as wedge', async ({ page }) => {
+  test('the agents form posts topic agents with the chosen need as wedge, then disappears', async ({
+    page,
+  }) => {
     const posted = await stubContact(page);
     await stubUmami(page);
     await runScan(page);
 
-    await page.selectOption('#ar-agents-need', 'provenance');
+    // Statement heading, empty placeholder option, and the submit disclosure.
+    await expect(page.locator('#ar-h-agents')).toHaveText('Working on agent access at the origin');
+    const section = page.locator('section[aria-labelledby="ar-h-agents"]');
+    await expect(section).toContainText(
+      'Submitting this sends us your email, your answer and this scan’s URL so we can follow up.',
+    );
+    const placeholder = page.locator('#ar-agents-need option[value=""]');
+    await expect(placeholder).toHaveText('Choose one');
+    await expect(placeholder).toHaveAttribute('disabled', '');
+
+    await page.selectOption('#ar-agents-need', 'agent-verification');
     await page.fill('#ar-agents-email', 'operator@example.com');
     await page.fill('#ar-agents-log', 'GPTBot: 12000/mo, ClaudeBot: 8000/mo');
     await page.click('#ar-agents-form button[type="submit"]');
 
     await expect(page.locator('#ar-agents-msg')).toContainText('Thanks');
+    await expect(page.locator('#ar-agents-form')).toHaveCount(0);
     expect(posted).toHaveLength(1);
     expect(posted[0]).toMatchObject({
       topic: 'agents',
       email: 'operator@example.com',
-      wedge: 'provenance',
+      wedge: 'agent-verification',
       url: 'https://example.com/',
     });
-    expect(String(posted[0].message)).toContain('Need: Provenance of served content');
+    expect(String(posted[0].message)).toContain('Need: Signed-agent verification');
     expect(String(posted[0].message)).toContain('GPTBot: 12000/mo, ClaudeBot: 8000/mo');
 
     const events = await trackedEvents(page);
@@ -156,11 +196,29 @@ test.describe('AI-readability checker lead capture', () => {
         data: {
           channel: 'scan',
           topic: 'agents',
-          wedge: 'provenance',
+          wedge: 'agent-verification',
           source_path: '/ai-readability/',
         },
       },
     ]);
+  });
+
+  test('the agents form requires a chosen need (empty option keeps required working)', async ({
+    page,
+  }) => {
+    const posted = await stubContact(page);
+    await stubUmami(page);
+    await runScan(page);
+
+    await page.fill('#ar-agents-email', 'operator@example.com');
+    await page.click('#ar-agents-form button[type="submit"]');
+    // No need selected: native validation blocks the submit; nothing posts and
+    // the form stays put so the visitor can pick an option.
+    await expect(page.locator('#ar-agents-msg')).toHaveText('');
+    await expect(page.locator('#ar-agents-form')).toBeVisible();
+    expect(posted).toHaveLength(0);
+    const events = await trackedEvents(page);
+    expect(events.filter((e) => e.name === 'lead_submit')).toHaveLength(0);
   });
 
   test('the operator log is optional and capped at 1500 characters', async ({ page }) => {
@@ -168,7 +226,7 @@ test.describe('AI-readability checker lead capture', () => {
     await stubUmami(page);
     await runScan(page);
 
-    await page.selectOption('#ar-agents-need', 'signed-agent-verification');
+    await page.selectOption('#ar-agents-need', 'ai-crawler-content');
     await page.fill('#ar-agents-email', 'operator@example.com');
     await page.click('#ar-agents-form button[type="submit"]');
     await expect(page.locator('#ar-agents-msg')).toContainText('Thanks');
@@ -187,62 +245,51 @@ test.describe('AI-readability checker lead capture', () => {
     await page.click('#ar-watch-form button[type="submit"]');
 
     await expect(page.locator('#ar-watch-msg')).toContainText('Something went wrong');
+    // Failure leaves the form in place so the visitor can retry.
+    await expect(page.locator('#ar-watch-form')).toBeVisible();
     expect(posted).toHaveLength(1);
     const events = await trackedEvents(page);
     expect(events.filter((e) => e.name === 'lead_submit')).toHaveLength(0);
   });
 });
 
-test.describe('PageSpeed analyzer lead capture', () => {
-  test('Email me this report posts analyze-report with URL and headline scores', async ({
+test.describe('PageSpeed analyzer report download', () => {
+  test('Download this report saves a Markdown file with the result, no network', async ({
     page,
   }) => {
     const posted = await stubContact(page);
     await stubUmami(page);
     await runAnalysis(page);
 
-    await page.fill('#psi-report-email', 'ops@example.com');
-    await page.click('#psi-report-submit');
+    // No email capture remains on the result.
+    await expect(page.locator('#psi-report-form')).toHaveCount(0);
+    await expect(page.locator('#psi-report-email')).toHaveCount(0);
 
-    await expect(page.locator('#psi-report-msg')).toContainText('Thanks');
-    expect(posted).toHaveLength(1);
-    expect(posted[0]).toMatchObject({ topic: 'analyze-report', email: 'ops@example.com' });
-    expect(String(posted[0].message)).toContain('Analyzed: https://example.com/');
-    expect(String(posted[0].message)).toContain('mobile 90/100');
-    expect(String(posted[0].message)).toContain('desktop 90/100');
+    const downloadPromise = page.waitForEvent('download');
+    await page.click('#psi-report-download');
+    const download = await downloadPromise;
 
+    expect(download.suggestedFilename()).toBe('pagespeed-report-example.com.md');
+    const path = await download.path();
+    expect(path).toBeTruthy();
+    const content = await readFile(path!, 'utf8');
+    expect(content).toContain('Analyzed: https://example.com/');
+    expect(content).toMatch(/When: \d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}/);
+    expect(content).toContain('mobile 90/100');
+    expect(content).toContain('desktop 90/100');
+    expect(content).toContain('Eliminate render-blocking resources');
+
+    // The download posts nothing to the contact endpoint…
+    expect(posted).toHaveLength(0);
+    // …and fires exactly one analyze_report_download per click.
     const events = await trackedEvents(page);
-    const leads = events.filter((e) => e.name === 'lead_submit');
-    expect(leads).toEqual([
-      {
-        name: 'lead_submit',
-        data: {
-          channel: 'analyze',
-          topic: 'analyze-report',
-          wedge: '',
-          source_path: '/analyze/',
-        },
-      },
-    ]);
-  });
-
-  test('a 500 from the contact endpoint shows the error path and fires no lead', async ({
-    page,
-  }) => {
-    const posted = await stubContact(page, 500);
-    await stubUmami(page);
-    await runAnalysis(page);
-
-    await page.fill('#psi-report-email', 'ops@example.com');
-    await page.click('#psi-report-submit');
-
-    await expect(page.locator('#psi-report-msg')).toContainText('couldn’t send');
-    expect(posted).toHaveLength(1);
-    const events = await trackedEvents(page);
+    expect(events.filter((e) => e.name === 'analyze_report_download')).toHaveLength(1);
     expect(events.filter((e) => e.name === 'lead_submit')).toHaveLength(0);
   });
 
-  test('the result keeps the install CTAs and adds the consulting CTA', async ({ page }) => {
+  test('the result keeps the install CTAs and the consulting CTA as a statement', async ({
+    page,
+  }) => {
     await stubContact(page);
     await runAnalysis(page);
 
@@ -250,7 +297,8 @@ test.describe('PageSpeed analyzer lead capture', () => {
     await expect(ctas.locator('a[href="/download/"]').first()).toBeVisible();
     const consulting = ctas.locator('a[href="https://we-amp.com/consulting/"]');
     await expect(consulting).toBeVisible();
-    await expect(consulting).toContainText('Want it fixed for you?');
+    await expect(consulting).toContainText('Have us fix it for you');
+    await expect(consulting).not.toContainText('?');
     await expect(consulting).toHaveAttribute('data-umami-event', 'cta_commercial');
     await expect(consulting).toHaveAttribute('data-umami-event-offer', 'consulting');
     await expect(consulting).toHaveAttribute('data-umami-event-surface', 'analyze');
