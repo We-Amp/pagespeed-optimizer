@@ -146,7 +146,21 @@ pagespeed DisableFilters convert_jpeg_to_webp;
 
 ### What they do
 
-The recompression filters (`recompress_images`, `recompress_jpeg`, `recompress_png`, `recompress_webp`) reduce image file size by re-encoding images at an optimal quality level. These filters preserve visual quality while removing encoding inefficiencies.
+The recompression filters reduce image file size by re-encoding images at an optimal quality level. They preserve visual quality while removing encoding inefficiencies, and each one handles exactly the format its name says, so a format you do not want re-encoded can be turned off by name without touching the others.
+
+### How each format is recompressed
+
+`recompress_jpeg` re-encodes JPEG images that reach it. It runs after the conversion candidates: a JPEG that was not converted to WebP or AVIF for this request is re-encoded at `JpegRecompressionQuality`, which defaults to -1, meaning it follows `ImageRecompressionQuality` (default 85). Only when `ImageRecompressionQuality` is itself -1 does the module keep the source file's own quality.
+
+`recompress_jpeg` keeps a re-encode only when it is smaller than the original by the margin `ImageLimitOptimizedPercent` sets (default 100: any reduction at all), and a losing re-encode is remembered so the same JPEG is not re-encoded on every request. The filter is a CoreFilter through `rewrite_images` and also part of OptimizeForBandwidth; disabling it by name while keeping the compound on leaves the other formats recompressing.
+
+`recompress_png` re-encodes PNG images losslessly. The PNG optimizer re-encodes the image and keeps the result only when it is smaller, under the same `ImageLimitOptimizedPercent` margin as the other formats; a losing result is remembered. This filter never makes a PNG lossy: turning a photographic PNG into a JPEG or a WebP is the conversion filters' decision, and when that decision does not apply or loses, the lossless re-encode this filter controls is what runs.
+
+`recompress_png` is also the path a resized PNG takes, because resizing re-encodes the file. In OptimizeForBandwidth mode the smaller bytes replace the original response in place, with the URL unchanged. The filter is a CoreFilter through `rewrite_images`.
+
+`recompress_webp` re-encodes WebP images the page already serves, at `WebpRecompressionQuality` (default 80). It does not create WebP; converting JPEG or PNG sources to WebP is the conversion filters' job. Animated WebP is never recompressed, and there is no fallback conversion of WebP to JPEG for browsers without WebP support: such sources are left alone rather than transcoded.
+
+`recompress_webp` keeps a re-encode only when it is smaller under `ImageLimitOptimizedPercent`, and a losing result is remembered. A small-screen client gets a lower quality still: `WebpRecompressionQualityForSmallScreens` (default 70) applies to the requests the module classifies as small-screen. The filter is a CoreFilter through `rewrite_images` and part of OptimizeForBandwidth.
 
 `recompress_images` is a convenience filter that enables `recompress_jpeg`, `recompress_png`, and `recompress_webp` together with `convert_gif_to_png`, `convert_jpeg_to_progressive`, `convert_jpeg_to_webp`, `convert_png_to_jpeg`, `jpeg_subsampling`, `strip_image_color_profile`, and `strip_image_meta_data`.
 
@@ -212,6 +226,10 @@ Format conversion filters serve images in the most efficient format for each bro
 - **`convert_to_webp_lossless`** uses lossless WebP encoding instead of lossy. Produces larger files than lossy WebP but preserves every pixel. A CoreFilter, enabled by default through `rewrite_images`.
 
 `convert_jpeg_to_webp` is the member of the family with the widest reach, because JPEG is where photographic weight usually sits. For a WebP-capable request, the filter encodes a WebP candidate at `WebpRecompressionQuality` (default 80) and keeps it when it is smaller than the original JPEG. WebP-capable requests (by `Accept: image/webp` or a known user agent) get HTML pointing at a `.webp` URL; others get the JPEG URL, so the HTML differs per browser; a CDN caching rewritten HTML must not share it across browsers. The filter runs in CoreFilters through `rewrite_images` and is listed in OptimizeForBandwidth, but in that level's in-place mode no WebP is selected.
+
+`convert_png_to_jpeg` turns a PNG into a JPEG only when the module's image analysis says the file is photographic, meaning not sensitive to compression noise, and it has no transparent pixels. The analysis is what protects flat graphics: a logo or a diagram analyzes as non-photographic and keeps its PNG. On a photographic PNG without transparency the filter authorizes lossy encoding, and the format that ships depends on the browser: when the request prefers WebP and `convert_jpeg_to_webp` is on, the file becomes WebP rather than JPEG; otherwise it is re-encoded as JPEG at the JPEG quality setting. A PNG with transparency is never made a JPEG. The converted file is kept only when it is smaller (`ImageLimitOptimizedPercent`), and a PNG carrying a C2PA content-credentials manifest is left untouched so its provenance chain survives. The filter runs in CoreFilters through `rewrite_images`.
+
+`convert_gif_to_png` re-encodes a non-animated GIF as PNG. Without this filter, and without one of the animated-format conversions or the low-resolution preview path that need the same decode, a GIF that is not resized passes through the module untouched: no other filter re-encodes it. A resized GIF is decoded and resized as a PNG, so with this filter on it ships as PNG (or, if photographic and the lossy conversions apply, as JPEG or WebP); it never goes back out as a GIF. The conversion is lossless in intent (a GIF's at-most-256-color palette maps into PNG), and the result is kept only when it is smaller than the original GIF under `ImageLimitOptimizedPercent`. One non-obvious effect: the filter also unlocks lossy treatment of photographic GIFs, because the lossy decision path accepts a GIF only when it may first be treated as a PNG-style source. With the filter off, a photographic GIF is never turned into a JPEG or lossy WebP; it can still leave as lossless WebP or AVIF when those conversions are enabled, and otherwise stays a GIF. The filter runs in CoreFilters through `rewrite_images`.
 
 ### Directives
 
@@ -385,6 +403,8 @@ pagespeed EnableFilters jpeg_subsampling;
 - **`resize_rendered_image_dimensions`** injects JavaScript that reports each image's actual rendered dimensions on the client. On subsequent requests, mod_pagespeed resizes to the rendered size. Requires two page loads to take effect.
 - **`insert_image_dimensions`** adds explicit `width` and `height` attributes to `<img>` tags that lack them. This prevents layout shifts (CLS) but does not resize the image file itself. `insert_img_dimensions` is an accepted alternate spelling of the same filter.
 
+`insert_image_dimensions` declares the intrinsic size of each image: it adds `width` and `height` attributes carrying the pixel dimensions of the image file itself, read from the copy the module decoded, to `<img>` and image `<input>` elements that declare no dimensions at all: no `width` attribute, no `height` attribute, and no dimension inside a `style` attribute. An element that already declares any of those is left alone. The browser uses the pair to reserve the image's box before the file arrives, which is what removes the layout shift; the filter does not resize the image file and does not touch CSS sizing. It applies even to images the module decides not to optimize, as long as the file's dimensions could be decoded. It does not apply when image URLs are preserved (`ImagePreserveURLs`, as under OptimizeForBandwidth). Images that `inline_images` turns into `data:` URIs get no dimensions from this filter; `inline_images` instead removes `width` and `height` attributes that match the image's own size. Not a core filter; enable it by name.
+
 ### Directives
 
 **Apache:**
@@ -427,6 +447,10 @@ pagespeed EnableFilters insert_image_dimensions;
 - **`inline_preview_images`** replaces full-size images with a low-quality inline placeholder that loads instantly, then swaps in the full image via JavaScript.
 - **`dedup_inlined_images`** replaces repeated inline `data:` URIs on the same page with JavaScript references to the first occurrence, reducing HTML size.
 - **`resize_mobile_images`** serves smaller images to mobile devices based on the User-Agent header. Enabling it also enables `inline_preview_images`, which it depends on.
+
+`inline_preview_images` serves a low-quality preview first and the real image after. For each image the critical-images beacon has marked as above the fold, whose optimized size is between `MinImageSizeLowResolutionBytes` (default 3072 bytes) and `MaxImageSizeLowResolutionBytes` (default 1 MB), the optimizer encodes a tiny low-resolution version at quality 10, with profile, metadata and provenance stripped from the throwaway preview. The original `src` (and `srcset`, when present) is renamed to `data-pagespeed-high-res-src` (and `-srcset`). The preview is used only when it is small: it must fit `MaxLowResImageSizeBytes` (default: no cap) and be smaller than the full image under `MaxLowResToFullResImageSizePercentage` (default 100). On desktop the preview becomes the `src` and an `onload` handler on the image swaps in the full image; on mobile with aggressive rewriters on, the previews are injected as scripts after the last previewed image in the flush window, and a script at the end of the body swaps in the full images, on scroll when `LazyloadHighresImages` is enabled. The filter is beacon-driven: until the critical-images finder has data it does nothing, so a site's first views are unchanged. It stands down when the page's Content-Security-Policy forbids the inline scripts the swap relies on.
+
+`dedup_inlined_images` shrinks pages that repeat the same inlined image. When two or more references have become identical `data:` URIs, the first occurrence keeps its bytes and gets an `id`; every later occurrence of the same data URI loses its `src` and instead carries a one-line inline script that copies the first image's `src` back onto the element at run time. There is a floor below which dedup does not pay: a data URI must be longer than 185 bytes, roughly the size of the restoring snippet, or it is left as it is. The filter needs JavaScript, so it is disabled for user agents that cannot lazy-load images and for XMLHttpRequests, and it stands down inside `<noscript>` or when the page's Content-Security-Policy forbids inline scripts. The `num_dedup_inlined_images_candidates_found` and `num_dedup_inlined_images_candidates_replaced` statistics in the admin console show how much it found and how much it replaced.
 
 ### Directives
 
@@ -537,7 +561,28 @@ Images that already carry a `loading` attribute are always left untouched, so ha
 
 ### What it does
 
-`responsive_images` generates multiple resized versions of each image and adds `srcset` attributes to `<img>` tags, allowing the browser to select the optimal resolution for the current viewport and device pixel ratio.
+`responsive_images` adds a `srcset` to `<img>` tags so a high-density screen fetches a sharper file and a 1x screen stops paying for pixels it cannot show. The module generates a resized variant for each configured pixel density, plus the full-sized original, and offers them as `url N.x` candidates; the browser picks by viewport and device pixel ratio. Not a core filter; enable it by name. Live demo: [responsive_images](/examples/responsive_images/).
+
+```html
+<!-- before -->
+<img src="/photos/team.jpg" width="400" height="300" />
+
+<!-- after: the source file is 1600x1200, so the full-size candidate is 4x -->
+<img
+  src="/photos/400x300xteam.jpg.pagespeed.ic.HASH.jpg"
+  width="400"
+  height="300"
+  srcset="/photos/600x450xteam.jpg.pagespeed.ic.HASH.jpg 1.5x,/photos/800x600xteam.jpg.pagespeed.ic.HASH.jpg 2x,/photos/1200x900xteam.jpg.pagespeed.ic.HASH.jpg 3x,/photos/xteam.jpg.pagespeed.ic.HASH.jpg 4x"
+/>
+```
+
+### When it helps and when it does not
+
+It helps where the same page serves both ordinary screens and phones or high-density displays: the 1x visitor downloads the small file instead of the oversized original, and the 2x visitor gets a file that is actually sharp. It adds nothing for an image whose declared dimensions already equal the source file's size: every candidate then resolves to the same file and no srcset is emitted. Every variant is a resized copy in the cache, so a page with many large images multiplies its storage; the `responsive_images_zoom` companion adds a script and refetches on zoom.
+
+### How it decides
+
+The filter needs `src`, `width` and `height` on the `<img>`; an image without declared dimensions, an image that already carries a `srcset`, one marked `data-pagespeed-no-transform`, and 1x1 tracking pixels are all left alone. Densities come from `ResponsiveImageDensities` (default `1.5,2,3`, each must be above zero). Each candidate is resized to the declared dimensions scaled by its density, and the full-sized original joins the list at the resolution its width actually represents. Candidates whose URL or final dimensions equal the previous candidate's are dropped, so an image whose source file is only slightly larger than the 1x size gets a shorter list. If the highest-density variant turns out small enough to inline as a `data:` URI, it becomes the single `src` and no `srcset` is emitted. The filter is wired up only when `resize_images` is also enabled, which it is under CoreFilters through `rewrite_images`.
 
 ### Directives
 
@@ -574,6 +619,7 @@ pagespeed ResponsiveImageDensities 1.5,2,3;
 - Generating multiple variants per image increases storage and cache requirements on the server.
 - If images have many density variants, the total bytes served across all variants can exceed the original single image. Monitor cache size and bandwidth.
 - Requires `width` and `height` attributes on `<img>` tags to calculate variant dimensions.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-responsive_images` comparison; [Is it working?](/docs/is-it-working/) has the steps.
 
 ## Sprite images {#sprite_images}
 
