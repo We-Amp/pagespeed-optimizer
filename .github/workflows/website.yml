@@ -389,5 +389,6 @@ jobs:
         with:
           name: website-lighthouse-reports
           path: website/.lighthouseci/*.html
+          include-hidden-files: true
           retention-days: 7
           if-no-files-found: warn
