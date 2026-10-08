@@ -493,6 +493,16 @@ const jsonLd = [
           Support plans &rarr;
         </a>
         <a
+          href="https://we-amp.com/consulting/"
+          class="btn-secondary"
+          data-umami-event="cta_commercial"
+          data-umami-event-offer="consulting"
+          data-umami-event-surface="analyze"
+          data-umami-event-position="result"
+        >
+          Have us fix it for you &rarr;
+        </a>
+        <a
           id="psi-docs-cta"
           href="/docs/configuration/"
           class="btn-secondary"
@@ -503,6 +513,25 @@ const jsonLd = [
       </div>
       <p class="text-xs text-text-annotation">
         {FREE_TO_RUN_LINE}
+      </p>
+    </div>
+
+    <!-- Report download — revealed with the result (hidden until then, so no
+         layout shift on load). Saves the analyzed URL, the timestamp, the
+         scores and the failing audits as a local file; no network call. -->
+    <div
+      id="psi-report"
+      class="mt-10 rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8 hidden"
+    >
+      <h3 class="text-lg font-semibold text-text-body">Download this report</h3>
+      <p class="mt-1 text-sm text-text-muted">
+        Saves the analyzed URL, the timestamp, the mobile and desktop scores and the failing
+        audits as a Markdown file, straight from your browser. The report is not sent anywhere.
+      </p>
+      <button id="psi-report-download" type="button" class="btn-primary mt-4 whitespace-nowrap">
+        Download this report
+      </button>
+      <p id="psi-report-msg" role="status" aria-live="polite" class="mt-2 text-sm text-text-muted">
       </p>
     </div>
 
@@ -754,7 +783,7 @@ const jsonLd = [
   <!-- ============================================================ -->
   <script>
     import { PSI_MPS_MAPPING } from '../data/psi-mps-mapping';
-    import type { AuditMapping, Edition } from '../data/psi-mps-mapping';
+    import type { AuditMapping, Coverage, Edition } from '../data/psi-mps-mapping';
 
     // ---- Which part the reader is configuring ----
     // The '2.0' key selects the optimizer worker, '1.1' the module; the
@@ -912,6 +941,23 @@ const jsonLd = [
     const scoreMobileLabelEl = document.getElementById('psi-score-mobile-label');
     const scoreDesktopLabelEl = document.getElementById('psi-score-desktop-label');
 
+    // Report-download card, revealed with the result.
+    const reportEl = document.getElementById('psi-report');
+    const reportDownloadBtn = document.getElementById(
+      'psi-report-download',
+    ) as HTMLButtonElement | null;
+    const reportMsgEl = document.getElementById('psi-report-msg');
+    // The analyzed URL, headline scores and failing audits of the latest
+    // successful run; the download button folds them into a Markdown file at
+    // click time.
+    let reportContext: {
+      url: string;
+      mobile: number | null;
+      desktop: number | null;
+      totalFlagged: number;
+      audits: Array<{ title: string; coverage: Coverage }>;
+    } | null = null;
+
     // Edition toggle, edition-aware blurb/desc, docs CTA, and the build-time
     // rendered "what gets fixed" cards.
     const editionToggleEl = document.getElementById('psi-edition-toggle');
@@ -987,6 +1033,10 @@ const jsonLd = [
     }
 
     type ScoreBucket = 'good' | 'needs-work' | 'poor';
+
+    // PSI reports scores as 0–1; the UI and the lead message use 0–100.
+    const toPercent = (s: number | null | undefined): number | null =>
+      typeof s === 'number' ? Math.round(s * 100) : null;
 
     function scoreBucket(score: number): ScoreBucket {
       if (score >= 90) return 'good';
@@ -1781,6 +1831,20 @@ const jsonLd = [
       hide(errorBox);
       show(resultsEl);
 
+      // Arm the report-download card with this run's URL, headline scores and
+      // the failing audits the result shows (fixable and unfixable alike).
+      reportContext = {
+        url: targetUrl,
+        mobile: toPercent(mobile?.lighthouseResult?.categories?.performance?.score),
+        desktop: toPercent(desktop?.lighthouseResult?.categories?.performance?.score),
+        totalFlagged,
+        audits: items.map((i) => ({
+          title: i.mapping.auditTitle,
+          coverage: i.mapping.coverage,
+        })),
+      };
+      show(reportEl);
+
       if (!scroll) return;
 
       // Smooth-scroll to the results section so mobile users see the outcome
@@ -1811,6 +1875,8 @@ const jsonLd = [
       hide(ctasEl);
       hide(topCtaEl);
       hide(editionToggleEl);
+      hide(reportEl);
+      reportContext = null;
       // Headline area: clear scores; leave the URL visible if we have one.
       if (headlineTextEl) headlineTextEl.textContent = 'We couldn’t complete the analysis.';
       if (headlineSavingsEl) headlineSavingsEl.textContent = '';
@@ -1858,7 +1924,11 @@ const jsonLd = [
       // ?url= deep-link auto-run, and retry. Fire the submit event programmatically
       // so keyboard/auto-run paths (which never "click" the button) are counted.
       // The button no longer carries `data-umami-event` to avoid double-counting.
-      (window as any).umami?.track('psi-analyze-submit');
+      try {
+        (window as any).umami?.track('psi-analyze-submit');
+      } catch {
+        /* analytics must never break the run */
+      }
       try {
         // We fire both fetches in parallel for speed but report progress
         // sequentially so the user sees a deterministic two-step indicator
@@ -1901,12 +1971,16 @@ const jsonLd = [
           } catch {
             /* targetUrl is pre-validated */
           }
-          (window as any).umami?.track('psi-analyze-result', {
-            url: targetUrl,
-            hostname,
-            mobile_score: toScore(mobile?.lighthouseResult?.categories?.performance?.score),
-            desktop_score: toScore(desktop?.lighthouseResult?.categories?.performance?.score),
-          });
+          try {
+            (window as any).umami?.track('psi-analyze-result', {
+              url: targetUrl,
+              hostname,
+              mobile_score: toScore(mobile?.lighthouseResult?.categories?.performance?.score),
+              desktop_score: toScore(desktop?.lighthouseResult?.categories?.performance?.score),
+            });
+          } catch {
+            /* analytics must never break the run */
+          }
         }
 
         // The side-by-side comparison needs both profiles; if either failed,
@@ -1956,6 +2030,60 @@ const jsonLd = [
           }, 1500);
         }
       });
+    });
+
+    // Report download: builds a small Markdown file from the current result and
+    // saves it through a Blob URL. Entirely client-side — no network call, so
+    // the copy promises nothing a human would have to send.
+    reportDownloadBtn?.addEventListener('click', () => {
+      const ctx = reportContext;
+      if (!ctx) return;
+      try {
+        (window as any).umami?.track('analyze_report_download');
+      } catch {
+        /* analytics must never break the download */
+      }
+      const scoreText = (n: number | null) => (n === null ? 'n/a' : `${n}/100`);
+      // Match the result page's own chips ("Fully addressed" / "Partial fix"):
+      // the downloaded file must not claim more than the page does.
+      const coverageText = (c: Coverage) =>
+        c === 'full'
+          ? 'fully addressed by mod_pagespeed'
+          : c === 'partial'
+            ? 'partly fixable by mod_pagespeed'
+            : 'not addressed by mod_pagespeed';
+      const lines = [
+        '# PageSpeed report',
+        '',
+        `Analyzed: ${ctx.url}`,
+        `When: ${new Date().toISOString()}`,
+        `Scores: mobile ${scoreText(ctx.mobile)}, desktop ${scoreText(ctx.desktop)}`,
+        '',
+        '## Failing audits',
+        '',
+        ...(ctx.audits.length
+          ? ctx.audits.map((a) => `- ${a.title} — ${coverageText(a.coverage)}`)
+          : [ctx.totalFlagged > 0 ? '- No mapped audits flagged' : '- None flagged']),
+        '',
+      ];
+      let host = 'site';
+      try {
+        host = new URL(ctx.url).hostname.replace(/[^a-z0-9.-]+/gi, '-');
+      } catch {
+        /* ctx.url is pre-validated */
+      }
+      const blob = new Blob([lines.join('\n')], { type: 'text/markdown' });
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = `pagespeed-report-${host}.md`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      // Defer revocation: revoking synchronously right after click() can
+      // cancel the download in Safari.
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+      if (reportMsgEl) reportMsgEl.textContent = `Saved as ${link.download}.`;
     });
 
     // Allow ?url= deep links (e.g. shared from a blog post).
