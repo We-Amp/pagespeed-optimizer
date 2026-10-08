@@ -140,12 +140,12 @@ const fields = [
   }
   /* Reserve the longer of the two state strings ("captured 2026-10-08",
      19ch, vs "this view · live", 16ch) so the live upgrade never moves
-     the fields sideways. 20.5ch also keeps the 19-glyph date inside the
+     the fields sideways. 21ch also keeps the 19-glyph date inside the
      reserve where fallback fonts render ~7px per glyph against the 6.6px
-     ch — at exactly 19.1ch the text would bleed into the row gap there. */
+     ch — at 19ch the text would bleed into the row gap there. */
   .t-state [data-t='state'] {
     display: inline-block;
-    min-inline-size: 20.5ch;
+    min-inline-size: 21ch;
   }
   .telemetry.is-live .t-state {
     color: var(--color-interactive);
@@ -233,9 +233,15 @@ const fields = [
     text-overflow: ellipsis;
   }
   /* Below 480px the wire byte count cannot fit complete next to the state
-     label and the header field, so it does not render at all. The wide
-     fields follow from 1024px, where the row can hold them in full. */
+     label and the header field, so it does not render at all. The LED makes
+     room instead: it is decoration (the state text says the same in words),
+     and without its 13px the header value would ellipsize in wider fallback
+     fonts at 360px. The wide fields follow from 1024px, where the row can
+     hold them in full. */
   @media (max-width: 479px) {
+    .t-led {
+      display: none;
+    }
     .t-mid {
       display: none;
     }
