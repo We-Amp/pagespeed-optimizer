@@ -3,7 +3,7 @@ title: 'JavaScript filters'
 description: 'Minify, combine, inline, and defer JavaScript in mod_pagespeed 2.1. Directives, defaults, and the trade-offs for each JS filter on Apache, nginx, and IIS.'
 order: 45
 group: 'Filters'
-lastUpdated: 2026-07-27
+lastUpdated: 2026-10-08
 ---
 
 ## Overview
@@ -47,9 +47,41 @@ See [IIS configuration](/docs/iis-configuration/) for the full file format refer
 
 [Full guide →](/docs/filters/rewrite_javascript/) · Also: [`rewrite_javascript_external`](/docs/filters/rewrite_javascript_external/), [`rewrite_javascript_inline`](/docs/filters/rewrite_javascript_inline/)
 
-Core filter. Minifies JavaScript by removing whitespace, comments, and shortening variable names where safe. In OFB mode, minifies in-place. The sub-filters `rewrite_javascript_external` and `rewrite_javascript_inline` control scope but are implicitly enabled by the parent filter.
+### What it does
 
-The minifier is conservative around edge cases that change behavior — see [how safe JavaScript minification handles automatic semicolon insertion](/blog/safe-javascript-minification-semicolon-insertion/). Since v1.15.0+r21 there is a single minifier — the tokenizer-based one — and files containing template literals (backtick strings) minify normally. The `UseExperimentalJsMinifier` directive that previously selected it is deprecated: it is accepted for compatibility but ignored, and logs a deprecation warning at configuration load (`ModPagespeedUseExperimentalJsMinifier` on Apache, `pagespeed UseExperimentalJsMinifier` on nginx). Remove it from your configuration.
+The three filters on this section share one minifier. It removes comments, collapses whitespace, and shortens the names of local variables and functions where a scope analysis proves the rename safe. String literals, regular expressions, and property names are left alone, so the output behaves exactly like the input. The minifier is conservative around the constructs that change meaning when text moves: it keeps line breaks where automatic semicolon insertion could otherwise merge two statements into one, and it renames nothing in the scope of a `with` statement or an `eval` call. [How safe JavaScript minification handles automatic semicolon insertion](/blog/safe-javascript-minification-semicolon-insertion/) has the details. Since v1.15.0+r21 this tokenizer-based minifier is the only one, and files that use template literals (backtick strings) minify normally.
+
+```js
+/* before: sum a shopping cart */
+function cartTotal(cart) {
+  var total = 0;  // running sum
+  for (var i = 0; i < cart.items.length; i++) {
+    total = total + cart.items[i].price;
+  }
+  return total;
+}
+
+/* after */
+function cartTotal(n){for(var t=0,o=0;o<n.items.length;o++)t+=n.items[o].price;return t}
+```
+
+`rewrite_javascript` is the compound CoreFilter for JavaScript minification: enabling it switches on the external and the inline sub-filter together, so every script on the page is minified wherever it lives. It is also part of OptimizeForBandwidth, the level that minifies resources in place without changing their URLs. To minify only one scope, enable `rewrite_javascript` and disable the other sub-filter by name. Under CoreFilters the compound is on already. A script delivered with an `integrity` attribute is left untouched by the whole family, because subresource integrity pins the file's bytes. Live demo: [rewrite_javascript](/examples/rewrite_javascript/).
+
+`rewrite_javascript_external` handles the external half. Each `<script src>` file on a domain the module is authorized to fetch is minified and served from a rewritten `.pagespeed.jm.` URL with a long cache lifetime, so repeat visitors download the minified file once and keep it; the original file on disk is never modified. In OptimizeForBandwidth mode the minified bytes replace the original response in place and the URL stays as authored. Minification saves the most on hand-formatted source; a file a bundler already minified gains nothing and only costs rewrite time. `rewrite_javascript_external` runs as part of the compound and can also be enabled on its own.
+
+Enabled on its own, `rewrite_javascript_external` leaves inline `<script>` blocks exactly as authored; minifying those is the inline sub-filter's job. Files on domains the configuration does not authorize keep their original URLs as well, so a page that mixes own and third-party scripts sees only the own files rewritten.
+
+`rewrite_javascript_inline` minifies the contents of `<script>` blocks in the HTML itself, in place. No URL changes and nothing new is cached; the smaller script simply rides along inside every page view. Blocks whose `type` does not denote executable JavaScript, such as JSON-LD data islands and HTML templates, are left as they are. Inline scripts tend to be short, so the saving per block is small; the filter's job inside the compound is to leave no script unminified. Like the external half, `rewrite_javascript_inline` is in CoreFilters and in OptimizeForBandwidth, and it can be enabled by itself.
+
+`rewrite_javascript_inline` never moves a block or changes when it runs; it only shrinks the text between `<script>` and `</script>`. On pages whose HTML is served many times between deploys that small saving repeats on every serve, which is where the filter earns its place.
+
+### Risks
+
+- Renames are limited to proven-local scopes, so behavior changes are rare. The historical failure mode is a script that inspects its own source, for example through `Function.prototype.toString()`, and reacts to the changed formatting.
+- Verify on a live page: the response carries an `X-Mod-Pagespeed` (or `X-Page-Speed`) header, and loading the page with `?PageSpeedFilters=-rewrite_javascript` shows the unminified form for comparison. [Is it working?](/docs/is-it-working/) walks through the checks.
+- The deprecated `UseExperimentalJsMinifier` directive is accepted for compatibility but ignored, and logs a warning at configuration load (`ModPagespeedUseExperimentalJsMinifier` on Apache, `pagespeed UseExperimentalJsMinifier` on nginx). Remove it from your configuration.
+
+### Configuration
 
 **Apache:**
 
@@ -67,25 +99,78 @@ pagespeed EnableFilters rewrite_javascript;
 
 [Full guide →](/docs/filters/combine_javascript/)
 
-Core filter. Combines multiple `<script src>` elements into a single file. Like [`combine_css`](/docs/css-filters/#combine_css), combination boundaries are broken by inline scripts or other non-script elements between script tags.
+### What it does
+
+`combine_javascript` concatenates consecutive external scripts into one file and replaces the group of `<script src>` tags with a single tag that loads the combined file from a `.pagespeed.cj.` URL. A page that loads five scripts back to back makes one request instead of five. The scripts run in their original order, so dependencies between them keep working. Live demo: [combine_javascript](/examples/combine_javascript/).
+
+```html
+<!-- before -->
+<script src="/js/jquery.js"></script>
+<script src="/js/carousel.js"></script>
+<script src="/js/forms.js"></script>
+
+<!-- after -->
+<script src="/js/jquery.js+carousel.js+forms.js.pagespeed.cj.HASH.js"></script>
+```
+
+### When it helps and when it does not
+
+Combining was designed for HTTP/1.1, where a browser opens only a few connections per host and extra requests queue. Over HTTP/2 and HTTP/3 requests multiplex over one connection, so the saving shrinks to per-request overhead. The costs cut the other way too: the combined file is refetched in full when any member changes, and the browser cannot run the first script until the whole combined file has arrived. On a legacy page loading a dozen small files, combining still pays. On a page with two or three scripts over HTTP/2, measure with the filter on and off before keeping it.
+
+### How it decides
+
+Only consecutive, synchronously executing external scripts join a group. An inline `<script>`, a script with `async` or `defer`, a `type="module"` script, a script of an unknown type, and a script carrying `integrity=` each end the current group, as does other markup between two script tags. Modules are excluded because the combination evaluates member scripts inside one shared file, which cannot represent a module's isolated scope and deferred execution. A group stops growing when the combined uncompressed contents would pass `MaxCombinedJsBytes` (default 92160), and every member must come from a domain the module is authorized to fetch.
+
+### Risks
+
+- If a page misbehaves after combining, load it with `?PageSpeedFilters=-combine_javascript` and compare behavior and the console; the `X-Mod-Pagespeed` response header confirms whether the filter ran. [Is it working?](/docs/is-it-working/) covers the routine.
+
+### Configuration
 
 **Apache:**
 
 ```apache
 ModPagespeedEnableFilters combine_javascript
+ModPagespeedMaxCombinedJsBytes 92160
 ```
 
 **Nginx:**
 
 ```nginx
 pagespeed EnableFilters combine_javascript;
+pagespeed MaxCombinedJsBytes 92160;
 ```
 
 ## inline_javascript {#inline_javascript}
 
 [Full guide →](/docs/filters/inline_javascript/)
 
-Core filter. Inlines small external JS files into the HTML. `JsInlineMaxBytes` (default: 2048) controls the threshold.
+### What it does
+
+`inline_javascript` replaces a small external script with an inline `<script>` block that holds the file's contents, so the browser skips a request. The element keeps its place in the page, so execution order does not change. Live demo: [inline_javascript](/examples/inline_javascript/).
+
+```html
+<!-- before: one extra request for a 1.4 KB file -->
+<script src="/js/newsletter-popup.js"></script>
+
+<!-- after: the file's contents sit inside the page -->
+<script>document.addEventListener("DOMContentLoaded",function(){var d=document.getElementById("newsletter");d&&setTimeout(function(){d.hidden=!1},4e3)});</script>
+```
+
+### When it helps and when it does not
+
+Inlining pays when a script is tiny: for a few hundred bytes, the request with its headers and round trip costs more than the bytes it fetches. The trade runs the other way as files grow or get shared. An inlined script is not cached on its own, so it downloads again with every page view, and a file inlined into ten pages is transferred ten times. Scripts that several pages share, and anything well above the default threshold, are better served external with a long cache lifetime. `inline_javascript` is a CoreFilter, so this trade is already live on a default install; the threshold is the knob.
+
+### How it decides
+
+Only external scripts whose contents are no larger than `JsInlineMaxBytes` (default 2048 bytes) qualify, and only files on domains the module is authorized to fetch. A script with `async` or `defer`, or with the IE-specific `for` and `event` attributes, is left external: those attributes change when the script runs, and an inline block cannot express that timing. Everything else about the element, including its position in the document, stays as authored.
+
+### Risks
+
+- The page grows by the script's size on every view, so keep `JsInlineMaxBytes` small. Raising it to inline a large file usually costs more than the saved request returns.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-inline_javascript` comparison; [Is it working?](/docs/is-it-working/) has the steps.
+
+### Configuration
 
 **Apache:**
 
