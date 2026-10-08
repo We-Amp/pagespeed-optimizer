@@ -163,7 +163,7 @@ const tone = (f: Filter) =>
     <p class="mt-4 text-lg text-text-muted">
       A PageSpeed filter is one named optimization that <a
         href="/"
-        class="text-interactive hover:text-interactive-hover underline-offset-4 hover:underline"
+        class="text-interactive hover:text-interactive-hover underline underline-offset-4"
         >mod_pagespeed</a
       >, the in-process module for Apache, nginx and IIS, applies to a page or a resource as the
       server serves it: recompress an image, minify and combine CSS and JavaScript, inline the
@@ -180,12 +180,12 @@ const tone = (f: Filter) =>
       Looking for the Google PageSpeed Insights score at <a
         href="https://pagespeed.web.dev"
         rel="noopener"
-        class="text-interactive hover:text-interactive-hover underline-offset-4 hover:underline"
+        class="text-interactive hover:text-interactive-hover underline underline-offset-4"
         >pagespeed.web.dev</a
       >? That is Google&rsquo;s online scoring tool. This page documents the optimization filters
       that do the work, not the score. To measure a URL yourself, use <a
         href="/analyze/"
-        class="text-interactive hover:text-interactive-hover underline-offset-4 hover:underline"
+        class="text-interactive hover:text-interactive-hover underline underline-offset-4"
         >Analyze</a
       >.
     </p>
@@ -210,12 +210,12 @@ pagespeed EnableFilters rewrite_images,lazyload_images     # IIS (pagespeed.conf
         class="text-sm bg-bg-elevated px-1.5 py-0.5 rounded font-mono">ForbidFilters</code
       > and the thresholds each filter reads are on <a
         href="/docs/filter-selection/"
-        class="text-interactive hover:text-interactive-hover underline-offset-4 hover:underline"
+        class="text-interactive hover:text-interactive-hover underline underline-offset-4"
         >Choosing filters</a
       >. The optimizer worker behind the Docker image runs a different pipeline, configured by flags
       rather than this list: see <a
         href="/docs/worker-configuration/"
-        class="text-interactive hover:text-interactive-hover underline-offset-4 hover:underline"
+        class="text-interactive hover:text-interactive-hover underline underline-offset-4"
         >Worker and reverse-proxy configuration</a
       >.
     </p>
