@@ -101,7 +101,7 @@ pagespeed EnableFilters rewrite_javascript;
 
 ### What it does
 
-`combine_javascript` concatenates consecutive external scripts into one file and replaces the group of `<script src>` tags with a single tag that loads the combined file from a `.pagespeed.cj.` URL. A page that loads five scripts back to back makes one request instead of five. The scripts run in their original order, so dependencies between them keep working. Live demo: [combine_javascript](/examples/combine_javascript/).
+`combine_javascript` concatenates consecutive external scripts into one file and replaces the group of `<script src>` tags with a single tag that loads the combined file from a `.pagespeed.jc.` URL. A page that loads five scripts back to back makes one request instead of five. The scripts run in their original order, so dependencies between them keep working. Live demo: [combine_javascript](/examples/combine_javascript/).
 
 ```html
 <!-- before -->
@@ -110,7 +110,7 @@ pagespeed EnableFilters rewrite_javascript;
 <script src="/js/forms.js"></script>
 
 <!-- after -->
-<script src="/js/jquery.js+carousel.js+forms.js.pagespeed.cj.HASH.js"></script>
+<script src="/js/jquery.js+carousel.js+forms.js.pagespeed.jc.HASH.js"></script>
 ```
 
 ### When it helps and when it does not
