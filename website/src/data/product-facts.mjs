@@ -284,6 +284,14 @@ export function editionClause(formats = IMAGE_FORMAT_SUPPORT.map((r) => r.format
 // 2.0-derived list, so the public contract does not move.
 export const IMAGE_FORMATS = /* @__PURE__ */ formatsFor(CURRENT_LINE);
 
+// --- Native packages (the signed apt/yum repository) -------------------------
+// The package names the repository serves; the release manifest carries the
+// repository URL and the release version, not these names. The generated
+// agent files take them from here.
+export const PKG_APACHE_MODULE = 'mod-pagespeed'; // the Apache module
+export const PKG_NGINX_MODULE = 'nginx-module-pagespeed'; // the nginx module
+export const PKG_OPTIMIZER = 'pagespeed-optimizer'; // the optimizer worker
+
 // --- NuGet packages ---------------------------------------------------------
 export const PKG_ASPNETCORE = 'WeAmp.PageSpeed.AspNetCore'; // the ASP.NET Core middleware
 export const PKG_SIDECAR = 'WeAmp.PageSpeed.Sidecar'; // mod_pagespeed 1.15 sidecar
