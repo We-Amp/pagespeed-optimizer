@@ -12,6 +12,8 @@ mod_pagespeed 2.1 includes built-in admin pages for monitoring, configuration in
 
 Two endpoints are exposed: `/pagespeed_admin` is the per-vhost admin handler, and `/pagespeed_global_admin` is the process-wide handler. Both are read-write (cache purge) and warrant the same access restrictions in production.
 
+The console labels the optimizer worker "Optimizer daemon" in its sidebar and panel names. This page keeps those labels where it names a panel and says "worker" everywhere else; the two words mean the same process.
+
 <img
   src="/images/console-1.1-admin.png"
   alt="mod_pagespeed 1.15 admin console showing live statistics with per-variable deltas and trend sparklines"
@@ -36,7 +38,7 @@ Explore the [mod_pagespeed 1.15 admin console](https://demo-httpd-1.1.modpagespe
 | Caches                                            | `/pagespeed_admin/cache`                  | Cache status, inspection, and purge                     |
 | Console                                           | `/pagespeed_admin/console`                | Historical graphs (requires StatisticsLogging)          |
 | Messages                                          | `/pagespeed_admin/message_history`        | Recent log messages, filterable by severity             |
-| Daemon Status, Daemon Cache, Daemon Back-pressure | (in the sidebar under "Optimizer daemon") | Optimizer daemon health, cache savings, back-pressure   |
+| Daemon Status, Daemon Cache, Daemon Back-pressure | (in the sidebar under "Optimizer daemon") | Optimizer worker health, cache savings, back-pressure   |
 | About, Support                                    | (in the sidebar under "Help")             | Build/optimizer versions, documentation and legal links |
 
 The console opens on the Overview page by default; the other pages are reached from the sidebar or with a [keyboard shortcut](#keyboard-shortcuts).
@@ -205,12 +207,12 @@ These directives match the host name of the request, not the address of the clie
 
 ## Overview page
 
-The console opens on the Overview page. It answers three questions at a glance: is the module working, is the optimizer daemon healthy, and what have they saved — plus a ranked list of anything that needs attention.
+The console opens on the Overview page. It answers three questions at a glance: is the module working, is the optimizer worker healthy, and what have they saved — plus a ranked list of anything that needs attention.
 
 A one-line health summary sits at the top: "All systems healthy", or "N issue(s) need attention" in warning or error color depending on the worst alert currently active. Below it are two cards:
 
 - **Module** — bytes saved by optimization (and the percentage of the original size), how much was served from the optimizer's cache (of the in-place requests it handled), and resource fetch failures (linked to the [Messages page](#message-history) filtered to warnings and worse). Before any traffic has been optimized, the card says so instead of showing zeros.
-- **Optimizer daemon** — its state (Running, Not configured, Unreachable, Outdated, or Checking — see [Optimizer daemon panels](#optimizer-daemon-panels) for what each one means), version, uptime, and bytes saved on responses it served (with the percentage of the original size). A note appears when all of its worker threads are busy, when its version is older than this console supports, or when its version does not report the statistics needed for savings and alerts.
+- **Optimizer daemon** (the console's label for the worker) — its state (Running, Not configured, Unreachable, Outdated, or Checking — see [Optimizer worker panels](#optimizer-daemon-panels) for what each one means), version, uptime, and bytes saved on responses it served (with the percentage of the original size). A note appears when all of its worker threads are busy, when its version is older than this console supports, or when its version does not report the statistics needed for savings and alerts.
 
 Both cards link to their detail page (All statistics, Daemon status).
 
@@ -220,9 +222,9 @@ The Overview raises alerts above the cards, ranked with errors before warnings:
 
 | Alert                             | Severity | Fires when                                                                                                                  |
 | --------------------------------- | -------- | --------------------------------------------------------------------------------------------------------------------------- |
-| Optimizer health check failing    | Error    | A daemon health check reports failure                                                                                       |
+| Optimizer health check failing    | Error    | One of the worker's health checks reports failure                                                                                       |
 | Optimizer write failures          | Error    | The optimizer's count of failed cache writes increases (usually disk pressure or a permissions problem on its cache volume) |
-| Optimizer unreachable             | Warning  | The daemon is configured but not answering                                                                                  |
+| Optimizer unreachable             | Warning  | The worker is configured but not answering                                                                                  |
 | Optimizer version                 | Warning  | The optimizer is too old for this console, or too old to report the statistics it reads                                     |
 | Optimizer errors                  | Warning  | The optimizer's error count increases                                                                                       |
 | Origin sends compressed responses | Warning  | The optimizer received a response it cannot optimize because the origin (or a proxy in front of it) compressed it           |
@@ -231,13 +233,13 @@ The Overview raises alerts above the cards, ranked with errors before warnings:
 | Optimizer threads busy            | Warning  | Every optimizer worker thread is busy; new work waits                                                                       |
 | Optimizer connections             | Warning  | Optimizer connections are above 90% of the configured maximum; change notifications from the web server may be dropped      |
 
-An alert based on a counter (write failures, errors, fetch failures) fires only on an _increase_ between two refreshes, never on the first sample and never when a counter drops because the optimizer restarted; it then stays visible for about a minute after the last increase so a single event does not flash on and off. An alert based on a state (daemon unreachable, threads busy, connections saturated) stays visible for as long as the condition holds. Dismissing an alert hides it until its condition clears and then reoccurs — it does not stay dismissed forever. No optimizer configured raises nothing.
+An alert based on a counter (write failures, errors, fetch failures) fires only on an _increase_ between two refreshes, never on the first sample and never when a counter drops because the optimizer restarted; it then stays visible for about a minute after the last increase so a single event does not flash on and off. An alert based on a state (worker unreachable, threads busy, connections saturated) stays visible for as long as the condition holds. Dismissing an alert hides it until its condition clears and then reoccurs — it does not stay dismissed forever. No optimizer configured raises nothing.
 
 ## Refresh and connectivity
 
 Each console page keeps one poller: it makes one request at a time, waiting for the previous one to settle before scheduling the next, and refreshes every 5 seconds while things are healthy. After a failed refresh the wait doubles each time, up to a maximum of one minute, and resets to normal once a refresh succeeds again. Nothing is requested while the browser tab is hidden; the page refreshes at once when the tab is shown again. Pages open in more than one tab (or an optimizer panel another tab is already reading) share a read that's already in flight rather than doubling up — a "busy" answer is not treated as a failure and simply keeps the last view on screen.
 
-The top bar, next to the build version and the vendor link, says **connected** or **reconnecting**. This reflects whether the server itself answers at all — a 502/503/504 from a reverse proxy in front of the whole server counts as unreachable, and a request with no answer within 15 seconds counts as unanswered. A 502/503/504 from the optimizer daemon's own proxy endpoints (`/v1/daemon/...`) does _not_ flip this to "reconnecting" — that's a daemon-panel state (see [Optimizer daemon panels](#optimizer-daemon-panels)), not a connectivity problem with the server.
+The top bar, next to the build version and the vendor link, says **connected** or **reconnecting**. This reflects whether the server itself answers at all — a 502/503/504 from a reverse proxy in front of the whole server counts as unreachable, and a request with no answer within 15 seconds counts as unanswered. A 502/503/504 from the optimizer worker's own proxy endpoints (`/v1/daemon/...`) does _not_ flip this to "reconnecting" — that's a worker-panel state (see [Optimizer worker panels](#optimizer-daemon-panels)), not a connectivity problem with the server.
 
 When the server can't be reached, a banner appears above the page: "Cannot reach the server. The console keeps trying, less often the longer this lasts", naming when the figures on screen were last refreshed, with a **Retry now** button. Retry now asks every currently open page's poller again at once (or, on a page with nothing to poll, does a single configuration read to check). Every page keeps showing its last data through an outage rather than blanking it.
 
@@ -312,18 +314,18 @@ v1.15.0+r18 adds cache observability counters to the caches page (`/pagespeed_ad
 
 The statistics page also gains counters for zero-copy serving (all 0 while the feature is off): `zerocopy_serve_aliased`, `zerocopy_serve_copied_out`, `zerocopy_serve_renew_fail_reset`, `zerocopy_serve_aborted`, and `zerocopy_serve_ring_refills`. A persistently nonzero `zerocopy_serve_renew_fail_reset` rate is the signal that a cache stripe is hot enough to warrant tuning; see [Caching](/docs/cache-modes/#zero-copy-serving) for the zero-copy options.
 
-## Optimizer daemon panels
+## Optimizer worker panels {#optimizer-daemon-panels}
 
-When a server is set up with the optimizer daemon (see [Caching](/docs/cache-modes/) for `DaemonSocketPath` and `DaemonVolumePath`), the sidebar's "Optimizer daemon" group has three panels, read through the module's read-only proxy:
+When a server is set up with the optimizer worker (see [Caching](/docs/cache-modes/) for `DaemonSocketPath` and `DaemonVolumePath`), the sidebar's "Optimizer daemon" group has three panels, read through the module's read-only proxy:
 
-- **Daemon Status** — the daemon's overall status and ready flag, version, commit, uptime, connections (active of max), in-flight requests, a table of health checks (each shown as Pass or Fail, with the reason when the optimizer gives one), and — when browser-based analysis is configured — whether the browser is running, its consecutive failure count, and its restart delay.
+- **Daemon Status** — the worker's overall status and ready flag, version, commit, uptime, connections (active of max), in-flight requests, a table of health checks (each shown as Pass or Fail, with the reason when the optimizer gives one), and — when browser-based analysis is configured — whether the browser is running, its consecutive failure count, and its restart delay.
 - **Daemon Cache** — serve savings per content type, as the module records them: the optimizer itself never answers a page request; the module serves the optimized response from the optimizer's cache and records it. The panel shows responses served, original and served bytes, and the saving for each content type that has traffic, and names the types with nothing recorded instead of listing rows of zeros.
 - **Daemon Back-pressure** — what the "skipped" notification counts mean: how many change notifications from the web server the optimizer dropped rather than queued, because it was already busy.
 
-The daemon is an optional companion, so a panel with nothing to show renders an honest empty state rather than an error, naming why:
+The worker is an optional companion, so a panel with nothing to show renders an honest empty state rather than an error, naming why:
 
 - **not configured on this server** — no `DaemonSocketPath`/`DaemonApiSocketPath` is set here; the module optimizes on its own.
-- **unreachable** — the daemon is configured but the module can't reach it right now; the module keeps serving pages without it.
+- **unreachable** — the worker is configured but the module can't reach it right now; the module keeps serving pages without it.
 - **this optimizer version does not provide this panel** — an older optimizer build that predates the endpoint this console reads. Update the optimizer package.
 
 None of these states raise the [connection banner](#refresh-and-connectivity) or flip the top bar to "reconnecting" — only the module's own web server being unreachable does that. The Overview page's optimizer card summarizes the same states as Not configured, Unreachable, Outdated, or Checking (transient — the next refresh tries again).
