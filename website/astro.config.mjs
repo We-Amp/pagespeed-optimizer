@@ -11,6 +11,7 @@ import remarkCustomHeadingId from 'remark-custom-heading-id';
 import remarkDirective from 'remark-directive';
 import remarkCallouts from './src/lib/remark-callouts.mjs';
 import { gitLastModified } from './src/lib/git-date';
+import { loadFilterTopics } from './src/lib/filter-topics.mjs';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -79,6 +80,18 @@ function buildLastmodMap() {
 }
 
 const lastmodMap = buildLastmodMap();
+
+// Filter topic pages (/docs/filters/<name>/): the thin ones are noindex and
+// stay out of the sitemap until their group-page section is enriched (the guard
+// lives in src/lib/filter-topics.mjs); the rest date themselves from the group
+// page their prose comes from.
+const filterTopics = loadFilterTopics(__dirname);
+const indexableTopics = new Set(filterTopics.filter((t) => t.indexable).map((t) => t.name));
+for (const t of filterTopics) {
+  if (!t.indexable) continue;
+  const iso = lastmodMap.get(`/docs/${t.section.page}/`);
+  if (iso) lastmodMap.set(t.path, iso);
+}
 
 // Slugs of /examples/<slug>/ pages that have generated before/after data. Detail
 // pages without data are noindex (see examples/[slug].astro) and are kept out of
@@ -231,6 +244,8 @@ export default defineConfig({
         if (page.endsWith('.md')) return false;
         const m = new URL(page).pathname.match(/^\/examples\/([^/]+)\/$/);
         if (m) return examplesWithData.has(m[1]);
+        const topic = new URL(page).pathname.match(/^\/docs\/filters\/([^/]+)\/$/);
+        if (topic) return indexableTopics.has(topic[1]);
         return true;
       },
       // Per-entry lastmod from content frontmatter where available. Pages with

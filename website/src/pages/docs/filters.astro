@@ -252,11 +252,21 @@ pagespeed EnableFilters rewrite_images,lazyload_images     # IIS (pagespeed.conf
               <tr class={`border-b border-border/60 ${tone(f)}`} id={f.name}>
                 <td class="py-2 pr-4 align-top">
                   <a
-                    href={f.href}
+                    href={f.topic}
                     class="font-mono text-interactive hover:text-interactive-hover break-all"
+                    data-topic-link
                   >
                     {f.name}
                   </a>
+                  {!f.topicIndexable && (
+                    <a
+                      href={f.href}
+                      class="ml-1 text-xs text-text-annotation hover:text-interactive"
+                      data-section-link
+                    >
+                      (section)
+                    </a>
+                  )}
                   {f.alias && (
                     <span class="block text-xs text-text-annotation">= {f.members.join(', ')}</span>
                   )}

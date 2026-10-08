@@ -9,13 +9,15 @@
 // and src/data/examples.ts (the demo per filter).
 //
 // Consumers: /docs/filters/ (src/pages/docs/filters.astro) renders the
-// complete table and its ItemList JSON-LD from FILTERS; the drift gates in
+// complete table and its ItemList JSON-LD from FILTERS, each row linking to the
+// filter's topic page (/docs/filters/<name>/); the drift gates in
 // test/reference/ assert that every name here has a section on exactly one
 // group page and that the JSON still matches the pinned source.
 //
 // Do not hand-edit filters.json: regenerate it (`npm run gen:references`).
 
 import data from './reference/filters.json';
+import { topicPath, indexableTopicNames } from '../lib/filter-topics.mjs';
 
 export type FilterCategory = 'Image' | 'CSS' | 'JavaScript' | 'HTML' | 'Caching';
 
@@ -28,6 +30,10 @@ export interface Filter {
   description: string;
   /** Deep link to the filter's own anchor on its group page. */
   href: string;
+  /** The filter's topic page, /docs/filters/<name>/. */
+  topic: string;
+  /** The topic page is indexable (not held back by the thin-content guard). */
+  topicIndexable: boolean;
   /** In the CoreFilters set (true), partly (an alias whose members differ) or not. */
   core: boolean | 'partial';
   /** In the OptimizeForBandwidth set. */
@@ -78,6 +84,8 @@ function hrefFor(category: FilterCategory, name: string): string {
   return `/docs/${PAGE_BY_CATEGORY[category]}/#${name}`;
 }
 
+const INDEXABLE = indexableTopicNames();
+
 const single: Filter[] = data.filters.map((f) => {
   const category = asCategory(f.name, f.category);
   return {
@@ -85,6 +93,8 @@ const single: Filter[] = data.filters.map((f) => {
     category,
     description: f.summary ?? f.label ?? f.name,
     href: hrefFor(category, f.name),
+    topic: topicPath(f.name),
+    topicIndexable: INDEXABLE.has(f.name),
     core: f.core,
     optimizeForBandwidth: f.optimizeForBandwidth,
     risk: f.risk,
@@ -105,6 +115,8 @@ const aliases: Filter[] = data.aliases.map((a) => {
     category,
     description: a.summary ?? a.name,
     href: hrefFor(category, a.name),
+    topic: topicPath(a.name),
+    topicIndexable: INDEXABLE.has(a.name),
     core: a.core as boolean | 'partial',
     optimizeForBandwidth: a.optimizeForBandwidth as boolean | 'partial',
     risk: a.risk,
@@ -129,4 +141,23 @@ export function filtersByCategory(): { category: FilterCategory; filters: Filter
     category,
     filters: FILTERS.filter((f) => f.category === category),
   }));
+}
+
+/**
+ * The filter whose topic page is the full guide to an /examples/<slug>/ demo:
+ * the filter of the same name, else the filter that lists this demo as its
+ * example, else the first filter in the demo's PageSpeedFilters value.
+ */
+export function topicForExample(slug: string, filters: string): Filter | undefined {
+  const byName = new Map(FILTERS.map((f) => [f.name, f]));
+  return (
+    byName.get(slug) ??
+    FILTERS.find((f) => f.example === `/examples/${slug}/`) ??
+    filters
+      .split(',')
+      // A +/- modifier list adjusts a configuration demo; it names no single
+      // filter the demo isolates, so such a demo gets no guide link.
+      .map((n) => (/^[+-]/.test(n.trim()) ? undefined : byName.get(n.trim())))
+      .find((f): f is Filter => !!f)
+  );
 }

@@ -45,6 +45,8 @@ See [IIS configuration](/docs/iis-configuration/) for the full file format refer
 
 <a id="rewrite_javascript_external"></a><a id="rewrite_javascript_inline"></a>
 
+[Full guide →](/docs/filters/rewrite_javascript/) · Also: [`rewrite_javascript_external`](/docs/filters/rewrite_javascript_external/), [`rewrite_javascript_inline`](/docs/filters/rewrite_javascript_inline/)
+
 Core filter. Minifies JavaScript by removing whitespace, comments, and shortening variable names where safe. In OFB mode, minifies in-place. The sub-filters `rewrite_javascript_external` and `rewrite_javascript_inline` control scope but are implicitly enabled by the parent filter.
 
 The minifier is conservative around edge cases that change behavior — see [how safe JavaScript minification handles automatic semicolon insertion](/blog/safe-javascript-minification-semicolon-insertion/). Since v1.15.0+r21 there is a single minifier — the tokenizer-based one — and files containing template literals (backtick strings) minify normally. The `UseExperimentalJsMinifier` directive that previously selected it is deprecated: it is accepted for compatibility but ignored, and logs a deprecation warning at configuration load (`ModPagespeedUseExperimentalJsMinifier` on Apache, `pagespeed UseExperimentalJsMinifier` on nginx). Remove it from your configuration.
@@ -63,6 +65,8 @@ pagespeed EnableFilters rewrite_javascript;
 
 ## combine_javascript {#combine_javascript}
 
+[Full guide →](/docs/filters/combine_javascript/)
+
 Core filter. Combines multiple `<script src>` elements into a single file. Like [`combine_css`](/docs/css-filters/#combine_css), combination boundaries are broken by inline scripts or other non-script elements between script tags.
 
 **Apache:**
@@ -78,6 +82,8 @@ pagespeed EnableFilters combine_javascript;
 ```
 
 ## inline_javascript {#inline_javascript}
+
+[Full guide →](/docs/filters/inline_javascript/)
 
 Core filter. Inlines small external JS files into the HTML. `JsInlineMaxBytes` (default: 2048) controls the threshold.
 
@@ -96,6 +102,8 @@ pagespeed JsInlineMaxBytes 2048;
 ```
 
 ## defer_javascript {#defer_javascript}
+
+[Full guide →](/docs/filters/defer_javascript/)
 
 Not a core filter. Test thoroughly before enabling. Defers execution of all JavaScript until after the page finishes loading. This can dramatically improve initial render time but will break scripts that rely on executing during page parse (e.g., `document.write`).
 
@@ -122,6 +130,8 @@ pagespeed EnableFilters defer_javascript;
 
 ## outline_javascript {#outline_javascript}
 
+[Full guide →](/docs/filters/outline_javascript/)
+
 Experimental. Externalizes large inline `<script>` blocks into separate files. `JsOutlineMinBytes` (default: 3000) controls the threshold. Rarely useful -- most sites benefit more from inlining.
 
 **Apache:**
@@ -140,6 +150,8 @@ pagespeed JsOutlineMinBytes 3000;
 
 ## include_js_source_maps {#include_js_source_maps}
 
+[Full guide →](/docs/filters/include_js_source_maps/)
+
 Not a core filter. Preserves JavaScript source maps through minification by adding a `//# sourceMappingURL=` comment pointing to the original source map. Enable this if you need to debug minified JavaScript in production.
 
 **Apache:**
@@ -155,6 +167,8 @@ pagespeed EnableFilters include_js_source_maps;
 ```
 
 ## extend_cache_scripts {#extend_cache_scripts}
+
+[Full guide →](/docs/filters/extend_cache_scripts/)
 
 Core filter, one of the three members of [`extend_cache`](/docs/cache-control/#extend_cache). Rewrites `<script src>` URLs to content-hashed `.pagespeed.ce.` URLs served with a one-year `Cache-Control` max-age: browsers keep scripts for a year, and a changed file gets a new URL, so there is nothing to purge. Use it when the origin cannot set long cache lifetimes itself; under CoreFilters it is already on through `extend_cache`. Disabling it leaves `extend_cache_css` and `extend_cache_images` on. Live demo: [extend_cache](/examples/extend_cache/).
 
@@ -176,6 +190,8 @@ The module keeps these names so that an existing configuration still loads. The 
 
 ### canonicalize_javascript_libraries {#canonicalize_javascript_libraries}
 
+[Full guide →](/docs/filters/canonicalize_javascript_libraries/)
+
 Replaces a `<script src>` that matches a known library (recognized by size and hash through the `Library` directive) with the library's canonical URL on a shared CDN, so visitors reuse a copy already in their browser cache. In the dangerous set: the module ships no library table of its own any more, cross-site caches are partitioned in current browsers, and a canonical URL you do not control is a dependency you do not control. Use it only with your own `Library` entries and your own CDN. Live demo: [canonicalize_javascript_libraries](/examples/canonicalize_javascript_libraries/).
 
 ```nginx
@@ -185,6 +201,8 @@ pagespeed EnableFilters canonicalize_javascript_libraries;
 
 ### deterministic_js {#deterministic_js}
 
+[Full guide →](/docs/filters/deterministic_js/)
+
 Injects a script that makes `Date` and `Math.random` return deterministic values, so two loads of a page produce the same output and can be compared byte for byte. For measurement and regression testing only; it changes the behavior of every script on the page. In the dangerous set.
 
 ```nginx
@@ -192,6 +210,8 @@ pagespeed EnableFilters deterministic_js;
 ```
 
 ### disable_javascript {#disable_javascript}
+
+[Full guide →](/docs/filters/disable_javascript/)
 
 Wraps every `<script>` in `<noscript>` so no script on the page runs, to measure what the page looks like and costs without JavaScript. For measurement only. In the dangerous set.
 
@@ -201,6 +221,8 @@ pagespeed EnableFilters disable_javascript;
 
 ### strip_scripts {#strip_scripts}
 
+[Full guide →](/docs/filters/strip_scripts/)
+
 Removes every `<script>` element from the page, the more drastic variant of `disable_javascript` for measuring the no-script baseline. For measurement only. In the dangerous set.
 
 ```nginx
@@ -209,6 +231,8 @@ pagespeed EnableFilters strip_scripts;
 
 ### make_show_ads_async {#make_show_ads_async}
 
+[Full guide →](/docs/filters/make_show_ads_async/)
+
 Rewrites synchronous `showads.js` ad snippets to the asynchronous `adsbygoogle.js` form so the ads stop blocking rendering. It targets a deprecated AdSense integration; convert the snippets in your templates instead. Live demo: [make_show_ads_async](/examples/make_show_ads_async/).
 
 ```nginx
@@ -216,6 +240,8 @@ pagespeed EnableFilters make_show_ads_async;
 ```
 
 ### make_google_analytics_async {#make_google_analytics_async}
+
+[Full guide →](/docs/filters/make_google_analytics_async/)
 
 Deprecated and a no-op: it rewrote the retired `ga.js` snippet to its asynchronous form. The name is accepted so old configurations load; remove it.
 

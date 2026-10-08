@@ -70,6 +70,12 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [CSS filters](https://modpagespeed.com/docs/css-filters/): CSS filters in mod_pagespeed 2.1: minify, combine, inline and flatten @import CSS, plus critical-CSS extraction. Apache, nginx and IIS syntax with tuning.
 - [JavaScript filters](https://modpagespeed.com/docs/javascript-filters/): Minify, combine, inline, and defer JavaScript in mod_pagespeed 2.1. Directives, defaults, and the trade-offs for each JS filter on Apache, nginx, and IIS.
 - [HTML filters](https://modpagespeed.com/docs/html-filters/): HTML optimization filters in mod_pagespeed 2.1: collapse whitespace, strip comments, elide attributes, DNS prefetch, and resource preload hints.
+- [Defer JavaScript (defer_javascript)](https://modpagespeed.com/docs/filters/defer_javascript/): Defers JS execution until after page load.
+- [Inline images (inline_images)](https://modpagespeed.com/docs/filters/inline_images/): Inlines small images as data: URIs.
+- [Lazy-load images (lazyload_images)](https://modpagespeed.com/docs/filters/lazyload_images/): Defers offscreen image loading.
+- [Prioritize critical CSS (prioritize_critical_css)](https://modpagespeed.com/docs/filters/prioritize_critical_css/): Inlines the CSS a page uses, loads the rest async.
+- [Prioritize critical images (prioritize_critical_images)](https://modpagespeed.com/docs/filters/prioritize_critical_images/): Sets fetchpriority=high on the LCP image.
+- [Resize images (resize_images)](https://modpagespeed.com/docs/filters/resize_images/): Resizes images to match <img> dimensions.
 
 ## Operate
 

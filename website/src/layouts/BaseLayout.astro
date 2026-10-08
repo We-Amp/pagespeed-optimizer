@@ -34,6 +34,9 @@ interface Props {
   // The page's Markdown twin (/docs/<slug>.md), advertised with
   // <link rel="alternate" type="text/markdown"> so agents can ask for the text.
   alternateMarkdown?: string;
+  // Keep a noindex page in site search anyway (Pagefind is separate from
+  // search-engine indexing): the thin filter topic pages use this.
+  searchable?: boolean;
 }
 
 const {
@@ -45,6 +48,7 @@ const {
   breadcrumbLeafName,
   breadcrumbSkipSegments = [],
   alternateMarkdown,
+  searchable = false,
 } = Astro.props;
 
 const is11Section = Astro.url.pathname.startsWith('/1.1/');
@@ -449,7 +453,9 @@ const showStickyCta = ['/', '/pricing/', '/features/', '/demo/'].includes(sticky
 // archive, which never carries the attribute. The section meta is shown on
 // every result as a tag ("Section: Docs").
 const searchExcluded =
-  noindex || /^\/(api|go|buy|error|1\.0)(\/|$)/.test(rawPath) || /^\/(404|500)\/?$/.test(rawPath);
+  (noindex && !searchable) ||
+  /^\/(api|go|buy|error|1\.0)(\/|$)/.test(rawPath) ||
+  /^\/(404|500)\/?$/.test(rawPath);
 const sectionNames: Record<string, string> = {
   docs: 'Docs',
   blog: 'Blog',
