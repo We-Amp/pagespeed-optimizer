@@ -63,6 +63,10 @@ const { command, label, chip, lines } = Astro.props;
     box-shadow: none;
     border-radius: 0;
   }
+  /* The panel's overflow:hidden clips an outward focus ring; draw it inside. */
+  .term-body:focus-visible {
+    outline-offset: -2px;
+  }
   .term-plain {
     color: var(--color-text-muted);
   }

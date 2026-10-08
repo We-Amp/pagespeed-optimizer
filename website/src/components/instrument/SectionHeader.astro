@@ -24,12 +24,12 @@ const lead = Astro.slots.has('default') ? await Astro.slots.render('default') : 
 const hasLead = lead.trim().length > 0;
 ---
 
-<header class="section-header" data-ui="section-header">
-  <p class:list={['eyebrow', align === 'center' && 'justify-center']}>
+<header class:list={['section-header', align === 'center' && 'text-center']} data-ui="section-header">
+  <p class="eyebrow">
     {index && <span class="eyebrow-index">{index}</span>}
     {eyebrow}
   </p>
-  <Tag id={id} class:list={['h2-section text-text-body', align === 'center' && 'text-center']}>
+  <Tag id={id} class="h2-section text-text-body">
     {title}
   </Tag>
   {
