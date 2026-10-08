@@ -386,6 +386,12 @@ See [Filter selection](/docs/filter-selection/#disablefilters).
 
 Excludes resources (and pages) whose URL matches the wildcard from optimization.
 
+<a id="pagespeed_disallow"></a>
+
+The thin nginx module's `pagespeed_disallow` is the equivalent for the Docker and
+reverse-proxy shape; see
+[Worker and reverse-proxy configuration](/docs/worker-configuration/#pagespeed_disallow).
+
 #### EnableAggressiveRewritersForMobile {#enableaggressiverewritersformobile}
 
 - **Syntax:** `ModPagespeedEnableAggressiveRewritersForMobile on|off` (Apache) · `pagespeed EnableAggressiveRewritersForMobile on|off;` (nginx)
@@ -2562,7 +2568,7 @@ Experimental measurement proxy mode (Apache only).
 
 - **Syntax:** `ModPagespeedFetcherTimeOutMs number` (Apache) · `pagespeed FetcherTimeOutMs number;` (nginx)
 - **Default:** `5000`
-- **Context:** Apache: server config, virtual host · nginx: http, server, location
+- **Context:** Apache: server config, virtual host · nginx: http, server
 
 Set internal fetcher timeout in milliseconds
 

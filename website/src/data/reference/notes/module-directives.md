@@ -24,6 +24,14 @@ interaction with `RewriteLevel`.
 
 See [Filter selection](/docs/filter-selection/#disablefilters).
 
+## Disallow
+
+<a id="pagespeed_disallow"></a>
+
+The thin nginx module's `pagespeed_disallow` is the equivalent for the Docker and
+reverse-proxy shape; see
+[Worker and reverse-proxy configuration](/docs/worker-configuration/#pagespeed_disallow).
+
 ## ForbidFilters
 
 A forbidden filter cannot be re-enabled by a more specific scope or by a query

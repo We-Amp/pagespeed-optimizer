@@ -60,6 +60,7 @@ describe('/docs/configuration/ documents every module directive', () => {
       'optimization-threads',
       'max-url-segments',
       'modpagespeed',
+      'pagespeed_disallow',
     ]) {
       expect(configurationIds.has(id), id).toBe(true);
     }

@@ -3320,8 +3320,7 @@
         ],
         "nginx": [
           "http",
-          "server",
-          "location"
+          "server"
         ],
         "query": false
       },

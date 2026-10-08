@@ -708,7 +708,7 @@ The 1.15 IIS module uses WinHTTP for resource fetching. WinHTTP handles SSL cert
 ### Additional cache directives
 
 A few more cache-related directives are covered by their one-line summary in
-the [directive index](/docs/configuration/): `CacheFragment` (default:
+the [configuration reference](/docs/configuration/): `CacheFragment` (default:
 auto) sets the cache partition key; `PurgeMethod` (default: none) sets the
 HTTP method used for cache purge; `RateLimitBackgroundFetches` (default: on)
 rate-limits background fetches; `RedisReconnectionDelayMs` (default: 1000)
@@ -716,5 +716,5 @@ sets the Redis reconnection delay. `InPlaceRewriteDeadlineMs` (default: 10)
 sets the IPRO rewrite deadline per flush, alongside `InPlaceSMaxAgeSec`
 above.
 
-See the [directive index](/docs/configuration/) for the full list of native
+See the [configuration reference](/docs/configuration/) for the full list of native
 module directives and their defaults.

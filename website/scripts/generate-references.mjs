@@ -586,10 +586,14 @@ export function buildModuleDirectives(moduleSrc, warnings) {
     [...parseNamedStrings(factoryCc).values()].filter((v) => handledShared.has(v)),
   );
 
-  const serverOnly = new Set(parseStringArray(ngxCc, 'server_only_options'));
-  const mainOnly = new Set(parseStringArray(ngxCc, 'main_only_options'));
+  // GetOptionScope compares these lists case-insensitively (the list spells
+  // FetcherTimeoutMs, the option is FetcherTimeOutMs).
+  const lower = (names) => new Set(names.map((n) => n.toLowerCase()));
+  const serverOnly = lower(parseStringArray(ngxCc, 'server_only_options'));
+  const mainOnly = lower(parseStringArray(ngxCc, 'main_only_options'));
+  const inList = (set, name) => set.has(name.toLowerCase());
   const nginxScopeFor = (name) =>
-    mainOnly.has(name) ? 'process' : serverOnly.has(name) ? 'server' : 'directory';
+    inList(mainOnly, name) ? 'process' : inList(serverOnly, name) ? 'server' : 'directory';
 
   for (const cmd of parseApacheCommandTable(modInstawebCc)) {
     const name = cmd.name;
@@ -721,7 +725,11 @@ export function buildModuleDirectives(moduleSrc, warnings) {
     .map((d) => {
       const base = CONTEXT_BY_SCOPE[d.scope] ?? { apache: null, nginx: null, query: false };
       const apacheScope = d.apacheScope ?? d.scope;
-      const nginxScope = d.scopeNginx ?? d.scope;
+      // NgxRewriteOptions::GetOptionScope consults its server-only and
+      // main-only name lists before the option's own scope.
+      const nginxScope =
+        d.scopeNginx ??
+        (inList(mainOnly, d.name) ? 'process' : inList(serverOnly, d.name) ? 'server' : d.scope);
       const context = {
         apache: d.platforms.includes('apache')
           ? (CONTEXT_BY_SCOPE[apacheScope]?.apache ?? null)

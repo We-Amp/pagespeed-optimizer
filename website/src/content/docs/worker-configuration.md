@@ -31,9 +31,9 @@ This shape has a small configuration surface: two required nginx directives
 worker writes, and the worker's command-line flags. The reference below is
 generated from the product's source, so it lists exactly what the shipped
 binaries accept: the 16 directives of the thin module from its command table,
-and every flag of the worker from its own `--help` text, in the same
-Syntax / Default / Context block for each. Everything past the two required
-directives is optional tuning.
+and every flag of the worker from its own `--help` text, each as a fixed
+Syntax / Default block (the directives also list their context). Everything
+past the two required directives is optional tuning.
 
 To work out which flags your own pages need, run them through a
 [PageSpeed Insights test](/analyze/): every failing audit is mapped to the
