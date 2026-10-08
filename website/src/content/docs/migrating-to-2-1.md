@@ -274,7 +274,7 @@ For cache sizing and storage options, see [cache sizing](/docs/cache-modes/#cach
 
 ### Configuration compatibility
 
-All existing directives are supported — the [directive index](/docs/directive-index/) lists the full set. A few notes:
+All existing directives are supported — the [directive index](/docs/configuration/) lists the full set. A few notes:
 
 | Directive                   | Status                                        |
 | --------------------------- | --------------------------------------------- |

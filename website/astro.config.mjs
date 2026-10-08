@@ -173,6 +173,11 @@ export default defineConfig({
     // The release notes are the product's changelog; the conventional URL
     // forwards to the index page that lists every line.
     '/changelog/': '/docs/release-notes/',
+    // Reference pages folded into the generated references (2026-10): the
+    // alphabetical directive index became the configuration reference (every
+    // directive, generated from the module source), and the two filter hubs
+    // merged into the one filters table at /docs/filters/.
+    '/docs/directive-index/': '/docs/configuration/',
   },
   markdown: {
     // remarkDirective parses `:::caution[…]:::` container syntax; remarkCallouts
