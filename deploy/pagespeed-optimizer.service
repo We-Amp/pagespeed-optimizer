@@ -8,7 +8,7 @@
 # the socket and the shared cache through membership in group `pagespeed`;
 # the MODULE packages perform that join in their postinst.
 [Unit]
-Description=PageSpeed Optimizer Daemon
+Description=PageSpeed Optimizer Worker
 Documentation=https://modpagespeed.com/docs/configuration/
 After=network.target
 # The web server resolves the daemon once at its own start and needs the
