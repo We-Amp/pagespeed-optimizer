@@ -15,7 +15,7 @@ automatic one.
 
 | File | Bytes | sha256 |
 |---|---|---|
-| `index.html` | 271554 | `a5e1639acfd902f7b557f969283a4db77f9ab0af95f1f34afe2476b7b2991265` |
+| `index.html` | 271544 | `c31007b763f4e55f2d249431d8850959a6b842d92140093f1c0e4b5e46fd3d5e` |
 | `BaseLayout.BV5EQjYn.css` | 115789 | `5c368d20b277bfd7d270a53bb61320419551ec8409214d54787a6c6262358bb0` |
 
 Captured **2026-08-01**.
@@ -212,3 +212,9 @@ tables (bytes + sha256), the capture date, and the stylesheet filename if its
 content hash moved. Land it as its own reviewable change. A capture refresh
 that moves the fold means regenerating the rendered lane's goldens in the
 pinned Playwright image in the same change (`../../README.md`).
+
+### Amended 2026-10-08 — one CSS comment reworded, no re-capture
+
+A CSS comment in the inline style block was reworded (no rule or markup
+changed): 271554 -> 271544 bytes; the sha256 in the table above is updated
+to match.
