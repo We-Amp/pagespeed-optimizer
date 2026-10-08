@@ -1,0 +1,528 @@
+---
+import BaseLayout from '../../../layouts/BaseLayout.astro';
+import { createMarkdownProcessor } from '@astrojs/markdown-remark';
+import { loadFilterTopics, plainText, faqHtml, type Topic } from '../../../lib/filter-topics.mjs';
+import { exampleImpact } from '../../../lib/example-impact';
+import { getRelease } from '../../../lib/release';
+import { gitLastModified } from '../../../lib/git-date';
+import { FREE_TO_RUN_LINE } from '../../../data/product-facts.mjs';
+
+// One topic page per filter the module accepts: /docs/filters/<name>/.
+//
+// Everything a page says about its filter comes from two sources. The prose is
+// the filter's section on its group page (/docs/image-filters/ and friends),
+// cut up by src/lib/filter-topics.mjs: the opening, the rest of the
+// explanation, the risks, the configuration blocks. The facts (CoreFilters and
+// OptimizeForBandwidth membership, the risk rating, the directives) come from
+// the generated reference data. Edit the group page and both pages change.
+//
+// A filter whose section is thin (THIN_WORDS in filter-topics.mjs) gets
+// `noindex,follow` and stays out of the sitemap and llms.txt until its section
+// is enriched. Every page carries the same structured data, so the FAQPage
+// JSON-LD always equals the visible FAQ.
+
+export function getStaticPaths() {
+  const topics = loadFilterTopics();
+  return topics.map((topic) => ({ params: { name: topic.name }, props: { topic, topics } }));
+}
+
+interface Props {
+  topic: Topic;
+  topics: Topic[];
+}
+
+const { topic: t, topics } = Astro.props;
+const byName = new Map(topics.map((x) => [x.name, x]));
+
+const md = await createMarkdownProcessor({
+  shikiConfig: {
+    themes: { light: 'github-light', dark: 'github-dark' },
+    defaultColor: false,
+  },
+});
+const html = async (src: string) => (await md.render(src)).code;
+const inline = async (src: string) =>
+  (await html(src))
+    .trim()
+    .replace(/^<p>/, '')
+    .replace(/<\/p>$/, '');
+const codeBlock = (lang: string, code: string) => html('```' + lang + '\n' + code + '\n```');
+
+const lede = t.section.lede ? await inline(t.section.lede) : '';
+const body = await Promise.all(
+  t.section.body.map(async (g) => ({ heading: g.heading, html: await html(g.md) })),
+);
+const risks = t.section.risks.length ? await html(t.section.risks.join('\n\n')) : '';
+
+// Configuration: the enable line for each server, generated from the
+// reference syntax, then the section's own configuration in page order. A
+// section code block that only repeats the enable line is left out.
+const enableOnly = (code: string) => {
+  const lines = code
+    .split('\n')
+    .map((l) => l.trim())
+    .filter((l) => l && !l.startsWith('#'));
+  return (
+    !!t.enable &&
+    lines.length > 0 &&
+    lines.every((l) => l === t.enable!.apache || l === t.enable!.nginx || l === t.enable!.iis)
+  );
+};
+const serverBlocks = t.enable
+  ? await Promise.all(
+      [
+        { label: 'Apache', lang: 'apache', code: t.enable.apache },
+        { label: 'nginx', lang: 'nginx', code: t.enable.nginx },
+        { label: 'IIS (pagespeed.config)', lang: 'text', code: t.enable.iis },
+      ].map(async (b) => ({ label: b.label, html: await codeBlock(b.lang, b.code) })),
+    )
+  : [];
+const disableBlock =
+  t.disable && t.core === true
+    ? await codeBlock(
+        'text',
+        [
+          `${t.disable.apache}   # Apache`,
+          `${t.disable.nginx}   # nginx`,
+          `${t.disable.iis}   # IIS`,
+        ].join('\n'),
+      )
+    : '';
+const sectionConfig = await Promise.all(
+  t.section.config
+    .filter((c) => !('code' in c) || !enableOnly(c.code))
+    .map((c) => ('code' in c ? codeBlock(c.lang, c.code) : html(c.md))),
+);
+const worker = t.worker
+  ? { ...t.worker, control: t.worker.control ? await inline(t.worker.control) : '' }
+  : null;
+
+// "When to use it": the facts the data states, one line each.
+const facts: string[] = [];
+if (t.alternateSpellingOf) {
+  facts.push(
+    `An alternate spelling of <a href="/docs/filters/${t.alternateSpellingOf}/"><code>${t.alternateSpellingOf}</code></a>: the module accepts both names for the same filter.`,
+  );
+}
+if (t.deprecated) {
+  facts.push(
+    'Deprecated: the module accepts the name so that an existing configuration loads, and does nothing with it.',
+  );
+} else if (t.dangerous) {
+  facts.push(
+    'In the dangerous set: no RewriteLevel enables it, not even <code>AllFilters</code>. It exists for testing and measurement, not for production traffic.',
+  );
+} else if (t.core === true) {
+  facts.push('In CoreFilters, the default RewriteLevel: it runs unless you disable it.');
+} else if (t.core === 'partial') {
+  facts.push(
+    'Partly in CoreFilters, the default RewriteLevel: some of the filters it enables run by default, the others only when named.',
+  );
+} else {
+  facts.push('Not in CoreFilters: it runs only when you enable it by name.');
+}
+if (!t.deprecated && !t.dangerous) {
+  if (t.optimizeForBandwidth === true)
+    facts.push(
+      'Part of OptimizeForBandwidth, the level that optimizes resources without changing their URLs.',
+    );
+  else if (t.optimizeForBandwidth === 'partial')
+    facts.push('Some of the filters it enables are part of OptimizeForBandwidth.');
+}
+if (t.memberOf.length) {
+  const links = t.memberOf.map((a) => `<a href="/docs/filters/${a}/"><code>${a}</code></a>`);
+  facts.push(
+    `Also switched on by ${links.length > 1 ? `${links.slice(0, -1).join(', ')} and ${links.at(-1)}` : links[0]}.`,
+  );
+}
+const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+if (t.risk) facts.push(`Risk rating on these docs: <strong>${esc(t.risk)}</strong>.`);
+if (t.note) facts.push(esc(t.note));
+
+// The live example, when the gallery isolates this filter.
+const exampleSlug = t.example?.match(/^\/examples\/([^/]+)\/$/)?.[1];
+const impact = exampleSlug ? exampleImpact(exampleSlug) : null;
+
+// Related: the filters documented on the same section, then the rest of the
+// category, skipping alternate spellings and deprecated names.
+const related = [
+  ...t.section.siblings,
+  ...topics.filter((x) => x.category === t.category).map((x) => x.name),
+]
+  .filter((n, i, all) => all.indexOf(n) === i && n !== t.name)
+  .map((n) => byName.get(n)!)
+  .filter((x) => x && !x.alternateSpellingOf && !x.deprecated)
+  // Filters meant for production first; the dangerous set last.
+  .sort((a, b) => Number(a.dangerous) - Number(b.dangerous))
+  .slice(0, 8);
+
+const members = t.members.map((n) => byName.get(n)!).filter(Boolean);
+const groupTitle: Record<string, string> = {
+  'image-filters': 'Image filters',
+  'css-filters': 'CSS filters',
+  'javascript-filters': 'JavaScript filters',
+  'html-filters': 'HTML filters',
+  'cache-control': 'Cache control',
+};
+const groupName = groupTitle[t.section.page] ?? t.section.page;
+const groupHref = `/docs/${t.section.page}/#${t.name}`;
+
+// FAQ: visible answers and the FAQPage JSON-LD come from the same strings; the
+// JSON-LD gets the plain text, the page the same text with code spans.
+const faq = t.faq.map((item) => ({ q: item.q, a: item.a, html: faqHtml(item.a) }));
+
+// Pages that name a Google product (Analytics, AdSense, Fonts, the hosted
+// libraries) carry the same non-affiliation line as the examples gallery.
+const sectionText = [t.section.lede, ...t.section.body.map((g) => g.md), t.note ?? ''].join(' ');
+const namesGoogle = /google|adsense/i.test(`${t.human} ${sectionText}`);
+
+const h1 = `${t.human} (${t.name})`;
+const url = `https://modpagespeed.com${t.path}`;
+const rel21 = await getRelease('2.1');
+const aboutVersion = rel21.release.semver.split('.').slice(0, 2).join('.');
+const lastUpdated = gitLastModified(`src/content/docs/${t.section.page}.md`);
+
+const jsonLd = [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'TechArticle',
+    headline: h1,
+    description: t.description,
+    author: { '@type': 'Organization', name: 'We-Amp B.V.' },
+    publisher: {
+      '@type': 'Organization',
+      name: 'We-Amp B.V.',
+      logo: { '@type': 'ImageObject', url: 'https://modpagespeed.com/logo.svg' },
+    },
+    mainEntityOfPage: url,
+    ...(lastUpdated && { dateModified: lastUpdated }),
+    about: {
+      '@type': 'SoftwareApplication',
+      name: 'mod_pagespeed',
+      version: aboutVersion,
+      applicationCategory: 'WebApplication',
+    },
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: faq.map((item) => ({
+      '@type': 'Question',
+      name: item.q,
+      acceptedAnswer: { '@type': 'Answer', text: plainText(item.a) },
+    })),
+  },
+];
+
+const prose =
+  'prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive prose-a:underline prose-a:underline-offset-2 prose-a:decoration-interactive';
+const yesNo = (v: boolean | 'partial') => (v === true ? 'Yes' : v === 'partial' ? 'Partly' : 'No');
+---
+
+<BaseLayout
+  title={t.title}
+  description={t.description}
+  jsonLd={jsonLd}
+  noindex={!t.indexable}
+  breadcrumbLeafName={t.name}
+>
+  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-12 lg:py-16" data-filter-topic={t.name}>
+    <nav class="mb-6 text-sm text-text-annotation" aria-label="Breadcrumb" data-pagefind-ignore>
+      <a href="/" class="hover:text-text-body">Home</a>
+      <span class="mx-1">/</span>
+      <a href="/docs/" class="hover:text-text-body">Docs</a>
+      <span class="mx-1">/</span>
+      <a href="/docs/filters/" class="hover:text-text-body">Filters</a>
+      <span class="mx-1">/</span>
+      <span class="font-mono break-all">{t.name}</span>
+    </nav>
+
+    <h1 class="text-3xl font-bold tracking-tight text-text-body break-words">{h1}</h1>
+
+    <dl class="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-sm text-text-annotation">
+      <div>
+        <dt class="inline">Category:</dt>
+        <dd class="inline text-text-body">{t.category}</dd>
+      </div>
+      <div>
+        <dt class="inline">CoreFilters:</dt>
+        <dd class="inline text-text-body">{yesNo(t.core)}</dd>
+      </div>
+      <div>
+        <dt class="inline">OptimizeForBandwidth:</dt>
+        <dd class="inline text-text-body">{yesNo(t.optimizeForBandwidth)}</dd>
+      </div>
+      <div>
+        <dt class="inline">Risk:</dt>
+        <dd class="inline text-text-body">
+          {t.dangerous ? 'Dangerous set' : t.deprecated ? 'Deprecated' : (t.risk ?? 'Not rated')}
+        </dd>
+      </div>
+    </dl>
+
+    {lede && <p class="mt-6 lede text-text-body" data-topic-lede set:html={lede} />}
+
+    {
+      t.alias && members.length > 0 && (
+        <div class="mt-8">
+          <h2 class="text-xl font-semibold text-text-body" id="members">
+            What it switches on
+          </h2>
+          <p class="mt-2 text-sm text-text-muted">
+            <code>{t.name}</code> is a compound name. Enabling it enables these {members.length}{' '}
+            filters; each can be disabled on its own.
+          </p>
+          <ul class="mt-3 grid gap-x-6 gap-y-1 sm:grid-cols-2 text-sm" data-alias-members>
+            {members.map((m) => (
+              <li>
+                <a class="font-mono text-interactive hover:underline" href={m.path}>
+                  {m.name}
+                </a>
+                <span class="text-text-annotation"> — {m.human}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )
+    }
+
+    {
+      body.length > 0 && (
+        <div class="mt-10">
+          <h2 class="text-xl font-semibold text-text-body" id="how-it-works">
+            How it works
+          </h2>
+          {body.map((g) => (
+            <div class="mt-4">
+              {g.heading && <h3 class="text-lg font-semibold text-text-body">{g.heading}</h3>}
+              <div class={`mt-2 ${prose}`} set:html={g.html} />
+            </div>
+          ))}
+        </div>
+      )
+    }
+
+    <div class="mt-10">
+      <h2 class="text-xl font-semibold text-text-body" id="when-to-use">When to use it</h2>
+      <ul class="mt-3 list-disc space-y-1 pl-5 text-text-muted">
+        {facts.map((f) => <li set:html={f} />)}
+      </ul>
+    </div>
+
+    <div class="mt-10">
+      <h2 class="text-xl font-semibold text-text-body" id="risks">Risks</h2>
+      {
+        risks ? (
+          <div class={`mt-3 ${prose}`} set:html={risks} />
+        ) : (
+          <p class="mt-3 text-text-muted">
+            The{' '}
+            <a class="text-interactive underline" href={groupHref}>
+              {groupName}
+            </a>{' '}
+            page lists no specific risks for this filter.
+            {t.disable && (
+              <>
+                {' '}
+                If a page misbehaves with it, <code>DisableFilters {t.name}</code> turns it off for
+                the scope you set it in.
+              </>
+            )}
+          </p>
+        )
+      }
+    </div>
+
+    {
+      (serverBlocks.length > 0 || sectionConfig.length > 0 || worker) && (
+        <div class="mt-10">
+          <h2 class="text-xl font-semibold text-text-body" id="configuration">
+            Configuration
+          </h2>
+          {serverBlocks.length > 0 && (
+            <>
+              <p class="mt-3 text-sm text-text-muted">
+                Enable it in the module configuration, at server, virtual-host or location scope:
+              </p>
+              <div class="mt-3 space-y-3">
+                {serverBlocks.map((b) => (
+                  <div>
+                    <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">
+                      {b.label}
+                    </p>
+                    <div class={prose} set:html={b.html} />
+                  </div>
+                ))}
+              </div>
+            </>
+          )}
+          {disableBlock && (
+            <>
+              <p class="mt-4 text-sm text-text-muted">
+                It is on by default under CoreFilters; to turn it off:
+              </p>
+              <div class={prose} set:html={disableBlock} />
+            </>
+          )}
+          {sectionConfig.length > 0 && (
+            <div class={`mt-4 ${prose}`}>
+              {sectionConfig.map((h) => (
+                <Fragment set:html={h} />
+              ))}
+            </div>
+          )}
+          {worker && (
+            <>
+              <h3 class="mt-6 text-lg font-semibold text-text-body">On the worker</h3>
+              <p class="mt-2 text-sm text-text-muted" data-topic-worker>
+                The worker runs its own pipeline, configured by flags. Its equivalent of this filter
+                is the{' '}
+                <a
+                  class="text-interactive underline"
+                  href={`/docs/worker-configuration/#${worker.id}`}
+                >
+                  {worker.title.toLowerCase()}
+                </a>{' '}
+                transform. <Fragment set:html={worker.control} />
+              </p>
+            </>
+          )}
+          <p class="mt-4 text-sm text-text-muted">
+            Scoping, <code>ForbidFilters</code> and the thresholds filters read:{' '}
+            <a class="text-interactive underline" href="/docs/filter-selection/">
+              Choosing filters
+            </a>
+            .
+          </p>
+        </div>
+      )
+    }
+
+    {
+      impact && (
+        <div class="mt-10" data-topic-example>
+          <h2 class="text-xl font-semibold text-text-body" id="example">
+            Live example
+          </h2>
+          <p class="mt-3 text-text-muted">{impact.ex.blurb}</p>
+          {impact.tiles.length > 0 && (
+            <>
+              <p class="mt-3 text-sm text-text-muted">
+                Measured on the demo page, original against optimized:
+              </p>
+              <ul class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
+                {impact.tiles.map((tile) => (
+                  <li class="rounded-lg border border-border bg-bg-elevated p-4 text-center">
+                    <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">
+                      {tile.label}
+                    </p>
+                    <p class="mt-1 text-sm text-text-body">
+                      <span class="line-through text-text-annotation">{tile.before}</span> →{' '}
+                      <span class="font-semibold">{tile.after}</span>{' '}
+                      <span class="badge-success">{tile.pill}</span>
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {impact.hasData && impact.substantive && impact.tiles.length === 0 && (
+            <p class="mt-3 text-sm text-text-muted">
+              This filter changes how the page is structured or delivered, not its size, so the
+              example shows a source diff rather than a byte or request reduction.
+            </p>
+          )}
+          {impact.present && (!impact.hasData || impact.nonSubstantive) && (
+            <p class="mt-3 text-sm text-text-muted">
+              {impact.mechanism === 'beacon'
+                ? 'mod_pagespeed applies this only after a real browser loads the page and reports back, so the example shows it live rather than as a captured diff.'
+                : impact.mechanism === 'header'
+                  ? 'This optimization works at the response-header or document-head hint level, so it leaves no change in the page body to diff; the example shows it live.'
+                  : impact.mechanism === 'config'
+                    ? "This filter needs configuration or content the public demo doesn't provide, so the example has no diff to show."
+                    : 'This optimization leaves no change in the HTML source to diff; the example shows it applied live.'}
+            </p>
+          )}
+          <p class="mt-4">
+            <a
+              class="text-sm font-medium text-interactive hover:underline"
+              href={`/examples/${impact.ex.slug}/`}
+            >
+              See the before and after, with the source diff &rarr;
+            </a>
+          </p>
+        </div>
+      )
+    }
+
+    {
+      faq.length > 0 && (
+        <div class="mt-12 border-t border-border pt-8">
+          <h2 class="text-xl font-semibold text-text-body" id="faq">
+            Frequently asked questions
+          </h2>
+          <dl class="mt-4 space-y-5" data-topic-faq>
+            {faq.map((item) => (
+              <div>
+                <dt class="font-semibold text-text-body">{item.q}</dt>
+                <dd class="mt-1 text-sm text-text-muted" set:html={item.html} />
+              </div>
+            ))}
+          </dl>
+        </div>
+      )
+    }
+
+    <div class="mt-12 border-t border-border pt-8" data-pagefind-ignore>
+      <h2 class="text-xl font-semibold text-text-body" id="related">Related filters</h2>
+      {
+        related.length > 0 && (
+          <ul class="mt-3 grid gap-x-6 gap-y-1 sm:grid-cols-2 text-sm">
+            {related.map((r) => (
+              <li>
+                <a class="font-mono text-interactive hover:underline" href={r.path}>
+                  {r.name}
+                </a>
+                <span class="text-text-annotation"> — {r.human}</span>
+              </li>
+            ))}
+          </ul>
+        )
+      }
+      <p class="mt-4 text-sm text-text-muted">
+        This page is drawn from the <a class="text-interactive underline" href={groupHref}
+          >{t.name} entry on {groupName}</a
+        >. Every filter in one table: <a class="text-interactive underline" href="/docs/filters/"
+          >PageSpeed filters</a
+        >.
+      </p>
+      {
+        namesGoogle && (
+          <p class="mt-3 text-xs text-text-annotation">
+            Google Analytics, AdSense, Fonts and Hosted Libraries are Google products. We-Amp isn't
+            affiliated with or endorsed by Google.
+          </p>
+        )
+      }
+    </div>
+
+    <aside
+      class="mt-12 rounded-lg border border-interactive/40 bg-interactive/10 p-6 text-center"
+      data-pagefind-ignore
+    >
+      <p class="text-sm font-semibold text-text-body">
+        mod_pagespeed 2.1 applies its filters inside Apache, nginx and IIS.
+      </p>
+      <p class="mt-1 text-sm text-text-muted">{FREE_TO_RUN_LINE}</p>
+      <div class="mt-5">
+        <a
+          href="/download/"
+          data-umami-event="cta_filter_topic_install"
+          class="inline-flex items-center rounded-lg bg-interactive hover:bg-interactive-hover px-5 py-2.5 text-sm font-semibold text-on-accent shadow-sm transition-colors"
+        >
+          Download &amp; run
+        </a>
+      </div>
+    </aside>
+  </section>
+</BaseLayout>
