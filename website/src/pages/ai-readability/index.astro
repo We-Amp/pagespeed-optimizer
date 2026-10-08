@@ -1066,6 +1066,11 @@ const jsonLd = [webApp, faqPage];
     .dark .ar-copy-msg {
       color: var(--color-stone-400);
     }
+    .ar-share-note {
+      margin: 0.5rem 0 0;
+      font-size: 0.85rem;
+      color: var(--color-text-muted);
+    }
     .ar-wedge-ctx {
       font-size: 0.85rem;
       color: var(--color-stone-600);
@@ -2011,9 +2016,8 @@ const jsonLd = [webApp, faqPage];
         const seBlk = seBlock(r.sovereigntyExposure);
         const ghostBlk = ghostBlock(r.ghostLayer);
 
-        // SECTION 5 — share: the permalink the scanner mints for every scan, plus the
-        // copy-link control that replaced the old "email me this result" /notify path
-        // (that endpoint only logged a lead — no email was ever sent automatically).
+        // SECTION 5 — share: the permalink the scanner mints for every scan, plus a
+        // copy-link control. The page promises nothing it does not do by itself.
         const share = data.permalink
           ? '<div class="ar-share">Shareable link: <a href="' +
             esc(data.permalink) +
@@ -2021,7 +2025,8 @@ const jsonLd = [webApp, faqPage];
             esc(data.permalink) +
             '</a></div>' +
             '<button type="button" id="ar-copy-link">Copy link to this result</button>' +
-            '<span id="ar-copy-msg" class="ar-copy-msg" role="status" aria-live="polite" tabindex="-1"></span>'
+            '<span id="ar-copy-msg" class="ar-copy-msg" role="status" aria-live="polite"></span>' +
+            '<p class="ar-share-note">The link works for up to 24 hours.</p>'
           : '';
 
         out.innerHTML =
@@ -2114,14 +2119,16 @@ const jsonLd = [webApp, faqPage];
             }
           }
           if (msg) {
-            msg.textContent = copied
-              ? 'Link copied'
-              : 'Link selected — press Ctrl/Cmd+C to copy it';
-            msg.focus && msg.focus();
+            // Clear first so a repeat copy is announced again.
+            msg.textContent = '';
+            const text = copied ? 'Link copied' : 'Link selected — press Ctrl/Cmd+C to copy it';
+            setTimeout(() => {
+              msg.textContent = text;
+            }, 50);
           }
           if (copied) {
             try {
-              if (window.umami) window.umami.track('airead_copy_link');
+              if (window.umami) window.umami.track('airead-copy-link');
             } catch (_) {}
           }
         });

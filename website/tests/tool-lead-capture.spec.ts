@@ -14,7 +14,7 @@ import { stubUmami, trackedEvents } from './helpers/umami';
 // network) and fires analyze_report_download once per click. No card on
 // either page promises a re-check or an emailed report: the checker's result
 // keeps itself via "Copy link to this result" (the scanner-minted permalink,
-// copied client-side; fires airead_copy_link) with no email field and no
+// copied client-side; fires airead-copy-link) with no email field and no
 // request to the /notify endpoint.
 
 // Minimal scanner response that renders the full result card without firing
@@ -410,7 +410,7 @@ test.describe('AI-readability result link (copy replaces the email-me path)', ()
     expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(PERMALINK);
 
     const events = await trackedEvents(page);
-    expect(events.filter((e) => e.name === 'airead_copy_link')).toHaveLength(1);
+    expect(events.filter((e) => e.name === 'airead-copy-link')).toHaveLength(1);
     expect(notifyRequests).toEqual([]);
     expect(posted).toHaveLength(0);
   });
@@ -482,7 +482,7 @@ test.describe('AI-readability result link (copy replaces the email-me path)', ()
     expect(await page.evaluate(() => String(window.getSelection()))).toBe(PERMALINK);
     // The copy never completed, so no event fires.
     const events = await trackedEvents(page);
-    expect(events.filter((e) => e.name === 'airead_copy_link')).toHaveLength(0);
+    expect(events.filter((e) => e.name === 'airead-copy-link')).toHaveLength(0);
   });
 });
 
