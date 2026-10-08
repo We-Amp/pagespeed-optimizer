@@ -1,0 +1,81 @@
+---
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2024-2026 We-Amp B.V.
+//
+// TermPanel — a terminal capture: a head row ($ command + optional chip) over
+// a scrollable <pre> of plain-data lines. The lines are data, never Shiki
+// output. tabindex=0 makes the scrollable region keyboard-reachable (axe
+// scrollable-region-focusable). The panel inherits the global pre:has(code)
+// tick strip and the copy button; the panel's own border is the frame, so the
+// pre's inset bezel is suppressed here to avoid a double ring.
+
+import Chip from './Chip.astro';
+
+interface Props {
+  command: string;
+  label: string;
+  chip?: { tone: 'success' | 'accent' | 'interactive' | 'neutral'; label: string };
+  lines: Array<{ text: string; tone?: 'plain' | 'strong' | 'hl' | 'ok' | 'dim' }>;
+}
+
+const { command, label, chip, lines } = Astro.props;
+---
+
+<figure class="term-panel" data-ui="term-panel">
+  <figcaption class="term-head">
+    <span class="font-mono text-xs text-text-muted">$ {command}</span>
+    {chip && <Chip tone={chip.tone} label={chip.label} />}
+  </figcaption>
+  <pre
+    class="term-body"
+    tabindex="0"
+    aria-label={label}><code>{
+        lines.map((line) => <span class={`term-${line.tone ?? 'plain'}`}>{line.text + '\n'}</span>)
+      }</code></pre>
+</figure>
+
+<style>
+  .term-panel {
+    margin: 0;
+    background-color: var(--color-bg-recessed);
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-card);
+    overflow: hidden;
+  }
+  .term-head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.625rem 1rem;
+    border-bottom: 1px solid var(--color-border);
+  }
+  .term-body {
+    margin: 0;
+    padding: 1rem;
+    overflow-x: auto;
+    font-family: var(--font-mono);
+    font-size: 0.8125rem;
+    line-height: 1.65;
+    color: var(--color-text-muted);
+    /* The figure border is the frame; suppress the global pre bezel (the tick
+       strip and the copy button stay). */
+    box-shadow: none;
+    border-radius: 0;
+  }
+  .term-plain {
+    color: var(--color-text-muted);
+  }
+  .term-strong {
+    color: var(--color-text-body);
+  }
+  .term-hl {
+    color: var(--color-interactive);
+  }
+  .term-ok {
+    color: var(--color-success);
+  }
+  .term-dim {
+    color: var(--color-text-annotation);
+  }
+</style>

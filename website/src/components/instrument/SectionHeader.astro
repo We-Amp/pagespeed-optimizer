@@ -1,0 +1,43 @@
+---
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2024-2026 We-Amp B.V.
+//
+// SectionHeader — the labelled channel opener of a section: mono eyebrow with
+// an optional two-digit index, heading, optional lede. The caller owns the
+// wrapping <section aria-labelledby={id}>; the eyebrow stays a <p> so heading
+// order is untouched.
+
+interface Props {
+  id: string;
+  index?: string;
+  eyebrow: string;
+  title: string;
+  as?: 'h1' | 'h2';
+  align?: 'left' | 'center';
+}
+
+const { id, index, eyebrow, title, as: Tag = 'h2', align = 'left' } = Astro.props;
+
+// Render the lede slot only when it is non-empty (whitespace-only children
+// still count as a passed slot with slots.has, so check the rendered output).
+const lead = Astro.slots.has('default') ? await Astro.slots.render('default') : '';
+const hasLead = lead.trim().length > 0;
+---
+
+<header class="section-header" data-ui="section-header">
+  <p class:list={['eyebrow', align === 'center' && 'justify-center']}>
+    {index && <span class="eyebrow-index">{index}</span>}
+    {eyebrow}
+  </p>
+  <Tag id={id} class:list={['h2-section text-text-body', align === 'center' && 'text-center']}>
+    {title}
+  </Tag>
+  {
+    hasLead && (
+      <div
+        class:list={['lede mt-4 max-w-2xl', align === 'center' && 'mx-auto text-center']}
+        set:html={lead}
+      />
+    )
+  }
+</header>
