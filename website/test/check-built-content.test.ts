@@ -7,6 +7,9 @@
 // the real build is checked by running the script over dist/, not here.
 
 import { describe, it, expect } from 'vitest';
+import { writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   decodeEntities,
   collapseWhitespace,
@@ -14,6 +17,7 @@ import {
   titleInfo,
   descriptionInfo,
   isNoindex,
+  isRedirectStub,
   visibleText,
   h1Count,
   documentStructureProblems,
@@ -21,6 +25,7 @@ import {
   canonicalProblem,
   lintPage,
   lintPages,
+  loadAllowlist,
   urlOf,
 } from '../scripts/check-built-content.mjs';
 
@@ -100,6 +105,22 @@ describe('isNoindex', () => {
     expect(isNoindex('<meta content="index, follow" name="robots">')).toBe(false);
     expect(isNoindex('<meta name="robots" content="index, follow">')).toBe(false);
     expect(isNoindex('<head></head>')).toBe(false);
+  });
+});
+
+describe('isRedirectStub', () => {
+  it('is a stub only when a meta refresh and noindex coincide', () => {
+    const refresh = '<meta http-equiv="refresh" content="0;url=/x">';
+    const noindex = '<meta name="robots" content="noindex">';
+    expect(isRedirectStub(refresh + noindex)).toBe(true);
+    expect(isRedirectStub(refresh)).toBe(false);
+    expect(isRedirectStub(noindex)).toBe(false);
+    expect(isRedirectStub('<p>a real page</p>')).toBe(false);
+  });
+
+  it('does not see a meta refresh that only appears in a script string', () => {
+    const html = '<meta name="robots" content="noindex"><script>const h = \'http-equiv="refresh"\';</script>';
+    expect(isRedirectStub(html)).toBe(false);
   });
 });
 
@@ -312,6 +333,19 @@ describe('lintPage', () => {
     expect(rules).toContain('product-naming');
   });
 
+  it('skips h1-count and document-structure on redirect stubs', () => {
+    // Astro's 404/500 stubs: meta refresh, noindex, no html/head/body at all.
+    const stub =
+      '<!doctype html><title>Redirecting to: /404</title>' +
+      '<meta http-equiv="refresh" content="0;url=/404">' +
+      '<meta name="robots" content="noindex">' +
+      '<body><a href="/404">Redirecting</a></body>';
+    expect(isRedirectStub(stub)).toBe(true);
+    const rules = lintPage(stub).map((f) => f.rule);
+    expect(rules).not.toContain('h1-count');
+    expect(rules).not.toContain('document-structure');
+  });
+
   it('flags daemon in visible text but not in code samples', () => {
     const visible = `<html><head>${goodHead}</head><body><h1>H</h1><p>Restart the daemon.</p></body></html>`;
     const coded = `<html><head>${goodHead}</head><body><h1>H</h1><code>systemctl restart daemon</code></body></html>`;
@@ -364,14 +398,31 @@ describe('lintPages', () => {
     expect(dup?.message).toMatch(/\/b\//);
   });
 
-  it('exempts allowlisted pages and warns about stale entries', () => {
-    const { failures, warnings } = lintPages(
-      [page('/a/', 'short'), { ...page('/gone/', 'x') }],
-      { '/a/': 'historical page, exemption documented', '/nope/': 'stale entry' },
-    );
-    expect(failures.find((f) => f.url === '/a/')).toBeUndefined();
-    expect(warnings.some((w) => w.url === '/a/' && w.rule === 'allowlist')).toBe(true);
-    expect(warnings.some((w) => w.url === '/nope/' && /matches no built page/.test(w.message))).toBe(true);
+  it('exempts only the named rule on an allowlisted page', () => {
+    // 'short' fails description-length and nothing else.
+    const exempt = lintPages([page('/a/', 'short')], {
+      '/a/': { 'description-length': 'generator gap, documented' },
+    });
+    expect(exempt.failures.filter((f) => f.url === '/a/')).toEqual([]);
+    expect(
+      exempt.warnings.some(
+        (w) => w.url === '/a/' && w.rule === 'allowlist' && /exempted description-length: generator gap/.test(w.message),
+      ),
+    ).toBe(true);
+
+    // An entry naming a rule that passes drops nothing: the real failure
+    // still fails the build.
+    const wrongRule = lintPages([page('/a/', 'short')], { '/a/': { canonical: 'reason' } });
+    expect(wrongRule.failures.some((f) => f.url === '/a/' && f.rule === 'description-length')).toBe(true);
+  });
+
+  it('errors on allowlist entries that match no built page', () => {
+    const { failures } = lintPages([page('/a/', 'A different description that is long enough to be valid')], {
+      '/gone/': { canonical: 'stale entry' },
+    });
+    const stale = failures.find((f) => f.rule === 'allowlist');
+    expect(stale?.url).toBe('/gone/');
+    expect(stale?.message).toMatch(/matches no built page/);
   });
 
   it('routes warn-level rules to warnings and error rules to failures', () => {
@@ -394,5 +445,41 @@ describe('urlOf', () => {
     expect(urlOf('/dist', '/dist/client/docs/a/index.html')).toBe('/docs/a/');
     expect(urlOf('/dist', '/dist/client/404.html')).toBe('/404.html');
     expect(urlOf('/dist', '/dist/client/docs/deep/nested/index.html')).toBe('/docs/deep/nested/');
+  });
+});
+
+describe('loadAllowlist', () => {
+  const tmpFile = () => join(tmpdir(), `content-lint-allow-${process.pid}-${Date.now()}.json`);
+
+  it('rejects an entry naming an unknown rule', () => {
+    const file = tmpFile();
+    writeFileSync(file, JSON.stringify({ '/x/': { 'no-such-rule': 'reason' } }));
+    try {
+      expect(() => loadAllowlist(file)).toThrow(/unknown rule "no-such-rule"/);
+    } finally {
+      rmSync(file);
+    }
+  });
+
+  it('rejects the old whole-page format and empty reasons', () => {
+    const file = tmpFile();
+    writeFileSync(file, JSON.stringify({ '/x/': 'a reason' }));
+    try {
+      expect(() => loadAllowlist(file)).toThrow(/expected \{rule: reason\}/);
+    } finally {
+      rmSync(file);
+    }
+
+    const file2 = tmpFile();
+    writeFileSync(file2, JSON.stringify({ '/x/': { canonical: '   ' } }));
+    try {
+      expect(() => loadAllowlist(file2)).toThrow(/reason must be a non-empty string/);
+    } finally {
+      rmSync(file2);
+    }
+  });
+
+  it('returns an empty allowlist when the file is absent', () => {
+    expect(loadAllowlist(join(tmpdir(), 'content-lint-allow-absent.json'))).toEqual({});
   });
 });

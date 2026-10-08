@@ -37,6 +37,7 @@ export function tokens(html: string): Token[];
 export function titleInfo(html: string): { count: number; text: string };
 export function descriptionInfo(html: string): { count: number; text: string };
 export function isNoindex(html: string): boolean;
+export function isRedirectStub(html: string): boolean;
 export function stripNonVisible(html: string): string;
 export function visibleText(html: string): string;
 export function h1Count(html: string): number;
@@ -46,8 +47,8 @@ export function canonicalProblem(href: string): string | null;
 export function lintPage(html: string): { rule: RuleName; message: string }[];
 export function lintPages(
   pages: Page[],
-  allowlist?: Record<string, string>,
+  allowlist?: Record<string, Record<string, string>>,
 ): { failures: Failure[]; warnings: Failure[] };
 export function urlOf(distRoot: string, file: string): string;
 export function collectPages(distRoot: string): string[];
-export function loadAllowlist(file: string): Record<string, string>;
+export function loadAllowlist(file: string): Record<string, Record<string, string>>;

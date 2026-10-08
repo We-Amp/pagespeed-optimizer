@@ -43,10 +43,17 @@
  * <meta name="robots" content="noindex..."> skip only the rules marked
  * "indexable" above.
  *
- * Justified exceptions live in scripts/content-lint-allow.json (URL path →
- * reason) and exempt that path from every rule; the reason names the rule(s)
- * the entry covers. The lint warns about allowlist entries that match no
- * built page, so a redirect cannot leave a stale entry behind.
+ * Redirect stubs — noindex pages whose only job is a <meta http-equiv
+ * ="refresh"> to another URL, like Astro's 404/500 stubs and the /go/
+ * click-through redirects — skip h1-count and document-structure: they
+ * have no content to structure. Other noindex pages (e.g. /error/404/)
+ * still get every rule.
+ *
+ * Justified exceptions live in scripts/content-lint-allow.json as
+ * {urlPath: {rule: reason}}: only the named rule is skipped on that page,
+ * every other rule still applies. An entry that names an unknown rule, or
+ * matches no built page, is an error, so entries cannot outlive the rules
+ * and pages they were written for.
  *
  * Every failure prints `<url>  <rule>  <detail>`. Error-level failures exit
  * 1; warn-level rules only print (a rule calibrated to more noise than it is
@@ -239,6 +246,18 @@ export function isNoindex(html) {
   );
 }
 
+/**
+ * A redirect stub: a noindex page whose only job is a meta refresh to
+ * another URL. It has no content, so h1-count and document-structure do
+ * not apply to it.
+ */
+export function isRedirectStub(html) {
+  return (
+    isNoindex(html) &&
+    openTokens(html, 'meta').some((t) => attrValue(t.attrs, 'http-equiv').toLowerCase() === 'refresh')
+  );
+}
+
 /** Remove script/style/pre/code contents and comments: not visible text. */
 export function stripNonVisible(html) {
   return html
@@ -397,10 +416,12 @@ export function lintPage(html) {
     }
   }
 
-  const h1s = h1Count(html);
-  if (h1s !== 1) fails('h1-count', h1s === 0 ? 'no <h1>' : `${h1s} <h1> elements`);
+  if (!isRedirectStub(html)) {
+    const h1s = h1Count(html);
+    if (h1s !== 1) fails('h1-count', h1s === 0 ? 'no <h1>' : `${h1s} <h1> elements`);
 
-  for (const problem of documentStructureProblems(html)) fails('document-structure', problem);
+    for (const problem of documentStructureProblems(html)) fails('document-structure', problem);
+  }
 
   if (indexable) {
     const text = visibleText(html);
@@ -427,7 +448,8 @@ export function lintPage(html) {
 }
 
 /**
- * Lint a whole build. pages: [{url, html}]; allowlist: {urlPath: reason}.
+ * Lint a whole build. pages: [{url, html}]; allowlist:
+ * {urlPath: {rule: reason}} — only the named rule is skipped on that page.
  * Returns {failures: [{url, rule, level, message}], warnings: [...]}.
  */
 export function lintPages(pages, allowlist = {}) {
@@ -435,23 +457,20 @@ export function lintPages(pages, allowlist = {}) {
   const warnings = [];
 
   const known = new Set(pages.map((p) => p.url));
-  for (const [url, reason] of Object.entries(allowlist)) {
+  for (const url of Object.keys(allowlist)) {
     if (!known.has(url)) {
-      warnings.push({ url, rule: 'allowlist', message: `allowlist entry matches no built page: ${reason}` });
+      failures.push({ url, rule: 'allowlist', level: 'error', message: 'allowlist entry matches no built page' });
     }
   }
 
-  const active = pages.filter((p) => {
-    if (allowlist[p.url]) {
-      warnings.push({ url: p.url, rule: 'allowlist', message: `exempted: ${allowlist[p.url]}` });
-      return false;
-    }
-    return true;
-  });
-
   const byDescription = new Map();
-  for (const page of active) {
+  for (const page of pages) {
+    const exempt = allowlist[page.url] ?? {};
     for (const { rule, message } of lintPage(page.html)) {
+      if (exempt[rule] !== undefined) {
+        warnings.push({ url: page.url, rule: 'allowlist', level: 'warn', message: `exempted ${rule}: ${exempt[rule]}` });
+        continue;
+      }
       const level = RULES[rule]?.level ?? 'error';
       const failure = { url: page.url, rule, level, message };
       if (level === 'warn') warnings.push(failure);
@@ -467,12 +486,13 @@ export function lintPages(pages, allowlist = {}) {
     }
   }
   for (const [d, urls] of byDescription) {
-    if (urls.length > 1) {
+    const live = urls.filter((url) => (allowlist[url] ?? {})['description-duplicate'] === undefined);
+    if (live.length > 1) {
       const failure = {
-        url: urls[0],
+        url: live[0],
         rule: 'description-duplicate',
         level: RULES['description-duplicate'].level,
-        message: `identical description on ${urls.length} pages (${urls.join(', ')}): "${d.slice(0, 120)}"`,
+        message: `identical description on ${live.length} pages (${live.join(', ')}): "${d.slice(0, 120)}"`,
       };
       if (failure.level === 'warn') warnings.push(failure);
       else failures.push(failure);
@@ -517,7 +537,18 @@ export function loadAllowlist(file) {
   if (!existsSync(file)) return {};
   const parsed = JSON.parse(readFileSync(file, 'utf8'));
   if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error(`${file}: expected a JSON object of {urlPath: reason}`);
+    throw new Error(`${file}: expected a JSON object of {urlPath: {rule: reason}}`);
+  }
+  for (const [url, rules] of Object.entries(parsed)) {
+    if (typeof rules !== 'object' || rules === null || Array.isArray(rules)) {
+      throw new Error(`${file}: ${url}: expected {rule: reason}, got ${JSON.stringify(rules)}`);
+    }
+    for (const [rule, reason] of Object.entries(rules)) {
+      if (!(rule in RULES)) throw new Error(`${file}: ${url}: unknown rule "${rule}"`);
+      if (typeof reason !== 'string' || reason.trim() === '') {
+        throw new Error(`${file}: ${url}: ${rule}: reason must be a non-empty string`);
+      }
+    }
   }
   return parsed;
 }
@@ -537,8 +568,10 @@ function summary(failures, warnings, pageCount) {
     const n = byRule.get(rule) ?? { error: 0, warn: 0 };
     lines.push(`  ${rule.padEnd(22)} ${String(n.error).padStart(3)} errors  ${String(n.warn).padStart(3)} warnings  (${level})`);
   }
-  const allow = byRule.get('allowlist') ?? { warn: 0 };
-  if (allow.warn) lines.push(`  ${'allowlist'.padEnd(22)} ${String(allow.warn).padStart(3)} exemptions/stale notes`);
+  const allow = byRule.get('allowlist') ?? { error: 0, warn: 0 };
+  if (allow.error || allow.warn) {
+    lines.push(`  ${'allowlist'.padEnd(22)} ${String(allow.error).padStart(3)} errors  ${String(allow.warn).padStart(3)} exemptions`);
+  }
   return lines.join('\n');
 }
 
