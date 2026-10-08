@@ -1,0 +1,5 @@
+# Formatted by hand, not by Prettier: the Astro formatter restructures this
+# file incorrectly (it moved </head> above the <title> and JSON-LD block, and
+# </html> ahead of <body>), so it is excluded to keep the document structure
+# intact.
+src/layouts/BaseLayout.astro
