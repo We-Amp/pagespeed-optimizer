@@ -18,6 +18,7 @@ const PAGES_FOR_AXE_SCAN = [
   '/blog/',
   '/security/',
   '/terms/',
+  '/ai-readability/',
   // /privacy/ redirects to https://www.we-amp.com/privacy/ (301)
 ];
 
