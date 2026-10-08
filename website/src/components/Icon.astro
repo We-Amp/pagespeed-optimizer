@@ -2,9 +2,9 @@
 /**
  * Icon.astro — the single source of truth for line icons on modpagespeed.com.
  *
- * One vocabulary: Lucide (https://lucide.dev, ISC). The CALIBER identity already
+ * One vocabulary: Lucide (https://lucide.dev, ISC). The site's visual identity already
  * standardizes its callout glyphs on Lucide (see global.css), so every in-content
- * icon uses the same instrument-grade stroke language: 2px stroke, round caps and
+ * icon uses the same stroke language: 2px stroke, round caps and
  * joins, 24x24 grid, `fill="none"`. Brand §4.7 + . Heroicons/Feather are
  * being retired in favor of this set — do NOT inline raw SVG paths in pages any
  * more; add the glyph here and reference it by name so the set can never drift.
@@ -29,7 +29,7 @@ export interface Props {
   name: keyof typeof ICONS;
   class?: string;
   title?: string;
-  /** Stroke weight. Leave at 2 (the Lucide + CALIBER default); brand rule: do not vary per icon. */
+  /** Stroke weight. Leave at 2 (the Lucide and site default); brand rule: do not vary per icon. */
   strokeWidth?: number;
 }
 
