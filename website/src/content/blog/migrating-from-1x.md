@@ -1,6 +1,6 @@
 ---
-title: "Migrate from Google's mod_pagespeed / ngx_pagespeed to ModPageSpeed 2.0"
-description: "Migrate from Google's mod_pagespeed 1.13.x or ngx_pagespeed to ModPageSpeed 2.0: directive mapping, Docker Compose setup, image-format checks, and a verification checklist."
+title: 'Migrate from mod_pagespeed 1.13 or ngx_pagespeed to 2.1'
+description: 'Migrating from the archived mod_pagespeed 1.13.x or ngx_pagespeed: directive mapping, image-format checks, a verification checklist, and the 2.1 path.'
 date: 2026-02-10
 author: 'Otto van der Schaaf'
 tags: ['migration', 'guide', 'nginx']
@@ -8,27 +8,29 @@ draft: false
 lastUpdated: 2026-09-06
 product: '2.0'
 faq:
-  - q: "Can I run Google's 1.13.x and 2.0 side by side?"
+  - q: "Can I run the archived 1.13.x and 2.0 side by side?"
     a: "Yes. Deploy them on different servers or different nginx server blocks. They share no state, so there is no conflict."
   - q: "Do I need to change my HTML or application code?"
     a: "No. All optimization is transparent at the reverse-proxy level. Your application serves the same responses it always has."
   - q: "Will my existing cache be preserved?"
-    a: "No. The optimizer worker uses Cyclone, a different cache format from Google's 1.13.x file cache. The cache will be cold on first start and warm up as traffic flows through."
+    a: "No. The optimizer worker uses Cyclone, a different cache format from the 1.13.x file cache. The cache will be cold on first start and warm up as traffic flows through."
 ---
+
+> Written for the ModPageSpeed 2.0 line: the Docker Compose setup and the `pagespeed_*` directives below are 2.0's. On mod_pagespeed 2.1 a 1.13 or ngx_pagespeed configuration carries over to the native module; see [migrate from the archived Google module](/docs/migrate-from-google-mod-pagespeed/) and [migrate from ngx_pagespeed](/docs/migrate-from-ngx-pagespeed/).
 
 ## What changed and why
 
-Google's mod_pagespeed 1.13.x was built around the RewriteDriver -- over 2,000 lines of orchestration code that managed a pipeline of 60+ filters, each modifying the HTML response in sequence during the request. Filters had strict ordering dependencies: `combine_css` ran before `rewrite_css`, which ran before `inline_css`, and so on. Adding a filter meant reasoning about how it interacted with every existing one.
+The original mod_pagespeed 1.13.x was built around the RewriteDriver -- over 2,000 lines of orchestration code that managed a pipeline of 60+ filters, each modifying the HTML response in sequence during the request. Filters had strict ordering dependencies: `combine_css` ran before `rewrite_css`, which ran before `inline_css`, and so on. Adding a filter meant reasoning about how it interacted with every existing one.
 
 The architecture was designed for Apache. It hooked into Apache's output filter chain, and the nginx port (`ngx_pagespeed`) adapted the filter pipeline to nginx's event-driven model. This translation layer added significant maintenance overhead, particularly around subrequest handling and connection lifecycle management.
 
 ModPageSpeed 2.0 takes a different architectural approach. The underlying optimization libraries -- the HTML parser, CSS minifier, JS minifier, and image codecs -- are individually well-tested and capable (and form the foundation of 2.0). The key change is moving orchestration out of the request path entirely, into a separate worker that optimizes content asynchronously.
 
-2.0 is a ground-up rethink: it keeps the proven PSOL optimization libraries and replaces the architecture around them. If you are running Google's mod_pagespeed 1.13.x today, this guide will walk you through what changed and how to migrate.
+2.0 is a ground-up rethink: it keeps the proven PSOL optimization libraries and replaces the architecture around them. If you are running the archived mod_pagespeed 1.13.x today, this guide will walk you through what changed and how to migrate.
 
 ## Architecture comparison
 
-Google's mod_pagespeed 1.13.x processed everything synchronously within the request:
+The original mod_pagespeed 1.13.x processed everything synchronously within the request:
 
 ```
 Client -> Apache/Nginx -> mod_pagespeed filters (sync) -> Origin
@@ -53,15 +55,15 @@ Client -> Nginx interceptor -> Cyclone Cache (mmap) -> Client
 
 The differences are significant:
 
-**Synchronous vs. asynchronous.** In Google's 1.13.x, every response was transformed in-flight, adding latency to every request. In 2.0, the first request gets the original response (served from cache with `X-PageSpeed: MISS`), and the worker optimizes it in the background. Subsequent requests get the optimized variant (`X-PageSpeed: HIT`) with zero processing overhead -- just a memory-mapped cache read.
+**Synchronous vs. asynchronous.** In the original 1.13.x, every response was transformed in-flight, adding latency to every request. In 2.0, the first request gets the original response (served from cache with `X-PageSpeed: MISS`), and the worker optimizes it in the background. Subsequent requests get the optimized variant (`X-PageSpeed: HIT`) with zero processing overhead -- just a memory-mapped cache read.
 
-**Single-process vs. multi-process.** In Google's 1.13.x, the optimization code ran inside the web server process. In 2.0, the nginx interceptor is a thin cache layer, and the worker is a separate process. They share a single Cyclone cache file with memory-mapped directories (`enable_mmap_directory = true`), so writes from either process are immediately visible to the other.
+**Single-process vs. multi-process.** In the original 1.13.x, the optimization code ran inside the web server process. In 2.0, the nginx interceptor is a thin cache layer, and the worker is a separate process. They share a single Cyclone cache file with memory-mapped directories (`enable_mmap_directory = true`), so writes from either process are immediately visible to the other.
 
 **Filter pipeline vs. content-type dispatch.** Instead of 60+ filters with ordering dependencies, the worker dispatches on content type: HTML, CSS, JavaScript, or Image. Each path runs independently. There is no filter interaction to reason about.
 
 ## Configuration mapping
 
-Many of Google's mod_pagespeed 1.13.x directives have no direct equivalent because 2.0 applies optimizations automatically based on content type. Here is a mapping of the most commonly used directives:
+Many of the original mod_pagespeed 1.13.x directives have no direct equivalent because 2.0 applies optimizations automatically based on content type. Here is a mapping of the most commonly used directives:
 
 | 1.13.x Directive                                     | 2.0 Equivalent                 | Notes                                                                                                             |
 | ---------------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------- |
@@ -203,9 +205,9 @@ curl -H "Accept: */*" -o /dev/null -w "%{content_type}" http://localhost/image.j
 
 ## FAQ
 
-**Can I run Google's 1.13.x and 2.0 side by side?** Yes. Deploy them on different servers or different nginx server blocks. They share no state, so there is no conflict.
+**Can I run the archived 1.13.x and 2.0 side by side?** Yes. Deploy them on different servers or different nginx server blocks. They share no state, so there is no conflict.
 
-**Will my existing cache be preserved?** No. The optimizer worker uses Cyclone, a different cache format from Google's 1.13.x file cache. The cache will be cold on first start and warm up as traffic flows through.
+**Will my existing cache be preserved?** No. The optimizer worker uses Cyclone, a different cache format from the 1.13.x file cache. The cache will be cold on first start and warm up as traffic flows through.
 
 **Do I need to change my HTML or application code?** No. All optimization is transparent at the reverse-proxy level. Your application serves the same responses it always has.
 

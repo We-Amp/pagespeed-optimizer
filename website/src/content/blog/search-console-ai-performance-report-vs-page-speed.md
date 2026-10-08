@@ -1,6 +1,6 @@
 ---
-title: "Search Console's new AI performance report is not about page speed"
-description: "Google's new Search Console AI performance report measures your visibility in AI Overviews and AI Mode, not how fast your pages load. The difference, explained."
+title: "Search Console's AI performance report is not about speed"
+description: 'The Search Console AI performance report measures your visibility in AI Overviews and AI Mode, not how fast your pages load. The difference, explained.'
 date: 2026-06-09
 lastUpdated: 2026-07-04
 author: 'Otto van der Schaaf'
@@ -106,4 +106,4 @@ Yes, separately from this report. Core Web Vitals remain a ranking signal in cla
 
 ---
 
-Google's new report measures whether AI surfaces cite you, not whether your site is fast — two different problems. If the one you have is speed, see how [Google's mod_pagespeed module](/alternatives/google-pagespeed-module/) and its maintained successors compare, check [pricing](/pricing/), or run your own audit through [the analyzer](/analyze/).
+Google's new report measures whether AI surfaces cite you, not whether your site is fast — two different problems. If the one you have is speed, see how [the Google PageSpeed module](/alternatives/google-pagespeed-module/) and its maintained continuation compare, check [pricing](/pricing/), or run your own audit through [the analyzer](/analyze/).

@@ -1,6 +1,6 @@
 ---
 title: 'Benchmarking ModPageSpeed 2.0: real numbers on real sites'
-description: 'Measured ModPageSpeed 2.0 results on e-commerce, blog, news, and portfolio sites: WebP/AVIF image savings and real LCP, FCP, CLS, and Lighthouse gains on 3G, 4G, and broadband.'
+description: 'Measured ModPageSpeed 2.0 results on e-commerce, blog, news and portfolio sites: WebP/AVIF savings and LCP, FCP, CLS and Lighthouse gains, 3G to broadband.'
 date: 2026-02-05
 lastUpdated: 2026-09-19
 author: 'Otto van der Schaaf'
@@ -10,6 +10,8 @@ product: '2.0'
 ---
 
 > **Data collected:** February 2026 · **Tested with:** ModPageSpeed 2.0
+>
+> Written for the ModPageSpeed 2.0 line, the predecessor of mod_pagespeed 2.1; the numbers below were measured on 2.0. For the current release, start with [getting started](/docs/getting-started/).
 
 ## Methodology
 

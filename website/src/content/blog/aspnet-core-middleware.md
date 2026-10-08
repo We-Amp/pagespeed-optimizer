@@ -1,6 +1,6 @@
 ---
-title: 'ModPageSpeed 2.0 for ASP.NET Core: optimization middleware via NuGet'
-description: 'Run the mod_pagespeed 2.1 optimization pipeline as ASP.NET Core middleware via NuGet — image transcoding, critical CSS and cache serving in two lines of C#.'
+title: 'mod_pagespeed 2.1 for ASP.NET Core: middleware via NuGet'
+description: 'Run the mod_pagespeed 2.1 optimization pipeline as ASP.NET Core middleware from NuGet: image transcoding, critical CSS and cache serving in 2 lines of C#.'
 date: 2026-02-12
 lastUpdated: 2026-06-21
 author: 'Otto van der Schaaf'

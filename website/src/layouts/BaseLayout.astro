@@ -363,7 +363,7 @@ const segmentNames: Record<string, string> = {
   blog: 'Blog',
   demo: 'Demo',
   examples: 'Filter examples',
-  calculator: 'Savings Calculator',
+  calculator: 'Savings calculator',
   contact: 'Contact',
   license: 'License',
   terms: 'Terms',
@@ -373,17 +373,33 @@ const segmentNames: Record<string, string> = {
   vs: 'Comparisons',
   'pagespeed-markers': 'PageSpeed markers',
   'how-it-works': 'How it works',
-  'aspnet-getting-started': 'ASP.NET Getting Started',
-  'aspnet-configuration': 'ASP.NET Configuration',
+  'core-web-vitals': 'Core Web Vitals',
+  download: 'Download',
+  'aspnet-getting-started': 'ASP.NET getting started',
+  'aspnet-configuration': 'ASP.NET configuration',
 };
 
+// Fallback for a segment with no entry above: sentence case, with the
+// acronyms the site's slugs use kept upper case ("ai-readability" becomes
+// "AI readability", not "Ai Readability").
+const segmentAcronyms = new Set(['ai', 'api', 'cls', 'css', 'iis', 'inp', 'js', 'lcp', 'ttfb']);
 function formatSegment(segment: string): string {
   if (segmentNames[segment]) return segmentNames[segment];
   return segment
     .split('-')
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .map((word, index) =>
+      segmentAcronyms.has(word)
+        ? word.toUpperCase()
+        : index === 0
+          ? word.charAt(0).toUpperCase() + word.slice(1)
+          : word,
+    )
     .join(' ');
 }
+
+// The page's own title, minus a trailing " — product" or " | site" suffix,
+// names the last breadcrumb when the page does not pass breadcrumbLeafName.
+const titleLeafName = title.replace(/\s+[—|]\s+[^—|]*$/, '').trim();
 
 const pathSegments = currentPath
   .replace(/^\/|\/$/g, '')
@@ -408,8 +424,8 @@ const breadcrumbItems = [
 // Align the emitted BreadcrumbList leaf with the page's visible breadcrumb
 // leaf: slug pages render their human title, but formatSegment(slug) diverges.
 // When breadcrumbLeafName is provided, override the final ListItem.name.
-if (breadcrumbLeafName && breadcrumbItems.length)
-  breadcrumbItems[breadcrumbItems.length - 1].name = breadcrumbLeafName;
+if (breadcrumbItems.length >= 2)
+  breadcrumbItems[breadcrumbItems.length - 1].name = breadcrumbLeafName ?? titleLeafName;
 
 const breadcrumbJsonLd =
   breadcrumbItems.length >= 2
