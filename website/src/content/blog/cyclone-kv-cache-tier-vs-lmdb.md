@@ -13,7 +13,7 @@ faq:
   - q: 'Does this make Cyclone a replacement for LMDB?'
     a: 'No. The README positions it as a node-local tier behind a KV connector for large blocks: it is not a distributed store, has no GPU-direct or RDMA path, and ships no Python bindings. LMDB keeps an edge in warm copy reads (9.45 against 9.18 GB/s in round 7) and in hit ratio under churn, and file-per-block writes faster at 8 and 32 MiB.'
   - q: 'What hardware did the benchmark run on?'
-    a: 'Two laptops: an Apple M5 with 16 GiB on macOS, where only warm page-cache behaviour can be measured, and an i7-8750H with 23 GiB and a Samsung 970 PRO NVMe on Linux, where the page cache is dropped before every cold phase. Consumer hardware, one SSD per platform; treat differences under about 20% as noise.'
+    a: 'Two laptops: an Apple M5 with 16 GiB on macOS, where only warm page-cache behavior can be measured, and an i7-8750H with 23 GiB and a Samsung 970 PRO NVMe on Linux, where the page cache is dropped before every cold phase. Consumer hardware, one SSD per platform; treat differences under about 20% as noise.'
 ---
 
 Cyclone is We-Amp's open-source cache library (Apache-2.0), the memory-mapped storage engine both parts of mod_pagespeed share. This post is about a different job we pointed it at: the node-local storage tier that an LLM inference server offloads prompt-prefix KV tensors to. When GPU and CPU memory fill up, engines such as vLLM, SGLang and TensorRT-LLM spill those tensors through a KV connector to storage on the node. The tier's job is narrow: put a multi-megabyte blob under a hash, get it back fast, survive restarts, and let several worker processes share it.
@@ -22,7 +22,7 @@ The headline, after eight rounds of measurement against LMDB, RocksDB and one fi
 
 Everything below is measured on two laptops: an Apple M5 (macOS, warm page cache only) and an i7-8750H with a Samsung 970 PRO NVMe (Linux, ext4, page cache dropped before cold phases). Block sizes are 512 KiB to 32 MiB, because Llama-3-8B fp16 KV works out to about 131 KB per token, so a 16-token block is about 2 MiB and a 256-token chunk about 32 MiB. Full method, raw data and per-run caveats are in [the benchmark document](https://github.com/We-Amp/cyclone-cache/blob/main/doc/kv-cache-benchmark.md) in the [cyclone-cache repository](https://github.com/We-Amp/cyclone-cache).
 
-## Rounds 1 and 2: the baseline, and a cold-read disaster
+## Rounds 1 and 2: the baseline and the cold-read gap
 
 Round 1 ran the stock tree on macOS with a warm page cache. Warm reads immediately tied LMDB (70.9 against 64.9 GB/s copying 2 MiB blocks): both stores serve a hit as a span into a mapping that already exists, with no syscall per get, and that design similarity is why LMDB is the peer that matters. Everything else was behind: writes at 0.40-0.48 GB/s against 1.1-1.5 for file-per-block, and a restart that re-read the dataset at a flat 0.56 GB/s, 25-60x behind, because the first read of each document verifies a byte-wise CRC32 running at about 0.55 GB/s.
 
@@ -56,7 +56,7 @@ Round 7 repeated the matrix with those two options as configurations, on a share
 
 | 2 MiB unless stated, Linux, same-day peers (round 7)        |                               Cyclone | Peers                                      |
 | ----------------------------------------------------------- | ------------------------------------: | ------------------------------------------ |
-| Cold first touch, 64 KiB / 512 KiB / 2 MiB / 8 MiB / 32 MiB | 2.48 / 2.81 / 2.77 / 3.25 / 3.41 GB/s | LMDB 1.80 / 2.10 / 2.57 / 2.54 / 2.58      |
+| Cold first touch, 64 KiB / 512 KiB / 2 MiB / 8 MiB / 32 MiB | 2.48 / 2.81 / 2.76 / 3.25 / 3.41 GB/s | LMDB 1.80 / 2.10 / 2.63 / 2.54 / 2.58      |
 | Warm GET copy, 1 thread                                     |                             9.18 GB/s | LMDB 9.45, filedir 5.72, RocksDB 2.41      |
 | 4 reader processes, view                                    |                           551k gets/s | LMDB 442k                                  |
 | PUT, 2 MiB                                                  |                             1.41 GB/s | filedir 1.49 (one clean run), RocksDB 0.39 |
@@ -93,7 +93,7 @@ Cyclone's first job was the HTTP object cache behind mod_pagespeed, where it rep
 
 **Does this make Cyclone a replacement for LMDB?** No. The README positions it as a node-local tier behind a KV connector for large blocks: it is not a distributed store, has no GPU-direct or RDMA path, and ships no Python bindings. LMDB keeps an edge in warm copy reads (9.45 against 9.18 GB/s in round 7) and in hit ratio under churn, and file-per-block writes faster at 8 and 32 MiB.
 
-**What hardware did the benchmark run on?** Two laptops: an Apple M5 with 16 GiB on macOS, where only warm page-cache behaviour can be measured, and an i7-8750H with 23 GiB and a Samsung 970 PRO NVMe on Linux, where the page cache is dropped before every cold phase. Consumer hardware, one SSD per platform; treat differences under about 20% as noise.
+**What hardware did the benchmark run on?** Two laptops: an Apple M5 with 16 GiB on macOS, where only warm page-cache behavior can be measured, and an i7-8750H with 23 GiB and a Samsung 970 PRO NVMe on Linux, where the page cache is dropped before every cold phase. Consumer hardware, one SSD per platform; treat differences under about 20% as noise.
 
 ---
 
