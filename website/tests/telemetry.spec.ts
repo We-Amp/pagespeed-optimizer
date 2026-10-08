@@ -82,6 +82,47 @@ test.describe('Telemetry strip', () => {
     expect(after).toEqual(before);
   });
 
+  test('no field value is clipped at 360, 390, 414 or 1440', async ({ browser }) => {
+    for (const width of [360, 390, 414, 1440]) {
+      const context = await browser.newContext({ viewport: { width, height: 844 } });
+      // Keep the strip in its captured state: a failed probe applies nothing.
+      await context.route('**/*', (route) =>
+        route.request().method() === 'HEAD' ? route.abort() : route.continue(),
+      );
+      const page = await context.newPage();
+      await page.goto('/');
+      const strip = page.locator(STRIP);
+      await expect(strip).toBeVisible();
+      // The dev server serves scoped styles via JS; wait until they land.
+      await expect
+        .poll(() =>
+          page.evaluate(
+            () =>
+              getComputedStyle(document.querySelector('[data-ui="telemetry-strip"]')!).blockSize,
+          ),
+        )
+        .toBe('32px');
+      const problems = await page.evaluate(() => {
+        const el0 = document.querySelector<HTMLElement>('[data-ui="telemetry-strip"]')!;
+        const out: string[] = [];
+        if (el0.scrollWidth > el0.clientWidth)
+          out.push(`strip overflow: scrollWidth ${el0.scrollWidth} > clientWidth ${el0.clientWidth}`);
+        if (document.documentElement.scrollWidth > window.innerWidth)
+          out.push(`page horizontal overflow: ${document.documentElement.scrollWidth} > ${window.innerWidth}`);
+        el0.querySelectorAll<HTMLElement>('[data-t]').forEach((el) => {
+          if (el.getClientRects().length === 0) return; // not rendered at this width
+          if (el.scrollWidth > el.clientWidth)
+            out.push(
+              `[data-t="${el.dataset.t}"] clipped: scrollWidth ${el.scrollWidth} > clientWidth ${el.clientWidth} ("${el.textContent}")`,
+            );
+        });
+        return out;
+      });
+      expect(problems, `viewport ${width}px`).toEqual([]);
+      await context.close();
+    }
+  });
+
   test('the skip link is still the first tab stop', async ({ page }) => {
     await page.goto('/');
     await page.locator(STRIP).waitFor();

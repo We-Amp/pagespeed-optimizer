@@ -12,7 +12,7 @@
 // keeps the captured fallback untouched.
 //
 // CLS discipline: the row is a fixed 32px at every width, each field has a
-// ch-based min-inline-size, and the script only ever replaces textContent.
+// fixed ch-based inline-size, and the script only ever replaces textContent.
 //
 // Sizing, measured not guessed: at the spec's 12px the five fields plus the
 // state label and the "what these headers mean" link need ~1110px while the
@@ -54,6 +54,7 @@ const fields = [
     value: header('x-mod-pagespeed'),
     width: '24ch',
     wide: false,
+    mid: false,
     t: 'xmps',
   },
   {
@@ -61,6 +62,7 @@ const fields = [
     value: entry ? formatBytes(entry.wireBytes) : '—',
     width: '16ch',
     wide: false,
+    mid: true,
     t: 'wire',
   },
   {
@@ -68,10 +70,11 @@ const fields = [
     value: entry ? formatBytes(entry.decodedBytes) : '—',
     width: '17ch',
     wide: true,
+    mid: false,
     t: 'decoded',
   },
-  { term: 'vary:', value: header('vary'), width: '32ch', wide: true, t: 'vary' },
-  { term: 'ttfb', value: '—', width: '12ch', wide: true, t: 'ttfb' },
+  { term: 'vary:', value: header('vary'), width: '32ch', wide: true, mid: false, t: 'vary' },
+  { term: 'ttfb', value: '—', width: '12ch', wide: true, mid: false, t: 'ttfb' },
 ];
 ---
 
@@ -90,7 +93,7 @@ const fields = [
     <dl class="t-fields">
       {
         fields.map((f) => (
-          <div class:list={['t-f', f.wide && 't-wide']} style={`--w:${f.width}`}>
+          <div class:list={['t-f', f.wide && 't-wide', f.mid && 't-mid']} style={`--w:${f.width}`}>
             <dt>{f.term}</dt>
             <dd data-t={f.t}>{f.value}</dd>
           </div>
@@ -194,18 +197,31 @@ const fields = [
   .t-f {
     display: inline-flex;
     gap: 0.375rem;
-    flex: none;
-    min-inline-size: var(--w);
+    /* Fixed field box: the live upgrade changes text only, never the layout.
+       When the row runs out of room the field may shrink and the dd below
+       ellipsizes — a value is either complete or visibly truncated, never
+       hard-clipped mid-glyph. */
+    inline-size: var(--w);
+    min-inline-size: 0;
   }
   .t-f dt {
+    flex: none;
     color: var(--color-text-annotation);
   }
   .t-f dd {
     margin: 0;
+    min-inline-size: 0;
     color: var(--color-text-body);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+  /* Below 480px the wire byte count cannot fit complete next to the state
+     label and the header field, so it does not render at all. */
+  @media (max-width: 479px) {
+    .t-mid {
+      display: none;
+    }
   }
   @media (max-width: 959px) {
     .t-wide {
