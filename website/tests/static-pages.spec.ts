@@ -36,13 +36,13 @@ test.describe('Static pages', () => {
 
   test('/contact/ renders contact information', async ({ page }) => {
     await page.goto('/contact/');
-    // The contact page now leads with a form; the general address is
+    // The contact page leads with a form; the one commercial address is
     // info@we-amp.com and security disclosures go to a separate channel. The
-    // enterprise route is a Topic option on the form (the old
-    // enterprise@modpagespeed.com address was retired).
+    // support subscription is a Topic option on the form (the old
+    // enterprise and sales addresses are retired).
     await expect(page.locator('a[href="mailto:info@we-amp.com"]').first()).toBeVisible();
     await expect(page.locator('a[href="mailto:security@modpagespeed.com"]')).toBeVisible();
-    await expect(page.locator('#contact-topic option[value="enterprise"]')).toBeAttached();
+    await expect(page.locator('#contact-topic option[value="support"]')).toBeAttached();
   });
 
   // Retired pages forward to the software-license pages (astro.config.mjs

@@ -57,41 +57,90 @@ export const COMPANY_KVK = '57898138';
 // Canonical support-terms URL. The trailing slash is canonical.
 export const LICENSING_TERMS_URL = 'https://we-amp.com/licensing/';
 
-// --- Offerings (converged line — placeholders) -------------------------------
-// What is for sale on the converged line is two things: a support subscription
-// and hardened attested builds. These two rows are what /pricing/ presents,
-// replacing the earlier four-tier ladder (no tier names, no prices). Prices are
-// NULL placeholders until pricing is published — no surface may render a price.
-//   kind        'sla' (SLA-backed support) or 'attestation' (hardened builds
-//               with a signed SBOM + build provenance via the subscriber
-//               repository)
-//   artifacts   the standard signed packages are free for everyone; the
-//               hardened channel is sold (see ARTIFACT_ACCESS below)
+// --- Commercial contact -------------------------------------------------------
+// The ONE address the site gives for anything commercial: support
+// subscriptions, hardened builds, the hosting partner program, consulting,
+// IISpeed transfers. Security disclosure keeps its own address
+// (security@modpagespeed.com) and is never routed here.
+export const COMMERCIAL_EMAIL = 'info@we-amp.com';
+
+// --- Offerings (converged line — no published prices) ------------------------
+// What is for sale is support, in three tiers, with hardened builds included
+// from Priority up. The software is free and identical under every tier. These
+// rows are what /support/ and /pricing/ present and what the agent files and
+// /api/product.json describe. Prices are NULL until published — no surface may
+// render a price or a per-tier response-time target (response targets by
+// severity are stated in each quote).
+//   servers     the production-server band the tier covers (one organization's
+//               production deployment; the bands the quote form asks for)
+//   includes    what the tier adds, in display order; the first entry of a
+//               higher tier names the tier it builds on
+//   hardened    whether hardened builds through the subscriber repository are
+//               included
 export const SUPPORT_TIERS = [
   {
-    id: 'support',
-    name: 'Support subscription',
-    kind: 'sla',
+    id: 'standard',
+    name: 'Standard support',
+    kind: 'support',
+    hardened: false,
+    servers: 'up to 5 production servers',
     prices: { annualUsd: null, monthlyUsd: null },
-    note: 'support from the people who build the product, with agreed response times and SLA-backed delivery of security updates',
+    note: 'a direct channel to the engineers who build the product, for up to 5 production servers',
+    includes: [
+      'Ticket and email channel to the engineers who build the product',
+      'Configuration, upgrade and incident help',
+      'Advance notice of security updates',
+      'One onboarding configuration review',
+    ],
   },
   {
-    id: 'hardened-builds',
-    name: 'Hardened attested builds',
-    kind: 'attestation',
+    id: 'priority',
+    name: 'Priority support',
+    kind: 'support+hardened',
+    hardened: true,
+    servers: 'up to 25 production servers',
     prices: { annualUsd: null, monthlyUsd: null },
-    note: 'builds of the same code with a signed SBOM and build provenance, delivered through the subscriber repository',
+    note: 'everything in Standard plus hardened builds through the subscriber repository, for up to 25 production servers',
+    includes: [
+      'Everything in Standard',
+      'Hardened builds through the subscriber repository',
+      'Upgrade rehearsal on request',
+      'Quarterly review call',
+    ],
+  },
+  {
+    id: 'enterprise',
+    name: 'Enterprise',
+    kind: 'support+hardened',
+    hardened: true,
+    servers: 'unlimited servers and sites, one organization',
+    prices: { annualUsd: null, monthlyUsd: null },
+    note: 'everything in Priority plus a named engineer and custom build targets, for one organization without a server limit',
+    includes: [
+      'Everything in Priority',
+      'A named engineer',
+      'Custom build targets (distributions, nginx versions)',
+      'Backport commitments and pre-notification of security advisories',
+      'Master agreement, purchase order and invoice',
+      'Roadmap input and consulting days',
+    ],
   },
 ];
+// The pricing status, said the same way everywhere it is said.
+export const PRICING_ON_REQUEST =
+  'Pricing on request: published once agreements with current customers close; early subscribers keep their quoted rate for three years.';
+export const RESPONSE_TARGETS_LINE = 'Response targets by severity are stated in your quote.';
 // The paid-artifact axis: the standard signed packages are free for everyone;
-// the hardened channel (hardened builds with SBOM + signed build provenance)
-// is sold as a subscription. Pricing to be announced; no surface may render an
-// artifact price yet. Paid artifacts carry
-// the same software license as the standard packages (SOURCE_PUBLICATION).
+// hardened builds come through the subscriber repository, included from the
+// Priority tier up. What ships today for everyone: the GPG-signed apt/yum
+// repositories, SHA256SUMS on release assets, and the SPDX SBOM in the source
+// tree. No surface may claim a signed SBOM or build provenance per package
+// build until the release pipeline produces one. Hardened artifacts carry the
+// same software license as the standard packages (SOURCE_PUBLICATION).
 export const ARTIFACT_ACCESS = {
   standardPackages: 'free',
-  hardenedBuilds: 'paid',
-  hardenedPricing: 'to-be-announced',
+  hardenedBuilds: 'included-from-priority',
+  hardenedPricing: 'on-request',
 };
 // The support ladder as markdown bullets and one line, price-free by design
 // (pure helpers — see the purity rule below).
@@ -383,6 +432,9 @@ const llmsTokens = () => ({
   SUPPORT_LADDER_LINE,
   SUPPORT_URL,
   LICENSING_TERMS_URL,
+  COMMERCIAL_EMAIL,
+  PRICING_ON_REQUEST,
+  RESPONSE_TARGETS_LINE,
   MAX_VARIANTS: String(MAX_VARIANTS),
   RASTER_VARIANTS: String(RASTER_VARIANTS),
   SIDECAR_VERSION,

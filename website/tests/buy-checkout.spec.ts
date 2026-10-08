@@ -3,42 +3,26 @@
 
 import { test, expect } from '@playwright/test';
 
-// /buy/ is the O7 placeholder: license checkout retired with the open-source
-// flip; support-plan checkout follows the pricing workstream. The page holds
-// the URL (noindex), keeps the terms-version stamp rendered, and loads no
-// FastSpring SBL.
-test.describe('/buy/ — placeholder while support checkout is pending', () => {
-  test.beforeEach(async ({ page }) => {
+// /buy/ retired with the support tiers: support is quoted on /pricing/, so the
+// checkout placeholder is gone and its URL is a 301 to /pricing/. Production
+// serves the redirect from the nginx map; astro.config.mjs `redirects` keeps
+// dev and preview in step. Receipts and old portal mails link here with a
+// ?product= query, so that form must land on /pricing/ too.
+test.describe('/buy/ — retired, redirects to /pricing/', () => {
+  test('/buy/ is a 301 to /pricing/', async ({ request, baseURL }) => {
+    const res = await request.get('/buy/', { maxRedirects: 0 });
+    expect(res.status()).toBe(301);
+    expect(new URL(res.headers()['location'], baseURL).pathname).toBe('/pricing/');
+  });
+
+  test('/buy/ lands on the pricing page in a browser', async ({ page }) => {
     await page.goto('/buy/');
+    expect(new URL(page.url()).pathname).toBe('/pricing/');
+    await expect(page.locator('h1').first()).toContainText('The software is free.');
   });
 
-  test('serves the placeholder with the sales contact', async ({ page }) => {
-    await expect(page.locator('h1').first()).toContainText('Checkout opens with pricing');
-    await expect(page.locator('a[href="mailto:sales@we-amp.com"]').first()).toBeVisible();
-  });
-
-  test('page stays noindex', async ({ page }) => {
-    const robots = page.locator('meta[name="robots"]');
-    await expect(robots).toHaveAttribute('content', /noindex/);
-  });
-
-  test('renders the terms-version stamp', async ({ page }) => {
-    await expect(page.locator('[data-terms-version]')).toHaveAttribute(
-      'data-terms-version',
-      /^\d{4}-\d{2}$/,
-    );
-    await expect(page.locator('a[href="/terms/"]').first()).toBeVisible();
-  });
-
-  test('loads no FastSpring SBL', async ({ page }) => {
-    const sbl = await page.locator('script[src*="fastspring"]').count();
-    expect(sbl).toBe(0);
-  });
-
-  test('legacy SKU deep-links still land on the placeholder (receipts link here)', async ({
-    page,
-  }) => {
+  test('legacy SKU deep-links land on /pricing/ as well', async ({ page }) => {
     await page.goto('/buy/?product=business-site-monthly');
-    await expect(page.locator('h1').first()).toContainText('Checkout opens with pricing');
+    expect(new URL(page.url()).pathname).toBe('/pricing/');
   });
 });

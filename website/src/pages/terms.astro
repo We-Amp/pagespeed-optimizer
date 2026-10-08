@@ -13,7 +13,8 @@ import {
 
 // OWNER: set the effective date at GA. The "Version YYYY-MM" literal in the
 // markup below must stay in lockstep with TERMS_VERSION_WEB in
-// src/pages/buy/index.astro — test/sync/terms-version-sync.test.ts guards it.
+// src/pages/pricing.astro (the quote form's terms stamp) —
+// test/sync/terms-version-sync.test.ts guards it.
 const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
 const LICENSE = SOURCE_PUBLICATION.license;
 ---
@@ -25,7 +26,7 @@ const LICENSE = SOURCE_PUBLICATION.license;
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
     <h1 class="text-3xl sm:text-4xl font-bold tracking-tight text-text-body">Terms of Service</h1>
     <p class="mt-4 text-sm text-text-annotation">
-      Effective date: September 2026 &middot; Version 2026-09
+      Effective date: October 2026 &middot; Version 2026-10
     </p>
     <p class="mt-6 text-lg text-text-muted">
       These terms are written in plain language. If something is unclear, email
@@ -51,7 +52,7 @@ const LICENSE = SOURCE_PUBLICATION.license;
             the free standard package repository at
             <code class="font-mono text-sm">packages.modpagespeed.com</code>;
           </li>
-          <li>the subscriber repository through which we deliver hardened attested builds; and</li>
+          <li>the subscriber repository through which we deliver hardened builds; and</li>
           <li>support subscriptions.</li>
         </ul>
         <p class="mt-2 text-text-muted">
@@ -69,7 +70,7 @@ const LICENSE = SOURCE_PUBLICATION.license;
           The software &mdash; {PRODUCT}, and the predecessor lines mod_pagespeed {V1_LINE} and ModPageSpeed
           {V2_LINE} &mdash; is licensed under the {LICENSE}. That license, not these terms, governs
           your rights to install, run, copy, modify and redistribute the software. It applies to
-          every artifact we publish, including the hardened attested builds: an artifact you obtain
+          every artifact we publish, including the hardened builds: an artifact you obtain
           through a subscription carries the same license as a standard package.
         </p>
         <p class="mt-2 text-text-muted">
@@ -120,16 +121,20 @@ const LICENSE = SOURCE_PUBLICATION.license;
             are set out in your order.
           </li>
           <li>
-            <strong>Hardened attested builds.</strong> Builds of the same code the standard packages are
-            built from, produced through a hardened build pipeline and shipped with a signed software
-            bill of materials (SBOM) and build provenance, delivered through a subscriber repository.
-            They differ from the standard packages in how they are built and attested, never in features.
+            <strong>Hardened builds.</strong> Builds of the same code the standard packages are built
+            from, produced through a hardened build pipeline and delivered through a subscriber
+            repository. They differ from the standard packages in how they are built and delivered, never
+            in features. What is signed and attested today applies to every user: the apt and yum
+            repositories are GPG-signed, release assets are listed with their checksums in a SHA256SUMS
+            file, an SPDX software bill of materials (SBOM) is published in the source tree, and the
+            container images on GHCR are signed with keyless cosign and carry SBOM and build-provenance
+            attestations.
           </li>
         </ul>
         <p class="mt-4 text-text-muted">
           <strong>What a subscription grants.</strong> For its term, a subscription gives you access to
-          the subscriber repository and the builds in it, the support services in your order, and the
-          SBOM and provenance documents for the builds you obtain. Access to the subscriber repository
+          the subscriber repository and the builds in it, and the support services in your order.
+          Access to the subscriber repository
           is for your organization: do not share it outside your organization or use it to mirror the
           repository for others. You may deploy the builds you obtain on as many of your own systems as
           you like, and you may redistribute them under the {LICENSE} &mdash; the restriction is on access
@@ -241,8 +246,9 @@ const LICENSE = SOURCE_PUBLICATION.license;
         <p class="mt-2 text-text-muted">
           <strong>The services.</strong> We perform support with reasonable skill and care, within the
           response times in your order. We do not warrant that support will resolve every issue, or that
-          a hardened build is free of defects or vulnerabilities: the attestation describes how a build
-          was produced and what went into it, not that it is defect-free. The free services are provided
+          a hardened build is free of defects or vulnerabilities: signatures, checksums, SBOMs and
+          attestations describe where an artifact came from and what went into it, not that it is
+          defect-free. The free services are provided
           as-is.
         </p>
         <p class="mt-2 text-text-muted">

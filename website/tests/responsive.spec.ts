@@ -33,16 +33,18 @@ test.describe('Responsive layout', () => {
     await page.locator('#mobile-menu-btn').click();
     await expect(menu).toBeVisible();
 
-    // Menu should contain nav links
-    await expect(menu.locator('a[href="/features/"]')).toBeVisible();
-    await expect(menu.locator('a[href="/pricing/"]').first()).toBeVisible();
+    // Menu should contain nav links: Docs direct, the Support group, Contact.
+    await expect(menu.locator('a[href="/docs/"]')).toBeVisible();
+    await expect(menu.locator('a[href="/support/"]').first()).toBeVisible();
+    await expect(menu.locator('a[href="/contact/"]')).toBeVisible();
   });
 
   test('pricing cards are visible on mobile', async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
     await page.goto('/pricing/');
-    // Two-card layout: mod_pagespeed 1.1 (.card) and ModPageSpeed 2.0 (.card-featured).
-    await expect(page.locator('.card, .card-featured').first()).toBeVisible();
+    // Three tier cards; Priority is the featured one.
+    await expect(page.locator('[data-tier]').first()).toBeVisible();
+    await expect(page.locator('[data-tier="priority"].card-featured')).toBeVisible();
   });
 
   test('footer is visible on mobile', async ({ page }) => {

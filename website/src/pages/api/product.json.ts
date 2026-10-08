@@ -14,6 +14,9 @@ import {
   PRODUCT_NAME,
   CURRENT_LINE,
   SUPPORT_TIERS,
+  PRICING_ON_REQUEST,
+  COMMERCIAL_EMAIL,
+  ARTIFACT_ACCESS,
   SUPPORT_URL,
   LICENSING_TERMS_URL,
   SOURCE_PUBLICATION,
@@ -54,20 +57,25 @@ const productData = {
       id: t.id,
       name: t.name,
       kind: t.kind,
+      servers: t.servers,
+      hardened_builds: t.hardened,
+      includes: t.includes,
       annual_usd: t.prices.annualUsd,
       monthly_usd: t.prices.monthlyUsd,
       note: t.note,
     })),
+    pricing_status: PRICING_ON_REQUEST,
+    contact: COMMERCIAL_EMAIL,
   },
   // Artifact access, expressed additively (new key, existing keys unchanged):
-  // the standard signed packages are free; the hardened channel (hardened
-  // builds with SBOM + signed build provenance) is sold, pricing to be
-  // announced. Paid artifacts carry the same software license as the
-  // standard packages.
+  // the standard signed packages are free; hardened builds come through the
+  // subscriber repository, included from the Priority tier up, pricing on
+  // request. Paid artifacts carry the same software license as the standard
+  // packages.
   artifacts: {
-    standard_packages: 'free',
-    hardened_builds: 'paid',
-    hardened_pricing: 'to-be-announced',
+    standard_packages: ARTIFACT_ACCESS.standardPackages,
+    hardened_builds: ARTIFACT_ACCESS.hardenedBuilds,
+    hardened_pricing: ARTIFACT_ACCESS.hardenedPricing,
   },
   features: {
     // `image_formats` is the flat format list. Its key name, shape (flat array

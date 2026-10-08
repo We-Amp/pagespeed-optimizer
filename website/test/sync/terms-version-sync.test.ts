@@ -6,14 +6,14 @@
 //
 //   1. website/src/pages/terms.astro          — "Version YYYY-MM" (source of truth,
 //                                                the version shown to and accepted by users)
-//   2. website/src/pages/buy/index.astro       — TERMS_VERSION_WEB (the standalone
-//                                                web clickwrap's consent stamp)
+//   2. website/src/pages/pricing.astro         — TERMS_VERSION_WEB (the terms
+//                                                version the quote form names)
 //
-// These live in two build systems (Astro page markup, and an inline is:inline
-// script in a static Astro page that cannot import a TS const), so a single
-// shared import is impractical. This file-reading guard is the enforcement
-// instead: if either stamp drifts, a consent record would be tagged with the
-// wrong version.
+// The checkout placeholder at /buy/ carried the second stamp until it retired
+// (it now redirects to /pricing/). The quote form states the terms version a
+// request is made under, so the stamp moved there. This file-reading guard is
+// the enforcement: if either stamp drifts, a quote would name the wrong
+// version.
 //
 // The admin console used to carry a third stamp (TERMS_VERSION in the
 // api-client, for the daemon's /v1/license/consent endpoint). Both were removed
@@ -45,13 +45,13 @@ describe('terms-of-service version is in lockstep across all stamp sites', () =>
     /Version\s+(\d{4}-\d{2})\b/,
     'the "Version YYYY-MM" line',
   );
-  const buyVersion = extract(
-    '../../src/pages/buy/index.astro',
+  const quoteVersion = extract(
+    '../../src/pages/pricing.astro',
     /TERMS_VERSION_WEB\s*=\s*'([^']+)'/,
     'TERMS_VERSION_WEB',
   );
 
-  it('terms.astro version matches the /buy/ web clickwrap stamp', () => {
-    expect(buyVersion).toBe(termsVersion);
+  it('terms.astro version matches the /pricing/ quote-form stamp', () => {
+    expect(quoteVersion).toBe(termsVersion);
   });
 });
