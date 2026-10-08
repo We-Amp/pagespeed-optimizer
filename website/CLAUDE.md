@@ -168,7 +168,7 @@ few hours.
   `product-facts.mjs`, `/api/product.json` and `/license/`, and retired commercial
   wording (license keys, trials, per-site pricing) stays out.
 - `sync/terms-version-sync.test.ts` — the terms-of-service version stamp is identical
-  on `/terms/` and `/buy/`.
+  on `/terms/` and the `/pricing/` quote form.
 
 ## Generated references
 
@@ -205,9 +205,12 @@ These bind every customer-facing string: pages, docs, blog, templates, metadata.
   mod_pagespeed 2.1 is developed by We-Amp B.V. and is not affiliated with or endorsed
   by Google. Say nothing beyond that about the relationship, and never disparage the
   original authors' work.
-- Prices, license and publication claims come from `src/data/product-facts.mjs`
-  (`SUPPORT_TIERS`, `LICENSE_CLAUSE`, `SOURCE_PUBLICATION`), never from a literal. No
-  "free trial" and no license keys anywhere on the site.
+- Support tiers, license and publication claims come from `src/data/product-facts.mjs`
+  (`SUPPORT_TIERS`, `PRICING_ON_REQUEST`, `COMMERCIAL_EMAIL`, `LICENSE_CLAUSE`,
+  `SOURCE_PUBLICATION`), never from a literal. No price amounts and no per-tier
+  response-time targets until the owner publishes them; no "free trial" and no license
+  keys anywhere on the site. Commercial mail goes to `COMMERCIAL_EMAIL`;
+  `security@modpagespeed.com` is for vulnerability reports only.
 - Dark mode: the site runs behind its own critical-CSS inlining, which extracts without
   the `.dark` class. Every `dark:` utility on an above-the-fold element needs a matching
   inline override in the `<style is:inline>` block of `BaseLayout.astro`.

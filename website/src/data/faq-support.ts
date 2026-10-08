@@ -25,11 +25,11 @@ export const faqSupport: FaqEntry[] = [
   },
   {
     q: 'When do you answer?',
-    a: 'On CET business days. There is no 24x7 desk. Response targets by severity, including any out-of-hours terms for Enterprise, are stated in your quote and in the subscription terms.',
+    a: 'On CET business days. There is no 24x7 desk. Response targets by severity, including any out-of-hours terms for Enterprise, are stated in your quote.',
   },
   {
     q: 'How do security updates reach me?',
-    a: `Everyone gets security fixes as regular releases through the channel they installed from, listed under Security in the ${link('/docs/release-notes/', 'release notes')}. Subscribers get advance notice, with a delivery window stated in their terms. Priority and Enterprise subscribers receive the update through the subscriber repository before the public release.`,
+    a: `Everyone gets security fixes as regular releases through the channel they installed from, listed under Security in the ${link('/docs/release-notes/', 'release notes')}. Subscribers get advance notice, with a delivery window stated in their quote. Priority and Enterprise subscribers receive the update through the subscriber repository before the public release.`,
   },
   {
     q: 'What counts as a production server?',
