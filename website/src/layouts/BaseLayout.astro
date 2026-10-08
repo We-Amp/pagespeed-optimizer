@@ -587,7 +587,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
       /* Set dark class before first paint to avoid FOUC on iOS. Must run
          synchronously in <head> before any rendering occurs. */
       (function () {
-        /* Dark-only identity (CALIBER): the `.dark` class is ALWAYS applied so
+        /* Dark-only identity: the `.dark` class is ALWAYS applied so
            every existing `dark:` utility resolves to the instrument-black system.
            No toggle, no light theme. */
         document.documentElement.classList.add('dark');
@@ -861,7 +861,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
           </div>
 
           {
-            /* Dark-only identity (CALIBER) — theme toggle removed; the site is
+            /* Dark-only identity — theme toggle removed; the site is
               rendered exclusively on the instrument-black canvas. */
           }
 
