@@ -1,28 +1,122 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { COMMERCIAL_EMAIL } from '../data/product-facts.mjs';
+
+// Topics: one per offer, each with a one-line hint shown under the select.
+// Values are what the capture endpoint logs as the lead topic. Old values that
+// external links and earlier pages still carry are mapped in TOPIC_ALIASES
+// (read by the prefill script below).
+const TOPICS: Array<{ value: string; label: string; hint: string; commercial: boolean }> = [
+  {
+    value: 'setup',
+    label: 'Setup help',
+    hint: 'Server, OS, web server and version help us reply faster.',
+    commercial: false,
+  },
+  {
+    value: 'support',
+    label: 'Support subscription',
+    hint: 'Tell us roughly how many production servers and which platforms.',
+    commercial: true,
+  },
+  {
+    value: 'hardened',
+    label: 'Hardened builds',
+    hint: 'Which distributions and versions your security team needs builds for.',
+    commercial: true,
+  },
+  {
+    value: 'hosting',
+    label: 'Hosting partner program',
+    hint: 'Host count, control panel and distributions across your fleet.',
+    commercial: true,
+  },
+  {
+    value: 'consulting',
+    label: 'Consulting',
+    hint: 'The site, what is slow, and when you need it fixed.',
+    commercial: true,
+  },
+  {
+    value: 'iispeed-transfer',
+    label: 'IISpeed license transfer',
+    hint: 'The order number or the email address the license was bought under.',
+    commercial: true,
+  },
+  {
+    value: 'agents',
+    label: 'AI readability and agents',
+    hint: 'What you need agents to see, and roughly how much crawler traffic you get.',
+    commercial: false,
+  },
+  {
+    value: 'other',
+    label: 'Other (not security)',
+    hint: 'Security reports go to a separate channel, below.',
+    commercial: false,
+  },
+];
+const TOPIC_ALIASES: Record<string, string> = {
+  enterprise: 'support',
+  airead: 'agents',
+  'agent-optimize': 'agents',
+  iispeed: 'iispeed-transfer',
+  transfer: 'iispeed-transfer',
+  partner: 'hosting',
+};
+const COMMERCIAL_TOPICS = TOPICS.filter((t) => t.commercial).map((t) => t.value);
+const topicConfig = {
+  hints: Object.fromEntries(TOPICS.map((t) => [t.value, t.hint])),
+  commercial: COMMERCIAL_TOPICS,
+  aliases: TOPIC_ALIASES,
+};
+
+const inputClass =
+  'mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 outline-none focus:ring-2 focus:ring-interactive/40';
+
+const nextSteps = [
+  { when: 'within 1 business day', what: 'An engineer replies to every message.' },
+  { when: 'within 3 business days', what: 'Commercial topics get a written quote.' },
+  {
+    when: 'within 5 business days of signing',
+    what: 'The onboarding call opens your support channel.',
+  },
+];
 ---
 
 <BaseLayout
-  title="Contact mod_pagespeed 2.1 — Setup, Enterprise, Security"
-  description="Setup help, enterprise and volume pricing, and security disclosure for mod_pagespeed 2.1. One form; we aim to reply in about a business day (CET)."
+  title="Contact mod_pagespeed 2.1: setup, support and partners"
+  description="Setup help, support subscriptions, hardened builds, hosting partners, consulting and IISpeed transfers. One form; we reply within one business day (CET)."
 >
   <section class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-20">
     <div class="text-center">
       <h1 class="h1-hero text-text-body">Pick the right channel.</h1>
       <p class="mt-4 text-lg text-text-muted max-w-2xl mx-auto">
-        Setup help, enterprise and volume pricing, security disclosure. We aim to reply in about a
-        business day (CET).
+        Setup help, support subscriptions, hardened builds, partnerships and consulting all go
+        through this form. We reply within one business day (CET). Security reports have their own
+        channel.
       </p>
       <p class="mt-3 text-sm text-text-annotation max-w-2xl mx-auto">
         Setup steps live in the
         <a href="/docs/" class="text-interactive hover:text-interactive-hover underline"
           >documentation</a
-        >; plans and licensing are on the
-        <a href="/pricing/" class="text-interactive hover:text-interactive-hover underline"
-          >pricing page</a
+        >; what a subscription covers is on the
+        <a href="/support/" class="text-interactive hover:text-interactive-hover underline"
+          >support page</a
         >.
       </p>
     </div>
+
+    <ol class="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="What happens next">
+      {
+        nextSteps.map((step) => (
+          <li class="readout-plate px-4 py-3">
+            <p class="font-mono text-xs text-interactive">{step.when}</p>
+            <p class="mt-1 text-sm text-text-muted">{step.what}</p>
+          </li>
+        ))
+      }
+    </ol>
 
     <!-- Contact form. Behavior: JS-enabled clients POST to the capture endpoint
          (/ai-readability/api/contact → render service → Telegram + logged), with a
@@ -30,10 +124,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
          action below. Either path lands the message with us. -->
     <form
       id="contact-form"
-      action="mailto:info@we-amp.com"
+      action={`mailto:${COMMERCIAL_EMAIL}`}
       method="post"
       enctype="text/plain"
-      class="mt-12 rounded-lg border border-border bg-bg-elevated p-6 sm:p-8 space-y-5"
+      data-fallback-email={COMMERCIAL_EMAIL}
+      data-topic-config={JSON.stringify(topicConfig)}
+      class="mt-8 rounded-lg border border-border bg-bg-elevated p-6 sm:p-8 space-y-5"
     >
       <div>
         <label for="contact-name" class="block text-sm font-medium text-text-body"> Name </label>
@@ -71,16 +167,51 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           aria-describedby="contact-topic-hint"
           class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 outline-none focus:ring-2 focus:ring-interactive/40"
         >
-          <option value="support">General support / setup</option>
-          <option value="enterprise">Enterprise / volume pricing</option>
-          <option value="hosting">Hosting / multi-tenant licensing</option>
-          <option value="agent-optimize">Serve clean content to AI agents</option>
-          <option value="other">Other (not security)</option>
+          {TOPICS.map((t) => <option value={t.value}>{t.label}</option>)}
         </select>
-        <p id="contact-topic-hint" class="mt-1 text-sm text-text-annotation">
-          Security reports go to a separate channel — see below.
+        <p id="contact-topic-hint" class="mt-1 text-sm text-text-annotation" data-topic-hint>
+          {TOPICS[0].hint}
         </p>
       </div>
+
+      <fieldset id="contact-qualifiers" class="space-y-4" data-qualifiers>
+        <legend class="text-sm font-medium text-text-body">
+          About your organization <span class="font-normal text-text-annotation">(optional)</span>
+        </legend>
+        <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <div>
+            <label for="contact-org" class="block text-sm text-text-muted">Company</label>
+            <input
+              id="contact-org"
+              name="org"
+              type="text"
+              autocomplete="organization"
+              class={inputClass}
+            />
+          </div>
+          <div>
+            <label for="contact-role" class="block text-sm text-text-muted">Role</label>
+            <input
+              id="contact-role"
+              name="role"
+              type="text"
+              autocomplete="organization-title"
+              class={inputClass}
+            />
+          </div>
+        </div>
+        <div>
+          <label for="contact-servers" class="block text-sm text-text-muted"
+            >Production servers</label
+          >
+          <select id="contact-servers" name="servers" class={inputClass}>
+            <option value="">Choose one</option>
+            <option value="Up to 5">Up to 5</option>
+            <option value="Up to 25">Up to 25</option>
+            <option value="More than 25">More than 25</option>
+          </select>
+        </div>
+      </fieldset>
 
       <div>
         <label for="contact-message" class="block text-sm font-medium text-text-body">
@@ -96,7 +227,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 outline-none focus:ring-2 focus:ring-interactive/40"
         ></textarea>
         <p id="contact-message-hint" class="mt-1 text-sm text-text-annotation">
-          Server, OS, and version details help us reply faster.
+          Plain text is fine. Logs and config snippets help.
         </p>
       </div>
 
@@ -117,14 +248,14 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           Send message
         </button>
         <p id="contact-form-hint" class="text-xs text-text-annotation">
-          We aim to reply within about a business day (CET). Prefer email? Reach us at
+          We reply within one business day (CET). Prefer email? Reach us at
           <a
-            href="mailto:info@we-amp.com"
-            class="text-interactive hover:text-interactive-hover underline">info@we-amp.com</a
+            href={`mailto:${COMMERCIAL_EMAIL}`}
+            class="text-interactive hover:text-interactive-hover underline">{COMMERCIAL_EMAIL}</a
           ><button
             type="button"
             id="contact-copy-email"
-            data-copy="info@we-amp.com"
+            data-copy={COMMERCIAL_EMAIL}
             class="ml-1 text-interactive hover:text-interactive-hover underline">(copy)</button
           >.
         </p>
@@ -133,19 +264,65 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     </form>
 
     <script>
-      // Pre-fill the Topic select from ?topic= query param so the calculator's
-      // enterprise CTA (and any future links) lands on the right intent.
-      const params = new URLSearchParams(window.location.search);
-      const topicParam = params.get('topic');
+      // Topic routing. The form carries its topic table (hints, which topics
+      // are commercial, and the aliases older links still use) as JSON in
+      // data-topic-config, rendered from the frontmatter, so this script holds
+      // no copy of it.
+      type TopicConfig = {
+        hints: Record<string, string>;
+        commercial: string[];
+        aliases: Record<string, string>;
+      };
+      const form = document.getElementById('contact-form') as HTMLFormElement | null;
+      const config: TopicConfig = JSON.parse(form?.dataset.topicConfig ?? '{}');
       const topicEl = document.getElementById('contact-topic') as HTMLSelectElement | null;
-      if (topicEl && topicParam) {
-        for (const opt of Array.from(topicEl.options)) {
-          if (opt.value === topicParam) {
-            topicEl.value = topicParam;
-            break;
-          }
+      const hintEl = form?.querySelector<HTMLElement>('[data-topic-hint]') ?? null;
+      const qualifiers = form?.querySelector<HTMLFieldSetElement>('[data-qualifiers]') ?? null;
+      const messageEl = document.getElementById('contact-message') as HTMLTextAreaElement | null;
+      const serversEl = document.getElementById('contact-servers') as HTMLSelectElement | null;
+
+      // Show the optional company / role / server-band fields only for the
+      // commercial topics. Hidden fields are disabled so they never post.
+      function syncTopic() {
+        if (!topicEl) return;
+        const topic = topicEl.value;
+        if (hintEl) hintEl.textContent = config.hints?.[topic] ?? '';
+        const commercial = (config.commercial ?? []).includes(topic);
+        if (qualifiers) {
+          qualifiers.hidden = !commercial;
+          qualifiers.disabled = !commercial;
         }
       }
+
+      // Pre-fill from the query string: ?topic= (old values mapped to the
+      // current ones), and the hosting-partner qualifiers (?hosts=, ?panel=,
+      // ?distros=) the partner page sends, folded into the message.
+      const params = new URLSearchParams(window.location.search);
+      const rawTopic = (params.get('topic') ?? '').trim().toLowerCase();
+      const wanted = config.aliases?.[rawTopic] ?? rawTopic;
+      if (topicEl && wanted && Array.from(topicEl.options).some((o) => o.value === wanted)) {
+        topicEl.value = wanted;
+      }
+      const prefill = [
+        ['hosts', 'Hosts'],
+        ['panel', 'Control panel'],
+        ['distros', 'Distributions'],
+      ]
+        .map(([key, label]) => {
+          const v = (params.get(key) ?? '').trim().slice(0, 200);
+          return v ? `${label}: ${v}` : '';
+        })
+        .filter(Boolean);
+      if (messageEl && prefill.length && !messageEl.value) {
+        messageEl.value = `${prefill.join('\n')}\n\n`;
+      }
+      const serversParam = (params.get('servers') ?? '').trim();
+      if (serversEl && serversParam) {
+        const match = Array.from(serversEl.options).find((o) => o.value === serversParam);
+        if (match) serversEl.value = match.value;
+      }
+      topicEl?.addEventListener('change', syncTopic);
+      syncTopic();
 
       // Copy-to-clipboard for the contact address, so a visitor whose mail client
       // doesn't open can grab the address without selecting it by hand.
@@ -168,9 +345,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       }
 
       // Intercept submit and POST to the capture endpoint; fall back to a mailto:
-      // (Topic-derived recipient) if the POST fails, and to the form's native
+      // to the commercial address if the POST fails, and to the form's native
       // mailto action if JS is off entirely.
-      const form = document.getElementById('contact-form') as HTMLFormElement | null;
       const submitBtn = document.getElementById('contact-submit') as HTMLButtonElement | null;
       const statusEl = document.getElementById('contact-status');
       const emailInput = document.getElementById('contact-email') as HTMLInputElement | null;
@@ -201,18 +377,18 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         const data = new FormData(form);
         const name = String(data.get('name') ?? '').trim();
         const email = String(data.get('email') ?? '').trim();
-        const topic = String(data.get('topic') ?? 'support');
-        const message = String(data.get('message') ?? '').trim();
+        const topic = String(data.get('topic') ?? 'setup');
+        const body = String(data.get('message') ?? '').trim();
 
         // Client-side validation. Lean on the browser first, then add our own
         // checks so the failure is a clear message rather than a silent no-op.
         if (!form.checkValidity()) {
           form.reportValidity();
-          setStatus('error', 'Please fill in every field before sending.');
+          setStatus('error', 'Please fill in name, email and message before sending.');
           return;
         }
-        if (!name || !email || !message) {
-          setStatus('error', 'Please fill in every field before sending.');
+        if (!name || !email || !body) {
+          setStatus('error', 'Please fill in name, email and message before sending.');
           return;
         }
         const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
@@ -234,21 +410,26 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           emailInput.removeAttribute('aria-errormessage');
         }
 
+        // Qualifiers ride inside the message: the endpoint treats a `company`
+        // key as a bot honeypot, so the company never posts as its own field.
+        // Disabled (hidden) qualifier fields are absent from FormData.
+        const qualifierLines = [
+          ['org', 'Company'],
+          ['role', 'Role'],
+          ['servers', 'Production servers'],
+        ]
+          .map(([key, label]) => {
+            const v = String(data.get(key) ?? '').trim();
+            return v ? `${label}: ${v}` : '';
+          })
+          .filter(Boolean);
+        const message = qualifierLines.length ? `${qualifierLines.join('\n')}\n\n${body}` : body;
+
         // mailto: fallback (used only if the POST fails) — preserves the
         // never-lose-a-lead property the mailto-only flow had.
-        const recipient =
-          topic === 'enterprise' || topic === 'agent-optimize'
-            ? 'sales@we-amp.com'
-            : 'info@we-amp.com';
-        const subjectPrefix =
-          topic === 'enterprise'
-            ? '[Enterprise]'
-            : topic === 'agent-optimize'
-              ? '[Agent]'
-              : topic === 'other'
-                ? '[Contact]'
-                : '[Support]';
-        const subject = `${subjectPrefix} ${name || email || 'website inquiry'}`;
+        const recipient = form.dataset.fallbackEmail ?? '';
+        const label = topicEl?.selectedOptions[0]?.textContent?.trim() ?? topic;
+        const subject = `[${label}] ${name || email || 'website inquiry'}`;
         const mailtoBody =
           `From: ${name} <${email}>\n` + `Topic: ${topic}\n` + `\n` + `${message}\n`;
         const mailtoHref =
@@ -269,12 +450,19 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           });
           if (!res.ok) throw new Error(`status ${res.status}`);
           form.reset();
+          syncTopic();
           // Fire on a successful POST only (not on click) so validation-blocked
           // or failed submits don't inflate the contact-conversion count.
-          (window as any).umami?.track('contact_submit', { topic });
+          const umami = (window as any).umami;
+          umami?.track('contact_submit', { topic });
+          umami?.track('lead_submit', {
+            channel: 'contact',
+            topic,
+            source_path: window.location.pathname,
+          });
           setStatus(
             'success',
-            'Thanks — your message is in. We aim to reply within about a business day (CET).',
+            'Thanks, your message is in. An engineer replies within one business day (CET).',
           );
         } catch {
           // Backend unreachable — open the mail client so the message is never lost.

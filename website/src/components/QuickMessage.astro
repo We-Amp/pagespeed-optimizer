@@ -3,9 +3,10 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
 // QuickMessage — a site-wide, low-friction "signal key": one textarea to send
-// the maintainer a quick message. One-way by default; a reply email is OPTIONAL
-// (revealed on demand). Rendered once near the end of BaseLayout so it appears
-// on every page.
+// the maintainer a quick message. A reply email is OPTIONAL but the field is
+// visible from the start, so a visitor who wants an answer does not have to
+// find it. Rendered once near the end of BaseLayout so it appears on every
+// page.
 //
 // BACKEND. Posts SAME-ORIGIN to the existing contact pipeline
 // (/ai-readability/api/contact -> render service -> Telegram notification +
@@ -86,7 +87,7 @@
 
     {/* FORM VIEW */}
     <form data-qm-form class="qm-form" novalidate>
-      <p class="qm-lede">One line is enough. A reply is optional.</p>
+      <p class="qm-lede">One line is enough. Leave an email if you want a reply.</p>
 
       <div class="qm-field">
         <label for="qm-message" class="sr-only">Your message</label>
@@ -103,19 +104,9 @@
         <p class="qm-count" data-qm-count aria-hidden="true">0 / 1000</p>
       </div>
 
-      {/* Optional email — collapsed by default. */}
-      <button
-        type="button"
-        data-qm-email-toggle
-        class="qm-disclosure"
-        aria-expanded="false"
-        aria-controls="qm-email-wrap"
-      >
-        <span data-qm-email-toggle-label>+ add email for a reply (optional)</span>
-      </button>
-
-      <div id="qm-email-wrap" data-qm-email-wrap class="qm-email-wrap" hidden>
-        <label for="qm-email" class="qm-label">your email</label>
+      {/* Optional email — visible by default, never required. */}
+      <div id="qm-email-wrap" data-qm-email-wrap class="qm-email-wrap">
+        <label for="qm-email" class="qm-label">your email (optional, for a reply)</label>
         <input
           id="qm-email"
           name="email"
@@ -136,7 +127,7 @@
       </div>
 
       <div class="qm-foot">
-        <span class="qm-note">one-way · no account</span>
+        <span class="qm-note">no account needed</span>
         <button type="submit" data-qm-submit class="btn-primary qm-send">
           <span data-qm-send-label>Send</span>
           <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none">
@@ -191,10 +182,6 @@
     const successView = root.querySelector<HTMLElement>('[data-qm-success]')!;
     const successSub = root.querySelector<HTMLElement>('[data-qm-success-sub]')!;
     const againBtn = root.querySelector<HTMLButtonElement>('[data-qm-again]')!;
-
-    const emailToggle = root.querySelector<HTMLButtonElement>('[data-qm-email-toggle]')!;
-    const emailToggleLabel = root.querySelector<HTMLElement>('[data-qm-email-toggle-label]')!;
-    const emailWrap = root.querySelector<HTMLElement>('[data-qm-email-wrap]')!;
 
     let sending = false;
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
@@ -325,17 +312,6 @@
       if ((e as CustomEvent).detail?.source !== 'qm') close();
     });
 
-    // ---- optional email disclosure -----------------------------------------
-    emailToggle.addEventListener('click', () => {
-      const expanded = emailToggle.getAttribute('aria-expanded') === 'true';
-      emailToggle.setAttribute('aria-expanded', String(!expanded));
-      emailWrap.hidden = expanded;
-      emailToggleLabel.textContent = expanded
-        ? '+ add email for a reply (optional)'
-        : '− no reply needed';
-      if (!expanded) emailEl.focus();
-    });
-
     // ---- view swap ----------------------------------------------------------
     function showForm() {
       successView.hidden = true;
@@ -406,9 +382,6 @@
           /* ignore */
         }
         form.reset();
-        emailWrap.hidden = true;
-        emailToggle.setAttribute('aria-expanded', 'false');
-        emailToggleLabel.textContent = '+ add email for a reply (optional)';
         clearStatus();
         syncCount();
         successSub.textContent = email
@@ -621,27 +594,7 @@
     color: var(--color-accent);
   }
 
-  /* ── Optional-email disclosure ───────────────────────────────────────── */
-  .qm-disclosure {
-    margin-top: 0.625rem;
-    padding: 0;
-    background: none;
-    border: none;
-    font-family: var(--font-mono);
-    font-size: 0.75rem;
-    letter-spacing: 0.02em;
-    color: var(--color-interactive);
-    cursor: pointer;
-  }
-  .qm-disclosure:hover {
-    color: var(--color-interactive-hover);
-    text-decoration: underline;
-    text-underline-offset: 3px;
-  }
-  .qm-disclosure:focus-visible {
-    outline: 2px solid var(--color-interactive);
-    outline-offset: 2px;
-  }
+  /* ── Optional email ───────────────────────────────────────────────── */
   .qm-email-wrap {
     margin-top: 0.5rem;
   }
