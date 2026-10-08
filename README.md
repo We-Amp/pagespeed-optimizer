@@ -1,7 +1,7 @@
 # mod_pagespeed 2.1 — pagespeed-optimizer
 
-The optimization daemon, nginx serving module, and management console of the
-mod_pagespeed 2.1 product line. The same daemon also backs the Apache module
+The optimization worker, nginx serving module, and management console of the
+mod_pagespeed 2.1 product line. The same worker also backs the Apache module
 (shipped from the [We-Amp/mod_pagespeed](https://github.com/We-Amp/mod_pagespeed)
 repository): one optimizer serves both web servers, with zero-copy cache
 serving and asynchronous content optimization.
@@ -10,7 +10,7 @@ serving and asynchronous content optimization.
 
 mod_pagespeed 2.1 converges on three cooperating components. The serving
 module is thin and lives in the web server; all optimization work happens in
-the daemon; the cache is shared between them.
+the worker; the cache is shared between them.
 
 ```
                   ┌───────────────────────────┐
@@ -22,7 +22,7 @@ the daemon; the cache is shared between them.
                                 │
                   ┌─────────────▼─────────────┐     ┌──────────────────────┐
                   │       Cyclone cache       │◄───►│ pagespeed-optimizer  │
-                  │  (We-Amp/cyclone-cache)   │     │ daemon — this repo   │
+                  │  (We-Amp/cyclone-cache)   │     │ worker — this repo   │
                   └───────────────────────────┘     └──────────────────────┘
 ```
 
@@ -31,16 +31,16 @@ capability-based cache keys, serves optimized variants via zero-copy mmap, and
 records cache misses for asynchronous processing. This repository builds the
 nginx module; the Apache module — the 1.x lineage going live as 2.1 — lives in
 [We-Amp/mod_pagespeed](https://github.com/We-Amp/mod_pagespeed). Both modules
-attach to the same daemon and the same cache.
+attach to the same worker and the same cache.
 
-**pagespeed-optimizer** — The optimization daemon: a lightweight C++ process
+**pagespeed-optimizer** — The optimization worker: a lightweight C++ process
 that reads original content from cache, applies optimizations (image
 transcoding, CSS/JS minification, critical CSS extraction), and writes
 optimized variants back. It also serves the management console at `/console/`
 and the HTTP management API.
 
 **Cyclone cache** — Variant-aware disk cache with memory-mapped directory
-sharing. Both the web-server module and the daemon mmap the same volume file
+sharing. Both the web-server module and the worker mmap the same volume file
 for instant cross-process visibility. Developed in
 [We-Amp/cyclone-cache](https://github.com/We-Amp/cyclone-cache) and fetched
 here via Bazel.
@@ -49,7 +49,7 @@ here via Bazel.
 
 mod_pagespeed 2.1 ships as deb/rpm package pairs:
 
-- **`pagespeed-optimizer`** — the optimization daemon (this repository)
+- **`pagespeed-optimizer`** — the optimization worker (this repository)
 - **`mod-pagespeed`** — the Apache module, which depends on the optimizer
   package at the exact same version, so `apt`/`yum` pull it in automatically
   Both install from the signed repository: `curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh`
@@ -72,9 +72,9 @@ including from 1.x — is an in-place package upgrade; see
 - **Capability-Based Variants** — Different optimized versions for WebP vs
   AVIF clients, mobile vs desktop, Save-Data, connection quality
 - **Zero-Copy Serving** — Cache hits served via mmap without copying data
-- **Graceful Degradation** — If the daemon is down, the web server continues
+- **Graceful Degradation** — If the worker is down, the web server continues
   serving original content
-- **Notification Retry** — Exponential backoff for daemon notifications
+- **Notification Retry** — Exponential backoff for worker notifications
 - **Per-URL Policies** — `pagespeed_disallow` directive for excluding paths
 - **Structured Logging** — JSON log output with configurable log levels
 - **Security Limits** — Configurable max URL length, content size limits,
@@ -131,13 +131,13 @@ curl -I http://localhost/style.css
 | `pagespeed_cache_path PATH` | (required) | Path to Cyclone cache file |
 | `pagespeed_disallow PATTERN` | (none) | Exclude URL patterns from optimization |
 
-The daemon socket path and HTML processing toggle are configured on
-the daemon side and shared with nginx automatically via `pagespeed-shared.conf`
+The worker socket path and HTML processing toggle are configured on
+the worker side and shared with nginx automatically via `pagespeed-shared.conf`
 (written next to the cache file). See the
 [configuration reference](https://modpagespeed.com/docs/configuration/) and
 [deploy/README.md](deploy/README.md).
 
-### Daemon Flags
+### Worker Flags
 
 | Flag | Default | Description |
 |------|---------|-------------|
@@ -205,11 +205,11 @@ lib/           Curated code from mod_pagespeed
   js/          JS minifier
   image/       Image codecs and optimization
   cache/       Cyclone cache C++ wrapper
-src/           pagespeed-optimizer daemon and serving modules
+src/           pagespeed-optimizer worker and serving modules
   cache/       Capability mask, variant keys
   nginx/       Nginx serving module
-  proto/       Daemon IPC protocol
-  worker/      pagespeed-optimizer daemon (factory worker)
+  proto/       Worker IPC protocol
+  worker/      pagespeed-optimizer (the factory worker)
   browser/     Headless browser analysis (CDP client, Chrome management)
   crypto/      Web Bot Auth / RSL-CAP verification
 samples/       ASP.NET Core middleware (WeAmp.PageSpeed.AspNetCore)
