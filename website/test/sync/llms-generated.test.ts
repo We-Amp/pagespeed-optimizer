@@ -47,6 +47,10 @@ import {
 } from '../../src/lib/docs-markdown.mjs';
 import { GET as productJsonGet } from '../../src/pages/api/product.json.ts';
 import {
+  GET as markdownGet,
+  getStaticPaths as markdownPaths,
+} from '../../src/pages/docs/[slug].md.ts';
+import {
   SUPPORT_TIERS,
   SUPPORT_LADDER_MD,
   SUPPORT_LADDER_LINE,
@@ -401,6 +405,26 @@ describe('agent files carry no retired product framing', () => {
       expect(md).not.toMatch(RETIRED_2_0_AS_CURRENT);
     });
   }
+});
+
+describe('/docs/<slug>.md serves the same Markdown', () => {
+  it('has a static path for every page and no other', () => {
+    const paths = (markdownPaths as () => Array<{ params: { slug: string } }>)();
+    expect(paths.map((p) => p.params.slug).sort()).toEqual(ctx.docs.map((d) => d.slug).sort());
+  });
+  it('responds with text/markdown and the body llms-full.txt carries', async () => {
+    const doc = ctx.docs.find((d) => d.slug === 'getting-started')!;
+    const res = (markdownGet as (c: unknown) => Response)({
+      props: { doc },
+      params: { slug: doc.slug },
+    });
+    expect(res.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8');
+    const body = await res.text();
+    expect(body).toBe(renderDocMarkdown(doc, ctx.manifests));
+    expect(full).toContain(body.trimEnd());
+    expect(body.startsWith('# Getting started\n')).toBe(true);
+    expect(body).toContain(`Canonical URL: ${SITE}/docs/getting-started/`);
+  });
 });
 
 describe('ai-plugin.json manifest drift guard', () => {
