@@ -70,6 +70,16 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [CSS filters](https://modpagespeed.com/docs/css-filters/): CSS filters in mod_pagespeed 2.1: minify, combine, inline and flatten @import CSS, plus critical-CSS extraction. Apache, nginx and IIS syntax with tuning.
 - [JavaScript filters](https://modpagespeed.com/docs/javascript-filters/): Minify, combine, inline, and defer JavaScript in mod_pagespeed 2.1. Directives, defaults, and the trade-offs for each JS filter on Apache, nginx, and IIS.
 - [HTML filters](https://modpagespeed.com/docs/html-filters/): HTML optimization filters in mod_pagespeed 2.1: collapse whitespace, strip comments, elide attributes, DNS prefetch, and resource preload hints.
+- [Convert JPEG to AVIF (convert_jpeg_to_avif)](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/): Converts photographic JPEG to AVIF for capable browsers.
+- [Animated AVIF (convert_to_avif_animated)](https://modpagespeed.com/docs/filters/convert_to_avif_animated/): Converts animated images to AVIF.
+- [Lossless AVIF (convert_to_avif_lossless)](https://modpagespeed.com/docs/filters/convert_to_avif_lossless/): Converts PNG/GIF to lossless AVIF.
+- [Defer JavaScript (defer_javascript)](https://modpagespeed.com/docs/filters/defer_javascript/): Defers JS execution until after page load.
+- [Inline images (inline_images)](https://modpagespeed.com/docs/filters/inline_images/): Inlines small images as data: URIs.
+- [Lazy-load images (lazyload_images)](https://modpagespeed.com/docs/filters/lazyload_images/): Defers offscreen image loading.
+- [Prioritize critical CSS (prioritize_critical_css)](https://modpagespeed.com/docs/filters/prioritize_critical_css/): Inlines the CSS a page uses, loads the rest async.
+- [Prioritize critical images (prioritize_critical_images)](https://modpagespeed.com/docs/filters/prioritize_critical_images/): Sets fetchpriority=high on the LCP image.
+- [Recompress AVIF (recompress_avif)](https://modpagespeed.com/docs/filters/recompress_avif/): AVIF-specific recompression.
+- [Resize images (resize_images)](https://modpagespeed.com/docs/filters/resize_images/): Resizes images to match <img> dimensions.
 
 ## Operate
 
@@ -6452,6 +6462,8 @@ lifetime on CSS, JS, and image URLs.
 
 ### extend_cache
 
+[Full guide →](https://modpagespeed.com/docs/filters/extend_cache/)
+
 **Core filter.** Rewrites resource URLs (CSS, JS, images) to include a content hash, then serves the optimized resource with a 1-year `Cache-Control: max-age` header. When the original resource changes, the hash changes, generating a new URL that bypasses the browser cache.
 
 Resources that previously had short or no cache lifetimes gain a 1-year cache lifetime. Because the URL carries the content hash, a changed resource gets a new URL and is never served stale.
@@ -6459,6 +6471,8 @@ Resources that previously had short or no cache lifetimes gain a 1-year cache li
 The sub-filters `extend_cache_css`, `extend_cache_images`, and `extend_cache_scripts` are included when you enable `extend_cache`, which turns on all three. Each can also be enabled individually with `EnableFilters` (for example, `extend_cache_images` alone).
 
 ### extend_cache_pdfs
+
+[Full guide →](https://modpagespeed.com/docs/filters/extend_cache_pdfs/)
 
 **Not a CoreFilter.** Applies the same content-hash-based cache extension to PDF file links. Enable this filter if your site serves PDFs that change infrequently.
 
@@ -6473,6 +6487,8 @@ pagespeed EnableFilters extend_cache_pdfs;
 ```
 
 ### rewrite_domains
+
+[Full guide →](https://modpagespeed.com/docs/filters/rewrite_domains/)
 
 **Not a CoreFilter. Test before deploying.** Rewrites resource URLs to use domains specified by `MapRewriteDomain` or `ShardDomain` directives. Useful for CDN integration or domain sharding.
 
@@ -6491,6 +6507,8 @@ This filter only affects resources that mod_pagespeed does not otherwise optimiz
 See [Domain configuration](https://modpagespeed.com/docs/domain-configuration/) for `MapRewriteDomain` and `ShardDomain` setup.
 
 ### local_storage_cache
+
+[Full guide →](https://modpagespeed.com/docs/filters/local_storage_cache/)
 
 **Experimental.** Stores inlined CSS and JavaScript in the browser's `localStorage` on first visit, then loads from `localStorage` on subsequent visits instead of re-inlining. This reduces HTML payload on repeat views at the cost of JavaScript complexity and reliance on `localStorage` availability.
 
@@ -11289,6 +11307,8 @@ See [IIS configuration](https://modpagespeed.com/docs/iis-configuration/) for th
 
 ## Master filter: rewrite_images
 
+[Full guide →](https://modpagespeed.com/docs/filters/rewrite_images/)
+
 ### What it does
 
 `rewrite_images` is the master image optimization CoreFilter. Enabling it activates a family of sub-filters that recompress images, convert formats where beneficial, resize to declared dimensions, and inline small images as data: URIs.
@@ -11340,6 +11360,8 @@ pagespeed DisableFilters convert_jpeg_to_webp;
 ```
 
 ## Recompression filters
+
+[Full guide →](https://modpagespeed.com/docs/filters/recompress_images/) · Also: [`recompress_jpeg`](https://modpagespeed.com/docs/filters/recompress_jpeg/), [`recompress_png`](https://modpagespeed.com/docs/filters/recompress_png/), [`recompress_webp`](https://modpagespeed.com/docs/filters/recompress_webp/)
 
 ### What they do
 
@@ -11393,6 +11415,8 @@ Recompression is lossy. Setting quality too low produces visible artifacts. The 
 
 ## Format conversion filters
 
+Full guides: [`convert_jpeg_to_progressive`](https://modpagespeed.com/docs/filters/convert_jpeg_to_progressive/), [`convert_jpeg_to_webp`](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/), [`convert_png_to_jpeg`](https://modpagespeed.com/docs/filters/convert_png_to_jpeg/), [`convert_gif_to_png`](https://modpagespeed.com/docs/filters/convert_gif_to_png/), [`convert_to_webp_animated`](https://modpagespeed.com/docs/filters/convert_to_webp_animated/), [`convert_to_webp_lossless`](https://modpagespeed.com/docs/filters/convert_to_webp_lossless/)
+
 ### What they do
 
 Format conversion filters serve images in the most efficient format for each browser and image type:
@@ -11443,6 +11467,8 @@ pagespeed EnableFilters convert_to_webp_lossless;
 - `convert_to_webp_animated` can produce large files for complex animations. Verify output sizes.
 
 ## AVIF filters
+
+Full guides: [`convert_jpeg_to_avif`](https://modpagespeed.com/docs/filters/convert_jpeg_to_avif/), [`convert_to_avif_lossless`](https://modpagespeed.com/docs/filters/convert_to_avif_lossless/), [`convert_to_avif_animated`](https://modpagespeed.com/docs/filters/convert_to_avif_animated/), [`recompress_avif`](https://modpagespeed.com/docs/filters/recompress_avif/)
 
 ### What they do
 
@@ -11527,6 +11553,8 @@ pagespeed AvifTimeoutMs 5000;
 
 ## Image stripping filters
 
+Full guides: [`strip_image_color_profile`](https://modpagespeed.com/docs/filters/strip_image_color_profile/), [`strip_image_meta_data`](https://modpagespeed.com/docs/filters/strip_image_meta_data/), [`jpeg_subsampling`](https://modpagespeed.com/docs/filters/jpeg_subsampling/)
+
 ### What they do
 
 - **`strip_image_color_profile`** removes embedded ICC color profiles from images. Most web browsers ignore ICC profiles, and they can add tens of kilobytes to a file.
@@ -11557,6 +11585,8 @@ pagespeed EnableFilters jpeg_subsampling;
 - Stripping metadata removes copyright and attribution information embedded in the file. The metadata is removed from the served variant only; original files on disk are not modified.
 
 ## Resizing filters
+
+[Full guide →](https://modpagespeed.com/docs/filters/resize_images/) · Also: [`resize_rendered_image_dimensions`](https://modpagespeed.com/docs/filters/resize_rendered_image_dimensions/), [`insert_image_dimensions`](https://modpagespeed.com/docs/filters/insert_image_dimensions/)
 
 ### What they do
 
@@ -11595,6 +11625,8 @@ pagespeed EnableFilters insert_image_dimensions;
 - `insert_image_dimensions` can break responsive layouts that rely on the absence of explicit dimensions. Test with your CSS.
 
 ## Inline and preview filters
+
+[Full guide →](https://modpagespeed.com/docs/filters/inline_images/) · Also: [`inline_preview_images`](https://modpagespeed.com/docs/filters/inline_preview_images/), [`dedup_inlined_images`](https://modpagespeed.com/docs/filters/dedup_inlined_images/), [`resize_mobile_images`](https://modpagespeed.com/docs/filters/resize_mobile_images/)
 
 ### What they do
 
@@ -11648,6 +11680,8 @@ pagespeed ImageInlineMaxBytes 4096;
 - `resize_mobile_images` relies on User-Agent detection. Incorrect UA classification can serve wrong-sized images. It also pulls in `inline_preview_images`, so expect that filter's placeholder-then-swap behavior when enabling it.
 
 ## Lazy loading: lazyload_images
+
+[Full guide →](https://modpagespeed.com/docs/filters/lazyload_images/)
 
 ### What it does
 
@@ -11706,6 +11740,8 @@ Images that already carry a `loading` attribute are always left untouched, so ha
 
 ## Responsive images
 
+[Full guide →](https://modpagespeed.com/docs/filters/responsive_images/)
+
 ### What it does
 
 `responsive_images` generates multiple resized versions of each image and adds `srcset` attributes to `<img>` tags, allowing the browser to select the optimal resolution for the current viewport and device pixel ratio.
@@ -11748,6 +11784,8 @@ pagespeed ResponsiveImageDensities 1.5,2,3;
 
 ## Sprite images
 
+[Full guide →](https://modpagespeed.com/docs/filters/sprite_images/)
+
 ### What it does
 
 `sprite_images` combines multiple CSS background images into a single sprite sheet and rewrites the CSS `background-position` values to reference the correct region within the sprite.
@@ -11774,6 +11812,8 @@ pagespeed EnableFilters sprite_images;
 
 ## In-place browser optimization
 
+[Full guide →](https://modpagespeed.com/docs/filters/in_place_optimize_for_browser/)
+
 ### What it does
 
 `in_place_optimize_for_browser` is retired. It used to vary in-place optimized images by the browser's `Accept` header and add `Vary: Accept`; in-place optimization no longer produces browser-dependent bytes, so the filter has nothing left to do. The name is still accepted, with a warning, so an existing configuration keeps loading; it is no longer part of `OptimizeForBandwidth`. Remove it from your configuration.
@@ -11799,6 +11839,8 @@ pagespeed EnableFilters in_place_optimize_for_browser;
 
 ## Cache extension for images: extend_cache_images
 
+[Full guide →](https://modpagespeed.com/docs/filters/extend_cache_images/)
+
 ### What it does
 
 Core filter, one of the three members of [`extend_cache`](https://modpagespeed.com/docs/cache-control/#extend_cache). Rewrites image URLs to content-hashed `.pagespeed.ce.` URLs served with a one-year `Cache-Control` max-age, so browsers keep images for a year while a changed image gets a new URL. Use it when the origin cannot set long cache lifetimes itself; under CoreFilters it is already on through `extend_cache`, and `rewrite_images` produces content-hashed URLs of its own for every image it rewrites. Disabling it leaves `extend_cache_css` and `extend_cache_scripts` on. Live demo: [extend_cache](https://modpagespeed.com/examples/extend_cache/).
@@ -11818,6 +11860,8 @@ pagespeed EnableFilters extend_cache_images;
 ```
 
 ## Responsive images zoom
+
+[Full guide →](https://modpagespeed.com/docs/filters/responsive_images_zoom/)
 
 ### What it does
 
@@ -11844,6 +11888,8 @@ pagespeed EnableFilters responsive_images,responsive_images_zoom;
 
 ## Experimental: experiment_collect_mob_image_info
 
+[Full guide →](https://modpagespeed.com/docs/filters/experiment_collect_mob_image_info/)
+
 Collects image information for the retired page-mobilization experiment. In the dangerous set, which `RewriteLevel AllFilters` never enables; not for production.
 
 ```nginx
@@ -11851,6 +11897,8 @@ pagespeed EnableFilters experiment_collect_mob_image_info;
 ```
 
 ## Prioritize critical images
+
+[Full guide →](https://modpagespeed.com/docs/filters/prioritize_critical_images/)
 
 ### What it does
 
@@ -11991,6 +12039,8 @@ See [IIS configuration](https://modpagespeed.com/docs/iis-configuration/) for th
 
 ### rewrite_css
 
+[Full guide →](https://modpagespeed.com/docs/filters/rewrite_css/)
+
 Core filter. Minifies CSS by removing whitespace, comments, and shortening property values. Also rewrites embedded image URLs so they go through mod_pagespeed's image optimization pipeline. In OptimizeForBandwidth mode, minifies CSS in-place without changing the URL.
 
 Enable:
@@ -12007,6 +12057,8 @@ pagespeed EnableFilters rewrite_css;
 
 ### fallback_rewrite_css_urls
 
+[Full guide →](https://modpagespeed.com/docs/filters/fallback_rewrite_css_urls/)
+
 Core filter. Rewrites resource URLs embedded in CSS files even when CSS parsing fails. Acts as a safety net for non-standard CSS that the full parser cannot handle.
 
 Enable:
@@ -12022,6 +12074,8 @@ pagespeed EnableFilters fallback_rewrite_css_urls;
 ```
 
 ### rewrite_style_attributes / rewrite_style_attributes_with_url
+
+[Full guide →](https://modpagespeed.com/docs/filters/rewrite_style_attributes/) · Also: [`rewrite_style_attributes_with_url`](https://modpagespeed.com/docs/filters/rewrite_style_attributes_with_url/)
 
 `rewrite_style_attributes` applies CSS rewriting (minification, URL rewriting) to inline `style=""` attributes on HTML elements. `rewrite_style_attributes_with_url` (Core filter) does the same but only when the style value contains a `url()` reference.
 
@@ -12043,6 +12097,8 @@ pagespeed EnableFilters rewrite_style_attributes_with_url;
 
 ### combine_css
 
+[Full guide →](https://modpagespeed.com/docs/filters/combine_css/)
+
 Core filter. Combines multiple `<link rel="stylesheet">` elements into a single CSS file, reducing HTTP requests. Each combined file groups stylesheets that appear consecutively in the HTML. A `<script>` tag or other non-CSS element between two `<link>` tags breaks the combination boundary.
 
 Enable:
@@ -12058,6 +12114,8 @@ pagespeed EnableFilters combine_css;
 ```
 
 ### flatten_css_imports
+
+[Full guide →](https://modpagespeed.com/docs/filters/flatten_css_imports/)
 
 Core filter. Replaces CSS `@import` rules with the contents of the imported file. Eliminates round trips caused by import chains. The `CssFlattenMaxBytes` parameter (default: 1024000) limits the size of the resulting flattened CSS. Flattening is trickier than plain concatenation — media queries, charset rules, and relative URLs all have to survive the merge; see [flattening CSS @imports](https://modpagespeed.com/blog/flatten-css-imports-edge-cases/) for the edge cases.
 
@@ -12075,6 +12133,8 @@ pagespeed EnableFilters flatten_css_imports;
 
 ### inline_css
 
+[Full guide →](https://modpagespeed.com/docs/filters/inline_css/)
+
 Core filter. Inlines small external CSS files directly into the HTML as `<style>` blocks. The `CssInlineMaxBytes` parameter (default: 2048) controls the size threshold.
 
 Enable:
@@ -12090,6 +12150,8 @@ pagespeed EnableFilters inline_css;
 ```
 
 ### inline_import_to_link
+
+[Full guide →](https://modpagespeed.com/docs/filters/inline_import_to_link/)
 
 Core filter. Converts `<style>@import url(...);</style>` to `<link rel="stylesheet">`, enabling other CSS filters (combining, minification) to process the imported stylesheet.
 
@@ -12107,6 +12169,8 @@ pagespeed EnableFilters inline_import_to_link;
 
 ### inline_google_font_css
 
+[Full guide →](https://modpagespeed.com/docs/filters/inline_google_font_css/)
+
 Not a core filter. Fetches the CSS from the Google Fonts API and inlines it directly into the HTML, eliminating one round trip. Requires HTTPS fetching to be enabled. GDPR considerations apply in the EU: inlining the CSS avoids the browser contacting Google Fonts servers directly, which can help with compliance.
 
 Enable:
@@ -12123,6 +12187,8 @@ pagespeed EnableFilters inline_google_font_css;
 
 ### outline_css
 
+[Full guide →](https://modpagespeed.com/docs/filters/outline_css/)
+
 Experimental. The inverse of `inline_css`: externalizes large inline `<style>` blocks into separate CSS files that can be cached independently. Rarely useful in practice. The `CssOutlineMinBytes` parameter (default: 3000) sets the minimum inline CSS size to externalize.
 
 Enable:
@@ -12138,6 +12204,8 @@ pagespeed EnableFilters outline_css;
 ```
 
 ### prioritize_critical_css
+
+[Full guide →](https://modpagespeed.com/docs/filters/prioritize_critical_css/)
 
 Not a core filter. Test before deploying. Inlines the CSS rules a page uses and loads each full stylesheet without blocking the first paint. The full stylesheet is preloaded from the place its `<link>` had in the page and takes effect there as soon as it has arrived, so the order in which your rules apply does not change; a `<noscript>` copy of the link covers visitors without scripts, and inline `<style>` blocks are left as they are. By default the inlined rules cover every element in the page as visitors' browsers last saw it, so content further down the page is styled from the first paint too. Uses a JavaScript beacon to collect critical CSS data from real user visits. The beacon endpoint must be accessible for data collection to work. Can cut perceived load time, but test it against your own page layouts first. In v1.15.0+r18 and later, the filter honors a restrictive `Content-Security-Policy` when `HonorCsp` is enabled: on pages whose policy disallows inline styles or scripts, it passes the page through unchanged instead of injecting content the policy would block. For the trade-offs behind critical-CSS extraction, see [how critical CSS is identified](https://modpagespeed.com/blog/critical-css-heuristics/).
 
@@ -12161,6 +12229,8 @@ A stylesheet keeps its ordinary blocking `<link>` when it uses an `@import` the 
 
 ### move_css_above_scripts
 
+[Full guide →](https://modpagespeed.com/docs/filters/move_css_above_scripts/)
+
 Not a core filter. Moves `<link rel="stylesheet">` elements above `<script>` elements in the HTML to prevent CSS-blocking-JS render delays. Generally safe for most sites.
 
 Enable:
@@ -12176,6 +12246,8 @@ pagespeed EnableFilters move_css_above_scripts;
 ```
 
 ### move_css_to_head
+
+[Full guide →](https://modpagespeed.com/docs/filters/move_css_to_head/)
 
 Not a core filter. Moves `<link rel="stylesheet">` elements from the `<body>` into `<head>` for earlier browser discovery and faster rendering. Generally safe for most sites.
 
@@ -12193,6 +12265,8 @@ pagespeed EnableFilters move_css_to_head;
 
 ### extend_cache_css
 
+[Full guide →](https://modpagespeed.com/docs/filters/extend_cache_css/)
+
 Core filter, one of the three members of [`extend_cache`](https://modpagespeed.com/docs/cache-control/#extend_cache). Rewrites `<link rel="stylesheet">` URLs to content-hashed `.pagespeed.ce.` URLs that the module serves with a one-year `Cache-Control` max-age, so browsers keep stylesheets for a year and still pick up every change (a changed file gets a new URL). Use it when the origin cannot set long cache lifetimes itself; under CoreFilters it is already on through `extend_cache`. Disabling it leaves `extend_cache_images` and `extend_cache_scripts` on. The one rule to respect is the general one: HTML and the resources it references must share one configuration (see [Virtual hosts](https://modpagespeed.com/docs/configuration/#virtual-hosts)). Live demo: [extend_cache](https://modpagespeed.com/examples/extend_cache/).
 
 Enable:
@@ -12208,6 +12282,8 @@ pagespeed EnableFilters extend_cache_css;
 ```
 
 ### compute_critical_css
+
+[Full guide →](https://modpagespeed.com/docs/filters/compute_critical_css/)
 
 Not a core filter; experimental. Computes a page's critical CSS on the server in the background, instead of from the browser reports that [`prioritize_critical_css`](https://modpagespeed.com/docs/css-filters/#prioritize_critical_css) uses. It is the module's older, beacon-free path and is not tuned for production: use `prioritize_critical_css` unless you are specifically testing this one. Enabling it adds server-side CSS analysis for every page it sees. There is no example in the gallery.
 
@@ -12302,6 +12378,8 @@ See [IIS configuration](https://modpagespeed.com/docs/iis-configuration/) for th
 
 ## rewrite_javascript
 
+[Full guide →](https://modpagespeed.com/docs/filters/rewrite_javascript/) · Also: [`rewrite_javascript_external`](https://modpagespeed.com/docs/filters/rewrite_javascript_external/), [`rewrite_javascript_inline`](https://modpagespeed.com/docs/filters/rewrite_javascript_inline/)
+
 Core filter. Minifies JavaScript by removing whitespace, comments, and shortening variable names where safe. In OFB mode, minifies in-place. The sub-filters `rewrite_javascript_external` and `rewrite_javascript_inline` control scope but are implicitly enabled by the parent filter.
 
 The minifier is conservative around edge cases that change behavior — see [how safe JavaScript minification handles automatic semicolon insertion](https://modpagespeed.com/blog/safe-javascript-minification-semicolon-insertion/). Since v1.15.0+r21 there is a single minifier — the tokenizer-based one — and files containing template literals (backtick strings) minify normally. The `UseExperimentalJsMinifier` directive that previously selected it is deprecated: it is accepted for compatibility but ignored, and logs a deprecation warning at configuration load (`ModPagespeedUseExperimentalJsMinifier` on Apache, `pagespeed UseExperimentalJsMinifier` on nginx). Remove it from your configuration.
@@ -12320,6 +12398,8 @@ pagespeed EnableFilters rewrite_javascript;
 
 ## combine_javascript
 
+[Full guide →](https://modpagespeed.com/docs/filters/combine_javascript/)
+
 Core filter. Combines multiple `<script src>` elements into a single file. Like [`combine_css`](https://modpagespeed.com/docs/css-filters/#combine_css), combination boundaries are broken by inline scripts or other non-script elements between script tags.
 
 **Apache:**
@@ -12335,6 +12415,8 @@ pagespeed EnableFilters combine_javascript;
 ```
 
 ## inline_javascript
+
+[Full guide →](https://modpagespeed.com/docs/filters/inline_javascript/)
 
 Core filter. Inlines small external JS files into the HTML. `JsInlineMaxBytes` (default: 2048) controls the threshold.
 
@@ -12353,6 +12435,8 @@ pagespeed JsInlineMaxBytes 2048;
 ```
 
 ## defer_javascript
+
+[Full guide →](https://modpagespeed.com/docs/filters/defer_javascript/)
 
 Not a core filter. Test thoroughly before enabling. Defers execution of all JavaScript until after the page finishes loading. This can dramatically improve initial render time but will break scripts that rely on executing during page parse (e.g., `document.write`).
 
@@ -12379,6 +12463,8 @@ pagespeed EnableFilters defer_javascript;
 
 ## outline_javascript
 
+[Full guide →](https://modpagespeed.com/docs/filters/outline_javascript/)
+
 Experimental. Externalizes large inline `<script>` blocks into separate files. `JsOutlineMinBytes` (default: 3000) controls the threshold. Rarely useful -- most sites benefit more from inlining.
 
 **Apache:**
@@ -12397,6 +12483,8 @@ pagespeed JsOutlineMinBytes 3000;
 
 ## include_js_source_maps
 
+[Full guide →](https://modpagespeed.com/docs/filters/include_js_source_maps/)
+
 Not a core filter. Preserves JavaScript source maps through minification by adding a `//# sourceMappingURL=` comment pointing to the original source map. Enable this if you need to debug minified JavaScript in production.
 
 **Apache:**
@@ -12412,6 +12500,8 @@ pagespeed EnableFilters include_js_source_maps;
 ```
 
 ## extend_cache_scripts
+
+[Full guide →](https://modpagespeed.com/docs/filters/extend_cache_scripts/)
 
 Core filter, one of the three members of [`extend_cache`](https://modpagespeed.com/docs/cache-control/#extend_cache). Rewrites `<script src>` URLs to content-hashed `.pagespeed.ce.` URLs served with a one-year `Cache-Control` max-age: browsers keep scripts for a year, and a changed file gets a new URL, so there is nothing to purge. Use it when the origin cannot set long cache lifetimes itself; under CoreFilters it is already on through `extend_cache`. Disabling it leaves `extend_cache_css` and `extend_cache_images` on. Live demo: [extend_cache](https://modpagespeed.com/examples/extend_cache/).
 
@@ -12433,6 +12523,8 @@ The module keeps these names so that an existing configuration still loads. The 
 
 ### canonicalize_javascript_libraries
 
+[Full guide →](https://modpagespeed.com/docs/filters/canonicalize_javascript_libraries/)
+
 Replaces a `<script src>` that matches a known library (recognized by size and hash through the `Library` directive) with the library's canonical URL on a shared CDN, so visitors reuse a copy already in their browser cache. In the dangerous set: the module ships no library table of its own any more, cross-site caches are partitioned in current browsers, and a canonical URL you do not control is a dependency you do not control. Use it only with your own `Library` entries and your own CDN. Live demo: [canonicalize_javascript_libraries](https://modpagespeed.com/examples/canonicalize_javascript_libraries/).
 
 ```nginx
@@ -12442,6 +12534,8 @@ pagespeed EnableFilters canonicalize_javascript_libraries;
 
 ### deterministic_js
 
+[Full guide →](https://modpagespeed.com/docs/filters/deterministic_js/)
+
 Injects a script that makes `Date` and `Math.random` return deterministic values, so two loads of a page produce the same output and can be compared byte for byte. For measurement and regression testing only; it changes the behavior of every script on the page. In the dangerous set.
 
 ```nginx
@@ -12449,6 +12543,8 @@ pagespeed EnableFilters deterministic_js;
 ```
 
 ### disable_javascript
+
+[Full guide →](https://modpagespeed.com/docs/filters/disable_javascript/)
 
 Wraps every `<script>` in `<noscript>` so no script on the page runs, to measure what the page looks like and costs without JavaScript. For measurement only. In the dangerous set.
 
@@ -12458,6 +12554,8 @@ pagespeed EnableFilters disable_javascript;
 
 ### strip_scripts
 
+[Full guide →](https://modpagespeed.com/docs/filters/strip_scripts/)
+
 Removes every `<script>` element from the page, the more drastic variant of `disable_javascript` for measuring the no-script baseline. For measurement only. In the dangerous set.
 
 ```nginx
@@ -12466,6 +12564,8 @@ pagespeed EnableFilters strip_scripts;
 
 ### make_show_ads_async
 
+[Full guide →](https://modpagespeed.com/docs/filters/make_show_ads_async/)
+
 Rewrites synchronous `showads.js` ad snippets to the asynchronous `adsbygoogle.js` form so the ads stop blocking rendering. It targets a deprecated AdSense integration; convert the snippets in your templates instead. Live demo: [make_show_ads_async](https://modpagespeed.com/examples/make_show_ads_async/).
 
 ```nginx
@@ -12473,6 +12573,8 @@ pagespeed EnableFilters make_show_ads_async;
 ```
 
 ### make_google_analytics_async
+
+[Full guide →](https://modpagespeed.com/docs/filters/make_google_analytics_async/)
 
 Deprecated and a no-op: it rewrote the retired `ga.js` snippet to its asynchronous form. The name is accepted so old configurations load; remove it.
 
@@ -12555,9 +12657,13 @@ See [IIS configuration](https://modpagespeed.com/docs/iis-configuration/) for th
 
 ### add_head
 
+[Full guide →](https://modpagespeed.com/docs/filters/add_head/)
+
 Adds a `<head>` element if the HTML lacks one. Several other filters inject content into `<head>`, so this filter ensures one exists. Runs automatically as a CoreFilter.
 
 ### convert_meta_tags
+
+[Full guide →](https://modpagespeed.com/docs/filters/convert_meta_tags/)
 
 Reads `<meta http-equiv="Content-Type">` and similar tags and adds corresponding HTTP response headers. This helps browsers discover the content type and character encoding earlier in the response. Runs automatically as a CoreFilter.
 
@@ -12567,9 +12673,13 @@ These filters reduce HTML payload size by removing unnecessary bytes.
 
 ### collapse_whitespace
 
+[Full guide →](https://modpagespeed.com/docs/filters/collapse_whitespace/)
+
 Removes excess whitespace from HTML. Preserves whitespace inside `<pre>`, `<script>`, `<style>`, and `<textarea>` elements. Never removes whitespace entirely between inline elements.
 
 ### remove_comments
+
+[Full guide →](https://modpagespeed.com/docs/filters/remove_comments/)
 
 Strips HTML comments from the page. Use `RetainComment` to keep specific comments matching a wildcard pattern.
 
@@ -12587,19 +12697,27 @@ ModPagespeedRetainComment "*copyright*"
 
 ### elide_attributes
 
+[Full guide →](https://modpagespeed.com/docs/filters/elide_attributes/)
+
 Removes HTML attributes that are set to their default values. For example, `<form method="get">` becomes `<form>` because `get` is the default method.
 
 ### remove_quotes
 
+[Full guide →](https://modpagespeed.com/docs/filters/remove_quotes/)
+
 Removes unnecessary quotation marks around HTML attribute values when the value contains no special characters. Saves a few bytes per attribute.
 
 ### trim_urls
+
+[Full guide →](https://modpagespeed.com/docs/filters/trim_urls/)
 
 Shortens absolute URLs to relative URLs where the base URL matches the page URL. Reduces HTML payload at the cost of less portable HTML. Disable this filter if you serve the same HTML from multiple domains.
 
 ## Structural filters
 
 ### add_base_tag
+
+[Full guide →](https://modpagespeed.com/docs/filters/add_base_tag/)
 
 Adds a `<base href="…">` element with the page's own URL to `<head>`, so relative URLs in the page resolve against the URL the module rewrote them for. Use it when the HTML is served at a URL other than the one it was authored for (proxy setups, `MapProxyDomain`). Risk: a page that already relies on a different base, or on the absence of one, resolves its relative links differently; test navigation and form actions.
 
@@ -12609,6 +12727,8 @@ pagespeed EnableFilters add_base_tag;
 
 ### add_ids
 
+[Full guide →](https://modpagespeed.com/docs/filters/add_ids/)
+
 Adds an `id` attribute to elements that have none, so that beacon-driven filters can refer to individual elements across page loads. Rarely needed on its own: the filters that need ids enable it themselves. Risk: scripts or styles that count on the exact set of ids in the page see extra ones.
 
 ```nginx
@@ -12617,9 +12737,13 @@ pagespeed EnableFilters add_ids;
 
 ### combine_heads
 
+[Full guide →](https://modpagespeed.com/docs/filters/combine_heads/)
+
 Merges multiple `<head>` elements into one. Only useful for pages that aggregate content from multiple sources, each contributing their own `<head>` section.
 
 ### pedantic
+
+[Full guide →](https://modpagespeed.com/docs/filters/pedantic/)
 
 Adds `type="text/javascript"` and `type="text/css"` attributes to `<script>` and `<style>` elements. This satisfies HTML4 validators. Not needed for HTML5, where these types are the defaults.
 
@@ -12627,15 +12751,21 @@ Adds `type="text/javascript"` and `type="text/css"` attributes to `<script>` and
 
 ### insert_dns_prefetch
 
+[Full guide →](https://modpagespeed.com/docs/filters/insert_dns_prefetch/)
+
 Adds `<link rel="dns-prefetch" href="//example.com">` tags for third-party domains referenced in the page. This allows the browser to resolve DNS for external domains in parallel with page loading, reducing latency for subsequent resource fetches.
 
 ### hint_preload_subresources
+
+[Full guide →](https://modpagespeed.com/docs/filters/hint_preload_subresources/)
 
 Adds `Link: rel=preload` HTTP headers for CSS and JavaScript files discovered on previous visits to the same page. Uses the beacon system to collect resource data, so it becomes effective after the first page view.
 
 Since v1.15.0+r21, `<script type="module">` subresources are hinted with `rel=modulepreload` in the `Link` response header instead of `rel=preload`; modules carrying `integrity` or `crossorigin="use-credentials"` are left unhinted.
 
 ### insert_speculation_rules
+
+[Full guide →](https://modpagespeed.com/docs/filters/insert_speculation_rules/)
 
 Injects a same-origin prefetch `<script type="speculationrules">` block so that supporting browsers prefetch a link as the visitor starts interacting with it; browsers without speculation-rules support ignore the tag. Only same-origin links are eligible.
 
@@ -12657,6 +12787,8 @@ pagespeed EnableFilters insert_speculation_rules;
 
 ### insert_amp_link
 
+[Full guide →](https://modpagespeed.com/docs/filters/insert_amp_link/)
+
 Adds a `<link rel="amphtml">` to `<head>` pointing at the page's AMP version, built from the `AmpLinkPattern` directive. Use it when you publish AMP pages at a predictable URL pattern and want every canonical page to announce its AMP twin. Risk: a pattern that produces URLs that do not exist advertises broken AMP pages to crawlers.
 
 ```nginx
@@ -12668,6 +12800,8 @@ pagespeed EnableFilters insert_amp_link;
 
 ### debug
 
+[Full guide →](https://modpagespeed.com/docs/filters/debug/)
+
 Annotates the page with HTML comments that say which filters ran and why a resource was or was not rewritten (for example why an image was not inlined or a stylesheet not combined). Enable it per request with `?PageSpeedFilters=+debug` while troubleshooting instead of in the configuration: it exposes internals, enlarges every page, and is not meant for production traffic.
 
 ```text
@@ -12675,6 +12809,8 @@ https://www.example.com/?PageSpeedFilters=+debug
 ```
 
 ### decode_rewritten_urls
+
+[Full guide →](https://modpagespeed.com/docs/filters/decode_rewritten_urls/)
 
 Turns `.pagespeed.` resource URLs in the page back into the original resource URLs, undoing the URL rewriting of the other filters. Useful in a proxy chain or when debugging what the page referenced before optimization. Risk: the page then references unoptimized resources, which defeats the filters that depend on rewritten URLs.
 
@@ -12684,6 +12820,8 @@ pagespeed EnableFilters decode_rewritten_urls;
 
 ### compute_statistics
 
+[Full guide →](https://modpagespeed.com/docs/filters/compute_statistics/)
+
 Computes statistics about the HTML (element counts and sizes) for the [admin console](https://modpagespeed.com/docs/admin-console/). It adds a parsing pass per page and changes nothing in the output; enable it while you need the numbers.
 
 ```nginx
@@ -12691,6 +12829,8 @@ pagespeed EnableFilters compute_statistics;
 ```
 
 ### experiment_http2
+
+[Full guide →](https://modpagespeed.com/docs/filters/experiment_http2/)
 
 Switches on HTTP/2-specific behavior that is still in development. Experimental: what it does can change between releases, and it is not covered by the compatibility promises of the other filters.
 
@@ -12702,6 +12842,8 @@ pagespeed EnableFilters experiment_http2;
 
 ### insert_ga
 
+[Full guide →](https://modpagespeed.com/docs/filters/insert_ga/)
+
 Inserts the Google Analytics snippet for the account in `AnalyticsID` into every page. Deprecated: the snippet it inserts is the retired `ga.js`, and `AnalyticsID` itself only targets Universal Analytics, which was discontinued. Add your analytics in your templates instead.
 
 ## Deprecated and dangerous filters
@@ -12710,45 +12852,67 @@ The names below are still accepted so that an existing configuration keeps loadi
 
 ### cache_partial_html
 
+[Full guide →](https://modpagespeed.com/docs/filters/cache_partial_html/)
+
 Deprecated no-op.
 
 ### defer_iframe
+
+[Full guide →](https://modpagespeed.com/docs/filters/defer_iframe/)
 
 Deprecated no-op: iframe deferral is built into [`defer_javascript`](https://modpagespeed.com/docs/javascript-filters/#defer_javascript); enabling this name alone never did anything.
 
 ### div_structure
 
+[Full guide →](https://modpagespeed.com/docs/filters/div_structure/)
+
 Deprecated no-op.
 
 ### explicit_close_tags
+
+[Full guide →](https://modpagespeed.com/docs/filters/explicit_close_tags/)
 
 Deprecated no-op.
 
 ### flush_subresources
 
+[Full guide →](https://modpagespeed.com/docs/filters/flush_subresources/)
+
 Deprecated no-op.
 
 ### fix_reflows
+
+[Full guide →](https://modpagespeed.com/docs/filters/fix_reflows/)
 
 Experimental fix for layout reflows caused by deferred JavaScript. In the dangerous set; not for production.
 
 ### mobilize
 
+[Full guide →](https://modpagespeed.com/docs/filters/mobilize/)
+
 The retired page-mobilization experiment. In the dangerous set; not for production.
 
 ### mobilize_precompute
+
+[Full guide →](https://modpagespeed.com/docs/filters/mobilize_precompute/)
 
 Deprecated no-op.
 
 ### split_html
 
+[Full guide →](https://modpagespeed.com/docs/filters/split_html/)
+
 Deprecated no-op.
 
 ### split_html_helper
 
+[Full guide →](https://modpagespeed.com/docs/filters/split_html_helper/)
+
 Deprecated no-op.
 
 ## add_instrumentation
+
+[Full guide →](https://modpagespeed.com/docs/filters/add_instrumentation/)
 
 Injects JavaScript that measures page load time and reports it back to the mod_pagespeed statistics system via [the beacon endpoint](https://modpagespeed.com/pagespeed-markers/#pagespeed-beacon) (`/mod_pagespeed_beacon` or `/ngx_pagespeed_beacon`). Enable this filter to get client-side performance data in the admin console histograms.
 

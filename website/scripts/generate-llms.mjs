@@ -67,6 +67,7 @@ import {
   substituteRelease,
   docUrl,
 } from '../src/lib/docs-markdown.mjs';
+import { loadFilterTopics } from '../src/lib/filter-topics.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const WEBSITE_ROOT = resolve(__dirname, '..');
@@ -118,6 +119,7 @@ export function render(template, name) {
  *   docs: import('../src/lib/docs-markdown.mjs').Doc[],
  *   groups: import('../src/lib/docs-markdown.mjs').DocGroup[],
  *   manifests: import('../src/lib/docs-markdown.mjs').Manifests,
+ *   topics: import('../src/lib/filter-topics.mjs').Topic[],
  * }} Context
  */
 
@@ -128,7 +130,10 @@ export function render(template, name) {
  */
 export function loadContext(root = WEBSITE_ROOT) {
   const docs = loadDocs(root);
-  return { docs, groups: groupDocs(docs), manifests: loadManifests(root) };
+  // Only the indexable filter topic pages are listed; the thin ones are noindex
+  // until their group-page section is enriched (src/lib/filter-topics.mjs).
+  const topics = loadFilterTopics(root).filter((t) => t.indexable);
+  return { docs, groups: groupDocs(docs), manifests: loadManifests(root), topics };
 }
 
 /**
@@ -185,6 +190,13 @@ export function buildIndex(ctx) {
     lines.push(`## ${group.label}`, '');
     for (const doc of group.docs) {
       lines.push(entry(doc.data.title, docUrl(doc.slug), doc.data.description));
+    }
+    if (group.label === 'Filters') {
+      for (const t of ctx.topics) {
+        lines.push(
+          entry(`${t.human} (${t.name})`, `${SITE}${t.path}`, t.summary.replace(/\.?$/, '.')),
+        );
+      }
     }
     if (group.label === 'Reference') {
       lines.push(
