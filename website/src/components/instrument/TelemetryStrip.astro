@@ -19,8 +19,10 @@
 // max-w-6xl container with lg:px-8 gutters offers 1088px — so at 11px (the
 // size the spec itself uses under 400px) every field fits at every width.
 // Field reserves cover the real content so the live upgrade never shifts
-// neighbours: xmps 24ch fits "x-mod-pagespeed: 1.17.0" verbatim, ttfb 12ch
-// fits a three-digit millisecond value.
+// neighbours: the state label reserves the longer of its two strings (19ch),
+// xmps 28ch also fits "x-mod-pagespeed: not present" (the honest answer when
+// a deployment emits no such header), ttfb 12ch fits a three-digit
+// millisecond value.
 
 import { formatBytes } from '../../lib/instrument';
 import capture from '../../data/telemetry-capture.json';
@@ -52,7 +54,7 @@ const fields = [
   {
     term: 'x-mod-pagespeed:',
     value: header('x-mod-pagespeed'),
-    width: '24ch',
+    width: '28ch',
     wide: false,
     mid: false,
     t: 'xmps',
@@ -133,6 +135,14 @@ const fields = [
     gap: 0.375rem;
     flex: none;
     color: var(--color-text-annotation);
+  }
+  /* Reserve the longer of the two state strings ("captured 2026-10-08",
+     19ch, vs "this view · live", 16ch) so the live upgrade never moves
+     the fields sideways. The extra 0.1ch absorbs ch-unit rounding, so the
+     19-glyph captured string also sits inside the reserve. */
+  .t-state [data-t='state'] {
+    display: inline-block;
+    min-inline-size: 19.1ch;
   }
   .telemetry.is-live .t-state {
     color: var(--color-interactive);

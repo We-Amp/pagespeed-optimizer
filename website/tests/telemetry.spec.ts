@@ -64,8 +64,10 @@ test.describe('Telemetry strip', () => {
     await expect(strip.locator('[data-t="xmps"]')).toHaveText(capturedXmps);
   });
 
-  test('the strip box is identical before and after the live upgrade', async ({ page }) => {
+  test('the strip and every field keep their box through the live upgrade', async ({ page }) => {
     // Hold the HEAD response back so the first measurement is the SSR fallback.
+    // The mock answers without a vary header, which also exercises the
+    // "not present" path for that field.
     await page.route('**/*', async (route) => {
       if (route.request().method() === 'HEAD') {
         await new Promise((r) => setTimeout(r, 1200));
@@ -76,9 +78,19 @@ test.describe('Telemetry strip', () => {
     await page.goto('/');
     const strip = page.locator(STRIP);
     await expect(strip).toBeVisible();
-    const before = await strip.boundingBox();
+    const boxes = async () => [
+      await strip.boundingBox(),
+      // The state label, every field and the "what these headers mean" link:
+      // the upgrade may replace text but must never move a box.
+      ...(await Promise.all(
+        (
+          await page.locator(`${STRIP} .t-state, ${STRIP} .t-f, ${STRIP} .t-more`).all()
+        ).map((part) => part.boundingBox()),
+      )),
+    ];
+    const before = await boxes();
     await expect(strip.locator('[data-t="state"]').first()).toHaveText('this view · live');
-    const after = await strip.boundingBox();
+    const after = await boxes();
     expect(after).toEqual(before);
   });
 
