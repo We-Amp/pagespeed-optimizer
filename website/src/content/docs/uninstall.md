@@ -75,7 +75,7 @@ helm uninstall pagespeed
 ```
 
 This removes every resource the chart created (Deployment, Service, Ingress,
-HPA, ConfigMap, Secret). The `emptyDir` cache goes with the pods.
+HPA, ConfigMap). The `emptyDir` cache goes with the pods.
 
 ## IIS
 

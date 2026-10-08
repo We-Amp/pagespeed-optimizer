@@ -7,7 +7,7 @@ lastUpdated: 2026-10-08
 datePublished: 2026-10-08
 faq:
   - q: 'What is the one probe to wire into a load balancer or Kubernetes?'
-    a: 'The worker health socket, the notification socket path with `.health` appended, which answers one line starting with `OK` while the worker is up; or `GET /v1/health` on the management API, which needs no token and reports `ready: true` while the worker has capacity. One of them is enough.'
+    a: 'The worker health socket, the notification socket path with `.health` appended, which answers one line starting with `OK` while the worker is up (`DEGRADED` when its cache is unavailable); or `GET /v1/health` on the management API, which needs no token and reports `ready: true` while the worker has capacity. One of them is enough.'
   - q: 'Where do Prometheus metrics come from?'
     a: 'From `GET /v1/metrics` on the worker management API, in text exposition format, or from the `METRICS` command on the management socket. Every counter and gauge in `/v1/stats` is exposed.'
 ---
@@ -57,10 +57,12 @@ one line:
 
 ```bash
 socat -u -T 4 UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.health -
-# OK 5/128 notifs=1542 variants=986 proactive=724 errors=3 cache_entries=2048
+# OK 5/128 notifs=1542 variants=986 proactive=724 errors=3 cache_entries=2048 inflight=3
 ```
 
-`5/128` is active connections of the maximum; the rest are running totals.
+The first word is `OK`, or `DEGRADED` when the worker runs without its cache
+(the line then ends in `cache=unavailable`); `5/128` is active connections of
+the maximum, `inflight` the work in progress, and the rest are running totals.
 `-u` makes socat read-only and `-T 4` gives the worker four seconds to answer;
 keep both if you write your own probe. A probe that pipes an empty input into
 socat gives up half a second after connecting and reports a busy worker as
@@ -141,6 +143,6 @@ for steady state. Log rotation is covered under
 | `connections.active` near `connections.max`                                              | metrics; console alert "Optimizer connections" | change notifications from the web server are being dropped; raise `--max-connections`                |
 | Console alerts "Optimizer unreachable" or "Optimizer health check failing"               | admin console                          | the pairing is broken; the module serves without the worker                                                  |
 | `X-PageSpeed: MISS` on every request, or `$pagespeed_cache_generation` reading `mismatch` | the reverse proxy's access log        | module and worker on different cache formats; install the same release of both                               |
-| Worker exit status 78                                                                    | container or unit status               | a configuration or volume fault, never a transient one; the message names the path                           |
+| Entrypoint exit status 78 (container images)                                             | container status                       | the worker image's entrypoint refused to start on a configuration or volume fault, never a transient one; the message names the path. The packaged unit has no exit 78: a refusal to start exits 1 and, after five tries in a minute, `systemctl status` shows the unit `failed` |
 | `systemctl status` showing `code=dumped, status=31/SYS`                                  | systemd                                | the system-call filter stopped the worker; the unit file's comments say how to read the kill                 |
 | `notifications.skipped_dedup` a large share of `notifications.received`                  | metrics                                | normal: the worker is avoiding redundant work. Not an alert                                                  |

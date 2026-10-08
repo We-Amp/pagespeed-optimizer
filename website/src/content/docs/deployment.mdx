@@ -315,6 +315,8 @@ the `pagespeed-optimizer.service` unit, a sysusers.d drop-in for the
 `pagespeed` user and group, and a tmpfiles.d entry for the versioned cache
 directory. Nothing is hand-rolled:
 
+<a id="service-file"></a><a id="enable-and-start"></a>
+
 ```bash
 sudo systemctl enable --now pagespeed-optimizer
 sudo systemctl status pagespeed-optimizer
@@ -363,7 +365,7 @@ another unit name than `apache2`, `httpd` or `nginx` is not ordered after the
 worker; give it an ordering drop-in of its own with
 `After=pagespeed-optimizer.service`.
 
-### Key settings in the packaged unit
+### Key settings in the packaged unit {#key-systemd-settings}
 
 - **`User=pagespeed` / `Group=pagespeed`**: the worker runs unprivileged, with
   an empty capability set and `NoNewPrivileges=yes`. The web-server user joins
@@ -548,12 +550,13 @@ docker compose -f deploy/docker-compose.yml logs -f nginx
 
 ## Monitoring
 
-Health probes, metrics and logs have their own page:
+<a id="health-check"></a><a id="management-socket-stats"></a><a id="prometheus-metrics"></a><a id="monitoring-script"></a><a id="key-metrics-to-watch"></a>Health probes, metrics and logs have their own page:
 [Monitoring](/docs/monitoring/). The short version: probe the health socket
 (the notification socket path with `.health` appended, which answers one line
-starting with `OK`) or `GET /v1/health`; scrape `GET /v1/metrics` for
-Prometheus; and alert on a rising `errors.total`, a cache near its configured
-size, connections near the maximum, and a worker exit status of 78.
+starting with `OK`, or `DEGRADED` when the cache is unavailable) or
+`GET /v1/health`; scrape `GET /v1/metrics` for Prometheus; and alert on a
+rising `errors.total`, a cache near its configured size, connections near the
+maximum, and, in the container images, an entrypoint exit status of 78.
 
 ## Cache sizing recommendations
 

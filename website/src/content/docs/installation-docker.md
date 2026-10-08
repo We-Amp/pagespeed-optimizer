@@ -40,7 +40,7 @@ below — use port 80 in those commands, since the single container publishes on
 
 ## Prerequisites
 
-- Docker Engine 20.10+
+- Docker 24 or newer
 - Docker Compose v2
 
 ## Directory structure

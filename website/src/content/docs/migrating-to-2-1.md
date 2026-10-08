@@ -177,7 +177,7 @@ module to the worker, and the old cache stays on disk for a rollback.
 
 ## Coming from open-source mod_pagespeed {#coming-from-open-source}
 
-Moving from the archived open-source project? The three commands, the directive
+<a id="before-you-start"></a><a id="upgrade-steps"></a><a id="nginx"></a><a id="apache"></a><a id="cache-migration"></a><a id="configuration-compatibility"></a><a id="rolling-back"></a>Moving from the archived open-source project? The three commands, the directive
 compatibility table and the rollback are on
 [Migrate from the archived Google module](/docs/migrate-from-google-mod-pagespeed/)
 and, for ngx_pagespeed and third-party builds of it,

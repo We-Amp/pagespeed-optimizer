@@ -103,15 +103,14 @@ helm repo update
 helm upgrade pagespeed weamp/pagespeed -f my-values.yaml
 ```
 
-Or move only the image tags:
+Or move only the image tag. The chart takes one `image.tag` for both images
+(leave it unset to track the chart's `appVersion`); the per-image
+`worker.image.tag` and `nginx.image.tag` keys are rejected, because a worker
+and an nginx on different builds break the async-CSS loader:
 
 <pre>
   <code class="language-bash">
-    {`helm upgrade pagespeed weamp/pagespeed --reuse-values \\
-  --set worker.image.tag=`}
-    <ImageTag line="2.1" />
-    {` \\
-  --set nginx.image.tag=`}
+    {`helm upgrade pagespeed weamp/pagespeed --reuse-values --set image.tag=`}
     <ImageTag line="2.1" />
   </code>
 </pre>

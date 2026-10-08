@@ -10,7 +10,7 @@ mod_pagespeed runs on IIS as a native, in-process module — the successor to II
 
 ## Install the module {#install-the-module}
 
-Installation moved to [Install on IIS](/docs/install-iis/): requirements, the signed MSI, IIS Express and the optional optimizer service. Coming from IISpeed, read [Migrate from IISpeed](/docs/migrate-from-iispeed/) first.
+<a id="requirements"></a><a id="migrating-from-iispeed"></a><a id="iis-express"></a><a id="verify-it-works"></a>Installation moved to [Install on IIS](/docs/install-iis/): requirements, the signed MSI, IIS Express and the optional optimizer service. Coming from IISpeed, read [Migrate from IISpeed](/docs/migrate-from-iispeed/) first.
 
 ### Disable optimization
 

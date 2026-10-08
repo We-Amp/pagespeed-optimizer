@@ -96,11 +96,12 @@ The optimizer worker answers two health probes:
 - **The health socket**, always on. It is the notification socket's path with
   `.health` appended: `/run/pagespeed-optimizer/notify.sock.health` for the
   packages, `/data/pagespeed.sock.health` in the container images. It answers
-  one line starting with `OK`:
+  one line starting with `OK`, or `DEGRADED` when the worker runs without its
+  cache:
 
   ```bash
   socat -u -T 4 UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.health -
-  # OK 5/128 notifs=1542 variants=986 proactive=724 errors=3 cache_entries=2048
+  # OK 5/128 notifs=1542 variants=986 proactive=724 errors=3 cache_entries=2048 inflight=3
   ```
 
 - **`GET /v1/health`** on the management API, which is off until you enable a

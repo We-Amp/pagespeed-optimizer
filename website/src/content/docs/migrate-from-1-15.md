@@ -64,7 +64,8 @@ the Red Hat family), which sets `ModPagespeedDaemonSocketPath` and
 `ModPagespeedDaemonVolumePath` to the worker's defaults, so the module reaches
 the worker without editing any configuration. A file you created by hand
 earlier at that path stops an unattended Debian upgrade with a dpkg prompt;
-remove it before upgrading, or install with `--force-confold` to keep it.
+remove it before upgrading, or install with
+`-o Dpkg::Options::=--force-confold` to keep it.
 
 ## The cache
 

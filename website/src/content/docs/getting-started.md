@@ -37,6 +37,16 @@ Already running a predecessor? The [upgrade and migration pages](/docs/upgrade/)
 cover mod_pagespeed 1.15, ModPageSpeed 2.0, ngx_pagespeed, IISpeed and the
 archived open-source module.
 
+## Prerequisites
+
+- **Native module:** Debian 12 or 13, Ubuntu 22.04 or 24.04, or RHEL, AlmaLinux
+  or Rocky 9 or 10, with Apache 2.4 or newer or the distribution's stock nginx.
+- **Docker reverse proxy:** Docker 24 or newer and Docker Compose v2; nginx
+  ships inside the image, so you do not install it yourself.
+- **IIS:** Windows Server 2019 or later, 64-bit, with the Visual C++
+  Redistributable 2022.
+- **ASP.NET Core:** .NET 8 or .NET 10.
+
 :::note[One worker, two names]
 The optimizer worker is one program under two names. The container images and
 the NuGet package ship the binary as `factory_worker`. The deb and rpm packages
@@ -120,7 +130,7 @@ Set `PageSpeed:Enabled` to `true` in `appsettings.json`, run the app and
 
 ## Verify it works
 
-Request any HTML page twice:
+<a id="quick-verification"></a>Request any HTML page twice:
 
 ```bash
 curl -I http://localhost/
@@ -141,6 +151,8 @@ lists every marker and the first checks to run;
 
 ## How the parts fit together
 
+<a id="how-the-docker--nginx-reverse-proxy-integration-works"></a>
+
 1. The **module** runs inside the web server (Apache, nginx, IIS) or, in the
    Docker reverse proxy, inside the bundled nginx. It classifies each request,
    serves an optimized variant when the cache has one, and otherwise passes
@@ -155,6 +167,18 @@ The native nginx module optimizes on its own until you set
 `pagespeed DaemonSocketPath` and `pagespeed DaemonVolumePath`; the Apache
 packages install that wiring; the ASP.NET Core middleware starts the worker
 itself as a child process. [How it works](/how-it-works/) covers the mechanics.
+
+### Request flow (nginx integrations) {#request-flow-nginx-integrations}
+
+1. nginx classifies the client's capabilities (image format support, viewport,
+   transfer encoding, Save-Data) into a 32-bit capability mask.
+2. The cache is checked for an optimized variant matching that mask.
+3. **On a hit**, the variant is served from the memory-mapped cache file with
+   `X-PageSpeed: HIT`: no copies, no origin round-trip.
+4. **On a miss**, the request is proxied to your origin, the response is
+   stored and served with `X-PageSpeed: MISS`, and the worker is notified. It
+   optimizes the content and writes the variants back, so later requests for
+   the same mask are hits.
 
 ## Safe cache mode
 
