@@ -71,4 +71,17 @@ test.describe('Landing page', () => {
     const desc = page.locator('meta[name="description"]');
     await expect(desc).toHaveAttribute('content', /maintained again/i);
   });
+
+  test('running-on-our-own-sites section shows the live console', async ({ page }) => {
+    const section = page.locator('section[data-live-console]');
+    await expect(section.locator('h2')).toHaveText('Running on our own sites');
+    const img = section.locator('img[src="/images/live-console-overview.webp"]');
+    await expect(img).toHaveAttribute('width', '1440');
+    await expect(img).toHaveAttribute('height', '760');
+    await expect(img).toHaveAttribute('loading', 'lazy');
+    await expect(img).toHaveAttribute('alt', /admin console/);
+    await expect(section.locator('figcaption')).toContainText('public on purpose');
+    const link = section.locator('a[href="https://we-amp.com/pagespeed_global_admin/"]');
+    await expect(link).toHaveText('Open the live console');
+  });
 });
