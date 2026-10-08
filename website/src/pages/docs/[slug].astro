@@ -4,6 +4,7 @@ import ShareButtons from '../../components/ShareButtons.astro';
 import OnThisPage from '../../components/OnThisPage.astro';
 import Icon from '../../components/Icon.astro';
 import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
+import ReferralOrientation from '../../components/ReferralOrientation.astro';
 import { getCollection, render } from 'astro:content';
 import { createMarkdownProcessor } from '@astrojs/markdown-remark';
 import { getRelease } from '../../lib/release';
@@ -278,6 +279,14 @@ const pageTitle =
     ? `${doc.data.title}${titleSuffix}`
     : doc.data.title);
 const heading = doc.data.h1 ?? doc.data.title;
+// The three pages the archived PageSpeed Module docs on developers.google.com
+// send their readers to (via the legacy /doc/* redirects) carry the
+// referrer-gated orientation aside.
+const showReferralOrientation = [
+  'getting-started',
+  'installation-module',
+  'configuration',
+].includes(doc.id);
 ---
 
 <BaseLayout
@@ -397,6 +406,7 @@ const heading = doc.data.h1 ?? doc.data.title;
 
       <!-- Content -->
       <article class="min-w-0">
+        {showReferralOrientation && <ReferralOrientation />}
         <nav class="mb-6 text-sm text-text-annotation" aria-label="Breadcrumb" data-pagefind-ignore>
           <a href="/" class="hover:text-text-body">Home</a>
           <span class="mx-1">/</span>
