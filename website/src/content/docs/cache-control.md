@@ -245,7 +245,23 @@ See [Domain configuration](/docs/domain-configuration/) for `MapRewriteDomain` a
 
 [Full guide →](/docs/filters/local_storage_cache/)
 
-**Experimental.** Stores inlined CSS and JavaScript in the browser's `localStorage` on first visit, then loads from `localStorage` on subsequent visits instead of re-inlining. This reduces HTML payload on repeat views at the cost of JavaScript complexity and reliance on `localStorage` availability.
+**Experimental.** `local_storage_cache` moves the bytes of inlined images and CSS out of the HTML and into the browser's `localStorage`. On the first visit the inlined resource is served as usual and a script stores its bytes under a `pagespeed_lsc_url:` key; on later visits the module sees its own `_GPSLSC` cookie saying the copy is there, and serves a one-line script in place of the data, which restores the resource from `localStorage`. The HTML shrinks on every repeat view by the size of everything stored. Not a core filter; enable it by name, together with the filters that inline (`inline_images`, `inline_css`). Live demo: [local_storage_cache](/examples/local_storage_cache/).
+
+```html
+<!-- first view: the stylesheet is inlined, marked for storage -->
+<style data-pagespeed-lsc-url="https://example.com/css/site.css" ...>
+  .site { ... }
+</style>
+
+<!-- repeat view: one script line instead of the whole stylesheet -->
+<script>
+  pagespeed.localStorageCache.inlineCss('https://example.com/css/site.css');
+</script>
+```
+
+The mechanism is per-resource and expiry-aware: each stored entry carries the resource's cache expiration, expired entries are dropped from storage and from the cookie, and an element whose entry is missing or expired is restored by fetching the resource from the network. The filter needs JavaScript to run: since v1.15.0+r18, with `HonorCsp` (default on) it stands down on pages whose `Content-Security-Policy` disallows the inline script it relies on.
+
+Not recommended for most deployments. Browser `localStorage` has size limits (typically 5-10 MB per origin) and can be cleared by the user at any time. Sites with many inlined resources may exceed these limits, and pages then pay the storing overhead without the repeat-view saving. A page whose HTML is already cached by the browser gains little: the inlined bytes ride inside a cached document either way. Compare it against `extend_cache`, which gets the same repeat-view saving by keeping resources in external, content-hashed URLs with a one-year lifetime and no scripts at all; that is the recommended path.
 
 ```apache
 # Apache
@@ -256,8 +272,6 @@ ModPagespeedEnableFilters local_storage_cache
 # Nginx
 pagespeed EnableFilters local_storage_cache;
 ```
-
-Not recommended for most deployments. Browser `localStorage` has size limits (typically 5-10 MB per origin) and can be cleared by the user at any time. Sites with many inlined resources may exceed these limits. Since v1.15.0+r18, with `HonorCsp` (default on) the filter stands down on pages whose `Content-Security-Policy` disallows the inline script it relies on.
 
 On IIS the same directives use the syntax described in [IIS configuration](/docs/iis-configuration/).
 
