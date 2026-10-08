@@ -12,6 +12,9 @@ name: Website
 #                       shipped release), npm ci, the vitest unit + sync
 #                       gates, and a production build, so nothing that cannot
 #                       render or that contradicts its own data ships.
+#   website-reference-drift
+#                       the generated configuration and filter references
+#                       still match the product source at the pinned tag.
 #   website-playwright  the browser suite in website/tests/ against the dev
 #                       server, so the pages behave, not just build.
 #
@@ -181,6 +184,58 @@ jobs:
         env:
           PRICING_ALLOW_STALE: "1"
         run: npm run build
+
+  # The configuration and filter references on the site are generated from
+  # the product's source (website/scripts/generate-references.mjs): the
+  # native module's option tables and filter tables come from the public
+  # mod_pagespeed tree at the tag pinned in
+  # website/src/data/reference/source-pin.json, the worker flags and the
+  # thin-module directives from this tree. This job re-clones that tag,
+  # regenerates into a temporary directory and fails on any difference from
+  # the committed JSON, and then checks that the two pages' generated regions
+  # match a fresh render. So a module change, a worker flag change or a stale
+  # pin shows up here; bumping the pin at release time is a one-line change
+  # plus `npm run gen:references`. The generator and renderer are plain
+  # Node scripts without dependencies, so no npm install is needed.
+  website-reference-drift:
+    name: Reference data matches the pinned module source (ubuntu)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Clone mod_pagespeed at the pinned tag
+        run: |
+          set -euo pipefail
+          tag=$(node -e 'process.stdout.write(JSON.parse(require("fs").readFileSync("website/src/data/reference/source-pin.json","utf8")).mod_pagespeed)')
+          case "$tag" in
+            v2.*) ;;
+            *) echo "::error::source-pin.json does not name a v2.* tag: '$tag'"; exit 1 ;;
+          esac
+          git clone --quiet --depth 1 --branch "$tag" https://github.com/We-Amp/mod_pagespeed.git "$RUNNER_TEMP/mod_pagespeed"
+          echo "pinned tag: $tag ($(git -C "$RUNNER_TEMP/mod_pagespeed" rev-parse HEAD))"
+
+      - name: Regenerate the reference data and compare with the committed JSON
+        working-directory: website
+        run: |
+          set -euo pipefail
+          node scripts/generate-references.mjs --module-src "$RUNNER_TEMP/mod_pagespeed" --out "$RUNNER_TEMP/reference"
+          fail=0
+          for f in source-pin.json module-directives.json worker-flags.json thin-module-directives.json filters.json; do
+            if ! diff -u "src/data/reference/$f" "$RUNNER_TEMP/reference/$f"; then
+              echo "::error::src/data/reference/$f differs from a fresh generation at the pinned tag; run 'npm run gen:references' (or bump source-pin.json) and commit the result."
+              fail=1
+            fi
+          done
+          exit "$fail"
+
+      - name: Rendered reference regions are current
+        working-directory: website
+        run: node scripts/render-references.mjs --check
 
   # The browser suite: website/tests/*.spec.ts against the Astro dev server,
   # which playwright.config.ts starts itself (webServer: npm run dev, baseURL
