@@ -1,0 +1,34 @@
+{
+  "/demos/blog/": {
+    "description-present": "static demo fixture site (public/demos/), no metadata by design — follow-up: #63",
+    "h1-count": "static demo fixture site (public/demos/), third-party-style markup — follow-up: #63",
+    "canonical": "static demo fixture site (public/demos/), no metadata by design — follow-up: #63"
+  },
+  "/demos/ecommerce/": {
+    "description-present": "static demo fixture site (public/demos/), no metadata by design — follow-up: #63",
+    "canonical": "static demo fixture site (public/demos/), no metadata by design — follow-up: #63"
+  },
+  "/demos/news/": {
+    "description-present": "static demo fixture site (public/demos/), no metadata by design — follow-up: #63",
+    "canonical": "static demo fixture site (public/demos/), no metadata by design — follow-up: #63"
+  },
+  "/demos/portfolio/": {
+    "description-present": "static demo fixture site (public/demos/), no metadata by design — follow-up: #63",
+    "canonical": "static demo fixture site (public/demos/), no metadata by design — follow-up: #63"
+  },
+  "/cyclone-benchmark/": {
+    "canonical": "standalone static benchmark page (public/cyclone-benchmark/), no BaseLayout — follow-up: #64"
+  },
+  "/docs/admin-console/": {
+    "term-drift-daemon": "quotes the serving module's admin-console UI labels (\"Optimizer daemon\" panels), verified in the public mod_pagespeed repo"
+  },
+  "/docs/configuration/": {
+    "term-drift-daemon": "names the module's real /v1/daemon/* management endpoints and Daemon* directives (generated reference region)"
+  },
+  "/docs/release-notes-1-15/": {
+    "term-drift-daemon": "\"time daemon\" is ntpd, not the optimizer worker"
+  },
+  "/docs/release-notes-2-1/": {
+    "term-drift-daemon": "\"daemon paths\" refers to the DaemonSocketPath/DaemonVolumePath directive names"
+  }
+}

@@ -5,6 +5,7 @@ import ShareFloat from '../components/ShareFloat.astro';
 import SearchDialog from '../components/SearchDialog.astro';
 import Icon from '../components/Icon.astro';
 import { PRODUCT_DISPLAY_NAME, CURRENT_LINE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
+import { safeJsonLd } from '../lib/jsonld';
 
 // Derived chrome label (lowercase everywhere) — one product name,
 // one logo, one site name, used sitewide.
@@ -668,7 +669,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
     <title>{title}</title>
     {
       jsonLdScripts.map((script) => (
-        <script is:inline type="application/ld+json" set:html={JSON.stringify(script)} />
+        <script is:inline type="application/ld+json" set:html={safeJsonLd(script)} />
       ))
     }
     <style is:global>

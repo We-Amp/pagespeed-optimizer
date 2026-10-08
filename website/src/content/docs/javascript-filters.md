@@ -219,7 +219,35 @@ pagespeed EnableFilters defer_javascript;
 
 [Full guide →](/docs/filters/outline_javascript/)
 
-Experimental. Externalizes large inline `<script>` blocks into separate files. `JsOutlineMinBytes` (default: 3000) controls the threshold. Rarely useful -- most sites benefit more from inlining.
+### What it does
+
+`outline_javascript` is the inverse of `inline_javascript`: it moves a large inline `<script>` block out of the HTML into its own JavaScript file, served from a rewritten `_.pagespeed.jo.` URL with a long cache lifetime, and replaces the block with a `<script src>` pointing at it. The generated element is a copy of the original with the `src` added, so attributes such as `id` survive the move. Experimental and not a core filter; enable it by name. Live demo: [outline_javascript](/examples/outline_javascript/).
+
+```html
+<!-- before: 12 KB of script ride inside every page response -->
+<script type="text/javascript" id="large">
+  window.app = { ... };
+</script>
+
+<!-- after: the script is fetched once and kept in the browser cache -->
+<script type="text/javascript" id="large" src="/_.pagespeed.jo.HASH.js"></script>
+```
+
+### When it helps and when it does not
+
+A block of inline JavaScript is re-sent with every page view, and on pages whose HTML is generated per request those bytes cannot be cached at all. Outlining moves them into a file the browser fetches once and keeps, which is the same trade `outline_css` makes for stylesheets. It loses when the HTML itself is cached, when the block differs from page to page, or on pages visited once, because the first view pays an extra request it did not have before. Execution keeps its place in the document: an outlined script without `defer` or `async` still runs at the element's position, once the file has arrived. But `defer` and `async` on an inline script are ignored by browsers and take effect once the script is external, so a script carrying either runs later once outlined than it did inline. Most sites are better served by keeping script in real files or bundling them there at build time.
+
+### How it decides
+
+Only an inline script (one without `src`) classified as JavaScript is a candidate, and only when its text is at least `JsOutlineMinBytes` (default 3000 bytes). Two kinds are always left inline: a script carrying an `integrity` attribute, because the hash browsers ignore on an inline script would become enforced against the outlined bytes, and an inline module script, because outlining it would move import resolution from the document's base URL to the generated file's URL and change `import.meta.url`. A script the parser cannot hold as one unit, because a flush arrives mid-script or a stray tag sits inside it, is left alone rather than guessed at.
+
+### Risks
+
+- The outlined script is an extra request on the first view; on single-view pages that costs more than the HTML bytes it saves.
+- Markup that expects the `<script>` element's contents to sit in the page, for example a script that reads its own source text, sees a `src` instead.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-outline_javascript` comparison; [Is it working?](/docs/is-it-working/) has the steps.
+
+### Configuration
 
 **Apache:**
 
