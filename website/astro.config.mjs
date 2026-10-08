@@ -178,6 +178,8 @@ export default defineConfig({
     // directive, generated from the module source), and the two filter hubs
     // merged into the one filters table at /docs/filters/.
     '/docs/directive-index/': '/docs/configuration/',
+    '/docs/filter-reference/': '/docs/filters/',
+    '/docs/filters-overview/': '/docs/filters/',
   },
   markdown: {
     // remarkDirective parses `:::caution[…]:::` container syntax; remarkCallouts

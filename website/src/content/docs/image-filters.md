@@ -23,37 +23,41 @@ See [IIS configuration](/docs/iis-configuration/) for the full file format refer
 
 ## Quick reference
 
-| Filter                                                            | Core                 | OFB | Description                                                   | Safe       |
-| ----------------------------------------------------------------- | -------------------- | --- | ------------------------------------------------------------- | ---------- |
-| [`rewrite_images`](#rewrite_images)                               | Yes                  | -   | Master filter; enables recompress, resize, inline sub-filters | Yes        |
-| [`recompress_images`](#recompress_images)                         | via `rewrite_images` | Yes | Recompress and convert images (lossy re-encode)               | Yes        |
-| [`recompress_jpeg`](#recompress_images)                           | via `rewrite_images` | Yes | Recompress JPEG images                                        | Yes        |
-| [`recompress_png`](#recompress_images)                            | via `rewrite_images` | Yes | Recompress PNG images                                         | Yes        |
-| [`recompress_webp`](#recompress_images)                           | via `rewrite_images` | Yes | Recompress WebP images                                        | Yes        |
-| [`convert_jpeg_to_progressive`](#recompress_images)               | via `rewrite_images` | Yes | Convert large JPEGs to progressive encoding                   | Yes        |
-| [`convert_jpeg_to_webp`](#convert_formats)                        | via `rewrite_images` | Yes | Serve WebP to capable browsers                                | Yes        |
-| [`convert_png_to_jpeg`](#convert_formats)                         | via `rewrite_images` | Yes | Convert opaque PNGs to JPEG                                   | Yes        |
-| [`convert_gif_to_png`](#convert_formats)                          | via `rewrite_images` | Yes | Convert GIF to PNG                                            | Yes        |
-| [`convert_to_webp_animated`](#convert_formats)                    | No                   | No  | Convert animated GIF to animated WebP                         | Test first |
-| [`convert_to_webp_lossless`](#convert_formats)                    | via `rewrite_images` | No  | Use lossless WebP instead of lossy                            | Test first |
-| [`convert_jpeg_to_avif`](#avif)                                   | No                   | No  | Serve AVIF for photographic JPEG sources                      | Test first |
-| [`convert_to_avif_lossless`](#avif)                               | No                   | No  | Serve lossless AVIF for PNG/GIF sources                       | Test first |
-| [`convert_to_avif_animated`](#avif)                               | No                   | No  | Serve AVIF for animated sources                               | Test first |
-| [`recompress_avif`](#avif)                                        | No                   | No  | Re-encode AVIF images you already serve                       | Test first |
-| [`strip_image_color_profile`](#strip_metadata)                    | via `rewrite_images` | Yes | Remove ICC color profiles                                     | Yes        |
-| [`strip_image_meta_data`](#strip_metadata)                        | via `rewrite_images` | Yes | Remove EXIF and other metadata                                | Yes        |
-| [`jpeg_subsampling`](#recompress_images)                          | via `rewrite_images` | Yes | Downsample JPEG color channels                                | Yes        |
-| [`resize_images`](#resize_images)                                 | via `rewrite_images` | -   | Resize images to declared `width`/`height`                    | Yes        |
-| [`resize_rendered_image_dimensions`](#resize_images)              | No                   | -   | Resize images to rendered dimensions via JS                   | Test first |
-| [`inline_images`](#inline_images)                                 | via `rewrite_images` | -   | Inline small images as data: URIs                             | Yes        |
-| [`responsive_images`](#responsive_images)                         | No                   | No  | Generate `srcset` attributes                                  | Test first |
-| [`lazyload_images`](#lazyload_images)                             | No                   | No  | Defer offscreen image loading                                 | Test first |
-| [`inline_preview_images`](#inline_images)                         | No                   | No  | Show low-quality placeholder before full load                 | Test first |
-| [`resize_mobile_images`](#resize_images)                          | No                   | No  | Serve smaller images to mobile devices                        | Test first |
-| [`dedup_inlined_images`](#inline_images)                          | No                   | No  | Deduplicate repeated inlined images                           | Yes        |
-| [`sprite_images`](#sprite_images)                                 | No                   | No  | Combine CSS background images into sprites                    | Test first |
-| [`insert_image_dimensions`](#resize_images)                       | No                   | No  | Add `width`/`height` to `<img>` tags                          | Test first |
-| [`in_place_optimize_for_browser`](#in_place_optimize_for_browser) | No                   | Yes | Serve browser-specific formats via Vary: Accept               | Test first |
+| Filter                                                                    | Core                 | OFB | Description                                                   | Safe          |
+| ------------------------------------------------------------------------- | -------------------- | --- | ------------------------------------------------------------- | ------------- |
+| [`rewrite_images`](#rewrite_images)                                       | Yes                  | -   | Master filter; enables recompress, resize, inline sub-filters | Yes           |
+| [`recompress_images`](#recompress_images)                                 | via `rewrite_images` | Yes | Recompress and convert images (lossy re-encode)               | Yes           |
+| [`recompress_jpeg`](#recompress_images)                                   | via `rewrite_images` | Yes | Recompress JPEG images                                        | Yes           |
+| [`recompress_png`](#recompress_images)                                    | via `rewrite_images` | Yes | Recompress PNG images                                         | Yes           |
+| [`recompress_webp`](#recompress_images)                                   | via `rewrite_images` | Yes | Recompress WebP images                                        | Yes           |
+| [`convert_jpeg_to_progressive`](#recompress_images)                       | via `rewrite_images` | Yes | Convert large JPEGs to progressive encoding                   | Yes           |
+| [`convert_jpeg_to_webp`](#convert_formats)                                | via `rewrite_images` | Yes | Serve WebP to capable browsers                                | Yes           |
+| [`convert_png_to_jpeg`](#convert_formats)                                 | via `rewrite_images` | Yes | Convert opaque PNGs to JPEG                                   | Yes           |
+| [`convert_gif_to_png`](#convert_formats)                                  | via `rewrite_images` | Yes | Convert GIF to PNG                                            | Yes           |
+| [`convert_to_webp_animated`](#convert_formats)                            | No                   | No  | Convert animated GIF to animated WebP                         | Test first    |
+| [`convert_to_webp_lossless`](#convert_formats)                            | via `rewrite_images` | No  | Use lossless WebP instead of lossy                            | Test first    |
+| [`convert_jpeg_to_avif`](#avif)                                           | No                   | No  | Serve AVIF for photographic JPEG sources                      | Test first    |
+| [`convert_to_avif_lossless`](#avif)                                       | No                   | No  | Serve lossless AVIF for PNG/GIF sources                       | Test first    |
+| [`convert_to_avif_animated`](#avif)                                       | No                   | No  | Serve AVIF for animated sources                               | Test first    |
+| [`recompress_avif`](#avif)                                                | No                   | No  | Re-encode AVIF images you already serve                       | Test first    |
+| [`strip_image_color_profile`](#strip_metadata)                            | via `rewrite_images` | Yes | Remove ICC color profiles                                     | Yes           |
+| [`strip_image_meta_data`](#strip_metadata)                                | via `rewrite_images` | Yes | Remove EXIF and other metadata                                | Yes           |
+| [`jpeg_subsampling`](#recompress_images)                                  | via `rewrite_images` | Yes | Downsample JPEG color channels                                | Yes           |
+| [`resize_images`](#resize_images)                                         | via `rewrite_images` | -   | Resize images to declared `width`/`height`                    | Yes           |
+| [`resize_rendered_image_dimensions`](#resize_images)                      | No                   | -   | Resize images to rendered dimensions via JS                   | Test first    |
+| [`inline_images`](#inline_images)                                         | via `rewrite_images` | -   | Inline small images as data: URIs                             | Yes           |
+| [`responsive_images`](#responsive_images)                                 | No                   | No  | Generate `srcset` attributes                                  | Test first    |
+| [`lazyload_images`](#lazyload_images)                                     | No                   | No  | Defer offscreen image loading                                 | Test first    |
+| [`inline_preview_images`](#inline_images)                                 | No                   | No  | Show low-quality placeholder before full load                 | Test first    |
+| [`resize_mobile_images`](#resize_images)                                  | No                   | No  | Serve smaller images to mobile devices                        | Test first    |
+| [`dedup_inlined_images`](#inline_images)                                  | No                   | No  | Deduplicate repeated inlined images                           | Yes           |
+| [`sprite_images`](#sprite_images)                                         | No                   | No  | Combine CSS background images into sprites                    | Test first    |
+| [`insert_image_dimensions`](#resize_images)                               | No                   | No  | Add `width`/`height` to `<img>` tags                          | Test first    |
+| [`in_place_optimize_for_browser`](#in_place_optimize_for_browser)         | No                   | No  | Retired: accepted with a warning, no effect                   | Retired       |
+| [`extend_cache_images`](#extend_cache_images)                             | via `extend_cache`   | No  | Content-hashed image URLs with a one-year cache               | Yes           |
+| [`responsive_images_zoom`](#responsive_images_zoom)                       | No                   | No  | Zoom-aware srcset selection for `responsive_images`           | Test first    |
+| [`insert_img_dimensions`](#resize_images)                                 | No                   | No  | Alternate spelling of `insert_image_dimensions`               | Test first    |
+| [`experiment_collect_mob_image_info`](#experiment_collect_mob_image_info) | No                   | No  | Mobilization experiment data collection                       | Dangerous set |
 
 **Core** = enabled by default in the CoreFilters set.
 **OFB** = enabled by OptimizeForBandwidth mode.
@@ -112,6 +116,8 @@ pagespeed DisableFilters convert_jpeg_to_webp;
 
 ## Recompression filters {#recompress_images}
 
+<a id="recompress_jpeg"></a><a id="recompress_png"></a><a id="recompress_webp"></a>
+
 ### What they do
 
 The recompression filters (`recompress_images`, `recompress_jpeg`, `recompress_png`, `recompress_webp`) reduce image file size by re-encoding images at an optimal quality level. These filters preserve visual quality while removing encoding inefficiencies.
@@ -138,11 +144,11 @@ pagespeed EnableFilters recompress_jpeg,recompress_png,recompress_webp;
 
 ### Configuration
 
-| Parameter                   | Default | Description                                                |
-| --------------------------- | ------- | ---------------------------------------------------------- |
+| Parameter                   | Default | Description                                                                       |
+| --------------------------- | ------- | --------------------------------------------------------------------------------- |
 | `ImageRecompressionQuality` | 85      | General quality level for recompressed images (-1 to 100; -1 uses source quality) |
-| `JpegRecompressionQuality`  | -1      | JPEG-specific quality; -1 uses `ImageRecompressionQuality` |
-| `WebpRecompressionQuality`  | 80      | WebP quality level                                         |
+| `JpegRecompressionQuality`  | -1      | JPEG-specific quality; -1 uses `ImageRecompressionQuality`                        |
+| `WebpRecompressionQuality`  | 80      | WebP quality level                                                                |
 
 **Apache:**
 
@@ -163,6 +169,8 @@ pagespeed JpegRecompressionQuality 75;
 Recompression is lossy. Setting quality too low produces visible artifacts. The default values are conservative and safe for most content. Photographic content can tolerate lower quality than screenshots or text-heavy images.
 
 ## Format conversion filters {#convert_formats}
+
+<a id="convert_jpeg_to_progressive"></a><a id="convert_jpeg_to_webp"></a><a id="convert_png_to_jpeg"></a><a id="convert_gif_to_png"></a><a id="convert_to_webp_animated"></a><a id="convert_to_webp_lossless"></a>
 
 ### What they do
 
@@ -215,6 +223,8 @@ pagespeed EnableFilters convert_to_webp_lossless;
 
 ## AVIF filters {#avif}
 
+<a id="convert_jpeg_to_avif"></a><a id="convert_to_avif_lossless"></a><a id="convert_to_avif_animated"></a><a id="recompress_avif"></a>
+
 ### What they do
 
 Four filters transcode images to AVIF. Each one targets a different kind of source:
@@ -258,13 +268,13 @@ On IIS, use the same filter names in `pagespeed.config` without the trailing sem
 
 ### Configuration
 
-| Parameter                                  | Default | Description                                                                       |
-| ------------------------------------------ | ------- | --------------------------------------------------------------------------------- |
-| `AvifRecompressionQuality`                 | 60      | AVIF quality level; -1 uses `ImageRecompressionQuality`                            |
-| `AvifRecompressionQualityForSmallScreens`  | 50      | AVIF quality for small-screen clients; -1 uses `AvifRecompressionQuality`          |
-| `AvifAnimatedRecompressionQuality`         | 50      | Quality for animated AVIF output                                                  |
-| `AvifQualityForSaveData`                   | 45      | AVIF quality for clients sending `Save-Data: on`                                   |
-| `AvifTimeoutMs`                            | 5000    | Wall-clock budget for one AVIF encode; the encode is abandoned when it is exceeded |
+| Parameter                                 | Default | Description                                                                        |
+| ----------------------------------------- | ------- | ---------------------------------------------------------------------------------- |
+| `AvifRecompressionQuality`                | 60      | AVIF quality level; -1 uses `ImageRecompressionQuality`                            |
+| `AvifRecompressionQualityForSmallScreens` | 50      | AVIF quality for small-screen clients; -1 uses `AvifRecompressionQuality`          |
+| `AvifAnimatedRecompressionQuality`        | 50      | Quality for animated AVIF output                                                   |
+| `AvifQualityForSaveData`                  | 45      | AVIF quality for clients sending `Save-Data: on`                                   |
+| `AvifTimeoutMs`                           | 5000    | Wall-clock budget for one AVIF encode; the encode is abandoned when it is exceeded |
 
 These mirror the `Webp*` quality parameters: a value of -1 falls back to the more general
 setting, so you can set `ImageRecompressionQuality` alone and let AVIF follow it.
@@ -298,6 +308,8 @@ pagespeed AvifTimeoutMs 5000;
 
 ## Image stripping filters {#strip_metadata}
 
+<a id="strip_image_color_profile"></a><a id="strip_image_meta_data"></a><a id="jpeg_subsampling"></a>
+
 ### What they do
 
 - **`strip_image_color_profile`** removes embedded ICC color profiles from images. Most web browsers ignore ICC profiles, and they can add tens of kilobytes to a file.
@@ -329,11 +341,13 @@ pagespeed EnableFilters jpeg_subsampling;
 
 ## Resizing filters {#resize_images}
 
+<a id="resize_rendered_image_dimensions"></a><a id="insert_image_dimensions"></a><a id="insert_img_dimensions"></a>
+
 ### What they do
 
 - **`resize_images`** resizes images on the server to match the `width` and `height` attributes declared in the `<img>` tag. If an image is 2000x1500 but displayed at 400x300, mod_pagespeed serves a 400x300 variant.
 - **`resize_rendered_image_dimensions`** injects JavaScript that reports each image's actual rendered dimensions on the client. On subsequent requests, mod_pagespeed resizes to the rendered size. Requires two page loads to take effect.
-- **`insert_image_dimensions`** adds explicit `width` and `height` attributes to `<img>` tags that lack them. This prevents layout shifts (CLS) but does not resize the image file itself.
+- **`insert_image_dimensions`** adds explicit `width` and `height` attributes to `<img>` tags that lack them. This prevents layout shifts (CLS) but does not resize the image file itself. `insert_img_dimensions` is an accepted alternate spelling of the same filter.
 
 ### Directives
 
@@ -366,6 +380,8 @@ pagespeed EnableFilters insert_image_dimensions;
 - `insert_image_dimensions` can break responsive layouts that rely on the absence of explicit dimensions. Test with your CSS.
 
 ## Inline and preview filters {#inline_images}
+
+<a id="inline_preview_images"></a><a id="dedup_inlined_images"></a><a id="resize_mobile_images"></a>
 
 ### What they do
 
@@ -547,9 +563,7 @@ pagespeed EnableFilters sprite_images;
 
 ### What it does
 
-`in_place_optimize_for_browser` optimizes images served from their original URL (without rewriting the HTML) by using the browser's `Accept` header to serve the best format. For example, a `.jpg` URL can serve WebP content to browsers that support it. The response includes `Vary: Accept` to ensure correct caching.
-
-This filter is enabled by the `OptimizeForBandwidth` mode but is not a CoreFilter.
+`in_place_optimize_for_browser` is retired. It used to vary in-place optimized images by the browser's `Accept` header and add `Vary: Accept`; in-place optimization no longer produces browser-dependent bytes, so the filter has nothing left to do. The name is still accepted, with a warning, so an existing configuration keeps loading; it is no longer part of `OptimizeForBandwidth`. Remove it from your configuration.
 
 ### Directives
 
@@ -569,6 +583,59 @@ pagespeed EnableFilters in_place_optimize_for_browser;
 
 - The `Vary: Accept` header can reduce CDN cache hit rates. Many CDNs handle `Vary` correctly, but verify with your provider.
 - Some proxy servers do not respect `Vary` headers and may serve the wrong format to clients.
+
+## Cache extension for images: extend_cache_images {#extend_cache_images}
+
+### What it does
+
+Core filter, one of the three members of [`extend_cache`](/docs/cache-control/#extend_cache). Rewrites image URLs to content-hashed `.pagespeed.ce.` URLs served with a one-year `Cache-Control` max-age, so browsers keep images for a year while a changed image gets a new URL. Use it when the origin cannot set long cache lifetimes itself; under CoreFilters it is already on through `extend_cache`, and `rewrite_images` produces content-hashed URLs of its own for every image it rewrites. Disabling it leaves `extend_cache_css` and `extend_cache_scripts` on. Live demo: [extend_cache](/examples/extend_cache/).
+
+### Directives
+
+**Apache:**
+
+```apache
+ModPagespeedEnableFilters extend_cache_images
+```
+
+**nginx:**
+
+```nginx
+pagespeed EnableFilters extend_cache_images;
+```
+
+## Responsive images zoom {#responsive_images_zoom}
+
+### What it does
+
+`responsive_images_zoom` adds a small script next to the `srcset` attributes that [`responsive_images`](#responsive_images) generates, so that when the visitor zooms the page the browser picks a variant that stays sharp at the zoomed size instead of upscaling the one chosen for the original zoom level. Enable it together with `responsive_images`; on its own it does nothing. Not a core filter; test it with your image markup first.
+
+### Directives
+
+**Apache:**
+
+```apache
+ModPagespeedEnableFilters responsive_images,responsive_images_zoom
+```
+
+**nginx:**
+
+```nginx
+pagespeed EnableFilters responsive_images,responsive_images_zoom;
+```
+
+### Risks
+
+- Adds a script to every page with responsive images.
+- Extra variants are fetched on zoom, which costs bandwidth on pages visitors zoom often.
+
+## Experimental: experiment_collect_mob_image_info {#experiment_collect_mob_image_info}
+
+Collects image information for the retired page-mobilization experiment. In the dangerous set, which `RewriteLevel AllFilters` never enables; not for production.
+
+```nginx
+pagespeed EnableFilters experiment_collect_mob_image_info;
+```
 
 ## Prioritize critical images {#prioritize_critical_images}
 
@@ -601,17 +668,17 @@ pagespeed EnableFilters prioritize_critical_images;
 
 ## Tuning parameters
 
-| Parameter                          | Default  | Description                                                        |
-| ---------------------------------- | -------- | ------------------------------------------------------------------ |
+| Parameter                          | Default  | Description                                                                 |
+| ---------------------------------- | -------- | --------------------------------------------------------------------------- |
 | `ImageRecompressionQuality`        | 85       | General quality for recompressed images (-1 to 100; -1 uses source quality) |
-| `JpegRecompressionQuality`         | -1       | JPEG-specific quality; -1 uses `ImageRecompressionQuality`         |
-| `WebpRecompressionQuality`         | 80       | WebP quality level                                                 |
-| `WebpAnimatedRecompressionQuality` | 70       | Animated WebP quality level                                        |
-| `ImageInlineMaxBytes`              | 3072     | Maximum image size in bytes to inline as a data: URI               |
-| `ImageLimitOptimizedPercent`       | 100      | Only serve the optimized image if it is smaller by this percentage |
-| `ImageLimitResizeAreaPercent`      | 100      | Limit on resize area relative to original                          |
-| `ImageResolutionLimitBytes`        | 33554432 | Maximum image resolution in bytes to attempt to optimize           |
-| `ImageMaxRewritesAtOnce`           | 8        | Server-wide limit on parallel image optimizations                  |
+| `JpegRecompressionQuality`         | -1       | JPEG-specific quality; -1 uses `ImageRecompressionQuality`                  |
+| `WebpRecompressionQuality`         | 80       | WebP quality level                                                          |
+| `WebpAnimatedRecompressionQuality` | 70       | Animated WebP quality level                                                 |
+| `ImageInlineMaxBytes`              | 3072     | Maximum image size in bytes to inline as a data: URI                        |
+| `ImageLimitOptimizedPercent`       | 100      | Only serve the optimized image if it is smaller by this percentage          |
+| `ImageLimitResizeAreaPercent`      | 100      | Limit on resize area relative to original                                   |
+| `ImageResolutionLimitBytes`        | 33554432 | Maximum image resolution in bytes to attempt to optimize                    |
+| `ImageMaxRewritesAtOnce`           | 8        | Server-wide limit on parallel image optimizations                           |
 
 **Apache:**
 
@@ -661,5 +728,5 @@ _Adapted from the original mod_pagespeed image-rewriting design (Google, 2010), 
 ## See also
 
 - [Filter selection](/docs/filter-selection/) -- how to enable and disable filters
-- [Filter reference](/docs/filter-reference/) -- all filters at a glance
+- [PageSpeed filters](/docs/filters/) -- all filters at a glance
 - [How the metadata cache works](/how-it-works/metadata-cache/) -- how an image is optimized once and served from cache thereafter

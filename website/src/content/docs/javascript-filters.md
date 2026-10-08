@@ -12,16 +12,23 @@ mod_pagespeed 2.1 includes filters for JavaScript minification, combining, inlin
 
 ## Quick reference
 
-| Filter                                              | Core | OFB | Description                                          | Safe         |
-| --------------------------------------------------- | ---- | --- | ---------------------------------------------------- | ------------ |
-| [`rewrite_javascript`](#rewrite_javascript)         | Yes  | Yes | Minifies JS                                          | Yes          |
-| `rewrite_javascript_external`                       | Yes  | Yes | Implied by `rewrite_javascript`, external files only | Yes          |
-| `rewrite_javascript_inline`                         | Yes  | Yes | Implied by `rewrite_javascript`, inline scripts only | Yes          |
-| [`combine_javascript`](#combine_javascript)         | Yes  | No  | Combines multiple scripts                            | Yes          |
-| [`inline_javascript`](#inline_javascript)           | Yes  | No  | Inlines small scripts                                | Yes          |
-| [`defer_javascript`](#defer_javascript)             | No   | No  | Defers execution                                     | Test first   |
-| [`outline_javascript`](#outline_javascript)         | No   | No  | Externalizes large inline scripts                    | Experimental |
-| [`include_js_source_maps`](#include_js_source_maps) | No   | No  | Preserves source maps                                | Yes          |
+| Filter                                                                    | Core | OFB | Description                                          | Safe          |
+| ------------------------------------------------------------------------- | ---- | --- | ---------------------------------------------------- | ------------- |
+| [`rewrite_javascript`](#rewrite_javascript)                               | Yes  | Yes | Minifies JS                                          | Yes           |
+| `rewrite_javascript_external`                                             | Yes  | Yes | Implied by `rewrite_javascript`, external files only | Yes           |
+| `rewrite_javascript_inline`                                               | Yes  | Yes | Implied by `rewrite_javascript`, inline scripts only | Yes           |
+| [`combine_javascript`](#combine_javascript)                               | Yes  | No  | Combines multiple scripts                            | Yes           |
+| [`inline_javascript`](#inline_javascript)                                 | Yes  | No  | Inlines small scripts                                | Yes           |
+| [`defer_javascript`](#defer_javascript)                                   | No   | No  | Defers execution                                     | Test first    |
+| [`outline_javascript`](#outline_javascript)                               | No   | No  | Externalizes large inline scripts                    | Experimental  |
+| [`include_js_source_maps`](#include_js_source_maps)                       | No   | No  | Preserves source maps                                | Yes           |
+| [`extend_cache_scripts`](#extend_cache_scripts)                           | Yes  | No  | Content-hashed script URLs with a one-year cache     | Yes           |
+| [`canonicalize_javascript_libraries`](#canonicalize_javascript_libraries) | No   | No  | Swaps recognized libraries for a canonical URL       | Dangerous set |
+| [`deterministic_js`](#deterministic_js)                                   | No   | No  | Deterministic Date and Math.random, for measuring    | Dangerous set |
+| [`disable_javascript`](#disable_javascript)                               | No   | No  | Wraps scripts in noscript, for measuring             | Dangerous set |
+| [`strip_scripts`](#strip_scripts)                                         | No   | No  | Removes all scripts, for measuring                   | Dangerous set |
+| [`make_show_ads_async`](#make_show_ads_async)                             | No   | No  | Converts showads.js to async adsbygoogle.js          | Deprecated    |
+| [`make_google_analytics_async`](#make_google_analytics_async)             | No   | No  | No-op: targeted the retired ga.js                    | Deprecated    |
 
 ## IIS syntax
 
@@ -35,6 +42,8 @@ pagespeed JsInlineMaxBytes 2048
 See [IIS configuration](/docs/iis-configuration/) for the full file format reference.
 
 ## rewrite_javascript {#rewrite_javascript}
+
+<a id="rewrite_javascript_external"></a><a id="rewrite_javascript_inline"></a>
 
 Core filter. Minifies JavaScript by removing whitespace, comments, and shortening variable names where safe. In OFB mode, minifies in-place. The sub-filters `rewrite_javascript_external` and `rewrite_javascript_inline` control scope but are implicitly enabled by the parent filter.
 
@@ -145,6 +154,71 @@ ModPagespeedEnableFilters include_js_source_maps
 pagespeed EnableFilters include_js_source_maps;
 ```
 
+## extend_cache_scripts {#extend_cache_scripts}
+
+Core filter, one of the three members of [`extend_cache`](/docs/cache-control/#extend_cache). Rewrites `<script src>` URLs to content-hashed `.pagespeed.ce.` URLs served with a one-year `Cache-Control` max-age: browsers keep scripts for a year, and a changed file gets a new URL, so there is nothing to purge. Use it when the origin cannot set long cache lifetimes itself; under CoreFilters it is already on through `extend_cache`. Disabling it leaves `extend_cache_css` and `extend_cache_images` on. Live demo: [extend_cache](/examples/extend_cache/).
+
+**Apache:**
+
+```apache
+ModPagespeedEnableFilters extend_cache_scripts
+```
+
+**Nginx:**
+
+```nginx
+pagespeed EnableFilters extend_cache_scripts;
+```
+
+## Dangerous and deprecated filters
+
+The module keeps these names so that an existing configuration still loads. The filters in the dangerous set are never switched on by `RewriteLevel AllFilters` and exist for measurement and testing, not for production traffic; the deprecated ones do nothing.
+
+### canonicalize_javascript_libraries {#canonicalize_javascript_libraries}
+
+Replaces a `<script src>` that matches a known library (recognized by size and hash through the `Library` directive) with the library's canonical URL on a shared CDN, so visitors reuse a copy already in their browser cache. In the dangerous set: the module ships no library table of its own any more, cross-site caches are partitioned in current browsers, and a canonical URL you do not control is a dependency you do not control. Use it only with your own `Library` entries and your own CDN. Live demo: [canonicalize_javascript_libraries](/examples/canonicalize_javascript_libraries/).
+
+```nginx
+pagespeed Library 105527 ltVVzzYxo0 //cdn.example.com/js/prototype.1.6.1.0.js;
+pagespeed EnableFilters canonicalize_javascript_libraries;
+```
+
+### deterministic_js {#deterministic_js}
+
+Injects a script that makes `Date` and `Math.random` return deterministic values, so two loads of a page produce the same output and can be compared byte for byte. For measurement and regression testing only; it changes the behavior of every script on the page. In the dangerous set.
+
+```nginx
+pagespeed EnableFilters deterministic_js;
+```
+
+### disable_javascript {#disable_javascript}
+
+Wraps every `<script>` in `<noscript>` so no script on the page runs, to measure what the page looks like and costs without JavaScript. For measurement only. In the dangerous set.
+
+```nginx
+pagespeed EnableFilters disable_javascript;
+```
+
+### strip_scripts {#strip_scripts}
+
+Removes every `<script>` element from the page, the more drastic variant of `disable_javascript` for measuring the no-script baseline. For measurement only. In the dangerous set.
+
+```nginx
+pagespeed EnableFilters strip_scripts;
+```
+
+### make_show_ads_async {#make_show_ads_async}
+
+Rewrites synchronous `showads.js` ad snippets to the asynchronous `adsbygoogle.js` form so the ads stop blocking rendering. It targets a deprecated AdSense integration; convert the snippets in your templates instead. Live demo: [make_show_ads_async](/examples/make_show_ads_async/).
+
+```nginx
+pagespeed EnableFilters make_show_ads_async;
+```
+
+### make_google_analytics_async {#make_google_analytics_async}
+
+Deprecated and a no-op: it rewrote the retired `ga.js` snippet to its asynchronous form. The name is accepted so old configurations load; remove it.
+
 ## Tuning parameters
 
 | Parameter           | Default | Description                               |
@@ -169,6 +243,6 @@ pagespeed JsOutlineMinBytes 3000;
 ## See also
 
 - [Filter selection](/docs/filter-selection/)
-- [Filter reference](/docs/filter-reference/)
+- [PageSpeed filters](/docs/filters/) — every filter in one table
 - [Safe JavaScript minification and semicolon insertion](/blog/safe-javascript-minification-semicolon-insertion/)
 - [Remove unused JavaScript with Chrome coverage](/blog/remove-unused-javascript-chrome-coverage/)

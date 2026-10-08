@@ -38,6 +38,8 @@ See [IIS configuration](/docs/iis-configuration/) for the full file format refer
 | [`prioritize_critical_css`](#prioritize_critical_css)            | No   | No  | Inlines the CSS a page uses, loads the rest async     | Test first     |
 | [`move_css_above_scripts`](#move_css_above_scripts)              | No   | No  | Moves CSS `<link>` above `<script>` elements          | Generally safe |
 | [`move_css_to_head`](#move_css_to_head)                          | No   | No  | Moves CSS `<link>` elements into `<head>`             | Generally safe |
+| [`extend_cache_css`](#extend_cache_css)                          | Yes  | No  | Content-hashed stylesheet URLs with a one-year cache  | Generally safe |
+| [`compute_critical_css`](#compute_critical_css)                  | No   | No  | Background critical-CSS computation (experimental)    | Experimental   |
 
 ## Filter details
 
@@ -74,6 +76,8 @@ pagespeed EnableFilters fallback_rewrite_css_urls;
 ```
 
 ### rewrite_style_attributes / rewrite_style_attributes_with_url {#rewrite_style_attributes}
+
+<a id="rewrite_style_attributes_with_url"></a>
 
 `rewrite_style_attributes` applies CSS rewriting (minification, URL rewriting) to inline `style=""` attributes on HTML elements. `rewrite_style_attributes_with_url` (Core filter) does the same but only when the style value contains a `url()` reference.
 
@@ -243,6 +247,38 @@ ModPagespeedEnableFilters move_css_to_head
 pagespeed EnableFilters move_css_to_head;
 ```
 
+### extend_cache_css {#extend_cache_css}
+
+Core filter, one of the three members of [`extend_cache`](/docs/cache-control/#extend_cache). Rewrites `<link rel="stylesheet">` URLs to content-hashed `.pagespeed.ce.` URLs that the module serves with a one-year `Cache-Control` max-age, so browsers keep stylesheets for a year and still pick up every change (a changed file gets a new URL). Use it when the origin cannot set long cache lifetimes itself; under CoreFilters it is already on through `extend_cache`. Disabling it leaves `extend_cache_images` and `extend_cache_scripts` on. The one rule to respect is the general one: HTML and the resources it references must share one configuration (see [Virtual hosts](/docs/configuration/#virtual-hosts)). Live demo: [extend_cache](/examples/extend_cache/).
+
+Enable:
+
+```apache
+# Apache
+ModPagespeedEnableFilters extend_cache_css
+```
+
+```nginx
+# Nginx
+pagespeed EnableFilters extend_cache_css;
+```
+
+### compute_critical_css {#compute_critical_css}
+
+Not a core filter; experimental. Computes a page's critical CSS on the server in the background, instead of from the browser reports that [`prioritize_critical_css`](#prioritize_critical_css) uses. It is the module's older, beacon-free path and is not tuned for production: use `prioritize_critical_css` unless you are specifically testing this one. Enabling it adds server-side CSS analysis for every page it sees. There is no example in the gallery.
+
+Enable:
+
+```apache
+# Apache
+ModPagespeedEnableFilters compute_critical_css
+```
+
+```nginx
+# Nginx
+pagespeed EnableFilters compute_critical_css;
+```
+
 ## Tuning parameters
 
 | Parameter                | Default | Description                                                         |
@@ -273,6 +309,6 @@ pagespeed CssImageInlineMaxBytes 2048;
 ## See also
 
 - [Filter selection](/docs/filter-selection/)
-- [Filter reference](/docs/filter-reference/)
+- [PageSpeed filters](/docs/filters/) — every filter in one table
 - [JavaScript filters](/docs/javascript-filters/) — the matching minify, combine, and inline filters for JS
 - [How CSS parsing works](/how-it-works/css-parsing/) — the syntax-tree layer beneath the CSS filters
