@@ -64,6 +64,8 @@ See [IIS configuration](/docs/iis-configuration/) for the full file format refer
 
 ## Master filter: rewrite_images {#rewrite_images}
 
+[Full guide →](/docs/filters/rewrite_images/)
+
 ### What it does
 
 `rewrite_images` is the master image optimization CoreFilter. Enabling it activates a family of sub-filters that recompress images, convert formats where beneficial, resize to declared dimensions, and inline small images as data: URIs.
@@ -117,6 +119,8 @@ pagespeed DisableFilters convert_jpeg_to_webp;
 ## Recompression filters {#recompress_images}
 
 <a id="recompress_jpeg"></a><a id="recompress_png"></a><a id="recompress_webp"></a>
+
+[Full guide →](/docs/filters/recompress_images/) · Also: [`recompress_jpeg`](/docs/filters/recompress_jpeg/), [`recompress_png`](/docs/filters/recompress_png/), [`recompress_webp`](/docs/filters/recompress_webp/)
 
 ### What they do
 
@@ -172,6 +176,8 @@ Recompression is lossy. Setting quality too low produces visible artifacts. The 
 
 <a id="convert_jpeg_to_progressive"></a><a id="convert_jpeg_to_webp"></a><a id="convert_png_to_jpeg"></a><a id="convert_gif_to_png"></a><a id="convert_to_webp_animated"></a><a id="convert_to_webp_lossless"></a>
 
+Full guides: [`convert_jpeg_to_progressive`](/docs/filters/convert_jpeg_to_progressive/), [`convert_jpeg_to_webp`](/docs/filters/convert_jpeg_to_webp/), [`convert_png_to_jpeg`](/docs/filters/convert_png_to_jpeg/), [`convert_gif_to_png`](/docs/filters/convert_gif_to_png/), [`convert_to_webp_animated`](/docs/filters/convert_to_webp_animated/), [`convert_to_webp_lossless`](/docs/filters/convert_to_webp_lossless/)
+
 ### What they do
 
 Format conversion filters serve images in the most efficient format for each browser and image type:
@@ -224,6 +230,8 @@ pagespeed EnableFilters convert_to_webp_lossless;
 ## AVIF filters {#avif}
 
 <a id="convert_jpeg_to_avif"></a><a id="convert_to_avif_lossless"></a><a id="convert_to_avif_animated"></a><a id="recompress_avif"></a>
+
+Full guides: [`convert_jpeg_to_avif`](/docs/filters/convert_jpeg_to_avif/), [`convert_to_avif_lossless`](/docs/filters/convert_to_avif_lossless/), [`convert_to_avif_animated`](/docs/filters/convert_to_avif_animated/), [`recompress_avif`](/docs/filters/recompress_avif/)
 
 ### What they do
 
@@ -310,6 +318,8 @@ pagespeed AvifTimeoutMs 5000;
 
 <a id="strip_image_color_profile"></a><a id="strip_image_meta_data"></a><a id="jpeg_subsampling"></a>
 
+Full guides: [`strip_image_color_profile`](/docs/filters/strip_image_color_profile/), [`strip_image_meta_data`](/docs/filters/strip_image_meta_data/), [`jpeg_subsampling`](/docs/filters/jpeg_subsampling/)
+
 ### What they do
 
 - **`strip_image_color_profile`** removes embedded ICC color profiles from images. Most web browsers ignore ICC profiles, and they can add tens of kilobytes to a file.
@@ -342,6 +352,8 @@ pagespeed EnableFilters jpeg_subsampling;
 ## Resizing filters {#resize_images}
 
 <a id="resize_rendered_image_dimensions"></a><a id="insert_image_dimensions"></a><a id="insert_img_dimensions"></a>
+
+[Full guide →](/docs/filters/resize_images/) · Also: [`resize_rendered_image_dimensions`](/docs/filters/resize_rendered_image_dimensions/), [`insert_image_dimensions`](/docs/filters/insert_image_dimensions/)
 
 ### What they do
 
@@ -382,6 +394,8 @@ pagespeed EnableFilters insert_image_dimensions;
 ## Inline and preview filters {#inline_images}
 
 <a id="inline_preview_images"></a><a id="dedup_inlined_images"></a><a id="resize_mobile_images"></a>
+
+[Full guide →](/docs/filters/inline_images/) · Also: [`inline_preview_images`](/docs/filters/inline_preview_images/), [`dedup_inlined_images`](/docs/filters/dedup_inlined_images/), [`resize_mobile_images`](/docs/filters/resize_mobile_images/)
 
 ### What they do
 
@@ -435,6 +449,8 @@ pagespeed ImageInlineMaxBytes 4096;
 - `resize_mobile_images` relies on User-Agent detection. Incorrect UA classification can serve wrong-sized images. It also pulls in `inline_preview_images`, so expect that filter's placeholder-then-swap behavior when enabling it.
 
 ## Lazy loading: lazyload_images {#lazyload_images}
+
+[Full guide →](/docs/filters/lazyload_images/)
 
 ### What it does
 
@@ -493,6 +509,8 @@ Images that already carry a `loading` attribute are always left untouched, so ha
 
 ## Responsive images {#responsive_images}
 
+[Full guide →](/docs/filters/responsive_images/)
+
 ### What it does
 
 `responsive_images` generates multiple resized versions of each image and adds `srcset` attributes to `<img>` tags, allowing the browser to select the optimal resolution for the current viewport and device pixel ratio.
@@ -535,6 +553,8 @@ pagespeed ResponsiveImageDensities 1.5,2,3;
 
 ## Sprite images {#sprite_images}
 
+[Full guide →](/docs/filters/sprite_images/)
+
 ### What it does
 
 `sprite_images` combines multiple CSS background images into a single sprite sheet and rewrites the CSS `background-position` values to reference the correct region within the sprite.
@@ -561,6 +581,8 @@ pagespeed EnableFilters sprite_images;
 
 ## In-place browser optimization {#in_place_optimize_for_browser}
 
+[Full guide →](/docs/filters/in_place_optimize_for_browser/)
+
 ### What it does
 
 `in_place_optimize_for_browser` is retired. It used to vary in-place optimized images by the browser's `Accept` header and add `Vary: Accept`; in-place optimization no longer produces browser-dependent bytes, so the filter has nothing left to do. The name is still accepted, with a warning, so an existing configuration keeps loading; it is no longer part of `OptimizeForBandwidth`. Remove it from your configuration.
@@ -586,6 +608,8 @@ pagespeed EnableFilters in_place_optimize_for_browser;
 
 ## Cache extension for images: extend_cache_images {#extend_cache_images}
 
+[Full guide →](/docs/filters/extend_cache_images/)
+
 ### What it does
 
 Core filter, one of the three members of [`extend_cache`](/docs/cache-control/#extend_cache). Rewrites image URLs to content-hashed `.pagespeed.ce.` URLs served with a one-year `Cache-Control` max-age, so browsers keep images for a year while a changed image gets a new URL. Use it when the origin cannot set long cache lifetimes itself; under CoreFilters it is already on through `extend_cache`, and `rewrite_images` produces content-hashed URLs of its own for every image it rewrites. Disabling it leaves `extend_cache_css` and `extend_cache_scripts` on. Live demo: [extend_cache](/examples/extend_cache/).
@@ -605,6 +629,8 @@ pagespeed EnableFilters extend_cache_images;
 ```
 
 ## Responsive images zoom {#responsive_images_zoom}
+
+[Full guide →](/docs/filters/responsive_images_zoom/)
 
 ### What it does
 
@@ -631,6 +657,8 @@ pagespeed EnableFilters responsive_images,responsive_images_zoom;
 
 ## Experimental: experiment_collect_mob_image_info {#experiment_collect_mob_image_info}
 
+[Full guide →](/docs/filters/experiment_collect_mob_image_info/)
+
 Collects image information for the retired page-mobilization experiment. In the dangerous set, which `RewriteLevel AllFilters` never enables; not for production.
 
 ```nginx
@@ -638,6 +666,8 @@ pagespeed EnableFilters experiment_collect_mob_image_info;
 ```
 
 ## Prioritize critical images {#prioritize_critical_images}
+
+[Full guide →](/docs/filters/prioritize_critical_images/)
 
 ### What it does
 

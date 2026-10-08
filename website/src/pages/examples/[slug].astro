@@ -9,7 +9,8 @@ import {
   MECHANISM,
   type ExampleCategory,
 } from '../../data/examples';
-import examplesData from '../../data/examples-data.json';
+import { exampleImpact } from '../../lib/example-impact';
+import { topicForExample } from '../../data/filters';
 import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
 
 export function getStaticPaths() {
@@ -27,29 +28,8 @@ const mechanism = MECHANISM[ex.slug];
 const addedMinor = ex.addedIn?.match(/^(\d+\.\d+)/)?.[1];
 const newLabel = ex.addedIn ? (addedMinor ? `New in ${addedMinor}` : 'New') : null;
 
-const data = examplesData as { examples: Record<string, any> };
-const measured = data.examples[ex.slug];
-// "Settled" entries captured a stable before/after the generator could diff.
-// Unsettled-but-present entries are header-/beacon-/config-gated filters that
-// leave no HTML source diff — `mechanism` explains which, in the note below.
-const present = measured && !measured.error;
-const hasData = present && measured.settled;
-const diff: { t: string; s: string }[] | undefined = hasData ? measured.diff : undefined;
-const savings = hasData ? measured.savings : undefined;
-
-// A beacon-gated filter can "settle" on a byte-identical capture — a dedicated
-// demo page whose single-line tags leave no reflow — so the data is present but
-// shows no real change. Treat such a card as non-substantive: prefer the beacon
-// explanation over an empty/cosmetic diff and suppress the "Measured impact"
-// block. Cards with actual +/- diff lines (prioritize_critical_css,
-// inline_preview_images) keep their diff and are unaffected.
-const hasRealDiff = !!diff && diff.some((line) => line.t === '+' || line.t === '-');
-const nonSubstantive =
-  mechanism === 'beacon' &&
-  hasData &&
-  !hasRealDiff &&
-  (!savings || (savings.requests === 0 && savings.resourceBytesPct === 0));
-const substantive = !nonSubstantive;
+const impact = exampleImpact(ex.slug)!;
+const { measured, present, hasData, nonSubstantive, substantive, diff, tiles } = impact;
 
 const before = beforeUrl(ex);
 const after = afterUrl(ex);
@@ -63,48 +43,13 @@ const DOC_FOR_CATEGORY: Record<ExampleCategory, string> = {
   Resources: '/docs/filters/',
 };
 const docHref = DOC_FOR_CATEGORY[ex.category];
+// The filter's topic page: the full guide to the technique this demo isolates.
+const guide = topicForExample(ex.slug, ex.filters);
 
 // Examples that name a Google service (Analytics, AdSense, Fonts) carry a
 // non-affiliation note — the /examples/ index disclaims this once, but each
 // detail page is independently crawlable/linkable, so it repeats here.
 const namesGoogle = /google/i.test(`${ex.title} ${ex.blurb} ${ex.note ?? ''}`);
-
-function formatBytes(bytes: number): string {
-  if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
-  if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
-  return bytes + ' B';
-}
-
-// Which impact tiles are worth showing for this example.
-const tiles: { label: string; before: string; after: string; pill: string }[] = [];
-if (savings && substantive) {
-  if (savings.requests > 0) {
-    tiles.push({
-      label: 'HTTP requests',
-      before: String(measured.before.requestCount),
-      after: String(measured.after.requestCount),
-      pill: `−${savings.requests}`,
-    });
-  }
-  if (savings.totalBytesPct > 0 && measured.before.resourcesMeasured > 0) {
-    const b = measured.before.htmlBytes + measured.before.resourceBytes;
-    const a = measured.after.htmlBytes + measured.after.resourceBytes;
-    tiles.push({
-      label: 'Total bytes',
-      before: formatBytes(b),
-      after: formatBytes(a),
-      pill: `−${savings.totalBytesPct}%`,
-    });
-  }
-  if (savings.htmlBytesPct > 0) {
-    tiles.push({
-      label: 'HTML size',
-      before: formatBytes(measured.before.htmlBytes),
-      after: formatBytes(measured.after.htmlBytes),
-      pill: `−${savings.htmlBytesPct}%`,
-    });
-  }
-}
 
 // Kept within the ~155 characters a search snippet shows: the long tail is
 // dropped first, then the short one, before the blurb itself is cut.
@@ -183,6 +128,16 @@ const jsonLd: Record<string, unknown> | undefined = hasData
             >{ex.filters}</code
           >
           · <a class="text-interactive hover:underline" href={docHref}>Filter docs</a>
+          {
+            guide && (
+              <>
+                ·{' '}
+                <a class="text-interactive hover:underline" href={guide.topic} data-full-guide>
+                  Read the full guide
+                </a>
+              </>
+            )
+          }
           {ex.note && <span class="ml-1">· {ex.note}</span>}
         </p>
         <p class="mt-2 text-xs text-text-annotation">
