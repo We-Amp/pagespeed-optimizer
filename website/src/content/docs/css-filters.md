@@ -278,7 +278,7 @@ pagespeed EnableFilters inline_google_font_css;
 
 #### What it does
 
-`outline_css` is the inverse of `inline_css`: it moves a large inline `<style>` block out of the HTML into its own stylesheet file, served from a rewritten `_.pagespeed.co.` URL with a long cache lifetime, and replaces the block with a `<link rel="stylesheet">` to it. Not a core filter; enable it by name. Live demo: [outline_css](/examples/outline_css/).
+`outline_css` is the inverse of `inline_css`: it takes a large inline `<style>` block out of the HTML and serves it as a stylesheet of its own, at a rewritten `_.pagespeed.co.` URL with a long cache lifetime, leaving a `<link rel="stylesheet">` in the block's place. Not a core filter; enable it by name. Live demo: [outline_css](/examples/outline_css/).
 
 ```html
 <!-- before: 8 KB of rules ride inside every page response -->
@@ -292,15 +292,15 @@ pagespeed EnableFilters inline_google_font_css;
 
 #### When it helps and when it does not
 
-Inlining pays when HTML is cached and the stylesheet is small; outlining pays on the mirrored trade. A large block of inline CSS is re-sent with every page view, and on pages whose HTML is generated per request the bytes cannot be cached at all. Outlining moves those bytes into a file the browser fetches once and keeps. The costs are one extra request on the first view and a render-blocking fetch that did not exist before, so it loses on pages visited once and on blocks that differ from page to page. Most sites are better served by keeping CSS in real files; this filter exists for HTML whose large stylesheets are stuck inline.
+The trade is about which bytes repeat. A `<style>` block rides inside the HTML, so a template that pastes the same block into every page sends it again on each of them, and when the HTML is generated per request none of those bytes can be cached. Outlining gives the block a URL of its own: the browser fetches the `.pagespeed.co.` file once, keeps it in cache, and every later page that carries the same block reuses it. What the first view pays is a render-blocking stylesheet request the page did not have before, and a block that only one page carries, or that differs from page to page, gets a file nobody else requests. Most sites are better served by keeping CSS in real files; this filter exists for HTML whose large stylesheets are stuck inline.
 
 #### How it decides
 
-Only a `<style>` block whose text is at least `CssOutlineMinBytes` (default 3000 bytes) is outlined. A `<style scoped>` element is left alone, because a scoped block cannot become a plain `<link>`, and so is a block whose `type` is anything other than CSS. Relative `url()` references inside the block are re-resolved against the generated file's location, so images keep loading from where they did. The generated `<link>` carries the original element's other attributes, so an `id` or `media` survives the move. A block the parser cannot hold as one unit, because a flush arrives mid-style or a stray tag sits inside it, is left inline rather than guessed at.
+Only a `<style>` block whose text is at least `CssOutlineMinBytes` (default 3000 bytes) is outlined. A `<style scoped>` element is left alone, because a scoped block cannot become a plain `<link>`, and so is a block whose `type` is anything other than CSS. Relative `url()` references inside the block are re-resolved against the generated file's location, so images keep loading from where they did. The generated `<link>` carries the original element's other attributes, so an `id` or `media` survives the move. The block must also arrive whole: when a flush lands in the middle of it, or a stray tag sits inside it, that block is not outlined and stays inline.
 
 #### Risks
 
-- The outlined stylesheet is an extra render-blocking request on the first view; on single-view pages that costs more than the HTML bytes it saves.
+- A first-time visitor waits on a render-blocking stylesheet request the inline block did not have; on a page seen once, that wait costs more than the bytes it saves.
 - Markup or scripts that expect the `<style>` element to exist in the page see a `<link>` instead.
 - Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-outline_css` comparison; [Is it working?](/docs/is-it-working/) has the steps.
 
@@ -348,7 +348,7 @@ A stylesheet keeps its ordinary blocking `<link>` when it uses an `@import` the 
 
 #### What it does
 
-`move_css_above_scripts` lifts stylesheet references that sit below a `<script>` up to just before that script. A browser will not run a script until the stylesheets above it have loaded, because the script may read layout; with stylesheets scattered around and below scripts, those downloads are discovered late and the script waits on them. Moving each stylesheet directly before the first script puts every download in front of the code that needs it. Not a core filter; enable it by name. Live demo: [move_css_above_scripts](/examples/move_css_above_scripts/).
+`move_css_above_scripts` lifts stylesheet references that sit below the page's first `<script>` up to just before that first script. A browser will not run a script until the stylesheets above it have loaded, because the script may read layout; with stylesheets scattered around and below scripts, those downloads are discovered late and the script waits on them. Moving each stylesheet directly before the first script puts every download in front of the code that needs it. Not a core filter; enable it by name. Live demo: [move_css_above_scripts](/examples/move_css_above_scripts/).
 
 ```html
 <!-- before -->
@@ -366,7 +366,7 @@ It helps on legacy or machine-generated pages where stylesheets ended up interle
 
 #### How it decides
 
-The first `<script>` in the document is the anchor. Every `<style>` block and stylesheet `<link>` that appears after it moves to directly before that first script, in original order. When `move_css_to_head` is also enabled, whichever anchor closes first in the document, the `</head>` or the first script, wins and all moves go there. A `<noscript>` element and a `<style scoped>` element act as barriers: styles that follow them stop moving.
+The first `<script>` in the document is the anchor. Every `<style>` block and stylesheet `<link>` that appears after it moves to directly before that first script, in original order. When `move_css_to_head` is also enabled, whichever anchor closes first in the document, the `</head>` or the first script, wins and all moves go there. A stylesheet inside `<noscript>`, or a `<style scoped>` block, stays where it is and ends the current move; styles after it move up only as far as the next `<script>`.
 
 #### Risks
 
@@ -415,11 +415,11 @@ pagespeed EnableFilters move_css_above_scripts;
 
 #### When it helps and when it does not
 
-It helps on pages whose markup carries `<link>` or `<style>` elements inside the body, which is typical of older templates and CMS output that renders per-section stylesheets where the section appears. On pages that already keep their CSS in `<head>` there is nothing to move and the filter is a no-op. The filter changes where stylesheets load from, not their order relative to each other, so the cascade survives; the visible difference is that the unstyled flash a late stylesheet causes goes away.
+It helps on pages whose markup carries `<link>` or `<style>` elements inside the body, which is typical of older templates and CMS output that renders per-section stylesheets where the section appears. On pages that already keep their CSS in `<head>` there is nothing to move and the filter is a no-op. The filter changes where stylesheets load from, not their order relative to each other, so the cascade survives; the visible difference is that it removes the repaint a late stylesheet would cause.
 
 #### How it decides
 
-The first `</head>` is the anchor, and every `<style>` block and stylesheet `<link>` after it moves to the end of `<head>`, in original order. A `<noscript>` element and a `<style scoped>` element are barriers: styles that follow them are left where the author put them, because moving a scoped block would break its scope and a noscript fallback must stay inside its noscript. When `move_css_above_scripts` is also enabled, the first anchor in the document, the `</head>` or the first `<script>`, decides where the styles go.
+The first `</head>` is the anchor, and every `<style>` block and stylesheet `<link>` after it moves to the end of `<head>`, in original order. A stylesheet inside `<noscript>`, or a `<style scoped>` block, stays where the author put it, and styles after it are not moved either. When `move_css_above_scripts` is also enabled, the first anchor in the document, the `</head>` or the first `<script>`, decides where the styles go.
 
 #### Risks
 

@@ -221,7 +221,7 @@ pagespeed EnableFilters defer_javascript;
 
 ### What it does
 
-`outline_javascript` is the inverse of `inline_javascript`: it moves a large inline `<script>` block out of the HTML into its own JavaScript file, served from a rewritten `_.pagespeed.jo.` URL with a long cache lifetime, and replaces the block with a `<script src>` pointing at it. The generated element is a copy of the original with the `src` added, so attributes such as `id` or `defer` survive the move. Experimental and not a core filter; enable it by name. Live demo: [outline_javascript](/examples/outline_javascript/).
+`outline_javascript` is the inverse of `inline_javascript`: it moves a large inline `<script>` block out of the HTML into its own JavaScript file, served from a rewritten `_.pagespeed.jo.` URL with a long cache lifetime, and replaces the block with a `<script src>` pointing at it. The generated element is a copy of the original with the `src` added, so attributes such as `id` survive the move. Experimental and not a core filter; enable it by name. Live demo: [outline_javascript](/examples/outline_javascript/).
 
 ```html
 <!-- before: 12 KB of script ride inside every page response -->
@@ -235,7 +235,7 @@ pagespeed EnableFilters defer_javascript;
 
 ### When it helps and when it does not
 
-A block of inline JavaScript is re-sent with every page view, and on pages whose HTML is generated per request those bytes cannot be cached at all. Outlining moves them into a file the browser fetches once and keeps, which is the same trade `outline_css` makes for stylesheets. It loses when the HTML itself is cached, when the block differs from page to page, or on pages visited once, because the first view pays an extra request it did not have before. It also moves execution later than a hand-placed inline block only in the sense that the file must arrive first; the script still runs where the element sat. Most sites are better served by keeping script in real files or bundling them there at build time.
+A block of inline JavaScript is re-sent with every page view, and on pages whose HTML is generated per request those bytes cannot be cached at all. Outlining moves them into a file the browser fetches once and keeps, which is the same trade `outline_css` makes for stylesheets. It loses when the HTML itself is cached, when the block differs from page to page, or on pages visited once, because the first view pays an extra request it did not have before. Execution keeps its place in the document: an outlined script without `defer` or `async` still runs at the element's position, once the file has arrived. But `defer` and `async` on an inline script are ignored by browsers and take effect once the script is external, so a script carrying either runs later once outlined than it did inline. Most sites are better served by keeping script in real files or bundling them there at build time.
 
 ### How it decides
 

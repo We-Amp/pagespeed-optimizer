@@ -615,167 +615,321 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
       title={`${PRODUCT_DISPLAY_NAME} Blog`}
       href="/blog/rss.xml"
     />
-  </head>{
-    alternateMarkdown && <link rel="alternate" type="text/markdown" href={alternateMarkdown} />
-  }
-  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-  <link rel="icon" href="/favicon.ico" />
-  <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
-  <link rel="manifest" href="/manifest.json" />
-  <!-- No generator meta tag — we don't advertise the Astro version to avoid
+    {alternateMarkdown && <link rel="alternate" type="text/markdown" href={alternateMarkdown} />}
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <!-- No generator meta tag — we don't advertise the Astro version to avoid
          framework-version disclosure. -->
-  <!-- Umami analytics (self-hosted, privacy-first, no cookies) -->
-  <script
-    is:inline
-    defer
-    src="https://umami.we-amp.com/script.js"
-    data-website-id="d32585a5-6610-4a11-8e5b-ef093fabbd20"
-    data-host-url="https://modpagespeed.com"></script>
-  <title>{title}</title>
-  {
-    jsonLdScripts.map((script) => (
-      <script is:inline type="application/ld+json" set:html={safeJsonLd(script)} />
-    ))
-  }
-  <style is:global>
-    @import '../styles/global.css';
-  </style>
-</html>
-<body class="min-h-screen flex flex-col bg-bg-primary text-text-body antialiased">
-  <a
-    href="#main-content"
-    class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-md focus:bg-interactive focus:px-4 focus:py-2 focus:text-on-accent"
-  >
-    Skip to main content
-  </a>
-  {
-    bannerText && (
-      <div
-        id="coming-soon-banner"
-        class="bg-bg-secondary text-text-body text-sm text-center py-2 px-4 relative border-b border-border"
-      >
-        <span
-          aria-hidden="true"
-          class="inline-block w-2 h-2 rounded-[1px] bg-interactive mr-2 align-middle"
-        />
-        {bannerHref ? (
-          <a
-            href={bannerHref}
-            class="underline underline-offset-2 hover:text-interactive transition-colors"
-          >
-            {bannerText} <span aria-hidden="true">→</span>
-          </a>
-        ) : (
-          <span>{bannerText}</span>
-        )}
-        <button
-          id="dismiss-banner"
-          type="button"
-          class="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 text-text-muted hover:text-text-body transition-colors"
-          aria-label="Dismiss banner"
-          aria-controls="coming-soon-banner"
-          title="Dismiss banner"
+    <!-- Umami analytics (self-hosted, privacy-first, no cookies) -->
+    <script
+      is:inline
+      defer
+      src="https://umami.we-amp.com/script.js"
+      data-website-id="d32585a5-6610-4a11-8e5b-ef093fabbd20"
+      data-host-url="https://modpagespeed.com"></script>
+    <title>{title}</title>
+    {
+      jsonLdScripts.map((script) => (
+        <script is:inline type="application/ld+json" set:html={safeJsonLd(script)} />
+      ))
+    }
+    <style is:global>
+      @import '../styles/global.css';
+    </style>
+  </head>
+  <body class="min-h-screen flex flex-col bg-bg-primary text-text-body antialiased">
+    <a
+      href="#main-content"
+      class="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[100] focus:rounded-md focus:bg-interactive focus:px-4 focus:py-2 focus:text-on-accent"
+    >
+      Skip to main content
+    </a>
+    {
+      bannerText && (
+        <div
+          id="coming-soon-banner"
+          class="bg-bg-secondary text-text-body text-sm text-center py-2 px-4 relative border-b border-border"
         >
-          <Icon name="x" class="h-4 w-4" />
-        </button>
-      </div>
-    )
-  }
-  <header class="border-b border-border bg-bg-primary sticky top-0 z-50">
-    <nav class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
-      <div class="flex h-16 items-center justify-between">
-        <a href="/" class="flex items-center" aria-label={`${currentLabel} — Home`}>
-          <img
-            src={logoLight}
-            alt={currentLabel}
-            width="216"
-            height="32"
-            class="h-8 w-auto dark:hidden"
+          <span
+            aria-hidden="true"
+            class="inline-block w-2 h-2 rounded-[1px] bg-interactive mr-2 align-middle"
           />
-          <img
-            src={logoDark}
-            alt={currentLabel}
-            width="216"
-            height="32"
-            class="h-8 w-auto hidden dark:block"
-          />
-        </a>
+          {bannerHref ? (
+            <a
+              href={bannerHref}
+              class="underline underline-offset-2 hover:text-interactive transition-colors"
+            >
+              {bannerText} <span aria-hidden="true">→</span>
+            </a>
+          ) : (
+            <span>{bannerText}</span>
+          )}
+          <button
+            id="dismiss-banner"
+            type="button"
+            class="absolute right-2 top-1/2 -translate-y-1/2 p-2.5 text-text-muted hover:text-text-body transition-colors"
+            aria-label="Dismiss banner"
+            aria-controls="coming-soon-banner"
+            title="Dismiss banner"
+          >
+            <Icon name="x" class="h-4 w-4" />
+          </button>
+        </div>
+      )
+    }
+    <header class="border-b border-border bg-bg-primary sticky top-0 z-50">
+      <nav class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8" aria-label="Main navigation">
+        <div class="flex h-16 items-center justify-between">
+          <a href="/" class="flex items-center" aria-label={`${currentLabel} — Home`}>
+            <img
+              src={logoLight}
+              alt={currentLabel}
+              width="216"
+              height="32"
+              class="h-8 w-auto dark:hidden"
+            />
+            <img
+              src={logoDark}
+              alt={currentLabel}
+              width="216"
+              height="32"
+              class="h-8 w-auto hidden dark:block"
+            />
+          </a>
 
-        {/* Desktop nav */}
-        <div class="hidden md:flex items-center gap-5 lg:gap-6">
-          {
-            navLinks.map((link, index) =>
-              link.children ? (
-                <div class="relative group nav-dropdown-group">
-                  <button
-                    type="button"
+          {/* Desktop nav */}
+          <div class="hidden md:flex items-center gap-5 lg:gap-6">
+            {
+              navLinks.map((link, index) =>
+                link.children ? (
+                  <div class="relative group nav-dropdown-group">
+                    <button
+                      type="button"
+                      class:list={[
+                        'nav-dropdown-btn text-sm font-medium tracking-wide transition-colors flex items-center gap-1',
+                        link.children.some((c) => currentPath.startsWith(c.href))
+                          ? 'text-interactive'
+                          : 'text-text-muted hover:text-text-body',
+                      ]}
+                      aria-controls={`nav-panel-${index}`}
+                      aria-expanded="false"
+                    >
+                      {link.label}
+                      <Icon name="chevron-down" class="h-4 w-4 opacity-50" />
+                    </button>
+                    <div
+                      id={`nav-panel-${index}`}
+                      class="nav-dropdown-panel absolute left-0 pt-4 hidden z-50"
+                    >
+                      <div class="w-64 rounded-lg border border-border bg-bg-elevated shadow-lg dark:shadow-stone-900/50 py-2">
+                        {link.children.map((child) => (
+                          <a
+                            href={child.href}
+                            data-umami-event={child.umamiEvent}
+                            {...umamiAttrs(child.umamiProps)}
+                            rel={child.external ? 'noopener' : undefined}
+                            class:list={[
+                              'block px-4 py-3 hover:bg-bg-secondary transition-colors',
+                              currentPath.startsWith(child.href) ? 'bg-bg-secondary' : '',
+                            ]}
+                          >
+                            <span class="flex items-center gap-1.5">
+                              <span
+                                class:list={[
+                                  'text-sm font-medium',
+                                  currentPath.startsWith(child.href)
+                                    ? 'text-interactive'
+                                    : 'text-text-body',
+                                ]}
+                              >
+                                {child.label}
+                              </span>
+                              {child.badge && (
+                                <span class="rounded-full bg-interactive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-interactive">
+                                  {child.badge}
+                                </span>
+                              )}
+                            </span>
+                            <span class="block text-xs text-text-annotation mt-0.5">
+                              {child.subtitle}
+                            </span>
+                          </a>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <a
+                    href={link.href}
+                    data-umami-event={link.umamiEvent}
+                    aria-current={currentPath.startsWith(link.href!) ? 'page' : undefined}
                     class:list={[
-                      'nav-dropdown-btn text-sm font-medium tracking-wide transition-colors flex items-center gap-1',
-                      link.children.some((c) => currentPath.startsWith(c.href))
+                      'text-sm font-medium tracking-wide transition-colors inline-flex items-center gap-1.5',
+                      link.desktopOnlyFromLg ? 'hidden lg:inline-flex' : '',
+                      currentPath.startsWith(link.href!)
                         ? 'text-interactive'
                         : 'text-text-muted hover:text-text-body',
                     ]}
-                    aria-controls={`nav-panel-${index}`}
-                    aria-expanded="false"
                   >
                     {link.label}
-                    <Icon name="chevron-down" class="h-4 w-4 opacity-50" />
-                  </button>
-                  <div
-                    id={`nav-panel-${index}`}
-                    class="nav-dropdown-panel absolute left-0 pt-4 hidden z-50"
-                  >
-                    <div class="w-64 rounded-lg border border-border bg-bg-elevated shadow-lg dark:shadow-stone-900/50 py-2">
-                      {link.children.map((child) => (
-                        <a
-                          href={child.href}
-                          data-umami-event={child.umamiEvent}
-                          {...umamiAttrs(child.umamiProps)}
-                          rel={child.external ? 'noopener' : undefined}
-                          class:list={[
-                            'block px-4 py-3 hover:bg-bg-secondary transition-colors',
-                            currentPath.startsWith(child.href) ? 'bg-bg-secondary' : '',
-                          ]}
-                        >
-                          <span class="flex items-center gap-1.5">
-                            <span
-                              class:list={[
-                                'text-sm font-medium',
-                                currentPath.startsWith(child.href)
-                                  ? 'text-interactive'
-                                  : 'text-text-body',
-                              ]}
-                            >
-                              {child.label}
-                            </span>
-                            {child.badge && (
-                              <span class="rounded-full bg-interactive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-interactive">
-                                {child.badge}
-                              </span>
-                            )}
+                    {link.badge && (
+                      <span class="rounded-full bg-interactive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-interactive">
+                        {link.badge}
+                      </span>
+                    )}
+                  </a>
+                ),
+              )
+            }
+            <button
+              type="button"
+              data-search-open
+              data-umami-event="search_open"
+              aria-haspopup="dialog"
+              aria-controls="site-search"
+              class="text-sm font-medium tracking-wide transition-colors inline-flex items-center gap-1.5 text-text-muted hover:text-interactive"
+            >
+              <Icon name="search" class="h-4 w-4" />
+              Search
+              <kbd
+                class="hidden lg:inline-block rounded border border-border px-1 font-mono text-[10px] leading-4 text-text-annotation"
+                aria-hidden="true">/</kbd
+              >
+            </button>
+            <a
+              href="https://github.com/We-Amp/mod_pagespeed"
+              aria-label="Source on GitHub"
+              title="Source on GitHub"
+              rel="noopener noreferrer"
+              data-umami-event="nav_source_github"
+              class="inline-flex items-center transition-colors text-text-muted hover:text-interactive"
+            >
+              <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path
+                  fill-rule="evenodd"
+                  clip-rule="evenodd"
+                  d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                ></path>
+              </svg>
+            </a>
+            <a
+              href="/download/"
+              data-umami-event="cta_nav_download"
+              class="btn-primary ml-2 whitespace-nowrap"
+            >
+              Download &amp; run
+            </a>
+          </div>
+
+          {
+            /* Dark-only identity (CALIBER) — theme toggle removed; the site is
+              rendered exclusively on the instrument-black canvas. */
+          }
+
+          {/* Mobile: search + menu buttons */}
+          <div class="flex items-center md:hidden">
+            <button
+              type="button"
+              data-search-open
+              data-umami-event="search_open_mobile"
+              aria-label="Search"
+              aria-haspopup="dialog"
+              aria-controls="site-search"
+              class="p-2 text-text-muted hover:text-text-body"
+            >
+              <Icon name="search" class="h-6 w-6" />
+            </button>
+            <button
+              id="mobile-menu-btn"
+              class="md:hidden p-2 text-text-muted hover:text-text-body"
+              aria-label="Toggle menu"
+              aria-expanded="false"
+            >
+              <svg
+                class="h-6 w-6"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                aria-hidden="true"
+              >
+                <path
+                  id="menu-icon-open"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M4 6h16M4 12h16M4 18h16"></path>
+                <path
+                  id="menu-icon-close"
+                  class="hidden"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  stroke-width="2"
+                  d="M6 18L18 6M6 6l12 12"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Mobile nav */}
+        <div
+          id="mobile-menu"
+          class="hidden md:hidden pb-4 max-h-[calc(100dvh-121px)] overflow-y-auto"
+        >
+          {
+            navLinks.map((link) =>
+              link.children ? (
+                <div>
+                  <p class="py-2 text-xs font-semibold uppercase tracking-wider text-text-annotation">
+                    {link.label}
+                  </p>
+                  {link.children.map((child) => (
+                    <a
+                      href={child.href}
+                      data-umami-event={
+                        child.umamiProps
+                          ? child.umamiEvent
+                          : child.umamiEvent
+                            ? `${child.umamiEvent}-mobile`
+                            : undefined
+                      }
+                      {...umamiAttrs(child.umamiProps, '_mobile')}
+                      rel={child.external ? 'noopener' : undefined}
+                      class:list={[
+                        'block py-3 pl-4 text-sm font-medium',
+                        currentPath.startsWith(child.href)
+                          ? 'text-interactive'
+                          : 'text-text-muted hover:text-text-body',
+                      ]}
+                    >
+                      <span class="inline-flex items-center gap-1.5">
+                        {child.label}
+                        {child.badge && (
+                          <span class="rounded-full bg-interactive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-interactive">
+                            {child.badge}
                           </span>
-                          <span class="block text-xs text-text-annotation mt-0.5">
-                            {child.subtitle}
-                          </span>
-                        </a>
-                      ))}
-                    </div>
-                  </div>
+                        )}
+                      </span>
+                      <span class="block text-xs text-text-annotation font-normal">
+                        {child.subtitle}
+                      </span>
+                    </a>
+                  ))}
                 </div>
               ) : (
                 <a
                   href={link.href}
-                  data-umami-event={link.umamiEvent}
+                  data-umami-event={link.umamiEvent ? `${link.umamiEvent}-mobile` : undefined}
                   aria-current={currentPath.startsWith(link.href!) ? 'page' : undefined}
                   class:list={[
-                    'text-sm font-medium tracking-wide transition-colors inline-flex items-center gap-1.5',
-                    link.desktopOnlyFromLg ? 'hidden lg:inline-flex' : '',
+                    'flex items-center gap-2 py-3 text-sm font-medium',
                     currentPath.startsWith(link.href!)
                       ? 'text-interactive'
                       : 'text-text-muted hover:text-text-body',
                   ]}
                 >
-                  {link.label}
+                  <span>{link.label}</span>
                   {link.badge && (
                     <span class="rounded-full bg-interactive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-interactive">
                       {link.badge}
@@ -785,327 +939,171 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
               ),
             )
           }
-          <button
-            type="button"
-            data-search-open
-            data-umami-event="search_open"
-            aria-haspopup="dialog"
-            aria-controls="site-search"
-            class="text-sm font-medium tracking-wide transition-colors inline-flex items-center gap-1.5 text-text-muted hover:text-interactive"
-          >
-            <Icon name="search" class="h-4 w-4" />
-            Search
-            <kbd
-              class="hidden lg:inline-block rounded border border-border px-1 font-mono text-[10px] leading-4 text-text-annotation"
-              aria-hidden="true">/</kbd
-            >
-          </button>
-          <a
-            href="https://github.com/We-Amp/mod_pagespeed"
-            aria-label="Source on GitHub"
-            title="Source on GitHub"
-            rel="noopener noreferrer"
-            data-umami-event="nav_source_github"
-            class="inline-flex items-center transition-colors text-text-muted hover:text-interactive"
-          >
-            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path
-                fill-rule="evenodd"
-                clip-rule="evenodd"
-                d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0022 12.017C22 6.484 17.522 2 12 2z"
-              ></path>
-            </svg>
-          </a>
           <a
             href="/download/"
-            data-umami-event="cta_nav_download"
-            class="btn-primary ml-2 whitespace-nowrap"
+            data-umami-event="cta_nav_download_mobile"
+            class="btn-primary mt-2 w-full"
           >
             Download &amp; run
           </a>
         </div>
+      </nav>
+    </header>
+    <main
+      id="main-content"
+      class="flex-1"
+      data-pagefind-body={searchExcluded ? undefined : ''}
+      data-pagefind-meta={searchExcluded ? undefined : `section:${searchSection}`}
+    >
+      <slot />
+    </main>
 
-        {
-          /* Dark-only identity (CALIBER) — theme toggle removed; the site is
-              rendered exclusively on the instrument-black canvas. */
-        }
-
-        {/* Mobile: search + menu buttons */}
-        <div class="flex items-center md:hidden">
-          <button
-            type="button"
-            data-search-open
-            data-umami-event="search_open_mobile"
-            aria-label="Search"
-            aria-haspopup="dialog"
-            aria-controls="site-search"
-            class="p-2 text-text-muted hover:text-text-body"
-          >
-            <Icon name="search" class="h-6 w-6" />
-          </button>
-          <button
-            id="mobile-menu-btn"
-            class="md:hidden p-2 text-text-muted hover:text-text-body"
-            aria-label="Toggle menu"
-            aria-expanded="false"
-          >
-            <svg
-              class="h-6 w-6"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              aria-hidden="true"
-            >
-              <path
-                id="menu-icon-open"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M4 6h16M4 12h16M4 18h16"></path>
-              <path
-                id="menu-icon-close"
-                class="hidden"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-                stroke-width="2"
-                d="M6 18L18 6M6 6l12 12"></path>
-            </svg>
-          </button>
-        </div>
-      </div>
-
-      {/* Mobile nav */}
-      <div
-        id="mobile-menu"
-        class="hidden md:hidden pb-4 max-h-[calc(100dvh-121px)] overflow-y-auto"
-      >
-        {
-          navLinks.map((link) =>
-            link.children ? (
-              <div>
-                <p class="py-2 text-xs font-semibold uppercase tracking-wider text-text-annotation">
-                  {link.label}
-                </p>
-                {link.children.map((child) => (
-                  <a
-                    href={child.href}
-                    data-umami-event={
-                      child.umamiProps
-                        ? child.umamiEvent
-                        : child.umamiEvent
-                          ? `${child.umamiEvent}-mobile`
-                          : undefined
-                    }
-                    {...umamiAttrs(child.umamiProps, '_mobile')}
-                    rel={child.external ? 'noopener' : undefined}
-                    class:list={[
-                      'block py-3 pl-4 text-sm font-medium',
-                      currentPath.startsWith(child.href)
-                        ? 'text-interactive'
-                        : 'text-text-muted hover:text-text-body',
-                    ]}
-                  >
-                    <span class="inline-flex items-center gap-1.5">
-                      {child.label}
-                      {child.badge && (
-                        <span class="rounded-full bg-interactive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-interactive">
-                          {child.badge}
-                        </span>
-                      )}
-                    </span>
-                    <span class="block text-xs text-text-annotation font-normal">
-                      {child.subtitle}
-                    </span>
-                  </a>
-                ))}
-              </div>
-            ) : (
+    <footer class="border-t border-border bg-bg-secondary">
+      <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-12">
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-8">
+          <div class="col-span-2 sm:col-span-3 lg:col-span-1">
+            <img
+              src={logoLight}
+              alt={currentLabel}
+              width="189"
+              height="28"
+              loading="lazy"
+              fetchpriority="low"
+              class="h-7 w-auto dark:hidden"
+            />
+            <img
+              src={logoDark}
+              alt={currentLabel}
+              width="189"
+              height="28"
+              loading="lazy"
+              fetchpriority="low"
+              class="h-7 w-auto hidden dark:block"
+            />
+            <p class="mt-3 text-sm text-text-muted">
+              Built by We-Amp &mdash; the team that helped build ngx_pagespeed, maintaining
+              mod_pagespeed today.
+            </p>
+            <div class="mt-4 flex items-center gap-3">
               <a
-                href={link.href}
-                data-umami-event={link.umamiEvent ? `${link.umamiEvent}-mobile` : undefined}
-                aria-current={currentPath.startsWith(link.href!) ? 'page' : undefined}
-                class:list={[
-                  'flex items-center gap-2 py-3 text-sm font-medium',
-                  currentPath.startsWith(link.href!)
-                    ? 'text-interactive'
-                    : 'text-text-muted hover:text-text-body',
-                ]}
+                href="https://github.com/We-Amp/mod_pagespeed"
+                rel="noopener"
+                aria-label={`${PRODUCT_DISPLAY_NAME} on GitHub`}
+                title="GitHub"
+                class="text-stone-500 hover:text-text-muted dark:hover:text-stone-200 transition-colors"
               >
-                <span>{link.label}</span>
-                {link.badge && (
-                  <span class="rounded-full bg-interactive/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-interactive">
-                    {link.badge}
-                  </span>
-                )}
+                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path
+                    fill-rule="evenodd"
+                    clip-rule="evenodd"
+                    d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0022 12.017C22 6.484 17.522 2 12 2z"
+                  ></path>
+                </svg>
               </a>
-            ),
-          )
-        }
-        <a
-          href="/download/"
-          data-umami-event="cta_nav_download_mobile"
-          class="btn-primary mt-2 w-full"
-        >
-          Download &amp; run
-        </a>
-      </div>
-    </nav>
-  </header>
-  <main
-    id="main-content"
-    class="flex-1"
-    data-pagefind-body={searchExcluded ? undefined : ''}
-    data-pagefind-meta={searchExcluded ? undefined : `section:${searchSection}`}
-  >
-    <slot />
-  </main>
+              <a
+                href="/blog/rss.xml"
+                aria-label="Blog RSS feed"
+                title="RSS feed"
+                class="text-stone-500 hover:text-text-muted dark:hover:text-stone-200 transition-colors"
+              >
+                <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path
+                    d="M6.18 15.64a2.18 2.18 0 110 4.36 2.18 2.18 0 010-4.36zM4 4.44A15.56 15.56 0 0119.56 20h-2.83A12.73 12.73 0 004 7.27V4.44zm0 5.66a9.9 9.9 0 019.9 9.9h-2.83A7.07 7.07 0 004 12.93V10.1z"
+                  ></path>
+                </svg>
+              </a>
+            </div>
+          </div>
 
-  <footer class="border-t border-border bg-bg-secondary">
-    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-12">
-      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-8">
-        <div class="col-span-2 sm:col-span-3 lg:col-span-1">
-          <img
-            src={logoLight}
-            alt={currentLabel}
-            width="189"
-            height="28"
-            loading="lazy"
-            fetchpriority="low"
-            class="h-7 w-auto dark:hidden"
-          />
-          <img
-            src={logoDark}
-            alt={currentLabel}
-            width="189"
-            height="28"
-            loading="lazy"
-            fetchpriority="low"
-            class="h-7 w-auto hidden dark:block"
-          />
-          <p class="mt-3 text-sm text-text-muted">
-            Built by We-Amp &mdash; the team that helped build ngx_pagespeed, maintaining
-            mod_pagespeed today.
-          </p>
-          <div class="mt-4 flex items-center gap-3">
-            <a
-              href="https://github.com/We-Amp/mod_pagespeed"
-              rel="noopener"
-              aria-label={`${PRODUCT_DISPLAY_NAME} on GitHub`}
-              title="GitHub"
-              class="text-stone-500 hover:text-text-muted dark:hover:text-stone-200 transition-colors"
-            >
-              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path
-                  fill-rule="evenodd"
-                  clip-rule="evenodd"
-                  d="M12 2C6.477 2 2 6.484 2 12.017c0 4.425 2.865 8.18 6.839 9.504.5.092.682-.217.682-.483 0-.237-.008-.868-.013-1.703-2.782.605-3.369-1.343-3.369-1.343-.454-1.158-1.11-1.466-1.11-1.466-.908-.62.069-.608.069-.608 1.003.07 1.531 1.032 1.531 1.032.892 1.53 2.341 1.088 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.113-4.555-4.951 0-1.093.39-1.988 1.029-2.688-.103-.253-.446-1.272.098-2.65 0 0 .84-.27 2.75 1.026A9.564 9.564 0 0112 6.844c.85.004 1.705.115 2.504.337 1.909-1.296 2.747-1.027 2.747-1.027.546 1.379.202 2.398.1 2.651.64.7 1.028 1.595 1.028 2.688 0 3.848-2.339 4.695-4.566 4.943.359.309.678.92.678 1.855 0 1.338-.012 2.419-.012 2.747 0 .268.18.58.688.482A10.02 10.02 0 0022 12.017C22 6.484 17.522 2 12 2z"
-                ></path>
-              </svg>
-            </a>
-            <a
-              href="/blog/rss.xml"
-              aria-label="Blog RSS feed"
-              title="RSS feed"
-              class="text-stone-500 hover:text-text-muted dark:hover:text-stone-200 transition-colors"
-            >
-              <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                <path
-                  d="M6.18 15.64a2.18 2.18 0 110 4.36 2.18 2.18 0 010-4.36zM4 4.44A15.56 15.56 0 0119.56 20h-2.83A12.73 12.73 0 004 7.27V4.44zm0 5.66a9.9 9.9 0 019.9 9.9h-2.83A7.07 7.07 0 004 12.93V10.1z"
-                ></path>
-              </svg>
-            </a>
+          {
+            footerGroups.map((group) => (
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">
+                  {group.title}
+                </p>
+                <ul class="mt-3 space-y-2">
+                  {group.links.map((item) => (
+                    <li>
+                      <a
+                        href={item.href}
+                        data-umami-event={item.umamiEvent}
+                        {...umamiAttrs(item.umamiProps)}
+                        rel={item.external ? 'noopener noreferrer' : undefined}
+                        class="text-sm text-text-muted hover:text-text-body"
+                      >
+                        {item.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))
+          }
+        </div>
+
+        {
+          /* Newsletter signup (compact, full-width row under the link grid).
+            Shared component; captures into the contact pipeline until
+            Buttondown is live — see src/components/NewsletterSignup.astro. */
+        }
+        <div class="mt-10 border-t border-border pt-8">
+          <div class="max-w-md">
+            <NewsletterSignup variant="footer" />
           </div>
         </div>
 
-        {
-          footerGroups.map((group) => (
-            <div>
-              <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">
-                {group.title}
-              </p>
-              <ul class="mt-3 space-y-2">
-                {group.links.map((item) => (
-                  <li>
-                    <a
-                      href={item.href}
-                      data-umami-event={item.umamiEvent}
-                      {...umamiAttrs(item.umamiProps)}
-                      rel={item.external ? 'noopener noreferrer' : undefined}
-                      class="text-sm text-text-muted hover:text-text-body"
-                    >
-                      {item.label}
-                    </a>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ))
-        }
-      </div>
-
-      {
-        /* Newsletter signup (compact, full-width row under the link grid).
-            Shared component; captures into the contact pipeline until
-            Buttondown is live — see src/components/NewsletterSignup.astro. */
-      }
-      <div class="mt-10 border-t border-border pt-8">
-        <div class="max-w-md">
-          <NewsletterSignup variant="footer" />
-        </div>
-      </div>
-
-      <div class="mt-8 border-t border-border pt-8">
-        {
-          /* Consolidated legal-identification block (LEGAL-8): legal name,
+        <div class="mt-8 border-t border-border pt-8">
+          {
+            /* Consolidated legal-identification block (LEGAL-8): legal name,
               registered address, company registration, VAT number, and contact
               in one easy-to-find place.
               TODO(LEGAL-8): confirm the registered street address — the exact
               street/number is not in the repo, so only the registered city is
               shown. Fill in the full street address when available. */
-        }
-        <address class="not-italic text-xs leading-relaxed text-text-annotation">
-          <a
-            href="https://www.we-amp.com/"
-            class="font-medium text-[#8a857d] hover:text-text-body dark:hover:text-stone-200 transition-colors"
-            >We-Amp B.V.</a
-          >
-          &middot; Castricum, The Netherlands &middot; KvK 57898138 &middot; BTW NL852784429B01 &middot;
-          <a href="mailto:info@we-amp.com" class="hover:text-text-muted transition-colors"
-            >info@we-amp.com</a
-          >
-        </address>
-        <p class="mt-3 text-xs text-text-annotation">
-          &copy; {new Date().getFullYear()} We-Amp B.V.
-        </p>
-        <p class="mt-1 text-xs text-text-annotation">
-          mod_pagespeed is an open-source project originally developed at Google. {currentLabel} is developed
-          by We-Amp B.V. and is not affiliated with or endorsed by Google.
-        </p>
+          }
+          <address class="not-italic text-xs leading-relaxed text-text-annotation">
+            <a
+              href="https://www.we-amp.com/"
+              class="font-medium text-[#8a857d] hover:text-text-body dark:hover:text-stone-200 transition-colors"
+              >We-Amp B.V.</a
+            >
+            &middot; Castricum, The Netherlands &middot; KvK 57898138 &middot; BTW NL852784429B01 &middot;
+            <a href="mailto:info@we-amp.com" class="hover:text-text-muted transition-colors"
+              >info@we-amp.com</a
+            >
+          </address>
+          <p class="mt-3 text-xs text-text-annotation">
+            &copy; {new Date().getFullYear()} We-Amp B.V.
+          </p>
+          <p class="mt-1 text-xs text-text-annotation">
+            mod_pagespeed is an open-source project originally developed at Google. {currentLabel} is
+            developed by We-Amp B.V. and is not affiliated with or endorsed by Google.
+          </p>
+        </div>
       </div>
-    </div>
-  </footer>
+    </footer>
 
-  {
-    /* Site-wide low-friction "quick message" widget — fixed bottom-right
+    {
+      /* Site-wide low-friction "quick message" widget — fixed bottom-right
         launcher; sends a one-way message (optional reply email) to the
         maintainer via the existing contact -> Telegram pipeline. */
-  }
-  <QuickMessage />
+    }
+    <QuickMessage />
 
-  {
-    /* Site search modal (Pagefind). Costs one small inline script per page;
+    {
+      /* Site search modal (Pagefind). Costs one small inline script per page;
          the search bundle loads from /pagefind/ on first open. */
-  }
-  <SearchDialog />
+    }
+    <SearchDialog />
 
-  {
-    /* Site-wide floating "Share this page" widget — stacked above the Message
+    {
+      /* Site-wide floating "Share this page" widget — stacked above the Message
         launcher; popup on desktop, native share sheet on mobile. */
-  }
-  <ShareFloat title={title} />
+    }
+    <ShareFloat title={title} />
 
-  {
-    /* Mobile-only sticky conversion CTA. Fixed overlay (never pushes content,
+    {
+      /* Mobile-only sticky conversion CTA. Fixed overlay (never pushes content,
          so no CLS), anchored above the iOS home-indicator via the safe-area
          inset. Starts hidden (opacity-0 + pointer-events-none) and the inline
          script below flips data-sticky-cta="visible" — revealed by fading in
@@ -1119,26 +1117,26 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
          The global prefers-reduced-motion reset in global.css caps the
          transition to a single frame. z-40 sits below the sticky header (z-50)
          and the skip link (z-[100]). */
-  }
-  {
-    showStickyCta && (
-      <a
-        id="sticky-cta"
-        href="/download/"
-        data-umami-event="cta_sticky_mobile"
-        data-sticky-cta="hidden"
-        class="btn-primary md:hidden fixed bottom-0 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full opacity-0 shadow-lg transition-opacity duration-300 ease-out pointer-events-none data-[sticky-cta=visible]:opacity-100 data-[sticky-cta=visible]:pointer-events-auto"
-        style="margin-bottom: calc(1rem + env(safe-area-inset-bottom));"
-      >
-        Download &amp; run
-      </a>
-    )
-  }
+    }
+    {
+      showStickyCta && (
+        <a
+          id="sticky-cta"
+          href="/download/"
+          data-umami-event="cta_sticky_mobile"
+          data-sticky-cta="hidden"
+          class="btn-primary md:hidden fixed bottom-0 left-1/2 z-40 -translate-x-1/2 whitespace-nowrap rounded-full opacity-0 shadow-lg transition-opacity duration-300 ease-out pointer-events-none data-[sticky-cta=visible]:opacity-100 data-[sticky-cta=visible]:pointer-events-auto"
+          style="margin-bottom: calc(1rem + env(safe-area-inset-bottom));"
+        >
+          Download &amp; run
+        </a>
+      )
+    }
 
-  {
-    showStickyCta && (
-      <script is:inline>
-        {`
+    {
+      showStickyCta && (
+        <script is:inline>
+          {`
           /* Reveal the mobile sticky CTA once the user scrolls past the hero
              (~90% of the first viewport). Toggles a data attribute; the fade/
              slide is pure CSS so reduced-motion users still get an instant flip
@@ -1155,232 +1153,235 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
             window.addEventListener('resize', update, { passive: true });
           })();
           `}
-      </script>
-    )
-  }
-
-  <!-- Dark class is now set in <head> to prevent FOUC on iOS -->
-
-  <script>
-    const btn = document.getElementById('mobile-menu-btn');
-    const menu = document.getElementById('mobile-menu');
-    const iconOpen = document.getElementById('menu-icon-open');
-    const iconClose = document.getElementById('menu-icon-close');
-
-    function setMobileMenuOpen(open: boolean) {
-      if (!btn || !menu) return;
-      btn.setAttribute('aria-expanded', String(open));
-      menu.classList.toggle('hidden', !open);
-      iconOpen?.classList.toggle('hidden', open);
-      iconClose?.classList.toggle('hidden', !open);
+        </script>
+      )
     }
 
-    function closeMobileMenu(returnFocus: boolean) {
-      if (!menu || menu.classList.contains('hidden')) return;
-      setMobileMenuOpen(false);
-      if (returnFocus) btn?.focus();
-    }
+    <!-- Dark class is now set in <head> to prevent FOUC on iOS -->
 
-    btn?.addEventListener('click', (e) => {
-      e.stopPropagation();
-      setMobileMenuOpen(btn.getAttribute('aria-expanded') !== 'true');
-    });
+    <script>
+      const btn = document.getElementById('mobile-menu-btn');
+      const menu = document.getElementById('mobile-menu');
+      const iconOpen = document.getElementById('menu-icon-open');
+      const iconClose = document.getElementById('menu-icon-close');
 
-    // Keep clicks inside the open menu from bubbling to the outside-click handler.
-    menu?.addEventListener('click', (e) => {
-      e.stopPropagation();
-    });
-
-    // Outside tap/click closes the menu (no focus return — the user is acting elsewhere).
-    document.addEventListener('click', () => closeMobileMenu(false));
-
-    // Escape closes the menu and returns focus to the toggle. (WCAG 2.1.2)
-    document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeMobileMenu(true);
-    });
-
-    // Desktop nav dropdowns (Tools, Docs) — click + keyboard support.
-    // Each group is independent; aria-expanded is the single source of truth
-    // and visual state mirrors it. Opening one closes the others.
-    const dropdownGroups = Array.from(document.querySelectorAll<HTMLElement>('.nav-dropdown-group'))
-      .map((group) => ({
-        btn: group.querySelector<HTMLButtonElement>('.nav-dropdown-btn'),
-        panel: group.querySelector<HTMLElement>('.nav-dropdown-panel'),
-      }))
-      .filter((g): g is { btn: HTMLButtonElement; panel: HTMLElement } =>
-        Boolean(g.btn && g.panel),
-      );
-
-    function setGroupOpen(group: { btn: HTMLButtonElement; panel: HTMLElement }, open: boolean) {
-      group.panel.classList.toggle('hidden', !open);
-      group.btn.setAttribute('aria-expanded', String(open));
-    }
-
-    function closeAllDropdowns() {
-      dropdownGroups.forEach((g) => setGroupOpen(g, false));
-    }
-
-    dropdownGroups.forEach((group) => {
-      group.btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        const isOpen = !group.panel.classList.contains('hidden');
-        closeAllDropdowns();
-        setGroupOpen(group, !isOpen);
-      });
-
-      group.btn.addEventListener('keydown', (e) => {
-        if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault();
-          closeAllDropdowns();
-          setGroupOpen(group, true);
-          const firstLink = group.panel.querySelector<HTMLAnchorElement>('a');
-          firstLink?.focus();
-        }
-      });
-
-      group.panel.addEventListener('click', (e) => {
-        e.stopPropagation();
-      });
-
-      // Close a stale-open menu when focus leaves the group entirely (Tab-out).
-      // relatedTarget is the element gaining focus; if it's outside this
-      // group's wrapper, collapse the disclosure.
-      const wrapper = group.btn.closest<HTMLElement>('.nav-dropdown-group');
-      wrapper?.addEventListener('focusout', (e) => {
-        const next = e.relatedTarget as Node | null;
-        if (!next || !wrapper.contains(next)) {
-          setGroupOpen(group, false);
-        }
-      });
-    });
-
-    if (dropdownGroups.length > 0) {
-      document.addEventListener('click', closeAllDropdowns);
-
-      document.addEventListener('keydown', (e) => {
-        if (e.key !== 'Escape') return;
-        const openGroup = dropdownGroups.find((g) => !g.panel.classList.contains('hidden'));
-        if (openGroup) {
-          closeAllDropdowns();
-          openGroup.btn.focus();
-        }
-      });
-    }
-  </script>
-
-  <script is:inline define:vars={{ bannerDismissKey }}>
-    /* Banner dismissal is versioned (and section-scoped) so copy changes
-         reach previously-dismissed users. The key is passed in from BaseLayout
-         (bannerDismissKey); bump its version suffix there when copy changes. */
-    (function () {
-      var BANNER_KEY = bannerDismissKey;
-      var banner = document.getElementById('coming-soon-banner');
-      var dismissBtn = document.getElementById('dismiss-banner');
-      if (!banner) return;
-      // Storage access can throw (Safari private mode, strict cookie/
-      // storage settings) — never let that abort this script before the
-      // dismiss button's click listener attaches.
-      try {
-        if (localStorage.getItem(BANNER_KEY) === '1') {
-          banner.style.display = 'none';
-          return;
-        }
-      } catch (e) {
-        /* storage blocked — banner just shows, same as "never dismissed" */
+      function setMobileMenuOpen(open: boolean) {
+        if (!btn || !menu) return;
+        btn.setAttribute('aria-expanded', String(open));
+        menu.classList.toggle('hidden', !open);
+        iconOpen?.classList.toggle('hidden', open);
+        iconClose?.classList.toggle('hidden', !open);
       }
-      if (dismissBtn) {
-        dismissBtn.addEventListener('click', function () {
-          banner.style.display = 'none';
-          try {
-            localStorage.setItem(BANNER_KEY, '1');
-          } catch (e) {
-            /* storage blocked — dismissal just doesn't persist */
+
+      function closeMobileMenu(returnFocus: boolean) {
+        if (!menu || menu.classList.contains('hidden')) return;
+        setMobileMenuOpen(false);
+        if (returnFocus) btn?.focus();
+      }
+
+      btn?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setMobileMenuOpen(btn.getAttribute('aria-expanded') !== 'true');
+      });
+
+      // Keep clicks inside the open menu from bubbling to the outside-click handler.
+      menu?.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+
+      // Outside tap/click closes the menu (no focus return — the user is acting elsewhere).
+      document.addEventListener('click', () => closeMobileMenu(false));
+
+      // Escape closes the menu and returns focus to the toggle. (WCAG 2.1.2)
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') closeMobileMenu(true);
+      });
+
+      // Desktop nav dropdowns (Tools, Docs) — click + keyboard support.
+      // Each group is independent; aria-expanded is the single source of truth
+      // and visual state mirrors it. Opening one closes the others.
+      const dropdownGroups = Array.from(
+        document.querySelectorAll<HTMLElement>('.nav-dropdown-group'),
+      )
+        .map((group) => ({
+          btn: group.querySelector<HTMLButtonElement>('.nav-dropdown-btn'),
+          panel: group.querySelector<HTMLElement>('.nav-dropdown-panel'),
+        }))
+        .filter((g): g is { btn: HTMLButtonElement; panel: HTMLElement } =>
+          Boolean(g.btn && g.panel),
+        );
+
+      function setGroupOpen(group: { btn: HTMLButtonElement; panel: HTMLElement }, open: boolean) {
+        group.panel.classList.toggle('hidden', !open);
+        group.btn.setAttribute('aria-expanded', String(open));
+      }
+
+      function closeAllDropdowns() {
+        dropdownGroups.forEach((g) => setGroupOpen(g, false));
+      }
+
+      dropdownGroups.forEach((group) => {
+        group.btn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          const isOpen = !group.panel.classList.contains('hidden');
+          closeAllDropdowns();
+          setGroupOpen(group, !isOpen);
+        });
+
+        group.btn.addEventListener('keydown', (e) => {
+          if (e.key === 'ArrowDown' || e.key === 'Enter' || e.key === ' ') {
+            e.preventDefault();
+            closeAllDropdowns();
+            setGroupOpen(group, true);
+            const firstLink = group.panel.querySelector<HTMLAnchorElement>('a');
+            firstLink?.focus();
+          }
+        });
+
+        group.panel.addEventListener('click', (e) => {
+          e.stopPropagation();
+        });
+
+        // Close a stale-open menu when focus leaves the group entirely (Tab-out).
+        // relatedTarget is the element gaining focus; if it's outside this
+        // group's wrapper, collapse the disclosure.
+        const wrapper = group.btn.closest<HTMLElement>('.nav-dropdown-group');
+        wrapper?.addEventListener('focusout', (e) => {
+          const next = e.relatedTarget as Node | null;
+          if (!next || !wrapper.contains(next)) {
+            setGroupOpen(group, false);
+          }
+        });
+      });
+
+      if (dropdownGroups.length > 0) {
+        document.addEventListener('click', closeAllDropdowns);
+
+        document.addEventListener('keydown', (e) => {
+          if (e.key !== 'Escape') return;
+          const openGroup = dropdownGroups.find((g) => !g.panel.classList.contains('hidden'));
+          if (openGroup) {
+            closeAllDropdowns();
+            openGroup.btn.focus();
           }
         });
       }
-    })();
-  </script>
+    </script>
 
-  <script is:inline>
-    /* Copy-to-clipboard buttons on every <pre><code>...</code></pre>.
+    <script is:inline define:vars={{ bannerDismissKey }}>
+      /* Banner dismissal is versioned (and section-scoped) so copy changes
+         reach previously-dismissed users. The key is passed in from BaseLayout
+         (bannerDismissKey); bump its version suffix there when copy changes. */
+      (function () {
+        var BANNER_KEY = bannerDismissKey;
+        var banner = document.getElementById('coming-soon-banner');
+        var dismissBtn = document.getElementById('dismiss-banner');
+        if (!banner) return;
+        // Storage access can throw (Safari private mode, strict cookie/
+        // storage settings) — never let that abort this script before the
+        // dismiss button's click listener attaches.
+        try {
+          if (localStorage.getItem(BANNER_KEY) === '1') {
+            banner.style.display = 'none';
+            return;
+          }
+        } catch (e) {
+          /* storage blocked — banner just shows, same as "never dismissed" */
+        }
+        if (dismissBtn) {
+          dismissBtn.addEventListener('click', function () {
+            banner.style.display = 'none';
+            try {
+              localStorage.setItem(BANNER_KEY, '1');
+            } catch (e) {
+              /* storage blocked — dismissal just doesn't persist */
+            }
+          });
+        }
+      })();
+    </script>
+
+    <script is:inline>
+      /* Copy-to-clipboard buttons on every <pre><code>...</code></pre>.
          Initialization gate: only flip <html data-clip-ready> if the
          clipboard API is actually usable. CSS keeps buttons opacity:0 +
          visibility:hidden until that flag is set, so we never flash empty
          buttons on browsers that lack support (older Safari, non-HTTPS dev
          preview). Inline <code> (not inside <pre>) is skipped by selector. */
-    (function () {
-      if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
-        return;
-      }
-      var COPY_SVG =
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
-      var CHECK_SVG =
-        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+      (function () {
+        if (!navigator.clipboard || typeof navigator.clipboard.writeText !== 'function') {
+          return;
+        }
+        var COPY_SVG =
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+        var CHECK_SVG =
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>';
 
-      function attach(pre) {
-        if (!pre || pre.dataset.copyAttached === '1') return;
-        var code = pre.querySelector('code');
-        if (!code) return;
-        pre.dataset.copyAttached = '1';
-        /* Ensure absolute child positions against the <pre>. CSS already
+        function attach(pre) {
+          if (!pre || pre.dataset.copyAttached === '1') return;
+          var code = pre.querySelector('code');
+          if (!code) return;
+          pre.dataset.copyAttached = '1';
+          /* Ensure absolute child positions against the <pre>. CSS already
              does this via `pre:has(code)` in browsers that support :has,
              but set inline for older browsers as a defensive belt. */
-        var computed = window.getComputedStyle(pre);
-        if (computed.position === 'static') {
-          pre.style.position = 'relative';
-        }
-        var btn = document.createElement('button');
-        btn.type = 'button';
-        btn.className = 'code-copy-btn';
-        btn.setAttribute('aria-label', 'Copy code to clipboard');
-        btn.setAttribute('title', 'Copy');
-        btn.innerHTML = COPY_SVG;
-        btn.addEventListener('click', function (e) {
-          e.preventDefault();
-          e.stopPropagation();
-          var text = code.textContent || '';
-          navigator.clipboard.writeText(text).then(
-            function () {
-              btn.dataset.copied = 'true';
-              btn.setAttribute('aria-label', 'Copied');
-              btn.setAttribute('title', 'Copied');
-              btn.innerHTML = CHECK_SVG;
-              setTimeout(function () {
-                delete btn.dataset.copied;
-                btn.setAttribute('aria-label', 'Copy code to clipboard');
-                btn.setAttribute('title', 'Copy');
-                btn.innerHTML = COPY_SVG;
-              }, 1500);
-            },
-            function () {
-              /* Permission denied or other failure — leave button visible,
+          var computed = window.getComputedStyle(pre);
+          if (computed.position === 'static') {
+            pre.style.position = 'relative';
+          }
+          var btn = document.createElement('button');
+          btn.type = 'button';
+          btn.className = 'code-copy-btn';
+          btn.setAttribute('aria-label', 'Copy code to clipboard');
+          btn.setAttribute('title', 'Copy');
+          btn.innerHTML = COPY_SVG;
+          btn.addEventListener('click', function (e) {
+            e.preventDefault();
+            e.stopPropagation();
+            var text = code.textContent || '';
+            navigator.clipboard.writeText(text).then(
+              function () {
+                btn.dataset.copied = 'true';
+                btn.setAttribute('aria-label', 'Copied');
+                btn.setAttribute('title', 'Copied');
+                btn.innerHTML = CHECK_SVG;
+                setTimeout(function () {
+                  delete btn.dataset.copied;
+                  btn.setAttribute('aria-label', 'Copy code to clipboard');
+                  btn.setAttribute('title', 'Copy');
+                  btn.innerHTML = COPY_SVG;
+                }, 1500);
+              },
+              function () {
+                /* Permission denied or other failure — leave button visible,
                    no error UI; the user can still select+copy manually. */
-            },
-          );
-        });
-        pre.appendChild(btn);
-      }
+              },
+            );
+          });
+          pre.appendChild(btn);
+        }
 
-      function attachAll(root) {
-        var scope = root && root.querySelectorAll ? root : document;
-        var codes = scope.querySelectorAll('pre > code');
-        /* No code blocks on this page (most marketing pages) — no-op.
+        function attachAll(root) {
+          var scope = root && root.querySelectorAll ? root : document;
+          var codes = scope.querySelectorAll('pre > code');
+          /* No code blocks on this page (most marketing pages) — no-op.
              Skip the data-clip-ready flag and the per-node getComputedStyle
              work entirely. */
-        if (codes.length === 0) return;
-        document.documentElement.setAttribute('data-clip-ready', '');
-        for (var i = 0; i < codes.length; i++) {
-          attach(codes[i].parentElement);
+          if (codes.length === 0) return;
+          document.documentElement.setAttribute('data-clip-ready', '');
+          for (var i = 0; i < codes.length; i++) {
+            attach(codes[i].parentElement);
+          }
         }
-      }
 
-      if (document.readyState === 'loading') {
-        document.addEventListener('DOMContentLoaded', function () {
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', function () {
+            attachAll(document);
+          });
+        } else {
           attachAll(document);
-        });
-      } else {
-        attachAll(document);
-      }
-    })();
-  </script>
-</body>
+        }
+      })();
+    </script>
+  </body>
+</html>

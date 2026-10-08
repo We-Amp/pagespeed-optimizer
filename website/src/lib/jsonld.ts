@@ -12,7 +12,7 @@
  * markup — the classic script-context injection.
  *
  * `safeJsonLd(value)` serializes like `JSON.stringify` and then replaces every
- * `<` with its JSON unicode escape `<`. The escape is valid JSON anywhere
+ * `<` with its JSON unicode escape `\u003c`. The escape is valid JSON anywhere
  * a character can appear, so `JSON.parse` of the output yields exactly the
  * same object, while the bytes `</script` can never occur in the page. Only
  * `<` is escaped: JSON syntax has no other character that HTML tokenization
