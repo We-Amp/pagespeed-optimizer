@@ -932,7 +932,9 @@ const jsonLd = [webApp, faqPage];
       color: var(--color-stone-300);
     }
     .ar-next-form input[type='email'],
-    .ar-next-form input[type='text'] {
+    .ar-next-form input[type='text'],
+    .ar-next-form select,
+    .ar-next-form textarea {
       width: 100%;
       border: 1px solid var(--color-stone-300);
       background: var(--color-white);
@@ -942,18 +944,46 @@ const jsonLd = [webApp, faqPage];
       font-size: 0.9rem;
     }
     .dark .ar-next-form input[type='email'],
-    .dark .ar-next-form input[type='text'] {
+    .dark .ar-next-form input[type='text'],
+    .dark .ar-next-form select,
+    .dark .ar-next-form textarea {
       border-color: var(--color-stone-600);
       background: var(--color-stone-900);
       color: var(--color-stone-100);
     }
-    .ar-next-form input:focus {
+    .ar-next-form textarea {
+      font-family: inherit;
+      line-height: 1.5;
+      resize: vertical;
+    }
+    .ar-next-form input:focus,
+    .ar-next-form select:focus,
+    .ar-next-form textarea:focus {
       outline: none;
       border-color: var(--color-interactive);
       box-shadow: 0 0 0 2px var(--color-interactive);
     }
+    .ar-consent {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.45rem;
+      margin-top: 0.7rem;
+      font-size: 0.8rem;
+      color: var(--color-stone-700);
+      line-height: 1.5;
+    }
+    .dark .ar-consent {
+      color: var(--color-stone-300);
+    }
+    .ar-consent input[type='checkbox'] {
+      margin-top: 0.2rem;
+      flex-shrink: 0;
+    }
+    .ar-consent a {
+      color: var(--color-interactive);
+    }
     /* Outline submit — never competes with the filled /download/ primary. */
-    #ar-next-form button[type='submit'] {
+    .ar-next-form button[type='submit'] {
       margin-top: 0.7rem;
       border: 1px solid var(--color-interactive);
       border-radius: var(--radius-control);
@@ -964,19 +994,19 @@ const jsonLd = [webApp, faqPage];
       padding: 0.6rem 1.4rem;
       cursor: pointer;
     }
-    #ar-next-form button[type='submit']:hover {
+    .ar-next-form button[type='submit']:hover {
       background: var(--color-interactive);
       color: #fff;
     }
-    .dark #ar-next-form button[type='submit'] {
+    .dark .ar-next-form button[type='submit'] {
       border-color: var(--color-interactive);
       color: var(--color-interactive);
     }
-    .dark #ar-next-form button[type='submit']:hover {
+    .dark .ar-next-form button[type='submit']:hover {
       background: var(--color-interactive);
       color: var(--color-stone-950);
     }
-    #ar-next-form button[type='submit']:disabled {
+    .ar-next-form button[type='submit']:disabled {
       opacity: 0.55;
       cursor: wait;
     }
@@ -1818,6 +1848,51 @@ const jsonLd = [webApp, faqPage];
         );
       }
 
+      // Lead-capture cards that ship with every result, independent of which wedge
+      // fired: the "Watch this URL" monitor signup (topic monitor-url, explicit
+      // consent checkbox) and the agentic-interest line (topic agents, the select's
+      // value rides as the wedge). The re-check is run by hand from the lead ledger,
+      // so the copy says "we re-check" and promises no automation.
+      function captureBlocks() {
+        const watch =
+          '<h3 id="ar-h-watch" class="ar-h3">Watch this URL</h3>' +
+          '<p class="ar-v">We re-check this URL monthly and email you only when the result changes.</p>' +
+          '<form id="ar-watch-form" class="ar-next-form">' +
+          '<label class="ar-field"><span class="ar-field-label">Your email</span>' +
+          '<input id="ar-watch-email" type="email" autocomplete="email" required /></label>' +
+          '<label class="ar-consent"><input id="ar-watch-consent" type="checkbox" required />' +
+          '<span>Email me when this URL’s result changes. I can unsubscribe anytime; see the <a href="/privacy/">privacy policy</a>.</span></label>' +
+          '<button type="submit" data-umami-event="airead-watch">Watch this URL</button>' +
+          '</form>' +
+          // Own explicit aria-live for the same reason as #ar-next-msg (see nextStep).
+          '<div id="ar-watch-msg" class="ar-next-msg" role="status" aria-live="polite" tabindex="-1"></div>';
+        const agents =
+          '<h3 id="ar-h-agents" class="ar-h3">Working on agent access at the origin? Tell us what you need</h3>' +
+          '<form id="ar-agents-form" class="ar-next-form">' +
+          '<label class="ar-field"><span class="ar-field-label">What do you need?</span>' +
+          '<select id="ar-agents-need" required>' +
+          '<option value="signed-agent-verification">Signed-agent verification</option>' +
+          '<option value="ai-crawler-content">Content for AI crawlers</option>' +
+          '<option value="provenance">Provenance of served content</option>' +
+          '<option value="other">Something else</option>' +
+          '</select></label>' +
+          '<label class="ar-field"><span class="ar-field-label">Your email</span>' +
+          '<input id="ar-agents-email" type="email" autocomplete="email" required /></label>' +
+          '<label class="ar-field"><span class="ar-field-label">Paste your AI-crawler request counts (optional)</span>' +
+          '<textarea id="ar-agents-log" rows="3" maxlength="1500"></textarea></label>' +
+          '<button type="submit" data-umami-event="airead-agents">Tell us</button>' +
+          '</form>' +
+          '<div id="ar-agents-msg" class="ar-next-msg" role="status" aria-live="polite" tabindex="-1"></div>';
+        return (
+          '<section class="ar-sec" aria-labelledby="ar-h-watch">' +
+          watch +
+          '</section>' +
+          '<section class="ar-sec" aria-labelledby="ar-h-agents">' +
+          agents +
+          '</section>'
+        );
+      }
+
       function render(data) {
         // Silence the giant single-shot announcement of the full result; the loading/
         // error branches re-set aria-live to polite (A11y).
@@ -1971,9 +2046,11 @@ const jsonLd = [webApp, faqPage];
           '<section class="ar-sec" aria-labelledby="ar-h-next">' +
           nextStep(r, primaryWedge, firedWedges) +
           '</section>' +
+          captureBlocks() +
           (share ? '<section class="ar-sec" aria-label="Share">' + share + '</section>' : '') +
           '</div>';
         wireNext(r, primaryWedge, multiWedge);
+        wireLeadCards(r);
         // Position the hidden-layer overlay boxes over the screenshot (no-op if not detected).
         wireGhostOverlay(r.ghostLayer);
         // Scroll the freshly rendered result into view and move keyboard/SR focus to the
@@ -1984,6 +2061,23 @@ const jsonLd = [webApp, faqPage];
           card.scrollIntoView({ behavior: rm ? 'auto' : 'smooth', block: 'start' });
           card.focus({ preventScroll: true });
         }
+      }
+
+      // lead_submit — one event per successful form submit, alongside each form's own
+      // event. Same property contract as the rest of the site: channel (scan on this
+      // page), topic (the topic posted to the capture endpoint), wedge (empty when
+      // none) and source_path (the page path, never the query string).
+      function leadSubmit(topic, wedge) {
+        try {
+          if (window.umami) {
+            window.umami.track('lead_submit', {
+              channel: 'scan',
+              topic: topic,
+              wedge: wedge || '',
+              source_path: window.location.pathname,
+            });
+          }
+        } catch (_) {}
       }
 
       // POST the result to /notify (emails it) with a prefilled mailto fallback so a
@@ -2016,6 +2110,7 @@ const jsonLd = [webApp, faqPage];
             }),
           });
           if (!res.ok) throw new Error('status ' + res.status);
+          leadSubmit('notify', '');
           if (msg) {
             msg.textContent =
               'Thanks — we’ll send the full report to ' + email.replace(/[<>&]/g, '') + '.';
@@ -2098,6 +2193,7 @@ const jsonLd = [webApp, faqPage];
               });
               const j = await res.json().catch(() => ({}));
               if (res.ok) {
+                leadSubmit(topic, topic);
                 if (msg) {
                   msg.textContent = 'Thanks — we’ll be in touch.';
                   msg.focus && msg.focus();
@@ -2133,6 +2229,116 @@ const jsonLd = [webApp, faqPage];
               notifyBtn.textContent = 'Sent';
             } else {
               notifyBtn.disabled = false;
+            }
+          });
+        }
+      }
+
+      // POST one lead to /contact. Returns true on a 2xx, false on any failure; the
+      // caller owns the status message and button state.
+      async function postLead(payload) {
+        try {
+          const res = await fetch(API + '/contact', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
+          return res.ok;
+        } catch (_) {
+          return false;
+        }
+      }
+
+      // Wire the two capture cards that ship with every result (see captureBlocks).
+      function wireLeadCards(r) {
+        const watchForm = $('#ar-watch-form');
+        if (watchForm) {
+          const msg = $('#ar-watch-msg');
+          const emailEl = $('#ar-watch-email');
+          watchForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = ((emailEl && emailEl.value) || '').trim();
+            if (!email || !watchForm.checkValidity()) {
+              watchForm.reportValidity();
+              return;
+            }
+            const btn = watchForm.querySelector('button[type="submit"]');
+            if (btn) btn.disabled = true;
+            const message = [
+              '[monitor-url] watch request from RenderPeek result',
+              'Scanned: ' + (r.url || ''),
+              'Grade: ' + (r.grade || '') + ' (' + (r.score || '') + '/100)',
+            ].join('\n');
+            const ok = await postLead({
+              topic: 'monitor-url',
+              email: email,
+              name: '',
+              url: r.url || '',
+              wedge: '',
+              message: message,
+            });
+            if (ok) {
+              leadSubmit('monitor-url', '');
+              if (msg) {
+                msg.textContent = 'Thanks — we’ll email you when this URL’s result changes.';
+                msg.focus && msg.focus();
+              }
+              watchForm.remove();
+            } else {
+              if (msg) msg.textContent = 'Something went wrong. Please try again in a moment.';
+              if (btn) btn.disabled = false;
+            }
+          });
+        }
+        const agentsForm = $('#ar-agents-form');
+        if (agentsForm) {
+          const msg = $('#ar-agents-msg');
+          const emailEl = $('#ar-agents-email');
+          const needEl = $('#ar-agents-need');
+          const logEl = $('#ar-agents-log');
+          agentsForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const email = ((emailEl && emailEl.value) || '').trim();
+            if (!email || !agentsForm.checkValidity()) {
+              agentsForm.reportValidity();
+              return;
+            }
+            const need = needEl ? needEl.value : '';
+            const needLabel =
+              needEl && needEl.selectedOptions && needEl.selectedOptions[0]
+                ? needEl.selectedOptions[0].textContent.trim()
+                : need;
+            // The operator log is free-form paste; cap it at the textarea's own
+            // maxlength (1500) so a scripted submit can't push an unbounded message.
+            const log = ((logEl && logEl.value) || '').trim().slice(0, 1500);
+            const btn = agentsForm.querySelector('button[type="submit"]');
+            if (btn) btn.disabled = true;
+            const message = [
+              '[agents] agent-access interest from RenderPeek result',
+              'Scanned: ' + (r.url || ''),
+              'Need: ' + needLabel,
+              log ? 'AI-crawler request counts:\n' + log : null,
+            ]
+              .filter(Boolean)
+              .join('\n');
+            const ok = await postLead({
+              topic: 'agents',
+              email: email,
+              name: '',
+              url: r.url || '',
+              wedge: need,
+              message: message,
+            });
+            if (ok) {
+              leadSubmit('agents', need);
+              if (msg) {
+                msg.textContent = 'Thanks — we’ll be in touch.';
+                msg.focus && msg.focus();
+              }
+              agentsForm.remove();
+            } else {
+              if (msg) msg.textContent = 'Something went wrong. Please try again in a moment.';
+              if (btn) btn.disabled = false;
             }
           });
         }

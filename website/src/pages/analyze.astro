@@ -493,6 +493,16 @@ const jsonLd = [
           Support plans &rarr;
         </a>
         <a
+          href="https://we-amp.com/consulting/"
+          class="btn-secondary"
+          data-umami-event="cta_commercial"
+          data-umami-event-offer="consulting"
+          data-umami-event-surface="analyze"
+          data-umami-event-position="result"
+        >
+          Want it fixed for you? &rarr;
+        </a>
+        <a
           id="psi-docs-cta"
           href="/docs/configuration/"
           class="btn-secondary"
@@ -503,6 +513,45 @@ const jsonLd = [
       </div>
       <p class="text-xs text-text-annotation">
         {FREE_TO_RUN_LINE}
+      </p>
+    </div>
+
+    <!-- Report capture — revealed with the result (hidden until then, so no
+         layout shift on load). Posts the analyzed URL and headline scores to
+         the shared lead endpoint. -->
+    <div
+      id="psi-report"
+      class="mt-10 rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8 hidden"
+    >
+      <h3 class="text-lg font-semibold text-text-body">Email me this report</h3>
+      <p class="mt-1 text-sm text-text-muted">
+        We email you the analyzed URL and the headline scores. Used only to send you this report —
+        we won't add you to a mailing list. See our
+        <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline"
+          >Privacy policy</a
+        >.
+      </p>
+      <form id="psi-report-form" class="mt-4 flex flex-col sm:flex-row gap-3">
+        <label for="psi-report-email" class="sr-only">Your email</label>
+        <input
+          id="psi-report-email"
+          name="email"
+          type="email"
+          autocomplete="email"
+          required
+          placeholder="you@example.com"
+          class="flex-1 rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-primary shadow-sm focus:border-interactive focus:ring-2 focus:ring-interactive sm:text-sm"
+        />
+        <button
+          id="psi-report-submit"
+          type="submit"
+          class="btn-primary whitespace-nowrap"
+          data-umami-event="psi-report-submit"
+        >
+          Email me this report
+        </button>
+      </form>
+      <p id="psi-report-msg" role="status" aria-live="polite" class="mt-2 text-sm text-text-muted">
       </p>
     </div>
 
@@ -912,6 +961,19 @@ const jsonLd = [
     const scoreMobileLabelEl = document.getElementById('psi-score-mobile-label');
     const scoreDesktopLabelEl = document.getElementById('psi-score-desktop-label');
 
+    // Report-capture card ("Email me this report"), revealed with the result.
+    const reportEl = document.getElementById('psi-report');
+    const reportForm = document.getElementById('psi-report-form') as HTMLFormElement | null;
+    const reportEmailEl = document.getElementById('psi-report-email') as HTMLInputElement | null;
+    const reportSubmitBtn = document.getElementById(
+      'psi-report-submit',
+    ) as HTMLButtonElement | null;
+    const reportMsgEl = document.getElementById('psi-report-msg');
+    // The analyzed URL + headline scores of the latest successful run; the report
+    // form folds them into the lead message at submit time.
+    let reportContext: { url: string; mobile: number | null; desktop: number | null } | null =
+      null;
+
     // Edition toggle, edition-aware blurb/desc, docs CTA, and the build-time
     // rendered "what gets fixed" cards.
     const editionToggleEl = document.getElementById('psi-edition-toggle');
@@ -987,6 +1049,10 @@ const jsonLd = [
     }
 
     type ScoreBucket = 'good' | 'needs-work' | 'poor';
+
+    // PSI reports scores as 0–1; the UI and the lead message use 0–100.
+    const toPercent = (s: number | null | undefined): number | null =>
+      typeof s === 'number' ? Math.round(s * 100) : null;
 
     function scoreBucket(score: number): ScoreBucket {
       if (score >= 90) return 'good';
@@ -1781,6 +1847,14 @@ const jsonLd = [
       hide(errorBox);
       show(resultsEl);
 
+      // Arm the report-capture card with this run's URL and headline scores.
+      reportContext = {
+        url: targetUrl,
+        mobile: toPercent(mobile?.lighthouseResult?.categories?.performance?.score),
+        desktop: toPercent(desktop?.lighthouseResult?.categories?.performance?.score),
+      };
+      show(reportEl);
+
       if (!scroll) return;
 
       // Smooth-scroll to the results section so mobile users see the outcome
@@ -1811,6 +1885,8 @@ const jsonLd = [
       hide(ctasEl);
       hide(topCtaEl);
       hide(editionToggleEl);
+      hide(reportEl);
+      reportContext = null;
       // Headline area: clear scores; leave the URL visible if we have one.
       if (headlineTextEl) headlineTextEl.textContent = 'We couldn’t complete the analysis.';
       if (headlineSavingsEl) headlineSavingsEl.textContent = '';
@@ -1956,6 +2032,54 @@ const jsonLd = [
           }, 1500);
         }
       });
+    });
+
+    // Report capture: "Email me this report" → the shared lead endpoint
+    // (/ai-readability/api/contact) with topic analyze-report; the analyzed URL and
+    // headline scores ride in the message. A successful submit fires lead_submit
+    // with the analyze channel, like every other lead form on the site.
+    reportForm?.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      if (!reportEmailEl || !reportContext) return;
+      const email = reportEmailEl.value.trim();
+      if (!email || !reportForm?.checkValidity()) {
+        reportForm?.reportValidity();
+        return;
+      }
+      const scoreText = (n: number | null) => (n === null ? 'n/a' : `${n}/100`);
+      const message = [
+        '[analyze-report] report request from the PageSpeed analyzer',
+        `Analyzed: ${reportContext.url}`,
+        `Scores: mobile ${scoreText(reportContext.mobile)}, desktop ${scoreText(reportContext.desktop)}`,
+      ].join('\n');
+      if (reportSubmitBtn) {
+        reportSubmitBtn.disabled = true;
+        reportSubmitBtn.setAttribute('aria-busy', 'true');
+      }
+      try {
+        const res = await fetch('/ai-readability/api/contact', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ topic: 'analyze-report', email, name: '', message }),
+        });
+        if (!res.ok) throw new Error(`status ${res.status}`);
+        (window as any).umami?.track('lead_submit', {
+          channel: 'analyze',
+          topic: 'analyze-report',
+          wedge: '',
+          source_path: window.location.pathname,
+        });
+        if (reportMsgEl) reportMsgEl.textContent = `Thanks — we’ll send this report to ${email}.`;
+        reportForm.reset();
+      } catch {
+        if (reportMsgEl)
+          reportMsgEl.textContent = 'We couldn’t send that. Please try again in a moment.';
+      } finally {
+        if (reportSubmitBtn) {
+          reportSubmitBtn.disabled = false;
+          reportSubmitBtn.removeAttribute('aria-busy');
+        }
+      }
     });
 
     // Allow ?url= deep links (e.g. shared from a blog post).
