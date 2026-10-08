@@ -47,6 +47,7 @@ rat-report\.txt
 \.clang-format
 \.clang-tidy
 \.prettierrc
+\.prettierignore
 CODEOWNERS
 GIT_COMMIT
 .*_KERNEL_PIN
