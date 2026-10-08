@@ -163,7 +163,7 @@ Cases where mod_pagespeed alone isn't enough on ASP.NET Core:
 
 - [How to fix INP on ASP.NET Core](/blog/fix-inp-aspnet-core-2026/)
 - [How to fix CLS on ASP.NET Core](/blog/fix-cls-aspnet-core-2026/)
-- [How to fix cumulative layout shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
+- [How to fix Cumulative Layout Shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
 - [ModPageSpeed 2.0 now works with ASP.NET Core](/blog/aspnet-core-middleware/)
 - [Image optimization in ASP.NET Core](/blog/aspnet-core-image-optimization-c-sharp/)
 - [IIS and Core Web Vitals in 2026](https://iispeed.com/iis-core-web-vitals-2026/)

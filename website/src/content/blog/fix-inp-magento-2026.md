@@ -155,9 +155,9 @@ No. Magento's RequireJS bootstrap is order-sensitive, and deferring scripts brea
 ## Related
 
 - [How to fix LCP on Magento](/blog/fix-lcp-magento-2026/)
-- [How to fix largest contentful paint (LCP)](/core-web-vitals/lcp/): the four LCP phases and the server-side fixes
+- [How to fix Largest Contentful Paint (LCP)](/core-web-vitals/lcp/): the four LCP phases and the server-side fixes
 - [How to fix CLS on Magento](/blog/fix-cls-magento-2026/)
-- [How to fix cumulative layout shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
+- [How to fix Cumulative Layout Shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
 - [How to fix INP on nginx (generic)](/blog/fix-inp-nginx-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)
 - [mod_pagespeed filter reference](/docs/filter-reference/)

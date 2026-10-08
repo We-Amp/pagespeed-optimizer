@@ -51,9 +51,9 @@ The plugin auto-detects which one of the two is running and adjusts. The same se
 - [What Happens When You Purge One URL](/blog/single-url-cache-purge-optimizing-proxy/) — the cache fan-out a single purge call actually triggers
 - [Where TTFB Actually Goes, and the Server-Layer Fix](/blog/reduce-ttfb-server-layer-2026/) — why a server-side page cache is the lever for time-to-first-byte
 - [Fixing LCP on WordPress](/blog/fix-lcp-wordpress-2026/) — what server-layer caching and optimization do for Largest Contentful Paint
-- [How to fix largest contentful paint (LCP)](/core-web-vitals/lcp/): the four LCP phases and the server-side fixes
+- [How to fix Largest Contentful Paint (LCP)](/core-web-vitals/lcp/): the four LCP phases and the server-side fixes
 - [Fixing CLS on WordPress](/blog/fix-cls-wordpress-2026/) — the layout-shift fixes that pair with a cacheable anonymous page
-- [How to fix cumulative layout shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
+- [How to fix Cumulative Layout Shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
 - [mod_pagespeed vs WP Rocket](/vs/wp-rocket/) — where the cache lives, PHP layer versus server module
 - [Running mod_pagespeed with Docker Compose](/blog/run-with-docker-compose/) — standing up the optimizer worker the plugin talks to
 - [Cache-Control and purging](/docs/cache-control/) — how full-page caching and invalidation work in the module

@@ -138,9 +138,9 @@ WordPress INP is mostly a plugin-discipline problem. mod_pagespeed reduces the p
 
 - [WordPress full-page caching plugin](/wordpress/)
 - [How to fix LCP on WordPress](/blog/fix-lcp-wordpress-2026/)
-- [How to fix largest contentful paint (LCP)](/core-web-vitals/lcp/): the four LCP phases and the server-side fixes
+- [How to fix Largest Contentful Paint (LCP)](/core-web-vitals/lcp/): the four LCP phases and the server-side fixes
 - [How to fix CLS on WordPress](/blog/fix-cls-wordpress-2026/)
-- [How to fix cumulative layout shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
+- [How to fix Cumulative Layout Shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
 - [How to fix INP on WooCommerce](/blog/fix-inp-woocommerce-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)
 - [mod_pagespeed filter reference](/docs/filter-reference/)

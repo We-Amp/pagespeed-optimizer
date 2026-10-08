@@ -19,8 +19,8 @@ const titles: Array<[string, string]> = [
     '/alternatives/google-pagespeed-module/',
     'What is the Google PageSpeed module, and what replaced it',
   ],
-  ['/core-web-vitals/cls/', 'How to fix cumulative layout shift (CLS) in 2026'],
-  ['/core-web-vitals/lcp/', 'How to fix largest contentful paint (LCP) in 2026'],
+  ['/core-web-vitals/cls/', 'How to fix Cumulative Layout Shift (CLS) in 2026'],
+  ['/core-web-vitals/lcp/', 'How to fix Largest Contentful Paint (LCP) in 2026'],
   ['/ai-readability/', 'AI readability checker: what AI crawlers read on your page'],
   [
     '/blog/economics-of-image-optimization/',

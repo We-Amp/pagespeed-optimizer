@@ -1,5 +1,5 @@
 ---
-title: 'Migrate from mod_pagespeed 1.13 or ngx_pagespeed to 2.1'
+title: 'Migrate from mod_pagespeed 1.13 or ngx_pagespeed: 2.0 guide'
 description: 'Migrating from the archived mod_pagespeed 1.13.x or ngx_pagespeed: directive mapping, image-format checks, a verification checklist, and the 2.1 path.'
 date: 2026-02-10
 author: 'Otto van der Schaaf'

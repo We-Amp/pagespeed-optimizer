@@ -173,7 +173,7 @@ Cases where mod_pagespeed alone isn't enough on WordPress:
 - [WordPress full-page caching plugin](/wordpress/)
 - [How to fix INP on WordPress](/blog/fix-inp-wordpress-2026/)
 - [How to fix CLS on WordPress](/blog/fix-cls-wordpress-2026/)
-- [How to fix cumulative layout shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
+- [How to fix Cumulative Layout Shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
 - [How to fix LCP on WooCommerce](/blog/fix-lcp-woocommerce-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)
 - [Server-side critical CSS on nginx](/blog/server-side-critical-css-nginx/)

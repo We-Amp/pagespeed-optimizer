@@ -14,7 +14,7 @@ Google's new Search Console report measures your search visibility inside its ge
 
 That trips people up because the report is named for "performance," and "performance" is also the word PageSpeed Insights, Lighthouse, Core Web Vitals, and mod_pagespeed use for how fast your pages load and how stable they are while loading. Same word, two unrelated measurements.
 
-I'm an Apache PageSpeed committer who helped ship open-source PageSpeed releases, and now build the commercial successors at We-Amp B.V., so the speed half is the half I work on. The visibility half is Google's new report, worth understanding on its own terms.
+I'm an Apache PageSpeed committer: I helped build ngx_pagespeed, maintained mod_pagespeed and drove its Apache incubation, and now build its maintained continuation, mod_pagespeed 2.1, at We-Amp B.V., so the speed half is the half I work on. The visibility half is Google's new report, worth understanding on its own terms.
 
 ## What Google actually announced
 

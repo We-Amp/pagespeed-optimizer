@@ -144,9 +144,9 @@ This post deliberately does _not_ try to be the definitive INP guide. The INP ×
 ## Related
 
 - [How to fix LCP on nginx](/blog/fix-lcp-nginx-2026/)
-- [How to fix largest contentful paint (LCP)](/core-web-vitals/lcp/): the four LCP phases and the server-side fixes
+- [How to fix Largest Contentful Paint (LCP)](/core-web-vitals/lcp/): the four LCP phases and the server-side fixes
 - [How to fix CLS on nginx](/blog/fix-cls-nginx-2026/)
-- [How to fix cumulative layout shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
+- [How to fix Cumulative Layout Shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
 - [How to fix INP on WordPress](/blog/fix-inp-wordpress-2026/)
 - [Server-side critical CSS with nginx](/blog/server-side-critical-css-nginx/)
 - [mod_pagespeed filter reference](/docs/filter-reference/)

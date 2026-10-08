@@ -132,7 +132,7 @@ ModPagespeedEnableFilters prioritize_critical_css
 ## Related
 
 - [How to fix LCP on Magento](/blog/fix-lcp-magento-2026/)
-- [How to fix largest contentful paint (LCP)](/core-web-vitals/lcp/): the four LCP phases and the server-side fixes
+- [How to fix Largest Contentful Paint (LCP)](/core-web-vitals/lcp/): the four LCP phases and the server-side fixes
 - [How to fix INP on Magento](/blog/fix-inp-magento-2026/)
 - [How to fix CLS on nginx](/blog/fix-cls-nginx-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)

@@ -155,7 +155,7 @@ Cases where mod_pagespeed alone isn't enough on nginx:
 
 - [How to fix INP on nginx](/blog/fix-inp-nginx-2026/)
 - [How to fix CLS on nginx](/blog/fix-cls-nginx-2026/)
-- [How to fix cumulative layout shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
+- [How to fix Cumulative Layout Shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
 - [How to fix LCP on WordPress](/blog/fix-lcp-wordpress-2026/)
 - [Server-side critical CSS on nginx](/blog/server-side-critical-css-nginx/)
 - [Image optimization as an nginx module](/blog/nginx-image-optimization-module/)
