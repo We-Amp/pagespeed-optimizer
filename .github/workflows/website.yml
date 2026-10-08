@@ -31,10 +31,23 @@ name: Website
 on:
   push:
     branches: [main]
-    paths: ['website/**', 'shared/product-facts.mjs', '.github/workflows/website.yml']
+    paths:
+      - 'website/**'
+      - 'shared/product-facts.mjs'
+      - '.github/workflows/website.yml'
+      # Sources the generated references are derived from (reference drift gates).
+      - 'src/worker/main.cc'
+      - 'src/nginx/ngx_pagespeed_module.cc'
+      - 'docker/nginx-version.txt'
   pull_request:
     branches: [main]
-    paths: ['website/**', 'shared/product-facts.mjs', '.github/workflows/website.yml']
+    paths:
+      - 'website/**'
+      - 'shared/product-facts.mjs'
+      - '.github/workflows/website.yml'
+      - 'src/worker/main.cc'
+      - 'src/nginx/ngx_pagespeed_module.cc'
+      - 'docker/nginx-version.txt'
 
 concurrency:
   group: website-${{ github.ref }}
