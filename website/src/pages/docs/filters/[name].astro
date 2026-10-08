@@ -1,7 +1,13 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
 import { createMarkdownProcessor } from '@astrojs/markdown-remark';
-import { loadFilterTopics, plainText, faqHtml, type Topic } from '../../../lib/filter-topics.mjs';
+import {
+  loadFilterTopics,
+  plainText,
+  faqHtml,
+  RELATED,
+  type Topic,
+} from '../../../lib/filter-topics.mjs';
 import { exampleImpact } from '../../../lib/example-impact';
 import { getRelease } from '../../../lib/release';
 import { gitLastModified } from '../../../lib/git-date';
@@ -50,7 +56,10 @@ const codeBlock = (lang: string, code: string) => html('```' + lang + '\n' + cod
 
 const lede = t.section.lede ? await inline(t.section.lede) : '';
 const body = await Promise.all(
-  t.section.body.map(async (g) => ({ heading: g.heading, html: await html(g.md) })),
+  t.section.body.map(async (g) => ({
+    heading: g.heading ? await inline(g.heading) : null,
+    html: await html(g.md),
+  })),
 );
 const risks = t.section.risks.length ? await html(t.section.risks.join('\n\n')) : '';
 
@@ -137,7 +146,7 @@ if (t.memberOf.length) {
 }
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 if (t.risk) facts.push(`Risk rating on these docs: <strong>${esc(t.risk)}</strong>.`);
-if (t.note) facts.push(esc(t.note));
+if (t.note) facts.push(await inline(t.note));
 
 // The live example, when the gallery isolates this filter.
 const exampleSlug = t.example?.match(/^\/examples\/([^/]+)\/$/)?.[1];
@@ -146,14 +155,23 @@ const impact = exampleSlug ? exampleImpact(exampleSlug) : null;
 // Related: the filters documented on the same section, then the rest of the
 // category, skipping alternate spellings and deprecated names.
 const related = [
+  ...(RELATED[t.name] ?? []),
   ...t.section.siblings,
   ...topics.filter((x) => x.category === t.category).map((x) => x.name),
 ]
   .filter((n, i, all) => all.indexOf(n) === i && n !== t.name)
   .map((n) => byName.get(n)!)
-  .filter((x) => x && !x.alternateSpellingOf && !x.deprecated)
+  .filter(
+    (x) =>
+      x && ((RELATED[t.name] ?? []).includes(x.name) || (!x.alternateSpellingOf && !x.deprecated)),
+  )
   // Filters meant for production first; the dangerous set last.
-  .sort((a, b) => Number(a.dangerous) - Number(b.dangerous))
+  .sort(
+    (a, b) =>
+      Number(!(RELATED[t.name] ?? []).includes(a.name)) -
+        Number(!(RELATED[t.name] ?? []).includes(b.name)) ||
+      Number(a.dangerous) - Number(b.dangerous),
+  )
   .slice(0, 8);
 
 const members = t.members.map((n) => byName.get(n)!).filter(Boolean);
@@ -225,6 +243,7 @@ const yesNo = (v: boolean | 'partial') => (v === true ? 'Yes' : v === 'partial' 
   jsonLd={jsonLd}
   noindex={!t.indexable}
   breadcrumbLeafName={t.name}
+  searchable
 >
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-12 lg:py-16" data-filter-topic={t.name}>
     <nav class="mb-6 text-sm text-text-annotation" aria-label="Breadcrumb" data-pagefind-ignore>
@@ -294,7 +313,9 @@ const yesNo = (v: boolean | 'partial') => (v === true ? 'Yes' : v === 'partial' 
           </h2>
           {body.map((g) => (
             <div class="mt-4">
-              {g.heading && <h3 class="text-lg font-semibold text-text-body">{g.heading}</h3>}
+              {g.heading && (
+                <h3 class="text-lg font-semibold text-text-body" set:html={g.heading} />
+              )}
               <div class={`mt-2 ${prose}`} set:html={g.html} />
             </div>
           ))}

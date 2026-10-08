@@ -491,20 +491,28 @@ export function extractSection(blocks, page, name, allNames) {
   // filtered down to this filter's item) has nothing left to introduce.
   for (const g of body) {
     const parts = g.md.split('\n\n');
-    while (parts.length && /:$/.test(parts[parts.length - 1])) {
-      const s = sentences(parts[parts.length - 1]);
+    for (let i = parts.length - 1; i >= 0; i--) {
+      // A colon introduces what follows; keep it only when a list follows.
+      if (!/:$/.test(parts[i]) || /^- /.test(parts[i + 1] ?? '')) continue;
+      const s = sentences(parts[i]);
       s.pop();
-      if (s.length) parts[parts.length - 1] = s.join(' ');
-      else parts.pop();
+      if (s.length) parts[i] = s.join(' ');
+      else parts.splice(i, 1);
     }
     g.md = parts.join('\n\n');
   }
   for (let i = body.length - 1; i >= 0; i--) if (!body[i].md) body.splice(i, 1);
 
+  // The guard counts this filter's own words: on a shared section only the
+  // blocks that name it, so sibling pages do not qualify on the same prose.
+  const own = (/** @type {string} */ md) => (!shared || mentions(md, name) ? wordCount(md) : 0);
   const words =
-    wordCount(lede) +
-    body.reduce((n, g) => n + wordCount(g.md), 0) +
-    risks.reduce((n, r) => n + wordCount(r), 0);
+    own(lede) +
+    body.reduce(
+      (n, g) => n + g.md.split(/\n\n|\n(?=- )/).reduce((m, part) => m + own(part), 0),
+      0,
+    ) +
+    risks.reduce((n, r) => n + own(r), 0);
 
   return {
     page,
@@ -567,6 +575,46 @@ export function workerEquivalents(body) {
   return map;
 }
 
+// --- Related filters --------------------------------------------------------
+
+/**
+ * Hand-picked neighbours for the filters people search for most: the
+ * techniques a reader weighing this one compares it with. Pages without an
+ * entry list the filters on the same section, then the rest of the category.
+ * @type {Record<string, string[]>}
+ */
+export const RELATED = {
+  trim_urls: ['left_trim_urls', 'rewrite_domains', 'extend_cache'],
+  lazyload_images: [
+    'defer_iframe',
+    'inline_preview_images',
+    'resize_images',
+    'prioritize_critical_images',
+  ],
+  inline_javascript: ['rewrite_javascript', 'combine_javascript', 'defer_javascript', 'inline_css'],
+  rewrite_javascript: ['combine_javascript', 'inline_javascript', 'defer_javascript'],
+  combine_javascript: ['rewrite_javascript', 'inline_javascript', 'defer_javascript'],
+  defer_javascript: ['inline_javascript', 'combine_javascript', 'lazyload_images'],
+  combine_css: ['rewrite_css', 'inline_css', 'prioritize_critical_css'],
+  rewrite_css: ['combine_css', 'inline_css', 'prioritize_critical_css'],
+  inline_css: ['prioritize_critical_css', 'combine_css', 'rewrite_css', 'inline_javascript'],
+  prioritize_critical_css: ['inline_css', 'combine_css', 'move_css_to_head'],
+  extend_cache: ['extend_cache_css', 'extend_cache_images', 'extend_cache_scripts', 'trim_urls'],
+  rewrite_images: [
+    'recompress_images',
+    'convert_jpeg_to_webp',
+    'convert_jpeg_to_avif',
+    'resize_images',
+    'lazyload_images',
+  ],
+  recompress_images: ['rewrite_images', 'convert_jpeg_to_webp', 'jpeg_subsampling'],
+  convert_jpeg_to_webp: ['convert_jpeg_to_avif', 'rewrite_images', 'recompress_jpeg'],
+  convert_jpeg_to_avif: ['convert_jpeg_to_webp', 'convert_to_avif_lossless', 'rewrite_images'],
+  resize_images: ['responsive_images', 'insert_image_dimensions', 'rewrite_images'],
+  responsive_images: ['resize_images', 'lazyload_images', 'prioritize_critical_images'],
+  inline_images: ['dedup_inlined_images', 'inline_preview_images', 'rewrite_images'],
+};
+
 // --- Topics ------------------------------------------------------------------
 
 /**
@@ -609,7 +657,7 @@ function directiveLine(syntax, name) {
 /** Title: the longest consistent form that fits 60 characters. */
 export function topicTitle(/** @type {string} */ human, /** @type {string} */ name) {
   const forms = [
-    `${human}: the ${name} filter for Apache and nginx`,
+    `${human}: the ${name} filter for Apache, nginx and IIS`,
     `${human}: the ${name} filter`,
     `${human} (${name})`,
     `The ${name} filter`,
@@ -622,8 +670,9 @@ export function topicTitle(/** @type {string} */ human, /** @type {string} */ na
 export function topicDescription(/** @type {string} */ summary, /** @type {string} */ name) {
   const s = summary.replace(/\.$/, '').replace(/[<>]/g, '');
   const forms = [
-    `${s}. How the mod_pagespeed ${name} filter works, when to use it, its risks and the Apache and nginx directives.`,
-    `${s}. The ${name} filter: what it does, its risks and the Apache and nginx directives.`,
+    `${s}. How the mod_pagespeed ${name} filter works, when to use it, its risks and the Apache, nginx and IIS directives.`,
+    `${s}. The ${name} filter: what it does, its risks and the Apache, nginx and IIS directives.`,
+    `${s}. The ${name} filter: what it does, its risks and the directives.`,
     `${s}. The ${name} filter: what it does and its risks.`,
     `${s}.`,
   ];
