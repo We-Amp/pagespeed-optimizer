@@ -764,7 +764,7 @@ const jsonLd = [
     };
 
     const DOCS_HREF: Record<Edition, { href: string; label: string }> = {
-      '2.0': { href: '/docs/configuration/', label: 'Read the configuration docs →' },
+      '2.0': { href: '/docs/worker-configuration/', label: 'Read the configuration docs →' },
       '1.1': {
         href: '/docs/configuration/#native-module-configuration-directives',
         label: 'Read the filter reference →',
@@ -781,9 +781,9 @@ const jsonLd = [
     // ---- Named filter → worker transform docs anchor map ----
     // The worker collapses the module's per-filter knobs into a smaller set
     // of always-on transforms documented as anchored sections under
-    // /docs/configuration/.
+    // /docs/worker-configuration/.
     // The slug values below must match the per-transform anchors in
-    // configuration.md. Named filters with no
+    // worker-configuration.md. Named filters with no
     // worker equivalent (e.g. animated WebP) are intentionally absent and
     // fall back to the named-filter reference; see the click handler below.
     const FILTER_TO_2_0_ANCHOR: Record<string, string> = {
@@ -1254,8 +1254,8 @@ const jsonLd = [
         chip.setAttribute('data-umami-event', 'psi-result-filter-click');
         chip.setAttribute('data-umami-event-filter', f);
         // Edition-aware deep link:
-        // - 1.1: always the per-filter anchor on the 1.1 filter-reference page.
-        // - 2.0: the per-transform anchor on /docs/configuration/ when the
+        // - 1.1: always the per-filter row on the /docs/filters/ table.
+        // - 2.0: the per-transform anchor on /docs/worker-configuration/ when the
         //   1.1 filter maps to a 2.0 transform; otherwise (1.1-only filter,
         //   e.g. convert_to_webp_animated) fall back to the 1.1 page; there
         //   is no 2.0 equivalent.
@@ -1278,9 +1278,9 @@ const jsonLd = [
         }
         chip.addEventListener('click', () => {
           if (edition === '2.0' && twoZeroAnchor !== undefined) {
-            window.open(`/docs/configuration/#${twoZeroAnchor}`, '_blank', 'noopener');
+            window.open(`/docs/worker-configuration/#${twoZeroAnchor}`, '_blank', 'noopener');
           } else {
-            window.open(`/docs/filter-reference/#${f}`, '_blank', 'noopener');
+            window.open(`/docs/filters/#${f}`, '_blank', 'noopener');
           }
         });
         wrap.appendChild(chip);

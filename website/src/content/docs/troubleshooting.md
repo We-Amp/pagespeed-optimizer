@@ -84,7 +84,7 @@ been requested before.
 
    Or expose `$pagespeed_cache_generation` (`match`, `mismatch`, `unknown`)
    in a log format or status location, see the
-   [configuration reference](/docs/configuration/#cache-directory-generation-check).
+   [configuration reference](/docs/worker-configuration/#cache-directory-generation-check).
 
 5. **Cache size too small.** If the cache is full, LRU eviction removes older
    entries before they can be served. Check cache utilization via the management
