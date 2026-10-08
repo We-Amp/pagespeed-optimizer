@@ -1517,7 +1517,7 @@ Max summary fetches (default: 200)
 - **Syntax:** `--agent-render-allow-hosts HOSTS`
 - **Default:** `none`
 
-Opt-in third-party hosts the agent render may fetch; comma-separated, exact host match, still SSRF-guarded (default: none)
+Third-party hosts the agent render may fetch: comma-separated, exact host names (no wildcards), still SSRF-guarded (default: none)
 
 ### Web Bot Auth (observe-only, off by default) {#flags-web-bot-auth-observe-only-off-by-default}
 
