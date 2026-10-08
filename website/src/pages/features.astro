@@ -118,8 +118,13 @@ const jsonLd = [softwareApplication, faqPage];
       <a href="/download/" class="btn-primary" data-umami-event="cta_features_hero_download"
         >Download &amp; run</a
       >
-      <a href="/pricing/" class="btn-secondary" data-umami-event="cta_features_hero_pricing"
-        >See pricing</a
+      <a
+        href="/pricing/"
+        class="btn-secondary"
+        data-umami-event="cta_commercial"
+        data-umami-event-offer="support"
+        data-umami-event-surface="features"
+        data-umami-event-position="hero">See pricing</a
       >
     </div>
     <div class="mt-4 flex justify-center">
@@ -206,7 +211,7 @@ const jsonLd = [softwareApplication, faqPage];
             AI-readability
             <span
               class="inline-flex items-center rounded-md bg-interactive/10 px-1.5 py-0.5 text-xs font-medium text-interactive ring-1 ring-inset ring-interactive/40"
-              >Licensed</span
+              >Experimental</span
             >
           </p>
           <p class="mt-1 text-sm text-text-muted">
@@ -985,7 +990,7 @@ const jsonLd = [softwareApplication, faqPage];
           <p
             class="inline-flex items-center rounded-md bg-interactive/10 px-2 py-0.5 text-xs font-medium text-interactive ring-1 ring-inset ring-interactive/40"
           >
-            Licensed feature
+            Experimental &middot; off by default
           </p>
           <h2 class="mt-3 h2-section text-text-body">
             Serve clean, fully-rendered content to AI crawlers that never run your JavaScript
@@ -1068,7 +1073,7 @@ const jsonLd = [softwareApplication, faqPage];
                   Nothing leaves your server
                 </p>
                 <p class="text-sm text-text-muted">
-                  Rendering, cleaning, caching, and the license check are all local. Serving a
+                  Rendering, cleaning and caching are all local. Serving a
                   cached agent response performs zero outbound network I/O — your content is never
                   sent to a third party.
                 </p>
@@ -1081,16 +1086,18 @@ const jsonLd = [softwareApplication, faqPage];
               >
               <div>
                 <p class="font-medium text-text-body">
-                  The one feature that's actually gated
+                  Experimental, off by default, enabled by a flag
                 </p>
                 <p class="text-sm text-text-muted">
-                  Unlike the always-functional core — which fully optimizes whether or not you're
-                  licensed — <code class="text-xs bg-bg-elevated px-1 rounded"
-                    >agent_optimize</code
-                  > is an experimental, licensed capability. It ships in every build and stays off
-                  until you enable it and your license carries the entitlement, which we scope with
-                  you directly. Every install runs the same byte-identical binary;
-                  there is no separate "pro" build.
+                  <code class="text-xs bg-bg-elevated px-1 rounded">agent_optimize</code> ships in
+                  every build and stays off until you start the optimizer worker with <code
+                    class="text-xs bg-bg-elevated px-1 rounded">--agent-optimize</code
+                  > (<code class="text-xs bg-bg-elevated px-1 rounded"
+                    >PAGESPEED_AGENT_OPTIMIZE=true</code
+                  > in the Docker images). It also needs browser analysis (<code
+                    class="text-xs bg-bg-elevated px-1 rounded">--enable-browser-analysis</code
+                  >). Its flags and behavior may change in a future release; every install runs the
+                  same binary.
                 </p>
               </div>
             </li>
@@ -1385,7 +1392,8 @@ const jsonLd = [softwareApplication, faqPage];
     <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center">
       <h2 class="h2-section text-on-accent">Try it on your own infrastructure</h2>
       <p class="mt-4 text-on-accent/90">
-        Full access to every optimization. No feature gates, no usage limits. Cancel anytime.
+        Every optimization, on every install. The software is free. We sell support and hardened
+        builds.
       </p>
       <div class="mt-8 flex justify-center gap-4">
         <CTAButton variant="inverse" event="cta_features_bottom" />

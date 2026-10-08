@@ -2396,7 +2396,7 @@ what changed and what did not; the archived 1.0 docs are at [/1.0/](https://modp
 
 mod_pagespeed 2.1 is licensed under the Apache License 2.0, free in
 development and in production. What We-Amp sells on the converged line is
-[support — and hardened, attested builds](https://modpagespeed.com/pricing/) from the people who build
+[support and hardened builds](https://modpagespeed.com/support/) from the people who build
 the product; the standard signed packages stay free.
 
 ## Frequently asked questions
@@ -2537,10 +2537,10 @@ Security fixes ship as regular releases through the channel you installed
 from, and every one is listed under Security in the
 [release notes](https://modpagespeed.com/docs/release-notes/#security-updates) by impact class, with
 "update recommended" and the affected versions. The standard signed packages
-are free for everyone. A [support subscription](https://modpagespeed.com/pricing/) adds support from
+are free for everyone. A [support subscription](https://modpagespeed.com/support/) adds support from
 the people who build the product, with agreed response times and SLA-backed
-delivery of security updates; hardened attested builds ship the same code with
-a signed SBOM and build provenance through the subscriber repository.
+delivery of security updates; from the Priority tier up, hardened builds of the
+same code come through the subscriber repository ahead of the public release.
 
 ## Roll back
 
@@ -2560,7 +2560,7 @@ No. They are a matched pair: install, upgrade and roll them back together, and s
 
 **How do security updates reach me?**
 
-As regular releases through the channel you installed from, listed under Security in the release notes by impact class with "update recommended". A support subscription adds agreed response times and SLA-backed delivery of security updates; hardened attested builds ship the same code with a signed SBOM and build provenance through the subscriber repository.
+As regular releases through the channel you installed from, listed under Security in the release notes by impact class with "update recommended". A support subscription adds agreed response times and SLA-backed delivery of security updates; from the Priority tier up, hardened builds of the same code come through the subscriber repository ahead of the public release.
 
 ---
 
