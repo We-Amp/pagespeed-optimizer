@@ -147,6 +147,12 @@ export default defineConfig({
   // site is served through ModPageSpeed, which optimizes HTML at the edge,
   // so build-time compression is redundant here. See #1026 and corp PR #782.
   compressHTML: false,
+  // Inline the site stylesheet into every page instead of linking it: the
+  // external sheet was render-blocking on mobile (one more round trip before
+  // first paint). The trade-off is in website/CLAUDE.md ("Stylesheet strategy").
+  build: {
+    inlineStylesheets: 'always',
+  },
   adapter: node({ mode: 'standalone' }),
   site: 'https://modpagespeed.com',
   security: {
