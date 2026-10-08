@@ -1,6 +1,6 @@
 ---
 title: 'mod_pagespeed 2.1: one product again'
-description: 'The mod_pagespeed lineage and the ModPageSpeed 2.0 engine converge into one open-source product: the module you know, plus a separate optimizer worker. Apache-2.0, drop-in for 1.14/1.15 configs.'
+description: 'The mod_pagespeed lineage and the ModPageSpeed 2.0 engine converge into one open-source product: the module you know plus an optimizer worker. Apache-2.0.'
 date: 2026-09-17
 author: 'Otto van der Schaaf'
 tags: ['announcement', 'release']

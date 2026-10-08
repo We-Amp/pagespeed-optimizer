@@ -1,6 +1,6 @@
 ---
-title: 'Stop image optimization from stripping C2PA content credentials'
-description: 'mod_pagespeed detects C2PA / Content Credentials manifests and preserves image provenance instead of stripping it when optimizing — on by default in both parts.'
+title: 'Keep C2PA content credentials through image optimization'
+description: 'mod_pagespeed detects C2PA Content Credentials manifests and keeps image provenance instead of stripping it when optimizing. On by default in both parts.'
 date: 2026-06-22
 author: 'Otto van der Schaaf'
 tags: ['images', 'c2pa', 'provenance', 'content-credentials']

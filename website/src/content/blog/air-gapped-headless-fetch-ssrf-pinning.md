@@ -1,6 +1,6 @@
 ---
-title: 'Air-gapped headless rendering: SSRF protection with pinned, out-of-process fetches'
-description: 'SSRF protection for headless rendering: the optimizer worker forces Chrome offline, routing subresources through an IP-pinned fetch re-checked per redirect.'
+title: 'SSRF protection for headless rendering: pinned fetches'
+description: 'SSRF protection for headless rendering: the optimizer worker forces Chrome offline and routes subresources via an IP-pinned fetch, checked per redirect.'
 date: 2026-06-14
 author: 'Otto van der Schaaf'
 tags: ['architecture', 'security', 'headless-chrome', 'agentic', 'deep-dive']

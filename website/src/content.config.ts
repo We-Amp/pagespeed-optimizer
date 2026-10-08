@@ -8,8 +8,11 @@ import { parse as parseYaml } from 'yaml';
 const blog = defineCollection({
   loader: glob({ pattern: '**/*.md', base: './src/content/blog' }),
   schema: z.object({
-    title: z.string(),
-    description: z.string(),
+    // Search engines cut a title past roughly 60 characters and a snippet past
+    // roughly 155, so a longer value loses its last words in the results page.
+    // The page appends the product suffix only when the total still fits.
+    title: z.string().max(60, 'blog title must be 60 characters or fewer'),
+    description: z.string().max(155, 'blog description must be 155 characters or fewer'),
     date: z.coerce.date(),
     author: z.string().default('Otto van der Schaaf'),
     tags: z.array(z.string()).default([]),
@@ -67,7 +70,15 @@ const blog = defineCollection({
 const docs = defineCollection({
   loader: glob({ pattern: '**/*.{md,mdx}', base: './src/content/docs' }),
   schema: z.object({
-    title: z.string(),
+    // The sidebar label, breadcrumb and (unless `h1` is set) the heading.
+    // The <title> appends " — mod_pagespeed 2.1" only when the total stays
+    // within 60 characters, the point where search engines truncate.
+    title: z.string().max(60, 'docs title must be 60 characters or fewer'),
+    // Optional <title> override for a landing page whose search title should
+    // lead with the searcher's words rather than the short sidebar label.
+    seoTitle: z.string().max(60, 'docs seoTitle must be 60 characters or fewer').optional(),
+    // Optional page heading override; defaults to `title`.
+    h1: z.string().optional(),
     // Search engines truncate snippets past roughly 155 characters, so a
     // longer description is cut mid-claim. The build fails on a regression.
     description: z.string().max(155, 'docs description must be 155 characters or fewer'),
@@ -98,8 +109,8 @@ const docs = defineCollection({
 const howItWorks = defineCollection({
   loader: glob({ pattern: '**/*.md', base: './src/content/how-it-works' }),
   schema: z.object({
-    title: z.string(),
-    description: z.string(),
+    title: z.string().max(60, 'how-it-works title must be 60 characters or fewer'),
+    description: z.string().max(155, 'how-it-works description must be 155 characters or fewer'),
     // Hub ordering (lower = earlier).
     order: z.number().default(0),
     // Short blurb for the /how-it-works/ hub card. Falls back to description.

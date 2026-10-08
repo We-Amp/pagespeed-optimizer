@@ -125,7 +125,7 @@ let jsonLd: Record<string, unknown> | undefined;
 jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'TechArticle',
-  headline: doc.data.title,
+  headline: doc.data.h1 ?? doc.data.title,
   description: doc.data.description,
   image: schemaImage,
   author: { '@type': 'Organization', name: 'We-Amp B.V.' },
@@ -267,10 +267,21 @@ const faqJsonLd =
 const jsonLdEntries: Record<string, unknown>[] = [];
 if (jsonLd) jsonLdEntries.push(jsonLd);
 if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
+
+// <title>: an explicit seoTitle wins; otherwise the sidebar title plus the
+// product suffix, dropped when it would push the title past the ~60-character
+// point where search engines truncate (the same rule as the blog).
+const titleSuffix = ' — mod_pagespeed 2.1';
+const pageTitle =
+  doc.data.seoTitle ??
+  (doc.data.title.length + titleSuffix.length <= 60
+    ? `${doc.data.title}${titleSuffix}`
+    : doc.data.title);
+const heading = doc.data.h1 ?? doc.data.title;
 ---
 
 <BaseLayout
-  title={`${doc.data.title} — mod_pagespeed 2.1`}
+  title={pageTitle}
   description={doc.data.description}
   jsonLd={jsonLdEntries}
   breadcrumbLeafName={doc.data.title}
@@ -394,7 +405,7 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
           <span>{doc.data.title}</span>
         </nav>
         <h1 class="text-3xl font-bold tracking-tight text-text-body">
-          {doc.data.title}
+          {heading}
         </h1>
         <p
           class="mt-3 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-text-annotation"

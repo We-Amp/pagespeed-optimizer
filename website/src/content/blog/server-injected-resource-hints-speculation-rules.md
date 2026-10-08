@@ -1,5 +1,5 @@
 ---
-title: "Server-injected resource hints: Speculation Rules and preconnect from real traffic"
+title: 'Server-injected resource hints: Speculation Rules and more'
 description: "How a proxy generates server-injected resource hints: speculation-rules prefetch derived from real traffic, priority-bucketed preconnect, font preload."
 date: 2026-06-14
 lastUpdated: 2026-09-06

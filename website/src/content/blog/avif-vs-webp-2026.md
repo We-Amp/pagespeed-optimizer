@@ -1,6 +1,6 @@
 ---
 title: 'AVIF vs WebP in 2026: which to serve, and how to serve both'
-description: 'AVIF beats WebP on size but is slower to encode. In 2026, serve AVIF, WebP, or the original per request off the Accept header instead of picking one format for everyone.'
+description: 'AVIF beats WebP on size but is slower to encode. Serve AVIF, WebP or the original per request off the Accept header instead of one format for everyone.'
 date: 2026-06-06
 lastUpdated: 2026-07-04
 tags: ['avif', 'webp', 'image-optimization', 'content-negotiation', 'performance']

@@ -1,5 +1,5 @@
 ---
-title: 'How the Metadata Cache Avoids Re-Optimizing'
+title: 'How the metadata cache avoids re-optimizing'
 description: "How mod_pagespeed avoids re-optimizing on every request: a metadata cache keyed by the output URL maps to the answer and skips rewrites that don't shrink."
 order: 20
 datePublished: 2026-06-13

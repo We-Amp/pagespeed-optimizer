@@ -1,6 +1,6 @@
 ---
-title: 'Safe JavaScript minification: automatic semicolon insertion and the fail-safe'
-description: "To minify JavaScript safely you have to parse it, not strip whitespace. How the mod_pagespeed 2.1 optimizer worker's tokenizer handles automatic semicolon insertion, regex-vs-divide, and a parse-error fail-safe that ships the original untouched."
+title: 'Safe JavaScript minification: semicolon insertion, fail-safe'
+description: 'Safe JavaScript minification means parsing, not stripping whitespace: semicolon insertion, regex-vs-divide and a fail-safe that ships the original as is.'
 date: 2026-06-14
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'

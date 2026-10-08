@@ -1,6 +1,6 @@
 ---
 title: 'Proactive variant generation: warming the cache for hot URLs'
-description: 'How the mod_pagespeed 2.1 optimizer worker warms hot-URL caches: nginx flags a hot URL and the worker pre-builds the whole image variant matrix — format, viewport, density, Save-Data — instead of encoding one variant per request.'
+description: 'How the mod_pagespeed 2.1 worker warms hot URLs: nginx flags a hot URL and the worker pre-builds the whole image variant matrix instead of one per request.'
 date: 2026-06-14
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'

@@ -1,6 +1,6 @@
 ---
-title: "Remove unused JavaScript with Chrome's coverage instrumentation"
-description: "How a headless Chrome V8 coverage pass measures which JavaScript actually executes before first paint, so the mod_pagespeed 2.1 optimizer worker can safely defer the scripts that never run on load."
+title: 'Remove unused JavaScript with Chrome coverage data'
+description: 'A headless Chrome V8 coverage pass measures which JavaScript runs before first paint, so the mod_pagespeed 2.1 worker can defer the scripts that never run.'
 date: 2026-06-14
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'

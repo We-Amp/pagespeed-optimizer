@@ -106,7 +106,14 @@ if (savings && substantive) {
   }
 }
 
-const pageDescription = `${ex.blurb} See it applied live by the mod_pagespeed module, with the source diff and measured byte/request savings.`;
+// Kept within the ~155 characters a search snippet shows: the long tail is
+// dropped first, then the short one, before the blurb itself is cut.
+const descriptionTails = [
+  ' Live before and after, with the source diff and measured savings.',
+  ' Live before and after.',
+  '',
+];
+const pageDescription = `${ex.blurb}${descriptionTails.find((tail) => ex.blurb.length + tail.length <= 155) ?? ''}`;
 
 // TechArticle JSON-LD, mirroring /1.1/docs/[slug].astro. Emitted only on
 // indexable pages (the ones that carry settled before/after data); when

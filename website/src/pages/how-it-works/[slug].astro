@@ -90,7 +90,9 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
 ---
 
 <BaseLayout
-  title={`${doc.data.title} — mod_pagespeed`}
+  title={doc.data.title.length + ' — mod_pagespeed'.length <= 60
+    ? `${doc.data.title} — mod_pagespeed`
+    : doc.data.title}
   description={doc.data.description}
   jsonLd={jsonLdEntries}
   breadcrumbLeafName={doc.data.title}

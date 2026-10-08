@@ -1,6 +1,6 @@
 ---
-title: 'The nginx image optimization module: automatic WebP and opt-in AVIF, no build step'
-description: 'A native nginx module that transcodes images to WebP and AVIF on serve, content-negotiates on Accept, and caches the variant. Install from signed apt/yum, no compiling.'
+title: 'nginx image optimization module: automatic WebP, opt-in AVIF'
+description: 'A native nginx module that transcodes images to WebP and AVIF on serve, negotiates on Accept and caches the variant. Signed apt/yum packages, no compiling.'
 date: 2026-06-06
 lastUpdated: 2026-07-19
 author: 'Otto van der Schaaf'

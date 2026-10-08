@@ -1,5 +1,5 @@
 ---
-title: "How a Server Optimizer Avoids Adding Latency"
+title: 'How a server optimizer avoids adding latency'
 description: "How mod_pagespeed optimizes images, CSS, and JS without slowing the request: the second-request problem, and the optimizer worker that solves it."
 order: 10
 datePublished: 2026-06-13

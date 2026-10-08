@@ -1,6 +1,6 @@
 ---
 title: 'Why I rebuilt mod_pagespeed from scratch'
-description: 'The story behind ModPageSpeed 2.0 — why mod_pagespeed is no longer actively developed, what was kept from PSOL, and how a new architecture replaced the RewriteDriver.'
+description: 'The story behind ModPageSpeed 2.0: why mod_pagespeed stopped being developed, what was kept from PSOL, and how a new architecture replaced RewriteDriver.'
 date: 2026-02-01
 lastUpdated: 2026-09-19
 author: 'Otto van der Schaaf'
