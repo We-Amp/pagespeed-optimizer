@@ -44,7 +44,12 @@ describe('Inter subset budget', () => {
 });
 
 describe('metric-matched font fallbacks', () => {
-  for (const family of ['Inter Fallback', 'IBM Plex Mono Fallback']) {
+  for (const family of [
+    'Inter Fallback',
+    'Inter Fallback Roboto',
+    'IBM Plex Mono Fallback',
+    'IBM Plex Mono Fallback Liberation',
+  ]) {
     it(`${family} carries size-adjust and the vertical metric overrides`, () => {
       const face = fontFace(family);
       expect(face).toMatch(/src:\s*local\(/);
@@ -59,8 +64,31 @@ describe('metric-matched font fallbacks', () => {
     });
   }
 
-  it('the font stacks name each fallback right after its web font', () => {
-    expect(css).toMatch(/--font-sans:\s*'Inter',\s*'Inter Fallback',/);
-    expect(css).toMatch(/--font-mono:\s*'IBM Plex Mono',\s*'IBM Plex Mono Fallback',/);
+  it('the fallbacks cover macOS, Windows, Linux and Android system fonts', () => {
+    const sources = (family: string) => fontFace(family).match(/local\('([^']+)'\)/g) ?? [];
+    const inter = [...sources('Inter Fallback'), ...sources('Inter Fallback Roboto')].join(' ');
+    for (const local of ['Arial', 'Helvetica', 'Liberation Sans', 'Roboto']) {
+      expect(inter).toContain(`local('${local}')`);
+    }
+    const mono = [
+      ...sources('IBM Plex Mono Fallback'),
+      ...sources('IBM Plex Mono Fallback Liberation'),
+    ].join(' ');
+    for (const local of ['Menlo', 'DejaVu Sans Mono', 'Liberation Mono', 'Droid Sans Mono']) {
+      expect(mono).toContain(`local('${local}')`);
+    }
+  });
+
+  it('the font stacks name the fallbacks right after their web font', () => {
+    expect(css).toMatch(/--font-sans:\s*'Inter',\s*'Inter Fallback',\s*'Inter Fallback Roboto',/);
+    expect(css).toMatch(
+      /--font-mono:\s*'IBM Plex Mono',\s*'IBM Plex Mono Fallback',\s*'IBM Plex Mono Fallback Liberation',/,
+    );
+  });
+
+  it('the Inter license ships next to the font', () => {
+    const license = readFileSync(path('../public/fonts/Inter-OFL.txt'), 'utf8');
+    expect(license).toContain('The Inter Project Authors');
+    expect(license).toContain('SIL OPEN FONT LICENSE Version 1.1');
   });
 });
