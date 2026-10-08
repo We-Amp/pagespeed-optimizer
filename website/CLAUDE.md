@@ -48,6 +48,11 @@ such a session start the dev server first (`npm run dev`, which backgrounds itse
 `npx playwright test` with `CI` unset so it reuses the running server, and finish with
 `npx astro dev stop`. A human terminal and CI are not affected.
 
+## Stylesheet strategy
+
+The site CSS stays an external sheet (Astro's default): in production the site's own optimizer inlines the critical CSS and defers the full sheet, so first paint is not blocked and nothing flashes unstyled.
+Inlining the whole sheet at build time would add its gzip size to every page view after the first and hand the critical-CSS filter a second copy to process; fonts are the remaining LCP lever, guarded by `test/font-budget.test.ts`.
+
 ## Site search
 
 Search is [Pagefind](https://pagefind.app/), a static index built after the Astro build:
