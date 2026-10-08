@@ -12,7 +12,9 @@
 #
 # Usage: tools/ci/rat.sh [REPORT_PATH]
 #   Needs java (8 or newer) and curl on PATH. The pinned RAT jar is fetched
-#   from Maven Central into a cache directory outside the tree and its SHA-1 is
+#   from Maven Central (repo1, then the repo.maven.apache.org mirror, then the
+#   Apache archive binary tarball) into a cache directory outside the tree, and
+#   its SHA-1 -- the only checksum Maven publishes for this artifact -- is
 #   verified before use (fail closed). The download goes to a per-process temp
 #   file that is renamed into place only after it verifies, so a truncated
 #   download never becomes the cached jar and concurrent jobs sharing the
@@ -33,7 +35,14 @@ set -euo pipefail
 
 RAT_VERSION="0.16.1"
 RAT_SHA1="7a35d6881c9430c51ecb346bae662ee9832fe59a"
-RAT_URL="https://repo1.maven.org/maven2/org/apache/rat/apache-rat/${RAT_VERSION}/apache-rat-${RAT_VERSION}.jar"
+# Download sources, tried in order: Maven Central's repo1 CDN (which has
+# flaked with transient 404s), its repo.maven.apache.org mirror, and finally
+# the Apache archive's binary tarball (the jar inside it is byte-identical to
+# the Maven artifact). Whatever the source, the jar must match the pinned
+# SHA-1 above. RAT_URL_PRIMARY is overridable to exercise the fallback chain.
+RAT_URL_PRIMARY="${RAT_URL_PRIMARY:-https://repo1.maven.org/maven2/org/apache/rat/apache-rat/${RAT_VERSION}/apache-rat-${RAT_VERSION}.jar}"
+RAT_URL_MIRROR="https://repo.maven.apache.org/maven2/org/apache/rat/apache-rat/${RAT_VERSION}/apache-rat-${RAT_VERSION}.jar"
+RAT_URL_ARCHIVE="https://archive.apache.org/dist/creadur/apache-rat-${RAT_VERSION}/apache-rat-${RAT_VERSION}-bin.tar.gz"
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 REPORT="${1:-${REPO_ROOT}/rat-report.txt}"
@@ -60,13 +69,37 @@ mkdir -p "$CACHE_DIR"
 scratch="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/rat.XXXXXX")"
 part=""
 trap 'rm -rf "$scratch" "$part"' EXIT
+
+fetch() {
+  # fetch <url> <dest>: retried curl; returns non-zero so the caller can try
+  # the next source. --retry-all-errors also retries HTTP 404 responses,
+  # which the CDN has served transiently next to the real artifact.
+  curl --fail --silent --show-error --location \
+    --retry 4 --retry-all-errors --retry-delay 5 -o "$2" "$1"
+}
+
 if [[ ! -f "$JAR" ]] || [[ "$(sha1_of "$JAR")" != "$RAT_SHA1" ]]; then
-  echo "Downloading Apache RAT ${RAT_VERSION} from Maven Central..."
+  echo "Downloading Apache RAT ${RAT_VERSION}..."
   # Per-process temp name INSIDE the cache dir: the final step is then an
   # atomic rename on the same filesystem, so a concurrent job on the same
   # host either sees no jar or a complete, verified one -- never a partial.
   part="$(mktemp "${JAR}.XXXXXX")"
-  curl -fsSL --retry 3 --retry-delay 2 -o "$part" "$RAT_URL"
+  if ! fetch "$RAT_URL_PRIMARY" "$part"; then
+    echo "::warning::Maven Central primary (${RAT_URL_PRIMARY}) failed; trying the repo.maven.apache.org mirror" >&2
+    if ! fetch "$RAT_URL_MIRROR" "$part"; then
+      echo "::warning::Maven Central mirror failed too; trying the Apache archive" >&2
+      tgz="${scratch}/apache-rat-${RAT_VERSION}-bin.tar.gz"
+      if ! fetch "$RAT_URL_ARCHIVE" "$tgz"; then
+        echo "::error::all Apache RAT download sources failed" >&2
+        exit 1
+      fi
+      # The archive only ships the jar inside its binary tarball.
+      if ! tar -xzf "$tgz" -O "apache-rat-${RAT_VERSION}/apache-rat-${RAT_VERSION}.jar" >"$part"; then
+        echo "::error::could not extract the jar from ${RAT_URL_ARCHIVE}" >&2
+        exit 1
+      fi
+    fi
+  fi
   got="$(sha1_of "$part")"
   if [[ "$got" != "$RAT_SHA1" ]]; then
     echo "::error::apache-rat-${RAT_VERSION}.jar SHA-1 mismatch: expected ${RAT_SHA1}, got ${got} -- refusing to run an unverified jar" >&2

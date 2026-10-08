@@ -144,6 +144,15 @@ jobs:
         with:
           distribution: temurin
           java-version: "21"
+      # Cache the RAT jar across runs, keyed on the version pinned in
+      # tools/ci/rat.sh (update both together). rat.sh still verifies the
+      # jar's pinned SHA-1 before use, so a corrupted or stale cache entry
+      # fails closed and is re-downloaded.
+      - name: Cache Apache RAT jar
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/apache-rat
+          key: apache-rat-0.16.1
       # tools/ci/rat.sh fetches the SHA-1-pinned RAT jar itself (fail
       # closed); the report is kept outside the checkout so RAT never
       # audits its own output.
