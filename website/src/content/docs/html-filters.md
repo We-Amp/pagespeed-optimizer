@@ -3,7 +3,7 @@ title: 'HTML filters'
 description: 'HTML optimization filters in mod_pagespeed 2.1: collapse whitespace, strip comments, elide attributes, DNS prefetch, and resource preload hints.'
 order: 46
 group: 'Filters'
-lastUpdated: 2026-09-19
+lastUpdated: 2026-10-08
 ---
 
 ## Overview
@@ -67,24 +67,91 @@ These filters reduce HTML payload size by removing unnecessary bytes.
 
 [Full guide →](/docs/filters/collapse_whitespace/)
 
-Removes excess whitespace from HTML. Preserves whitespace inside `<pre>`, `<script>`, `<style>`, and `<textarea>` elements. Never removes whitespace entirely between inline elements.
+#### What it does
+
+`collapse_whitespace` shrinks the HTML payload by folding every run of whitespace (spaces, tabs, carriage returns, newlines) down to a single character. The markup keeps its structure; only the formatting bytes go. Live demo: [collapse_whitespace](/examples/collapse_whitespace/).
+
+```text
+<!-- before -->
+<ul class="nav">
+    <li>  <a href="/a">Alpha</a>  </li>
+    <li>  <a href="/b">Beta</a>   </li>
+</ul>
+
+<!-- after: each run that held a newline keeps one newline -->
+<ul class="nav">
+<li> <a href="/a">Alpha</a> </li>
+<li> <a href="/b">Beta</a> </li>
+</ul>
+```
+
+#### When it helps and when it does not
+
+The saving scales with how much pretty-printing the templates do: indented server-side templates carry many collapsible bytes, already-compacted HTML almost none. Gzip and Brotli compress whitespace runs well, so the on-the-wire saving is much smaller than the source saving suggests. The filter earns most where HTML is served uncompressed, and least on an already minified template. Not a CoreFilter; enable it by name.
+
+#### How it decides
+
+A whitespace run that contains a newline collapses to a newline, any other run to a single space; a run never collapses to nothing, so inline elements keep their separating space and text layout is preserved. Content inside `pre`, `code`, `script`, `style`, and `textarea` is never touched, because whitespace is meaningful there.
+
+#### Risks
+
+- Pages whose rendering depends on whitespace-sensitive CSS, such as `white-space: pre` on ordinary elements, can change appearance; the filter sees the markup, not the stylesheet. Test such pages before enabling.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-collapse_whitespace` comparison; [Is it working?](/docs/is-it-working/) has the steps.
+
+#### Configuration
+
+```apache
+# Apache
+ModPagespeedEnableFilters collapse_whitespace
+```
+
+```nginx
+# Nginx
+pagespeed EnableFilters collapse_whitespace;
+```
 
 ### remove_comments {#remove_comments}
 
 [Full guide →](/docs/filters/remove_comments/)
 
-Strips HTML comments from the page. Use `RetainComment` to keep specific comments matching a wildcard pattern.
+#### What it does
 
-Configuration for nginx:
+`remove_comments` deletes HTML comments (`<!-- ... -->`) from the served page, cutting bytes that only developers read. The document tree is unchanged apart from the removed nodes. Live demo: [remove_comments](/examples/remove_comments/).
 
-```nginx
-pagespeed RetainComment "*copyright*";
+```html
+<!-- before -->
+<!-- TODO: replace with the component version -->
+<div class="banner">Sale ends Friday</div>
+
+<!-- after -->
+<div class="banner">Sale ends Friday</div>
 ```
 
-Configuration for Apache:
+#### When it helps and when it does not
+
+It helps on pages whose templates carry heavy commentary: build markers, TODO notes, and section labels add up on large documents. It does nothing for pages that ship few comments, and it must not remove comments that carry a function. Comments you are obliged or willing to ship stay behind a `RetainComment` wildcard, and IE conditional comments (`<!--[if IE]> ... <![endif]-->`) are parsed as directives rather than comments, so they always survive.
+
+#### How it decides
+
+Every comment node is dropped unless its text matches one of the configured `RetainComment` wildcard patterns. There is no size threshold and no content analysis beyond the pattern match.
+
+#### Risks
+
+- Copyright or license notices that must ship with the page need a `RetainComment` entry before the filter goes on.
+- A rare third-party snippet that reads the page's own comments breaks; retain its marker comment or disable the filter for that path. Verify with the `X-Mod-Pagespeed` header and `?PageSpeedFilters=-remove_comments`; [Is it working?](/docs/is-it-working/) has the steps.
+
+#### Configuration
 
 ```apache
+# Apache
+ModPagespeedEnableFilters remove_comments
 ModPagespeedRetainComment "*copyright*"
+```
+
+```nginx
+# Nginx
+pagespeed EnableFilters remove_comments;
+pagespeed RetainComment "*copyright*";
 ```
 
 ### elide_attributes {#elide_attributes}
@@ -105,7 +172,45 @@ Removes unnecessary quotation marks around HTML attribute values when the value 
 
 [Full guide →](/docs/filters/trim_urls/)
 
-Shortens absolute URLs to relative URLs where the base URL matches the page URL. Reduces HTML payload at the cost of less portable HTML. Disable this filter if you serve the same HTML from multiple domains.
+#### What it does
+
+`trim_urls` shortens URLs inside the page by stripping the parts that repeat the page's own origin. An absolute URL whose scheme, host and port match the page loses its origin, and the page's own directory prefix is trimmed too; URLs on any other origin, including the same host over another scheme, are left untouched. `left_trim_urls` is an accepted alternate spelling of the same filter; both names switch on the same code. Live demo: [trim_urls](/examples/trim_urls/).
+
+```html
+<!-- page: https://example.com/shop/ -->
+<!-- before -->
+<a href="https://example.com/shop/cart">Cart</a>
+<img src="https://example.com/img/logo.png" />
+
+<!-- after -->
+<a href="cart">Cart</a>
+<img src="/img/logo.png" />
+```
+
+#### When it helps and when it does not
+
+It saves a few bytes per URL on pages dense with same-origin absolute links, which is typical of CMS output that expands every URL in full; under gzip or Brotli the saving shrinks further, since the repeated origin strings compress well. It does not help pages that already use relative URLs throughout. Keep it off for HTML that lives beyond its origin: a saved page, an emailed copy, or markup served under a second domain resolves relative URLs against the wrong base.
+
+#### How it decides
+
+Each URL-valued attribute is resolved against the page's base URL, and a `<base>` tag wins when present and is never itself rewritten. Only what matches gets trimmed: a full origin match drops the origin, a path under the page's own directory then drops that directory as well, and a URL on another origin keeps its full form. A trim is kept only when the shorter URL resolves back to exactly the original one.
+
+#### Risks
+
+- Serving the same cached HTML from multiple domains, or any flow that detaches the markup from its origin, turns the trimming into broken links; disable `trim_urls` for that content.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-trim_urls` comparison; [Is it working?](/docs/is-it-working/) has the steps.
+
+#### Configuration
+
+```apache
+# Apache
+ModPagespeedEnableFilters trim_urls
+```
+
+```nginx
+# Nginx
+pagespeed EnableFilters trim_urls;
+```
 
 ## Structural filters
 
@@ -147,7 +252,40 @@ Adds `type="text/javascript"` and `type="text/css"` attributes to `<script>` and
 
 [Full guide →](/docs/filters/insert_dns_prefetch/)
 
-Adds `<link rel="dns-prefetch" href="//example.com">` tags for third-party domains referenced in the page. This allows the browser to resolve DNS for external domains in parallel with page loading, reducing latency for subsequent resource fetches.
+#### What it does
+
+`insert_dns_prefetch` adds connection warm-up hints for the origins of resources referenced in the body that the head does not already reference. A `<link rel="dns-prefetch">` hint starts the DNS lookup early, while the browser is still busy with the HTML; a `<link rel="preconnect">` hint goes further and opens the connection, TCP and for HTTPS also TLS, before the resource tag is even seen. Live demo: [insert_dns_prefetch](/examples/insert_dns_prefetch/).
+
+```html
+<!-- inserted into <head> -->
+<link rel="preconnect" href="https://fonts.examplecdn.com" />
+<link rel="dns-prefetch" href="//analytics.example.com" />
+```
+
+#### When it helps and when it does not
+
+It helps when a page pulls from a few stable third-party origins, such as font CDNs or analytics hosts: the lookup and handshake then overlap with the HTML download instead of starting when the resource is discovered. It does nothing for same-origin resources, since the connection to the page's own origin is already open. It also does little when the set of third-party domains churns between page views, because the hints are learned from earlier rewrites of the page and may name domains it no longer uses.
+
+#### How it decides
+
+The filter records which origins a page's body resources come from, in order of first appearance. Hints are emitted once the number of hinted domains changes by at most two between rewrites; the check counts domains, so a page whose domains change but whose count holds still gets hints for the stored list. A page gets at most eight hints in total; the first two domains get `preconnect`, the rest `dns-prefetch`. Early views contribute data and get nothing; later views get the hints. Domains the author already hinted or referenced in the head are not duplicated.
+
+#### Risks
+
+- Every hint costs the browser work, and a preconnect costs an open connection held for an origin the visitor might not need; the built-in caps of eight hints, at most two of them preconnects, bound that overhead.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-insert_dns_prefetch` comparison; [Is it working?](/docs/is-it-working/) has the steps.
+
+#### Configuration
+
+```apache
+# Apache
+ModPagespeedEnableFilters insert_dns_prefetch
+```
+
+```nginx
+# Nginx
+pagespeed EnableFilters insert_dns_prefetch;
+```
 
 ### hint_preload_subresources {#hint_preload_subresources}
 

@@ -70,12 +70,28 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [CSS filters](https://modpagespeed.com/docs/css-filters/): CSS filters in mod_pagespeed 2.1: minify, combine, inline and flatten @import CSS, plus critical-CSS extraction. Apache, nginx and IIS syntax with tuning.
 - [JavaScript filters](https://modpagespeed.com/docs/javascript-filters/): Minify, combine, inline, and defer JavaScript in mod_pagespeed 2.1. Directives, defaults, and the trade-offs for each JS filter on Apache, nginx, and IIS.
 - [HTML filters](https://modpagespeed.com/docs/html-filters/): HTML optimization filters in mod_pagespeed 2.1: collapse whitespace, strip comments, elide attributes, DNS prefetch, and resource preload hints.
+- [Collapse whitespace (collapse_whitespace)](https://modpagespeed.com/docs/filters/collapse_whitespace/): Removes excess whitespace from HTML.
+- [Combine CSS (combine_css)](https://modpagespeed.com/docs/filters/combine_css/): Combines multiple CSS files into one.
+- [Combine JavaScript (combine_javascript)](https://modpagespeed.com/docs/filters/combine_javascript/): Combines multiple JS files into one.
+- [Convert JPEG to WebP (convert_jpeg_to_webp)](https://modpagespeed.com/docs/filters/convert_jpeg_to_webp/): Converts JPEG to WebP for capable browsers.
 - [Defer JavaScript (defer_javascript)](https://modpagespeed.com/docs/filters/defer_javascript/): Defers JS execution until after page load.
+- [Inline CSS (inline_css)](https://modpagespeed.com/docs/filters/inline_css/): Inlines small external CSS into HTML.
 - [Inline images (inline_images)](https://modpagespeed.com/docs/filters/inline_images/): Inlines small images as data: URIs.
+- [Inline JavaScript (inline_javascript)](https://modpagespeed.com/docs/filters/inline_javascript/): Inlines small external JS into HTML.
+- [Insert DNS prefetch (insert_dns_prefetch)](https://modpagespeed.com/docs/filters/insert_dns_prefetch/): Adds <link rel=dns-prefetch> for third-party domains.
 - [Lazy-load images (lazyload_images)](https://modpagespeed.com/docs/filters/lazyload_images/): Defers offscreen image loading.
 - [Prioritize critical CSS (prioritize_critical_css)](https://modpagespeed.com/docs/filters/prioritize_critical_css/): Inlines the CSS a page uses, loads the rest async.
 - [Prioritize critical images (prioritize_critical_images)](https://modpagespeed.com/docs/filters/prioritize_critical_images/): Sets fetchpriority=high on the LCP image.
+- [Remove comments (remove_comments)](https://modpagespeed.com/docs/filters/remove_comments/): Strips HTML comments.
 - [Resize images (resize_images)](https://modpagespeed.com/docs/filters/resize_images/): Resizes images to match <img> dimensions.
+- [Minify CSS (rewrite_css)](https://modpagespeed.com/docs/filters/rewrite_css/): Minifies CSS, rewrites embedded URLs.
+- [Minify external JavaScript (rewrite_javascript_external)](https://modpagespeed.com/docs/filters/rewrite_javascript_external/): Minifies external JavaScript files.
+- [Minify inline JavaScript (rewrite_javascript_inline)](https://modpagespeed.com/docs/filters/rewrite_javascript_inline/): Minifies inline JavaScript.
+- [Sprite images (sprite_images)](https://modpagespeed.com/docs/filters/sprite_images/): Combines CSS background images into sprites.
+- [Trim URLs (trim_urls)](https://modpagespeed.com/docs/filters/trim_urls/): Shortens URLs relative to base URL.
+- [Extend cache (extend_cache)](https://modpagespeed.com/docs/filters/extend_cache/): Content-hashed URLs with a 1-year browser cache for CSS, images and scripts.
+- [Optimize images (rewrite_images)](https://modpagespeed.com/docs/filters/rewrite_images/): Master image optimization: recompress, convert, resize and inline (enables the sub-filters).
+- [Minify JavaScript (rewrite_javascript)](https://modpagespeed.com/docs/filters/rewrite_javascript/): Minifies external and inline JavaScript (enables both sub-filters).
 
 ## Operate
 

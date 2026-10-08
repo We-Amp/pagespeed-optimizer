@@ -3,7 +3,7 @@ title: 'CSS filters'
 description: 'CSS filters in mod_pagespeed 2.1: minify, combine, inline and flatten @import CSS, plus critical-CSS extraction. Apache, nginx and IIS syntax with tuning.'
 order: 44
 group: 'Filters'
-lastUpdated: 2026-10-06
+lastUpdated: 2026-10-08
 ---
 
 ## Overview
@@ -47,9 +47,36 @@ See [IIS configuration](/docs/iis-configuration/) for the full file format refer
 
 [Full guide →](/docs/filters/rewrite_css/)
 
-Core filter. Minifies CSS by removing whitespace, comments, and shortening property values. Also rewrites embedded image URLs so they go through mod_pagespeed's image optimization pipeline. In OptimizeForBandwidth mode, minifies CSS in-place without changing the URL.
+#### What it does
 
-Enable:
+`rewrite_css` parses each stylesheet, minifies it, and rewrites the `url()` references inside it so images and fonts go through mod_pagespeed's optimization and cache-extension pipeline. The result is served from a rewritten `.pagespeed.cf.` URL with a long cache lifetime; the original file on disk is never touched. In OptimizeForBandwidth mode the minified bytes replace the original response in place and the URL stays as authored. Live demo: [rewrite_css](/examples/rewrite_css/).
+
+```text
+/* before */
+/* Site header, see ticket 412 */
+.header {
+  margin: 0px 0px 16px 0px;
+  background: #ffffff url(/img/banner.png) no-repeat;
+}
+
+/* after */
+.header{margin:0 0 16px 0;background:#fff url(/img/banner.png.pagespeed.ce.HASH.png) no-repeat}
+```
+
+#### When it helps and when it does not
+
+Minification helps most on hand-maintained CSS with comments and generous formatting, and the URL rewriting helps wherever stylesheet-referenced images are not already optimized. A build pipeline that already minifies and fingerprints its CSS leaves the filter little to do; running it anyway only adds a rewrite step. Because the parser declines a stylesheet it cannot fully parse rather than guessing, heavily hack-laden legacy CSS may pass through unminified — the companion `fallback_rewrite_css_urls` still rewrites the URLs inside such files.
+
+#### How it decides
+
+The filter runs a real CSS parser over the file. On a parse failure it produces no minified output and leaves minification to no one: only URL rewriting can still happen, through `fallback_rewrite_css_urls`. Values are shortened only where the equivalence is exact, such as `0px` to `0` and `#ffffff` to `#fff`. The stylesheet must sit on a domain the module is authorized to fetch, and the rewritten URL embeds a content hash so a changed file is picked up without a purge.
+
+#### Risks
+
+- A stylesheet that relies on parser-error recovery (old browser hacks) can be declined or rewritten differently than a browser would interpret it; test such files before rolling out.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-rewrite_css` comparison; [Is it working?](/docs/is-it-working/) has the steps.
+
+#### Configuration
 
 ```apache
 # Apache
@@ -107,18 +134,45 @@ pagespeed EnableFilters rewrite_style_attributes_with_url;
 
 [Full guide →](/docs/filters/combine_css/)
 
-Core filter. Combines multiple `<link rel="stylesheet">` elements into a single CSS file, reducing HTTP requests. Each combined file groups stylesheets that appear consecutively in the HTML. A `<script>` tag or other non-CSS element between two `<link>` tags breaks the combination boundary.
+#### What it does
 
-Enable:
+`combine_css` concatenates consecutive `<link rel="stylesheet">` references into one stylesheet and swaps the group for a single `<link>` to the combined file at a `.pagespeed.cc.` URL. Three stylesheets in a row become one request, and the rules keep their original order so the cascade is unchanged. Live demo: [combine_css](/examples/combine_css/).
+
+```html
+<!-- before -->
+<link rel="stylesheet" href="/css/reset.css" />
+<link rel="stylesheet" href="/css/layout.css" />
+<link rel="stylesheet" href="/css/theme.css" />
+
+<!-- after -->
+<link rel="stylesheet" href="/css/reset.css+layout.css+theme.css.pagespeed.cc.HASH.css" />
+```
+
+#### When it helps and when it does not
+
+Combining was designed for HTTP/1.1 connection limits. CSS is render-blocking, so even over HTTP/2 one combined fetch can beat several discovered-in-parallel fetches, but the margin is much smaller than it was: multiplexing removes the queueing that made combining essential. The counter-costs are real: the combined file invalidates as a whole when any member changes, and first paint waits for the entire combined download. Sites that already ship one bundled stylesheet gain nothing.
+
+#### How it decides
+
+Only consecutive links with the same `media` value combine; a different `media` attribute starts a new group, as does an inline `<style>` block, an IE conditional comment, a `<link>` inside `<noscript>`, or a link carrying extra attributes such as `id` or `title`, which is left as authored. Every member must come from a domain the module is authorized to fetch. `MaxCombinedCssBytes` caps the combined size and defaults to -1, no limit.
+
+#### Risks
+
+- Relative `url()` paths inside combined files are resolved against each member's own location, so members from different directories combine safely; what does not survive is markup that depends on the exact set of `<link>` elements, such as scripts that toggle stylesheets by index.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-combine_css` comparison; [Is it working?](/docs/is-it-working/) has the steps.
+
+#### Configuration
 
 ```apache
 # Apache
 ModPagespeedEnableFilters combine_css
+ModPagespeedMaxCombinedCssBytes 102400
 ```
 
 ```nginx
 # Nginx
 pagespeed EnableFilters combine_css;
+pagespeed MaxCombinedCssBytes 102400;
 ```
 
 ### flatten_css_imports {#flatten_css_imports}
@@ -143,18 +197,43 @@ pagespeed EnableFilters flatten_css_imports;
 
 [Full guide →](/docs/filters/inline_css/)
 
-Core filter. Inlines small external CSS files directly into the HTML as `<style>` blocks. The `CssInlineMaxBytes` parameter (default: 2048) controls the size threshold.
+#### What it does
 
-Enable:
+`inline_css` replaces a small external stylesheet with an inline `<style>` block holding the file's contents, so first paint no longer waits on that fetch. Relative `url()` paths inside the stylesheet are made absolute first, so images and fonts keep resolving from the page's location. Live demo: [inline_css](/examples/inline_css/).
+
+```text
+<!-- before: a render-blocking request for a 1.8 KB file -->
+<link rel="stylesheet" href="/css/header.css">
+
+<!-- after: the rules sit inside the page -->
+<style>.site-header{display:flex;gap:1rem}.site-header img{height:2rem}</style>
+```
+
+#### When it helps and when it does not
+
+CSS is render-blocking, so for a tiny stylesheet the removed round trip is worth more than the bytes: the request, its headers, and its connection setup all cost more than a kilobyte of inline text. The trade flips as files grow or get shared. An inlined stylesheet is not cached on its own, so it downloads again with every page view, and a file inlined into twenty pages is transferred twenty times. Stylesheets shared across many pages, and anything well above the threshold, are better left external with a long cache lifetime. `inline_css` is a CoreFilter, so the trade is already live on a default install.
+
+#### How it decides
+
+Only stylesheets whose contents are no larger than `CssInlineMaxBytes` (default 2048 bytes) qualify, and only files on domains the module is authorized to fetch. A stylesheet whose `media` attribute cannot affect the screen, such as `print`, stays external: inlining it would make every page pay for rules no screen visitor needs. A file that contains the text `</style>` stays external too, since it would end the inline block early. Nothing is inlined when the page's Content-Security-Policy forbids inline styles.
+
+#### Risks
+
+- The page grows by the stylesheet's size on every view, so keep `CssInlineMaxBytes` small. Raising it to inline a large file delays the HTML itself, which is worse than the fetch it removes.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-inline_css` comparison; [Is it working?](/docs/is-it-working/) has the steps.
+
+#### Configuration
 
 ```apache
 # Apache
 ModPagespeedEnableFilters inline_css
+ModPagespeedCssInlineMaxBytes 2048
 ```
 
 ```nginx
 # Nginx
 pagespeed EnableFilters inline_css;
+pagespeed CssInlineMaxBytes 2048;
 ```
 
 ### inline_import_to_link {#inline_import_to_link}
