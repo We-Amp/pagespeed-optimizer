@@ -180,6 +180,9 @@ export default defineConfig({
     '/docs/directive-index/': '/docs/configuration/',
     '/docs/filter-reference/': '/docs/filters/',
     '/docs/filters-overview/': '/docs/filters/',
+    // Docs structure: retired pages forward to their successors (one block,
+    // kept contiguous so parallel docs branches merge cleanly).
+    '/docs/documentation-plan/': '/docs/',
   },
   markdown: {
     // remarkDirective parses `:::caution[…]:::` container syntax; remarkCallouts

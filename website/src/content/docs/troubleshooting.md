@@ -1,7 +1,7 @@
 ---
 title: 'Troubleshoot common issues'
 description: 'Fix common mod_pagespeed 2.1 issues: cache misses, images not converting to WebP or AVIF, the optimizer worker not processing, and socket diagnostics.'
-order: 33
+order: 58
 group: 'Operate'
 lastUpdated: 2026-09-25
 ---

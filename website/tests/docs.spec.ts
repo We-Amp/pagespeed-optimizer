@@ -32,6 +32,46 @@ const docSlugs = [
   'admin-console',
   'security',
   'worker-configuration',
+  // The structure tranche: Start here, Install, Upgrade and migrate, Operate.
+  'is-it-working',
+  'install-iis',
+  'install-envoy',
+  'upgrade',
+  'migrate-from-1-15',
+  'migrate-from-ngx-pagespeed',
+  'migrate-from-iispeed',
+  'migrate-from-google-mod-pagespeed',
+  'monitoring',
+  'uninstall',
+  'production-deployment',
+  'cpanel',
+  'release-notes',
+];
+
+// The sidebar and hub groups, in the order the audiences read them.
+const GROUP_ORDER = [
+  'Start here',
+  'Install',
+  'Upgrade and migrate',
+  'Configure',
+  'Filters',
+  'Operate',
+  'Agents',
+  'Reference',
+  'Release notes by line',
+];
+
+const NEW_PAGES = [
+  'is-it-working',
+  'install-iis',
+  'install-envoy',
+  'upgrade',
+  'migrate-from-1-15',
+  'migrate-from-ngx-pagespeed',
+  'migrate-from-iispeed',
+  'migrate-from-google-mod-pagespeed',
+  'monitoring',
+  'uninstall',
 ];
 
 // Platform-tabbed pages among the converged set (see docSlugs above) — pages
@@ -359,5 +399,116 @@ test.describe('Docs mechanics', () => {
     await expect(status).toBeVisible();
     await expect(status).toContainText(/WebAssembly is blocked/);
     await expect(page.locator('#site-search input.pagefind-ui__search-input')).toHaveCount(0);
+  });
+});
+
+// Docs structure: the groups and their order, the retitled pages at their old
+// URLs, the preserved anchors, the quickstart chooser and the retired page.
+test.describe('Docs structure', () => {
+  test('sidebar groups appear in the audience order', async ({ page }) => {
+    await page.goto('/docs/getting-started/');
+    const labels = await page
+      .locator('nav[aria-label="Documentation"] > div > p')
+      .allTextContents();
+    expect(labels.map((l) => l.trim())).toEqual(GROUP_ORDER);
+  });
+
+  test('the hub lists every group once, in order, and links the new pages', async ({ page }) => {
+    await page.goto('/docs/');
+    const headings = await page.locator('main h2.eyebrow').allTextContents();
+    expect(headings.map((h) => h.trim())).toEqual([...GROUP_ORDER, 'Concepts']);
+    for (const slug of NEW_PAGES) {
+      await expect(page.locator(`main a[href="/docs/${slug}/"]`).first()).toBeAttached();
+    }
+    // The hero card is Getting started; "Is it working?" sits in its own
+    // Start here section rather than vanishing behind the hero.
+    await expect(page.locator('main a[href="/docs/is-it-working/"]')).toHaveCount(1);
+  });
+
+  test('retitled pages keep their URLs', async ({ page }) => {
+    const titles: Array<[string, string]> = [
+      ['/docs/installation-module/', 'Install the module on Apache and nginx'],
+      ['/docs/deployment/', 'Run in production'],
+      ['/docs/production-deployment/', 'ASP.NET Core in production'],
+      ['/docs/migrating-to-2-1/', 'Migrate from ModPageSpeed 2.0'],
+      ['/docs/aspnet-configuration/', 'ASP.NET Core settings'],
+    ];
+    for (const [path, title] of titles) {
+      await page.goto(path);
+      await expect(page.locator('main h1').first()).toHaveText(title);
+    }
+  });
+
+  test('anchors referenced elsewhere survive the heading changes', async ({ page }) => {
+    const anchors: Array<[string, string]> = [
+      ['/docs/installation-module/', 'using-the-optimizer-daemon-with-nginx'],
+      ['/docs/installation-module/', 'nginx-compatibility'],
+      ['/docs/admin-console/', 'optimizer-daemon-panels'],
+      ['/docs/migrating-to-2-1/', 'upgrading-from-1-15'],
+      ['/docs/migrating-to-2-1/', 'coming-from-open-source'],
+      ['/docs/iis-configuration/', 'install-the-module'],
+      ['/docs/iis-configuration/', 'iis-tuning'],
+      ['/docs/deployment/', 'monitoring'],
+      ['/docs/deployment/', 'cache-sizing-recommendations'],
+      ['/docs/uninstall/', 'roll-back-to-the-previous-release'],
+    ];
+    for (const [path, id] of anchors) {
+      await page.goto(path);
+      await expect(page.locator(`[id="${id}"]`), `${path}#${id}`).toHaveCount(1);
+    }
+  });
+
+  test('getting started is a chooser with four quickstarts and one verify step', async ({
+    page,
+  }) => {
+    await page.goto('/docs/getting-started/');
+    const main = page.locator('main');
+    for (const id of [
+      'pick-an-integration',
+      'quickstart-apache-or-nginx-module',
+      'quickstart-docker-reverse-proxy',
+      'quickstart-iis',
+      'quickstart-aspnet-core',
+      'verify-it-works',
+    ]) {
+      await expect(main.locator(`[id="${id}"]`), id).toHaveCount(1);
+    }
+    // Every quickstart ends in the same verify step.
+    expect(await main.locator('a[href="#verify-it-works"]').count()).toBeGreaterThanOrEqual(4);
+    await expect(main).toContainText('curl -I http://localhost/');
+    await expect(main.locator('a[href="/docs/is-it-working/"]').first()).toBeAttached();
+  });
+
+  test('is-it-working carries the header table, the bypass parameter and the health probe', async ({
+    page,
+  }) => {
+    await page.goto('/docs/is-it-working/');
+    const main = page.locator('main');
+    for (const text of ['X-Mod-Pagespeed', 'X-Page-Speed', 'X-PageSpeed', '?PageSpeed=off', '/v1/health']) {
+      await expect(main).toContainText(text);
+    }
+    await expect(main.locator('a[href="/pagespeed-markers/"]')).toBeAttached();
+  });
+
+  test('/pagespeed-markers/ links to is-it-working', async ({ page }) => {
+    await page.goto('/pagespeed-markers/');
+    await expect(page.locator('main a[href="/docs/is-it-working/"]')).toBeAttached();
+  });
+
+  test('the retired documentation-plan page is a 301 to the hub', async ({ request, baseURL }) => {
+    const res = await request.get('/docs/documentation-plan/', { maxRedirects: 0 });
+    expect(res.status()).toBe(301);
+    expect(new URL(res.headers()['location'], baseURL).pathname).toBe('/docs/');
+  });
+
+  test('prose says worker, not daemon, on the pages this tranche owns', async ({ page }) => {
+    for (const path of ['/docs/getting-started/', '/docs/installation-module/']) {
+      await page.goto(path);
+      const text = (await page.locator('main .prose').innerText()).replace(
+        /\b(?:Daemon[A-Za-z]+|ipro_daemon_\w+|pagespeed_daemon\.conf|daemon\.env|daemon-reload|\/v1\/daemon\/[^\s]*)\b/g,
+        '',
+      );
+      expect(text, path).not.toMatch(/\bdaemon\b/i);
+    }
   });
 });

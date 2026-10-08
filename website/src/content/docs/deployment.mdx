@@ -1,18 +1,32 @@
 ---
-title: 'Deploy to production: Docker, Helm, systemd'
-description: 'Run the optimizer worker and the module in production with Docker Compose, Kubernetes (Helm) or systemd: permissions, logging, monitoring and cache sizing.'
-order: 30
+title: 'Run in production'
+description: 'Run mod_pagespeed 2.1 in production: Docker Compose, Kubernetes with or without the chart, the packaged systemd unit, permissions, logs and cache sizing.'
+order: 50
 group: 'Operate'
 lastUpdated: 2026-09-19
 ---
 
 import ImageTag from '../../components/release/ImageTag.astro';
 
-mod_pagespeed 2.1 runs as two cooperating processes: the optimizer worker, which optimizes
-content and an nginx front end that serves it from a shared cache. This guide
-covers the three ways to run that pair in production — Docker Compose,
-Kubernetes (Helm), and systemd — along with file permissions, logging,
-monitoring, and cache sizing.
+mod_pagespeed 2.1 runs as two cooperating processes: the optimizer worker,
+which optimizes content, and a serving side (nginx with the module in the
+reverse proxy, or the Apache, nginx or IIS module on a host install) that
+serves it from a shared cache. This page covers the three ways to run that
+pair in production, Docker Compose, Kubernetes and the packaged systemd unit on
+bare metal or a VM, along with file permissions, logging, image verification
+and cache sizing. The install pages get the pair running; this page starts
+where they end.
+
+:::note[One worker, two names]
+The optimizer worker is one program under two names. The container images and
+the NuGet package ship the binary as `factory_worker`; the deb and rpm packages
+install it as `/usr/bin/pagespeed-optimizer`, with the
+`pagespeed-optimizer.service` unit, host overrides in
+`/etc/default/pagespeed-optimizer` and its cache under
+`/var/cache/pagespeed-optimizer/v2`. Compose files and container logs say
+`factory_worker`; `systemctl` and `journalctl` say `pagespeed-optimizer`. Same
+process.
+:::
 
 ## Docker Compose
 
@@ -162,18 +176,9 @@ nginx:
 
 ### Updating
 
-To upgrade to a new version:
-
-```bash
-# Pull new images
-docker compose -f deploy/docker-compose.yml pull
-
-# Restart with zero downtime
-docker compose -f deploy/docker-compose.yml up -d
-```
-
-The cache volume is preserved across restarts. Previously optimized variants
-remain available immediately.
+An upgrade is a tag change in `deploy/.env` followed by
+`docker compose pull` and `docker compose up -d`; both images move together and
+the cache volume survives. See [Upgrade](/docs/upgrade/#docker).
 
 ## Kubernetes (Helm)
 
@@ -231,94 +236,166 @@ helm install pagespeed weamp/pagespeed \
   --set autoscaling.maxReplicas=10
 ```
 
-## systemd service
+### Without the chart
 
-For bare-metal or VM deployments without Docker, run the worker as a
-systemd service.
+Without Helm, run nginx and the worker as two containers in one pod, sharing an
+`emptyDir` volume and one PID namespace (`shareProcessNamespace: true`; the
+reason is the cross-process cache lock described under
+[Install with Docker](/docs/installation-docker/#docker-compose-configuration)):
 
-### Service file
+```yaml
+apiVersion: v1
+kind: Pod
+metadata:
+  name: pagespeed
+spec:
+  shareProcessNamespace: true
+  containers:
+    - name: nginx
+      image: ghcr.io/we-amp/pagespeed-nginx:2.2.0
+      ports:
+        - containerPort: 8080
+      volumeMounts:
+        - name: shared
+          mountPath: /shared
 
-Install the service file at `/etc/systemd/system/pagespeed-worker.service`:
+    - name: worker
+      image: ghcr.io/we-amp/pagespeed-worker:2.2.0
+      command: ['/entrypoint-worker.sh']
+      env:
+        # Acknowledges the Terms of Service: https://modpagespeed.com/terms/
+        - name: ACCEPT_EULA
+          value: 'Y'
+      volumeMounts:
+        - name: shared
+          mountPath: /shared
 
-```ini
-[Unit]
-Description=ModPageSpeed 2.0 Factory Worker
-Documentation=https://modpagespeed.com/docs/configuration/
-After=network.target
-
-[Service]
-Type=simple
-# Secrets (PAGESPEED_API_TOKEN) ride the env file,
-# never the command line -- /proc/<pid>/cmdline is world-readable.
-EnvironmentFile=-/etc/pagespeed-optimizer/daemon.env
-ExecStart=/usr/local/bin/factory_worker \
-    --cache-dir /var/cache/pagespeed-optimizer/v2 \
-    --socket /run/pagespeed-optimizer/notify.sock \
-    --cache-size 536870912 \
-    --log-format json \
-    --log-level info
-
-# Identity: the optimizer worker runs UNPRIVILEGED. The pagespeed user/group come
-# from the packaged sysusers.d drop-in; the nginx worker user joins group
-# pagespeed (the module package's postinst does that join).
-User=pagespeed
-Group=pagespeed
-CapabilityBoundingSet=
-NoNewPrivileges=yes
-
-# Backstop only -- every shared-file mode is set explicitly in code.
-UMask=0007
-RuntimeDirectory=pagespeed-optimizer
-RuntimeDirectoryMode=0750
-
-# Security hardening
-PrivateTmp=yes
-ProtectSystem=strict
-ProtectHome=yes
-ReadWritePaths=/var/cache/pagespeed-optimizer
-
-# Resource limits
-LimitNOFILE=65536
-LimitNPROC=4096
-
-# Restart behavior
-Restart=on-failure
-RestartSec=5
-StartLimitBurst=5
-StartLimitIntervalSec=60
-
-# Logging
-StandardOutput=journal
-StandardError=journal
-SyslogIdentifier=pagespeed-worker
-
-[Install]
-WantedBy=multi-user.target
+  volumes:
+    - name: shared
+      emptyDir:
+        sizeLimit: 512Mi
 ```
 
-### Enable and start
+Both containers share the network namespace and, with
+`shareProcessNamespace: true`, the PID namespace. The pod's pause container is
+then PID 1; each container's main process still receives its own stop signal.
+Both containers can see each other's processes, the worker's command line
+included, so keep secrets in environment variables, not arguments. Do not
+split nginx and the worker into separate pods that mount the same volume:
+separate pods usually do not share a node, and never a PID namespace. Set
+`securityContext.fsGroup: 918` so the mounted volume arrives group-owned by
+the `pagespeed` group.
+
+## Verify the images
+
+The images are signed with [keyless cosign](https://docs.sigstore.dev/) and
+carry an SBOM attestation and SLSA build provenance. The signing identity is
+the `We-Amp/modpagespeed-images` publish workflow. To verify a pull:
 
 ```bash
-sudo systemctl daemon-reload
-sudo systemctl enable pagespeed-worker
-sudo systemctl start pagespeed-worker
-sudo systemctl status pagespeed-worker
+# Signature (keyless — no public key to manage)
+cosign verify \
+  --certificate-identity-regexp '^https://github.com/We-Amp/modpagespeed-images/' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+  ghcr.io/we-amp/pagespeed-combined:latest
+
+# SBOM + build provenance
+gh attestation verify oci://ghcr.io/we-amp/pagespeed-combined:latest \
+  --repo We-Amp/modpagespeed-images
 ```
 
-### Key systemd settings
+The same commands work for `pagespeed-worker` and `pagespeed-nginx` with a
+pinned tag.
 
-- **`User=pagespeed` / `Group=pagespeed`** — The optimizer worker runs unprivileged.
-  The serving module's web-server user joins group `pagespeed`;
-  that shared group is the entire access boundary for the cache and sockets.
-- **`UMask=0007`** — Backstop only. Every security-relevant mode (sockets
-  0660, volume 0660, shared config 0640, serve-stats 0660) is set with an
-  explicit chmod in the optimizer worker, so nothing depends on the umask.
-- **`ProtectSystem=strict`** / **`ReadWritePaths`** — The worker can only write
-  to `/var/cache/pagespeed-optimizer`, so a worker vulnerability cannot write outside that directory.
-- **`LimitNOFILE=65536`** — Ensures the worker can open enough file descriptors
-  for large caches and many simultaneous connections.
-- **`Restart=on-failure`** with **`StartLimitBurst=5`** — Restarts on crash but
-  gives up after 5 failures in 60 seconds to prevent restart loops.
+## systemd service
+
+On bare metal or a VM without Docker, the deb and rpm packages are the
+production setup. `pagespeed-optimizer` installs `/usr/bin/pagespeed-optimizer`,
+the `pagespeed-optimizer.service` unit, a sysusers.d drop-in for the
+`pagespeed` user and group, and a tmpfiles.d entry for the versioned cache
+directory. Nothing is hand-rolled:
+
+<a id="service-file"></a><a id="enable-and-start"></a>
+
+```bash
+sudo systemctl enable --now pagespeed-optimizer
+sudo systemctl status pagespeed-optimizer
+```
+
+### Host overrides
+
+The unit reads `/etc/default/pagespeed-optimizer` on every distribution. Every
+value has a working default in the unit, so uncomment only what you change:
+
+```bash
+# /etc/default/pagespeed-optimizer
+# CACHE_DIR=/var/cache/pagespeed-optimizer/v2
+# SOCKET_PATH=/run/pagespeed-optimizer/notify.sock
+# CACHE_SIZE=536870912
+# LOG_LEVEL=info
+# OPTIMIZER_OPTS=--api-socket
+```
+
+Secrets (`PAGESPEED_API_TOKEN`, `PAGESPEED_PURGE_TOKEN`) live in
+`/etc/pagespeed-optimizer/daemon.env` (0640 `root:pagespeed`), which the
+package generates at install time and systemd reads after the defaults file,
+so they stay off the command line.
+
+### Drop-in overrides
+
+Change the unit with a drop-in, never by editing the file under
+`/usr/lib/systemd` (an upgrade overwrites it). Relocating the cache to a
+dedicated disk takes three steps, because the unit keeps the rest of the
+filesystem read-only and `ReadWritePaths=` cannot name a directory that does
+not exist yet:
+
+```bash
+sudo install -d -m 3770 -o pagespeed -g pagespeed /srv/pagespeed-cache
+sudo systemctl edit pagespeed-optimizer
+```
+
+```ini
+[Service]
+ReadWritePaths=/srv/pagespeed-cache
+```
+
+Then set `CACHE_DIR=/srv/pagespeed-cache` in `/etc/default/pagespeed-optimizer`
+and run `systemctl restart pagespeed-optimizer`. A web server that runs under
+another unit name than `apache2`, `httpd` or `nginx` is not ordered after the
+worker; give it an ordering drop-in of its own with
+`After=pagespeed-optimizer.service`.
+
+### Key settings in the packaged unit {#key-systemd-settings}
+
+- **`User=pagespeed` / `Group=pagespeed`**: the worker runs unprivileged, with
+  an empty capability set and `NoNewPrivileges=yes`. The web-server user joins
+  group `pagespeed` (the module package's postinst does the join), and that
+  shared group is the entire access boundary for the cache and sockets.
+- **`UMask=0007`**: a backstop only. Every security-relevant mode (sockets
+  0660, volume 0660, shared config 0640, serve-stats 0660) is set explicitly
+  by the worker.
+- **`ProtectSystem=strict`** with **`ReadWritePaths=/var/cache/pagespeed-optimizer`**:
+  the worker can write nowhere else.
+- **`SystemCallFilter=`**, enforcing since 2.1: the worker may make the calls
+  in systemd's `@system-service` group (minus `@privileged` and `@resources`,
+  plus `mincore`), and the kernel stops it with `SIGSYS` on anything else;
+  `systemctl status` then shows `status=31/SYS`. The package ships an opt-out
+  drop-in example under `/usr/share/doc/pagespeed-optimizer/` and installs a
+  browser-analysis drop-in that admits what the Chrome sandbox needs.
+- **`Before=apache2.service httpd.service nginx.service`**: ordering only, no
+  dependency. The unit counts as started once its notification socket exists
+  (it waits up to 30 seconds), so at boot the web server is released after the
+  worker answers.
+- **`Restart=on-failure`** with a start limit of 5 in 60 seconds: a permanent
+  refusal to start (cache directory missing, unwritable, or holding
+  foreign-owned files) latches `failed` instead of looping, so monitoring sees
+  it.
+- **`LimitNOFILE=65536`**: enough descriptors for large caches and many
+  connections.
+
+A worker outside the packages, a binary you built yourself, should mirror
+`deploy/pagespeed-optimizer.service` and the tmpfiles.d drop-in from the
+repository rather than recreate the modes by hand.
 
 ### Do not expose the worker HTTP API
 
@@ -377,22 +454,13 @@ rather than recreating the modes by hand.
 
 The worker's default cache and socket paths moved to
 `/var/cache/pagespeed-optimizer/v2/cache` and
-`/run/pagespeed-optimizer/notify.sock`. Your web-server configuration does
-**not** move with them: after upgrading, update `pagespeed_cache_path`
-(nginx) or `ModPagespeedDaemonVolumePath` / `ModPagespeedDaemonSocketPath` to
-the new paths and restart the web server.
-
-Until you do, in-place optimization stays off and the log reports the socket
-as absent — as though the optimizer worker were not running — because the module is
-still looking at the old location. The upgrade prints the same reminder.
-
-The worker **refuses to start** — with a log line naming the cause — when
-its cache directory is missing, unwritable, or holds content owned by
-another uid. That is deliberate: no install or startup path ever chowns or
-migrates pre-existing content (a root-owned cache from an older release is
-abandoned in place; the optimizer worker cold-starts into the fresh directory).
-Delete or move the old content yourself when you are ready to reclaim the
-disk.
+`/run/pagespeed-optimizer/notify.sock`; a web-server configuration that still
+names the old paths attaches to an abandoned cache and reports the socket as
+absent. The worker also refuses to start, naming the cause, when its cache
+directory is missing, unwritable or holds content owned by another uid; no
+install path ever chowns or migrates pre-existing content. The upgrade steps
+per shape are on [Upgrade](/docs/upgrade/), and the move from the 2.0 images
+on [Migrate from ModPageSpeed 2.0](/docs/migrating-to-2-1/).
 
 ### Verifying permissions
 
@@ -426,16 +494,16 @@ Journald manages its own rotation. View logs with:
 
 ```bash
 # Follow worker logs
-sudo journalctl -u pagespeed-worker -f
+sudo journalctl -u pagespeed-optimizer -f
 
 # Last 100 lines
-sudo journalctl -u pagespeed-worker -n 100
+sudo journalctl -u pagespeed-optimizer -n 100
 
 # Since last hour
-sudo journalctl -u pagespeed-worker --since "1 hour ago"
+sudo journalctl -u pagespeed-optimizer --since "1 hour ago"
 
 # JSON output for parsing
-sudo journalctl -u pagespeed-worker -o cat | jq .
+sudo journalctl -u pagespeed-optimizer -o cat | jq .
 ```
 
 ### nginx log rotation
@@ -482,104 +550,13 @@ docker compose -f deploy/docker-compose.yml logs -f nginx
 
 ## Monitoring
 
-### Health check
-
-The worker exposes a health check socket at `{socket_path}.health`. Connect
-to get a one-line status:
-
-```bash
-python3 -c "
-import socket
-s = socket.socket(socket.AF_UNIX)
-s.connect('/run/pagespeed-optimizer/notify.sock.health')
-print(s.recv(256).decode())
-s.close()
-"
-```
-
-Response: `OK 5/128 notifs=1542 variants=986 proactive=724 errors=3 cache_entries=2048`
-
-Use this for load balancer health checks and basic uptime monitoring.
-
-The worker image ships `socat`, and the Compose file and the Helm chart use it
-for their container health checks:
-
-```bash
-socat -u -T 4 UNIX-CONNECT:/data/pagespeed.sock.health - | grep -q '^OK'
-```
-
-`-u` makes socat read only, and `-T 4` is how long it waits for the status
-line: four seconds, one second inside the 5 s probe timeout. If you write your
-own probe, keep both options. A probe that pipes an empty input into socat
-(`echo '' | socat - UNIX-CONNECT:...`) gives up 0.5 s after connecting,
-whatever the probe timeout says, and reports a busy optimizer as unhealthy.
-
-### Management socket STATS
-
-For detailed metrics, connect to the management socket at
-`{socket_path}.mgmt`:
-
-```bash
-echo "STATS" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
-```
-
-The response is a JSON object containing:
-
-- **`connections`** — Active and max connection counts
-- **`notifications`** — Total received and skipped (dedup) counts
-- **`variants`** — Total written and proactively generated counts
-- **`errors`** — Processing error count
-- **`cache`** — Current entry count and size in bytes
-- **`by_type`** — Per content type counts and cumulative processing time
-- **`by_format`** — Per image format generation counts
-- **`timing_us`** — Total cumulative processing time in microseconds
-
-### Prometheus metrics
-
-The management socket also supports a `METRICS` command that returns stats in
-Prometheus text exposition format:
-
-```bash
-echo "METRICS" | socat -t 5 - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
-```
-
-This outputs `# HELP`, `# TYPE`, and metric lines for all counters and gauges.
-See the [API reference](/docs/api-reference/) for the full metric list.
-
-For Prometheus scraping, create a simple exporter that connects to the
-management socket and exposes the output on an HTTP endpoint, or use a
-cron-based approach to push metrics to Pushgateway.
-
-### Monitoring script
-
-A simple monitoring script that collects stats periodically:
-
-```bash
-#!/bin/bash
-MGMT_SOCK="/run/pagespeed-optimizer/notify.sock.mgmt"
-
-while true; do
-  STATS=$(echo "STATS" | socat -t 5 - UNIX-CONNECT:$MGMT_SOCK 2>/dev/null)
-  if [ $? -eq 0 ]; then
-    echo "$(date -Iseconds) $STATS"
-  else
-    echo "$(date -Iseconds) ERROR: cannot connect to management socket"
-  fi
-  sleep 60
-done
-```
-
-### Key metrics to watch
-
-- **`errors`** increasing steadily indicates processing failures. Check worker
-  logs for details.
-- **`cache.size`** approaching `--cache-size` means LRU eviction is active.
-  Consider increasing the cache size.
-- **`notifications.skipped_dedup`** being a large fraction of
-  `notifications.received` is normal and healthy — it means the worker is
-  avoiding redundant work.
-- **`connections.active`** near `connections.max` means the worker is
-  connection-limited. Increase `--max-connections`.
+<a id="health-check"></a><a id="management-socket-stats"></a><a id="prometheus-metrics"></a><a id="monitoring-script"></a><a id="key-metrics-to-watch"></a>Health probes, metrics and logs have their own page:
+[Monitoring](/docs/monitoring/). The short version: probe the health socket
+(the notification socket path with `.health` appended, which answers one line
+starting with `OK`, or `DEGRADED` when the cache is unavailable) or
+`GET /v1/health`; scrape `GET /v1/metrics` for Prometheus; and alert on a
+rising `errors.total`, a cache near its configured size, connections near the
+maximum, and, in the container images, an entrypoint exit status of 78.
 
 ## Cache sizing recommendations
 
@@ -633,6 +610,10 @@ effect and the concurrency and eviction gains.
 
 ## Next steps
 
+- [Monitoring](/docs/monitoring/) — Health probes, metrics, logs and alerts
+- [Upgrade](/docs/upgrade/) — Moving to a new release, per shape
+- [Uninstall and rollback](/docs/uninstall/) — Removing it, or going back a
+  release
 - [Configuration Reference](/docs/configuration/) — All worker flags and nginx
   directives
 - [Troubleshooting](/docs/troubleshooting/) — Common issues and solutions

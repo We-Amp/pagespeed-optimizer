@@ -1,7 +1,7 @@
 ---
 title: 'Install with Docker'
 description: 'Run mod_pagespeed 2.1 with Docker Compose: the nginx module, the worker and a shared Cyclone cache. A one-container quick try, then a production stack.'
-order: 10
+order: 4
 group: 'Install'
 lastUpdated: 2026-09-19
 ---
@@ -27,8 +27,8 @@ docker run --rm -p 80:80 \
 Replace `BACKEND_HOST`/`BACKEND_PORT` with your origin. The combined image suits
 evaluation and small single-host deployments; for production, run the worker and
 nginx as separate services (below) so you can scale and update them
-independently — see the [production deployment guide](/docs/deployment/) for the
-hardened setup. `:latest` is published only on the combined image — the worker
+independently — see [Run in production](/docs/deployment/) for the hardened
+setup. `:latest` is published only on the combined image — the worker
 and nginx images ship immutable version tags (for example `:2.2.0`).
 
 `ACCEPT_EULA=Y` acknowledges the
@@ -40,7 +40,7 @@ below — use port 80 in those commands, since the single container publishes on
 
 ## Prerequisites
 
-- Docker Engine 20.10+
+- Docker 24 or newer
 - Docker Compose v2
 
 ## Directory structure
@@ -348,31 +348,16 @@ combine or rewrite them into new URLs, so the page source stays clean.
 
 ## View logs
 
-```bash
-# All services
-docker compose logs -f
-
-# Just the worker
-docker compose logs -f worker
-
-# Just nginx
-docker compose logs -f nginx
-```
-
-The worker logs show optimization activity — you'll see messages when it
-processes images, CSS, and JavaScript files.
+`docker compose logs -f worker` shows the worker's optimization activity and
+`docker compose logs -f nginx` the module's. Logs, health probes and metrics in
+production are covered under [Monitoring](/docs/monitoring/).
 
 ## Cache size
 
-By default, the cache size is 1 GB. To change it, pass the `--cache-size`
-flag to the worker (in bytes):
-
-```bash
-exec factory_worker \
-  --socket /shared/pagespeed.sock \
-  --cache-path /shared/cache.vol \
-  --cache-size 536870912  # 512 MB
-```
+The default cache size is 1 GB. Set `CACHE_SIZE` (in bytes) in the worker
+container's environment, as the production Compose file does; the image's
+entrypoint passes it to the worker. Sizing guidance is under
+[Run in production](/docs/deployment/#cache-sizing-recommendations).
 
 ## Stopping and restarting
 
@@ -390,73 +375,15 @@ you want to clear the cache completely.
 
 ## Kubernetes
 
-For Kubernetes deployments, run nginx and the worker as separate containers in
-the same pod, sharing an `emptyDir` volume and one PID namespace
-(`shareProcessNamespace: true`; the reason is under
-[How the cache volume is shared](#docker-compose-configuration)):
-
-```yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: pagespeed
-spec:
-  shareProcessNamespace: true
-  containers:
-    - name: nginx
-      image: ghcr.io/we-amp/pagespeed-nginx:2.2.0
-      ports:
-        - containerPort: 8080
-      volumeMounts:
-        - name: shared
-          mountPath: /shared
-
-    - name: worker
-      image: ghcr.io/we-amp/pagespeed-worker:2.2.0
-      command: ['/entrypoint-worker.sh']
-      env:
-        # Acknowledges the Terms of Service: https://modpagespeed.com/terms/
-        - name: ACCEPT_EULA
-          value: 'Y'
-      volumeMounts:
-        - name: shared
-          mountPath: /shared
-
-  volumes:
-    - name: shared
-      emptyDir:
-        sizeLimit: 512Mi
-```
-
-Both containers in the same pod share the network namespace and, with
-`shareProcessNamespace: true`, the PID namespace. The pod's pause container is
-then PID 1; each container's main process still receives its own stop signal.
-The pause container reaps orphaned processes; both containers can see each
-other's processes, including the worker's command line, so keep secrets in
-environment variables, not arguments. Do not split nginx and the worker into
-separate pods that mount the same volume: separate pods usually do not share
-a node, and never a PID namespace.
+On Kubernetes, install the [Helm chart](/docs/helm-deployment/), or run the two
+containers in one pod as shown under
+[Run in production](/docs/deployment/#without-the-chart).
 
 ## Verifying the images
 
-The images are signed with [keyless cosign](https://docs.sigstore.dev/) and carry
-an SBOM attestation and SLSA build provenance. The signing identity is the
-`We-Amp/modpagespeed-images` publish workflow. To verify a pull:
-
-```bash
-# Signature (keyless — no public key to manage)
-cosign verify \
-  --certificate-identity-regexp '^https://github.com/We-Amp/modpagespeed-images/' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  ghcr.io/we-amp/pagespeed-combined:latest
-
-# SBOM + build provenance
-gh attestation verify oci://ghcr.io/we-amp/pagespeed-combined:latest \
-  --repo We-Amp/modpagespeed-images
-```
-
-The same commands work for `pagespeed-worker` and `pagespeed-nginx` (use a
-pinned tag such as `:2.2.0`).
+The images are signed with keyless cosign and carry an SBOM attestation and
+build provenance; the verification commands are under
+[Run in production](/docs/deployment/#verify-the-images).
 
 ## Troubleshooting
 
@@ -491,8 +418,9 @@ this file automatically).
 
 - [Getting started](/docs/getting-started/) — Architecture overview and how the
   worker, nginx, and origin fit together
-- [Deploy to production (Docker / nginx)](/docs/deployment/) — Hardened
-  multi-service setup, image tags, and rollout
+- [Run in production](/docs/deployment/) — Hardened multi-service setup,
+  permissions, image verification and sizing
+- [Upgrade](/docs/upgrade/) — Moving to a new image tag
 - [Configuration Reference](/docs/configuration/) — Tune cache size, worker
   threads, and other options
 - [Helm Deployment](/docs/helm-deployment/) — Deploy on Kubernetes with the

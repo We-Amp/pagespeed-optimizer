@@ -1,8 +1,8 @@
 ---
-title: 'Migrating from ModPageSpeed 2.0 to mod_pagespeed 2.1'
-description: 'Moving a ModPageSpeed 2.0, mod_pagespeed 1.15 or open-source deployment to mod_pagespeed 2.1: configuration carries over, the worker runs unprivileged.'
-order: 15
-group: 'Install'
+title: 'Migrate from ModPageSpeed 2.0'
+description: 'Move a ModPageSpeed 2.0 Docker Compose or Helm deployment to mod_pagespeed 2.1: unprivileged worker, loopback-bound API, configuration carries over.'
+order: 10
+group: 'Upgrade and migrate'
 lastUpdated: 2026-09-19
 faq:
   - q: 'Do I have to recreate my cache volume?'
@@ -24,15 +24,17 @@ is an image bump plus a review of the defaults below.
 
 ## Who this guide is for
 
-This guide covers three starting points:
+This guide covers ModPageSpeed 2.0 Docker Compose and Helm deployments,
+including the combined evaluation image. The other starting points have their
+own pages:
 
-- **ModPageSpeed 2.0 Docker Compose and Helm deployments** (including the
-  combined evaluation image) — see [What changes in 2.1](#what-changes-in-21)
-  below.
-- **mod_pagespeed 1.15 installs** (the native Apache/nginx/IIS module) — see
-  [Upgrading from mod_pagespeed 1.15](#upgrading-from-1-15).
-- **The open-source mod_pagespeed project** — see
-  [Coming from open-source mod_pagespeed](#coming-from-open-source).
+- **mod_pagespeed 1.15 installs** (the native Apache, nginx and IIS module):
+  [Migrate from mod_pagespeed 1.15](/docs/migrate-from-1-15/).
+- **The open-source ngx_pagespeed**, compiled or from a third-party build:
+  [Migrate from ngx_pagespeed](/docs/migrate-from-ngx-pagespeed/).
+- **The archived open-source mod_pagespeed**:
+  [Migrate from the archived Google module](/docs/migrate-from-google-mod-pagespeed/).
+- **IISpeed**: [Migrate from IISpeed](/docs/migrate-from-iispeed/).
 
 It is not for users of the ASP.NET Core middleware: `WeAmp.PageSpeed.AspNetCore`
 is the ASP.NET Core form of mod_pagespeed 2.1, and there is no migration step —
@@ -168,139 +170,20 @@ is, fully supported on 2.0, and this guide applies when the coverage lands.
 
 ## Upgrading from mod_pagespeed 1.15 {#upgrading-from-1-15}
 
-The upgrade is drop-in. mod_pagespeed 2.1 keeps the same directives and the
-same filter names you run today — 1.14 and 1.15 configurations carry
-over — and installs from the same signed package repository. See
-[downloads](/download/) for packages, and the
-[getting started guide](/docs/getting-started/) for a fresh install.
-
-Platform notes:
-
-- **IIS / Windows Server.** The IIS package ships from the 1.15 packaging channel.
-- **Debian 11 (bullseye)** — the repository's bullseye suite carries the 1.15.0 module packages. The mod_pagespeed 2.1 packages need Debian 12 or newer.
-- **cPanel EasyApache 4 (EL8)** — the module runs without the optimizer
-  worker.
+The 1.15 upgrade has its own page:
+[Migrate from mod_pagespeed 1.15](/docs/migrate-from-1-15/). It is a package
+upgrade in place: the configuration carries over, the Apache packages wire the
+module to the worker, and the old cache stays on disk for a rollback.
 
 ## Coming from open-source mod_pagespeed {#coming-from-open-source}
 
-Moving from the archived open-source project? [Is mod_pagespeed still
-maintained?](/mod-pagespeed-still-maintained/) covers what changed and what
-didn't, and [the maintained mod_pagespeed](/alternatives/mod-pagespeed/) walks
-through what's different day to day. Both existing directives and filter
-names keep working — see [Getting started](/docs/getting-started/) to
-install. The archived 1.0 docs are available at [/1.0/](/1.0/).
-
-### Before you start
-
-Check your current version:
-
-```bash
-# nginx
-curl -I http://localhost/ | grep X-Page-Speed
-
-# Apache
-curl -I http://localhost/ | grep X-Mod-Pagespeed
-```
-
-**Back up your current module** in case you want to roll back:
-
-```bash
-# nginx
-sudo cp /usr/lib/nginx/modules/ngx_pagespeed_module.so /usr/lib/nginx/modules/ngx_pagespeed_module.so.bak
-
-# Apache
-sudo cp /usr/lib/apache2/modules/mod_pagespeed.so /usr/lib/apache2/modules/mod_pagespeed.so.bak
-```
-
-### Upgrade steps
-
-#### nginx
-
-On Debian 12/13 or Ubuntu 22.04/24.04 (amd64 + arm64), or AlmaLinux/RHEL/Rocky 9 (x86_64 + aarch64) and 10 (x86_64), install from the signed repository — it drops the module into the standard nginx modules directory and tracks upgrades through your package manager:
-
-```bash
-# 1. Configure the repository and import the signing key (one time)
-curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
-
-# 2. Install the module
-sudo apt install nginx-module-pagespeed   # Debian / Ubuntu
-sudo dnf install nginx-module-pagespeed   # AlmaLinux/RHEL/Rocky 9 or 10
-
-# 3. Restart nginx
-sudo systemctl restart nginx
-
-# 4. Verify
-curl -I http://localhost/ | grep X-Page-Speed
-```
-
-The header value is the module version — its presence confirms the module is loaded and active.
-
-Running an nginx version we don't yet package? Each module is exact-version-pinned to its distro's stock nginx — nginx refuses to load a module built for a different version — and the module source is not public, so there is no build-it-yourself path. [Contact us](/contact/) for a matching pinned build.
-
-#### Apache
-
-```bash
-# 1. Stop Apache
-sudo systemctl stop apache2
-
-# 2. Replace the module
-sudo cp mod_pagespeed.so /usr/lib/apache2/modules/
-
-# 3. Start Apache
-sudo systemctl start apache2
-
-# 4. Verify
-curl -I http://localhost/ | grep X-Mod-Pagespeed
-```
-
-### Cache migration
-
-The native module uses **Cyclone Cache**, a new cache backend. On first start after the upgrade:
-
-- The old file cache is ignored (not deleted)
-- Cyclone Cache starts fresh with an empty cache
-- Resources are re-optimized on first request — expect a brief warm-up period
-
-The warm-up is a one-time cost: in v1.15.0+r17 and later, cache contents persist across restarts (see [cache modes](/docs/cache-modes/)).
-
-You can safely delete the old cache directory after confirming the upgrade works:
-
-```bash
-# Check your config for the cache path, then:
-sudo rm -rf /var/cache/mod_pagespeed/  # or wherever your old cache lived
-```
-
-For cache sizing and storage options, see [cache sizing](/docs/cache-modes/#cache-sizing).
-
-### Configuration compatibility
-
-All existing directives are supported — the [directive index](/docs/configuration/) lists the full set. A few notes:
-
-| Directive                   | Status                                        |
-| --------------------------- | --------------------------------------------- |
-| `pagespeed on/off`          | Works as before                               |
-| `pagespeed RewriteLevel`    | Works as before                               |
-| `pagespeed EnableFilters`   | All 40+ filters available                     |
-| `pagespeed DisableFilters`  | Works as before                               |
-| `pagespeed Domain`          | Works as before                               |
-| `pagespeed MapOriginDomain` | Works as before                               |
-| `pagespeed FileCachePath`   | Accepted — Cyclone Cache uses its own storage |
-
-The `FileCachePath` directive is still accepted for compatibility but the native module uses Cyclone Cache for storage. You can remove it from your config if you prefer.
-
-- `.htaccess` configuration on Apache continues to work.
-- The `X-Mod-Pagespeed` (Apache) / `X-Page-Speed` (nginx) response header is still emitted.
-
-### Rolling back
-
-If you need to revert to the open-source version:
-
-```bash
-# Restore the backup you made earlier
-sudo systemctl stop nginx
-sudo cp /usr/lib/nginx/modules/ngx_pagespeed_module.so.bak /usr/lib/nginx/modules/ngx_pagespeed_module.so
-sudo systemctl start nginx
-```
+<a id="before-you-start"></a><a id="upgrade-steps"></a><a id="nginx"></a><a id="apache"></a><a id="cache-migration"></a><a id="configuration-compatibility"></a><a id="rolling-back"></a>Moving from the archived open-source project? The three commands, the directive
+compatibility table and the rollback are on
+[Migrate from the archived Google module](/docs/migrate-from-google-mod-pagespeed/)
+and, for ngx_pagespeed and third-party builds of it,
+[Migrate from ngx_pagespeed](/docs/migrate-from-ngx-pagespeed/).
+[Is mod_pagespeed still maintained?](/mod-pagespeed-still-maintained/) covers
+what changed and what did not; the archived 1.0 docs are at [/1.0/](/1.0/).
 
 ## Licensing
 
