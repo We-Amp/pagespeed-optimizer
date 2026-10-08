@@ -28,7 +28,7 @@ const deltaText = `${delta < 0 ? '\u2212' : delta > 0 ? '+' : ''}${formatBytes(M
 const width = (bytes: number) => (max > 0 ? Math.round((bytes / max) * 1000) / 10 : 0);
 ---
 
-<figure class="card" data-ui="byte-delta">
+<figure class="panel" data-ui="byte-delta">
   <dl class="bd-rows">
     {
       rows.map((row) => (
@@ -47,10 +47,15 @@ const width = (bytes: number) => (max > 0 ? Math.round((bytes / max) * 1000) / 1
   </dl>
   <p class="bd-total">
     <span class="bd-total-nums">
-      <span class:list={['display-num text-3xl', delta < 0 ? 'text-success' : 'text-text-body']}
-        >{deltaText}</span
+      <span
+        class:list={[
+          'display-num text-3xl font-semibold',
+          delta < 0 ? 'text-success' : 'text-text-body',
+        ]}>{deltaText}</span
       >
-      <span class="font-mono text-xs text-text-annotation">{formatPct(pct)} on the wire</span>
+      <span class="font-mono text-xs text-text-annotation"
+        >{`${pct > 0 ? '+' : ''}${formatPct(pct)}`} on the wire</span
+      >
     </span>
     {caption && <span class="font-mono text-xs text-text-annotation">{caption}</span>}
   </p>

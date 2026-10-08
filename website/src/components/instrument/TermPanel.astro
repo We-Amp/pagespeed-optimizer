@@ -29,6 +29,7 @@ const { command, label, chip, lines } = Astro.props;
   <pre
     class="term-body"
     tabindex="0"
+    role="region"
     aria-label={label}><code>{
         lines.map((line) => <span class={`term-${line.tone ?? 'plain'}`}>{line.text + '\n'}</span>)
       }</code></pre>
