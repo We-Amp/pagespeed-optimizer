@@ -6,6 +6,10 @@ group: 'Operate'
 lastUpdated: 2026-10-06
 ---
 
+:::tip[Live console]
+See it running: [the live console on our own sites](https://we-amp.com/pagespeed_global_admin/). It opens with a warning that it is reachable from the network; a console is normally private, ours is public on purpose.
+:::
+
 ## Overview
 
 mod_pagespeed 2.1 includes built-in admin pages for monitoring, configuration inspection, and cache management. Access them at `/pagespeed_admin/` on your server.
