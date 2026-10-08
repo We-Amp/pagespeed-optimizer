@@ -140,7 +140,7 @@ test.describe('Docs', () => {
 
   test('doc pages have correct titles', async ({ page }) => {
     await page.goto('/docs/getting-started/');
-    await expect(page).toHaveTitle(/Getting Started/i);
+    await expect(page).toHaveTitle(/Install mod_pagespeed 2\.1/i);
   });
 
   // v2.0.14 trial-experience fix (docs/fix-trial-quickstart-and-faq):
