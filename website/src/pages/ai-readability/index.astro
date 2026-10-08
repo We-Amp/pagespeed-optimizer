@@ -1035,27 +1035,41 @@ const jsonLd = [webApp, faqPage];
       align-items: center;
       gap: 0.35rem;
     }
-    #ar-notify-btn {
+    #ar-copy-link {
       background: transparent;
-      border: 0;
+      border: 1px solid var(--color-interactive);
+      border-radius: var(--radius-control);
       color: var(--color-interactive);
       font-weight: 600;
       font-size: 0.85rem;
-      padding: 0;
+      padding: 0.45rem 1.1rem;
       margin-top: 0.7rem;
       cursor: pointer;
-      text-decoration: none;
-      display: inline-block;
     }
-    .dark #ar-notify-btn {
+    .dark #ar-copy-link {
+      border-color: var(--color-interactive);
       color: var(--color-interactive);
     }
-    #ar-notify-btn:hover {
-      text-decoration: underline;
+    #ar-copy-link:hover {
+      background: var(--color-interactive);
+      color: #fff;
     }
-    #ar-notify-btn:disabled {
-      opacity: 0.55;
-      cursor: wait;
+    .dark #ar-copy-link:hover {
+      color: var(--color-stone-950);
+    }
+    .ar-copy-msg {
+      display: inline-block;
+      margin-left: 0.7rem;
+      font-size: 0.85rem;
+      color: var(--color-stone-600);
+    }
+    .dark .ar-copy-msg {
+      color: var(--color-stone-400);
+    }
+    .ar-share-note {
+      margin: 0.5rem 0 0;
+      font-size: 0.85rem;
+      color: var(--color-text-muted);
     }
     .ar-wedge-ctx {
       font-size: 0.85rem;
@@ -1703,8 +1717,9 @@ const jsonLd = [webApp, faqPage];
 
       // Section 4 — product paragraph + the ONE filled primary CTA + the two text links,
       // the wedge CONTEXT block(s) (copy only, no form), the ONE consolidated contact form
-      // (single email + optional note [+ topic radios when both wedges fire]), the secondary
-      // "email me this result" text-button, and the legal disclosure. wireNext() runs after.
+      // (single email + optional note [+ topic radios when both wedges fire]; wedge leads
+      // only), and the legal disclosure. wireNext() runs after. When no wedge fires there
+      // is no form: keeping the result is the share section's copy-link control.
       function nextStep(r, primaryWedge, firedWedges) {
         const av = r.agentVerifiability;
         const ax = r.accessibility;
@@ -1794,7 +1809,6 @@ const jsonLd = [webApp, faqPage];
                 );
               })
               .join('') +
-            '<label><input type="radio" name="ar-topic" value="notify" /> Just email me this result</label>' +
             '</fieldset>'
           : '';
         // Optional note is collapsed by default (saves vertical space in the worst case);
@@ -1804,50 +1818,39 @@ const jsonLd = [webApp, faqPage];
           ? '<label id="ar-next-note-field" class="ar-field" hidden><span class="ar-field-label">Anything we should know? (crawl volume, EAA deadline, page count) — optional</span>' +
             '<input id="ar-next-note" type="text" autocomplete="off" /></label>'
           : '';
-        const submitLabel = wedgeActive ? 'Talk to us' : 'Get in touch';
-        const umamiEvent = wedgeActive ? 'airead-next-' + primaryWedge : 'airead-next-notify';
-        const form =
-          '<form id="ar-next-form" class="ar-next-form" data-wedge="' +
-          (wedgeActive && !bothWedges ? primaryWedge : '') +
-          '">' +
-          chooser +
-          '<label class="ar-field"><span class="ar-field-label">Your email</span>' +
-          '<input id="ar-next-email" type="email" autocomplete="email" required /></label>' +
-          noteField +
-          '<button type="submit" data-umami-event="' +
-          umamiEvent +
-          '">' +
-          submitLabel +
-          '</button>' +
-          '</form>' +
-          // #ar-next-msg keeps its OWN explicit aria-live="polite": it is nested inside #ar-out
-          // (which render() flips to aria-live="off" so the whole card isn't announced at once),
-          // and per the ARIA live-region algorithm the nearest explicit setting governs — so the
-          // confirmation still announces. The tabindex=-1 + .focus() in wireNext is belt-and-braces.
-          '<div id="ar-next-msg" class="ar-next-msg" role="status" aria-live="polite" tabindex="-1"></div>';
-        // Secondary "email me this result" text-button → /notify. Shown only when EXACTLY ONE
-        // wedge fires: when BOTH fire the chooser already offers a "just email me this result"
-        // radio (a separate button would duplicate it), and when NONE fire the single form
-        // already IS the /notify path. Carries its own narrow notify promise.
-        const notifyBtn =
-          wedgeActive && !bothWedges
-            ? '<button type="button" id="ar-notify-btn" data-umami-event="airead-capture">Email me this result instead</button>' +
-              '<p class="ar-disclosure">That just emails you this result — we won’t add you to a mailing list.</p>'
-            : '';
-        // Per-path consent scoping (Legal H5): the per-request disclosure applies only when
-        // the form submits a wedge lead to /contact. When no wedge fires the form IS the /notify
-        // result-email path, so it carries the narrow "used only to send you this result" promise.
+        // The form exists only when a wedge fires (wedge lead → /contact). With no
+        // wedge there is nothing to submit: the old no-wedge form WAS the /notify
+        // email path, replaced by the share section's copy-link control.
+        const form = wedgeActive
+          ? '<form id="ar-next-form" class="ar-next-form" data-wedge="' +
+            (bothWedges ? '' : primaryWedge) +
+            '">' +
+            chooser +
+            '<label class="ar-field"><span class="ar-field-label">Your email</span>' +
+            '<input id="ar-next-email" type="email" autocomplete="email" required /></label>' +
+            noteField +
+            '<button type="submit" data-umami-event="airead-next-' +
+            primaryWedge +
+            '">Talk to us</button>' +
+            '</form>' +
+            // #ar-next-msg keeps its OWN explicit aria-live="polite": it is nested inside #ar-out
+            // (which render() flips to aria-live="off" so the whole card isn't announced at once),
+            // and per the ARIA live-region algorithm the nearest explicit setting governs — so the
+            // confirmation still announces. The tabindex=-1 + .focus() in wireNext is belt-and-braces.
+            '<div id="ar-next-msg" class="ar-next-msg" role="status" aria-live="polite" tabindex="-1"></div>'
+          : '';
+        // Per-request consent disclosure (Legal H5): applies only to the wedge lead
+        // form, which posts to /contact. There is no form (and no disclosure) when
+        // no wedge fires.
         const disclosure = wedgeActive
           ? '<p class="ar-disclosure">Submitting this sends us your email and a summary of this scan’s findings. ' +
             'We use them only for this request; see our <a href="/privacy/">privacy policy</a>.</p>'
-          : '<p class="ar-disclosure">Used only to send you this result. We won’t add you to a mailing list. ' +
-            'See our <a href="/privacy/">Privacy policy</a>.</p>';
+          : '';
         return (
           '<h3 id="ar-h-next" class="ar-h3">What mod_pagespeed can do about it</h3>' +
           product +
           ctx +
           form +
-          notifyBtn +
           disclosure
         );
       }
@@ -2013,13 +2016,17 @@ const jsonLd = [webApp, faqPage];
         const seBlk = seBlock(r.sovereigntyExposure);
         const ghostBlk = ghostBlock(r.ghostLayer);
 
-        // SECTION 5 — share.
+        // SECTION 5 — share: the permalink the scanner mints for every scan, plus a
+        // copy-link control. The page promises nothing it does not do by itself.
         const share = data.permalink
           ? '<div class="ar-share">Shareable link: <a href="' +
             esc(data.permalink) +
             '">' +
             esc(data.permalink) +
-            '</a></div>'
+            '</a></div>' +
+            '<button type="button" id="ar-copy-link">Copy link to this result</button>' +
+            '<span id="ar-copy-msg" class="ar-copy-msg" role="status" aria-live="polite"></span>' +
+            '<p class="ar-share-note">The link works for up to 24 hours.</p>'
           : '';
 
         out.innerHTML =
@@ -2058,6 +2065,7 @@ const jsonLd = [webApp, faqPage];
           '</div>';
         wireNext(r, primaryWedge, multiWedge);
         wireLeadCards(r);
+        wireCopyLink(data.permalink);
         // Position the hidden-layer overlay boxes over the screenshot (no-op if not detected).
         wireGhostOverlay(r.ghostLayer);
         // Scroll the freshly rendered result into view and move keyboard/SR focus to the
@@ -2087,54 +2095,49 @@ const jsonLd = [webApp, faqPage];
         } catch (_) {}
       }
 
-      // POST the result to /notify (emails it) with a prefilled mailto fallback so a
-      // notify lead is never dropped. Body byte-identical to the old wireCapture (F2).
-      async function sendNotify(r, email, btn, msg) {
-        const subject = encodeURIComponent('RenderPeek report — ' + (r.url || ''));
-        const body = encodeURIComponent(
-          'Please send me the full RenderPeek report.\n\n' +
-            'My email: ' +
-            email +
-            '\n' +
-            'Scanned URL: ' +
-            (r.url || '') +
-            '\n' +
-            'Grade: ' +
-            (r.grade || '') +
-            ' (' +
-            (r.score || '') +
-            '/100)\n',
-        );
-        const mailto = 'mailto:info@we-amp.com?subject=' + subject + '&body=' + body;
-        try {
-          const res = await fetch(API + '/notify', {
-            method: 'POST',
-            headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({
-              email,
-              url: r.url || '',
-              grade: (r.grade || '') + ' ' + (r.score || '') + '/100',
-            }),
-          });
-          if (!res.ok) throw new Error('status ' + res.status);
-          leadSubmit('notify', '');
-          if (msg) {
-            msg.textContent =
-              'Thanks — we’ll send the full report to ' + email.replace(/[<>&]/g, '') + '.';
-            msg.focus && msg.focus();
+      // Copy-link control (replaces the old "email me this result" path): the page
+      // keeps the result by itself. Copies the scanner-minted permalink via
+      // navigator.clipboard; when that is unavailable, selects the visible
+      // permalink text so Ctrl/Cmd+C finishes the job.
+      function wireCopyLink(permalink) {
+        const btn = $('#ar-copy-link');
+        if (!btn || !permalink) return;
+        const msg = $('#ar-copy-msg');
+        btn.addEventListener('click', async () => {
+          let copied = false;
+          try {
+            await navigator.clipboard.writeText(permalink);
+            copied = true;
+          } catch (_) {
+            const link = out.querySelector('.ar-share a');
+            if (link) {
+              const range = document.createRange();
+              range.selectNodeContents(link);
+              const sel = window.getSelection();
+              sel.removeAllRanges();
+              sel.addRange(range);
+            }
           }
-          return true;
-        } catch {
-          if (btn) btn.disabled = false;
-          window.location.href = mailto;
-          return false;
-        }
+          if (msg) {
+            // Clear first so a repeat copy is announced again.
+            msg.textContent = '';
+            const text = copied ? 'Link copied' : 'Link selected — press Ctrl/Cmd+C to copy it';
+            setTimeout(() => {
+              msg.textContent = text;
+            }, 50);
+          }
+          if (copied) {
+            try {
+              if (window.umami) window.umami.track('airead-copy-link');
+            } catch (_) {}
+          }
+        });
       }
 
       // Wire the ONE consolidated next-step form (replaces wireCapture + wireWedges).
-      // Wedge submissions still build buildLeadPayload(wedge,…) → POST /contact; the
-      // notify path (no-wedge form, the chooser's "notify" radio, and the secondary
-      // text-button) → POST /notify via sendNotify. NO secret in client JS (F1/F2).
+      // Wedge submissions build buildLeadPayload(wedge,…) → POST /contact. The form
+      // renders only when a wedge fires; the old /notify email path is gone. NO
+      // secret in client JS (F1/F2).
       function wireNext(r, primaryWedge, bothWedges) {
         const form = $('#ar-next-form');
         if (!form) return;
@@ -2157,13 +2160,10 @@ const jsonLd = [webApp, faqPage];
         // keep it in sync on change.
         if (bothWedges) {
           const checkedDefault = form.querySelector('input[name="ar-topic"]:checked');
-          form.setAttribute(
-            'data-wedge',
-            checkedDefault && checkedDefault.value !== 'notify' ? checkedDefault.value : '',
-          );
+          form.setAttribute('data-wedge', checkedDefault ? checkedDefault.value : '');
           form.querySelectorAll('input[name="ar-topic"]').forEach(function (radio) {
             radio.addEventListener('change', function () {
-              form.setAttribute('data-wedge', radio.value === 'notify' ? '' : radio.value);
+              form.setAttribute('data-wedge', radio.value);
             });
           });
         }
@@ -2177,7 +2177,7 @@ const jsonLd = [webApp, faqPage];
           const noteEl = $('#ar-next-note');
           const note = ((noteEl && noteEl.value) || '').trim();
           const btn = form.querySelector('button[type="submit"]');
-          // Resolve the topic: chooser radio (≥2 fire) → fixed wedge (one fires) → notify.
+          // Resolve the topic: chooser radio (≥2 fire) → fixed wedge (one fires).
           let topic = primaryWedge;
           if (bothWedges) {
             const checked = form.querySelector('input[name="ar-topic"]:checked');
@@ -2214,31 +2214,8 @@ const jsonLd = [webApp, faqPage];
               if (msg) msg.textContent = 'Could not reach us. ' + esc(String(err));
               if (btn) btn.disabled = false;
             }
-          } else {
-            // notify path (no wedge, or the chooser's "Just email me this result")
-            const ok = await sendNotify(r, email, btn, msg);
-            if (ok) form.remove();
           }
         });
-        // Secondary "email me this result" text-button → /notify (present only when a wedge fires).
-        const notifyBtn = $('#ar-notify-btn');
-        if (notifyBtn) {
-          notifyBtn.addEventListener('click', async () => {
-            const email = ((emailEl && emailEl.value) || '').trim();
-            if (!email) {
-              if (emailEl) emailEl.focus();
-              return;
-            }
-            notifyBtn.disabled = true;
-            const ok = await sendNotify(r, email, notifyBtn, msg);
-            if (ok) {
-              notifyBtn.disabled = true;
-              notifyBtn.textContent = 'Sent';
-            } else {
-              notifyBtn.disabled = false;
-            }
-          });
-        }
       }
 
       // POST one lead to /contact. Returns true on a 2xx, false on any failure; the
