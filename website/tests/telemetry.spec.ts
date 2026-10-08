@@ -161,13 +161,23 @@ test.describe('Telemetry strip', () => {
 
   test('the strip is 32px tall at first paint with the CSS sheet blocked', async ({ page }) => {
     // The scoped and global rules ship separately from the inline critical
-    // guard (in dev they are style-module requests, on production the
-    // deferred /_astro/*.css sheet). With every one of them aborted, the
-    // inline guard alone must still pin the strip to its fixed 32px row.
+    // guard: on production as the deferred /_astro/*.css sheet (aborted
+    // below), in dev as style-module requests plus inline
+    // <style data-vite-dev-id> tags that the dev server injects into the
+    // document. Strip those tags from the HTML as well, or dev keeps the
+    // strip at 32px without the guard and the test proves nothing.
     await page.route(
       (url) => /\.css(\?|$)|[?&]type=style/.test(url.href),
       (route) => route.abort(),
     );
+    await page.route(/\/$/, async (route) => {
+      const response = await route.fetch();
+      const body = (await response.text()).replace(
+        /<style data-vite-dev-id=[^>]*>[\s\S]*?<\/style>/g,
+        '',
+      );
+      await route.fulfill({ response, body });
+    });
     await page.goto('/');
     const strip = page.locator(STRIP);
     await expect(strip).toBeVisible();
