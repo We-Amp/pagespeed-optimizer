@@ -9344,7 +9344,8 @@ For CDN-specific guidance including Vary header recommendations, see
 ## Native module cache storage
 
 The in-process module (Apache, nginx, IIS) and the reverse-proxy worker both
-build on Cyclone Cache, the memory-mapped cache backend. The worker's own
+build on Cyclone Cache, the memory-mapped cache backend (open source:
+[cyclone-cache on GitHub](https://github.com/We-Amp/cyclone-cache)). The worker's own
 cache path, sizing and threading flags are in the
 [configuration reference](https://modpagespeed.com/docs/configuration/); the rest of this page is the
 in-process module's cache reference:
