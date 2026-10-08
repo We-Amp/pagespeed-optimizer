@@ -46,6 +46,7 @@ import {
   PKG_ASPNETCORE,
   PKG_SIDECAR,
   PKG_SIDECAR_NATIVE,
+  SIDECAR_VERSION,
   SIDECAR_NGINX_VERSION,
   SIDECAR_RIDS,
   ASPNETCORE_RIDS,
@@ -160,7 +161,7 @@ export function distributionLines(ctx) {
     `- Helm chart \`${rel21.artifacts.helm.chart}\` from ${rel21.artifacts.helm.repository} (application version ${substituteRelease(rel21.artifacts.helm.app_version, rel21)}; Kubernetes ${rel21.compat.kubernetes.versions.join(', ')}; Helm ${rel21.compat.kubernetes.helm_versions.join(', ')}). See [Deploy with Helm](${docUrl('helm-deployment')}).`,
     `- IIS: the signed Windows installer from the ${V1_LINE} module channel, ${artifactUrl(rel11, 'msi', 'win_x64')} (${rel11.compat.iis.os.join(', ')}; IIS ${rel11.compat.iis.iis_versions.join(', ')}; x64). See [Install on IIS](${docUrl('install-iis')}).`,
     `- NuGet \`${aspnetPkg}\` ${rel21.release.semver}, the ASP.NET Core middleware (${ASPNETCORE_TFMS.join(', ')}; ${ASPNETCORE_RIDS.join(', ')}): \`dotnet add package ${aspnetPkg}\`. See [Install ASP.NET Core middleware](${docUrl('aspnet-getting-started')}).`,
-    `- NuGet \`${PKG_SIDECAR}\` with \`${PKG_SIDECAR_NATIVE}\`, the ${V1_LINE} module as an ASP.NET Core sidecar (${SIDECAR_RIDS.join(', ')}; bundles nginx ${SIDECAR_NGINX_VERSION}): \`dotnet add package ${PKG_SIDECAR}\`.`,
+    `- NuGet \`${PKG_SIDECAR}\` with \`${PKG_SIDECAR_NATIVE}\`, ${SIDECAR_VERSION}, the module as an ASP.NET Core sidecar (${SIDECAR_RIDS.join(', ')}; bundles nginx ${SIDECAR_NGINX_VERSION}): \`dotnet add package ${PKG_SIDECAR}\`.`,
     `- Direct downloads of the ${V1_LINE} module line (deb, rpm and MSI, with SHA256SUMS and GPG signatures) at ${rel11.urls.archive_base}: ${rel11.release.tag} (${rel11.release.released_on}). See [Download](${SITE}/download/).`,
   ];
 }

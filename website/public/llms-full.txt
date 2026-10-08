@@ -141,7 +141,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@modpagespeed.com
 - Helm chart `pagespeed` from https://modpagespeed.com/charts (application version 2.2.0; Kubernetes 1.28+, 1.29+, 1.30+; Helm 3.12+). See [Deploy with Helm](https://modpagespeed.com/docs/helm-deployment/).
 - IIS: the signed Windows installer from the 1.15 module channel, https://modpagespeed.com/releases/v1.15.0/pagespeed-iis-1.15.0-win-x64.msi (Windows Server 2019, Windows Server 2022, Windows Server 2025; IIS 10+; x64). See [Install on IIS](https://modpagespeed.com/docs/install-iis/).
 - NuGet `WeAmp.PageSpeed.AspNetCore` 2.2.0, the ASP.NET Core middleware (net8.0, net10.0; linux-x64, linux-arm64, osx-arm64, win-x64): `dotnet add package WeAmp.PageSpeed.AspNetCore`. See [Install ASP.NET Core middleware](https://modpagespeed.com/docs/aspnet-getting-started/).
-- NuGet `WeAmp.PageSpeed.Sidecar` with `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`, the 1.15 module as an ASP.NET Core sidecar (linux-x64, linux-arm64; bundles nginx 1.30.2): `dotnet add package WeAmp.PageSpeed.Sidecar`.
+- NuGet `WeAmp.PageSpeed.Sidecar` with `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`, 1.17.0, the module as an ASP.NET Core sidecar (linux-x64, linux-arm64; bundles nginx 1.30.4): `dotnet add package WeAmp.PageSpeed.Sidecar`.
 - Direct downloads of the 1.15 module line (deb, rpm and MSI, with SHA256SUMS and GPG signatures) at https://modpagespeed.com/releases/v1.15.0/: v1.15.0+r22 (2026-08-08). See [Download](https://modpagespeed.com/download/).
 
 ---
@@ -6558,7 +6558,7 @@ package rows from the signed repository's distribution matrix.
 | Native module package, Ubuntu 22.04 jammy                                           | nginx 1.18.0 (the distribution's stock nginx; exact-version pin) | Native module         |
 | Native module package, Ubuntu 24.04 noble                                           | nginx 1.24.0 (the distribution's stock nginx; exact-version pin) | Native module         |
 | Native module package, AlmaLinux 9 (yum)                                            | nginx 1.20.1 (stock nginx; exact-version pin)                    | Native module         |
-| NuGet sidecar `WeAmp.PageSpeed.Sidecar`                                             | nginx 1.30.2, bundled in the package                             | Thin module + worker  |
+| NuGet sidecar `WeAmp.PageSpeed.Sidecar`                                             | nginx 1.30.4, bundled in the package                             | Thin module + worker  |
 
 <!-- generated:end nginx-compat -->
 

@@ -296,7 +296,8 @@ export const PKG_OPTIMIZER = 'pagespeed-optimizer'; // the optimizer worker
 export const PKG_ASPNETCORE = 'WeAmp.PageSpeed.AspNetCore'; // the ASP.NET Core middleware
 export const PKG_SIDECAR = 'WeAmp.PageSpeed.Sidecar'; // mod_pagespeed 1.15 sidecar
 export const PKG_SIDECAR_NATIVE = 'WeAmp.PageSpeed.Sidecar.NativeAssets.Linux';
-export const SIDECAR_NGINX_VERSION = '1.30.2'; // nginx bundled inside the 1.15 sidecar
+export const SIDECAR_VERSION = '1.17.0'; // WeAmp.PageSpeed.Sidecar package version on nuget.org (follows the module packages)
+export const SIDECAR_NGINX_VERSION = '1.30.4'; // nginx bundled inside the sidecar package (its nuspec release notes)
 export const SIDECAR_RIDS = ['linux-x64', 'linux-arm64'];
 export const ASPNETCORE_RIDS = ['linux-x64', 'linux-arm64', 'osx-arm64', 'win-x64'];
 // Target frameworks the ASP.NET Core middleware ships for.
@@ -384,6 +385,7 @@ const llmsTokens = () => ({
   LICENSING_TERMS_URL,
   MAX_VARIANTS: String(MAX_VARIANTS),
   RASTER_VARIANTS: String(RASTER_VARIANTS),
+  SIDECAR_VERSION,
   SIDECAR_NGINX_VERSION,
   BUILTWITH_SITES,
   BUILTWITH_AS_OF,
