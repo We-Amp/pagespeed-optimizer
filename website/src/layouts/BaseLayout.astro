@@ -6,6 +6,7 @@ import SearchDialog from '../components/SearchDialog.astro';
 import Icon from '../components/Icon.astro';
 import TelemetryStrip from '../components/instrument/TelemetryStrip.astro';
 import { PRODUCT_DISPLAY_NAME, CURRENT_LINE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
+import { safeJsonLd } from '../lib/jsonld';
 
 // Derived chrome label (lowercase everywhere) — one product name,
 // one logo, one site name, used sitewide.
@@ -594,7 +595,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
       /* Set dark class before first paint to avoid FOUC on iOS. Must run
          synchronously in <head> before any rendering occurs. */
       (function () {
-        /* Dark-only identity (CALIBER): the `.dark` class is ALWAYS applied so
+        /* Dark-only identity: the `.dark` class is ALWAYS applied so
            every existing `dark:` utility resolves to the instrument-black system.
            No toggle, no light theme. */
         document.documentElement.classList.add('dark');
@@ -676,7 +677,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
     <title>{title}</title>
     {
       jsonLdScripts.map((script) => (
-        <script is:inline type="application/ld+json" set:html={JSON.stringify(script)} />
+        <script is:inline type="application/ld+json" set:html={safeJsonLd(script)} />
       ))
     }
     <style is:global>
@@ -869,7 +870,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
           </div>
 
           {
-            /* Dark-only identity (CALIBER) — theme toggle removed; the site is
+            /* Dark-only identity — theme toggle removed; the site is
               rendered exclusively on the instrument-black canvas. */
           }
 

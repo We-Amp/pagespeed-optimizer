@@ -66,7 +66,7 @@
 }
 
 /* IBM Plex Mono (SIL OFL 1.1) — self-hosted, no Google Fonts call. Carries all
-   numerics, labels, code, status, logo & buttons in the CALIBER identity.
+   numerics, labels, code, status, logo & buttons.
    Latin subset, weights 400/500/600. License: /fonts/IBM-Plex-Mono-OFL.txt */
 @font-face {
   font-family: 'IBM Plex Mono';
@@ -216,7 +216,7 @@
 }
 
 /* ============================================================================
-   CALIBER / Instrument-Grade visual identity (dark-primary).
+   Site visual identity (dark-primary).
    Dark is the designed-for "home" canvas; light is a subordinate theme on the
    SAME rulebook. The codebase uses Tailwind's `dark:` variant pervasively
    (keyed on the `.dark` class), so light lives in @theme and dark overrides in
@@ -614,7 +614,7 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
   .eyebrow-index {
     color: var(--color-interactive);
   }
-  /* Calibrated readout numerals — tabular + slashed zero, instrument-grade. */
+  /* Readout numerals — tabular figures + slashed zero. */
   .display-num {
     font-family: var(--font-mono);
     font-feature-settings:
@@ -623,7 +623,7 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     letter-spacing: -0.01em;
   }
 
-  /* ---- CALIBER structural motifs (CSS/SVG only — 0 raster, 0 JS) ---- */
+  /* ---- Structural motifs (CSS/SVG only — 0 raster, 0 JS) ---- */
   /* Chemin-de-fer tick scale — section dividers, header/footer bezels, frames.
      Replaces drop-shadows and alternating-background section rhythm. */
   .rule-ticked {
@@ -1004,8 +1004,7 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
   }
 
   /* Release notes — collapsible entry chrome. Scoped entirely to .rn-* so
-     no other page pays for it. Tokens only, no new colors (Caliber
-     dark-only identity). */
+     no other page pays for it. Tokens only, no new colors. */
   .rn-alias {
     position: absolute;
     width: 1px;

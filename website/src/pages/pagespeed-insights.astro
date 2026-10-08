@@ -56,7 +56,7 @@ const byId = (id: string): AuditMapping => {
 const featured = featuredAuditIds.map(byId);
 const clientSide = clientSideAuditIds.map(byId);
 
-// Coverage -> badge label + class. These map directly onto the CALIBER status
+// Coverage -> badge label + class. These map directly onto the site's status
 // chips: success (emerald) = auto-fix, accent (amber) = assistive/caution,
 // muted (stone) = out of scope. The label IS the honesty claim.
 const coverageBadge: Record<Coverage, { label: string; cls: string }> = {

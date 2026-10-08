@@ -238,7 +238,53 @@ pagespeed EnableFilters add_ids;
 
 [Full guide →](/docs/filters/combine_heads/)
 
-Merges multiple `<head>` elements into one. Only useful for pages that aggregate content from multiple sources, each contributing their own `<head>` section.
+#### What it does
+
+`combine_heads` folds extra `<head>` elements into the first one. When the module's HTML parse closes a second or later `<head>`, the contents of that element move into the first head and the emptied element disappears, so the served document carries exactly one head with everything in it. Not a core filter; enable it by name. Live demo: [combine_heads](/examples/combine_heads/).
+
+```html
+<!-- before: two fragments, each contributing its own head -->
+<head>
+  <title>Report</title>
+</head>
+...the first fragment's content...
+<head>
+  <link rel="stylesheet" href="/css/part2.css" />
+</head>
+...the second fragment's content...
+
+<!-- after: one head, both fragments' head content in it -->
+<head>
+  <title>Report</title>
+  <link rel="stylesheet" href="/css/part2.css" />
+</head>
+...the first fragment's content... ...the second fragment's content...
+```
+
+#### When it helps and when it does not
+
+It helps on pages assembled from fragments that each ship a complete document skeleton: server-side includes that embed whole HTML files, portal or search pages that splice in results blocks with their own `<head>`, scraped or migrated content pasted with its original head. A browser's own parser discards the stray `<head>` tags and keeps the content, so such pages mostly render by accident; the merged output is predictable and gives the module's head-injecting filters one place to work. On a normal page with a single head the filter changes nothing.
+
+#### How it decides
+
+The first `<head>` in the document is the survivor. Each later `</head>` moves its children into that first head, in document order. The merge cannot cross a flush boundary: when the server streams the page in chunks, heads that close in a later chunk than the first head stay as they are, because content already flushed to the browser cannot be restructured. The filter shares its implementation with [`add_head`](#add_head): the same pass that inserts a missing `<head>` performs the merge, so enabling `combine_heads` also brings `add_head`'s behavior of inserting a head into documents that have none.
+
+#### Risks
+
+- Content ordering inside the merged head follows the fragments, not any intent the fragments had; a fragment whose styles or scripts assumed their original position relative to other elements should be checked after enabling.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-combine_heads` comparison; [Is it working?](/docs/is-it-working/) has the steps.
+
+#### Configuration
+
+```apache
+# Apache
+ModPagespeedEnableFilters combine_heads
+```
+
+```nginx
+# Nginx
+pagespeed EnableFilters combine_heads;
+```
 
 ### pedantic {#pedantic}
 
@@ -302,6 +348,8 @@ Since v1.15.0+r21, `<script type="module">` subresources are hinted with `rel=mo
 Injects a same-origin prefetch `<script type="speculationrules">` block so that supporting browsers prefetch a link as the visitor starts interacting with it; browsers without speculation-rules support ignore the tag. Only same-origin links are eligible.
 
 The filter stands down in several cases rather than injecting a ruleset that would be wasted or unsafe: it backs off when the page already carries its own speculation ruleset, when a `Content-Security-Policy` forbids inline scripts, on non-200 responses, on cookie-setting responses, on `no-store` responses, and on AMP documents.
+
+The injected ruleset is fixed: one rule that prefetches same-origin document URLs (`href_matches: "/*"`) with `eagerness: moderate`, meaning the browser applies its own heuristic for when a prefetch is worth starting rather than prefetching every link on sight. There is no prerender and nothing cross-origin. The script is placed at the end of `<body>`. Requests that negotiate markdown (`Accept: text/markdown`), such as AI-agent fetches, are also left clean: they run no scripts and get no benefit, so the tag stays out of the variant those caches key on under `Vary: Accept`.
 
 Speculative prefetch spends origin bandwidth on navigations that may never happen, so treat it as a trade-off and test it against your own traffic. This filter is opt-in and is not part of any rewrite level. Enable it by name:
 

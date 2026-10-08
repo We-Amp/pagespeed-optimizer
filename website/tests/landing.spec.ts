@@ -43,7 +43,7 @@ test.describe('Landing page', () => {
 
   test('bottom CTA section is visible', async ({ page }) => {
     // Bottom CTA mirrors hero verb — "Download & run" + "Run the numbers".
-    // The CALIBER redesign styles the band with the teal accent token
+    // The site design styles the band with the teal accent token
     // (`bg-interactive`), not the legacy `bg-blue-700` utility.
     const ctaSection = page.locator('section.bg-interactive');
     await expect(ctaSection.locator('h2')).toBeVisible();

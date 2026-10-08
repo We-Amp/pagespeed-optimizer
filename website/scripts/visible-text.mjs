@@ -3,8 +3,10 @@
 //
 // visible-text.mjs — dump the normalized visible text of a built page for
 // copy-identity diffs. Reads the prerendered HTML from dist/client (no server
-// needed), extracts the text of <header>, <main> and <footer> (script, style
-// and template content excluded), and prints one trimmed text node per line.
+// needed), extracts the text of <body> (script, style, template and noscript
+// content excluded), and prints one trimmed text node per line. Attribute
+// copy is included too: alt, aria-label and title values print with a
+// "@name: " marker prefix, in document order among the text lines.
 // Run it on the same path before and after a change and diff the two dumps:
 // the diff is the exact set of visible-string changes.
 //
@@ -48,8 +50,9 @@ try {
 
 const doc = parse(html);
 
-const SKIP = new Set(['script', 'style', 'template']);
-const WANT = new Set(['header', 'main', 'footer']);
+const SKIP = new Set(['script', 'style', 'template', 'noscript']);
+const WANT = new Set(['body']);
+const ATTRS = ['alt', 'aria-label', 'title'];
 
 function textOf(node, out) {
   if (node.nodeName === '#text') {
@@ -58,13 +61,18 @@ function textOf(node, out) {
     return;
   }
   if (!node.tagName || SKIP.has(node.tagName)) return;
+  for (const name of ATTRS) {
+    const attr = (node.attrs ?? []).find((a) => a.name === name);
+    const v = attr?.value.replace(/\s+/g, ' ').trim();
+    if (v) out.push(`@${name}: ${v}`);
+  }
   for (const child of node.childNodes ?? []) textOf(child, out);
 }
 
 function* walk(node) {
   if (node.tagName && WANT.has(node.tagName)) {
     yield node;
-    return; // no nested header/main/footer to find inside
+    return; // <body> occurs once; textOf below descends into it
   }
   for (const child of node.childNodes ?? []) yield* walk(child);
 }

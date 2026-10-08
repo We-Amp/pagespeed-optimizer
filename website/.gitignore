@@ -28,3 +28,6 @@ pnpm-debug.log*
 
 # jetbrains setting folder
 .idea/
+
+# Lighthouse CI local output (website/lighthouserc.json writes reports here)
+.lighthouseci/

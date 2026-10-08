@@ -9,6 +9,7 @@
     "build": "astro build",
     "postbuild": "node scripts/build-search-index.mjs",
     "capture:telemetry": "node scripts/capture-telemetry.mjs",
+    "check:content": "node scripts/check-built-content.mjs",
     "gen:llms": "node scripts/generate-llms.mjs",
     "gen:references": "node scripts/generate-references.mjs --module-src \"${MOD_PAGESPEED_SRC:-../../mod_pagespeed}\" && node scripts/render-references.mjs",
     "preview": "astro preview",
@@ -45,12 +46,14 @@
     "esbuild": "^0.28.1",
     "js-yaml": "^4.3.1",
     "brace-expansion": "5.0.12",
-    "devalue": "5.9.3"
+    "devalue": "5.9.3",
+    "lighthouse": "13.5.0"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",
     "@axe-core/playwright": "^4.11.1",
     "@fontsource/inter": "^5.2.8",
+    "@lhci/cli": "0.15.1",
     "@playwright/test": "^1.58.2",
     "@resvg/resvg-js": "^2.6.2",
     "@typescript-eslint/parser": "^8.65.0",

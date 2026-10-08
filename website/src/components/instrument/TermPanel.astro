@@ -29,6 +29,7 @@ const { command, label, chip, lines } = Astro.props;
   <pre
     class="term-body"
     tabindex="0"
+    role="region"
     aria-label={label}><code>{
         lines.map((line) => <span class={`term-${line.tone ?? 'plain'}`}>{line.text + '\n'}</span>)
       }</code></pre>
@@ -62,6 +63,10 @@ const { command, label, chip, lines } = Astro.props;
        strip and the copy button stay). */
     box-shadow: none;
     border-radius: 0;
+  }
+  /* The panel's overflow:hidden clips an outward focus ring; draw it inside. */
+  .term-body:focus-visible {
+    outline-offset: -2px;
   }
   .term-plain {
     color: var(--color-text-muted);
