@@ -559,3 +559,13 @@ test.describe('Docs structure', () => {
     }
   });
 });
+
+test.describe('Admin console docs', () => {
+  test('opens with a tip pointing at the live console', async ({ page }) => {
+    await page.goto('/docs/admin-console/');
+    const tip = page.locator('aside.callout-tip').first();
+    await expect(tip).toContainText('See it running');
+    await expect(tip.locator('a[href="https://we-amp.com/pagespeed_global_admin/"]')).toBeVisible();
+    await expect(tip).toContainText('public on purpose');
+  });
+});

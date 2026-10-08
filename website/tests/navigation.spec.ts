@@ -52,6 +52,39 @@ test.describe('Navigation', () => {
     }
   });
 
+  test('Tools dropdown lists the live admin console between examples and calculator', async ({
+    page,
+  }) => {
+    await page.goto('/');
+    await page.locator('header nav button.nav-dropdown-btn:has-text("Tools")').click();
+    const panel = page.locator('.nav-dropdown-panel:visible');
+    const labels = (await panel.locator('a span.text-sm').allInnerTexts()).map((t) => t.trim());
+    expect(labels).toEqual([
+      'AI readability check',
+      'PageSpeed analyzer',
+      'Filter examples',
+      'Live admin console',
+      'Savings calculator',
+      'Demo',
+    ]);
+    const live = panel.locator('a[href="https://we-amp.com/pagespeed_global_admin/"]');
+    await expect(live).toContainText('The real console on our own sites');
+    await expect(live).toHaveAttribute('data-umami-event', 'nav-live-console');
+    // Our own property: same tab.
+    await expect(live).not.toHaveAttribute('target', /.+/);
+  });
+
+  test('footer Tools lists the live admin console', async ({ page }) => {
+    await page.goto('/');
+    const footerLinks = (await page.locator('footer a').allInnerTexts()).map((t) => t.trim());
+    const i = footerLinks.indexOf('Live admin console');
+    expect(i).toBeGreaterThan(footerLinks.indexOf('Filter examples'));
+    expect(i).toBeLessThan(footerLinks.indexOf('Savings calculator'));
+    await expect(
+      page.locator('footer a[href="https://we-amp.com/pagespeed_global_admin/"]'),
+    ).toHaveCount(1);
+  });
+
   test('Support dropdown carries the four offers as commercial CTAs', async ({ page }) => {
     await page.goto('/');
     await page.locator('header nav button.nav-dropdown-btn:has-text("Support")').click();
