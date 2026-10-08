@@ -16,14 +16,14 @@ test.describe('/terms/ page', () => {
     await expect(page.locator('main h1')).toHaveText(/Terms of Service/i);
   });
 
-  test('displays version identifier 2026-09', async ({ page }) => {
+  test('displays version identifier 2026-10', async ({ page }) => {
     await page.goto('/terms/');
-    await expect(page.getByText('2026-09')).toBeVisible();
+    await expect(page.getByText('2026-10')).toBeVisible();
   });
 
-  test('displays effective date September 2026', async ({ page }) => {
+  test('displays effective date October 2026', async ({ page }) => {
     await page.goto('/terms/');
-    await expect(page.getByText('September 2026')).toBeVisible();
+    await expect(page.getByText('October 2026')).toBeVisible();
   });
 
   test('links to privacy policy', async ({ page }) => {
