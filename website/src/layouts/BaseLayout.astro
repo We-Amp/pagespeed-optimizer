@@ -589,6 +589,17 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
       html.dark img[class*='dark:block'] {
         display: block !important;
       }
+      /* Telemetry strip layout guard: the strip's scoped rules ship in the
+         deferred sheet, but its box must be exact at first paint or the page
+         shifts when that sheet lands. Keep the row at its fixed 32px, clipped,
+         with the fields on one flex line even while /_astro/*.css is blocked. */
+      [data-ui='telemetry-strip'] {
+        block-size: 32px;
+        overflow: hidden;
+      }
+      [data-ui='telemetry-strip'] .telemetry-row {
+        display: flex;
+      }
     </style>
     <script is:inline define:vars={{ bannerDismissKey }}>
       /* Set dark class before first paint to avoid FOUC on iOS. Must run

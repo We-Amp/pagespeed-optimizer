@@ -135,6 +135,22 @@ test.describe('Telemetry strip', () => {
     }
   });
 
+  test('the strip is 32px tall at first paint with the CSS sheet blocked', async ({ page }) => {
+    // The scoped and global rules ship separately from the inline critical
+    // guard (in dev they are style-module requests, on production the
+    // deferred /_astro/*.css sheet). With every one of them aborted, the
+    // inline guard alone must still pin the strip to its fixed 32px row.
+    await page.route(
+      (url) => /\.css(\?|$)|[?&]type=style/.test(url.href),
+      (route) => route.abort(),
+    );
+    await page.goto('/');
+    const strip = page.locator(STRIP);
+    await expect(strip).toBeVisible();
+    const height = await strip.evaluate((el) => el.getBoundingClientRect().height);
+    expect(height).toBe(32);
+  });
+
   test('the skip link is still the first tab stop', async ({ page }) => {
     await page.goto('/');
     await page.locator(STRIP).waitFor();
