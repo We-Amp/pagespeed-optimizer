@@ -162,9 +162,29 @@
   color: var(--color-text-annotation);
 }
 
+/* Long unbreakable tokens — filter and directive names, flags, URLs, env
+   vars — must never force a page wider than the viewport: when no fragment
+   of the word fits on a line, break inside the word instead of overflowing.
+   Headings need this because the permalink anchor appended to a heading has
+   no soft wrap opportunity before it, so a heading whose text fills the line
+   overflows by the anchor's width; paragraphs because plain text can carry
+   the same tokens without a <code> span. Normal prose never breaks mid-word:
+   a word only breaks when it cannot fit on a line of its own. */
+.prose :is(h2, h3, h4),
+.prose p {
+  overflow-wrap: anywhere;
+}
+
 .prose :not(pre) > code {
-  overflow-wrap: break-word;
+  overflow-wrap: anywhere;
   word-break: break-all;
+}
+
+/* The filter topic pages (/docs/filters/<name>/) carry the same filter names
+   in inline <code> outside .prose — the lede, the facts list, the risks
+   paragraph — so they need the identical wrapping rule there. */
+[data-filter-topic] :not(pre) > code {
+  overflow-wrap: anywhere;
 }
 
 .prose :not(pre) > code::before,
@@ -592,6 +612,9 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     /* font-weight 400 (not 300) — light weight loses contrast on the dark ground. */
     @apply text-lg sm:text-xl leading-relaxed;
     color: var(--color-text-muted);
+    /* Same unbreakable-token rule as .prose above: ledes carry filter and
+       flag names that must wrap on narrow screens, not push the page wide. */
+    overflow-wrap: anywhere;
   }
   /* Field-label eyebrow: mono, prefixed by a small cyan field-tick (RECTO graft). */
   .eyebrow {

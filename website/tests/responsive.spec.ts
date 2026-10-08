@@ -67,3 +67,50 @@ test.describe('Responsive layout', () => {
     await expect(page.locator('#tab-ecommerce')).toBeVisible();
   });
 });
+
+// Docs pages must not scroll horizontally on narrow screens. Long
+// unbreakable tokens (filter names, flags, URLs) and the permalink anchor
+// appended to article headings used to push these pages past the viewport;
+// the global prose styles now wrap inside the word. The pages below are the
+// ones that regressed, checked at the narrow end of the phone range.
+const narrowDocPages = [
+  '/docs/configuration/',
+  '/docs/image-filters/',
+  '/docs/worker-configuration/',
+  '/docs/filters/rewrite_style_attributes/',
+  '/docs/filters/rewrite_style_attributes_with_url/',
+  '/docs/filters/resize_rendered_image_dimensions/',
+];
+
+test.describe('Docs pages fit narrow viewports', () => {
+  for (const width of [320, 360, 390]) {
+    test(`no horizontal scroll at ${width}px`, async ({ page }) => {
+      await page.setViewportSize({ width, height: 844 });
+      for (const path of narrowDocPages) {
+        await page.goto(path);
+        // On article pages the client script appends permalink anchors to
+        // headings; they are part of the layout that must fit, so wait for
+        // them before measuring.
+        if ((await page.locator('article').count()) > 0) {
+          await expect(page.locator('article .heading-anchor').first()).toBeAttached();
+        }
+        const { scrollWidth, innerWidth } = await page.evaluate(() => ({
+          scrollWidth: document.documentElement.scrollWidth,
+          innerWidth: window.innerWidth,
+        }));
+        expect(scrollWidth, `${path} at ${width}`).toBeLessThanOrEqual(innerWidth);
+      }
+    });
+  }
+
+  test('/docs/http-api/ has no horizontal scroll at 360px', async ({ page }) => {
+    await page.setViewportSize({ width: 360, height: 844 });
+    await page.goto('/docs/http-api/');
+    await expect(page.locator('article .heading-anchor').first()).toBeAttached();
+    const { scrollWidth, innerWidth } = await page.evaluate(() => ({
+      scrollWidth: document.documentElement.scrollWidth,
+      innerWidth: window.innerWidth,
+    }));
+    expect(scrollWidth).toBeLessThanOrEqual(innerWidth);
+  });
+});
