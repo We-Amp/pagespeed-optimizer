@@ -203,6 +203,11 @@ function documentTitleTokens(tk) {
   return titles;
 }
 
+/** Open tokens of one tag name — quote-aware, unlike a `<tag[^>]*>` scan. */
+function openTokens(html, name) {
+  return tokens(html).filter((t) => t.kind === 'open' && t.name === name);
+}
+
 /** Title count and decoded text of the first document <title>. */
 export function titleInfo(html) {
   const tk = tokens(html);
@@ -220,20 +225,18 @@ export function titleInfo(html) {
 
 /** Description tag count and decoded content of the first one. */
 export function descriptionInfo(html) {
-  const tags = [...html.matchAll(/<meta\b[^>]*>/gi)]
-    .map((m) => m[0])
-    .filter((tag) => attrValue(tag, 'name').toLowerCase() === 'description');
+  const tags = openTokens(html, 'meta').filter((t) => attrValue(t.attrs, 'name').toLowerCase() === 'description');
   return {
     count: tags.length,
-    text: decodeEntities(collapseWhitespace(tags[0] ? attrValue(tags[0], 'content') : '')),
+    text: decodeEntities(collapseWhitespace(tags[0] ? attrValue(tags[0].attrs, 'content') : '')),
   };
 }
 
 /** A page is non-indexable when robots says so, however the value is ordered. */
 export function isNoindex(html) {
-  return [...html.matchAll(/<meta\b[^>]*>/gi)]
-    .map((m) => m[0])
-    .some((tag) => attrValue(tag, 'name').toLowerCase() === 'robots' && /\bnoindex\b/i.test(attrValue(tag, 'content')));
+  return openTokens(html, 'meta').some(
+    (t) => attrValue(t.attrs, 'name').toLowerCase() === 'robots' && /\bnoindex\b/i.test(attrValue(t.attrs, 'content')),
+  );
 }
 
 /** Remove script/style/pre/code contents and comments: not visible text. */
@@ -249,7 +252,7 @@ export function stripNonVisible(html) {
 /** The text a visitor reads: body, tags stripped, entities decoded. */
 export function visibleText(html) {
   const body = /<body\b[^>]*>([\s\S]*?)<\/body\s*>/i.exec(html)?.[1] ?? html;
-  return collapseWhitespace(decodeEntities(stripNonVisible(body).replace(/<[^>]+>/g, ' ')));
+  return collapseWhitespace(decodeEntities(stripNonVisible(body).replace(/<(?:[^>"']|"[^"]*"|'[^']*')*>/g, ' ')));
 }
 
 /** Count <h1> opening tags outside script/style/comments. */
@@ -329,10 +332,9 @@ export function documentStructureProblems(html) {
 
 /** hrefs of every <link rel="canonical"> ('' when the tag has no href). */
 export function canonicalHrefs(html) {
-  return [...html.matchAll(/<link\b[^>]*>/gi)]
-    .map((m) => m[0])
-    .filter((tag) => /\bcanonical\b/i.test(attrValue(tag, 'rel')))
-    .map((tag) => attrValue(tag, 'href'));
+  return openTokens(html, 'link')
+    .filter((t) => /\bcanonical\b/i.test(attrValue(t.attrs, 'rel')))
+    .map((t) => attrValue(t.attrs, 'href'));
 }
 
 /** null when the canonical URL is well-formed, else why it is not. */

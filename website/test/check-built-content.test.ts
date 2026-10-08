@@ -76,6 +76,17 @@ describe('descriptionInfo', () => {
     expect(descriptionInfo(html).text).toBe('A description long enough to matter here');
   });
 
+  it('reads a value containing markup like <style> in full', () => {
+    // The /examples/ pages carry descriptions such as "Moves large inline
+    // <style> blocks into external files …". A tag scan that stops at the
+    // first '>' cut this value at "<style" and read no description at all.
+    const html =
+      '<meta name="description" content="Moves large inline <style> blocks into external files with measured savings.">';
+    const info = descriptionInfo(html);
+    expect(info.count).toBe(1);
+    expect(info.text).toBe('Moves large inline <style> blocks into external files with measured savings.');
+  });
+
   it('reports absence', () => {
     expect(descriptionInfo('<head></head>').count).toBe(0);
     expect(descriptionInfo('<head></head>').text).toBe('');
