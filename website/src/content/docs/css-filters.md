@@ -276,18 +276,46 @@ pagespeed EnableFilters inline_google_font_css;
 
 [Full guide →](/docs/filters/outline_css/)
 
-Experimental. The inverse of `inline_css`: externalizes large inline `<style>` blocks into separate CSS files that can be cached independently. Rarely useful in practice. The `CssOutlineMinBytes` parameter (default: 3000) sets the minimum inline CSS size to externalize.
+#### What it does
 
-Enable:
+`outline_css` is the inverse of `inline_css`: it moves a large inline `<style>` block out of the HTML into its own stylesheet file, served from a rewritten `_.pagespeed.co.` URL with a long cache lifetime, and replaces the block with a `<link rel="stylesheet">` to it. Not a core filter; enable it by name. Live demo: [outline_css](/examples/outline_css/).
+
+```html
+<!-- before: 8 KB of rules ride inside every page response -->
+<style type="text/css" id="large">
+  .checkout { ... }
+</style>
+
+<!-- after: the rules are fetched once and kept in the browser cache -->
+<link rel="stylesheet" href="/_.pagespeed.co.HASH.css" type="text/css" id="large" />
+```
+
+#### When it helps and when it does not
+
+Inlining pays when HTML is cached and the stylesheet is small; outlining pays on the mirrored trade. A large block of inline CSS is re-sent with every page view, and on pages whose HTML is generated per request the bytes cannot be cached at all. Outlining moves those bytes into a file the browser fetches once and keeps. The costs are one extra request on the first view and a render-blocking fetch that did not exist before, so it loses on pages visited once and on blocks that differ from page to page. Most sites are better served by keeping CSS in real files; this filter exists for HTML whose large stylesheets are stuck inline.
+
+#### How it decides
+
+Only a `<style>` block whose text is at least `CssOutlineMinBytes` (default 3000 bytes) is outlined. A `<style scoped>` element is left alone, because a scoped block cannot become a plain `<link>`, and so is a block whose `type` is anything other than CSS. Relative `url()` references inside the block are re-resolved against the generated file's location, so images keep loading from where they did. The generated `<link>` carries the original element's other attributes, so an `id` or `media` survives the move. A block the parser cannot hold as one unit, because a flush arrives mid-style or a stray tag sits inside it, is left inline rather than guessed at.
+
+#### Risks
+
+- The outlined stylesheet is an extra render-blocking request on the first view; on single-view pages that costs more than the HTML bytes it saves.
+- Markup or scripts that expect the `<style>` element to exist in the page see a `<link>` instead.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-outline_css` comparison; [Is it working?](/docs/is-it-working/) has the steps.
+
+#### Configuration
 
 ```apache
 # Apache
 ModPagespeedEnableFilters outline_css
+ModPagespeedCssOutlineMinBytes 3000
 ```
 
 ```nginx
 # Nginx
 pagespeed EnableFilters outline_css;
+pagespeed CssOutlineMinBytes 3000;
 ```
 
 ### prioritize_critical_css {#prioritize_critical_css}
@@ -318,9 +346,34 @@ A stylesheet keeps its ordinary blocking `<link>` when it uses an `@import` the 
 
 [Full guide →](/docs/filters/move_css_above_scripts/)
 
-Not a core filter. Moves `<link rel="stylesheet">` elements above `<script>` elements in the HTML to prevent CSS-blocking-JS render delays. Generally safe for most sites.
+#### What it does
 
-Enable:
+`move_css_above_scripts` lifts stylesheet references that sit below a `<script>` up to just before that script. A browser will not run a script until the stylesheets above it have loaded, because the script may read layout; with stylesheets scattered around and below scripts, those downloads are discovered late and the script waits on them. Moving each stylesheet directly before the first script puts every download in front of the code that needs it. Not a core filter; enable it by name. Live demo: [move_css_above_scripts](/examples/move_css_above_scripts/).
+
+```html
+<!-- before -->
+<script src="/js/theme.js"></script>
+<link rel="stylesheet" href="/css/theme.css" />
+
+<!-- after: the stylesheet loads first -->
+<link rel="stylesheet" href="/css/theme.css" />
+<script src="/js/theme.js"></script>
+```
+
+#### When it helps and when it does not
+
+It helps on legacy or machine-generated pages where stylesheets ended up interleaved with or after scripts: template fragments that each carry their own `<link>`, or ad and widget snippets injecting CSS late in the body. On pages whose CSS already sits in `<head>` with scripts at the end of `<body>`, there is nothing after any script to move and the filter changes nothing. The stylesheets keep their order among themselves, so the cascade is unchanged; what changes is where the group sits relative to the script.
+
+#### How it decides
+
+The first `<script>` in the document is the anchor. Every `<style>` block and stylesheet `<link>` that appears after it moves to directly before that first script, in original order. When `move_css_to_head` is also enabled, whichever anchor closes first in the document, the `</head>` or the first script, wins and all moves go there. A `<noscript>` element and a `<style scoped>` element act as barriers: styles that follow them stop moving.
+
+#### Risks
+
+- A stylesheet deliberately placed after a script by code that removes or replaces it at run time is moved too; such pages need the filter off for that path.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-move_css_above_scripts` comparison; [Is it working?](/docs/is-it-working/) has the steps.
+
+#### Configuration
 
 ```apache
 # Apache
@@ -336,9 +389,44 @@ pagespeed EnableFilters move_css_above_scripts;
 
 [Full guide →](/docs/filters/move_css_to_head/)
 
-Not a core filter. Moves `<link rel="stylesheet">` elements from the `<body>` into `<head>` for earlier browser discovery and faster rendering. Generally safe for most sites.
+#### What it does
 
-Enable:
+`move_css_to_head` collects stylesheet references that sit in the `<body>` and appends them to the end of `<head>`. Stylesheets discovered in the body still apply, but the browser finds them late in the parse, and a late stylesheet can repaint content that was already shown without it. Gathering them into `<head>` puts every download where the browser expects stylesheets and starts them all at once. Not a core filter; enable it by name. Live demo: [move_css_to_head](/examples/move_css_to_head/).
+
+```html
+<!-- before -->
+<head>
+  ...no stylesheet for comments...
+</head>
+<body>
+  <article>...</article>
+  <link rel="stylesheet" href="/css/comments.css" />
+</body>
+
+<!-- after: the link is appended to the end of head -->
+<head>
+  ...
+  <link rel="stylesheet" href="/css/comments.css" />
+</head>
+<body>
+  <article>...</article>
+</body>
+```
+
+#### When it helps and when it does not
+
+It helps on pages whose markup carries `<link>` or `<style>` elements inside the body, which is typical of older templates and CMS output that renders per-section stylesheets where the section appears. On pages that already keep their CSS in `<head>` there is nothing to move and the filter is a no-op. The filter changes where stylesheets load from, not their order relative to each other, so the cascade survives; the visible difference is that the unstyled flash a late stylesheet causes goes away.
+
+#### How it decides
+
+The first `</head>` is the anchor, and every `<style>` block and stylesheet `<link>` after it moves to the end of `<head>`, in original order. A `<noscript>` element and a `<style scoped>` element are barriers: styles that follow them are left where the author put them, because moving a scoped block would break its scope and a noscript fallback must stay inside its noscript. When `move_css_above_scripts` is also enabled, the first anchor in the document, the `</head>` or the first `<script>`, decides where the styles go.
+
+#### Risks
+
+- Stylesheets a script deliberately placed in the body, for example one that swaps a `<link>` after load, are moved as well; disable the filter for such pages.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-move_css_to_head` comparison; [Is it working?](/docs/is-it-working/) has the steps.
+
+#### Configuration
 
 ```apache
 # Apache
