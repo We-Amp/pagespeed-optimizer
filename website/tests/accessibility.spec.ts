@@ -126,6 +126,10 @@ test.describe('Accessibility', () => {
   // Phase 4.1: WCAG 2.1 AA axe-core scan on all buyer-facing pages.
   for (const pagePath of PAGES_FOR_AXE_SCAN) {
     test(`axe-core WCAG 2.1 AA scan: ${pagePath}`, async ({ page }) => {
+      // Scan the resting colours. The telemetry strip fades a value in once
+      // when the live reading arrives; axe would otherwise measure contrast
+      // mid-fade, depending on timing. Reduced motion drops only that fade.
+      await page.emulateMedia({ reducedMotion: 'reduce' });
       await page.goto(pagePath);
 
       const builder = new AxeBuilder({ page })
