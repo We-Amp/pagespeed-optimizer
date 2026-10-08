@@ -93,44 +93,52 @@ const canonicalUrl = new URL(canonicalPath, 'https://modpagespeed.com').href;
 const logoLight = '/logo.svg';
 const logoDark = '/logo-dark.svg';
 
-// Nav is consolidated (UX-5, converged): one product, so Features, Pricing and
-// Blog stay flat; the five tools collapse into "Tools", docs under "Docs",
-// comparisons under "Compare". /1.1/ and /1.1/docs/ are no longer advertised
-// from the nav or footer, and the footer's upgrade link routes new readers
-// to /docs/. /1.1/docs/ (once narrowed to a single archived release-notes
-// page) is now fully retired — every 1.15 doc lives under /docs/.
-// At most one "New" badge anywhere (UX-15) — it lives on RenderPeek in Tools.
+// Primary nav (target IA): Docs is a direct link; the tools, the commercial
+// offers and the comparisons are three dropdowns; Blog and Contact are flat;
+// "Download & run" is the one button. Support items are paid CTAs and carry
+// the cta_commercial event with offer/surface/position properties (umami
+// `data-umami-event-<prop>`); other items keep their existing event names.
+// At most one "New" badge anywhere (UX-15) — it lives on the AI readability
+// check in Tools.
+type UmamiProps = Record<string, string>;
+type NavChild = {
+  href: string;
+  label: string;
+  subtitle: string;
+  badge?: string;
+  umamiEvent?: string;
+  umamiProps?: UmamiProps;
+  external?: boolean;
+};
+const commercial = (offer: string, position: string): UmamiProps => ({
+  offer,
+  surface: 'nav',
+  position,
+});
 const navLinks: Array<{
   href?: string;
   label: string;
   badge?: string;
   umamiEvent?: string;
   desktopOnlyFromLg?: boolean;
-  children?: Array<{
-    href: string;
-    label: string;
-    subtitle: string;
-    badge?: string;
-    umamiEvent?: string;
-  }>;
+  children?: NavChild[];
 }> = [
-  { href: '/features/', label: 'Features' },
-  { href: '/pricing/', label: 'Pricing' },
+  { href: '/docs/', label: 'Docs', umamiEvent: 'nav-docs' },
   {
     label: 'Tools',
     children: [
       {
-        href: '/analyze/',
-        label: 'Analyze',
-        subtitle: 'Score any URL with PageSpeed Insights',
-        umamiEvent: 'nav-analyze',
-      },
-      {
         href: '/ai-readability/',
-        label: 'RenderPeek',
-        subtitle: 'Check what AI crawlers actually see',
+        label: 'AI readability check',
+        subtitle: 'What AI crawlers see on your page (RenderPeek)',
         badge: 'New',
         umamiEvent: 'nav-ai-readability',
+      },
+      {
+        href: '/analyze/',
+        label: 'PageSpeed analyzer',
+        subtitle: 'Score any URL with PageSpeed Insights',
+        umamiEvent: 'nav-analyze',
       },
       {
         href: '/demo/',
@@ -144,23 +152,42 @@ const navLinks: Array<{
       },
       {
         href: '/calculator/',
-        label: 'Calculator',
+        label: 'Savings calculator',
         subtitle: 'Estimate your bandwidth savings',
       },
     ],
   },
   {
-    label: 'Docs',
+    label: 'Support',
     children: [
       {
-        href: '/docs/',
-        label: 'Documentation',
-        subtitle: 'Install, configure, operate',
+        href: '/support/',
+        label: 'Support plans',
+        subtitle: 'Three tiers, from the engineers who build it',
+        umamiEvent: 'cta_commercial',
+        umamiProps: commercial('support', 'support_plans'),
       },
       {
-        href: '/how-it-works/',
-        label: 'How it works',
-        subtitle: 'How the optimizer works, under the hood',
+        href: '/support/#hardened-builds',
+        label: 'Hardened builds',
+        subtitle: 'What is signed today, what subscribers add',
+        umamiEvent: 'cta_commercial',
+        umamiProps: commercial('hardened', 'hardened_builds'),
+      },
+      {
+        href: '/hosting-partners/',
+        label: 'Hosting partners',
+        subtitle: 'For providers running it across a fleet',
+        umamiEvent: 'cta_commercial',
+        umamiProps: commercial('hosting', 'hosting_partners'),
+      },
+      {
+        href: 'https://we-amp.com/consulting/',
+        label: 'Consulting',
+        subtitle: 'Performance audits and engagements (we-amp.com)',
+        umamiEvent: 'cta_commercial',
+        umamiProps: commercial('consulting', 'consulting'),
+        external: true,
       },
     ],
   },
@@ -185,6 +212,131 @@ const navLinks: Array<{
     ],
   },
   { href: '/blog/', label: 'Blog' },
+  { href: '/contact/', label: 'Contact', umamiEvent: 'nav-contact' },
+];
+
+// Spread helper: the umami property attributes for a link
+// (`data-umami-event-offer`, `-surface`, `-position`). `positionSuffix`
+// re-tags the same item where it renders elsewhere (the mobile menu).
+function umamiAttrs(props?: UmamiProps, positionSuffix = ''): Record<string, string> {
+  if (!props) return {};
+  return Object.fromEntries(
+    Object.entries(props).map(([k, v]) => [
+      `data-umami-event-${k}`,
+      k === 'position' && positionSuffix ? `${v}${positionSuffix}` : v,
+    ]),
+  );
+}
+
+// Footer: four groups plus Legal (target IA). Paid links carry cta_commercial
+// with surface "footer"; links that already reported an event keep its name.
+type FooterLink = {
+  href: string;
+  label: string;
+  umamiEvent?: string;
+  umamiProps?: UmamiProps;
+  external?: boolean;
+};
+const footerCommercial = (offer: string, position: string): UmamiProps => ({
+  offer,
+  surface: 'footer',
+  position,
+});
+const footerGroups: Array<{ title: string; links: FooterLink[] }> = [
+  {
+    title: 'Product',
+    links: [
+      { href: '/features/', label: 'Features' },
+      { href: '/download/', label: 'Download & install', umamiEvent: 'cta_footer_download' },
+      { href: '/how-it-works/', label: 'How it works' },
+      { href: '/docs/release-notes/', label: 'Release notes' },
+      { href: '/security/', label: 'Security' },
+      { href: '/docs/migrating-to-2-1/', label: 'Upgrade to 2.1' },
+      { href: '/alternatives/', label: 'Alternatives' },
+      { href: '/vs/', label: 'Comparisons' },
+      { href: '/core-web-vitals/', label: 'Core Web Vitals' },
+    ],
+  },
+  {
+    title: 'Install and docs',
+    links: [
+      { href: '/docs/', label: 'Docs' },
+      { href: '/docs/getting-started/', label: 'Getting started' },
+      { href: '/download/apt-yum/', label: 'Apache and nginx packages' },
+      { href: '/docs/installation-docker/', label: 'Docker' },
+      { href: '/docs/helm-deployment/', label: 'Helm' },
+      { href: '/docs/cpanel/', label: 'cPanel' },
+      { href: '/docs/install-iis/', label: 'IIS' },
+      { href: '/docs/aspnet-getting-started/', label: 'ASP.NET Core' },
+      { href: '/docs/configuration/', label: 'Configuration' },
+      { href: '/docs/filters/', label: 'Filter reference' },
+    ],
+  },
+  {
+    title: 'Tools',
+    links: [
+      {
+        href: '/ai-readability/',
+        label: 'AI readability check',
+        umamiEvent: 'nav-ai-readability-footer',
+      },
+      { href: '/analyze/', label: 'PageSpeed analyzer', umamiEvent: 'nav-analyze-footer' },
+      { href: '/demo/', label: 'Demo' },
+      { href: '/examples/', label: 'Filter examples' },
+      { href: '/calculator/', label: 'Savings calculator' },
+      { href: '/pagespeed-markers/', label: 'PageSpeed markers' },
+      { href: '/pagespeed-insights/', label: 'PageSpeed Insights' },
+      { href: '/wordpress/', label: 'WordPress caching' },
+      { href: '/aspnet-core-performance/', label: 'ASP.NET Core performance' },
+      { href: '/self-hosted-image-optimization/', label: 'Self-hosted image optimization' },
+    ],
+  },
+  {
+    title: 'Support and company',
+    links: [
+      {
+        href: '/support/',
+        label: 'Support plans',
+        umamiEvent: 'cta_commercial',
+        umamiProps: footerCommercial('support', 'support_plans'),
+      },
+      {
+        href: '/pricing/',
+        label: 'Pricing',
+        umamiEvent: 'cta_commercial',
+        umamiProps: footerCommercial('support', 'pricing'),
+      },
+      {
+        href: '/hosting-partners/',
+        label: 'Hosting partners',
+        umamiEvent: 'cta_commercial',
+        umamiProps: footerCommercial('hosting', 'hosting_partners'),
+      },
+      {
+        href: 'https://we-amp.com/consulting/',
+        label: 'Consulting (we-amp.com)',
+        umamiEvent: 'cta_commercial',
+        umamiProps: footerCommercial('consulting', 'consulting'),
+        external: true,
+      },
+      { href: '/contact/', label: 'Contact' },
+      { href: '/about/', label: 'About' },
+      { href: '/blog/', label: 'Blog' },
+      {
+        href: 'https://github.com/We-Amp/mod_pagespeed',
+        label: 'Source on GitHub',
+        external: true,
+      },
+    ],
+  },
+  {
+    title: 'Legal',
+    links: [
+      { href: '/terms/', label: 'Terms' },
+      { href: '/privacy/', label: 'Privacy' },
+      { href: '/license/', label: 'Source license' },
+    ],
+  },
 ];
 
 const currentPath = Astro.url.pathname;
@@ -537,6 +689,8 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
                           <a
                             href={child.href}
                             data-umami-event={child.umamiEvent}
+                            {...umamiAttrs(child.umamiProps)}
+                            rel={child.external ? 'noopener' : undefined}
                             class:list={[
                               'block px-4 py-3 hover:bg-bg-secondary transition-colors',
                               currentPath.startsWith(child.href) ? 'bg-bg-secondary' : '',
@@ -621,16 +775,6 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
                 ></path>
               </svg>
             </a>
-            <button
-              type="button"
-              data-qm-open
-              data-umami-event="nav_message_open"
-              aria-haspopup="dialog"
-              class="text-sm font-medium tracking-wide transition-colors inline-flex items-center gap-1.5 text-text-muted hover:text-interactive"
-            >
-              <Icon name="message-square" class="h-4 w-4" />
-              Message
-            </button>
             <a
               href="/download/"
               data-umami-event="cta_nav_download"
@@ -704,7 +848,15 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
                   {link.children.map((child) => (
                     <a
                       href={child.href}
-                      data-umami-event={child.umamiEvent ? `${child.umamiEvent}-mobile` : undefined}
+                      data-umami-event={
+                        child.umamiProps
+                          ? child.umamiEvent
+                          : child.umamiEvent
+                            ? `${child.umamiEvent}-mobile`
+                            : undefined
+                      }
+                      {...umamiAttrs(child.umamiProps, '_mobile')}
+                      rel={child.external ? 'noopener' : undefined}
                       class:list={[
                         'block py-3 pl-4 text-sm font-medium',
                         currentPath.startsWith(child.href)
@@ -748,16 +900,6 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
               ),
             )
           }
-          <button
-            type="button"
-            data-qm-open
-            data-umami-event="nav_message_open_mobile"
-            aria-haspopup="dialog"
-            class="flex items-center gap-2 py-3 text-sm font-medium text-text-muted hover:text-interactive w-full"
-          >
-            <Icon name="message-square" class="h-4 w-4" />
-            Message us
-          </button>
           <a
             href="/download/"
             data-umami-event="cta_nav_download_mobile"
@@ -834,178 +976,30 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
             </div>
           </div>
 
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">
-              Product
-            </p>
-            <ul class="mt-3 space-y-2">
-              <li>
-                <a href="/features/" class="text-sm text-text-muted hover:text-text-body"
-                  >Features</a
-                >
-              </li>
-              <li>
-                <a href="/pricing/" class="text-sm text-text-muted hover:text-text-body"
-                  >Support plans</a
-                >
-              </li>
-              <li>
-                <a
-                  href="/download/"
-                  data-umami-event="cta_footer_download"
-                  class="text-sm text-text-muted hover:text-text-body">Download &amp; install</a
-                >
-              </li>
-              <li>
-                <a
-                  href="/docs/migrating-to-2-1/"
-                  class="text-sm text-text-muted hover:text-text-body">Upgrade to 2.1</a
-                >
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">Tools</p>
-            <ul class="mt-3 space-y-2">
-              <li>
-                <a
-                  href="/analyze/"
-                  data-umami-event="nav-analyze-footer"
-                  class="text-sm text-text-muted hover:text-text-body">Analyze</a
-                >
-              </li>
-              <li>
-                <a
-                  href="/ai-readability/"
-                  data-umami-event="nav-ai-readability-footer"
-                  class="text-sm text-text-muted hover:text-text-body">RenderPeek</a
-                >
-              </li>
-              <li>
-                <a href="/demo/" class="text-sm text-text-muted hover:text-text-body">Demo</a>
-              </li>
-              <li>
-                <a href="/examples/" class="text-sm text-text-muted hover:text-text-body"
-                  >Filter examples</a
-                >
-              </li>
-              <li>
-                <a href="/calculator/" class="text-sm text-text-muted hover:text-text-body"
-                  >Savings calculator</a
-                >
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">
-              Resources
-            </p>
-            <ul class="mt-3 space-y-2">
-              <li>
-                <a href="/docs/" class="text-sm text-text-muted hover:text-text-body">Docs</a>
-              </li>
-              <li>
-                <a
-                  href="https://github.com/We-Amp/mod_pagespeed"
-                  rel="noopener noreferrer"
-                  class="text-sm text-text-muted hover:text-text-body">Source on GitHub</a
-                >
-              </li>
-              <li>
-                <a
-                  href="/docs/aspnet-getting-started/"
-                  class="text-sm text-text-muted hover:text-text-body">ASP.NET Middleware</a
-                >
-              </li>
-              <li>
-                <a
-                  href="/aspnet-core-performance/"
-                  class="text-sm text-text-muted hover:text-text-body">ASP.NET Core performance</a
-                >
-              </li>
-              <li>
-                <a href="/wordpress/" class="text-sm text-text-muted hover:text-text-body"
-                  >WordPress caching</a
-                >
-              </li>
-              <li>
-                <a href="/pagespeed-insights/" class="text-sm text-text-muted hover:text-text-body"
-                  >PageSpeed Insights</a
-                >
-              </li>
-              <li>
-                <a
-                  href="/self-hosted-image-optimization/"
-                  class="text-sm text-text-muted hover:text-text-body"
-                  >Self-hosted image optimization</a
-                >
-              </li>
-              <li>
-                <a href="/alternatives/" class="text-sm text-text-muted hover:text-text-body"
-                  >Alternatives</a
-                >
-              </li>
-              <li>
-                <a href="/vs/" class="text-sm text-text-muted hover:text-text-body">Comparisons</a>
-              </li>
-              <li>
-                <a href="/core-web-vitals/" class="text-sm text-text-muted hover:text-text-body"
-                  >Core Web Vitals</a
-                >
-              </li>
-              <li>
-                <a href="/how-it-works/" class="text-sm text-text-muted hover:text-text-body"
-                  >How it works</a
-                >
-              </li>
-              <li>
-                <a href="/pagespeed-markers/" class="text-sm text-text-muted hover:text-text-body"
-                  >PageSpeed markers</a
-                >
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">
-              Company
-            </p>
-            <ul class="mt-3 space-y-2">
-              <li>
-                <a href="/about/" class="text-sm text-text-muted hover:text-text-body">About</a>
-              </li>
-              <li>
-                <a href="/contact/" class="text-sm text-text-muted hover:text-text-body">Contact</a>
-              </li>
-              <li>
-                <a href="/blog/" class="text-sm text-text-muted hover:text-text-body">Blog</a>
-              </li>
-            </ul>
-          </div>
-
-          <div>
-            <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">Legal</p>
-            <ul class="mt-3 space-y-2">
-              <li>
-                <a href="/terms/" class="text-sm text-text-muted hover:text-text-body">Terms</a>
-              </li>
-              <li>
-                <a href="/privacy/" class="text-sm text-text-muted hover:text-text-body">Privacy</a>
-              </li>
-              <li>
-                <a href="/security/" class="text-sm text-text-muted hover:text-text-body"
-                  >Security</a
-                >
-              </li>
-              <li>
-                <a href="/license/" class="text-sm text-text-muted hover:text-text-body"
-                  >Source license</a
-                >
-              </li>
-            </ul>
-          </div>
+          {
+            footerGroups.map((group) => (
+              <div>
+                <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">
+                  {group.title}
+                </p>
+                <ul class="mt-3 space-y-2">
+                  {group.links.map((item) => (
+                    <li>
+                      <a
+                        href={item.href}
+                        data-umami-event={item.umamiEvent}
+                        {...umamiAttrs(item.umamiProps)}
+                        rel={item.external ? 'noopener noreferrer' : undefined}
+                        class="text-sm text-text-muted hover:text-text-body"
+                      >
+                        {item.label}
+                      </a>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ))
+          }
         </div>
 
         {
