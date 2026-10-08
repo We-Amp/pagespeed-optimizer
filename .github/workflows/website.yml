@@ -23,8 +23,8 @@ name: Website
 #                       must not regress; performance is warn-only because a
 #                       hosted runner is too noisy to gate on.
 #
-# Both run on GitHub-hosted runners with first-party actions only. The build
-# runs with PRICING_ALLOW_STALE=1: a hosted build holds no pricing API
+# All jobs run on GitHub-hosted runners with first-party actions only. The
+# build runs with PRICING_ALLOW_STALE=1: a hosted build holds no pricing API
 # credentials, so it proceeds on the committed pricing file, loudly
 # (fetch-pricing.js refuses without this). Deploying the site is the
 # operator's step, from this tree; nothing in this workflow deploys.
@@ -325,15 +325,21 @@ jobs:
   # Lighthouse budgets over the BUILT site, so the gate measures what ships:
   # the key landing and docs pages, served by `astro preview` (the node
   # adapter's own standalone server) on 127.0.0.1, mobile form factor
-  # (Lighthouse's default; desktop is the opt-in), median of 3 runs per URL —
-  # see website/lighthouserc.json. Accessibility, best-practices and SEO
-  # budgets are errors; performance is a warning because a hosted runner's
-  # timing noise would fail good changes. Everything runs inside the runner:
-  # @lhci/cli writes its HTML reports to website/.lighthouseci/ with
-  # upload.target=filesystem (nothing is sent anywhere), and those reports
-  # are attached as the job artifact. The Chromium comes from Playwright
-  # (already a dev dependency) via CHROME_PATH, so no extra browser download
-  # source. package.json forces lighthouse 13.5.0 under @lhci/cli, whose own
+  # (Lighthouse's default; desktop is the opt-in), median of 3 runs per URL
+  # (aggregationMethod: median in the assertions — lhci's default is the
+  # optimistic best-of-N) — see website/lighthouserc.json. Accessibility,
+  # best-practices and SEO budgets are errors; performance is a warning
+  # because a hosted runner's timing noise would fail good changes.
+  # Everything runs inside the runner: @lhci/cli writes its HTML reports to
+  # website/.lighthouseci/ with upload.target=filesystem (nothing is sent
+  # anywhere), and those reports are attached as the job artifact. The
+  # analytics host is blocked (blockedUrlPatterns), so a CI run records no
+  # pageview and the best-practices score owes nothing to a third-party
+  # host. The Chromium comes from Playwright (already a dev dependency) via
+  # CHROME_PATH, so no extra browser download source; it runs with
+  # --no-sandbox because the ubuntu-24.04 hosted image restricts
+  # unprivileged user namespaces and that Chromium ships no setuid sandbox
+  # helper. package.json forces lighthouse 13.5.0 under @lhci/cli, whose own
   # pin (12.6.1) cannot audit current Chrome builds.
   website-lighthouse:
     name: Website Lighthouse budgets (ubuntu)
@@ -370,7 +376,6 @@ jobs:
 
       - name: Run Lighthouse CI
         env:
-          PRICING_ALLOW_STALE: "1"
           CHROME_PATH: ${{ steps.chrome.outputs.path }}
         run: npx lhci autorun
 
