@@ -258,6 +258,15 @@ pagespeed EnableFilters rewrite_images,lazyload_images     # IIS (pagespeed.conf
                   >
                     {f.name}
                   </a>
+                  {!f.topicIndexable && (
+                    <a
+                      href={f.href}
+                      class="ml-1 text-xs text-text-annotation hover:text-interactive"
+                      data-section-link
+                    >
+                      (section)
+                    </a>
+                  )}
                   {f.alias && (
                     <span class="block text-xs text-text-annotation">= {f.members.join(', ')}</span>
                   )}

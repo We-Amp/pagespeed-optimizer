@@ -17,7 +17,7 @@
 // Do not hand-edit filters.json: regenerate it (`npm run gen:references`).
 
 import data from './reference/filters.json';
-import { topicPath } from '../lib/filter-topics.mjs';
+import { topicPath, indexableTopicNames } from '../lib/filter-topics.mjs';
 
 export type FilterCategory = 'Image' | 'CSS' | 'JavaScript' | 'HTML' | 'Caching';
 
@@ -32,6 +32,8 @@ export interface Filter {
   href: string;
   /** The filter's topic page, /docs/filters/<name>/. */
   topic: string;
+  /** The topic page is indexable (not held back by the thin-content guard). */
+  topicIndexable: boolean;
   /** In the CoreFilters set (true), partly (an alias whose members differ) or not. */
   core: boolean | 'partial';
   /** In the OptimizeForBandwidth set. */
@@ -82,6 +84,8 @@ function hrefFor(category: FilterCategory, name: string): string {
   return `/docs/${PAGE_BY_CATEGORY[category]}/#${name}`;
 }
 
+const INDEXABLE = indexableTopicNames();
+
 const single: Filter[] = data.filters.map((f) => {
   const category = asCategory(f.name, f.category);
   return {
@@ -90,6 +94,7 @@ const single: Filter[] = data.filters.map((f) => {
     description: f.summary ?? f.label ?? f.name,
     href: hrefFor(category, f.name),
     topic: topicPath(f.name),
+    topicIndexable: INDEXABLE.has(f.name),
     core: f.core,
     optimizeForBandwidth: f.optimizeForBandwidth,
     risk: f.risk,
@@ -111,6 +116,7 @@ const aliases: Filter[] = data.aliases.map((a) => {
     description: a.summary ?? a.name,
     href: hrefFor(category, a.name),
     topic: topicPath(a.name),
+    topicIndexable: INDEXABLE.has(a.name),
     core: a.core as boolean | 'partial',
     optimizeForBandwidth: a.optimizeForBandwidth as boolean | 'partial',
     risk: a.risk,
@@ -149,7 +155,9 @@ export function topicForExample(slug: string, filters: string): Filter | undefin
     FILTERS.find((f) => f.example === `/examples/${slug}/`) ??
     filters
       .split(',')
-      .map((n) => byName.get(n.trim().replace(/^[+-]/, '')))
+      // A +/- modifier list adjusts a configuration demo; it names no single
+      // filter the demo isolates, so such a demo gets no guide link.
+      .map((n) => (/^[+-]/.test(n.trim()) ? undefined : byName.get(n.trim())))
       .find((f): f is Filter => !!f)
   );
 }

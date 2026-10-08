@@ -27,8 +27,10 @@ import {
   THIN_WORDS,
   HUMAN_NAMES,
   PAGE_BY_CATEGORY,
+  RELATED,
 } from '../../src/lib/filter-topics.mjs';
 import { EXAMPLES } from '../../src/data/examples';
+import { topicForExample } from '../../src/data/filters';
 
 const WEBSITE_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const data = JSON.parse(
@@ -63,8 +65,26 @@ describe('filter topics (source)', () => {
 
   it('use one consistent title form per length tier', () => {
     for (const t of topics) {
-      const full = `${t.human}: the ${t.name} filter for Apache and nginx`;
+      const full = `${t.human}: the ${t.name} filter for Apache, nginx and IIS`;
       if (full.length <= 60) expect(t.title).toBe(full);
+    }
+  });
+
+  it('curated related filters name real filters', () => {
+    for (const [name, related] of Object.entries(RELATED)) {
+      expect(byName.has(name), name).toBe(true);
+      for (const r of related) expect(byName.has(r), `${name} -> ${r}`).toBe(true);
+    }
+  });
+
+  it('shared sections count only the prose that names the filter', () => {
+    for (const t of topics.filter((x) => x.section.shared)) {
+      const peers = topics.filter(
+        (x) => x.section.shared && x.section.anchor === t.section.anchor && x.name !== t.name,
+      );
+      for (const p of peers) {
+        if (t.indexable && p.indexable) expect(t.section.lede).not.toBe(p.section.lede);
+      }
     }
   });
 
@@ -179,6 +199,21 @@ describe.skipIf(!BUILT)('filter topics (built html)', () => {
     });
   }
 
+  it('the /docs/filters/ table keeps the section link on rows whose topic page is noindex', () => {
+    const html = readFileSync(resolve(DIST, 'docs/filters/index.html'), 'utf8');
+    for (const t of topics) {
+      const row = new RegExp(`<tr[^>]*id="${t.name}"[^>]*>([\\s\\S]*?)</tr>`).exec(html)?.[1] ?? '';
+      expect(row.includes(`href="${t.groupPath}"`), t.name).toBe(!t.indexable);
+    }
+  });
+
+  it('every topic page is in site search, indexable or not', () => {
+    for (const t of topics) {
+      const html = readFileSync(resolve(DIST, `docs/filters/${t.name}/index.html`), 'utf8');
+      expect(html, t.name).toMatch(/<main[^>]*data-pagefind-body/);
+    }
+  });
+
   it('the /docs/filters/ table links every row to its topic page', () => {
     const html = readFileSync(resolve(DIST, 'docs/filters/index.html'), 'utf8');
     for (const name of allNames) {
@@ -188,10 +223,16 @@ describe.skipIf(!BUILT)('filter topics (built html)', () => {
     }
   });
 
-  it('every example page links to its full guide', () => {
+  it('every example page that isolates a filter links to its full guide', () => {
     for (const ex of EXAMPLES) {
       const html = readFileSync(resolve(DIST, `examples/${ex.slug}/index.html`), 'utf8');
       const href = attr(html, /<a[^>]*href="([^"]+)"[^>]*data-full-guide/);
+      const guide = topicForExample(ex.slug, ex.filters);
+      if (!guide) {
+        expect(href, ex.slug).toBeNull();
+        continue;
+      }
+      expect(href, ex.slug).toBe(guide.topic);
       expect(href, ex.slug).toMatch(/^\/docs\/filters\/[a-z0-9_]+\/$/);
       expect(byName.has(href!.split('/')[3]), ex.slug).toBe(true);
     }
