@@ -10,31 +10,75 @@ test.describe('Navigation', () => {
     await expect(page).toHaveURL('/');
   });
 
-  test('header nav links navigate correctly', async ({ page }) => {
-    // Current nav structure: Pricing and Blog are direct top-level <a>;
-    // Products, Tools, Docs and Compare are click-to-open dropdowns.
+  test('header nav: Docs, Blog and Contact are direct links', async ({ page }) => {
+    // Target IA: Docs is a direct link (no dropdown); Tools, Support and
+    // Compare are click-to-open dropdowns; Blog and Contact are flat.
     const directLinks = [
-      { label: 'Pricing', href: '/pricing/' },
+      { label: 'Docs', href: '/docs/' },
       { label: 'Blog', href: '/blog/' },
+      { label: 'Contact', href: '/contact/' },
     ];
-
     for (const link of directLinks) {
       await page.goto('/');
-      await page.locator(`header nav >> a:has-text("${link.label}")`).first().click();
+      await page
+        .locator(`header nav .md\\:flex > a:has-text("${link.label}")`)
+        .first()
+        .click();
       await expect(page).toHaveURL(link.href);
     }
-
-    // Docs dropdown — open (click the labelled disclosure button) and click each
-    // child link. Dropdowns are toggled by `.nav-dropdown-btn` and reveal a
-    // `.nav-dropdown-panel`.
     await page.goto('/');
-    await page.locator('header nav button.nav-dropdown-btn:has-text("Docs")').click();
-    await page.locator('.nav-dropdown-panel a[href="/docs/"]').first().click();
-    await expect(page).toHaveURL('/docs/');
+    await expect(page.locator('header nav button.nav-dropdown-btn:has-text("Docs")')).toHaveCount(0);
+    const groups = await page.locator('header nav button.nav-dropdown-btn').allInnerTexts();
+    expect(groups.map((g) => g.trim())).toEqual(['Tools', 'Support', 'Compare']);
+  });
 
-    // /1.1/docs/ left the Docs dropdown with the convergence and is no
-    // longer advertised from the footer either; the route itself is now
-    // retired too (see docs.spec.ts's 404 check).
+  test('Tools dropdown names the two lead tools plainly', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('header nav button.nav-dropdown-btn:has-text("Tools")').click();
+    const panel = page.locator('.nav-dropdown-panel:visible');
+    await expect(panel.locator('a[href="/ai-readability/"]')).toContainText('AI readability check');
+    await expect(panel.locator('a[href="/analyze/"]')).toContainText('PageSpeed analyzer');
+    // Existing event names survive the relabel.
+    await expect(panel.locator('a[href="/ai-readability/"]')).toHaveAttribute(
+      'data-umami-event',
+      'nav-ai-readability',
+    );
+    await expect(panel.locator('a[href="/analyze/"]')).toHaveAttribute(
+      'data-umami-event',
+      'nav-analyze',
+    );
+    for (const href of ['/demo/', '/examples/', '/calculator/']) {
+      await expect(panel.locator(`a[href="${href}"]`)).toBeVisible();
+    }
+  });
+
+  test('Support dropdown carries the four offers as commercial CTAs', async ({ page }) => {
+    await page.goto('/');
+    await page.locator('header nav button.nav-dropdown-btn:has-text("Support")').click();
+    const panel = page.locator('.nav-dropdown-panel:visible');
+    const expected = [
+      { href: '/support/', label: 'Support plans', offer: 'support' },
+      { href: '/support/#hardened-builds', label: 'Hardened builds', offer: 'hardened' },
+      { href: '/hosting-partners/', label: 'Hosting partners', offer: 'hosting' },
+      { href: 'https://we-amp.com/consulting/', label: 'Consulting', offer: 'consulting' },
+    ];
+    await expect(panel.locator('a')).toHaveCount(expected.length);
+    for (const item of expected) {
+      const a = panel.locator(`a[href="${item.href}"]`);
+      await expect(a).toContainText(item.label);
+      await expect(a).toHaveAttribute('data-umami-event', 'cta_commercial');
+      await expect(a).toHaveAttribute('data-umami-event-offer', item.offer);
+      await expect(a).toHaveAttribute('data-umami-event-surface', 'nav');
+    }
+    await panel.locator('a[href="/support/"]').click();
+    await expect(page).toHaveURL('/support/');
+  });
+
+  test('header has no separate Message entry; the floating launcher stays', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('header [data-qm-open]')).toHaveCount(0);
+    await expect(page.locator('header').getByText('Message', { exact: true })).toHaveCount(0);
+    await expect(page.locator('[data-qm-launcher]')).toBeVisible();
   });
 
   test('header download CTA links to /download/', async ({ page }) => {
@@ -45,56 +89,78 @@ test.describe('Navigation', () => {
   });
 
   test('active nav link is highlighted for current page', async ({ page }) => {
-    await page.goto('/pricing/');
-    // The desktop nav "Pricing" text link (not the CTA button). The CALIBER
-    // redesign marks the active link with the teal accent token
-    // (`text-interactive`) plus `aria-current="page"`.
-    const desktopNav = page.locator('header nav >> div >> a[href="/pricing/"]').first();
+    await page.goto('/blog/');
+    const desktopNav = page.locator('header nav .md\\:flex > a[href="/blog/"]').first();
     await expect(desktopNav).toHaveClass(/text-interactive/);
     await expect(desktopNav).toHaveAttribute('aria-current', 'page');
   });
 
-  test('footer Product links are present', async ({ page }) => {
+  test('footer has four groups plus Legal', async ({ page }) => {
     await page.goto('/');
-    const footer = page.locator('footer');
-    await expect(footer.locator('a[href="/features/"]')).toBeVisible();
-    await expect(footer.locator('a[href="/pricing/"]')).toBeVisible();
-    await expect(footer.locator('a[href="/demo/"]')).toBeVisible();
-    await expect(footer.locator('a[href="/calculator/"]')).toBeVisible();
+    // Group headings are the labels directly above each link list.
+    const headings = await page.locator('footer p.uppercase:has(+ ul)').allInnerTexts();
+    expect(headings.map((h) => h.trim().toLowerCase())).toEqual([
+      'product',
+      'install and docs',
+      'tools',
+      'support and company',
+      'legal',
+    ]);
   });
 
-  test('footer Product group offers a single upgrade entry, not a previous-versions group', async ({
-    page,
-  }) => {
-    // Post-convergence: the old "Previous versions" group (1.15, upgrading-from-1.15,
-    // migrating-from-2.0) collapsed to one upgrade link in the Product group;
-    // /1.1/ and /1.1/docs/upgrading-to-2-1/ are no longer advertised from the footer.
+  test('footer carries the support and company links', async ({ page }) => {
     await page.goto('/');
     const footer = page.locator('footer');
+    for (const href of [
+      '/support/',
+      '/pricing/',
+      '/hosting-partners/',
+      'https://we-amp.com/consulting/',
+      '/contact/',
+      '/security/',
+      '/docs/release-notes/',
+      '/about/',
+    ]) {
+      await expect(footer.locator(`a[href="${href}"]`).first(), href).toBeVisible();
+    }
+    await expect(footer.locator('a[href="/support/"]')).toHaveAttribute(
+      'data-umami-event',
+      'cta_commercial',
+    );
+    await expect(footer.locator('a[href="/support/"]')).toHaveAttribute(
+      'data-umami-event-surface',
+      'footer',
+    );
+  });
+
+  test('footer Product, docs and tools links are present', async ({ page }) => {
+    await page.goto('/');
+    const footer = page.locator('footer');
+    for (const href of [
+      '/features/',
+      '/download/',
+      '/docs/',
+      '/docs/getting-started/',
+      '/docs/aspnet-getting-started/',
+      '/demo/',
+      '/calculator/',
+      '/license/',
+      '/terms/',
+    ]) {
+      await expect(footer.locator(`a[href="${href}"]`).first(), href).toBeVisible();
+    }
+    // Existing event names survive the regroup.
+    await expect(footer.locator('a[href="/download/"]')).toHaveAttribute(
+      'data-umami-event',
+      'cta_footer_download',
+    );
+    await expect(footer.locator('a[href="/analyze/"]')).toHaveAttribute(
+      'data-umami-event',
+      'nav-analyze-footer',
+    );
     await expect(footer.locator('a[href="/docs/migrating-to-2-1/"]')).toHaveText('Upgrade to 2.1');
-    await expect(footer.getByText('Previous versions')).toHaveCount(0);
     await expect(footer.locator('a[href="/1.1/"]')).toHaveCount(0);
-    await expect(footer.locator('a[href="/1.1/docs/upgrading-to-2-1/"]')).toHaveCount(0);
-  });
-
-  test('footer Resources links are present', async ({ page }) => {
-    // Post-convergence: Resources contains Docs and ASP.NET Middleware; the
-    // "Docs (1.15)" link to /1.1/docs/ is no longer advertised from the footer.
-    // Blog moved to Company; /1.0/ is no longer linked from the footer (legacy-only).
-    await page.goto('/');
-    const footer = page.locator('footer');
-    await expect(footer.locator('a[href="/docs/"]')).toBeVisible();
-    await expect(footer.locator('a[href="/docs/aspnet-getting-started/"]')).toBeVisible();
     await expect(footer.locator('a[href="/1.1/docs/"]')).toHaveCount(0);
-  });
-
-  test('footer Company links are present', async ({ page }) => {
-    await page.goto('/');
-    const footer = page.locator('footer');
-    await expect(footer.locator('a[href="/license/"]')).toBeVisible();
-    await expect(footer.locator('a[href="/terms/"]')).toBeVisible();
-    await expect(footer.locator('a[href="/security/"]')).toBeVisible();
-    await expect(footer.locator('a[href="/contact/"]')).toBeVisible();
   });
 
   test('footer contains copyright notice with current year', async ({ page }) => {
@@ -144,9 +210,24 @@ test.describe('Navigation', () => {
     const mobileMenu = page.locator('#mobile-menu');
     await expect(mobileMenu).toBeVisible();
 
-    const featureLink = mobileMenu.locator('a[href="/features/"]');
-    await featureLink.click();
-    await expect(page).toHaveURL('/features/');
+    // Same structure as the desktop nav: Docs direct, the Support group with
+    // its commercial events (position tagged for mobile), Contact.
+    const support = mobileMenu.locator('a[href="/support/"]');
+    await expect(support).toHaveAttribute('data-umami-event', 'cta_commercial');
+    await expect(support).toHaveAttribute('data-umami-event-position', 'support_plans_mobile');
+    for (const href of [
+      '/support/#hardened-builds',
+      '/hosting-partners/',
+      'https://we-amp.com/consulting/',
+      '/ai-readability/',
+      '/analyze/',
+    ]) {
+      await expect(mobileMenu.locator(`a[href="${href}"]`), href).toBeVisible();
+    }
+    await expect(mobileMenu.locator('[data-qm-open]')).toHaveCount(0);
+
+    await mobileMenu.locator('a[href="/docs/"]').click();
+    await expect(page).toHaveURL('/docs/');
   });
 
   test('mobile menu icon toggles between open and close', async ({ page }) => {

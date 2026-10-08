@@ -8,6 +8,8 @@ const PAGES_FOR_AXE_SCAN = [
   '/',
   '/features/',
   '/pricing/',
+  '/support/',
+  '/hosting-partners/',
   '/demo/',
   '/docs/',
   '/license/',
