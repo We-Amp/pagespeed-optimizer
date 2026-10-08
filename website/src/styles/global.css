@@ -473,6 +473,11 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
   border-top: 1px solid var(--color-border);
   padding-top: 1.5rem;
 }
+/* An <hr> right before an h2 already draws the rule; do not draw two. */
+.prose hr + h2 {
+  border-top: 0;
+  padding-top: 0;
+}
 
 .product-tab[aria-pressed='true'] {
   background-color: var(--color-interactive);
