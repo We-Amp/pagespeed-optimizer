@@ -325,6 +325,13 @@ const jsonLd = [webApp, faqPage];
     #ar-form {
       scroll-margin-top: 5rem;
     }
+    /* Reserve the result area while a scan runs: a real scan takes 5–10 s,
+       so the loading → result swap falls outside the CLS input-exclusion
+       window. Pushing the content below out of view at click time is
+       input-excluded; the later swap then shifts nothing visible. */
+    #ar-out[aria-busy='true'] {
+      min-block-size: 100svh;
+    }
     .ar-card {
       /* Custom props consumed by the lens evidence list + Ghost-Layer block
          below (border hairline + dimmed selector text). */
