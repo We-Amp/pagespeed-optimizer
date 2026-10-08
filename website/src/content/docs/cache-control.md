@@ -3,7 +3,7 @@ title: 'Set Cache-Control headers'
 description: 'Which Cache-Control headers to set on your origin, by content type and by framework, for correct caching with mod_pagespeed 2.1.'
 order: 21
 group: 'Configure'
-lastUpdated: 2026-09-19
+lastUpdated: 2026-10-08
 ---
 
 :::note[Since 2.0]
@@ -168,9 +168,40 @@ lifetime on CSS, JS, and image URLs.
 
 [Full guide →](/docs/filters/extend_cache/)
 
-**Core filter.** Rewrites resource URLs (CSS, JS, images) to include a content hash, then serves the optimized resource with a 1-year `Cache-Control: max-age` header. When the original resource changes, the hash changes, generating a new URL that bypasses the browser cache.
+**Core filter.** `extend_cache` rewrites the URLs of stylesheets, scripts, and images to carry a content hash, giving each resource a `.pagespeed.ce.` URL, and serves those resources with a one-year `Cache-Control: max-age`. When the original file changes, its hash changes, the page points at a new URL, and no purge is ever needed. Live demo: [extend_cache](/examples/extend_cache/).
 
-Resources that previously had short or no cache lifetimes gain a 1-year cache lifetime. Because the URL carries the content hash, a changed resource gets a new URL and is never served stale.
+```html
+<!-- before -->
+<link rel="stylesheet" href="/css/site.css">
+
+<!-- after: served with Cache-Control: max-age=31536000 -->
+<link rel="stylesheet" href="/css/site.css.pagespeed.ce.HASH.css">
+```
+
+#### When it helps and when it does not
+
+It helps wherever the origin cannot set long cache lifetimes itself, which is common on shared hosting and legacy applications: first visits cache every static resource for a year, and repeat visits stop revalidating them. It does nothing for resources that already carry a fingerprint and a long max-age from the build pipeline, since those URLs are already immutable in practice. It also does not make HTML cacheable: the page itself keeps its own short lifetime, because the page is what hands out the new hashed URLs after a deploy.
+
+#### How it decides
+
+Only resources on domains the module is authorized to rewrite are candidates, and resources already rewritten by another filter (a minified stylesheet, an optimized image) already carry a content hash, so there is nothing to extend. The one-year lifetime is safe precisely because the URL is derived from the bytes: serving a stale resource at a stale URL is impossible once the referencing page has been refreshed. The name is compound: it switches on `extend_cache_css`, `extend_cache_images`, and `extend_cache_scripts`, and each member can be disabled on its own.
+
+#### Risks
+
+- HTML and the resources it references must share one configuration; a setup where two virtual hosts disagree on the same file can serve a hash that does not match. See [Virtual hosts](/docs/configuration/#virtual-hosts).
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-extend_cache` comparison; [Is it working?](/docs/is-it-working/) has the steps.
+
+#### Configuration
+
+```apache
+# Apache
+ModPagespeedEnableFilters extend_cache
+```
+
+```nginx
+# Nginx
+pagespeed EnableFilters extend_cache;
+```
 
 The sub-filters `extend_cache_css`, `extend_cache_images`, and `extend_cache_scripts` are included when you enable `extend_cache`, which turns on all three. Each can also be enabled individually with `EnableFilters` (for example, `extend_cache_images` alone).
 

@@ -3,7 +3,7 @@ title: 'Image filters'
 description: 'Image filters in mod_pagespeed 2.1 for Apache, nginx and IIS: recompression, WebP and opt-in AVIF conversion, resizing, lazy loading and responsive images.'
 order: 43
 group: 'Filters'
-lastUpdated: 2026-07-12
+lastUpdated: 2026-10-08
 ---
 
 ## Overview
@@ -68,7 +68,23 @@ See [IIS configuration](/docs/iis-configuration/) for the full file format refer
 
 ### What it does
 
-`rewrite_images` is the master image optimization CoreFilter. Enabling it activates a family of sub-filters that recompress images, convert formats where beneficial, resize to declared dimensions, and inline small images as data: URIs.
+`rewrite_images` is the compound image filter: one name switches on the whole optimization pipeline, covering recompression, format conversion, resizing to declared dimensions, metadata stripping, and inlining of small images. Every `<img>` on the page, and every image referenced from CSS, is a candidate. The first request for an image is served the original bytes while optimization runs in the background within the rewrite deadline; once the optimized variant is cached, later requests are served it from a rewritten `.pagespeed.ic.` URL. Live demo: [rewrite_images](/examples/rewrite_images/).
+
+```html
+<!-- before -->
+<img src="/photos/team.jpg" width="400" height="300">
+
+<!-- after, to a WebP-capable browser: recompressed, resized, cache-extended -->
+<img src="/photos/xteam.jpg.pagespeed.ic.HASH.webp" width="400" height="300">
+```
+
+### When it helps and when it does not
+
+The compound pays on sites whose images are uploaded as-is: photos exported at full resolution, opaque PNGs that would be far smaller as JPEG or WebP, files carrying camera metadata nobody reads. A site that already runs a disciplined image pipeline, with build-time resizing, modern formats, and stripped metadata, leaves it little to do, while the CPU cost of the first rewrite of every image still applies. It also does nothing for images on domains the configuration does not authorize, or for sources over `ImageResolutionLimitBytes` (default 33554432 bytes).
+
+### How it decides
+
+Each member filter applies its own test: resizing only happens when `width` and `height` are declared, WebP only when the browser advertises support, inlining only below `ImageInlineMaxBytes`. Every recompression or conversion is kept only when the result is actually smaller than the best alternative, as bounded by `ImageLimitOptimizedPercent` (default 100). A losing rewrite is remembered, so a losing image is not re-encoded on every request. Some members are also part of OptimizeForBandwidth; the compound itself is a CoreFilter.
 
 ### Sub-filters enabled by default
 
@@ -85,6 +101,12 @@ When `rewrite_images` is active, the following sub-filters are enabled automatic
 - `jpeg_subsampling`
 - `resize_images`
 - `inline_images`
+
+### Risks
+
+- Recompression is lossy. The default quality levels are conservative, but check quality-critical imagery such as logos and screenshots with text after enabling.
+- The first optimization of each image costs server CPU; `ImageMaxRewritesAtOnce` (default 8) bounds how many run in parallel on a cold cache.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-rewrite_images` comparison; [Is it working?](/docs/is-it-working/) has the steps.
 
 ### Directives
 
@@ -188,6 +210,8 @@ Format conversion filters serve images in the most efficient format for each bro
 - **`convert_gif_to_png`** converts non-animated GIF images to PNG, which uses better compression.
 - **`convert_to_webp_animated`** converts animated GIF images to animated WebP. Not a CoreFilter.
 - **`convert_to_webp_lossless`** uses lossless WebP encoding instead of lossy. Produces larger files than lossy WebP but preserves every pixel. A CoreFilter, enabled by default through `rewrite_images`.
+
+`convert_jpeg_to_webp` is the member of the family with the widest reach, because JPEG is where photographic weight usually sits. When a request advertises `Accept: image/webp`, the filter encodes a WebP candidate at `WebpRecompressionQuality` (default 80) and keeps it only when it is smaller than the recompressed JPEG that request would otherwise get. A request without the header receives the optimized JPEG unchanged, so one URL serves both browser populations. Responses vary on `Accept`, and a proxy that rewrites the header or ignores `Vary` can cross-serve the formats, so test with your CDN in the path. The filter runs in CoreFilters through `rewrite_images`, and it is part of OptimizeForBandwidth too, where the conversion happens in place at the original URL.
 
 ### Directives
 
@@ -557,7 +581,31 @@ pagespeed ResponsiveImageDensities 1.5,2,3;
 
 ### What it does
 
-`sprite_images` combines multiple CSS background images into a single sprite sheet and rewrites the CSS `background-position` values to reference the correct region within the sprite.
+`sprite_images` merges small CSS background images into one sprite sheet and rewrites the stylesheet so each rule shows its own region: the `background-image` URL becomes the sheet at a `.pagespeed.is.` URL, and the `background-position` shifts to the element's slice. A toolbar of icons that cost a request each then arrives in one fetch. Not a CoreFilter; enable it by name. Live demo: [sprite_images](/examples/sprite_images/).
+
+```css
+/* before */
+.icon-cart { background: url(/img/cart.png) no-repeat; }
+.icon-user { background: url(/img/user.png) no-repeat; }
+
+/* after */
+.icon-cart { background: url(/img/sprites.png.pagespeed.is.HASH.png) 0 0 no-repeat; }
+.icon-user { background: url(/img/sprites.png.pagespeed.is.HASH.png) -16px 0 no-repeat; }
+```
+
+### When it helps and when it does not
+
+Spriting is an HTTP/1.1 technique: it exists because browsers used to open few connections per host and every icon queued. With HTTP/2 multiplexing the latency benefit is minimal, and the costs remain. Changing one icon invalidates the whole sheet, and a page that shows two icons downloads every icon packed beside them. It can still pay on icon-heavy pages with a stable icon set and a large HTTP/1.1 audience; elsewhere, measure before keeping it.
+
+### How it decides
+
+Only images referenced from a CSS `background` or `background-image` declaration are candidates; `<img>` tags never join a sprite. The module must be able to fetch the image and learn its dimensions, backgrounds that tile in either direction stay out, and a declaration the CSS parser cannot understand is left alone rather than guessed at. Positions in the rewritten rules are computed from the packed layout, so existing `background-position` offsets are preserved relative to the slice.
+
+### Risks
+
+- Spriting increases cache invalidation scope: changing one image invalidates the entire sprite.
+- Only CSS `background-image` references are sprited. Inline `<img>` tags are not affected.
+- Verify with the `X-Mod-Pagespeed` response header and a `?PageSpeedFilters=-sprite_images` comparison; [Is it working?](/docs/is-it-working/) has the steps.
 
 ### Directives
 
@@ -572,12 +620,6 @@ ModPagespeedEnableFilters sprite_images
 ```nginx
 pagespeed EnableFilters sprite_images;
 ```
-
-### Risks
-
-- With HTTP/2 multiplexing, the latency benefit of spriting is minimal. Multiple small requests over a single connection are often as fast as one large sprite request.
-- Spriting increases cache invalidation scope: changing one image invalidates the entire sprite.
-- Only CSS `background-image` references are sprited. Inline `<img>` tags are not affected.
 
 ## In-place browser optimization {#in_place_optimize_for_browser}
 
