@@ -84,7 +84,7 @@ The most useful result is a trend. Cyclone's advantage is smallest on a laptop w
 
 ## Two engines, one interface
 
-**Cyclone** keeps one memory-mapped file per volume. A read returns a pointer into mapped memory, with no `open`/`read`/`close` and no heap copy. An in-process RAM tier holds the hot set, eviction runs inline as entries are written, and the admission policy resists one-hit-wonders flushing the working set.
+**Cyclone** keeps one memory-mapped file per volume. A read returns a pointer into mapped memory, with no `open`/`read`/`close` and no heap copy. An in-process RAM tier holds the hot set, eviction runs inline as entries are written, and the admission policy resists one-hit-wonders flushing the working set. Cyclone is open source: [github.com/We-Amp/cyclone-cache](https://github.com/We-Amp/cyclone-cache); we have since measured it as an LLM KV-cache storage tier against LMDB in [Cyclone as an LLM KV-cache tier](/blog/cyclone-kv-cache-tier-vs-lmdb/).
 
 **The file-per-entry cache** stores one file per entry. Every read is `open`, then `read`, then `close`, plus a copy into a fresh buffer; every write creates a file. Eviction is deferred to a periodic janitor that walks the whole cache directory, an O(n) scan that grows with the file count.
 
