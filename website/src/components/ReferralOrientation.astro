@@ -35,22 +35,23 @@ import { LICENSE_CLAUSE } from '../data/product-facts.mjs';
   </p>
 </aside>
 
-<script>
-  const REFERRER_PREFIX = 'https://developers.google.com/';
-  const aside = document.getElementById('referral-orientation');
-  if (aside && document.referrer.startsWith(REFERRER_PREFIX)) {
+<script is:inline>
+  // Inline and right after the aside, so it runs while the page is parsed and
+  // the aside is in place before first paint: no layout shift on reveal.
+  (function () {
+    var aside = document.getElementById('referral-orientation');
+    if (!aside || document.referrer.indexOf('https://developers.google.com/') !== 0) return;
     aside.hidden = false;
-    type Umami = { track?: (event: string) => void };
-    let sent = false;
-    const track = () => {
-      const umami = (globalThis as { umami?: Umami }).umami;
-      if (sent || !umami?.track) return;
+    var sent = false;
+    function track() {
+      var umami = window.umami;
+      if (sent || !umami || typeof umami.track !== 'function') return;
       sent = true;
       umami.track('referral_orientation_shown');
-    };
-    // The analytics script loads deferred from another host; if it is not
-    // there yet, try once more after the page has loaded.
+    }
+    // The analytics script loads deferred from another host and is not there
+    // yet while the page is parsed; record the event once the page has loaded.
     track();
     if (!sent) window.addEventListener('load', track, { once: true });
-  }
+  })();
 </script>
