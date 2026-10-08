@@ -222,6 +222,9 @@ export default defineConfig({
           page.includes('/error/')
         )
           return false;
+        // The Markdown twins of the docs pages (/docs/<slug>.md) are for
+        // agents; the HTML page is the one search engines should index.
+        if (page.endsWith('.md')) return false;
         const m = new URL(page).pathname.match(/^\/examples\/([^/]+)\/$/);
         if (m) return examplesWithData.has(m[1]);
         return true;
