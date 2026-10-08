@@ -1,157 +1,175 @@
 ---
 title: 'Getting started'
-description: 'Install mod_pagespeed 2.1. Three integrations share one pipeline: the native Apache/nginx module, the native IIS module, or a Docker reverse proxy.'
+description: 'Pick an integration and get mod_pagespeed 2.1 serving optimized pages: Apache or nginx module, Docker, IIS or ASP.NET Core, then run the same check.'
 order: 1
 group: 'Start here'
-lastUpdated: 2026-10-06
+lastUpdated: 2026-10-08
 faq:
   - q: 'Which mod_pagespeed 2.1 integration should I pick?'
-    a: 'The native module (Apache or nginx) for a bare-metal or existing web-server deployment — installs from the signed apt/yum repository. Docker / nginx reverse proxy for a containerized deployment in front of any HTTP origin, including Kubernetes. Both share the same optimization core. The Apache packages install the configuration that points the module at the optimizer worker; the native nginx module runs on its own until you point it at the worker with two directives (see the module installation guide).'
-  - q: 'What does the request flow look like on a cache hit?'
-    a: 'Nginx classifies the client into a 32-bit capability mask, finds a matching optimized variant in the Cyclone cache, and serves it zero-copy from the memory-mapped file with `X-PageSpeed: HIT`. No origin round-trip and no allocation.'
+    a: 'The native module when you run Apache or nginx on Debian, Ubuntu or Enterprise Linux; the Docker reverse proxy when you are container-native or your origin is something else; the IIS module on Windows Server; the NuGet middleware inside an ASP.NET Core app. All four run the same optimization pipeline.'
   - q: 'How do I verify mod_pagespeed is working?'
-    a: 'Send `curl -I` to any page. The first response shows `X-PageSpeed: MISS` (proxied to origin), the second shows `X-PageSpeed: HIT` (served from cache). For images, request with `Accept: image/webp` and compare downloaded size against the original.'
+    a: 'Request a page twice with `curl -I`. The native module adds `X-Mod-Pagespeed` (Apache) or `X-Page-Speed` (nginx and IIS) to the responses it handles. The Docker reverse proxy and the ASP.NET Core middleware answer `X-PageSpeed: MISS` first and `X-PageSpeed: HIT` once the worker has written the optimized variant.'
+  - q: 'Does the native nginx module need the optimizer worker?'
+    a: 'No. It optimizes on its own. To hand in-place optimization to the worker, install the `pagespeed-optimizer` package of the same release and set `pagespeed DaemonSocketPath` and `pagespeed DaemonVolumePath` in the server block. The Apache packages install that wiring for you.'
+  - q: 'What are the prerequisites?'
+    a: 'For the native module: Debian 12 or 13, Ubuntu 22.04 or 24.04, or RHEL, AlmaLinux or Rocky 9 or 10, with Apache 2.4 or newer or the stock nginx of the distribution. For Docker: Docker 24 or newer; nginx ships inside the image. For IIS: Windows Server 2019 or later. For ASP.NET Core: .NET 8 or .NET 10.'
   - q: 'What is safe cache mode and why is it the default?'
     a: 'Safe mode caches optimized resources for short periods (5 minutes for CSS/JS, 30 minutes for images) with mandatory revalidation, so misconfigurations self-correct quickly. It is the recommended mode while validating a new setup before switching to aggressive.'
-  - q: 'What are the prerequisites?'
-    a: 'For the native module you need only the signed apt/yum repository added to Apache or nginx. For the Docker / nginx reverse proxy you need only Docker — nginx ships inside the image, so you do not install it yourself. The worker runs on Linux x86_64 or arm64 (Debian/Ubuntu or RHEL/Rocky).'
 ---
 
-mod_pagespeed 2.1 ships three integrations:
+mod_pagespeed 2.1 is one product in two parts: a module that runs inside your
+web server and an optimizer worker that does the heavy work beside it. Pick the
+integration that matches how you serve pages, run the few lines under it, then
+check the result with the same two requests. Every path below is free to
+install and run; the software is licensed under the Apache License 2.0.
 
-- **Native module (Apache or nginx)** — the in-process module, installed from
-  the signed apt/yum repository alongside the `pagespeed-optimizer` worker.
-  Drop-in for an existing pagespeed configuration. The Apache packages install
-  the configuration that points the module at the worker; the native nginx
-  module runs on its own until you
-  [point it at the worker](/docs/installation-module/#using-the-optimizer-daemon-with-nginx).
-  [Install via apt/yum &rarr;](/download/apt-yum/), or see the
-  [module installation guide](/docs/installation-module/).
-- **Docker / nginx reverse proxy** — drop in front of any HTTP origin (Apache,
-  Node.js, Caddy, IIS, your CDN's origin). Best for new deployments and
-  Kubernetes. [Get started with Docker &rarr;](/docs/installation-docker/)
-- **IIS (Windows)** — the native Windows module. The IIS package ships from
-  the 1.15 packaging channel.
-  [Install and configure &rarr;](/docs/iis-configuration/)
+## Pick an integration
 
-All three run the same optimization pipeline: image transcoding, CSS/JS
-minification, critical CSS, and variant-aware caching with zero-copy serving
-from the Cyclone shared-memory cache. See the
-[full optimization filter set](/features/) for everything the pipeline applies.
+| You run                                                        | Install this                                                                               | Guide                                                                                                       |
+| -------------------------------------------------------------- | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------- |
+| Apache or nginx on Debian, Ubuntu or Enterprise Linux          | the native module and the `pagespeed-optimizer` worker from the signed package repository | [Install the module on Apache and nginx](/docs/installation-module/)                                        |
+| cPanel / WHM with EasyApache 4                                 | the signed EA4 RPM                                                                         | [cPanel / EasyApache 4](/docs/cpanel/)                                                                      |
+| Containers, Kubernetes, or an origin that is not Apache or nginx | the Docker reverse proxy, or the Helm chart, in front of your origin                     | [Install with Docker](/docs/installation-docker/) · [Deploy with Helm](/docs/helm-deployment/)              |
+| IIS on Windows Server                                          | the native IIS module (MSI)                                                                | [Install on IIS](/docs/install-iis/)                                                                        |
+| An ASP.NET Core application                                    | the `WeAmp.PageSpeed.AspNetCore` NuGet middleware                                          | [Install ASP.NET Core middleware](/docs/aspnet-getting-started/)                                            |
 
-To see which failing audits mod_pagespeed will fix, run your site through a
-[PageSpeed Insights test](/analyze/). For a per-platform plan to improve LCP,
-CLS, and INP, read the [Core Web Vitals](/core-web-vitals/) guide.
+Already running a predecessor? The [upgrade and migration pages](/docs/upgrade/)
+cover mod_pagespeed 1.15, ModPageSpeed 2.0, ngx_pagespeed, IISpeed and the
+archived open-source module.
 
-Running the ASP.NET Core middleware? That is the separately available
-`WeAmp.PageSpeed.AspNetCore` NuGet package — see
-[ASP.NET Core Getting Started](/docs/aspnet-getting-started/).
+:::note[One worker, two names]
+The optimizer worker is one program under two names. The container images and
+the NuGet package ship the binary as `factory_worker`. The deb and rpm packages
+install it as `/usr/bin/pagespeed-optimizer`, with the
+`pagespeed-optimizer.service` unit, host overrides in
+`/etc/default/pagespeed-optimizer` and its cache under
+`/var/cache/pagespeed-optimizer/v2`. A page that says `factory_worker` and a log
+line that says `pagespeed-optimizer` describe the same process.
+:::
 
-The rest of this page walks the Docker / nginx reverse-proxy integration. For
-the native module, see the [module installation guide](/docs/installation-module/).
-
-## How the Docker / nginx reverse-proxy integration works
-
-The reverse-proxy stack uses three components that work together:
-
-1. **Caching Proxy (nginx)** — A dynamic nginx module (`ngx_pagespeed_module.so`)
-   that classifies incoming requests, serves cached optimized content via
-   zero-copy mmap, and proxies cache misses to your origin server.
-
-2. **Cyclone Cache** — A shared disk cache file that stores both original and
-   optimized content variants. Both nginx and the worker access it via
-   memory-mapped I/O for sub-millisecond lookups.
-
-3. **Worker** — A C++ worker that reads original content
-   from the cache, performs optimizations (image transcoding, CSS/JS
-   minification), and writes optimized variants back to the cache.
-
-For evaluation and small single-host deployments, the combined
-`ghcr.io/we-amp/pagespeed-combined` image runs nginx and the worker together in
-one container — see [Install with Docker](/docs/installation-docker/#quick-try-one-container).
-
-The separately available ASP.NET Core middleware collapses this into one
-process tree — the optimization library runs as P/Invoke calls from the
-middleware instead of from behind nginx, and the middleware launches the
-bundled worker itself as a child process. See
-[ASP.NET Core Getting Started](/docs/aspnet-getting-started/) for that
-architecture.
-
-### Request flow (nginx integrations)
-
-When a request arrives:
-
-1. Nginx classifies the client's capabilities (image format support, viewport,
-   transfer encoding, Save-Data preference) into a 32-bit capability mask.
-2. The cache is checked for an optimized variant matching that mask.
-3. **On cache hit:** The content is served directly from the memory-mapped cache
-   file — no copies, no allocations. The response includes an `X-PageSpeed: HIT`
-   header.
-4. **On cache miss:** The request is proxied to your origin. The response is
-   stored in the cache and served to the client with an `X-PageSpeed: MISS`
-   header. A notification is sent to the worker.
-5. The worker reads the original content, optimizes it, and writes the result
-   back to the cache. Future requests for the same capability mask get the
-   optimized version.
-
-## Prerequisites
-
-- **Signed apt/yum repository** — for the native module, added to an existing
-  Apache or nginx install.
-- **Docker** — for the Docker / nginx reverse proxy. nginx (1.30.4) ships
-  inside the image; you do not install it separately.
-- **Linux** (Debian/Ubuntu or RHEL/Rocky), x86_64 or arm64 — for the worker.
-
-The separately available ASP.NET Core middleware needs the .NET 8 or .NET 10
-SDK; see [ASP.NET Core Getting Started](/docs/aspnet-getting-started/) for its
-prerequisites.
-
-## Quick verification
-
-Once installed (via any of these methods), verify that mod_pagespeed is
-working:
+## Quickstart: Apache or nginx module
 
 ```bash
-# Request a page — first request will be a cache miss
+# 1. Add the signed repository; the script detects apt or dnf
+curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+# 2. Install the module (apt-get on Debian/Ubuntu, dnf on Enterprise Linux)
+sudo apt-get install mod-pagespeed             # Apache: also installs pagespeed-optimizer
+sudo apt-get install nginx-module-pagespeed    # nginx
+# 3. Restart the web server
+sudo systemctl restart apache2                 # httpd on Enterprise Linux
+sudo systemctl restart nginx
+```
+
+Apache optimizes immediately: the package enables the module, its default
+`pagespeed.conf`, and the configuration that points it at the worker. On nginx,
+make sure `load_module modules/ngx_pagespeed_module.so;` is at the top of
+`nginx.conf`, then turn the module on in a `server` block:
+
+```nginx
+pagespeed on;
+pagespeed FileCachePath /var/cache/ngx_pagespeed;
+```
+
+Then [verify](#verify-it-works). The
+[module install guide](/docs/installation-module/) has the distribution matrix,
+the nginx compatibility table and the two directives that hand nginx's in-place
+optimization to the worker.
+
+## Quickstart: Docker reverse proxy
+
+```bash
+docker run --rm -p 80:80 \
+  -e BACKEND_HOST=host.docker.internal -e BACKEND_PORT=8081 \
+  -e ACCEPT_EULA=Y \
+  ghcr.io/we-amp/pagespeed-combined:latest
+```
+
+Point `BACKEND_HOST` and `BACKEND_PORT` at your origin; `ACCEPT_EULA=Y`
+acknowledges the [Terms of Service](/terms/). The combined image runs nginx with
+the module and the worker in one container, for evaluation and small single-host
+deployments. Then [verify](#verify-it-works) on port 80. For production, run the
+worker and nginx as separate services from the
+[Docker install guide](/docs/installation-docker/), or on Kubernetes with the
+[Helm chart](/docs/helm-deployment/).
+
+## Quickstart: IIS
+
+Download the signed MSI from the [download page](/download/), run it on the
+Windows Server host, then `iisreset`. The installer registers the module as a
+native HTTP module and creates the default cache directory. Then
+[verify](#verify-it-works). Running IISpeed on that host? Uninstall it first;
+the two register the same handler. The [IIS install guide](/docs/install-iis/)
+has the requirements, IIS Express and the optional optimizer service. The IIS
+package ships from the 1.15 packaging channel.
+
+## Quickstart: ASP.NET Core
+
+Add the `WeAmp.PageSpeed.AspNetCore` package to your project, then register the
+middleware in `Program.cs`:
+
+```csharp
+builder.Services.AddPageSpeed();
+app.UsePageSpeed();
+```
+
+Set `PageSpeed:Enabled` to `true` in `appsettings.json`, run the app and
+[verify](#verify-it-works) on your app's own port. The
+[ASP.NET Core install guide](/docs/aspnet-getting-started/) has the exact
+`dotnet add package` command, the `appsettings.json` section and the console at
+`/console/`.
+
+## Verify it works
+
+Request any HTML page twice:
+
+```bash
 curl -I http://localhost/
-
-# Look for the X-PageSpeed header
-# X-PageSpeed: MISS   (first request, proxied to origin)
-# X-PageSpeed: HIT    (subsequent requests, served from cache)
+curl -I http://localhost/
 ```
 
-Request the same URL again after a moment. Optimization happens asynchronously
-between the two requests: the first returns the original bytes with
-`X-PageSpeed: MISS` and notifies the worker, and the second should show
-`X-PageSpeed: HIT` once the worker has written the optimized variant.
+- **Apache module:** `X-Mod-Pagespeed: <version>` on both responses. nginx and
+  IIS module: `X-Page-Speed: <version>`. The header's presence means the module
+  is loaded and active for that site.
+- **Docker reverse proxy and ASP.NET Core middleware:** `X-PageSpeed: MISS` on
+  the first response, `X-PageSpeed: HIT` on the second. Optimization is
+  asynchronous: the first request serves the original bytes and notifies the
+  worker; the second serves what the worker wrote.
 
-To verify that optimizations are being applied, request an image with WebP
-support:
+No header, or `MISS` on every request? [Is it working?](/docs/is-it-working/)
+lists every marker and the first checks to run;
+[Troubleshooting](/docs/troubleshooting/) has the fixes.
 
-```bash
-curl -H "Accept: image/webp,*/*" -o /dev/null -w "%{size_download}" \
-  http://localhost/image.jpg
-```
+## How the parts fit together
 
-The response size should be smaller than the original once the worker has
-processed it. If it still matches, the worker has not finished yet — wait a
-moment and retry. The URL stays the same; only the bytes and `Content-Type`
-change, because mod_pagespeed 2.1 negotiates by the `Accept` header instead of rewriting URLs.
+1. The **module** runs inside the web server (Apache, nginx, IIS) or, in the
+   Docker reverse proxy, inside the bundled nginx. It classifies each request,
+   serves an optimized variant when the cache has one, and otherwise passes
+   the original through.
+2. The **optimizer worker** runs beside it as its own process. It reads
+   originals from the shared cache, builds optimized variants (image
+   transcoding, CSS and JavaScript minification, critical CSS) and writes them
+   back.
+3. The **Cyclone cache** is the shared, memory-mapped file both of them open.
+
+The native nginx module optimizes on its own until you set
+`pagespeed DaemonSocketPath` and `pagespeed DaemonVolumePath`; the Apache
+packages install that wiring; the ASP.NET Core middleware starts the worker
+itself as a child process. [How it works](/how-it-works/) covers the mechanics.
 
 ## Safe cache mode
 
 By default, mod_pagespeed runs in **safe cache mode**. Optimized resources are
 cached for short periods (5 minutes for CSS/JS, 30 minutes for images) with
 mandatory revalidation, so misconfigurations self-correct quickly. This is the
-recommended mode while you validate your setup. See [Cache Modes](/docs/cache-modes/)
-for details and options.
+recommended mode while you validate your setup. See
+[Cache modes](/docs/cache-modes/) for details and options.
 
 ## Next steps
 
-- [Configuration Reference](/docs/configuration/) — All nginx directives,
-  worker flags, and tuning options
-- [Deployment Guide](/docs/deployment/) — Production setup, monitoring, and
-  cache sizing
-- [Web Console](/docs/workbench/) — Inspect cache state, monitor performance,
-  and tune configuration
-- [Troubleshooting](/docs/troubleshooting/) — Common issues and diagnostics
+- [Is it working?](/docs/is-it-working/): the header table and the first checks
+- [Configuration reference](/docs/configuration/): all directives, worker
+  flags and tuning options
+- [Run in production](/docs/deployment/): permissions, logging and cache sizing
+  per deployment shape
+- [Monitoring](/docs/monitoring/): health, metrics and what to alert on
+- [Troubleshooting](/docs/troubleshooting/): common issues and diagnostics
