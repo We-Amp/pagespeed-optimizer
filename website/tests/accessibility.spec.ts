@@ -128,7 +128,8 @@ test.describe('Accessibility', () => {
     test(`axe-core WCAG 2.1 AA scan: ${pagePath}`, async ({ page }) => {
       // Scan the resting colours. The telemetry strip fades a value in once
       // when the live reading arrives; axe would otherwise measure contrast
-      // mid-fade, depending on timing. Reduced motion drops only that fade.
+      // mid-fade, depending on timing. Reduced motion removes that fade, so
+      // the scan measures the resting state.
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await page.goto(pagePath);
 
