@@ -227,7 +227,13 @@ const statusId = `${uid}-status`;
         form.reset();
         // Fire on a successful POST only — never on click — so failed or
         // validation-blocked submits don't inflate the signup count.
-        (window as any).umami?.track('newsletter_signup', { variant, source });
+        const umami = (window as any).umami;
+        umami?.track('newsletter_signup', { variant, source });
+        umami?.track('lead_submit', {
+          channel: 'newsletter',
+          topic: NEWSLETTER_TOPIC,
+          source_path: window.location.pathname,
+        });
         setStatus('success', "You're on the list. We'll email you when there's a new post.");
       } catch {
         setStatus(

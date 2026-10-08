@@ -388,7 +388,13 @@
           ? "We'll reply to that address."
           : 'We read every message.';
         // Fire on a successful POST only — never on click.
-        (window as any).umami?.track('quick_message_sent', { with_email: email !== '' });
+        const umami = (window as any).umami;
+        umami?.track('quick_message_sent', { with_email: email !== '' });
+        umami?.track('lead_submit', {
+          channel: 'quick',
+          topic: TOPIC,
+          source_path: window.location.pathname,
+        });
         showSuccess();
       } catch {
         setStatus('error', "Couldn't send just now — try again, or email info@we-amp.com.");
