@@ -39,6 +39,9 @@ export interface CwvPillar {
   title: string;
   description: string;
   h1: string;
+  // mod_pagespeed filters that act on this metric at the server, shown in the
+  // "Fix it at the server" box; names must exist in src/data/filters.ts.
+  serverFilters?: string[];
   intro: string; // may contain inline <a href>, <code>, <strong>
   thresholds: { good: string; poor: string; unit: string };
   measures: string;
@@ -91,10 +94,17 @@ export const pillars: CwvPillar[] = [
     abbr: 'LCP',
     name: 'Largest Contentful Paint',
     slug: '/core-web-vitals/lcp/',
-    title: 'How to Fix LCP (Largest Contentful Paint) in 2026',
+    title: 'How to fix largest contentful paint (LCP) in 2026',
     description:
       'Fix LCP (Largest Contentful Paint) by phase: diagnose TTFB, load delay, load duration, and render delay, then fix it at the server layer and in your app.',
-    h1: 'How to fix LCP (Largest Contentful Paint)',
+    h1: 'How to fix largest contentful paint (LCP)',
+    serverFilters: [
+      'prioritize_critical_css',
+      'convert_jpeg_to_webp',
+      'resize_images',
+      'inline_preview_images',
+      'hint_preload_subresources',
+    ],
     intro:
       '<p><strong>Largest Contentful Paint (LCP)</strong> measures how long the largest element in the viewport &mdash; usually a hero image, a video poster, a banner, or the first heading &mdash; takes to render during load. It is one of the three Core Web Vitals, and Google scores it on <strong>field</strong> data: the 75th percentile of real Chrome users over the trailing 28 days, from the CrUX dataset. A page is good under 2.5 s and poor over 4 s.</p><p>There is no single fix for LCP, because it is not one number &mdash; it is four. PageSpeed Insights splits the LCP element into time to first byte, resource load delay, resource load duration, and element render delay. Each phase has different causes and different owners: some live in your backend, some in how the markup is delivered, some in your own application code. This page walks the four phases, then maps fixes to them, including the cases a server-layer optimizer cannot touch. When you are ready, <a href=\\"/analyze/\\">analyze a page</a> to see which phase is the long pole.</p>',
     thresholds: {
@@ -227,10 +237,11 @@ export const pillars: CwvPillar[] = [
     abbr: 'CLS',
     name: 'Cumulative Layout Shift',
     slug: '/core-web-vitals/cls/',
-    title: 'How to Fix CLS (Cumulative Layout Shift) in 2026',
+    title: 'How to fix cumulative layout shift (CLS) in 2026',
     description:
       'Fix CLS (Cumulative Layout Shift): reserve space with server-set image dimensions and critical CSS, then handle the font, iframe, and JS-injection cases.',
-    h1: 'Fix Cumulative Layout Shift (CLS)',
+    h1: 'How to fix cumulative layout shift (CLS)',
+    serverFilters: ['insert_image_dimensions', 'prioritize_critical_css', 'extend_cache'],
     intro:
       '<p>CLS is a layout-reservation problem, not a loading-speed problem. The page jumps because something arrived later than the layout assumed: an image with no reserved box, a font that reflowed the text, a banner that pushed content down. The fix is not "load faster"; it is "reserve the right space before the late thing arrives." With that framing, most CLS work is mechanical.</p><p>This page covers what CLS measures, how to find the element that owns the shift, and how to fix it, split between what a <a href="/features/">server-layer optimizer</a> handles for you and what only your own CSS and markup can. The largest single cause, images without explicit dimensions, mod_pagespeed fixes automatically; the rest needs reserved space you have to write. To see your own numbers, <a href="/analyze/">analyze a page</a> first.</p>',
     thresholds: {
@@ -353,10 +364,10 @@ export const pillars: CwvPillar[] = [
     abbr: 'INP',
     name: 'Interaction to Next Paint',
     slug: '/core-web-vitals/inp/',
-    title: 'How to Fix INP (Interaction to Next Paint) in 2026',
+    title: 'How to fix interaction to next paint (INP) in 2026',
     description:
       "Fix INP (Interaction to Next Paint): the input-delay, processing, and presentation phases, the app-layer fixes, and where a server optimizer can't help.",
-    h1: 'Interaction to Next Paint (INP): diagnose it, then fix it',
+    h1: 'Interaction to next paint (INP): diagnose it, then fix it',
     intro:
       '<p><strong>Interaction to Next Paint (INP)</strong> is the Core Web Vital that measures responsiveness: how long the user waits between a click, tap, or keypress and the next frame the browser paints in response. It replaced First Input Delay in March 2024. Unlike its predecessor it counts the whole interaction: not just the delay before your handler runs, but the handler itself and the paint that follows. That makes it the hardest vital to game, and the one most sites still fail.</p><p>Know this before you start: INP is the metric where a server-layer optimizer helps the least. The dominant cause is JavaScript running on the main thread, and that JavaScript lives in <em>your application code</em>, not at the server. This page gives you the diagnosis workflow and fixes split by where they actually live: the few things <a href="/features/">mod_pagespeed</a> can do at the server layer, and the larger set of changes only your app can make. Then it hands you off to the per-platform guide that names the failure modes on your stack.</p>',
     thresholds: {

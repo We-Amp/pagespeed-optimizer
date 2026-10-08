@@ -155,6 +155,7 @@ If you front Kestrel with nginx or IIS instead of running the middleware in-proc
 ## Related
 
 - [How to fix LCP on ASP.NET Core](/blog/fix-lcp-aspnet-core-2026/)
+- [How to fix largest contentful paint (LCP)](/core-web-vitals/lcp/): the four LCP phases and the server-side fixes
 - [How to fix INP on ASP.NET Core](/blog/fix-inp-aspnet-core-2026/)
 - [How to fix CLS on nginx](/blog/fix-cls-nginx-2026/)
 - [ModPageSpeed 2.0 as ASP.NET Core middleware](/blog/aspnet-core-middleware/)

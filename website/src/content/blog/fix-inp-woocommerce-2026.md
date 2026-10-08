@@ -135,7 +135,9 @@ If your INP problem is on the homepage/blog, the server layer is the high-levera
 
 - [WordPress full-page caching plugin](/wordpress/)
 - [How to fix LCP on WooCommerce](/blog/fix-lcp-woocommerce-2026/)
+- [How to fix largest contentful paint (LCP)](/core-web-vitals/lcp/): the four LCP phases and the server-side fixes
 - [How to fix CLS on WooCommerce](/blog/fix-cls-woocommerce-2026/)
+- [How to fix cumulative layout shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
 - [How to fix INP on WordPress](/blog/fix-inp-wordpress-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)
 - [mod_pagespeed filter reference](/docs/filter-reference/)

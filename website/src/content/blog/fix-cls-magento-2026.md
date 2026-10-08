@@ -1,6 +1,6 @@
 ---
 title: 'Fix CLS on Magento 2: start with the Fotorama gallery'
-description: 'Fix Cumulative Layout Shift on Magento 2 product pages: stop Fotorama gallery jumps, pre-size the mini-cart and private-content blocks, and write img dimensions at the server layer.'
+description: 'Fix CLS on Magento 2 product pages: stop Fotorama gallery jumps, pre-size the mini-cart and private-content blocks, write img dimensions at the server.'
 date: 2026-04-30
 author: 'Otto van der Schaaf'
 tags: ['core-web-vitals', 'cls', 'magento']
@@ -132,6 +132,7 @@ ModPagespeedEnableFilters prioritize_critical_css
 ## Related
 
 - [How to fix LCP on Magento](/blog/fix-lcp-magento-2026/)
+- [How to fix largest contentful paint (LCP)](/core-web-vitals/lcp/): the four LCP phases and the server-side fixes
 - [How to fix INP on Magento](/blog/fix-inp-magento-2026/)
 - [How to fix CLS on nginx](/blog/fix-cls-nginx-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)

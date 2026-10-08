@@ -1,5 +1,5 @@
 ---
-title: 'Fix LCP on WordPress: the server-layer fix'
+title: 'Improve LCP, FCP and TTFB on WordPress at the server (2026)'
 description: 'How to fix LCP on WordPress: diagnose the hero, inline critical CSS at the server, convert JPEG to WebP, and verify in Search Console. Step-by-step, 2026.'
 date: 2026-04-08
 lastUpdated: 2026-07-04
@@ -47,6 +47,12 @@ This guide is part of our [Core Web Vitals series](/core-web-vitals/).
 ## What LCP measures
 
 LCP — Largest Contentful Paint — is the render time of the largest above-the-fold element on a page. On most WordPress sites that is the post's featured image, a hero block from the page builder, or the H1. Anything under 2.5 s counts as "good"; anything over 4 s is "poor". The field measurement comes from Chrome's CrUX dataset — real users over the trailing 28 days — while the lab measurement comes from Lighthouse and PageSpeed Insights, and the two routinely disagree because real visitors run slower hardware on slower connections than your editing machine. See [web.dev/articles/lcp](https://web.dev/articles/lcp) for the canonical definition.
+
+## LCP, FCP and TTFB: how they stack
+
+TTFB, FCP and LCP are three points on one timeline. TTFB (time to first byte) is how long the server takes to start sending the HTML. FCP (First Contentful Paint) is when the browser paints the first text or image. LCP is when the largest above-the-fold element paints. Each one comes after the one before it, so a slow TTFB pushes FCP and LCP back with it.
+
+On WordPress that gives a fix order. TTFB first: if the server takes over a second to start the response, cache the HTML with a [server-side page cache](/blog/wordpress-server-side-page-cache-plugin/) before anything else; [how to reduce TTFB](/blog/reduce-ttfb-server-layer-2026/) covers the rest of the server layer. FCP next: the render-blocking stylesheet chain described below holds back the first paint, and inlining critical CSS at the server moves FCP and LCP together. The rest of this guide covers that step and the hero image, which is usually what separates LCP from FCP.
 
 ## The most common LCP failures on WordPress
 
@@ -167,6 +173,7 @@ Cases where mod_pagespeed alone isn't enough on WordPress:
 - [WordPress full-page caching plugin](/wordpress/)
 - [How to fix INP on WordPress](/blog/fix-inp-wordpress-2026/)
 - [How to fix CLS on WordPress](/blog/fix-cls-wordpress-2026/)
+- [How to fix cumulative layout shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
 - [How to fix LCP on WooCommerce](/blog/fix-lcp-woocommerce-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)
 - [Server-side critical CSS on nginx](/blog/server-side-critical-css-nginx/)

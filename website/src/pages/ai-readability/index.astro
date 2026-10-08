@@ -5,9 +5,9 @@ import Icon from '../../components/Icon.astro';
 // Public front end for the AI-readability scanner (D10). The render backend
 // runs on a separate box; nginx proxies /ai-readability/api/* to it (see corp deploy).
 // Local dev: append ?api=http://localhost:8787 to point at a local render service.
-const title = 'AI Readability Checker — see what AI crawlers read on your page';
+const title = 'AI readability checker: what AI crawlers read on your page';
 const description =
-  'Free scanner: see what AI crawlers actually read on your page — most skip your JavaScript, so client-rendered content is invisible to them. Then optimize the HTML you serve with self-hosted mod_pagespeed, on your own servers.';
+  'Free scanner: see what AI crawlers read on your page. Most skip JavaScript, so client-rendered content is invisible to them. Fix it in the HTML you serve.';
 const webApp = {
   '@context': 'https://schema.org',
   '@type': 'WebApplication',
@@ -82,7 +82,12 @@ const botRendering = [
 const jsonLd = [webApp, faqPage];
 ---
 
-<BaseLayout title={title} description={description} jsonLd={jsonLd}>
+<BaseLayout
+  title={title}
+  description={description}
+  jsonLd={jsonLd}
+  breadcrumbLeafName="AI readability checker"
+>
   <section class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
     <p class="eyebrow">RenderPeek &middot; a free tool from mod_pagespeed</p>
     <h1 class="h1-hero text-text-body mt-2">
@@ -214,6 +219,23 @@ const jsonLd = [webApp, faqPage];
         </div>
       </div>
     </noscript>
+
+    <!-- Direct answer to the "can AI crawlers execute JavaScript" query, from the
+         top-1,000 study on /blog/can-ai-read-your-website/ (numbers as published
+         there). -->
+    <div class="mt-14 max-w-2xl">
+      <h2 class="text-xl font-semibold text-text-body">Can AI crawlers execute JavaScript?</h2>
+      <p class="mt-2 text-sm text-text-annotation leading-relaxed">
+        Most do not. GPTBot, ClaudeBot and PerplexityBot fetch your raw HTML and do not run your
+        scripts; Google’s stack, which renders pages for Gemini through Googlebot, is the exception.
+        When we rendered the top 1,000 sites on 28 May 2026, 403 of the 711 we could read at all
+        (57%) showed a non-rendering agent a nearly empty page: their content appeared only after
+        JavaScript ran. Read
+        <a href="/blog/can-ai-read-your-website/" class="text-interactive underline underline-offset-2"
+          >the full results</a
+        >.
+      </p>
+    </div>
 
     <!-- Per-bot rendering matrix. Factual: as of 2026 only Google's stack renders
          JavaScript; the major AI crawlers read static HTML only. Mirrored in the

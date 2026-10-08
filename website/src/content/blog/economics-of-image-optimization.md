@@ -1,6 +1,6 @@
 ---
-title: 'Image optimization cost: self-hosted vs CDN (2026)'
-description: 'Image CDNs run $35–$3,500/mo as traffic grows; self-hosted mod_pagespeed 2.1 stays flat. Break-even is ~100–170K requests/mo. Full 2026 cost model, no bandwidth fees.'
+title: 'Image CDN cost comparison: Cloudflare, Cloudinary, imgix'
+description: 'Image CDNs run $35 to $3,500/mo as traffic grows; self-hosted mod_pagespeed 2.1 stays flat. Break-even is ~100 to 170K requests/mo. The 2026 cost model.'
 date: 2026-02-07
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'
@@ -23,6 +23,24 @@ faq:
 ---
 
 > **Data collected:** February 2026 · **Tested with:** ModPageSpeed 2.0 · **Pricing re-verified:** June 2026 (vendors); September 2026 (mod_pagespeed)
+
+## Image CDN cost comparison: Cloudinary, imgix, and Cloudflare Images
+
+If you are evaluating image CDNs rather than self-hosting, the table below maps the major providers' published list-price models onto one representative workload so you can compare like for like. The workload is the **1,000,000 monthly image requests / ~100 GB delivered** tier from the cost model below — a mid-sized catalog or content site. Pricing models differ (some bundle usage into credits, some bill per stored or delivered image, some fold it into a CDN contract), so the right-hand column states the cost driver each provider leans on rather than implying the bills are directly comparable line by line.
+
+| Provider                    | Headline pricing model                                                                    | Free tier                                   | What drives the bill at scale                                  |
+| --------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------- |
+| **Cloudinary**              | Credit bundles (1 credit ≈ 1,000 transforms / 1 GB storage / 1 GB delivery)               | Yes — free plan (25 credits/mo)             | Credits consumed; scales with transformations + delivery       |
+| **imgix**                   | Credit-based (management / delivery / transformation credits; ~1 credit per GB delivered) | Trial + paid Starter; no standing free plan | Credits; scales with delivery + transformation volume          |
+| **Cloudflare Images**       | Per 100,000 images stored (~$5) + per 100,000 delivered (~$1)                             | Yes — 5,000 free transformations/mo         | Images stored + images delivered (flat per-unit rates)         |
+| **Akamai Image Manager**    | Add-on to a CDN contract; usage- and contract-negotiated                                  | No (trial only)                             | Negotiated CDN contract + per-image transformation volume      |
+| **Self-hosted (this post)** | Free software (Apache-2.0) + your own VM                                                  | Yes — free to run in development and in production | Nothing usage-based: cost is flat regardless of request volume |
+
+**How to read this.** Per-unit CDN rates are low at the bottom of each tier, which is why a small site of under roughly 100,000 requests a month often pays less on a CDN than the flat self-hosted floor — your own VM (the software is free to run). The variable that matters is _which input grows with your traffic_. Cloudinary's and imgix's credits both scale with delivery and transformation volume; Cloudflare Images scales with the number of images you store and deliver; Akamai folds image transformation into a CDN contract that is itself usage-tied. In every case the bill rises with traffic. The self-hosted model has no usage-based input at all — past the break-even point below, additional requests cost only the bandwidth you would pay your host regardless. For a head-to-head against a specific provider, see how mod_pagespeed compares to [Cloudinary](/vs/cloudinary/) and [imgix](/vs/imgix/).
+
+> **Pricing caveat.** The models above reflect each vendor's _publicly published list pricing structure_ as understood in February 2026, not negotiated or current per-unit rates. Vendors change pricing, restructure tiers, and negotiate enterprise discounts; the free tiers and exact per-unit figures move over time. Treat this as a guide to _what each model charges for_, then confirm current numbers on each vendor's own pricing page before you commit. We do not republish per-provider dollar totals here because doing so accurately would require pinning a specific transformation/density/format mix to each vendor's current rate card, which goes stale the moment any vendor updates it.
+
+If global edge latency is your priority and your traffic is modest, an image CDN is a reasonable choice — that is the case the break-even analysis below makes explicitly. If your traffic is high, your data must stay on your own infrastructure, or you want a bill that does not move with traffic, self-hosting wins. The two are not mutually exclusive: see [When self-hosted makes sense](#when-self-hosted-makes-sense) for the hybrid pattern.
 
 ## What image optimization actually costs
 
@@ -51,24 +69,6 @@ Here is what the monthly bill looks like at three traffic levels, using median p
 | 10,000,000             | $3,000               | $500                  | $3,500 |
 
 These numbers are conservative. They assume static images with long cache TTLs. Sites with frequent content updates, A/B testing, or personalized images will see higher transformation counts.
-
-## Image CDN cost comparison: Cloudinary, imgix, and Cloudflare Images
-
-If you are evaluating image CDNs rather than self-hosting, the table below maps the major providers' published list-price models onto one representative workload so you can compare like for like. The workload is the **1,000,000 monthly image requests / ~100 GB delivered** tier from the model above — a mid-sized catalog or content site. Pricing models differ (some bundle usage into credits, some bill per stored or delivered image, some fold it into a CDN contract), so the right-hand column states the cost driver each provider leans on rather than implying the bills are directly comparable line by line.
-
-| Provider                    | Headline pricing model                                                                    | Free tier                                   | What drives the bill at scale                                  |
-| --------------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------- | -------------------------------------------------------------- |
-| **Cloudinary**              | Credit bundles (1 credit ≈ 1,000 transforms / 1 GB storage / 1 GB delivery)               | Yes — free plan (25 credits/mo)             | Credits consumed; scales with transformations + delivery       |
-| **imgix**                   | Credit-based (management / delivery / transformation credits; ~1 credit per GB delivered) | Trial + paid Starter; no standing free plan | Credits; scales with delivery + transformation volume          |
-| **Cloudflare Images**       | Per 100,000 images stored (~$5) + per 100,000 delivered (~$1)                             | Yes — 5,000 free transformations/mo         | Images stored + images delivered (flat per-unit rates)         |
-| **Akamai Image Manager**    | Add-on to a CDN contract; usage- and contract-negotiated                                  | No (trial only)                             | Negotiated CDN contract + per-image transformation volume      |
-| **Self-hosted (this post)** | Free software (Apache-2.0) + your own VM                                                  | Yes — free to run in development and in production | Nothing usage-based: cost is flat regardless of request volume |
-
-**How to read this.** Per-unit CDN rates are low at the bottom of each tier, which is why a small site of under roughly 100,000 requests a month often pays less on a CDN than the flat self-hosted floor — your own VM (the software is free to run). The variable that matters is _which input grows with your traffic_. Cloudinary's and imgix's credits both scale with delivery and transformation volume; Cloudflare Images scales with the number of images you store and deliver; Akamai folds image transformation into a CDN contract that is itself usage-tied. In every case the bill rises with traffic. The self-hosted model has no usage-based input at all — past the break-even point below, additional requests cost only the bandwidth you would pay your host regardless. For a head-to-head against a specific provider, see how mod_pagespeed compares to [Cloudinary](/vs/cloudinary/) and [imgix](/vs/imgix/).
-
-> **Pricing caveat.** The models above reflect each vendor's _publicly published list pricing structure_ as understood in February 2026, not negotiated or current per-unit rates. Vendors change pricing, restructure tiers, and negotiate enterprise discounts; the free tiers and exact per-unit figures move over time. Treat this as a guide to _what each model charges for_, then confirm current numbers on each vendor's own pricing page before you commit. We do not republish per-provider dollar totals here because doing so accurately would require pinning a specific transformation/density/format mix to each vendor's current rate card, which goes stale the moment any vendor updates it.
-
-If global edge latency is your priority and your traffic is modest, an image CDN is a reasonable choice — that is the case the break-even analysis below makes explicitly. If your traffic is high, your data must stay on your own infrastructure, or you want a bill that does not move with traffic, self-hosting wins. The two are not mutually exclusive: see [When self-hosted makes sense](#when-self-hosted-makes-sense) for the hybrid pattern.
 
 ## Self-hosted cost model
 
