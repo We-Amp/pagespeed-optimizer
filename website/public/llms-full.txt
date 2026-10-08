@@ -12464,7 +12464,7 @@ pagespeed EnableFilters inline_google_font_css;
 
 #### When it helps and when it does not
 
-The trade is about which bytes repeat. A `<style>` block rides inside the HTML, so a template that pastes the same block into every page sends it again on each of them, and when the HTML is generated per request none of those bytes can be cached. Outlining gives the block a URL of its own: the browser fetches the `.pagespeed.co.` file once, keeps it in cache, and every later page that carries the same block reuses it. What the first view pays is a render-blocking stylesheet request the page did not have before, and a block that only one page carries, or that differs from page to page, gets a file nobody else requests. Most sites are better served by keeping CSS in real files; this filter exists for HTML whose large stylesheets are stuck inline.
+The trade is about which bytes repeat. A `<style>` block rides inside the HTML, so a template that pastes the same block into every page sends it again on each of them, and when the HTML is generated per request none of those bytes can be cached. Outlining gives the block a URL of its own: the browser fetches the `.pagespeed.co.` file once, keeps it in cache, and every later page in the same directory that carries the same block reuses it; the file is named at the page's own path, so pages in other directories get their own copy. What the first view pays is a render-blocking stylesheet request the page did not have before, and a block that only one page carries, or that differs from page to page, gets a file nobody else requests. Most sites are better served by keeping CSS in real files; this filter exists for HTML whose large stylesheets are stuck inline.
 
 #### How it decides
 
