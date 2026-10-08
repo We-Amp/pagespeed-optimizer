@@ -252,10 +252,17 @@
 
   --color-border: #e2ded7; /* decorative hairline / tick base */
   --color-border-strong: #cfcabf; /* emphasized rule */
-  --color-control-border: #a8a296; /* sole boundary of a hairline control (3:1) */
+  --color-control-border: #8a8478; /* sole boundary of a hairline control (3:1) */
   --color-tick: rgba(0, 0, 0, 0.1); /* chemin-de-fer ticks */
   --color-specular: rgba(255, 255, 255, 0.6); /* polished top-edge highlight */
   --color-grid-line: rgba(0, 0, 0, 0.04); /* exposed column grid */
+
+  /* Wash fills for state chips — the state hue at ~8% over an elevated
+     ground. Chips with these fills may sit on bg-primary, bg-secondary or
+     bg-elevated only; on bg-recessed a chip keeps a transparent fill. */
+  --color-success-wash: #edf4f1;
+  --color-accent-wash: #f7f2ec;
+  --color-interactive-wash: #ecf3f6;
 
   --color-bit-clear: #e6e3dc; /* unlit capability cell */
   --color-bit-lit: #0e6f89; /* lit cell = set bit = the accent */
@@ -298,6 +305,11 @@
   --color-tick: rgba(255, 255, 255, 0.12);
   --color-specular: rgba(255, 255, 255, 0.05);
   --color-grid-line: rgba(255, 255, 255, 0.045);
+
+  /* Wash fills for state chips — see @theme for the surface rule. */
+  --color-success-wash: #202929;
+  --color-accent-wash: #292723;
+  --color-interactive-wash: #1f282e;
 
   --color-bit-clear: #20242a;
   --color-bit-lit: #5eb1c9;
@@ -595,6 +607,13 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     height: 2px;
     background-color: var(--color-interactive);
   }
+  /* Numbered section channel: a two-digit index replaces the field-tick. */
+  .eyebrow:has(.eyebrow-index)::before {
+    display: none;
+  }
+  .eyebrow-index {
+    color: var(--color-interactive);
+  }
   /* Calibrated readout numerals — tabular + slashed zero, instrument-grade. */
   .display-num {
     font-family: var(--font-mono);
@@ -613,6 +632,28 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     background:
       repeating-linear-gradient(90deg, var(--color-tick) 0 1px, transparent 1px 8px),
       repeating-linear-gradient(90deg, var(--color-border-strong) 0 1px, transparent 1px 64px);
+  }
+  /* 10px-tall tick scale: minor ticks every 8px at 5px high, major ticks every
+     64px at 10px high. Section rhythm between major sections; mark the element
+     aria-hidden. */
+  .rule-ticked-scale {
+    height: 10px;
+    border: 0;
+    background:
+      repeating-linear-gradient(90deg, var(--color-tick) 0 1px, transparent 1px 8px),
+      repeating-linear-gradient(90deg, var(--color-border-strong) 0 1px, transparent 1px 64px);
+    background-size:
+      auto 5px,
+      auto 10px;
+    background-repeat: repeat-x;
+    background-position: 0 100%;
+  }
+  /* Non-interactive surface: the .card frame without the hover state. */
+  .panel {
+    border-radius: var(--radius-card);
+    border: 1px solid var(--color-border);
+    background-color: var(--color-bg-elevated);
+    padding: 1.5rem;
   }
   /* Recessed, engraved calibrated readout plate — sits under display numerals. */
   .readout-plate {
@@ -668,7 +709,8 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
      hairline + a leading filled disc so state never rides on color alone. */
   .badge-accent,
   .badge-success,
-  .badge-interactive {
+  .badge-interactive,
+  .badge-neutral {
     @apply inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-semibold;
     font-family: var(--font-mono);
     border-radius: var(--radius-chip);
@@ -677,7 +719,8 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
   }
   .badge-accent::before,
   .badge-success::before,
-  .badge-interactive::before {
+  .badge-interactive::before,
+  .badge-neutral::before {
     content: '';
     flex: none;
     width: 0.5rem;
@@ -699,6 +742,26 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     color: var(--color-interactive);
     border-color: color-mix(in srgb, var(--color-interactive) 45%, transparent);
   }
+  /* Neutral state (STALE / REVALIDATED, informational tags): muted legend on
+     a strong hairline, no hue signal. */
+  .badge-neutral {
+    color: var(--color-text-muted);
+    border-color: var(--color-border-strong);
+  }
+  /* Wash fill: the state hue at ~8% over an elevated ground. Surface rule —
+     washed chips sit on bg-primary, bg-secondary or bg-elevated only; on
+     bg-recessed (plates, strips, term panels) a chip keeps a transparent fill
+     or contrast drops below AA. */
+  .badge-success.badge-wash {
+    background-color: var(--color-success-wash);
+  }
+  .badge-accent.badge-wash {
+    background-color: var(--color-accent-wash);
+  }
+  .badge-interactive.badge-wash {
+    background-color: var(--color-interactive-wash);
+  }
+  /* No neutral wash token exists: badge-wash on badge-neutral is a no-op. */
 
   /* Buttons — the primary is the ONLY full-saturation cyan FILL per viewport
      (CTA-salience discipline). Plex Mono labels read as instrument controls;

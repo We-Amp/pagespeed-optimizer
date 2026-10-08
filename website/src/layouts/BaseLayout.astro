@@ -507,6 +507,43 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
          its connection early. It is fetched without CORS, hence no crossorigin. -->
     <link rel="preconnect" href="https://umami.we-amp.com" />
     <style is:inline>
+      /* Critical-CSS flash guard: the production module inlines critical CSS
+         extracted without the .dark class, so token-based utilities on
+         above-the-fold elements would resolve to the light :root values until
+         the full sheet loads. This block repeats the complete dark token list
+         (copied value for value from .dark in global.css; guarded against
+         drift by test/sync/dark-tokens-inline.test.ts) at specificity (0,1,1),
+         which beats :root. */
+      html.dark {
+        --color-bg-primary: #0b0c0e;
+        --color-bg-secondary: #121417;
+        --color-bg-elevated: #191c20;
+        --color-bg-recessed: #070809;
+        --color-text-body: #e8eaed;
+        --color-text-muted: #a7aeb6;
+        --color-text-annotation: #8a9099;
+        --color-interactive: #5eb1c9;
+        --color-interactive-hover: #84c7db;
+        --color-on-accent: #07080a;
+        --color-success: #6fbf8f;
+        --color-accent: #e0a24a;
+        --color-promo: #5eb1c9;
+        --color-border: #2a2e34;
+        --color-border-strong: #3a3f47;
+        --color-control-border: #646b73;
+        --color-tick: rgba(255, 255, 255, 0.12);
+        --color-specular: rgba(255, 255, 255, 0.05);
+        --color-grid-line: rgba(255, 255, 255, 0.045);
+        --color-success-wash: #202929;
+        --color-accent-wash: #292723;
+        --color-interactive-wash: #1f282e;
+        --color-bit-clear: #20242a;
+        --color-bit-lit: #5eb1c9;
+        --color-disabled-bg: #1a1d21;
+        --color-disabled-text: #6a7077;
+        --color-disabled-border: #2f343a;
+        --color-focus-ring: #5eb1c9;
+      }
       /* Override critical CSS that includes bg-white but not dark:bg-stone-950.
          mod_pagespeed's critical CSS extractor does not capture dark-variant
          rules, so without !important the white background wins during the
