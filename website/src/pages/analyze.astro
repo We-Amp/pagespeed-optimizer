@@ -526,7 +526,7 @@ const jsonLd = [
       <h3 class="text-lg font-semibold text-text-body">Download this report</h3>
       <p class="mt-1 text-sm text-text-muted">
         Saves the analyzed URL, the timestamp, the mobile and desktop scores and the failing
-        audits as a Markdown file, straight from your browser. Nothing is sent anywhere.
+        audits as a Markdown file, straight from your browser. The report is not sent anywhere.
       </p>
       <button id="psi-report-download" type="button" class="btn-primary mt-4 whitespace-nowrap">
         Download this report
@@ -783,7 +783,7 @@ const jsonLd = [
   <!-- ============================================================ -->
   <script>
     import { PSI_MPS_MAPPING } from '../data/psi-mps-mapping';
-    import type { AuditMapping, Edition } from '../data/psi-mps-mapping';
+    import type { AuditMapping, Coverage, Edition } from '../data/psi-mps-mapping';
 
     // ---- Which part the reader is configuring ----
     // The '2.0' key selects the optimizer worker, '1.1' the module; the
@@ -954,7 +954,8 @@ const jsonLd = [
       url: string;
       mobile: number | null;
       desktop: number | null;
-      audits: Array<{ title: string; fixable: boolean }>;
+      totalFlagged: number;
+      audits: Array<{ title: string; coverage: Coverage }>;
     } | null = null;
 
     // Edition toggle, edition-aware blurb/desc, docs CTA, and the build-time
@@ -1836,9 +1837,10 @@ const jsonLd = [
         url: targetUrl,
         mobile: toPercent(mobile?.lighthouseResult?.categories?.performance?.score),
         desktop: toPercent(desktop?.lighthouseResult?.categories?.performance?.score),
+        totalFlagged,
         audits: items.map((i) => ({
           title: i.mapping.auditTitle,
-          fixable: i.mapping.coverage !== 'none',
+          coverage: i.mapping.coverage,
         })),
       };
       show(reportEl);
@@ -2042,6 +2044,14 @@ const jsonLd = [
         /* analytics must never break the download */
       }
       const scoreText = (n: number | null) => (n === null ? 'n/a' : `${n}/100`);
+      // Match the result page's own chips ("Fully addressed" / "Partial fix"):
+      // the downloaded file must not claim more than the page does.
+      const coverageText = (c: Coverage) =>
+        c === 'full'
+          ? 'fully addressed by mod_pagespeed'
+          : c === 'partial'
+            ? 'partly fixable by mod_pagespeed'
+            : 'not addressed by mod_pagespeed';
       const lines = [
         '# PageSpeed report',
         '',
@@ -2052,11 +2062,8 @@ const jsonLd = [
         '## Failing audits',
         '',
         ...(ctx.audits.length
-          ? ctx.audits.map(
-              (a) =>
-                `- ${a.title}${a.fixable ? ' — fixable by mod_pagespeed' : ' — not addressed by mod_pagespeed'}`,
-            )
-          : ['- None flagged']),
+          ? ctx.audits.map((a) => `- ${a.title} — ${coverageText(a.coverage)}`)
+          : [ctx.totalFlagged > 0 ? '- No mapped audits flagged' : '- None flagged']),
         '',
       ];
       let host = 'site';
@@ -2073,7 +2080,9 @@ const jsonLd = [
       document.body.appendChild(link);
       link.click();
       link.remove();
-      URL.revokeObjectURL(objectUrl);
+      // Defer revocation: revoking synchronously right after click() can
+      // cancel the download in Safari.
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
       if (reportMsgEl) reportMsgEl.textContent = `Saved as ${link.download}.`;
     });
 
