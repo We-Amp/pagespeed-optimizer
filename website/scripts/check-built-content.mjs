@@ -10,12 +10,21 @@
  * 404/500 — and checks what a search engine sees, not what the source
  * intends:
  *
- *   title-count          exactly one <title> per page (every page)
+ *   title-count          exactly one document <title> per page (every page;
+ *                        a <title> inside <svg>/<math> is not a document title)
  *   title-length         15–65 chars after entity decoding (indexable pages)
  *   description-present  <meta name="description"> exists (indexable pages)
  *   description-length   50–165 chars after entity decoding (indexable pages)
  *   description-duplicate  no two indexable pages share one description
  *   h1-count             exactly one <h1> per page (every page)
+ *   document-structure   the raw token stream is one well-formed document:
+ *                        one <html>/<head>/<body> pair in order, nothing but
+ *                        whitespace and comments between them and after
+ *                        </html>, the <title> inside <head>, and the
+ *                        head-only tags (ld+json scripts, stylesheet and
+ *                        canonical links, description/robots/viewport metas,
+ *                        charset) where a crawler or parser expects them
+ *                        (every page)
  *   term-drift-daemon    "daemon" absent from visible text (indexable pages);
  *                        the process is the worker. <script>, <style>, <code>
  *                        and <pre> contents are stripped first, so code
@@ -64,6 +73,7 @@ export const RULES = {
   'description-length': { level: 'error', indexableOnly: true },
   'description-duplicate': { level: 'error', indexableOnly: true },
   'h1-count': { level: 'error', indexableOnly: false },
+  'document-structure': { level: 'error', indexableOnly: false },
   'term-drift-daemon': { level: 'error', indexableOnly: true },
   // Warn-only: on the 2026-10 calibration the string appeared in the visible
   // text of 79 of 331 pages — overwhelmingly the docs sidebar's "Migrate
@@ -122,13 +132,89 @@ function attrValue(tag, name) {
   return new RegExp(`\\b${name}=(["'])([\\s\\S]*?)\\1`, 'i').exec(tag)?.[2] ?? '';
 }
 
-/** Title count and decoded text of the first <title> in <head>. */
+/**
+ * Elements whose content is raw text, never markup: the scan jumps straight
+ * to their matching close tag so markup inside them is never tokenized.
+ */
+const RAW_TEXT_ELEMENTS = new Set([
+  'script',
+  'style',
+  'textarea',
+  'title',
+  'xmp',
+  'noscript',
+  'iframe',
+  'noembed',
+  'noframes',
+]);
+
+/**
+ * Forward scan of raw HTML into open/close/comment/doctype tokens, no DOM.
+ * The tag alternative is quote-aware — a '>' or '<' inside a quoted
+ * attribute value does not end the tag — and everything from an opening
+ * raw-text tag to its `</name>` is skipped as markup-free text.
+ */
+export function tokens(html) {
+  const out = [];
+  const re = /<!--[\s\S]*?-->|<!doctype[^>]*>|<(\/?)([a-zA-Z][a-zA-Z0-9:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/gi;
+  let match;
+  while ((match = re.exec(html))) {
+    if (!match[2]) {
+      out.push({
+        kind: match[0].startsWith('<!--') ? 'comment' : 'doctype',
+        name: '',
+        attrs: '',
+        start: match.index,
+        end: re.lastIndex,
+      });
+      continue;
+    }
+    const name = match[2].toLowerCase();
+    const close = match[1] === '/';
+    out.push({ kind: close ? 'close' : 'open', name, attrs: match[3], start: match.index, end: re.lastIndex });
+    if (!close && RAW_TEXT_ELEMENTS.has(name) && !/\/\s*$/.test(match[3])) {
+      const endRe = new RegExp(`</${name}\\s*>`, 'ig');
+      endRe.lastIndex = re.lastIndex;
+      const end = endRe.exec(html);
+      if (!end) {
+        out[out.length - 1].unterminated = true;
+        break;
+      }
+      out.push({ kind: 'close', name, attrs: '', start: end.index, end: endRe.lastIndex });
+      re.lastIndex = endRe.lastIndex;
+    }
+  }
+  return out;
+}
+
+/**
+ * Open tokens of the document's <title> elements — a <title> inside
+ * <svg>/<math> names a graphic or equation, not the document.
+ */
+function documentTitleTokens(tk) {
+  let foreign = 0;
+  const titles = [];
+  for (const t of tk) {
+    const isForeign = t.name === 'svg' || t.name === 'math';
+    if (t.kind === 'open' && isForeign && !/\/\s*$/.test(t.attrs)) foreign += 1;
+    else if (t.kind === 'close' && isForeign) foreign -= 1;
+    else if (t.kind === 'open' && t.name === 'title' && foreign === 0) titles.push(t);
+  }
+  return titles;
+}
+
+/** Title count and decoded text of the first document <title>. */
 export function titleInfo(html) {
-  const head = /<head\b[^>]*>([\s\S]*?)<\/head\s*>/i.exec(html)?.[1] ?? html;
-  const matches = [...head.matchAll(/<title\b[^>]*>([\s\S]*?)<\/title\s*>/gi)];
+  const tk = tokens(html);
+  const titles = documentTitleTokens(tk);
+  let raw = '';
+  if (titles.length) {
+    const close = tk.find((t) => t.kind === 'close' && t.name === 'title' && t.start >= titles[0].end);
+    raw = close ? html.slice(titles[0].end, close.start) : '';
+  }
   return {
-    count: matches.length,
-    text: decodeEntities(collapseWhitespace(matches[0]?.[1] ?? '')),
+    count: titles.length,
+    text: decodeEntities(collapseWhitespace(raw)),
   };
 }
 
@@ -169,6 +255,76 @@ export function visibleText(html) {
 /** Count <h1> opening tags outside script/style/comments. */
 export function h1Count(html) {
   return (stripNonVisible(html).match(/<h1(?=[\s/>])/gi) ?? []).length;
+}
+
+/**
+ * Document-structure problems as messages (one per check that fails):
+ * one <html>/<head>/<body> pair each, in order; nothing but whitespace and
+ * comments between </head> and <body>, between </body> and </html>, and
+ * after </html>; exactly one document <title>, inside <head>; and the
+ * head-only tags (ld+json scripts, stylesheet/canonical links, the
+ * description/robots/viewport metas and charset) inside <head>. Every
+ * message names the element and its byte offset.
+ */
+export function documentStructureProblems(html) {
+  const problems = [];
+  const tk = tokens(html);
+
+  const unterminated = tk.find((t) => t.unterminated);
+  if (unterminated) problems.push(`unterminated <${unterminated.name}>`);
+
+  const opens = (name) => tk.filter((t) => t.kind === 'open' && t.name === name);
+  const closes = (name) => tk.filter((t) => t.kind === 'close' && t.name === name);
+  for (const name of ['html', 'head', 'body']) {
+    if (opens(name).length !== 1) problems.push(`${opens(name).length} <${name}> start tags (want 1)`);
+    if (closes(name).length !== 1) problems.push(`${closes(name).length} </${name}> end tags (want 1)`);
+  }
+  if (problems.length) return problems;
+
+  const [htmlOpen, headOpen, headClose, bodyOpen, bodyClose, htmlClose] = [
+    opens('html')[0],
+    opens('head')[0],
+    closes('head')[0],
+    opens('body')[0],
+    closes('body')[0],
+    closes('html')[0],
+  ];
+  if (!(htmlOpen.start < headOpen.start && headOpen.end <= headClose.start && headClose.end <= bodyOpen.start && bodyClose.end <= htmlClose.start)) {
+    problems.push('html/head/body tags out of order');
+  }
+
+  const gap = (from, to) => html.slice(from, to).replace(/<!--[\s\S]*?-->/g, '').trim();
+  const betweenHeadAndBody = gap(headClose.end, bodyOpen.start);
+  if (betweenHeadAndBody) problems.push(`content between </head> and <body>: "${betweenHeadAndBody.slice(0, 80)}"`);
+  const betweenBodyAndHtml = gap(bodyClose.end, htmlClose.start);
+  if (betweenBodyAndHtml) problems.push(`content between </body> and </html>: "${betweenBodyAndHtml.slice(0, 80)}"`);
+  const afterHtml = gap(htmlClose.end, html.length);
+  if (afterHtml) problems.push(`content after </html>: "${afterHtml.slice(0, 80)}"`);
+
+  const inHead = (t) => t.start >= headOpen.end && t.end <= headClose.start;
+
+  const titles = documentTitleTokens(tk);
+  if (titles.length !== 1) problems.push(`${titles.length} document <title> elements (want 1)`);
+  else if (!inHead(titles[0])) problems.push(`<title> is outside <head> at offset ${titles[0].start}`);
+
+  for (const t of tk) {
+    if (t.kind !== 'open') continue;
+    const where = `at offset ${t.start}`;
+    if (t.name === 'script' && attrValue(t.attrs, 'type').trim().toLowerCase() === 'application/ld+json' && !inHead(t)) {
+      problems.push(`application/ld+json <script> outside <head> ${where}`);
+    }
+    if (t.name === 'link') {
+      const rel = attrValue(t.attrs, 'rel');
+      if (/(^|\s)stylesheet(\s|$)/i.test(rel) && !inHead(t)) problems.push(`<link rel="stylesheet"> outside <head> ${where}`);
+      if (/(^|\s)canonical(\s|$)/i.test(rel) && !inHead(t)) problems.push(`<link rel="canonical"> outside <head> ${where}`);
+    }
+    if (t.name === 'meta') {
+      const name = attrValue(t.attrs, 'name').toLowerCase();
+      if (['description', 'robots', 'viewport'].includes(name) && !inHead(t)) problems.push(`<meta name="${name}"> outside <head> ${where}`);
+      if (/(^|\s)charset\s*=/i.test(t.attrs) && !inHead(t)) problems.push(`<meta charset> outside <head> ${where}`);
+    }
+  }
+  return problems;
 }
 
 /** hrefs of every <link rel="canonical"> ('' when the tag has no href). */
@@ -241,6 +397,8 @@ export function lintPage(html) {
 
   const h1s = h1Count(html);
   if (h1s !== 1) fails('h1-count', h1s === 0 ? 'no <h1>' : `${h1s} <h1> elements`);
+
+  for (const problem of documentStructureProblems(html)) fails('document-structure', problem);
 
   if (indexable) {
     const text = visibleText(html);

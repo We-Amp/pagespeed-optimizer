@@ -10,11 +10,13 @@ import { describe, it, expect } from 'vitest';
 import {
   decodeEntities,
   collapseWhitespace,
+  tokens,
   titleInfo,
   descriptionInfo,
   isNoindex,
   visibleText,
   h1Count,
+  documentStructureProblems,
   canonicalHrefs,
   canonicalProblem,
   lintPage,
@@ -122,6 +124,115 @@ describe('h1Count', () => {
   });
 });
 
+describe('tokens', () => {
+  it('does not end a tag at a > inside a quoted attribute value', () => {
+    const tk = tokens('<img alt="a > b" width=3>');
+    expect(tk).toHaveLength(1);
+    expect(tk[0]).toMatchObject({ kind: 'open', name: 'img' });
+  });
+
+  it('skips the content of raw-text elements', () => {
+    const tk = tokens('<script>const s = "</head>"; if (1 < 2) x();</script><p>text</p>');
+    expect(tk.map((t) => `${t.kind}:${t.name}`)).toEqual(['open:script', 'close:script', 'open:p', 'close:p']);
+  });
+
+  it('reports an unterminated raw-text element', () => {
+    const tk = tokens('<style>.x { color: red;');
+    expect(tk.some((t) => t.unterminated)).toBe(true);
+  });
+
+  it('collects comments and doctypes without tag names', () => {
+    const tk = tokens('<!doctype html><!-- note --><p>x</p>');
+    expect(tk.map((t) => `${t.kind}:${t.name || '-'}`)).toEqual(['doctype:-', 'comment:-', 'open:p', 'close:p']);
+  });
+});
+
+describe('documentStructureProblems / document-structure rule', () => {
+  // A head that is complete for every other rule, so the structure rule is
+  // the only thing under test.
+  const goodHead =
+    '<meta charset="utf-8">' +
+    '<title>A title of usable length</title>' +
+    '<meta name="description" content="A description that is comfortably longer than fifty characters for the lint.">' +
+    '<link rel="canonical" href="https://modpagespeed.com/x/">';
+  const page = (head: string, body: string, afterHtml = '') =>
+    `<!doctype html><html lang="en"><head>${head}</head><body>${body}</body></html>${afterHtml}`;
+
+  it('accepts a well-formed page', () => {
+    expect(documentStructureProblems(page(goodHead, '<h1>H</h1><p>The worker serves.</p>'))).toEqual([]);
+    expect(lintPage(page(goodHead, '<h1>H</h1><p>The worker serves.</p>'))).toEqual([]);
+  });
+
+  // Regression variant A: </head> moved above the title. The title is
+  // present and must be reported as misplaced, not as missing.
+  it('reports a <title> below </head> as outside <head>, and still counts it', () => {
+    const head = goodHead.replace('<title>A title of usable length</title>', '');
+    const html = page(head, '<h1>H</h1><title>A title of usable length</title>');
+    expect(titleInfo(html).count).toBe(1);
+    const structure = lintPage(html).filter((f) => f.rule === 'document-structure');
+    expect(structure).toHaveLength(1);
+    expect(structure[0].message).toMatch(/<title> is outside <head> at offset \d+/);
+  });
+
+  // Regression variant B: </head> right after the title, so the JSON-LD
+  // block ends up in the body. Everything else passes; only this rule sees it.
+  it('reports a JSON-LD script below </head>', () => {
+    const html = page(goodHead, '<h1>H</h1><script type="application/ld+json">{"@context":"https://schema.org"}</script>');
+    const structure = lintPage(html).filter((f) => f.rule === 'document-structure');
+    expect(structure).toHaveLength(1);
+    expect(structure[0].message).toMatch(/application\/ld\+json <script> outside <head> at offset \d+/);
+  });
+
+  it('reports content after </html>', () => {
+    const html = page(goodHead, '<h1>H</h1>', '\n<script>tail();</script>\n');
+    expect(documentStructureProblems(html)).toEqual([expect.stringMatching(/^content after <\/html>/)]);
+  });
+
+  it('reports a second <body>', () => {
+    const html = `<!doctype html><html><head>${goodHead}</head><body><h1>H</h1></body><body>extra</body></html>`;
+    const problems = documentStructureProblems(html).join('\n');
+    expect(problems).toMatch(/2 <body> start tags \(want 1\)/);
+    expect(problems).toMatch(/2 <\/body> end tags \(want 1\)/);
+  });
+
+  it('reports a stylesheet link in the body', () => {
+    const html = page(goodHead, '<h1>H</h1><link rel="stylesheet" href="/late.css">');
+    expect(documentStructureProblems(html)).toEqual([
+      expect.stringMatching(/<link rel="stylesheet"> outside <head> at offset \d+/),
+    ]);
+  });
+
+  it('reports content between </head> and <body>', () => {
+    const html = `<!doctype html><html><head>${goodHead}</head><div>stray</div><body><h1>H</h1></body></html>`;
+    expect(documentStructureProblems(html)).toEqual([
+      expect.stringMatching(/^content between <\/head> and <body>: "<div>stray<\/div>"/),
+    ]);
+  });
+
+  it('ignores an SVG <title> in the body', () => {
+    const html = page(goodHead, '<h1>H</h1><svg><title>icon</title></svg>');
+    expect(documentStructureProblems(html)).toEqual([]);
+    expect(titleInfo(html).count).toBe(1);
+  });
+
+  it('ignores a </head> that only appears inside a script string', () => {
+    const html = page(goodHead, '<h1>H</h1><script>const s = "</head>";</script>');
+    expect(documentStructureProblems(html)).toEqual([]);
+  });
+
+  it('does not tokenize markup inside an attribute value', () => {
+    const html = page(goodHead, '<h1>H</h1><p data-note="5 > 3 and <b>bold</b>">ok</p>');
+    expect(documentStructureProblems(html)).toEqual([]);
+  });
+
+  it('reports head-only metas placed in the body', () => {
+    const html = page(goodHead, '<h1>H</h1><meta name="viewport" content="width=device-width">');
+    expect(documentStructureProblems(html)).toEqual([
+      expect.stringMatching(/<meta name="viewport"> outside <head> at offset \d+/),
+    ]);
+  });
+});
+
 describe('canonicalHrefs / canonicalProblem', () => {
   it('finds canonical links regardless of attribute order', () => {
     expect(canonicalHrefs('<link rel="canonical" href="https://modpagespeed.com/a/">')).toEqual([
@@ -225,10 +336,10 @@ describe('lintPages', () => {
   const page = (url: string, description: string) => ({
     url,
     html:
-      '<head><title>A title of usable length</title>' +
+      '<html><head><title>A title of usable length</title>' +
       `<meta name="description" content="${description}">` +
       '<link rel="canonical" href="https://modpagespeed.com/x/"></head>' +
-      '<body><h1>H</h1></body>',
+      '<body><h1>H</h1></body></html>',
   });
 
   it('groups identical descriptions on indexable pages', () => {
@@ -256,9 +367,9 @@ describe('lintPages', () => {
     const naming = {
       url: '/x/',
       html:
-        '<head><title>A title of usable length</title>' +
+        '<html><head><title>A title of usable length</title>' +
         '<meta name="robots" content="noindex"></head>' +
-        '<body><h1>H</h1><p>mod_pagespeed 2.0 mentioned</p></body>',
+        '<body><h1>H</h1><p>mod_pagespeed 2.0 mentioned</p></body></html>',
     };
     const { failures, warnings } = lintPages([naming]);
     expect(warnings.some((w) => w.rule === 'product-naming')).toBe(true);

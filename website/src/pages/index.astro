@@ -1757,22 +1757,25 @@ date: Sun, 17 May 2026 09:14:08 GMT
       </p>
     </div>
   </section>
-</BaseLayout>
 
-<script>
-  // Quick-start platform sub-tabs
-  const qsTabs = document.querySelectorAll<HTMLButtonElement>('[data-qs-tab]');
-  const qsPanels = document.querySelectorAll<HTMLElement>('[data-qs-panel]');
+  <!-- Kept inside <BaseLayout>: a <script> after the layout's close tag is
+       emitted after </html>, where the document-structure lint (and any
+       parser that stops at </html>) never sees it. -->
+  <script>
+    // Quick-start platform sub-tabs
+    const qsTabs = document.querySelectorAll<HTMLButtonElement>('[data-qs-tab]');
+    const qsPanels = document.querySelectorAll<HTMLElement>('[data-qs-panel]');
 
-  qsTabs.forEach((tab) => {
-    tab.addEventListener('click', () => {
-      const platform = tab.dataset.qsTab;
-      qsTabs.forEach((t) => {
-        t.setAttribute('aria-pressed', t.dataset.qsTab === platform ? 'true' : 'false');
-      });
-      qsPanels.forEach((panel) => {
-        panel.classList.toggle('hidden', panel.dataset.qsPanel !== platform);
+    qsTabs.forEach((tab) => {
+      tab.addEventListener('click', () => {
+        const platform = tab.dataset.qsTab;
+        qsTabs.forEach((t) => {
+          t.setAttribute('aria-pressed', t.dataset.qsTab === platform ? 'true' : 'false');
+        });
+        qsPanels.forEach((panel) => {
+          panel.classList.toggle('hidden', panel.dataset.qsPanel !== platform);
+        });
       });
     });
-  });
-</script>
+  </script>
+</BaseLayout>

@@ -14,21 +14,33 @@ export type RuleName =
   | 'description-length'
   | 'description-duplicate'
   | 'h1-count'
+  | 'document-structure'
   | 'term-drift-daemon'
   | 'product-naming'
   | 'canonical';
 export type Failure = { url: string; rule: string; level: RuleLevel; message: string };
 export type Page = { url: string; html: string };
+export type TokenKind = 'open' | 'close' | 'comment' | 'doctype';
+export type Token = {
+  kind: TokenKind;
+  name: string;
+  attrs: string;
+  start: number;
+  end: number;
+  unterminated?: boolean;
+};
 
 export const RULES: Record<RuleName, RuleConfig>;
 export function decodeEntities(text: string): string;
 export function collapseWhitespace(text: string): string;
+export function tokens(html: string): Token[];
 export function titleInfo(html: string): { count: number; text: string };
 export function descriptionInfo(html: string): { count: number; text: string };
 export function isNoindex(html: string): boolean;
 export function stripNonVisible(html: string): string;
 export function visibleText(html: string): string;
 export function h1Count(html: string): number;
+export function documentStructureProblems(html: string): string[];
 export function canonicalHrefs(html: string): string[];
 export function canonicalProblem(href: string): string | null;
 export function lintPage(html: string): { rule: RuleName; message: string }[];
