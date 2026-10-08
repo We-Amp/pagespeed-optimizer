@@ -1,5 +1,5 @@
 ---
-title: "ngx_pagespeed won't build on modern nginx: the cause, and the prebuilt fix"
+title: "ngx_pagespeed won't build on modern nginx: cause and fix"
 description: "Why upstream ngx_pagespeed won't compile on nginx 1.25+ (sys_siglist, glibc, OpenSSL 3, toolchain drift) — and the prebuilt module to install instead."
 date: 2026-06-06
 lastUpdated: 2026-07-04

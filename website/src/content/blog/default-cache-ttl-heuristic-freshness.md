@@ -1,6 +1,6 @@
 ---
-title: 'Default cache TTL: heuristic freshness when the origin sends no Cache-Control'
-description: 'Default cache TTL when no Cache-Control: per-content-type heuristic TTLs, RFC 9111 Age adjustment, and the shared-vs-private cache split in mod_pagespeed 2.1.'
+title: 'Default cache TTL when the origin sends no Cache-Control'
+description: 'Default cache TTL with no Cache-Control: per-content-type heuristic TTLs, RFC 9111 Age adjustment and the shared-vs-private split in mod_pagespeed 2.1.'
 date: 2026-06-14
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'

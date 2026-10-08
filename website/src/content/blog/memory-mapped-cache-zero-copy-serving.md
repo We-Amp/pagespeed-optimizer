@@ -1,6 +1,6 @@
 ---
-title: 'The memory-mapped cache: zero-copy serving between nginx and the worker'
-description: 'How mod_pagespeed 2.1 shares one memory-mapped cache between nginx and the worker, serving large cache hits zero-copy with kernel sendfile and small ones with a single copy, while staying correct under concurrent writes.'
+title: 'The memory-mapped cache: zero-copy serving from nginx'
+description: 'How mod_pagespeed 2.1 shares one memory-mapped cache between nginx and the worker: large hits zero-copy via sendfile, small ones with a single copy.'
 date: 2026-06-13
 lastUpdated: 2026-07-05
 author: 'Otto van der Schaaf'

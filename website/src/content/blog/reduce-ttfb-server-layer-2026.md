@@ -1,5 +1,5 @@
 ---
-title: 'How to reduce TTFB: server-layer wins before you reach for a CDN'
+title: 'How to reduce TTFB: server-layer wins before a CDN'
 description: 'Reduce TTFB on nginx: split origin compute, network, and cache, then fix keep-alive, HTTP/2 or HTTP/3, TLS resumption, and variant-aware caching.'
 date: 2026-06-06
 tags: ['performance', 'ttfb', 'nginx', 'core-web-vitals']

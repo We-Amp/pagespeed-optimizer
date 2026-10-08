@@ -29,6 +29,9 @@ import {
   SOURCE_IS_PUBLISHED,
   SOURCE_PUBLICATION,
 } from '../data/product-facts.mjs';
+import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../data/software-jsonld';
+
+const softwareVersion = await productSoftwareVersion();
 
 const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
 
@@ -49,7 +52,8 @@ const jsonLd = {
       '@type': 'SoftwareApplication',
       name: PRODUCT,
       applicationCategory: 'WebApplication',
-      operatingSystem: 'Linux',
+      operatingSystem: PRODUCT_OPERATING_SYSTEMS,
+      softwareVersion,
       description: `Self-hosted web performance optimization: a native module for Apache and nginx with a separate optimizer worker. ${LICENSE_CLAUSE_CAP}; support subscriptions and hardened builds are sold separately, pricing on request.`,
       offers: offer,
     },

@@ -1,5 +1,7 @@
 ---
 title: 'Getting started'
+h1: 'Install mod_pagespeed 2.1'
+seoTitle: 'Install mod_pagespeed 2.1: nginx, Apache, Docker, IIS'
 description: 'Pick an integration and get mod_pagespeed 2.1 serving optimized pages: Apache or nginx module, Docker, IIS or ASP.NET Core, then run the same check.'
 order: 1
 group: 'Start here'

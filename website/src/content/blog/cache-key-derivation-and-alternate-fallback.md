@@ -1,6 +1,6 @@
 ---
-title: 'Cache key derivation in ModPageSpeed 2.0: host-scoped keys and single-pass variant fallback'
-description: 'How cache key derivation in mod_pagespeed 2.1 hashes host plus URL into one key and scores stored variants in one selector pass instead of probing many keys.'
+title: 'Cache key derivation: host-scoped keys and variant fallback'
+description: 'How cache key derivation in mod_pagespeed 2.1 hashes host plus URL into one key and scores stored variants in one selector pass instead of probing keys.'
 date: 2026-06-13
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'

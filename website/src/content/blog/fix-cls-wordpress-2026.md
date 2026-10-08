@@ -136,6 +136,7 @@ Some CLS sources are outside mod_pagespeed's reach.
 - [WordPress full-page caching plugin](/wordpress/)
 - [WordPress server-side page-cache plugin](/blog/wordpress-server-side-page-cache-plugin/)
 - [How to fix LCP on WordPress](/blog/fix-lcp-wordpress-2026/)
+- [How to fix Largest Contentful Paint (LCP)](/core-web-vitals/lcp/): the four LCP phases and the server-side fixes
 - [How to fix INP on WordPress](/blog/fix-inp-wordpress-2026/)
 - [How to fix CLS on WooCommerce](/blog/fix-cls-woocommerce-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)

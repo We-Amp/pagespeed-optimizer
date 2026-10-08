@@ -1,6 +1,6 @@
 ---
-title: 'Fix CLS on nginx with mod_pagespeed (insert_image_dimensions)'
-description: 'Fix Cumulative Layout Shift on nginx-served sites: rewrite img tags to add width/height with ngx_pagespeed (mod_pagespeed 2.1), add a CSS aspect-ratio backstop, and ship dimensions at build time.'
+title: 'Fix CLS on nginx with mod_pagespeed: insert_image_dimensions'
+description: 'Fix CLS on nginx sites: add width and height to img tags with ngx_pagespeed (mod_pagespeed 2.1), add a CSS aspect-ratio backstop, set sizes at build.'
 date: 2026-05-12
 lastUpdated: 2026-07-04
 author: 'Otto van der Schaaf'
@@ -156,6 +156,7 @@ Add the CSS rule `img { max-width: 100%; height: auto; }` and modern browsers co
 ## Related
 
 - [How to fix LCP on nginx](/blog/fix-lcp-nginx-2026/)
+- [How to fix Largest Contentful Paint (LCP)](/core-web-vitals/lcp/): the four LCP phases and the server-side fixes
 - [How to fix INP on nginx](/blog/fix-inp-nginx-2026/)
 - [How to fix CLS on WordPress](/blog/fix-cls-wordpress-2026/)
 - [Server-side critical CSS on nginx](/blog/server-side-critical-css-nginx/)

@@ -1,6 +1,6 @@
 ---
-title: 'Fire-and-forget IPC: decoupling request latency from optimization work'
-description: 'mod_pagespeed 2.1 keeps optimization work off the nginx request path with fire-and-forget IPC to the worker: a small notification, no reply, so a cache miss stays cheap and requests never wait on an encode.'
+title: 'Fire-and-forget IPC: keep optimization off the request path'
+description: 'mod_pagespeed 2.1 keeps optimization off the nginx request path: a small notification to the worker, no reply, so a cache miss stays cheap and none waits.'
 date: 2026-06-13
 author: 'Otto van der Schaaf'
 tags: ['architecture', 'performance', 'deep-dive', 'nginx', 'caching']

@@ -1,6 +1,6 @@
 ---
-title: 'Pay-per-crawl at the origin: an experimental RSL-CAP access gate'
-description: 'mod_pagespeed 2.1 ships an experimental, off-by-default RSL-CAP gate for nginx: validate Authorization: License capability tokens and refuse unauthorized AI-crawler access at your origin. Preview, not GA.'
+title: 'Pay-per-crawl at the origin: an experimental RSL-CAP gate'
+description: 'mod_pagespeed 2.1 ships an experimental, off-by-default RSL-CAP gate for nginx: check License capability tokens and refuse unauthorized AI crawlers.'
 date: 2026-06-22
 author: 'Otto van der Schaaf'
 tags: ['ai-agents', 'ai-crawlers', 'licensing', 'nginx']

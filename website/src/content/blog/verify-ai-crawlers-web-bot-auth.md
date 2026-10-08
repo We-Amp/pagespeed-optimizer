@@ -1,6 +1,6 @@
 ---
 title: 'Web Bot Auth: verify AI crawlers at your origin'
-description: 'mod_pagespeed 2.1 ships an nginx Web Bot Auth verifier that checks RFC 9421 signatures and labels each request in $x_verified_bot. Observe-only, default off.'
+description: 'mod_pagespeed 2.1 ships an nginx Web Bot Auth verifier: it checks RFC 9421 signatures and labels requests in $x_verified_bot. Observe-only, off by default.'
 date: 2026-06-22
 author: 'Otto van der Schaaf'
 tags: ['ai-agents', 'security', 'nginx']

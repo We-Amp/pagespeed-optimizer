@@ -71,7 +71,7 @@ If you run **the module**, `prioritize_critical_css` is the beacon model, and it
 
 If you run **the mod_pagespeed 2.1 optimizer worker**, critical CSS comes from heuristics by default and from cached headless-Chrome measurement when you opt in. Nothing is injected into the page to measure it, and there is nothing to coordinate with your CDN. For the server-layer mechanics on nginx, see [server-side critical CSS for nginx](/blog/server-side-critical-css-nginx/).
 
-One boundary applies to all three eras. Inlining critical CSS removes a render-blocking request, which helps First Contentful Paint and often Largest Contentful Paint. It does not fix layout shift or input delay, and no critical-CSS tool guarantees a Core Web Vitals score. It removes one specific bottleneck. For the rest of the request budget, see [reducing TTFB at the server layer](/blog/reduce-ttfb-server-layer-2026/).
+One boundary applies to all three eras. Inlining critical CSS removes a render-blocking request, which helps First Contentful Paint and often [Largest Contentful Paint](/core-web-vitals/lcp/). It does not fix layout shift or input delay, and no critical-CSS tool guarantees a Core Web Vitals score. It removes one specific bottleneck. For the rest of the request budget, see [reducing TTFB at the server layer](/blog/reduce-ttfb-server-layer-2026/).
 
 ## Design background
 

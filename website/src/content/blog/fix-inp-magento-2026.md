@@ -1,6 +1,6 @@
 ---
 title: 'Fix INP on Magento 2: why Hyvä beats a JS rewriter'
-description: 'Fixing INP on Magento 2: the interaction cost lives in KnockoutJS and RequireJS, so theme architecture (Hyvä) moves it, not a server rewriter — plus exactly what mod_pagespeed can and cannot do.'
+description: 'INP on Magento 2 lives in KnockoutJS and RequireJS, so theme architecture (Hyvä) moves it, not a server rewriter. What mod_pagespeed can and cannot do.'
 date: 2026-05-05
 lastUpdated: 2026-07-04
 author: 'Otto van der Schaaf'
@@ -155,7 +155,9 @@ No. Magento's RequireJS bootstrap is order-sensitive, and deferring scripts brea
 ## Related
 
 - [How to fix LCP on Magento](/blog/fix-lcp-magento-2026/)
+- [How to fix Largest Contentful Paint (LCP)](/core-web-vitals/lcp/): the four LCP phases and the server-side fixes
 - [How to fix CLS on Magento](/blog/fix-cls-magento-2026/)
+- [How to fix Cumulative Layout Shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
 - [How to fix INP on nginx (generic)](/blog/fix-inp-nginx-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)
 - [mod_pagespeed filter reference](/docs/filter-reference/)

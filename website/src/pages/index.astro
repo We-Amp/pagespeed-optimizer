@@ -7,6 +7,9 @@ import { getRelease } from '../lib/release';
 import { offerJsonLd } from '../data/offer-jsonld';
 import { stripHtml } from '../data/faq-shared';
 import { LICENSE_CLAUSE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
+import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../data/software-jsonld';
+
+const softwareVersion = await productSoftwareVersion();
 
 // Single source of truth: corp/releases/1.1.yaml synced into
 // src/content/releases-1.1/release.yaml. The X-Mod-Pagespeed
@@ -113,7 +116,8 @@ const product = {
   '@type': ['Product', 'SoftwareApplication'],
   name: 'mod_pagespeed 2.1',
   applicationCategory: 'WebApplication',
-  operatingSystem: ['Linux'],
+  operatingSystem: PRODUCT_OPERATING_SYSTEMS,
+  softwareVersion,
   description:
     `Self-hosted web performance optimization: image transcoding, critical CSS extraction, and variant-aware caching. A native module for Apache and nginx with a separate optimizer worker. ${LICENSE_CLAUSE_CAP}.`,
   image: 'https://modpagespeed.com/og-default.png?v=2',
@@ -197,13 +201,17 @@ const jsonLd = [organization, website, product, faqPage];
 ---
 
 <BaseLayout
-  title="mod_pagespeed, maintained again: PageSpeed module for nginx & Apache"
-  description={`The PageSpeed module, maintained again — ${LICENSE_CLAUSE}. mod_pagespeed 2.1 optimizes images, CSS, and JS on your own nginx or Apache. Not a CDN.`}
+  title="PageSpeed module for nginx and Apache: mod_pagespeed 2.1"
+  description={`The PageSpeed module, maintained again and ${LICENSE_CLAUSE}. Install mod_pagespeed 2.1 on nginx or Apache with apt or yum.`}
   jsonLd={jsonLd}
 >
   {/* Hero */}
   <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-20 text-center">
     <h1 class="h1-hero text-text-body">
+      <span
+        class="mb-4 block text-base font-semibold leading-normal tracking-normal text-text-muted sm:text-lg"
+        >mod_pagespeed 2.1, the PageSpeed module for nginx and Apache</span
+      >
       Lighthouse 56 to 90.<br />
       <span class="relative inline-block text-text-body border-b-[3px] border-interactive pb-1"
         >On your own servers.</span

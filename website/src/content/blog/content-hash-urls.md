@@ -1,6 +1,6 @@
 ---
-title: 'Why optimized URLs carry a content hash, and why the web caught up'
-description: 'A content hash in a .pagespeed. URL gives mod_pagespeed year-long caching with automatic cache busting — the same idea webpack contenthash and Cache-Control: immutable landed on later. Plus what data-pagespeed-url-hash actually is.'
+title: 'Content-hash URLs: why .pagespeed. URLs carry a hash'
+description: 'A content hash in a .pagespeed. URL gives year-long caching with automatic cache busting, years before webpack contenthash. Plus data-pagespeed-url-hash.'
 date: 2026-06-05
 lastUpdated: 2026-07-04
 author: 'Otto van der Schaaf'

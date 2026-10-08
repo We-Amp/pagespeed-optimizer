@@ -1,6 +1,6 @@
 ---
-title: 'Server-side critical CSS for nginx — any backend, no headless browser'
-description: 'Extract and inline critical CSS at the nginx layer for any backend (PHP, Rails, Django, ASP.NET, Go). No WordPress plugin. No headless browser. No Node build step.'
+title: 'Server-side critical CSS for nginx, any backend'
+description: 'Extract and inline critical CSS at the nginx layer for any backend: PHP, Rails, Django, ASP.NET, Go. No WordPress plugin, headless browser or Node build.'
 date: 2026-05-20
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'
@@ -31,7 +31,7 @@ paint without waiting for an external stylesheet. The rest of the CSS
 loads async after first paint.
 
 The performance win is real. A 50 KB external stylesheet linked from
-`<head>` blocks LCP until it downloads, parses, and applies. Inlining
+`<head>` blocks [LCP](/core-web-vitals/lcp/) until it downloads, parses, and applies. Inlining
 the 5–10 KB of rules needed for above-the-fold and deferring the rest
 typically cuts LCP by 200 to 500 ms on a 3G connection. On a cold mobile
 load with a hostile RTT, that's the difference between a Core Web Vitals

@@ -169,6 +169,7 @@ Cases where mod_pagespeed alone isn't enough on WooCommerce:
 - [WordPress full-page caching plugin](/wordpress/)
 - [How to fix INP on WooCommerce](/blog/fix-inp-woocommerce-2026/)
 - [How to fix CLS on WooCommerce](/blog/fix-cls-woocommerce-2026/)
+- [How to fix Cumulative Layout Shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
 - [How to fix LCP on WordPress](/blog/fix-lcp-wordpress-2026/)
 - [The economics of image optimization](/blog/economics-of-image-optimization/)
 - [mod_pagespeed filter reference](/docs/filter-reference/)

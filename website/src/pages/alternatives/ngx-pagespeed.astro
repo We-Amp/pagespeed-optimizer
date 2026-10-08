@@ -3,6 +3,9 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
 import { getRelease } from '../../lib/release';
 import { FREE_TO_RUN_LINE, LICENSE_CLAUSE } from '../../data/product-facts.mjs';
+import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../../data/software-jsonld';
+
+const softwareVersion = await productSoftwareVersion();
 
 // Image names and tag come from the release manifest, so the compose sample
 // below cannot drift from the published images.
@@ -44,7 +47,8 @@ const jsonLd = [
     '@type': 'SoftwareApplication',
     name: 'mod_pagespeed 2.1',
     applicationCategory: 'DeveloperApplication',
-    operatingSystem: ['Linux'],
+    operatingSystem: PRODUCT_OPERATING_SYSTEMS,
+    softwareVersion,
     description:
       'Maintained continuation of the nginx PageSpeed port. Native in-process nginx module (ngx_pagespeed.so) with the same pagespeed directives and filters as open-source mod_pagespeed, built against current nginx with applied CVE patches, variant-aware Cyclone caching and zero-copy mmap serving. Also native on Apache, and available as a Docker / nginx reverse proxy with the optimizer worker.',
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),

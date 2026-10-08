@@ -1,6 +1,6 @@
 ---
-title: "Visual-regression gating for critical CSS: reject any optimization that changes the pixels"
-description: "The mod_pagespeed 2.1 optimizer worker pixel-diffs the rendered above-fold before caching a headless critical-CSS variant. If the optimized page looks different, the gate discards it and keeps the heuristic version."
+title: 'Visual-regression gating: reject CSS that changes the pixels'
+description: 'The mod_pagespeed 2.1 worker pixel-diffs the rendered above-fold before caching a headless critical-CSS variant; if it looks different, it is discarded.'
 date: 2026-06-13
 author: 'Otto van der Schaaf'
 tags: ["headless-chrome", "critical-css", "visual-regression", "operations", "deep-dive", "core-web-vitals"]

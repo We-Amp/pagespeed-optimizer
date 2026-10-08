@@ -1,6 +1,6 @@
 ---
-title: 'Set how good it should look: a model predicts image encoding parameters'
-description: 'One perception-based quality knob; a trained model predicts the right JPEG, WebP, and AVIF encoding parameters per image in microseconds. No per-codec tuning, self-hosted.'
+title: 'Learned image quality: a model predicts encoding parameters'
+description: 'One perception-based quality knob: a trained model predicts JPEG, WebP and AVIF encoding parameters per image in microseconds. No per-codec tuning.'
 date: 2026-06-06
 lastUpdated: 2026-07-04
 author: 'Otto van der Schaaf'

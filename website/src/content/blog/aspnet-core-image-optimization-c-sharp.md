@@ -1,6 +1,6 @@
 ---
 title: 'ASP.NET Core image optimization in C#: WebP and AVIF'
-description: 'Serve WebP and AVIF from ASP.NET Core with no controller or Razor changes. WeAmp.PageSpeed middleware does Accept-header content negotiation, viewport sizing, and LCP preload.'
+description: 'Serve WebP and AVIF from ASP.NET Core with no controller or Razor changes: WeAmp.PageSpeed middleware negotiates on Accept, sizes images, preloads LCP.'
 date: 2026-05-20
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'

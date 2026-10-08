@@ -1,5 +1,5 @@
 ---
-title: "How CSS Minification and URL Rewriting Work"
+title: 'How CSS minification and URL rewriting work'
 description: "How mod_pagespeed parses CSS into a syntax tree to minify, rewrite url(), and flatten @import safely — and why regex rewriters corrupt stylesheets."
 order: 30
 datePublished: 2026-06-13

@@ -1,6 +1,6 @@
 ---
-title: "Search Console's new AI performance report is not about page speed"
-description: "Google's new Search Console AI performance report measures your visibility in AI Overviews and AI Mode, not how fast your pages load. The difference, explained."
+title: "Search Console's AI performance report is not about speed"
+description: 'The Search Console AI performance report measures your visibility in AI Overviews and AI Mode, not how fast your pages load. The difference, explained.'
 date: 2026-06-09
 lastUpdated: 2026-07-04
 author: 'Otto van der Schaaf'
@@ -14,7 +14,7 @@ Google's new Search Console report measures your search visibility inside its ge
 
 That trips people up because the report is named for "performance," and "performance" is also the word PageSpeed Insights, Lighthouse, Core Web Vitals, and mod_pagespeed use for how fast your pages load and how stable they are while loading. Same word, two unrelated measurements.
 
-I'm an Apache PageSpeed committer who helped ship open-source PageSpeed releases, and now build the commercial successors at We-Amp B.V., so the speed half is the half I work on. The visibility half is Google's new report, worth understanding on its own terms.
+I'm an Apache PageSpeed committer: I helped build ngx_pagespeed, maintained mod_pagespeed and drove its Apache incubation, and now build its maintained continuation, mod_pagespeed 2.1, at We-Amp B.V., so the speed half is the half I work on. The visibility half is Google's new report, worth understanding on its own terms.
 
 ## What Google actually announced
 
@@ -106,4 +106,4 @@ Yes, separately from this report. Core Web Vitals remain a ranking signal in cla
 
 ---
 
-Google's new report measures whether AI surfaces cite you, not whether your site is fast — two different problems. If the one you have is speed, see how [Google's mod_pagespeed module](/alternatives/google-pagespeed-module/) and its maintained successors compare, check [pricing](/pricing/), or run your own audit through [the analyzer](/analyze/).
+Google's new report measures whether AI surfaces cite you, not whether your site is fast — two different problems. If the one you have is speed, see how [the Google PageSpeed module](/alternatives/google-pagespeed-module/) and its maintained continuation compare, check [pricing](/pricing/), or run your own audit through [the analyzer](/analyze/).

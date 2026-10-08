@@ -1,6 +1,6 @@
 ---
-title: 'Stopping cache fragmentation: stripping tracking params and normalizing URLs'
-description: 'Strip tracking parameters to stop cache fragmentation: mod_pagespeed 2.1 normalizes URLs before keying, dropping UTM params, sorting the query, aliasing hosts.'
+title: 'Stop cache fragmentation: strip tracking params from URLs'
+description: 'Strip tracking parameters to stop cache fragmentation: mod_pagespeed 2.1 normalizes URLs before keying, drops UTM params, sorts the query, aliases hosts.'
 date: 2026-06-14
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'

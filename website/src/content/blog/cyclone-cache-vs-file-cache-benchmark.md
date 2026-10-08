@@ -1,6 +1,6 @@
 ---
-title: 'Cyclone vs. the file cache: benchmarking a memory-mapped page cache'
-description: 'Head-to-head cache benchmark: Cyclone (memory-mapped, in-process RAM tier) vs. the classic file-per-entry cache, across concurrency, realistic traffic, latency tails, and eviction, on fast and realistic storage.'
+title: 'Cyclone vs the file cache: a memory-mapped cache benchmark'
+description: 'Cache benchmark: Cyclone (memory-mapped, in-process RAM tier) vs the classic file-per-entry cache, across concurrency, traffic, latency tails and eviction.'
 date: 2026-07-04
 author: 'Otto van der Schaaf'
 tags: ['performance', 'benchmarks', 'cache']

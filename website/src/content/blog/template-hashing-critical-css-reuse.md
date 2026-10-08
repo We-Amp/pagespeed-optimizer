@@ -1,6 +1,6 @@
 ---
-title: 'Template hashing: compute critical CSS once, reuse it across every matching URL'
-description: 'How the mod_pagespeed 2.1 optimizer worker hashes a page template so critical CSS is computed once and reused across every URL sharing that template, with analysis-queue dedup to skip redundant renders.'
+title: 'Template hashing: compute critical CSS once, reuse it'
+description: 'How the mod_pagespeed 2.1 worker hashes a page template so critical CSS is computed once and reused across every URL sharing it, with queue dedup.'
 date: 2026-06-13
 lastUpdated: 2026-09-06
 author: 'Otto van der Schaaf'

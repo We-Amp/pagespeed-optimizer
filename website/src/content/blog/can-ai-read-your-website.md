@@ -1,6 +1,6 @@
 ---
 title: 'Can AI read your website? We tested the top 1,000 sites'
-description: '40% of the top 1,000 sites serve almost nothing to non-JavaScript AI crawlers — ChatGPT, Perplexity, and Claude see an empty page. The data, and how to fix it.'
+description: '40% of the top 1,000 sites serve almost nothing to non-JavaScript AI crawlers: ChatGPT, Perplexity and Claude see an empty page. The data, and the fix.'
 date: 2026-05-28
 lastUpdated: 2026-07-04
 author: 'Otto van der Schaaf'

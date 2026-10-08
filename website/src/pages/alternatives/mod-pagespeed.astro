@@ -2,6 +2,9 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
 import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
+import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../../data/software-jsonld';
+
+const softwareVersion = await productSoftwareVersion();
 
 const faq = [
   {
@@ -32,7 +35,8 @@ const jsonLd = [
     '@type': 'SoftwareApplication',
     name: 'mod_pagespeed 2.1',
     applicationCategory: 'DeveloperApplication',
-    operatingSystem: ['Linux'],
+    operatingSystem: PRODUCT_OPERATING_SYSTEMS,
+    softwareVersion,
     description:
       'Maintained continuation of Google mod_pagespeed: the native in-process module for Apache and nginx, with the C++23 optimizer worker alongside it for zero-copy caching and variant-aware serving. Same directive surface as 1.13.35.2.',
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
@@ -64,10 +68,10 @@ const jsonLd = [
     <header>
       <h1 class="h1-hero text-text-body">mod_pagespeed alternative</h1>
       <p class="lede mt-6">
-        <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">mod_pagespeed</code>, Google's
-        open-source web optimization module, is no longer actively developed. If you're replacing
-        it, mod_pagespeed 2.1 from We-Amp carries the work forward &mdash; the native module plus
-        the optimizer worker.
+        <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">mod_pagespeed</code>, the
+        open-source web optimization module originally developed at Google, is no longer actively
+        developed. If you're replacing it, mod_pagespeed 2.1 from We-Amp carries the work forward
+        &mdash; the native module plus the optimizer worker.
       </p>
       <div class="mt-6 flex flex-wrap gap-3">
         <a
@@ -116,7 +120,7 @@ const jsonLd = [
               development ends</td
             ></tr
           >
-          <tr><td>2018</td><td>Google's last stable release, 1.13.35.2</td></tr>
+          <tr><td>2018</td><td>The last Google-era stable release, 1.13.35.2</td></tr>
           <tr><td>2020</td><td>Final open-source release, 1.14.36.1 (Apache incubator)</td></tr>
           <tr><td>2023</td><td>Apache Incubator podling retires</td></tr>
           <tr><td>2025</td><td>GitHub repositories marked read-only</td></tr>

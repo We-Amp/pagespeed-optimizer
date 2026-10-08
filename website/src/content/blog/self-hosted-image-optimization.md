@@ -1,6 +1,6 @@
 ---
-title: 'Self-hosted image optimization: keep images on your origin and skip the egress bill'
-description: 'Image SaaS bills per transformation and per GB of egress. Self-hosted optimization transcodes WebP/AVIF on your own servers — no per-transformation cost, no third party.'
+title: 'Self-hosted image optimization vs image SaaS egress'
+description: 'Image SaaS bills per transformation and per GB of egress. Self-hosted optimization transcodes WebP/AVIF on your servers: no per-transformation cost.'
 date: 2026-06-06
 lastUpdated: 2026-09-19
 tags: ['image-optimization', 'self-hosted', 'cloudinary', 'performance']
