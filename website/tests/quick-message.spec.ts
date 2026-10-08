@@ -54,7 +54,7 @@ test.describe('QuickMessage widget', () => {
     expect(events).toContainEqual({ name: 'quick_message_sent', data: { with_email: true } });
     expect(events).toContainEqual({
       name: 'lead_submit',
-      data: { channel: 'quick', topic: 'quick-message', source_path: '/pricing/' },
+      data: { channel: 'quick', topic: 'quick-message', wedge: '', source_path: '/pricing/' },
     });
   });
 

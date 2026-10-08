@@ -144,7 +144,7 @@ const inputClass =
         <p class="font-semibold text-text-body">Hosting provider?</p>
         <p class="mt-1 text-sm text-text-muted max-w-3xl">
           The hosting partner program covers multi-tenant fleets: Priority-level support for your
-          second- and third-line team, cPanel/EA4 and distribution-channel upkeep, unlimited hosted
+          second- and third-line team, plus cPanel/EA4 and distribution-channel upkeep. Unlimited hosted
           domains.
         </p>
       </div>
@@ -523,9 +523,15 @@ const inputClass =
         if (!res.ok) throw new Error(`status ${res.status}`);
         form.reset();
         // Fire on a successful POST only, never on click.
+        // lead_submit — one event per successful form submit, alongside the
+        // form's own event. Properties: channel (contact | quote | quick | newsletter |
+        // hosting; a contact-form submit on the hosting topic reports hosting), topic
+        // (the topic posted to the capture endpoint), wedge (the scanner wedge, empty
+        // when none) and source_path (the page path, never the query string).
         (window as any).umami?.track('lead_submit', {
           channel: 'quote',
           topic: 'quote',
+          wedge: '',
           source_path: window.location.pathname,
         });
         setStatus(

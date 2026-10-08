@@ -8,9 +8,10 @@ import { LICENSING_TERMS_URL, PRICING_ON_REQUEST } from '../data/product-facts.m
 // fleet-scale backing, packaging coordination, and a direct channel — not a
 // volume license. Keep the two structural markers the production smoke
 // asserts: the hosting-topic contact CTA and the packages.modpagespeed.com
-// reference. The qualifier form is a plain GET to /contact/ with topic=hosting:
-// the contact page folds hosts, panel and distros into its message, so it
-// works without JS and lands as a hosting lead.
+// reference. The qualifier form is a plain GET to /contact/ with topic=hosting
+// plus hosts, panel and distros; the contact page's script selects the topic
+// and folds those values into the message. Without JS the visitor still lands
+// on the contact form, but picks the topic and retypes the details.
 const hostBands = ['Up to 25 hosts', 'Up to 100 hosts', 'More than 100 hosts'];
 const panels = ['cPanel/EA4', 'Plesk', 'DirectAdmin', 'CloudPanel', 'Custom or none'];
 const fieldClass =
@@ -27,7 +28,7 @@ const jsonLd = {
 
 <BaseLayout
   title="Hosting partners — mod_pagespeed 2.1"
-  description="mod_pagespeed is free on every host. The hoster partner program adds fleet-scale support: packaging coordination, upgrade guidance, and a direct channel for providers."
+  description="mod_pagespeed 2.1 is free on every host. The hosting partner program adds fleet support and a direct channel for providers."
   jsonLd={jsonLd}
 >
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">

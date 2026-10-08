@@ -90,7 +90,7 @@ const nextSteps = [
 >
   <section class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-20">
     <div class="text-center">
-      <h1 class="h1-hero text-text-body">Pick the right channel.</h1>
+      <h1 class="h1-hero text-text-body">One form for setup, support and partnerships.</h1>
       <p class="mt-4 text-lg text-text-muted max-w-2xl mx-auto">
         Setup help, support subscriptions, hardened builds, partnerships and consulting all go
         through this form. We reply within one business day (CET). Security reports have their own
@@ -232,9 +232,9 @@ const nextSteps = [
       </div>
 
       <p class="text-xs text-text-annotation">
-        We use what you send only to reply &mdash; see our
+        We use what you send only to reply. See the
         <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline"
-          >Privacy policy</a
+          >privacy policy</a
         >.
       </p>
 
@@ -455,9 +455,15 @@ const nextSteps = [
           // or failed submits don't inflate the contact-conversion count.
           const umami = (window as any).umami;
           umami?.track('contact_submit', { topic });
+          // lead_submit — one event per successful form submit, alongside the
+          // form's own event. Properties: channel (contact | quote | quick | newsletter |
+          // hosting; a contact-form submit on the hosting topic reports hosting), topic
+          // (the topic posted to the capture endpoint), wedge (the scanner wedge, empty
+          // when none) and source_path (the page path, never the query string).
           umami?.track('lead_submit', {
-            channel: 'contact',
+            channel: topic === 'hosting' ? 'hosting' : 'contact',
             topic,
+            wedge: '',
             source_path: window.location.pathname,
           });
           setStatus(
@@ -500,9 +506,9 @@ const nextSteps = [
 
     <!-- Manage subscription -->
     <div class="mt-8 rounded-lg border border-border bg-bg-secondary p-6 text-center">
-      <p class="text-sm font-medium text-text-body">Manage your subscription</p>
+      <p class="text-sm font-medium text-text-body">Existing IISpeed or 1.x subscription?</p>
       <p class="mt-2 text-sm text-text-muted">
-        Cancel, update payment details, or download invoices via the
+        Invoices stay in the
         <a
           href="https://mpspro.onfastspring.com/account"
           target="_blank"

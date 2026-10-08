@@ -53,7 +53,7 @@ test.describe('Support page', () => {
     await expect(section).toContainText('SPDX');
     await expect(section).toContainText('hardened build pipeline');
     await expect(section).toContainText('ahead of the public release');
-    await expect(section).toContainText('rebuilt on request');
+    await expect(section).toContainText('Enterprise adds custom build targets');
     // The packages carry no per-build signed SBOM or provenance claim.
     await expect(section).not.toContainText('signed SBOM');
     await expect(section).not.toContainText('with every build');

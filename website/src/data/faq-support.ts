@@ -37,7 +37,7 @@ export const faqSupport: FaqEntry[] = [
   },
   {
     q: 'What does "hardened" mean for the builds?',
-    a: `The same source, built through a hardened build pipeline and delivered through the subscriber repository, with security updates ahead of the public release and targets rebuilt on request. The artifacts carry the same ${SOURCE_PUBLICATION.license} as the standard packages. See ${link('#hardened-builds', 'hardened builds')}.`,
+    a: `The same source, built through a hardened build pipeline and delivered through the subscriber repository, with security updates ahead of the public release. Enterprise adds custom build targets. The artifacts carry the same ${SOURCE_PUBLICATION.license} as the standard packages. See ${link('#hardened-builds', 'hardened builds')}.`,
   },
   {
     q: 'Can I verify the standard packages without a subscription?',

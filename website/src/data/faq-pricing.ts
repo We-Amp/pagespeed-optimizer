@@ -34,7 +34,7 @@ export const faqPricing: FaqEntry[] = [
   },
   {
     q: 'Which tier do I need?',
-    a: `The server band decides most of it: Standard covers up to 5 production servers, Priority up to 25, Enterprise one organization without a limit. Pick Priority or up when your security team wants hardened builds from the subscriber repository. ${link('/support/', 'What each tier includes')}.`,
+    a: `The server band decides most of it: Standard covers up to 5 production servers, Priority up to 25, Enterprise one organization without a limit. Choose Priority or Enterprise when your security team wants hardened builds. ${link('/support/', 'What each tier includes')}.`,
   },
   {
     q: 'What happens after I ask for a quote?',

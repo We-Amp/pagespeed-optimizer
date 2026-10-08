@@ -113,7 +113,7 @@ test.describe('Pricing page', () => {
     const events = await trackedEvents(page);
     expect(events).toContainEqual({
       name: 'lead_submit',
-      data: { channel: 'quote', topic: 'quote', source_path: '/pricing/' },
+      data: { channel: 'quote', topic: 'quote', wedge: '', source_path: '/pricing/' },
     });
   });
 

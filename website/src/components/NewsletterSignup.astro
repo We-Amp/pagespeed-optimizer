@@ -229,9 +229,15 @@ const statusId = `${uid}-status`;
         // validation-blocked submits don't inflate the signup count.
         const umami = (window as any).umami;
         umami?.track('newsletter_signup', { variant, source });
+        // lead_submit — one event per successful form submit, alongside the
+        // form's own event. Properties: channel (contact | quote | quick | newsletter |
+        // hosting; a contact-form submit on the hosting topic reports hosting), topic
+        // (the topic posted to the capture endpoint), wedge (the scanner wedge, empty
+        // when none) and source_path (the page path, never the query string).
         umami?.track('lead_submit', {
           channel: 'newsletter',
           topic: NEWSLETTER_TOPIC,
+          wedge: '',
           source_path: window.location.pathname,
         });
         setStatus('success', "You're on the list. We'll email you when there's a new post.");

@@ -174,8 +174,8 @@ export default defineConfig({
     // forwards to the index page that lists every line.
     '/changelog/': '/docs/release-notes/',
     // The checkout placeholder retired with the support tiers: support is
-    // quoted on /pricing/. Production serves this 301 from the nginx map; this
-    // entry keeps dev and preview in step.
+    // quoted on /pricing/. Production gets the /buy/ 301 from the server's
+    // redirect map; this entry keeps dev and preview in step.
     '/buy/': '/pricing/',
     // Reference pages folded into the generated references (2026-10): the
     // alphabetical directive index became the configuration reference (every

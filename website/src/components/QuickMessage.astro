@@ -390,9 +390,15 @@
         // Fire on a successful POST only — never on click.
         const umami = (window as any).umami;
         umami?.track('quick_message_sent', { with_email: email !== '' });
+        // lead_submit — one event per successful form submit, alongside the
+        // form's own event. Properties: channel (contact | quote | quick | newsletter |
+        // hosting; a contact-form submit on the hosting topic reports hosting), topic
+        // (the topic posted to the capture endpoint), wedge (the scanner wedge, empty
+        // when none) and source_path (the page path, never the query string).
         umami?.track('lead_submit', {
           channel: 'quick',
           topic: TOPIC,
+          wedge: '',
           source_path: window.location.pathname,
         });
         showSuccess();
