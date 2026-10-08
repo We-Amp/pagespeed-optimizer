@@ -10,8 +10,10 @@ const rel21 = await getRelease('2.1');
 
 const allDocs = (await getCollection('docs')).sort((a, b) => a.data.order - b.data.order);
 
+// The first "Start here" page is the hero card; every other page, including
+// the rest of that group, is listed in its section below.
 const startHere = allDocs.find((d) => d.data.group === 'Start here');
-const rest = allDocs.filter((d) => d.data.group !== 'Start here');
+const rest = allDocs.filter((d) => d.id !== startHere?.id);
 
 const groups: { label: string; docs: typeof allDocs }[] = [];
 let currentGroup = '';
@@ -118,7 +120,10 @@ const docsJsonLd = {
         href="/docs/getting-started/"
         class="underline underline-offset-2 hover:text-interactive">Getting started</a
       >; the install guides cover apt/yum, cPanel, Docker and Helm; the reference pages cover every
-      directive and every filter.
+      directive and every filter. If a page contradicts what your install does, that is a bug: <a
+        href="/contact/"
+        class="underline underline-offset-2 hover:text-interactive">tell us</a
+      >.
     </p>
 
     {

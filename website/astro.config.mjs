@@ -173,6 +173,9 @@ export default defineConfig({
     // The release notes are the product's changelog; the conventional URL
     // forwards to the index page that lists every line.
     '/changelog/': '/docs/release-notes/',
+    // Docs structure: retired pages forward to their successors (one block,
+    // kept contiguous so parallel docs branches merge cleanly).
+    '/docs/documentation-plan/': '/docs/',
   },
   markdown: {
     // remarkDirective parses `:::caution[…]:::` container syntax; remarkCallouts

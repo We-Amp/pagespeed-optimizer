@@ -1,8 +1,8 @@
 ---
-title: 'Migrating from ModPageSpeed 2.0 to mod_pagespeed 2.1'
+title: 'Migrate from ModPageSpeed 2.0'
 description: 'Moving a ModPageSpeed 2.0, mod_pagespeed 1.15 or open-source deployment to mod_pagespeed 2.1: configuration carries over, the worker runs unprivileged.'
-order: 15
-group: 'Install'
+order: 10
+group: 'Upgrade and migrate'
 lastUpdated: 2026-09-19
 faq:
   - q: 'Do I have to recreate my cache volume?'

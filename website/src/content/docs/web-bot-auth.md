@@ -1,8 +1,8 @@
 ---
 title: 'Verify AI crawlers with Web Bot Auth'
 description: 'Check RFC 9421 signatures from AI crawlers at your origin and label each request with a verified bot identity — observe-only, off by default.'
-order: 35
-group: 'Operate'
+order: 61
+group: 'Agents'
 lastUpdated: 2026-09-19
 faq:
   - q: 'Does it ever block a request?'

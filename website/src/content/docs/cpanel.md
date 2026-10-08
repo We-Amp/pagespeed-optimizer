@@ -1,7 +1,7 @@
 ---
 title: 'cPanel / EasyApache 4'
 description: 'Install, uninstall and maintain mod_pagespeed on cPanel / EasyApache 4: the signed EA4 RPM, WHM setup, the cpanel/elevate runbook and ea-apache24 updates.'
-order: 12
+order: 6
 group: 'Install'
 datePublished: 2026-05-20
 lastUpdated: 2026-09-18

@@ -1,7 +1,7 @@
 ---
 title: 'Browser analysis with headless Chrome'
 description: 'How the optimizer worker renders pages in headless Chrome to extract critical CSS, find the LCP element, measure JS coverage and gate visual regressions.'
-order: 32
+order: 54
 group: 'Operate'
 lastUpdated: 2026-09-19
 ---
