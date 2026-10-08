@@ -166,6 +166,8 @@ lifetime on CSS, JS, and image URLs.
 
 ### extend_cache {#extend_cache}
 
+[Full guide →](/docs/filters/extend_cache/)
+
 **Core filter.** Rewrites resource URLs (CSS, JS, images) to include a content hash, then serves the optimized resource with a 1-year `Cache-Control: max-age` header. When the original resource changes, the hash changes, generating a new URL that bypasses the browser cache.
 
 Resources that previously had short or no cache lifetimes gain a 1-year cache lifetime. Because the URL carries the content hash, a changed resource gets a new URL and is never served stale.
@@ -173,6 +175,8 @@ Resources that previously had short or no cache lifetimes gain a 1-year cache li
 The sub-filters `extend_cache_css`, `extend_cache_images`, and `extend_cache_scripts` are included when you enable `extend_cache`, which turns on all three. Each can also be enabled individually with `EnableFilters` (for example, `extend_cache_images` alone).
 
 ### extend_cache_pdfs {#extend_cache_pdfs}
+
+[Full guide →](/docs/filters/extend_cache_pdfs/)
 
 **Not a CoreFilter.** Applies the same content-hash-based cache extension to PDF file links. Enable this filter if your site serves PDFs that change infrequently.
 
@@ -187,6 +191,8 @@ pagespeed EnableFilters extend_cache_pdfs;
 ```
 
 ### rewrite_domains {#rewrite_domains}
+
+[Full guide →](/docs/filters/rewrite_domains/)
 
 **Not a CoreFilter. Test before deploying.** Rewrites resource URLs to use domains specified by `MapRewriteDomain` or `ShardDomain` directives. Useful for CDN integration or domain sharding.
 
@@ -205,6 +211,8 @@ This filter only affects resources that mod_pagespeed does not otherwise optimiz
 See [Domain configuration](/docs/domain-configuration/) for `MapRewriteDomain` and `ShardDomain` setup.
 
 ### local_storage_cache {#local_storage_cache}
+
+[Full guide →](/docs/filters/local_storage_cache/)
 
 **Experimental.** Stores inlined CSS and JavaScript in the browser's `localStorage` on first visit, then loads from `localStorage` on subsequent visits instead of re-inlining. This reduces HTML payload on repeat views at the cost of JavaScript complexity and reliance on `localStorage` availability.
 

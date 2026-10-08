@@ -45,6 +45,8 @@ See [IIS configuration](/docs/iis-configuration/) for the full file format refer
 
 ### rewrite_css {#rewrite_css}
 
+[Full guide →](/docs/filters/rewrite_css/)
+
 Core filter. Minifies CSS by removing whitespace, comments, and shortening property values. Also rewrites embedded image URLs so they go through mod_pagespeed's image optimization pipeline. In OptimizeForBandwidth mode, minifies CSS in-place without changing the URL.
 
 Enable:
@@ -60,6 +62,8 @@ pagespeed EnableFilters rewrite_css;
 ```
 
 ### fallback_rewrite_css_urls {#fallback_rewrite_css_urls}
+
+[Full guide →](/docs/filters/fallback_rewrite_css_urls/)
 
 Core filter. Rewrites resource URLs embedded in CSS files even when CSS parsing fails. Acts as a safety net for non-standard CSS that the full parser cannot handle.
 
@@ -78,6 +82,8 @@ pagespeed EnableFilters fallback_rewrite_css_urls;
 ### rewrite_style_attributes / rewrite_style_attributes_with_url {#rewrite_style_attributes}
 
 <a id="rewrite_style_attributes_with_url"></a>
+
+[Full guide →](/docs/filters/rewrite_style_attributes/) · Also: [`rewrite_style_attributes_with_url`](/docs/filters/rewrite_style_attributes_with_url/)
 
 `rewrite_style_attributes` applies CSS rewriting (minification, URL rewriting) to inline `style=""` attributes on HTML elements. `rewrite_style_attributes_with_url` (Core filter) does the same but only when the style value contains a `url()` reference.
 
@@ -99,6 +105,8 @@ pagespeed EnableFilters rewrite_style_attributes_with_url;
 
 ### combine_css {#combine_css}
 
+[Full guide →](/docs/filters/combine_css/)
+
 Core filter. Combines multiple `<link rel="stylesheet">` elements into a single CSS file, reducing HTTP requests. Each combined file groups stylesheets that appear consecutively in the HTML. A `<script>` tag or other non-CSS element between two `<link>` tags breaks the combination boundary.
 
 Enable:
@@ -114,6 +122,8 @@ pagespeed EnableFilters combine_css;
 ```
 
 ### flatten_css_imports {#flatten_css_imports}
+
+[Full guide →](/docs/filters/flatten_css_imports/)
 
 Core filter. Replaces CSS `@import` rules with the contents of the imported file. Eliminates round trips caused by import chains. The `CssFlattenMaxBytes` parameter (default: 1024000) limits the size of the resulting flattened CSS. Flattening is trickier than plain concatenation — media queries, charset rules, and relative URLs all have to survive the merge; see [flattening CSS @imports](/blog/flatten-css-imports-edge-cases/) for the edge cases.
 
@@ -131,6 +141,8 @@ pagespeed EnableFilters flatten_css_imports;
 
 ### inline_css {#inline_css}
 
+[Full guide →](/docs/filters/inline_css/)
+
 Core filter. Inlines small external CSS files directly into the HTML as `<style>` blocks. The `CssInlineMaxBytes` parameter (default: 2048) controls the size threshold.
 
 Enable:
@@ -146,6 +158,8 @@ pagespeed EnableFilters inline_css;
 ```
 
 ### inline_import_to_link {#inline_import_to_link}
+
+[Full guide →](/docs/filters/inline_import_to_link/)
 
 Core filter. Converts `<style>@import url(...);</style>` to `<link rel="stylesheet">`, enabling other CSS filters (combining, minification) to process the imported stylesheet.
 
@@ -163,6 +177,8 @@ pagespeed EnableFilters inline_import_to_link;
 
 ### inline_google_font_css {#inline_google_font_css}
 
+[Full guide →](/docs/filters/inline_google_font_css/)
+
 Not a core filter. Fetches the CSS from the Google Fonts API and inlines it directly into the HTML, eliminating one round trip. Requires HTTPS fetching to be enabled. GDPR considerations apply in the EU: inlining the CSS avoids the browser contacting Google Fonts servers directly, which can help with compliance.
 
 Enable:
@@ -179,6 +195,8 @@ pagespeed EnableFilters inline_google_font_css;
 
 ### outline_css {#outline_css}
 
+[Full guide →](/docs/filters/outline_css/)
+
 Experimental. The inverse of `inline_css`: externalizes large inline `<style>` blocks into separate CSS files that can be cached independently. Rarely useful in practice. The `CssOutlineMinBytes` parameter (default: 3000) sets the minimum inline CSS size to externalize.
 
 Enable:
@@ -194,6 +212,8 @@ pagespeed EnableFilters outline_css;
 ```
 
 ### prioritize_critical_css {#prioritize_critical_css}
+
+[Full guide →](/docs/filters/prioritize_critical_css/)
 
 Not a core filter. Test before deploying. Inlines the CSS rules a page uses and loads each full stylesheet without blocking the first paint. The full stylesheet is preloaded from the place its `<link>` had in the page and takes effect there as soon as it has arrived, so the order in which your rules apply does not change; a `<noscript>` copy of the link covers visitors without scripts, and inline `<style>` blocks are left as they are. By default the inlined rules cover every element in the page as visitors' browsers last saw it, so content further down the page is styled from the first paint too. Uses a JavaScript beacon to collect critical CSS data from real user visits. The beacon endpoint must be accessible for data collection to work. Can cut perceived load time, but test it against your own page layouts first. In v1.15.0+r18 and later, the filter honors a restrictive `Content-Security-Policy` when `HonorCsp` is enabled: on pages whose policy disallows inline styles or scripts, it passes the page through unchanged instead of injecting content the policy would block. For the trade-offs behind critical-CSS extraction, see [how critical CSS is identified](/blog/critical-css-heuristics/).
 
@@ -217,6 +237,8 @@ A stylesheet keeps its ordinary blocking `<link>` when it uses an `@import` the 
 
 ### move_css_above_scripts {#move_css_above_scripts}
 
+[Full guide →](/docs/filters/move_css_above_scripts/)
+
 Not a core filter. Moves `<link rel="stylesheet">` elements above `<script>` elements in the HTML to prevent CSS-blocking-JS render delays. Generally safe for most sites.
 
 Enable:
@@ -232,6 +254,8 @@ pagespeed EnableFilters move_css_above_scripts;
 ```
 
 ### move_css_to_head {#move_css_to_head}
+
+[Full guide →](/docs/filters/move_css_to_head/)
 
 Not a core filter. Moves `<link rel="stylesheet">` elements from the `<body>` into `<head>` for earlier browser discovery and faster rendering. Generally safe for most sites.
 
@@ -249,6 +273,8 @@ pagespeed EnableFilters move_css_to_head;
 
 ### extend_cache_css {#extend_cache_css}
 
+[Full guide →](/docs/filters/extend_cache_css/)
+
 Core filter, one of the three members of [`extend_cache`](/docs/cache-control/#extend_cache). Rewrites `<link rel="stylesheet">` URLs to content-hashed `.pagespeed.ce.` URLs that the module serves with a one-year `Cache-Control` max-age, so browsers keep stylesheets for a year and still pick up every change (a changed file gets a new URL). Use it when the origin cannot set long cache lifetimes itself; under CoreFilters it is already on through `extend_cache`. Disabling it leaves `extend_cache_images` and `extend_cache_scripts` on. The one rule to respect is the general one: HTML and the resources it references must share one configuration (see [Virtual hosts](/docs/configuration/#virtual-hosts)). Live demo: [extend_cache](/examples/extend_cache/).
 
 Enable:
@@ -264,6 +290,8 @@ pagespeed EnableFilters extend_cache_css;
 ```
 
 ### compute_critical_css {#compute_critical_css}
+
+[Full guide →](/docs/filters/compute_critical_css/)
 
 Not a core filter; experimental. Computes a page's critical CSS on the server in the background, instead of from the browser reports that [`prioritize_critical_css`](#prioritize_critical_css) uses. It is the module's older, beacon-free path and is not tuned for production: use `prioritize_critical_css` unless you are specifically testing this one. Enabling it adds server-side CSS analysis for every page it sees. There is no example in the gallery.
 

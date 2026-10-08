@@ -49,9 +49,13 @@ See [IIS configuration](/docs/iis-configuration/) for the full file format refer
 
 ### add_head {#add_head}
 
+[Full guide →](/docs/filters/add_head/)
+
 Adds a `<head>` element if the HTML lacks one. Several other filters inject content into `<head>`, so this filter ensures one exists. Runs automatically as a CoreFilter.
 
 ### convert_meta_tags {#convert_meta_tags}
+
+[Full guide →](/docs/filters/convert_meta_tags/)
 
 Reads `<meta http-equiv="Content-Type">` and similar tags and adds corresponding HTTP response headers. This helps browsers discover the content type and character encoding earlier in the response. Runs automatically as a CoreFilter.
 
@@ -61,9 +65,13 @@ These filters reduce HTML payload size by removing unnecessary bytes.
 
 ### collapse_whitespace {#collapse_whitespace}
 
+[Full guide →](/docs/filters/collapse_whitespace/)
+
 Removes excess whitespace from HTML. Preserves whitespace inside `<pre>`, `<script>`, `<style>`, and `<textarea>` elements. Never removes whitespace entirely between inline elements.
 
 ### remove_comments {#remove_comments}
+
+[Full guide →](/docs/filters/remove_comments/)
 
 Strips HTML comments from the page. Use `RetainComment` to keep specific comments matching a wildcard pattern.
 
@@ -81,9 +89,13 @@ ModPagespeedRetainComment "*copyright*"
 
 ### elide_attributes {#elide_attributes}
 
+[Full guide →](/docs/filters/elide_attributes/)
+
 Removes HTML attributes that are set to their default values. For example, `<form method="get">` becomes `<form>` because `get` is the default method.
 
 ### remove_quotes {#remove_quotes}
+
+[Full guide →](/docs/filters/remove_quotes/)
 
 Removes unnecessary quotation marks around HTML attribute values when the value contains no special characters. Saves a few bytes per attribute.
 
@@ -91,11 +103,15 @@ Removes unnecessary quotation marks around HTML attribute values when the value 
 
 <a id="left_trim_urls"></a>
 
+[Full guide →](/docs/filters/trim_urls/)
+
 Shortens absolute URLs to relative URLs where the base URL matches the page URL. Reduces HTML payload at the cost of less portable HTML. Disable this filter if you serve the same HTML from multiple domains.
 
 ## Structural filters
 
 ### add_base_tag {#add_base_tag}
+
+[Full guide →](/docs/filters/add_base_tag/)
 
 Adds a `<base href="…">` element with the page's own URL to `<head>`, so relative URLs in the page resolve against the URL the module rewrote them for. Use it when the HTML is served at a URL other than the one it was authored for (proxy setups, `MapProxyDomain`). Risk: a page that already relies on a different base, or on the absence of one, resolves its relative links differently; test navigation and form actions.
 
@@ -105,6 +121,8 @@ pagespeed EnableFilters add_base_tag;
 
 ### add_ids {#add_ids}
 
+[Full guide →](/docs/filters/add_ids/)
+
 Adds an `id` attribute to elements that have none, so that beacon-driven filters can refer to individual elements across page loads. Rarely needed on its own: the filters that need ids enable it themselves. Risk: scripts or styles that count on the exact set of ids in the page see extra ones.
 
 ```nginx
@@ -113,9 +131,13 @@ pagespeed EnableFilters add_ids;
 
 ### combine_heads {#combine_heads}
 
+[Full guide →](/docs/filters/combine_heads/)
+
 Merges multiple `<head>` elements into one. Only useful for pages that aggregate content from multiple sources, each contributing their own `<head>` section.
 
 ### pedantic {#pedantic}
+
+[Full guide →](/docs/filters/pedantic/)
 
 Adds `type="text/javascript"` and `type="text/css"` attributes to `<script>` and `<style>` elements. This satisfies HTML4 validators. Not needed for HTML5, where these types are the defaults.
 
@@ -123,15 +145,21 @@ Adds `type="text/javascript"` and `type="text/css"` attributes to `<script>` and
 
 ### insert_dns_prefetch {#insert_dns_prefetch}
 
+[Full guide →](/docs/filters/insert_dns_prefetch/)
+
 Adds `<link rel="dns-prefetch" href="//example.com">` tags for third-party domains referenced in the page. This allows the browser to resolve DNS for external domains in parallel with page loading, reducing latency for subsequent resource fetches.
 
 ### hint_preload_subresources {#hint_preload_subresources}
+
+[Full guide →](/docs/filters/hint_preload_subresources/)
 
 Adds `Link: rel=preload` HTTP headers for CSS and JavaScript files discovered on previous visits to the same page. Uses the beacon system to collect resource data, so it becomes effective after the first page view.
 
 Since v1.15.0+r21, `<script type="module">` subresources are hinted with `rel=modulepreload` in the `Link` response header instead of `rel=preload`; modules carrying `integrity` or `crossorigin="use-credentials"` are left unhinted.
 
 ### insert_speculation_rules {#insert_speculation_rules}
+
+[Full guide →](/docs/filters/insert_speculation_rules/)
 
 Injects a same-origin prefetch `<script type="speculationrules">` block so that supporting browsers prefetch a link as the visitor starts interacting with it; browsers without speculation-rules support ignore the tag. Only same-origin links are eligible.
 
@@ -153,6 +181,8 @@ pagespeed EnableFilters insert_speculation_rules;
 
 ### insert_amp_link {#insert_amp_link}
 
+[Full guide →](/docs/filters/insert_amp_link/)
+
 Adds a `<link rel="amphtml">` to `<head>` pointing at the page's AMP version, built from the `AmpLinkPattern` directive. Use it when you publish AMP pages at a predictable URL pattern and want every canonical page to announce its AMP twin. Risk: a pattern that produces URLs that do not exist advertises broken AMP pages to crawlers.
 
 ```nginx
@@ -164,6 +194,8 @@ pagespeed EnableFilters insert_amp_link;
 
 ### debug {#debug}
 
+[Full guide →](/docs/filters/debug/)
+
 Annotates the page with HTML comments that say which filters ran and why a resource was or was not rewritten (for example why an image was not inlined or a stylesheet not combined). Enable it per request with `?PageSpeedFilters=+debug` while troubleshooting instead of in the configuration: it exposes internals, enlarges every page, and is not meant for production traffic.
 
 ```text
@@ -171,6 +203,8 @@ https://www.example.com/?PageSpeedFilters=+debug
 ```
 
 ### decode_rewritten_urls {#decode_rewritten_urls}
+
+[Full guide →](/docs/filters/decode_rewritten_urls/)
 
 Turns `.pagespeed.` resource URLs in the page back into the original resource URLs, undoing the URL rewriting of the other filters. Useful in a proxy chain or when debugging what the page referenced before optimization. Risk: the page then references unoptimized resources, which defeats the filters that depend on rewritten URLs.
 
@@ -180,6 +214,8 @@ pagespeed EnableFilters decode_rewritten_urls;
 
 ### compute_statistics {#compute_statistics}
 
+[Full guide →](/docs/filters/compute_statistics/)
+
 Computes statistics about the HTML (element counts and sizes) for the [admin console](/docs/admin-console/). It adds a parsing pass per page and changes nothing in the output; enable it while you need the numbers.
 
 ```nginx
@@ -187,6 +223,8 @@ pagespeed EnableFilters compute_statistics;
 ```
 
 ### experiment_http2 {#experiment_http2}
+
+[Full guide →](/docs/filters/experiment_http2/)
 
 Switches on HTTP/2-specific behavior that is still in development. Experimental: what it does can change between releases, and it is not covered by the compatibility promises of the other filters.
 
@@ -198,6 +236,8 @@ pagespeed EnableFilters experiment_http2;
 
 ### insert_ga {#insert_ga}
 
+[Full guide →](/docs/filters/insert_ga/)
+
 Inserts the Google Analytics snippet for the account in `AnalyticsID` into every page. Deprecated: the snippet it inserts is the retired `ga.js`, and `AnalyticsID` itself only targets Universal Analytics, which was discontinued. Add your analytics in your templates instead.
 
 ## Deprecated and dangerous filters
@@ -206,45 +246,67 @@ The names below are still accepted so that an existing configuration keeps loadi
 
 ### cache_partial_html {#cache_partial_html}
 
+[Full guide →](/docs/filters/cache_partial_html/)
+
 Deprecated no-op.
 
 ### defer_iframe {#defer_iframe}
+
+[Full guide →](/docs/filters/defer_iframe/)
 
 Deprecated no-op: iframe deferral is built into [`defer_javascript`](/docs/javascript-filters/#defer_javascript); enabling this name alone never did anything.
 
 ### div_structure {#div_structure}
 
+[Full guide →](/docs/filters/div_structure/)
+
 Deprecated no-op.
 
 ### explicit_close_tags {#explicit_close_tags}
+
+[Full guide →](/docs/filters/explicit_close_tags/)
 
 Deprecated no-op.
 
 ### flush_subresources {#flush_subresources}
 
+[Full guide →](/docs/filters/flush_subresources/)
+
 Deprecated no-op.
 
 ### fix_reflows {#fix_reflows}
+
+[Full guide →](/docs/filters/fix_reflows/)
 
 Experimental fix for layout reflows caused by deferred JavaScript. In the dangerous set; not for production.
 
 ### mobilize {#mobilize}
 
+[Full guide →](/docs/filters/mobilize/)
+
 The retired page-mobilization experiment. In the dangerous set; not for production.
 
 ### mobilize_precompute {#mobilize_precompute}
+
+[Full guide →](/docs/filters/mobilize_precompute/)
 
 Deprecated no-op.
 
 ### split_html {#split_html}
 
+[Full guide →](/docs/filters/split_html/)
+
 Deprecated no-op.
 
 ### split_html_helper {#split_html_helper}
 
+[Full guide →](/docs/filters/split_html_helper/)
+
 Deprecated no-op.
 
 ## add_instrumentation {#add_instrumentation}
+
+[Full guide →](/docs/filters/add_instrumentation/)
 
 Injects JavaScript that measures page load time and reports it back to the mod_pagespeed statistics system via [the beacon endpoint](/pagespeed-markers/#pagespeed-beacon) (`/mod_pagespeed_beacon` or `/ngx_pagespeed_beacon`). Enable this filter to get client-side performance data in the admin console histograms.
 
