@@ -468,6 +468,9 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
       crossorigin
     />
     <link rel="preload" href="/fonts/plex-mono-600.woff2" as="font" type="font/woff2" crossorigin />
+    <!-- The analytics script further down is the one cross-origin request: open
+         its connection early. It is fetched without CORS, hence no crossorigin. -->
+    <link rel="preconnect" href="https://umami.we-amp.com" />
     <style is:inline>
       /* Override critical CSS that includes bg-white but not dark:bg-stone-950.
          mod_pagespeed's critical CSS extractor does not capture dark-variant
