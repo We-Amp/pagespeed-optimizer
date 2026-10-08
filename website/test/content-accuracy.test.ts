@@ -1698,16 +1698,19 @@ describe('canonical sources hold ground-truth product facts', () => {
     }
 
     // helm-deployment.mdx renders the image repository and tag in separate
-    // Helm-values table cells (`worker.image.tag` / `nginx.image.tag`), so the
-    // combined repo:tag form the regex above matches never appears in its
-    // source — scan the `*.image.tag` default-value cells directly instead.
+    // Helm-values table cells, so the combined repo:tag form the regex above
+    // matches never appears in its source — scan the image-tag default-value
+    // cell directly instead. The chart takes ONE top-level `image.tag` for
+    // both images (the per-image `worker.image.tag` / `nginx.image.tag` keys
+    // are rejected by the chart); the cell states its effective default, the
+    // chart appVersion, which must equal the manifest semver.
     const helmFile = path.join(CONTENT_DIR, 'docs/helm-deployment.mdx');
     const helmText = readFileSync(helmFile, 'utf8');
-    const helmTagRe = /`(?:worker|nginx)\.image\.tag`\s*\|\s*`(\d+\.\d+\.\d+)`/g;
+    const helmTagRe = /`(?:(?:worker|nginx)\.)?image\.tag`\s*\|\s*`(\d+\.\d+\.\d+)`/g;
     const helmTags = [...helmText.matchAll(helmTagRe)].map((m) => m[1]);
     expect(
       helmTags.length,
-      `no worker/nginx image.tag default found in ${helmFile}`,
+      `no image.tag default found in ${helmFile}`,
     ).toBeGreaterThan(0);
     for (const tag of helmTags) {
       expect(tag, `${helmFile} pins a Helm default tag that disagrees with the 2.1 manifest`).toBe(
