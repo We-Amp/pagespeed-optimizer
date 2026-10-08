@@ -13,6 +13,14 @@
 //
 // CLS discipline: the row is a fixed 32px at every width, each field has a
 // ch-based min-inline-size, and the script only ever replaces textContent.
+//
+// Sizing, measured not guessed: at the spec's 12px the five fields plus the
+// state label and the "what these headers mean" link need ~1110px while the
+// max-w-6xl container with lg:px-8 gutters offers 1088px — so at 11px (the
+// size the spec itself uses under 400px) every field fits at every width.
+// Field reserves cover the real content so the live upgrade never shifts
+// neighbours: xmps 24ch fits "x-mod-pagespeed: 1.17.0" verbatim, ttfb 12ch
+// fits a three-digit millisecond value.
 
 import { formatBytes } from '../../lib/instrument';
 import capture from '../../data/telemetry-capture.json';
@@ -44,7 +52,7 @@ const fields = [
   {
     term: 'x-mod-pagespeed:',
     value: header('x-mod-pagespeed'),
-    width: '22ch',
+    width: '24ch',
     wide: false,
     t: 'xmps',
   },
@@ -63,7 +71,7 @@ const fields = [
     t: 'decoded',
   },
   { term: 'vary:', value: header('vary'), width: '32ch', wide: true, t: 'vary' },
-  { term: 'ttfb', value: '—', width: '10ch', wide: true, t: 'ttfb' },
+  { term: 'ttfb', value: '—', width: '12ch', wide: true, t: 'ttfb' },
 ];
 ---
 
@@ -97,26 +105,22 @@ const fields = [
   .telemetry {
     background-color: var(--color-bg-recessed);
     border-bottom: 1px solid var(--color-border);
+    /* Exactly 32px at every width, border included (global border-box): one
+       line, so the client-side upgrade can never move the page. */
+    block-size: 32px;
     font-family: var(--font-mono);
     font-weight: 500;
-    font-size: 0.75rem;
+    font-size: 0.6875rem;
     line-height: 1.4;
     color: var(--color-text-muted);
     font-variant-numeric: tabular-nums;
-  }
-  @media (max-width: 399px) {
-    .telemetry {
-      font-size: 0.6875rem;
-    }
   }
   .telemetry-row {
     display: flex;
     align-items: center;
     flex-wrap: nowrap;
     gap: 0.25rem 1rem;
-    /* One line, always: the box is fixed so the client-side upgrade can never
-       move the page. */
-    block-size: 32px;
+    block-size: 100%;
     overflow: hidden;
     white-space: nowrap;
   }
@@ -137,7 +141,8 @@ const fields = [
     padding-block: 4px;
   }
   /* Narrow viewports: the state label doubles as the link to
-     /pagespeed-markers/; >=1024px shows the plain label plus .t-more. */
+     /pagespeed-markers/; >=1216px shows the plain label plus .t-more (below
+     that the full row plus the link measurably does not fit the container). */
   .t-state-plain {
     display: none;
   }
@@ -154,7 +159,7 @@ const fields = [
     text-decoration: underline;
     text-underline-offset: 3px;
   }
-  @media (min-width: 1024px) {
+  @media (min-width: 1216px) {
     .t-state-link {
       display: none;
     }
@@ -202,7 +207,7 @@ const fields = [
     overflow: hidden;
     text-overflow: ellipsis;
   }
-  @media (max-width: 767px) {
+  @media (max-width: 959px) {
     .t-wide {
       display: none;
     }

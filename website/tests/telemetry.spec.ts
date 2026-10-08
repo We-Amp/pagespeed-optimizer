@@ -84,8 +84,13 @@ test.describe('Telemetry strip', () => {
 
   test('the skip link is still the first tab stop', async ({ page }) => {
     await page.goto('/');
+    await page.locator(STRIP).waitFor();
     await page.keyboard.press('Tab');
-    await expect(page.locator(':focus')).toHaveAttribute('href', '#main-content');
+    await expect
+      .poll(() =>
+        page.evaluate(() => (document.activeElement as HTMLElement | null)?.getAttribute('href')),
+      )
+      .toBe('#main-content');
   });
 
   test('the strip is not rendered on the 404 page', async ({ page }) => {
