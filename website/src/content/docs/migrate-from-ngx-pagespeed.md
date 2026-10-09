@@ -13,7 +13,7 @@ faq:
 ---
 
 mod_pagespeed 2.1 continues the nginx port. If you run the open-source
-`ngx_pagespeed` today, whether you compiled it into nginx yourself or
+[`ngx_pagespeed`](https://ngxpagespeed.com/install/) today, whether you compiled it into nginx yourself or
 installed a third-party package build of it such as the GetPageSpeed packages,
 the move is a package swap: remove the old module, install the signed
 `nginx-module-pagespeed`, keep your `pagespeed` directives. One `load_module`

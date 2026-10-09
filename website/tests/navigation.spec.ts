@@ -149,6 +149,7 @@ test.describe('Navigation', () => {
       '/pricing/',
       '/hosting-partners/',
       'https://we-amp.com/consulting/',
+      'https://ngxpagespeed.com/',
       '/contact/',
       '/security/',
       '/docs/release-notes/',
