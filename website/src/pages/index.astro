@@ -480,6 +480,67 @@ const jsonLd = [organization, website, product, faqPage];
       line-height: 1.65;
       color: var(--color-success);
     }
+    /* Signal-path diagram: every colour is an ADR-103 token, applied via
+       these classes so the SVG geometry stays untouched. */
+    .dg-fill-neutral {
+      fill: var(--color-text-body);
+    }
+    .dg-fill-body {
+      fill: var(--color-text-body);
+    }
+    .dg-fill-muted {
+      fill: var(--color-text-muted);
+    }
+    .dg-fill-annot {
+      fill: var(--color-text-annotation);
+    }
+    .dg-fill-success {
+      fill: var(--color-success);
+    }
+    .dg-fill-accent {
+      fill: var(--color-accent);
+    }
+    .dg-fill-interactive {
+      fill: var(--color-interactive);
+    }
+    .dg-stroke-lane {
+      stroke: var(--color-border);
+    }
+    .dg-node {
+      fill: var(--color-bg-elevated);
+      stroke: var(--color-border-strong);
+    }
+    .dg-node-interactive {
+      fill: var(--color-interactive-wash);
+      stroke: var(--color-interactive);
+    }
+    .dg-node-hit {
+      fill: var(--color-success-wash);
+      stroke: var(--color-success);
+    }
+    .dg-node-miss {
+      fill: var(--color-accent-wash);
+      stroke: var(--color-accent);
+    }
+    .dg-node-cache {
+      fill: var(--color-bg-secondary);
+      stroke: var(--color-border-strong);
+    }
+    .dg-edge-neutral {
+      stroke: var(--color-text-body);
+    }
+    .dg-edge-hit {
+      stroke: var(--color-success);
+    }
+    .dg-edge-miss {
+      stroke: var(--color-accent);
+    }
+    .dg-edge-async {
+      stroke: var(--color-interactive);
+    }
+    .dg-edge-faint {
+      stroke: var(--color-text-annotation);
+    }
   </style>
 
   {/* 01 — this site runs the binary it sells: the captured response headers
@@ -786,13 +847,17 @@ const jsonLd = [organization, website, product, faqPage];
     </div>
   </section>
 
-  {/* Architecture — tightened to py-16 since the inline SVG already adds vertical mass. */}
-  <section class="py-16">
+  {/* 03 — the request path as a signal diagram: sync lane on top, async
+      worker lane below. Colours are tokens via the dg-* classes above;
+      geometry, <title> and the figure aria-label are unchanged. */}
+  <section class="py-13 sm:py-18" aria-labelledby="s-signal">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-      <h2 class="h2-section text-center text-text-body">
-        The worker optimizes off the request path. The module serves from cache.
-      </h2>
-      <p class="mt-4 text-center text-text-muted max-w-2xl mx-auto">
+      <SectionHeader
+        id="s-signal"
+        index="03"
+        eyebrow="Signal path"
+        title="The worker optimizes off the request path. The module serves from cache."
+      >
         The module serves; the worker <a
           href="/how-it-works/async-rewriting/"
           class="text-interactive hover:text-interactive-hover underline"
@@ -801,19 +866,17 @@ const jsonLd = [organization, website, product, faqPage];
           href="/psol/"
           class="text-interactive hover:text-interactive-hover underline">PSOL optimization core</a
         >.
-      </p>
+      </SectionHeader>
 
       {
         /* 2.0 Architecture diagram — inline SVG.
           Desktop (md+): horizontal flow with branching HIT/MISS lanes and a
           separate async lane showing Worker -> Variant cache feedback.
           Mobile (<md): vertical SVG with the same node set.
-          Colors: HIT path = emerald-700 (light) / emerald-400 (dark);
-                  MISS path = amber-600 / amber-400;
-                  pipeline + async = interactive (cyan accent);
-                  neutrals = stone-300/600.
-          Tailwind utility classes drive fill/stroke so dark-mode flips
-          automatically. The <title> element inside each SVG gives screen
+          Colours are ADR-103 tokens via the dg-* classes in the page style
+          block: HIT = success/success-wash, MISS = accent/accent-wash,
+          module + worker = interactive, neutrals = border-strong.
+          The <title> element inside each SVG gives screen
           readers a short label; the figure wrapper has the longer
           aria-label for the full narrative. */
       }
@@ -843,7 +906,7 @@ const jsonLd = [organization, website, product, faqPage];
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path>
+              <path d="M0,0 L10,5 L0,10 z" class="dg-fill-neutral"></path>
             </marker>
             <marker
               id="arrow-hit-20"
@@ -854,7 +917,7 @@ const jsonLd = [organization, website, product, faqPage];
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M0,0 L10,5 L0,10 z" class="fill-emerald-700 dark:fill-emerald-400"></path>
+              <path d="M0,0 L10,5 L0,10 z" class="dg-fill-success"></path>
             </marker>
             <marker
               id="arrow-miss-20"
@@ -865,7 +928,7 @@ const jsonLd = [organization, website, product, faqPage];
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M0,0 L10,5 L0,10 z" class="fill-amber-600 dark:fill-amber-400"></path>
+              <path d="M0,0 L10,5 L0,10 z" class="dg-fill-accent"></path>
             </marker>
             <marker
               id="arrow-async-20"
@@ -876,7 +939,7 @@ const jsonLd = [organization, website, product, faqPage];
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M0,0 L10,5 L0,10 z" class="fill-interactive"></path>
+              <path d="M0,0 L10,5 L0,10 z" class="dg-fill-interactive"></path>
             </marker>
           </defs>
 
@@ -884,7 +947,7 @@ const jsonLd = [organization, website, product, faqPage];
           <text
             x="40"
             y="24"
-            class="fill-stone-500 dark:fill-stone-400"
+            class="dg-fill-annot"
             font-size="11"
             font-family="ui-sans-serif, system-ui, sans-serif"
             font-weight="600"
@@ -893,7 +956,7 @@ const jsonLd = [organization, website, product, faqPage];
           <text
             x="40"
             y="226"
-            class="fill-stone-500 dark:fill-stone-400"
+            class="dg-fill-annot"
             font-size="11"
             font-family="ui-sans-serif, system-ui, sans-serif"
             font-weight="600"
@@ -906,7 +969,7 @@ const jsonLd = [organization, website, product, faqPage];
             y1="210"
             x2="860"
             y2="210"
-            class="stroke-stone-200 dark:stroke-stone-700"
+            class="dg-stroke-lane"
             stroke-width="1"
             stroke-dasharray="2 4"></line>
 
@@ -917,13 +980,13 @@ const jsonLd = [organization, website, product, faqPage];
             width="120"
             height="60"
             rx="8"
-            class="fill-white dark:fill-stone-900 stroke-stone-300 dark:stroke-stone-600"
+            class="dg-node"
             stroke-width="1.5"></rect>
           <text
             x="90"
             y="115"
             text-anchor="middle"
-            class="fill-stone-900 dark:fill-stone-100"
+            class="dg-fill-body"
             font-size="14"
             font-family="ui-sans-serif, system-ui, sans-serif"
             font-weight="600">Request</text
@@ -936,13 +999,13 @@ const jsonLd = [organization, website, product, faqPage];
             width="170"
             height="80"
             rx="8"
-            class="fill-interactive/10 stroke-interactive"
+            class="dg-node-interactive"
             stroke-width="2"></rect>
           <text
             x="295"
             y="102"
             text-anchor="middle"
-            class="fill-interactive"
+            class="dg-fill-interactive"
             font-size="14"
             font-family="ui-sans-serif, system-ui, sans-serif"
             font-weight="700">module</text
@@ -951,7 +1014,7 @@ const jsonLd = [organization, website, product, faqPage];
             x="295"
             y="122"
             text-anchor="middle"
-            class="fill-stone-600 dark:fill-stone-400"
+            class="dg-fill-muted"
             font-size="11"
             font-family="ui-sans-serif, system-ui, sans-serif">Intercept + cache lookup</text
           >
@@ -963,13 +1026,13 @@ const jsonLd = [organization, website, product, faqPage];
             width="200"
             height="70"
             rx="8"
-            class="fill-emerald-50 dark:fill-emerald-950 stroke-emerald-700 dark:stroke-emerald-400"
+            class="dg-node-hit"
             stroke-width="1.5"></rect>
           <text
             x="550"
             y="68"
             text-anchor="middle"
-            class="fill-emerald-700 dark:fill-emerald-300"
+            class="dg-fill-success"
             font-size="14"
             font-family="ui-sans-serif, system-ui, sans-serif"
             font-weight="700">HIT</text
@@ -978,7 +1041,7 @@ const jsonLd = [organization, website, product, faqPage];
             x="550"
             y="88"
             text-anchor="middle"
-            class="fill-stone-600 dark:fill-stone-400"
+            class="dg-fill-muted"
             font-size="11"
             font-family="ui-sans-serif, system-ui, sans-serif">Served from mmap</text
           >
@@ -990,13 +1053,13 @@ const jsonLd = [organization, website, product, faqPage];
             width="200"
             height="70"
             rx="8"
-            class="fill-amber-50 dark:fill-amber-950 stroke-amber-600 dark:stroke-amber-400"
+            class="dg-node-miss"
             stroke-width="1.5"></rect>
           <text
             x="550"
             y="158"
             text-anchor="middle"
-            class="fill-amber-700 dark:fill-amber-300"
+            class="dg-fill-accent"
             font-size="14"
             font-family="ui-sans-serif, system-ui, sans-serif"
             font-weight="700">MISS</text
@@ -1005,7 +1068,7 @@ const jsonLd = [organization, website, product, faqPage];
             x="550"
             y="178"
             text-anchor="middle"
-            class="fill-stone-600 dark:fill-stone-400"
+            class="dg-fill-muted"
             font-size="11"
             font-family="ui-sans-serif, system-ui, sans-serif">Pass through to origin</text
           >
@@ -1017,13 +1080,13 @@ const jsonLd = [organization, website, product, faqPage];
             width="130"
             height="60"
             rx="8"
-            class="fill-white dark:fill-stone-900 stroke-stone-300 dark:stroke-stone-600"
+            class="dg-node"
             stroke-width="1.5"></rect>
           <text
             x="785"
             y="115"
             text-anchor="middle"
-            class="fill-stone-900 dark:fill-stone-100"
+            class="dg-fill-body"
             font-size="14"
             font-family="ui-sans-serif, system-ui, sans-serif"
             font-weight="600">Response</text
@@ -1036,14 +1099,14 @@ const jsonLd = [organization, website, product, faqPage];
             width="170"
             height="60"
             rx="8"
-            class="fill-interactive/10 stroke-interactive"
+            class="dg-node-interactive"
             stroke-width="2"
             stroke-dasharray="4 3"></rect>
           <text
             x="295"
             y="266"
             text-anchor="middle"
-            class="fill-interactive"
+            class="dg-fill-interactive"
             font-size="14"
             font-family="ui-sans-serif, system-ui, sans-serif"
             font-weight="700">Worker</text
@@ -1052,7 +1115,7 @@ const jsonLd = [organization, website, product, faqPage];
             x="295"
             y="284"
             text-anchor="middle"
-            class="fill-stone-600 dark:fill-stone-400"
+            class="dg-fill-muted"
             font-size="11"
             font-family="ui-sans-serif, system-ui, sans-serif">Optimize &middot; write variant</text
           >
@@ -1064,13 +1127,13 @@ const jsonLd = [organization, website, product, faqPage];
             width="200"
             height="60"
             rx="8"
-            class="fill-stone-50 dark:fill-stone-900 stroke-stone-400 dark:stroke-stone-600"
+            class="dg-node-cache"
             stroke-width="1.5"></rect>
           <text
             x="550"
             y="266"
             text-anchor="middle"
-            class="fill-stone-900 dark:fill-stone-100"
+            class="dg-fill-body"
             font-size="13"
             font-family="ui-sans-serif, system-ui, sans-serif"
             font-weight="600">Variant cache</text
@@ -1079,7 +1142,7 @@ const jsonLd = [organization, website, product, faqPage];
             x="550"
             y="284"
             text-anchor="middle"
-            class="fill-stone-600 dark:fill-stone-400"
+            class="dg-fill-muted"
             font-size="11"
             font-family="ui-sans-serif, system-ui, sans-serif"
             >mmap &middot; per-client variants</text
@@ -1091,14 +1154,14 @@ const jsonLd = [organization, website, product, faqPage];
             y1="110"
             x2="206"
             y2="110"
-            stroke="currentColor"
+            class="dg-edge-neutral"
             stroke-width="1.5"
             marker-end="url(#arrow-stone-20)"></line>
 
           {/* module -> HIT (green) */}
           <path
             d="M 380 95 C 410 95, 420 75, 446 75"
-            class="stroke-emerald-700 dark:stroke-emerald-400"
+            class="dg-edge-hit"
             stroke-width="2"
             fill="none"
             marker-end="url(#arrow-hit-20)"></path>
@@ -1106,7 +1169,7 @@ const jsonLd = [organization, website, product, faqPage];
           {/* module -> MISS (amber) */}
           <path
             d="M 380 125 C 410 125, 420 165, 446 165"
-            class="stroke-amber-600 dark:stroke-amber-400"
+            class="dg-edge-miss"
             stroke-width="2"
             fill="none"
             marker-end="url(#arrow-miss-20)"></path>
@@ -1114,7 +1177,7 @@ const jsonLd = [organization, website, product, faqPage];
           {/* HIT -> Response */}
           <path
             d="M 650 75 C 690 75, 700 100, 716 105"
-            class="stroke-emerald-700 dark:stroke-emerald-400"
+            class="dg-edge-hit"
             stroke-width="2"
             fill="none"
             marker-end="url(#arrow-hit-20)"></path>
@@ -1122,7 +1185,7 @@ const jsonLd = [organization, website, product, faqPage];
           {/* MISS -> Response */}
           <path
             d="M 650 165 C 690 165, 700 120, 716 115"
-            class="stroke-amber-600 dark:stroke-amber-400"
+            class="dg-edge-miss"
             stroke-width="2"
             fill="none"
             marker-end="url(#arrow-miss-20)"></path>
@@ -1130,7 +1193,7 @@ const jsonLd = [organization, website, product, faqPage];
           {/* MISS forks down into Worker (async, dashed amber) */}
           <path
             d="M 550 200 L 550 225 L 295 225 L 295 236"
-            class="stroke-amber-600 dark:stroke-amber-400"
+            class="dg-edge-miss"
             stroke-width="1.5"
             stroke-dasharray="4 3"
             fill="none"
@@ -1142,7 +1205,7 @@ const jsonLd = [organization, website, product, faqPage];
             y1="270"
             x2="446"
             y2="270"
-            class="stroke-interactive"
+            class="dg-edge-async"
             stroke-width="1.5"
             stroke-dasharray="4 3"
             marker-end="url(#arrow-async-20)"></line>
@@ -1150,14 +1213,14 @@ const jsonLd = [organization, website, product, faqPage];
           {/* Variant cache -> back up to the module (feedback, faint dashed) */}
           <path
             d="M 460 245 C 410 245, 400 175, 380 150"
-            class="stroke-stone-400 dark:stroke-stone-500"
+            class="dg-edge-faint"
             stroke-width="1.2"
             stroke-dasharray="2 3"
             fill="none"></path>
           <text
             x="392"
             y="208"
-            class="fill-stone-500 dark:fill-stone-400"
+            class="dg-fill-annot"
             font-size="10"
             font-style="italic"
             font-family="ui-sans-serif, system-ui, sans-serif">feeds future HITs</text
@@ -1167,7 +1230,7 @@ const jsonLd = [organization, website, product, faqPage];
           <text
             x="386"
             y="62"
-            class="fill-emerald-700 dark:fill-emerald-400"
+            class="dg-fill-success"
             font-size="10"
             font-weight="600"
             font-family="ui-sans-serif, system-ui, sans-serif">&lt; 1 ms</text
@@ -1175,7 +1238,7 @@ const jsonLd = [organization, website, product, faqPage];
           <text
             x="386"
             y="148"
-            class="fill-amber-700 dark:fill-amber-400"
+            class="dg-fill-accent"
             font-size="10"
             font-weight="600"
             font-family="ui-sans-serif, system-ui, sans-serif">first request</text
@@ -1201,7 +1264,7 @@ const jsonLd = [organization, website, product, faqPage];
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path>
+              <path d="M0,0 L10,5 L0,10 z" class="dg-fill-neutral"></path>
             </marker>
             <marker
               id="arrow-hit-20m"
@@ -1212,7 +1275,7 @@ const jsonLd = [organization, website, product, faqPage];
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M0,0 L10,5 L0,10 z" class="fill-emerald-700 dark:fill-emerald-400"></path>
+              <path d="M0,0 L10,5 L0,10 z" class="dg-fill-success"></path>
             </marker>
             <marker
               id="arrow-miss-20m"
@@ -1223,7 +1286,7 @@ const jsonLd = [organization, website, product, faqPage];
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M0,0 L10,5 L0,10 z" class="fill-amber-600 dark:fill-amber-400"></path>
+              <path d="M0,0 L10,5 L0,10 z" class="dg-fill-accent"></path>
             </marker>
             <marker
               id="arrow-async-20m"
@@ -1234,7 +1297,7 @@ const jsonLd = [organization, website, product, faqPage];
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M0,0 L10,5 L0,10 z" class="fill-interactive"></path>
+              <path d="M0,0 L10,5 L0,10 z" class="dg-fill-interactive"></path>
             </marker>
           </defs>
 
@@ -1245,13 +1308,13 @@ const jsonLd = [organization, website, product, faqPage];
             width="120"
             height="50"
             rx="8"
-            class="fill-white dark:fill-stone-900 stroke-stone-300 dark:stroke-stone-600"
+            class="dg-node"
             stroke-width="1.5"></rect>
           <text
             x="160"
             y="50"
             text-anchor="middle"
-            class="fill-stone-900 dark:fill-stone-100"
+            class="dg-fill-body"
             font-size="14"
             font-weight="600"
             font-family="ui-sans-serif, system-ui, sans-serif">Request</text
@@ -1261,7 +1324,7 @@ const jsonLd = [organization, website, product, faqPage];
             y1="70"
             x2="160"
             y2="100"
-            stroke="currentColor"
+            class="dg-edge-neutral"
             stroke-width="1.5"
             marker-end="url(#arrow-stone-20m)"></line>
 
@@ -1272,13 +1335,13 @@ const jsonLd = [organization, website, product, faqPage];
             width="220"
             height="70"
             rx="8"
-            class="fill-interactive/10 stroke-interactive"
+            class="dg-node-interactive"
             stroke-width="2"></rect>
           <text
             x="160"
             y="135"
             text-anchor="middle"
-            class="fill-interactive"
+            class="dg-fill-interactive"
             font-size="14"
             font-weight="700"
             font-family="ui-sans-serif, system-ui, sans-serif">module</text
@@ -1287,7 +1350,7 @@ const jsonLd = [organization, website, product, faqPage];
             x="160"
             y="155"
             text-anchor="middle"
-            class="fill-stone-600 dark:fill-stone-400"
+            class="dg-fill-muted"
             font-size="11"
             font-family="ui-sans-serif, system-ui, sans-serif">Intercept + cache lookup</text
           >
@@ -1295,13 +1358,13 @@ const jsonLd = [organization, website, product, faqPage];
           {/* Fork down to HIT (left) + MISS (right) */}
           <path
             d="M 110 175 L 110 205 L 80 215"
-            class="stroke-emerald-700 dark:stroke-emerald-400"
+            class="dg-edge-hit"
             stroke-width="2"
             fill="none"
             marker-end="url(#arrow-hit-20m)"></path>
           <path
             d="M 210 175 L 210 205 L 240 215"
-            class="stroke-amber-600 dark:stroke-amber-400"
+            class="dg-edge-miss"
             stroke-width="2"
             fill="none"
             marker-end="url(#arrow-miss-20m)"></path>
@@ -1313,13 +1376,13 @@ const jsonLd = [organization, website, product, faqPage];
             width="120"
             height="60"
             rx="8"
-            class="fill-emerald-50 dark:fill-emerald-950 stroke-emerald-700 dark:stroke-emerald-400"
+            class="dg-node-hit"
             stroke-width="1.5"></rect>
           <text
             x="80"
             y="244"
             text-anchor="middle"
-            class="fill-emerald-700 dark:fill-emerald-300"
+            class="dg-fill-success"
             font-size="13"
             font-weight="700"
             font-family="ui-sans-serif, system-ui, sans-serif">HIT</text
@@ -1328,7 +1391,7 @@ const jsonLd = [organization, website, product, faqPage];
             x="80"
             y="262"
             text-anchor="middle"
-            class="fill-stone-600 dark:fill-stone-400"
+            class="dg-fill-muted"
             font-size="10"
             font-family="ui-sans-serif, system-ui, sans-serif">mmap &middot; &lt; 1 ms</text
           >
@@ -1340,13 +1403,13 @@ const jsonLd = [organization, website, product, faqPage];
             width="120"
             height="60"
             rx="8"
-            class="fill-amber-50 dark:fill-amber-950 stroke-amber-600 dark:stroke-amber-400"
+            class="dg-node-miss"
             stroke-width="1.5"></rect>
           <text
             x="240"
             y="244"
             text-anchor="middle"
-            class="fill-amber-700 dark:fill-amber-300"
+            class="dg-fill-accent"
             font-size="13"
             font-weight="700"
             font-family="ui-sans-serif, system-ui, sans-serif">MISS</text
@@ -1355,7 +1418,7 @@ const jsonLd = [organization, website, product, faqPage];
             x="240"
             y="262"
             text-anchor="middle"
-            class="fill-stone-600 dark:fill-stone-400"
+            class="dg-fill-muted"
             font-size="10"
             font-family="ui-sans-serif, system-ui, sans-serif">serve from origin</text
           >
@@ -1363,13 +1426,13 @@ const jsonLd = [organization, website, product, faqPage];
           {/* Rejoin to Response */}
           <path
             d="M 80 280 L 80 320 L 158 342"
-            class="stroke-emerald-700 dark:stroke-emerald-400"
+            class="dg-edge-hit"
             stroke-width="2"
             fill="none"
             marker-end="url(#arrow-hit-20m)"></path>
           <path
             d="M 240 280 L 240 320 L 162 342"
-            class="stroke-amber-600 dark:stroke-amber-400"
+            class="dg-edge-miss"
             stroke-width="2"
             fill="none"
             marker-end="url(#arrow-miss-20m)"></path>
@@ -1381,13 +1444,13 @@ const jsonLd = [organization, website, product, faqPage];
             width="120"
             height="50"
             rx="8"
-            class="fill-white dark:fill-stone-900 stroke-stone-300 dark:stroke-stone-600"
+            class="dg-node"
             stroke-width="1.5"></rect>
           <text
             x="160"
             y="375"
             text-anchor="middle"
-            class="fill-stone-900 dark:fill-stone-100"
+            class="dg-fill-body"
             font-size="14"
             font-weight="600"
             font-family="ui-sans-serif, system-ui, sans-serif">Response</text
@@ -1399,14 +1462,14 @@ const jsonLd = [organization, website, product, faqPage];
             y1="415"
             x2="300"
             y2="415"
-            class="stroke-stone-200 dark:stroke-stone-700"
+            class="dg-stroke-lane"
             stroke-width="1"
             stroke-dasharray="2 4"></line>
           <text
             x="160"
             y="435"
             text-anchor="middle"
-            class="fill-stone-500 dark:fill-stone-400"
+            class="dg-fill-annot"
             font-size="11"
             font-weight="600"
             letter-spacing="0.08em"
@@ -1416,7 +1479,7 @@ const jsonLd = [organization, website, product, faqPage];
           {/* MISS -> Worker (dashed amber) */}
           <path
             d="M 240 280 L 300 280 L 300 480 L 220 480"
-            class="stroke-amber-600 dark:stroke-amber-400"
+            class="dg-edge-miss"
             stroke-width="1.5"
             stroke-dasharray="4 3"
             fill="none"
@@ -1429,14 +1492,14 @@ const jsonLd = [organization, website, product, faqPage];
             width="160"
             height="60"
             rx="8"
-            class="fill-interactive/10 stroke-interactive"
+            class="dg-node-interactive"
             stroke-width="2"
             stroke-dasharray="4 3"></rect>
           <text
             x="140"
             y="480"
             text-anchor="middle"
-            class="fill-interactive"
+            class="dg-fill-interactive"
             font-size="13"
             font-weight="700"
             font-family="ui-sans-serif, system-ui, sans-serif">Worker</text
@@ -1445,7 +1508,7 @@ const jsonLd = [organization, website, product, faqPage];
             x="140"
             y="498"
             text-anchor="middle"
-            class="fill-stone-600 dark:fill-stone-400"
+            class="dg-fill-muted"
             font-size="10"
             font-family="ui-sans-serif, system-ui, sans-serif">optimize + write</text
           >
@@ -1455,7 +1518,7 @@ const jsonLd = [organization, website, product, faqPage];
             y1="515"
             x2="140"
             y2="555"
-            class="stroke-interactive"
+            class="dg-edge-async"
             stroke-width="1.5"
             stroke-dasharray="4 3"
             marker-end="url(#arrow-async-20m)"></line>
@@ -1467,13 +1530,13 @@ const jsonLd = [organization, website, product, faqPage];
             width="200"
             height="60"
             rx="8"
-            class="fill-stone-50 dark:fill-stone-900 stroke-stone-400 dark:stroke-stone-600"
+            class="dg-node-cache"
             stroke-width="1.5"></rect>
           <text
             x="140"
             y="585"
             text-anchor="middle"
-            class="fill-stone-900 dark:fill-stone-100"
+            class="dg-fill-body"
             font-size="13"
             font-weight="600"
             font-family="ui-sans-serif, system-ui, sans-serif">Variant cache</text
@@ -1482,7 +1545,7 @@ const jsonLd = [organization, website, product, faqPage];
             x="140"
             y="603"
             text-anchor="middle"
-            class="fill-stone-600 dark:fill-stone-400"
+            class="dg-fill-muted"
             font-size="10"
             font-family="ui-sans-serif, system-ui, sans-serif"
             >mmap &middot; per-client variants</text
@@ -1492,13 +1555,17 @@ const jsonLd = [organization, website, product, faqPage];
             x="160"
             y="660"
             text-anchor="middle"
-            class="fill-stone-500 dark:fill-stone-400"
+            class="dg-fill-annot"
             font-size="10"
             font-style="italic"
             font-family="ui-sans-serif, system-ui, sans-serif"
             >Variant cache feeds future HITs above.</text
           >
         </svg>
+        <div class="mt-5 flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
+          <HitMissBadge state="HIT" note="hash lookup + mmap pointer" />
+          <HitMissBadge state="MISS" note="original served, worker queued" />
+        </div>
         <figcaption class="mt-4 text-center text-xs text-text-annotation max-w-xl mx-auto">
           Optimization happens outside the request path. Cache misses serve immediately; the worker
           writes the optimized variant in the background so the next request is served from cache.
