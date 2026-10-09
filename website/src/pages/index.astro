@@ -583,6 +583,23 @@ const jsonLd = [organization, website, product, faqPage];
       letter-spacing: 0.12em;
       color: var(--color-interactive);
     }
+    /* Specification cards: the mono readout row over a hairline. */
+    .card-ro {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.75rem;
+      padding-bottom: 0.625rem;
+      border-bottom: 1px solid var(--color-border);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--color-text-annotation);
+    }
+    .card-ro b {
+      color: var(--color-interactive);
+      font-weight: 600;
+    }
   </style>
 
   {/* 01 — this site runs the binary it sells: the captured response headers
@@ -1661,17 +1678,14 @@ const jsonLd = [organization, website, product, faqPage];
 
   <div class="rule-ticked" role="presentation" aria-hidden="true"></div>
 
-  {/* Features — 3 column, benefit-first */}
-  <section class="bg-bg-secondary py-20">
+  {/* 05 — the specification: the six capability cards as readout panels,
+      each readout restating its own card text. */}
+  <section class="py-13 sm:py-18" aria-labelledby="s-spec">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-      <h2 class="h2-section text-center text-text-body">
-        The optimization core behind 230,000+ live sites &mdash; now on your own servers.
-      </h2>
+      <SectionHeader id="s-spec" index="05" eyebrow="Specification" title="What runs on your server." />
       <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div class="card">
-          <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
-            <Icon name="image" class="h-5 w-5 text-interactive" />
-          </div>
+        <div class="panel">
+          <p class="card-ro"><span>images</span><b>&le; 37 variants</b></p>
           <h3 class="mt-4 font-semibold text-text-body">One decode pass, up to 37 variants out</h3>
           <p class="mt-2 text-sm text-text-muted">
             Automatic WebP and AVIF transcoding with viewport-aware resizing. Every variant is
@@ -1685,10 +1699,8 @@ const jsonLd = [organization, website, product, faqPage];
           </p>
         </div>
 
-        <div class="card">
-          <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
-            <Icon name="paintbrush" class="h-5 w-5 text-interactive" />
-          </div>
+        <div class="panel">
+          <p class="card-ro"><span>css</span><b>103 Early Hints</b></p>
           <h3 class="mt-4 font-semibold text-text-body">Render-blocking CSS eliminated</h3>
           <p class="mt-2 text-sm text-text-muted">
             Heuristic-based critical CSS extraction and injection. CSS/JS minification. Early Hints
@@ -1697,10 +1709,8 @@ const jsonLd = [organization, website, product, faqPage];
           </p>
         </div>
 
-        <div class="card">
-          <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
-            <Icon name="gauge" class="h-5 w-5 text-interactive" />
-          </div>
+        <div class="panel">
+          <p class="card-ro"><span>cache</span><b>hash + mmap</b></p>
           <h3 class="mt-4 font-semibold text-text-body">Cache hits are a pointer, not a pipeline</h3>
           <p class="mt-2 text-sm text-text-muted">
             The Cyclone cache serves optimized content from a memory-mapped file &mdash; a hash
@@ -1708,10 +1718,8 @@ const jsonLd = [organization, website, product, faqPage];
           </p>
         </div>
 
-        <div class="card">
-          <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
-            <Icon name="lock" class="h-5 w-5 text-interactive" />
-          </div>
+        <div class="panel">
+          <p class="card-ro"><span>egress</span><b>0 third parties</b></p>
           <h3 class="mt-4 font-semibold text-text-body">Self-hosted by design</h3>
           <p class="mt-2 text-sm text-text-muted">
             Visitor data never leaves your origin, and nothing in the request path talks to us.
@@ -1719,10 +1727,8 @@ const jsonLd = [organization, website, product, faqPage];
           </p>
         </div>
 
-        <div class="card">
-          <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
-            <Icon name="shield-check" class="h-5 w-5 text-interactive" />
-          </div>
+        <div class="panel">
+          <p class="card-ro"><span>js</span><b>fallback: original</b></p>
           <h3 class="mt-4 font-semibold text-text-body">Deliberately conservative</h3>
           <p class="mt-2 text-sm text-text-muted">
             JS minification strips whitespace and comments only. No variable renaming, no AST
@@ -1730,10 +1736,8 @@ const jsonLd = [organization, website, product, faqPage];
           </p>
         </div>
 
-        <div class="card">
-          <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
-            <Icon name="split" class="h-5 w-5 text-interactive" />
-          </div>
+        <div class="panel">
+          <p class="card-ro"><span>variants</span><b>AVIF &middot; WebP &middot; DPR &middot; Save-Data</b></p>
           <h3 class="mt-4 font-semibold text-text-body">The right bytes for every client</h3>
           <p class="mt-2 text-sm text-text-muted">
             Per-URL cache variants tuned to each client &mdash; image format (AVIF / WebP /
