@@ -145,10 +145,10 @@ const markers: Marker[] = [
 
 const kindStyles: Record<Marker['kind'], string> = {
   'HTML attribute': 'bg-interactive/10 text-interactive',
-  'Query parameter': 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
-  'URL pattern': 'bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300',
-  Endpoint: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
-  'Response header': 'bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300',
+  'Query parameter': 'bg-success-wash text-success',
+  'URL pattern': 'bg-bg-elevated text-text-muted',
+  Endpoint: 'bg-accent-wash text-accent',
+  'Response header': 'bg-bg-elevated text-text-muted',
 };
 
 const title = '.pagespeed. URLs and data-pagespeed-no-defer, explained';
@@ -273,8 +273,8 @@ const faqJsonLd = {
               <span class="font-medium text-text-body">When you see it:</span> {m.seen}
             </p>
             {m.example && (
-              <pre class="mt-4 overflow-x-auto rounded-md bg-stone-900 dark:bg-black p-4 text-xs sm:text-sm">
-                <code class="text-stone-100">{m.example}</code>
+              <pre class="mt-4 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm">
+                <code class="text-text-body">{m.example}</code>
               </pre>
             )}
           </section>
@@ -316,8 +316,9 @@ const faqJsonLd = {
           > marker actually do to recompress and resize.
         </li>
         <li>
-          <a href="/docs/is-it-working/" class="text-interactive hover:text-interactive-hover underline"
-            >Is it working?</a
+          <a
+            href="/docs/is-it-working/"
+            class="text-interactive hover:text-interactive-hover underline">Is it working?</a
           > &mdash; the response header per server and the first checks to run after an install.
         </li>
         <li>
