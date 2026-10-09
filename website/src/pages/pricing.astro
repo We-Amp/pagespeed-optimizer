@@ -99,7 +99,7 @@ const nextSteps = [
 ];
 
 const inputClass =
-  'mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 outline-none focus:ring-2 focus:ring-interactive/40';
+  'mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 focus:border-interactive focus:ring-2 focus:ring-interactive';
 ---
 
 <BaseLayout
@@ -148,8 +148,8 @@ const inputClass =
         <p class="font-semibold text-text-body">Hosting provider?</p>
         <p class="mt-1 text-sm text-text-muted max-w-3xl">
           The hosting partner program covers multi-tenant fleets: Priority-level support for your
-          second- and third-line team, plus cPanel/EA4 and distribution-channel upkeep. Unlimited hosted
-          domains.
+          second- and third-line team, plus cPanel/EA4 and distribution-channel upkeep. Unlimited
+          hosted domains.
         </p>
       </div>
       <a
@@ -194,7 +194,7 @@ const inputClass =
         >
           <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
-              <label for="quote-name" class="block text-sm font-medium text-text-body">Name</label>
+              <label for="quote-name" class="eyebrow">Name</label>
               <input
                 id="quote-name"
                 name="name"
@@ -206,8 +206,7 @@ const inputClass =
               />
             </div>
             <div>
-              <label for="quote-email" class="block text-sm font-medium text-text-body">Email</label
-              >
+              <label for="quote-email" class="eyebrow">Email</label>
               <input
                 id="quote-email"
                 name="email"
@@ -221,7 +220,7 @@ const inputClass =
           </div>
 
           <div>
-            <label for="quote-org" class="block text-sm font-medium text-text-body"
+            <label for="quote-org" class="eyebrow"
               >Company <span class="font-normal text-text-annotation">(optional)</span></label
             >
             <input
@@ -234,7 +233,7 @@ const inputClass =
           </div>
 
           <fieldset>
-            <legend class="text-sm font-medium text-text-body">
+            <legend class="eyebrow">
               Production servers <span class="font-normal text-text-annotation">(optional)</span>
             </legend>
             <div class="mt-2 flex flex-wrap gap-x-6 gap-y-2">
@@ -256,7 +255,7 @@ const inputClass =
           </fieldset>
 
           <fieldset>
-            <legend class="text-sm font-medium text-text-body">
+            <legend class="eyebrow">
               Platforms <span class="font-normal text-text-annotation">(optional, pick any)</span>
             </legend>
             <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -273,7 +272,7 @@ const inputClass =
 
           <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
-              <label for="quote-traffic" class="block text-sm font-medium text-text-body"
+              <label for="quote-traffic" class="eyebrow"
                 >Monthly traffic <span class="font-normal text-text-annotation">(optional)</span
                 ></label
               >
@@ -283,7 +282,7 @@ const inputClass =
               </select>
             </div>
             <div>
-              <label for="quote-deadline" class="block text-sm font-medium text-text-body"
+              <label for="quote-deadline" class="eyebrow"
                 >When do you need it? <span class="font-normal text-text-annotation"
                   >(optional)</span
                 ></label
@@ -310,7 +309,7 @@ const inputClass =
           </label>
 
           <div>
-            <label for="quote-message" class="block text-sm font-medium text-text-body"
+            <label for="quote-message" class="eyebrow"
               >Anything else <span class="font-normal text-text-annotation">(optional)</span></label
             >
             <textarea
@@ -462,15 +461,8 @@ const inputClass =
     function setStatus(kind: 'success' | 'error', msg: string) {
       if (!statusEl) return;
       statusEl.textContent = msg;
-      statusEl.classList.remove(
-        'hidden',
-        'text-interactive',
-        'text-amber-700',
-        'dark:text-amber-400',
-      );
-      statusEl.classList.add(
-        ...(kind === 'success' ? ['text-interactive'] : ['text-amber-700', 'dark:text-amber-400']),
-      );
+      statusEl.classList.remove('hidden', 'text-interactive', 'text-accent');
+      statusEl.classList.add(kind === 'success' ? 'text-interactive' : 'text-accent');
     }
 
     function composeMessage(data: FormData): string {

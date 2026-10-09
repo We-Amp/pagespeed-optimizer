@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import TermPanel from '../../components/instrument/TermPanel.astro';
 import { LICENSE_CLAUSE } from '../../data/product-facts.mjs';
 
 const jsonLd = {
@@ -31,7 +32,7 @@ const jsonLd = {
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
     <p class="eyebrow text-interactive">mod_pagespeed 2.1</p>
     <h1 class="h1-hero mt-2 text-text-body">
-      Install from <code class="font-mono">packages.modpagespeed.com</code>
+      Install from <code class="font-mono max-lg:wrap-anywhere">packages.modpagespeed.com</code>
     </h1>
     <p class="lede mt-6">
       A signed apt and yum repository for the mod_pagespeed 2.1 Apache and nginx modules. One line
@@ -42,23 +43,53 @@ const jsonLd = {
     </p>
 
     <div class="mt-10 rounded-2xl border border-border bg-bg-secondary p-6">
-      <p class="text-xs font-semibold uppercase tracking-wide text-text-annotation">Install</p>
-      <pre
-        class="mt-3 overflow-x-auto rounded bg-stone-900 dark:bg-stone-950 p-4 text-sm text-stone-100"><code data-umami-event="cta_download_apt_yum_oneliner">curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh</code></pre>
-      <p class="mt-4 text-sm text-text-muted">Then install the module for your server. Apache:</p>
-      <pre
-        class="mt-2 overflow-x-auto rounded bg-stone-900 dark:bg-stone-950 p-4 text-sm text-stone-100"><code># Debian 12/13, Ubuntu 22.04/24.04
+      <p class="eyebrow" id="apt-yum-install-lead">Install</p>
+      <div class="mt-3">
+        <TermPanel
+          labelledby="apt-yum-install-lead"
+          lines={[
+            {
+              text: 'curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh',
+              tone: 'strong',
+              event: 'cta_download_apt_yum_oneliner',
+            },
+          ]}
+        />
+      </div>
+      <p class="mt-4 text-sm text-text-muted" id="apt-yum-apache-lead">
+        Then install the module for your server. Apache:
+      </p>
+      <div class="mt-2">
+        <TermPanel
+          labelledby="apt-yum-apache-lead"
+          lines={[
+            {
+              text: `# Debian 12/13, Ubuntu 22.04/24.04
 sudo apt-get install mod-pagespeed
 
 # AlmaLinux / RHEL / Rocky 9 and 10
-sudo dnf install mod-pagespeed</code></pre>
-      <p class="mt-4 text-sm text-text-muted">nginx:</p>
-      <pre
-        class="mt-2 overflow-x-auto rounded bg-stone-900 dark:bg-stone-950 p-4 text-sm text-stone-100"><code># Debian 12/13, Ubuntu 22.04/24.04
+sudo dnf install mod-pagespeed`,
+              tone: 'strong',
+            },
+          ]}
+        />
+      </div>
+      <p class="mt-4 text-sm text-text-muted" id="apt-yum-nginx-lead">nginx:</p>
+      <div class="mt-2">
+        <TermPanel
+          labelledby="apt-yum-nginx-lead"
+          lines={[
+            {
+              text: `# Debian 12/13, Ubuntu 22.04/24.04
 sudo apt-get install nginx-module-pagespeed
 
 # AlmaLinux / RHEL / Rocky 9 and 10
-sudo dnf install nginx-module-pagespeed</code></pre>
+sudo dnf install nginx-module-pagespeed`,
+              tone: 'strong',
+            },
+          ]}
+        />
+      </div>
       <p class="mt-4 text-sm text-text-muted">
         The native nginx module runs on its own by default; to use the optimizer worker with it,
         install <code class="font-mono">pagespeed-optimizer</code> and <a
@@ -87,27 +118,27 @@ sudo dnf install nginx-module-pagespeed</code></pre>
     </p>
     <ul class="mt-2 space-y-2 text-text-body">
       <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-stone-400 font-bold">&bull;</span>
+        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
         <span>Debian 12 (bookworm), amd64 + arm64, stock nginx 1.22.1</span>
       </li>
       <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-stone-400 font-bold">&bull;</span>
+        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
         <span>Debian 13 (trixie), amd64 + arm64, stock nginx 1.26.3</span>
       </li>
       <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-stone-400 font-bold">&bull;</span>
+        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
         <span>Ubuntu 22.04 (jammy), amd64 + arm64, stock nginx 1.18.0</span>
       </li>
       <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-stone-400 font-bold">&bull;</span>
+        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
         <span>Ubuntu 24.04 (noble), amd64 + arm64, stock nginx 1.24.0</span>
       </li>
       <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-stone-400 font-bold">&bull;</span>
+        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
         <span>AlmaLinux 9 / RHEL 9 / Rocky 9 (el9), x86_64 + aarch64, stock nginx 1.20.1</span>
       </li>
       <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-stone-400 font-bold">&bull;</span>
+        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
         <span>AlmaLinux 10 / RHEL 10 / Rocky 10 (el10), x86_64</span>
       </li>
     </ul>
@@ -116,27 +147,27 @@ sudo dnf install nginx-module-pagespeed</code></pre>
     </p>
     <ul class="mt-2 space-y-2 text-text-body">
       <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-stone-400 font-bold">&bull;</span>
+        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
         <span>Debian 12 (bookworm), amd64 + arm64</span>
       </li>
       <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-stone-400 font-bold">&bull;</span>
+        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
         <span>Debian 13 (trixie), amd64 + arm64</span>
       </li>
       <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-stone-400 font-bold">&bull;</span>
+        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
         <span>Ubuntu 22.04 (jammy), amd64 + arm64</span>
       </li>
       <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-stone-400 font-bold">&bull;</span>
+        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
         <span>Ubuntu 24.04 (noble), amd64 + arm64</span>
       </li>
       <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-stone-400 font-bold">&bull;</span>
+        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
         <span>AlmaLinux 9 / RHEL 9 / Rocky 9 (el9), x86_64 + aarch64</span>
       </li>
       <li class="flex items-start gap-3">
-        <span class="mt-1 flex-shrink-0 text-stone-400 font-bold">&bull;</span>
+        <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
         <span>AlmaLinux 10 / RHEL 10 / Rocky 10 (el10), x86_64</span>
       </li>
     </ul>
@@ -169,9 +200,9 @@ sudo dnf install nginx-module-pagespeed</code></pre>
       The install script detects the distribution, fetches the public signing key (<code
         class="font-mono">F50D6054F10712A0</code
       >), and writes a single source file:
-      <code class="font-mono">/etc/apt/sources.list.d/modpagespeed.list</code> on apt, or
-      <code class="font-mono">/etc/yum.repos.d/modpagespeed.repo</code> on yum. Credentials and URLs stay
-      out of the source file itself — apt credentials live in
+      <code class="font-mono wrap-anywhere">/etc/apt/sources.list.d/modpagespeed.list</code> on apt, or
+      <code class="font-mono wrap-anywhere">/etc/yum.repos.d/modpagespeed.repo</code> on yum. Credentials
+      and URLs stay out of the source file itself — apt credentials live in
       <code class="font-mono">/etc/apt/auth.conf.d/</code>; the yum file is mode <code>0600</code>.
     </p>
     <p class="mt-4 text-text-body">
@@ -193,8 +224,7 @@ sudo dnf install nginx-module-pagespeed</code></pre>
         data-umami-event-offer="support"
         data-umami-event-surface="download-apt-yum"
         data-umami-event-position="license_section"
-        class="text-interactive underline"
-        >support &mdash; and hardened builds</a
+        class="text-interactive underline">support &mdash; and hardened builds</a
       >. First-time setup is covered in the <a
         href="/docs/getting-started/"
         class="text-interactive underline">getting-started guide</a
