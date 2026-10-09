@@ -7,6 +7,10 @@
 // capture file (src/data/telemetry-capture.json) so the page is complete and
 // honest with JS disabled; a bundled script then upgrades the strip to this
 // view's live values (one same-origin HEAD plus PerformanceNavigationTiming).
+// ttfb means the first response byte of the page's own request, connection
+// setup excluded: live it is the probe's responseStart − requestStart from
+// Resource Timing, captured it is the capture script's equivalent measurement
+// on a warm connection — roughly one round trip plus server time either way.
 // The strip never fakes liveness: captured values always carry their capture
 // date, a missing live header renders as "not present", and a failed probe
 // keeps the captured fallback untouched.
@@ -39,6 +43,10 @@ interface CaptureEntry {
   status: number;
   wireBytes: number;
   decodedBytes: number;
+  // First response byte of this path on a warm connection, measured by the
+  // capture script (request flushed to first response byte, DNS/TCP/TLS
+  // excluded). Absent in older captures; the field then renders "—".
+  ttfbMs?: number;
   headers: Record<string, string | null>;
 }
 
@@ -79,7 +87,14 @@ const fields = [
     t: 'decoded',
   },
   { term: 'vary:', value: header('vary'), width: '35.5ch', wide: true, mid: false, t: 'vary' },
-  { term: 'ttfb', value: '—', width: '12ch', wide: true, mid: false, t: 'ttfb' },
+  {
+    term: 'ttfb',
+    value: entry?.ttfbMs != null ? `${entry.ttfbMs} ms` : '—',
+    width: '12ch',
+    wide: true,
+    mid: false,
+    t: 'ttfb',
+  },
 ];
 ---
 
@@ -279,9 +294,13 @@ const fields = [
     const upgrade = async () => {
       // All or nothing: the state label must be true of every field, so a
       // failed probe leaves the captured fallback (and its date) untouched.
+      const url = location.pathname + location.search;
+      // Wall-clock start of the probe, used only if its Resource Timing entry
+      // never appears (see the ttfb block below).
+      const probeStart = performance.now();
       let res: Response;
       try {
-        res = await fetch(location.pathname + location.search, {
+        res = await fetch(url, {
           method: 'HEAD',
           cache: 'no-store',
           credentials: 'same-origin',
@@ -317,10 +336,35 @@ const fields = [
         );
         set('decoded', formatBytes(nav.decodedBodySize));
       }
-      if (nav) {
-        const ttfb = Math.round(nav.responseStart);
-        if (ttfb > 0) set('ttfb', `${ttfb}\u00a0ms`);
+      // ttfb is the first-byte time of the probe itself: responseStart minus
+      // requestStart from its Resource Timing entry. requestStart is the
+      // moment the request left the browser, so connection setup (DNS/TCP/TLS)
+      // is excluded and the figure is what an already-connected reader pays:
+      // roughly one round trip plus server time. Same-origin entries always
+      // expose that timing (Timing-Allow-Origin is a cross-origin concern),
+      // but the fetch promise resolves on headers while the entry lands in
+      // the buffer on completion, so poll briefly for it; only when it never
+      // appears (the shared 250-entry resource buffer can be full on
+      // resource-heavy pages) fall back to the wall-clock probe duration,
+      // which includes connection setup and can read high on a cold visit.
+      // Entries are named by the absolute URL, resolved the way fetch did, or
+      // a relative path never matches.
+      const entryHref = new URL(url, location.href).href;
+      let entry: PerformanceResourceTiming | undefined;
+      for (let i = 0; i < 10 && !entry; i++) {
+        entry = (performance.getEntriesByName(entryHref, 'resource') as PerformanceResourceTiming[])
+          .filter((e) => e.initiatorType === 'fetch')
+          .reduce<
+            PerformanceResourceTiming | undefined
+          >((latest, e) => (latest === undefined || e.startTime >= latest.startTime ? e : latest), undefined);
+        if (!entry) await new Promise((r) => setTimeout(r, 25));
       }
+      const ttfb = Math.round(
+        entry && entry.requestStart > 0
+          ? entry.responseStart - entry.requestStart
+          : performance.now() - probeStart,
+      );
+      if (ttfb > 0) set('ttfb', `${ttfb}\u00a0ms`);
       set('xmps', res.headers.get('x-mod-pagespeed') ?? 'not present');
       set('vary', res.headers.get('vary') ?? 'not present');
       // Below 480px the LED does not render, so a non-2xx probe spells its

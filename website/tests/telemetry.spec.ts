@@ -50,6 +50,51 @@ test.describe('Telemetry strip', () => {
     await expect(strip.locator('[data-t="vary"]')).toHaveText('Save-Data,Accept-Encoding');
   });
 
+  test('live ttfb is the HEAD probe resource timing, not connection-inclusive', async ({
+    page,
+  }) => {
+    // Hold the HEAD for 300 ms. The probe's responseStart − requestStart is
+    // then ~300 ms whatever connection the probe rides, because requestStart
+    // is when the request left the browser; a definition that includes
+    // connection setup (the probe's total duration, or a navigation entry's
+    // responseStart) would read higher by the fresh connection's setup.
+    await page.route('**/*', (route) => {
+      if (route.request().method() !== 'HEAD') return route.continue();
+      return new Promise((r) => setTimeout(r, 300)).then(() =>
+        route.fulfill({ status: 200, headers: { 'x-mod-pagespeed': '9.9.9-test' } }),
+      );
+    });
+    await page.goto('/');
+    const strip = page.locator(STRIP);
+    // ttfb is set before the state label flips to live.
+    await expect(strip.locator('[data-t="state"]').first()).toHaveText('this view · live');
+    const shown = parseInt(
+      (await strip.locator('[data-t="ttfb"]').first().textContent())?.replace(/\D/g, '') ?? '',
+      10,
+    );
+    // Within tolerance of the routed delay (route interception adds its CDP
+    // round trip on top of the 300 ms sleep, so the ceiling is generous)…
+    expect(shown).toBeGreaterThanOrEqual(250);
+    expect(shown).toBeLessThanOrEqual(1000);
+    // …and equal to the probe's own Resource Timing value (within rounding),
+    // which excludes connection setup by definition: a value inflated by the
+    // new connection cannot pass this check.
+    const probeTtfb = await page.evaluate(() => {
+      // Resource Timing entries are named by the absolute URL.
+      const href = new URL(location.pathname + location.search, location.href).href;
+      const entry = (performance.getEntriesByName(href, 'resource') as PerformanceResourceTiming[])
+        .filter((e) => e.initiatorType === 'fetch')
+        .reduce<
+          PerformanceResourceTiming | undefined
+        >((latest, e) => (latest === undefined || e.startTime >= latest.startTime ? e : latest), undefined);
+      return entry && entry.requestStart > 0
+        ? Math.round(entry.responseStart - entry.requestStart)
+        : null;
+    });
+    expect(probeTtfb, 'the HEAD must be observable through Resource Timing').not.toBeNull();
+    expect(Math.abs(shown - (probeTtfb as number))).toBeLessThanOrEqual(1);
+  });
+
   test('a non-2xx probe spells the status in the state text', async ({ browser }) => {
     // Below 480px the LED does not render, so the status must read in the
     // state text itself. 390px is inside that range.
