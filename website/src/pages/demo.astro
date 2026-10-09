@@ -10,7 +10,10 @@ import metricsData from '../data/demo-metrics.json';
 
 const sites = metricsData.sites;
 const generatedAt = metricsData.generated_at;
-const measuredOn = `Measured on our demo store, ${monthYear(generatedAt)}.`;
+// The e-commerce readout is the store; the other three panels cover the
+// remaining demo sites. Same date, same source file.
+const measuredOnStore = `Measured on our demo store, ${monthYear(generatedAt)}.`;
+const measuredOnSites = `Measured on our demo sites, ${monthYear(generatedAt)}.`;
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
@@ -224,7 +227,7 @@ const siteData = sites.map((site) => {
             <ReadoutPanel
               id={`metrics-${site.id}`}
               title={`Readout · ${site.name}`}
-              source={measuredOn}
+              source={site.id === 'ecommerce' ? measuredOnStore : measuredOnSites}
             >
               <Readout
                 label="Total page weight"
