@@ -52,8 +52,9 @@ const files = [
 ];
 
 // A Tailwind utility from the banned cool families: blue-*, sky-*, indigo-*,
-// purple-* (any shade number).
-const BANNED_UTILITY = /\b(?:blue|sky|indigo|purple)-\d/;
+// purple-* (the full shade number, so the violation listing reads blue-500,
+// not blue-5).
+const BANNED_UTILITY = /\b(?:blue|sky|indigo|purple)-\d+/;
 
 // A decimal-channel rgba() whose blue channel clearly dominates — e.g. the
 // retired accent rgba(29, 78, 216, …). Near-neutral overlays like

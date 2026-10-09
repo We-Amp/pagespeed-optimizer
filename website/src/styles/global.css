@@ -1152,14 +1152,17 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
 
   /* Chrome that does not belong on paper. Only the site header (the one
      wrapping the main nav) goes; section and page headers carry content and
-     must print. The strip, overlays, the sticky mobile CTA and the search
-     dialog are interactive-only; so is the code copy button. */
+     must print. The strip, overlays, the sticky mobile CTA, the search
+     dialog, the docs menu disclosure and the inline "On this page" details
+     are interactive-only; so is the code copy button. */
   [data-ui='telemetry-strip'],
   header:has(> nav[aria-label='Main navigation']),
   .qm-root,
   .share-fab-root,
   #sticky-cta,
   #site-search,
+  #docs-menu,
+  details:has(> nav[aria-label='On this page']),
   .code-copy-btn {
     display: none !important;
   }
