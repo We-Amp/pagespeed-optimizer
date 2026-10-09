@@ -197,9 +197,9 @@ const boolLabel = (v: string) => (v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Par
 
 <style>
   /* Boolean glyphs share one source of truth with the --color-success token
-     (brand §4.5). "Yes" reads success-green; "no" is the annotation grey;
-     "partial" picks up the amber accent token. The glyph carries an accessible
-     label via aria-label / sr-only text in the markup above. */
+     (brand §4.5). "Yes" reads success-green; "no" is muted; "partial" picks up
+     the amber accent token. The glyph carries an accessible label via
+     aria-label / sr-only text in the markup above. */
   .cmp-glyph {
     display: inline-flex;
     align-items: center;
@@ -214,6 +214,6 @@ const boolLabel = (v: string) => (v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Par
     color: var(--color-accent);
   }
   .cmp-no {
-    color: var(--color-text-annotation);
+    color: var(--color-text-muted);
   }
 </style>
