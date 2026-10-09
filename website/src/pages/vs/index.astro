@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import SectionHeader from '../../components/instrument/SectionHeader.astro';
 import { FREE_TO_RUN_LINE, LICENSE_CLAUSE } from '../../data/product-facts.mjs';
 
 const comparisons = [
@@ -84,13 +85,18 @@ const jsonLd = {
 >
   <!-- Header -->
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
-    <p class="text-sm font-semibold uppercase tracking-wide text-interactive">Comparisons</p>
-    <h1 class="mt-3 h1-hero text-text-body">mod_pagespeed vs the alternatives</h1>
-    <p class="mt-6 text-lg text-text-muted">
-      {comparisons.length} side-by-side write-ups: where mod_pagespeed overlaps with adjacent tools, and
-      where it doesn't. A self-hosted nginx pipeline behaves nothing like a SaaS CDN or a WordPress plugin,
-      so each write-up says where mod_pagespeed wins and where the other tool does.
-    </p>
+    <SectionHeader
+      id="comparisons"
+      as="h1"
+      eyebrow="Comparisons"
+      title="mod_pagespeed vs the alternatives"
+    >
+      <p>
+        {comparisons.length} side-by-side write-ups: where mod_pagespeed overlaps with adjacent tools,
+        and where it doesn't. A self-hosted nginx pipeline behaves nothing like a SaaS CDN or a WordPress
+        plugin, so each write-up says where mod_pagespeed wins and where the other tool does.
+      </p>
+    </SectionHeader>
     <p class="mt-4 text-sm text-text-muted">
       The optimization core these tools are weighed against powers <span
         class="font-semibold text-text-body">230,000+ live sites</span
@@ -141,7 +147,12 @@ const jsonLd = {
       HTML. The tools below each solve part of that, or solve it somewhere else &mdash; at the edge,
       in a SaaS dashboard, or inside WordPress.
     </p>
-    <div class="mt-6 overflow-x-auto rounded-xl border border-border">
+    <div
+      class="mt-6 overflow-x-auto rounded-xl border border-border"
+      tabindex="0"
+      role="region"
+      aria-label="Where each tool fits"
+    >
       <table class="w-full border-collapse text-left text-sm">
         <thead>
           <tr class="bg-bg-elevated/80">
