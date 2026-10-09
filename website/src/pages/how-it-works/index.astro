@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import SectionHeader from '../../components/instrument/SectionHeader.astro';
 import { getCollection } from 'astro:content';
 
 const pages = (await getCollection('how-it-works')).sort((a, b) => a.data.order - b.data.order);
@@ -23,39 +24,42 @@ const jsonLd = {
 };
 ---
 
-<BaseLayout title={title} description={description} jsonLd={jsonLd} breadcrumbLeafName="How it works">
+<BaseLayout
+  title={title}
+  description={description}
+  jsonLd={jsonLd}
+  breadcrumbLeafName="How it works"
+>
   <article class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
-    <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
+    <nav class="mb-6 font-mono text-xs text-text-annotation" aria-label="Breadcrumb">
       <a href="/" class="hover:text-text-body">Home</a>
       <span class="mx-1">/</span>
       <span>How it works</span>
     </nav>
 
-    <p class="eyebrow mt-6">How it works</p>
-    <h1 class="mt-3 h1-hero text-text-body">
-      How a server-side web optimizer works
-    </h1>
-    <p class="lede mt-6 max-w-3xl">
-      The docs tell you which directives to set; the blog covers what to fix on a given stack. These
-      are the explainers in between &mdash; how the optimization actually works under the hood. The
-      techniques trace back to the open-source mod_pagespeed and ngx_pagespeed projects, which We-Amp
-      helped build and maintain; mod_pagespeed 2.1 carries them forward in both of its parts &mdash;
-      the module and the optimizer worker.
-    </p>
+    <SectionHeader
+      id="how-it-works"
+      as="h1"
+      eyebrow="How it works"
+      title="How a server-side web optimizer works"
+    >
+      <p class="lede">
+        The docs tell you which directives to set; the blog covers what to fix on a given stack.
+        These are the explainers in between &mdash; how the optimization actually works under the
+        hood. The techniques trace back to the open-source mod_pagespeed and ngx_pagespeed projects,
+        which We-Amp helped build and maintain; mod_pagespeed 2.1 carries them forward in both of
+        its parts &mdash; the module and the optimizer worker.
+      </p>
+    </SectionHeader>
 
     <div class="mt-12 space-y-4">
       {
         pages.map((p) => (
-          <a
-            href={`/how-it-works/${p.id}/`}
-            class="group block rounded-2xl border border-border bg-bg-elevated p-6 transition-colors hover:border-interactive/50"
-          >
+          <a href={`/how-it-works/${p.id}/`} class="group card-resource block">
             <h2 class="text-lg font-semibold text-text-body group-hover:text-interactive">
               {p.data.title}
             </h2>
-            <p class="mt-2 text-sm text-text-muted">
-              {p.data.summary ?? p.data.description}
-            </p>
+            <p class="mt-2 text-sm text-text-muted">{p.data.summary ?? p.data.description}</p>
             <span class="mt-3 inline-block text-sm font-medium text-interactive">
               Read it <span aria-hidden="true">&rarr;</span>
             </span>
@@ -76,9 +80,8 @@ const jsonLd = {
 
     <div class="mt-10 border-t border-border pt-8">
       <p class="text-sm text-text-muted">
-        Run it: the <a
-          href="/docs/"
-          class="text-interactive hover:text-interactive-hover underline">mod_pagespeed 2.1 docs</a
+        Run it: the <a href="/docs/" class="text-interactive hover:text-interactive-hover underline"
+          >mod_pagespeed 2.1 docs</a
         > cover both parts &mdash; the in-process module for Apache, nginx and IIS, and the optimizer
         worker that does the heavy optimization off the request path.
       </p>
