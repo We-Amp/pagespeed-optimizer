@@ -334,33 +334,31 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
       border-radius: 10px;
       border: 1px solid rgb(214 211 209 / 0.8);
       background: rgb(255 255 255 / 0.78);
-      color: #57534e;
+      color: var(--color-text-muted);
       cursor: pointer;
       font-size: 16px;
       line-height: 1;
       -webkit-backdrop-filter: blur(4px);
       backdrop-filter: blur(4px);
-      opacity: 0.68;
+      opacity: 0.75;
       transition:
         opacity 0.12s,
         color 0.12s;
     }
     .cyc-zoom:hover {
       opacity: 1;
-      color: #1c1917;
+      color: var(--color-text-body);
     }
     .cyc-zoom:focus-visible {
       outline: 2px solid var(--color-focus-ring);
       outline-offset: 2px;
       opacity: 1;
     }
+    /* Only the translucent chrome needs a dark override; the glyph colour
+       follows the theme tokens above. */
     html.dark .cyc-zoom {
       border-color: rgb(68 64 60 / 0.8);
       background: rgb(28 25 23 / 0.78);
-      color: #a8a29e;
-    }
-    html.dark .cyc-zoom:hover {
-      color: #e7e5e4;
     }
     .cyc-lightbox {
       position: fixed;
@@ -375,20 +373,18 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
     .cyc-lightbox[hidden] {
       display: none;
     }
+    /* Theme tokens, so the panel (and the currentColor charts it hosts)
+       follow the light/dark theme without per-theme overrides. */
     .cyc-lb-panel {
       position: relative;
-      background: #fff;
-      color: #1c1917;
+      background: var(--color-bg-elevated);
+      color: var(--color-text-body);
       border-radius: 16px;
       padding: 28px 22px 18px;
       max-width: 96vw;
       max-height: 92vh;
       overflow: auto;
       box-shadow: 0 24px 64px rgb(0 0 0 / 0.45);
-    }
-    html.dark .cyc-lb-panel {
-      background: #1c1917;
-      color: #e7e5e4;
     }
     .cyc-lb-panel svg {
       width: min(1200px, 88vw);
