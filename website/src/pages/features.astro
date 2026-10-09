@@ -142,7 +142,7 @@ const jsonLd = [softwareApplication, faqPage];
   </div>
 
   <!-- Benefits summary -->
-  <section class="bg-bg-secondary py-16">
+  <section class="py-16">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
         <a href="#image-optimization" class="card">
@@ -533,7 +533,7 @@ const jsonLd = [softwareApplication, faqPage];
   </div>
 
   <!-- JavaScript Optimization -->
-  <section id="js-optimization" class="bg-bg-secondary py-16">
+  <section id="js-optimization" class="py-16">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div class="lg:grid lg:grid-cols-2 lg:gap-12 lg:items-start">
         <div>
@@ -781,7 +781,7 @@ const jsonLd = [softwareApplication, faqPage];
   </div>
 
   <!-- Variant-Aware Caching -->
-  <section id="variant-caching" class="bg-bg-secondary py-16">
+  <section id="variant-caching" class="py-16">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div class="lg:grid lg:grid-cols-2 lg:gap-12 lg:items-start">
         <div>
@@ -1059,7 +1059,7 @@ const jsonLd = [softwareApplication, faqPage];
   </div>
 
   <!-- Architecture Overview -->
-  <section class="bg-bg-secondary py-16">
+  <section class="py-16">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div class="text-center">
         <h2 class="h2-section text-text-body">Architecture overview</h2>
@@ -1292,10 +1292,12 @@ const jsonLd = [softwareApplication, faqPage];
       </div>
 
       <div class="mt-10 max-w-2xl">
-        <p class="text-sm font-medium text-text-body mb-3">Install</p>
+        <p id="features-install-label" class="text-sm font-medium text-text-body mb-3">Install</p>
         <div
           class="rounded-lg border border-border bg-bg-secondary p-4 overflow-x-auto"
           tabindex="0"
+          role="region"
+          aria-labelledby="features-install-label"
         >
           <code class="text-sm text-text-body whitespace-nowrap">{nugetInstallCmd}</code>
         </div>
