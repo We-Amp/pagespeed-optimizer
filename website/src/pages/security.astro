@@ -28,36 +28,32 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         </p>
       </div>
 
+      <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+
       <!-- What to include -->
       <div>
         <h2 class="h2-section text-text-body">What to include</h2>
         <ul class="mt-4 space-y-3 text-text-muted">
           <li class="flex items-start gap-3">
-            <span class="mt-1 flex-shrink-0 text-text-annotation font-bold"
-              >&bull;</span
-            >
+            <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
             <span>A description of the vulnerability and its potential impact.</span>
           </li>
           <li class="flex items-start gap-3">
-            <span class="mt-1 flex-shrink-0 text-text-annotation font-bold"
-              >&bull;</span
-            >
+            <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
             <span>Steps to reproduce the issue.</span>
           </li>
           <li class="flex items-start gap-3">
-            <span class="mt-1 flex-shrink-0 text-text-annotation font-bold"
-              >&bull;</span
-            >
+            <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
             <span>Affected versions, if known.</span>
           </li>
           <li class="flex items-start gap-3">
-            <span class="mt-1 flex-shrink-0 text-text-annotation font-bold"
-              >&bull;</span
-            >
+            <span class="mt-1 flex-shrink-0 text-text-annotation font-bold">&bull;</span>
             <span>Your assessment of severity and impact.</span>
           </li>
         </ul>
       </div>
+
+      <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
 
       <!-- Our commitment -->
       <div>
@@ -67,6 +63,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           after. Critical vulnerabilities affecting production deployments jump the queue.
         </p>
       </div>
+
+      <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
 
       <!-- Safe harbor -->
       <div>
@@ -78,19 +76,22 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         </p>
       </div>
 
+      <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+
       <!-- Scope -->
       <div>
         <h2 class="h2-section text-text-body">Scope</h2>
         <p class="mt-4 text-text-muted">
-          This security policy covers the mod_pagespeed 2.1 software (the module, the
-          optimizer worker, and the cache layer) on Apache, nginx and IIS, and the
+          This security policy covers the mod_pagespeed 2.1 software (the module, the optimizer
+          worker, and the cache layer) on Apache, nginx and IIS, and the
           <a
             href="https://modpagespeed.com"
-            class="text-interactive hover:text-interactive-hover underline"
-            >modpagespeed.com</a
+            class="text-interactive hover:text-interactive-hover underline">modpagespeed.com</a
           > website.
         </p>
       </div>
+
+      <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
 
       <!-- Security updates -->
       <div>
@@ -99,11 +100,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           Every security fix is listed on the
           <a
             href="/docs/release-notes/#security-updates"
-            class="text-interactive hover:text-interactive-hover underline"
-            >release notes</a
+            class="text-interactive hover:text-interactive-hover underline">release notes</a
           >, with the release that carried it.
         </p>
       </div>
+
+      <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
 
       <!-- Evidence -->
       <div>
@@ -120,8 +122,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
               >. GPG key on request. See
               <a
                 href="/.well-known/security.txt"
-                class="text-interactive hover:text-interactive-hover underline"
-                >security.txt</a
+                class="text-interactive hover:text-interactive-hover underline">security.txt</a
               >.
             </p>
           </div>
@@ -131,8 +132,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
               Tracked in the
               <a
                 href="/docs/release-notes/#security-updates"
-                class="text-interactive hover:text-interactive-hover underline"
-                >release notes</a
+                class="text-interactive hover:text-interactive-hover underline">release notes</a
               >.
             </p>
           </div>
@@ -151,8 +151,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
                 rel="noopener noreferrer"
                 class="text-interactive hover:text-interactive-hover underline"
                 ><code>sbom/</code> directory</a
-              > of the source tree. The apt and yum repositories are GPG-signed and every release
-              asset is listed in <code>SHA256SUMS</code>. What hardened builds add is on the <a
+              > of the source tree. The apt and yum repositories are GPG-signed and every release asset
+              is listed in <code>SHA256SUMS</code>. What hardened builds add is on the <a
                 href="/support/#hardened-builds"
                 class="text-interactive hover:text-interactive-hover underline">support page</a
               >.
@@ -161,31 +161,36 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         </div>
       </div>
 
+      <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+
       <!-- Architecture note -->
-      <div
-        class="rounded-lg border border-border bg-bg-secondary p-6"
-      >
+      <div class="panel">
         <h2 class="text-xl font-bold text-text-body">Architecture note</h2>
         <p class="mt-4 text-text-muted">
-          Both parts process untrusted content by design &mdash; they rewrite HTML, minify CSS
-          and JavaScript, and transcode images from origins you configure. We take this attack
-          surface seriously. Both parts of mod_pagespeed 2.1 build on a current toolchain and run
-          with AddressSanitizer and UndefinedBehaviorSanitizer in CI, catching memory safety issues
-          and undefined behavior before they reach production. The optimizer worker is written in
-          C++23 with smart pointers and RAII throughout.
+          Both parts process untrusted content by design &mdash; they rewrite HTML, minify CSS and
+          JavaScript, and transcode images from origins you configure. We take this attack surface
+          seriously. Both parts of mod_pagespeed 2.1 build on a current toolchain and run with
+          AddressSanitizer and UndefinedBehaviorSanitizer in CI, catching memory safety issues and
+          undefined behavior before they reach production. The optimizer worker is written in C++23
+          with smart pointers and RAII throughout.
         </p>
       </div>
+
+      <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
 
       <!-- Threat model -->
       <div>
         <h2 class="h2-section text-text-body">Threat model</h2>
         <p class="mt-4 text-text-muted">
-          mod_pagespeed processes untrusted images, CSS, JS, and HTML from origin servers. The worker
-          process communicates only via a local Unix socket &mdash; it has no network access beyond
-          the cache file and socket. All content parsing uses memory-safe patterns validated by
-          continuous sanitizer testing (ASan, UBSan, TSan). No user data is transmitted externally.
+          mod_pagespeed processes untrusted images, CSS, JS, and HTML from origin servers. The
+          worker process communicates only via a local Unix socket &mdash; it has no network access
+          beyond the cache file and socket. All content parsing uses memory-safe patterns validated
+          by continuous sanitizer testing (ASan, UBSan, TSan). No user data is transmitted
+          externally.
         </p>
       </div>
+
+      <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
 
       <!-- Supply chain -->
       <div>

@@ -166,7 +166,7 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
     <header>
       <time
         datetime={post.data.date.toISOString()}
-        class="text-xs font-medium uppercase tracking-wider text-text-annotation"
+        class="font-mono text-xs font-medium uppercase tracking-wider text-text-annotation"
       >
         {
           post.data.date.toLocaleDateString('en-US', {
@@ -184,7 +184,7 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
           href="https://www.linkedin.com/in/oschaaf"
           target="_blank"
           rel="noopener noreferrer"
-          class="text-text-body hover:text-text-body underline decoration-stone-300 dark:decoration-stone-600 underline-offset-2"
+          class="text-text-body hover:text-interactive underline decoration-border-strong underline-offset-2"
           >{post.data.author}</a
         >
       </p>
@@ -192,7 +192,7 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
         post.data.tags.length > 0 && (
           <div class="mt-4 flex flex-wrap gap-2">
             {post.data.tags.map((tag: string) => (
-              <span class="inline-block rounded-full bg-interactive/10 ring-1 ring-interactive/40 px-3 py-1 text-xs font-medium text-interactive">
+              <span class="inline-block rounded-full bg-interactive-wash ring-1 ring-interactive/40 px-3 py-1 text-xs font-medium text-interactive">
                 {tag}
               </span>
             ))}
@@ -226,14 +226,14 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
               <a
                 href="/docs/"
                 data-umami-event="cta_blog_bottom_install"
-                class="inline-flex items-center rounded-md bg-interactive hover:bg-interactive-hover px-4 py-2 text-sm font-semibold text-on-accent shadow-sm transition-colors"
+                class="inline-flex items-center rounded-md bg-interactive hover:bg-interactive-hover px-4 py-2 text-sm font-semibold text-on-accent transition-colors"
               >
                 Get started &rarr;
               </a>
               <a
                 href="/pricing/"
                 data-umami-event="cta_blog_bottom_buy"
-                class="text-sm font-medium text-text-body hover:text-stone-900 dark:hover:text-white underline decoration-stone-300 dark:decoration-stone-600 underline-offset-2"
+                class="text-sm font-medium text-text-body hover:text-interactive underline decoration-border-strong underline-offset-2"
               >
                 See pricing
               </a>
@@ -244,21 +244,19 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
             <p class="text-base font-semibold text-text-body">
               Run mod_pagespeed — deploy with Docker Compose in 5 minutes.
             </p>
-            <p class="mt-2 text-sm text-text-muted">
-              No bandwidth fees · {FREE_TO_RUN_LINE}
-            </p>
+            <p class="mt-2 text-sm text-text-muted">No bandwidth fees · {FREE_TO_RUN_LINE}</p>
             <div class="mt-5 flex flex-wrap items-center gap-3">
               <a
                 href="/docs/getting-started/"
                 data-umami-event="cta_blog_bottom_install"
-                class="inline-flex items-center rounded-md bg-interactive hover:bg-interactive-hover px-4 py-2 text-sm font-semibold text-on-accent shadow-sm transition-colors"
+                class="inline-flex items-center rounded-md bg-interactive hover:bg-interactive-hover px-4 py-2 text-sm font-semibold text-on-accent transition-colors"
               >
                 Install &amp; run &rarr;
               </a>
               <a
                 href="/pricing/"
                 data-umami-event="cta_blog_bottom_buy"
-                class="text-sm font-medium text-text-body hover:text-stone-900 dark:hover:text-white underline decoration-stone-300 dark:decoration-stone-600 underline-offset-2"
+                class="text-sm font-medium text-text-body hover:text-interactive underline decoration-border-strong underline-offset-2"
               >
                 Support plans
               </a>
@@ -306,7 +304,14 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
   </article>
 
   {/* Zoom / lightbox for embedded chart figures (inline SVGs in the post body) */}
-  <div id="cyc-lightbox" class="cyc-lightbox" role="dialog" aria-modal="true" aria-label="Enlarged chart" hidden>
+  <div
+    id="cyc-lightbox"
+    class="cyc-lightbox"
+    role="dialog"
+    aria-modal="true"
+    aria-label="Enlarged chart"
+    hidden
+  >
     <div class="cyc-lb-panel">
       <button type="button" class="cyc-lb-close" aria-label="Close enlarged chart">&times;</button>
       <div class="cyc-lb-body"></div>
@@ -314,21 +319,113 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
   </div>
 
   <style is:global>
-    figure.cyc-zoomable{position:relative}
-    .cyc-zoom{position:absolute;top:8px;right:8px;display:inline-flex;align-items:center;justify-content:center;width:40px;height:40px;border-radius:10px;border:1px solid rgb(214 211 209 / .8);background:rgb(255 255 255 / .78);color:#57534e;cursor:pointer;font-size:16px;line-height:1;-webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);opacity:.68;transition:opacity .12s,color .12s}
-    .cyc-zoom:hover{opacity:1;color:#1c1917}
-    .cyc-zoom:focus-visible{outline:2px solid #14b8a6;outline-offset:2px;opacity:1}
-    html.dark .cyc-zoom{border-color:rgb(68 64 60 / .8);background:rgb(28 25 23 / .78);color:#a8a29e}
-    html.dark .cyc-zoom:hover{color:#e7e5e4}
-    .cyc-lightbox{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;padding:24px;background:rgb(0 0 0 / .55)}
-    .cyc-lightbox[hidden]{display:none}
-    .cyc-lb-panel{position:relative;background:#fff;color:#1c1917;border-radius:16px;padding:28px 22px 18px;max-width:96vw;max-height:92vh;overflow:auto;box-shadow:0 24px 64px rgb(0 0 0 / .45)}
-    html.dark .cyc-lb-panel{background:#1c1917;color:#e7e5e4}
-    .cyc-lb-panel svg{width:min(1200px,88vw);height:auto;display:block}
-    .cyc-lb-close{position:absolute;top:8px;right:12px;background:none;border:0;font-size:26px;line-height:1;color:inherit;opacity:.6;cursor:pointer;padding:2px 6px}
-    .cyc-lb-close:hover{opacity:1}
-    .cyc-lb-close:focus-visible{outline:2px solid #14b8a6;outline-offset:2px}
-    @media(max-width:680px){.cyc-lightbox{padding:10px}.cyc-lb-panel{padding:22px 12px 12px}.cyc-lb-panel svg{width:88vw}}
+    figure.cyc-zoomable {
+      position: relative;
+    }
+    .cyc-zoom {
+      position: absolute;
+      top: 8px;
+      right: 8px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      border: 1px solid rgb(214 211 209 / 0.8);
+      background: rgb(255 255 255 / 0.78);
+      color: #57534e;
+      cursor: pointer;
+      font-size: 16px;
+      line-height: 1;
+      -webkit-backdrop-filter: blur(4px);
+      backdrop-filter: blur(4px);
+      opacity: 0.68;
+      transition:
+        opacity 0.12s,
+        color 0.12s;
+    }
+    .cyc-zoom:hover {
+      opacity: 1;
+      color: #1c1917;
+    }
+    .cyc-zoom:focus-visible {
+      outline: 2px solid var(--color-focus-ring);
+      outline-offset: 2px;
+      opacity: 1;
+    }
+    html.dark .cyc-zoom {
+      border-color: rgb(68 64 60 / 0.8);
+      background: rgb(28 25 23 / 0.78);
+      color: #a8a29e;
+    }
+    html.dark .cyc-zoom:hover {
+      color: #e7e5e4;
+    }
+    .cyc-lightbox {
+      position: fixed;
+      inset: 0;
+      z-index: 60;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+      background: rgb(0 0 0 / 0.55);
+    }
+    .cyc-lightbox[hidden] {
+      display: none;
+    }
+    .cyc-lb-panel {
+      position: relative;
+      background: #fff;
+      color: #1c1917;
+      border-radius: 16px;
+      padding: 28px 22px 18px;
+      max-width: 96vw;
+      max-height: 92vh;
+      overflow: auto;
+      box-shadow: 0 24px 64px rgb(0 0 0 / 0.45);
+    }
+    html.dark .cyc-lb-panel {
+      background: #1c1917;
+      color: #e7e5e4;
+    }
+    .cyc-lb-panel svg {
+      width: min(1200px, 88vw);
+      height: auto;
+      display: block;
+    }
+    .cyc-lb-close {
+      position: absolute;
+      top: 8px;
+      right: 12px;
+      background: none;
+      border: 0;
+      font-size: 26px;
+      line-height: 1;
+      color: inherit;
+      opacity: 0.6;
+      cursor: pointer;
+      padding: 2px 6px;
+    }
+    .cyc-lb-close:hover {
+      opacity: 1;
+    }
+    .cyc-lb-close:focus-visible {
+      outline: 2px solid var(--color-focus-ring);
+      outline-offset: 2px;
+    }
+    @media (max-width: 680px) {
+      .cyc-lightbox {
+        padding: 10px;
+      }
+      .cyc-lb-panel {
+        padding: 22px 12px 12px;
+      }
+      .cyc-lb-panel svg {
+        width: 88vw;
+      }
+    }
   </style>
 
   <script>
@@ -351,8 +448,12 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
         if (lastFocus instanceof HTMLElement) lastFocus.focus();
       };
       closeBtn?.addEventListener('click', closeLB);
-      lb.addEventListener('click', (e) => { if (e.target === lb) closeLB(); });
-      document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !lb.hidden) closeLB(); });
+      lb.addEventListener('click', (e) => {
+        if (e.target === lb) closeLB();
+      });
+      document.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && !lb.hidden) closeLB();
+      });
       document.querySelectorAll<SVGElement>('article figure svg[aria-label]').forEach((svg) => {
         const fig = svg.closest('figure');
         if (!fig || fig.querySelector('.cyc-zoom')) return;

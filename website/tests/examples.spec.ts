@@ -41,9 +41,10 @@ test.describe('Example detail page', () => {
   });
 
   test('shows the title, category and breadcrumb', async ({ page }) => {
-    // Scope to the page hero h1 — the embedded console-demo preview adds its
-    // own h1 nodes, so a bare `h1` locator is no longer strict-mode safe.
-    await expect(page.locator('h1.h1-hero')).toHaveText(/Combine CSS/);
+    // Scope to the in-page h1 — the embedded console-demo preview adds its
+    // own h1 nodes, so a bare `h1` locator is not strict-mode safe. The hero
+    // h1 renders through SectionHeader now (no h1-hero class).
+    await expect(page.locator('main h1')).toHaveText(/Combine CSS/);
     await expect(page.locator('nav[aria-label="Breadcrumb"] a[href="/examples/"]')).toBeVisible();
   });
 
