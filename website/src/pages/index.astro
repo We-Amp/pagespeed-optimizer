@@ -291,28 +291,10 @@ const jsonLd = [organization, website, product, faqPage];
             >. On your own servers.</span
           >
         </h1>
-        <p class="lede mt-8 max-w-xl">
+        <p class="lede mt-6 max-w-xl">
           mod_pagespeed transcodes images to AVIF, minifies CSS and JS, and injects critical CSS &mdash;
           optimized off the request path, served from cache by your own nginx or Apache. {LICENSE_CLAUSE_CAP}. No proxy, no CDN, nothing third-party in your request
           path.
-        </p>
-        <p class="mt-4 text-sm text-text-muted">
-          Running IIS or ASP.NET Core? <a
-            href="/download/"
-            data-umami-event="cta_home_hero_11"
-            class="font-medium text-interactive hover:underline">see the IIS and ASP.NET Core packages &rarr;</a
-          >
-        </p>
-        <p class="mt-4 text-sm text-text-annotation">
-          The optimization core behind <span class="font-semibold text-text-body"
-            >{builtwithLiveRounded} live sites</span
-          > (<a
-            href="https://trends.builtwith.com/Server/mod_pagespeed"
-            target="_blank"
-            rel="noopener noreferrer"
-            class="underline decoration-stone-300 dark:decoration-stone-600 underline-offset-2 hover:text-text-body"
-            >BuiltWith, {BUILTWITH_AS_OF}</a
-          >) &mdash; maintained by We-Amp.
         </p>
 
         <div class="mt-8 flex flex-wrap items-center gap-3">
@@ -335,6 +317,24 @@ const jsonLd = [organization, website, product, faqPage];
             >Source on GitHub</a
           >
         </div>
+        <p class="mt-4 text-sm text-text-muted">
+          Running IIS or ASP.NET Core? <a
+            href="/download/"
+            data-umami-event="cta_home_hero_11"
+            class="font-medium text-interactive hover:underline">see the IIS and ASP.NET Core packages &rarr;</a
+          >
+        </p>
+        <p class="mt-4 text-sm text-text-annotation">
+          The optimization core behind <span class="font-semibold text-text-body"
+            >{builtwithLiveRounded} live sites</span
+          > (<a
+            href="https://trends.builtwith.com/Server/mod_pagespeed"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="underline decoration-stone-300 dark:decoration-stone-600 underline-offset-2 hover:text-text-body"
+            >BuiltWith, {BUILTWITH_AS_OF}</a
+          >) &mdash; maintained by We-Amp.
+        </p>
         <p class="mt-4 text-xs text-text-annotation">
           {LICENSE_CLAUSE_CAP} &mdash; install and run it freely, in development and in production.
         </p>
