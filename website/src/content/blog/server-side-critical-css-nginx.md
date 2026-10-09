@@ -184,10 +184,10 @@ critical CSS: 4892 bytes, 73 rules
 ships an external 50 to 200 KB stylesheet on every cold load. That's the
 delta you're recovering.
 
-Cache hits show up in the response header:
+On the optimizer worker, cache hits show up in the response header (the module path shows its version header, `X-Page-Speed`, instead):
 
 ```bash
-$ curl -sI http://localhost/ | grep -i pagespeed
+$ curl -sI http://localhost/ | grep -iE 'page-?speed'
 x-pagespeed: HIT
 ```
 

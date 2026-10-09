@@ -207,7 +207,7 @@ load_module modules/ngx_pagespeed.so;
 pagespeed on;
 ...
 
-$ curl -sI http://localhost/ | grep -i pagespeed
+$ curl -sI http://localhost/ | grep -iE 'page-?speed'
 X-Page-Speed: 1.15.0-...
 ```
 
@@ -263,7 +263,7 @@ sudo apt install mod-pagespeed-stable
 sudo systemctl start apache2
 
 # Verify
-curl -sI http://localhost/ | grep -i pagespeed
+curl -sI http://localhost/ | grep -iE 'page-?speed'
 ```
 
 Your existing `pagespeed.conf` continues to work. Same filter names,
