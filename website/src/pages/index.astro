@@ -439,7 +439,10 @@ const jsonLd = [organization, website, product, faqPage];
     <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
   </div>
 
-  <style>
+  {/* Global, not scoped: a scoped block stamps every element on this page with
+      a per-component id attribute, which adds ~9 kB to the HTML. These class
+      names are used only here. */}
+  <style is:global>
     /* Hero instrument layout: two columns at >=1024px, stacked below. */
     .hero-grid {
       display: grid;
