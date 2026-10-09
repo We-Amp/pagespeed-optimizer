@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../../layouts/BaseLayout.astro';
+import SectionHeader from '../../../components/instrument/SectionHeader.astro';
 import { createMarkdownProcessor } from '@astrojs/markdown-remark';
 import {
   loadFilterTopics,
@@ -246,7 +247,11 @@ const yesNo = (v: boolean | 'partial') => (v === true ? 'Yes' : v === 'partial' 
   searchable
 >
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-12 lg:py-16" data-filter-topic={t.name}>
-    <nav class="mb-6 text-sm text-text-annotation" aria-label="Breadcrumb" data-pagefind-ignore>
+    <nav
+      class="mb-6 text-sm font-mono text-text-annotation"
+      aria-label="Breadcrumb"
+      data-pagefind-ignore
+    >
       <a href="/" class="hover:text-text-body">Home</a>
       <span class="mx-1">/</span>
       <a href="/docs/" class="hover:text-text-body">Docs</a>
@@ -256,7 +261,9 @@ const yesNo = (v: boolean | 'partial') => (v === true ? 'Yes' : v === 'partial' 
       <span class="font-mono break-all">{t.name}</span>
     </nav>
 
-    <h1 class="text-3xl font-bold tracking-tight text-text-body break-words">{h1}</h1>
+    <div class="[&_h1]:break-words">
+      <SectionHeader id="filter" as="h1" eyebrow={`filter · ${groupName}`} title={h1} />
+    </div>
 
     <dl class="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-sm text-text-annotation">
       <div>
