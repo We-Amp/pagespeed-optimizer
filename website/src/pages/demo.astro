@@ -1,19 +1,24 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import CTAButton from '../components/CTAButton.astro';
+import SectionHeader from '../components/instrument/SectionHeader.astro';
+import Readout from '../components/instrument/Readout.astro';
+import ReadoutPanel from '../components/instrument/ReadoutPanel.astro';
+import ByteDelta from '../components/instrument/ByteDelta.astro';
+import { monthYear } from '../lib/instrument';
 import metricsData from '../data/demo-metrics.json';
 
 const sites = metricsData.sites;
 const generatedAt = metricsData.generated_at;
+// The e-commerce readout is the store; the other three panels cover the
+// remaining demo sites. Same date, same source file.
+const measuredOnStore = `Measured on our demo store, ${monthYear(generatedAt)}.`;
+const measuredOnSites = `Measured on our demo sites, ${monthYear(generatedAt)}.`;
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1048576) return (bytes / 1048576).toFixed(1) + ' MB';
   if (bytes >= 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return bytes + ' B';
-}
-
-function pct(before: number, after: number): number {
-  return Math.round(((before - after) / before) * 100);
 }
 
 // Pre-compute totals for each site using real measured totals
@@ -37,34 +42,41 @@ const siteData = sites.map((site) => {
   <section class="py-20">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div class="text-center">
-        <h1 class="h1-hero text-text-body">See mod_pagespeed 2.1 optimize real sites</h1>
-        <p class="lede mt-4 max-w-2xl mx-auto">
-          Four real sites — an e-commerce store, a blog, a news portal, and a portfolio — each built
-          from original, unoptimized assets. mod_pagespeed cuts total page weight by 48&ndash;69%
-          across them; on the image-heavy store,
-          <a class="text-interactive underline underline-offset-2" href="/blog/avif-vs-webp-2026/"
-            >AVIF transcoding</a
-          > alone takes the catalog images from 99.7&nbsp;KB down to 23.7&nbsp;KB (76% smaller).
-          Every number below is measured.
-        </p>
-        <p class="mt-4 max-w-2xl mx-auto text-sm text-text-annotation">
-          This is mod_pagespeed 2.1 optimizing whole sites: the optimizer worker doing the heavy
-          work behind the module. The module is the other half — in-process inside Apache, nginx or
-          IIS, with granular per-filter control so you switch each optimization on or off yourself.
-          See that filter-by-filter on the
-          <a class="text-interactive underline underline-offset-2" href="/examples/"
-            >filter examples</a
-          >.
-        </p>
-        <p class="mt-3 max-w-2xl mx-auto text-sm text-text-annotation" data-live-console-pointer>
-          Want the real thing?
-          <a
-            class="text-interactive underline underline-offset-2"
-            href="https://we-amp.com/pagespeed_global_admin/"
-            rel="noopener"
-            data-umami-event="cta_live_console_demo">The live admin console on our own sites</a
-          >.
-        </p>
+        <SectionHeader
+          id="demo"
+          as="h1"
+          align="center"
+          eyebrow="Live demo"
+          title="See mod_pagespeed 2.1 optimize real sites"
+        >
+          <p>
+            Four real sites — an e-commerce store, a blog, a news portal, and a portfolio — each
+            built from original, unoptimized assets. mod_pagespeed cuts total page weight by
+            48&ndash;69% across them; on the image-heavy store,
+            <a class="text-interactive underline underline-offset-2" href="/blog/avif-vs-webp-2026/"
+              >AVIF transcoding</a
+            > alone takes the catalog images from 99.7&nbsp;KB down to 23.7&nbsp;KB (76% smaller). Every
+            number below is measured.
+          </p>
+          <p class="mt-4 text-sm text-text-annotation">
+            This is mod_pagespeed 2.1 optimizing whole sites: the optimizer worker doing the heavy
+            work behind the module. The module is the other half — in-process inside Apache, nginx
+            or IIS, with granular per-filter control so you switch each optimization on or off
+            yourself. See that filter-by-filter on the
+            <a class="text-interactive underline underline-offset-2" href="/examples/"
+              >filter examples</a
+            >.
+          </p>
+          <p class="mt-3 text-sm text-text-annotation" data-live-console-pointer>
+            Want the real thing?
+            <a
+              class="text-interactive underline underline-offset-2"
+              href="https://we-amp.com/pagespeed_global_admin/"
+              rel="noopener"
+              data-umami-event="cta_live_console_demo">The live admin console on our own sites</a
+            >.
+          </p>
+        </SectionHeader>
       </div>
 
       {/* Tab bar */}
@@ -74,7 +86,7 @@ const siteData = sites.map((site) => {
         role="tablist"
         aria-label="Demo sites"
       >
-        <div class="flex justify-center gap-1 -mb-px">
+        <div class="flex flex-wrap justify-center gap-1 -mb-px">
           {
             [
               { id: 'ecommerce', label: 'E-commerce', desc: 'ShopGrid' },
@@ -93,14 +105,12 @@ const siteData = sites.map((site) => {
                 class:list={[
                   'relative px-5 py-3 text-sm font-medium transition-colors rounded-t-lg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-interactive',
                   i === 0
-                    ? 'border border-border border-b-white dark:border-b-stone-900 bg-bg-elevated text-text-body'
+                    ? 'border border-border border-b-bg-primary bg-bg-elevated text-text-body'
                     : 'text-text-annotation hover:text-text-body hover:bg-bg-secondary',
                 ]}
               >
                 <span class="block">{tab.label}</span>
-                <span class="block text-xs font-normal text-text-annotation">
-                  {tab.desc}
-                </span>
+                <span class="block text-xs font-normal text-text-annotation">{tab.desc}</span>
               </button>
             ))
           }
@@ -108,36 +118,29 @@ const siteData = sites.map((site) => {
       </div>
 
       {/* Info note */}
-      <details
-        class="mt-6 rounded-md border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-950 px-4 py-3"
-      >
-        <summary class="text-sm font-medium text-amber-800 dark:text-amber-300 cursor-pointer">
+      <details class="mt-6 rounded-md border border-accent/45 bg-accent-wash px-4 py-3">
+        <summary class="text-sm font-medium text-accent cursor-pointer">
           About this demo's optimization baseline
         </summary>
-        <p class="mt-2 text-sm text-amber-800 dark:text-amber-300">
-          These pages ship deliberately unoptimized assets so mod_pagespeed has real work to do:
-          CSS is verbose with longhand properties, JavaScript is unminified, and images are served
-          as uncompressed JPEGs.
+        <p class="mt-2 text-sm text-accent">
+          These pages ship deliberately unoptimized assets so mod_pagespeed has real work to do: CSS
+          is verbose with longhand properties, JavaScript is unminified, and images are served as
+          uncompressed JPEGs.
         </p>
       </details>
 
       {/* Iframe preview area */}
-      <div
-        class="mt-6 rounded-lg border border-border bg-bg-elevated overflow-hidden shadow-sm"
-      >
+      <div class="mt-6 rounded-lg border border-border bg-bg-elevated overflow-hidden shadow-sm">
         <div
           class="flex items-center justify-between px-4 py-2 border-b border-border bg-bg-secondary"
         >
           <div class="flex items-center gap-2">
             <div class="flex gap-1.5">
-              <span class="block h-3 w-3 rounded-full bg-stone-300 dark:bg-stone-600"></span>
-              <span class="block h-3 w-3 rounded-full bg-stone-300 dark:bg-stone-600"></span>
-              <span class="block h-3 w-3 rounded-full bg-stone-300 dark:bg-stone-600"></span>
+              <span class="block h-3 w-3 rounded-full bg-border-strong"></span>
+              <span class="block h-3 w-3 rounded-full bg-border-strong"></span>
+              <span class="block h-3 w-3 rounded-full bg-border-strong"></span>
             </div>
-            <span
-              id="demo-url-bar"
-              class="ml-2 text-xs text-text-annotation font-mono"
-            >
+            <span id="demo-url-bar" class="ml-2 text-xs text-text-annotation font-mono">
               /demos/ecommerce/index.html
             </span>
           </div>
@@ -219,407 +222,122 @@ const siteData = sites.map((site) => {
             class:list={['mt-10', i !== 0 && 'hidden']}
             data-panel={site.id}
           >
-            {/* Top metrics row — delta-first hierarchy: the headline percentage is the
-                hero number; the raw before/after values are demoted to a caption row
-                of supporting evidence. */}
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-              {/* Page weight */}
-              <div class="rounded-lg border border-border bg-bg-elevated p-6 text-center">
-                <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation mb-3">
-                  Total page weight
-                </p>
-                <p class="display-num text-5xl sm:text-6xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400 leading-none">
-                  &minus;{pct(site.totalBefore, site.totalAvif)}%
-                </p>
-                <p class="mt-2 text-sm font-medium text-text-body">smaller</p>
-                <p class="mt-3 text-xs text-text-annotation display-num tabular-nums">
-                  <span class="line-through">{formatBytes(site.totalBefore)}</span>
-                  <span class="mx-1 text-text-annotation">&rarr;</span>
-                  <span class="font-semibold text-text-body">
-                    {formatBytes(site.totalAvif)}
-                  </span>
-                </p>
-              </div>
+            {/* Top metrics — the site's before → after measurements on a
+                readout plate; the resource ByteDeltas below carry the breakdown. */}
+            <ReadoutPanel
+              id={`metrics-${site.id}`}
+              title={`Readout · ${site.name}`}
+              source={site.id === 'ecommerce' ? measuredOnStore : measuredOnSites}
+            >
+              <Readout
+                label="Total page weight"
+                before={formatBytes(site.totalBefore)}
+                after={formatBytes(site.totalAvif)}
+                gauge={{
+                  min: 0,
+                  max: site.totalBefore,
+                  before: site.totalBefore,
+                  after: site.totalAvif,
+                }}
+              />
+              <Readout
+                label="Load time (3G)"
+                before={`${site.loadTime.before}s`}
+                after={`${site.loadTime.after}s`}
+                gauge={{
+                  min: 0,
+                  max: Math.ceil(site.loadTime.before),
+                  before: site.loadTime.before,
+                  after: site.loadTime.after,
+                }}
+              />
+              <Readout
+                label="Lighthouse Performance"
+                before={String(site.lighthouse.before)}
+                after={String(site.lighthouse.after)}
+                gauge={{
+                  min: 0,
+                  max: 100,
+                  before: site.lighthouse.before,
+                  after: site.lighthouse.after,
+                }}
+              />
+            </ReadoutPanel>
 
-              {/* Load time */}
-              <div class="rounded-lg border border-border bg-bg-elevated p-6 text-center">
-                <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation mb-3">
-                  Load time (3G)
-                </p>
-                <p class="display-num text-5xl sm:text-6xl font-bold tracking-tight text-emerald-700 dark:text-emerald-400 leading-none">
-                  &minus;{pct(site.loadTime.before, site.loadTime.after)}%
-                </p>
-                <p class="mt-2 text-sm font-medium text-text-body">faster</p>
-                <p class="mt-3 text-xs text-text-annotation display-num tabular-nums">
-                  <span class="line-through">{site.loadTime.before}s</span>
-                  <span class="mx-1 text-text-annotation">&rarr;</span>
-                  <span class="font-semibold text-text-body">
-                    {site.loadTime.after}s
-                  </span>
-                </p>
-              </div>
-
-              {/* Lighthouse */}
-              <div class="rounded-lg border border-border bg-bg-elevated p-6 text-center">
-                <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation mb-3">
-                  Lighthouse Performance
-                </p>
-                <p
-                  class:list={[
-                    'display-num text-5xl sm:text-6xl font-bold tracking-tight leading-none',
-                    site.lighthouse.after >= 90
-                      ? 'text-emerald-700 dark:text-emerald-400'
-                      : 'text-amber-600 dark:text-amber-400',
+            {/* Resource breakdown — one ByteDelta per resource class, before →
+                after, from the same measured demo-metrics numbers. The URL bar
+                above names the demo page each panel's source points at. */}
+            <h3 class="mt-8 text-sm font-semibold text-text-body">Resource breakdown</h3>
+            {/* Each plate keeps its base-page table row label verbatim, so the
+                resource class a plate measures stays named. Two columns from
+                md up: below ~314px of plate width the fixed label/number
+                tracks leave no room for the bar column. */}
+            <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
+              <div>
+                <h4 class="eyebrow mb-3">Total</h4>
+                <ByteDelta
+                  rows={[
+                    { label: 'original', bytes: site.totalBefore },
+                    { label: 'optimized', bytes: site.totalAvif },
                   ]}
-                >
-                  +{site.lighthouse.after - site.lighthouse.before}
-                </p>
-                <p class="mt-2 text-sm font-medium text-text-body">
-                  points
-                  <span
-                    class:list={[
-                      'ml-1 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide',
-                      site.lighthouse.after >= 90
-                        ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300'
-                        : 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
-                    ]}
-                  >
-                    {site.lighthouse.after >= 90 ? 'Good (≥90)' : 'Needs work (<90)'}
-                  </span>
-                </p>
-                <p class="mt-3 text-xs text-text-annotation display-num tabular-nums">
-                  <span class="line-through">{site.lighthouse.before}</span>
-                  <span class="mx-1 text-text-annotation">&rarr;</span>
-                  <span class="font-semibold text-text-body">
-                    {site.lighthouse.after}
-                  </span>
-                </p>
+                  source={site.src}
+                  deltaNote="in size"
+                />
               </div>
-            </div>
-
-            {/* Resource breakdown table */}
-            <div class="mt-8 rounded-lg border border-border bg-bg-elevated overflow-hidden">
-              <div class="px-6 py-4 border-b border-border bg-bg-secondary">
-                <h3 class="text-sm font-semibold text-text-body">
-                  Resource breakdown
-                </h3>
+              <div>
+                <h4 class="eyebrow mb-3">HTML + critical CSS</h4>
+                <ByteDelta
+                  rows={[{ label: 'HTML', bytes: site.resources.html.before }]}
+                  source={site.src}
+                  deltaNote="in size"
+                />
               </div>
-              <table class="w-full text-sm">
-                <thead>
-                  <tr class="border-b border-border text-left text-xs font-semibold uppercase tracking-wider text-text-annotation">
-                    <th class="px-6 py-3">Resource</th>
-                    <th class="px-6 py-3 text-right">Original</th>
-                    <th class="px-6 py-3 text-right">Optimized</th>
-                    <th class="px-6 py-3 text-right">Saving</th>
-                    <th class="px-6 py-3 w-40">
-                      <span class="sr-only">Bar</span>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {/* CSS */}
-                  <tr class="border-b border-border">
-                    <td class="px-6 py-3 font-medium text-text-body">
-                      CSS (minified)
-                    </td>
-                    <td class="px-6 py-3 text-right text-text-muted">
-                      {formatBytes(site.resources.css.before)}
-                    </td>
-                    <td class="px-6 py-3 text-right font-medium text-text-body">
-                      {formatBytes(site.resources.css.minified)}
-                    </td>
-                    <td class="px-6 py-3 text-right font-semibold text-emerald-700 dark:text-emerald-400">
-                      -{pct(site.resources.css.before, site.resources.css.minified)}%
-                    </td>
-                    <td class="px-6 py-3">
-                      <div class="flex gap-1 items-center">
-                        <div
-                          class="h-2 rounded-full bg-stone-300 dark:bg-stone-600"
-                          style={`width: ${Math.round((site.resources.css.before / site.totalBefore) * 100)}%`}
-                        />
-                        <div
-                          class="h-2 rounded-full bg-emerald-500"
-                          style={`width: ${Math.round((site.resources.css.minified / site.totalBefore) * 100)}%`}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                  {/* JS */}
-                  <tr class="border-b border-border">
-                    <td class="px-6 py-3 font-medium text-text-body">
-                      JavaScript (minified)
-                    </td>
-                    <td class="px-6 py-3 text-right text-text-muted">
-                      {formatBytes(site.resources.js.before)}
-                    </td>
-                    <td class="px-6 py-3 text-right font-medium text-text-body">
-                      {formatBytes(site.resources.js.minified)}
-                    </td>
-                    <td class="px-6 py-3 text-right font-semibold text-emerald-700 dark:text-emerald-400">
-                      -{pct(site.resources.js.before, site.resources.js.minified)}%
-                    </td>
-                    <td class="px-6 py-3">
-                      <div class="flex gap-1 items-center">
-                        <div
-                          class="h-2 rounded-full bg-stone-300 dark:bg-stone-600"
-                          style={`width: ${Math.round((site.resources.js.before / site.totalBefore) * 100)}%`}
-                        />
-                        <div
-                          class="h-2 rounded-full bg-emerald-500"
-                          style={`width: ${Math.round((site.resources.js.minified / site.totalBefore) * 100)}%`}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                  {/* Images WebP */}
-                  <tr class="border-b border-border">
-                    <td class="px-6 py-3 font-medium text-text-body">
-                      {site.resources.images.label} &rarr; WebP
-                    </td>
-                    <td class="px-6 py-3 text-right text-text-muted">
-                      {formatBytes(site.imgBefore)}
-                    </td>
-                    <td class="px-6 py-3 text-right font-medium text-text-body">
-                      {formatBytes(site.imgWebp)}
-                    </td>
-                    <td class="px-6 py-3 text-right font-semibold text-emerald-700 dark:text-emerald-400">
-                      -{pct(site.imgBefore, site.imgWebp)}%
-                    </td>
-                    <td class="px-6 py-3">
-                      <div class="flex gap-1 items-center">
-                        <div
-                          class="h-2 rounded-full bg-stone-300 dark:bg-stone-600"
-                          style={`width: ${Math.min(100, Math.round((site.imgBefore / site.totalBefore) * 100))}%`}
-                        />
-                        <div
-                          class="h-2 rounded-full bg-interactive"
-                          style={`width: ${Math.min(100, Math.round((site.imgWebp / site.totalBefore) * 100))}%`}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                  {/* Images AVIF */}
-                  <tr class="border-b border-border">
-                    <td class="px-6 py-3 font-medium text-text-body">
-                      {site.resources.images.label} &rarr; AVIF
-                    </td>
-                    <td class="px-6 py-3 text-right text-text-muted">
-                      {formatBytes(site.imgBefore)}
-                    </td>
-                    <td class="px-6 py-3 text-right font-medium text-text-body">
-                      {formatBytes(site.imgAvif)}
-                    </td>
-                    <td class="px-6 py-3 text-right font-semibold text-emerald-700 dark:text-emerald-400">
-                      -{pct(site.imgBefore, site.imgAvif)}%
-                    </td>
-                    <td class="px-6 py-3">
-                      <div class="flex gap-1 items-center">
-                        <div
-                          class="h-2 rounded-full bg-stone-300 dark:bg-stone-600"
-                          style={`width: ${Math.min(100, Math.round((site.imgBefore / site.totalBefore) * 100))}%`}
-                        />
-                        <div
-                          class="h-2 rounded-full bg-stone-500 dark:bg-stone-400"
-                          style={`width: ${Math.min(100, Math.round((site.imgAvif / site.totalBefore) * 100))}%`}
-                        />
-                      </div>
-                    </td>
-                  </tr>
-                  {/* HTML (unchanged) */}
-                  <tr>
-                    <td class="px-6 py-3 font-medium text-text-body">
-                      HTML + critical CSS
-                    </td>
-                    <td class="px-6 py-3 text-right text-text-muted">
-                      {formatBytes(site.resources.html.before)}
-                    </td>
-                    <td class="px-6 py-3 text-right font-medium text-text-body">
-                      {formatBytes(site.resources.html.before)}
-                    </td>
-                    <td class="px-6 py-3 text-right text-text-muted">0%</td>
-                    <td class="px-6 py-3">
-                      <div
-                        class="h-2 rounded-full bg-stone-200 dark:bg-stone-700"
-                        style={`width: ${Math.round((site.resources.html.before / site.totalBefore) * 100)}%`}
-                      />
-                    </td>
-                  </tr>
-                </tbody>
-                <tfoot>
-                  <tr class="border-t border-border bg-bg-secondary font-semibold">
-                    <td class="px-6 py-3 text-text-body">Total</td>
-                    <td class="px-6 py-3 text-right text-text-muted">
-                      {formatBytes(site.totalBefore)}
-                    </td>
-                    <td class="px-6 py-3 text-right text-text-body">
-                      {formatBytes(site.totalAvif)}
-                    </td>
-                    <td class="px-6 py-3 text-right text-emerald-700 dark:text-emerald-400">
-                      -{pct(site.totalBefore, site.totalAvif)}%
-                    </td>
-                    <td class="px-6 py-3" />
-                  </tr>
-                </tfoot>
-              </table>
-            </div>
-
-            {/* Waterfall comparison */}
-            <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Before waterfall */}
-              <div class="rounded-lg border border-border bg-bg-elevated p-6">
-                <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation mb-4">
-                  Before &mdash; original resources
-                </p>
-                <div class="space-y-2">
-                  <div>
-                    <div class="flex justify-between text-xs text-text-muted mb-1">
-                      <>
-                        <span>HTML</span>
-                        <span>{formatBytes(site.resources.html.before)}</span>
-                      </>
-                    </div>
-                    <div class="h-3 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
-                      <div
-                        class="h-full rounded-full bg-stone-400 dark:bg-stone-600"
-                        style={`width: ${Math.round((site.resources.html.before / site.totalBefore) * 100)}%`}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <div class="flex justify-between text-xs text-text-muted mb-1">
-                      <>
-                        <span>CSS</span>
-                        <span>{formatBytes(site.resources.css.before)}</span>
-                      </>
-                    </div>
-                    <div class="h-3 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
-                      <div
-                        class="h-full rounded-full bg-stone-400 dark:bg-stone-600"
-                        style={`width: ${Math.round((site.resources.css.before / site.totalBefore) * 100)}%`}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <div class="flex justify-between text-xs text-text-muted mb-1">
-                      <>
-                        <span>JavaScript</span>
-                        <span>{formatBytes(site.resources.js.before)}</span>
-                      </>
-                    </div>
-                    <div class="h-3 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
-                      <div
-                        class="h-full rounded-full bg-stone-400 dark:bg-stone-600"
-                        style={`width: ${Math.round((site.resources.js.before / site.totalBefore) * 100)}%`}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <div class="flex justify-between text-xs text-text-muted mb-1">
-                      <>
-                        <span>Images (JPEG)</span>
-                        <span>{formatBytes(site.imgBefore)}</span>
-                      </>
-                    </div>
-                    <div class="h-3 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
-                      <div
-                        class="h-full rounded-full bg-stone-400 dark:bg-stone-600"
-                        style={`width: ${Math.min(100, Math.round((site.imgBefore / site.totalBefore) * 100))}%`}
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div class="mt-4 pt-3 border-t border-border flex justify-between text-sm font-semibold">
-                  <span class="text-text-body">Total</span>
-                  <span class="text-text-body">
-                    {formatBytes(site.totalBefore)}
-                  </span>
-                </div>
+              <div>
+                <h4 class="eyebrow mb-3">CSS (minified)</h4>
+                <ByteDelta
+                  rows={[
+                    { label: 'original', bytes: site.resources.css.before },
+                    { label: 'minified', bytes: site.resources.css.minified },
+                  ]}
+                  source={site.src}
+                  deltaNote="in size"
+                />
               </div>
-
-              {/* After waterfall */}
-              <div class="rounded-lg border border-emerald-200 dark:border-emerald-800 bg-emerald-50/30 dark:bg-emerald-950/30 p-6">
-                <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mb-4">
-                  After &mdash; optimized with AVIF
-                </p>
-                <div class="space-y-2">
-                  <div>
-                    <div class="flex justify-between text-xs text-text-muted mb-1">
-                      <>
-                        <span>HTML + critical CSS</span>
-                        <span>{formatBytes(site.resources.html.before)}</span>
-                      </>
-                    </div>
-                    <div class="h-3 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
-                      <div
-                        class="h-full rounded-full bg-interactive"
-                        style={`width: ${Math.round((site.resources.html.before / site.totalBefore) * 100)}%`}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <div class="flex justify-between text-xs text-text-muted mb-1">
-                      <>
-                        <span>CSS (minified)</span>
-                        <span>{formatBytes(site.resources.css.minified)}</span>
-                      </>
-                    </div>
-                    <div class="h-3 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
-                      <div
-                        class="h-full rounded-full bg-interactive"
-                        style={`width: ${Math.round((site.resources.css.minified / site.totalBefore) * 100)}%`}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <div class="flex justify-between text-xs text-text-muted mb-1">
-                      <>
-                        <span>JS (minified)</span>
-                        <span>{formatBytes(site.resources.js.minified)}</span>
-                      </>
-                    </div>
-                    <div class="h-3 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
-                      <div
-                        class="h-full rounded-full bg-interactive"
-                        style={`width: ${Math.round((site.resources.js.minified / site.totalBefore) * 100)}%`}
-                      />
-                    </div>
-                  </div>
-                  <div>
-                    <div class="flex justify-between text-xs text-text-muted mb-1">
-                      <>
-                        <span>Images (AVIF)</span>
-                        <span>{formatBytes(site.imgAvif)}</span>
-                      </>
-                    </div>
-                    <div class="h-3 rounded-full bg-stone-200 dark:bg-stone-700 overflow-hidden">
-                      <div
-                        class="h-full rounded-full bg-interactive"
-                        style={`width: ${Math.min(100, Math.round((site.imgAvif / site.totalBefore) * 100))}%`}
-                      />
-                    </div>
-                  </div>
-                </div>
-                <div class="mt-4 pt-3 border-t border-emerald-200 dark:border-emerald-800 flex justify-between text-sm font-semibold">
-                  <span class="text-emerald-800 dark:text-emerald-300">Total</span>
-                  <span class="text-emerald-900 dark:text-emerald-200">
-                    {formatBytes(site.totalAvif)}
-                  </span>
-                </div>
+              <div>
+                <h4 class="eyebrow mb-3">JavaScript (minified)</h4>
+                <ByteDelta
+                  rows={[
+                    { label: 'original', bytes: site.resources.js.before },
+                    { label: 'minified', bytes: site.resources.js.minified },
+                  ]}
+                  source={site.src}
+                  deltaNote="in size"
+                />
+              </div>
+              <div>
+                <h4 class="eyebrow mb-3">{site.resources.images.label} &rarr; AVIF</h4>
+                <ByteDelta
+                  rows={[
+                    { label: 'JPEG', bytes: site.imgBefore },
+                    { label: 'WebP', bytes: site.imgWebp },
+                    { label: 'AVIF', bytes: site.imgAvif },
+                  ]}
+                  source={site.src}
+                  deltaNote="in size"
+                />
               </div>
             </div>
 
             {/* CSS minification sample */}
             <div class="mt-8 rounded-lg border border-border bg-bg-elevated overflow-hidden">
               <div class="px-6 py-4 border-b border-border bg-bg-secondary">
-                <h3 class="text-sm font-semibold text-text-body">
-                  CSS minification example
-                </h3>
+                <h3 class="text-sm font-semibold text-text-body">CSS minification example</h3>
                 <p class="text-xs text-text-muted mt-1">
                   Actual code from the {site.name.toLowerCase()} demo. Comments removed, whitespace
                   stripped, shorthand properties collapsed.
                 </p>
               </div>
-              <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-stone-200 dark:divide-stone-700">
+              <div class="grid grid-cols-1 md:grid-cols-2 divide-y md:divide-y-0 md:divide-x divide-border">
                 <div class="p-4">
                   <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation mb-2">
                     Before &mdash; {formatBytes(site.resources.css.before)}
@@ -629,10 +347,10 @@ const siteData = sites.map((site) => {
                   </pre>
                 </div>
                 <div class="p-4">
-                  <p class="text-xs font-semibold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 mb-2">
+                  <p class="text-xs font-semibold uppercase tracking-wider text-success mb-2">
                     After &mdash; {formatBytes(site.resources.css.minified)}
                   </p>
-                  <pre class="text-xs text-text-muted bg-emerald-50 dark:bg-emerald-950 rounded p-3 overflow-x-auto max-h-56 overflow-y-auto">
+                  <pre class="text-xs text-text-muted bg-success-wash rounded p-3 overflow-x-auto max-h-56 overflow-y-auto">
                     <code set:text={site.cssSnippet.after} />
                   </pre>
                 </div>
@@ -658,10 +376,10 @@ const siteData = sites.map((site) => {
       <ul class="mt-2 space-y-2 text-sm text-text-muted list-disc list-inside">
         <li>
           <strong>CSS/JS sizes</strong> are measured by fetching the external
-          <code class="text-xs bg-stone-200 dark:bg-stone-700 rounded px-1">style.css</code> and
-          <code class="text-xs bg-stone-200 dark:bg-stone-700 rounded px-1">app.js</code> files from the
-          origin server (before) and from the PageSpeed nginx proxy (after). Minified sizes reflect our
-          actual CSS/JS minifier output.
+          <code class="text-xs bg-bg-secondary rounded px-1">style.css</code> and
+          <code class="text-xs bg-bg-secondary rounded px-1">app.js</code> files from the origin server
+          (before) and from the PageSpeed nginx proxy (after). Minified sizes reflect our actual CSS/JS
+          minifier output.
         </li>
         <li>
           <strong>Image sizes</strong> are measured by fetching each JPEG from the origin and the corresponding
@@ -669,9 +387,7 @@ const siteData = sites.map((site) => {
           site.
         </li>
       </ul>
-      <p class="mt-4 text-sm font-semibold text-text-body">
-        Modeled from those measurements
-      </p>
+      <p class="mt-4 text-sm font-semibold text-text-body">Modeled from those measurements</p>
       <ul class="mt-2 space-y-2 text-sm text-text-muted list-disc list-inside">
         <li>
           <strong>Load times</strong> are a model, not a stopwatch reading: we project transfer time for
@@ -699,9 +415,7 @@ const siteData = sites.map((site) => {
   {/* Live consoles */}
   <section class="py-16">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-      <h2 class="h2-section text-text-body text-center">
-        See the live consoles
-      </h2>
+      <h2 class="h2-section text-text-body text-center">See the live consoles</h2>
       <p class="mt-4 text-text-muted text-center max-w-2xl mx-auto">
         Both parts ship a console: the module's admin console and the optimizer worker's web
         console. These are real, publicly reachable instances running on our own infrastructure —
@@ -727,15 +441,12 @@ const siteData = sites.map((site) => {
               />
             </picture>
           </a>
-          <p class="mt-3 text-sm font-medium text-text-body">
-            The optimizer worker's web console
-          </p>
+          <p class="mt-3 text-sm font-medium text-text-body">The optimizer worker's web console</p>
           <p class="mt-1 text-sm text-text-muted">
             A read-only dashboard with live optimization stats from this site's own production
             deployment. <a
               href="https://we-amp.com/console/"
-              class="text-interactive underline underline-offset-2"
-              >Open the live web console →</a
+              class="text-interactive underline underline-offset-2">Open the live web console →</a
             >
           </p>
         </div>
@@ -758,16 +469,13 @@ const siteData = sites.map((site) => {
               />
             </picture>
           </a>
-          <p class="mt-3 text-sm font-medium text-text-body">
-            The module's admin console
-          </p>
+          <p class="mt-3 text-sm font-medium text-text-body">The module's admin console</p>
           <p class="mt-1 text-sm text-text-muted">
             The admin console built into the native module, running on our public Apache demo. Live
             statistics, caches, histograms, and message history, served in-process with no separate
             worker. <a
               href="https://demo-httpd-1.1.modpagespeed.com/pagespeed_global_admin/#/console"
-              class="text-interactive underline underline-offset-2"
-              >Open the live admin console →</a
+              class="text-interactive underline underline-offset-2">Open the live admin console →</a
             >
           </p>
         </div>
@@ -778,26 +486,21 @@ const siteData = sites.map((site) => {
   {/* Try it yourself */}
   <section class="py-16 bg-bg-secondary">
     <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-      <h2 class="h2-section text-text-body text-center">
-        Verify on your own content
-      </h2>
+      <h2 class="h2-section text-text-body text-center">Verify on your own content</h2>
       <p class="mt-4 text-text-muted text-center max-w-2xl mx-auto">
         Run mod_pagespeed 2.1 locally with Docker and measure the difference on your own site.
       </p>
-      <div
-        class="mt-8 rounded-lg bg-bg-elevated border border-border p-6"
-      >
+      <div class="mt-8 rounded-lg bg-bg-elevated border border-border p-6">
         <p class="text-sm font-medium text-text-body mb-3">Quick start:</p>
         <pre
-          class="rounded-md bg-stone-900 text-stone-100 p-4 text-sm overflow-x-auto"><code>docker compose -f deploy/docker-compose.yml up -d
+          class="rounded-md bg-bg-recessed text-text-body p-4 text-sm overflow-x-auto"><code>docker compose -f deploy/docker-compose.yml up -d
 curl -I http://localhost:8080/          # X-PageSpeed: MISS (original)
 sleep 2                                 # Wait for worker optimization
 curl -I http://localhost:8080/          # X-PageSpeed: HIT  (optimized)</code></pre>
         <p class="mt-4 text-sm text-text-muted">
           See the <a
             href="/docs/getting-started/"
-            class="text-interactive underline hover:text-interactive"
-            >getting started guide</a
+            class="text-interactive underline hover:text-interactive">getting started guide</a
           >
           for full installation instructions.
         </p>
@@ -808,9 +511,7 @@ curl -I http://localhost:8080/          # X-PageSpeed: HIT  (optimized)</code></
   {/* CTA */}
   <section class="bg-interactive py-16">
     <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center">
-      <h2 class="h2-section text-on-accent">
-        Free to run. See these results on your own site.
-      </h2>
+      <h2 class="h2-section text-on-accent">Free to run. See these results on your own site.</h2>
       <p class="mt-4 text-on-accent/80">
         Apache-2.0 &mdash; free to install and run, in development and in production.
       </p>
@@ -844,22 +545,15 @@ curl -I http://localhost:8080/          # X-PageSpeed: HIT  (optimized)</code></
       // the element markup are never blown away by className overwrites.
       var ACTIVE_TOKENS = [
         'border',
-        'border-stone-200',
-        'dark:border-stone-700',
-        'border-b-white',
-        'dark:border-b-stone-900',
-        'bg-white',
-        'dark:bg-stone-900',
-        'text-stone-900',
-        'dark:text-stone-100',
+        'border-border',
+        'border-b-bg-primary',
+        'bg-bg-elevated',
+        'text-text-body',
       ];
       var INACTIVE_TOKENS = [
-        'text-stone-500',
-        'dark:text-stone-400',
-        'hover:text-stone-700',
-        'dark:hover:text-stone-300',
-        'hover:bg-stone-50',
-        'dark:hover:bg-stone-800',
+        'text-text-annotation',
+        'hover:text-text-body',
+        'hover:bg-bg-secondary',
       ];
 
       function applyActive(el: Element) {

@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import SectionHeader from '../../components/instrument/SectionHeader.astro';
 import { EXAMPLES, CATEGORY_ORDER, CATEGORY_BLURB, DEMO_ORIGIN } from '../../data/examples';
 import examplesData from '../../data/examples-data.json';
 
@@ -58,38 +59,31 @@ const itemListJsonLd = {
   <section class="py-16 sm:py-20">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <div class="max-w-3xl">
-        <p class="text-sm font-semibold uppercase tracking-wider text-interactive">
-          Live gallery
-        </p>
-        <h1 class="h1-hero mt-3 text-text-body">Optimization examples</h1>
-        <p class="lede mt-5">
-          Every optimization the mod_pagespeed 2.1 module performs, shown live. Each of these {total}
-          examples is a small page served by the module — in-process in Apache, nginx and IIS.
-          Open one to see the original and the optimized output side by side, read exactly what
-          changed in the source, and see the bytes and requests it saved.
-        </p>
+        <SectionHeader id="examples" as="h1" eyebrow="Live gallery" title="Optimization examples">
+          <p>
+            Every optimization the mod_pagespeed 2.1 module performs, shown live. Each of these{' '}
+            {total} examples is a small page served by the module — in-process in Apache, nginx and IIS.
+            Open one to see the original and the optimized output side by side, read exactly what changed
+            in the source, and see the bytes and requests it saved.
+          </p>
+        </SectionHeader>
       </div>
 
       {/* Which part these belong to — the module's per-filter control model. */}
-      <div
-        class="mt-6 max-w-3xl rounded-lg border border-border bg-bg-secondary/60 p-5"
-      >
-        <p class="font-semibold text-text-body">
-          These are the module's named filters.
-        </p>
+      <div class="mt-6 max-w-3xl rounded-lg border border-border bg-bg-secondary/60 p-5">
+        <p class="font-semibold text-text-body">These are the module's named filters.</p>
         <p class="mt-2 text-sm text-text-muted">
-          The module runs in-process in Apache, nginx and IIS, where you switch each
-          optimization on and off individually — so this gallery shows them one filter at a time.
-          The optimizer worker takes a different path: one always-on pipeline with no per-filter
-          switches, nothing to tune and nothing to break. Same optimization libraries underneath, a
-          different control model — on the worker, read these as what the pipeline does, not a list
-          of toggles.
+          The module runs in-process in Apache, nginx and IIS, where you switch each optimization on
+          and off individually — so this gallery shows them one filter at a time. The optimizer
+          worker takes a different path: one always-on pipeline with no per-filter switches, nothing
+          to tune and nothing to break. Same optimization libraries underneath, a different control
+          model — on the worker, read these as what the pipeline does, not a list of toggles.
         </p>
         <p class="mt-3 text-sm">
           <a class="font-medium text-interactive hover:underline" href="/docs/"
             >Read the module docs</a
           >
-          <span class="mx-1 text-stone-300 dark:text-stone-600">·</span>
+          <span class="mx-1 text-text-annotation">·</span>
           <a class="font-medium text-interactive hover:underline" href="/demo/"
             >See mod_pagespeed optimize a whole site</a
           >
