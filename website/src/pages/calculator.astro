@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import SectionHeader from '../components/instrument/SectionHeader.astro';
 ---
 
 <BaseLayout
@@ -8,45 +9,45 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 >
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-20">
     <div class="text-center">
-      <h1 class="h1-hero text-text-body">Savings calculator</h1>
-      <p class="lede mt-4 max-w-2xl mx-auto">
-        Bandwidth savings only. Faster load times and better Core Web Vitals are upside this
-        calculator doesn't count.
-      </p>
+      <SectionHeader
+        id="calculator"
+        as="h1"
+        align="center"
+        eyebrow="Bandwidth savings only."
+        title="Savings calculator"
+      >
+        <p>
+          Faster load times and better Core Web Vitals are upside this calculator doesn't count.
+        </p>
+      </SectionHeader>
     </div>
 
     <!-- Inputs -->
     <div class="mt-12 grid grid-cols-1 sm:grid-cols-2 gap-8">
       <div>
-        <label for="pageviews" class="block text-sm font-medium text-text-body">
-          Monthly pageviews
-        </label>
+        <label for="pageviews" class="eyebrow"> Monthly pageviews </label>
         <input
           type="number"
           inputmode="numeric"
           id="pageviews"
           value="10000000"
           min="0"
-          class="mt-2 block w-full rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-elevated shadow-sm focus:border-interactive focus:ring-2 focus:ring-interactive sm:text-sm"
+          class="mt-2 block w-full rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-elevated focus:border-interactive focus:ring-2 focus:ring-interactive sm:text-sm"
         />
       </div>
       <div>
-        <label for="pageweight" class="block text-sm font-medium text-text-body">
-          Average page weight (KB)
-        </label>
+        <label for="pageweight" class="eyebrow"> Average page weight (KB) </label>
         <input
           type="number"
           inputmode="numeric"
           id="pageweight"
           value="2500"
           min="0"
-          class="mt-2 block w-full rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-elevated shadow-sm focus:border-interactive focus:ring-2 focus:ring-interactive sm:text-sm"
+          class="mt-2 block w-full rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-elevated focus:border-interactive focus:ring-2 focus:ring-interactive sm:text-sm"
         />
       </div>
       <div>
-        <label for="bwcost" class="block text-sm font-medium text-text-body">
-          Bandwidth cost per GB ($)
-        </label>
+        <label for="bwcost" class="eyebrow"> Bandwidth cost per GB ($) </label>
         <input
           type="number"
           inputmode="decimal"
@@ -55,16 +56,14 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           min="0"
           step="0.005"
           aria-describedby="bwcost-hint"
-          class="mt-2 block w-full rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-elevated shadow-sm focus:border-interactive focus:ring-2 focus:ring-interactive sm:text-sm"
+          class="mt-2 block w-full rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-elevated focus:border-interactive focus:ring-2 focus:ring-interactive sm:text-sm"
         />
         <p id="bwcost-hint" class="mt-1 text-xs text-text-annotation">
           AWS CloudFront, GCP, Azure typically $0.05–$0.12/GB
         </p>
       </div>
       <div>
-        <label for="sites" class="block text-sm font-medium text-text-body">
-          Number of sites
-        </label>
+        <label for="sites" class="eyebrow"> Number of sites </label>
         <input
           type="number"
           inputmode="numeric"
@@ -73,7 +72,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           min="1"
           max="100"
           aria-describedby="sites-hint"
-          class="mt-2 block w-full rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-elevated shadow-sm focus:border-interactive focus:ring-2 focus:ring-interactive sm:text-sm"
+          class="mt-2 block w-full rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-elevated focus:border-interactive focus:ring-2 focus:ring-interactive sm:text-sm"
         />
         <p id="sites-hint" class="mt-1 text-xs text-text-annotation">
           The software is free on every site and every server &mdash; the count only sizes the
@@ -83,7 +82,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     </div>
 
     <!-- Results -->
-    <div class="mt-12 rounded-2xl border border-border bg-bg-elevated p-8 shadow-sm">
+    <div class="mt-12 rounded-2xl border border-border bg-bg-elevated p-8">
       <h2 class="text-lg font-semibold text-text-body">Your estimated savings</h2>
       {/* Headline output — annual savings + ROI dominates */}
       <div
@@ -92,11 +91,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         aria-live="polite"
         aria-atomic="true"
       >
-        <div class="rounded-lg bg-bg-secondary p-4">
+        <div class="readout-plate p-4">
           <p class="text-sm text-text-muted">Annual savings</p>
           <p id="annual-savings" class="display-num mt-1 text-3xl font-bold text-text-body">—</p>
         </div>
-        <div class="rounded-lg bg-bg-secondary p-4">
+        <div class="readout-plate p-4">
           <p class="text-sm text-text-muted">ROI</p>
           <p id="roi" class="display-num mt-1 text-3xl font-bold text-text-body">—</p>
         </div>
@@ -114,27 +113,27 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           Show methodology — monthly breakdown
         </summary>
         <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-          <div class="rounded-lg bg-bg-secondary p-4">
+          <div class="readout-plate p-4">
             <p class="text-sm text-text-muted">Current monthly bandwidth</p>
             <p id="current-bw" class="display-num mt-1 text-2xl font-bold text-text-body">—</p>
           </div>
-          <div class="rounded-lg bg-bg-secondary p-4">
+          <div class="readout-plate p-4">
             <p class="text-sm text-text-muted">Optimized bandwidth</p>
             <p id="optimized-bw" class="display-num mt-1 text-2xl font-bold text-interactive">—</p>
           </div>
-          <div class="rounded-lg bg-bg-secondary p-4">
+          <div class="readout-plate p-4">
             <p class="text-sm text-text-muted">Bandwidth saved</p>
             <p id="saved-bw" class="display-num mt-1 text-2xl font-bold text-text-body">—</p>
           </div>
-          <div class="rounded-lg bg-bg-secondary p-4">
+          <div class="readout-plate p-4">
             <p class="text-sm text-text-muted">Monthly bandwidth savings</p>
             <p id="cost-savings" class="display-num mt-1 text-2xl font-bold text-text-body">—</p>
           </div>
-          <div class="rounded-lg bg-bg-secondary p-4">
+          <div class="readout-plate p-4">
             <p class="text-sm text-text-muted">Monthly software cost (open source)</p>
             <p id="mps-cost" class="display-num mt-1 text-2xl font-bold text-text-body">—</p>
           </div>
-          <div class="rounded-lg bg-bg-secondary p-4">
+          <div class="readout-plate p-4">
             <p class="text-sm text-text-muted">Net monthly savings</p>
             <p id="net-savings" class="display-num mt-1 text-2xl font-bold text-text-body">—</p>
           </div>
@@ -160,10 +159,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
               <span class="text-text-muted">Before optimization</span>
               <span id="bar-before-label" class="font-medium text-text-body">—</span>
             </div>
-            <div class="h-8 w-full rounded-md bg-stone-200 dark:bg-stone-700 overflow-hidden">
+            <div class="h-8 w-full rounded-md bg-bg-recessed overflow-hidden">
               <div
                 id="bar-before"
-                class="h-full rounded-md bg-stone-400 dark:bg-stone-600 transition-all duration-300"
+                class="h-full rounded-md bg-border-strong transition-all duration-300"
                 style="width: 0%"
               >
               </div>
@@ -174,7 +173,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
               <span class="text-text-muted">After optimization</span>
               <span id="bar-after-label" class="font-medium text-interactive">—</span>
             </div>
-            <div class="h-8 w-full rounded-md bg-stone-200 dark:bg-stone-700 overflow-hidden">
+            <div class="h-8 w-full rounded-md bg-bg-recessed overflow-hidden">
               <div
                 id="bar-after"
                 class="h-full rounded-md bg-interactive transition-all duration-300"
@@ -254,9 +253,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           <span class="mt-0.5 text-interactive">&#8226;</span>
           <span>
             <span class="font-medium text-text-body">Free software vs. CDN usage fees</span> &mdash; mod_pagespeed
-            costs nothing regardless of traffic or server count. CDN and image-CDN
-            optimization (Cloudflare Business $200/mo per site, Cloudinary usage-based) scales with your
-            bill.
+            costs nothing regardless of traffic or server count. CDN and image-CDN optimization (Cloudflare
+            Business $200/mo per site, Cloudinary usage-based) scales with your bill.
           </span>
         </li>
       </ul>
@@ -264,8 +262,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         The estimate above counts image and CSS/JS savings from the variant-aware cache in
         mod_pagespeed 2.1. The optimizer worker does that work off the request path; the in-process
         module inside Apache and nginx minifies CSS/JS and transcodes images to WebP on the same
-        pagespeed directives your configuration already uses. The IIS package ships from the 1.15 packaging channel. See the optimizations
-        side by side on the
+        pagespeed directives your configuration already uses. The IIS package ships from the 1.15
+        packaging channel. See the optimizations side by side on the
         <a href="/examples/" class="text-interactive underline hover:text-interactive"
           >filter examples</a
         >, or read the case for
@@ -424,17 +422,8 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       const NEG_LIGHT = 'text-stone-500';
       const NEG_DARK = 'dark:text-stone-400';
       function applySignColor(el: HTMLElement, positive: boolean) {
-        // Clear any previous state (including legacy green/red from earlier builds).
-        el.classList.remove(
-          'text-green-600',
-          'text-red-600',
-          'dark:text-green-400',
-          'dark:text-red-400',
-          POS_LIGHT,
-          POS_DARK,
-          NEG_LIGHT,
-          NEG_DARK,
-        );
+        // Clear any previous state before applying the current one.
+        el.classList.remove(POS_LIGHT, POS_DARK, NEG_LIGHT, NEG_DARK);
         if (positive) {
           el.classList.add(POS_LIGHT, POS_DARK);
         } else {
@@ -473,8 +462,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         ctaEl.href = '/download/';
         ctaEl.textContent = 'Download & run \u2192';
         ctaEl.setAttribute('data-umami-event', 'calculator_cta_download');
-        ctaSubEl.textContent =
-          'The software is free \u2014 the savings above are all net.';
+        ctaSubEl.textContent = 'The software is free \u2014 the savings above are all net.';
       }
 
       // Analytics: fire once per pageview when we have real numbers.
