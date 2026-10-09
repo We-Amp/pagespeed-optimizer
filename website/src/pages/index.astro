@@ -11,14 +11,15 @@ import Chip from '../components/instrument/Chip.astro';
 import { formatPct, monthYear, pctDelta, roundDownDisplay } from '../lib/instrument';
 import demoMetrics from '../data/demo-metrics.json';
 import telemetryCapture from '../data/telemetry-capture.json';
-import { getRelease } from '../lib/release';
 import { offerJsonLd } from '../data/offer-jsonld';
 import { stripHtml } from '../data/faq-shared';
 import {
   BUILTWITH_AS_OF,
+  BUILTWITH_HISTORICAL,
   BUILTWITH_SITES,
   LICENSE_CLAUSE,
   LICENSE_CLAUSE_CAP,
+  MAX_VARIANTS,
 } from '../data/product-facts.mjs';
 import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../data/software-jsonld';
 
@@ -53,19 +54,12 @@ const headerPanelLines: TermLine[] = [
   { text: `cache-control: ${homeCaptureHeaders['cache-control']}`, tone: 'plain' },
 ];
 
-// Single source of truth: corp/releases/1.1.yaml synced into
-// src/content/releases-1.1/release.yaml. The X-Mod-Pagespeed
-// header that 1.1 emits keeps a four-segment legacy version suffix (".0") for
-// monitoring built against the open-source module.
-const rel11 = await getRelease('1.1');
-const xModPagespeedHeader = `X-Mod-Pagespeed: ${rel11.display.header_version}.0`;
-
 // Section 04 quick-start panels: the install transcripts, one TermPanel per
-// platform (moved from the signal-path section). D4: the nginx transcript is
-// unchanged from the pre-redesign page — the header name it greps could not
-// be verified against the module source, so it stays and is flagged in the
-// package report; the Apache transcript ends with the captured header value
-// from src/data/telemetry-capture.json.
+// platform (moved from the signal-path section). Each transcript ends with
+// the verify command and the header its module emits — X-Page-Speed for the
+// nginx module, X-Mod-Pagespeed for the Apache module — with the version from
+// the production capture in src/data/telemetry-capture.json, which matches
+// the currently published packages.
 const qsNginxLines: TermLine[] = [
   { text: '# one-time: add the signed We-Amp package repo', tone: 'dim' },
   {
@@ -75,8 +69,8 @@ const qsNginxLines: TermLine[] = [
   { text: '$ sudo apt install nginx-module-pagespeed', tone: 'strong' },
   { text: '# Add to nginx.conf: pagespeed on;', tone: 'dim' },
   { text: '$ sudo nginx -t && sudo systemctl reload nginx', tone: 'strong' },
-  { text: '$ curl -I http://localhost/ | grep X-Mod-Pagespeed', tone: 'strong' },
-  { text: xModPagespeedHeader, tone: 'ok' },
+  { text: '$ curl -I http://localhost/ | grep X-Page-Speed', tone: 'strong' },
+  { text: `X-Page-Speed: ${homeCaptureHeaders['x-mod-pagespeed']}`, tone: 'ok' },
 ];
 const qsApacheLines: TermLine[] = [
   { text: '# one-time: add the signed We-Amp package repo', tone: 'dim' },
@@ -90,9 +84,12 @@ const qsApacheLines: TermLine[] = [
   { text: `X-Mod-Pagespeed: ${homeCaptureHeaders['x-mod-pagespeed']}`, tone: 'ok' },
 ];
 
-// Section 06 heritage stat: 231,341 live sites per BuiltWith, rendered as a
-// defensible lower bound ("230,000+").
+// Section 06 heritage stats: 231,341 live sites per BuiltWith, rendered as a
+// defensible lower bound ("230,000+"). The historical figures derive from
+// BUILTWITH_HISTORICAL ("1.9 million+").
 const builtwithLiveRounded = roundDownDisplay(Number(BUILTWITH_SITES.replace(/,/g, '')), 10000);
+const builtwithHistoricalShort = BUILTWITH_HISTORICAL.replace(/\+$/, '');
+const builtwithHistoricalCount = `${(parseFloat(BUILTWITH_HISTORICAL) * 1_000_000).toLocaleString('en-US')}+`;
 
 // Best AVIF savings across all demo sites — the measured range detail in the
 // dogfooding paragraph ("up to N% smaller pages").
@@ -308,13 +305,13 @@ const jsonLd = [organization, website, product, faqPage];
         </p>
         <p class="mt-4 text-sm text-text-annotation">
           The optimization core behind <span class="font-semibold text-text-body"
-            >230,000+ live sites</span
+            >{builtwithLiveRounded} live sites</span
           > (<a
             href="https://trends.builtwith.com/Server/mod_pagespeed"
             target="_blank"
             rel="noopener noreferrer"
             class="underline decoration-stone-300 dark:decoration-stone-600 underline-offset-2 hover:text-text-body"
-            >BuiltWith, May 2026</a
+            >BuiltWith, {BUILTWITH_AS_OF}</a
           >) &mdash; maintained by We-Amp.
         </p>
 
@@ -644,15 +641,16 @@ const jsonLd = [organization, website, product, faqPage];
       </SectionHeader>
       <div class="mt-8 max-w-3xl">
         <TermPanel
-          command="curl -sI --compressed https://modpagespeed.com/"
+          command="curl -sI --http1.1 --compressed https://modpagespeed.com/ | grep -iE '^(HTTP|content-(type|length|encoding)|x-mod-pagespeed|vary|cache-control)'"
           label="Captured response headers of the modpagespeed.com homepage"
           lines={headerPanelLines}
         />
         <p class="mt-3 font-mono text-xs text-text-annotation">captured {capturedDate}</p>
       </div>
       <p class="mt-6 max-w-2xl text-sm text-text-muted">
-        The 2.1 nginx module adds <HitMissBadge state="HIT" /> or <HitMissBadge state="MISS" /> to
-        the response.
+        In the reverse-proxy deployment, the module adds <HitMissBadge state="HIT" /> or <HitMissBadge
+          state="MISS"
+        /> to the response.
       </p>
       <figure class="mt-10 max-w-4xl">
         <img
@@ -1520,6 +1518,7 @@ const jsonLd = [organization, website, product, faqPage];
           >
         </svg>
         <div class="mt-5 flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
+          <span class="text-xs text-text-annotation">Reverse-proxy deployment:</span>
           <HitMissBadge state="HIT" note="hash lookup + mmap pointer" />
           <HitMissBadge state="MISS" note="original served, worker queued" />
         </div>
@@ -1576,7 +1575,7 @@ const jsonLd = [organization, website, product, faqPage];
           <h3 class="mt-3 font-semibold text-text-body">Check the response headers</h3>
           <p class="mt-2 text-sm text-text-muted">
             <code class="text-xs bg-bg-recessed px-1.5 py-0.5 rounded font-mono"
-              >curl -I your-site | grep X-Mod-Pagespeed</code
+              >curl -I your-site | grep -i pagespeed</code
             >. The version string confirms the module is active. With the Apache module or the
             reverse-proxy deployment, the worker optimizes off the request path and the serves come
             from the cache.
@@ -1606,14 +1605,14 @@ const jsonLd = [organization, website, product, faqPage];
         </div>
         <div data-qs-panel="qs-nginx">
           <TermPanel
-            command="apt install nginx-module-pagespeed"
+            command="sudo apt install nginx-module-pagespeed"
             label="Quick-start commands for nginx"
             lines={qsNginxLines}
           />
         </div>
         <div class="mt-4" data-qs-panel="qs-apache">
           <TermPanel
-            command="apt install mod-pagespeed"
+            command="sudo apt install mod-pagespeed"
             label="Quick-start commands for Apache"
             lines={qsApacheLines}
           />
@@ -1711,8 +1710,8 @@ const jsonLd = [organization, website, product, faqPage];
       <SectionHeader id="s-spec" index="05" eyebrow="Specification" title="What runs on your server." />
       <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
         <div class="panel">
-          <p class="card-ro"><span>images</span><b>&le; 37 variants</b></p>
-          <h3 class="mt-4 font-semibold text-text-body">One decode pass, up to 37 variants out</h3>
+          <p class="card-ro"><span>images</span><b>&le; {MAX_VARIANTS} variants</b></p>
+          <h3 class="mt-4 font-semibold text-text-body">One decode pass, up to {MAX_VARIANTS} variants out</h3>
           <p class="mt-2 text-sm text-text-muted">
             Automatic WebP and AVIF transcoding with viewport-aware resizing. Every variant is
             verified against the original with SSIMULACRA2 before it reaches the cache, using
@@ -1786,7 +1785,7 @@ const jsonLd = [organization, website, product, faqPage];
         id="s-lineage"
         index="06"
         eyebrow="The lineage"
-        title="The optimization core behind 230,000+ live sites — now maintained by We-Amp."
+        title={`The optimization core behind ${builtwithLiveRounded} live sites — now maintained by We-Amp.`}
       >
         We-Amp's products are the maintained continuation of the open-source mod_pagespeed
         optimization core. These are not our customers &mdash; they are the proof the optimization
@@ -1804,7 +1803,7 @@ const jsonLd = [organization, website, product, faqPage];
           <p class="mt-2 text-sm text-text-muted">live sites run mod_pagespeed today</p>
         </div>
         <div class="readout-plate px-6 py-5">
-          <p class="display-num text-4xl font-bold text-text-body">1.9 million</p>
+          <p class="display-num text-4xl font-bold text-text-body">{builtwithHistoricalShort}</p>
           <p class="mt-2 text-sm text-text-muted">sites across its history</p>
         </div>
       </div>
@@ -1815,7 +1814,7 @@ const jsonLd = [organization, website, product, faqPage];
           rel="noopener noreferrer"
           class="underline-offset-4 hover:underline hover:text-text-body transition-colors"
           >BuiltWith</a
-        >, {BUILTWITH_AS_OF} ({BUILTWITH_SITES} live; 1,900,000+ historical).
+        >, {BUILTWITH_AS_OF} ({BUILTWITH_SITES} live; {builtwithHistoricalCount} historical).
       </p>
     </div>
   </section>
