@@ -449,16 +449,14 @@
     cursor: pointer;
     transition:
       color 120ms ease,
-      border-color 120ms ease,
-      transform 120ms ease;
+      border-color 120ms ease;
   }
   .qm-launcher:hover {
     border-color: var(--color-interactive);
     color: var(--color-text-body);
-    transform: translateY(-1px);
   }
   .qm-launcher:focus-visible {
-    outline: 2px solid var(--color-interactive);
+    outline: 2px solid var(--color-focus-ring);
     outline-offset: 2px;
   }
   .qm-root[data-state='open'] .qm-launcher {
@@ -546,7 +544,7 @@
     border-color: var(--color-border-strong);
   }
   .qm-close:focus-visible {
-    outline: 2px solid var(--color-interactive);
+    outline: 2px solid var(--color-focus-ring);
     outline-offset: 1px;
   }
 
@@ -720,9 +718,6 @@
     }
     .qm-launcher {
       transition: none;
-    }
-    .qm-launcher:hover {
-      transform: none;
     }
   }
 

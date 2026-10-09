@@ -87,7 +87,7 @@ const statusId = `${uid}-status`;
       autocomplete="email"
       inputmode="email"
       placeholder="you@example.com"
-      class="block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-interactive/40"
+      class="block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 text-sm focus:border-interactive focus:ring-2 focus:ring-interactive"
     />
   </div>
 
@@ -100,7 +100,7 @@ const statusId = `${uid}-status`;
       id={consentId}
       name="consent"
       type="checkbox"
-      class="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-stone-400 dark:border-stone-500 text-interactive focus:ring-2 focus:ring-interactive/40"
+      class="mt-0.5 h-4 w-4 flex-shrink-0 rounded border-control-border text-interactive focus:ring-2 focus:ring-interactive"
     />
     <span>
       Email me new posts. I can unsubscribe anytime. See the
@@ -161,21 +161,12 @@ const statusId = `${uid}-status`;
 
     function setStatus(kind: 'success' | 'error' | null, msg: string) {
       statusEl!.textContent = msg;
-      statusEl!.classList.remove(
-        'hidden',
-        'text-interactive',
-        'text-amber-700',
-        'dark:text-amber-400',
-      );
+      statusEl!.classList.remove('hidden', 'text-interactive', 'text-accent');
       if (kind === null) {
         statusEl!.classList.add('hidden');
         return;
       }
-      statusEl!.classList.add(
-        ...(kind === 'success'
-          ? ['text-interactive']
-          : ['text-amber-700', 'dark:text-amber-400']),
-      );
+      statusEl!.classList.add(kind === 'success' ? 'text-interactive' : 'text-accent');
     }
 
     form.addEventListener('submit', async (event) => {

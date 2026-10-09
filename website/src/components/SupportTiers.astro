@@ -12,6 +12,7 @@
 // offer, the page it sits on (surface) and the tier as its position.
 
 import Icon from './Icon.astro';
+import Chip from './instrument/Chip.astro';
 import { SUPPORT_TIERS } from '../data/product-facts.mjs';
 
 interface Props {
@@ -32,12 +33,12 @@ const EMPHASIZED = 'priority';
       const featured = tier.id === EMPHASIZED;
       return (
         <div
-          class:list={['flex flex-col', featured ? 'card-featured' : 'card']}
+          class:list={['flex flex-col', featured ? 'card-featured' : 'card-product']}
           data-tier={tier.id}
         >
           <div class="flex flex-wrap items-center justify-between gap-2">
             <h3 class="text-lg font-semibold text-text-body">{tier.name}</h3>
-            {featured && <span class="badge-interactive">Recommended</span>}
+            {featured && <Chip tone="interactive" label="Recommended" />}
           </div>
           <p class="mt-1 font-mono text-xs uppercase tracking-wider text-text-annotation">
             {tier.servers}
