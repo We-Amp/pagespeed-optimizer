@@ -558,6 +558,12 @@ test.describe('AI-readability result link (copy replaces the email-me path)', ()
       await expect(page.locator('#ar-out .ar-err')).toBeVisible({ timeout: 15000 });
       // The error keeps the reserved area until the visitor edits the URL.
       await expect(page.locator('#ar-out')).toHaveAttribute('data-hold', '1');
+      // ...but only down to the fold: no blank space is left below it.
+      const box = await page.locator('#ar-out').boundingBox();
+      expect(
+        box!.y + box!.height,
+        `hold ends at the fold at ${vp.width}x${vp.height}`,
+      ).toBeLessThanOrEqual(vp.height + 1);
       // Let any post-render shifts flush before reading the accumulator.
       await page.waitForTimeout(500);
       const cls = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);

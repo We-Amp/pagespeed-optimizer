@@ -332,9 +332,13 @@ const jsonLd = [webApp, faqPage];
        scan keeps the reservation (data-hold) until the visitor edits the
        URL, so the small error card doesn't pull the content below back up
        mid-read; that release follows a keystroke, so it is also excluded. */
-    #ar-out[aria-busy='true'],
-    #ar-out[data-hold] {
+    #ar-out[aria-busy='true'] {
       min-block-size: 100svh;
+    }
+    /* After a failed scan the hold shrinks to the fold (--ar-hold, set by
+       holdToFold), so no blank space is left below it. */
+    #ar-out[data-hold] {
+      min-block-size: var(--ar-hold, 100svh);
     }
     .ar-card {
       /* Custom props consumed by the lens evidence list + Ghost-Layer block
@@ -1094,13 +1098,21 @@ const jsonLd = [webApp, faqPage];
         // Re-arm polite announcements for the loading/error strings (render() sets it to
         // 'off' so the full result card isn't announced as one giant live update).
         out.setAttribute('aria-live', 'polite');
+        // Keep the reserved area down to the fold only, and never taller than
+        // it is now (the visitor may have scrolled into it during the scan).
+        const holdToFold = () => {
+          const r = out.getBoundingClientRect();
+          const h = Math.min(r.height, Math.max(0, innerHeight - r.top));
+          out.style.setProperty('--ar-hold', Math.round(h) + 'px');
+          out.dataset.hold = '1';
+        };
         out.innerHTML =
           '<div class="ar-card ar-loading">Rendering and grading your page in a headless browser — about 5–10 seconds.</div>';
         try {
           const res = await fetch(API + '/scan?url=' + encodeURIComponent(url));
           const data = await res.json();
           if (data.error) {
-            out.dataset.hold = '1';
+            holdToFold();
             out.innerHTML =
               '<div class="ar-card ar-err" role="alert"><strong>Couldn’t scan that.</strong> ' +
               esc(data.error) +
@@ -1109,7 +1121,7 @@ const jsonLd = [webApp, faqPage];
           }
           render(data);
         } catch (err) {
-          out.dataset.hold = '1';
+          holdToFold();
           out.innerHTML =
             '<div class="ar-card ar-err" role="alert"><strong>Couldn’t scan that.</strong> Could not reach the scanner service. Check the URL and try again.</div>';
         } finally {
