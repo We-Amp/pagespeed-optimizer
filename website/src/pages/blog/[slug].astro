@@ -446,12 +446,19 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
         lastFocus = document.activeElement;
         lb.hidden = false;
         document.body.style.overflow = 'hidden';
+        // Marks the page as hosting a modal overlay: the floating share and
+        // message widgets hide while this attribute is set. Also close any
+        // of them that is open (single-popup law).
+        document.documentElement.setAttribute('data-dialog-open', '');
+        window.dispatchEvent(new CustomEvent('weamp:fab-open', { detail: { source: 'lightbox' } }));
         closeBtn?.focus();
       };
       const closeLB = () => {
+        if (lb.hidden) return;
         lb.hidden = true;
         body?.replaceChildren();
         document.body.style.overflow = '';
+        document.documentElement.removeAttribute('data-dialog-open');
         if (lastFocus instanceof HTMLElement) lastFocus.focus();
       };
       closeBtn?.addEventListener('click', closeLB);
@@ -459,7 +466,31 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
         if (e.target === lb) closeLB();
       });
       document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape' && !lb.hidden) closeLB();
+        if (lb.hidden) return;
+        if (e.key === 'Escape') {
+          closeLB();
+          return;
+        }
+        // aria-modal="true": Tab and Shift+Tab wrap between the dialog's
+        // first and last focusable element instead of leaving it.
+        if (e.key !== 'Tab') return;
+        const items = Array.from(
+          lb.querySelectorAll<HTMLElement>('button, [href], [tabindex]:not([tabindex="-1"])'),
+        ).filter((el) => el.offsetParent !== null);
+        if (items.length === 0) {
+          e.preventDefault();
+          return;
+        }
+        const first = items[0];
+        const last = items[items.length - 1];
+        const active = document.activeElement;
+        if (e.shiftKey && (active === first || !lb.contains(active))) {
+          e.preventDefault();
+          last.focus();
+        } else if (!e.shiftKey && (active === last || !lb.contains(active))) {
+          e.preventDefault();
+          first.focus();
+        }
       });
       document.querySelectorAll<SVGElement>('article figure svg[aria-label]').forEach((svg) => {
         const fig = svg.closest('figure');

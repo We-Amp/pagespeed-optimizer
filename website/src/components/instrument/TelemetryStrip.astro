@@ -22,9 +22,10 @@
 // Linux. The wire field shows from 480px up, the wide fields (decoded,
 // vary, ttfb) from 1024px up and the "what these headers mean" link from
 // 1280px up; below those widths a field does not render at all rather than
-// clip. The state label reserves the longer of its two strings
-// ("captured 2026-10-08", 19ch, vs "this view · live", 16ch), so the live
-// upgrade never moves the fields sideways.
+// clip. The state label reserves the longer of its strings
+// ("captured 2026-10-08", 19ch, vs "this view · live", 16ch, vs the non-2xx
+// form "this view · HTTP 405", 20ch), so the live upgrade never moves the
+// fields sideways.
 
 import { formatBytes } from '../../lib/instrument';
 import capture from '../../data/telemetry-capture.json';
@@ -138,11 +139,12 @@ const fields = [
     flex: none;
     color: var(--color-text-annotation);
   }
-  /* Reserve the longer of the two state strings ("captured 2026-10-08",
-     19ch, vs "this view · live", 16ch) so the live upgrade never moves
-     the fields sideways. 21ch also keeps the 19-glyph date inside the
-     reserve where fallback fonts render ~7px per glyph against the 6.6px
-     ch — at 19ch the text would bleed into the row gap there. */
+  /* Reserve the longest state string ("this view · HTTP 405", 20ch, vs
+     "captured 2026-10-08", 19ch, vs "this view · live", 16ch) so the live
+     upgrade never moves the fields sideways. 21ch also keeps the 19-glyph
+     date inside the reserve where fallback fonts render ~7px per glyph
+     against the 6.6px ch — at 19ch the text would bleed into the row gap
+     there. */
   .t-state [data-t='state'] {
     display: inline-block;
     min-inline-size: 21ch;
@@ -291,6 +293,10 @@ const fields = [
       const set = (key: string, value: string) => {
         strip.querySelectorAll<HTMLElement>(`[data-t="${key}"]`).forEach((el) => {
           el.textContent = value;
+          // The state label exists twice (link below 1280px, plain text at and
+          // above it): skip the flash on the copy that is not rendered, or the
+          // class would sit on it until a breakpoint change runs the fade.
+          if (el.offsetParent === null) return;
           el.classList.remove('t-flash');
           void el.offsetWidth;
           el.classList.add('t-flash');
@@ -317,7 +323,9 @@ const fields = [
       }
       set('xmps', res.headers.get('x-mod-pagespeed') ?? 'not present');
       set('vary', res.headers.get('vary') ?? 'not present');
-      set('state', 'this view · live');
+      // Below 480px the LED does not render, so a non-2xx probe spells its
+      // status in the state text instead of relying on the LED hue alone.
+      set('state', res.ok ? 'this view · live' : `this view · HTTP ${res.status}`);
       strip.classList.add('is-live');
       strip.querySelector('.t-led')?.classList.add(res.ok ? 'led-ok' : 'led-warn');
     };

@@ -117,4 +117,31 @@ test.describe('QuickMessage widget', () => {
     await expect(privacy).toContainText('Telegram');
     await expect(privacy.locator('a[href="/privacy/"]')).toBeVisible();
   });
+
+  test('launchers hide while the search dialog is open', async ({ page }) => {
+    await page.goto('/');
+    const qm = page.locator('[data-qm-launcher]');
+    const share = page.locator('[data-share-fab-launcher]');
+    await expect(qm).toBeVisible();
+    await expect(share).toBeVisible();
+    await page.keyboard.press('/');
+    await expect(page.locator('#site-search')).toBeVisible();
+    await expect(qm).toBeHidden();
+    await expect(share).toBeHidden();
+    await page.keyboard.press('Escape');
+    await expect(qm).toBeVisible();
+    await expect(share).toBeVisible();
+  });
+
+  test('at handset width the launcher waits for the first viewport to pass', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/');
+    const qm = page.locator('[data-qm-launcher]');
+    const share = page.locator('[data-share-fab-launcher]');
+    await expect(qm).toBeHidden();
+    await expect(share).toBeHidden();
+    await page.evaluate(() => window.scrollTo(0, window.innerHeight));
+    await expect(qm).toBeVisible();
+    await expect(share).toBeVisible();
+  });
 });

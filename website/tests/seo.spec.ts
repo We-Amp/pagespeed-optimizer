@@ -16,7 +16,8 @@ const allPages = [
   '/license/',
   '/terms/',
   '/pagespeed-markers/',
-  // /privacy/ redirects to https://www.we-amp.com/privacy/ (301)
+  // /privacy/ is served locally; it is covered by its own suite in
+  // terms-privacy.spec.ts
 ];
 
 test.describe('SEO', () => {

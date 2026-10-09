@@ -256,6 +256,10 @@ import Icon from './Icon.astro';
     function open(source) {
       opener = source || document.activeElement;
       if (!dialog.open) dialog.showModal();
+      // While a modal dialog is up, the floating share/message launchers hide
+      // (data-dialog-open rule in global.css); close any of their panels too.
+      document.documentElement.setAttribute('data-dialog-open', '');
+      window.dispatchEvent(new CustomEvent('weamp:fab-open', { detail: { source: 'search' } }));
       if (state === 'ready') return focusInput();
       if (state === 'loading') return;
       if (typeof WebAssembly === 'undefined' || !wasmUsable()) return blocked();
@@ -267,6 +271,7 @@ import Icon from './Icon.astro';
     }
 
     dialog.addEventListener('close', function () {
+      document.documentElement.removeAttribute('data-dialog-open');
       if (opener && typeof opener.focus === 'function') opener.focus();
       opener = null;
     });
