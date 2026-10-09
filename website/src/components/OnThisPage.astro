@@ -158,7 +158,14 @@ const show = items.length >= minItems;
       const label = (h.textContent || '').trim();
       a.setAttribute('aria-label', label ? `Link to “${label}”` : 'Link to this section');
       a.innerHTML = '<span aria-hidden="true">#</span>';
-      h.appendChild(a);
+      // A heading inside a <summary> (the collapsed directive reference on
+      // /docs/configuration/) must not carry the link itself: a link inside
+      // the summary nests interactive controls. The permalink goes on the
+      // section's row wrapper instead, absolutely positioned onto the summary
+      // line (styles with the .directive-row rules).
+      const row = h.closest('summary')?.closest('details')?.parentElement;
+      if (row?.classList.contains('directive-row')) row.appendChild(a);
+      else h.appendChild(a);
     }
 
     if (!links.length) return;

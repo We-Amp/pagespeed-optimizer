@@ -4,6 +4,7 @@ import ShareButtons from '../../components/ShareButtons.astro';
 import OnThisPage from '../../components/OnThisPage.astro';
 import Icon from '../../components/Icon.astro';
 import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
+import DirectiveDetailsDeepLink from '../../components/DirectiveDetailsDeepLink.astro';
 import ReferralOrientation from '../../components/ReferralOrientation.astro';
 import { getCollection, render } from 'astro:content';
 import { createMarkdownProcessor } from '@astrojs/markdown-remark';
@@ -504,6 +505,14 @@ const showReferralOrientation = [
             release opens its collapsed <details> before scrolling to it.
             Gated on doc.id so no other docs page pays for it. */
           doc.id === 'release-notes' && <ReleaseNotesDeepLink />
+        }
+
+        {
+          /* The configuration reference collapses each directive behind
+            <details> (rehype step in src/lib/); this opens the section a deep
+            link or in-page link points at. Rendered directly after the content
+            so the inline script runs before first paint. Same gating rule. */
+          doc.id === 'configuration' && <DirectiveDetailsDeepLink />
         }
 
         {

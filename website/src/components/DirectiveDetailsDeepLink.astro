@@ -1,0 +1,121 @@
+---
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2024-2026 We-Amp B.V.
+//
+// Progressive enhancement for /docs/configuration/ only: its directive
+// sections are collapsed into <details class="directive-details"> by the
+// rehype step in src/lib/rehype-directive-details.mjs, and this opens the
+// section a deep link (or an in-page link) points at before scrolling to it.
+// Pure enhancement — without it every section is still reachable by clicking
+// its summary, so nothing is unreachable without JavaScript.
+//
+// Rendered by docs/[slug].astro only when doc.id === 'configuration' (no other
+// page pays for it), directly after the article content: the inline script
+// then runs during parsing, before first paint, so opening the target section
+// does not shift layout. Split out of docs/[slug].astro for the same reason as
+// ReleaseNotesDeepLink: prettier-plugin-astro cannot parse a literal <script>
+// nested inside a JS expression container.
+---
+
+<script is:inline>
+  // Open the details a deep link points at (the hash target, or any element
+  // inside the section, such as the raw <a id> anchors), then scroll to it.
+  function openDirectiveTarget() {
+    if (!location.hash) return;
+    var t = document.getElementById(decodeURIComponent(location.hash.slice(1)));
+    if (!t) return;
+    var d = t.closest ? t.closest('details.directive-details') : null;
+    if (d && !d.open) d.open = true;
+    t.scrollIntoView(); // re-scroll: opening changed the layout
+  }
+  addEventListener('hashchange', openDirectiveTarget);
+  // Runs inline, right after the content: opening before first paint keeps
+  // the expansion out of CLS. The inline scroll may land short — the rest of
+  // the page is still parsing — so scroll again once the document is final.
+  openDirectiveTarget();
+  addEventListener('DOMContentLoaded', openDirectiveTarget);
+</script>
+
+<style is:global>
+  /* Collapsed directive reference. The summary is the directive's own h4
+     (id and level intact); a quiet chevron is the only added affordance.
+     Global because the details markup comes from the markdown pipeline, not
+     from this component's template. */
+  .prose details.directive-details {
+    border-top: 1px solid var(--color-border);
+  }
+  .prose details.directive-details > summary {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    cursor: pointer;
+    list-style: none;
+  }
+  .prose details.directive-details > summary::-webkit-details-marker {
+    display: none;
+  }
+  .prose details.directive-details > summary > h4 {
+    flex: 1 1 auto;
+    margin-block: 1.25rem;
+    /* Keep long, unbreakable directive names from pushing the chevron out. */
+    overflow-wrap: anywhere;
+  }
+  .prose details.directive-details > summary::after {
+    content: '';
+    flex: 0 0 auto;
+    align-self: center;
+    width: 0.75rem;
+    height: 0.75rem;
+    background-color: var(--color-text-annotation);
+    -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E")
+      no-repeat center / contain;
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M7 10l5 5 5-5z'/%3E%3C/svg%3E")
+      no-repeat center / contain;
+    transition: transform 0.15s ease;
+  }
+  .prose details.directive-details[open] > summary::after {
+    transform: rotate(180deg);
+  }
+  .prose details.directive-details > summary:focus-visible {
+    outline: 2px solid var(--color-interactive);
+    outline-offset: 2px;
+  }
+  /* Directive rows host their heading's permalink outside the summary (a link
+     inside <summary> would nest interactive controls); it rides the summary
+     line, left of the chevron, and appears on hover/focus like every other
+     heading permalink. */
+  .prose .directive-row {
+    position: relative;
+  }
+  .prose .directive-row > a.heading-anchor {
+    position: absolute;
+    top: 1.35rem;
+    right: 2.5rem;
+    color: var(--color-text-muted);
+    text-decoration: none;
+    opacity: 0;
+    transition: opacity 0.15s ease;
+  }
+  .prose .directive-row:hover > a.heading-anchor,
+  .prose .directive-row > a.heading-anchor:focus-visible {
+    opacity: 1;
+  }
+  @media (hover: none) {
+    .prose .directive-row > a.heading-anchor {
+      opacity: 0.4;
+    }
+  }
+  /* The section body starts below the summary line, not cramped against it. */
+  .prose details.directive-details[open] > *:nth-child(2) {
+    margin-top: 0.25rem;
+  }
+
+  /* Printing / find-in-page — a collapsed section still prints in full
+     (the same intent as the release-notes rule for .rn-entry in global.css). */
+  @media print {
+    .prose details.directive-details:not([open]) > *:not(summary) {
+      display: block;
+      content-visibility: visible;
+    }
+  }
+</style>

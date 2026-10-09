@@ -10,6 +10,7 @@ import node from '@astrojs/node';
 import remarkCustomHeadingId from 'remark-custom-heading-id';
 import remarkDirective from 'remark-directive';
 import remarkCallouts from './src/lib/remark-callouts.mjs';
+import { rehypeDirectiveDetails } from './src/lib/rehype-directive-details.mjs';
 import { gitLastModified } from './src/lib/git-date';
 import { loadFilterTopics } from './src/lib/filter-topics.mjs';
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
@@ -205,7 +206,10 @@ export default defineConfig({
     // remarkDirective parses `:::caution[…]:::` container syntax; remarkCallouts
     // then turns those nodes into styled callout asides. Order matters — the
     // directive parser must run before the transform that consumes its nodes.
+    // rehypeDirectiveDetails collapses the /docs/configuration/ directive
+    // sections behind <details>; it scopes itself to that one source file.
     remarkPlugins: [remarkCustomHeadingId, remarkDirective, remarkCallouts],
+    rehypePlugins: [rehypeDirectiveDetails],
     // Dual-theme Shiki. `defaultColor: false` emits CSS variables instead of
     // baking one theme's colors into the HTML — the styles in global.css then
     // switch between --shiki-light and --shiki-dark based on `.dark` on <html>.
