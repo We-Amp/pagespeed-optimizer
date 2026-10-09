@@ -47,6 +47,8 @@ const jsonLd = {
         </p>
       </div>
 
+      <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+
       <!-- What happened to it -->
       <div>
         <h2 class="h2-section text-text-body">What happened to it</h2>
@@ -64,6 +66,8 @@ const jsonLd = {
         </p>
       </div>
 
+      <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+
       <!-- Run the engine today -->
       <div>
         <h2 class="h2-section text-text-body">Run the optimization engine today</h2>
@@ -79,10 +83,8 @@ const jsonLd = {
 
         <div class="mt-6 grid gap-4 sm:grid-cols-1">
           <!-- module -->
-          <div class="rounded-lg border border-border bg-bg-secondary p-6">
-            <h3 class="text-xl font-bold text-text-body">
-              In your web server &mdash; the module
-            </h3>
+          <div class="panel">
+            <h3 class="text-xl font-bold text-text-body">In your web server &mdash; the module</h3>
             <p class="mt-3 text-text-muted">
               A drop-in module for Apache, nginx, and IIS. Your existing configuration and the <a
                 href="/features/"
@@ -96,7 +98,7 @@ const jsonLd = {
                 class="font-medium text-interactive hover:text-interactive-hover underline"
                 >mod_pagespeed 2.1 overview &rarr;</a
               >
-              <span class="mx-2 text-stone-400">&middot;</span>
+              <span class="mx-2 text-text-annotation">&middot;</span>
               <a
                 href="/docs/"
                 class="font-medium text-interactive hover:text-interactive-hover underline"
@@ -106,7 +108,7 @@ const jsonLd = {
           </div>
 
           <!-- worker -->
-          <div class="rounded-lg border border-border bg-bg-secondary p-6">
+          <div class="panel">
             <h3 class="text-xl font-bold text-text-body">
               In front of any origin &mdash; the optimizer worker
             </h3>
@@ -120,7 +122,7 @@ const jsonLd = {
                 class="font-medium text-interactive hover:text-interactive-hover underline"
                 >Read the docs &rarr;</a
               >
-              <span class="mx-2 text-stone-400">&middot;</span>
+              <span class="mx-2 text-text-annotation">&middot;</span>
               <a
                 href="/docs/http-api/"
                 class="font-medium text-interactive hover:text-interactive-hover underline"
@@ -130,7 +132,7 @@ const jsonLd = {
           </div>
 
           <!-- NuGet -->
-          <div class="rounded-lg border border-border bg-bg-secondary p-6">
+          <div class="panel">
             <h3 class="text-xl font-bold text-text-body">
               Inside ASP.NET Core &mdash; WeAmp.PageSpeed.AspNetCore
             </h3>
@@ -146,6 +148,8 @@ const jsonLd = {
           </div>
         </div>
       </div>
+
+      <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
 
       <!-- Old API docs -->
       <div>
