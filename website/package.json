@@ -8,6 +8,7 @@
     "prebuild": "node scripts/fetch-pricing.js && node scripts/generate-title-cards.mjs && node scripts/generate-llms.mjs",
     "build": "astro build",
     "postbuild": "node scripts/build-search-index.mjs",
+    "capture:telemetry": "node scripts/capture-telemetry.mjs",
     "check:content": "node scripts/check-built-content.mjs",
     "gen:llms": "node scripts/generate-llms.mjs",
     "gen:references": "node scripts/generate-references.mjs --module-src \"${MOD_PAGESPEED_SRC:-../../mod_pagespeed}\" && node scripts/render-references.mjs",

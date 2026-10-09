@@ -484,6 +484,42 @@ test.describe('AI-readability result link (copy replaces the email-me path)', ()
     const events = await trackedEvents(page);
     expect(events.filter((e) => e.name === 'airead-copy-link')).toHaveLength(0);
   });
+
+  test('the loading to result swap keeps CLS at or under 0.02 at a realistic scan latency', async ({
+    page,
+  }) => {
+    // A live scan takes 5–10 s, so the result swap lands outside the 500 ms
+    // input-exclusion window; an instant stub would hide the shift. 1.5 s
+    // clears the window while keeping the suite fast. 1440×1000 is the
+    // viewport where the un-fixed shift measured worst (0.063).
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await page.addInitScript(() => {
+      const w = window as unknown as { __cls: number };
+      w.__cls = 0;
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          const shift = entry as PerformanceEntry & { hadRecentInput?: boolean; value?: number };
+          if (!shift.hadRecentInput) w.__cls += shift.value ?? 0;
+        }
+      }).observe({ type: 'layout-shift', buffered: true });
+    });
+    await page.route('**/ai-readability/api/scan**', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify(SCAN_LINK),
+      });
+    });
+    await page.goto('/ai-readability/');
+    await page.fill('#ar-url', 'https://example.com');
+    await page.click('#ar-go');
+    await expect(page.locator('#ar-watch-form')).toBeVisible({ timeout: 15000 });
+    // Let any post-render shifts flush before reading the accumulator.
+    await page.waitForTimeout(500);
+    const cls = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
+    expect(cls).toBeLessThanOrEqual(0.02);
+  });
 });
 
 test.describe('PageSpeed analyzer report download', () => {
