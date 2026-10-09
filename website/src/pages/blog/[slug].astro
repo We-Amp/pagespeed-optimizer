@@ -63,9 +63,13 @@ const fallbackCardUrl = '/og-default.png';
 // images aggressively and ignore the file's own cache headers) re-fetch when
 // the card is regenerated. The key tracks the post's last content change
 // (lastUpdated, else publish date) — stable across deploys, changes only when
-// the card would. External `coverImage` URLs are trusted as-is, not busted.
+// the card would — plus a card-style serial: bump CARD_STYLE when the card
+// layout itself is restyled, so platforms re-fetch the restyled cards even
+// though no post content changed. External `coverImage` URLs are trusted
+// as-is, not busted.
+const CARD_STYLE = 2;
 const cardVersion = (post.data.lastUpdated ?? post.data.date).toISOString().slice(0, 10);
-let cardUrl = post.data.coverImage ?? `/og-cards/${post.id}.png?v=${cardVersion}`;
+let cardUrl = post.data.coverImage ?? `/og-cards/${post.id}.png?v=${cardVersion}-${CARD_STYLE}`;
 if (!post.data.coverImage && !generatedCards.has(`${post.id}.png`)) {
   cardUrl = fallbackCardUrl;
 }
