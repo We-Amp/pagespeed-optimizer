@@ -123,7 +123,7 @@ const jsonLd = [webApp, faqPage];
         autocapitalize="off"
         placeholder="example.com"
         aria-label="URL to scan"
-        class="flex-1 rounded-lg border border-control-border bg-bg-elevated px-4 py-3 text-base text-text-body placeholder:text-text-annotation focus:ring-2 focus:ring-interactive/40 focus:border-interactive/40 focus:outline-none"
+        class="flex-1 rounded-lg border border-control-border bg-bg-elevated px-4 py-3 text-base text-text-body placeholder:text-text-annotation focus:border-interactive focus:ring-2 focus:ring-interactive"
       />
       <button
         id="ar-go"
@@ -289,7 +289,7 @@ const jsonLd = [webApp, faqPage];
                 {item.name}
                 <Icon
                   name="chevron-down"
-                  class="h-5 w-5 shrink-0 text-text-annotation transition-transform group-open:rotate-180"
+                  class="h-5 w-5 shrink-0 text-text-annotation group-open:rotate-180"
                 />
               </summary>
               <p class="px-5 pb-5 text-sm text-text-annotation leading-relaxed">
@@ -819,6 +819,12 @@ const jsonLd = [webApp, faqPage];
       border-color: var(--color-interactive);
       box-shadow: 0 0 0 2px var(--color-interactive);
     }
+    .ar-next-form input:focus-visible,
+    .ar-next-form select:focus-visible,
+    .ar-next-form textarea:focus-visible {
+      outline: 2px solid var(--color-focus-ring);
+      outline-offset: 2px;
+    }
     .ar-consent {
       display: flex;
       align-items: flex-start;
@@ -942,20 +948,6 @@ const jsonLd = [webApp, faqPage];
     }
     .ar-loading {
       color: var(--color-text-annotation);
-    }
-    @media (prefers-reduced-motion: no-preference) {
-      .ar-loading {
-        animation: ar-pulse 1.4s ease-in-out infinite;
-      }
-      @keyframes ar-pulse {
-        0%,
-        100% {
-          opacity: 1;
-        }
-        50% {
-          opacity: 0.55;
-        }
-      }
     }
     @media (max-width: 680px) {
       .ar-diff {

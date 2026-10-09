@@ -203,6 +203,10 @@ jobs:
           PRICING_ALLOW_STALE: "1"
         run: npm run build
 
+      - name: Build-output tests (vitest, after build)
+        # Gates that read dist/ (built-output tests) skip before the build; run them for real.
+        run: npx vitest run
+
       # Lint what the build actually wrote: every page under dist/ (the
       # frozen /1.0/ archive aside) must carry exactly one <title> (15-65
       # chars) and one <h1>, indexable pages a 50-165 char description and

@@ -365,12 +365,12 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
       <div class="mt-8 space-y-3">
         {
           faqSupport.map((entry) => (
-            <details class="group rounded-lg border border-border bg-bg-elevated open:shadow-sm transition-shadow">
+            <details class="group rounded-lg border border-border bg-bg-elevated open:shadow-sm">
               <summary class="flex items-center justify-between gap-3 cursor-pointer list-none px-4 py-3 text-sm font-semibold text-text-body">
                 <span>{entry.q}</span>
                 <Icon
                   name="chevron-down"
-                  class="h-5 w-5 shrink-0 text-text-muted transition-transform duration-200 group-open:rotate-180"
+                  class="h-5 w-5 shrink-0 text-text-muted group-open:rotate-180"
                 />
               </summary>
               <p class="px-4 pb-4 pt-1 text-sm text-text-muted" set:html={entry.a} />

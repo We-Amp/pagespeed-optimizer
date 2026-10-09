@@ -4,6 +4,15 @@
 // prerendered copies at /error/404/ and /error/500/ that nginx actually serves
 // in production (TECH-1: the adapter only emits a redirect stub for the special
 // /404 route in the static build, so a non-special path carries the real page).
+// The TermPanel readout shows Astro.url.pathname at render: on the SSR special
+// routes that is the real requested path. The prerendered /error/* copies are
+// served by nginx error_page for any failing URL, so their build-time path is
+// the copy's own and must never be shown: the request line renders blank and
+// is filled from location.pathname on load (nginx's internal redirect keeps
+// the browser URL). The /error/500/ copy also serves 502/503/504, so there the
+// status reads 5xx; the /error/404/ copy only ever serves 404.
+import TermPanel from './instrument/TermPanel.astro';
+
 interface Props {
   code: string;
   heading: string;
@@ -12,21 +21,45 @@ interface Props {
   linkLabel: string;
 }
 const { code, heading, body, linkHref, linkLabel } = Astro.props;
+
+const path = Astro.url.pathname;
+const isPrerenderedCopy = path.startsWith('/error/');
+const requestLine = isPrerenderedCopy ? '' : `GET ${path}`;
+const statusLine = isPrerenderedCopy && code === '500' ? '→ 5xx' : `→ ${code}`;
 ---
 
 <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-24 sm:py-32 text-center">
   <p class="text-sm font-semibold text-interactive">{code}</p>
-  <h1 class="mt-4 text-4xl sm:text-5xl font-bold tracking-tight text-text-body">
+  <h1 id="error-heading" class="mt-4 text-4xl sm:text-5xl font-bold tracking-tight text-text-body">
     {heading}
   </h1>
   <p class="mt-6 text-lg text-text-muted max-w-xl mx-auto">{body}</p>
+  <div class="mt-10 mx-auto max-w-md text-left" data-error-readout>
+    <TermPanel
+      labelledby="error-heading"
+      lines={[
+        { text: requestLine, tone: 'strong' },
+        { text: statusLine, tone: 'hl' },
+      ]}
+    />
+  </div>
+  <!-- On the prerendered copies this fills the blank request line with the
+       real URL (nginx's internal error_page redirect keeps the browser URL).
+       On SSR renders it writes the same path the line already carries. -->
+  <script is:inline>
+    (function () {
+      var line = document.querySelector('[data-error-readout] .term-body span');
+      if (line) line.textContent = 'GET ' + location.pathname + '\n';
+    })();
+  </script>
   <div class="mt-10 flex items-center justify-center gap-4">
     <a href="/" class="btn-primary"> Go home </a>
     <a
       href={linkHref}
       class="text-sm font-semibold text-text-muted hover:text-text-body transition-colors"
     >
-      {linkLabel} <span aria-hidden="true">&rarr;</span>
+      {linkLabel}
+      <span aria-hidden="true">&rarr;</span>
     </a>
   </div>
 </section>
