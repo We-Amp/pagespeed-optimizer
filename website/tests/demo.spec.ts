@@ -72,12 +72,17 @@ test.describe('Demo page', () => {
     await expect(page.locator('#panel-ecommerce')).toBeHidden();
   });
 
-  test('metrics table shows before/after comparison', async ({ page }) => {
-    // The first panel (ecommerce) should have a resource breakdown table
-    const table = page.locator('#panel-ecommerce table');
-    await expect(table).toBeVisible();
-    await expect(table.locator('text=CSS (minified)')).toBeVisible();
-    await expect(table.locator('text=JavaScript (minified)')).toBeVisible();
+  test('resource breakdown shows before/after byte deltas', async ({ page }) => {
+    // The first panel (ecommerce) shows the per-resource breakdown as
+    // ByteDelta plates: HTML, CSS, JavaScript (original → minified) and the
+    // image transcode ladder (JPEG → WebP → AVIF), each with its source.
+    const panel = page.locator('#panel-ecommerce');
+    await expect(panel.locator('h3:has-text("Resource breakdown")')).toBeVisible();
+    await expect(panel.locator('[data-ui="byte-delta"]')).toHaveCount(4);
+    const minified = panel.locator('[data-ui="byte-delta"]').filter({ hasText: 'minified' });
+    expect(await minified.count()).toBe(2); // CSS + JavaScript
+    const images = panel.locator('[data-ui="byte-delta"]').filter({ hasText: 'AVIF' });
+    expect(await images.count()).toBe(1);
   });
 
   test('CSS minification example is visible', async ({ page }) => {
