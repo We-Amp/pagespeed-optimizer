@@ -520,6 +520,54 @@ test.describe('AI-readability result link (copy replaces the email-me path)', ()
     const cls = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
     expect(cls).toBeLessThanOrEqual(0.02);
   });
+
+  test('a failed scan keeps CLS at or under 0.02 at a realistic latency', async ({ page }) => {
+    // Same latency rationale as the result-swap test above, but the scanner
+    // fails after 1.5 s: the error card is far smaller than the reserved
+    // area, and without the hold the content below snaps back up mid-read
+    // (measured up to 0.085 at these five viewports before the fix).
+    await page.addInitScript(() => {
+      const w = window as unknown as { __cls: number };
+      w.__cls = 0;
+      new PerformanceObserver((list) => {
+        for (const entry of list.getEntries()) {
+          const shift = entry as PerformanceEntry & { hadRecentInput?: boolean; value?: number };
+          if (!shift.hadRecentInput) w.__cls += shift.value ?? 0;
+        }
+      }).observe({ type: 'layout-shift', buffered: true });
+    });
+    await page.route('**/ai-readability/api/scan**', async (route) => {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      await route.fulfill({
+        status: 500,
+        contentType: 'application/json',
+        body: '{"error":"scanner unavailable"}',
+      });
+    });
+    for (const vp of [
+      { width: 1440, height: 900 },
+      { width: 1440, height: 1000 },
+      { width: 1440, height: 1200 },
+      { width: 1920, height: 960 },
+      { width: 1536, height: 730 },
+    ]) {
+      await page.setViewportSize(vp);
+      await page.goto('/ai-readability/');
+      await page.fill('#ar-url', 'https://example.com');
+      await page.click('#ar-go');
+      await expect(page.locator('#ar-out .ar-err')).toBeVisible({ timeout: 15000 });
+      // The error keeps the reserved area until the visitor edits the URL.
+      await expect(page.locator('#ar-out')).toHaveAttribute('data-hold', '1');
+      // Let any post-render shifts flush before reading the accumulator.
+      await page.waitForTimeout(500);
+      const cls = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
+      expect(cls, `CLS at ${vp.width}x${vp.height}`).toBeLessThanOrEqual(0.02);
+      // Editing the URL releases the hold; that collapse follows a
+      // keystroke, so it is input-excluded and never counted.
+      await page.fill('#ar-url', 'https://example.org');
+      await expect(page.locator('#ar-out')).not.toHaveAttribute('data-hold');
+    }
+  });
 });
 
 test.describe('PageSpeed analyzer report download', () => {
