@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import SectionHeader from '../components/instrument/SectionHeader.astro';
 import { offerJsonLd } from '../data/offer-jsonld';
 import {
   MAX_VARIANTS,
@@ -144,19 +145,22 @@ app.Run();`;
       <span>ASP.NET Core performance</span>
     </nav>
 
-    <p class="eyebrow mt-6">Server-side optimization for .NET</p>
-    <h1 class="mt-3 h1-hero text-text-body">
-      ASP.NET Core performance, optimized at the server layer
-    </h1>
-    <p class="lede mt-6 max-w-3xl">
-      nginx and Apache shops have had a server-side page optimizer for over a decade. The official
-      .NET performance advice stops at response compression and a CDN, neither of which transcodes
-      an image or inlines critical CSS. <code class="rounded bg-bg-elevated px-1 py-0.5 text-base"
-        >{PKG_ASPNETCORE}</code
-      >, the ASP.NET Core form of mod_pagespeed 2.1, is the in-process middleware that closes that
-      gap: one <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">dotnet add package</code>,
-      optimization applied to the responses Kestrel already renders.
-    </p>
+    <SectionHeader
+      id="aspnet"
+      as="h1"
+      eyebrow="Server-side optimization for .NET"
+      title="ASP.NET Core performance, optimized at the server layer"
+    >
+      <p>
+        nginx and Apache shops have had a server-side page optimizer for over a decade. The official
+        .NET performance advice stops at response compression and a CDN, neither of which transcodes
+        an image or inlines critical CSS. <code class="rounded bg-bg-elevated px-1 py-0.5 text-base"
+          >{PKG_ASPNETCORE}</code
+        >, the ASP.NET Core form of mod_pagespeed 2.1, is the in-process middleware that closes that
+        gap: one <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">dotnet add package</code
+        >, optimization applied to the responses Kestrel already renders.
+      </p>
+    </SectionHeader>
 
     <div class="mt-8 flex flex-wrap gap-3">
       <a href="/go/nuget?pkg=aspnetcore" class="btn-primary" data-umami-event="cta_aspnet_nuget"
@@ -228,15 +232,13 @@ app.Run();`;
           <p class="text-xs font-semibold uppercase tracking-wide text-interactive">
             Native IIS module
           </p>
-          <p class="mt-1 font-mono text-lg text-text-body">
-            The module for IIS
-          </p>
+          <p class="mt-1 font-mono text-lg text-text-body">The module for IIS</p>
           <p class="mt-3 text-sm text-text-muted">
-            For classic IIS sites, the module loads into IIS as a native module from a signed
-            MSI. Same filters and configuration as the Apache and nginx modules. WebP and AVIF image transcoding,
-            critical CSS, and minification, applied in the IIS pipeline. It continues the optimizer behind
-            IISpeed: that codebase was adopted into the IIS port and put through a numbered
-            set of security-hardening fixes before release.
+            For classic IIS sites, the module loads into IIS as a native module from a signed MSI.
+            Same filters and configuration as the Apache and nginx modules. WebP and AVIF image
+            transcoding, critical CSS, and minification, applied in the IIS pipeline. It continues
+            the optimizer behind IISpeed: that codebase was adopted into the IIS port and put
+            through a numbered set of security-hardening fixes before release.
           </p>
           <p class="mt-4 text-sm">
             <a
@@ -267,9 +269,9 @@ app.Run();`;
         responses your endpoints produce.
       </p>
       <pre
-        class="mt-4 overflow-x-auto rounded-md bg-stone-900 dark:bg-black p-4 text-xs sm:text-sm"><code class="text-stone-100">dotnet add package {PKG_ASPNETCORE}</code></pre>
+        class="mt-4 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm"><code class="text-text-body">dotnet add package {PKG_ASPNETCORE}</code></pre>
       <pre
-        class="mt-4 overflow-x-auto rounded-md bg-stone-900 dark:bg-black p-4 text-xs sm:text-sm"><code class="text-stone-100">{programCs}</code></pre>
+        class="mt-4 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm"><code class="text-text-body">{programCs}</code></pre>
       <p class="mt-4 text-text-body">
         That is the whole integration for the common case. Optimization runs out of band: a worker
         process starts automatically alongside your app, reads originals from a shared cache,
@@ -296,9 +298,14 @@ app.Run();`;
         JavaScript runtime behavior. The table maps the common PageSpeed Insights findings to what
         the middleware actually does, scoped honestly.
       </p>
-      <div class="mt-8 overflow-x-auto">
+      <div
+        class="mt-8 overflow-x-auto"
+        tabindex="0"
+        role="region"
+        aria-labelledby="aspnet-map-caption"
+      >
         <table class="w-full border-collapse text-sm">
-          <caption class="sr-only">
+          <caption id="aspnet-map-caption" class="sr-only">
             PageSpeed Insights findings mapped to WeAmp.PageSpeed coverage on ASP.NET Core
           </caption>
           <thead>
@@ -336,9 +343,7 @@ app.Run();`;
         </table>
       </div>
 
-      <div
-        class="mt-8 rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/60 dark:bg-amber-950/30 p-6"
-      >
+      <div class="mt-8 rounded-2xl border border-accent/40 bg-accent-wash p-6">
         <h3 class="font-semibold text-text-body">
           INP and most layout shift are your application's job
         </h3>

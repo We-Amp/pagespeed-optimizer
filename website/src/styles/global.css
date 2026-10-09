@@ -523,26 +523,16 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
 }
 
 .qs-tab[aria-pressed='true'] {
-  background-color: var(--color-stone-700);
-  color: white;
+  background-color: var(--color-interactive-wash);
+  color: var(--color-interactive);
 }
 .qs-tab[aria-pressed='false'] {
-  background-color: var(--color-stone-200);
-  color: var(--color-stone-600);
+  background-color: transparent;
+  color: var(--color-text-muted);
 }
 .qs-tab[aria-pressed='false']:hover {
-  background-color: var(--color-stone-300);
-}
-.dark .qs-tab[aria-pressed='true'] {
-  background-color: var(--color-stone-300);
-  color: var(--color-stone-900);
-}
-.dark .qs-tab[aria-pressed='false'] {
-  background-color: var(--color-stone-700);
-  color: var(--color-stone-300);
-}
-.dark .qs-tab[aria-pressed='false']:hover {
-  background-color: var(--color-stone-600);
+  background-color: var(--color-interactive-wash);
+  color: var(--color-interactive);
 }
 .qs-tab:focus-visible {
   outline: 2px solid var(--color-focus-ring);

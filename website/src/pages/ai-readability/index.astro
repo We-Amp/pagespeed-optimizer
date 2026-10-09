@@ -328,9 +328,17 @@ const jsonLd = [webApp, faqPage];
     /* Reserve the result area while a scan runs: a real scan takes 5–10 s,
        so the loading → result swap falls outside the CLS input-exclusion
        window. Pushing the content below out of view at click time is
-       input-excluded; the later swap then shifts nothing visible. */
+       input-excluded; the later swap then shifts nothing visible. A failed
+       scan keeps the reservation (data-hold) until the visitor edits the
+       URL, so the small error card doesn't pull the content below back up
+       mid-read; that release follows a keystroke, so it is also excluded. */
     #ar-out[aria-busy='true'] {
       min-block-size: 100svh;
+    }
+    /* After a failed scan the hold shrinks to the fold (--ar-hold, set by
+       holdToFold), so no blank space is left below it. */
+    #ar-out[data-hold] {
+      min-block-size: var(--ar-hold, 100svh);
     }
     .ar-card {
       /* Custom props consumed by the lens evidence list + Ghost-Layer block
@@ -1078,6 +1086,10 @@ const jsonLd = [webApp, faqPage];
       }
       $('#ar-form').addEventListener('submit', async (e) => {
         e.preventDefault();
+        // A previous run's error hold must not outlive its scan: a new run
+        // re-reserves below via aria-busy, and the validation errors render
+        // without the busy state (their collapse follows this click).
+        delete out.dataset.hold;
         const url = normalizeUrl($('#ar-url').value);
         if (!url) return;
         $('#ar-go').disabled = true;
@@ -1086,12 +1098,21 @@ const jsonLd = [webApp, faqPage];
         // Re-arm polite announcements for the loading/error strings (render() sets it to
         // 'off' so the full result card isn't announced as one giant live update).
         out.setAttribute('aria-live', 'polite');
+        // Keep the reserved area down to the fold only, and never taller than
+        // it is now (the visitor may have scrolled into it during the scan).
+        const holdToFold = () => {
+          const r = out.getBoundingClientRect();
+          const h = Math.min(r.height, Math.max(0, innerHeight - r.top));
+          out.style.setProperty('--ar-hold', Math.round(h) + 'px');
+          out.dataset.hold = '1';
+        };
         out.innerHTML =
           '<div class="ar-card ar-loading">Rendering and grading your page in a headless browser — about 5–10 seconds.</div>';
         try {
           const res = await fetch(API + '/scan?url=' + encodeURIComponent(url));
           const data = await res.json();
           if (data.error) {
+            holdToFold();
             out.innerHTML =
               '<div class="ar-card ar-err" role="alert"><strong>Couldn’t scan that.</strong> ' +
               esc(data.error) +
@@ -1100,6 +1121,7 @@ const jsonLd = [webApp, faqPage];
           }
           render(data);
         } catch (err) {
+          holdToFold();
           out.innerHTML =
             '<div class="ar-card ar-err" role="alert"><strong>Couldn’t scan that.</strong> Could not reach the scanner service. Check the URL and try again.</div>';
         } finally {
@@ -1108,6 +1130,9 @@ const jsonLd = [webApp, faqPage];
           out.setAttribute('aria-busy', 'false');
         }
       });
+      // Editing the URL releases an error's hold (see the #ar-out rule): the
+      // reserved area collapses on a keystroke, so any shift is input-excluded.
+      $('#ar-url').addEventListener('input', () => delete out.dataset.hold);
       // Rule ids a self-hosted optimizer can ADDRESS inline, server-side.
       // Mirrors the marker set in the build spec; never asserts a delivered/guaranteed fix.
       const ADDRESSABLE_INLINE = new Set([

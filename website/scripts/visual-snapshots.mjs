@@ -85,6 +85,8 @@ try {
       const page = await context.newPage();
       await page.addInitScript(CLS_INIT);
       await page.goto(url, { waitUntil: 'load' });
+      // Reduced motion freezes the one-shot fades (telemetry strip) so the axe passes measure resting colours, as in tests/accessibility.spec.ts.
+      await page.emulateMedia({ reducedMotion: 'reduce' });
       // CLS window: load + 3s, before any screenshot (a full-page capture
       // resizes the viewport internally and must not feed the sum).
       await page.waitForTimeout(3000);
