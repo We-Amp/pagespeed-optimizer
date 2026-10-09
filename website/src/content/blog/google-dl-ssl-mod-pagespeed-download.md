@@ -207,7 +207,7 @@ load_module modules/ngx_pagespeed.so;
 pagespeed on;
 ...
 
-$ curl -sI http://localhost/ | grep -i pagespeed
+$ curl -sI http://localhost/ | grep -iE 'page-?speed'
 X-Page-Speed: 1.15.0-...
 ```
 
