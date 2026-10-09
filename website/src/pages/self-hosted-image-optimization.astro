@@ -187,14 +187,9 @@ const faqJsonLd = {
         upload, no external fetch on a cache miss, and no per-image fee &mdash; the work is part of
         serving the page.
       </p>
-      <div
-        class="mt-8 overflow-x-auto"
-        tabindex="0"
-        role="region"
-        aria-label="Hosted image service versus self-hosted optimization, by dimension"
-      >
+      <div class="mt-8 overflow-x-auto" tabindex="0" role="region" aria-labelledby="hosted-caption">
         <table class="w-full border-collapse text-sm">
-          <caption class="sr-only">
+          <caption id="hosted-caption" class="sr-only">
             Hosted image service versus self-hosted optimization, by dimension
           </caption>
           <thead>
@@ -298,10 +293,12 @@ const faqJsonLd = {
         class="mt-8 overflow-x-auto"
         tabindex="0"
         role="region"
-        aria-label="Variant axes and the number of values on each"
+        aria-labelledby="variants-caption"
       >
         <table class="w-full border-collapse text-sm">
-          <caption class="sr-only">Variant axes and the number of values on each</caption>
+          <caption id="variants-caption" class="sr-only">
+            Variant axes and the number of values on each
+          </caption>
           <thead>
             <tr class="border-b border-border">
               <th scope="col" class="py-3 pr-4 text-left font-semibold text-text-body">Axis</th>

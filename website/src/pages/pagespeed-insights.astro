@@ -267,10 +267,10 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
         class="mt-8 overflow-x-auto"
         tabindex="0"
         role="region"
-        aria-label="Lighthouse audit map"
+        aria-labelledby="psi-map-caption"
       >
         <table class="w-full border-collapse text-sm">
-          <caption class="sr-only">
+          <caption id="psi-map-caption" class="sr-only">
             Lighthouse audits and how mod_pagespeed addresses each, with coverage and the filter
             that applies
           </caption>

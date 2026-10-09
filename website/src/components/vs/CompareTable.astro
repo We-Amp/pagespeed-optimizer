@@ -15,6 +15,9 @@
 //   competitor   string   — display name for the right-hand column header
 //   rows         Row[]    — one object per feature row (see Row shape below)
 //   mpsHeader    string?  — left column header (default "mod_pagespeed")
+//   labelledBy   string?  — id of the heading or caption that names the scroll
+//                           region (pages pass the id of their existing
+//                           "At a glance" heading, so no new copy is added)
 //
 // Row shape: { label: string, mps: Cell, other: Cell, highlight?: boolean }
 //   Cell is either:
@@ -34,9 +37,10 @@ interface Props {
   competitor: string;
   rows: Row[];
   mpsHeader?: string;
+  labelledBy?: string;
 }
 
-const { competitor, rows, mpsHeader = 'mod_pagespeed 2.1' } = Astro.props as Props;
+const { competitor, rows, mpsHeader = 'mod_pagespeed 2.1', labelledBy } = Astro.props as Props;
 
 const BOOLS = new Set(['yes', 'no', 'partial']);
 const isBool = (v: string) => BOOLS.has(v);
@@ -49,7 +53,7 @@ const boolLabel = (v: string) => (v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Par
     class="hidden sm:block overflow-x-auto rounded-xl border border-border"
     tabindex="0"
     role="region"
-    aria-label="Feature comparison table"
+    aria-labelledby={labelledBy}
   >
     <table class="w-full text-left text-sm">
       <thead>
