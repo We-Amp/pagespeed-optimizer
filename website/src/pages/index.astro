@@ -4,8 +4,12 @@ import CTAButton from '../components/CTAButton.astro';
 import Icon from '../components/Icon.astro';
 import Readout from '../components/instrument/Readout.astro';
 import ReadoutPanel from '../components/instrument/ReadoutPanel.astro';
+import SectionHeader from '../components/instrument/SectionHeader.astro';
+import TermPanel from '../components/instrument/TermPanel.astro';
+import HitMissBadge from '../components/instrument/HitMissBadge.astro';
 import { formatPct, monthYear, pctDelta } from '../lib/instrument';
 import demoMetrics from '../data/demo-metrics.json';
+import telemetryCapture from '../data/telemetry-capture.json';
 import { getRelease } from '../lib/release';
 import { offerJsonLd } from '../data/offer-jsonld';
 import { stripHtml } from '../data/faq-shared';
@@ -24,6 +28,24 @@ const demoImageJpeg = demoStore.resources.images.totalJpeg;
 const demoImageAvif = demoStore.resources.images.totalAvif;
 const demoImageDelta = formatPct(pctDelta(demoImageJpeg, demoImageAvif));
 const demoMeasured = `Measured on our demo store, ${monthYear(demoMetrics.generated_at)}.`;
+
+// Section 01 header panel: the captured response headers of this site's
+// homepage, verbatim from src/data/telemetry-capture.json (written by
+// scripts/capture-telemetry.mjs against production). The status line says
+// HTTP/1.1 because the capture client (node:https) speaks HTTP/1.1.
+type TermLine = { text: string; tone?: 'plain' | 'strong' | 'hl' | 'ok' | 'dim' };
+const homeCapture = telemetryCapture.paths['/'];
+const homeCaptureHeaders = homeCapture.headers;
+const capturedDate = telemetryCapture.capturedAt.slice(0, 10);
+const headerPanelLines: TermLine[] = [
+  { text: `HTTP/1.1 ${homeCapture.status}`, tone: 'strong' },
+  { text: `content-type: ${homeCaptureHeaders['content-type']}`, tone: 'plain' },
+  { text: `content-length: ${homeCaptureHeaders['content-length']}`, tone: 'strong' },
+  { text: `x-mod-pagespeed: ${homeCaptureHeaders['x-mod-pagespeed']}`, tone: 'hl' },
+  { text: `vary: ${homeCaptureHeaders.vary}`, tone: 'plain' },
+  { text: `content-encoding: ${homeCaptureHeaders['content-encoding']}`, tone: 'plain' },
+  { text: `cache-control: ${homeCaptureHeaders['cache-control']}`, tone: 'plain' },
+];
 
 // Single source of truth: corp/releases/1.1.yaml synced into
 // src/content/releases-1.1/release.yaml. The X-Mod-Pagespeed
@@ -401,6 +423,75 @@ const jsonLd = [organization, website, product, faqPage];
       line-height: 1.4;
     }
   </style>
+
+  {/* 01 — this site runs the binary it sells: the captured response headers
+      of this very page, the HIT/MISS header the 2.1 nginx module adds, and
+      the public admin console. */}
+  <section class="py-13 sm:py-18" aria-labelledby="s-running" data-live-console>
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <SectionHeader
+        id="s-running"
+        index="01"
+        eyebrow="Running on our own sites"
+        title="Running on our own sites"
+      >
+        Our four sites run on mod_pagespeed, and their admin console is public on purpose. Pick a
+        site and watch bytes saved, cache hits, statistics, caches, configuration and the
+        worker&rsquo;s logs auto-refresh; module counters start from zero whenever the web server
+        restarts.
+      </SectionHeader>
+      <div class="mt-8 max-w-3xl">
+        <TermPanel
+          command="curl -sI --compressed https://modpagespeed.com/"
+          label="Captured response headers of the modpagespeed.com homepage"
+          lines={headerPanelLines}
+        />
+        <p class="mt-3 font-mono text-xs text-text-annotation">captured {capturedDate}</p>
+      </div>
+      <p class="mt-6 max-w-2xl text-sm text-text-muted">
+        The 2.1 nginx module adds <HitMissBadge state="HIT" /> or <HitMissBadge state="MISS" /> to
+        the response.
+      </p>
+      <figure class="mt-10 max-w-4xl">
+        <img
+          src="/images/live-console-overview.webp"
+          alt="mod_pagespeed admin console Overview: a sidebar with Savings, URLs, Statistics, Histograms, Caches, Configuration, optimizer Status and Logs; a host selector; a module panel with bytes saved and responses served from the optimizer's cache; an optimizer panel with status, uptime and bytes saved"
+          width="1440"
+          height="760"
+          loading="lazy"
+          decoding="async"
+          class="w-full h-auto rounded-lg border border-border shadow-sm"
+        />
+        <figcaption class="mt-3 text-xs text-text-annotation max-w-2xl">
+          The console on our own servers. It opens with a warning that it is reachable from the
+          network: a console is normally private, ours is public on purpose.
+        </figcaption>
+      </figure>
+      <div class="mt-8">
+        <a
+          href="https://we-amp.com/pagespeed_global_admin/"
+          class="btn-primary"
+          rel="noopener"
+          data-umami-event="cta_live_console_home">Open the live console</a
+        >
+      </div>
+      <div class="mt-10 max-w-2xl border-t border-border pt-8">
+        <p class="text-lg font-semibold text-text-body">We run every We-Amp site through it.</p>
+        <p class="mt-2 text-sm text-text-muted">
+          We run our own sites, this page included, through mod_pagespeed &mdash; the binary
+          serving this page is the binary we ship. Same <a
+            href="/blog/cyclone-cache-vs-file-cache-benchmark/"
+            class="text-interactive hover:text-interactive-hover underline">Cyclone cache</a
+          >. Check the response headers. On our own demo sites we measure up to {bestSavings}%
+          smaller pages.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+  </div>
 
   {/* One product — the converged line, with availability signposted by stack */}
   <section class="py-20">
@@ -1551,59 +1642,8 @@ const jsonLd = [organization, website, product, faqPage];
           >BuiltWith</a
         >, May 2026 (231,341 live; 1,900,000+ historical).
       </p>
-
-      {/* Dogfooding line */}
-      <div class="mt-10 border-t border-border pt-8 max-w-2xl mx-auto">
-        <p class="text-lg font-semibold text-text-body">We run every We-Amp site through it.</p>
-        <p class="mt-2 text-sm text-text-muted">
-          We run our own sites, this page included, through mod_pagespeed &mdash; the binary
-          serving this page is the binary we ship. Same <a
-            href="/blog/cyclone-cache-vs-file-cache-benchmark/"
-            class="text-interactive hover:text-interactive-hover underline">Cyclone cache</a
-          >. Check the response headers. On our own demo sites we measure up to {bestSavings}%
-          smaller pages.
-        </p>
-      </div>
     </div>
   </section>
-
-  {/* Live console: the real admin console on our own sites, public on purpose */}
-  <section class="py-16" aria-labelledby="live-console-heading" data-live-console>
-    <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center">
-      <h2 id="live-console-heading" class="h2-section text-text-body">Running on our own sites</h2>
-      <p class="mt-4 text-text-muted max-w-2xl mx-auto">
-        Our four sites run on mod_pagespeed, and their admin console is public on purpose. Pick a
-        site and watch bytes saved, cache hits, statistics, caches, configuration and the
-        worker&rsquo;s logs auto-refresh; module counters start from zero whenever the web server
-        restarts.
-      </p>
-      <figure class="mt-8">
-        <img
-          src="/images/live-console-overview.webp"
-          alt="mod_pagespeed admin console Overview: a sidebar with Savings, URLs, Statistics, Histograms, Caches, Configuration, optimizer Status and Logs; a host selector; a module panel with bytes saved and responses served from the optimizer's cache; an optimizer panel with status, uptime and bytes saved"
-          width="1440"
-          height="760"
-          loading="lazy"
-          decoding="async"
-          class="w-full h-auto rounded-lg border border-border shadow-sm"
-        />
-        <figcaption class="mt-3 text-xs text-text-annotation max-w-2xl mx-auto">
-          The console on our own servers. It opens with a warning that it is reachable from the
-          network: a console is normally private, ours is public on purpose.
-        </figcaption>
-      </figure>
-      <div class="mt-8">
-        <a
-          href="https://we-amp.com/pagespeed_global_admin/"
-          class="btn-primary"
-          rel="noopener"
-          data-umami-event="cta_live_console_home">Open the live console</a
-        >
-      </div>
-    </div>
-  </section>
-
-  <div class="rule-ticked" role="presentation" aria-hidden="true"></div>
 
   {/* Objection handling FAQ */}
   <section class="py-20">
