@@ -76,10 +76,13 @@ test.describe('Demo page', () => {
     // The first panel (ecommerce) shows the per-resource breakdown as
     // ByteDelta plates. The base page's table row labels — "CSS (minified)"
     // and "JavaScript (minified)" — are kept verbatim as the plate headings,
-    // so the resource each plate measures stays named.
+    // so the resource each plate measures stays named. The Total plate leads,
+    // carrying the table's former Total row (the per-site reduction that
+    // backs the lede's 48-69% claim).
     const panel = page.locator('#panel-ecommerce');
     await expect(panel.locator('h3:has-text("Resource breakdown")')).toBeVisible();
-    await expect(panel.locator('[data-ui="byte-delta"]')).toHaveCount(4);
+    await expect(panel.locator('[data-ui="byte-delta"]')).toHaveCount(5);
+    await expect(panel.getByText('Total', { exact: true })).toBeVisible();
     await expect(panel.getByText('CSS (minified)')).toBeVisible();
     await expect(panel.getByText('JavaScript (minified)')).toBeVisible();
   });
