@@ -609,6 +609,18 @@ const jsonLd = [organization, website, product, faqPage];
       color: var(--color-interactive);
       font-weight: 600;
     }
+    /* Evaluation FAQ: a --color-border hairline between Q&A pairs. */
+    .faq-list > div {
+      padding-block: 1.25rem;
+      border-top: 1px solid var(--color-border);
+    }
+    .faq-list > div:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+    .faq-list > div:last-child {
+      padding-bottom: 0;
+    }
   </style>
 
   {/* 01 — this site runs the binary it sells: the captured response headers
@@ -1799,16 +1811,19 @@ const jsonLd = [organization, website, product, faqPage];
     </div>
   </section>
 
-  {/* Objection handling FAQ */}
-  <section class="py-20">
+  {/* 07 — evaluation FAQ: always-expanded <dl>, hairline between pairs;
+      mirrors the FAQPage JSON-LD. */}
+  <section class="py-13 sm:py-18" aria-labelledby="s-eval">
     <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
-      <h2 class="h2-section text-text-body text-center">
-        Before it goes in front of production traffic.
-      </h2>
-      <p class="mt-4 text-center text-text-muted">
+      <SectionHeader
+        id="s-eval"
+        index="07"
+        eyebrow="Evaluation"
+        title="Before it goes in front of production traffic."
+      >
         The questions that come up on every evaluation call.
-      </p>
-      <dl class="mt-12 space-y-8">
+      </SectionHeader>
+      <dl class="faq-list mt-12">
         <div>
           <dt class="text-base font-semibold text-text-body">
             mod_pagespeed is free. What does We-Amp sell?
@@ -1870,7 +1885,7 @@ const jsonLd = [organization, website, product, faqPage];
           </dd>
         </div>
       </dl>
-      <p class="mt-10 text-center text-sm text-text-muted">
+      <p class="mt-10 text-sm text-text-muted">
         Comparing against a CDN optimizer or a build-time pipeline? <a
           href="/vs/"
           data-umami-event="cta_home_compare_vs"
