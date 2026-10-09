@@ -32,10 +32,7 @@ const jsonLd = {
   description="mod_pagespeed 2.1 is free on every host. The hosting partner program adds fleet support and a direct channel for providers."
   jsonLd={jsonLd}
 >
-  <section
-    class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16"
-    aria-labelledby="hosting-title"
-  >
+  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16" aria-labelledby="hosting-title">
     <SectionHeader
       id="hosting-title"
       eyebrow="Partner program · for hosting providers"
@@ -83,7 +80,7 @@ const jsonLd = {
           One agreement per provider, under the <a
             href={LICENSING_TERMS_URL}
             class="text-interactive hover:text-interactive-hover underline">We-Amp terms</a
->. {PRICING_ON_REQUEST}
+          >. {PRICING_ON_REQUEST}
         </p>
       </div>
     </div>
@@ -94,7 +91,11 @@ const jsonLd = {
         Three answers and we come back with what the partnership looks like for your fleet. The
         contact form opens with them filled in.
       </p>
-      <form action="/contact/" method="get" class="mt-8 grid grid-cols-1 gap-4 text-left sm:grid-cols-3">
+      <form
+        action="/contact/"
+        method="get"
+        class="mt-8 grid grid-cols-1 gap-4 text-left sm:grid-cols-3"
+      >
         <input type="hidden" name="topic" value="hosting" />
         <div>
           <label for="hp-hosts" class="eyebrow">Hosts</label>
@@ -109,9 +110,7 @@ const jsonLd = {
           </select>
         </div>
         <div>
-          <label for="hp-distros" class="eyebrow"
-            >Distributions</label
-          >
+          <label for="hp-distros" class="eyebrow">Distributions</label>
           <input
             id="hp-distros"
             name="distros"
