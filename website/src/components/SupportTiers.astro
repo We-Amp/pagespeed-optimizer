@@ -33,7 +33,10 @@ const EMPHASIZED = 'priority';
       const featured = tier.id === EMPHASIZED;
       return (
         <div
-          class:list={['flex flex-col', featured ? 'card-featured' : 'card-product']}
+          class:list={[
+            'flex flex-col',
+            featured ? 'card-featured border-t-2 border-t-interactive' : 'card-product card-product-stone',
+          ]}
           data-tier={tier.id}
         >
           <div class="flex flex-wrap items-center justify-between gap-2">
