@@ -294,6 +294,11 @@ const fields = [
           el.classList.remove('t-flash');
           void el.offsetWidth;
           el.classList.add('t-flash');
+          // Drop the class again when the fade ends: left on the element, a
+          // later screenshot or reflow could restart the animation.
+          el.addEventListener('animationend', () => el.classList.remove('t-flash'), {
+            once: true,
+          });
         });
       };
       const nav = performance.getEntriesByType('navigation')[0] as

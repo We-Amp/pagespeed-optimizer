@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import SectionHeader from '../components/instrument/SectionHeader.astro';
 import {
   V1_LINE,
   LAST_UPSTREAM_VERSION,
@@ -155,7 +156,7 @@ const timeline = [
 
 const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
   neutral: 'border-border bg-bg-elevated',
-  caution: 'border-amber-200 dark:border-amber-900/60 bg-amber-50/60 dark:bg-amber-950/30',
+  caution: 'border-accent/40 bg-accent-wash',
   live: 'border-interactive/40 bg-interactive/10',
 };
 ---
@@ -173,16 +174,21 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
       <span>Is mod_pagespeed still maintained?</span>
     </nav>
 
-    <p class="eyebrow mt-8">Maintenance status</p>
-    <h1 class="mt-3 h1-hero text-text-body">Is mod_pagespeed still maintained?</h1>
-    <p class="lede mt-6 max-w-3xl">
-      Yes. The original Google and Apache-incubator repositories are archived, and the project went
-      dormant in 2024 and 2025. It is maintained again: We-Amp ships <span class="whitespace-nowrap"
-        >mod_pagespeed 2.1</span
-      >, the open-source (Apache-2.0) continuation, with the dependency CVEs cleared and signed apt
-      and yum packages. This page sets out what stopped, what did not, and what there is to run
-      today.
-    </p>
+    <SectionHeader
+      id="still-maintained"
+      as="h1"
+      eyebrow="Maintenance status"
+      title="Is mod_pagespeed still maintained?"
+    >
+      <p>
+        Yes. The original Google and Apache-incubator repositories are archived, and the project
+        went dormant in 2024 and 2025. It is maintained again: We-Amp ships <span
+          class="whitespace-nowrap">mod_pagespeed 2.1</span
+        >, the open-source (Apache-2.0) continuation, with the dependency CVEs cleared and signed
+        apt and yum packages. This page sets out what stopped, what did not, and what there is to
+        run today.
+      </p>
+    </SectionHeader>
 
     <!-- The short answer, stated plainly up top for AI Overviews / featured snippets -->
     <section class="mt-10">
@@ -336,10 +342,10 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
           </p>
           <p class="mt-1 text-2xl font-bold text-text-body">mod_pagespeed 2.1</p>
           <p class="mt-3 text-sm text-text-muted">
-            The maintained continuation of the original module, {LICENSE_CLAUSE}. Same
-            directives, same filter names, so your existing configuration carries over. Runs on
-            Apache and nginx, with a separate optimizer worker process doing the heavy lifting
-            outside the web server.
+            The maintained continuation of the original module, {LICENSE_CLAUSE}. Same directives,
+            same filter names, so your existing configuration carries over. Runs on Apache and
+            nginx, with a separate optimizer worker process doing the heavy lifting outside the web
+            server.
           </p>
           <p class="mt-4 text-sm">
             <a
@@ -372,7 +378,8 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
         >.
       </p>
       <p class="mt-6 text-sm text-text-muted">
-        mod_pagespeed 2.1 is {LICENSE_CLAUSE}: free to install and run. Support &mdash; and hardened builds &mdash; are what&rsquo;s for sale; see <a
+        mod_pagespeed 2.1 is {LICENSE_CLAUSE}: free to install and run. Support &mdash; and hardened
+        builds &mdash; are what&rsquo;s for sale; see <a
           href="/pricing/"
           class="text-interactive hover:text-interactive-hover underline">support</a
         >.
@@ -394,7 +401,7 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
         toolchain:
       </p>
       <pre
-        class="mt-4 overflow-x-auto rounded-md bg-stone-900 dark:bg-black p-4 text-xs sm:text-sm"><code class="text-stone-100">{`# add the signed repo, then:
+        class="mt-4 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm"><code class="text-text-body">{`# add the signed repo, then:
 apt-get install nginx-module-pagespeed
 
 # the package drops the module in and adds a modules-enabled
@@ -433,8 +440,8 @@ server {
           If you are running a frozen 2020-era build, the maintained <span class="whitespace-nowrap"
             >mod_pagespeed 2.1</span
           > is a drop-in replacement: the directives are unchanged, and the dependency CVEs are cleared.
-          It is {LICENSE_CLAUSE} &mdash; install and run it freely. Support &mdash; and
-          hardened builds &mdash; are what&rsquo;s for sale.
+          It is {LICENSE_CLAUSE} &mdash; install and run it freely. Support &mdash; and hardened builds
+          &mdash; are what&rsquo;s for sale.
         </p>
         <div class="mt-6 flex flex-wrap gap-3">
           <a href="/download/" class="btn-primary" data-umami-event="cta_stillmaintained_download">
