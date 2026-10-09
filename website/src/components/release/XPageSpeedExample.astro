@@ -3,15 +3,17 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
 // Renders an X-Page-Speed / X-Mod-Pagespeed / X-PageSpeed response-header
-// example, sourced from the corp release manifest. Used by docs
-// pages with "verify it works" sections that previously hard-coded the
-// version string.
+// example. Used by docs pages with "verify it works" sections that previously
+// hard-coded the version string. The module's headers carry the version
+// production sends, from the capture in src/data/telemetry-capture.json (the
+// homepage quick-start's source); the middleware and 2.0 forms come from the
+// release manifest.
 //
 // Examples in MDX:
-//   <XPageSpeedExample line="1.1" surface="nginx" />
-//     → X-Page-Speed: 1.1.0
-//   <XPageSpeedExample line="1.1" surface="apache" />
-//     → X-Mod-Pagespeed: 1.1.0.0
+//   <XPageSpeedExample line="2.1" surface="nginx" />
+//     → X-Page-Speed: 1.17.0
+//   <XPageSpeedExample line="2.1" surface="apache" />
+//     → X-Mod-Pagespeed: 1.17.0
 //   <XPageSpeedExample line="2.0" />
 //     → X-PageSpeed: WeAmp.PageSpeed/2.0.7
 //   <XPageSpeedExample line="2.1" surface="middleware" />
@@ -21,6 +23,7 @@
 // on any line; without it, `line="2.1"` renders the module's header.
 
 import { getRelease } from '../../lib/release';
+import { moduleHeaderVersion } from '../../lib/docs-markdown.mjs';
 
 interface Props {
   line: '1.1' | '2.0' | '2.1';
@@ -29,19 +32,16 @@ interface Props {
 
 const { line, surface = 'nginx' } = Astro.props;
 const rel = await getRelease(line);
+// Fails the build instead of rendering "undefined" when the capture lacks it.
+const moduleVersion = moduleHeaderVersion();
 
 let header: string;
 if (surface === 'middleware' || line === '2.0') {
   header = `X-PageSpeed: WeAmp.PageSpeed/${rel.display.header_version}`;
 } else if (surface === 'apache') {
-  // 1.1 Apache build emits a four-segment legacy version string
-  // (X-Mod-Pagespeed: 1.1.0.0) to stay compatible with monitoring built
-  // against the open-source module's header. Render as the manifest semver
-  // suffixed with .0 until/unless the manifest gains a dedicated apache
-  // header_version field.
-  header = `X-Mod-Pagespeed: ${rel.display.header_version}.0`;
+  header = `X-Mod-Pagespeed: ${moduleVersion}`;
 } else {
-  header = `X-Page-Speed: ${rel.display.header_version}`;
+  header = `X-Page-Speed: ${moduleVersion}`;
 }
 ---
 

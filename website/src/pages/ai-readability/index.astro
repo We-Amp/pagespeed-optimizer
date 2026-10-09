@@ -128,7 +128,7 @@ const jsonLd = [webApp, faqPage];
       <button
         id="ar-go"
         type="submit"
-        class="btn-primary px-8 w-full sm:w-auto disabled:opacity-50 disabled:cursor-wait"
+        class="btn-primary px-8 w-full sm:w-auto aria-disabled:opacity-50 aria-disabled:cursor-wait"
       >
         Scan
       </button>
@@ -1084,15 +1084,21 @@ const jsonLd = [webApp, faqPage];
         }
         return parsed.toString();
       }
+      // The Scan button stays focusable while a scan is in flight
+      // (aria-disabled, not disabled): a disabled button drops keyboard focus
+      // to <body>. This flag is the double-submit guard, for clicks and Enter.
+      let scanning = false;
       $('#ar-form').addEventListener('submit', async (e) => {
         e.preventDefault();
+        if (scanning) return;
         // A previous run's error hold must not outlive its scan: a new run
         // re-reserves below via aria-busy, and the validation errors render
         // without the busy state (their collapse follows this click).
         delete out.dataset.hold;
         const url = normalizeUrl($('#ar-url').value);
         if (!url) return;
-        $('#ar-go').disabled = true;
+        scanning = true;
+        $('#ar-go').setAttribute('aria-disabled', 'true');
         $('#ar-go').textContent = 'Scanning…';
         out.setAttribute('aria-busy', 'true');
         // Re-arm polite announcements for the loading/error strings (render() sets it to
@@ -1125,7 +1131,8 @@ const jsonLd = [webApp, faqPage];
           out.innerHTML =
             '<div class="ar-card ar-err" role="alert"><strong>Couldn’t scan that.</strong> Could not reach the scanner service. Check the URL and try again.</div>';
         } finally {
-          $('#ar-go').disabled = false;
+          scanning = false;
+          $('#ar-go').removeAttribute('aria-disabled');
           $('#ar-go').textContent = 'Scan';
           out.setAttribute('aria-busy', 'false');
         }

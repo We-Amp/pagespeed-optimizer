@@ -197,7 +197,7 @@ $ httpd -M 2>&1 | grep pagespeed
  pagespeed_module (shared)
 
 $ curl -sI http://localhost/ | grep -i pagespeed
-X-Mod-Pagespeed: 1.15.0-...
+X-Mod-Pagespeed: 1.17.0
 ```
 
 ```bash
@@ -208,7 +208,7 @@ pagespeed on;
 ...
 
 $ curl -sI http://localhost/ | grep -iE 'page-?speed'
-X-Page-Speed: 1.15.0-...
+X-Page-Speed: 1.17.0
 ```
 
 ### Path 2: the optimizer worker, from the 2.0 re-architecture {#path-2-modpagespeed-20-the-rewrite}

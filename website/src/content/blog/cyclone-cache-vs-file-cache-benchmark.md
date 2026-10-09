@@ -79,7 +79,7 @@ The most useful result is a trend. Cyclone's advantage is smallest on a laptop w
 <text x="691.8" y="448" text-anchor="middle" font-size="12" fill="currentColor" fill-opacity="0.6">severe · phys RAM</text>
 <line x1="60" y1="400" x2="782" y2="400" stroke="currentColor" stroke-opacity="0.28"/>
 </svg>
-<figcaption style="text-align:center;font-size:0.82rem;opacity:0.65;margin-top:0.6rem">Read throughput across four memory regimes, same 64-core workstation, in-process RAM tier off (mod_pagespeed's default — reads come straight from the mapped volume). Benchmark: 40,000 keys of ~11 KB, 8 worker threads, a Zipfian read/write/delete mix; average of two runs. Faded bars are the previous Cyclone, solid teal the reworked build, brown the file cache — the lead holds while the working set is resident (left) and narrows under memory pressure (right).</figcaption>
+<figcaption style="text-align:center;font-size:0.82rem;color:var(--color-text-muted);margin-top:0.6rem">Read throughput across four memory regimes, same 64-core workstation, in-process RAM tier off (mod_pagespeed's default — reads come straight from the mapped volume). Benchmark: 40,000 keys of ~11 KB, 8 worker threads, a Zipfian read/write/delete mix; average of two runs. Faded bars are the previous Cyclone, solid teal the reworked build, brown the file cache — the lead holds while the working set is resident (left) and narrows under memory pressure (right).</figcaption>
 </figure>
 
 ## Two engines, one interface
@@ -142,7 +142,7 @@ A live server answers many requests at once. Ramping concurrent readers from 1 t
 <text x="730.0" y="109.7" text-anchor="end" font-size="12.5" font-weight="600" fill="#12A594" font-family="ui-monospace,monospace">1.3M</text>
 <text x="730.0" y="346.7" text-anchor="end" font-size="12.5" font-weight="600" fill="#C08457" font-family="ui-monospace,monospace">269k</text>
 </svg>
-<figcaption style="text-align:center;font-size:0.82rem;opacity:0.65;margin-top:0.6rem">Aggregate reads per second as concurrent readers climb from 1 to 64 (workstation, 10 KB objects). Cyclone's lock-free mapped reads keep scaling with cores; the file cache peaks near 8-16 threads, then declines as system-call and lock contention take over.</figcaption>
+<figcaption style="text-align:center;font-size:0.82rem;color:var(--color-text-muted);margin-top:0.6rem">Aggregate reads per second as concurrent readers climb from 1 to 64 (workstation, 10 KB objects). Cyclone's lock-free mapped reads keep scaling with cores; the file cache peaks near 8-16 threads, then declines as system-call and lock contention take over.</figcaption>
 </figure>
 
 Aggregate reads per second at 64 threads, laptop (fast NVMe SSD):
