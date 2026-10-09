@@ -35,8 +35,8 @@ const { command, label, chip, lines } = Astro.props;
     tabindex="0"
     role="region"
     aria-label={label}><code>{
-        lines.map((line) => (
-          <span class={`term-${line.tone ?? 'plain'}`} data-umami-event={line.event}>{line.text + '\n'}</span>
+        lines.map((line, i) => (
+          <span class={`term-${line.tone ?? 'plain'}`} data-umami-event={line.event}>{line.text + (i < lines.length - 1 ? '\n' : '')}</span>
         ))
       }</code></pre>
 </figure>
