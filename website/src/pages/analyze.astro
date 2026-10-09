@@ -1,5 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import SectionHeader from '../components/instrument/SectionHeader.astro';
+import Chip from '../components/instrument/Chip.astro';
 import { PSI_MPS_MAPPING } from '../data/psi-mps-mapping';
 import { FREE_TO_RUN_LINE } from '../data/product-facts.mjs';
 
@@ -115,14 +117,21 @@ const jsonLd = [
   <!-- ============================================================ -->
   <!-- Hero + URL input                                              -->
   <!-- ============================================================ -->
-  <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-20 text-center">
-    <p class="eyebrow">Free · no account · no upload</p>
-    <h1 class="h1-hero mt-3 text-text-body">PageSpeed Insights, with the fix attached.</h1>
-    <p class="lede mt-5 max-w-2xl mx-auto">
+  <section
+    class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-20 text-center"
+    aria-labelledby="analyze-title"
+  >
+    <SectionHeader
+      id="analyze-title"
+      eyebrow="Free · no account · no upload"
+      title="PageSpeed Insights, with the fix attached."
+      as="h1"
+      align="center"
+    >
       Run Google's official PageSpeed Insights against any URL. We score the page on mobile and
       desktop, then map every failing Lighthouse audit to the filter in mod_pagespeed 2.1 that fixes
       it on your server. Audits no optimizer can touch get labeled.
-    </p>
+    </SectionHeader>
     <p class="mt-3 text-xs text-text-annotation max-w-2xl mx-auto">
       This tool calls Google's public PageSpeed Insights API. mod_pagespeed 2.1 is built by We-Amp
       B.V. and is not affiliated with or endorsed by Google. PageSpeed Insights is a trademark of
@@ -149,7 +158,7 @@ const jsonLd = [
           placeholder="https://example.com"
           aria-invalid="false"
           aria-describedby="psi-form-error"
-          class="flex-1 rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-elevated shadow-sm focus:border-interactive focus:ring-2 focus:ring-interactive aria-[invalid=true]:border-amber-600 aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-amber-600 dark:aria-[invalid=true]:border-amber-500 dark:aria-[invalid=true]:ring-amber-500 sm:text-sm"
+          class="flex-1 rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-elevated focus:border-interactive focus:ring-2 focus:ring-interactive aria-[invalid=true]:border-accent aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-accent sm:text-sm"
         />
         <button id="psi-submit" type="submit" class="btn-primary whitespace-nowrap">
           <span id="psi-submit-label">Analyze</span>
@@ -175,12 +184,7 @@ const jsonLd = [
           </svg>
         </button>
       </div>
-      <p
-        id="psi-form-error"
-        role="alert"
-        class="mt-2 hidden text-sm text-amber-700 dark:text-amber-400"
-      >
-      </p>
+      <p id="psi-form-error" role="alert" class="mt-2 hidden text-sm text-accent"></p>
       <p class="mt-3 text-xs text-text-annotation">
         The URL you submit is sent to Google's PageSpeed Insights API (in the US) through a small
         proxy on this site that holds the API key and caches results. Your IP address is logged and
@@ -211,7 +215,7 @@ const jsonLd = [
     class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 pb-16 hidden"
     aria-hidden="true"
   >
-    <div class="rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8 shadow-sm">
+    <div class="rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8">
       <div class="flex items-center gap-3">
         <svg
           class="h-5 w-5 animate-spin text-interactive"
@@ -272,10 +276,7 @@ const jsonLd = [
 
   <section id="psi-results" class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 pb-16 hidden">
     <!-- Headline coverage banner -->
-    <div
-      id="psi-headline"
-      class="rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8 shadow-sm"
-    >
+    <div id="psi-headline" class="rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8">
       <p class="eyebrow" id="psi-headline-url">—</p>
       <h2
         id="psi-headline-text"
@@ -285,26 +286,33 @@ const jsonLd = [
       </h2>
       <p id="psi-headline-savings" class="mt-3 text-sm text-text-muted"></p>
 
-      <!-- Mobile + Desktop score chips. Numeric + icon + text label so the
-           bucket is legible without colour vision (WCAG 1.4.1). -->
+      <!-- Mobile + Desktop score readouts on recessed plates, each with a
+           0–100 tick-scale gauge (aria-hidden). Label above the numeral,
+           bucket chip under the gauge — the state never rides on colour
+           alone (WCAG 1.4.1). Values are live PSI output; JS replaces
+           textContent and gauge widths only, never the structure. -->
       <div class="mt-6 grid grid-cols-2 gap-4 max-w-md">
-        <div class="rounded-lg bg-bg-secondary p-4">
-          <p class="text-xs uppercase tracking-wide text-text-annotation">Mobile</p>
-          <p id="psi-score-mobile" class="display-num mt-1 text-3xl font-bold text-text-body">—</p>
-          <p
-            id="psi-score-mobile-label"
-            class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-text-annotation"
-          >
+        <div class="readout readout-plate p-4" data-ui="readout">
+          <p class="readout-label text-sm text-text-muted">Mobile</p>
+          <p class="readout-value display-num mt-1">
+            <span id="psi-score-mobile" class="text-text-body">—</span>
           </p>
+          <div class="readout-gauge" aria-hidden="true">
+            <i class="track"></i>
+            <i id="psi-score-mobile-bar" class="after after-neutral" style="inline-size: 0%"></i>
+          </div>
+          <p id="psi-score-mobile-label" class="mt-2"></p>
         </div>
-        <div class="rounded-lg bg-bg-secondary p-4">
-          <p class="text-xs uppercase tracking-wide text-text-annotation">Desktop</p>
-          <p id="psi-score-desktop" class="display-num mt-1 text-3xl font-bold text-text-body">—</p>
-          <p
-            id="psi-score-desktop-label"
-            class="mt-1 inline-flex items-center gap-1 text-xs font-medium text-text-annotation"
-          >
+        <div class="readout readout-plate p-4" data-ui="readout">
+          <p class="readout-label text-sm text-text-muted">Desktop</p>
+          <p class="readout-value display-num mt-1">
+            <span id="psi-score-desktop" class="text-text-body">—</span>
           </p>
+          <div class="readout-gauge" aria-hidden="true">
+            <i class="track"></i>
+            <i id="psi-score-desktop-bar" class="after after-neutral" style="inline-size: 0%"></i>
+          </div>
+          <p id="psi-score-desktop-label" class="mt-2"></p>
         </div>
       </div>
     </div>
@@ -391,7 +399,7 @@ const jsonLd = [
         </button>
       </div>
       <pre
-        class="mt-4 overflow-x-auto rounded-md bg-stone-900 dark:bg-black p-4 text-xs sm:text-sm"><code id="psi-config-snippet" class="text-stone-100">pagespeed on;</code></pre>
+        class="mt-4 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm"><code id="psi-config-snippet" class="text-text-body">pagespeed on;</code></pre>
     </div>
 
     <!-- Result-moment CTA: surfaced right after the config (the lead magnet
@@ -431,7 +439,7 @@ const jsonLd = [
     >
       <div class="flex items-start gap-4">
         <div
-          class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-interactive text-on-accent shadow-md"
+          class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-interactive text-on-accent"
           aria-hidden="true"
         >
           <svg
@@ -525,8 +533,8 @@ const jsonLd = [
     >
       <h3 class="text-lg font-semibold text-text-body">Download this report</h3>
       <p class="mt-1 text-sm text-text-muted">
-        Saves the analyzed URL, the timestamp, the mobile and desktop scores and the failing
-        audits as a Markdown file, straight from your browser. The report is not sent anywhere.
+        Saves the analyzed URL, the timestamp, the mobile and desktop scores and the failing audits
+        as a Markdown file, straight from your browser. The report is not sent anywhere.
       </p>
       <button id="psi-report-download" type="button" class="btn-primary mt-4 whitespace-nowrap">
         Download this report
@@ -538,13 +546,13 @@ const jsonLd = [
     <!-- Error state -->
     <div
       id="psi-error"
-      class="mt-8 rounded-2xl border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-950/40 p-6 hidden"
+      class="mt-8 rounded-2xl border border-accent/40 bg-accent-wash p-6 hidden"
       role="alert"
     >
-      <h3 class="text-base font-semibold text-amber-900 dark:text-amber-100">
+      <h3 class="text-base font-semibold text-text-body">
         <span id="psi-error-title">PSI returned an error.</span>
       </h3>
-      <p id="psi-error-body" class="mt-2 text-sm text-amber-900/90 dark:text-amber-100/90"></p>
+      <p id="psi-error-body" class="mt-2 text-sm text-text-muted"></p>
       <button id="psi-error-retry" type="button" class="mt-4 btn-secondary text-xs">
         Try again
       </button>
@@ -681,16 +689,8 @@ const jsonLd = [
             >
               <div class="flex items-start justify-between gap-2">
                 <h3 class="text-base font-semibold text-text-body">{displayTitle}</h3>
-                {isTwoOnly && (
-                  <span class="shrink-0 inline-flex items-center rounded-md bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-                    Worker
-                  </span>
-                )}
-                {isOneOnly && (
-                  <span class="shrink-0 inline-flex items-center rounded-md bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide">
-                    Module
-                  </span>
-                )}
+                {isTwoOnly && <Chip tone="neutral" label="Worker" />}
+                {isOneOnly && <Chip tone="neutral" label="Module" />}
               </div>
               <p class="mt-2 text-sm text-text-muted leading-relaxed">{item.explanation}</p>
               {item.filters.length > 0 && (
@@ -782,8 +782,31 @@ const jsonLd = [
   <!-- Client-side analyzer                                          -->
   <!-- ============================================================ -->
   <script>
-    import { PSI_MPS_MAPPING } from '../data/psi-mps-mapping';
     import type { AuditMapping, Coverage, Edition } from '../data/psi-mps-mapping';
+
+    // The audit→filter mapping table is only needed once a run completes, so
+    // it is split out of the page's initial bundle and imported on the first
+    // submit. render() only runs after loadMapping() has resolved (directly
+    // from runAnalysis, or from an edition toggle after a completed run).
+    let mappingCache: AuditMapping[] | null = null;
+    // Set when the mapping chunk failed to load (typically deploy skew: a
+    // deploy replaced the _astro/ hashes after the page was loaded). Once
+    // set, retrying cannot recover — the browser caches the failed module
+    // fetch — so the run is blocked before spending PSI calls, and the user
+    // is told to reload the page.
+    let mappingFailed = false;
+    async function loadMapping(): Promise<AuditMapping[]> {
+      if (!mappingCache) {
+        mappingCache = (await import('../data/psi-mps-mapping')).PSI_MPS_MAPPING;
+      }
+      return mappingCache;
+    }
+    function reloadError(): Error {
+      return Object.assign(
+        new Error('Part of this page failed to load. Reload the page and run the analysis again.'),
+        { reload: true },
+      );
+    }
 
     // ---- Which part the reader is configuring ----
     // The '2.0' key selects the optimizer worker, '1.1' the module; the
@@ -915,6 +938,8 @@ const jsonLd = [
     const headlineSavingsEl = document.getElementById('psi-headline-savings');
     const scoreMobileEl = document.getElementById('psi-score-mobile');
     const scoreDesktopEl = document.getElementById('psi-score-desktop');
+    const scoreMobileBarEl = document.getElementById('psi-score-mobile-bar');
+    const scoreDesktopBarEl = document.getElementById('psi-score-desktop-bar');
 
     const fixableEl = document.getElementById('psi-fixable');
     const fixableListEl = document.getElementById('psi-fixable-list');
@@ -1045,125 +1070,74 @@ const jsonLd = [
     }
 
     function scoreColorClasses(score: number): string {
-      // Match Lighthouse's traffic-light buckets, but in stone/cyan/amber
-      // rather than green/red. Reserved colors: amber for warnings (<50),
-      // the interactive cyan accent for primary signal (>=90), stone for neutral mid-range (50-89).
+      // Lighthouse's three buckets mapped onto the state tokens: success for
+      // good (>=90), plain text for the neutral mid-range (50–89), accent
+      // (the reserved caution hue) for poor (<50).
       const bucket = scoreBucket(score);
-      if (bucket === 'good') return 'text-interactive';
+      if (bucket === 'good') return 'text-success';
       if (bucket === 'needs-work') return 'text-text-body';
-      return 'text-amber-700 dark:text-amber-400';
+      return 'text-accent';
     }
 
-    const SCORE_CLASSES_TO_RESET = [
-      'text-interactive',
-      'text-stone-700',
-      'dark:text-stone-200',
-      'text-amber-700',
-      'dark:text-amber-400',
-      'text-stone-900',
-      'dark:text-stone-100',
-      'text-stone-500',
-      'dark:text-stone-400',
-    ];
+    const SCORE_CLASSES_TO_RESET = ['text-success', 'text-text-body', 'text-accent'];
+
+    const BUCKET_BADGE_CLASS: Record<ScoreBucket, string> = {
+      good: 'badge-success',
+      'needs-work': 'badge-neutral',
+      poor: 'badge-accent',
+    };
+    const BUCKET_LABEL: Record<ScoreBucket, string> = {
+      good: 'Good',
+      'needs-work': 'Needs work',
+      poor: 'Poor',
+    };
 
     /**
-     * Non-colour cue for the score bucket: SVG glyph + text label.
-     * Glyph shapes differ per bucket (check, dash-in-circle, triangle-bang)
-     * so colour-blind viewers and grayscale prints still read correctly.
+     * The score bucket as a squared state chip: the word plus the chip's
+     * leading block carry the state, so it reads without colour vision
+     * (WCAG 1.4.1). No score → no chip.
      */
     function renderScoreBucket(labelEl: HTMLElement | null, score0to1: number | null | undefined) {
       if (!labelEl) return;
-      while (labelEl.firstChild) labelEl.removeChild(labelEl.firstChild);
+      labelEl.textContent = '';
+      labelEl.classList.remove('badge-success', 'badge-neutral', 'badge-accent');
       if (score0to1 == null) return;
-      const n = Math.round(score0to1 * 100);
-      const bucket = scoreBucket(n);
-      // Reset label colour
-      SCORE_CLASSES_TO_RESET.forEach((c) => labelEl.classList.remove(c));
-
-      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-      svg.setAttribute('viewBox', '0 0 16 16');
-      svg.setAttribute('aria-hidden', 'true');
-      svg.setAttribute('class', 'h-3.5 w-3.5');
-      svg.setAttribute('fill', 'none');
-      svg.setAttribute('stroke', 'currentColor');
-      svg.setAttribute('stroke-width', '2');
-      svg.setAttribute('stroke-linecap', 'round');
-      svg.setAttribute('stroke-linejoin', 'round');
-
-      let labelText: string;
-      if (bucket === 'good') {
-        labelText = 'Good';
-        labelEl.classList.add('text-interactive');
-        // Circle with check
-        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        circle.setAttribute('cx', '8');
-        circle.setAttribute('cy', '8');
-        circle.setAttribute('r', '7');
-        svg.appendChild(circle);
-        const check = document.createElementNS('http://www.w3.org/2000/svg', 'polyline');
-        check.setAttribute('points', '5 8 7 10 11 6');
-        svg.appendChild(check);
-      } else if (bucket === 'needs-work') {
-        labelText = 'Needs work';
-        labelEl.classList.add('text-stone-600', 'dark:text-stone-300');
-        // Circle with horizontal dash
-        const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        circle.setAttribute('cx', '8');
-        circle.setAttribute('cy', '8');
-        circle.setAttribute('r', '7');
-        svg.appendChild(circle);
-        const dash = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        dash.setAttribute('x1', '5');
-        dash.setAttribute('y1', '8');
-        dash.setAttribute('x2', '11');
-        dash.setAttribute('y2', '8');
-        svg.appendChild(dash);
-      } else {
-        labelText = 'Poor';
-        labelEl.classList.add('text-amber-700', 'dark:text-amber-400');
-        // Triangle with exclamation
-        const tri = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-        tri.setAttribute('d', 'M8 2 L14.5 13.5 L1.5 13.5 Z');
-        svg.appendChild(tri);
-        const bang = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        bang.setAttribute('x1', '8');
-        bang.setAttribute('y1', '7');
-        bang.setAttribute('x2', '8');
-        bang.setAttribute('y2', '10');
-        svg.appendChild(bang);
-        const dot = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        dot.setAttribute('cx', '8');
-        dot.setAttribute('cy', '12');
-        dot.setAttribute('r', '0.5');
-        dot.setAttribute('fill', 'currentColor');
-        svg.appendChild(dot);
-      }
-      labelEl.appendChild(svg);
-      const span = document.createElement('span');
-      span.textContent = labelText;
-      labelEl.appendChild(span);
+      const bucket = scoreBucket(Math.round(score0to1 * 100));
+      labelEl.classList.add(BUCKET_BADGE_CLASS[bucket]);
+      labelEl.textContent = BUCKET_LABEL[bucket];
     }
 
     function setScore(
       el: HTMLElement | null,
       labelEl: HTMLElement | null,
+      barEl: HTMLElement | null,
       score0to1: number | null | undefined,
     ) {
       if (!el) return;
       if (score0to1 == null) {
         el.textContent = '—';
         SCORE_CLASSES_TO_RESET.forEach((c) => el.classList.remove(c));
-        el.classList.add('text-stone-900', 'dark:text-stone-100');
+        el.classList.add('text-text-body');
         renderScoreBucket(labelEl, null);
+        if (barEl) {
+          barEl.style.inlineSize = '0%';
+          barEl.classList.remove('after-improved', 'after-accent');
+          barEl.classList.add('after-neutral');
+        }
         return;
       }
       const n = Math.round(score0to1 * 100);
       el.textContent = String(n);
       SCORE_CLASSES_TO_RESET.forEach((c) => el.classList.remove(c));
-      scoreColorClasses(n)
-        .split(' ')
-        .forEach((c) => el.classList.add(c));
+      el.classList.add(scoreColorClasses(n));
       renderScoreBucket(labelEl, score0to1);
+      if (barEl) {
+        const bucket = scoreBucket(n);
+        barEl.style.inlineSize = `${n}%`;
+        barEl.classList.toggle('after-improved', bucket === 'good');
+        barEl.classList.toggle('after-accent', bucket === 'poor');
+        barEl.classList.toggle('after-neutral', bucket === 'needs-work');
+      }
     }
 
     function formatMs(ms: number): string {
@@ -1233,13 +1207,17 @@ const jsonLd = [
       return audit.score < 0.9;
     }
 
-    function aggregate(mobile: PsiResult, desktop: PsiResult): AggregatedAudit[] {
+    function aggregate(
+      mobile: PsiResult,
+      desktop: PsiResult,
+      mappings: readonly AuditMapping[],
+    ): AggregatedAudit[] {
       const mAudits = mobile.lighthouseResult?.audits ?? {};
       const dAudits = desktop.lighthouseResult?.audits ?? {};
       const seen = new Set<string>();
       const out: AggregatedAudit[] = [];
 
-      for (const mapping of PSI_MPS_MAPPING) {
+      for (const mapping of mappings) {
         const m = mAudits[mapping.auditId];
         const d = dAudits[mapping.auditId];
         const flagged = isFlagged(m) || isFlagged(d);
@@ -1302,11 +1280,10 @@ const jsonLd = [
       for (const f of filters) {
         const chip = document.createElement('button');
         chip.type = 'button';
-        // focus-visible ring uses the interactive accent (matches the input's focus ring),
-        // with a 2px offset for legibility against the bg-stone-800 chip in
-        // dark mode and bg-stone-50 chip in light mode.
+        // Focus ring: the global :focus-visible rule (2px --color-focus-ring,
+        // 2px offset) applies.
         chip.className =
-          'inline-flex items-center rounded-md border border-border-strong bg-bg-secondary px-2 py-1 text-xs font-mono text-text-body hover:bg-stone-100 dark:hover:bg-stone-700 transition-colors focus:outline-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-interactive/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white dark:focus-visible:ring-offset-stone-900';
+          'inline-flex items-center rounded-md border border-border-strong bg-bg-secondary px-2 py-1 text-xs font-mono text-text-body hover:bg-bg-elevated transition-colors';
         chip.textContent = f;
         chip.setAttribute('data-umami-event', 'psi-result-filter-click');
         chip.setAttribute('data-umami-event-filter', f);
@@ -1358,22 +1335,19 @@ const jsonLd = [
       title.textContent = item.mapping.auditTitle;
       titleWrap.appendChild(title);
 
-      // Coverage + confidence chips + edition badge
+      // Coverage + confidence chips + edition badge — the squared chip
+      // vocabulary: success for full coverage, accent for partial, neutral
+      // for confidence notes and part markers.
       const chipsRow = document.createElement('div');
       chipsRow.className = 'mt-1 flex flex-wrap items-center gap-2';
       const covChip = document.createElement('span');
-      const covClass =
-        item.mapping.coverage === 'full'
-          ? 'bg-interactive/10 text-interactive'
-          : 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300';
-      covChip.className = `inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${covClass}`;
+      covChip.className = item.mapping.coverage === 'full' ? 'badge-success' : 'badge-accent';
       covChip.textContent = item.mapping.coverage === 'full' ? 'Fully addressed' : 'Partial fix';
       chipsRow.appendChild(covChip);
 
       if (item.mapping.confidence !== 'high') {
         const confChip = document.createElement('span');
-        confChip.className =
-          'inline-flex items-center rounded-md bg-bg-elevated px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-body';
+        confChip.className = 'badge-neutral';
         confChip.textContent = item.mapping.confidence === 'medium' ? 'Test first' : 'Experimental';
         chipsRow.appendChild(confChip);
       }
@@ -1390,16 +1364,14 @@ const jsonLd = [
         item.mapping.availableIn.includes('1.1') && !item.mapping.availableIn.includes('2.0');
       if (isTwoOnly && edition === '1.1') {
         const editionChip = document.createElement('span');
-        editionChip.className =
-          'inline-flex items-center rounded-md bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide';
+        editionChip.className = 'badge-neutral';
         editionChip.textContent = 'Worker';
         editionChip.title =
           'This audit is addressed by the optimizer worker. Switch the toggle above to see its configuration.';
         chipsRow.appendChild(editionChip);
       } else if (isOneOnly && edition === '2.0') {
         const editionChip = document.createElement('span');
-        editionChip.className =
-          'inline-flex items-center rounded-md bg-stone-100 text-stone-700 dark:bg-stone-800 dark:text-stone-300 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide';
+        editionChip.className = 'badge-neutral';
         editionChip.textContent = 'Module';
         editionChip.title =
           'This audit is addressed by the module. Switch the toggle above to see its configuration.';
@@ -1732,12 +1704,15 @@ const jsonLd = [
       lastDesktopResult = desktop;
       const mobileScore = mobile.lighthouseResult?.categories?.performance?.score ?? null;
       const desktopScore = desktop.lighthouseResult?.categories?.performance?.score ?? null;
-      setScore(scoreMobileEl, scoreMobileLabelEl, mobileScore);
-      setScore(scoreDesktopEl, scoreDesktopLabelEl, desktopScore);
+      setScore(scoreMobileEl, scoreMobileLabelEl, scoreMobileBarEl, mobileScore);
+      setScore(scoreDesktopEl, scoreDesktopLabelEl, scoreDesktopBarEl, desktopScore);
 
       if (headlineUrlEl) headlineUrlEl.textContent = targetUrl;
 
-      const items = aggregate(mobile, desktop);
+      // mappingCache is set by the time render() runs: runAnalysis awaits
+      // loadMapping() first, and the edition toggle only re-renders after a
+      // completed run.
+      const items = mappingCache ? aggregate(mobile, desktop, mappingCache) : [];
       const fixable = items.filter((i) => i.mapping.coverage !== 'none');
       const unfixable = items.filter((i) => i.mapping.coverage === 'none');
 
@@ -1880,13 +1855,19 @@ const jsonLd = [
       // Headline area: clear scores; leave the URL visible if we have one.
       if (headlineTextEl) headlineTextEl.textContent = 'We couldn’t complete the analysis.';
       if (headlineSavingsEl) headlineSavingsEl.textContent = '';
-      setScore(scoreMobileEl, scoreMobileLabelEl, null);
-      setScore(scoreDesktopEl, scoreDesktopLabelEl, null);
+      setScore(scoreMobileEl, scoreMobileLabelEl, scoreMobileBarEl, null);
+      setScore(scoreDesktopEl, scoreDesktopLabelEl, scoreDesktopBarEl, null);
       hide(allCleanEl);
       if (statusEl && title) statusEl.textContent = title;
     }
 
     function classifyError(err: unknown): { title: string; body: string } {
+      if ((err as { reload?: boolean })?.reload) {
+        return {
+          title: 'This page needs a reload.',
+          body: (err as { message?: string }).message ?? '',
+        };
+      }
       const status = (err as { status?: number })?.status;
       const message = (err as { message?: string })?.message ?? 'Unknown error.';
       if (status === 429) {
@@ -1930,10 +1911,22 @@ const jsonLd = [
         /* analytics must never break the run */
       }
       try {
+        // A failed chunk fetch is cached by the browser, so once the mapping
+        // table is known to be unloadable a retry can never succeed — stop
+        // before firing the PSI requests and ask for a page reload instead.
+        if (mappingFailed && !mappingCache) {
+          throw reloadError();
+        }
         // We fire both fetches in parallel for speed but report progress
         // sequentially so the user sees a deterministic two-step indicator
         // instead of a vague "loading…". Whichever returns first flips the
-        // label to step 2.
+        // label to step 2. The mapping table loads alongside — it is split
+        // out of the initial bundle and only fetched on first use.
+        const mappingP = loadMapping();
+        // Awaited below; attaching a no-op handler now keeps a rejection
+        // that lands while the PSI fetches are still in flight from being
+        // reported as an unhandled rejection.
+        mappingP.catch(() => {});
         let stepTwoShown = false;
         const advance = () => {
           if (!stepTwoShown) {
@@ -1990,6 +1983,16 @@ const jsonLd = [
           if (mobileRes.status === 'rejected') throw mobileRes.reason;
           if (desktopRes.status === 'rejected') throw desktopRes.reason;
           throw new Error('PageSpeed Insights returned no usable result for this URL.');
+        }
+        // Surfaced before render() so a failed chunk load takes the error
+        // path instead of rendering an empty report. The error is a
+        // reload-only condition: retrying reuses the browser's cached
+        // failure, so the run is blocked above until the page is reloaded.
+        try {
+          await mappingP;
+        } catch {
+          mappingFailed = true;
+          throw reloadError();
         }
         render(targetUrl, mobile, desktop);
       } catch (err) {
@@ -2096,4 +2099,51 @@ const jsonLd = [
       if (result.ok) void runAnalysis(result.url);
     })();
   </script>
+
+  <style>
+    /* Score readouts in the Readout idiom (display numeral over a tick-scale
+       gauge on a recessed plate), label above the value: the page's text
+       order is fixed, so the component's value-first row does not apply here.
+       Mirrors the component's gauge CSS, plus an accent bar for the poor
+       bucket. */
+    .readout-value {
+      font-size: 1.375rem;
+      font-weight: 600;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+    }
+    @media (min-width: 640px) {
+      .readout-value {
+        font-size: 1.625rem;
+      }
+    }
+    .readout-gauge {
+      position: relative;
+      height: 8px;
+      margin-top: 0.625rem;
+      border-bottom: 1px solid var(--color-border-strong);
+    }
+    .readout-gauge .track {
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(90deg, var(--color-tick) 0 1px, transparent 1px 10%);
+    }
+    .readout-gauge .after {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      height: 4px;
+      border-radius: 1px;
+    }
+    .readout-gauge .after-improved {
+      background-color: var(--color-success);
+    }
+    .readout-gauge .after-neutral {
+      background-color: var(--color-interactive);
+    }
+    .readout-gauge .after-accent {
+      background-color: var(--color-accent);
+    }
+  </style>
 </BaseLayout>
