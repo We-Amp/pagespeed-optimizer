@@ -72,7 +72,7 @@ const topicConfig = {
 };
 
 const inputClass =
-  'mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 outline-none focus:ring-2 focus:ring-interactive/40';
+  'mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 focus:border-interactive focus:ring-2 focus:ring-interactive';
 
 const nextSteps = [
   { when: 'within 1 business day', what: 'An engineer replies to every message.' },
@@ -132,7 +132,7 @@ const nextSteps = [
       class="mt-8 rounded-lg border border-border bg-bg-elevated p-6 sm:p-8 space-y-5"
     >
       <div>
-        <label for="contact-name" class="block text-sm font-medium text-text-body"> Name </label>
+        <label for="contact-name" class="eyebrow"> Name </label>
         <input
           id="contact-name"
           name="name"
@@ -140,12 +140,12 @@ const nextSteps = [
           required
           aria-required="true"
           autocomplete="name"
-          class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 outline-none focus:ring-2 focus:ring-interactive/40"
+          class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 focus:border-interactive focus:ring-2 focus:ring-interactive"
         />
       </div>
 
       <div>
-        <label for="contact-email" class="block text-sm font-medium text-text-body"> Email </label>
+        <label for="contact-email" class="eyebrow"> Email </label>
         <input
           id="contact-email"
           name="email"
@@ -153,19 +153,19 @@ const nextSteps = [
           required
           aria-required="true"
           autocomplete="email"
-          class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 outline-none focus:ring-2 focus:ring-interactive/40 aria-[invalid=true]:border-amber-600 aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-amber-600 dark:aria-[invalid=true]:border-amber-500 dark:aria-[invalid=true]:ring-amber-500"
+          class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 focus:border-interactive focus:ring-2 focus:ring-interactive aria-[invalid=true]:border-accent aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-accent"
         />
       </div>
 
       <div>
-        <label for="contact-topic" class="block text-sm font-medium text-text-body"> Topic </label>
+        <label for="contact-topic" class="eyebrow"> Topic </label>
         <select
           id="contact-topic"
           name="topic"
           required
           aria-required="true"
           aria-describedby="contact-topic-hint"
-          class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 outline-none focus:ring-2 focus:ring-interactive/40"
+          class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 focus:border-interactive focus:ring-2 focus:ring-interactive"
         >
           {TOPICS.map((t) => <option value={t.value}>{t.label}</option>)}
         </select>
@@ -175,12 +175,12 @@ const nextSteps = [
       </div>
 
       <fieldset id="contact-qualifiers" class="space-y-4" data-qualifiers>
-        <legend class="text-sm font-medium text-text-body">
+        <legend class="eyebrow">
           About your organization <span class="font-normal text-text-annotation">(optional)</span>
         </legend>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label for="contact-org" class="block text-sm text-text-muted">Company</label>
+            <label for="contact-org" class="eyebrow">Company</label>
             <input
               id="contact-org"
               name="org"
@@ -190,7 +190,7 @@ const nextSteps = [
             />
           </div>
           <div>
-            <label for="contact-role" class="block text-sm text-text-muted">Role</label>
+            <label for="contact-role" class="eyebrow">Role</label>
             <input
               id="contact-role"
               name="role"
@@ -201,9 +201,7 @@ const nextSteps = [
           </div>
         </div>
         <div>
-          <label for="contact-servers" class="block text-sm text-text-muted"
-            >Production servers</label
-          >
+          <label for="contact-servers" class="eyebrow">Production servers</label>
           <select id="contact-servers" name="servers" class={inputClass}>
             <option value="">Choose one</option>
             <option value="Up to 5">Up to 5</option>
@@ -214,9 +212,7 @@ const nextSteps = [
       </fieldset>
 
       <div>
-        <label for="contact-message" class="block text-sm font-medium text-text-body">
-          Message
-        </label>
+        <label for="contact-message" class="eyebrow"> Message </label>
         <textarea
           id="contact-message"
           name="message"
@@ -224,7 +220,7 @@ const nextSteps = [
           required
           aria-required="true"
           aria-describedby="contact-message-hint"
-          class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 outline-none focus:ring-2 focus:ring-interactive/40"
+          class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 focus:border-interactive focus:ring-2 focus:ring-interactive"
         ></textarea>
         <p id="contact-message-hint" class="mt-1 text-sm text-text-annotation">
           Plain text is fine. Logs and config snippets help.
@@ -354,21 +350,15 @@ const nextSteps = [
       function setStatus(kind: 'success' | 'error' | null, msg: string) {
         if (!statusEl) return;
         statusEl.textContent = msg;
-        statusEl.classList.remove(
-          'hidden',
-          'text-interactive',
-          'dark:text-interactive',
-          'text-amber-700',
-          'dark:text-amber-400',
-        );
+        statusEl.classList.remove('hidden', 'text-interactive', 'text-accent');
         if (kind === null) {
           statusEl.classList.add('hidden');
           return;
         }
         if (kind === 'success') {
-          statusEl.classList.add('text-interactive', 'dark:text-interactive');
+          statusEl.classList.add('text-interactive');
         } else {
-          statusEl.classList.add('text-amber-700', 'dark:text-amber-400');
+          statusEl.classList.add('text-accent');
         }
       }
 
@@ -394,7 +384,7 @@ const nextSteps = [
         const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
         if (!emailOk) {
           setStatus('error', 'That email address does not look right. Check it and try again.');
-          // Flag the email field invalid (triggers the visible amber cue), move
+          // Flag the email field invalid (triggers the visible accent cue), move
           // focus to it, and point its aria-errormessage at the status message so
           // assistive tech announces the error against the field.
           if (emailInput) {

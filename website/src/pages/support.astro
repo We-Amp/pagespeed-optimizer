@@ -15,6 +15,7 @@
 // build provenance for the packages.
 
 import BaseLayout from '../layouts/BaseLayout.astro';
+import SectionHeader from '../components/instrument/SectionHeader.astro';
 import SupportTiers from '../components/SupportTiers.astro';
 import Icon from '../components/Icon.astro';
 import { faqSupport } from '../data/faq-support';
@@ -97,16 +98,20 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
   description="Support subscriptions for mod_pagespeed 2.1: a direct line to its engineers, response targets by severity, hardened builds, hosting partners."
   jsonLd={jsonLd}
 >
-  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-16 pb-12">
-    <p class="eyebrow">Support &middot; {PRODUCT}</p>
-    <h1 class="mt-4 h1-hero text-text-body max-w-4xl">
-      Support from the engineers who build {PRODUCT}
-    </h1>
-    <p class="lede mt-6 max-w-3xl">
+  <section
+    class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-16 pb-12"
+    aria-labelledby="support-title"
+  >
+    <SectionHeader
+      id="support-title"
+      eyebrow={`Support · ${PRODUCT}`}
+      title={`Support from the engineers who build ${PRODUCT}`}
+      as="h1"
+    >
       The software is {LICENSE_CLAUSE} and does the same thing with or without a subscription. A subscription
       decides who answers when something breaks and, from Priority up, which repository your packages
       come from.
-    </p>
+    </SectionHeader>
     <div class="mt-8 flex flex-wrap gap-3">
       <a
         href="/pricing/#quote"
@@ -283,8 +288,8 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
         <h2 class="text-xl font-semibold text-text-body">Hosting partner program</h2>
         <p class="mt-3 flex-1 text-sm text-text-muted">
           For providers running {PRODUCT} across a multi-tenant fleet: Priority-level support for your
-          second- and third-line team, plus cPanel/EA4 and distribution-channel upkeep. One agreement per
-          provider, unlimited hosted domains.
+          second- and third-line team, plus cPanel/EA4 and distribution-channel upkeep. One agreement
+          per provider, unlimited hosted domains.
         </p>
         <a
           href="/hosting-partners/"
