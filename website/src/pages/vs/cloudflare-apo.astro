@@ -57,7 +57,7 @@ const rows = [
   },
   {
     label: 'Measured page-size reduction',
-    mps: '<span class="font-mono tabular-nums font-semibold text-emerald-700 dark:text-emerald-400">&minus;68%</span> on our own pages (origin pipeline)',
+    mps: '<span class="font-mono tabular-nums font-semibold text-success">&minus;68%</span> on our own pages (origin pipeline)',
     other: 'Faster TTFB, but origin bytes unchanged',
     highlight: true,
   },
@@ -125,9 +125,9 @@ const jsonLd = [
     </section>
 
     <section class="mt-12">
-      <h2 class="h2-section text-text-body">At a glance</h2>
+      <h2 id="at-a-glance" class="h2-section text-text-body">At a glance</h2>
       <div class="mt-4">
-        <CompareTable competitor="Cloudflare APO" rows={rows} />
+        <CompareTable competitor="Cloudflare APO" rows={rows} labelledBy="at-a-glance" />
       </div>
     </section>
 
@@ -266,9 +266,8 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
           Critical CSS and variant-aware caching run below the CDN, on any stack, and SVG
           auto-vectorization comes with the Apache module or the reverse-proxy deployment &mdash;
           keep Cloudflare in front if you like. On our own pages the origin pipeline measures
-          <span class="font-mono tabular-nums font-semibold text-emerald-700 dark:text-emerald-400"
-            >&minus;68%</span
-          > page size. Install and run it. {FREE_TO_RUN_LINE}
+          <span class="font-mono tabular-nums font-semibold text-success">&minus;68%</span> page size.
+          Install and run it. {FREE_TO_RUN_LINE}
         </p>
         <div class="mt-5 flex flex-wrap gap-3">
           <a href="/download/" class="btn-primary" data-umami-event="cta_vs_cloudflare_apo_install"

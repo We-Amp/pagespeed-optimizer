@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import SectionHeader from '../components/instrument/SectionHeader.astro';
 import { PSI_MPS_MAPPING, type AuditMapping, type Coverage } from '../data/psi-mps-mapping';
 import { MAX_VARIANTS, FREE_TO_RUN_LINE } from '../data/product-facts.mjs';
 
@@ -57,20 +58,20 @@ const featured = featuredAuditIds.map(byId);
 const clientSide = clientSideAuditIds.map(byId);
 
 // Coverage -> badge label + class. These map directly onto the site's status
-// chips: success (emerald) = auto-fix, accent (amber) = assistive/caution,
-// muted (stone) = out of scope. The label IS the honesty claim.
+// chip tokens: success = auto-fix, accent = assistive/caution, muted on
+// elevated = out of scope. The label IS the honesty claim.
 const coverageBadge: Record<Coverage, { label: string; cls: string }> = {
   full: {
     label: 'Auto-fix',
-    cls: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+    cls: 'bg-success-wash text-success',
   },
   partial: {
     label: 'Assistive',
-    cls: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
+    cls: 'bg-accent-wash text-accent',
   },
   none: {
     label: 'Client-side',
-    cls: 'bg-stone-100 text-stone-600 dark:bg-stone-800 dark:text-stone-400',
+    cls: 'bg-bg-elevated text-text-muted',
   },
 };
 
@@ -169,22 +170,25 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
       <span>PageSpeed Insights</span>
     </nav>
 
-    <p class="eyebrow mt-6">Lighthouse audit reference</p>
-    <h1 class="mt-3 h1-hero text-text-body">
-      Improve your PageSpeed Insights score at the server layer
-    </h1>
-    <p class="lede mt-6 max-w-3xl">
-      PageSpeed Insights runs the Lighthouse audits and reports which ones a page fails. Some of
-      those failures are delivery problems that live below your application &mdash; render-blocking
-      CSS, oversized images, weak cache headers &mdash; where a server-layer optimizer applies.
-      Others are in your own JavaScript. This page maps each common audit onto what
-      mod_pagespeed 2.1 does about it, marks every claim <span class="text-emerald-700 dark:text-emerald-300"
-        >auto-fix</span
-      >,
-      <span class="text-amber-700 dark:text-amber-300">assistive</span>, or
-      <span class="text-text-muted">client-side</span>, and links a real before/after for the ones
-      it fixes.
-    </p>
+    <SectionHeader
+      id="psi"
+      as="h1"
+      eyebrow="Lighthouse audit reference"
+      title="Improve your PageSpeed Insights score at the server layer"
+    >
+      <p>
+        PageSpeed Insights runs the Lighthouse audits and reports which ones a page fails. Some of
+        those failures are delivery problems that live below your application &mdash;
+        render-blocking CSS, oversized images, weak cache headers &mdash; where a server-layer
+        optimizer applies. Others are in your own JavaScript. This page maps each common audit onto
+        what mod_pagespeed 2.1 does about it, marks every claim <span class="text-success"
+          >auto-fix</span
+        >,
+        <span class="text-accent">assistive</span>, or
+        <span class="text-text-muted">client-side</span>, and links a real before/after for the ones
+        it fixes.
+      </p>
+    </SectionHeader>
 
     <div class="mt-8 flex flex-wrap gap-3">
       <a href="/analyze/" class="btn-primary" data-umami-event="cta_psi_analyze_hero"
@@ -259,11 +263,16 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
         </span>
       </div>
 
-      <div class="mt-8 overflow-x-auto">
+      <div
+        class="mt-8 overflow-x-auto"
+        tabindex="0"
+        role="region"
+        aria-labelledby="psi-map-caption"
+      >
         <table class="w-full border-collapse text-sm">
-          <caption class="sr-only">
-            Lighthouse audits and how mod_pagespeed addresses each, with coverage and the filter that
-            applies
+          <caption id="psi-map-caption" class="sr-only">
+            Lighthouse audits and how mod_pagespeed addresses each, with coverage and the filter
+            that applies
           </caption>
           <thead>
             <tr class="border-b border-border">
@@ -336,8 +345,7 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
         minification and
         <a
           href="/blog/server-side-critical-css-nginx/"
-          class="text-interactive hover:text-interactive-hover underline"
-          >critical-CSS extraction</a
+          class="text-interactive hover:text-interactive-hover underline">critical-CSS extraction</a
         > run from the master switch, so the snippet is the same minimal block.
       </p>
 
@@ -363,8 +371,8 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
                       <p class="mt-4 font-mono text-xs uppercase tracking-wide text-text-annotation">
                         Module (named filters)
                       </p>
-                      <pre class="mt-2 overflow-x-auto rounded-md bg-stone-900 dark:bg-black p-4 text-xs sm:text-sm">
-                        <code class="text-stone-100">{m.snippet11}</code>
+                      <pre class="mt-2 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm">
+                        <code class="text-text-body">{m.snippet11}</code>
                       </pre>
                     </>
                   )}
@@ -373,8 +381,8 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
                       <p class="mt-4 font-mono text-xs uppercase tracking-wide text-text-annotation">
                         Optimizer worker (nginx)
                       </p>
-                      <pre class="mt-2 overflow-x-auto rounded-md bg-stone-900 dark:bg-black p-4 text-xs sm:text-sm">
-                        <code class="text-stone-100">{m.snippet20}</code>
+                      <pre class="mt-2 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm">
+                        <code class="text-text-body">{m.snippet20}</code>
                       </pre>
                     </>
                   )}
@@ -418,9 +426,7 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
         your application logic, so the audits below are out of scope. No server-layer module can fix
         INP for you; the fix is in your event handlers and framework code.
       </p>
-      <div
-        class="mt-8 rounded-2xl border border-amber-200 dark:border-amber-900/60 bg-amber-50/60 dark:bg-amber-950/30 p-6"
-      >
+      <div class="mt-8 rounded-2xl border border-accent/40 bg-accent-wash p-6">
         <dl class="space-y-5">
           {
             clientSide.map((m) => (
