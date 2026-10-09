@@ -1172,6 +1172,13 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     overflow-wrap: anywhere;
   }
 
+  /* Long code lines wrap instead of running off the paper's right edge. */
+  pre,
+  pre code {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
   pre,
   figure,
   .card {
