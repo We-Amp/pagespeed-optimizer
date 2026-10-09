@@ -44,7 +44,7 @@ const jsonLd = {
 
     <div class="mt-10 rounded-2xl border border-border bg-bg-secondary p-6">
       <p class="eyebrow">Install</p>
-      <div class="mt-3" data-umami-event="cta_download_apt_yum_oneliner">
+      <div class="mt-3">
         <TermPanel
           command="curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh"
           label="Install"
@@ -52,6 +52,7 @@ const jsonLd = {
             {
               text: 'curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh',
               tone: 'strong',
+              event: 'cta_download_apt_yum_oneliner',
             },
           ]}
         />
