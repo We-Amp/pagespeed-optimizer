@@ -74,8 +74,8 @@ test.describe('Telemetry strip', () => {
     );
     // Within tolerance of the routed delay (route interception adds its CDP
     // round trip on top of the 300 ms sleep, so the ceiling is generous)…
-    expect(shown).toBeGreaterThanOrEqual(250);
-    expect(shown).toBeLessThanOrEqual(1000);
+    expect(shown).toBeGreaterThanOrEqual(280);
+    expect(shown).toBeLessThanOrEqual(600);
     // …and equal to the probe's own Resource Timing value (within rounding),
     // which excludes connection setup by definition: a value inflated by the
     // new connection cannot pass this check.
@@ -93,6 +93,47 @@ test.describe('Telemetry strip', () => {
     });
     expect(probeTtfb, 'the HEAD must be observable through Resource Timing').not.toBeNull();
     expect(Math.abs(shown - (probeTtfb as number))).toBeLessThanOrEqual(1);
+  });
+
+  test('live ttfb is responseStart minus requestStart, not a connection-inclusive span', async ({
+    page,
+  }) => {
+    // Feed the strip a timing entry whose phases all differ: only
+    // responseStart − requestStart gives 123; duration (530), responseStart −
+    // startTime (523) and responseStart − connectStart (513) all fail.
+    await page.addInitScript(() => {
+      const perf = performance as unknown as {
+        getEntriesByName: (name: string, type?: string) => PerformanceEntry[];
+      };
+      const orig = perf.getEntriesByName.bind(performance);
+      perf.getEntriesByName = (name, type) => {
+        const real = orig(name, type);
+        if (
+          type !== 'resource' ||
+          !real.some((e) => (e as PerformanceResourceTiming).initiatorType === 'fetch')
+        )
+          return real;
+        return [
+          {
+            name,
+            entryType: 'resource',
+            initiatorType: 'fetch',
+            startTime: 1000,
+            fetchStart: 1000,
+            connectStart: 1010,
+            connectEnd: 1200,
+            requestStart: 1400,
+            responseStart: 1523,
+            responseEnd: 1530,
+            duration: 530,
+          } as unknown as PerformanceEntry,
+        ];
+      };
+    });
+    await page.goto('/');
+    const strip = page.locator(STRIP);
+    await expect(strip.locator('[data-t="state"]').first()).toHaveText('this view · live');
+    await expect(strip.locator('[data-t="ttfb"]').first()).toHaveText('123 ms');
   });
 
   test('a non-2xx probe spells the status in the state text', async ({ browser }) => {

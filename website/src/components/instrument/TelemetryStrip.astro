@@ -309,6 +309,9 @@ const fields = [
       } catch {
         return;
       }
+      // Wall-clock end of the probe (headers received), for the fallback below;
+      // taken now, not after the entry polling, so the fallback stays honest.
+      const probeEnd = performance.now();
       const set = (key: string, value: string) => {
         strip.querySelectorAll<HTMLElement>(`[data-t="${key}"]`).forEach((el) => {
           el.textContent = value;
@@ -362,9 +365,11 @@ const fields = [
       const ttfb = Math.round(
         entry && entry.requestStart > 0
           ? entry.responseStart - entry.requestStart
-          : performance.now() - probeStart,
+          : probeEnd - probeStart,
       );
-      if (ttfb > 0) set('ttfb', `${ttfb}\u00a0ms`);
+      // A measured value always replaces the captured one on a live strip,
+      // 0 ms included; the captured number must never sit under the live label.
+      if (Number.isFinite(ttfb) && ttfb >= 0) set('ttfb', `${ttfb}\u00a0ms`);
       set('xmps', res.headers.get('x-mod-pagespeed') ?? 'not present');
       set('vary', res.headers.get('vary') ?? 'not present');
       // Below 480px the LED does not render, so a non-2xx probe spells its
