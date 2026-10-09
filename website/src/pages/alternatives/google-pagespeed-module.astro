@@ -99,7 +99,7 @@ const jsonLd = [
 >
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-20">
     <header>
-      <h1 class="h1-hero text-text-body">
+      <h1 id="google-pagespeed-module-title" class="h1-hero text-text-body">
         What is the Google PageSpeed module, and what replaced it
       </h1>
       <p class="lede mt-6">
@@ -133,28 +133,36 @@ const jsonLd = [
     <div
       class="mt-12 prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive dark:prose-invert"
     >
-      <table>
-        <thead><tr><th>What</th><th>Status</th><th>What it does</th></tr></thead>
-        <tbody>
-          <tr>
-            <td
-              ><strong>PageSpeed Module</strong> (<code>mod_pagespeed</code>, <code
-                >ngx_pagespeed</code
-              >)</td
-            >
-            <td>Deprecated (last release 2020)</td>
-            <td>Server-side optimization module that rewrites HTML/CSS/JS/images at request time</td
-            >
-          </tr>
-          <tr>
-            <td>
-              <strong>PageSpeed Insights</strong> (PSI, <code>pagespeed.web.dev</code>)
-            </td>
-            <td>Active</td>
-            <td>Diagnostic web tool that scores a URL on performance, accessibility, SEO</td>
-          </tr>
-        </tbody>
-      </table>
+      <div
+        class="overflow-x-auto"
+        tabindex="0"
+        role="region"
+        aria-labelledby="google-pagespeed-module-title"
+      >
+        <table>
+          <thead><tr><th>What</th><th>Status</th><th>What it does</th></tr></thead>
+          <tbody>
+            <tr>
+              <td
+                ><strong>PageSpeed Module</strong> (<code>mod_pagespeed</code>, <code
+                  >ngx_pagespeed</code
+                >)</td
+              >
+              <td>Deprecated (last release 2020)</td>
+              <td
+                >Server-side optimization module that rewrites HTML/CSS/JS/images at request time</td
+              >
+            </tr>
+            <tr>
+              <td>
+                <strong>PageSpeed Insights</strong> (PSI, <code>pagespeed.web.dev</code>)
+              </td>
+              <td>Active</td>
+              <td>Diagnostic web tool that scores a URL on performance, accessibility, SEO</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
 
       <p>
         The first one is the deprecated server module. The second one is a diagnostic tool that's
