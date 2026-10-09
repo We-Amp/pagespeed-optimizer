@@ -9,8 +9,17 @@
 //   Search Console flagged the snippet weakness — same image across the
 //   entire blog drops CTR and Discover surfacing. Per-post hand-designed
 //   cards do not scale. This script generates one PNG per post at
-//   `public/og-cards/{slug}.png`, 1200x630 (standard OG aspect), using
-//   `satori` to render an SVG tree and `@resvg/resvg-js` to rasterize.
+//   `public/og-cards/{slug}.png` plus the fallback `public/og-default.png`,
+//   1200x630 (standard OG aspect), using `satori` to render an SVG tree and
+//   `@resvg/resvg-js` to rasterize.
+//
+// Card design (the site's dark instrument tokens):
+//   flat #0b0c0e ground, the capability bit-strip mark from public/logo.svg
+//   next to a Plex Mono eyebrow (`blog · <Month YYYY>`; the product name on
+//   the default card), a 1px tick-scale rule, and the Inter title
+//   bottom-anchored. The default card's title is the home page's title
+//   tagline. The .webp/.avif siblings of og-default.png are produced from
+//   the PNG by scripts/optimize-rasters.mjs.
 //
 // Frontmatter contract:
 //   - If a post sets `coverImage: /path/to/img.png` in frontmatter, the
@@ -47,21 +56,33 @@ const websiteRoot = path.resolve(__dirname, '..');
 const blogDir = path.join(websiteRoot, 'src/content/blog');
 // satori's vendored opentype.js cannot parse variable-font fvar tables, so
 // we use static-weight Inter from @fontsource/inter (devDep) instead of
-// the variable woff2 the site ships at runtime. Both files happen to be
-// WOFF2 and need to be decompressed to TTF via wawoff2 before satori can
-// consume them.
-const fontsourceDir = path.join(
-  websiteRoot,
-  'node_modules/@fontsource/inter/files',
-);
+// the variable woff2 the site ships at runtime. Plex Mono ships in this
+// repo as static-weight woff2 (public/fonts/). Both formats need to be
+// decompressed to TTF via wawoff2 before satori can consume them.
+const fontsourceDir = path.join(websiteRoot, 'node_modules/@fontsource/inter/files');
 const fontPaths = {
-  400: path.join(fontsourceDir, 'inter-latin-400-normal.woff2'),
-  700: path.join(fontsourceDir, 'inter-latin-700-normal.woff2'),
+  inter400: path.join(fontsourceDir, 'inter-latin-400-normal.woff2'),
+  inter700: path.join(fontsourceDir, 'inter-latin-700-normal.woff2'),
+  plexMono500: path.join(websiteRoot, 'public/fonts/plex-mono-500.woff2'),
 };
 const outDir = path.join(websiteRoot, 'public/og-cards');
+const defaultCardPath = path.join(websiteRoot, 'public/og-default.png');
 
 const WIDTH = 1200;
 const HEIGHT = 630;
+const PAD = 80;
+const CONTENT_WIDTH = WIDTH - 2 * PAD;
+
+// Card palette = the site's dark instrument tokens (see src/styles/global.css).
+const colors = {
+  ground: '#0b0c0e', // --color-bg-primary
+  title: '#e8eaed', // --color-text-body
+  eyebrow: '#a7aeb6', // --color-text-muted
+  tick: 'rgba(255, 255, 255, 0.12)', // --color-tick
+  tickMajor: '#3a3f47', // --color-border-strong
+  bitLit: '#5eb1c9', // --color-bit-lit
+  bitClear: '#20242a', // --color-bit-clear
+};
 
 // Minimal YAML frontmatter parser. The blog frontmatter shape is
 // deliberately simple — string/date scalars + a string array for tags. We
@@ -118,10 +139,66 @@ function formatMonthYear(isoDate) {
   return monthName ? `${monthName} ${m[1]}` : '';
 }
 
+// The capability-register mark from public/logo.svg: 8 cells = a byte of the
+// 32-bit capability mask, lit to 0xC9 (a real documented mask value).
+function bitStrip() {
+  const cell = (lit) => ({
+    type: 'div',
+    props: {
+      style: {
+        width: 20,
+        height: 20,
+        borderRadius: 3,
+        flexShrink: 0,
+        backgroundColor: lit ? colors.bitLit : colors.bitClear,
+      },
+    },
+  });
+  const row = (bits) => ({
+    type: 'div',
+    props: {
+      style: { display: 'flex', gap: 4 },
+      children: bits.map(cell),
+    },
+  });
+  // 0xC9 = 1100 1001.
+  return {
+    type: 'div',
+    props: {
+      style: { display: 'flex', flexDirection: 'column', gap: 4 },
+      children: [row([true, true, false, false]), row([true, false, false, true])],
+    },
+  };
+}
+
+// The 1px chemin-de-fer tick scale (.rule-ticked-scale in global.css):
+// minor ticks 1x5 every 8px, major ticks 1x10 every 64px. Satori has no
+// repeating-linear-gradient, so the ticks are drawn as flex children.
+function tickRule() {
+  const count = Math.floor((CONTENT_WIDTH - 1) / 8); // 8px pitch, 1px tick + 7px gap
+  return {
+    type: 'div',
+    props: {
+      style: { display: 'flex', alignItems: 'flex-end', gap: 7, height: 10 },
+      children: Array.from({ length: count }, (_, i) => ({
+        type: 'div',
+        props: {
+          style: {
+            width: 1,
+            height: i % 8 === 0 ? 10 : 5,
+            flexShrink: 0,
+            backgroundColor: i % 8 === 0 ? colors.tickMajor : colors.tick,
+          },
+        },
+      })),
+    },
+  };
+}
+
 // Build the satori VDOM. We hand-author it with plain objects (satori
 // supports both JSX and the `{ type, props }` object form; the object form
 // keeps this file free of a JSX transform).
-function buildTree({ title, author, when }) {
+function buildTree({ title, eyebrow }) {
   return {
     type: 'div',
     props: {
@@ -130,102 +207,63 @@ function buildTree({ title, author, when }) {
         height: HEIGHT,
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'space-between',
-        // stone-950 → stone-900 vertical gradient, kept very subtle so the
-        // typography carries the card.
-        backgroundImage: 'linear-gradient(180deg, #0c0a09 0%, #1c1917 100%)',
-        padding: 80,
+        // Flat instrument-black ground; the tick rule and the bit-strip
+        // carry the identity, not gradients or shadows.
+        backgroundColor: colors.ground,
+        padding: PAD,
         fontFamily: 'Inter',
-        color: '#fafaf9',
+        color: colors.title,
       },
       children: [
-        // Top row: the product wordmark. Satori can rasterize inline
-        // SVG, but a typographic wordmark is more legible at OG sizes and
-        // avoids a second asset-loading code path.
+        // Top row: the bit-strip mark + the Plex Mono eyebrow.
         {
           type: 'div',
           props: {
             style: {
               display: 'flex',
               alignItems: 'center',
-              gap: 16,
-              fontSize: 28,
-              fontWeight: 700,
-              letterSpacing: '-0.01em',
-              color: '#fafaf9',
+              gap: 24,
             },
             children: [
-              // Blue accent dot, the same blue-700 used as the section bar
-              // and as a link color throughout the site.
+              bitStrip(),
               {
                 type: 'div',
                 props: {
                   style: {
-                    width: 14,
-                    height: 14,
-                    borderRadius: 7,
-                    backgroundColor: '#1d4ed8',
+                    fontFamily: 'IBM Plex Mono',
+                    fontSize: 26,
+                    fontWeight: 500,
+                    letterSpacing: '0.08em',
+                    color: colors.eyebrow,
                   },
+                  children: eyebrow,
                 },
               },
-              'mod_pagespeed 2.1',
             ],
           },
         },
-        // Middle stack: blue bar + title + caption. The bar is the
-        // single piece of visual identity that ties cards back to the
-        // product without depending on a logo asset.
+        {
+          type: 'div',
+          props: {
+            style: { display: 'flex', marginTop: 40 },
+            children: [tickRule()],
+          },
+        },
+        // Title, bottom-anchored. Cap at ~3 lines — satori wraps but does
+        // not natively truncate; the layout keeps the column wide enough
+        // that 3 lines is rare.
         {
           type: 'div',
           props: {
             style: {
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 24,
+              fontSize: 64,
+              fontWeight: 700,
+              lineHeight: 1.1,
+              letterSpacing: '-0.02em',
+              color: colors.title,
               marginTop: 'auto',
             },
-            children: [
-              {
-                type: 'div',
-                props: {
-                  style: {
-                    width: 80,
-                    height: 6,
-                    backgroundColor: '#1d4ed8',
-                    borderRadius: 3,
-                  },
-                },
-              },
-              {
-                type: 'div',
-                props: {
-                  style: {
-                    fontSize: 64,
-                    fontWeight: 700,
-                    lineHeight: 1.1,
-                    letterSpacing: '-0.02em',
-                    color: '#fafaf9',
-                    // Cap at ~3 lines — satori wraps but does not natively
-                    // truncate; the layout above keeps the column wide
-                    // enough that 3 lines is rare.
-                  },
-                  children: title,
-                },
-              },
-              when || author
-                ? {
-                    type: 'div',
-                    props: {
-                      style: {
-                        fontSize: 24,
-                        fontWeight: 400,
-                        color: '#a8a29e', // stone-400
-                      },
-                      children: [author, when].filter(Boolean).join(' · '),
-                    },
-                  }
-                : null,
-            ].filter(Boolean),
+            children: title,
           },
         },
       ],
@@ -235,24 +273,61 @@ function buildTree({ title, author, when }) {
 
 async function main() {
   async function loadFont(p) {
-    if (!fs.existsSync(p)) throw new Error(`Inter font not found at ${p}`);
+    if (!fs.existsSync(p)) throw new Error(`font not found at ${p}`);
     const woff2Buf = fs.readFileSync(p);
     // wawoff.decompress returns a Uint8Array (sfnt/TTF bytes).
     const ttfBytes = await wawoff.decompress(woff2Buf);
     return Buffer.from(ttfBytes);
   }
-  const font400 = await loadFont(fontPaths[400]);
-  const font700 = await loadFont(fontPaths[700]);
+  const inter400 = await loadFont(fontPaths.inter400);
+  const inter700 = await loadFont(fontPaths.inter700);
+  const plexMono500 = await loadFont(fontPaths.plexMono500);
+
+  // satori treats `weight` as a discrete lookup, so each weight is declared
+  // as a separate static-weight font entry.
+  const fonts = [
+    { name: 'Inter', data: inter400, weight: 400, style: 'normal' },
+    { name: 'Inter', data: inter700, weight: 700, style: 'normal' },
+    { name: 'IBM Plex Mono', data: plexMono500, weight: 500, style: 'normal' },
+  ];
+
+  async function renderCard(tree, outPath, label) {
+    const svg = await satori(tree, { width: WIDTH, height: HEIGHT, fonts });
+    const png = new Resvg(svg, { fitTo: { mode: 'width', value: WIDTH } }).render().asPng();
+    fs.writeFileSync(outPath, png);
+    console.log(`generated: ${label}`);
+  }
+
+  const scriptMtime = fs.statSync(__filename).mtimeMs;
+  const stale = (outPath, depMtimes) =>
+    !fs.existsSync(outPath) || fs.statSync(outPath).mtimeMs <= Math.max(scriptMtime, ...depMtimes);
 
   fs.mkdirSync(outDir, { recursive: true });
+
+  let generated = 0;
+  let skipped = 0;
+
+  // The default card (og-default.png): the product name as the mono eyebrow
+  // over the home page's title tagline (src/pages/index.astro).
+  if (stale(defaultCardPath, [])) {
+    await renderCard(
+      buildTree({
+        eyebrow: 'mod_pagespeed 2.1',
+        title: 'PageSpeed module for nginx and Apache',
+      }),
+      defaultCardPath,
+      'og-default.png',
+    );
+    generated++;
+  } else {
+    console.log('skipped (cached): og-default.png');
+    skipped++;
+  }
 
   const entries = fs
     .readdirSync(blogDir)
     .filter((f) => f.endsWith('.md'))
     .sort();
-
-  let generated = 0;
-  let skipped = 0;
 
   for (const filename of entries) {
     const slug = filename.replace(/\.md$/, '');
@@ -273,47 +348,23 @@ async function main() {
     // mtime-based incremental: skip if PNG exists AND is newer than the
     // markdown AND newer than this script itself (so editing the template
     // forces regeneration).
-    if (fs.existsSync(outPath)) {
-      const outStat = fs.statSync(outPath);
-      const srcStat = fs.statSync(srcPath);
-      const scriptStat = fs.statSync(__filename);
-      if (
-        outStat.mtimeMs > srcStat.mtimeMs &&
-        outStat.mtimeMs > scriptStat.mtimeMs
-      ) {
-        console.log(`skipped (cached): og-cards/${slug}.png`);
-        skipped++;
-        continue;
-      }
+    if (!stale(outPath, [fs.statSync(srcPath).mtimeMs])) {
+      console.log(`skipped (cached): og-cards/${slug}.png`);
+      skipped++;
+      continue;
     }
 
     const tree = buildTree({
       title: fm.title || slug,
-      author: fm.author || 'Otto van der Schaaf',
-      when: formatMonthYear(fm.date),
+      eyebrow: ['blog', formatMonthYear(fm.date)].filter(Boolean).join(' · '),
     });
 
-    // satori treats `weight` as a discrete lookup, so 400 and 700 are
-    // declared as separate static-weight font entries.
-    const svg = await satori(tree, {
-      width: WIDTH,
-      height: HEIGHT,
-      fonts: [
-        { name: 'Inter', data: font400, weight: 400, style: 'normal' },
-        { name: 'Inter', data: font700, weight: 700, style: 'normal' },
-      ],
-    });
-
-    const png = new Resvg(svg, { fitTo: { mode: 'width', value: WIDTH } })
-      .render()
-      .asPng();
-    fs.writeFileSync(outPath, png);
-    console.log(`generated: og-cards/${slug}.png`);
+    await renderCard(tree, outPath, `og-cards/${slug}.png`);
     generated++;
   }
 
   console.log(
-    `\ntitle cards: ${generated} generated, ${skipped} skipped, ${entries.length} total`,
+    `\ntitle cards: ${generated} generated, ${skipped} skipped, ${entries.length + 1} total`,
   );
 }
 
