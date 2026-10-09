@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { LICENSE_CLAUSE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
+import telemetryCapture from '../data/telemetry-capture.json';
 
 // Reference page for the runtime "markers" people see when debugging a live
 // mod_pagespeed install: HTML attributes, query parameters,
@@ -138,7 +139,8 @@ const markers: Marker[] = [
     summary:
       'Identifies the module and its version on every response it touches. nginx and IIS emit X-Page-Speed; Apache emits X-Mod-Pagespeed.',
     seen: 'You see it in response headers when the module is active. Use it to confirm an optimizer is in the request path and which version is running. The header text is configurable via the XHeaderValue directive.',
-    example: 'X-Page-Speed: 1.15.0.0',
+    // The version production sends, as on the homepage quick-start.
+    example: `X-Page-Speed: ${telemetryCapture.paths['/'].headers['x-mod-pagespeed']}`,
     exampleLang: 'http',
   },
 ];
