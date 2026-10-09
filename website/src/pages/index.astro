@@ -2,27 +2,97 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import CTAButton from '../components/CTAButton.astro';
 import Icon from '../components/Icon.astro';
+import Readout from '../components/instrument/Readout.astro';
+import ReadoutPanel from '../components/instrument/ReadoutPanel.astro';
+import SectionHeader from '../components/instrument/SectionHeader.astro';
+import TermPanel from '../components/instrument/TermPanel.astro';
+import HitMissBadge from '../components/instrument/HitMissBadge.astro';
+import Chip from '../components/instrument/Chip.astro';
+import { formatPct, monthYear, pctDelta, roundDownDisplay } from '../lib/instrument';
 import demoMetrics from '../data/demo-metrics.json';
-import { getRelease } from '../lib/release';
+import telemetryCapture from '../data/telemetry-capture.json';
 import { offerJsonLd } from '../data/offer-jsonld';
 import { stripHtml } from '../data/faq-shared';
-import { LICENSE_CLAUSE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
+import {
+  BUILTWITH_AS_OF,
+  BUILTWITH_HISTORICAL,
+  BUILTWITH_SITES,
+  LICENSE_CLAUSE,
+  LICENSE_CLAUSE_CAP,
+  MAX_VARIANTS,
+} from '../data/product-facts.mjs';
 import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../data/software-jsonld';
 
 const softwareVersion = await productSoftwareVersion();
 
-// Single source of truth: corp/releases/1.1.yaml synced into
-// src/content/releases-1.1/release.yaml. The X-Mod-Pagespeed
-// header that 1.1 emits keeps a four-segment legacy version suffix (".0") for
-// monitoring built against the open-source module.
-const rel11 = await getRelease('1.1');
-const xModPagespeedHeader = `X-Mod-Pagespeed: ${rel11.display.header_version}.0`;
+// Hero readout panel: the e-commerce case from src/data/demo-metrics.json
+// (measured on the demo store; the label date comes from generated_at).
+const demoStore = demoMetrics.sites.find((site) => site.id === 'ecommerce');
+if (!demoStore) throw new Error('demo-metrics.json: the ecommerce site entry is missing');
+const demoLighthouse = demoStore.lighthouse;
+const demoLoad = demoStore.loadTime;
+const demoImageJpeg = demoStore.resources.images.totalJpeg;
+const demoImageAvif = demoStore.resources.images.totalAvif;
+const demoImageDelta = formatPct(pctDelta(demoImageJpeg, demoImageAvif));
+const demoMeasured = `Measured on our demo store, ${monthYear(demoMetrics.generated_at)}.`;
 
-// Best AVIF savings across all demo sites — surfaced lower in the social-proof
-// caption as a measured range detail. The canonical hero savings figure is the
-// curl artifact's −68% (single number, used consistently above the fold per
-// MKT-16); this computed value backs the honest "measured across our own demo
-// sites" caption rather than the headline.
+// Section 01 header panel: the captured response headers of this site's
+// homepage, verbatim from src/data/telemetry-capture.json (written by
+// scripts/capture-telemetry.mjs against production). The status line says
+// HTTP/1.1 because the capture client (node:https) speaks HTTP/1.1.
+type TermLine = { text: string; tone?: 'plain' | 'strong' | 'hl' | 'ok' | 'dim' };
+const homeCapture = telemetryCapture.paths['/'];
+const homeCaptureHeaders = homeCapture.headers;
+const capturedDate = telemetryCapture.capturedAt.slice(0, 10);
+const headerPanelLines: TermLine[] = [
+  { text: `HTTP/1.1 ${homeCapture.status}`, tone: 'strong' },
+  { text: `content-type: ${homeCaptureHeaders['content-type']}`, tone: 'plain' },
+  { text: `content-length: ${homeCaptureHeaders['content-length']}`, tone: 'strong' },
+  { text: `x-mod-pagespeed: ${homeCaptureHeaders['x-mod-pagespeed']}`, tone: 'hl' },
+  { text: `vary: ${homeCaptureHeaders.vary}`, tone: 'plain' },
+  { text: `content-encoding: ${homeCaptureHeaders['content-encoding']}`, tone: 'plain' },
+  { text: `cache-control: ${homeCaptureHeaders['cache-control']}`, tone: 'plain' },
+];
+
+// Section 04 quick-start panels: the install transcripts, one TermPanel per
+// platform (moved from the signal-path section). Each transcript ends with
+// the verify command and the header its module emits — X-Page-Speed for the
+// nginx module, X-Mod-Pagespeed for the Apache module — with the version from
+// the production capture in src/data/telemetry-capture.json, which matches
+// the currently published packages.
+const qsNginxLines: TermLine[] = [
+  { text: '# one-time: add the signed We-Amp package repo', tone: 'dim' },
+  {
+    text: '$ curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh',
+    tone: 'strong',
+  },
+  { text: '$ sudo apt install nginx-module-pagespeed', tone: 'strong' },
+  { text: '# Add to nginx.conf: pagespeed on;', tone: 'dim' },
+  { text: '$ sudo nginx -t && sudo systemctl reload nginx', tone: 'strong' },
+  { text: '$ curl -I http://localhost/ | grep X-Page-Speed', tone: 'strong' },
+  { text: `X-Page-Speed: ${homeCaptureHeaders['x-mod-pagespeed']}`, tone: 'ok' },
+];
+const qsApacheLines: TermLine[] = [
+  { text: '# one-time: add the signed We-Amp package repo', tone: 'dim' },
+  {
+    text: '$ curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh',
+    tone: 'strong',
+  },
+  { text: '$ sudo apt install mod-pagespeed', tone: 'strong' },
+  { text: '$ sudo systemctl restart apache2', tone: 'strong' },
+  { text: '$ curl -I http://localhost/ | grep X-Mod-Pagespeed', tone: 'strong' },
+  { text: `X-Mod-Pagespeed: ${homeCaptureHeaders['x-mod-pagespeed']}`, tone: 'ok' },
+];
+
+// Section 06 heritage stats: 231,341 live sites per BuiltWith, rendered as a
+// defensible lower bound ("230,000+"). The historical figures derive from
+// BUILTWITH_HISTORICAL ("1.9 million+").
+const builtwithLiveRounded = roundDownDisplay(Number(BUILTWITH_SITES.replace(/,/g, '')), 10000);
+const builtwithHistoricalShort = BUILTWITH_HISTORICAL.replace(/\+$/, '');
+const builtwithHistoricalCount = `${(parseFloat(BUILTWITH_HISTORICAL) * 1_000_000).toLocaleString('en-US')}+`;
+
+// Best AVIF savings across all demo sites — the measured range detail in the
+// dogfooding paragraph ("up to N% smaller pages").
 const bestSavings = Math.max(
   ...demoMetrics.sites.map((site) => {
     const before =
@@ -205,137 +275,117 @@ const jsonLd = [organization, website, product, faqPage];
   description={`The PageSpeed module, maintained again and ${LICENSE_CLAUSE}. Install mod_pagespeed 2.1 on nginx or Apache with apt or yum.`}
   jsonLd={jsonLd}
 >
-  {/* Hero */}
-  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-20 text-center">
-    <h1 class="h1-hero text-text-body">
-      <span
-        class="mb-4 block text-base font-semibold leading-normal tracking-normal text-text-muted sm:text-lg"
-        >mod_pagespeed 2.1, the PageSpeed module for nginx and Apache</span
-      >
-      Lighthouse 56 to 90.<br />
-      <span class="relative inline-block text-text-body border-b-[3px] border-interactive pb-1"
-        >On your own servers.</span
-      >
-    </h1>
-    <p class="lede mt-8 max-w-xl mx-auto">
-      mod_pagespeed transcodes images to AVIF, minifies CSS and JS, and injects critical CSS &mdash;
-      optimized off the request path, served from cache by your own nginx or Apache. {LICENSE_CLAUSE_CAP}. No proxy, no CDN, nothing third-party in your request
-      path.
-    </p>
-    <p class="mt-4 text-sm text-text-muted">
-      Running IIS or ASP.NET Core? <a
-        href="/download/"
-        data-umami-event="cta_home_hero_11"
-        class="font-medium text-interactive hover:underline">see the IIS and ASP.NET Core packages &rarr;</a
-      >
-    </p>
-    <p class="mt-4 text-sm text-text-annotation">
-      The optimization core behind <span class="font-semibold text-text-body"
-        >230,000+ live sites</span
-      > (<a
-        href="https://trends.builtwith.com/Server/mod_pagespeed"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="underline decoration-stone-300 dark:decoration-stone-600 underline-offset-2 hover:text-text-body"
-        >BuiltWith, May 2026</a
-      >) &mdash; maintained by We-Amp, <a
-        href="https://developers.googleblog.com/en/speed-up-your-sites-with-pagespeed-for-nginx/"
-        target="_blank"
-        rel="nofollow noopener"
-        class="underline decoration-stone-300 dark:decoration-stone-600 underline-offset-2 hover:text-text-body"
-        >credited by Google as an ngx_pagespeed contributor</a
-      >.
-    </p>
+  {/* Hero — instrument layout: message left, the measured readout panel on
+      the right at >=1024px; stacked with the panel right after the CTA block
+      on narrow screens. */}
+  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-16 pb-14">
+    <div class="hero-grid">
+      <div>
+        <p class="eyebrow">open source &middot; Apache-2.0</p>
+        <h1 class="h1-hero hero-title mt-4 text-text-body">
+          <span class="block"
+            >mod_pagespeed 2.1, the PageSpeed module for nginx and Apache</span
+          >
+          <span class="hero-sub mt-4 block text-interactive"
+            >Lighthouse <span class="text-text-body">56</span> to <span class="text-text-body">90</span
+            >. On your own servers.</span
+          >
+        </h1>
+        <p class="lede mt-6 max-w-xl">
+          mod_pagespeed transcodes images to AVIF, minifies CSS and JS, and injects critical CSS &mdash;
+          optimized off the request path, served from cache by your own nginx or Apache. {LICENSE_CLAUSE_CAP}. No proxy, no CDN, nothing third-party in your request
+          path.
+        </p>
 
-    {
-      /* Proof points — measured customer outcomes, not engine internals.
-        All four are byte-exact from the e-commerce case in
-        src/data/demo-metrics.json (shown live on /demo/): Lighthouse 56→90,
-        load 1.8s→0.8s, product image 99.7KB→23.7KB (−76%). The 4th card is the
-        sovereignty anchor. Lead with the result a buyer already tracks (brand
-        §2.2: the 194/32-bit-mask is the guide's own "too technical for the
-        hero" counter-example; §6.1: measured benchmarks are the #1 trust
-        signal). display-num treatment per §4.6; whitespace-nowrap keeps the
-        before→after on one line in the 4-up grid. */
-    }
-    <div class="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-4 max-w-3xl mx-auto text-left">
-      <div class="readout-plate px-4 py-3">
-        <p
-          class="display-num text-xl font-bold whitespace-nowrap text-emerald-700 dark:text-emerald-400"
-        >
-          56 &rarr; 90
+        <div class="mt-8 flex flex-wrap items-center gap-3">
+          <a href="/download/" class="btn-primary" data-umami-event="cta_primary_home_hero">
+            Download &amp; run
+          </a>
+          <a href="/demo/" class="btn-secondary">See the demo</a>
+          <a href="/docs/" class="btn-secondary">Read the docs</a>
+        </div>
+        <div class="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+          <a
+            href="/examples/"
+            class="text-text-muted hover:text-interactive transition-colors underline-offset-4 hover:underline"
+            >Browse the examples</a
+          >
+          <a
+            href="https://github.com/We-Amp/mod_pagespeed"
+            rel="noopener noreferrer"
+            class="text-text-muted hover:text-interactive transition-colors underline-offset-4 hover:underline"
+            >Source on GitHub</a
+          >
+        </div>
+        <p class="mt-4 text-sm text-text-muted">
+          Running IIS or ASP.NET Core? <a
+            href="/download/"
+            data-umami-event="cta_home_hero_11"
+            class="font-medium text-interactive hover:underline">see the IIS and ASP.NET Core packages &rarr;</a
+          >
         </p>
-        <p class="mt-1 text-xs text-text-muted">Lighthouse performance score</p>
-      </div>
-      <div class="readout-plate px-4 py-3">
-        <p
-          class="display-num text-xl font-bold whitespace-nowrap text-emerald-700 dark:text-emerald-400"
-        >
-          1.8s &rarr; 0.8s
+        <p class="mt-4 text-sm text-text-annotation">
+          The optimization core behind <span class="font-semibold text-text-body"
+            >{builtwithLiveRounded} live sites</span
+          > (<a
+            href="https://trends.builtwith.com/Server/mod_pagespeed"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="underline decoration-stone-300 dark:decoration-stone-600 underline-offset-2 hover:text-text-body"
+            >BuiltWith, {BUILTWITH_AS_OF}</a
+          >) &mdash; maintained by We-Amp.
         </p>
-        <p class="mt-1 text-xs text-text-muted">page load, cut in half (simulated 3G, demo stack)</p>
-      </div>
-      <div class="readout-plate px-4 py-3">
-        <p
-          class="display-num text-xl font-bold whitespace-nowrap text-emerald-700 dark:text-emerald-400"
-        >
-          &minus;76%
+        <p class="mt-4 text-xs text-text-annotation">
+          {LICENSE_CLAUSE_CAP} &mdash; install and run it freely, in development and in production.
         </p>
-        <p class="mt-1 text-xs text-text-muted">product image, JPEG &rarr; AVIF</p>
+        <p class="mt-2 text-xs text-text-annotation">
+          No per-image or per-request metering like a CDN. Support &mdash; and hardened builds &mdash; are
+          what&rsquo;s for sale. <a
+            href="/pricing/"
+            data-umami-event="cta_home_hero_pricing"
+            class="font-medium text-interactive hover:underline">See support plans &rarr;</a
+          >
+        </p>
       </div>
-      <div class="readout-plate px-4 py-3">
-        <p class="display-num text-xl font-bold text-text-body">0</p>
-        <p class="mt-1 text-xs text-text-muted">third parties in the request path</p>
-      </div>
-    </div>
-      <p class="mt-2 text-xs text-text-annotation">
-        Measured on our own demo stack &mdash; <a href="/demo/" class="underline underline-offset-2 hover:text-text-body">see it live</a>.
-      </p>
 
-    <div class="mt-8 flex flex-col items-center gap-3">
-      <a href="/download/" class="btn-primary" data-umami-event="cta_primary_home_hero">
-        Download &amp; run
-      </a>
-      <p class="text-xs text-text-annotation">
-        {LICENSE_CLAUSE_CAP} &mdash; install and run it freely, in development and in production.
-      </p>
-      <p class="text-xs text-text-annotation">
-        No per-image or per-request metering like a CDN. Support &mdash; and hardened builds &mdash; are
-        what&rsquo;s for sale. <a
-          href="/pricing/"
-          data-umami-event="cta_home_hero_pricing"
-          class="font-medium text-interactive hover:underline">See support plans &rarr;</a
-        >
-      </p>
-      <div class="flex flex-wrap justify-center gap-x-5 gap-y-1 text-sm">
-        <a
+      {
+        /* Measured readout panel: the e-commerce demo store numbers from
+          src/data/demo-metrics.json (source + date in the caption). */
+      }
+      <div class="mt-10 lg:mt-0">
+        <ReadoutPanel
+          id="home-readout"
+          title="Readout · demo store"
+          source={demoMeasured}
           href="/demo/"
-          class="text-text-muted hover:text-interactive transition-colors underline-offset-4 hover:underline"
-          >See the demo</a
+          hrefLabel="see it live"
         >
-        <a
-          href="/examples/"
-          class="text-text-muted hover:text-interactive transition-colors underline-offset-4 hover:underline"
-          >Browse the examples</a
-        >
-        <a
-          href="/docs/"
-          class="text-text-muted hover:text-interactive transition-colors underline-offset-4 hover:underline"
-          >Read the docs</a
-        >
-        <a
-          href="https://github.com/We-Amp/mod_pagespeed"
-          rel="noopener noreferrer"
-          class="text-text-muted hover:text-interactive transition-colors underline-offset-4 hover:underline"
-          >Source on GitHub</a
-        >
+          <Readout
+            label="Lighthouse performance score"
+            before={String(demoLighthouse.before)}
+            after={String(demoLighthouse.after)}
+            gauge={{ min: 0, max: 100, before: demoLighthouse.before, after: demoLighthouse.after }}
+          />
+          <Readout
+            label="page load, cut in half (simulated 3G)"
+            before={`${demoLoad.before}s`}
+            after={`${demoLoad.after}s`}
+            gauge={{ min: 0, max: 2, before: demoLoad.before, after: demoLoad.after }}
+          />
+          <Readout
+            label="product image, JPEG → AVIF"
+            after={demoImageDelta}
+            gauge={{ min: 0, max: demoImageJpeg, before: demoImageJpeg, after: demoImageAvif }}
+          />
+          <Readout label="third parties in the request path" after="0" tone="neutral" />
+        </ReadoutPanel>
       </div>
     </div>
 
     {
-      /* Founder authority (MKT-2) — surfaced as a distinct credibility line,
-        not buried in the 12px disclaimer. Brand-compliant phrasing: never
-        names the founder in marketing prose. */
+      /* Founder authority — a distinct credibility line, not buried in the
+        small print. Brand-compliant phrasing: never names the founder in
+        marketing prose. */
     }
     <p
       class="mt-8 inline-flex items-center gap-2 rounded-chip border border-border bg-bg-elevated px-4 py-1.5 text-sm text-text-body"
@@ -345,7 +395,7 @@ const jsonLd = [organization, website, product, faqPage];
       today.
     </p>
 
-    <p class="mt-6 text-xs text-text-annotation max-w-lg mx-auto">
+    <p class="mt-6 text-xs text-text-annotation max-w-lg">
       mod_pagespeed 2.1 is developed by <a
         href="https://www.we-amp.com/"
         target="_blank"
@@ -356,156 +406,359 @@ const jsonLd = [organization, website, product, faqPage];
     </p>
 
     {
-      /* Hero proof artifact — two side-by-side `curl -I` panels. The "after"
-        panel highlights the X-PageSpeed: HIT header and a smaller
-        Content-Length. This is the single most credible thing a developer
-        can verify themselves after `dotnet run`, so we show it above the
-        fold. Terminal chrome (rounded ring) is applied globally by
-        `pre:has(code)` in global.css. Color highlights use Tailwind text
-        utilities so dark mode flips automatically. */
+      /* AI-traffic hook — one line plus its source, the last hero row. */
     }
-    <figure
-      class="mt-12 max-w-4xl mx-auto"
-      aria-label="curl -I output comparing response headers before and after mod_pagespeed. After shows X-PageSpeed: HIT and Content-Length reduced from 167824 to 53120 bytes."
-    >
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
-        {/* Before */}
-        <div>
-          <div
-            class="flex items-center justify-between text-xs font-semibold mb-2 text-text-annotation"
-          >
-            <span class="uppercase tracking-wider">Before</span>
-            <span class="display-num text-text-muted">167,824 B</span>
-          </div>
-          <pre
-            class="bg-stone-900 text-stone-100 text-xs sm:text-sm leading-relaxed p-4 overflow-x-auto"><code><span class="text-text-annotation">$ curl -I https://example.com/</span>
-HTTP/2 200
-content-type: text/html
-<span class="text-stone-300">content-length: 167824</span>
-cache-control: max-age=600
-server: nginx
-date: Sun, 17 May 2026 09:14:02 GMT
-<span class="text-text-annotation">(no X-PageSpeed header)</span></code></pre>
-        </div>
-        {/* After */}
-        <div>
-          <div
-            class="flex items-center justify-between text-xs font-semibold mb-2 text-text-annotation"
-          >
-            <span class="uppercase tracking-wider">After</span>
-            <span
-              class="inline-flex items-center gap-1.5 rounded-md bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 text-emerald-700 dark:text-emerald-300 ring-1 ring-inset ring-emerald-200 dark:ring-emerald-900"
-            >
-              <span class="display-num">53,120 B</span>
-              <span aria-hidden="true">&middot;</span>
-              <span class="display-num">&minus;68%</span>
-            </span>
-          </div>
-          <pre
-            class="bg-stone-900 text-stone-100 text-xs sm:text-sm leading-relaxed p-4 overflow-x-auto"><code><span class="text-text-annotation">$ curl -I https://example.com/</span>
-HTTP/2 200
-content-type: text/html
-<span class="text-emerald-300">content-length: 53120</span>
-cache-control: max-age=600
-server: nginx
-date: Sun, 17 May 2026 09:14:08 GMT
-<span class="text-emerald-400 font-semibold">x-pagespeed: HIT</span> <span class="text-text-annotation">(mmap, &lt;1ms)</span></code></pre>
-        </div>
-      </div>
-      <figcaption class="mt-3 text-xs text-text-annotation text-center">
-        Illustrative &mdash; run it against your own origin. The <code class="font-mono"
-          >X-PageSpeed: HIT</code
-        > header confirms the response was served from the variant cache &mdash; not regenerated.
-      </figcaption>
-    </figure>
-
-    {
-      /* AI-traffic hook (MKT-14) — brief, links to the RenderPeek scanner.
-        The ~40% stat is the wedge; keep it to one line above the fold-adjacent
-        zone, not a full section. */
-    }
-    <a
-      href="/ai-readability/"
-      data-umami-event="cta_home_hero_ai_readability"
-      class="group mt-10 inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-lg border border-border bg-bg-secondary px-4 py-2.5 text-sm text-text-body hover:border-interactive/40 transition-colors"
-    >
-      <span class="display-num font-semibold text-text-body">≈40%</span>
-      <span
-        >of the top 1,000 sites render almost nothing for AI assistants. Check yours with RenderPeek</span
-      >
-      <span class="font-medium text-interactive group-hover:underline" aria-hidden="true"
-        >&rarr;</span
-      >
-    </a>
-    <p class="mt-2 text-xs text-text-annotation">
+    <div class="mt-10">
       <a
-        href="/blog/can-ai-read-your-website/"
-        class="underline decoration-stone-300 dark:decoration-stone-600 underline-offset-2 hover:text-text-body"
-        >(our scan, May 2026 &rarr;)</a
+        href="/ai-readability/"
+        data-umami-event="cta_home_hero_ai_readability"
+        class="group inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-border bg-bg-secondary px-4 py-2.5 text-sm text-text-body hover:border-interactive/40 transition-colors"
       >
-    </p>
+        <span class="display-num font-semibold text-text-body">≈40%</span>
+        <span
+          >of the top 1,000 sites render almost nothing for AI assistants. Check yours with RenderPeek</span
+        >
+        <span class="font-medium text-interactive group-hover:underline" aria-hidden="true"
+          >&rarr;</span
+        >
+      </a>
+      <p class="mt-2 text-xs text-text-annotation">
+        <a
+          href="/blog/can-ai-read-your-website/"
+          class="underline decoration-stone-300 dark:decoration-stone-600 underline-offset-2 hover:text-text-body"
+          >(our scan, May 2026 &rarr;)</a
+        >
+      </p>
+    </div>
   </section>
 
-  <div class="rule-ticked" role="presentation" aria-hidden="true"></div>
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+  </div>
 
-  {/* One product — the converged line, with availability signposted by stack */}
-  <section class="py-20">
-    <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-      <h2 class="h2-section text-center text-text-body">
-        One product again. The module you know, plus the worker.
-      </h2>
-      <p class="mt-4 text-center text-text-muted max-w-2xl mx-auto">
+  {/* Global, not scoped: a scoped block stamps every element on this page with
+      a per-component id attribute, which adds ~9 kB to the HTML. These class
+      names are used only here. */}
+  <style is:global>
+    /* Hero instrument layout: two columns at >=1024px, stacked below. */
+    .hero-grid {
+      display: grid;
+      gap: 2.5rem;
+    }
+    @media (min-width: 1024px) {
+      .hero-grid {
+        grid-template-columns: 1.1fr 0.9fr;
+        align-items: start;
+      }
+    }
+    .hero-title {
+      font-weight: 800;
+      letter-spacing: -0.035em;
+    }
+    .hero-sub {
+      font-family: var(--font-mono);
+      font-size: 0.48em;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      line-height: 1.4;
+    }
+    /* Mono panel title row (instrument faceplate label). */
+    .panel-title {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--color-text-annotation);
+    }
+    /* Stack picker rows: a mono label column, hairline between rows. */
+    .stack-list {
+      margin-top: 0.75rem;
+    }
+    .stack-list li {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.125rem;
+      padding-block: 0.625rem;
+      border-top: 1px solid var(--color-border);
+    }
+    .stack-list li:first-child {
+      border-top: 0;
+    }
+    @media (min-width: 520px) {
+      .stack-list li {
+        grid-template-columns: 9.5rem 1fr;
+        gap: 0.75rem;
+      }
+    }
+    .stack-key {
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--color-text-body);
+    }
+    /* Capability list: the check is a decorative [x] field mark in CSS, so the
+       text nodes stay the plain item wording. */
+    .check-list li {
+      position: relative;
+      padding-left: 1.75rem;
+      padding-block: 0.5rem;
+      border-top: 1px dashed var(--color-border);
+    }
+    .check-list li:first-child {
+      border-top: 0;
+    }
+    .check-list li::before {
+      content: '[x]';
+      position: absolute;
+      left: 0;
+      top: 0.5rem;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      line-height: 1.65;
+      color: var(--color-success);
+    }
+    /* Signal-path diagram: every colour is a design token, applied via
+       these classes so the SVG geometry stays untouched. */
+    .dg-fill-neutral {
+      fill: var(--color-text-body);
+    }
+    .dg-fill-body {
+      fill: var(--color-text-body);
+    }
+    .dg-fill-muted {
+      fill: var(--color-text-muted);
+    }
+    .dg-fill-annot {
+      fill: var(--color-text-annotation);
+    }
+    .dg-fill-success {
+      fill: var(--color-success);
+    }
+    .dg-fill-accent {
+      fill: var(--color-accent);
+    }
+    .dg-fill-interactive {
+      fill: var(--color-interactive);
+    }
+    .dg-stroke-lane {
+      stroke: var(--color-border);
+    }
+    .dg-node {
+      fill: var(--color-bg-elevated);
+      stroke: var(--color-border-strong);
+    }
+    .dg-node-interactive {
+      fill: var(--color-interactive-wash);
+      stroke: var(--color-interactive);
+    }
+    .dg-node-hit {
+      fill: var(--color-success-wash);
+      stroke: var(--color-success);
+    }
+    .dg-node-miss {
+      fill: var(--color-accent-wash);
+      stroke: var(--color-accent);
+    }
+    .dg-node-cache {
+      fill: var(--color-bg-secondary);
+      stroke: var(--color-border-strong);
+    }
+    .dg-edge-neutral {
+      stroke: var(--color-text-body);
+    }
+    .dg-edge-hit {
+      stroke: var(--color-success);
+    }
+    .dg-edge-miss {
+      stroke: var(--color-accent);
+    }
+    .dg-edge-async {
+      stroke: var(--color-interactive);
+    }
+    .dg-edge-faint {
+      stroke: var(--color-text-annotation);
+    }
+    /* Step panels: mono "STEP n" with the right-aligned mono tag. */
+    .step-no {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.75rem;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      color: var(--color-interactive);
+    }
+    /* Specification cards: the mono readout row over a hairline. */
+    .card-ro {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.75rem;
+      padding-bottom: 0.625rem;
+      border-bottom: 1px solid var(--color-border);
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--color-text-annotation);
+    }
+    .card-ro b {
+      color: var(--color-interactive);
+      font-weight: 600;
+    }
+    /* Evaluation FAQ: a --color-border hairline between Q&A pairs. */
+    .faq-list > div {
+      padding-block: 1.25rem;
+      border-top: 1px solid var(--color-border);
+    }
+    .faq-list > div:first-child {
+      border-top: 0;
+      padding-top: 0;
+    }
+    .faq-list > div:last-child {
+      padding-bottom: 0;
+    }
+  </style>
+
+  {/* 01 — this site runs the binary it sells: the captured response headers
+      of this very page, the HIT/MISS header the 2.1 nginx module adds, and
+      the public admin console. */}
+  <section class="py-13 sm:py-18" aria-labelledby="s-running" data-live-console>
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <SectionHeader
+        id="s-running"
+        index="01"
+        eyebrow="Running on our own sites"
+        title="Running on our own sites"
+      >
+        Our four sites run on mod_pagespeed, and their admin console is public on purpose. Pick a
+        site and watch bytes saved, cache hits, statistics, caches, configuration and the
+        worker&rsquo;s logs auto-refresh; module counters start from zero whenever the web server
+        restarts.
+      </SectionHeader>
+      <div class="mt-8 max-w-3xl">
+        <TermPanel
+          command="curl -sI --http1.1 --compressed https://modpagespeed.com/ | grep -iE '^(HTTP|content-(type|length|encoding)|x-mod-pagespeed|vary|cache-control)'"
+          label="Captured response headers of the modpagespeed.com homepage"
+          lines={headerPanelLines}
+        />
+        <p class="mt-3 font-mono text-xs text-text-annotation">captured {capturedDate}</p>
+      </div>
+      <p class="mt-6 max-w-2xl text-sm text-text-muted">
+        In the reverse-proxy deployment, the module adds <HitMissBadge state="HIT" /> or <HitMissBadge
+          state="MISS"
+        /> to the response.
+      </p>
+      <figure class="mt-10 max-w-4xl">
+        <img
+          src="/images/live-console-overview.webp"
+          alt="mod_pagespeed admin console Overview: a sidebar with Savings, URLs, Statistics, Histograms, Caches, Configuration, optimizer Status and Logs; a host selector; a module panel with bytes saved and responses served from the optimizer's cache; an optimizer panel with status, uptime and bytes saved"
+          width="1440"
+          height="760"
+          loading="lazy"
+          decoding="async"
+          class="w-full h-auto rounded-lg border border-border shadow-sm"
+        />
+        <figcaption class="mt-3 text-xs text-text-annotation max-w-2xl">
+          The console on our own servers. It opens with a warning that it is reachable from the
+          network: a console is normally private, ours is public on purpose.
+        </figcaption>
+      </figure>
+      <div class="mt-8">
+        <a
+          href="https://we-amp.com/pagespeed_global_admin/"
+          class="btn-secondary"
+          rel="noopener"
+          data-umami-event="cta_live_console_home">Open the live console</a
+        >
+      </div>
+      <div class="mt-10 max-w-2xl border-t border-border pt-8">
+        <p class="text-lg font-semibold text-text-body">We run every We-Amp site through it.</p>
+        <p class="mt-2 text-sm text-text-muted">
+          We run our own sites, this page included, through mod_pagespeed &mdash; the binary
+          serving this page is the binary we ship. Same <a
+            href="/blog/cyclone-cache-vs-file-cache-benchmark/"
+            class="text-interactive hover:text-interactive-hover underline">Cyclone cache</a
+          >. Check the response headers. On our own demo sites we measure up to {bestSavings}%
+          smaller pages.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+  </div>
+
+  {/* 02 — the converged line, with availability signposted by stack */}
+  <section class="py-13 sm:py-18" aria-labelledby="s-product">
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <SectionHeader
+        id="s-product"
+        index="02"
+        eyebrow="Module + worker"
+        title="One product again. The module you know, plus the worker."
+      >
         mod_pagespeed 2.1 converges the two lines We-Amp shipped through 2026: the native in-process
         module that stays compatible with your existing pagespeed.conf, and the optimizer worker
         that does the heavy optimization work outside the web server. {LICENSE_CLAUSE_CAP}.
-      </p>
+      </SectionHeader>
       {
         /* disambiguator — surfaces the stack mapping so visitors on a platform the
           converged line doesn't cover yet find their line without reading cards. */
       }
-      <div
-        class="mt-8 mx-auto max-w-2xl rounded-lg border border-border bg-bg-secondary px-5 py-4 text-sm text-text-body"
-      >
-        <p class="font-semibold text-text-body">Pick by your stack</p>
-        <ul class="mt-2 space-y-1">
-          <li>
-            <span class="font-mono text-xs text-text-annotation">Apache</span>
-            &nbsp;native module + worker &rarr; <span class="font-semibold text-text-body"
-              >mod_pagespeed 2.1</span
-            > (this page)
-          </li>
-          <li>
-            <span class="font-mono text-xs text-text-annotation">nginx</span>
-            &nbsp;native module, and module + worker in the reverse-proxy deployment &rarr; <span
-              class="font-semibold text-text-body">mod_pagespeed 2.1</span
-            > (this page)
-          </li>
-          <li>
-            <span class="font-mono text-xs text-text-annotation">IIS / Windows Server</span>
-            &nbsp;&rarr; <a
-              href="/download/"
-              data-umami-event="cta_home_disambiguator_11"
-              class="font-semibold text-interactive hover:underline">the IIS module</a
-            > &mdash; the IIS package ships from the 1.15 packaging channel
-          </li>
-          <li>
-            <span class="font-mono text-xs text-text-annotation">ASP.NET Core</span>
-            &nbsp;&rarr; <a
-              href="/docs/aspnet-getting-started/"
-              data-umami-event="cta_home_disambiguator_aspnet"
-              class="font-semibold text-interactive hover:underline"
-              >the ASP.NET Core middleware
-              <span class="font-mono text-xs">(WeAmp.PageSpeed.AspNetCore)</span></a
-            >
-          </li>
-        </ul>
-        <p class="mt-3 text-xs text-text-annotation">
-          Every line shares the same optimization core; the converged module keeps the 1.14/1.15
-          directives, so existing configuration carries over.
-        </p>
-      </div>
-      <div class="mt-12 max-w-2xl mx-auto">
-        <div class="card-product flex flex-col">
+      <div class="mt-12 grid gap-6 lg:grid-cols-2">
+        <div class="panel">
+          <p class="panel-title">Pick by your stack</p>
+          <ul class="stack-list">
+            <li>
+              <span class="stack-key">Apache</span>
+              <span
+                >native module + worker &rarr; <span class="font-semibold text-text-body"
+                  >mod_pagespeed 2.1</span
+                > (this page)</span
+              >
+            </li>
+            <li>
+              <span class="stack-key">nginx</span>
+              <span
+                >native module, and module + worker in the reverse-proxy deployment &rarr; <span
+                  class="font-semibold text-text-body">mod_pagespeed 2.1</span
+                > (this page)</span
+              >
+            </li>
+            <li>
+              <span class="stack-key">IIS / Windows Server</span>
+              <span
+                >&rarr; <a
+                  href="/download/"
+                  data-umami-event="cta_home_disambiguator_11"
+                  class="font-semibold text-interactive hover:underline">the IIS module</a
+                > &mdash; the IIS package ships from the 1.15 packaging channel</span
+              >
+            </li>
+            <li>
+              <span class="stack-key">ASP.NET Core</span>
+              <span
+                >&rarr; <a
+                  href="/docs/aspnet-getting-started/"
+                  data-umami-event="cta_home_disambiguator_aspnet"
+                  class="font-semibold text-interactive hover:underline"
+                  >the ASP.NET Core middleware
+                  <span class="font-mono text-xs">(WeAmp.PageSpeed.AspNetCore)</span></a
+                ></span
+              >
+            </li>
+          </ul>
+          <p class="mt-3 text-xs text-text-annotation">
+            Every line shares the same optimization core; the converged module keeps the 1.14/1.15
+            directives, so existing configuration carries over.
+          </p>
+        </div>
+        <div class="panel flex flex-col">
           {
             /* Capability register lit to 0xC9 — the same byte as the brand mark /
               logo, in the cyan accent: the converged card carries the live signal. */
@@ -519,180 +772,47 @@ date: Sun, 17 May 2026 09:14:08 GMT
             The converged line &mdash; {LICENSE_CLAUSE}
           </p>
           <div class="mt-3 flex flex-wrap gap-2">
-            <span
-              class="inline-flex items-center rounded-md bg-bg-secondary px-2.5 py-1 text-xs font-semibold text-text-body ring-1 ring-inset ring-border"
-              >Apache</span
-            >
-            <span
-              class="inline-flex items-center rounded-md bg-bg-secondary px-2.5 py-1 text-xs font-semibold text-text-body ring-1 ring-inset ring-border"
-              >nginx</span
-            >
-            <span
-              class="inline-flex items-center rounded-md bg-interactive/10 px-2.5 py-1 text-xs font-semibold text-interactive ring-1 ring-inset ring-interactive/40"
-              >Open source &middot; Apache-2.0</span
-            >
+            <Chip tone="interactive" label="Apache" />
+            <Chip tone="interactive" label="nginx" />
+            <Chip tone="neutral" label="Open source · Apache-2.0" />
           </div>
-          <ul class="mt-4 mb-6 space-y-2 text-sm text-text-muted">
-            <li class="flex items-start gap-2">
-              <span class="text-interactive mt-0.5">&#10003;</span> Native in-process module &mdash; no
-              proxy hop; drop-in for your pagespeed.conf
+          <ul class="check-list mt-4 mb-6 text-sm text-text-muted">
+            <li>
+              Native in-process module &mdash; no proxy hop; drop-in for your pagespeed.conf
             </li>
-            <li class="flex items-start gap-2">
-              <span class="text-interactive mt-0.5">&#10003;</span> Optimizer worker off the request path
-              &mdash; ML quality + SSIMULACRA2 verification
+            <li>
+              Optimizer worker off the request path &mdash; ML quality + SSIMULACRA2 verification
             </li>
-            <li class="flex items-start gap-2">
-              <span class="text-interactive mt-0.5">&#10003;</span> Classic filters: combine, sprite,
-              IPRO, domain mapping
+            <li>Classic filters: combine, sprite, IPRO, domain mapping</li>
+            <li>
+              Built-in <code class="text-xs">/pagespeed_admin/</code> console
             </li>
-            <li class="flex items-start gap-2">
-              <span class="text-interactive mt-0.5">&#10003;</span> Built-in
-              <code class="text-xs">/pagespeed_admin/</code> console
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-interactive mt-0.5">&#10003;</span> Serving straight from the
-              variant-aware cache &mdash; no re-optimization on the request path
+            <li>
+              Serving straight from the variant-aware cache &mdash; no re-optimization on the
+              request path
             </li>
           </ul>
-          <a href="/features/" class="btn-primary mt-auto"> See what it does &rarr; </a>
+          <a href="/features/" class="btn-secondary mt-auto self-start"> See what it does &rarr; </a>
         </div>
       </div>
     </div>
   </section>
 
-  {/* Start here — merged docs + blog scent (audit D13, 2026-05-16) */}
-  <section class="bg-bg-secondary py-16">
-    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-      <h2 class="h2-section text-center text-text-body">Start here: docs &amp; deep dives</h2>
-      <p class="mt-4 text-center text-text-muted max-w-2xl mx-auto">
-        The pages that answer the questions most readers arrive with.
-      </p>
-      <div class="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <a
-          href="/docs/configuration/"
-          class="card-resource"
-          data-umami-event="cta_home_featured_docs_configuration"
-        >
-          <p class="eyebrow text-text-body">Docs</p>
-          <h3 class="mt-2 text-lg font-semibold text-text-body">Configuration</h3>
-          <p class="mt-2 text-sm text-text-muted">
-            Configuration options for Apache and nginx: directives, cache modes, worker settings,
-            and per-location overrides.
-          </p>
-          <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
-            Read the docs <span aria-hidden="true">&rarr;</span>
-          </p>
-        </a>
-        <a
-          href="/docs/filters/"
-          class="card-resource"
-          data-umami-event="cta_home_featured_docs_filters"
-        >
-          <p class="eyebrow text-text-body">Docs</p>
-          <h3 class="mt-2 text-lg font-semibold text-text-body">PageSpeed filters reference</h3>
-          <p class="mt-2 text-sm text-text-muted">
-            Every rewrite filter and what it does: image transcoding, CSS and JS minification,
-            combining, spriting, IPRO, and domain mapping.
-          </p>
-          <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
-            Read the docs <span aria-hidden="true">&rarr;</span>
-          </p>
-        </a>
-        <a
-          href="/blog/economics-of-image-optimization/"
-          class="card-resource"
-          data-umami-event="cta_home_blog_economics_images"
-        >
-          <p class="eyebrow text-text-body">Blog</p>
-          <h3 class="mt-2 text-lg font-semibold text-text-body">
-            Image optimization cost: self-hosted vs CDN (2026)
-          </h3>
-          <p class="mt-2 text-sm text-text-muted">
-            Cost comparison at 100K, 1M, and 10M monthly image requests &mdash; with break-even
-            analysis against self-hosted optimization.
-          </p>
-          <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
-            Read post <span aria-hidden="true">&rarr;</span>
-          </p>
-        </a>
-        <a
-          href="/blog/mod-pagespeed-alternatives/"
-          class="card-resource"
-          data-umami-event="cta_home_blog_mps_alternatives"
-        >
-          <p class="eyebrow text-text-body">Blog</p>
-          <h3 class="mt-2 text-lg font-semibold text-text-body">
-            mod_pagespeed Alternatives in 2026
-          </h3>
-          <p class="mt-2 text-sm text-text-muted">
-            The original mod_pagespeed and ngx_pagespeed &mdash; developed at Google &mdash; are
-            no longer actively developed. Here is where to go instead.
-          </p>
-          <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
-            Read post <span aria-hidden="true">&rarr;</span>
-          </p>
-        </a>
-      </div>
-    </div>
-  </section>
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+  </div>
 
-  <div class="rule-ticked" role="presentation" aria-hidden="true"></div>
-
-  {/* How it works */}
-  <section class="bg-bg-secondary py-20">
+  {/* 03 — the request path as a signal diagram: sync lane on top, async
+      worker lane below. Colours are tokens via the dg-* classes above;
+      geometry, <title> and the figure aria-label are unchanged. */}
+  <section class="py-13 sm:py-18" aria-labelledby="s-signal">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-      <h2 class="h2-section text-center text-text-body">Install. Configure. Verify.</h2>
-      <p class="mt-4 text-center text-text-muted max-w-2xl mx-auto">
-        Three steps: add optimization to your server, set the options you want, and check the
-        response headers.
-      </p>
-      <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div class="card">
-          <p class="text-5xl font-bold text-interactive font-mono">1</p>
-          <h3 class="mt-3 font-semibold text-text-body">Install</h3>
-          <p class="mt-2 text-sm text-text-muted">
-            A native module for your existing web server.
-            <code class="text-xs bg-bg-elevated px-1 py-0.5 rounded">apt install</code> the signed <code
-              class="text-xs bg-bg-elevated px-1 py-0.5 rounded">mod-pagespeed</code
-            > (Apache) or <code class="text-xs bg-bg-elevated px-1 py-0.5 rounded"
-              >nginx-module-pagespeed</code
-            > (nginx) — prebuilt, nothing to compile. The optimizer worker installs alongside as
-            <code class="text-xs bg-bg-elevated px-1 py-0.5 rounded">pagespeed-optimizer</code>; the
-            Apache packages point the module at it, and the reverse-proxy deployment pairs nginx
-            with the worker.
-          </p>
-        </div>
-        <div class="card">
-          <p class="text-5xl font-bold text-interactive font-mono">2</p>
-          <h3 class="mt-3 font-semibold text-text-body">Tell it what to optimize</h3>
-          <p class="mt-2 text-sm text-text-muted">
-            Same configuration directives as open-source mod_pagespeed. Your existing
-            <code class="text-xs bg-bg-elevated px-1 py-0.5 rounded">pagespeed.conf</code>
-            carries over. Enable filters, set the cache path, done.
-          </p>
-        </div>
-        <div class="card">
-          <p class="text-5xl font-bold text-interactive font-mono">3</p>
-          <h3 class="mt-3 font-semibold text-text-body">Check the response headers</h3>
-          <p class="mt-2 text-sm text-text-muted">
-            <code class="text-xs bg-bg-elevated px-1.5 py-0.5 rounded font-mono"
-              >curl -I your-site | grep X-Mod-Pagespeed</code
-            >. The version string confirms the module is active. With the Apache module or the
-            reverse-proxy deployment, the worker optimizes off the request path and the serves come
-            from the cache.
-          </p>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  {/* Architecture — tightened to py-16 since the inline SVG already adds vertical mass. */}
-  <section class="py-16">
-    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-      <h2 class="h2-section text-center text-text-body">
-        The worker optimizes off the request path. The module serves from cache.
-      </h2>
-      <p class="mt-4 text-center text-text-muted max-w-2xl mx-auto">
+      <SectionHeader
+        id="s-signal"
+        index="03"
+        eyebrow="Signal path"
+        title="The worker optimizes off the request path. The module serves from cache."
+      >
         The module serves; the worker <a
           href="/how-it-works/async-rewriting/"
           class="text-interactive hover:text-interactive-hover underline"
@@ -701,19 +821,17 @@ date: Sun, 17 May 2026 09:14:08 GMT
           href="/psol/"
           class="text-interactive hover:text-interactive-hover underline">PSOL optimization core</a
         >.
-      </p>
+      </SectionHeader>
 
       {
         /* 2.0 Architecture diagram — inline SVG.
           Desktop (md+): horizontal flow with branching HIT/MISS lanes and a
           separate async lane showing Worker -> Variant cache feedback.
           Mobile (<md): vertical SVG with the same node set.
-          Colors: HIT path = emerald-700 (light) / emerald-400 (dark);
-                  MISS path = amber-600 / amber-400;
-                  pipeline + async = interactive (cyan accent);
-                  neutrals = stone-300/600.
-          Tailwind utility classes drive fill/stroke so dark-mode flips
-          automatically. The <title> element inside each SVG gives screen
+          Colours are design tokens via the dg-* classes in the page style
+          block: HIT = success/success-wash, MISS = accent/accent-wash,
+          module + worker = interactive, neutrals = border-strong.
+          The <title> element inside each SVG gives screen
           readers a short label; the figure wrapper has the longer
           aria-label for the full narrative. */
       }
@@ -743,7 +861,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path>
+              <path d="M0,0 L10,5 L0,10 z" class="dg-fill-neutral"></path>
             </marker>
             <marker
               id="arrow-hit-20"
@@ -754,7 +872,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M0,0 L10,5 L0,10 z" class="fill-emerald-700 dark:fill-emerald-400"></path>
+              <path d="M0,0 L10,5 L0,10 z" class="dg-fill-success"></path>
             </marker>
             <marker
               id="arrow-miss-20"
@@ -765,7 +883,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M0,0 L10,5 L0,10 z" class="fill-amber-600 dark:fill-amber-400"></path>
+              <path d="M0,0 L10,5 L0,10 z" class="dg-fill-accent"></path>
             </marker>
             <marker
               id="arrow-async-20"
@@ -776,7 +894,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M0,0 L10,5 L0,10 z" class="fill-interactive"></path>
+              <path d="M0,0 L10,5 L0,10 z" class="dg-fill-interactive"></path>
             </marker>
           </defs>
 
@@ -784,7 +902,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
           <text
             x="40"
             y="24"
-            class="fill-stone-500 dark:fill-stone-400"
+            class="dg-fill-annot"
             font-size="11"
             font-family="ui-sans-serif, system-ui, sans-serif"
             font-weight="600"
@@ -793,7 +911,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
           <text
             x="40"
             y="226"
-            class="fill-stone-500 dark:fill-stone-400"
+            class="dg-fill-annot"
             font-size="11"
             font-family="ui-sans-serif, system-ui, sans-serif"
             font-weight="600"
@@ -806,7 +924,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
             y1="210"
             x2="860"
             y2="210"
-            class="stroke-stone-200 dark:stroke-stone-700"
+            class="dg-stroke-lane"
             stroke-width="1"
             stroke-dasharray="2 4"></line>
 
@@ -817,13 +935,13 @@ date: Sun, 17 May 2026 09:14:08 GMT
             width="120"
             height="60"
             rx="8"
-            class="fill-white dark:fill-stone-900 stroke-stone-300 dark:stroke-stone-600"
+            class="dg-node"
             stroke-width="1.5"></rect>
           <text
             x="90"
             y="115"
             text-anchor="middle"
-            class="fill-stone-900 dark:fill-stone-100"
+            class="dg-fill-body"
             font-size="14"
             font-family="ui-sans-serif, system-ui, sans-serif"
             font-weight="600">Request</text
@@ -836,13 +954,13 @@ date: Sun, 17 May 2026 09:14:08 GMT
             width="170"
             height="80"
             rx="8"
-            class="fill-interactive/10 stroke-interactive"
+            class="dg-node-interactive"
             stroke-width="2"></rect>
           <text
             x="295"
             y="102"
             text-anchor="middle"
-            class="fill-interactive"
+            class="dg-fill-interactive"
             font-size="14"
             font-family="ui-sans-serif, system-ui, sans-serif"
             font-weight="700">module</text
@@ -851,7 +969,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
             x="295"
             y="122"
             text-anchor="middle"
-            class="fill-stone-600 dark:fill-stone-400"
+            class="dg-fill-muted"
             font-size="11"
             font-family="ui-sans-serif, system-ui, sans-serif">Intercept + cache lookup</text
           >
@@ -863,13 +981,13 @@ date: Sun, 17 May 2026 09:14:08 GMT
             width="200"
             height="70"
             rx="8"
-            class="fill-emerald-50 dark:fill-emerald-950 stroke-emerald-700 dark:stroke-emerald-400"
+            class="dg-node-hit"
             stroke-width="1.5"></rect>
           <text
             x="550"
             y="68"
             text-anchor="middle"
-            class="fill-emerald-700 dark:fill-emerald-300"
+            class="dg-fill-success"
             font-size="14"
             font-family="ui-sans-serif, system-ui, sans-serif"
             font-weight="700">HIT</text
@@ -878,7 +996,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
             x="550"
             y="88"
             text-anchor="middle"
-            class="fill-stone-600 dark:fill-stone-400"
+            class="dg-fill-muted"
             font-size="11"
             font-family="ui-sans-serif, system-ui, sans-serif">Served from mmap</text
           >
@@ -890,13 +1008,13 @@ date: Sun, 17 May 2026 09:14:08 GMT
             width="200"
             height="70"
             rx="8"
-            class="fill-amber-50 dark:fill-amber-950 stroke-amber-600 dark:stroke-amber-400"
+            class="dg-node-miss"
             stroke-width="1.5"></rect>
           <text
             x="550"
             y="158"
             text-anchor="middle"
-            class="fill-amber-700 dark:fill-amber-300"
+            class="dg-fill-accent"
             font-size="14"
             font-family="ui-sans-serif, system-ui, sans-serif"
             font-weight="700">MISS</text
@@ -905,7 +1023,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
             x="550"
             y="178"
             text-anchor="middle"
-            class="fill-stone-600 dark:fill-stone-400"
+            class="dg-fill-muted"
             font-size="11"
             font-family="ui-sans-serif, system-ui, sans-serif">Pass through to origin</text
           >
@@ -917,13 +1035,13 @@ date: Sun, 17 May 2026 09:14:08 GMT
             width="130"
             height="60"
             rx="8"
-            class="fill-white dark:fill-stone-900 stroke-stone-300 dark:stroke-stone-600"
+            class="dg-node"
             stroke-width="1.5"></rect>
           <text
             x="785"
             y="115"
             text-anchor="middle"
-            class="fill-stone-900 dark:fill-stone-100"
+            class="dg-fill-body"
             font-size="14"
             font-family="ui-sans-serif, system-ui, sans-serif"
             font-weight="600">Response</text
@@ -936,14 +1054,14 @@ date: Sun, 17 May 2026 09:14:08 GMT
             width="170"
             height="60"
             rx="8"
-            class="fill-interactive/10 stroke-interactive"
+            class="dg-node-interactive"
             stroke-width="2"
             stroke-dasharray="4 3"></rect>
           <text
             x="295"
             y="266"
             text-anchor="middle"
-            class="fill-interactive"
+            class="dg-fill-interactive"
             font-size="14"
             font-family="ui-sans-serif, system-ui, sans-serif"
             font-weight="700">Worker</text
@@ -952,7 +1070,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
             x="295"
             y="284"
             text-anchor="middle"
-            class="fill-stone-600 dark:fill-stone-400"
+            class="dg-fill-muted"
             font-size="11"
             font-family="ui-sans-serif, system-ui, sans-serif">Optimize &middot; write variant</text
           >
@@ -964,13 +1082,13 @@ date: Sun, 17 May 2026 09:14:08 GMT
             width="200"
             height="60"
             rx="8"
-            class="fill-stone-50 dark:fill-stone-900 stroke-stone-400 dark:stroke-stone-600"
+            class="dg-node-cache"
             stroke-width="1.5"></rect>
           <text
             x="550"
             y="266"
             text-anchor="middle"
-            class="fill-stone-900 dark:fill-stone-100"
+            class="dg-fill-body"
             font-size="13"
             font-family="ui-sans-serif, system-ui, sans-serif"
             font-weight="600">Variant cache</text
@@ -979,7 +1097,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
             x="550"
             y="284"
             text-anchor="middle"
-            class="fill-stone-600 dark:fill-stone-400"
+            class="dg-fill-muted"
             font-size="11"
             font-family="ui-sans-serif, system-ui, sans-serif"
             >mmap &middot; per-client variants</text
@@ -991,14 +1109,14 @@ date: Sun, 17 May 2026 09:14:08 GMT
             y1="110"
             x2="206"
             y2="110"
-            stroke="currentColor"
+            class="dg-edge-neutral"
             stroke-width="1.5"
             marker-end="url(#arrow-stone-20)"></line>
 
           {/* module -> HIT (green) */}
           <path
             d="M 380 95 C 410 95, 420 75, 446 75"
-            class="stroke-emerald-700 dark:stroke-emerald-400"
+            class="dg-edge-hit"
             stroke-width="2"
             fill="none"
             marker-end="url(#arrow-hit-20)"></path>
@@ -1006,7 +1124,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
           {/* module -> MISS (amber) */}
           <path
             d="M 380 125 C 410 125, 420 165, 446 165"
-            class="stroke-amber-600 dark:stroke-amber-400"
+            class="dg-edge-miss"
             stroke-width="2"
             fill="none"
             marker-end="url(#arrow-miss-20)"></path>
@@ -1014,7 +1132,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
           {/* HIT -> Response */}
           <path
             d="M 650 75 C 690 75, 700 100, 716 105"
-            class="stroke-emerald-700 dark:stroke-emerald-400"
+            class="dg-edge-hit"
             stroke-width="2"
             fill="none"
             marker-end="url(#arrow-hit-20)"></path>
@@ -1022,7 +1140,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
           {/* MISS -> Response */}
           <path
             d="M 650 165 C 690 165, 700 120, 716 115"
-            class="stroke-amber-600 dark:stroke-amber-400"
+            class="dg-edge-miss"
             stroke-width="2"
             fill="none"
             marker-end="url(#arrow-miss-20)"></path>
@@ -1030,7 +1148,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
           {/* MISS forks down into Worker (async, dashed amber) */}
           <path
             d="M 550 200 L 550 225 L 295 225 L 295 236"
-            class="stroke-amber-600 dark:stroke-amber-400"
+            class="dg-edge-miss"
             stroke-width="1.5"
             stroke-dasharray="4 3"
             fill="none"
@@ -1042,7 +1160,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
             y1="270"
             x2="446"
             y2="270"
-            class="stroke-interactive"
+            class="dg-edge-async"
             stroke-width="1.5"
             stroke-dasharray="4 3"
             marker-end="url(#arrow-async-20)"></line>
@@ -1050,14 +1168,14 @@ date: Sun, 17 May 2026 09:14:08 GMT
           {/* Variant cache -> back up to the module (feedback, faint dashed) */}
           <path
             d="M 460 245 C 410 245, 400 175, 380 150"
-            class="stroke-stone-400 dark:stroke-stone-500"
+            class="dg-edge-faint"
             stroke-width="1.2"
             stroke-dasharray="2 3"
             fill="none"></path>
           <text
             x="392"
             y="208"
-            class="fill-stone-500 dark:fill-stone-400"
+            class="dg-fill-annot"
             font-size="10"
             font-style="italic"
             font-family="ui-sans-serif, system-ui, sans-serif">feeds future HITs</text
@@ -1067,7 +1185,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
           <text
             x="386"
             y="62"
-            class="fill-emerald-700 dark:fill-emerald-400"
+            class="dg-fill-success"
             font-size="10"
             font-weight="600"
             font-family="ui-sans-serif, system-ui, sans-serif">&lt; 1 ms</text
@@ -1075,7 +1193,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
           <text
             x="386"
             y="148"
-            class="fill-amber-700 dark:fill-amber-400"
+            class="dg-fill-accent"
             font-size="10"
             font-weight="600"
             font-family="ui-sans-serif, system-ui, sans-serif">first request</text
@@ -1101,7 +1219,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M0,0 L10,5 L0,10 z" fill="currentColor"></path>
+              <path d="M0,0 L10,5 L0,10 z" class="dg-fill-neutral"></path>
             </marker>
             <marker
               id="arrow-hit-20m"
@@ -1112,7 +1230,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M0,0 L10,5 L0,10 z" class="fill-emerald-700 dark:fill-emerald-400"></path>
+              <path d="M0,0 L10,5 L0,10 z" class="dg-fill-success"></path>
             </marker>
             <marker
               id="arrow-miss-20m"
@@ -1123,7 +1241,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M0,0 L10,5 L0,10 z" class="fill-amber-600 dark:fill-amber-400"></path>
+              <path d="M0,0 L10,5 L0,10 z" class="dg-fill-accent"></path>
             </marker>
             <marker
               id="arrow-async-20m"
@@ -1134,7 +1252,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
               markerHeight="6"
               orient="auto-start-reverse"
             >
-              <path d="M0,0 L10,5 L0,10 z" class="fill-interactive"></path>
+              <path d="M0,0 L10,5 L0,10 z" class="dg-fill-interactive"></path>
             </marker>
           </defs>
 
@@ -1145,13 +1263,13 @@ date: Sun, 17 May 2026 09:14:08 GMT
             width="120"
             height="50"
             rx="8"
-            class="fill-white dark:fill-stone-900 stroke-stone-300 dark:stroke-stone-600"
+            class="dg-node"
             stroke-width="1.5"></rect>
           <text
             x="160"
             y="50"
             text-anchor="middle"
-            class="fill-stone-900 dark:fill-stone-100"
+            class="dg-fill-body"
             font-size="14"
             font-weight="600"
             font-family="ui-sans-serif, system-ui, sans-serif">Request</text
@@ -1161,7 +1279,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
             y1="70"
             x2="160"
             y2="100"
-            stroke="currentColor"
+            class="dg-edge-neutral"
             stroke-width="1.5"
             marker-end="url(#arrow-stone-20m)"></line>
 
@@ -1172,13 +1290,13 @@ date: Sun, 17 May 2026 09:14:08 GMT
             width="220"
             height="70"
             rx="8"
-            class="fill-interactive/10 stroke-interactive"
+            class="dg-node-interactive"
             stroke-width="2"></rect>
           <text
             x="160"
             y="135"
             text-anchor="middle"
-            class="fill-interactive"
+            class="dg-fill-interactive"
             font-size="14"
             font-weight="700"
             font-family="ui-sans-serif, system-ui, sans-serif">module</text
@@ -1187,7 +1305,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
             x="160"
             y="155"
             text-anchor="middle"
-            class="fill-stone-600 dark:fill-stone-400"
+            class="dg-fill-muted"
             font-size="11"
             font-family="ui-sans-serif, system-ui, sans-serif">Intercept + cache lookup</text
           >
@@ -1195,13 +1313,13 @@ date: Sun, 17 May 2026 09:14:08 GMT
           {/* Fork down to HIT (left) + MISS (right) */}
           <path
             d="M 110 175 L 110 205 L 80 215"
-            class="stroke-emerald-700 dark:stroke-emerald-400"
+            class="dg-edge-hit"
             stroke-width="2"
             fill="none"
             marker-end="url(#arrow-hit-20m)"></path>
           <path
             d="M 210 175 L 210 205 L 240 215"
-            class="stroke-amber-600 dark:stroke-amber-400"
+            class="dg-edge-miss"
             stroke-width="2"
             fill="none"
             marker-end="url(#arrow-miss-20m)"></path>
@@ -1213,13 +1331,13 @@ date: Sun, 17 May 2026 09:14:08 GMT
             width="120"
             height="60"
             rx="8"
-            class="fill-emerald-50 dark:fill-emerald-950 stroke-emerald-700 dark:stroke-emerald-400"
+            class="dg-node-hit"
             stroke-width="1.5"></rect>
           <text
             x="80"
             y="244"
             text-anchor="middle"
-            class="fill-emerald-700 dark:fill-emerald-300"
+            class="dg-fill-success"
             font-size="13"
             font-weight="700"
             font-family="ui-sans-serif, system-ui, sans-serif">HIT</text
@@ -1228,7 +1346,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
             x="80"
             y="262"
             text-anchor="middle"
-            class="fill-stone-600 dark:fill-stone-400"
+            class="dg-fill-muted"
             font-size="10"
             font-family="ui-sans-serif, system-ui, sans-serif">mmap &middot; &lt; 1 ms</text
           >
@@ -1240,13 +1358,13 @@ date: Sun, 17 May 2026 09:14:08 GMT
             width="120"
             height="60"
             rx="8"
-            class="fill-amber-50 dark:fill-amber-950 stroke-amber-600 dark:stroke-amber-400"
+            class="dg-node-miss"
             stroke-width="1.5"></rect>
           <text
             x="240"
             y="244"
             text-anchor="middle"
-            class="fill-amber-700 dark:fill-amber-300"
+            class="dg-fill-accent"
             font-size="13"
             font-weight="700"
             font-family="ui-sans-serif, system-ui, sans-serif">MISS</text
@@ -1255,7 +1373,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
             x="240"
             y="262"
             text-anchor="middle"
-            class="fill-stone-600 dark:fill-stone-400"
+            class="dg-fill-muted"
             font-size="10"
             font-family="ui-sans-serif, system-ui, sans-serif">serve from origin</text
           >
@@ -1263,13 +1381,13 @@ date: Sun, 17 May 2026 09:14:08 GMT
           {/* Rejoin to Response */}
           <path
             d="M 80 280 L 80 320 L 158 342"
-            class="stroke-emerald-700 dark:stroke-emerald-400"
+            class="dg-edge-hit"
             stroke-width="2"
             fill="none"
             marker-end="url(#arrow-hit-20m)"></path>
           <path
             d="M 240 280 L 240 320 L 162 342"
-            class="stroke-amber-600 dark:stroke-amber-400"
+            class="dg-edge-miss"
             stroke-width="2"
             fill="none"
             marker-end="url(#arrow-miss-20m)"></path>
@@ -1281,13 +1399,13 @@ date: Sun, 17 May 2026 09:14:08 GMT
             width="120"
             height="50"
             rx="8"
-            class="fill-white dark:fill-stone-900 stroke-stone-300 dark:stroke-stone-600"
+            class="dg-node"
             stroke-width="1.5"></rect>
           <text
             x="160"
             y="375"
             text-anchor="middle"
-            class="fill-stone-900 dark:fill-stone-100"
+            class="dg-fill-body"
             font-size="14"
             font-weight="600"
             font-family="ui-sans-serif, system-ui, sans-serif">Response</text
@@ -1299,14 +1417,14 @@ date: Sun, 17 May 2026 09:14:08 GMT
             y1="415"
             x2="300"
             y2="415"
-            class="stroke-stone-200 dark:stroke-stone-700"
+            class="dg-stroke-lane"
             stroke-width="1"
             stroke-dasharray="2 4"></line>
           <text
             x="160"
             y="435"
             text-anchor="middle"
-            class="fill-stone-500 dark:fill-stone-400"
+            class="dg-fill-annot"
             font-size="11"
             font-weight="600"
             letter-spacing="0.08em"
@@ -1316,7 +1434,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
           {/* MISS -> Worker (dashed amber) */}
           <path
             d="M 240 280 L 300 280 L 300 480 L 220 480"
-            class="stroke-amber-600 dark:stroke-amber-400"
+            class="dg-edge-miss"
             stroke-width="1.5"
             stroke-dasharray="4 3"
             fill="none"
@@ -1329,14 +1447,14 @@ date: Sun, 17 May 2026 09:14:08 GMT
             width="160"
             height="60"
             rx="8"
-            class="fill-interactive/10 stroke-interactive"
+            class="dg-node-interactive"
             stroke-width="2"
             stroke-dasharray="4 3"></rect>
           <text
             x="140"
             y="480"
             text-anchor="middle"
-            class="fill-interactive"
+            class="dg-fill-interactive"
             font-size="13"
             font-weight="700"
             font-family="ui-sans-serif, system-ui, sans-serif">Worker</text
@@ -1345,7 +1463,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
             x="140"
             y="498"
             text-anchor="middle"
-            class="fill-stone-600 dark:fill-stone-400"
+            class="dg-fill-muted"
             font-size="10"
             font-family="ui-sans-serif, system-ui, sans-serif">optimize + write</text
           >
@@ -1355,7 +1473,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
             y1="515"
             x2="140"
             y2="555"
-            class="stroke-interactive"
+            class="dg-edge-async"
             stroke-width="1.5"
             stroke-dasharray="4 3"
             marker-end="url(#arrow-async-20m)"></line>
@@ -1367,13 +1485,13 @@ date: Sun, 17 May 2026 09:14:08 GMT
             width="200"
             height="60"
             rx="8"
-            class="fill-stone-50 dark:fill-stone-900 stroke-stone-400 dark:stroke-stone-600"
+            class="dg-node-cache"
             stroke-width="1.5"></rect>
           <text
             x="140"
             y="585"
             text-anchor="middle"
-            class="fill-stone-900 dark:fill-stone-100"
+            class="dg-fill-body"
             font-size="13"
             font-weight="600"
             font-family="ui-sans-serif, system-ui, sans-serif">Variant cache</text
@@ -1382,7 +1500,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
             x="140"
             y="603"
             text-anchor="middle"
-            class="fill-stone-600 dark:fill-stone-400"
+            class="dg-fill-muted"
             font-size="10"
             font-family="ui-sans-serif, system-ui, sans-serif"
             >mmap &middot; per-client variants</text
@@ -1392,13 +1510,18 @@ date: Sun, 17 May 2026 09:14:08 GMT
             x="160"
             y="660"
             text-anchor="middle"
-            class="fill-stone-500 dark:fill-stone-400"
+            class="dg-fill-annot"
             font-size="10"
             font-style="italic"
             font-family="ui-sans-serif, system-ui, sans-serif"
             >Variant cache feeds future HITs above.</text
           >
         </svg>
+        <div class="mt-5 flex flex-wrap items-center justify-center gap-x-8 gap-y-2">
+          <span class="text-xs text-text-annotation">Reverse-proxy deployment:</span>
+          <HitMissBadge state="HIT" note="hash lookup + mmap pointer" />
+          <HitMissBadge state="MISS" note="original served, worker queued" />
+        </div>
         <figcaption class="mt-4 text-center text-xs text-text-annotation max-w-xl mx-auto">
           Optimization happens outside the request path. Cache misses serve immediately; the worker
           writes the optimized variant in the background so the next request is served from cache.
@@ -1406,9 +1529,63 @@ date: Sun, 17 May 2026 09:14:08 GMT
           Apache module or in the reverse-proxy deployment.
         </figcaption>
       </figure>
+    </div>
+  </section>
 
-      {/* Quick-start (converged packages) */}
-      <div class="mt-12 mx-auto max-w-2xl">
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+  </div>
+
+  {/* 04 — the install procedure: three steps as panels, the per-platform
+      quick-start as TermPanels (moved here from the signal-path section),
+      and the further-reading row carrying the former "Start here" cards. */}
+  <section class="py-13 sm:py-18" aria-labelledby="s-procedure">
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <SectionHeader id="s-procedure" index="04" eyebrow="Procedure" title="Install. Configure. Verify.">
+        Three steps: add optimization to your server, set the options you want, and check the
+        response headers.
+      </SectionHeader>
+      <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="panel">
+          <p class="step-no"><span>STEP 1</span><span>apt / yum</span></p>
+          <h3 class="mt-3 font-semibold text-text-body">Install</h3>
+          <p class="mt-2 text-sm text-text-muted">
+            A native module for your existing web server.
+            <code class="text-xs bg-bg-recessed px-1 py-0.5 rounded">apt install</code> the signed <code
+              class="text-xs bg-bg-recessed px-1 py-0.5 rounded">mod-pagespeed</code
+            > (Apache) or <code class="text-xs bg-bg-recessed px-1 py-0.5 rounded"
+              >nginx-module-pagespeed</code
+            > (nginx) — prebuilt, nothing to compile. The optimizer worker installs alongside as
+            <code class="text-xs bg-bg-recessed px-1 py-0.5 rounded">pagespeed-optimizer</code>; the
+            Apache packages point the module at it, and the reverse-proxy deployment pairs nginx
+            with the worker.
+          </p>
+        </div>
+        <div class="panel">
+          <p class="step-no"><span>STEP 2</span><span>pagespeed.conf</span></p>
+          <h3 class="mt-3 font-semibold text-text-body">Tell it what to optimize</h3>
+          <p class="mt-2 text-sm text-text-muted">
+            Same configuration directives as open-source mod_pagespeed. Your existing
+            <code class="text-xs bg-bg-recessed px-1 py-0.5 rounded">pagespeed.conf</code>
+            carries over. Enable filters, set the cache path, done.
+          </p>
+        </div>
+        <div class="panel">
+          <p class="step-no"><span>STEP 3</span><span>curl -I</span></p>
+          <h3 class="mt-3 font-semibold text-text-body">Check the response headers</h3>
+          <p class="mt-2 text-sm text-text-muted">
+            <code class="text-xs bg-bg-recessed px-1.5 py-0.5 rounded font-mono"
+              >curl -I your-site | grep -iE 'page-?speed'</code
+            >. The version string confirms the module is active. With the Apache module or the
+            reverse-proxy deployment, the worker optimizes off the request path and the serves come
+            from the cache.
+          </p>
+        </div>
+      </div>
+
+      {/* Quick-start (converged packages): one TermPanel per platform. Without
+          JS both panels stay visible; with JS the tab row switches them. */}
+      <div class="mt-12 max-w-2xl">
         <p class="text-sm font-semibold text-text-body mb-3">
           Install in a few commands — pick your platform
         </p>
@@ -1426,43 +1603,19 @@ date: Sun, 17 May 2026 09:14:08 GMT
             aria-pressed="false">Apache</button
           >
         </div>
-        <div
-          class="rounded-lg bg-stone-900 p-4 font-mono text-sm text-stone-100 overflow-x-auto"
-          data-qs-panel="qs-nginx"
-        >
-          <p class="text-stone-400"># one-time: add the signed We-Amp package repo</p>
-          <p>
-            <span class="text-stone-400">$</span> curl -fsSL https://packages.modpagespeed.com/install.sh
-            | sudo sh
-          </p>
-          <p class="mt-2">
-            <span class="text-stone-400">$</span> sudo apt install nginx-module-pagespeed
-          </p>
-          <p>
-            <span class="text-stone-400">#</span>
-            <span class="text-stone-400">Add to nginx.conf: pagespeed on;</span>
-          </p>
-          <p><span class="text-stone-400">$</span> sudo nginx -t && sudo systemctl reload nginx</p>
-          <p>
-            <span class="text-stone-400">$</span> curl -I http://localhost/ | grep X-Mod-Pagespeed
-          </p>
-          <p class="text-emerald-400">{xModPagespeedHeader}</p>
+        <div data-qs-panel="qs-nginx">
+          <TermPanel
+            command="sudo apt install nginx-module-pagespeed"
+            label="Quick-start commands for nginx"
+            lines={qsNginxLines}
+          />
         </div>
-        <div
-          class="rounded-lg bg-stone-900 p-4 font-mono text-sm text-stone-100 overflow-x-auto hidden"
-          data-qs-panel="qs-apache"
-        >
-          <p class="text-stone-400"># one-time: add the signed We-Amp package repo</p>
-          <p>
-            <span class="text-stone-400">$</span> curl -fsSL https://packages.modpagespeed.com/install.sh
-            | sudo sh
-          </p>
-          <p class="mt-2"><span class="text-stone-400">$</span> sudo apt install mod-pagespeed</p>
-          <p><span class="text-stone-400">$</span> sudo systemctl restart apache2</p>
-          <p>
-            <span class="text-stone-400">$</span> curl -I http://localhost/ | grep X-Mod-Pagespeed
-          </p>
-          <p class="text-emerald-400">{xModPagespeedHeader}</p>
+        <div class="mt-4" data-qs-panel="qs-apache">
+          <TermPanel
+            command="sudo apt install mod-pagespeed"
+            label="Quick-start commands for Apache"
+            lines={qsApacheLines}
+          />
         </div>
         <p class="mt-3 text-xs text-text-annotation">
           On IIS / Windows Server, the package ships from the 1.15 packaging channel.
@@ -1471,23 +1624,94 @@ date: Sun, 17 May 2026 09:14:08 GMT
           >
         </p>
       </div>
+
+      {/* Further reading — the former "Start here: docs & deep dives" cards,
+          same hrefs, titles, umami events and descriptions (deduplicated). */}
+      <div class="mt-16">
+        <p class="eyebrow">Further reading</p>
+        <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <a
+            href="/docs/configuration/"
+            class="card-resource"
+            data-umami-event="cta_home_featured_docs_configuration"
+          >
+            <p class="eyebrow text-text-body">Docs</p>
+            <h3 class="mt-2 text-lg font-semibold text-text-body">Configuration</h3>
+            <p class="mt-2 text-sm text-text-muted">
+              Configuration options for Apache and nginx: directives, cache modes, worker settings,
+              and per-location overrides.
+            </p>
+            <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
+              Read the docs <span aria-hidden="true">&rarr;</span>
+            </p>
+          </a>
+          <a
+            href="/docs/filters/"
+            class="card-resource"
+            data-umami-event="cta_home_featured_docs_filters"
+          >
+            <p class="eyebrow text-text-body">Docs</p>
+            <h3 class="mt-2 text-lg font-semibold text-text-body">PageSpeed filters reference</h3>
+            <p class="mt-2 text-sm text-text-muted">
+              Every rewrite filter and what it does: image transcoding, CSS and JS minification,
+              combining, spriting, IPRO, and domain mapping.
+            </p>
+            <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
+              Read the docs <span aria-hidden="true">&rarr;</span>
+            </p>
+          </a>
+          <a
+            href="/blog/economics-of-image-optimization/"
+            class="card-resource"
+            data-umami-event="cta_home_blog_economics_images"
+          >
+            <p class="eyebrow text-text-body">Blog</p>
+            <h3 class="mt-2 text-lg font-semibold text-text-body">
+              Image optimization cost: self-hosted vs CDN (2026)
+            </h3>
+            <p class="mt-2 text-sm text-text-muted">
+              Cost comparison at 100K, 1M, and 10M monthly image requests &mdash; with break-even
+              analysis against self-hosted optimization.
+            </p>
+            <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
+              Read post <span aria-hidden="true">&rarr;</span>
+            </p>
+          </a>
+          <a
+            href="/blog/mod-pagespeed-alternatives/"
+            class="card-resource"
+            data-umami-event="cta_home_blog_mps_alternatives"
+          >
+            <p class="eyebrow text-text-body">Blog</p>
+            <h3 class="mt-2 text-lg font-semibold text-text-body">
+              mod_pagespeed Alternatives in 2026
+            </h3>
+            <p class="mt-2 text-sm text-text-muted">
+              The original mod_pagespeed and ngx_pagespeed &mdash; developed at Google &mdash; are
+              no longer actively developed. Here is where to go instead.
+            </p>
+            <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
+              Read post <span aria-hidden="true">&rarr;</span>
+            </p>
+          </a>
+        </div>
+      </div>
     </div>
   </section>
 
-  <div class="rule-ticked" role="presentation" aria-hidden="true"></div>
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+  </div>
 
-  {/* Features — 3 column, benefit-first */}
-  <section class="bg-bg-secondary py-20">
+  {/* 05 — the specification: the six capability cards as readout panels,
+      each readout restating its own card text. */}
+  <section class="py-13 sm:py-18" aria-labelledby="s-spec">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-      <h2 class="h2-section text-center text-text-body">
-        The optimization core behind 230,000+ live sites &mdash; now on your own servers.
-      </h2>
+      <SectionHeader id="s-spec" index="05" eyebrow="Specification" title="What runs on your server." />
       <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div class="card">
-          <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
-            <Icon name="image" class="h-5 w-5 text-interactive" />
-          </div>
-          <h3 class="mt-4 font-semibold text-text-body">One decode pass, up to 37 variants out</h3>
+        <div class="panel">
+          <p class="card-ro"><span>images</span><b>&le; {MAX_VARIANTS} variants</b></p>
+          <h3 class="mt-4 font-semibold text-text-body">One decode pass, up to {MAX_VARIANTS} variants out</h3>
           <p class="mt-2 text-sm text-text-muted">
             Automatic WebP and AVIF transcoding with viewport-aware resizing. Every variant is
             verified against the original with SSIMULACRA2 before it reaches the cache, using
@@ -1500,10 +1724,8 @@ date: Sun, 17 May 2026 09:14:08 GMT
           </p>
         </div>
 
-        <div class="card">
-          <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
-            <Icon name="paintbrush" class="h-5 w-5 text-interactive" />
-          </div>
+        <div class="panel">
+          <p class="card-ro"><span>css</span><b>103 Early Hints</b></p>
           <h3 class="mt-4 font-semibold text-text-body">Render-blocking CSS eliminated</h3>
           <p class="mt-2 text-sm text-text-muted">
             Heuristic-based critical CSS extraction and injection. CSS/JS minification. Early Hints
@@ -1512,10 +1734,8 @@ date: Sun, 17 May 2026 09:14:08 GMT
           </p>
         </div>
 
-        <div class="card">
-          <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
-            <Icon name="gauge" class="h-5 w-5 text-interactive" />
-          </div>
+        <div class="panel">
+          <p class="card-ro"><span>cache</span><b>hash + mmap</b></p>
           <h3 class="mt-4 font-semibold text-text-body">Cache hits are a pointer, not a pipeline</h3>
           <p class="mt-2 text-sm text-text-muted">
             The Cyclone cache serves optimized content from a memory-mapped file &mdash; a hash
@@ -1523,10 +1743,8 @@ date: Sun, 17 May 2026 09:14:08 GMT
           </p>
         </div>
 
-        <div class="card">
-          <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
-            <Icon name="lock" class="h-5 w-5 text-interactive" />
-          </div>
+        <div class="panel">
+          <p class="card-ro"><span>egress</span><b>0 third parties</b></p>
           <h3 class="mt-4 font-semibold text-text-body">Self-hosted by design</h3>
           <p class="mt-2 text-sm text-text-muted">
             Visitor data never leaves your origin, and nothing in the request path talks to us.
@@ -1534,10 +1752,8 @@ date: Sun, 17 May 2026 09:14:08 GMT
           </p>
         </div>
 
-        <div class="card">
-          <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
-            <Icon name="shield-check" class="h-5 w-5 text-interactive" />
-          </div>
+        <div class="panel">
+          <p class="card-ro"><span>js</span><b>fallback: original</b></p>
           <h3 class="mt-4 font-semibold text-text-body">Deliberately conservative</h3>
           <p class="mt-2 text-sm text-text-muted">
             JS minification strips whitespace and comments only. No variable renaming, no AST
@@ -1545,10 +1761,8 @@ date: Sun, 17 May 2026 09:14:08 GMT
           </p>
         </div>
 
-        <div class="card">
-          <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
-            <Icon name="split" class="h-5 w-5 text-interactive" />
-          </div>
+        <div class="panel">
+          <p class="card-ro"><span>variants</span><b>AVIF &middot; WebP &middot; DPR &middot; Save-Data</b></p>
           <h3 class="mt-4 font-semibold text-text-body">The right bytes for every client</h3>
           <p class="mt-2 text-sm text-text-muted">
             Per-URL cache variants tuned to each client &mdash; image format (AVIF / WebP /
@@ -1560,31 +1774,36 @@ date: Sun, 17 May 2026 09:14:08 GMT
     </div>
   </section>
 
-  {/* Social proof — heritage/lineage (C1/MKT-1) + dogfooding */}
-  <section class="bg-bg-secondary py-16">
-    <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center">
-      <p class="eyebrow">The lineage</p>
-      <h2 class="mt-3 h2-section text-text-body">
-        The optimization core behind 230,000+ live sites &mdash;<br class="hidden sm:block" /> now maintained by We-Amp.
-      </h2>
-      <p class="mt-4 text-text-muted max-w-2xl mx-auto">
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+  </div>
+
+  {/* 06 — the lineage: heritage stats as engraved readout plates. */}
+  <section class="py-13 sm:py-18" aria-labelledby="s-lineage">
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <SectionHeader
+        id="s-lineage"
+        index="06"
+        eyebrow="The lineage"
+        title={`The optimization core behind ${builtwithLiveRounded} live sites — now maintained by We-Amp.`}
+      >
         We-Amp's products are the maintained continuation of the open-source mod_pagespeed
         optimization core. These are not our customers &mdash; they are the proof the optimization
         core works at scale.
-      </p>
+      </SectionHeader>
 
       {
         /* Heritage stats — rounded display numbers per BuiltWith. Exact
           figures live in the BuiltWith caption below. We do NOT claim these as
           We-Amp customers (honest framing per the brand guide). */
       }
-      <div class="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
-        <div class="rounded-xl border border-border bg-bg-elevated px-6 py-5">
-          <p class="display-num text-4xl font-bold text-interactive">230,000+</p>
+      <div class="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+        <div class="readout-plate px-6 py-5">
+          <p class="display-num text-4xl font-bold text-interactive">{builtwithLiveRounded}</p>
           <p class="mt-2 text-sm text-text-muted">live sites run mod_pagespeed today</p>
         </div>
-        <div class="rounded-xl border border-border bg-bg-elevated px-6 py-5">
-          <p class="display-num text-4xl font-bold text-text-body">1.9 million</p>
+        <div class="readout-plate px-6 py-5">
+          <p class="display-num text-4xl font-bold text-text-body">{builtwithHistoricalShort}</p>
           <p class="mt-2 text-sm text-text-muted">sites across its history</p>
         </div>
       </div>
@@ -1595,72 +1814,28 @@ date: Sun, 17 May 2026 09:14:08 GMT
           rel="noopener noreferrer"
           class="underline-offset-4 hover:underline hover:text-text-body transition-colors"
           >BuiltWith</a
-        >, May 2026 (231,341 live; 1,900,000+ historical).
+        >, {BUILTWITH_AS_OF} ({BUILTWITH_SITES} live; {builtwithHistoricalCount} historical).
       </p>
-
-      {/* Dogfooding line */}
-      <div class="mt-10 border-t border-border pt-8 max-w-2xl mx-auto">
-        <p class="text-lg font-semibold text-text-body">We run every We-Amp site through it.</p>
-        <p class="mt-2 text-sm text-text-muted">
-          We run our own sites, this page included, through mod_pagespeed &mdash; the binary
-          serving this page is the binary we ship. Same <a
-            href="/blog/cyclone-cache-vs-file-cache-benchmark/"
-            class="text-interactive hover:text-interactive-hover underline">Cyclone cache</a
-          >. Check the response headers. On our own demo sites we measure up to {bestSavings}%
-          smaller pages.
-        </p>
-      </div>
     </div>
   </section>
 
-  {/* Live console: the real admin console on our own sites, public on purpose */}
-  <section class="py-16" aria-labelledby="live-console-heading" data-live-console>
-    <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center">
-      <h2 id="live-console-heading" class="h2-section text-text-body">Running on our own sites</h2>
-      <p class="mt-4 text-text-muted max-w-2xl mx-auto">
-        Our four sites run on mod_pagespeed, and their admin console is public on purpose. Pick a
-        site and watch bytes saved, cache hits, statistics, caches, configuration and the
-        worker&rsquo;s logs auto-refresh; module counters start from zero whenever the web server
-        restarts.
-      </p>
-      <figure class="mt-8">
-        <img
-          src="/images/live-console-overview.webp"
-          alt="mod_pagespeed admin console Overview: a sidebar with Savings, URLs, Statistics, Histograms, Caches, Configuration, optimizer Status and Logs; a host selector; a module panel with bytes saved and responses served from the optimizer's cache; an optimizer panel with status, uptime and bytes saved"
-          width="1440"
-          height="760"
-          loading="lazy"
-          decoding="async"
-          class="w-full h-auto rounded-lg border border-border shadow-sm"
-        />
-        <figcaption class="mt-3 text-xs text-text-annotation max-w-2xl mx-auto">
-          The console on our own servers. It opens with a warning that it is reachable from the
-          network: a console is normally private, ours is public on purpose.
-        </figcaption>
-      </figure>
-      <div class="mt-8">
-        <a
-          href="https://we-amp.com/pagespeed_global_admin/"
-          class="btn-primary"
-          rel="noopener"
-          data-umami-event="cta_live_console_home">Open the live console</a
-        >
-      </div>
-    </div>
-  </section>
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+  </div>
 
-  <div class="rule-ticked" role="presentation" aria-hidden="true"></div>
-
-  {/* Objection handling FAQ */}
-  <section class="py-20">
-    <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
-      <h2 class="h2-section text-text-body text-center">
-        Before it goes in front of production traffic.
-      </h2>
-      <p class="mt-4 text-center text-text-muted">
+  {/* 07 — evaluation FAQ: always-expanded <dl>, hairline between pairs;
+      mirrors the FAQPage JSON-LD. */}
+  <section class="py-13 sm:py-18" aria-labelledby="s-eval">
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <SectionHeader
+        id="s-eval"
+        index="07"
+        eyebrow="Evaluation"
+        title="Before it goes in front of production traffic."
+      >
         The questions that come up on every evaluation call.
-      </p>
-      <dl class="mt-12 space-y-8">
+      </SectionHeader>
+      <dl class="faq-list mt-12 max-w-3xl">
         <div>
           <dt class="text-base font-semibold text-text-body">
             mod_pagespeed is free. What does We-Amp sell?
@@ -1722,7 +1897,7 @@ date: Sun, 17 May 2026 09:14:08 GMT
           </dd>
         </div>
       </dl>
-      <p class="mt-10 text-center text-sm text-text-muted">
+      <p class="mt-10 text-sm text-text-muted">
         Comparing against a CDN optimizer or a build-time pipeline? <a
           href="/vs/"
           data-umami-event="cta_home_compare_vs"
@@ -1733,28 +1908,30 @@ date: Sun, 17 May 2026 09:14:08 GMT
     </div>
   </section>
 
-  <div class="rule-ticked" role="presentation" aria-hidden="true"></div>
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+  </div>
 
-  {/* CTA */}
-  <section class="bg-interactive py-16">
-    <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center">
-      <h2 class="h2-section text-on-accent">Free to install and run. Start today.</h2>
-      <p class="mt-4 text-on-accent/80">
-        Apache-2.0, on your own servers. No per-request fees. No bandwidth metering. Support
-        &mdash; and hardened builds &mdash; from the people who build it are what&rsquo;s for sale.
-      </p>
-      <div class="mt-6 flex flex-wrap justify-center gap-4">
-        <CTAButton variant="inverse" event="cta_primary_home_bottom" />
-        <a
-          href="/calculator/"
-          class="inline-flex items-center justify-center gap-2 rounded-lg border border-interactive/40 px-6 py-3 text-sm font-semibold text-on-accent hover:bg-interactive-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white transition-colors"
-        >
-          Run the numbers
-        </a>
+  {/* CTA — a featured panel on the primary ground. The full-cyan band is
+      retired: the design allows one cyan fill per viewport, and the band
+      plus the primary button made two. */}
+  <section class="py-13 sm:py-18" aria-labelledby="s-cta">
+    <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
+      <div class="card-featured text-center">
+        <h2 id="s-cta" class="h2-section text-text-body">Free to install and run. Start today.</h2>
+        <p class="mt-4 text-text-muted">
+          Apache-2.0, on your own servers. No per-request fees. No bandwidth metering. Support
+          &mdash; and hardened builds &mdash; from the people who build it are what&rsquo;s for
+          sale.
+        </p>
+        <div class="mt-6 flex flex-wrap justify-center gap-4">
+          <CTAButton event="cta_primary_home_bottom" />
+          <a href="/calculator/" class="btn-secondary"> Run the numbers </a>
+        </div>
+        <p class="mt-5 text-sm text-text-muted">
+          Apache-2.0 &mdash; free to install and run, in development and in production.
+        </p>
       </div>
-      <p class="mt-5 text-sm text-on-accent/80">
-        Apache-2.0 &mdash; free to install and run, in development and in production.
-      </p>
     </div>
   </section>
 
@@ -1762,19 +1939,24 @@ date: Sun, 17 May 2026 09:14:08 GMT
        emitted after </html>, where the document-structure lint (and any
        parser that stops at </html>) never sees it. -->
   <script>
-    // Quick-start platform sub-tabs
+    // Quick-start platform sub-tabs. The markup ships with both panels
+    // visible so the quick-start works without JS; once this runs, only the
+    // pressed tab's panel stays shown.
     const qsTabs = document.querySelectorAll<HTMLButtonElement>('[data-qs-tab]');
     const qsPanels = document.querySelectorAll<HTMLElement>('[data-qs-panel]');
-
+    const qsShow = (platform: string | undefined) => {
+      qsPanels.forEach((panel) => {
+        panel.classList.toggle('hidden', panel.dataset.qsPanel !== platform);
+      });
+    };
+    qsShow('qs-nginx');
     qsTabs.forEach((tab) => {
       tab.addEventListener('click', () => {
         const platform = tab.dataset.qsTab;
         qsTabs.forEach((t) => {
           t.setAttribute('aria-pressed', t.dataset.qsTab === platform ? 'true' : 'false');
         });
-        qsPanels.forEach((panel) => {
-          panel.classList.toggle('hidden', panel.dataset.qsPanel !== platform);
-        });
+        qsShow(platform);
       });
     });
   </script>

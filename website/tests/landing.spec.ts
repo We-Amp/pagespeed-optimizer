@@ -43,9 +43,9 @@ test.describe('Landing page', () => {
 
   test('bottom CTA section is visible', async ({ page }) => {
     // Bottom CTA mirrors hero verb — "Download & run" + "Run the numbers".
-    // The site design styles the band with the teal accent token
-    // (`bg-interactive`), not the legacy `bg-blue-700` utility.
-    const ctaSection = page.locator('section.bg-interactive');
+    // The band's full-cyan background is retired (one cyan fill per viewport);
+    // the CTA now lives in a card-featured panel labelled by #s-cta.
+    const ctaSection = page.locator('section[aria-labelledby="s-cta"]');
     await expect(ctaSection.locator('h2')).toBeVisible();
     await expect(ctaSection.locator('a:has-text("Download")')).toHaveAttribute('href', '/download/');
     await expect(ctaSection.locator('a:has-text("Run the numbers")')).toHaveAttribute(
@@ -80,7 +80,9 @@ test.describe('Landing page', () => {
     await expect(img).toHaveAttribute('height', '760');
     await expect(img).toHaveAttribute('loading', 'lazy');
     await expect(img).toHaveAttribute('alt', /admin console/);
-    await expect(section.locator('figcaption')).toContainText('public on purpose');
+    await expect(
+      section.locator('figure:has(img) figcaption'),
+    ).toContainText('public on purpose');
     const link = section.locator('a[href="https://we-amp.com/pagespeed_global_admin/"]');
     await expect(link).toHaveText('Open the live console');
   });
