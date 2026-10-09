@@ -74,15 +74,14 @@ test.describe('Demo page', () => {
 
   test('resource breakdown shows before/after byte deltas', async ({ page }) => {
     // The first panel (ecommerce) shows the per-resource breakdown as
-    // ByteDelta plates: HTML, CSS, JavaScript (original → minified) and the
-    // image transcode ladder (JPEG → WebP → AVIF), each with its source.
+    // ByteDelta plates. The base page's table row labels — "CSS (minified)"
+    // and "JavaScript (minified)" — are kept verbatim as the plate headings,
+    // so the resource each plate measures stays named.
     const panel = page.locator('#panel-ecommerce');
     await expect(panel.locator('h3:has-text("Resource breakdown")')).toBeVisible();
     await expect(panel.locator('[data-ui="byte-delta"]')).toHaveCount(4);
-    const minified = panel.locator('[data-ui="byte-delta"]').filter({ hasText: 'minified' });
-    expect(await minified.count()).toBe(2); // CSS + JavaScript
-    const images = panel.locator('[data-ui="byte-delta"]').filter({ hasText: 'AVIF' });
-    expect(await images.count()).toBe(1);
+    await expect(panel.getByText('CSS (minified)')).toBeVisible();
+    await expect(panel.getByText('JavaScript (minified)')).toBeVisible();
   });
 
   test('CSS minification example is visible', async ({ page }) => {

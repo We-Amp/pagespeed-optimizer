@@ -38,20 +38,27 @@ const { measured, present, hasData, nonSubstantive, substantive, diff, tiles } =
 // Byte plates for the ByteDelta figures: the page's byte footprint before and
 // after this filter, from the same measured entry the tiles read. Scope
 // mirrors example-impact.ts: one plate for totals when resources were
-// measured, one for the HTML document when it shrank.
+// measured, one for the HTML document when it shrank. Each plate carries the
+// label of the tile it replaces, verbatim.
 const savings = hasData && substantive ? impact.savings : undefined;
-const bytePlates: Array<Array<{ label: string; bytes: number }>> = [];
+const bytePlates: Array<{ label: string; rows: Array<{ label: string; bytes: number }> }> = [];
 if (savings && savings.totalBytesPct > 0 && measured.before.resourcesMeasured > 0) {
-  bytePlates.push([
-    { label: 'original', bytes: measured.before.htmlBytes + measured.before.resourceBytes },
-    { label: 'optimized', bytes: measured.after.htmlBytes + measured.after.resourceBytes },
-  ]);
+  bytePlates.push({
+    label: 'Total bytes',
+    rows: [
+      { label: 'original', bytes: measured.before.htmlBytes + measured.before.resourceBytes },
+      { label: 'optimized', bytes: measured.after.htmlBytes + measured.after.resourceBytes },
+    ],
+  });
 }
 if (savings && savings.htmlBytesPct > 0) {
-  bytePlates.push([
-    { label: 'original', bytes: measured.before.htmlBytes },
-    { label: 'optimized', bytes: measured.after.htmlBytes },
-  ]);
+  bytePlates.push({
+    label: 'HTML size',
+    rows: [
+      { label: 'original', bytes: measured.before.htmlBytes },
+      { label: 'optimized', bytes: measured.after.htmlBytes },
+    ],
+  });
 }
 const requestsTile = tiles.find((t) => t.label === 'HTTP requests');
 
@@ -381,8 +388,11 @@ const jsonLd: Record<string, unknown> | undefined = hasData
                   <span class="badge-success mt-2">{requestsTile.pill}</span>
                 </div>
               )}
-              {bytePlates.map((rows) => (
-                <ByteDelta rows={rows} source={exampleSource} />
+              {bytePlates.map((plate) => (
+                <div>
+                  <h3 class="eyebrow mb-3">{plate.label}</h3>
+                  <ByteDelta rows={plate.rows} source={exampleSource} />
+                </div>
               ))}
             </div>
           </div>

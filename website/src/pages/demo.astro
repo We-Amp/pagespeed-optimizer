@@ -265,33 +265,47 @@ const siteData = sites.map((site) => {
                 after, from the same measured demo-metrics numbers. The URL bar
                 above names the demo page each panel's source points at. */}
             <h3 class="mt-8 text-sm font-semibold text-text-body">Resource breakdown</h3>
+            {/* Each plate keeps its base-page table row label verbatim, so the
+                resource class a plate measures stays named. */}
             <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-              <ByteDelta
-                rows={[{ label: 'HTML', bytes: site.resources.html.before }]}
-                source={site.src}
-              />
-              <ByteDelta
-                rows={[
-                  { label: 'original', bytes: site.resources.css.before },
-                  { label: 'minified', bytes: site.resources.css.minified },
-                ]}
-                source={site.src}
-              />
-              <ByteDelta
-                rows={[
-                  { label: 'original', bytes: site.resources.js.before },
-                  { label: 'minified', bytes: site.resources.js.minified },
-                ]}
-                source={site.src}
-              />
-              <ByteDelta
-                rows={[
-                  { label: 'JPEG', bytes: site.imgBefore },
-                  { label: 'WebP', bytes: site.imgWebp },
-                  { label: 'AVIF', bytes: site.imgAvif },
-                ]}
-                source={site.src}
-              />
+              <div>
+                <h4 class="eyebrow mb-3">HTML + critical CSS</h4>
+                <ByteDelta
+                  rows={[{ label: 'HTML', bytes: site.resources.html.before }]}
+                  source={site.src}
+                />
+              </div>
+              <div>
+                <h4 class="eyebrow mb-3">CSS (minified)</h4>
+                <ByteDelta
+                  rows={[
+                    { label: 'original', bytes: site.resources.css.before },
+                    { label: 'minified', bytes: site.resources.css.minified },
+                  ]}
+                  source={site.src}
+                />
+              </div>
+              <div>
+                <h4 class="eyebrow mb-3">JavaScript (minified)</h4>
+                <ByteDelta
+                  rows={[
+                    { label: 'original', bytes: site.resources.js.before },
+                    { label: 'minified', bytes: site.resources.js.minified },
+                  ]}
+                  source={site.src}
+                />
+              </div>
+              <div>
+                <h4 class="eyebrow mb-3">{site.resources.images.label} &rarr; AVIF</h4>
+                <ByteDelta
+                  rows={[
+                    { label: 'JPEG', bytes: site.imgBefore },
+                    { label: 'WebP', bytes: site.imgWebp },
+                    { label: 'AVIF', bytes: site.imgAvif },
+                  ]}
+                  source={site.src}
+                />
+              </div>
             </div>
 
             {/* CSS minification sample */}
