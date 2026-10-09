@@ -281,7 +281,7 @@ const siteData = sites.map((site) => {
                     { label: 'optimized', bytes: site.totalAvif },
                   ]}
                   source={site.src}
-                  deltaNote="smaller"
+                  deltaNote="in size"
                 />
               </div>
               <div>
@@ -289,7 +289,7 @@ const siteData = sites.map((site) => {
                 <ByteDelta
                   rows={[{ label: 'HTML', bytes: site.resources.html.before }]}
                   source={site.src}
-                  deltaNote="smaller"
+                  deltaNote="in size"
                 />
               </div>
               <div>
@@ -300,7 +300,7 @@ const siteData = sites.map((site) => {
                     { label: 'minified', bytes: site.resources.css.minified },
                   ]}
                   source={site.src}
-                  deltaNote="smaller"
+                  deltaNote="in size"
                 />
               </div>
               <div>
@@ -311,7 +311,7 @@ const siteData = sites.map((site) => {
                     { label: 'minified', bytes: site.resources.js.minified },
                   ]}
                   source={site.src}
-                  deltaNote="smaller"
+                  deltaNote="in size"
                 />
               </div>
               <div>
@@ -323,7 +323,7 @@ const siteData = sites.map((site) => {
                     { label: 'AVIF', bytes: site.imgAvif },
                   ]}
                   source={site.src}
-                  deltaNote="smaller"
+                  deltaNote="in size"
                 />
               </div>
             </div>
