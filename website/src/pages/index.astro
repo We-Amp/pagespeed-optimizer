@@ -55,6 +55,36 @@ const headerPanelLines: TermLine[] = [
 const rel11 = await getRelease('1.1');
 const xModPagespeedHeader = `X-Mod-Pagespeed: ${rel11.display.header_version}.0`;
 
+// Section 04 quick-start panels: the install transcripts, one TermPanel per
+// platform (moved from the signal-path section). D4: the nginx transcript is
+// unchanged from the pre-redesign page — the header name it greps could not
+// be verified against the module source, so it stays and is flagged in the
+// package report; the Apache transcript ends with the captured header value
+// from src/data/telemetry-capture.json.
+const qsNginxLines: TermLine[] = [
+  { text: '# one-time: add the signed We-Amp package repo', tone: 'dim' },
+  {
+    text: '$ curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh',
+    tone: 'strong',
+  },
+  { text: '$ sudo apt install nginx-module-pagespeed', tone: 'strong' },
+  { text: '# Add to nginx.conf: pagespeed on;', tone: 'dim' },
+  { text: '$ sudo nginx -t && sudo systemctl reload nginx', tone: 'strong' },
+  { text: '$ curl -I http://localhost/ | grep X-Mod-Pagespeed', tone: 'strong' },
+  { text: xModPagespeedHeader, tone: 'ok' },
+];
+const qsApacheLines: TermLine[] = [
+  { text: '# one-time: add the signed We-Amp package repo', tone: 'dim' },
+  {
+    text: '$ curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh',
+    tone: 'strong',
+  },
+  { text: '$ sudo apt install mod-pagespeed', tone: 'strong' },
+  { text: '$ sudo systemctl restart apache2', tone: 'strong' },
+  { text: '$ curl -I http://localhost/ | grep X-Mod-Pagespeed', tone: 'strong' },
+  { text: `X-Mod-Pagespeed: ${homeCaptureHeaders['x-mod-pagespeed']}`, tone: 'ok' },
+];
+
 // Best AVIF savings across all demo sites — the measured range detail in the
 // dogfooding paragraph ("up to N% smaller pages").
 const bestSavings = Math.max(
@@ -541,6 +571,18 @@ const jsonLd = [organization, website, product, faqPage];
     .dg-edge-faint {
       stroke: var(--color-text-annotation);
     }
+    /* Step panels: mono "STEP n" with the right-aligned mono tag. */
+    .step-no {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 0.75rem;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      color: var(--color-interactive);
+    }
   </style>
 
   {/* 01 — this site runs the binary it sells: the captured response headers
@@ -720,132 +762,6 @@ const jsonLd = [organization, website, product, faqPage];
   <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
     <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
   </div>
-
-  {/* Start here — merged docs + blog scent (audit D13, 2026-05-16) */}
-  <section class="bg-bg-secondary py-16">
-    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-      <h2 class="h2-section text-center text-text-body">Start here: docs &amp; deep dives</h2>
-      <p class="mt-4 text-center text-text-muted max-w-2xl mx-auto">
-        The pages that answer the questions most readers arrive with.
-      </p>
-      <div class="mt-12 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-        <a
-          href="/docs/configuration/"
-          class="card-resource"
-          data-umami-event="cta_home_featured_docs_configuration"
-        >
-          <p class="eyebrow text-text-body">Docs</p>
-          <h3 class="mt-2 text-lg font-semibold text-text-body">Configuration</h3>
-          <p class="mt-2 text-sm text-text-muted">
-            Configuration options for Apache and nginx: directives, cache modes, worker settings,
-            and per-location overrides.
-          </p>
-          <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
-            Read the docs <span aria-hidden="true">&rarr;</span>
-          </p>
-        </a>
-        <a
-          href="/docs/filters/"
-          class="card-resource"
-          data-umami-event="cta_home_featured_docs_filters"
-        >
-          <p class="eyebrow text-text-body">Docs</p>
-          <h3 class="mt-2 text-lg font-semibold text-text-body">PageSpeed filters reference</h3>
-          <p class="mt-2 text-sm text-text-muted">
-            Every rewrite filter and what it does: image transcoding, CSS and JS minification,
-            combining, spriting, IPRO, and domain mapping.
-          </p>
-          <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
-            Read the docs <span aria-hidden="true">&rarr;</span>
-          </p>
-        </a>
-        <a
-          href="/blog/economics-of-image-optimization/"
-          class="card-resource"
-          data-umami-event="cta_home_blog_economics_images"
-        >
-          <p class="eyebrow text-text-body">Blog</p>
-          <h3 class="mt-2 text-lg font-semibold text-text-body">
-            Image optimization cost: self-hosted vs CDN (2026)
-          </h3>
-          <p class="mt-2 text-sm text-text-muted">
-            Cost comparison at 100K, 1M, and 10M monthly image requests &mdash; with break-even
-            analysis against self-hosted optimization.
-          </p>
-          <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
-            Read post <span aria-hidden="true">&rarr;</span>
-          </p>
-        </a>
-        <a
-          href="/blog/mod-pagespeed-alternatives/"
-          class="card-resource"
-          data-umami-event="cta_home_blog_mps_alternatives"
-        >
-          <p class="eyebrow text-text-body">Blog</p>
-          <h3 class="mt-2 text-lg font-semibold text-text-body">
-            mod_pagespeed Alternatives in 2026
-          </h3>
-          <p class="mt-2 text-sm text-text-muted">
-            The original mod_pagespeed and ngx_pagespeed &mdash; developed at Google &mdash; are
-            no longer actively developed. Here is where to go instead.
-          </p>
-          <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
-            Read post <span aria-hidden="true">&rarr;</span>
-          </p>
-        </a>
-      </div>
-    </div>
-  </section>
-
-  <div class="rule-ticked" role="presentation" aria-hidden="true"></div>
-
-  {/* How it works */}
-  <section class="bg-bg-secondary py-20">
-    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
-      <h2 class="h2-section text-center text-text-body">Install. Configure. Verify.</h2>
-      <p class="mt-4 text-center text-text-muted max-w-2xl mx-auto">
-        Three steps: add optimization to your server, set the options you want, and check the
-        response headers.
-      </p>
-      <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
-        <div class="card">
-          <p class="text-5xl font-bold text-interactive font-mono">1</p>
-          <h3 class="mt-3 font-semibold text-text-body">Install</h3>
-          <p class="mt-2 text-sm text-text-muted">
-            A native module for your existing web server.
-            <code class="text-xs bg-bg-elevated px-1 py-0.5 rounded">apt install</code> the signed <code
-              class="text-xs bg-bg-elevated px-1 py-0.5 rounded">mod-pagespeed</code
-            > (Apache) or <code class="text-xs bg-bg-elevated px-1 py-0.5 rounded"
-              >nginx-module-pagespeed</code
-            > (nginx) — prebuilt, nothing to compile. The optimizer worker installs alongside as
-            <code class="text-xs bg-bg-elevated px-1 py-0.5 rounded">pagespeed-optimizer</code>; the
-            Apache packages point the module at it, and the reverse-proxy deployment pairs nginx
-            with the worker.
-          </p>
-        </div>
-        <div class="card">
-          <p class="text-5xl font-bold text-interactive font-mono">2</p>
-          <h3 class="mt-3 font-semibold text-text-body">Tell it what to optimize</h3>
-          <p class="mt-2 text-sm text-text-muted">
-            Same configuration directives as open-source mod_pagespeed. Your existing
-            <code class="text-xs bg-bg-elevated px-1 py-0.5 rounded">pagespeed.conf</code>
-            carries over. Enable filters, set the cache path, done.
-          </p>
-        </div>
-        <div class="card">
-          <p class="text-5xl font-bold text-interactive font-mono">3</p>
-          <h3 class="mt-3 font-semibold text-text-body">Check the response headers</h3>
-          <p class="mt-2 text-sm text-text-muted">
-            <code class="text-xs bg-bg-elevated px-1.5 py-0.5 rounded font-mono"
-              >curl -I your-site | grep X-Mod-Pagespeed</code
-            >. The version string confirms the module is active. With the Apache module or the
-            reverse-proxy deployment, the worker optimizes off the request path and the serves come
-            from the cache.
-          </p>
-        </div>
-      </div>
-    </div>
-  </section>
 
   {/* 03 — the request path as a signal diagram: sync lane on top, async
       worker lane below. Colours are tokens via the dg-* classes above;
@@ -1573,8 +1489,62 @@ const jsonLd = [organization, website, product, faqPage];
           Apache module or in the reverse-proxy deployment.
         </figcaption>
       </figure>
+    </div>
+  </section>
 
-      {/* Quick-start (converged packages) */}
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+  </div>
+
+  {/* 04 — the install procedure: three steps as panels, the per-platform
+      quick-start as TermPanels (moved here from the signal-path section),
+      and the further-reading row carrying the former "Start here" cards. */}
+  <section class="py-13 sm:py-18" aria-labelledby="s-procedure">
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <SectionHeader id="s-procedure" index="04" eyebrow="Procedure" title="Install. Configure. Verify.">
+        Three steps: add optimization to your server, set the options you want, and check the
+        response headers.
+      </SectionHeader>
+      <div class="mt-12 grid grid-cols-1 md:grid-cols-3 gap-8">
+        <div class="panel">
+          <p class="step-no"><span>STEP 1</span><span>apt / yum</span></p>
+          <h3 class="mt-3 font-semibold text-text-body">Install</h3>
+          <p class="mt-2 text-sm text-text-muted">
+            A native module for your existing web server.
+            <code class="text-xs bg-bg-recessed px-1 py-0.5 rounded">apt install</code> the signed <code
+              class="text-xs bg-bg-recessed px-1 py-0.5 rounded">mod-pagespeed</code
+            > (Apache) or <code class="text-xs bg-bg-recessed px-1 py-0.5 rounded"
+              >nginx-module-pagespeed</code
+            > (nginx) — prebuilt, nothing to compile. The optimizer worker installs alongside as
+            <code class="text-xs bg-bg-recessed px-1 py-0.5 rounded">pagespeed-optimizer</code>; the
+            Apache packages point the module at it, and the reverse-proxy deployment pairs nginx
+            with the worker.
+          </p>
+        </div>
+        <div class="panel">
+          <p class="step-no"><span>STEP 2</span><span>pagespeed.conf</span></p>
+          <h3 class="mt-3 font-semibold text-text-body">Tell it what to optimize</h3>
+          <p class="mt-2 text-sm text-text-muted">
+            Same configuration directives as open-source mod_pagespeed. Your existing
+            <code class="text-xs bg-bg-recessed px-1 py-0.5 rounded">pagespeed.conf</code>
+            carries over. Enable filters, set the cache path, done.
+          </p>
+        </div>
+        <div class="panel">
+          <p class="step-no"><span>STEP 3</span><span>curl -I</span></p>
+          <h3 class="mt-3 font-semibold text-text-body">Check the response headers</h3>
+          <p class="mt-2 text-sm text-text-muted">
+            <code class="text-xs bg-bg-recessed px-1.5 py-0.5 rounded font-mono"
+              >curl -I your-site | grep X-Mod-Pagespeed</code
+            >. The version string confirms the module is active. With the Apache module or the
+            reverse-proxy deployment, the worker optimizes off the request path and the serves come
+            from the cache.
+          </p>
+        </div>
+      </div>
+
+      {/* Quick-start (converged packages): one TermPanel per platform. Without
+          JS both panels stay visible; with JS the tab row switches them. */}
       <div class="mt-12 mx-auto max-w-2xl">
         <p class="text-sm font-semibold text-text-body mb-3">
           Install in a few commands — pick your platform
@@ -1593,43 +1563,19 @@ const jsonLd = [organization, website, product, faqPage];
             aria-pressed="false">Apache</button
           >
         </div>
-        <div
-          class="rounded-lg bg-stone-900 p-4 font-mono text-sm text-stone-100 overflow-x-auto"
-          data-qs-panel="qs-nginx"
-        >
-          <p class="text-stone-400"># one-time: add the signed We-Amp package repo</p>
-          <p>
-            <span class="text-stone-400">$</span> curl -fsSL https://packages.modpagespeed.com/install.sh
-            | sudo sh
-          </p>
-          <p class="mt-2">
-            <span class="text-stone-400">$</span> sudo apt install nginx-module-pagespeed
-          </p>
-          <p>
-            <span class="text-stone-400">#</span>
-            <span class="text-stone-400">Add to nginx.conf: pagespeed on;</span>
-          </p>
-          <p><span class="text-stone-400">$</span> sudo nginx -t && sudo systemctl reload nginx</p>
-          <p>
-            <span class="text-stone-400">$</span> curl -I http://localhost/ | grep X-Mod-Pagespeed
-          </p>
-          <p class="text-emerald-400">{xModPagespeedHeader}</p>
+        <div data-qs-panel="qs-nginx">
+          <TermPanel
+            command="apt install nginx-module-pagespeed"
+            label="Quick-start commands for nginx"
+            lines={qsNginxLines}
+          />
         </div>
-        <div
-          class="rounded-lg bg-stone-900 p-4 font-mono text-sm text-stone-100 overflow-x-auto hidden"
-          data-qs-panel="qs-apache"
-        >
-          <p class="text-stone-400"># one-time: add the signed We-Amp package repo</p>
-          <p>
-            <span class="text-stone-400">$</span> curl -fsSL https://packages.modpagespeed.com/install.sh
-            | sudo sh
-          </p>
-          <p class="mt-2"><span class="text-stone-400">$</span> sudo apt install mod-pagespeed</p>
-          <p><span class="text-stone-400">$</span> sudo systemctl restart apache2</p>
-          <p>
-            <span class="text-stone-400">$</span> curl -I http://localhost/ | grep X-Mod-Pagespeed
-          </p>
-          <p class="text-emerald-400">{xModPagespeedHeader}</p>
+        <div class="mt-4" data-qs-panel="qs-apache">
+          <TermPanel
+            command="apt install mod-pagespeed"
+            label="Quick-start commands for Apache"
+            lines={qsApacheLines}
+          />
         </div>
         <p class="mt-3 text-xs text-text-annotation">
           On IIS / Windows Server, the package ships from the 1.15 packaging channel.
@@ -1637,6 +1583,78 @@ const jsonLd = [organization, website, product, faqPage];
             >See the IIS package &rarr;</a
           >
         </p>
+      </div>
+
+      {/* Further reading — the former "Start here: docs & deep dives" cards,
+          same hrefs, titles, umami events and descriptions (T5 dedupe). */}
+      <div class="mt-16">
+        <p class="eyebrow">Further reading</p>
+        <div class="mt-6 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+          <a
+            href="/docs/configuration/"
+            class="card-resource"
+            data-umami-event="cta_home_featured_docs_configuration"
+          >
+            <p class="eyebrow text-text-body">Docs</p>
+            <h3 class="mt-2 text-lg font-semibold text-text-body">Configuration</h3>
+            <p class="mt-2 text-sm text-text-muted">
+              Configuration options for Apache and nginx: directives, cache modes, worker settings,
+              and per-location overrides.
+            </p>
+            <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
+              Read the docs <span aria-hidden="true">&rarr;</span>
+            </p>
+          </a>
+          <a
+            href="/docs/filters/"
+            class="card-resource"
+            data-umami-event="cta_home_featured_docs_filters"
+          >
+            <p class="eyebrow text-text-body">Docs</p>
+            <h3 class="mt-2 text-lg font-semibold text-text-body">PageSpeed filters reference</h3>
+            <p class="mt-2 text-sm text-text-muted">
+              Every rewrite filter and what it does: image transcoding, CSS and JS minification,
+              combining, spriting, IPRO, and domain mapping.
+            </p>
+            <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
+              Read the docs <span aria-hidden="true">&rarr;</span>
+            </p>
+          </a>
+          <a
+            href="/blog/economics-of-image-optimization/"
+            class="card-resource"
+            data-umami-event="cta_home_blog_economics_images"
+          >
+            <p class="eyebrow text-text-body">Blog</p>
+            <h3 class="mt-2 text-lg font-semibold text-text-body">
+              Image optimization cost: self-hosted vs CDN (2026)
+            </h3>
+            <p class="mt-2 text-sm text-text-muted">
+              Cost comparison at 100K, 1M, and 10M monthly image requests &mdash; with break-even
+              analysis against self-hosted optimization.
+            </p>
+            <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
+              Read post <span aria-hidden="true">&rarr;</span>
+            </p>
+          </a>
+          <a
+            href="/blog/mod-pagespeed-alternatives/"
+            class="card-resource"
+            data-umami-event="cta_home_blog_mps_alternatives"
+          >
+            <p class="eyebrow text-text-body">Blog</p>
+            <h3 class="mt-2 text-lg font-semibold text-text-body">
+              mod_pagespeed Alternatives in 2026
+            </h3>
+            <p class="mt-2 text-sm text-text-muted">
+              The original mod_pagespeed and ngx_pagespeed &mdash; developed at Google &mdash; are
+              no longer actively developed. Here is where to go instead.
+            </p>
+            <p class="mt-4 text-sm font-medium text-interactive inline-flex items-center gap-1">
+              Read post <span aria-hidden="true">&rarr;</span>
+            </p>
+          </a>
+        </div>
       </div>
     </div>
   </section>
@@ -1878,19 +1896,24 @@ const jsonLd = [organization, website, product, faqPage];
        emitted after </html>, where the document-structure lint (and any
        parser that stops at </html>) never sees it. -->
   <script>
-    // Quick-start platform sub-tabs
+    // Quick-start platform sub-tabs. The markup ships with both panels
+    // visible so the quick-start works without JS; once this runs, only the
+    // pressed tab's panel stays shown.
     const qsTabs = document.querySelectorAll<HTMLButtonElement>('[data-qs-tab]');
     const qsPanels = document.querySelectorAll<HTMLElement>('[data-qs-panel]');
-
+    const qsShow = (platform: string | undefined) => {
+      qsPanels.forEach((panel) => {
+        panel.classList.toggle('hidden', panel.dataset.qsPanel !== platform);
+      });
+    };
+    qsShow('qs-nginx');
     qsTabs.forEach((tab) => {
       tab.addEventListener('click', () => {
         const platform = tab.dataset.qsTab;
         qsTabs.forEach((t) => {
           t.setAttribute('aria-pressed', t.dataset.qsTab === platform ? 'true' : 'false');
         });
-        qsPanels.forEach((panel) => {
-          panel.classList.toggle('hidden', panel.dataset.qsPanel !== platform);
-        });
+        qsShow(platform);
       });
     });
   </script>
