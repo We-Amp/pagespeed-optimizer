@@ -72,12 +72,19 @@ test.describe('Demo page', () => {
     await expect(page.locator('#panel-ecommerce')).toBeHidden();
   });
 
-  test('metrics table shows before/after comparison', async ({ page }) => {
-    // The first panel (ecommerce) should have a resource breakdown table
-    const table = page.locator('#panel-ecommerce table');
-    await expect(table).toBeVisible();
-    await expect(table.locator('text=CSS (minified)')).toBeVisible();
-    await expect(table.locator('text=JavaScript (minified)')).toBeVisible();
+  test('resource breakdown shows before/after byte deltas', async ({ page }) => {
+    // The first panel (ecommerce) shows the per-resource breakdown as
+    // ByteDelta plates. The base page's table row labels — "CSS (minified)"
+    // and "JavaScript (minified)" — are kept verbatim as the plate headings,
+    // so the resource each plate measures stays named. The Total plate leads,
+    // carrying the table's former Total row (the per-site reduction that
+    // backs the lede's 48-69% claim).
+    const panel = page.locator('#panel-ecommerce');
+    await expect(panel.locator('h3:has-text("Resource breakdown")')).toBeVisible();
+    await expect(panel.locator('[data-ui="byte-delta"]')).toHaveCount(5);
+    await expect(panel.getByText('Total', { exact: true })).toBeVisible();
+    await expect(panel.getByText('CSS (minified)')).toBeVisible();
+    await expect(panel.getByText('JavaScript (minified)')).toBeVisible();
   });
 
   test('CSS minification example is visible', async ({ page }) => {
