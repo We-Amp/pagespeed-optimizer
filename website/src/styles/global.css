@@ -1101,6 +1101,13 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
    component layer; `html.dark:root` out-specifies the inline first-paint
    token guard (html.dark) that ships after the stylesheet in <head>. */
 @media print {
+  /* The inline first-paint guard also paints every <header> dark; on paper
+     content headers (sections, post titles) must sit on the light ground. */
+  html.dark:root header {
+    background-color: transparent !important;
+    color: inherit !important;
+    border-color: var(--color-border) !important;
+  }
   html.dark:root {
     --color-bg-primary: #fbfaf8;
     --color-bg-secondary: #f4f2ee;

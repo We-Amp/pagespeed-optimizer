@@ -211,6 +211,9 @@ jobs:
       # "mod_pagespeed 2.0" naming the current product. Justified exceptions
       # live in website/scripts/content-lint-allow.json. See
       # scripts/check-built-content.mjs for the rule table.
+      - name: Build-output tests (vitest, after build)
+        # Gates that read dist/ (built-output tests) skip before the build; run them for real.
+        run: npx vitest run
       - name: Built-output content lint
         run: npm run check:content
 
