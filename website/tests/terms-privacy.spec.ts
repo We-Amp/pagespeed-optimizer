@@ -18,7 +18,9 @@ test.describe('/terms/ page', () => {
 
   test('displays version identifier 2026-10', async ({ page }) => {
     await page.goto('/terms/');
-    await expect(page.getByText('2026-10')).toBeVisible();
+    // Scoped to main: the telemetry strip shows a capture date (2026-10-..)
+    // until its live value replaces it, which also matches a bare '2026-10'.
+    await expect(page.locator('main').getByText('Version 2026-10')).toBeVisible();
   });
 
   test('displays effective date October 2026', async ({ page }) => {
