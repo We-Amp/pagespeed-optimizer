@@ -263,7 +263,7 @@ sudo apt install mod-pagespeed-stable
 sudo systemctl start apache2
 
 # Verify
-curl -sI http://localhost/ | grep -i pagespeed
+curl -sI http://localhost/ | grep -iE 'page-?speed'
 ```
 
 Your existing `pagespeed.conf` continues to work. Same filter names,

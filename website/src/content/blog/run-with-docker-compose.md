@@ -128,7 +128,8 @@ nginx never starts, check `docker compose logs worker` first.
 
 The fastest check is the response header. mod_pagespeed emits
 `X-PageSpeed:` on optimized responses (the 1.x lineage uses
-`X-Mod-Pagespeed:`, same project family, different header):
+`X-Mod-Pagespeed:` on Apache and `X-Page-Speed:` on nginx and IIS, same
+project family, different headers):
 
 ```bash
 $ curl -sI http://localhost/ | grep -i pagespeed
