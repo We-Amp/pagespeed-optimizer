@@ -289,7 +289,7 @@ const jsonLd = [webApp, faqPage];
                 {item.name}
                 <Icon
                   name="chevron-down"
-                  class="h-5 w-5 shrink-0 text-text-annotation transition-transform group-open:rotate-180"
+                  class="h-5 w-5 shrink-0 text-text-annotation group-open:rotate-180"
                 />
               </summary>
               <p class="px-5 pb-5 text-sm text-text-annotation leading-relaxed">
@@ -942,20 +942,6 @@ const jsonLd = [webApp, faqPage];
     }
     .ar-loading {
       color: var(--color-text-annotation);
-    }
-    @media (prefers-reduced-motion: no-preference) {
-      .ar-loading {
-        animation: ar-pulse 1.4s ease-in-out infinite;
-      }
-      @keyframes ar-pulse {
-        0%,
-        100% {
-          opacity: 1;
-        }
-        50% {
-          opacity: 0.55;
-        }
-      }
     }
     @media (max-width: 680px) {
       .ar-diff {

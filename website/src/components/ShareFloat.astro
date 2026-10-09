@@ -76,7 +76,7 @@ const targets = buildShareTargets(shareUrl, title);
             data-umami-event="share"
             data-umami-event-network={target.slug}
             data-umami-event-surface="float"
-            class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-interactive/10 text-text-body transition-[color,background-color,border-color,transform] hover:-translate-y-0.5 hover:border-interactive/40 hover:bg-interactive/20 hover:text-interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-elevated"
+            class="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-border bg-interactive/10 text-text-body transition-colors hover:border-interactive/40 hover:bg-interactive/20 hover:text-interactive focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-focus-ring focus-visible:ring-offset-2 focus-visible:ring-offset-bg-elevated"
           >
             <svg class="h-[18px] w-[18px]" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <path d={target.icon} />
@@ -287,12 +287,10 @@ const targets = buildShareTargets(shareUrl, title);
     cursor: pointer;
     transition:
       color 120ms ease,
-      border-color 120ms ease,
-      transform 120ms ease;
+      border-color 120ms ease;
   }
   .share-fab-launcher:hover {
     border-color: var(--color-interactive);
-    transform: translateY(-1px);
   }
   .share-fab-launcher:focus-visible {
     outline: 2px solid var(--color-interactive);
@@ -323,14 +321,10 @@ const targets = buildShareTargets(shareUrl, title);
       0 16px 48px rgba(0, 0, 0, 0.5);
     padding: 1rem 1rem 0.875rem;
     opacity: 0;
-    transform: translateY(8px);
-    transition:
-      opacity 140ms ease,
-      transform 140ms ease;
+    transition: opacity 140ms ease;
   }
   .share-fab-panel.is-open {
     opacity: 1;
-    transform: translateY(0);
   }
 
   .share-fab-tickrule {

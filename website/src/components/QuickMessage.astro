@@ -506,14 +506,10 @@
       0 16px 48px rgba(0, 0, 0, 0.5);
     padding: 1rem 1rem 0.875rem;
     opacity: 0;
-    transform: translateY(8px);
-    transition:
-      opacity 140ms ease,
-      transform 140ms ease;
+    transition: opacity 140ms ease;
   }
   .qm-panel.is-open {
     opacity: 1;
-    transform: translateY(0);
   }
 
   /* chemin-de-fer tick rule along the top edge (oscilloscope-capture motif) */
@@ -593,9 +589,7 @@
     font-size: 0.875rem;
     line-height: 1.45;
     outline: none;
-    transition:
-      border-color 120ms ease,
-      box-shadow 120ms ease;
+    transition: border-color 120ms ease;
     box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.35);
   }
   .qm-textarea {

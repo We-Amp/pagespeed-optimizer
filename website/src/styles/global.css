@@ -540,15 +540,6 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
 }
 
 @layer components {
-  /* Card hierarchy — three tiers.
-     .card           — default for repeating feature cards (flat, ghost border, hover lift)
-     .card-featured  — anchored hero/promoted card (border-2 blue, shadow, no translate)
-     .card-product   — product-comparison card (white surface, 2px colored top accent strip)
-     .card-resource  — blog/docs/featured-resource card (gradient hover surface)
-     All variants share one micro-interaction language: a 150ms shadow +
-     border-color shift on hover. Per brand §4.8 ("Hover: color transitions
-     only. No transforms.") the cards do NOT lift on hover — the deeper shadow
-     and warmer border carry the tactile feedback instead. */
   /* Card hierarchy — depth by HAIRLINE + FINISH, never drop-shadow.
      .card          — repeating feature cards (hairline; hover = stronger rule + cyan top tick)
      .card-product  — product-comparison card (ticked top rule; product distinction
@@ -562,9 +553,7 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     border: 1px solid var(--color-border);
     background-color: var(--color-bg-elevated);
     padding: 1.5rem;
-    transition:
-      border-color 150ms ease,
-      box-shadow 150ms ease;
+    transition: border-color 150ms ease;
   }
   .card:hover {
     border-color: var(--color-border-strong);
@@ -594,9 +583,7 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     border: 1px solid var(--color-border);
     background-color: var(--color-bg-elevated);
     padding: 1.5rem;
-    transition:
-      border-color 150ms ease,
-      box-shadow 150ms ease;
+    transition: border-color 150ms ease;
   }
   .card-resource:hover {
     border-color: var(--color-interactive);
