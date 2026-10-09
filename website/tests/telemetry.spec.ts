@@ -50,6 +50,23 @@ test.describe('Telemetry strip', () => {
     await expect(strip.locator('[data-t="vary"]')).toHaveText('Save-Data,Accept-Encoding');
   });
 
+  test('a non-2xx probe spells the status in the state text', async ({ browser }) => {
+    // Below 480px the LED does not render, so the status must read in the
+    // state text itself. 390px is inside that range.
+    const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
+    const page = await context.newPage();
+    await page.route('**/*', (route) =>
+      route.request().method() === 'HEAD'
+        ? route.fulfill({ status: 405, headers: { 'x-mod-pagespeed': '9.9.9-test' } })
+        : route.continue(),
+    );
+    await page.goto('/');
+    const strip = page.locator(STRIP);
+    await expect(strip.locator('[data-t="state"]').first()).toHaveText('this view · HTTP 405');
+    await expect(strip.locator('[data-t="xmps"]')).toHaveText('9.9.9-test');
+    await context.close();
+  });
+
   test('a failed probe keeps the captured fallback', async ({ page }) => {
     await page.route('**/*', (route) =>
       route.request().method() === 'HEAD' ? route.abort() : route.continue(),
@@ -83,9 +100,9 @@ test.describe('Telemetry strip', () => {
       // The state label, every field and the "what these headers mean" link:
       // the upgrade may replace text but must never move a box.
       ...(await Promise.all(
-        (
-          await page.locator(`${STRIP} .t-state, ${STRIP} .t-f, ${STRIP} .t-more`).all()
-        ).map((part) => part.boundingBox()),
+        (await page.locator(`${STRIP} .t-state, ${STRIP} .t-f, ${STRIP} .t-more`).all()).map(
+          (part) => part.boundingBox(),
+        ),
       )),
     ];
     const before = await boxes();
@@ -123,9 +140,13 @@ test.describe('Telemetry strip', () => {
         const el0 = document.querySelector<HTMLElement>('[data-ui="telemetry-strip"]')!;
         const out: string[] = [];
         if (el0.scrollWidth > el0.clientWidth)
-          out.push(`strip overflow: scrollWidth ${el0.scrollWidth} > clientWidth ${el0.clientWidth}`);
+          out.push(
+            `strip overflow: scrollWidth ${el0.scrollWidth} > clientWidth ${el0.clientWidth}`,
+          );
         if (document.documentElement.scrollWidth > window.innerWidth)
-          out.push(`page horizontal overflow: ${document.documentElement.scrollWidth} > ${window.innerWidth}`);
+          out.push(
+            `page horizontal overflow: ${document.documentElement.scrollWidth} > ${window.innerWidth}`,
+          );
         // The row clips what overflows it, so scrollWidth alone cannot see a
         // value that runs past its field: also compare each value's rendered
         // right edge with the right edges of its field and of the row.
