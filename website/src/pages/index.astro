@@ -519,7 +519,7 @@ const jsonLd = [organization, website, product, faqPage];
       line-height: 1.65;
       color: var(--color-success);
     }
-    /* Signal-path diagram: every colour is an ADR-103 token, applied via
+    /* Signal-path diagram: every colour is a design token, applied via
        these classes so the SVG geometry stays untouched. */
     .dg-fill-neutral {
       fill: var(--color-text-body);
@@ -827,7 +827,7 @@ const jsonLd = [organization, website, product, faqPage];
           Desktop (md+): horizontal flow with branching HIT/MISS lanes and a
           separate async lane showing Worker -> Variant cache feedback.
           Mobile (<md): vertical SVG with the same node set.
-          Colours are ADR-103 tokens via the dg-* classes in the page style
+          Colours are design tokens via the dg-* classes in the page style
           block: HIT = success/success-wash, MISS = accent/accent-wash,
           module + worker = interactive, neutrals = border-strong.
           The <title> element inside each SVG gives screen
@@ -1911,8 +1911,8 @@ const jsonLd = [organization, website, product, faqPage];
   </div>
 
   {/* CTA — a featured panel on the primary ground. The full-cyan band is
-      retired: ADR-103 allows one cyan fill per viewport, and the band plus
-      the primary button made two. */}
+      retired: the design allows one cyan fill per viewport, and the band
+      plus the primary button made two. */}
   <section class="py-13 sm:py-18" aria-labelledby="s-cta">
     <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
       <div class="card-featured text-center">
