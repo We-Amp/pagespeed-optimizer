@@ -340,6 +340,14 @@ export const IMAGE_FORMATS = /* @__PURE__ */ formatsFor(CURRENT_LINE);
 export const PKG_APACHE_MODULE = 'mod-pagespeed'; // the Apache module
 export const PKG_NGINX_MODULE = 'nginx-module-pagespeed'; // the nginx module
 export const PKG_OPTIMIZER = 'pagespeed-optimizer'; // the optimizer worker
+// The newest published version of the two module packages above, as the
+// package index at https://packages.modpagespeed.com lists it (apt
+// dists/<suite>/main/binary-*/Packages; the upstream part of the version, so
+// 1.17.0 for 1.17.0-r1). The module reports it in its response header
+// (X-Mod-Pagespeed on Apache, X-Page-Speed on nginx), which is what the
+// homepage quick-start shows. Bump it when new module packages are published;
+// test/sync/module-package-version.test.ts compares it with the live index.
+export const MODULE_PACKAGE_VERSION = '1.17.0';
 
 // --- NuGet packages ---------------------------------------------------------
 export const PKG_ASPNETCORE = 'WeAmp.PageSpeed.AspNetCore'; // the ASP.NET Core middleware
