@@ -388,12 +388,19 @@ const jsonLd: Record<string, unknown> | undefined = hasData
                   <span class="badge-success mt-2">{requestsTile.pill}</span>
                 </div>
               )}
-              {bytePlates.map((plate) => (
-                <div>
-                  <h3 class="eyebrow mb-3">{plate.label}</h3>
-                  <ByteDelta rows={plate.rows} source={exampleSource} />
+              {bytePlates.length > 0 && (
+                /* Plates take their own full-width row: inside the 18rem
+                   requests column the fixed label/number tracks leave no room
+                   for the bar column. */
+                <div class="grid grid-cols-1 gap-6 md:grid-cols-2 lg:col-span-full">
+                  {bytePlates.map((plate) => (
+                    <div>
+                      <h3 class="eyebrow mb-3">{plate.label}</h3>
+                      <ByteDelta rows={plate.rows} source={exampleSource} />
+                    </div>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
           </div>
         )

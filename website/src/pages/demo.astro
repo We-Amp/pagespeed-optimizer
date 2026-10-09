@@ -266,8 +266,10 @@ const siteData = sites.map((site) => {
                 above names the demo page each panel's source points at. */}
             <h3 class="mt-8 text-sm font-semibold text-text-body">Resource breakdown</h3>
             {/* Each plate keeps its base-page table row label verbatim, so the
-                resource class a plate measures stays named. */}
-            <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                resource class a plate measures stays named. Two columns from
+                md up: below ~314px of plate width the fixed label/number
+                tracks leave no room for the bar column. */}
+            <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
               <div>
                 <h4 class="eyebrow mb-3">HTML + critical CSS</h4>
                 <ByteDelta
