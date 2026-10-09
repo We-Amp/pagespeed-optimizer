@@ -20,28 +20,23 @@ async function expectPlatesFit(page: Page, scope: string, where: string) {
     const plate = plates.nth(i);
     await expect(plate).toBeVisible();
     // 1px tolerance for subpixel rounding.
-    const problems = await plate.evaluate(
-      (el, minBarPx) => {
-        const bad: string[] = [];
-        const check = (node: Element, name: string) => {
-          if (node.scrollWidth - node.clientWidth > 1) {
-            bad.push(`${name}: scrollWidth ${node.scrollWidth} > clientWidth ${node.clientWidth}`);
-          }
-        };
-        check(el, 'plate');
-        el.querySelectorAll<HTMLElement>('.bd-num, .bd-row dt, .bd-total-nums').forEach(
-          (node, j) => {
-            check(node, `text ${j}`);
-          },
-        );
-        el.querySelectorAll<HTMLElement>('.bd-bar').forEach((node, j) => {
-          const w = node.getBoundingClientRect().width;
-          if (w < minBarPx) bad.push(`bar ${j}: ${w.toFixed(1)}px < ${minBarPx}px`);
-        });
-        return bad;
-      },
-      MIN_BAR_PX,
-    );
+    const problems = await plate.evaluate((el, minBarPx) => {
+      const bad: string[] = [];
+      const check = (node: Element, name: string) => {
+        if (node.scrollWidth - node.clientWidth > 1) {
+          bad.push(`${name}: scrollWidth ${node.scrollWidth} > clientWidth ${node.clientWidth}`);
+        }
+      };
+      check(el, 'plate');
+      el.querySelectorAll<HTMLElement>('.bd-num, .bd-row dt, .bd-total-nums').forEach((node, j) => {
+        check(node, `text ${j}`);
+      });
+      el.querySelectorAll<HTMLElement>('.bd-bar').forEach((node, j) => {
+        const w = node.getBoundingClientRect().width;
+        if (w < minBarPx) bad.push(`bar ${j}: ${w.toFixed(1)}px < ${minBarPx}px`);
+      });
+      return bad;
+    }, MIN_BAR_PX);
     expect(problems, `${where}, plate ${i}`).toEqual([]);
   }
 }

@@ -13,9 +13,13 @@ interface Props {
   rows: Array<{ label: string; bytes: number }>;
   source: string;
   caption?: string;
+  // Suffix after the percentage in the total line. "on the wire" states a
+  // transfer-size comparison; callers whose rows are file or decoded sizes
+  // pass an accurate alternative (e.g. "smaller").
+  deltaNote?: string;
 }
 
-const { rows, source, caption } = Astro.props;
+const { rows, source, caption, deltaNote = 'on the wire' } = Astro.props;
 if (rows.length === 0) throw new Error('ByteDelta needs at least one row');
 
 const max = Math.max(...rows.map((r) => r.bytes));
@@ -54,7 +58,7 @@ const width = (bytes: number) => (max > 0 ? Math.round((bytes / max) * 1000) / 1
         ]}>{deltaText}</span
       >
       <span class="font-mono text-xs text-text-annotation"
-        >{`${pct > 0 ? '+' : ''}${formatPct(pct)}`} on the wire</span
+        >{`${pct > 0 ? '+' : ''}${formatPct(pct)}`} {deltaNote}</span
       >
     </span>
     {caption && <span class="font-mono text-xs text-text-annotation">{caption}</span>}
