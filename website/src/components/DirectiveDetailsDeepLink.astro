@@ -20,20 +20,30 @@
 <script is:inline>
   // Open the details a deep link points at (the hash target, or any element
   // inside the section, such as the raw <a id> anchors), then scroll to it.
-  function openDirectiveTarget() {
+  // Opening runs inline, right after the content, so it happens before first
+  // paint and the expansion never shifts layout. The scroll lands only after
+  // the web fonts settle: scrolling into a section whose text still reflows
+  // on font swap would count that reflow as layout shift (and the mid-parse
+  // scroll lands short anyway — the rest of the page is still parsing).
+  function openDirectiveTarget(scroll) {
     if (!location.hash) return;
     var t = document.getElementById(decodeURIComponent(location.hash.slice(1)));
     if (!t) return;
     var d = t.closest ? t.closest('details.directive-details') : null;
     if (d && !d.open) d.open = true;
-    t.scrollIntoView(); // re-scroll: opening changed the layout
+    if (scroll) t.scrollIntoView();
   }
-  addEventListener('hashchange', openDirectiveTarget);
-  // Runs inline, right after the content: opening before first paint keeps
-  // the expansion out of CLS. The inline scroll may land short — the rest of
-  // the page is still parsing — so scroll again once the document is final.
-  openDirectiveTarget();
-  addEventListener('DOMContentLoaded', openDirectiveTarget);
+  addEventListener('hashchange', function () {
+    openDirectiveTarget(true);
+  });
+  openDirectiveTarget(false);
+  addEventListener('load', function () {
+    openDirectiveTarget(true);
+  });
+  if (document.fonts && document.fonts.ready)
+    document.fonts.ready.then(function () {
+      openDirectiveTarget(true);
+    });
 </script>
 
 <style is:global>
