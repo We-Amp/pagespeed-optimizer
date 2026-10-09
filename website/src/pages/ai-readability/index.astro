@@ -1,6 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Icon from '../../components/Icon.astro';
+import SectionHeader from '../../components/instrument/SectionHeader.astro';
 
 // Public front end for the AI-readability scanner (D10). The render backend
 // runs on a separate box; nginx proxies /ai-readability/api/* to it (see corp deploy).
@@ -88,21 +89,26 @@ const jsonLd = [webApp, faqPage];
   jsonLd={jsonLd}
   breadcrumbLeafName="AI readability checker"
 >
-  <section class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16 sm:py-20">
-    <p class="eyebrow">RenderPeek &middot; a free tool from mod_pagespeed</p>
-    <h1 class="h1-hero text-text-body mt-2">
-      See what AI crawlers miss. Optimize the HTML you serve, on your own servers.
-    </h1>
-    <p class="lede mt-4 max-w-2xl">
+  <section
+    class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16 sm:py-20"
+    aria-labelledby="airead-title"
+  >
+    <SectionHeader
+      id="airead-title"
+      eyebrow="RenderPeek · a free tool from mod_pagespeed"
+      title="See what AI crawlers miss. Optimize the HTML you serve, on your own servers."
+      as="h1"
+    >
       Most AI crawlers read your raw HTML and never run your JavaScript, so anything your scripts
       render is invisible to them. Paste a URL to see the gap. The same self-hosted mod_pagespeed
       worker that powers this site then optimizes and cleans that HTML inline, on your own servers
-      rather than behind a CDN. The optimizer worker can also serve AI agents a clean, rendered
-      copy of the page at the same URL &mdash; an
-      <a href="/blog/serve-markdown-to-ai-agents/" class="text-interactive underline underline-offset-2"
-        >experimental feature</a
+      rather than behind a CDN. The optimizer worker can also serve AI agents a clean, rendered copy
+      of the page at the same URL &mdash; an
+      <a
+        href="/blog/serve-markdown-to-ai-agents/"
+        class="text-interactive underline underline-offset-2">experimental feature</a
       >, off by default, that we dogfood here.
-    </p>
+    </SectionHeader>
 
     <!-- novalidate: the input is type=url for the mobile URL keyboard, but we accept a
          bare host (e.g. "example.com") and prepend https:// in normalizeUrl(), so we
@@ -117,7 +123,7 @@ const jsonLd = [webApp, faqPage];
         autocapitalize="off"
         placeholder="example.com"
         aria-label="URL to scan"
-        class="flex-1 rounded-lg border border-border-strong bg-bg-elevated px-4 py-3 text-base text-text-body placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:ring-2 focus:ring-interactive/40 focus:border-interactive/40 focus:outline-none"
+        class="flex-1 rounded-lg border border-control-border bg-bg-elevated px-4 py-3 text-base text-text-body placeholder:text-text-annotation focus:ring-2 focus:ring-interactive/40 focus:border-interactive/40 focus:outline-none"
       />
       <button
         id="ar-go"
@@ -153,19 +159,15 @@ const jsonLd = [webApp, faqPage];
          be blank for crawlers and no-JS visitors. This is a static, illustrative sample
          result (not a live measurement) so the page is self-explanatory without scripts. -->
     <noscript>
-      <div
-        class="mt-6 rounded-2xl border border-border bg-bg-elevated p-6"
-      >
-        <p class="text-sm font-semibold text-text-body">
-          Live scanning needs JavaScript
-        </p>
+      <div class="mt-6 rounded-2xl border border-border bg-bg-elevated p-6">
+        <p class="text-sm font-semibold text-text-body">Live scanning needs JavaScript</p>
         <p class="mt-1 text-sm text-text-annotation leading-relaxed">
           Enable JavaScript to scan a URL. Here is an example of the kind of result RenderPeek
           produces &mdash; an illustrative sample, not a live measurement:
         </p>
         <div class="mt-5 flex items-center gap-4">
           <div
-            class="flex h-16 w-16 items-center justify-center rounded-xl border-2 border-amber-600 text-3xl font-bold text-amber-600"
+            class="flex h-16 w-16 items-center justify-center rounded-xl border-2 border-accent text-3xl font-bold text-accent"
           >
             C
           </div>
@@ -178,10 +180,7 @@ const jsonLd = [webApp, faqPage];
           <div class="flex justify-between font-medium text-text-body">
             <dt>
               Content fidelity
-              <span
-                class="ml-1 rounded bg-red-100 px-1.5 py-0.5 text-[11px] font-semibold text-red-700 dark:bg-red-900/40 dark:text-red-300"
-                >invisible without JS</span
-              >
+              <span class="ml-1 badge-accent">invisible without JS</span>
             </dt>
             <dd class="tabular-nums">12/40</dd>
           </div>
@@ -195,22 +194,14 @@ const jsonLd = [webApp, faqPage];
           </div>
         </dl>
         <div class="mt-5 grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <div
-            class="rounded-lg border border-border bg-bg-secondary p-3"
-          >
-            <h2 class="text-xs font-semibold text-text-body">
-              Raw HTML &mdash; most AI crawlers
-            </h2>
+          <div class="rounded-lg border border-border bg-bg-secondary p-3">
+            <h2 class="text-xs font-semibold text-text-body">Raw HTML &mdash; most AI crawlers</h2>
             <p class="mt-1 text-xs text-text-annotation">
               ~80 tokens an agent can read &mdash; almost nothing survives before JavaScript runs.
             </p>
           </div>
-          <div
-            class="rounded-lg border border-border bg-bg-secondary p-3"
-          >
-            <h2 class="text-xs font-semibold text-text-body">
-              After rendering JavaScript
-            </h2>
+          <div class="rounded-lg border border-border bg-bg-secondary p-3">
+            <h2 class="text-xs font-semibold text-text-body">After rendering JavaScript</h2>
             <p class="mt-1 text-xs text-text-annotation">
               ~1,400 tokens an agent can read &mdash; the real content only appears once the browser
               runs your scripts.
@@ -231,8 +222,9 @@ const jsonLd = [webApp, faqPage];
         When we rendered the top 1,000 sites on 28 May 2026, 403 of the 711 we could read at all
         (57%) showed a non-rendering agent a nearly empty page: their content appeared only after
         JavaScript ran. Read
-        <a href="/blog/can-ai-read-your-website/" class="text-interactive underline underline-offset-2"
-          >the full results</a
+        <a
+          href="/blog/can-ai-read-your-website/"
+          class="text-interactive underline underline-offset-2">the full results</a
         >.
       </p>
     </div>
@@ -241,28 +233,23 @@ const jsonLd = [webApp, faqPage];
          JavaScript; the major AI crawlers read static HTML only. Mirrored in the
          FAQ below and in the FAQPage JSON-LD. -->
     <div class="mt-14 max-w-2xl">
-      <h2 class="text-xl font-semibold text-text-body">
-        Which AI crawlers render JavaScript?
-      </h2>
+      <h2 class="text-xl font-semibold text-text-body">Which AI crawlers render JavaScript?</h2>
       <p class="mt-2 text-sm text-text-annotation leading-relaxed">
         The major AI crawlers fetch your raw HTML and do not run your scripts. Only Google’s stack
         renders JavaScript today. This reflects crawler behavior in 2026 and can change, so re-scan
         to confirm what an agent sees now. We measured the same rendering gap across the top 1,000
         sites &mdash; see
-        <a href="/blog/can-ai-read-your-website/" class="text-interactive underline underline-offset-2"
-          >what we found</a
+        <a
+          href="/blog/can-ai-read-your-website/"
+          class="text-interactive underline underline-offset-2">what we found</a
         >.
       </p>
       <div class="mt-5 overflow-hidden rounded-2xl border border-border">
         <table class="w-full text-left text-sm">
           <thead class="bg-bg-secondary">
             <tr>
-              <th scope="col" class="px-4 py-3 font-semibold text-text-body">
-                Crawler
-              </th>
-              <th scope="col" class="px-4 py-3 font-semibold text-text-body">
-                Used by
-              </th>
+              <th scope="col" class="px-4 py-3 font-semibold text-text-body"> Crawler </th>
+              <th scope="col" class="px-4 py-3 font-semibold text-text-body"> Used by </th>
               <th scope="col" class="px-4 py-3 font-semibold text-text-body">
                 Renders JavaScript?
               </th>
@@ -272,19 +259,13 @@ const jsonLd = [webApp, faqPage];
             {
               botRendering.map((row) => (
                 <tr class="border-t border-border">
-                  <td class="px-4 py-3 font-medium text-text-body">
-                    {row.bot}
-                  </td>
+                  <td class="px-4 py-3 font-medium text-text-body">{row.bot}</td>
                   <td class="px-4 py-3 text-text-muted">{row.agent}</td>
                   <td class="px-4 py-3">
                     {row.rendersJs ? (
-                      <span class="font-medium text-emerald-700 dark:text-emerald-400">
-                        Renders JS
-                      </span>
+                      <span class="font-medium text-success">Renders JS</span>
                     ) : (
-                      <span class="font-medium text-text-annotation">
-                        No — static HTML only
-                      </span>
+                      <span class="font-medium text-text-annotation">No — static HTML only</span>
                     )}
                   </td>
                 </tr>
@@ -299,9 +280,7 @@ const jsonLd = [webApp, faqPage];
          FAQPage JSON-LD (single source of truth). Native <details>/<summary>
          accordion; the disclosure marker is hidden via the scoped <style> below. -->
     <div class="mt-14 max-w-2xl">
-      <h2 class="text-xl font-semibold text-text-body">
-        Frequently asked questions
-      </h2>
+      <h2 class="text-xl font-semibold text-text-body">Frequently asked questions</h2>
       <div class="mt-6 space-y-3">
         {
           faqPage.mainEntity.map((item) => (
@@ -310,7 +289,7 @@ const jsonLd = [webApp, faqPage];
                 {item.name}
                 <Icon
                   name="chevron-down"
-                  class="h-5 w-5 shrink-0 text-stone-400 transition-transform group-open:rotate-180"
+                  class="h-5 w-5 shrink-0 text-text-annotation transition-transform group-open:rotate-180"
                 />
               </summary>
               <p class="px-5 pb-5 text-sm text-text-annotation leading-relaxed">
@@ -339,49 +318,42 @@ const jsonLd = [webApp, faqPage];
        .ar-* namespaced, so global scope does not affect the rest of the site. The
        runtime-injected card also can't rely on Tailwind utility classes (the build would
        purge any class string that only ever appears inside a JS string literal), so the
-       result UI is styled here against the site's brand tokens (--color-stone-*,
-       --color-blue-*) so it adapts to light/dark and reads as a first-class property. -->
+       result UI is styled here against the site's semantic tokens (--color-bg-*,
+       --color-text-*, --color-interactive, --color-success, --color-accent) so it
+       follows the light/dark theme and reads as a first-class property. -->
   <style is:global>
     #ar-form {
       scroll-margin-top: 5rem;
     }
+    /* Reserve the result area while a scan runs: a real scan takes 5–10 s,
+       so the loading → result swap falls outside the CLS input-exclusion
+       window. Pushing the content below out of view at click time is
+       input-excluded; the later swap then shifts nothing visible. */
+    #ar-out[aria-busy='true'] {
+      min-block-size: 100svh;
+    }
     .ar-card {
-      /* Theme-aware tokens for the lens evidence list + Ghost-Layer block. Previously
-         referenced via var(--ar-border)/var(--dim) with NO definition, so they fell back
-         to dark-only hardcodes and rendered near-black borders in light mode. */
-      --ar-border: var(--color-stone-200);
-      --dim: var(--color-stone-500);
-      border: 1px solid var(--color-stone-200);
+      /* Custom props consumed by the lens evidence list + Ghost-Layer block
+         below (border hairline + dimmed selector text). */
+      --ar-border: var(--color-border);
+      --dim: var(--color-text-annotation);
+      border: 1px solid var(--color-border);
       border-radius: var(--radius-card);
-      background: var(--color-white);
+      background: var(--color-bg-elevated);
       padding: 1.4rem;
       margin-top: 1.4rem;
-      color: var(--color-stone-900);
+      color: var(--color-text-body);
       scroll-margin-top: 5rem;
-      box-shadow:
-        0 1px 2px rgba(0, 0, 0, 0.04),
-        0 8px 24px rgba(0, 0, 0, 0.04);
     }
     .ar-card:focus {
       outline: none;
     }
-    .dark .ar-card {
-      --ar-border: var(--color-stone-600);
-      --dim: var(--color-stone-400);
-      border-color: var(--color-stone-600);
-      background: var(--color-stone-900);
-      color: var(--color-stone-100);
-      box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05);
-    }
-    /* Section primitive — one divider rhythm replaces the old dashed/solid mix.
-       1px section-top = "new section"; rows within a section use hairline/none. */
+    /* Section primitive — one divider rhythm. 1px section-top = "new
+       section"; rows within a section use hairline/none. */
     .ar-sec {
       margin-top: 1.4rem;
       padding-top: 1.3rem;
-      border-top: 1px solid var(--color-stone-200);
-    }
-    .dark .ar-sec {
-      border-top-color: var(--color-stone-700);
+      border-top: 1px solid var(--color-border);
     }
     .ar-h2 {
       margin: 0 0 0.2rem;
@@ -405,13 +377,10 @@ const jsonLd = [webApp, faqPage];
       flex-wrap: wrap;
     }
     .ar-h4-r {
-      color: var(--color-stone-500);
+      color: var(--color-text-annotation);
       font-size: 0.78rem;
       font-weight: 600;
       white-space: nowrap;
-    }
-    .dark .ar-h4-r {
-      color: var(--color-stone-400);
     }
     .ar-sr-only {
       position: absolute;
@@ -424,7 +393,9 @@ const jsonLd = [webApp, faqPage];
       white-space: nowrap;
       border: 0;
     }
-    /* Impact pills — text label + contrast, never color alone (A11y). */
+    /* Impact pills — squared chips. The printed level word carries the
+       severity (never color alone); the token set has one caution hue, so
+       critical/serious/moderate share the accent tone and minor is neutral. */
     .ar-impacts {
       display: flex;
       flex-wrap: wrap;
@@ -433,7 +404,7 @@ const jsonLd = [webApp, faqPage];
     }
     .ar-pill {
       display: inline-block;
-      border-radius: 0.35rem;
+      border-radius: var(--radius-chip);
       padding: 0.05rem 0.45rem;
       font-size: 0.72rem;
       font-weight: 700;
@@ -441,44 +412,22 @@ const jsonLd = [webApp, faqPage];
       letter-spacing: 0.02em;
       line-height: 1.4;
     }
-    .ar-pill-critical {
-      background: rgba(220, 38, 38, 0.12);
-      color: #b91c1c;
-    }
-    .ar-pill-serious {
-      background: rgba(234, 88, 12, 0.12);
-      color: #9a3412;
-    }
+    .ar-pill-critical,
+    .ar-pill-serious,
     .ar-pill-moderate {
-      background: rgba(217, 119, 6, 0.12);
-      color: #854d0e;
+      background: var(--color-accent-wash);
+      color: var(--color-accent);
     }
     .ar-pill-minor {
-      background: var(--color-stone-100);
-      color: #44403c;
+      background: var(--color-bg-secondary);
+      color: var(--color-text-muted);
     }
-    .dark .ar-pill-critical {
-      background: rgba(220, 38, 38, 0.18);
-      color: #fca5a5;
-    }
-    .dark .ar-pill-serious {
-      background: rgba(234, 88, 12, 0.18);
-      color: #fdba74;
-    }
-    .dark .ar-pill-moderate {
-      background: rgba(217, 119, 6, 0.18);
-      color: #fcd34d;
-    }
-    .dark .ar-pill-minor {
-      background: var(--color-stone-700);
-      color: var(--color-stone-300);
-    }
-    /* "addressable inline" tag — NON-completion (never green; ). */
+    /* "addressable inline" tag — NON-completion (interactive, never success). */
     .ar-fix {
       display: inline-block;
       font-size: 0.66rem;
       font-weight: 600;
-      border-radius: 0.3rem;
+      border-radius: var(--radius-chip);
       padding: 0.02rem 0.4rem;
       color: var(--color-interactive);
       background: color-mix(in srgb, var(--color-interactive) 8%, transparent);
@@ -501,14 +450,11 @@ const jsonLd = [webApp, faqPage];
       font-size: 0.85rem;
     }
     .ar-issue-help {
-      color: var(--color-stone-700);
+      color: var(--color-text-muted);
       flex: 1 1 14rem;
     }
-    .dark .ar-issue-help {
-      color: var(--color-stone-300);
-    }
     .ar-issue-n {
-      color: var(--color-stone-600);
+      color: var(--color-text-muted);
       font-size: 0.72rem;
       white-space: nowrap;
       font-variant-numeric: tabular-nums;
@@ -518,11 +464,7 @@ const jsonLd = [webApp, faqPage];
         0.7rem ui-monospace,
         Menlo,
         monospace;
-      color: var(--color-stone-600);
-    }
-    .dark .ar-issue-n,
-    .dark .ar-issue-id {
-      color: var(--color-stone-400);
+      color: var(--color-text-muted);
     }
     /* Crawler chips + raw-HTML exposure meter. */
     .ar-chips {
@@ -533,101 +475,66 @@ const jsonLd = [webApp, faqPage];
     }
     .ar-chip {
       font-size: 0.72rem;
-      border-radius: 0.35rem;
+      border-radius: var(--radius-chip);
       padding: 0.05rem 0.5rem;
-      background: var(--color-stone-100);
-      color: var(--color-stone-700);
-      border: 1px solid var(--color-stone-200);
-    }
-    .dark .ar-chip {
-      background: var(--color-stone-700);
-      color: var(--color-stone-200);
-      border-color: var(--color-stone-600);
+      background: var(--color-bg-secondary);
+      color: var(--color-text-muted);
+      border: 1px solid var(--color-border);
     }
     .ar-chip-block {
-      background: rgba(220, 38, 38, 0.1);
-      color: #b91c1c;
-      border-color: rgba(220, 38, 38, 0.25);
-    }
-    .dark .ar-chip-block {
-      background: rgba(220, 38, 38, 0.18);
-      color: #fca5a5;
-      border-color: rgba(248, 113, 113, 0.3);
+      background: var(--color-accent-wash);
+      color: var(--color-accent);
+      border-color: color-mix(in srgb, var(--color-accent) 35%, transparent);
     }
     .ar-chip-none {
       font-size: 0.72rem;
-      color: var(--color-stone-600);
-    }
-    .dark .ar-chip-none {
-      color: var(--color-stone-400);
+      color: var(--color-text-muted);
     }
     .ar-chip-label {
       font-size: 0.78rem;
-      color: var(--color-stone-600);
-    }
-    .dark .ar-chip-label {
-      color: var(--color-stone-400);
+      color: var(--color-text-muted);
     }
     .ar-meter {
       height: 0.5rem;
-      background: var(--color-stone-200);
+      background: var(--color-bg-recessed);
       border-radius: var(--radius-pill);
       overflow: hidden;
       margin: 0.5rem 0 0.25rem;
-    }
-    .dark .ar-meter {
-      background: var(--color-stone-700);
     }
     .ar-meter > i {
       display: block;
       height: 100%;
       background: var(--color-interactive);
     }
-    .dark .ar-meter > i {
-      background: var(--color-interactive);
-    }
     .ar-meter-cap,
     .ar-legend {
       font-size: 0.72rem;
-      color: var(--color-stone-600);
+      color: var(--color-text-muted);
       margin-top: 0.3rem;
-    }
-    .dark .ar-meter-cap,
-    .dark .ar-legend {
-      color: var(--color-stone-400);
     }
     .ar-def {
       font-size: 0.78rem;
-      color: var(--color-stone-600);
+      color: var(--color-text-muted);
       margin: 0.1rem 0 0.4rem;
       line-height: 1.5;
-    }
-    .dark .ar-def {
-      color: var(--color-stone-400);
     }
     .ar-lens {
       margin-top: 1.1rem;
     }
-    /* A non-scored lens that actually FOUND something (sovereignty endpoint exposed,
-       provenance stripped on serve, or ghost content) gets a restrained amber rail so
-       it stands out from the neutral clean/none lenses. Amber only — never red (no
-       alarm) and never green (no pass certificate). Reuses the page's amber vocabulary
-       (#d97706 = amber-600, the grade badge; #fbbf24 = amber-400 for dark). The negative
-       margin cancels the padding so finding + clean lenses keep the same text baseline. */
+    /* A non-scored lens that actually FOUND something (sovereignty endpoint
+       exposed, provenance stripped on serve, or ghost content) gets a
+       restrained accent rail so it stands out from the neutral clean/none
+       lenses. Accent only — never a pass certificate. The negative margin
+       cancels the padding so finding + clean lenses keep the same text
+       baseline. */
     .ar-lens.ar-finding {
-      border-left: 3px solid #d97706;
+      border-left: 3px solid var(--color-accent);
       padding-left: 0.7rem;
       margin-left: -0.7rem;
     }
-    .dark .ar-lens.ar-finding {
-      border-left-color: #fbbf24;
-    }
     .ar-finding .ar-h4-r {
-      color: #d97706;
+      color: var(--color-accent);
       font-weight: 700;
-    }
-    .dark .ar-finding .ar-h4-r {
-      color: #fbbf24;
     }
     /* Tighten the doubled margin where the section explainer meets the first lens
        (beyondExplain's bottom margin + .ar-lens top margin would otherwise stack ~2rem). */
@@ -645,7 +552,7 @@ const jsonLd = [webApp, faqPage];
       gap: 0.5rem;
     }
     .ar-gnode {
-      border: 1px solid var(--ar-border, #2a2a2a);
+      border: 1px solid var(--ar-border);
       border-radius: 8px;
       padding: 0.5rem 0.65rem;
       font-size: 13px;
@@ -657,26 +564,24 @@ const jsonLd = [webApp, faqPage];
       margin-top: 0.25rem;
       font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
       font-size: 12px;
-      color: var(--dim, #9aa);
+      color: var(--dim);
       word-break: break-all;
     }
     /* Ghost-Layer full-page screenshot with overlay boxes over each flagged node.
-       The box colour stays a fixed high-contrast amber so it reads against an arbitrary
-       page render (which may itself be light or dark); only the wrapper follows the
-       page palette. Observation for the owner — it asserts no "safe/screened" status. */
+       The box hue is the theme's accent (caution) colour, legible against an
+       arbitrary page render (which may itself be light or dark); the thin black
+       outer shadow separates the box from whatever the screenshot shows.
+       Observation for the owner — it asserts no "safe/screened" status. */
     .ar-shotwrap {
       position: relative;
       margin-top: 0.6rem;
-      border: 1px solid var(--ar-border, #2a2a2a);
+      border: 1px solid var(--ar-border);
       border-radius: 8px;
       overflow-y: auto;
       overflow-x: hidden;
       max-height: 520px;
       scrollbar-gutter: stable;
-      background: var(--color-stone-100);
-    }
-    .dark .ar-shotwrap {
-      background: var(--color-stone-900);
+      background: var(--color-bg-recessed);
     }
     .ar-shotwrap img {
       display: block;
@@ -685,8 +590,8 @@ const jsonLd = [webApp, faqPage];
     }
     .ar-gbox {
       position: absolute;
-      border: 2px solid #fb923c;
-      background: rgba(251, 146, 60, 0.16);
+      border: 2px solid var(--color-accent);
+      background: color-mix(in srgb, var(--color-accent) 16%, transparent);
       box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.4);
       box-sizing: border-box;
       pointer-events: none;
@@ -694,7 +599,7 @@ const jsonLd = [webApp, faqPage];
     .ar-shotnote {
       margin-top: 0.5rem;
       font-size: 13px;
-      color: var(--dim, #9aa);
+      color: var(--dim);
     }
     .ar-grade {
       display: flex;
@@ -712,52 +617,41 @@ const jsonLd = [webApp, faqPage];
       border-radius: 0.8rem;
       border: 2px solid;
     }
-    /* Grade colors are SEMANTIC status (good/warn/poor) — green here means
-       "good grade", not the page's brand accent (the cyan interactive signal). */
+    /* Grade colours are SEMANTIC status: success for strong grades (A/B),
+       the caution accent for C and below. The letter and the adjacent word
+       ("strong" / "mixed" / "weak" / "poor") carry the grade, never colour
+       alone. */
     .ar-A,
     .ar-B {
-      color: #059669;
-      border-color: #059669;
+      color: var(--color-success);
+      border-color: var(--color-success);
     }
-    .ar-C {
-      color: #d97706;
-      border-color: #d97706;
-    }
-    .ar-D {
-      color: #ea580c;
-      border-color: #ea580c;
-    }
+    .ar-C,
+    .ar-D,
     .ar-F {
-      color: #dc2626;
-      border-color: #dc2626;
+      color: var(--color-accent);
+      border-color: var(--color-accent);
     }
     .ar-score {
       font-size: 1.3rem;
       font-weight: 700;
     }
     .ar-u {
-      color: var(--color-stone-500);
+      color: var(--color-text-annotation);
       font-size: 0.8rem;
       word-break: break-all;
-    }
-    .dark .ar-u {
-      color: var(--color-stone-400);
     }
     .ar-cat {
       margin-top: 1rem;
     }
     .ar-ns {
       display: inline-block;
-      background: var(--color-stone-100);
-      color: #44403c;
-      border-radius: 0.35rem;
+      background: var(--color-bg-secondary);
+      color: var(--color-text-muted);
+      border-radius: var(--radius-chip);
       padding: 0.05rem 0.45rem;
       font-size: 0.72rem;
       font-weight: 500;
-    }
-    .dark .ar-ns {
-      background: var(--color-stone-800);
-      color: var(--color-stone-400);
     }
     .ar-cat .ar-top {
       display: flex;
@@ -766,41 +660,28 @@ const jsonLd = [webApp, faqPage];
     }
     .ar-bar {
       height: 0.5rem;
-      background: var(--color-stone-200);
+      background: var(--color-bg-recessed);
       border-radius: 0.3rem;
       overflow: hidden;
       margin: 0.3rem 0;
-    }
-    .dark .ar-bar {
-      background: var(--color-stone-700);
     }
     .ar-bar > i {
       display: block;
       height: 100%;
       background: var(--color-interactive);
     }
-    .dark .ar-bar > i {
-      background: var(--color-interactive);
-    }
     .ar-v {
-      color: var(--color-stone-600);
+      color: var(--color-text-muted);
       font-size: 0.82rem;
-    }
-    .dark .ar-v {
-      color: var(--color-stone-400);
     }
     .ar-flag {
       display: inline-block;
-      background: rgba(220, 38, 38, 0.12);
-      color: #b91c1c;
-      border-radius: 0.35rem;
+      background: var(--color-accent-wash);
+      color: var(--color-accent);
+      border-radius: var(--radius-chip);
       padding: 0.05rem 0.45rem;
       font-size: 0.72rem;
       margin-left: 0.5rem;
-    }
-    .dark .ar-flag {
-      background: rgba(220, 38, 38, 0.18);
-      color: #f87171;
     }
     .ar-h3 {
       margin: 0 0 0.6rem;
@@ -808,14 +689,11 @@ const jsonLd = [webApp, faqPage];
       font-weight: 700;
     }
     .ar-explain {
-      color: var(--color-stone-600);
+      color: var(--color-text-muted);
       font-size: 0.85rem;
       line-height: 1.55;
       margin: 0.2rem 0 0.9rem;
       max-width: 56rem;
-    }
-    .dark .ar-explain {
-      color: var(--color-stone-400);
     }
     .ar-diff {
       display: grid;
@@ -823,14 +701,10 @@ const jsonLd = [webApp, faqPage];
       gap: 0.75rem;
     }
     .ar-panel {
-      background: var(--color-stone-50);
-      border: 1px solid var(--color-stone-200);
+      background: var(--color-bg-recessed);
+      border: 1px solid var(--color-border);
       border-radius: 0.6rem;
       padding: 0.75rem;
-    }
-    .dark .ar-panel {
-      background: var(--color-stone-950);
-      border-color: var(--color-stone-700);
     }
     .ar-panel h4 {
       margin: 0 0 0.2rem;
@@ -840,20 +714,14 @@ const jsonLd = [webApp, faqPage];
     .ar-tok {
       font-size: 0.72rem;
       margin-bottom: 0.5rem;
-      color: var(--color-stone-500);
-    }
-    .dark .ar-tok {
-      color: var(--color-stone-400);
+      color: var(--color-text-annotation);
     }
     .ar-tok b {
       font-size: 1.5rem;
       line-height: 1;
       display: block;
       margin-bottom: 0.15rem;
-      color: var(--color-stone-900);
-    }
-    .dark .ar-tok b {
-      color: var(--color-stone-100);
+      color: var(--color-text-body);
     }
     .ar-panel pre {
       white-space: pre-wrap;
@@ -862,22 +730,16 @@ const jsonLd = [webApp, faqPage];
         0.72rem/1.45 ui-monospace,
         Menlo,
         monospace;
-      color: var(--color-stone-700);
+      color: var(--color-text-muted);
       max-height: 12rem;
       overflow: auto;
       overscroll-behavior: contain;
       margin: 0;
     }
-    .dark .ar-panel pre {
-      color: var(--color-stone-300);
-    }
     .ar-empty {
-      color: #dc2626;
+      color: var(--color-accent);
       font-style: italic;
       font-size: 0.82rem;
-    }
-    .dark .ar-empty {
-      color: #f87171;
     }
     .ar-cta-primary {
       display: inline-flex;
@@ -886,7 +748,7 @@ const jsonLd = [webApp, faqPage];
       gap: 0.4rem;
       border-radius: var(--radius-control);
       background: var(--color-interactive);
-      color: #fff;
+      color: var(--color-on-accent);
       font-weight: 600;
       font-size: 0.875rem;
       padding: 0.75rem 1.5rem;
@@ -908,9 +770,6 @@ const jsonLd = [webApp, faqPage];
       font-size: 0.9rem;
       text-decoration: none;
     }
-    .dark .ar-cta-link {
-      color: var(--color-interactive);
-    }
     .ar-cta-link:hover {
       text-decoration: underline;
     }
@@ -925,31 +784,20 @@ const jsonLd = [webApp, faqPage];
       display: block;
       font-size: 0.8rem;
       font-weight: 600;
-      color: var(--color-stone-700);
+      color: var(--color-text-muted);
       margin-bottom: 0.25rem;
-    }
-    .dark .ar-field-label {
-      color: var(--color-stone-300);
     }
     .ar-next-form input[type='email'],
     .ar-next-form input[type='text'],
     .ar-next-form select,
     .ar-next-form textarea {
       width: 100%;
-      border: 1px solid var(--color-stone-300);
-      background: var(--color-white);
-      color: var(--color-stone-900);
+      border: 1px solid var(--color-control-border);
+      background: var(--color-bg-elevated);
+      color: var(--color-text-body);
       border-radius: var(--radius-control);
       padding: 0.6rem 0.8rem;
       font-size: 0.9rem;
-    }
-    .dark .ar-next-form input[type='email'],
-    .dark .ar-next-form input[type='text'],
-    .dark .ar-next-form select,
-    .dark .ar-next-form textarea {
-      border-color: var(--color-stone-600);
-      background: var(--color-stone-900);
-      color: var(--color-stone-100);
     }
     .ar-next-form textarea {
       font-family: inherit;
@@ -969,11 +817,8 @@ const jsonLd = [webApp, faqPage];
       gap: 0.45rem;
       margin-top: 0.7rem;
       font-size: 0.8rem;
-      color: var(--color-stone-700);
+      color: var(--color-text-muted);
       line-height: 1.5;
-    }
-    .dark .ar-consent {
-      color: var(--color-stone-300);
     }
     .ar-consent input[type='checkbox'] {
       margin-top: 0.2rem;
@@ -998,15 +843,7 @@ const jsonLd = [webApp, faqPage];
     }
     .ar-next-form button[type='submit']:hover {
       background: var(--color-interactive);
-      color: #fff;
-    }
-    .dark .ar-next-form button[type='submit'] {
-      border-color: var(--color-interactive);
-      color: var(--color-interactive);
-    }
-    .dark .ar-next-form button[type='submit']:hover {
-      background: var(--color-interactive);
-      color: var(--color-stone-950);
+      color: var(--color-on-accent);
     }
     .ar-next-form button[type='submit']:disabled {
       opacity: 0.55;
@@ -1023,11 +860,8 @@ const jsonLd = [webApp, faqPage];
     .ar-radiogroup legend {
       font-size: 0.8rem;
       font-weight: 600;
-      color: var(--color-stone-700);
+      color: var(--color-text-muted);
       margin-bottom: 0.3rem;
-    }
-    .dark .ar-radiogroup legend {
-      color: var(--color-stone-300);
     }
     .ar-radiogroup label {
       font-size: 0.85rem;
@@ -1046,25 +880,15 @@ const jsonLd = [webApp, faqPage];
       margin-top: 0.7rem;
       cursor: pointer;
     }
-    .dark #ar-copy-link {
-      border-color: var(--color-interactive);
-      color: var(--color-interactive);
-    }
     #ar-copy-link:hover {
       background: var(--color-interactive);
-      color: #fff;
-    }
-    .dark #ar-copy-link:hover {
-      color: var(--color-stone-950);
+      color: var(--color-on-accent);
     }
     .ar-copy-msg {
       display: inline-block;
       margin-left: 0.7rem;
       font-size: 0.85rem;
-      color: var(--color-stone-600);
-    }
-    .dark .ar-copy-msg {
-      color: var(--color-stone-400);
+      color: var(--color-text-muted);
     }
     .ar-share-note {
       margin: 0.5rem 0 0;
@@ -1073,64 +897,43 @@ const jsonLd = [webApp, faqPage];
     }
     .ar-wedge-ctx {
       font-size: 0.85rem;
-      color: var(--color-stone-600);
+      color: var(--color-text-muted);
       margin-top: 0.9rem;
       line-height: 1.5;
     }
-    .dark .ar-wedge-ctx {
-      color: var(--color-stone-400);
-    }
     .ar-next-msg {
       font-size: 0.85rem;
-      color: var(--color-stone-600);
+      color: var(--color-text-muted);
       margin-top: 0.6rem;
-    }
-    .dark .ar-next-msg {
-      color: var(--color-stone-400);
     }
     .ar-disclosure {
       font-size: 0.72rem;
-      color: var(--color-stone-600);
+      color: var(--color-text-muted);
       margin-top: 0.7rem;
       line-height: 1.5;
-    }
-    .dark .ar-disclosure {
-      color: var(--color-stone-400);
     }
     .ar-disclosure a {
       color: var(--color-interactive);
       text-decoration: underline;
       text-underline-offset: 2px;
     }
-    .dark .ar-disclosure a {
-      color: var(--color-interactive);
-    }
     .ar-share {
       margin-top: 1.1rem;
       font-size: 0.82rem;
-      color: var(--color-stone-500);
-    }
-    .dark .ar-share {
-      color: var(--color-stone-400);
+      color: var(--color-text-annotation);
     }
     .ar-share a {
       color: var(--color-interactive);
     }
-    .dark .ar-share a {
-      color: var(--color-interactive);
-    }
     .ar-err {
-      color: #dc2626;
-    }
-    .dark .ar-err {
-      color: #f87171;
+      color: var(--color-accent);
     }
     .ar-err strong {
       display: inline-block;
       margin-right: 0.35rem;
     }
     .ar-loading {
-      color: var(--color-stone-500);
+      color: var(--color-text-annotation);
     }
     @media (prefers-reduced-motion: no-preference) {
       .ar-loading {
