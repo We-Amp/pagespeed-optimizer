@@ -65,16 +65,10 @@ test.describe('Blog', () => {
   // breaks or the renderer regresses, this test catches it.
   test('blog posts advertise distinct per-post og:image', async ({ page }) => {
     await page.goto('/blog/why-i-rebuilt-mod-pagespeed/');
-    const a = await page
-      .locator('meta[property="og:image"]')
-      .first()
-      .getAttribute('content');
+    const a = await page.locator('meta[property="og:image"]').first().getAttribute('content');
 
     await page.goto('/blog/migrating-from-1x/');
-    const b = await page
-      .locator('meta[property="og:image"]')
-      .first()
-      .getAttribute('content');
+    const b = await page.locator('meta[property="og:image"]').first().getAttribute('content');
 
     expect(a).toBeTruthy();
     expect(b).toBeTruthy();
@@ -84,5 +78,48 @@ test.describe('Blog', () => {
     // Cards carry a `?v=` cache-busting query, so match the filename, not EOL.
     expect(a).toMatch(/\/og-cards\/why-i-rebuilt-mod-pagespeed\.png(\?|$)/);
     expect(b).toMatch(/\/og-cards\/migrating-from-1x\.png(\?|$)/);
+  });
+
+  // The chart lightbox (cyclone-cache benchmark post) is an aria-modal dialog:
+  // Tab must stay inside it while it is open, and closing returns focus to
+  // the button that opened it.
+  test.describe('chart lightbox', () => {
+    const post = '/blog/cyclone-cache-vs-file-cache-benchmark/';
+
+    test('traps Tab inside while open, Escape closes and restores focus', async ({ page }) => {
+      await page.goto(post);
+      const zoom = page.locator('.cyc-zoom').first();
+      await zoom.scrollIntoViewIfNeeded();
+      await zoom.click();
+      const lb = page.locator('#cyc-lightbox');
+      await expect(lb).toBeVisible();
+      await expect(page.locator('.cyc-lb-close')).toBeFocused();
+
+      const focusInside = () =>
+        page.evaluate(() => {
+          const el = document.activeElement;
+          return Boolean(el && el.closest && el.closest('#cyc-lightbox'));
+        });
+      for (const key of ['Tab', 'Tab', 'Shift+Tab', 'Shift+Tab']) {
+        await page.keyboard.press(key);
+        expect(await focusInside()).toBe(true);
+      }
+
+      await page.keyboard.press('Escape');
+      await expect(lb).toBeHidden();
+      await expect(zoom).toBeFocused();
+    });
+
+    test('outside click closes the lightbox', async ({ page }) => {
+      await page.goto(post);
+      const zoom = page.locator('.cyc-zoom').first();
+      await zoom.scrollIntoViewIfNeeded();
+      await zoom.click();
+      const lb = page.locator('#cyc-lightbox');
+      await expect(lb).toBeVisible();
+      // The backdrop is the dialog element itself; the panel is centred.
+      await lb.click({ position: { x: 4, y: 4 } });
+      await expect(lb).toBeHidden();
+    });
   });
 });
