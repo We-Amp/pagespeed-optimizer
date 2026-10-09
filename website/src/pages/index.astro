@@ -7,6 +7,7 @@ import ReadoutPanel from '../components/instrument/ReadoutPanel.astro';
 import SectionHeader from '../components/instrument/SectionHeader.astro';
 import TermPanel from '../components/instrument/TermPanel.astro';
 import HitMissBadge from '../components/instrument/HitMissBadge.astro';
+import Chip from '../components/instrument/Chip.astro';
 import { formatPct, monthYear, pctDelta } from '../lib/instrument';
 import demoMetrics from '../data/demo-metrics.json';
 import telemetryCapture from '../data/telemetry-capture.json';
@@ -422,6 +423,63 @@ const jsonLd = [organization, website, product, faqPage];
       letter-spacing: -0.01em;
       line-height: 1.4;
     }
+    /* Mono panel title row (instrument faceplate label). */
+    .panel-title {
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--color-text-annotation);
+    }
+    /* Stack picker rows: mono key column, hairline between rows. */
+    .stack-list {
+      margin-top: 0.75rem;
+    }
+    .stack-list li {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.125rem;
+      padding-block: 0.625rem;
+      border-top: 1px solid var(--color-border);
+    }
+    .stack-list li:first-child {
+      border-top: 0;
+    }
+    @media (min-width: 520px) {
+      .stack-list li {
+        grid-template-columns: 9.5rem 1fr;
+        gap: 0.75rem;
+      }
+    }
+    .stack-key {
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      font-weight: 600;
+      color: var(--color-text-body);
+    }
+    /* Capability list: the check is a decorative [x] field mark in CSS, so the
+       text nodes stay the plain item wording. */
+    .check-list li {
+      position: relative;
+      padding-left: 1.75rem;
+      padding-block: 0.5rem;
+      border-top: 1px dashed var(--color-border);
+    }
+    .check-list li:first-child {
+      border-top: 0;
+    }
+    .check-list li::before {
+      content: '[x]';
+      position: absolute;
+      left: 0;
+      top: 0.5rem;
+      font-family: var(--font-mono);
+      font-size: 0.75rem;
+      font-weight: 600;
+      line-height: 1.65;
+      color: var(--color-success);
+    }
   </style>
 
   {/* 01 — this site runs the binary it sells: the captured response headers
@@ -493,64 +551,72 @@ const jsonLd = [organization, website, product, faqPage];
     <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
   </div>
 
-  {/* One product — the converged line, with availability signposted by stack */}
-  <section class="py-20">
-    <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8">
-      <h2 class="h2-section text-center text-text-body">
-        One product again. The module you know, plus the worker.
-      </h2>
-      <p class="mt-4 text-center text-text-muted max-w-2xl mx-auto">
+  {/* 02 — the converged line, with availability signposted by stack */}
+  <section class="py-13 sm:py-18" aria-labelledby="s-product">
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <SectionHeader
+        id="s-product"
+        index="02"
+        eyebrow="Module + worker"
+        title="One product again. The module you know, plus the worker."
+      >
         mod_pagespeed 2.1 converges the two lines We-Amp shipped through 2026: the native in-process
         module that stays compatible with your existing pagespeed.conf, and the optimizer worker
         that does the heavy optimization work outside the web server. {LICENSE_CLAUSE_CAP}.
-      </p>
+      </SectionHeader>
       {
         /* disambiguator — surfaces the stack mapping so visitors on a platform the
           converged line doesn't cover yet find their line without reading cards. */
       }
-      <div
-        class="mt-8 mx-auto max-w-2xl rounded-lg border border-border bg-bg-secondary px-5 py-4 text-sm text-text-body"
-      >
-        <p class="font-semibold text-text-body">Pick by your stack</p>
-        <ul class="mt-2 space-y-1">
-          <li>
-            <span class="font-mono text-xs text-text-annotation">Apache</span>
-            &nbsp;native module + worker &rarr; <span class="font-semibold text-text-body"
-              >mod_pagespeed 2.1</span
-            > (this page)
-          </li>
-          <li>
-            <span class="font-mono text-xs text-text-annotation">nginx</span>
-            &nbsp;native module, and module + worker in the reverse-proxy deployment &rarr; <span
-              class="font-semibold text-text-body">mod_pagespeed 2.1</span
-            > (this page)
-          </li>
-          <li>
-            <span class="font-mono text-xs text-text-annotation">IIS / Windows Server</span>
-            &nbsp;&rarr; <a
-              href="/download/"
-              data-umami-event="cta_home_disambiguator_11"
-              class="font-semibold text-interactive hover:underline">the IIS module</a
-            > &mdash; the IIS package ships from the 1.15 packaging channel
-          </li>
-          <li>
-            <span class="font-mono text-xs text-text-annotation">ASP.NET Core</span>
-            &nbsp;&rarr; <a
-              href="/docs/aspnet-getting-started/"
-              data-umami-event="cta_home_disambiguator_aspnet"
-              class="font-semibold text-interactive hover:underline"
-              >the ASP.NET Core middleware
-              <span class="font-mono text-xs">(WeAmp.PageSpeed.AspNetCore)</span></a
-            >
-          </li>
-        </ul>
-        <p class="mt-3 text-xs text-text-annotation">
-          Every line shares the same optimization core; the converged module keeps the 1.14/1.15
-          directives, so existing configuration carries over.
-        </p>
-      </div>
-      <div class="mt-12 max-w-2xl mx-auto">
-        <div class="card-product flex flex-col">
+      <div class="mt-12 grid gap-6 lg:grid-cols-2">
+        <div class="panel">
+          <p class="panel-title">Pick by your stack</p>
+          <ul class="stack-list">
+            <li>
+              <span class="stack-key">Apache</span>
+              <span
+                >native module + worker &rarr; <span class="font-semibold text-text-body"
+                  >mod_pagespeed 2.1</span
+                > (this page)</span
+              >
+            </li>
+            <li>
+              <span class="stack-key">nginx</span>
+              <span
+                >native module, and module + worker in the reverse-proxy deployment &rarr; <span
+                  class="font-semibold text-text-body">mod_pagespeed 2.1</span
+                > (this page)</span
+              >
+            </li>
+            <li>
+              <span class="stack-key">IIS / Windows Server</span>
+              <span
+                >&rarr; <a
+                  href="/download/"
+                  data-umami-event="cta_home_disambiguator_11"
+                  class="font-semibold text-interactive hover:underline">the IIS module</a
+                > &mdash; the IIS package ships from the 1.15 packaging channel</span
+              >
+            </li>
+            <li>
+              <span class="stack-key">ASP.NET Core</span>
+              <span
+                >&rarr; <a
+                  href="/docs/aspnet-getting-started/"
+                  data-umami-event="cta_home_disambiguator_aspnet"
+                  class="font-semibold text-interactive hover:underline"
+                  >the ASP.NET Core middleware
+                  <span class="font-mono text-xs">(WeAmp.PageSpeed.AspNetCore)</span></a
+                ></span
+              >
+            </li>
+          </ul>
+          <p class="mt-3 text-xs text-text-annotation">
+            Every line shares the same optimization core; the converged module keeps the 1.14/1.15
+            directives, so existing configuration carries over.
+          </p>
+        </div>
+        <div class="panel flex flex-col">
           {
             /* Capability register lit to 0xC9 — the same byte as the brand mark /
               logo, in the cyan accent: the converged card carries the live signal. */
@@ -564,46 +630,35 @@ const jsonLd = [organization, website, product, faqPage];
             The converged line &mdash; {LICENSE_CLAUSE}
           </p>
           <div class="mt-3 flex flex-wrap gap-2">
-            <span
-              class="inline-flex items-center rounded-md bg-bg-secondary px-2.5 py-1 text-xs font-semibold text-text-body ring-1 ring-inset ring-border"
-              >Apache</span
-            >
-            <span
-              class="inline-flex items-center rounded-md bg-bg-secondary px-2.5 py-1 text-xs font-semibold text-text-body ring-1 ring-inset ring-border"
-              >nginx</span
-            >
-            <span
-              class="inline-flex items-center rounded-md bg-interactive/10 px-2.5 py-1 text-xs font-semibold text-interactive ring-1 ring-inset ring-interactive/40"
-              >Open source &middot; Apache-2.0</span
-            >
+            <Chip tone="interactive" label="Apache" />
+            <Chip tone="interactive" label="nginx" />
+            <Chip tone="neutral" label="Open source · Apache-2.0" />
           </div>
-          <ul class="mt-4 mb-6 space-y-2 text-sm text-text-muted">
-            <li class="flex items-start gap-2">
-              <span class="text-interactive mt-0.5">&#10003;</span> Native in-process module &mdash; no
-              proxy hop; drop-in for your pagespeed.conf
+          <ul class="check-list mt-4 mb-6 text-sm text-text-muted">
+            <li>
+              Native in-process module &mdash; no proxy hop; drop-in for your pagespeed.conf
             </li>
-            <li class="flex items-start gap-2">
-              <span class="text-interactive mt-0.5">&#10003;</span> Optimizer worker off the request path
-              &mdash; ML quality + SSIMULACRA2 verification
+            <li>
+              Optimizer worker off the request path &mdash; ML quality + SSIMULACRA2 verification
             </li>
-            <li class="flex items-start gap-2">
-              <span class="text-interactive mt-0.5">&#10003;</span> Classic filters: combine, sprite,
-              IPRO, domain mapping
+            <li>Classic filters: combine, sprite, IPRO, domain mapping</li>
+            <li>
+              Built-in <code class="text-xs">/pagespeed_admin/</code> console
             </li>
-            <li class="flex items-start gap-2">
-              <span class="text-interactive mt-0.5">&#10003;</span> Built-in
-              <code class="text-xs">/pagespeed_admin/</code> console
-            </li>
-            <li class="flex items-start gap-2">
-              <span class="text-interactive mt-0.5">&#10003;</span> Serving straight from the
-              variant-aware cache &mdash; no re-optimization on the request path
+            <li>
+              Serving straight from the variant-aware cache &mdash; no re-optimization on the
+              request path
             </li>
           </ul>
-          <a href="/features/" class="btn-primary mt-auto"> See what it does &rarr; </a>
+          <a href="/features/" class="btn-primary mt-auto self-start"> See what it does &rarr; </a>
         </div>
       </div>
     </div>
   </section>
+
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+  </div>
 
   {/* Start here — merged docs + blog scent (audit D13, 2026-05-16) */}
   <section class="bg-bg-secondary py-16">
