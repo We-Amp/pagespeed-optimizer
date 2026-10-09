@@ -43,11 +43,10 @@ const jsonLd = {
     </p>
 
     <div class="mt-10 rounded-2xl border border-border bg-bg-secondary p-6">
-      <p class="eyebrow">Install</p>
+      <p class="eyebrow" id="apt-yum-install-lead">Install</p>
       <div class="mt-3">
         <TermPanel
-          command="curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh"
-          label="Install"
+          labelledby="apt-yum-install-lead"
           lines={[
             {
               text: 'curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh',
@@ -57,11 +56,12 @@ const jsonLd = {
           ]}
         />
       </div>
-      <p class="mt-4 text-sm text-text-muted">Then install the module for your server. Apache:</p>
+      <p class="mt-4 text-sm text-text-muted" id="apt-yum-apache-lead">
+        Then install the module for your server. Apache:
+      </p>
       <div class="mt-2">
         <TermPanel
-          command="sudo apt-get install mod-pagespeed"
-          label="Apache install commands"
+          labelledby="apt-yum-apache-lead"
           lines={[
             {
               text: `# Debian 12/13, Ubuntu 22.04/24.04
@@ -74,11 +74,10 @@ sudo dnf install mod-pagespeed`,
           ]}
         />
       </div>
-      <p class="mt-4 text-sm text-text-muted">nginx:</p>
+      <p class="mt-4 text-sm text-text-muted" id="apt-yum-nginx-lead">nginx:</p>
       <div class="mt-2">
         <TermPanel
-          command="sudo apt-get install nginx-module-pagespeed"
-          label="nginx install commands"
+          labelledby="apt-yum-nginx-lead"
           lines={[
             {
               text: `# Debian 12/13, Ubuntu 22.04/24.04
