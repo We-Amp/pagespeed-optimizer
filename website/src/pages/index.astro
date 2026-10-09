@@ -8,13 +8,18 @@ import SectionHeader from '../components/instrument/SectionHeader.astro';
 import TermPanel from '../components/instrument/TermPanel.astro';
 import HitMissBadge from '../components/instrument/HitMissBadge.astro';
 import Chip from '../components/instrument/Chip.astro';
-import { formatPct, monthYear, pctDelta } from '../lib/instrument';
+import { formatPct, monthYear, pctDelta, roundDownDisplay } from '../lib/instrument';
 import demoMetrics from '../data/demo-metrics.json';
 import telemetryCapture from '../data/telemetry-capture.json';
 import { getRelease } from '../lib/release';
 import { offerJsonLd } from '../data/offer-jsonld';
 import { stripHtml } from '../data/faq-shared';
-import { LICENSE_CLAUSE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
+import {
+  BUILTWITH_AS_OF,
+  BUILTWITH_SITES,
+  LICENSE_CLAUSE,
+  LICENSE_CLAUSE_CAP,
+} from '../data/product-facts.mjs';
 import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../data/software-jsonld';
 
 const softwareVersion = await productSoftwareVersion();
@@ -84,6 +89,10 @@ const qsApacheLines: TermLine[] = [
   { text: '$ curl -I http://localhost/ | grep X-Mod-Pagespeed', tone: 'strong' },
   { text: `X-Mod-Pagespeed: ${homeCaptureHeaders['x-mod-pagespeed']}`, tone: 'ok' },
 ];
+
+// Section 06 heritage stat: 231,341 live sites per BuiltWith, rendered as a
+// defensible lower bound ("230,000+").
+const builtwithLiveRounded = roundDownDisplay(Number(BUILTWITH_SITES.replace(/,/g, '')), 10000);
 
 // Best AVIF savings across all demo sites — the measured range detail in the
 // dogfooding paragraph ("up to N% smaller pages").
@@ -1749,30 +1758,31 @@ const jsonLd = [organization, website, product, faqPage];
     </div>
   </section>
 
-  {/* Social proof — heritage/lineage (C1/MKT-1) + dogfooding */}
-  <section class="bg-bg-secondary py-16">
-    <div class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 text-center">
-      <p class="eyebrow">The lineage</p>
-      <h2 class="mt-3 h2-section text-text-body">
-        The optimization core behind 230,000+ live sites &mdash;<br class="hidden sm:block" /> now maintained by We-Amp.
-      </h2>
-      <p class="mt-4 text-text-muted max-w-2xl mx-auto">
+  {/* 06 — the lineage: heritage stats as engraved readout plates. */}
+  <section class="py-13 sm:py-18" aria-labelledby="s-lineage">
+    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+      <SectionHeader
+        id="s-lineage"
+        index="06"
+        eyebrow="The lineage"
+        title="The optimization core behind 230,000+ live sites — now maintained by We-Amp."
+      >
         We-Amp's products are the maintained continuation of the open-source mod_pagespeed
         optimization core. These are not our customers &mdash; they are the proof the optimization
         core works at scale.
-      </p>
+      </SectionHeader>
 
       {
         /* Heritage stats — rounded display numbers per BuiltWith. Exact
           figures live in the BuiltWith caption below. We do NOT claim these as
           We-Amp customers (honest framing per the brand guide). */
       }
-      <div class="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl mx-auto">
-        <div class="rounded-xl border border-border bg-bg-elevated px-6 py-5">
-          <p class="display-num text-4xl font-bold text-interactive">230,000+</p>
+      <div class="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
+        <div class="readout-plate px-6 py-5">
+          <p class="display-num text-4xl font-bold text-interactive">{builtwithLiveRounded}</p>
           <p class="mt-2 text-sm text-text-muted">live sites run mod_pagespeed today</p>
         </div>
-        <div class="rounded-xl border border-border bg-bg-elevated px-6 py-5">
+        <div class="readout-plate px-6 py-5">
           <p class="display-num text-4xl font-bold text-text-body">1.9 million</p>
           <p class="mt-2 text-sm text-text-muted">sites across its history</p>
         </div>
@@ -1784,7 +1794,7 @@ const jsonLd = [organization, website, product, faqPage];
           rel="noopener noreferrer"
           class="underline-offset-4 hover:underline hover:text-text-body transition-colors"
           >BuiltWith</a
-        >, May 2026 (231,341 live; 1,900,000+ historical).
+        >, {BUILTWITH_AS_OF} ({BUILTWITH_SITES} live; 1,900,000+ historical).
       </p>
     </div>
   </section>
