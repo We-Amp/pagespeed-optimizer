@@ -35,21 +35,23 @@ const newLabel = ex.addedIn ? (addedMinor ? `New in ${addedMinor}` : 'New') : nu
 const impact = exampleImpact(ex.slug)!;
 const { measured, present, hasData, nonSubstantive, substantive, diff, tiles } = impact;
 
-// Byte rows for the ByteDelta plate: the page's byte footprint before and
+// Byte plates for the ByteDelta figures: the page's byte footprint before and
 // after this filter, from the same measured entry the tiles read. Scope
-// mirrors example-impact.ts: totals when resources were measured, else HTML.
+// mirrors example-impact.ts: one plate for totals when resources were
+// measured, one for the HTML document when it shrank.
 const savings = hasData && substantive ? impact.savings : undefined;
-let byteRows: Array<{ label: string; bytes: number }> | undefined;
+const bytePlates: Array<Array<{ label: string; bytes: number }>> = [];
 if (savings && savings.totalBytesPct > 0 && measured.before.resourcesMeasured > 0) {
-  byteRows = [
+  bytePlates.push([
     { label: 'original', bytes: measured.before.htmlBytes + measured.before.resourceBytes },
     { label: 'optimized', bytes: measured.after.htmlBytes + measured.after.resourceBytes },
-  ];
-} else if (savings && savings.htmlBytesPct > 0) {
-  byteRows = [
+  ]);
+}
+if (savings && savings.htmlBytesPct > 0) {
+  bytePlates.push([
     { label: 'original', bytes: measured.before.htmlBytes },
     { label: 'optimized', bytes: measured.after.htmlBytes },
-  ];
+  ]);
 }
 const requestsTile = tiles.find((t) => t.label === 'HTTP requests');
 
@@ -359,7 +361,7 @@ const jsonLd: Record<string, unknown> | undefined = hasData
         )
       }
       {
-        (requestsTile || byteRows) && (
+        (requestsTile || bytePlates.length > 0) && (
           <div class="mt-12">
             <h2 class="h2-section text-text-body">Measured impact</h2>
             <div class="mt-5 grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,18rem)_minmax(0,1fr)]">
@@ -379,7 +381,9 @@ const jsonLd: Record<string, unknown> | undefined = hasData
                   <span class="badge-success mt-2">{requestsTile.pill}</span>
                 </div>
               )}
-              {byteRows && <ByteDelta rows={byteRows} source={exampleSource} />}
+              {bytePlates.map((rows) => (
+                <ByteDelta rows={rows} source={exampleSource} />
+              ))}
             </div>
           </div>
         )
