@@ -931,6 +931,23 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     color: var(--color-stone-300);
   }
 
+  /* Floating widgets (QuickMessage, ShareFloat) vs overlays and the hero.
+     While a modal dialog is open — the search dialog or the blog chart
+     lightbox, both setting data-dialog-open on <html> — the launchers hide.
+     At handset widths they also stay out of the first viewport (a fixed
+     launcher would sit on top of the hero) until it has been scrolled past,
+     signalled by data-fab-reveal on <html>; an already-open panel stays. */
+  html[data-dialog-open] .qm-root,
+  html[data-dialog-open] .share-fab-root {
+    display: none;
+  }
+  @media (max-width: 639px) {
+    html:not([data-fab-reveal]) .qm-root:not([data-state='open']),
+    html:not([data-fab-reveal]) .share-fab-root:not([data-state='open']) {
+      display: none;
+    }
+  }
+
   /* Callouts (admonitions). Emitted by the remarkCallouts plugin from
      `:::caution[…]:::` container directives in docs markdown. A filled,
      rounded-card box with a tinted border reads as advisory chrome that is
