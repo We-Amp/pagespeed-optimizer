@@ -17,9 +17,14 @@
  * Usage:  node scripts/fetch-pricing.js
  */
 
-import { readFileSync, writeFileSync, statSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  describePricingCacheAge,
+  isPricingCacheFresh,
+  pricingCacheAge,
+} from './lib/pricing-cache-age.mjs';
 
 // ---------------------------------------------------------------------------
 // Paths
@@ -71,25 +76,18 @@ function info(msg) {
 }
 
 /**
- * Read the cached pricing file if it exists. Returns { data, mtime } or null.
+ * Read the cached pricing file if it exists. Returns { data, age, fresh } or
+ * null; `age` is measured from the data's own fetchedAt timestamp (see
+ * lib/pricing-cache-age.mjs).
  */
 function readCachedFile() {
   try {
-    const stat = statSync(OUTPUT_FILE);
     const data = JSON.parse(readFileSync(OUTPUT_FILE, 'utf-8'));
-    return { data, mtime: stat.mtime };
+    const age = pricingCacheAge(data);
+    return { data, age, fresh: isPricingCacheFresh(age, STALENESS_HOURS) };
   } catch {
     return null;
   }
-}
-
-/**
- * Check whether the cached file is within the staleness window.
- */
-function isCacheFresh(mtime) {
-  const ageMs = Math.max(0, Date.now() - mtime.getTime());
-  const ageHours = ageMs / (1000 * 60 * 60);
-  return ageHours < STALENESS_HOURS;
 }
 
 /**
@@ -120,12 +118,11 @@ async function fsGet(path) {
 const apiUser = process.env.FASTSPRING_API_USER;
 const apiPass = process.env.FASTSPRING_API_PASS;
 
-// Freshness is read from the cached file's mtime, which records when the
-// checkout wrote the file, not when the prices were fetched. That is a usable
-// proxy on a machine that can refresh the file and a meaningless one in a
-// build that structurally cannot hold credentials -- a container image build,
-// for one, where the answer is the same committed fallback either way and the
-// only variable is how long the workspace has been sitting there.
+// Freshness is read from the cached data's own fetchedAt timestamp, which
+// records when the prices were fetched; the file's mtime only records when a
+// checkout wrote it. A build that structurally cannot hold credentials -- a
+// container image build, for one -- gets the same committed fallback either
+// way, however old it is.
 // PRICING_ALLOW_STALE lets such a build proceed on the committed file, loudly.
 // It is never set for a build that publishes prices to customers.
 const allowStale = process.env.PRICING_ALLOW_STALE === '1';
@@ -144,13 +141,11 @@ async function main() {
   // This allows builds in CI/CD or new-developer environments that lack
   // FastSpring credentials, as long as the committed JSON is recent enough --
   // or as long as the build has declared that it cannot do better.
-  if (cached && (isCacheFresh(cached.mtime) || allowStale) && (!apiUser || !apiPass)) {
-    const ageHours = Math.round((Date.now() - cached.mtime.getTime()) / 3600000);
+  if (cached && (cached.fresh || allowStale) && (!apiUser || !apiPass)) {
     warn(
       'FastSpring API credentials not available. ' +
-        `Using cached pricing from ${cached.data.fetchedAt} ` +
-        `(${ageHours}h old, limit is ${STALENESS_HOURS}h)` +
-        (isCacheFresh(cached.mtime) ? '.' : ' -- PRICING_ALLOW_STALE is set.'),
+        `Using cached pricing (${describePricingCacheAge(cached.age, STALENESS_HOURS)})` +
+        (cached.fresh ? '.' : ' -- PRICING_ALLOW_STALE is set.'),
     );
     return;
   }
@@ -159,10 +154,9 @@ async function main() {
     // Two different problems wear the same failure here, and saying the wrong
     // one sends the reader looking for credentials that were never the point.
     if (cached) {
-      const ageHours = Math.round((Date.now() - cached.mtime.getTime()) / 3600000);
       fatal(
-        `Cached pricing is ${ageHours}h old (limit is ${STALENESS_HOURS}h) and there ` +
-          'are no FastSpring API credentials to refresh it with.\n' +
+        `Cached pricing is stale (${describePricingCacheAge(cached.age, STALENESS_HOURS)}) ` +
+          'and there are no FastSpring API credentials to refresh it with.\n' +
           '  Source your credentials before running this script:\n\n' +
           '    source ~/.weamp/credentials.env\n\n' +
           '  A build that cannot hold credentials and accepts the committed\n' +
@@ -184,19 +178,15 @@ async function main() {
   } catch (err) {
     warn(`FastSpring API unreachable: ${err.message}`);
 
-    if (cached && isCacheFresh(cached.mtime)) {
-      warn(
-        `Using cached pricing from ${cached.data.fetchedAt} ` +
-          `(${Math.round((Date.now() - cached.mtime.getTime()) / 3600000)}h old, limit is ${STALENESS_HOURS}h).`,
-      );
+    if (cached && cached.fresh) {
+      warn(`Using cached pricing (${describePricingCacheAge(cached.age, STALENESS_HOURS)}).`);
       // Leave the existing file in place
       return;
     }
 
     if (cached) {
-      const ageHours = Math.round((Date.now() - cached.mtime.getTime()) / 3600000);
       fatal(
-        `Cached pricing is ${ageHours}h old (limit is ${STALENESS_HOURS}h). ` +
+        `Cached pricing is stale (${describePricingCacheAge(cached.age, STALENESS_HOURS)}). ` +
           'Cannot build with stale prices. Fix the API connection and retry.',
       );
     }
