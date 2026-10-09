@@ -2,6 +2,9 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import CTAButton from '../components/CTAButton.astro';
 import Icon from '../components/Icon.astro';
+import Readout from '../components/instrument/Readout.astro';
+import ReadoutPanel from '../components/instrument/ReadoutPanel.astro';
+import { formatPct, monthYear, pctDelta } from '../lib/instrument';
 import demoMetrics from '../data/demo-metrics.json';
 import { getRelease } from '../lib/release';
 import { offerJsonLd } from '../data/offer-jsonld';
@@ -11,6 +14,17 @@ import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../data/softw
 
 const softwareVersion = await productSoftwareVersion();
 
+// Hero readout panel: the e-commerce case from src/data/demo-metrics.json
+// (measured on the demo store; the label date comes from generated_at).
+const demoStore = demoMetrics.sites.find((site) => site.id === 'ecommerce');
+if (!demoStore) throw new Error('demo-metrics.json: the ecommerce site entry is missing');
+const demoLighthouse = demoStore.lighthouse;
+const demoLoad = demoStore.loadTime;
+const demoImageJpeg = demoStore.resources.images.totalJpeg;
+const demoImageAvif = demoStore.resources.images.totalAvif;
+const demoImageDelta = formatPct(pctDelta(demoImageJpeg, demoImageAvif));
+const demoMeasured = `Measured on our demo store, ${monthYear(demoMetrics.generated_at)}.`;
+
 // Single source of truth: corp/releases/1.1.yaml synced into
 // src/content/releases-1.1/release.yaml. The X-Mod-Pagespeed
 // header that 1.1 emits keeps a four-segment legacy version suffix (".0") for
@@ -18,11 +32,8 @@ const softwareVersion = await productSoftwareVersion();
 const rel11 = await getRelease('1.1');
 const xModPagespeedHeader = `X-Mod-Pagespeed: ${rel11.display.header_version}.0`;
 
-// Best AVIF savings across all demo sites — surfaced lower in the social-proof
-// caption as a measured range detail. The canonical hero savings figure is the
-// curl artifact's −68% (single number, used consistently above the fold per
-// MKT-16); this computed value backs the honest "measured across our own demo
-// sites" caption rather than the headline.
+// Best AVIF savings across all demo sites — the measured range detail in the
+// dogfooding paragraph ("up to N% smaller pages").
 const bestSavings = Math.max(
   ...demoMetrics.sites.map((site) => {
     const before =
@@ -205,137 +216,117 @@ const jsonLd = [organization, website, product, faqPage];
   description={`The PageSpeed module, maintained again and ${LICENSE_CLAUSE}. Install mod_pagespeed 2.1 on nginx or Apache with apt or yum.`}
   jsonLd={jsonLd}
 >
-  {/* Hero */}
-  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-20 text-center">
-    <h1 class="h1-hero text-text-body">
-      <span
-        class="mb-4 block text-base font-semibold leading-normal tracking-normal text-text-muted sm:text-lg"
-        >mod_pagespeed 2.1, the PageSpeed module for nginx and Apache</span
-      >
-      Lighthouse 56 to 90.<br />
-      <span class="relative inline-block text-text-body border-b-[3px] border-interactive pb-1"
-        >On your own servers.</span
-      >
-    </h1>
-    <p class="lede mt-8 max-w-xl mx-auto">
-      mod_pagespeed transcodes images to AVIF, minifies CSS and JS, and injects critical CSS &mdash;
-      optimized off the request path, served from cache by your own nginx or Apache. {LICENSE_CLAUSE_CAP}. No proxy, no CDN, nothing third-party in your request
-      path.
-    </p>
-    <p class="mt-4 text-sm text-text-muted">
-      Running IIS or ASP.NET Core? <a
-        href="/download/"
-        data-umami-event="cta_home_hero_11"
-        class="font-medium text-interactive hover:underline">see the IIS and ASP.NET Core packages &rarr;</a
-      >
-    </p>
-    <p class="mt-4 text-sm text-text-annotation">
-      The optimization core behind <span class="font-semibold text-text-body"
-        >230,000+ live sites</span
-      > (<a
-        href="https://trends.builtwith.com/Server/mod_pagespeed"
-        target="_blank"
-        rel="noopener noreferrer"
-        class="underline decoration-stone-300 dark:decoration-stone-600 underline-offset-2 hover:text-text-body"
-        >BuiltWith, May 2026</a
-      >) &mdash; maintained by We-Amp, <a
-        href="https://developers.googleblog.com/en/speed-up-your-sites-with-pagespeed-for-nginx/"
-        target="_blank"
-        rel="nofollow noopener"
-        class="underline decoration-stone-300 dark:decoration-stone-600 underline-offset-2 hover:text-text-body"
-        >credited by Google as an ngx_pagespeed contributor</a
-      >.
-    </p>
+  {/* Hero — instrument layout: message left, the measured readout panel on
+      the right at >=1024px; stacked with the panel right after the CTA block
+      on narrow screens. */}
+  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-16 pb-14">
+    <div class="hero-grid">
+      <div>
+        <p class="eyebrow">open source &middot; Apache-2.0</p>
+        <h1 class="h1-hero hero-title mt-4 text-text-body">
+          <span class="block"
+            >mod_pagespeed 2.1, the PageSpeed module for nginx and Apache</span
+          >
+          <span class="hero-sub mt-4 block text-interactive"
+            >Lighthouse <span class="text-text-body">56</span> to <span class="text-text-body">90</span
+            >. On your own servers.</span
+          >
+        </h1>
+        <p class="lede mt-8 max-w-xl">
+          mod_pagespeed transcodes images to AVIF, minifies CSS and JS, and injects critical CSS &mdash;
+          optimized off the request path, served from cache by your own nginx or Apache. {LICENSE_CLAUSE_CAP}. No proxy, no CDN, nothing third-party in your request
+          path.
+        </p>
+        <p class="mt-4 text-sm text-text-muted">
+          Running IIS or ASP.NET Core? <a
+            href="/download/"
+            data-umami-event="cta_home_hero_11"
+            class="font-medium text-interactive hover:underline">see the IIS and ASP.NET Core packages &rarr;</a
+          >
+        </p>
+        <p class="mt-4 text-sm text-text-annotation">
+          The optimization core behind <span class="font-semibold text-text-body"
+            >230,000+ live sites</span
+          > (<a
+            href="https://trends.builtwith.com/Server/mod_pagespeed"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="underline decoration-stone-300 dark:decoration-stone-600 underline-offset-2 hover:text-text-body"
+            >BuiltWith, May 2026</a
+          >) &mdash; maintained by We-Amp.
+        </p>
 
-    {
-      /* Proof points — measured customer outcomes, not engine internals.
-        All four are byte-exact from the e-commerce case in
-        src/data/demo-metrics.json (shown live on /demo/): Lighthouse 56→90,
-        load 1.8s→0.8s, product image 99.7KB→23.7KB (−76%). The 4th card is the
-        sovereignty anchor. Lead with the result a buyer already tracks (brand
-        §2.2: the 194/32-bit-mask is the guide's own "too technical for the
-        hero" counter-example; §6.1: measured benchmarks are the #1 trust
-        signal). display-num treatment per §4.6; whitespace-nowrap keeps the
-        before→after on one line in the 4-up grid. */
-    }
-    <div class="mt-10 grid grid-cols-2 gap-3 sm:grid-cols-4 max-w-3xl mx-auto text-left">
-      <div class="readout-plate px-4 py-3">
-        <p
-          class="display-num text-xl font-bold whitespace-nowrap text-emerald-700 dark:text-emerald-400"
-        >
-          56 &rarr; 90
+        <div class="mt-8 flex flex-wrap items-center gap-3">
+          <a href="/download/" class="btn-primary" data-umami-event="cta_primary_home_hero">
+            Download &amp; run
+          </a>
+          <a href="/demo/" class="btn-secondary">See the demo</a>
+          <a href="/docs/" class="btn-secondary">Read the docs</a>
+        </div>
+        <div class="mt-4 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+          <a
+            href="/examples/"
+            class="text-text-muted hover:text-interactive transition-colors underline-offset-4 hover:underline"
+            >Browse the examples</a
+          >
+          <a
+            href="https://github.com/We-Amp/mod_pagespeed"
+            rel="noopener noreferrer"
+            class="text-text-muted hover:text-interactive transition-colors underline-offset-4 hover:underline"
+            >Source on GitHub</a
+          >
+        </div>
+        <p class="mt-4 text-xs text-text-annotation">
+          {LICENSE_CLAUSE_CAP} &mdash; install and run it freely, in development and in production.
         </p>
-        <p class="mt-1 text-xs text-text-muted">Lighthouse performance score</p>
-      </div>
-      <div class="readout-plate px-4 py-3">
-        <p
-          class="display-num text-xl font-bold whitespace-nowrap text-emerald-700 dark:text-emerald-400"
-        >
-          1.8s &rarr; 0.8s
+        <p class="mt-2 text-xs text-text-annotation">
+          No per-image or per-request metering like a CDN. Support &mdash; and hardened builds &mdash; are
+          what&rsquo;s for sale. <a
+            href="/pricing/"
+            data-umami-event="cta_home_hero_pricing"
+            class="font-medium text-interactive hover:underline">See support plans &rarr;</a
+          >
         </p>
-        <p class="mt-1 text-xs text-text-muted">page load, cut in half (simulated 3G, demo stack)</p>
       </div>
-      <div class="readout-plate px-4 py-3">
-        <p
-          class="display-num text-xl font-bold whitespace-nowrap text-emerald-700 dark:text-emerald-400"
-        >
-          &minus;76%
-        </p>
-        <p class="mt-1 text-xs text-text-muted">product image, JPEG &rarr; AVIF</p>
-      </div>
-      <div class="readout-plate px-4 py-3">
-        <p class="display-num text-xl font-bold text-text-body">0</p>
-        <p class="mt-1 text-xs text-text-muted">third parties in the request path</p>
-      </div>
-    </div>
-      <p class="mt-2 text-xs text-text-annotation">
-        Measured on our own demo stack &mdash; <a href="/demo/" class="underline underline-offset-2 hover:text-text-body">see it live</a>.
-      </p>
 
-    <div class="mt-8 flex flex-col items-center gap-3">
-      <a href="/download/" class="btn-primary" data-umami-event="cta_primary_home_hero">
-        Download &amp; run
-      </a>
-      <p class="text-xs text-text-annotation">
-        {LICENSE_CLAUSE_CAP} &mdash; install and run it freely, in development and in production.
-      </p>
-      <p class="text-xs text-text-annotation">
-        No per-image or per-request metering like a CDN. Support &mdash; and hardened builds &mdash; are
-        what&rsquo;s for sale. <a
-          href="/pricing/"
-          data-umami-event="cta_home_hero_pricing"
-          class="font-medium text-interactive hover:underline">See support plans &rarr;</a
-        >
-      </p>
-      <div class="flex flex-wrap justify-center gap-x-5 gap-y-1 text-sm">
-        <a
+      {
+        /* Measured readout panel: the e-commerce demo store numbers from
+          src/data/demo-metrics.json (source + date in the caption). */
+      }
+      <div class="mt-10 lg:mt-0">
+        <ReadoutPanel
+          id="home-readout"
+          title="Readout · demo store"
+          source={demoMeasured}
           href="/demo/"
-          class="text-text-muted hover:text-interactive transition-colors underline-offset-4 hover:underline"
-          >See the demo</a
+          hrefLabel="see it live"
         >
-        <a
-          href="/examples/"
-          class="text-text-muted hover:text-interactive transition-colors underline-offset-4 hover:underline"
-          >Browse the examples</a
-        >
-        <a
-          href="/docs/"
-          class="text-text-muted hover:text-interactive transition-colors underline-offset-4 hover:underline"
-          >Read the docs</a
-        >
-        <a
-          href="https://github.com/We-Amp/mod_pagespeed"
-          rel="noopener noreferrer"
-          class="text-text-muted hover:text-interactive transition-colors underline-offset-4 hover:underline"
-          >Source on GitHub</a
-        >
+          <Readout
+            label="Lighthouse performance score"
+            before={String(demoLighthouse.before)}
+            after={String(demoLighthouse.after)}
+            gauge={{ min: 0, max: 100, before: demoLighthouse.before, after: demoLighthouse.after }}
+          />
+          <Readout
+            label="page load, cut in half (simulated 3G)"
+            before={`${demoLoad.before}s`}
+            after={`${demoLoad.after}s`}
+            gauge={{ min: 0, max: 2, before: demoLoad.before, after: demoLoad.after }}
+          />
+          <Readout
+            label="product image, JPEG → AVIF"
+            after={demoImageDelta}
+            gauge={{ min: 0, max: demoImageJpeg, before: demoImageJpeg, after: demoImageAvif }}
+          />
+          <Readout label="third parties in the request path" after="0" tone="neutral" />
+        </ReadoutPanel>
       </div>
     </div>
 
     {
-      /* Founder authority (MKT-2) — surfaced as a distinct credibility line,
-        not buried in the 12px disclaimer. Brand-compliant phrasing: never
-        names the founder in marketing prose. */
+      /* Founder authority — a distinct credibility line, not buried in the
+        small print. Brand-compliant phrasing: never names the founder in
+        marketing prose. */
     }
     <p
       class="mt-8 inline-flex items-center gap-2 rounded-chip border border-border bg-bg-elevated px-4 py-1.5 text-sm text-text-body"
@@ -345,7 +336,7 @@ const jsonLd = [organization, website, product, faqPage];
       today.
     </p>
 
-    <p class="mt-6 text-xs text-text-annotation max-w-lg mx-auto">
+    <p class="mt-6 text-xs text-text-annotation max-w-lg">
       mod_pagespeed 2.1 is developed by <a
         href="https://www.we-amp.com/"
         target="_blank"
@@ -356,97 +347,60 @@ const jsonLd = [organization, website, product, faqPage];
     </p>
 
     {
-      /* Hero proof artifact — two side-by-side `curl -I` panels. The "after"
-        panel highlights the X-PageSpeed: HIT header and a smaller
-        Content-Length. This is the single most credible thing a developer
-        can verify themselves after `dotnet run`, so we show it above the
-        fold. Terminal chrome (rounded ring) is applied globally by
-        `pre:has(code)` in global.css. Color highlights use Tailwind text
-        utilities so dark mode flips automatically. */
+      /* AI-traffic hook — one line plus its source, the last hero row. */
     }
-    <figure
-      class="mt-12 max-w-4xl mx-auto"
-      aria-label="curl -I output comparing response headers before and after mod_pagespeed. After shows X-PageSpeed: HIT and Content-Length reduced from 167824 to 53120 bytes."
-    >
-      <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-left">
-        {/* Before */}
-        <div>
-          <div
-            class="flex items-center justify-between text-xs font-semibold mb-2 text-text-annotation"
-          >
-            <span class="uppercase tracking-wider">Before</span>
-            <span class="display-num text-text-muted">167,824 B</span>
-          </div>
-          <pre
-            class="bg-stone-900 text-stone-100 text-xs sm:text-sm leading-relaxed p-4 overflow-x-auto"><code><span class="text-text-annotation">$ curl -I https://example.com/</span>
-HTTP/2 200
-content-type: text/html
-<span class="text-stone-300">content-length: 167824</span>
-cache-control: max-age=600
-server: nginx
-date: Sun, 17 May 2026 09:14:02 GMT
-<span class="text-text-annotation">(no X-PageSpeed header)</span></code></pre>
-        </div>
-        {/* After */}
-        <div>
-          <div
-            class="flex items-center justify-between text-xs font-semibold mb-2 text-text-annotation"
-          >
-            <span class="uppercase tracking-wider">After</span>
-            <span
-              class="inline-flex items-center gap-1.5 rounded-md bg-emerald-100 dark:bg-emerald-950 px-2 py-0.5 text-emerald-700 dark:text-emerald-300 ring-1 ring-inset ring-emerald-200 dark:ring-emerald-900"
-            >
-              <span class="display-num">53,120 B</span>
-              <span aria-hidden="true">&middot;</span>
-              <span class="display-num">&minus;68%</span>
-            </span>
-          </div>
-          <pre
-            class="bg-stone-900 text-stone-100 text-xs sm:text-sm leading-relaxed p-4 overflow-x-auto"><code><span class="text-text-annotation">$ curl -I https://example.com/</span>
-HTTP/2 200
-content-type: text/html
-<span class="text-emerald-300">content-length: 53120</span>
-cache-control: max-age=600
-server: nginx
-date: Sun, 17 May 2026 09:14:08 GMT
-<span class="text-emerald-400 font-semibold">x-pagespeed: HIT</span> <span class="text-text-annotation">(mmap, &lt;1ms)</span></code></pre>
-        </div>
-      </div>
-      <figcaption class="mt-3 text-xs text-text-annotation text-center">
-        Illustrative &mdash; run it against your own origin. The <code class="font-mono"
-          >X-PageSpeed: HIT</code
-        > header confirms the response was served from the variant cache &mdash; not regenerated.
-      </figcaption>
-    </figure>
-
-    {
-      /* AI-traffic hook (MKT-14) — brief, links to the RenderPeek scanner.
-        The ~40% stat is the wedge; keep it to one line above the fold-adjacent
-        zone, not a full section. */
-    }
-    <a
-      href="/ai-readability/"
-      data-umami-event="cta_home_hero_ai_readability"
-      class="group mt-10 inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-lg border border-border bg-bg-secondary px-4 py-2.5 text-sm text-text-body hover:border-interactive/40 transition-colors"
-    >
-      <span class="display-num font-semibold text-text-body">≈40%</span>
-      <span
-        >of the top 1,000 sites render almost nothing for AI assistants. Check yours with RenderPeek</span
-      >
-      <span class="font-medium text-interactive group-hover:underline" aria-hidden="true"
-        >&rarr;</span
-      >
-    </a>
-    <p class="mt-2 text-xs text-text-annotation">
+    <div class="mt-10">
       <a
-        href="/blog/can-ai-read-your-website/"
-        class="underline decoration-stone-300 dark:decoration-stone-600 underline-offset-2 hover:text-text-body"
-        >(our scan, May 2026 &rarr;)</a
+        href="/ai-readability/"
+        data-umami-event="cta_home_hero_ai_readability"
+        class="group inline-flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-border bg-bg-secondary px-4 py-2.5 text-sm text-text-body hover:border-interactive/40 transition-colors"
       >
-    </p>
+        <span class="display-num font-semibold text-text-body">≈40%</span>
+        <span
+          >of the top 1,000 sites render almost nothing for AI assistants. Check yours with RenderPeek</span
+        >
+        <span class="font-medium text-interactive group-hover:underline" aria-hidden="true"
+          >&rarr;</span
+        >
+      </a>
+      <p class="mt-2 text-xs text-text-annotation">
+        <a
+          href="/blog/can-ai-read-your-website/"
+          class="underline decoration-stone-300 dark:decoration-stone-600 underline-offset-2 hover:text-text-body"
+          >(our scan, May 2026 &rarr;)</a
+        >
+      </p>
+    </div>
   </section>
 
-  <div class="rule-ticked" role="presentation" aria-hidden="true"></div>
+  <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
+    <div class="rule-ticked-scale" role="presentation" aria-hidden="true"></div>
+  </div>
+
+  <style>
+    /* Hero instrument layout: two columns at >=1024px, stacked below. */
+    .hero-grid {
+      display: grid;
+      gap: 2.5rem;
+    }
+    @media (min-width: 1024px) {
+      .hero-grid {
+        grid-template-columns: 1.1fr 0.9fr;
+        align-items: start;
+      }
+    }
+    .hero-title {
+      font-weight: 800;
+      letter-spacing: -0.035em;
+    }
+    .hero-sub {
+      font-family: var(--font-mono);
+      font-size: 0.48em;
+      font-weight: 500;
+      letter-spacing: -0.01em;
+      line-height: 1.4;
+    }
+  </style>
 
   {/* One product — the converged line, with availability signposted by stack */}
   <section class="py-20">
