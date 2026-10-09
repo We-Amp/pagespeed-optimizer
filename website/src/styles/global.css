@@ -1091,3 +1091,90 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     }
   }
 }
+
+/* ---- Print --------------------------------------------------------------
+   Paper is light: map the always-on dark token set to the light values, so
+   the print rendering is black on white with no dark chrome. Interactive
+   overlays and navigation chrome carry no information on paper and are
+   hidden; prose gains the destination of external links; figures, code
+   blocks and cards are kept on one page. Unlayered so it wins over the
+   component layer; `html.dark:root` out-specifies the inline first-paint
+   token guard (html.dark) that ships after the stylesheet in <head>. */
+@media print {
+  html.dark:root {
+    --color-bg-primary: #fbfaf8;
+    --color-bg-secondary: #f4f2ee;
+    --color-bg-elevated: #ffffff;
+    --color-bg-recessed: #efede8;
+    --color-text-body: #15171a;
+    --color-text-muted: #55606b;
+    --color-text-annotation: #5e6770;
+    --color-interactive: #0e6f89;
+    --color-interactive-hover: #0a5972;
+    --color-on-accent: #ffffff;
+    --color-success: #1f7a4d;
+    --color-accent: #9a5c0f;
+    --color-promo: #0e6f89;
+    --color-border: #e2ded7;
+    --color-border-strong: #cfcabf;
+    --color-control-border: #8a8478;
+    --color-tick: rgba(0, 0, 0, 0.1);
+    --color-specular: rgba(255, 255, 255, 0.6);
+    --color-grid-line: rgba(0, 0, 0, 0.04);
+    --color-success-wash: #edf4f1;
+    --color-accent-wash: #f7f2ec;
+    --color-interactive-wash: #ecf3f6;
+    --color-bit-clear: #e6e3dc;
+    --color-bit-lit: #0e6f89;
+    --color-disabled-bg: #f0eee9;
+    --color-disabled-text: #8a8579;
+    --color-disabled-border: #ddd8ce;
+    --color-focus-ring: #0e6f89;
+  }
+
+  /* The inline first-paint guard pins html/body to the dark ground with
+     !important; only an !important rule of higher specificity can undo it. */
+  html.dark:root,
+  html.dark:root body {
+    background-color: var(--color-bg-primary) !important;
+    color: var(--color-text-body) !important;
+  }
+
+  /* Code blocks print in the light Shiki theme, not as dark boxes. */
+  html.dark:root .astro-code,
+  html.dark:root .astro-code span {
+    color: var(--shiki-light);
+    background-color: var(--shiki-light-bg);
+    font-style: var(--shiki-light-font-style);
+    font-weight: var(--shiki-light-font-weight);
+    text-decoration: var(--shiki-light-text-decoration);
+  }
+
+  /* Chrome that does not belong on paper. The header's only child is the
+     main nav, so the whole header goes; the strip, overlays, the sticky
+     mobile CTA and the search dialog are interactive-only; so is the code
+     copy button. */
+  [data-ui='telemetry-strip'],
+  header,
+  .qm-root,
+  .share-fab-root,
+  #sticky-cta,
+  #site-search,
+  .code-copy-btn {
+    display: none !important;
+  }
+
+  /* External links in prose print their destination. */
+  .prose a[href^='http']::after {
+    content: ' (' attr(href) ')';
+    font-size: 0.875em;
+    color: var(--color-text-muted);
+    overflow-wrap: anywhere;
+  }
+
+  pre,
+  figure,
+  .card {
+    break-inside: avoid;
+  }
+}
