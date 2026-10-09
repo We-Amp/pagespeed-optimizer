@@ -3,7 +3,7 @@
     "h1-count": "static demo fixture site (public/demos/, noindex): its fixture markup has no h1 by design"
   },
   "/docs/admin-console/": {
-    "term-drift-daemon": "quotes the serving module's admin-console UI labels (\"Optimizer daemon\" panels), verified in the public mod_pagespeed repo"
+    "term-drift-daemon": "quotes the serving module's admin-console UI label (the Overview card heading \"Optimizer daemon\"), verified in the public mod_pagespeed repo"
   },
   "/docs/configuration/": {
     "term-drift-daemon": "names the module's real /v1/daemon/* management endpoints and Daemon* directives (generated reference region)"
