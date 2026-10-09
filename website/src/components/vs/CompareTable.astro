@@ -85,7 +85,11 @@ const boolLabel = (v: string) => (v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Par
               <th scope="row" class="py-3 pl-4 pr-4 text-left align-top font-medium text-text-body">
                 {row.label}
               </th>
-              <td class="border-l-2 border-interactive/40 bg-interactive/10 py-3 px-4 align-top">
+              <td
+                class={`border-l-2 border-interactive/40 ${
+                  row.highlight ? '' : 'bg-interactive/10'
+                } py-3 px-4 align-top`}
+              >
                 {isBool(row.mps) ? (
                   <span
                     class={`cmp-glyph cmp-${row.mps}`}
@@ -133,7 +137,11 @@ const boolLabel = (v: string) => (v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Par
         >
           <p class="text-sm font-semibold text-text-body">{row.label}</p>
           <dl class="mt-3 grid grid-cols-1 gap-3">
-            <div class="rounded-lg border-l-2 border-interactive/40 bg-interactive/10 px-3 py-2">
+            <div
+              class={`rounded-lg border-l-2 border-interactive/40 ${
+                row.highlight ? '' : 'bg-interactive/10'
+              } px-3 py-2`}
+            >
               <dt class="text-xs font-semibold uppercase tracking-wide text-interactive">
                 {mpsHeader}
               </dt>
