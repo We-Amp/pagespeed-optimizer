@@ -123,7 +123,7 @@ const jsonLd = [webApp, faqPage];
         autocapitalize="off"
         placeholder="example.com"
         aria-label="URL to scan"
-        class="flex-1 rounded-lg border border-control-border bg-bg-elevated px-4 py-3 text-base text-text-body placeholder:text-text-annotation focus:ring-2 focus:ring-interactive/40 focus:border-interactive/40 focus:outline-none"
+        class="flex-1 rounded-lg border border-control-border bg-bg-elevated px-4 py-3 text-base text-text-body placeholder:text-text-annotation focus:border-interactive focus:ring-2 focus:ring-interactive"
       />
       <button
         id="ar-go"
@@ -818,6 +818,12 @@ const jsonLd = [webApp, faqPage];
       outline: none;
       border-color: var(--color-interactive);
       box-shadow: 0 0 0 2px var(--color-interactive);
+    }
+    .ar-next-form input:focus-visible,
+    .ar-next-form select:focus-visible,
+    .ar-next-form textarea:focus-visible {
+      outline: 2px solid var(--color-focus-ring);
+      outline-offset: 2px;
     }
     .ar-consent {
       display: flex;
