@@ -1150,12 +1150,12 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     text-decoration: var(--shiki-light-text-decoration);
   }
 
-  /* Chrome that does not belong on paper. The header's only child is the
-     main nav, so the whole header goes; the strip, overlays, the sticky
-     mobile CTA and the search dialog are interactive-only; so is the code
-     copy button. */
+  /* Chrome that does not belong on paper. Only the site header (the one
+     wrapping the main nav) goes; section and page headers carry content and
+     must print. The strip, overlays, the sticky mobile CTA and the search
+     dialog are interactive-only; so is the code copy button. */
   [data-ui='telemetry-strip'],
-  header,
+  header:has(> nav[aria-label='Main navigation']),
   .qm-root,
   .share-fab-root,
   #sticky-cta,
