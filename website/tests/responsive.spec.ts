@@ -94,11 +94,10 @@ test.describe('Docs pages fit narrow viewports', () => {
         if ((await page.locator('article').count()) > 0) {
           await expect(page.locator('article .heading-anchor').first()).toBeAttached();
         }
-        const { scrollWidth, innerWidth } = await page.evaluate(() => ({
-          scrollWidth: document.documentElement.scrollWidth,
-          innerWidth: window.innerWidth,
-        }));
-        expect(scrollWidth, `${path} at ${width}`).toBeLessThanOrEqual(innerWidth);
+        // Compare with the width we set, not innerWidth: mobile emulation
+        // widens innerWidth to fit overflowing content, so it can never fail.
+        const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+        expect(scrollWidth, `${path} at ${width}`).toBeLessThanOrEqual(width);
       }
     });
   }
@@ -107,10 +106,7 @@ test.describe('Docs pages fit narrow viewports', () => {
     await page.setViewportSize({ width: 360, height: 844 });
     await page.goto('/docs/http-api/');
     await expect(page.locator('article .heading-anchor').first()).toBeAttached();
-    const { scrollWidth, innerWidth } = await page.evaluate(() => ({
-      scrollWidth: document.documentElement.scrollWidth,
-      innerWidth: window.innerWidth,
-    }));
-    expect(scrollWidth).toBeLessThanOrEqual(innerWidth);
+    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(scrollWidth).toBeLessThanOrEqual(360);
   });
 });
