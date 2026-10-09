@@ -23,7 +23,7 @@
 // on any line; without it, `line="2.1"` renders the module's header.
 
 import { getRelease } from '../../lib/release';
-import telemetryCapture from '../../data/telemetry-capture.json';
+import { moduleHeaderVersion } from '../../lib/docs-markdown.mjs';
 
 interface Props {
   line: '1.1' | '2.0' | '2.1';
@@ -32,7 +32,8 @@ interface Props {
 
 const { line, surface = 'nginx' } = Astro.props;
 const rel = await getRelease(line);
-const moduleVersion = telemetryCapture.paths['/'].headers['x-mod-pagespeed'];
+// Fails the build instead of rendering "undefined" when the capture lacks it.
+const moduleVersion = moduleHeaderVersion();
 
 let header: string;
 if (surface === 'middleware' || line === '2.0') {
