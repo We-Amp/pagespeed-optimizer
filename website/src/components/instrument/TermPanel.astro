@@ -30,11 +30,16 @@ interface Props {
 const { command, label, labelledby, chip, lines } = Astro.props;
 ---
 
-<figure class="term-panel" data-ui="term-panel">
-  <figcaption class="term-head">
+{
+  /* The head row is a div, not a figcaption: a figcaption names the figure, and
+    once the copy button is docked in the head that name would start with
+    "Copy code to clipboard". The command line is the figure's name instead. */
+}
+<figure class="term-panel" data-ui="term-panel" aria-label={command ? `$ ${command}` : undefined}>
+  <div class="term-head">
     {command && <span class="font-mono text-xs text-text-muted">$ {command}</span>}
     {chip && <Chip tone={chip.tone} label={chip.label} />}
-  </figcaption>
+  </div>
   <pre
     class="term-body"
     tabindex="0"
