@@ -1443,7 +1443,13 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
               },
             );
           });
-          pre.appendChild(btn);
+          /* A term panel reserves its head row for the button, so the button
+             never covers the transcript; other code blocks keep the top-right
+             overlay inside the pre. The copied text is the pre's code either
+             way. */
+          var panel = pre.closest('.term-panel');
+          var head = panel ? panel.querySelector('.term-head') : null;
+          (head || pre).appendChild(btn);
         }
 
         function attachAll(root) {

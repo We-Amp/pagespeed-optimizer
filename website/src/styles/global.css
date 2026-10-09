@@ -891,12 +891,13 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
   }
   /* Once clipboard support is confirmed, show the button at a quiet resting
      opacity so users discover it without hovering. */
-  html[data-clip-ready] pre > .code-copy-btn {
+  html[data-clip-ready] .code-copy-btn {
     opacity: 0.6;
     visibility: visible;
   }
   html[data-clip-ready] pre:hover > .code-copy-btn,
   html[data-clip-ready] pre:focus-within > .code-copy-btn,
+  html[data-clip-ready] .code-copy-btn:hover,
   html[data-clip-ready] .code-copy-btn:focus-visible {
     opacity: 1;
   }
@@ -929,6 +930,26 @@ html[data-active-platform='iis'] .platform-table tr[data-platform-row='iis'] {
     > .code-copy-btn {
     background-color: rgba(41, 37, 36, 0.85);
     color: var(--color-stone-300);
+  }
+
+  /* Inside a term panel the button docks in the head row (it is appended
+     there by the layout script), in flow and right-aligned, on surface tokens
+     instead of the overlay chip. The [data-copied] carve-outs keep the shared
+     success state winning over these. */
+  .term-head > .code-copy-btn {
+    position: static;
+    flex: none;
+    margin-inline-start: auto;
+  }
+  .term-head > .code-copy-btn:not([data-copied='true']) {
+    background-color: var(--color-bg-elevated);
+    color: var(--color-text-muted);
+    border: 1px solid var(--color-control-border);
+  }
+  .term-head > .code-copy-btn:not([data-copied='true']):hover {
+    background-color: var(--color-bg-secondary);
+    color: var(--color-text-body);
+    border-color: var(--color-border-strong);
   }
 
   /* Floating widgets (QuickMessage, ShareFloat) vs overlays and the hero.
