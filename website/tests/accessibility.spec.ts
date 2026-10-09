@@ -25,10 +25,32 @@ const PAGES_FOR_AXE_SCAN = [
 test.describe('Accessibility', () => {
   test('skip-to-content link is first focusable element', async ({ page }) => {
     await page.goto('/');
-    // Tab to first focusable element
-    await page.keyboard.press('Tab');
-    const focused = page.locator(':focus');
-    await expect(focused).toHaveAttribute('href', '#main-content');
+    // A cold dev server reloads the page once, right after the first load, when
+    // it has optimized its dependencies. A Tab pressed into the document that
+    // is then replaced leaves nothing focused in the new one. So mark the
+    // loaded document, press Tab, and read the focus together with the mark: a
+    // missing mark means the key press did not land in a fully loaded document
+    // that is still there, and the check is repeated on a fresh load.
+    type Probe = { __tabProbe?: boolean };
+    let href: string | null | undefined;
+    for (let attempt = 0; attempt < 3 && href === undefined; attempt++) {
+      if (attempt > 0) await page.reload();
+      await page
+        .evaluate(() => {
+          if (document.readyState === 'complete') (window as unknown as Probe).__tabProbe = true;
+        })
+        .catch(() => undefined);
+      // Tab to first focusable element
+      await page.keyboard.press('Tab');
+      href = await page
+        .evaluate(() =>
+          (window as unknown as Probe).__tabProbe
+            ? (document.activeElement?.getAttribute('href') ?? null)
+            : undefined,
+        )
+        .catch(() => undefined);
+    }
+    expect(href).toBe('#main-content');
   });
 
   test('all images have alt text', async ({ page }) => {

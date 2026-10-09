@@ -418,8 +418,10 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
       .cyc-lb-panel {
         padding: 22px 12px 12px;
       }
+      /* Wider than the column the chart sits in, so the enlarged view is
+         larger; the panel scrolls sideways. */
       .cyc-lb-panel svg {
-        width: 88vw;
+        width: max(88vw, 640px);
       }
     }
   </style>
@@ -431,7 +433,12 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
       const closeBtn = lb.querySelector<HTMLButtonElement>('.cyc-lb-close');
       let lastFocus: Element | null = null;
       const openLB = (svg: SVGElement) => {
-        body?.replaceChildren(svg.cloneNode(true));
+        // The inline chart carries style="width:100%", which inside the
+        // shrink-to-fit panel collapses it to the SVG default size; clear it
+        // so the lightbox width rules apply.
+        const clone = svg.cloneNode(true) as SVGElement;
+        clone.style.width = '';
+        body?.replaceChildren(clone);
         lastFocus = document.activeElement;
         lb.hidden = false;
         document.body.style.overflow = 'hidden';

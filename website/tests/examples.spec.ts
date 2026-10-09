@@ -107,6 +107,11 @@ test.describe('Example preview frames: a load that lands before the settle scrip
     // below: the stamp must be what settles the frame, not a second load.
     await page.route('**/demo-httpd-1.1.modpagespeed.com/**', () => {});
     await page.route(`**${PAGE}`, async (route) => {
+      // Only the document itself carries the stamp. The page also sends a HEAD
+      // request to its own URL (the response-header strip); that one goes to the
+      // server untouched, so no intercepted fetch is still in flight when the
+      // test ends and its page closes.
+      if (!route.request().isNavigationRequest()) return route.fallback();
       const response = await route.fetch();
       const html = (await response.text()).replace(
         /(<iframe\b[^>]*?)data-iframe/g,
@@ -114,15 +119,41 @@ test.describe('Example preview frames: a load that lands before the settle scrip
       );
       await route.fulfill({ response, body: html });
     });
+    // Record what the first preview looks like at DOMContentLoaded of every
+    // document. The settle script runs at parse time, so by then it has run;
+    // the 12s fallback timer cannot have fired yet. Recording per document
+    // also keeps the check on the document that is actually shown: a cold dev
+    // server reloads the page once after it optimizes its dependencies.
+    await page.addInitScript(() => {
+      document.addEventListener('DOMContentLoaded', () => {
+        const frame = document.querySelector('[data-frame]');
+        const shown = (sel: string) => {
+          const el = frame?.querySelector(sel);
+          if (!el || !el.checkVisibility({ visibilityProperty: true })) return false;
+          const box = el.getBoundingClientRect();
+          return box.width > 0 && box.height > 0;
+        };
+        (window as unknown as { __settledAtDcl: object }).__settledAtDcl = {
+          skeleton: shown('[data-skeleton]'),
+          fallback: shown('[data-fallback]'),
+          iframe: shown('[data-iframe]'),
+        };
+      });
+    });
     // The held frame requests keep the document's own `load` event pending, so
-    // wait for the DOM instead of the load event -- the settle script runs at
-    // parse time, which is the thing under test.
+    // wait for the DOM instead of the load event.
     await page.goto(PAGE, { waitUntil: 'domcontentloaded' });
-    const frame = page.locator('[data-frame]').first();
-    // The fix settles synchronously; before it, the skeleton stayed up for the
-    // full 12s timeout and the fallback replaced a frame that had loaded.
-    await expect(frame.locator('[data-skeleton]')).toBeHidden({ timeout: 3000 });
-    await expect(frame.locator('[data-fallback]')).toBeHidden();
-    await expect(frame.locator('[data-iframe]')).toBeVisible();
+    // Before the fix the skeleton stayed up for the full 12s timeout and the
+    // fallback then replaced a frame that had loaded.
+    await expect
+      .poll(() =>
+        page
+          .evaluate(() => (window as unknown as { __settledAtDcl?: object }).__settledAtDcl)
+          // A document being replaced has no context to evaluate in; read the
+          // next one.
+          .catch(() => undefined),
+      )
+      .toEqual({ skeleton: false, fallback: false, iframe: true });
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
   });
 });

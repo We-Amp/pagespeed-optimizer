@@ -20,6 +20,7 @@ import {
   LICENSE_CLAUSE,
   LICENSE_CLAUSE_CAP,
   MAX_VARIANTS,
+  MODULE_PACKAGE_VERSION,
 } from '../data/product-facts.mjs';
 import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../data/software-jsonld';
 
@@ -57,9 +58,10 @@ const headerPanelLines: TermLine[] = [
 // Section 04 quick-start panels: the install transcripts, one TermPanel per
 // platform (moved from the signal-path section). Each transcript ends with
 // the verify command and the header its module emits — X-Page-Speed for the
-// nginx module, X-Mod-Pagespeed for the Apache module — with the version from
-// the production capture in src/data/telemetry-capture.json, which matches
-// the currently published packages.
+// nginx module, X-Mod-Pagespeed for the Apache module — with the version of
+// the currently published module packages (MODULE_PACKAGE_VERSION in
+// src/data/product-facts.mjs, checked against the package index), not the
+// version production happens to run.
 const qsNginxLines: TermLine[] = [
   { text: '# one-time: add the signed We-Amp package repo', tone: 'dim' },
   {
@@ -70,7 +72,7 @@ const qsNginxLines: TermLine[] = [
   { text: '# Add to nginx.conf: pagespeed on;', tone: 'dim' },
   { text: '$ sudo nginx -t && sudo systemctl reload nginx', tone: 'strong' },
   { text: '$ curl -I http://localhost/ | grep X-Page-Speed', tone: 'strong' },
-  { text: `X-Page-Speed: ${homeCaptureHeaders['x-mod-pagespeed']}`, tone: 'ok' },
+  { text: `X-Page-Speed: ${MODULE_PACKAGE_VERSION}`, tone: 'ok' },
 ];
 const qsApacheLines: TermLine[] = [
   { text: '# one-time: add the signed We-Amp package repo', tone: 'dim' },
@@ -81,7 +83,7 @@ const qsApacheLines: TermLine[] = [
   { text: '$ sudo apt install mod-pagespeed', tone: 'strong' },
   { text: '$ sudo systemctl restart apache2', tone: 'strong' },
   { text: '$ curl -I http://localhost/ | grep X-Mod-Pagespeed', tone: 'strong' },
-  { text: `X-Mod-Pagespeed: ${homeCaptureHeaders['x-mod-pagespeed']}`, tone: 'ok' },
+  { text: `X-Mod-Pagespeed: ${MODULE_PACKAGE_VERSION}`, tone: 'ok' },
 ];
 
 // Section 06 heritage stats: 231,341 live sites per BuiltWith, rendered as a
@@ -462,6 +464,15 @@ const jsonLd = [organization, website, product, faqPage];
       letter-spacing: -0.01em;
       line-height: 1.4;
     }
+    /* Hero readout title: never split mid-label; on narrow screens the
+       live-link chip drops to its own line instead. */
+    #home-readout {
+      white-space: nowrap;
+    }
+    div:has(> #home-readout) {
+      flex-wrap: wrap;
+      row-gap: 1rem;
+    }
     /* Mono panel title row (instrument faceplate label). */
     .panel-title {
       font-family: var(--font-mono);
@@ -660,7 +671,7 @@ const jsonLd = [organization, website, product, faqPage];
           height="760"
           loading="lazy"
           decoding="async"
-          class="w-full h-auto rounded-lg border border-border shadow-sm"
+          class="w-full h-auto rounded-lg border border-border"
         />
         <figcaption class="mt-3 text-xs text-text-annotation max-w-2xl">
           The console on our own servers. It opens with a warning that it is reachable from the
@@ -1799,7 +1810,7 @@ const jsonLd = [organization, website, product, faqPage];
       }
       <div class="mt-10 grid grid-cols-1 sm:grid-cols-2 gap-4 max-w-2xl">
         <div class="readout-plate px-6 py-5">
-          <p class="display-num text-4xl font-bold text-interactive">{builtwithLiveRounded}</p>
+          <p class="display-num text-4xl font-bold text-text-body">{builtwithLiveRounded}</p>
           <p class="mt-2 text-sm text-text-muted">live sites run mod_pagespeed today</p>
         </div>
         <div class="readout-plate px-6 py-5">

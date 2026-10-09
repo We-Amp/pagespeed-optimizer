@@ -38,7 +38,7 @@ Verify the response header:
 
 <pre>
   <code>
-    <XPageSpeedExample line="1.1" surface="nginx" />
+    <XPageSpeedExample surface="nginx"  <!-- version from the production capture (src/data/telemetry-capture.json) --> />
   </code>
 </pre>
 ```
