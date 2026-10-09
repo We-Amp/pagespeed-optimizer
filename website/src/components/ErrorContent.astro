@@ -43,16 +43,15 @@ const statusLine = isPrerenderedCopy && code === '500' ? '→ 5xx' : `→ ${code
       ]}
     />
   </div>
-  {
-    isPrerenderedCopy && (
-      <script is:inline>
-        (function () {
-          var line = document.querySelector('[data-error-readout] .term-body span');
-          if (line) line.textContent = 'GET ' + location.pathname + '\n';
-        })();
-      </script>
-    )
-  }
+  <!-- On the prerendered copies this fills the blank request line with the
+       real URL (nginx's internal error_page redirect keeps the browser URL).
+       On SSR renders it writes the same path the line already carries. -->
+  <script is:inline>
+    (function () {
+      var line = document.querySelector('[data-error-readout] .term-body span');
+      if (line) line.textContent = 'GET ' + location.pathname + '\n';
+    })();
+  </script>
   <div class="mt-10 flex items-center justify-center gap-4">
     <a href="/" class="btn-primary"> Go home </a>
     <a

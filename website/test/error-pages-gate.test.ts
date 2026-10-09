@@ -26,7 +26,7 @@ if (!BUILT) {
   // eslint-disable-next-line no-console
   console.log(
     `[error-pages-gate] built output not found at ${DIST_ERROR_DIR} — skipping the ` +
-      'built-HTML check. Run "npm run build" first to exercise it.'
+      'built-HTML check. Run "npm run build" first to exercise it.',
   );
 }
 
