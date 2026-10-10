@@ -135,8 +135,14 @@ const nextSteps = [
         style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden"
         aria-hidden="true"
       >
-        <label for="contact-company">Company</label>
-        <input id="contact-company" name="company" type="text" tabindex="-1" autocomplete="off" />
+        <label for="contact-company">Leave this field empty</label>
+        <input
+          id="contact-company"
+          name="company"
+          type="text"
+          tabindex="-1"
+          autocomplete="new-password"
+        />
       </div>
 
       <div>
@@ -193,7 +199,7 @@ const nextSteps = [
         </p>
       </div>
 
-      <fieldset id="contact-qualifiers" class="space-y-4" data-qualifiers>
+      <fieldset id="contact-qualifiers" class="space-y-4" data-qualifiers hidden disabled>
         <legend class="eyebrow">
           About your organization <span class="font-normal text-text-annotation">(optional)</span>
         </legend>
@@ -471,7 +477,13 @@ const nextSteps = [
           const res = await fetch('/ai-readability/api/contact', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ email, name, topic, message }),
+            body: JSON.stringify({
+              email,
+              name,
+              topic,
+              message,
+              company: String(data.get('company') ?? ''),
+            }),
           });
           if (!res.ok) throw new Error(`status ${res.status}`);
           form.reset();

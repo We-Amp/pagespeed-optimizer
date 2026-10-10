@@ -56,7 +56,9 @@ for (const [route, topic] of [
   });
 }
 
-test('with JavaScript on, the noscript form is not rendered', async ({ page }) => {
-  await page.goto('/analyze/');
-  await expect(page.locator('form[data-ui="noscript-lead"]')).toHaveCount(0);
-});
+for (const route of ['/analyze/', '/ai-readability/']) {
+  test(`with JavaScript on, the noscript form is not rendered on ${route}`, async ({ page }) => {
+    await page.goto(route);
+    await expect(page.locator('form[data-ui="noscript-lead"]')).toHaveCount(0);
+  });
+}
