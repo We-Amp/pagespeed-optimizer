@@ -175,7 +175,7 @@ describe('sentences and errors', () => {
   });
   it('spells out the service in the titles shown on the tile and in the panel', () => {
     const t = (status?: number) => describePsiError({ status, message: 'x' }).title;
-    expect(t(429)).toBe('PageSpeed Insights is busy right now. Try again in a minute.');
+    expect(t(429)).toBe('Rate limit reached. Try again in a minute.');
     expect(t(404)).toBe('PageSpeed Insights could not analyze that URL.');
     expect(t(503)).toBe('PageSpeed Insights returned an error. Try again later.');
     expect(t()).toBe('PageSpeed Insights did not answer.');

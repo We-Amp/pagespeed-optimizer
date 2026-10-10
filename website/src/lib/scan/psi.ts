@@ -571,7 +571,7 @@ export function describePsiError(err: { kind?: string; message: string; status?:
   if (c.title === 'Couldn’t reach PSI.')
     return { ...c, title: 'PageSpeed Insights did not answer.' };
   if (err.status === 429)
-    return { ...c, title: 'PageSpeed Insights is busy right now. Try again in a minute.' };
+    return { ...c, title: 'Rate limit reached. Try again in a minute.' };
   if (err.status === 400 || err.status === 404)
     return { ...c, title: 'PageSpeed Insights could not analyze that URL.' };
   if (err.status && err.status >= 500)

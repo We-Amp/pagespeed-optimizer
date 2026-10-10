@@ -95,12 +95,12 @@ test.describe('v2 Speed panel', () => {
     await scan(page);
     await expect(tile(page)).toHaveAttribute('data-state', 'none', { timeout: 15000 });
     await expect(tile(page)).toContainText(
-      'PageSpeed Insights is busy right now. Try again in a minute.',
+      'Rate limit reached. Try again in a minute.',
     );
     await expect(tile(page)).not.toContainText('HTTP 429');
     await openSpeed(page);
     await expect(panel(page)).toContainText(
-      'PageSpeed Insights is busy right now. Try again in a minute.',
+      'Rate limit reached. Try again in a minute.',
     );
   });
 
@@ -246,7 +246,7 @@ test.describe('v2 Speed panel', () => {
     {
       name: '429',
       reply: { status: 429, body: PSI_429 },
-      title: 'PageSpeed Insights is busy right now. Try again in a minute.',
+      title: 'Rate limit reached. Try again in a minute.',
       body: 'You’ve hit the per-visitor rate limit on this page.',
     },
     {
