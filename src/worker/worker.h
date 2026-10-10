@@ -1443,6 +1443,12 @@ class Worker {
   mutable std::mutex dedup_heal_mutex_;
   std::unordered_map<std::string, std::chrono::steady_clock::time_point>
       dedup_heal_last_;
+  // Per-URL window for the recorded-original recheck (RecheckRecordedOriginal):
+  // at most one restamp-or-decide per URL per kDedupHealMinIntervalSecs, so a
+  // front end that re-records on every request cannot make every request a
+  // rewrite.  Same sweep-expired-only overflow rule; same mutex.
+  std::unordered_map<std::string, std::chrono::steady_clock::time_point>
+      origin_recheck_last_;
 
   // Durability (#19) — D2: SHA-256 of the FRESH origin body for a URL,
   // used at origin-refresh time to decide whether the rendered markdown variant

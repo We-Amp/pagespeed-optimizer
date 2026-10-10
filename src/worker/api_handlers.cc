@@ -268,7 +268,12 @@ json BuildStatsJson(ApiContext& ctx) {
       // rather than purged — and refreshes deferred to the record+notify
       // convergence because the re-recorded origin had not landed yet.
       {"unchanged", s.origin_refresh_unchanged.load()},
-      {"deferred", s.origin_refresh_deferred.load()}};
+      {"deferred", s.origin_refresh_deferred.load()},
+      // A re-recorded original seen on a dedup hit: looked at, rebuilt
+      // (new bytes), restamped (same bytes).
+      {"rechecked", s.notifications_origin_rechecked.load()},
+      {"change_rebuilt", s.origin_change_rebuilt.load()},
+      {"unchanged_restamped", s.origin_unchanged_restamped.load()}};
   // Durability (#19): agent_markdown coverage telemetry — preserved
   // counts unchanged-content refreshes that kept the variant alive (the lift),
   // purged_on_change counts genuine content changes that dropped it, and

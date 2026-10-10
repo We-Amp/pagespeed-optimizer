@@ -3866,6 +3866,20 @@ Worker::OriginRecheck Worker::RecheckRecordedOriginal(
     durable->release();
   }
   if (recorded.cache_inserted_at == 0) return OriginRecheck::kUnchanged;
+  // Covered content: native SVG and the raster types, the ones that record a
+  // content hash of the bytes they were built from.  Text and other image
+  // types never get that record, so a recheck could not tell "same bytes"
+  // from "new bytes" and would rebuild on every re-record.
+  {
+    std::string_view ct = recorded.origin_content_type;
+    const bool covered = notification.content_type == ContentType::kImage &&
+                         (ct.starts_with("image/svg+xml") ||
+                          ct.starts_with("image/jpeg") ||
+                          ct.starts_with("image/png") ||
+                          ct.starts_with("image/gif") ||
+                          ct.starts_with("image/webp"));
+    if (!covered) return OriginRecheck::kUnchanged;
+  }
 
   // What the variant set inherited: the newest stamp and, from the variant
   // that carries it, the validators.
@@ -3897,8 +3911,39 @@ Worker::OriginRecheck Worker::RecheckRecordedOriginal(
                           built_from.origin_last_modified != 0 &&
                           recorded.origin_last_modified !=
                               built_from.origin_last_modified;
-  if (!newer && !etag_differs && !lm_differs) return OriginRecheck::kUnchanged;
+  const bool length_differs = recorded.origin_content_length != 0 &&
+                              built_from.origin_content_length != 0 &&
+                              recorded.origin_content_length !=
+                                  built_from.origin_content_length;
+  if (!newer && !etag_differs && !lm_differs && !length_differs) {
+    return OriginRecheck::kUnchanged;
+  }
 
+  // Rate limit, per URL.  Inside the window the hash is still compared when
+  // a record exists (a genuine change is never deferred); only an unchanged
+  // or unprovable verdict is dropped, so no copy is rewritten.
+  bool limited = false;
+  {
+    const std::string key = ComposeInternalKey(
+        notification.url, notification.hostname, notification.scheme);
+    auto now = std::chrono::steady_clock::now();
+    std::lock_guard<std::mutex> lock(dedup_heal_mutex_);
+    auto it = origin_recheck_last_.find(key);
+    if (it != origin_recheck_last_.end() &&
+        now - it->second < std::chrono::seconds(kDedupHealMinIntervalSecs)) {
+      limited = true;
+    } else {
+      if (origin_recheck_last_.size() >= kMaxDedupHealEntries) {
+        std::erase_if(origin_recheck_last_, [now](const auto& kv) {
+          return now - kv.second >=
+                 std::chrono::seconds(kDedupHealMinIntervalSecs);
+        });
+      }
+      if (origin_recheck_last_.size() < kMaxDedupHealEntries) {
+        origin_recheck_last_[key] = now;
+      }
+    }
+  }
   stats_.notifications_origin_rechecked.fetch_add(1, std::memory_order_relaxed);
 
   // The origin state moved: decide on the bytes.
@@ -3909,17 +3954,29 @@ Worker::OriginRecheck Worker::RecheckRecordedOriginal(
     return OriginRecheck::kUnchanged;
   }
   bool hash_matches = false;
+  bool have_oracle = false;
   {
     auto stored = cache_->ReadAlternate(
         notification.url, notification.hostname, notification.scheme,
         static_cast<AlternateId>(SentinelId::kContentHash));
     if (stored.has_value()) {
       auto sc = stored->content();
-      hash_matches = sc.size() == 32 &&
+      have_oracle = sc.size() == 32;
+      hash_matches = have_oracle &&
                      std::memcmp(sc.data(), pristine.hash.data(), 32) == 0;
     }
   }
-  if (hash_matches) {
+  // A re-recorded response that forbids shared storage must not extend the
+  // copies' life: purge instead of restamping (as HandleOriginRefreshed does).
+  const bool storage_forbidden =
+      (pristine.meta.origin_cc_flags &
+       (AlternateMetadata::kCCOriginNoStore |
+        AlternateMetadata::kCCOriginPrivate)) != 0;
+  if (limited && !(have_oracle && !hash_matches)) {
+    // Inside the window and not provably changed: leave the copies alone.
+    return OriginRecheck::kRestamped;
+  }
+  if (hash_matches && !storage_forbidden) {
     PurgeDispatchGen gen = CapturePurgeGen(
         notification.url, notification.hostname, notification.scheme);
     PurgeCheck fence = [this, url = notification.url,
@@ -5451,7 +5508,19 @@ void Worker::HandleNotification(const CacheNotification& notification,
             cache_.get(), notification.url, notification.hostname,
             notification.scheme, CapabilityMask(), svg_data, svg_origin_meta,
             cfg->gzip_level, cfg->brotli_level, stats_, purge_check, this);
-        if (svg_source_genuine && !(purge_check && purge_check())) {
+        CapabilityMask svg_gz_mask;
+        svg_gz_mask.set_transfer_encoding(
+            CapabilityMask::TransferEncoding::kGzip);
+        CapabilityMask svg_br_mask;
+        svg_br_mask.set_transfer_encoding(
+            CapabilityMask::TransferEncoding::kBrotli);
+        if (svg_source_genuine && !(purge_check && purge_check()) &&
+            VariantExistsForMask(cache_.get(), notification.url,
+                                 notification.hostname, notification.scheme,
+                                 svg_gz_mask) &&
+            VariantExistsForMask(cache_.get(), notification.url,
+                                 notification.hostname, notification.scheme,
+                                 svg_br_mask)) {
           // Bind the compressed copies to the bytes they were built from, so
           // a later re-record can tell "same bytes" from "new bytes".
           auto svg_hash = cyclone::crypto::SHA256::hash(
@@ -8133,6 +8202,7 @@ std::string Worker::ResetCache() {
     // nested inside purge_gen_mutex_.
     std::lock_guard<std::mutex> lock(dedup_heal_mutex_);
     dedup_heal_last_.clear();
+    origin_recheck_last_.clear();
   }
   std::expected<void, cyclone::CacheError> result;
   {
