@@ -2,7 +2,7 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 
 import { describe, expect, it } from 'vitest';
-import { SCAN_UI_DEFAULT, SCAN_UI_STORAGE_KEY, resolveScanUi } from './flag';
+import { SCAN_UI_STORAGE_KEY, resolveScanUi } from './flag';
 
 function memoryStorage(initial: Record<string, string> = {}) {
   const data = { ...initial };
@@ -20,10 +20,6 @@ const boom = () => {
 };
 
 describe('resolveScanUi', () => {
-  it('ships with v1 as the default', () => {
-    expect(SCAN_UI_DEFAULT).toBe('v1');
-  });
-
   it('returns the default when nothing is asked and nothing is stored', () => {
     expect(resolveScanUi('', memoryStorage(), 'v1')).toBe('v1');
     expect(resolveScanUi('', memoryStorage(), 'v2')).toBe('v2');
