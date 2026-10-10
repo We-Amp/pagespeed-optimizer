@@ -375,7 +375,7 @@ export function init() {
       const reason = err
         ? err.kind === 'network'
           ? 'PageSpeed Insights did not answer.'
-          : err.message
+          : classifyError(err).title
         : 'No result.';
       settle('speed', status, reason);
       arrival(`Speed not measured. ${reason}`);

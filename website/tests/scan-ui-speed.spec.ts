@@ -86,6 +86,20 @@ test.describe('v2 Speed panel', () => {
     await stubUmami(page);
   });
 
+  test('a non-JSON 429 reads as the classified title on the tile, never a raw status', async ({
+    page,
+  }) => {
+    const html429 = { status: 429, body: '<html><body>429 Too Many Requests</body></html>' };
+    await mock(page, { mobile: html429, desktop: html429 });
+    await warm(page);
+    await scan(page);
+    await expect(tile(page)).toHaveAttribute('data-state', 'none', { timeout: 15000 });
+    await expect(tile(page)).toContainText('PSI rate limit hit.');
+    await expect(tile(page)).not.toContainText('HTTP 429');
+    await openSpeed(page);
+    await expect(panel(page)).toContainText('PSI rate limit hit.');
+  });
+
   test('shows two plates, the sentences and the top five fixes', async ({ page }) => {
     await mock(page, { mobile: ok(PSI_MOBILE), desktop: ok(PSI_DESKTOP) });
     await warm(page);
