@@ -4,9 +4,9 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
-Fixed: Debian and RPM packages: configuration no longer aborts when
-`systemctl daemon-reload` fails during install or upgrade; the remaining
-service steps still run.
+Fixed: the Debian package no longer aborts configuration when
+`systemctl daemon-reload` fails during install or upgrade; the RPM scriptlet
+is guarded the same way for consistency.
 
 Fixed: after a file changed on the origin, mod_pagespeed with
 `DaemonServeStoredEncodings on` could keep sending the previous version of an

@@ -592,7 +592,7 @@ self_test() {
   check "post enables service" "1" \
     "$(printf '%s\n' "$scripts" | grep -c "systemctl enable $PKG.service")"
   check "post reloads systemd" "1" \
-    "$(printf '%s\n' "$scripts" | grep -c "^  systemctl daemon-reload || true\$")"
+    "$(printf '%s\n' "$scripts" | sed -n '/^postinstall scriptlet/,/^preuninstall scriptlet/p' | grep -c "^  systemctl daemon-reload || true\$")"
   check "ships LICENSE" "1" \
     "$(printf '%s\n' "$files" | grep -c "^/usr/share/licenses/$PKG/LICENSE\$")"
   check "ships NOTICE" "1" \
