@@ -5,7 +5,7 @@
 // gate predicates inlined into the public RenderPeek page.
 //
 // CONTEXT
-//   src/pages/ai-readability/index.astro carries a VERBATIM inline copy of five
+//   src/pages/ai-readability/index.astro carries a VERBATIM inline copy of seven
 //   functions whose canonical source of truth is the scanner repo's
 //   src/demand.mjs (agent-readability-scanner). The page inlines them (rather
 //   than importing) because in production it is the Astro-built
@@ -17,7 +17,7 @@
 //   This (mps2) repo cannot import the scanner's demand.mjs — it lives in a
 //   separate private repo and is not vendored here. So instead of comparing the
 //   two implementations directly, we:
-//     (a) read index.astro and extract the five inline function definitions
+//     (a) read index.astro and extract the seven inline function definitions
 //         straight out of the <script is:inline> region (between the
 //         KEEP-IN-SYNC comment and the normalizeUrl helper),
 //     (b) evaluate them in an isolated VM sandbox,
@@ -40,9 +40,16 @@
 //     accessibility.available && accessibility.detail.fixableInline > 0
 //   consentEnforcementCtaApplies(preConsentLeak): true iff
 //     status === 'ok' && verdict === 'leaks' && trackerCount > 0
+//   pageIntegrityCtaApplies(scriptInventory): true iff
+//     status === 'ok' && verdict === 'attention'
+//   thirdPartyFreezeCtaApplies(scriptInventory): true iff
+//     status === 'ok' && verdict !== 'unknown' && totals &&
+//     totals.thirdPartyExternal > totals.thirdPartyWithIntegrity
 //   buildLeadPayload({wedge,email,name,note,report}) -> { topic, email, name,
 //     url, wedge, lensSignal, message }; lensSignal shape is lens-specific
-//     (tollbooth / agentpass / compliancefix / consent-enforcement), null for a
+//     (tollbooth / agentpass / compliancefix / consent-enforcement /
+//     page-integrity + third-party-freeze, which share one script-inventory
+//     signal: hosts only, never script URLs), null for a
 //     wedge with no scanner lens behind it (then no Signal line), and message
 //     is the human-readable mirror.
 //
@@ -58,7 +65,7 @@ const ASTRO_PAGE = fileURLToPath(
 );
 
 // ---------------------------------------------------------------------------
-// (a) Extract the five inline gate functions from index.astro and evaluate
+// (a) Extract the seven inline gate functions from index.astro and evaluate
 //     them in an isolated VM sandbox. We slice the source between the
 //     KEEP-IN-SYNC anchor (start of the gate block) and the normalizeUrl
 //     comment (first line after buildLeadPayload). If those anchors ever move,
@@ -69,6 +76,8 @@ function extractGateFunctions(): {
   agentPassCtaApplies: (sa: unknown) => boolean;
   complianceFixCtaApplies: (ax: unknown) => boolean;
   consentEnforcementCtaApplies: (pcl: unknown) => boolean;
+  pageIntegrityCtaApplies: (si: unknown) => boolean;
+  thirdPartyFreezeCtaApplies: (si: unknown) => boolean;
   buildLeadPayload: (opts: unknown) => Record<string, unknown>;
 } {
   const src = readFileSync(ASTRO_PAGE, 'utf8');
@@ -94,12 +103,14 @@ function extractGateFunctions(): {
 
   const block = src.slice(startIdx, endIdx).trim();
 
-  // Sanity: all five canonical functions must be present in the extracted slice.
+  // Sanity: all seven canonical functions must be present in the extracted slice.
   for (const fn of [
     'tollboothCtaApplies',
     'agentPassCtaApplies',
     'complianceFixCtaApplies',
     'consentEnforcementCtaApplies',
+    'pageIntegrityCtaApplies',
+    'thirdPartyFreezeCtaApplies',
     'buildLeadPayload',
   ]) {
     if (!block.includes(`function ${fn}(`)) {
@@ -115,7 +126,7 @@ function extractGateFunctions(): {
   // Declaring the functions then exposing them via globals lets us pull the
   // function objects back out of the sandbox without trusting the page's own
   // call sites.
-  const wrapped = `${block}\nglobalThis.__gate__ = { tollboothCtaApplies, agentPassCtaApplies, complianceFixCtaApplies, consentEnforcementCtaApplies, buildLeadPayload };`;
+  const wrapped = `${block}\nglobalThis.__gate__ = { tollboothCtaApplies, agentPassCtaApplies, complianceFixCtaApplies, consentEnforcementCtaApplies, pageIntegrityCtaApplies, thirdPartyFreezeCtaApplies, buildLeadPayload };`;
   vm.runInContext(wrapped, context, { filename: 'index.astro:inline-gate' });
 
   const gate = (sandbox as { __gate__?: Record<string, unknown> }).__gate__;
@@ -130,6 +141,8 @@ const {
   agentPassCtaApplies,
   complianceFixCtaApplies,
   consentEnforcementCtaApplies,
+  pageIntegrityCtaApplies,
+  thirdPartyFreezeCtaApplies,
   buildLeadPayload,
 } = extractGateFunctions();
 
@@ -145,52 +158,82 @@ const tollboothFixtures: Array<{ name: string; input: unknown; expected: boolean
   { name: 'missing detail', input: {}, expected: false },
   {
     name: 'all conditions met (canonical positive)',
-    input: { detail: { verifiable: false, renderOk: true, aiCrawlersAllowed: ['GPTBot'], exposurePct: 30 } },
+    input: {
+      detail: { verifiable: false, renderOk: true, aiCrawlersAllowed: ['GPTBot'], exposurePct: 30 },
+    },
     expected: true,
   },
   {
     name: 'verifiable true blocks',
-    input: { detail: { verifiable: true, renderOk: true, aiCrawlersAllowed: ['GPTBot'], exposurePct: 80 } },
+    input: {
+      detail: { verifiable: true, renderOk: true, aiCrawlersAllowed: ['GPTBot'], exposurePct: 80 },
+    },
     expected: false,
   },
   {
     name: 'verifiable truthy-but-not-strict-false blocks (must be === false)',
-    input: { detail: { verifiable: 0, renderOk: true, aiCrawlersAllowed: ['GPTBot'], exposurePct: 80 } },
+    input: {
+      detail: { verifiable: 0, renderOk: true, aiCrawlersAllowed: ['GPTBot'], exposurePct: 80 },
+    },
     expected: false,
   },
   {
     name: 'renderOk false blocks',
-    input: { detail: { verifiable: false, renderOk: false, aiCrawlersAllowed: ['GPTBot'], exposurePct: 80 } },
+    input: {
+      detail: {
+        verifiable: false,
+        renderOk: false,
+        aiCrawlersAllowed: ['GPTBot'],
+        exposurePct: 80,
+      },
+    },
     expected: false,
   },
   {
     name: 'renderOk truthy-but-not-strict-true blocks (must be === true)',
-    input: { detail: { verifiable: false, renderOk: 1, aiCrawlersAllowed: ['GPTBot'], exposurePct: 80 } },
+    input: {
+      detail: { verifiable: false, renderOk: 1, aiCrawlersAllowed: ['GPTBot'], exposurePct: 80 },
+    },
     expected: false,
   },
   {
     name: 'aiCrawlersAllowed not an array blocks',
-    input: { detail: { verifiable: false, renderOk: true, aiCrawlersAllowed: 'GPTBot', exposurePct: 80 } },
+    input: {
+      detail: { verifiable: false, renderOk: true, aiCrawlersAllowed: 'GPTBot', exposurePct: 80 },
+    },
     expected: false,
   },
   {
     name: 'aiCrawlersAllowed empty array blocks',
-    input: { detail: { verifiable: false, renderOk: true, aiCrawlersAllowed: [], exposurePct: 80 } },
+    input: {
+      detail: { verifiable: false, renderOk: true, aiCrawlersAllowed: [], exposurePct: 80 },
+    },
     expected: false,
   },
   {
     name: 'exposurePct at threshold 30 passes (>=)',
-    input: { detail: { verifiable: false, renderOk: true, aiCrawlersAllowed: ['GPTBot'], exposurePct: 30 } },
+    input: {
+      detail: { verifiable: false, renderOk: true, aiCrawlersAllowed: ['GPTBot'], exposurePct: 30 },
+    },
     expected: true,
   },
   {
     name: 'exposurePct just below threshold (29) blocks',
-    input: { detail: { verifiable: false, renderOk: true, aiCrawlersAllowed: ['GPTBot'], exposurePct: 29 } },
+    input: {
+      detail: { verifiable: false, renderOk: true, aiCrawlersAllowed: ['GPTBot'], exposurePct: 29 },
+    },
     expected: false,
   },
   {
     name: 'exposurePct well above threshold passes',
-    input: { detail: { verifiable: false, renderOk: true, aiCrawlersAllowed: ['GPTBot', 'CCBot'], exposurePct: 95 } },
+    input: {
+      detail: {
+        verifiable: false,
+        renderOk: true,
+        aiCrawlersAllowed: ['GPTBot', 'CCBot'],
+        exposurePct: 95,
+      },
+    },
     expected: true,
   },
 ];
@@ -231,11 +274,27 @@ const agentPassFixtures: Array<{ name: string; input: unknown; expected: boolean
 const complianceFixtures: Array<{ name: string; input: unknown; expected: boolean }> = [
   { name: 'null accessibility', input: null, expected: false },
   { name: 'undefined accessibility', input: undefined, expected: false },
-  { name: 'not available', input: { available: false, detail: { fixableInline: 5 } }, expected: false },
+  {
+    name: 'not available',
+    input: { available: false, detail: { fixableInline: 5 } },
+    expected: false,
+  },
   { name: 'available but no detail', input: { available: true }, expected: false },
-  { name: 'available, detail.fixableInline = 0 blocks', input: { available: true, detail: { fixableInline: 0 } }, expected: false },
-  { name: 'available, detail.fixableInline > 0 passes', input: { available: true, detail: { fixableInline: 1 } }, expected: true },
-  { name: 'available, detail.fixableInline large passes', input: { available: true, detail: { fixableInline: 42 } }, expected: true },
+  {
+    name: 'available, detail.fixableInline = 0 blocks',
+    input: { available: true, detail: { fixableInline: 0 } },
+    expected: false,
+  },
+  {
+    name: 'available, detail.fixableInline > 0 passes',
+    input: { available: true, detail: { fixableInline: 1 } },
+    expected: true,
+  },
+  {
+    name: 'available, detail.fixableInline large passes',
+    input: { available: true, detail: { fixableInline: 42 } },
+    expected: true,
+  },
 ];
 
 // --- consentEnforcementCtaApplies: every guard branch ---
@@ -358,7 +417,11 @@ const consentReportNoHosts = {
   },
 };
 
-const buildLeadFixtures: Array<{ name: string; input: unknown; expected: Record<string, unknown> }> = [
+const buildLeadFixtures: Array<{
+  name: string;
+  input: unknown;
+  expected: Record<string, unknown>;
+}> = [
   {
     name: 'tollbooth lens with name + note',
     input: {
@@ -557,6 +620,165 @@ const buildLeadFixtures: Array<{ name: string; input: unknown; expected: Record<
   },
 ];
 
+// --- script-inventory gates ---
+const siTotals = (ext: number, pinned: number) => ({
+  scripts: 12,
+  inline: 3,
+  thirdPartyExternal: ext,
+  thirdPartyHosts: 2,
+  thirdPartyWithIntegrity: pinned,
+});
+const pageIntegrityFixtures: Array<{ name: string; input: unknown; expected: boolean }> = [
+  { name: 'missing lens', input: undefined, expected: false },
+  { name: 'null lens', input: null, expected: false },
+  { name: 'ok + attention', input: { status: 'ok', verdict: 'attention' }, expected: true },
+  { name: 'ok + clean', input: { status: 'ok', verdict: 'clean' }, expected: false },
+  { name: 'ok + unknown', input: { status: 'ok', verdict: 'unknown' }, expected: false },
+  {
+    name: 'blocked + attention (hostile)',
+    input: { status: 'blocked', verdict: 'attention' },
+    expected: false,
+  },
+  {
+    name: 'error + attention (hostile)',
+    input: { status: 'error', verdict: 'attention' },
+    expected: false,
+  },
+  {
+    name: 'disabled + attention (hostile)',
+    input: { status: 'disabled', verdict: 'attention' },
+    expected: false,
+  },
+];
+const thirdPartyFreezeFixtures: Array<{ name: string; input: unknown; expected: boolean }> = [
+  { name: 'missing lens', input: undefined, expected: false },
+  { name: 'null lens', input: null, expected: false },
+  {
+    name: 'ok + clean + unpinned third party',
+    input: { status: 'ok', verdict: 'clean', totals: siTotals(2, 1) },
+    expected: true,
+  },
+  {
+    name: 'ok + attention + unpinned third party',
+    input: { status: 'ok', verdict: 'attention', totals: siTotals(3, 0) },
+    expected: true,
+  },
+  {
+    name: 'ok + clean + all pinned',
+    input: { status: 'ok', verdict: 'clean', totals: siTotals(2, 2) },
+    expected: false,
+  },
+  {
+    name: 'ok + clean + no third party',
+    input: { status: 'ok', verdict: 'clean', totals: siTotals(0, 0) },
+    expected: false,
+  },
+  {
+    name: 'ok + unknown with counts',
+    input: { status: 'ok', verdict: 'unknown', totals: siTotals(2, 0) },
+    expected: false,
+  },
+  { name: 'ok without totals', input: { status: 'ok', verdict: 'clean' }, expected: false },
+  {
+    name: 'blocked + attention (hostile)',
+    input: { status: 'blocked', verdict: 'attention', totals: siTotals(2, 0) },
+    expected: false,
+  },
+  {
+    name: 'error (hostile)',
+    input: { status: 'error', verdict: 'clean', totals: siTotals(2, 0) },
+    expected: false,
+  },
+  {
+    name: 'disabled (hostile)',
+    input: { status: 'disabled', verdict: 'clean', totals: siTotals(2, 0) },
+    expected: false,
+  },
+];
+
+// 30-host, 5-duplicate inventory with script paths present: the payload keeps
+// the first three third-party hosts and three duplicates, and never a path.
+const siHosts = [
+  {
+    host: 'shop.example.com',
+    party: 'first',
+    scripts: 9,
+    withIntegrity: 0,
+    category: 'first-party',
+    listed: true,
+  },
+  ...Array.from({ length: 29 }, (_, i) => ({
+    host: `cdn${i}.example.net`,
+    party: 'third',
+    scripts: 30 - i,
+    withIntegrity: 0,
+    category: i === 0 ? 'cdn' : 'other',
+    listed: i === 0,
+  })),
+];
+const siReport = {
+  url: 'https://shop.example.com/checkout',
+  scriptInventory: {
+    status: 'ok',
+    verdict: 'attention',
+    reasons: ['sri-missing', 'duplicate-library'],
+    blockedBy: [],
+    totals: {
+      scripts: 40,
+      inline: 4,
+      external: 36,
+      firstPartyExternal: 9,
+      thirdPartyExternal: 27,
+      thirdPartyHosts: 29,
+      thirdPartyWithIntegrity: 1,
+      nonExecutable: 0,
+    },
+    scriptHosts: siHosts,
+    sriMissing: [{ host: 'cdn0.example.net', path: '/secret/path/lib.js' }],
+    floating: [],
+    duplicates: Array.from({ length: 5 }, (_, i) => ({
+      library: `lib${i}`,
+      versions: ['1.0.0', '2.0.0'],
+    })),
+    csp: { enforced: false, reportOnly: true, scriptSrc: ["'self'"], reporting: false },
+    note: 'x',
+  },
+};
+const siExpectedSignal = {
+  verdict: 'attention',
+  reasons: ['sri-missing', 'duplicate-library'],
+  totals: {
+    scripts: 40,
+    inline: 4,
+    thirdPartyExternal: 27,
+    thirdPartyHosts: 29,
+    thirdPartyWithIntegrity: 1,
+  },
+  topHosts: [
+    { host: 'cdn0.example.net', scripts: 30, category: 'cdn' },
+    { host: 'cdn1.example.net', scripts: 29, category: 'other' },
+    { host: 'cdn2.example.net', scripts: 28, category: 'other' },
+  ],
+  duplicates: [0, 1, 2].map((i) => ({ library: `lib${i}`, versions: ['1.0.0', '2.0.0'] })),
+  csp: { enforced: false, reportOnly: true, scriptSrc: ["'self'"], reporting: false },
+};
+const siPayloadFixtures = ['page-integrity', 'third-party-freeze'].map((wedge) => ({
+  name: `${wedge}: shared script-inventory signal, hosts only`,
+  input: { wedge, email: 'ops@shop.example.com', name: '', note: '', report: siReport },
+  expected: {
+    topic: wedge,
+    email: 'ops@shop.example.com',
+    name: '',
+    url: 'https://shop.example.com/checkout',
+    wedge,
+    lensSignal: siExpectedSignal,
+    message:
+      `[${wedge}] lead from RenderPeek result\n` +
+      'Scanned: https://shop.example.com/checkout\n' +
+      `Signal: ${JSON.stringify(siExpectedSignal)}`,
+  },
+}));
+
 // ---------------------------------------------------------------------------
 // (c)+(d) Run fixtures and assert against the golden outputs.
 // ---------------------------------------------------------------------------
@@ -589,6 +811,33 @@ describe('ai-readability inline gate predicates (drift sync-check vs scanner src
     for (const f of consentFixtures) {
       it(`${f.name} -> ${f.expected}`, () => {
         expect(consentEnforcementCtaApplies(f.input)).toBe(f.expected);
+      });
+    }
+  });
+
+  describe('pageIntegrityCtaApplies', () => {
+    for (const f of pageIntegrityFixtures) {
+      it(`${f.name} -> ${f.expected}`, () => {
+        expect(pageIntegrityCtaApplies(f.input)).toBe(f.expected);
+      });
+    }
+  });
+
+  describe('thirdPartyFreezeCtaApplies', () => {
+    for (const f of thirdPartyFreezeFixtures) {
+      it(`${f.name} -> ${f.expected}`, () => {
+        expect(thirdPartyFreezeCtaApplies(f.input)).toBe(f.expected);
+      });
+    }
+  });
+
+  describe('script-inventory payload', () => {
+    for (const f of siPayloadFixtures) {
+      it(f.name, () => {
+        const out = buildLeadPayload(f.input);
+        expect(out).toEqual(f.expected);
+        expect(JSON.stringify(out)).not.toContain('/secret/path');
+        expect(JSON.stringify(out.lensSignal).length).toBeLessThan(2000);
       });
     }
   });
