@@ -55,7 +55,7 @@ svg.census .census-panel-title{font-weight:600}
 
 <!-- census:end series-table -->
 
-Before June 2026 the current-line column counts source builds of the unreleased incubator trunk, which already carried version 1.15.0.0; around the release it is an upper bound.
+Before June 2026 the current-line column counts source builds of the unreleased incubator trunk; see below.
 
 The count moves with the crawl as well as with the web.
 
@@ -65,7 +65,7 @@ HTTP Archive's crawl grew from 8,388,540 root pages in June 2022 to 15,586,166 i
 
 <!-- census:end crawl-size-note -->
 
-The split between versioned and hidden origins also shifts between some crawls, so read the buckets as trends. Since early 2023, with the crawl at a stable size, the count has fallen in most crawls.
+The split between versioned and hidden origins also shifts between some crawls, so read the buckets as trends. Since early 2023 the count has fallen in most crawls.
 
 Google-era builds are still the largest group of origins that report a version, and they account for most of the decline. Incubator-era builds grew until 2025 and have eased since. A large cohort sends the header with the version hidden. Since 2023 it has shrunk more slowly than the rest. Before June 2026 fewer than a hundred origins reported a version from the current line in any crawl. Those are source builds of the unreleased incubator trunk: the project's version file carried 1.15.0.0 from December 2018, although no 1.15 release existed until We-Amp's in June 2026. The current-line count is therefore an upper bound in and around the 1.15.0 release window. The release itself shows up from the July 2026 crawl on, and it is still a small group.
 
@@ -230,17 +230,17 @@ svg.census .census-panel-title{font-weight:600}
 
 <!-- census:end networks-table -->
 
-The shares are of header-bearing desktop root pages with an IP address the routing data could attribute, which is nearly all of them. The address is the front-most one the crawler connected to, so a site behind a CDN counts toward the CDN. That is why the largest entry is a CDN: the table shows where sites are served from, not where they are hosted. The dataset publishes shares only. A share answers the question this table asks, where PageSpeed is served from, without turning it into a per-provider customer count.
+The shares are of header-bearing desktop root pages with an IP address the routing data could attribute, which is nearly all of them. The address is the front-most one the crawler connected to, so a site behind a CDN counts toward the CDN. That is why the largest entry is a CDN: the table shows where sites are served from, not where they are hosted. The dataset publishes shares, not per-network counts, and no per-network version split.
 
 ## What no longer receives fixes
 
 <!-- census:begin security-numbers -->
 
-99.9% of the origins that report a version run a build that no longer receives fixes: 79.6% a Google-era build last updated in 2018, 20.3% an incubator-era build last updated in 2020. 22 origins report the current line, which receives fixes. Update recommended.
+99.9% of the origins that report a version run a build that no longer receives fixes: 79.6% a Google-era build last updated in 2018, 20.3% an incubator-era build last updated in 2020. Up to 22 origins report the current line (the count can include source builds of the old incubator trunk, which used the same version string). Update recommended.
 
 <!-- census:end security-numbers -->
 
-The buckets follow the release history. Google-era builds run up to `1.13.35.2-stable`, released on 5 February 2018, the last release before the project entered the Apache Incubator. Incubator-era builds are the 1.14 line, last published as `1.14.36.1` in July 2020 from the [Apache Incubator repository](https://github.com/apache/incubator-pagespeed-mod), which was archived in 2023. The current line starts at `1.15.0`, released by We-Amp in June 2026. Origins that hide their version are not counted as out of date, so the true share across all PageSpeed origins is unknown in either direction.
+The buckets follow the release history. Google-era builds run up to `1.13.35.2-stable`, released on 5 February 2018, the last Google-era release. Incubator-era builds are the 1.14 line, last published as `1.14.36.1` in July 2020 from the [Apache Incubator repository](https://github.com/apache/incubator-pagespeed-mod), which was archived in 2023. The current line starts at `1.15.0`, released by We-Amp in June 2026. Origins that hide their version are not counted as out of date, so the true share across all PageSpeed origins is unknown in either direction.
 
 This post lists no vulnerabilities. Builds before 1.15.0 no longer receive fixes; update recommended. Advisories and how to report a problem are on the [security page](/security/).
 
@@ -280,7 +280,7 @@ In the September 2026 desktop crawl, 35,511 root pages send a PageSpeed header. 
 
 <!-- census:end detection-table -->
 
-Detection misses roughly one in five pages that send the header. The census counts detected origins, so every number in it is a floor. The cross-check covers the latest crawl only; earlier crawls were not checked. The full method is in [METHODOLOGY.md](https://github.com/We-Amp/pagespeed-census/blob/main/METHODOLOGY.md), and the queries and tables are in the repository linked above.
+Detection misses roughly one in five pages that send the header. The headline and the series count detected origins, so those counts are floors. The cross-check covers the latest crawl only; earlier crawls were not checked. The full method is in [METHODOLOGY.md](https://github.com/We-Amp/pagespeed-census/blob/main/METHODOLOGY.md), and the queries and tables are in the repository linked above.
 
 The limits, in short:
 
