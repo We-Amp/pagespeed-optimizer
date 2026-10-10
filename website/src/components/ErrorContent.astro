@@ -53,7 +53,10 @@ const statusLine = isPrerenderedCopy && code === '500' ? '→ 5xx' : `→ ${code
     })();
   </script>
   <div class="mt-10 flex items-center justify-center gap-4">
-    <a href="/" class="btn-primary"> Go home </a>
+    <a href="/" class="btn-primary">
+      {' '}
+      Go home{' '}
+    </a>
     <a
       href={linkHref}
       class="text-sm font-semibold text-text-muted hover:text-text-body transition-colors"

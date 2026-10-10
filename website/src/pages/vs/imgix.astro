@@ -106,9 +106,13 @@ const jsonLd = [
 >
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16">
     <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
-      <a href="/" class="hover:text-text-body">Home</a>
+      <a href="/" class="hover:text-text-body">
+        Home
+      </a>
       <span class="mx-1">/</span>
-      <a href="/vs/" class="hover:text-text-body">Comparisons</a>
+      <a href="/vs/" class="hover:text-text-body">
+        Comparisons
+      </a>
       <span class="mx-1">/</span>
       <span>vs imgix</span>
     </nav>
@@ -131,7 +135,9 @@ const jsonLd = [
     </section>
 
     <section class="mt-12">
-      <h2 id="at-a-glance" class="h2-section text-text-body">At a glance</h2>
+      <h2 id="at-a-glance" class="h2-section text-text-body">
+        At a glance
+      </h2>
       <div class="mt-4">
         <CompareTable competitor="imgix" rows={rows} labelledBy="at-a-glance" />
       </div>
@@ -180,10 +186,11 @@ const jsonLd = [
         <li>
           You prefer no per-request or per-GB bill at all over a usage-based bill that scales with
           delivery bandwidth, stored images, and transform volume. mod_pagespeed 2.1 is free under
-          the Apache License 2.0, on any number of servers; see <a
-            href="/pricing/"
-            class="text-interactive hover:text-interactive-hover underline">pricing</a
-          > for optional support plans.
+          the Apache License 2.0, on any number of servers; see{' '}
+          <a href="/pricing/" class="text-interactive hover:text-interactive-hover underline">
+            pricing
+          </a>{' '}
+          for optional support plans.
         </li>
         <li>
           You want to avoid a third-party dependency in the request path for image delivery, keeping
@@ -214,10 +221,11 @@ const jsonLd = [
         There&rsquo;s also an axis a remote image CDN doesn&rsquo;t touch at all: the HTML itself.
         Because mod_pagespeed rewrites markup at your origin, origin-side HTML rewriting and lighter
         markup improve what crawlers and AI agents actually see &mdash; the document they parse, not
-        just the images on it. imgix never sees that document. See <a
-          href="/ai-readability/"
-          class="text-interactive hover:text-interactive-hover underline">AI readability</a
-        > for where that line of work is headed.
+        just the images on it. imgix never sees that document. See{' '}
+        <a href="/ai-readability/" class="text-interactive hover:text-interactive-hover underline">
+          AI readability
+        </a>{' '}
+        for where that line of work is headed.
       </p>
       <p class="mt-4 text-text-body">
         You can also run them together: imgix for image delivery, mod_pagespeed for the rest of the
@@ -232,12 +240,15 @@ const jsonLd = [
       </h2>
       <p class="mt-4 text-text-body">
         Migration is reasonable if your performance work has grown beyond images into CSS/JS/HTML,
-        if you want <a
+        if you want{' '}
+        <a
           href="/blog/self-hosted-image-optimization/"
           class="text-interactive hover:text-interactive-hover underline"
-          >self-hosted image optimization</a
-        > that keeps images on your own origin rather than egressing them to a service, or if a usage-based
-        bill has become unpredictable and you&rsquo;d prefer no bill at all.
+        >
+          self-hosted image optimization
+        </a>{' '}
+        that keeps images on your own origin rather than egressing them to a service, or if a
+        usage-based bill has become unpredictable and you&rsquo;d prefer no bill at all.
       </p>
       <p class="mt-4 text-text-body">
         mod_pagespeed is the better fit when the optimization layer needs to cover the whole page,
@@ -258,11 +269,14 @@ const jsonLd = [
           arbitrary transforms by URL.
         </li>
         <li>
-          Add the CSS, JS, and critical-CSS filters that imgix never provided. The <a
+          Add the CSS, JS, and critical-CSS filters that imgix never provided. The{' '}
+          <a
             href="/blog/server-side-critical-css-nginx/"
             class="text-interactive hover:text-interactive-hover underline"
-            >server-side critical CSS in nginx</a
-          > post walks through that setup.
+          >
+            server-side critical CSS in nginx
+          </a>{' '}
+          post walks through that setup.
         </li>
         <li>
           Decide how to handle edge delivery. mod_pagespeed optimizes at your origin; if you still
@@ -281,22 +295,23 @@ const jsonLd = [
         the original from your storage, renders the variant, and serves it from its edge.
       </p>
       <p class="mt-4 text-text-body">
-        <strong
-          >Equivalent in <a href="/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed 2.1</a
-          >.</strong
-        > Install the nginx module on Debian&nbsp;11/12/13, Ubuntu&nbsp;22.04/24.04 (amd64 + arm64), or
-        AlmaLinux&nbsp;9 (x86_64 + aarch64):
+        <strong>
+          Equivalent in{' '}
+          <a href="/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed 2.1
+          </a>
+          .
+        </strong>{' '}
+        Install the nginx module on Debian&nbsp;11/12/13, Ubuntu&nbsp;22.04/24.04 (amd64 + arm64),
+        or AlmaLinux&nbsp;9 (x86_64 + aarch64):
       </p>
-      <pre
-        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo apt install nginx-module-pagespeed   # or: sudo dnf install nginx-module-pagespeed</code></pre>
       <p class="mt-4 text-text-body">
         Then enable the image filters (nginx config; applies to images on your own origin, with no
         URL rewriting and no third-party service in the path):
       </p>
-      <pre
-        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>pagespeed on;
+      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>pagespeed on;
 pagespeed RewriteLevel CoreFilters;
 pagespeed EnableFilters convert_jpeg_to_webp,recompress_images,resize_images,prioritize_critical_css;
 pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
@@ -313,23 +328,27 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
         <p class="mt-3 text-text-body">
           One self-hosted pipeline for images, CSS, JS, and HTML &mdash; with nothing egressing to a
           third-party edge. On our own pages it measures
-          <span class="font-mono tabular-nums font-semibold text-success">&minus;68%</span> page size.
-          Install and run it. {FREE_TO_RUN_LINE}
+          <span class="font-mono tabular-nums font-semibold text-success">&minus;68%</span> page
+          size. Install and run it. {FREE_TO_RUN_LINE}
         </p>
         <div class="mt-5 flex flex-wrap gap-3">
-          <a href="/download/" class="btn-primary" data-umami-event="cta_vs_imgix_install"
-            >Download &amp; run</a
-          >
+          <a href="/download/" class="btn-primary" data-umami-event="cta_vs_imgix_install">
+            Download &amp; run
+          </a>
           <a
             href="/pricing/"
             class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-            data-umami-event="cta_vs_imgix_buy">Support plans</a
+            data-umami-event="cta_vs_imgix_buy"
           >
+            Support plans
+          </a>
           <a
             href="#migrating-from-imgix-to-modpagespeed"
             class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-            data-umami-event="cta_vs_imgix_migrate">See the migration steps &rarr;</a
+            data-umami-event="cta_vs_imgix_migrate"
           >
+            See the migration steps &rarr;
+          </a>
         </div>
       </div>
     </section>
@@ -338,33 +357,40 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
       <p class="text-base font-semibold uppercase tracking-wide text-text-body">See also:</p>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
-          <a href="/vs/shortpixel/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed vs ShortPixel</a
-          > &mdash; another image-optimization alternative
+          <a href="/vs/shortpixel/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed vs ShortPixel
+          </a>{' '}
+          &mdash; another image-optimization alternative
         </li>
         <li>
-          <a href="/vs/cloudinary/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed vs Cloudinary</a
-          > &mdash; managed media CDN alternative
+          <a href="/vs/cloudinary/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed vs Cloudinary
+          </a>{' '}
+          &mdash; managed media CDN alternative
         </li>
         <li>
-          <a href="/vs/imgproxy/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed vs imgproxy</a
-          > &mdash; self-hosted image-proxy alternative
+          <a href="/vs/imgproxy/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed vs imgproxy
+          </a>{' '}
+          &mdash; self-hosted image-proxy alternative
         </li>
         <li>
           <a
             href="/self-hosted-image-optimization/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Self-hosted image optimization</a
-          > &mdash; the origin-side alternative to a hosted image CDN
+          >
+            Self-hosted image optimization
+          </a>{' '}
+          &mdash; the origin-side alternative to a hosted image CDN
         </li>
         <li>
           <a
             href="/alternatives/mod-pagespeed/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Alternatives to mod_pagespeed</a
-          > &mdash; for readers searching for a mod_pagespeed replacement
+          >
+            Alternatives to mod_pagespeed
+          </a>{' '}
+          &mdash; for readers searching for a mod_pagespeed replacement
         </li>
       </ul>
     </section>

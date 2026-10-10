@@ -88,9 +88,13 @@ const jsonLd = [
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16">
     <!-- Breadcrumb -->
     <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
-      <a href="/" class="hover:text-text-body">Home</a>
+      <a href="/" class="hover:text-text-body">
+        Home
+      </a>
       <span class="mx-1">/</span>
-      <a href="/vs/" class="hover:text-text-body">Comparisons</a>
+      <a href="/vs/" class="hover:text-text-body">
+        Comparisons
+      </a>
       <span class="mx-1">/</span>
       <span>vs imgproxy</span>
     </nav>
@@ -104,17 +108,19 @@ const jsonLd = [
         imgproxy is a focused, self-hosted image processing server. mod_pagespeed is a self-hosted
         optimization pipeline that includes image work plus critical CSS, JS/CSS minification, and
         HTML rewriting. If image transformations are all you need, imgproxy is a smaller, sharper
-        tool. If you want the <a
-          href="/features/"
-          class="text-interactive hover:text-interactive-hover underline"
-          >full page-level optimization layer</a
-        > that the original mod_pagespeed provided, mod_pagespeed 2.1 is the closer fit.
+        tool. If you want the{' '}
+        <a href="/features/" class="text-interactive hover:text-interactive-hover underline">
+          full page-level optimization layer
+        </a>{' '}
+        that the original mod_pagespeed provided, mod_pagespeed 2.1 is the closer fit.
       </p>
     </section>
 
     <!-- At a glance -->
     <section class="mt-12">
-      <h2 id="at-a-glance" class="h2-section text-text-body">At a glance</h2>
+      <h2 id="at-a-glance" class="h2-section text-text-body">
+        At a glance
+      </h2>
       <div class="mt-4">
         <CompareTable competitor="imgproxy" rows={rows} labelledBy="at-a-glance" />
       </div>
@@ -208,11 +214,14 @@ const jsonLd = [
         </li>
         <li>
           Point nginx at the mod_pagespeed module and verify the cache directory has write access
-          from both nginx and the worker. The <a
+          from both nginx and the worker. The{' '}
+          <a
             href="/blog/run-with-docker-compose/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Docker Compose walkthrough</a
-          > covers a working baseline.
+          >
+            Docker Compose walkthrough
+          </a>{' '}
+          covers a working baseline.
         </li>
       </ol>
     </section>
@@ -223,21 +232,19 @@ const jsonLd = [
       <p class="mt-4 text-text-body">
         <strong>WebP conversion in imgproxy</strong> (URL-based):
       </p>
-      <pre
-        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>/insecure/rs:fit:800:600/f:webp/plain/https://example.com/photo.jpg</code></pre>
+      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>/insecure/rs:fit:800:600/f:webp/plain/https://example.com/photo.jpg</code></pre>
       <p class="mt-4 text-text-body">
-        <strong>WebP conversion in mod_pagespeed 2.1.</strong> Install the nginx module on Debian&nbsp;11/12/13,
-        Ubuntu&nbsp;22.04/24.04 (amd64 + arm64), or AlmaLinux&nbsp;9 (x86_64 + aarch64):
+        <strong>WebP conversion in mod_pagespeed 2.1.</strong> Install the nginx module on
+        Debian&nbsp;11/12/13, Ubuntu&nbsp;22.04/24.04 (amd64 + arm64), or AlmaLinux&nbsp;9 (x86_64 +
+        aarch64):
       </p>
-      <pre
-        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo apt install nginx-module-pagespeed   # or: sudo dnf install nginx-module-pagespeed</code></pre>
       <p class="mt-4 text-text-body">
         Then enable the filter (nginx config; it decides per-request from the client's
         <code>Accept</code> header):
       </p>
-      <pre
-        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>pagespeed on;
+      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>pagespeed on;
 pagespeed EnableFilters convert_jpeg_to_webp;
 pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
       <p class="mt-4 text-text-body">
@@ -253,23 +260,27 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
         <p class="mt-3 text-text-body">
           If you ended up scripting CSS minification and critical CSS around imgproxy, one pipeline
           handles images plus CSS, JS, and HTML. On our own pages the full pipeline measures
-          <span class="font-mono tabular-nums font-semibold text-success">&minus;68%</span> page size.
-          Install and run it. {FREE_TO_RUN_LINE}
+          <span class="font-mono tabular-nums font-semibold text-success">&minus;68%</span> page
+          size. Install and run it. {FREE_TO_RUN_LINE}
         </p>
         <div class="mt-5 flex flex-wrap gap-3">
-          <a href="/download/" class="btn-primary" data-umami-event="cta_vs_imgproxy_install"
-            >Download &amp; run</a
-          >
+          <a href="/download/" class="btn-primary" data-umami-event="cta_vs_imgproxy_install">
+            Download &amp; run
+          </a>
           <a
             href="/pricing/"
             class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-            data-umami-event="cta_vs_imgproxy_buy">Support plans</a
+            data-umami-event="cta_vs_imgproxy_buy"
           >
+            Support plans
+          </a>
           <a
             href="#migrating-from-imgproxy-to-modpagespeed"
             class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-            data-umami-event="cta_vs_imgproxy_migrate">See the migration steps &rarr;</a
+            data-umami-event="cta_vs_imgproxy_migrate"
           >
+            See the migration steps &rarr;
+          </a>
         </div>
       </div>
     </section>
@@ -279,34 +290,41 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
       <p class="text-base font-semibold uppercase tracking-wide text-text-body">See also:</p>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
-          <a href="/vs/thumbor/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed vs Thumbor</a
-          > &mdash; Thumbor is closer to imgproxy than to mod_pagespeed
+          <a href="/vs/thumbor/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed vs Thumbor
+          </a>{' '}
+          &mdash; Thumbor is closer to imgproxy than to mod_pagespeed
         </li>
         <li>
-          <a href="/vs/cloudinary/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed vs Cloudinary</a
-          > &mdash; managed SaaS alternative to imgproxy
+          <a href="/vs/cloudinary/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed vs Cloudinary
+          </a>{' '}
+          &mdash; managed SaaS alternative to imgproxy
         </li>
         <li>
           <a
             href="/self-hosted-image-optimization/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Self-hosted image optimization</a
-          > &mdash; the broader case for keeping image work on your own servers
+          >
+            Self-hosted image optimization
+          </a>{' '}
+          &mdash; the broader case for keeping image work on your own servers
         </li>
         <li>
           <a
             href="/alternatives/mod-pagespeed/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Alternatives to mod_pagespeed</a
-          > &mdash; for readers searching for a mod_pagespeed replacement
+          >
+            Alternatives to mod_pagespeed
+          </a>{' '}
+          &mdash; for readers searching for a mod_pagespeed replacement
         </li>
         <li>
-          <a href="/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed 2.1</a
-          > &mdash; drop-in continuation with native modules for Apache and nginx. The IIS package ships
-          from the 1.15 packaging channel.
+          <a href="/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed 2.1
+          </a>{' '}
+          &mdash; drop-in continuation with native modules for Apache and nginx. The IIS package
+          ships from the 1.15 packaging channel.
         </li>
       </ul>
     </section>

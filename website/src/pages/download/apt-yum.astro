@@ -43,7 +43,9 @@ const jsonLd = {
     </p>
 
     <div class="mt-10 rounded-2xl border border-border bg-bg-secondary p-6">
-      <p class="eyebrow" id="apt-yum-install-lead">Install</p>
+      <p class="eyebrow" id="apt-yum-install-lead">
+        Install
+      </p>
       <div class="mt-3">
         <TermPanel
           labelledby="apt-yum-install-lead"
@@ -74,7 +76,9 @@ sudo dnf install mod-pagespeed`,
           ]}
         />
       </div>
-      <p class="mt-4 text-sm text-text-muted" id="apt-yum-nginx-lead">nginx:</p>
+      <p class="mt-4 text-sm text-text-muted" id="apt-yum-nginx-lead">
+        nginx:
+      </p>
       <div class="mt-2">
         <TermPanel
           labelledby="apt-yum-nginx-lead"
@@ -92,23 +96,32 @@ sudo dnf install nginx-module-pagespeed`,
       </div>
       <p class="mt-4 text-sm text-text-muted">
         The native nginx module runs on its own by default; to use the optimizer worker with it,
-        install <code class="font-mono">pagespeed-optimizer</code> and <a
+        install <code class="font-mono">pagespeed-optimizer</code> and{' '}
+        <a
           href="/docs/installation-module/#using-the-optimizer-daemon-with-nginx"
-          class="text-interactive underline">point the module at it</a
-        >.
+          class="text-interactive underline"
+        >
+          point the module at it
+        </a>
+        .
       </p>
       <p class="mt-4 text-sm text-text-muted">
-        Installing <code class="font-mono">nginx-module-pagespeed</code> drops a modules-enabled auto-include
-        snippet — there is nothing to copy by hand. Each <code class="font-mono">.so</code> is pinned
-        to its distro's exact stock nginx version (nginx's <code class="font-mono"
-          >--with-compat</code
-        > does not relax that check), so upgrading nginx past the stock version needs a matching rebuild
-        — <a href="/contact/" class="text-interactive underline">contact us</a>
-        for a pinned build. This is also the prebuilt fix <a
+        Installing <code class="font-mono">nginx-module-pagespeed</code> drops a modules-enabled
+        auto-include snippet — there is nothing to copy by hand. Each{' '}
+        <code class="font-mono">.so</code> is pinned to its distro's exact stock nginx version
+        (nginx's <code class="font-mono">--with-compat</code> does not relax that check), so
+        upgrading nginx past the stock version needs a matching rebuild —{' '}
+        <a href="/contact/" class="text-interactive underline">
+          contact us
+        </a>
+        for a pinned build. This is also the prebuilt fix{' '}
+        <a
           href="/blog/ngx-pagespeed-wont-build-modern-nginx/"
           class="text-interactive hover:text-interactive-hover underline"
-          >if your ngx_pagespeed build is failing</a
-        > on a modern nginx in the first place.
+        >
+          if your ngx_pagespeed build is failing
+        </a>{' '}
+        on a modern nginx in the first place.
       </p>
     </div>
 
@@ -176,33 +189,36 @@ sudo dnf install nginx-module-pagespeed`,
       mod_pagespeed 2.1 packages need Debian 12 or newer.
     </p>
     <p class="mt-4 text-sm text-text-annotation">
-      EL8 is no longer in the generic yum repo. <a
-        href="/contact/"
-        class="text-interactive underline">Contact us</a
-      > if you run an nginx version we don't yet package and need a pinned build.
+      EL8 is no longer in the generic yum repo.{' '}
+      <a href="/contact/" class="text-interactive underline">
+        Contact us
+      </a>{' '}
+      if you run an nginx version we don't yet package and need a pinned build.
     </p>
     <p class="mt-4 text-sm text-text-annotation">
-      cPanel / EasyApache 4: the <code class="font-mono">ea-apache24-mod_pagespeed</code> package covers
-      EL8 and EL9 (x86_64) and auto-enables on cPanel hosts. See the <a
-        href="/docs/cpanel/"
-        class="text-interactive underline">cPanel guide</a
-      >.
+      cPanel / EasyApache 4: the <code class="font-mono">ea-apache24-mod_pagespeed</code> package
+      covers EL8 and EL9 (x86_64) and auto-enables on cPanel hosts. See the{' '}
+      <a href="/docs/cpanel/" class="text-interactive underline">
+        cPanel guide
+      </a>
+      .
     </p>
     <p class="mt-4 text-sm text-text-annotation">
-      Running ngx_pagespeed? See <a
-        href="https://ngxpagespeed.com/"
-        class="text-interactive underline">ngxpagespeed.com</a
-      >.
+      Running ngx_pagespeed? See{' '}
+      <a href="https://ngxpagespeed.com/" class="text-interactive underline">
+        ngxpagespeed.com
+      </a>
+      .
     </p>
 
     <h2 class="h2-section mt-14 text-text-body">How it works</h2>
     <p class="mt-4 text-text-body">
-      The install script detects the distribution, fetches the public signing key (<code
-        class="font-mono">F50D6054F10712A0</code
-      >), and writes a single source file:
-      <code class="font-mono wrap-anywhere">/etc/apt/sources.list.d/modpagespeed.list</code> on apt, or
-      <code class="font-mono wrap-anywhere">/etc/yum.repos.d/modpagespeed.repo</code> on yum. Credentials
-      and URLs stay out of the source file itself — apt credentials live in
+      The install script detects the distribution, fetches the public signing key (
+      <code class="font-mono">F50D6054F10712A0</code>), and writes a single source file:
+      <code class="font-mono wrap-anywhere">/etc/apt/sources.list.d/modpagespeed.list</code> on apt,
+      or
+      <code class="font-mono wrap-anywhere">/etc/yum.repos.d/modpagespeed.repo</code> on yum.
+      Credentials and URLs stay out of the source file itself — apt credentials live in
       <code class="font-mono">/etc/apt/auth.conf.d/</code>; the yum file is mode <code>0600</code>.
     </p>
     <p class="mt-4 text-text-body">
@@ -213,23 +229,35 @@ sudo dnf install nginx-module-pagespeed`,
     <h2 class="h2-section mt-14 text-text-body">License</h2>
     <p class="mt-4 text-text-body">
       The package is the same mod_pagespeed 2.1 build as the direct download links. Install it and
-      it optimizes right away, including <a
+      it optimizes right away, including{' '}
+      <a
         href="/blog/nginx-image-optimization-module/"
         class="text-interactive hover:text-interactive-hover underline"
-        >automatic WebP image optimization via the nginx module</a
-      >. mod_pagespeed 2.1 is {LICENSE_CLAUSE} — free in development and in production; what We-Amp sells
-      is <a
+      >
+        automatic WebP image optimization via the nginx module
+      </a>
+      . mod_pagespeed 2.1 is {LICENSE_CLAUSE} — free in development and in production; what We-Amp
+      sells is{' '}
+      <a
         href="/pricing/"
         data-umami-event="cta_commercial"
         data-umami-event-offer="support"
         data-umami-event-surface="download-apt-yum"
         data-umami-event-position="license_section"
-        class="text-interactive underline">support</a
-      >; Priority and Enterprise add a private package repository (being set up). First-time setup is covered in the <a
-        href="/docs/getting-started/"
-        class="text-interactive underline">getting-started guide</a
-      >; see <a href="/download/" class="text-interactive underline">/download/</a> for the full integration
-      matrix (Apache, nginx, IIS, ASP.NET Core).
+        class="text-interactive underline"
+      >
+        support
+      </a>
+      ; Priority and Enterprise add a private package repository (being set up). First-time setup is
+      covered in the{' '}
+      <a href="/docs/getting-started/" class="text-interactive underline">
+        getting-started guide
+      </a>
+      ; see{' '}
+      <a href="/download/" class="text-interactive underline">
+        /download/
+      </a>{' '}
+      for the full integration matrix (Apache, nginx, IIS, ASP.NET Core).
     </p>
   </section>
 </BaseLayout>

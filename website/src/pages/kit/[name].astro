@@ -67,7 +67,9 @@ const helperRows: Array<[string, string]> = [
     <div class="rule-ticked-scale" aria-hidden="true" role="presentation"></div>
 
     <section aria-labelledby="kit-section-header" class="space-y-10">
-      <h2 id="kit-section-header" class="text-xl font-semibold">SectionHeader</h2>
+      <h2 id="kit-section-header" class="text-xl font-semibold">
+        SectionHeader
+      </h2>
       <SectionHeader
         id="kit-sh-index"
         index="01"
@@ -91,7 +93,9 @@ const helperRows: Array<[string, string]> = [
     <div class="rule-ticked-scale" aria-hidden="true" role="presentation"></div>
 
     <section aria-labelledby="kit-readouts" class="space-y-6">
-      <h2 id="kit-readouts" class="text-xl font-semibold">Readout and ReadoutPanel</h2>
+      <h2 id="kit-readouts" class="text-xl font-semibold">
+        Readout and ReadoutPanel
+      </h2>
       <ReadoutPanel
         id="kit-rp"
         title="Readout · demo store"
@@ -132,7 +136,9 @@ const helperRows: Array<[string, string]> = [
     <div class="rule-ticked-scale" aria-hidden="true" role="presentation"></div>
 
     <section aria-labelledby="kit-chips" class="space-y-6">
-      <h2 id="kit-chips" class="text-xl font-semibold">Chip and HitMissBadge</h2>
+      <h2 id="kit-chips" class="text-xl font-semibold">
+        Chip and HitMissBadge
+      </h2>
       <div class="panel space-y-4">
         <p class="flex flex-wrap items-center gap-2">
           <Chip tone="success" label="HIT" />
@@ -162,7 +168,9 @@ const helperRows: Array<[string, string]> = [
     <div class="rule-ticked-scale" aria-hidden="true" role="presentation"></div>
 
     <section aria-labelledby="kit-bytedelta" class="space-y-6">
-      <h2 id="kit-bytedelta" class="text-xl font-semibold">ByteDelta</h2>
+      <h2 id="kit-bytedelta" class="text-xl font-semibold">
+        ByteDelta
+      </h2>
       <ByteDelta
         rows={[
           { label: 'JPEG', bytes: images.totalJpeg },
@@ -185,7 +193,9 @@ const helperRows: Array<[string, string]> = [
     <div class="rule-ticked-scale" aria-hidden="true" role="presentation"></div>
 
     <section aria-labelledby="kit-termpanel" class="space-y-6">
-      <h2 id="kit-termpanel" class="text-xl font-semibold">TermPanel</h2>
+      <h2 id="kit-termpanel" class="text-xl font-semibold">
+        TermPanel
+      </h2>
       <TermPanel
         command={`measure --site ${shop.id}`}
         label="Demo store resource bytes, before and after"
@@ -210,16 +220,16 @@ const helperRows: Array<[string, string]> = [
     <div class="rule-ticked-scale" aria-hidden="true" role="presentation"></div>
 
     <section aria-labelledby="kit-helpers" class="space-y-6">
-      <h2 id="kit-helpers" class="text-xl font-semibold">Helpers</h2>
+      <h2 id="kit-helpers" class="text-xl font-semibold">
+        Helpers
+      </h2>
       <dl class="panel grid gap-2 font-mono text-sm">
-        {
-          helperRows.map(([call, out]) => (
-            <div class="grid grid-cols-1 gap-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-4">
-              <dt class="text-text-muted break-anywhere">{call}</dt>
-              <dd class="display-num text-text-body">{out}</dd>
-            </div>
-          ))
-        }
+        {helperRows.map(([call, out]) => (
+          <div class="grid grid-cols-1 gap-0 sm:grid-cols-[minmax(0,1fr)_auto] sm:gap-4">
+            <dt class="text-text-muted break-anywhere">{call}</dt>
+            <dd class="display-num text-text-body">{out}</dd>
+          </div>
+        ))}
       </dl>
     </section>
   </div>

@@ -104,9 +104,13 @@ const jsonLd = [
 >
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16">
     <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
-      <a href="/" class="hover:text-text-body">Home</a>
+      <a href="/" class="hover:text-text-body">
+        Home
+      </a>
       <span class="mx-1">/</span>
-      <a href="/vs/" class="hover:text-text-body">Comparisons</a>
+      <a href="/vs/" class="hover:text-text-body">
+        Comparisons
+      </a>
       <span class="mx-1">/</span>
       <span>vs Cloudflare APO</span>
     </nav>
@@ -125,7 +129,9 @@ const jsonLd = [
     </section>
 
     <section class="mt-12">
-      <h2 id="at-a-glance" class="h2-section text-text-body">At a glance</h2>
+      <h2 id="at-a-glance" class="h2-section text-text-body">
+        At a glance
+      </h2>
       <div class="mt-4">
         <CompareTable competitor="Cloudflare APO" rows={rows} labelledBy="at-a-glance" />
       </div>
@@ -193,9 +199,10 @@ const jsonLd = [
       <p class="mt-4 text-text-body">
         The genuine overlap is HTML minification and basic asset handling. Where they diverge is
         where the optimization runs (edge vs origin) and what's in scope (HTML cache vs the
-        <a href="/features/" class="text-interactive hover:text-interactive-hover underline"
-          >full origin pipeline</a
-        >).
+        <a href="/features/" class="text-interactive hover:text-interactive-hover underline">
+          full origin pipeline
+        </a>
+        ).
       </p>
       <p class="mt-4 text-text-body">
         You can also run them together: mod_pagespeed at the origin, Cloudflare in front for global
@@ -239,23 +246,21 @@ const jsonLd = [
         in the Cloudflare dashboard. No server-side configuration.
       </p>
       <p class="mt-4 text-text-body">
-        <strong>Installing mod_pagespeed 2.1 for nginx</strong> on Debian&nbsp;11/12/13, Ubuntu&nbsp;22.04/24.04
-        (amd64 + arm64), or AlmaLinux&nbsp;9 (x86_64 + aarch64):
+        <strong>Installing mod_pagespeed 2.1 for nginx</strong> on Debian&nbsp;11/12/13,
+        Ubuntu&nbsp;22.04/24.04 (amd64 + arm64), or AlmaLinux&nbsp;9 (x86_64 + aarch64):
       </p>
-      <pre
-        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo apt install nginx-module-pagespeed   # or: sudo dnf install nginx-module-pagespeed</code></pre>
       <p class="mt-4 text-text-body">
         <strong>Then enable the equivalent of APO</strong> (nginx config):
       </p>
-      <pre
-        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>pagespeed on;
+      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>pagespeed on;
 pagespeed RewriteLevel CoreFilters;
 pagespeed EnableFilters convert_jpeg_to_webp,rewrite_css,rewrite_javascript,prioritize_critical_css;
 pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
       <p class="mt-4 text-text-body">
-        <code>CoreFilters</code> is the audited default set. The specific filters above show that critical-CSS
-        extraction is in scope on the origin side &mdash; which it isn't in APO.
+        <code>CoreFilters</code> is the audited default set. The specific filters above show that
+        critical-CSS extraction is in scope on the origin side &mdash; which it isn't in APO.
       </p>
     </section>
 
@@ -266,23 +271,27 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
           Critical CSS and variant-aware caching run below the CDN, on any stack, and SVG
           auto-vectorization comes with the Apache module or the reverse-proxy deployment &mdash;
           keep Cloudflare in front if you like. On our own pages the origin pipeline measures
-          <span class="font-mono tabular-nums font-semibold text-success">&minus;68%</span> page size.
-          Install and run it. {FREE_TO_RUN_LINE}
+          <span class="font-mono tabular-nums font-semibold text-success">&minus;68%</span> page
+          size. Install and run it. {FREE_TO_RUN_LINE}
         </p>
         <div class="mt-5 flex flex-wrap gap-3">
-          <a href="/download/" class="btn-primary" data-umami-event="cta_vs_cloudflare_apo_install"
-            >Download &amp; run</a
-          >
+          <a href="/download/" class="btn-primary" data-umami-event="cta_vs_cloudflare_apo_install">
+            Download &amp; run
+          </a>
           <a
             href="/pricing/"
             class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-            data-umami-event="cta_vs_cloudflare_apo_buy">Support plans</a
+            data-umami-event="cta_vs_cloudflare_apo_buy"
           >
+            Support plans
+          </a>
           <a
             href="#migrating-from-cloudflare-apo-to-modpagespeed"
             class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-            data-umami-event="cta_vs_cloudflare_apo_migrate">See the migration steps &rarr;</a
+            data-umami-event="cta_vs_cloudflare_apo_migrate"
           >
+            See the migration steps &rarr;
+          </a>
         </div>
       </div>
     </section>
@@ -291,27 +300,32 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
       <p class="text-base font-semibold uppercase tracking-wide text-text-body">See also:</p>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
-          <a href="/vs/nitropack/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed vs NitroPack</a
-          > &mdash; another managed/SaaS optimization option
+          <a href="/vs/nitropack/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed vs NitroPack
+          </a>{' '}
+          &mdash; another managed/SaaS optimization option
         </li>
         <li>
-          <a href="/vs/wp-rocket/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed vs WP Rocket</a
-          > &mdash; WordPress plugin alternative if you want to stay self-hosted but plugin-based
+          <a href="/vs/wp-rocket/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed vs WP Rocket
+          </a>{' '}
+          &mdash; WordPress plugin alternative if you want to stay self-hosted but plugin-based
         </li>
         <li>
           <a
             href="/alternatives/mod-pagespeed/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Alternatives to mod_pagespeed</a
-          > &mdash; for readers searching for a mod_pagespeed replacement
+          >
+            Alternatives to mod_pagespeed
+          </a>{' '}
+          &mdash; for readers searching for a mod_pagespeed replacement
         </li>
         <li>
-          <a href="/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed 2.1</a
-          > &mdash; drop-in continuation with native modules for Apache and nginx. The IIS package ships
-          from the 1.15 packaging channel.
+          <a href="/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed 2.1
+          </a>{' '}
+          &mdash; drop-in continuation with native modules for Apache and nginx. The IIS package
+          ships from the 1.15 packaging channel.
         </li>
       </ul>
     </section>

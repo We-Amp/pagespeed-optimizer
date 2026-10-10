@@ -55,16 +55,14 @@ const jsonLd = {
     <div class="mt-10">
       <h2 class="text-lg font-semibold text-text-body">What it would fix</h2>
       <ul class="mt-3 space-y-2 text-sm text-text-muted">
-        {
-          fixes.map((f) => (
-            <li class="flex gap-2">
-              <span class="mt-2 h-1 w-1 flex-none rounded-full bg-interactive" aria-hidden="true" />
-              <span>
-                <span class="font-semibold text-text-body">{f.what}</span> {f.how}
-              </span>
-            </li>
-          ))
-        }
+        {fixes.map((f) => (
+          <li class="flex gap-2">
+            <span class="mt-2 h-1 w-1 flex-none rounded-full bg-interactive" aria-hidden="true" />
+            <span>
+              <span class="font-semibold text-text-body">{f.what}</span> {f.how}
+            </span>
+          </li>
+        ))}
       </ul>
     </div>
 
@@ -87,9 +85,10 @@ const jsonLd = {
     </div>
 
     <p class="readout-plate mt-10 px-4 py-3 text-sm text-text-muted">
-      <span class="font-mono text-xs text-interactive">Status</span><br />
-      None of these packs ships today. The interceptor they would run on does. Early access means you
-      hear first when there is a build to try, and your input shapes it.
+      <span class="font-mono text-xs text-interactive">Status</span>
+      <br />
+      None of these packs ships today. The interceptor they would run on does. Early access means
+      you hear first when there is a build to try, and your input shapes it.
     </p>
 
     <div class="mt-10 rounded-lg border border-border bg-bg-elevated p-6 sm:p-8">
@@ -103,9 +102,10 @@ const jsonLd = {
 
     <p class="mt-8 text-sm text-text-annotation">
       All early-access directions are on the
-      <a href="/platform/" class="text-interactive hover:text-interactive-hover underline"
-        >transform packs page</a
-      >.
+      <a href="/platform/" class="text-interactive hover:text-interactive-hover underline">
+        transform packs page
+      </a>
+      .
     </p>
   </section>
 </BaseLayout>

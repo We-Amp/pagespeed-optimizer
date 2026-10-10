@@ -30,11 +30,9 @@ interface Props {
 const { command, label, labelledby, chip, lines } = Astro.props;
 ---
 
-{
-  /* The head row is a div, not a figcaption: a figcaption names the figure, and
+{/* The head row is a div, not a figcaption: a figcaption names the figure, and
     once the copy button is docked in the head that name would start with
-    "Copy code to clipboard". The command line is the figure's name instead. */
-}
+    "Copy code to clipboard". The command line is the figure's name instead. */}
 <figure class="term-panel" data-ui="term-panel" aria-label={command ? `$ ${command}` : undefined}>
   <div class="term-head">
     {command && <span class="font-mono text-xs text-text-muted">$ {command}</span>}
@@ -45,7 +43,8 @@ const { command, label, labelledby, chip, lines } = Astro.props;
     tabindex="0"
     role="region"
     aria-label={label}
-    aria-labelledby={labelledby}><code>{
+    aria-labelledby={labelledby}
+  ><code>{
         lines.map((line, i) => (
           <span class={`term-${line.tone ?? 'plain'}`} data-umami-event={line.event}>{line.text + (i < lines.length - 1 ? '\n' : '')}</span>
         ))
