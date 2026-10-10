@@ -93,7 +93,7 @@ test.describe('Risk & SEO panel', () => {
       'With consent enforcement at the origin, third-party tags stay inert at the server until the consent cookie grants them.',
     );
     await expect(row(panel, 'seoDefects').locator('[data-risk-sentence]')).toContainText(
-      '3 issue(s): canonical 1, title 1, structured data 1.',
+      '3 issues: canonical 1, title 1, structured data 1.',
     );
     await expect(row(panel, 'responseExposure').locator('[data-risk-building]')).toContainText(
       'A response-firewall pack for mod_pagespeed 2.1 is planned.',

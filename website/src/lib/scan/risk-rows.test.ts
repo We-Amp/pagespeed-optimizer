@@ -50,7 +50,7 @@ describe('riskRows over the full report', () => {
   });
   it('uses one verdict sentence per lens, without counts, host lists or server lines', () => {
     expect(m.preConsentLeak.sentence).toMatch(
-      /^\d+ tracker host\(s\) contacted before any interaction, in a fresh browser with no consent given\./,
+      /^\d+ tracker hosts? contacted before any interaction, in a fresh browser with no consent given\./,
     );
     expect(m.preConsentLeak.sentence).toMatch(/not legal advice or a compliance certificate\.$/);
     expect(m.preConsentLeak.sentence).not.toMatch(/google|analytics|…|\(analytics\)/i);
@@ -62,11 +62,11 @@ describe('riskRows over the full report', () => {
       /script\(s\)|CSP|from other hosts|with integrity/,
     );
     expect(m.seoDefects.sentence).toBe(
-      '3 issue(s): canonical 1, title 1, structured data 1. One page only; not a ranking assessment.',
+      '3 issues: canonical 1, title 1, structured data 1. One page only; not a ranking assessment.',
     );
     expect(m.seoDefects.sentence).not.toMatch(/Server header|CDN headers/);
     expect(m.responseExposure.sentence).toBe(
-      '1 error-output pattern(s) · 2 version tell(s) · end of life: PHP 7.4 · missing: nosniff, framing. One page only; not a security assessment.',
+      '1 error-output pattern · 2 version tells · end of life: PHP 7.4 · missing: nosniff, framing. One page only; not a security assessment.',
     );
   });
   it('names no library, version or host in the script row', () => {
@@ -163,7 +163,7 @@ describe('riskRows edge cases', () => {
       rx({ verdict: 'clean', leaks: [], tells: [], endOfLife: [], headers: { missing: [] } }),
     )[0];
     expect(clean.sentence).toBe(
-      '0 error-output pattern(s) · 0 version tell(s) · end of life: none seen · missing: none. One page only; not a security assessment.',
+      '0 error-output patterns · 0 version tells · end of life: none seen · missing: none. One page only; not a security assessment.',
     );
     const unknown = riskRows(
       rx({ verdict: 'unknown', notMeasured: ['static-html', 'headers'] }),
@@ -234,5 +234,17 @@ describe('riskRows edge cases', () => {
       },
     })[0];
     expect(row.link).toBeNull();
+  });
+});
+
+describe('riskRows counts are pluralised from the number', () => {
+  it('uses the singular for exactly one', () => {
+    const report = load('full');
+    report.preConsentLeak.trackerCount = 1;
+    report.seoDefects.counts = { ...report.seoDefects.counts, total: 1 };
+    const m = byKey(riskRows(report));
+    expect(m.preConsentLeak.sentence).toMatch(/^1 tracker host contacted before/);
+    expect(m.seoDefects.sentence).toMatch(/^1 issue: /);
+    expect(JSON.stringify(riskRows(report))).not.toContain('(s)');
   });
 });
