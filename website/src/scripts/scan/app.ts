@@ -15,6 +15,7 @@ import {
   speedStatus,
   type TileStatus,
 } from '../../lib/scan/status';
+import { renderSpeedPanel } from './panels/speed';
 
 type Pillar = 'speed' | 'airead' | 'risk';
 type Strategy = 'mobile' | 'desktop';
@@ -108,7 +109,7 @@ function renderNotMeasured(panel: HTMLElement, ctx: PanelContext) {
   panel.append(reason, retry);
 }
 export const renderPanel: Record<Pillar, PanelRenderer> = {
-  speed: renderNotMeasured,
+  speed: renderSpeedPanel,
   airead: renderNotMeasured,
   risk: renderNotMeasured,
 };
