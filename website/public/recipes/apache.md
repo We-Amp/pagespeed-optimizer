@@ -4,7 +4,8 @@ Source: https://modpagespeed.com/docs/installation-module/#native-apache-module
 and https://modpagespeed.com/docs/getting-started/. Header: `X-Mod-Pagespeed`.
 Scope: the `mod-pagespeed` package, which also installs the `pagespeed-optimizer`
 worker and the configuration that points the module at it. cPanel / WHM hosts
-use the EasyApache 4 RPM instead: https://modpagespeed.com/docs/cpanel/
+use the EasyApache 4 RPM instead:
+https://modpagespeed.com/recipes/cpanel.md (guide: https://modpagespeed.com/docs/cpanel/)
 
 ## 1. Prerequisites
 
@@ -14,7 +15,7 @@ or Rocky 9 (x86_64 or aarch64) or 10 (x86_64 only), with Apache 2.4 or newer.
 ```bash
 . /etc/os-release && echo "$ID $VERSION_ID $(uname -m)"
 apache2ctl -v 2>/dev/null || httpd -v
-test -d /usr/local/cpanel && echo 'cPanel host: use https://modpagespeed.com/docs/cpanel/ instead'
+test -d /usr/local/cpanel && echo 'cPanel host: use https://modpagespeed.com/recipes/cpanel.md instead'
 dpkg -s mod-pagespeed pagespeed-optimizer   # Debian / Ubuntu: both must report "is not installed"
 rpm -q mod-pagespeed pagespeed-optimizer    # AlmaLinux / RHEL / Rocky: both must report "is not installed"
 ```
