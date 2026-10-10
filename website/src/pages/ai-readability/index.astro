@@ -2034,16 +2034,18 @@ const jsonLd = [webApp, faqPage];
           '<section class="ar-sec" aria-labelledby="ar-h-scripts">' +
           '<h3 id="ar-h-scripts" class="ar-h3">Scripts you do not control</h3>' +
           (pi
-            ? '<p class="ar-v">Payment pages must list every script they load and show each one is approved (PCI DSS 6.4.3 and 11.6.1); we are building a server module that keeps that list and enforces it at your origin. Tell us what you run.</p>'
+            ? '<p class="ar-v">PCI DSS 4.0 (requirement 6.4.3) asks payment pages to keep an inventory of the scripts they load and to authorise each one; requirement 11.6.1 asks for detection of unauthorised changes to those pages. If this is a payment page, those requirements may apply to you.</p>' +
+              '<p class="ar-v">We are building a server module that keeps a list of approved scripts at your origin.</p>'
             : '') +
           (tf
             ? '<p class="ar-v">' +
               unpinned +
-              ' third-party script(s) on this page can change upstream without notice; we are building a way to serve each one at a version you approved until you accept the update. Tell us what you run.</p>'
+              ' third-party script(s) on this page load without an integrity hash, so their content can change upstream without notice. We are building a way to serve each one at a version you approved until you accept the update.</p>'
             : '') +
           '<div class="ar-cta-row">' +
           '<a class="ar-cta-link" href="/platform/" data-umami-event="airead-cta-page-integrity">Origin modules we are building →</a>' +
           '</div>' +
+          '<p class="ar-v">Tell us what you run.</p>' +
           '<form id="ar-scripts-form" class="ar-next-form">' +
           '<label class="ar-field"><span class="ar-field-label">Your email</span>' +
           '<input id="ar-scripts-email" type="email" autocomplete="email" required /></label>' +
@@ -2512,7 +2514,7 @@ const jsonLd = [webApp, faqPage];
           if (ok) {
             leadSubmit(wedge, wedge);
             if (msg) {
-              msg.textContent = 'Thanks — your answer is in.';
+              msg.textContent = 'Thanks. We will be in touch by email.';
               msg.focus && msg.focus();
             }
             form.remove();

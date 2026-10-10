@@ -694,8 +694,12 @@ const siScan = (si?: unknown) => ({
   report: { ...SCAN_OK.report, ...(si ? { scriptInventory: si } : {}) },
 });
 const SI_ROW = (page: Page) => page.locator('.ar-lens', { hasText: 'Script inventory' });
-const SI_PI_TEXT =
-  'Payment pages must list every script they load and show each one is approved (PCI DSS 6.4.3 and 11.6.1); we are building a server module that keeps that list and enforces it at your origin. Tell us what you run.';
+const SI_PI_TEXT = [
+  'PCI DSS 4.0 (requirement 6.4.3) asks payment pages to keep an inventory of the scripts they load and to authorise each one; requirement 11.6.1 asks for detection of unauthorised changes to those pages. If this is a payment page, those requirements may apply to you.',
+  'We are building a server module that keeps a list of approved scripts at your origin.',
+];
+const SI_TF_TEXT = (n: number) =>
+  `${n} third-party script(s) on this page load without an integrity hash, so their content can change upstream without notice. We are building a way to serve each one at a version you approved until you accept the update.`;
 
 test.describe('AI-readability script-inventory lens and script-control card', () => {
   test('an attention page gets the row, both buttons, and each button posts its own wedge', async ({
@@ -722,8 +726,9 @@ test.describe('AI-readability script-inventory lens and script-control card', ()
     const card = page.locator('section[aria-labelledby="ar-h-scripts"]');
     await expect(page.locator('#ar-h-scripts')).toHaveText('Scripts you do not control');
     await expect(card.locator('p.ar-v')).toHaveText([
-      SI_PI_TEXT,
-      '4 third-party script(s) on this page can change upstream without notice; we are building a way to serve each one at a version you approved until you accept the update. Tell us what you run.',
+      ...SI_PI_TEXT,
+      SI_TF_TEXT(4),
+      'Tell us what you run.',
     ]);
     await expect(card.locator('a[href="/platform/"]')).toHaveText(
       'Origin modules we are building →',
@@ -738,7 +743,9 @@ test.describe('AI-readability script-inventory lens and script-control card', ()
 
     await page.fill('#ar-scripts-email', 'operator@example.com');
     await page.click('#ar-scripts-form button[data-wedge="third-party-freeze"]');
-    await expect(page.locator('#ar-scripts-msg')).toContainText('Thanks');
+    await expect(page.locator('#ar-scripts-msg')).toHaveText(
+      'Thanks. We will be in touch by email.',
+    );
     await expect(page.locator('#ar-scripts-form')).toHaveCount(0);
 
     expect(posted).toHaveLength(1);
@@ -789,7 +796,9 @@ test.describe('AI-readability script-inventory lens and script-control card', ()
 
     await page.fill('#ar-scripts-email', 'operator@example.com');
     await page.click('#ar-scripts-form button[data-wedge="page-integrity"]');
-    await expect(page.locator('#ar-scripts-msg')).toContainText('Thanks');
+    await expect(page.locator('#ar-scripts-msg')).toHaveText(
+      'Thanks. We will be in touch by email.',
+    );
     expect(posted).toHaveLength(1);
     expect(posted[0]).toMatchObject({
       topic: 'page-integrity',
@@ -809,16 +818,16 @@ test.describe('AI-readability script-inventory lens and script-control card', ()
     await expect(row.locator('.ar-h4-r')).toHaveText('clean');
     await expect(row).not.toHaveClass(/ar-finding/);
     const card = page.locator('section[aria-labelledby="ar-h-scripts"]');
-    await expect(card.locator('p.ar-v')).toHaveText([
-      '2 third-party script(s) on this page can change upstream without notice; we are building a way to serve each one at a version you approved until you accept the update. Tell us what you run.',
-    ]);
+    await expect(card.locator('p.ar-v')).toHaveText([SI_TF_TEXT(2), 'Tell us what you run.']);
     await expect(card.locator('button[type="submit"]')).toHaveText([
       'Talk to us about pinning scripts',
     ]);
 
     await page.fill('#ar-scripts-email', 'operator@example.com');
     await page.click('#ar-scripts-form button[type="submit"]');
-    await expect(page.locator('#ar-scripts-msg')).toContainText('Thanks');
+    await expect(page.locator('#ar-scripts-msg')).toHaveText(
+      'Thanks. We will be in touch by email.',
+    );
     expect(posted[0]).toMatchObject({ topic: 'third-party-freeze', wedge: 'third-party-freeze' });
   });
 
