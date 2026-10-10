@@ -272,7 +272,9 @@ function buildingFor(
             (unpinned === 1
               ? ' on this page loads without an integrity hash, so its content can change upstream without notice.'
               : ' on this page load without an integrity hash, so their content can change upstream without notice.') +
-            ' We are building a way to serve each one at a version you approved until you accept the update.',
+            (unpinned === 1
+              ? ' We are building a way to serve it at a version you approved until you accept the update.'
+              : ' We are building a way to serve each one at a version you approved until you accept the update.'),
         );
       }
       return building.length

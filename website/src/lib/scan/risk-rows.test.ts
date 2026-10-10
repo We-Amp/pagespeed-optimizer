@@ -248,3 +248,17 @@ describe('riskRows counts are pluralised from the number', () => {
     expect(JSON.stringify(riskRows(report))).not.toContain('(s)');
   });
 });
+
+describe('riskRows unpinned script wording', () => {
+  it('uses singular agreement after exactly one unpinned script', () => {
+    const report = load('full');
+    report.scriptInventory.totals.thirdPartyWithIntegrity =
+      report.scriptInventory.totals.thirdPartyExternal - 1;
+    const text = byKey(riskRows(report)).scriptInventory.building.join('\n');
+    expect(text).toContain(
+      '1 third-party script on this page loads without an integrity hash, so its content can change',
+    );
+    expect(text).toContain('serve it at a version you approved');
+    expect(text).not.toContain('serve each one');
+  });
+});

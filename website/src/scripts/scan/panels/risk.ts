@@ -59,13 +59,18 @@ function rowNode(row: RiskRow): HTMLElement {
   const narrow = row.building.length > 0 && matchMedia('(max-width: 639px)').matches;
   const holder = narrow ? el('details', 'scan-risk-more') : li;
   if (narrow) {
-    holder.append(
-      el(
-        'summary',
-        'flex min-h-11 cursor-pointer items-center text-sm font-medium text-interactive',
-        'What we are building',
-      ),
+    const summary = el(
+      'summary',
+      'scan-risk-more-summary flex min-h-11 cursor-pointer items-center justify-between gap-3 text-sm font-medium text-interactive',
     );
+    summary.append(el('span', '', 'What we are building'));
+    const mark = el('span', 'scan-risk-more-mark', '▾');
+    mark.setAttribute('aria-hidden', 'true');
+    summary.append(mark);
+    holder.addEventListener('toggle', () => {
+      mark.textContent = (holder as HTMLDetailsElement).open ? '▴' : '▾';
+    });
+    holder.append(summary);
     li.append(holder);
   }
   for (const text of row.building) {

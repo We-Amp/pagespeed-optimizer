@@ -140,7 +140,9 @@ test.describe('Risk & SEO panel', () => {
     const rows = await withText.count();
     expect(rows).toBeGreaterThan(0);
     await expect(details).toHaveCount(rows);
-    await expect(details.locator('summary')).toHaveText(Array(rows).fill('What we are building'));
+    await expect(details.locator('summary')).toContainText(
+      Array(rows).fill('What we are building'),
+    );
     for (let i = 0; i < rows; i++) {
       await expect(details.nth(i)).not.toHaveAttribute('open', /.*/);
       await expect(details.nth(i).locator('[data-risk-building]').first()).toBeHidden();
@@ -153,7 +155,11 @@ test.describe('Risk & SEO panel', () => {
     await expect(row(panel, 'scriptInventory').locator('details [data-risk-building]')).toHaveCount(
       2,
     );
+    await expect(details.locator('summary')).toContainText(Array(rows).fill('▾'));
+    const box = await details.nth(0).locator('summary').boundingBox();
+    expect(box!.height).toBeGreaterThanOrEqual(44);
     await details.nth(0).locator('summary').click();
+    await expect(details.nth(0).locator('summary')).toContainText('▴');
     await expect(details.nth(0).locator('[data-risk-building]').first()).toBeVisible();
   });
 
