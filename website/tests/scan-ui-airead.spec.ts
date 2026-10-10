@@ -121,10 +121,10 @@ test.describe('AI readability panel', () => {
     await scanV2(page);
     await openAiread(page);
     await expect(panel(page)).toContainText('Grade C — mixed');
-    await expect(panel(page)).toContainText('63/100');
+    await expect(panel(page)).toContainText('64/100');
     await expect(panel(page).getByText('invisible without JS')).toHaveCount(1);
     await expect(panel(page)).toContainText(
-      'Raw HTML: ~190 tokens · after JavaScript: ~540 tokens',
+      'Readable text in raw HTML: ~190 tokens · after JavaScript: ~540 tokens',
     );
   });
 
@@ -165,7 +165,7 @@ test.describe('AI readability panel', () => {
       'hidden layer',
       'posture',
       'blocked',
-      'accessibility',
+      'accessibility score',
     ]) {
       expect(body).not.toContain(gone);
     }
@@ -180,7 +180,7 @@ test.describe('AI readability panel', () => {
     await expect(found).toHaveCount(3);
     await expect(found.nth(0)).toContainText('can’t tell a real signed agent from an impostor');
     await expect(found.nth(1)).toContainText('signed-agent requests differently');
-    await expect(found.nth(2)).toContainText('self-hosted optimizer can address server-side');
+    await expect(found.nth(2)).toContainText('self-hosted optimizer can fix on your own servers');
   });
 
   test('no "Also found" block on a clean report', async ({ page }) => {
@@ -190,7 +190,7 @@ test.describe('AI readability panel', () => {
     await expect(panel(page).locator('[data-scan-also-found]')).toHaveCount(0);
     await expect(panel(page)).not.toContainText('Also found');
     await expect(page.locator('[data-scan-tile="airead"] [data-scan-value]')).toHaveText(
-      'Grade A · 98/100',
+      'Grade A · 100/100',
     );
   });
 });
@@ -207,6 +207,7 @@ test.describe('scanner failures', () => {
     await openAiread(page);
     await expect(panel(page)).toContainText('Couldn’t scan that.');
     await expect(panel(page)).toContainText('The scanner is busy. Try again shortly.');
+    await expect(panel(page).getByRole('button', { name: 'Try again' })).toBeVisible();
     await page.click('[data-scan-tile="risk"]');
     await expect(page.locator('[data-scan-panel="risk"]')).toContainText(
       'The scanner is busy. Try again shortly.',

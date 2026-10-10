@@ -79,7 +79,7 @@ const GATED: ChipDef[] = [
   },
   {
     id: 'response-firewall',
-    label: 'Legacy sites: error output and old software',
+    label: 'Leaked errors and outdated software',
     fires: (r) => responseFirewallCtaApplies(r.responseExposure),
   },
 ];
@@ -96,10 +96,13 @@ export const SITES_WEDGES = ['edge-seo', 'response-firewall'];
  * appears once the speed result has settled (`speed` is null while it is still
  * checking) and is pre-selected only when Speed is Poor; the agents chip is
  * always offered, unselected. With no report only the ungated chips remain.
+ * On the /analyze/ surface a Poor speed result takes pre-selection priority
+ * over the gated chips when the cap bites; display order is unchanged.
  */
 export function chipsFor(
   report: Report | null | undefined,
   speed: TileState | null | undefined,
+  surface: 'analyze' | 'airead' = 'airead',
 ): Chip[] {
   const chips: Chip[] = [];
   if (report) {
@@ -114,7 +117,8 @@ export function chipsFor(
   }
   chips.push({ ...AGENTS, wedge: '', gated: false, selected: false });
   let left = MAX_TOPICS;
-  for (const chip of chips) {
+  const priority = surface === 'analyze' ? chips.filter((c) => c.id === CONSULTING.id) : [];
+  for (const chip of [...priority, ...chips.filter((c) => !priority.includes(c))]) {
     if (chip.selected) {
       if (left > 0) left -= 1;
       else chip.selected = false;

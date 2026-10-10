@@ -81,8 +81,8 @@ export function riskStatus(report: ReportLike | null | undefined): TileStatus {
   if (k === 0) return NOT_MEASURED;
   return {
     state: n === 0 ? 'clean' : 'flagged',
-    word: n === 0 ? 'Clean' : `${n} flagged`,
-    value: `${n} of ${k} checks flagged`,
+    word: n === 0 ? 'Nothing flagged' : `${n} flagged`,
+    value: n === 0 ? `0 of ${k} checks flagged` : `${n} need attention`,
   };
 }
 
@@ -94,7 +94,12 @@ export function healthLine(statuses: readonly TileStatus[]): string {
   const measured = statuses.filter((s) => s.state !== 'none');
   if (measured.length === 0) return 'We could not check this page.';
   const n = measured.filter((s) => NEEDS_ATTENTION.has(s.state)).length;
-  if (n === 0) return 'Nothing here needs attention';
+  if (n === 0) {
+    return measured.length === 1
+      ? 'The one area checked needs no attention.'
+      : `None of the ${measured.length} areas checked needs attention.`;
+  }
+  if (measured.length === 1) return 'The one area checked needs attention.';
   if (n === 1) return `1 of ${measured.length} areas needs attention`;
   return `${n} of ${measured.length} areas need attention`;
 }
