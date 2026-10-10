@@ -35,10 +35,7 @@
 // The import binds the names this file's own derivations (LLMS_TOKENS below)
 // reference; the re-export keeps every website importer reading them from
 // this module — `export { … } from` alone creates no local binding.
-import {
-  PRODUCT_NAME,
-  SUPPORT_URL,
-} from '../../../shared/product-facts.mjs';
+import { PRODUCT_NAME, SUPPORT_URL } from '../../../shared/product-facts.mjs';
 export {
   VENDOR,
   WEBSITE,

@@ -531,7 +531,13 @@ test.describe('Docs structure', () => {
   }) => {
     await page.goto('/docs/is-it-working/');
     const main = page.locator('main');
-    for (const text of ['X-Mod-Pagespeed', 'X-Page-Speed', 'X-PageSpeed', '?PageSpeed=off', '/v1/health']) {
+    for (const text of [
+      'X-Mod-Pagespeed',
+      'X-Page-Speed',
+      'X-PageSpeed',
+      '?PageSpeed=off',
+      '/v1/health',
+    ]) {
       await expect(main).toContainText(text);
     }
     await expect(main.locator('a[href="/pagespeed-markers/"]')).toBeAttached();

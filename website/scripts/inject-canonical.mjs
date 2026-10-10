@@ -19,19 +19,19 @@ const docDir = join(import.meta.dirname, '..', 'public', '1.0', 'doc');
 
 // Old doc slug → new 2.0 canonical path (without trailing slash the tag adds it)
 const NEW_EQUIVALENTS = {
-  'configuration': '/docs/configuration/',
-  'build_ngx_pagespeed_from_source': '/docs/installation-module/',
-  'build_from_source': '/docs/installation-module/',
-  'build_mod_pagespeed_from_source': '/docs/installation-module/',
-  'download': '/docs/getting-started/',
-  'release_notes': '/docs/release-notes/',
+  configuration: '/docs/configuration/',
+  build_ngx_pagespeed_from_source: '/docs/installation-module/',
+  build_from_source: '/docs/installation-module/',
+  build_mod_pagespeed_from_source: '/docs/installation-module/',
+  download: '/docs/getting-started/',
+  release_notes: '/docs/release-notes/',
   'filter-image-optimize': '/docs/image-filters/',
   'reference-image-optimize': '/docs/image-filters/',
-  'system': '/docs/deployment/',
-  'faq': '/docs/troubleshooting/',
-  'admin': '/docs/api-reference/',
-  'console': '/docs/api-reference/',
-  'index': '/docs/',
+  system: '/docs/deployment/',
+  faq: '/docs/troubleshooting/',
+  admin: '/docs/api-reference/',
+  console: '/docs/api-reference/',
+  index: '/docs/',
 };
 
 const files = readdirSync(docDir).filter((f) => f.endsWith('.html'));
@@ -49,9 +49,7 @@ for (const file of files) {
 
   const slug = basename(file, '.html');
   const newPath = NEW_EQUIVALENTS[slug];
-  const canonicalUrl = newPath
-    ? `${SITE}${newPath}`
-    : `${SITE}/1.0/doc/${slug}`;
+  const canonicalUrl = newPath ? `${SITE}${newPath}` : `${SITE}/1.0/doc/${slug}`;
 
   const tag = `    <link rel="canonical" href="${canonicalUrl}" />`;
 
