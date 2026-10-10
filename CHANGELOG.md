@@ -4,6 +4,14 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Fixed: after a file changed on the origin, mod_pagespeed with
+`DaemonServeStoredEncodings on` could keep sending the previous version of an
+SVG image to clients that accept gzip or brotli, while other clients already
+got the new one, until the old copy's cache lifetime ran out. The optimizer
+now replaces its stored copies as soon as the web server has recorded the new
+version. If you have been resetting the optimizer's cache after each deploy to
+work around this for SVG images, that is no longer needed for them.
+
 Added: the worker's `--help` output now lists `--agent-render-allow-hosts`
 with its default and semantics, so the generated configuration reference on
 the website documents it. The flag itself is unchanged; only the usage text
