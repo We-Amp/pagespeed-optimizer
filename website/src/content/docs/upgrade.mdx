@@ -9,7 +9,7 @@ faq:
   - q: 'Do I upgrade the module and the optimizer worker separately?'
     a: 'No. They are a matched pair: install, upgrade and roll them back together, and start the optimizer before the web server. On the packages the Apache module depends on the worker package at the same version, so one upgrade command moves both.'
   - q: 'How do security updates reach me?'
-    a: 'As regular releases through the channel you installed from, listed under Security in the release notes by impact class with "update recommended". A support subscription adds agreed response times and SLA-backed delivery of security updates; A private package repository for Priority and Enterprise subscribers, with security fixes delivered before the public release, is being set up. Until then, subscribers receive the release SBOM and VEX on request and advance notice of security releases.'
+    a: 'As regular releases through the channel you installed from, listed under Security in the release notes by impact class with "update recommended". A support subscription adds agreed response times and SLA-backed delivery of security updates. A private package repository for Priority and Enterprise subscribers, with security fixes delivered before the public release, is being set up. Until then, subscribers receive the release SBOM and VEX on request and advance notice of security releases.'
 ---
 
 import ImageTag from '../../components/release/ImageTag.astro';
@@ -147,7 +147,7 @@ from, and every one is listed under Security in the
 "update recommended" and the affected versions. The standard signed packages
 are free for everyone. A [support subscription](/support/) adds support from
 the people who build the product, with agreed response times and SLA-backed
-delivery of security updates; A private package repository for Priority and Enterprise subscribers, with security fixes delivered before the public release, is being set up. Until then, subscribers receive the release SBOM and VEX on request and advance notice of security releases.
+delivery of security updates. A private package repository for Priority and Enterprise subscribers, with security fixes delivered before the public release, is being set up. Until then, subscribers receive the release SBOM and VEX on request and advance notice of security releases.
 
 ## Roll back
 

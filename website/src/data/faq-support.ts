@@ -17,7 +17,7 @@ const link = (href: string, text: string) =>
 export const faqSupport: FaqEntry[] = [
   {
     q: 'Does a subscription change what the software does?',
-    a: `No. Every install runs the same software under the ${SOURCE_PUBLICATION.license}, with every optimization enabled by configuration, not by a plan. A subscription changes who answers when you need help, and for Priority and Enterprise, which repository your packages come from once the private package repository (being set up) exists.`,
+    a: `No. Every install runs the same software under the ${SOURCE_PUBLICATION.license}, with every optimization enabled by configuration, not by a plan. A subscription changes who answers when you need help. Once the private package repository for Priority and Enterprise is live, it will also change where those subscribers' packages come from.`,
   },
   {
     q: 'Who answers a ticket?',
@@ -29,7 +29,7 @@ export const faqSupport: FaqEntry[] = [
   },
   {
     q: 'How do security updates reach me?',
-    a: `Everyone gets security fixes as regular releases through the channel they installed from, listed under Security in the ${link('/docs/release-notes/', 'release notes')}. Subscribers get advance notice, with a delivery window stated in their quote. Everyone receives the update through the same public channels. A private package repository for Priority and Enterprise subscribers, with security fixes delivered before the public release, is being set up. Until then, subscribers receive the release SBOM and VEX on request and advance notice of security releases.`,
+    a: `Everyone gets security fixes as regular releases through the channel they installed from, listed under Security in the ${link('/docs/release-notes/', 'release notes')}. Subscribers get advance notice, with a delivery window stated in their quote. A private package repository for Priority and Enterprise subscribers, with security fixes delivered before the public release, is being set up; until then, subscribers can request the release SBOM and VEX.`,
   },
   {
     q: 'What counts as a production server?',
@@ -37,11 +37,11 @@ export const faqSupport: FaqEntry[] = [
   },
   {
     q: 'What is the private package repository?',
-    a: 'A private package repository for Priority and Enterprise subscribers, with security fixes delivered before the public release, is being set up. Until then, subscribers receive the release SBOM and VEX on request and advance notice of security releases. The packages in it carry the same license as the standard packages.',
+    a: 'A private package repository for Priority and Enterprise subscribers, with security fixes delivered before the public release, is being set up. Until then, subscribers receive the release SBOM and VEX on request and advance notice of security releases. Packages in it will carry the same license as the standard packages.',
   },
   {
     q: 'What is signed today?',
-    a: `The apt and yum repositories are GPG-signed, release packages carry .asc signatures, and the Windows installer is Authenticode-signed. The container images are cosign-signed and carry an SBOM attestation and build provenance. Release SBOM and VEX documents are available on request. Everything is the same software under the ${SOURCE_PUBLICATION.license}. See ${link('#hardened-builds', 'signed packages and images')}.`,
+    a: `The apt and yum repositories are GPG-signed, release packages carry .asc signatures, and the Windows installer is Authenticode-signed. The container images are cosign-signed and carry an SBOM attestation and build provenance. Release SBOM and VEX documents are available to subscribers (any tier) on request. Everything is the same software under the ${SOURCE_PUBLICATION.license}. See ${link('#hardened-builds', 'signed packages and images')}.`,
   },
   {
     q: 'Can I verify the standard packages without a subscription?',

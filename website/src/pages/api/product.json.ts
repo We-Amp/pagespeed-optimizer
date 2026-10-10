@@ -48,7 +48,8 @@ const productData = {
     status: SOURCE_PUBLICATION.status,
     license: SOURCE_PUBLICATION.licenseId,
   },
-  // What is for sale is support, with a private package repository (being set up) for Priority and Enterprise. Prices are
+  // What is for sale is support; Priority and Enterprise add a private package repository
+  // (being set up). Prices are
   // placeholders (null) until published.
   support: {
     url: SUPPORT_URL,
@@ -74,6 +75,7 @@ const productData = {
     standard_packages: ARTIFACT_ACCESS.standardPackages,
     hardened_builds: ARTIFACT_ACCESS.hardenedBuilds,
     hardened_pricing: ARTIFACT_ACCESS.hardenedPricing,
+    private_repository: ARTIFACT_ACCESS.privateRepository,
   },
   features: {
     // `image_formats` is the flat format list. Its key name, shape (flat array

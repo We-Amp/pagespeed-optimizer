@@ -26,9 +26,9 @@ test.describe('Pricing page', () => {
       await expect(page.locator('#plans').getByRole('heading', { name, exact: true })).toBeVisible();
     }
     await expect(page.locator('#plans [data-tier="priority"]')).toHaveClass(/card-featured/);
-    await expect(page.locator('#plans [data-tier="priority"]')).toContainText('release SBOM and VEX');
+    await expect(page.locator('#plans [data-tier="priority"]')).toContainText('Private package repository (being set up)');
     await expect(page.locator('#plans [data-tier="standard"]')).not.toContainText(
-      'release SBOM and VEX',
+      'Private package repository',
     );
   });
 

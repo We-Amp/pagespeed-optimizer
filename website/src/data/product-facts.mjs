@@ -95,14 +95,14 @@ export const SUPPORT_TIERS = [
   {
     id: 'priority',
     name: 'Priority support',
-    kind: 'support+repository',
+    kind: 'support',
     hardened: false,
     servers: 'up to 25 production servers',
     prices: { annualUsd: null, monthlyUsd: null },
-    note: 'everything in Standard plus a private package repository (being set up) and release SBOM and VEX on request, for up to 25 production servers',
+    note: 'everything in Standard plus a private package repository (being set up), for up to 25 production servers',
     includes: [
       'Everything in Standard',
-      'Private package repository (being set up); until then, release SBOM and VEX on request and advance notice of security releases',
+      'Private package repository (being set up)',
       'Upgrade rehearsal on request',
       'Quarterly review call',
     ],
@@ -110,7 +110,7 @@ export const SUPPORT_TIERS = [
   {
     id: 'enterprise',
     name: 'Enterprise',
-    kind: 'support+repository',
+    kind: 'support',
     hardened: false,
     servers: 'unlimited servers and sites, one organization',
     prices: { annualUsd: null, monthlyUsd: null },
@@ -140,8 +140,9 @@ export const RESPONSE_TARGETS_LINE = 'Response targets by severity are stated in
 // set up; say so, never that it exists.
 export const ARTIFACT_ACCESS = {
   standardPackages: 'free',
-  hardenedBuilds: 'being-set-up',
-  hardenedPricing: 'on-request',
+  hardenedBuilds: 'not-offered',
+  hardenedPricing: 'not-offered',
+  privateRepository: 'being-set-up',
 };
 // The support ladder as markdown bullets and one line, price-free by design
 // (pure helpers — see the purity rule below).
