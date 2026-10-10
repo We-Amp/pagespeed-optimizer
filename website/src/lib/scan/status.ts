@@ -1,0 +1,90 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2024-2026 We-Amp B.V.
+//
+// Pure tile-status rules for the scan summary strip. A tile always carries a
+// status word (never colour alone) and one value line.
+
+export type TileState = 'checking' | 'good' | 'needs-work' | 'poor' | 'clean' | 'flagged' | 'none';
+
+export interface TileStatus {
+  state: TileState;
+  /** The status word shown on the tile. */
+  word: string;
+  /** The single value line; empty while checking or not measured. */
+  value: string;
+}
+
+export const CHECKING: TileStatus = { state: 'checking', word: 'Checking…', value: '' };
+export const NOT_MEASURED: TileStatus = { state: 'none', word: 'Not measured', value: '' };
+
+// Mobile score decides (PSI convention); desktop when mobile is missing.
+export function speedStatus(
+  mobile: number | null | undefined,
+  desktop: number | null | undefined,
+): TileStatus {
+  const m = typeof mobile === 'number' ? mobile : null;
+  const d = typeof desktop === 'number' ? desktop : null;
+  const basis = m ?? d;
+  if (basis === null) return NOT_MEASURED;
+  const state: TileState = basis >= 90 ? 'good' : basis >= 50 ? 'needs-work' : 'poor';
+  const word = state === 'good' ? 'Good' : state === 'needs-work' ? 'Needs work' : 'Poor';
+  const part = (label: string, v: number | null) => `${label} ${v === null ? '—' : v}`;
+  return { state, word, value: `${part('Mobile', m)} · ${part('Desktop', d)}` };
+}
+
+interface ReportLike {
+  grade?: string;
+  score?: number;
+  [lens: string]: unknown;
+}
+
+export function aireadStatus(report: ReportLike | null | undefined): TileStatus {
+  const grade = report?.grade;
+  if (!report || typeof grade !== 'string' || typeof report.score !== 'number') {
+    return NOT_MEASURED;
+  }
+  const state: TileState =
+    grade === 'A' || grade === 'B' ? 'good' : grade === 'C' ? 'needs-work' : 'poor';
+  const word = state === 'good' ? 'Good' : state === 'needs-work' ? 'Needs work' : 'Poor';
+  return { state, word, value: `Grade ${grade} · ${report.score}/100` };
+}
+
+// The four Risk & SEO lenses, in panel order, and the verdict that counts as
+// flagged for each.
+export const RISK_LENSES = [
+  { key: 'preConsentLeak', flagged: 'leaks' },
+  { key: 'scriptInventory', flagged: 'attention' },
+  { key: 'seoDefects', flagged: 'attention' },
+  { key: 'responseExposure', flagged: 'attention' },
+] as const;
+
+export function riskStatus(report: ReportLike | null | undefined): TileStatus {
+  if (!report) return NOT_MEASURED;
+  let k = 0;
+  let n = 0;
+  for (const lens of RISK_LENSES) {
+    const v = report[lens.key] as { status?: string; verdict?: string } | undefined;
+    if (!v || v.status !== 'ok' || v.verdict === 'unknown') continue;
+    k += 1;
+    if (v.verdict === lens.flagged) n += 1;
+  }
+  if (k === 0) return NOT_MEASURED;
+  return {
+    state: n === 0 ? 'clean' : 'flagged',
+    word: n === 0 ? 'Clean' : `${n} flagged`,
+    value: `${n} of ${k} checks flagged`,
+  };
+}
+
+const NEEDS_ATTENTION: ReadonlySet<TileState> = new Set(['needs-work', 'poor', 'flagged']);
+
+export function healthLine(statuses: readonly TileStatus[]): string {
+  const pending = statuses.filter((s) => s.state === 'checking').length;
+  if (pending > 0) return `Checking ${pending} of 3 areas…`;
+  const measured = statuses.filter((s) => s.state !== 'none');
+  if (measured.length === 0) return 'We could not check this page.';
+  const n = measured.filter((s) => NEEDS_ATTENTION.has(s.state)).length;
+  if (n === 0) return 'Nothing here needs attention';
+  if (n === 1) return `1 of ${measured.length} areas needs attention`;
+  return `${n} of ${measured.length} areas need attention`;
+}

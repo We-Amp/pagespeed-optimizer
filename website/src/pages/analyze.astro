@@ -4,6 +4,9 @@ import SectionHeader from '../components/instrument/SectionHeader.astro';
 import Chip from '../components/instrument/Chip.astro';
 import { PSI_MPS_MAPPING } from '../data/psi-mps-mapping';
 import { FREE_TO_RUN_LINE } from '../data/product-facts.mjs';
+import ScanBox from '../components/scan/ScanBox.astro';
+import ScanUiBoot from '../components/scan/ScanUiBoot.astro';
+import ResultsView from '../components/scan/ResultsView.astro';
 
 const title = 'Free PageSpeed Insights test, with the fix attached';
 const description =
@@ -132,43 +135,99 @@ const jsonLd = [
       desktop, then map every failing Lighthouse audit to the filter in mod_pagespeed 2.1 that fixes
       it on your server. Audits no optimizer can touch get labeled.
     </SectionHeader>
-    <p class="mt-3 text-xs text-text-annotation max-w-2xl mx-auto">
-      This tool calls Google's public PageSpeed Insights API. mod_pagespeed 2.1 is built by We-Amp
-      B.V. and is not affiliated with or endorsed by Google. PageSpeed Insights is a trademark of
-      Google LLC.
-    </p>
+    <ScanUiBoot />
+    <div data-scan-variant="v1">
+      <p class="mt-3 text-xs text-text-annotation max-w-2xl mx-auto">
+        This tool calls Google's public PageSpeed Insights API. mod_pagespeed 2.1 is built by We-Amp
+        B.V. and is not affiliated with or endorsed by Google. PageSpeed Insights is a trademark of
+        Google LLC.
+      </p>
 
-    <form
-      id="psi-form"
-      class="mt-10 mx-auto max-w-2xl text-left"
-      novalidate
-      aria-describedby="psi-form-error"
+      <form
+        id="psi-form"
+        class="mt-10 mx-auto max-w-2xl text-left"
+        novalidate
+        aria-describedby="psi-form-error"
+      >
+        <label for="psi-url" class="block text-sm font-medium text-text-body"> Page URL </label>
+        <div class="mt-2 flex flex-col sm:flex-row gap-3">
+          <input
+            id="psi-url"
+            name="url"
+            type="url"
+            inputmode="url"
+            autocomplete="url"
+            required
+            spellcheck="false"
+            autocapitalize="off"
+            placeholder="https://example.com"
+            aria-invalid="false"
+            aria-describedby="psi-form-error"
+            class="flex-1 rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-elevated focus:border-interactive focus:ring-2 focus:ring-interactive aria-[invalid=true]:border-accent aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-accent sm:text-sm"
+          />
+          <button id="psi-submit" type="submit" class="btn-primary whitespace-nowrap">
+            <span id="psi-submit-label">Analyze</span>
+            <svg
+              id="psi-submit-spinner"
+              class="hidden h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              aria-hidden="true"
+            >
+              <circle
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                stroke-width="3"
+                stroke-opacity="0.25"></circle>
+              <path
+                d="M22 12a10 10 0 0 0-10-10"
+                stroke="currentColor"
+                stroke-width="3"
+                stroke-linecap="round"></path>
+            </svg>
+          </button>
+        </div>
+        <p id="psi-form-error" role="alert" class="mt-2 hidden text-sm text-accent"></p>
+        <p class="mt-3 text-xs text-text-annotation">
+          The URL you submit is sent to Google's PageSpeed Insights API (in the US) through a small
+          proxy on this site that holds the API key and caches results. Your IP address is logged
+          and rate-limited to 30 requests per minute per visitor to prevent abuse. See our
+          <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline"
+            >Privacy policy</a
+          >.
+        </p>
+      </form>
+    </div>
+    <div data-scan-variant="v2" data-pagefind-ignore>
+      <ScanBox surface="analyze" />
+    </div>
+  </section>
+
+  <div data-scan-variant="v1">
+    <!-- ============================================================ -->
+    <!-- Results panel — hidden until first analysis                   -->
+    <!-- ============================================================ -->
+    <!--
+    Dedicated, off-screen status line for screen readers. Lives OUTSIDE the
+    results section so it stays visible to assistive tech even while the
+    results panel is `display:none` during loading. Scoped narrowly so AT
+    announces a one-sentence summary instead of the entire results subtree.
+  -->
+    <p id="psi-status" role="status" aria-live="polite" class="sr-only"></p>
+
+    <!-- ============================================================ -->
+    <!-- Loading skeleton — shown during PSI calls                     -->
+    <!-- ============================================================ -->
+    <section
+      id="psi-loading"
+      class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 pb-16 hidden"
+      aria-hidden="true"
     >
-      <label for="psi-url" class="block text-sm font-medium text-text-body"> Page URL </label>
-      <div class="mt-2 flex flex-col sm:flex-row gap-3">
-        <input
-          id="psi-url"
-          name="url"
-          type="url"
-          inputmode="url"
-          autocomplete="url"
-          required
-          spellcheck="false"
-          autocapitalize="off"
-          placeholder="https://example.com"
-          aria-invalid="false"
-          aria-describedby="psi-form-error"
-          class="flex-1 rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-elevated focus:border-interactive focus:ring-2 focus:ring-interactive aria-[invalid=true]:border-accent aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-accent sm:text-sm"
-        />
-        <button id="psi-submit" type="submit" class="btn-primary whitespace-nowrap">
-          <span id="psi-submit-label">Analyze</span>
-          <svg
-            id="psi-submit-spinner"
-            class="hidden h-4 w-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            aria-hidden="true"
-          >
+      <div class="rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8">
+        <div class="flex items-center gap-3">
+          <svg class="h-5 w-5 text-interactive" viewBox="0 0 24 24" fill="none" aria-hidden="true">
             <circle
               cx="12"
               cy="12"
@@ -182,377 +241,337 @@ const jsonLd = [
               stroke-width="3"
               stroke-linecap="round"></path>
           </svg>
-        </button>
-      </div>
-      <p id="psi-form-error" role="alert" class="mt-2 hidden text-sm text-accent"></p>
-      <p class="mt-3 text-xs text-text-annotation">
-        The URL you submit is sent to Google's PageSpeed Insights API (in the US) through a small
-        proxy on this site that holds the API key and caches results. Your IP address is logged and
-        rate-limited to 30 requests per minute per visitor to prevent abuse. See our
-        <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline"
-          >Privacy policy</a
-        >.
-      </p>
-    </form>
-  </section>
-
-  <!-- ============================================================ -->
-  <!-- Results panel — hidden until first analysis                   -->
-  <!-- ============================================================ -->
-  <!--
-    Dedicated, off-screen status line for screen readers. Lives OUTSIDE the
-    results section so it stays visible to assistive tech even while the
-    results panel is `display:none` during loading. Scoped narrowly so AT
-    announces a one-sentence summary instead of the entire results subtree.
-  -->
-  <p id="psi-status" role="status" aria-live="polite" class="sr-only"></p>
-
-  <!-- ============================================================ -->
-  <!-- Loading skeleton — shown during PSI calls                     -->
-  <!-- ============================================================ -->
-  <section
-    id="psi-loading"
-    class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 pb-16 hidden"
-    aria-hidden="true"
-  >
-    <div class="rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8">
-      <div class="flex items-center gap-3">
-        <svg class="h-5 w-5 text-interactive" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-          <circle
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            stroke-width="3"
-            stroke-opacity="0.25"></circle>
-          <path
-            d="M22 12a10 10 0 0 0-10-10"
-            stroke="currentColor"
-            stroke-width="3"
-            stroke-linecap="round"></path>
-        </svg>
-        <p class="text-sm font-medium text-text-body">
-          Running PageSpeed Insights for mobile and desktop. Usually 10–20 seconds.
+          <p class="text-sm font-medium text-text-body">
+            Running PageSpeed Insights for mobile and desktop. Usually 10–20 seconds.
+          </p>
+        </div>
+        <p id="psi-loading-step" class="mt-2 ml-8 text-xs text-text-annotation tabular-nums">
+          Step 1 of 2: requesting mobile profile…
         </p>
-      </div>
-      <p id="psi-loading-step" class="mt-2 ml-8 text-xs text-text-annotation tabular-nums">
-        Step 1 of 2: requesting mobile profile…
-      </p>
 
-      <!-- Two skeleton score chips -->
-      <div class="mt-6 grid grid-cols-2 gap-4 max-w-md">
-        <div class="rounded-lg bg-bg-elevated p-4">
-          <div class="h-3 w-12 rounded bg-bg-secondary"></div>
-          <div class="mt-2 h-8 w-16 rounded bg-bg-secondary"></div>
-          <div class="mt-2 h-3 w-20 rounded bg-bg-secondary"></div>
-        </div>
-        <div class="rounded-lg bg-bg-elevated p-4">
-          <div class="h-3 w-12 rounded bg-bg-secondary"></div>
-          <div class="mt-2 h-8 w-16 rounded bg-bg-secondary"></div>
-          <div class="mt-2 h-3 w-20 rounded bg-bg-secondary"></div>
+        <!-- Two skeleton score chips -->
+        <div class="mt-6 grid grid-cols-2 gap-4 max-w-md">
+          <div class="rounded-lg bg-bg-elevated p-4">
+            <div class="h-3 w-12 rounded bg-bg-secondary"></div>
+            <div class="mt-2 h-8 w-16 rounded bg-bg-secondary"></div>
+            <div class="mt-2 h-3 w-20 rounded bg-bg-secondary"></div>
+          </div>
+          <div class="rounded-lg bg-bg-elevated p-4">
+            <div class="h-3 w-12 rounded bg-bg-secondary"></div>
+            <div class="mt-2 h-8 w-16 rounded bg-bg-secondary"></div>
+            <div class="mt-2 h-3 w-20 rounded bg-bg-secondary"></div>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Skeleton fixable-list items -->
-    <div class="mt-8 space-y-4">
-      <div class="rounded-xl border border-border bg-bg-elevated p-5">
-        <div class="h-4 w-2/3 rounded bg-bg-secondary"></div>
-        <div class="mt-3 h-3 w-full rounded bg-bg-elevated"></div>
-        <div class="mt-2 h-3 w-5/6 rounded bg-bg-elevated"></div>
+      <!-- Skeleton fixable-list items -->
+      <div class="mt-8 space-y-4">
+        <div class="rounded-xl border border-border bg-bg-elevated p-5">
+          <div class="h-4 w-2/3 rounded bg-bg-secondary"></div>
+          <div class="mt-3 h-3 w-full rounded bg-bg-elevated"></div>
+          <div class="mt-2 h-3 w-5/6 rounded bg-bg-elevated"></div>
+        </div>
+        <div class="rounded-xl border border-border bg-bg-elevated p-5">
+          <div class="h-4 w-1/2 rounded bg-bg-secondary"></div>
+          <div class="mt-3 h-3 w-full rounded bg-bg-elevated"></div>
+          <div class="mt-2 h-3 w-4/6 rounded bg-bg-elevated"></div>
+        </div>
       </div>
-      <div class="rounded-xl border border-border bg-bg-elevated p-5">
-        <div class="h-4 w-1/2 rounded bg-bg-secondary"></div>
-        <div class="mt-3 h-3 w-full rounded bg-bg-elevated"></div>
-        <div class="mt-2 h-3 w-4/6 rounded bg-bg-elevated"></div>
-      </div>
-    </div>
-  </section>
+    </section>
 
-  <section id="psi-results" class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 pb-16 hidden">
-    <!-- Headline coverage banner -->
-    <div id="psi-headline" class="rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8">
-      <p class="eyebrow" id="psi-headline-url">—</p>
-      <h2
-        id="psi-headline-text"
-        class="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-text-body"
-      >
-        —
-      </h2>
-      <p id="psi-headline-savings" class="mt-3 text-sm text-text-muted"></p>
+    <section id="psi-results" class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 pb-16 hidden">
+      <!-- Headline coverage banner -->
+      <div id="psi-headline" class="rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8">
+        <p class="eyebrow" id="psi-headline-url">—</p>
+        <h2
+          id="psi-headline-text"
+          class="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-text-body"
+        >
+          —
+        </h2>
+        <p id="psi-headline-savings" class="mt-3 text-sm text-text-muted"></p>
 
-      <!-- Mobile + Desktop score readouts on recessed plates, each with a
+        <!-- Mobile + Desktop score readouts on recessed plates, each with a
            0–100 tick-scale gauge (aria-hidden). Label above the numeral,
            bucket chip under the gauge — the state never rides on colour
            alone (WCAG 1.4.1). Values are live PSI output; JS replaces
            textContent and gauge widths only, never the structure. -->
-      <div class="mt-6 grid grid-cols-2 gap-4 max-w-md">
-        <div class="readout readout-plate p-4" data-ui="readout">
-          <p class="readout-label text-sm text-text-muted">Mobile</p>
-          <p class="readout-value display-num mt-1">
-            <span id="psi-score-mobile" class="text-text-body">—</span>
-          </p>
-          <div class="readout-gauge" aria-hidden="true">
-            <i class="track"></i>
-            <i id="psi-score-mobile-bar" class="after after-neutral" style="inline-size: 0%"></i>
+        <div class="mt-6 grid grid-cols-2 gap-4 max-w-md">
+          <div class="readout readout-plate p-4" data-ui="readout">
+            <p class="readout-label text-sm text-text-muted">Mobile</p>
+            <p class="readout-value display-num mt-1">
+              <span id="psi-score-mobile" class="text-text-body">—</span>
+            </p>
+            <div class="readout-gauge" aria-hidden="true">
+              <i class="track"></i>
+              <i id="psi-score-mobile-bar" class="after after-neutral" style="inline-size: 0%"></i>
+            </div>
+            <p id="psi-score-mobile-label" class="mt-2"></p>
           </div>
-          <p id="psi-score-mobile-label" class="mt-2"></p>
-        </div>
-        <div class="readout readout-plate p-4" data-ui="readout">
-          <p class="readout-label text-sm text-text-muted">Desktop</p>
-          <p class="readout-value display-num mt-1">
-            <span id="psi-score-desktop" class="text-text-body">—</span>
-          </p>
-          <div class="readout-gauge" aria-hidden="true">
-            <i class="track"></i>
-            <i id="psi-score-desktop-bar" class="after after-neutral" style="inline-size: 0%"></i>
+          <div class="readout readout-plate p-4" data-ui="readout">
+            <p class="readout-label text-sm text-text-muted">Desktop</p>
+            <p class="readout-value display-num mt-1">
+              <span id="psi-score-desktop" class="text-text-body">—</span>
+            </p>
+            <div class="readout-gauge" aria-hidden="true">
+              <i class="track"></i>
+              <i id="psi-score-desktop-bar" class="after after-neutral" style="inline-size: 0%"></i>
+            </div>
+            <p id="psi-score-desktop-label" class="mt-2"></p>
           </div>
-          <p id="psi-score-desktop-label" class="mt-2"></p>
         </div>
       </div>
-    </div>
 
-    <!-- Part toggle — applies to the config snippet, fixable list, and
+      <!-- Part toggle — applies to the config snippet, fixable list, and
          "what gets fixed" cards below. Defaults to the optimizer worker.
          The choice is held in JS state only; reloading the page resets it.
          Surfaced once the first analysis
          completes — before
          that, the build-time "what gets fixed" cards already default to the
          worker view via syncEditionUi() on script load. -->
-    <div
-      id="psi-edition-toggle"
-      class="mt-8 rounded-2xl border border-border bg-bg-elevated p-5 sm:p-6 hidden"
-    >
-      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-        <div>
-          <h3 class="text-sm font-semibold text-text-body">Which part you configure</h3>
-          <p id="psi-edition-blurb" class="mt-1 text-xs text-text-muted">
-            <!-- Populated at runtime from EDITION_BLURB. -->
-          </p>
-        </div>
-        <div
-          class="inline-flex shrink-0 self-start sm:self-auto gap-1 rounded-lg bg-bg-elevated p-1"
-          role="group"
-          aria-label="Which part you configure"
-        >
-          <button
-            type="button"
-            data-edition="2.0"
-            aria-pressed="true"
-            class="product-tab rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-            data-umami-event="psi-edition-toggle"
-            data-umami-event-edition="2.0"
+      <div
+        id="psi-edition-toggle"
+        class="mt-8 rounded-2xl border border-border bg-bg-elevated p-5 sm:p-6 hidden"
+      >
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+          <div>
+            <h3 class="text-sm font-semibold text-text-body">Which part you configure</h3>
+            <p id="psi-edition-blurb" class="mt-1 text-xs text-text-muted">
+              <!-- Populated at runtime from EDITION_BLURB. -->
+            </p>
+          </div>
+          <div
+            class="inline-flex shrink-0 self-start sm:self-auto gap-1 rounded-lg bg-bg-elevated p-1"
+            role="group"
+            aria-label="Which part you configure"
           >
-            Optimizer worker
-          </button>
-          <button
-            type="button"
-            data-edition="1.1"
-            aria-pressed="false"
-            class="product-tab rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
-            data-umami-event="psi-edition-toggle"
-            data-umami-event-edition="1.1"
-          >
-            Module
-          </button>
+            <button
+              type="button"
+              data-edition="2.0"
+              aria-pressed="true"
+              class="product-tab rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+              data-umami-event="psi-edition-toggle"
+              data-umami-event-edition="2.0"
+            >
+              Optimizer worker
+            </button>
+            <button
+              type="button"
+              data-edition="1.1"
+              aria-pressed="false"
+              class="product-tab rounded-md px-3 py-1.5 text-xs font-medium transition-colors"
+              data-umami-event="psi-edition-toggle"
+              data-umami-event-edition="1.1"
+            >
+              Module
+            </button>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- Recommended pagespeed config — lead magnet -->
-    <div
-      id="psi-config-card"
-      class="mt-8 rounded-2xl border border-interactive/40 bg-interactive/10 p-6 sm:p-8 hidden"
-    >
-      <div class="flex items-start justify-between gap-4 flex-wrap">
-        <div>
-          <h3 class="text-lg font-semibold text-text-body">Drop-in pagespeed configuration</h3>
-          <p id="psi-config-desc" class="mt-1 text-sm text-text-muted">
-            <!-- Populated at runtime — varies by edition. -->
-          </p>
-        </div>
-        <button
-          id="psi-config-copy"
-          type="button"
-          class="btn-secondary text-xs"
-          data-umami-event="psi-result-config-copy"
-        >
-          <svg
-            class="h-4 w-4"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="2"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-            aria-hidden="true"
+      <!-- Recommended pagespeed config — lead magnet -->
+      <div
+        id="psi-config-card"
+        class="mt-8 rounded-2xl border border-interactive/40 bg-interactive/10 p-6 sm:p-8 hidden"
+      >
+        <div class="flex items-start justify-between gap-4 flex-wrap">
+          <div>
+            <h3 class="text-lg font-semibold text-text-body">Drop-in pagespeed configuration</h3>
+            <p id="psi-config-desc" class="mt-1 text-sm text-text-muted">
+              <!-- Populated at runtime — varies by edition. -->
+            </p>
+          </div>
+          <button
+            id="psi-config-copy"
+            type="button"
+            class="btn-secondary text-xs"
+            data-umami-event="psi-result-config-copy"
           >
-            <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
-            <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
-          </svg>
-          <span id="psi-config-copy-label">Copy</span>
-        </button>
+            <svg
+              class="h-4 w-4"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+              aria-hidden="true"
+            >
+              <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+              <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+            </svg>
+            <span id="psi-config-copy-label">Copy</span>
+          </button>
+        </div>
+        <pre
+          class="mt-4 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm"><code id="psi-config-snippet" class="text-text-body">pagespeed on;</code></pre>
       </div>
-      <pre
-        class="mt-4 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm"><code id="psi-config-snippet" class="text-text-body">pagespeed on;</code></pre>
-    </div>
 
-    <!-- Result-moment CTA: surfaced right after the config (the lead magnet
+      <!-- Result-moment CTA: surfaced right after the config (the lead magnet
          visitors copy) so the next step is in view without scrolling past the
          audit lists to the CTA band at the bottom. Distinct event from the
          bottom band so the placement lift is measurable. -->
-    <div id="psi-top-cta" class="mt-6 text-center hidden">
-      <a href="/download/" class="btn-primary" data-umami-event="psi-result-install-cta-top">
-        Download &amp; run &rarr;
-      </a>
-    </div>
-
-    <!-- Fixable audits -->
-    <div id="psi-fixable" class="mt-8 hidden">
-      <h3 class="h2-section text-xl sm:text-2xl text-text-body">mod_pagespeed will fix this</h3>
-      <p class="mt-1 text-sm text-text-muted">Ordered by potential savings on this page.</p>
-      <ul id="psi-fixable-list" class="mt-4 space-y-4"></ul>
-    </div>
-
-    <!-- Unfixable audits -->
-    <div id="psi-unfixable" class="mt-12 hidden">
-      <h3 class="h2-section text-xl sm:text-2xl text-text-body">
-        We won't pretend we can fix this
-      </h3>
-      <p class="mt-1 text-sm text-text-muted">
-        These audits sit at the application or infrastructure layer. mod_pagespeed runs byte-level
-        rewrites. Reshaping a bundler, an origin, or event handlers is engineering work no optimizer
-        can do for you.
-      </p>
-      <ul id="psi-unfixable-list" class="mt-4 space-y-3"></ul>
-    </div>
-
-    <!-- All-clean hero — PSI flagged nothing. Shown ONLY when totalFlagged === 0. -->
-    <div
-      id="psi-all-clean"
-      class="mt-8 rounded-2xl border-2 border-interactive/40 bg-bg-elevated p-6 sm:p-8 hidden"
-    >
-      <div class="flex items-start gap-4">
-        <div
-          class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-interactive text-on-accent"
-          aria-hidden="true"
-        >
-          <svg
-            class="h-7 w-7"
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="3"
-            stroke-linecap="round"
-            stroke-linejoin="round"
-          >
-            <polyline points="20 6 9 17 4 12"></polyline>
-          </svg>
-        </div>
-        <div class="flex-1">
-          <h3 class="text-xl font-bold text-text-body">Nothing for us to do here.</h3>
-          <p class="mt-2 text-sm text-text-body leading-relaxed">
-            PSI flagged no failing performance audits on this page. Your delivery pipeline is
-            already doing the work mod_pagespeed would do.
-          </p>
-          <p class="mt-2 text-sm text-text-muted leading-relaxed">
-            mod_pagespeed keeps assets minified, images transcoded, and caches warm as the site
-            evolves — whether it runs as a reverse proxy in front of your origin, as ASP.NET Core
-            middleware, or as the in-server module for Apache, nginx or IIS. The next deploy won't
-            quietly undo this.
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Empty / mixed-empty state (only application-level audits surfaced). -->
-    <div
-      id="psi-empty"
-      class="mt-8 rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8 hidden"
-    >
-      <h3 class="text-lg font-semibold text-text-body">No fixable audits surfaced.</h3>
-      <p class="mt-2 text-sm text-text-muted">
-        Either your page is already in good shape, or PSI flagged only application-level concerns
-        that need code changes. mod_pagespeed isn't your bottleneck here. If you want it as a safety
-        net for image transcoding, caching, and minification on future pages, install it and run it
-        — it optimizes immediately, free to run.
-      </p>
-    </div>
-
-    <!-- CTAs — second button text + link updates with the edition toggle. -->
-    <div id="psi-ctas" class="mt-10 flex flex-col items-center gap-3 hidden">
-      <div class="flex flex-wrap items-center justify-center gap-4">
-        <a href="/download/" class="btn-primary" data-umami-event="psi-result-install-cta">
+      <div id="psi-top-cta" class="mt-6 text-center hidden">
+        <a href="/download/" class="btn-primary" data-umami-event="psi-result-install-cta-top">
           Download &amp; run &rarr;
         </a>
-        <a
-          href="/pricing/"
-          class="btn-secondary"
-          data-umami-event="cta_commercial"
-          data-umami-event-offer="support"
-          data-umami-event-surface="analyze"
-          data-umami-event-position="psi_result"
-        >
-          Support plans &rarr;
-        </a>
-        <a
-          href="https://we-amp.com/consulting/"
-          class="btn-secondary"
-          data-umami-event="cta_commercial"
-          data-umami-event-offer="consulting"
-          data-umami-event-surface="analyze"
-          data-umami-event-position="result"
-        >
-          Have us fix it for you &rarr;
-        </a>
-        <a
-          id="psi-docs-cta"
-          href="/docs/configuration/"
-          class="btn-secondary"
-          data-umami-event="psi-result-docs-cta"
-        >
-          Read the configuration docs &rarr;
-        </a>
       </div>
-      <p class="text-xs text-text-annotation">
-        {FREE_TO_RUN_LINE}
-      </p>
-    </div>
 
-    <!-- Report download — revealed with the result (hidden until then, so no
+      <!-- Fixable audits -->
+      <div id="psi-fixable" class="mt-8 hidden">
+        <h3 class="h2-section text-xl sm:text-2xl text-text-body">mod_pagespeed will fix this</h3>
+        <p class="mt-1 text-sm text-text-muted">Ordered by potential savings on this page.</p>
+        <ul id="psi-fixable-list" class="mt-4 space-y-4"></ul>
+      </div>
+
+      <!-- Unfixable audits -->
+      <div id="psi-unfixable" class="mt-12 hidden">
+        <h3 class="h2-section text-xl sm:text-2xl text-text-body">
+          We won't pretend we can fix this
+        </h3>
+        <p class="mt-1 text-sm text-text-muted">
+          These audits sit at the application or infrastructure layer. mod_pagespeed runs byte-level
+          rewrites. Reshaping a bundler, an origin, or event handlers is engineering work no
+          optimizer can do for you.
+        </p>
+        <ul id="psi-unfixable-list" class="mt-4 space-y-3"></ul>
+      </div>
+
+      <!-- All-clean hero — PSI flagged nothing. Shown ONLY when totalFlagged === 0. -->
+      <div
+        id="psi-all-clean"
+        class="mt-8 rounded-2xl border-2 border-interactive/40 bg-bg-elevated p-6 sm:p-8 hidden"
+      >
+        <div class="flex items-start gap-4">
+          <div
+            class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-interactive text-on-accent"
+            aria-hidden="true"
+          >
+            <svg
+              class="h-7 w-7"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="3"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
+          <div class="flex-1">
+            <h3 class="text-xl font-bold text-text-body">Nothing for us to do here.</h3>
+            <p class="mt-2 text-sm text-text-body leading-relaxed">
+              PSI flagged no failing performance audits on this page. Your delivery pipeline is
+              already doing the work mod_pagespeed would do.
+            </p>
+            <p class="mt-2 text-sm text-text-muted leading-relaxed">
+              mod_pagespeed keeps assets minified, images transcoded, and caches warm as the site
+              evolves — whether it runs as a reverse proxy in front of your origin, as ASP.NET Core
+              middleware, or as the in-server module for Apache, nginx or IIS. The next deploy won't
+              quietly undo this.
+            </p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Empty / mixed-empty state (only application-level audits surfaced). -->
+      <div
+        id="psi-empty"
+        class="mt-8 rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8 hidden"
+      >
+        <h3 class="text-lg font-semibold text-text-body">No fixable audits surfaced.</h3>
+        <p class="mt-2 text-sm text-text-muted">
+          Either your page is already in good shape, or PSI flagged only application-level concerns
+          that need code changes. mod_pagespeed isn't your bottleneck here. If you want it as a
+          safety net for image transcoding, caching, and minification on future pages, install it
+          and run it — it optimizes immediately, free to run.
+        </p>
+      </div>
+
+      <!-- CTAs — second button text + link updates with the edition toggle. -->
+      <div id="psi-ctas" class="mt-10 flex flex-col items-center gap-3 hidden">
+        <div class="flex flex-wrap items-center justify-center gap-4">
+          <a href="/download/" class="btn-primary" data-umami-event="psi-result-install-cta">
+            Download &amp; run &rarr;
+          </a>
+          <a
+            href="/pricing/"
+            class="btn-secondary"
+            data-umami-event="cta_commercial"
+            data-umami-event-offer="support"
+            data-umami-event-surface="analyze"
+            data-umami-event-position="psi_result"
+          >
+            Support plans &rarr;
+          </a>
+          <a
+            href="https://we-amp.com/consulting/"
+            class="btn-secondary"
+            data-umami-event="cta_commercial"
+            data-umami-event-offer="consulting"
+            data-umami-event-surface="analyze"
+            data-umami-event-position="result"
+          >
+            Have us fix it for you &rarr;
+          </a>
+          <a
+            id="psi-docs-cta"
+            href="/docs/configuration/"
+            class="btn-secondary"
+            data-umami-event="psi-result-docs-cta"
+          >
+            Read the configuration docs &rarr;
+          </a>
+        </div>
+        <p class="text-xs text-text-annotation">
+          {FREE_TO_RUN_LINE}
+        </p>
+      </div>
+
+      <!-- Report download — revealed with the result (hidden until then, so no
          layout shift on load). Saves the analyzed URL, the timestamp, the
          scores and the failing audits as a local file; no network call. -->
-    <div
-      id="psi-report"
-      class="mt-10 rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8 hidden"
-    >
-      <h3 class="text-lg font-semibold text-text-body">Download this report</h3>
-      <p class="mt-1 text-sm text-text-muted">
-        Saves the analyzed URL, the timestamp, the mobile and desktop scores and the failing audits
-        as a Markdown file, straight from your browser. The report is not sent anywhere.
-      </p>
-      <button id="psi-report-download" type="button" class="btn-primary mt-4 whitespace-nowrap">
-        Download this report
-      </button>
-      <p id="psi-report-msg" role="status" aria-live="polite" class="mt-2 text-sm text-text-muted">
-      </p>
-    </div>
+      <div
+        id="psi-report"
+        class="mt-10 rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8 hidden"
+      >
+        <h3 class="text-lg font-semibold text-text-body">Download this report</h3>
+        <p class="mt-1 text-sm text-text-muted">
+          Saves the analyzed URL, the timestamp, the mobile and desktop scores and the failing
+          audits as a Markdown file, straight from your browser. The report is not sent anywhere.
+        </p>
+        <button id="psi-report-download" type="button" class="btn-primary mt-4 whitespace-nowrap">
+          Download this report
+        </button>
+        <p
+          id="psi-report-msg"
+          role="status"
+          aria-live="polite"
+          class="mt-2 text-sm text-text-muted"
+        >
+        </p>
+      </div>
 
-    <!-- Error state -->
-    <div
-      id="psi-error"
-      class="mt-8 rounded-2xl border border-accent/40 bg-accent-wash p-6 hidden"
-      role="alert"
-    >
-      <h3 class="text-base font-semibold text-text-body">
-        <span id="psi-error-title">PSI returned an error.</span>
-      </h3>
-      <p id="psi-error-body" class="mt-2 text-sm text-text-muted"></p>
-      <button id="psi-error-retry" type="button" class="mt-4 btn-secondary text-xs">
-        Try again
-      </button>
-    </div>
-  </section>
+      <!-- Error state -->
+      <div
+        id="psi-error"
+        class="mt-8 rounded-2xl border border-accent/40 bg-accent-wash p-6 hidden"
+        role="alert"
+      >
+        <h3 class="text-base font-semibold text-text-body">
+          <span id="psi-error-title">PSI returned an error.</span>
+        </h3>
+        <p id="psi-error-body" class="mt-2 text-sm text-text-muted"></p>
+        <button id="psi-error-retry" type="button" class="mt-4 btn-secondary text-xs">
+          Try again
+        </button>
+      </div>
+    </section>
+  </div>
+  <div data-scan-variant="v2" data-pagefind-ignore>
+    <ResultsView />
+  </div>
 
   <!-- ============================================================ -->
   <!-- How it works — always visible, indexable                      -->
@@ -2086,6 +2105,9 @@ const jsonLd = [
 
     // Allow ?url= deep links (e.g. shared from a blog post).
     (function autoRunFromQueryParam() {
+      // The shared scan interface runs its own deep-link request; running
+      // this one too would call PSI twice.
+      if (document.documentElement.dataset.scanUi === 'v2') return;
       const params = new URLSearchParams(window.location.search);
       const presetUrl = params.get('url');
       if (!presetUrl || !urlInput) return;

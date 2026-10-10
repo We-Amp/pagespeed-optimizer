@@ -613,6 +613,16 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
       [data-ui='telemetry-strip'] .telemetry-row {
         display: flex;
       }
+      /* Scan interface variants: the pre-paint script sets data-scan-ui on
+         <html>; exactly one variant shows, before first paint. Without the
+         script (or with a v1 choice) only v1 shows. */
+      [data-scan-variant='v2'],
+      html[data-scan-ui='v2'] [data-scan-variant='v1'] {
+        display: none;
+      }
+      html[data-scan-ui='v2'] [data-scan-variant='v2'] {
+        display: block;
+      }
     </style>
     <script is:inline define:vars={{ bannerDismissKey }}>
       /* Set dark class before first paint to avoid FOUC on iOS. Must run

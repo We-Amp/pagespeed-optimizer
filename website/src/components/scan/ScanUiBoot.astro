@@ -1,0 +1,40 @@
+---
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2024-2026 We-Amp B.V.
+//
+// Runs before first paint, ahead of both interface variants: resolves which
+// one this visitor gets and records it on <html data-scan-ui>. A rule in
+// BaseLayout's critical CSS shows exactly one variant from that attribute, so
+// there is no flash and no layout shift. The resolution here mirrors
+// resolveScanUi() in src/lib/scan/flag.ts; test/scan-ui-boot.test.ts runs
+// this very script against the same cases.
+import { SCAN_UI_DEFAULT, SCAN_UI_STORAGE_KEY } from '../../lib/scan/flag';
+---
+
+<script is:inline define:vars={{ SCAN_UI_DEFAULT, SCAN_UI_STORAGE_KEY }}>
+  var ui = SCAN_UI_DEFAULT;
+  var store = null;
+  try {
+    store = window.localStorage;
+  } catch (e) {
+    store = null;
+  }
+  var asked = null;
+  try {
+    asked = new URLSearchParams(location.search).get('ui');
+  } catch (e) {
+    asked = null;
+  }
+  if (asked === 'v1' || asked === 'v2') {
+    ui = asked;
+    try {
+      store.setItem(SCAN_UI_STORAGE_KEY, asked);
+    } catch (e) {}
+  } else {
+    try {
+      var saved = store.getItem(SCAN_UI_STORAGE_KEY);
+      if (saved === 'v1' || saved === 'v2') ui = saved;
+    } catch (e) {}
+  }
+  document.documentElement.dataset.scanUi = ui;
+</script>

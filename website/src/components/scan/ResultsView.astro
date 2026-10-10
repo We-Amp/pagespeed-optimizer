@@ -1,0 +1,266 @@
+---
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2024-2026 We-Amp B.V.
+//
+// The shared results skeleton: a summary strip (one health line, three
+// tiles), one drill-down panel per tile, the "Talk to us" form shell, the
+// next-steps row and the share row. Everything rendered here at build time is
+// a label; every result string is written by the scan controller at run time
+// with textContent. The section is hidden until a scan starts and is kept out
+// of the search index.
+import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
+
+interface Props {
+  idPrefix?: string;
+}
+
+const { idPrefix = 'scan' } = Astro.props;
+
+const pillars = [
+  { id: 'speed', name: 'Speed' },
+  { id: 'airead', name: 'AI readability' },
+  { id: 'risk', name: 'Risk & SEO' },
+] as const;
+---
+
+<section
+  id={`${idPrefix}-results`}
+  class="scan-results mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 pb-16"
+  aria-labelledby={`${idPrefix}-summary-heading`}
+  data-scan-results
+  data-pagefind-ignore
+  hidden
+>
+  <p id={`${idPrefix}-live`} role="status" aria-live="polite" class="sr-only" data-scan-live></p>
+
+  <div class="rounded-2xl border border-border bg-bg-elevated p-5 sm:p-6">
+    <p class="eyebrow">Results</p>
+    <h2
+      id={`${idPrefix}-summary-heading`}
+      tabindex="-1"
+      class="mt-2 text-xl sm:text-2xl font-bold tracking-tight text-text-body [overflow-wrap:anywhere]"
+      data-scan-heading
+    >
+      Results for <span data-scan-host></span>
+    </h2>
+    <p class="mt-2 min-h-6 text-sm text-text-muted" data-scan-health>Checking 3 of 3 areas…</p>
+  </div>
+
+  <div class="scan-tiles mt-4" data-scan-tiles>
+    {
+      pillars.map((p) => (
+        <>
+          <button
+            type="button"
+            id={`${idPrefix}-tile-${p.id}`}
+            class="scan-tile"
+            data-scan-tile={p.id}
+            data-state="checking"
+            aria-expanded="false"
+            aria-controls={`${idPrefix}-panel-${p.id}`}
+            aria-label={`Show ${p.name} details`}
+            aria-describedby={`${idPrefix}-status-${p.id} ${idPrefix}-value-${p.id}`}
+          >
+            <span class="scan-tile-name" aria-hidden="true">
+              {p.name}
+            </span>
+            <span
+              id={`${idPrefix}-status-${p.id}`}
+              class="scan-tile-status badge-neutral"
+              data-scan-status
+            >
+              Checking…
+            </span>
+            <span id={`${idPrefix}-value-${p.id}`} class="scan-tile-value" data-scan-value>
+              <span class="scan-skeleton" aria-hidden="true" />
+            </span>
+          </button>
+          <div
+            id={`${idPrefix}-panel-${p.id}`}
+            class="scan-panel"
+            role="region"
+            aria-labelledby={`${idPrefix}-tile-${p.id}`}
+            data-scan-panel={p.id}
+            hidden
+          />
+        </>
+      ))
+    }
+  </div>
+
+  <form
+    id={`${idPrefix}-lead-form`}
+    class="mt-8 rounded-2xl border border-border bg-bg-elevated p-5 sm:p-6"
+    data-scan-lead
+    aria-labelledby={`${idPrefix}-lead-heading`}
+    novalidate
+    hidden
+  >
+    <h3 id={`${idPrefix}-lead-heading`} class="text-lg font-semibold text-text-body">Talk to us</h3>
+    <p class="mt-1 text-sm text-text-muted">
+      Pick what you want to talk about. We pre-selected topics from your results.
+    </p>
+    <fieldset class="mt-4" data-scan-topics>
+      <legend class="text-sm font-medium text-text-body">Topics</legend>
+      <div class="mt-2 flex flex-wrap gap-2" data-scan-chips></div>
+    </fieldset>
+    <label for={`${idPrefix}-lead-email`} class="mt-4 block text-sm font-medium text-text-body"
+      >Your email</label
+    >
+    <input
+      id={`${idPrefix}-lead-email`}
+      name="email"
+      type="email"
+      autocomplete="email"
+      class="mt-1 w-full min-h-11 rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-elevated focus:border-interactive focus:ring-2 focus:ring-interactive sm:text-sm"
+    />
+    <label for={`${idPrefix}-lead-sites`} class="mt-4 block text-sm font-medium text-text-body"
+      >Sites you run (optional)</label
+    >
+    <input
+      id={`${idPrefix}-lead-sites`}
+      name="sites"
+      type="number"
+      min="1"
+      max="1000000"
+      step="1"
+      inputmode="numeric"
+      class="mt-1 w-full min-h-11 rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-elevated focus:border-interactive focus:ring-2 focus:ring-interactive sm:text-sm"
+      data-scan-sites
+      hidden
+    />
+    <label for={`${idPrefix}-lead-note`} class="mt-4 block text-sm font-medium text-text-body"
+      >Anything we should know? (optional)</label
+    >
+    <textarea
+      id={`${idPrefix}-lead-note`}
+      name="note"
+      rows="3"
+      maxlength="1000"
+      class="mt-1 w-full rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-elevated focus:border-interactive focus:ring-2 focus:ring-interactive sm:text-sm"
+    >
+    </textarea>
+    <button type="submit" class="btn-primary mt-4 min-h-11">Talk to us</button>
+    <p id={`${idPrefix}-lead-msg`} role="status" aria-live="polite" class="mt-2 text-sm"></p>
+  </form>
+
+  <div class="mt-8 flex flex-col items-center gap-3" data-scan-next hidden>
+    <div class="flex flex-wrap items-center justify-center gap-4">
+      <a href="/download/" class="btn-primary min-h-11">Download &amp; run &rarr;</a>
+      <a href="/pricing/" class="btn-secondary min-h-11">Support plans &rarr;</a>
+    </div>
+    <p class="text-xs text-text-annotation">{FREE_TO_RUN_LINE}</p>
+  </div>
+
+  <div class="mt-6 flex flex-wrap items-center justify-center gap-3" data-scan-share hidden>
+    <button type="button" class="btn-secondary min-h-11" data-scan-copy-link>
+      Copy link to this result
+    </button>
+    <button type="button" class="btn-secondary min-h-11" data-scan-download>
+      Download this report
+    </button>
+  </div>
+</section>
+
+<script>
+  // Load the scan controller only when the v2 interface is active, so the
+  // default interface pays for nothing but this check.
+  if (document.documentElement.dataset.scanUi === 'v2') {
+    void import('../../scripts/scan/app').then((m) => m.init());
+  }
+</script>
+
+<style is:global>
+  .scan-tiles {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0.75rem;
+  }
+  .scan-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
+    min-height: 7.5rem;
+    min-width: 0;
+    padding: 1rem;
+    text-align: left;
+    color: var(--color-text-body);
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+    cursor: pointer;
+  }
+  .scan-tile:hover {
+    border-color: var(--color-border-strong);
+  }
+  .scan-tile[aria-expanded='true'] {
+    border-color: var(--color-interactive);
+  }
+  .scan-tile-name {
+    font-size: 0.875rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+  }
+  .scan-tile-value {
+    display: block;
+    min-height: 1.75rem;
+    font-size: 1.125rem;
+    font-weight: 600;
+    line-height: 1.75rem;
+    overflow-wrap: anywhere;
+  }
+  .scan-skeleton {
+    display: block;
+    width: 8rem;
+    max-width: 100%;
+    height: 1.25rem;
+    margin-top: 0.25rem;
+    border-radius: 0.25rem;
+    background: var(--color-bg-secondary);
+  }
+  .scan-panel {
+    min-width: 0;
+    padding: 1rem;
+    background: var(--color-bg-elevated);
+    border: 1px solid var(--color-border);
+    border-radius: 0.75rem;
+    overflow-wrap: anywhere;
+  }
+  .scan-panel[hidden] {
+    display: none;
+  }
+  @media (min-width: 640px) {
+    .scan-tiles {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+    /* DOM order is tile, panel, tile, panel...; the panel of the open tile
+       sits full width under the row of tiles. */
+    .scan-tile {
+      grid-row: 1;
+    }
+    .scan-tile:nth-of-type(1) {
+      grid-column: 1;
+    }
+    .scan-tile:nth-of-type(2) {
+      grid-column: 2;
+    }
+    .scan-tile:nth-of-type(3) {
+      grid-column: 3;
+    }
+    .scan-panel {
+      grid-row: 2;
+      grid-column: 1 / -1;
+    }
+  }
+  @media (prefers-reduced-motion: no-preference) {
+    .scan-skeleton {
+      animation: scan-pulse 1.4s ease-in-out infinite;
+    }
+  }
+  @keyframes scan-pulse {
+    50% {
+      opacity: 0.5;
+    }
+  }
+</style>
