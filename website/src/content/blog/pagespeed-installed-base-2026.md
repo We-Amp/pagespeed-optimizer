@@ -9,7 +9,7 @@ draft: false
 
 <!-- census:begin headline -->
 
-In the September 2026 crawl, HTTP Archive saw PageSpeed answering on **39,564 origins**. 20,625 of them report a version; 18,939 send the header with the version hidden. That is 0.245% of the root pages in the crawl, down from 0.935% in December 2020, the first crawl in this census.
+In the September 2026 crawl, HTTP Archive saw PageSpeed answering on **39,564 origins**. 20,625 of them report a version; 18,939 send the header with the version hidden. PageSpeed-serving origins are 0.245% of the root pages in the crawl, down from 0.935% in December 2020, the first crawl in this census.
 
 <!-- census:end headline -->
 
@@ -22,7 +22,7 @@ The dataset publishes aggregates only. It names no origin, no hostname and no IP
 ## Adoption since December 2020
 
 <!-- census:begin series-chart -->
-<figure class="census-chart" style="overflow-x:auto" tabindex="0">
+<figure class="census-chart" role="group" aria-label="Chart: origins per crawl by build era; scrolls horizontally on small screens" style="overflow-x:auto" tabindex="0">
 <div style="min-width:640px">
 <svg class="census" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 548" width="100%" aria-labelledby="census-series-title census-series-desc"><style>
 svg.census{--census-accent:var(--color-interactive,#0e6f89);--census-gray:#8a8478;--census-ink:var(--color-text-body,#15171a);--census-muted:var(--color-text-muted,#55606b);--census-grid:var(--color-border,#e2ded7);--census-axis:var(--color-border-strong,#cfcabf);font-family:inherit;font-size:12px}
@@ -69,12 +69,12 @@ HTTP Archive's crawl grew from 8,388,540 root pages in June 2022 to 15,586,166 i
 
 Counts across crawls are not directly comparable because the crawl grew, so the share of root pages is the trend to read. The split between versioned and hidden origins also shifts between some crawls, so read the buckets as trends. Since early 2023 the count has fallen in most crawls.
 
-Google-era builds are still the largest group of origins that report a version, and they account for most of the decline. Incubator-era builds grew until 2025 and have eased since. A large cohort sends the header with the version hidden. No crawl before June 2026 has an origin on the current line. In earlier crawls some origins report `1.15.0.0-<revision>`, the version string of the unreleased incubator trunk: the project's version file carried 1.15.0.0 from December 2018, although no 1.15 release existed until We-Amp's in June 2026. The census counts those builds as incubator-era. The current line appears from the June 2026 crawl on, and it is still a small group.
+Google-era builds are still the largest group of origins that report a version, and they account for most of the decline. Incubator-era builds grew until late 2025 and have eased since. A large cohort sends the header with the version hidden. In earlier crawls some origins report `1.15.0.0-<revision>`, the version string of the unreleased incubator trunk. No 1.15 release existed until June 2026. The census counts those builds as incubator-era. The current line is still a small group.
 
 ## Who runs it today
 
 <!-- census:begin distribution-chart -->
-<figure class="census-chart" style="overflow-x:auto" tabindex="0">
+<figure class="census-chart" role="group" aria-label="Chart: origins per reported version; scrolls horizontally on small screens" style="overflow-x:auto" tabindex="0">
 <div style="min-width:640px">
 <svg class="census" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 368" width="100%" aria-labelledby="census-distribution-title census-distribution-desc"><style>
 svg.census{--census-accent:var(--color-interactive,#0e6f89);--census-gray:#8a8478;--census-ink:var(--color-text-body,#15171a);--census-muted:var(--color-text-muted,#55606b);--census-grid:var(--color-border,#e2ded7);--census-axis:var(--color-border-strong,#cfcabf);font-family:inherit;font-size:12px}
@@ -113,7 +113,7 @@ svg.census .census-panel-title{font-weight:600}
 
 <!-- census:end distribution-table -->
 
-Two builds dominate: `1.13.35.2`, the last Google-era release, and `1.14.36.1`, the incubator release. Below them sits a long tail of older Google-era versions, some of them more than a decade old.
+Two builds dominate: `1.13.35.2`, the last Google-era release, and `1.14.36.1`, the incubator release. Below them sits a long tail of older Google-era versions.
 
 The module's header name tells the engines apart. `X-Mod-Pagespeed` comes from the Apache module and `X-Page-Speed` from the nginx module. The `Server` header names the front-most server, which is often not the one running the module.
 
@@ -148,7 +148,7 @@ So a Server header of nginx or Cloudflare does not mean the nginx module. Read t
 ## Where it runs
 
 <!-- census:begin ranks-chart -->
-<figure class="census-chart" style="overflow-x:auto" tabindex="0">
+<figure class="census-chart" role="group" aria-label="Chart: PageSpeed share per rank band; scrolls horizontally on small screens" style="overflow-x:auto" tabindex="0">
 <div style="min-width:640px">
 <svg class="census" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 312" width="100%" aria-labelledby="census-ranks-title census-ranks-desc"><style>
 svg.census{--census-accent:var(--color-interactive,#0e6f89);--census-gray:#8a8478;--census-ink:var(--color-text-body,#15171a);--census-muted:var(--color-text-muted,#55606b);--census-grid:var(--color-border,#e2ded7);--census-axis:var(--color-border-strong,#cfcabf);font-family:inherit;font-size:12px}
@@ -201,7 +201,7 @@ About half of the PageSpeed-serving origins also run WordPress, a clearly higher
 ## The ten largest networks
 
 <!-- census:begin networks-chart -->
-<figure class="census-chart" style="overflow-x:auto" tabindex="0">
+<figure class="census-chart" role="group" aria-label="Chart: ten largest networks by share; scrolls horizontally on small screens" style="overflow-x:auto" tabindex="0">
 <div style="min-width:640px">
 <svg class="census" role="img" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 312" width="100%" aria-labelledby="census-networks-title census-networks-desc"><style>
 svg.census{--census-accent:var(--color-interactive,#0e6f89);--census-gray:#8a8478;--census-ink:var(--color-text-body,#15171a);--census-muted:var(--color-text-muted,#55606b);--census-grid:var(--color-border,#e2ded7);--census-axis:var(--color-border-strong,#cfcabf);font-family:inherit;font-size:12px}
@@ -248,13 +248,13 @@ The shares are of header-bearing desktop root pages with an IP address the routi
 
 <!-- census:end security-numbers -->
 
-The buckets follow the release history. Google-era builds run up to `1.13.35.2-stable`, released on 5 February 2018, the last Google-era release. Incubator-era builds are the 1.14 line, last published as `1.14.36.1` in July 2020 from the [Apache Incubator repository](https://github.com/apache/incubator-pagespeed-mod), which was archived in 2023. The current line starts at `1.15.0`, released by We-Amp in June 2026. Origins that hide their version are not counted as out of date, so the true share across all PageSpeed origins is unknown in either direction.
+The buckets follow the release history. Google-era builds run up to `1.13.35.2-stable`, released on 5 February 2018, the last Google-era release. Incubator-era builds are the 1.14 line, last published as `1.14.36.1` in July 2020 from the [Apache Incubator repository](https://github.com/apache/incubator-pagespeed-mod), which was archived in 2023, plus unreleased trunk builds from that repository. The current line starts at `1.15.0`, released by We-Amp in June 2026. Origins that hide their version are not counted as out of date, so the true share across all PageSpeed origins is unknown in either direction.
 
 This post lists no vulnerabilities. Builds before 1.15.0 no longer receive fixes; update recommended. Advisories and how to report a problem are on the [security page](/security/).
 
 ## How to get current
 
-The census counts versions 1.15.0 and later as the current line. It installs from the signed repository below.
+The census counts three-number versions from 1.15.0 on as the current line. It installs from the signed repository below.
 
 ```sh
 curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh

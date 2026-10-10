@@ -28,8 +28,18 @@ const svg = (name) =>
 // whole SVG (which has no blank lines) reaches the page as raw HTML, untouched by Markdown.
 // At phone width the 720-unit charts would scale their 12px labels down to about 6px, so
 // the figure scrolls sideways instead and the chart never renders narrower than 640px.
-const figure = (name) =>
-  `<figure class="census-chart" style="overflow-x:auto" tabindex="0">\n<div style="min-width:640px">\n${svg(name)}\n</div>\n</figure>`;
+// The scrolling figure takes keyboard focus, so it carries a role and a name of its own.
+const chartLabel = {
+  series: 'origins per crawl by build era',
+  distribution: 'origins per reported version',
+  ranks: 'PageSpeed share per rank band',
+  networks: 'ten largest networks by share',
+};
+const figure = (name) => {
+  if (!(name in chartLabel)) throw new Error(`chart "${name}" has no label`);
+  const label = `Chart: ${chartLabel[name]}; scrolls horizontally on small screens`;
+  return `<figure class="census-chart" role="group" aria-label="${label}" style="overflow-x:auto" tabindex="0">\n<div style="min-width:640px">\n${svg(name)}\n</div>\n</figure>`;
+};
 
 const n = (v) => Number(v).toLocaleString('en-US');
 const pct = (v, digits = 1) => `${(Number(v) * 100).toFixed(digits)}%`;
@@ -128,7 +138,7 @@ const crawlSize = (d) => {
 const licenseLine = LICENSE_CLAUSE_CAP.endsWith('.') ? LICENSE_CLAUSE_CAP : `${LICENSE_CLAUSE_CAP}.`;
 
 const blocks = {
-  headline: `In the ${month(h.crawl_date)} crawl, HTTP Archive saw PageSpeed answering on **${n(h.latest_total)} origins**. ${n(h.versioned_total)} of them report a version; ${n(h.hidden_total)} send the header with the version hidden. That is ${pct(h.latest_share, 3)} of the root pages in the crawl, ${Number(h.latest_share) < Number(h.first_share) ? 'down' : 'up'} from ${pct(h.first_share, 3)} in ${month(h.first_date)}, the first crawl in this census.`,
+  headline: `In the ${month(h.crawl_date)} crawl, HTTP Archive saw PageSpeed answering on **${n(h.latest_total)} origins**. ${n(h.versioned_total)} of them report a version; ${n(h.hidden_total)} send the header with the version hidden. PageSpeed-serving origins are ${pct(h.latest_share, 3)} of the root pages in the crawl, ${Number(h.latest_share) < Number(h.first_share) ? 'down' : 'up'} from ${pct(h.first_share, 3)} in ${month(h.first_date)}, the first crawl in this census.`,
   'security-numbers': `${pct(h.share_out_of_fixes)} of the origins that report a version run a build that no longer receives fixes: ${pct(h.share_google_of_versioned)} a Google-era build last updated in 2018, ${pct(h.share_incubator_of_versioned)} an incubator-era build last updated in 2020. ${n(h.current)} origins report the current line. Update recommended.`,
   'series-chart': figure('series'),
   'crawl-size-note': `HTTP Archive's crawl grew from ${crawlSize('2022-06-01')} root pages in ${month('2022-06-01')} to ${crawlSize('2022-08-01')} in ${month('2022-08-01')}; the jump in the chart that year follows it.`,
