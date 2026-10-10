@@ -7,3 +7,10 @@ src/layouts/BaseLayout.astro
 # Prettier rewrites the tile fragment in a way the Astro compiler output
 # does not round-trip cleanly; the file is kept in its hand-formatted shape.
 src/components/scan/ResultsView.astro
+
+# Markdown content is never run through Prettier: its Markdown pass rewrites
+# emphasis inside identifiers, changes code samples whose point is their exact
+# text, and re-indents front matter. The format globs already exclude .md; this
+# keeps it that way for an ad-hoc `prettier --write .`.
+src/content/
+src/data/*.md
