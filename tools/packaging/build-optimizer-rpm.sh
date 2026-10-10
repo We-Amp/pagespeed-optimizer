@@ -424,7 +424,7 @@ if [ -d /var/cache/pagespeed-optimizer/v1 ]; then
   echo "%{name}: will not roll back."
 fi
 if [ -d /run/systemd/system ]; then
-  systemctl daemon-reload
+  systemctl daemon-reload || true
   systemctl enable $PKG.service >/dev/null 2>&1 || true
   systemctl restart $PKG.service || true
 fi
@@ -592,7 +592,7 @@ self_test() {
   check "post enables service" "1" \
     "$(printf '%s\n' "$scripts" | grep -c "systemctl enable $PKG.service")"
   check "post reloads systemd" "1" \
-    "$(printf '%s\n' "$scripts" | grep -c "^  systemctl daemon-reload\$")"
+    "$(printf '%s\n' "$scripts" | grep -c "^  systemctl daemon-reload || true\$")"
   check "ships LICENSE" "1" \
     "$(printf '%s\n' "$files" | grep -c "^/usr/share/licenses/$PKG/LICENSE\$")"
   check "ships NOTICE" "1" \
