@@ -100,7 +100,7 @@ const pillars = [
     <p class="mt-1 text-sm text-text-muted">
       Pick what you want to talk about. We pre-selected topics from your results.
     </p>
-    <fieldset class="mt-4" data-scan-topics>
+    <fieldset class="mt-4" data-scan-topics aria-describedby={`${idPrefix}-lead-msg`}>
       <legend class="text-sm font-medium text-text-body">Topics</legend>
       <div class="mt-2 flex flex-wrap gap-2" data-scan-chips></div>
     </fieldset>
@@ -110,6 +110,7 @@ const pillars = [
     <input
       id={`${idPrefix}-lead-email`}
       name="email"
+      aria-describedby={`${idPrefix}-lead-msg`}
       type="email"
       autocomplete="email"
       class="mt-1 w-full min-h-11 rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-elevated focus:border-interactive focus:ring-2 focus:ring-interactive sm:text-sm"
@@ -141,25 +142,37 @@ const pillars = [
       set:text=""
     />
 
+    <p class="mt-4 text-xs text-text-annotation">
+      Submitting this sends us your email and a summary of this scan’s findings. We use them only for
+      this request; see our <a href="/privacy/" class="underline">privacy policy</a>.
+    </p>
     <button type="submit" class="btn-primary mt-4 min-h-11">Talk to us</button>
-    <p id={`${idPrefix}-lead-msg`} role="status" aria-live="polite" class="mt-2 text-sm"></p>
+    <p id={`${idPrefix}-lead-msg`} class="mt-2 text-sm text-accent" data-scan-lead-msg></p>
   </form>
 
   <div class="mt-8 flex flex-col items-center gap-3" data-scan-next hidden>
     <div class="flex flex-wrap items-center justify-center gap-4">
-      <a href="/download/" class="btn-primary min-h-11">Download &amp; run &rarr;</a>
-      <a href="/pricing/" class="btn-secondary min-h-11">Support plans &rarr;</a>
+      <a href="/download/" class="btn-primary min-h-11" data-scan-cta="download">Download &amp; run &rarr;</a>
+      <a href="/pricing/" class="btn-secondary min-h-11" data-scan-cta="support">Support plans &rarr;</a>
     </div>
     <p class="text-xs text-text-annotation">{FREE_TO_RUN_LINE}</p>
   </div>
 
-  <div class="mt-6 flex flex-wrap items-center justify-center gap-3" data-scan-share hidden>
-    <button type="button" class="btn-secondary min-h-11" data-scan-copy-link>
-      Copy link to this result
-    </button>
-    <button type="button" class="btn-secondary min-h-11" data-scan-download>
-      Download this report
-    </button>
+  <div class="mt-6 flex flex-col items-center gap-3" data-scan-share hidden>
+    <div class="text-center text-sm text-text-muted" data-scan-permalink-row hidden>
+      <p class="[overflow-wrap:anywhere]">
+        Shareable link: <a href="/" class="underline" data-scan-permalink></a>
+      </p>
+      <p class="mt-1 text-xs text-text-annotation">The link works for up to 24 hours.</p>
+    </div>
+    <div class="flex flex-wrap items-center justify-center gap-3">
+      <button type="button" class="btn-secondary min-h-11" data-scan-copy-link hidden>
+        Copy link to this result
+      </button>
+      <button type="button" class="btn-secondary min-h-11" data-scan-download>
+        Download this report
+      </button>
+    </div>
   </div>
 </section>
 
