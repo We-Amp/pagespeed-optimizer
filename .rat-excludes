@@ -113,6 +113,11 @@ empty\.html
 whitespace-only\.html
 text-only\.html
 modpagespeed-com
+# packs/*/fixtures/*/expected.decisions.jsonl: the recorded decision log of the pack
+# fixture runner (tools/packs:fixture_runner --update); a header cannot go into
+# a file whose whole content is the recorded output. The pack fixtures' own
+# input.html / expected.html carry the SPDX header instead.
+expected\.decisions\.jsonl
 
 # --- Third-party test inputs ---------------------------------------------------
 # tools/async-css-probe/fixtures/bootstrap-5.3.3 and .../tailwind-v3: stock
