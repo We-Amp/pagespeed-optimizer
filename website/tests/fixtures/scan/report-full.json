@@ -7,10 +7,10 @@
     "url": "https://shop.example.com/",
     "scannedAt": "2026-10-10T12:00:00.000Z",
     "grade": "C",
-    "score": 64,
+    "score": 63,
     "categories": {
       "Content fidelity": {
-        "score": 12,
+        "score": 11,
         "max": 30,
         "verdict": "Only ~38% of your content exists without JavaScript — AI tools that don't render (and free CDN markdown features) see an almost-empty page. THIS is the big one.",
         "flag": "csr-gap",
@@ -21,7 +21,7 @@
         }
       },
       "Token efficiency": {
-        "score": 8,
+        "score": 9,
         "max": 20,
         "verdict": "Bloated: the page is ~98× more HTML than actual content (52,300 tokens raw vs ~534 clean). Agents pay for — and choke on — the difference.",
         "detail": {
@@ -48,9 +48,9 @@
         }
       },
       "Citation readiness": {
-        "score": 6,
+        "score": 5,
         "max": 10,
-        "verdict": "Thin attribution metadata (canonical URL, title, date) — an LLM citing you may get the source/author/date wrong."
+        "verdict": "Thin attribution metadata (canonical URL, title) — an LLM citing you may get the source/author/date wrong."
       }
     },
     "agentActionability": {
@@ -160,7 +160,7 @@
       },
       "evidence": ["valid-signed vs broken-signature: status differs (200 vs 401)"],
       "keyid": "GBxqWscB-GOkwNXEhmWQA4SY2gWRH2Hz4dAvzRcK1gw",
-      "signatureAgent": "https://modpagespeed.com/.well-known/http-message-signatures-directory",
+      "signatureAgent": "https://shop.example.com/.well-known/http-message-signatures-directory",
       "note": "Classification derived solely from the scanner’s own three probe exchanges (valid signature, corrupted signature, unsigned). “no-signal” does NOT mean the origin runs no verifier: observe-only verifiers are externally invisible, and an origin can only fully verify our probe if it trusts our key directory. The corrupted-signature probe is the strongest discriminator. We only report what our own three exchanges showed."
     },
     "provenanceSurvival": {
@@ -170,7 +170,7 @@
       "strippedOnServe": 0,
       "images": [
         {
-          "url": "https://modpagespeed.com/logo.svg",
+          "url": "https://shop.example.com/logo.svg",
           "format": "other",
           "servedHasManifest": false,
           "servedMarkers": [],
@@ -179,7 +179,7 @@
           "survival": "served-only"
         },
         {
-          "url": "https://modpagespeed.com/logo-dark.svg",
+          "url": "https://shop.example.com/logo-dark.svg",
           "format": "other",
           "servedHasManifest": false,
           "servedMarkers": [],
@@ -203,12 +203,6 @@
       "blockedBy": [],
       "thirdPartyHosts": [
         {
-          "host": "www.googletagmanager.com",
-          "requests": 2,
-          "category": "tag-manager",
-          "tracker": true
-        },
-        {
           "host": "www.google-analytics.com",
           "requests": 3,
           "category": "analytics",
@@ -218,6 +212,12 @@
           "host": "connect.facebook.net",
           "requests": 2,
           "category": "social",
+          "tracker": true
+        },
+        {
+          "host": "www.googletagmanager.com",
+          "requests": 2,
+          "category": "tag-manager",
           "tracker": true
         },
         {
@@ -263,12 +263,12 @@
       },
       "scriptHosts": [
         {
-          "host": "www.googletagmanager.com",
+          "host": "cdn.example-assets.net",
           "party": "third",
-          "scripts": 2,
+          "scripts": 4,
           "withIntegrity": 0,
-          "category": "tag-manager",
-          "listed": true
+          "category": "other",
+          "listed": false
         },
         {
           "host": "cdn.jsdelivr.net",
@@ -279,12 +279,12 @@
           "listed": true
         },
         {
-          "host": "cdn.example-assets.net",
+          "host": "www.googletagmanager.com",
           "party": "third",
-          "scripts": 4,
+          "scripts": 2,
           "withIntegrity": 0,
-          "category": "other",
-          "listed": false
+          "category": "tag-manager",
+          "listed": true
         }
       ],
       "sriMissing": [
@@ -303,7 +303,12 @@
           "path": "/npm/swiper/swiper-bundle.min.js"
         }
       ],
-      "duplicates": [["jquery", ["3.6.0", "1.12.4"]]],
+      "duplicates": [
+        {
+          "library": "jquery",
+          "versions": ["1.12.4", "3.6.0"]
+        }
+      ],
       "integrityWithoutCors": 0,
       "csp": {
         "enforced": false,
@@ -363,12 +368,12 @@
       },
       "description": {
         "static": {
-          "count": 1,
-          "text": "The PageSpeed module, maintained again and open source under the Apache License 2.0. Install mod_pagespeed 2.1 on nginx or Apache with apt or yum."
+          "count": 0,
+          "text": null
         },
         "rendered": {
           "count": 1,
-          "text": "The PageSpeed module, maintained again and open source under the Apache License 2.0. Install mod_pagespeed 2.1 on nginx or Apache with apt or yum."
+          "text": "Gear for the trail: packs, layers and shelter, with free returns for 60 days."
         }
       },
       "jsonLd": {
@@ -400,8 +405,8 @@
         "mismatch": false
       },
       "delivery": {
-        "cdn": "cloudflare",
-        "server": "cloudflare"
+        "cdn": null,
+        "server": "apache"
       },
       "firstParty": ["example.com"],
       "requestsObserved": 41,
@@ -448,7 +453,7 @@
         "https": true,
         "present": ["hsts"],
         "missing": ["nosniff", "framing"],
-        "csp": "absent",
+        "csp": "none",
         "referrerPolicy": false,
         "permissionsPolicy": false
       },
@@ -526,7 +531,7 @@
       "title": "Northwind Outfitters: trail gear",
       "metaDescription": true,
       "author": false,
-      "published": true,
+      "published": false,
       "modified": false
     },
     "access": {

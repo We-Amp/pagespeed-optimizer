@@ -16,8 +16,8 @@ export type ScanFixture = 'full' | 'clean' | 'blocked';
 
 /** What one mocked source answers. */
 export interface SourceMock {
-  /** HTTP status; default 200. */
-  status?: number;
+  /** HTTP status; default 200. A list is indexed by call (the last entry repeats); a function gets the 0-based call index. */
+  status?: number | number[] | ((call: number) => number);
   /** Response body as an object (serialised) or a raw string; default is the fixture for the source. */
   body?: unknown;
   /** Milliseconds to wait before answering; default 0. */
@@ -45,6 +45,13 @@ export interface Mocks {
   /** Contact POST bodies, in arrival order. */
   contactBodies: unknown[];
 }
+
+const statusOf = (mock: SourceMock, call: number): number => {
+  const s = mock.status;
+  if (typeof s === 'function') return s(call);
+  if (Array.isArray(s)) return s[Math.min(call, s.length - 1)] ?? 200;
+  return s ?? 200;
+};
 
 const FIXED_TIME = new Date('2026-10-10T12:00:00.000Z');
 
@@ -75,12 +82,14 @@ export async function settle(page: Page): Promise<void> {
 /** Install the scan, PSI and contact mocks. Later calls replace earlier ones. */
 export async function installMocks(page: Page, options: MockOptions = {}): Promise<Mocks> {
   const gates = new Map<Source, () => void>();
+  const released = new Set<Source>();
   const calls: Record<Source, number> = { scan: 0, psiMobile: 0, psiDesktop: 0, contact: 0 };
   const contactBodies: unknown[] = [];
 
   const wait = async (source: Source, mock: SourceMock) => {
     if (mock.gate) {
-      await new Promise<void>((resolve) => gates.set(source, resolve));
+      // A release() that arrived before the request must not leave it hanging.
+      if (!released.has(source)) await new Promise<void>((resolve) => gates.set(source, resolve));
     } else if (mock.delayMs) {
       await new Promise((resolve) => setTimeout(resolve, mock.delayMs));
     }
@@ -93,12 +102,12 @@ export async function installMocks(page: Page, options: MockOptions = {}): Promi
         : JSON.stringify(mock.body);
 
   await page.route('**/ai-readability/api/scan**', async (route) => {
-    calls.scan++;
+    const call = calls.scan++;
     const mock = options.scan ?? {};
     await wait('scan', mock);
     if (mock.abort) return route.abort();
     await route.fulfill({
-      status: mock.status ?? 200,
+      status: statusOf(mock, call),
       contentType: 'application/json',
       body: bodyOf(mock, read(`report-${mock.fixture ?? 'full'}.json`)),
     });
@@ -107,27 +116,29 @@ export async function installMocks(page: Page, options: MockOptions = {}): Promi
   await page.route('**/psi/v5/runPagespeed**', async (route) => {
     const strategy = new URL(route.request().url()).searchParams.get('strategy');
     const source: Source = strategy === 'desktop' ? 'psiDesktop' : 'psiMobile';
-    calls[source]++;
+    const call = calls[source]++;
     const mock = options[source] ?? {};
     await wait(source, mock);
     if (mock.abort) return route.abort();
-    const status = mock.status ?? 200;
-    const fallback = read(
-      status === 429
-        ? 'psi-429.json'
-        : strategy === 'desktop'
-          ? 'psi-desktop.json'
-          : 'psi-mobile.json',
-    );
+    const status = statusOf(mock, call);
+    // The proxy's own rate limit is nginx's default HTML page, not JSON; the
+    // analyzer must cope with the failed JSON parse. A quota error from Google
+    // is JSON and is passed in through `body`.
+    const html = status === 429 && mock.body === undefined;
     await route.fulfill({
       status,
-      contentType: 'application/json',
-      body: bodyOf(mock, fallback),
+      contentType: html ? 'text/html' : 'application/json',
+      body: bodyOf(
+        mock,
+        read(
+          html ? 'psi-429.html' : strategy === 'desktop' ? 'psi-desktop.json' : 'psi-mobile.json',
+        ),
+      ),
     });
   });
 
   await page.route('**/ai-readability/api/contact**', async (route) => {
-    calls.contact++;
+    const call = calls.contact++;
     const mock = options.contact ?? {};
     try {
       contactBodies.push(route.request().postDataJSON());
@@ -137,14 +148,17 @@ export async function installMocks(page: Page, options: MockOptions = {}): Promi
     await wait('contact', mock);
     if (mock.abort) return route.abort();
     await route.fulfill({
-      status: mock.status ?? 200,
+      status: statusOf(mock, call),
       contentType: 'application/json',
       body: bodyOf(mock, '{"ok":true}'),
     });
   });
 
   return {
-    release: (source) => gates.get(source)?.(),
+    release: (source) => {
+      released.add(source);
+      gates.get(source)?.();
+    },
     calls,
     contactBodies,
   };

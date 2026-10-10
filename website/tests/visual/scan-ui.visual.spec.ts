@@ -2,7 +2,7 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 
 // Visual suite for the scanner pages. Opt-in: VISUAL=1 npx playwright test --project=visual
-// Writes test-results/visual/{page}-{state}-{viewport}.png for review; it asserts
+// Writes test-results/visual/{page}-{NN}-{state}-{viewport}.png for review; it asserts
 // nothing about pixels, so it never gates CI.
 
 import { mkdirSync } from 'node:fs';
@@ -38,7 +38,7 @@ interface State {
   n: number;
   slug: string;
   title: string;
-  /** Mock timing the state needs; U6b reads this when filling the body. */
+  /** Mock timing the state needs; the state body reads this. */
   mock: string;
   /** Present once the v2 DOM exists; absent states are registered as skipped. */
   run?: (ctx: Ctx) => Promise<void>;
@@ -102,7 +102,7 @@ const STATES: State[] = [
     n: 9,
     slug: 'form-sites-field',
     title: 'form with the sites field',
-    mock: 'As state 8, then select the SEO fixes or Legacy sites chip so the sites field shows.',
+    mock: 'As state 8, then deselect one pre-selected chip and select SEO fixes or Legacy sites (only four are pre-selected) so the sites field shows.',
   },
   {
     n: 10,
@@ -118,9 +118,9 @@ const STATES: State[] = [
   },
   {
     n: 12,
-    slug: 'partial-failure',
-    title: 'partial failure, one PSI strategy failed',
-    mock: 'scan full at 0 ms; psiMobile 200; psiDesktop status 500; capture the not-measured tile.',
+    slug: 'form-partial-failure',
+    title: 'form partial failure, one topic not sent',
+    mock: 'As state 8 with two or more chips selected; contact status [200, 500] (first POST ok, second fails); capture the "We could not send" message.',
   },
   {
     n: 13,
@@ -132,7 +132,7 @@ const STATES: State[] = [
     n: 14,
     slug: 'psi-rate-limited',
     title: 'PSI rate-limited',
-    mock: 'both PSI status 429 with the psi-429 fixture; scan fixture full at 0 ms.',
+    mock: 'both PSI status 429 with the default nginx HTML 429 page as body; scan fixture full at 0 ms.',
   },
   {
     n: 15,
@@ -177,6 +177,8 @@ test.describe('scan UI visual states', () => {
               await settle(page);
               const n = STATES.find((s) => s.slug === slug)?.n ?? 0;
               await page.screenshot({
+                // The telemetry strip shows live timings; mask it for stable runs.
+                mask: [page.locator('[data-ui="telemetry-strip"]')],
                 path: `${OUT_DIR}/${target.name}-${pad(n)}-${slug}-${viewport.name}.png`,
                 animations: 'disabled',
                 caret: 'hide',

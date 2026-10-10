@@ -6,8 +6,8 @@
   "report": {
     "url": "https://protected.example.net/",
     "scannedAt": "2026-10-10T12:00:00.000Z",
-    "grade": "D",
-    "score": 36,
+    "grade": "F",
+    "score": 23,
     "categories": {
       "Content fidelity": {
         "score": 0,
@@ -16,12 +16,17 @@
         "flag": "thin"
       },
       "Token efficiency": {
-        "score": 10,
+        "score": 13,
         "max": 20,
-        "verdict": "Could not assess token efficiency."
+        "verdict": "Bloated: the page is ~44× more HTML than actual content (2,400 tokens raw vs ~55 clean). Agents pay for — and choke on — the difference.",
+        "detail": {
+          "bloatX": 44,
+          "rawHtmlTokens": 2400,
+          "cleanTokens": 55
+        }
       },
       "Structured data": {
-        "score": 12,
+        "score": 6,
         "max": 20,
         "verdict": "Partial: Open Graph, canonical. Missing schema.org/JSON-LD makes agents infer facts instead of reading them.",
         "detail": {
@@ -29,9 +34,9 @@
         }
       },
       "Crawler access": {
-        "score": 12,
+        "score": 2,
         "max": 20,
-        "verdict": "You are blocking AI crawlers in robots.txt: they cannot read you at all. page did not return HTTP 200.",
+        "verdict": "You are blocking AI crawlers (GPTBot, ClaudeBot, Claude-Web, PerplexityBot, Google-Extended, CCBot, Applebot-Extended, Bytespider, Amazonbot) in robots.txt: they cannot read you at all.",
         "detail": {
           "aiBotsBlocked": [
             "GPTBot",
@@ -141,7 +146,7 @@
       },
       "evidence": [],
       "keyid": "GBxqWscB-GOkwNXEhmWQA4SY2gWRH2Hz4dAvzRcK1gw",
-      "signatureAgent": "https://modpagespeed.com/.well-known/http-message-signatures-directory",
+      "signatureAgent": "https://protected.example.net/.well-known/http-message-signatures-directory",
       "note": "Classification derived solely from the scanner’s own three probe exchanges (valid signature, corrupted signature, unsigned). “no-signal” does NOT mean the origin runs no verifier: observe-only verifiers are externally invisible, and an origin can only fully verify our probe if it trusts our key directory. The corrupted-signature probe is the strongest discriminator. We only report what our own three exchanges showed."
     },
     "provenanceSurvival": {
@@ -151,7 +156,7 @@
       "strippedOnServe": 0,
       "images": [
         {
-          "url": "https://modpagespeed.com/logo.svg",
+          "url": "https://protected.example.net/logo.svg",
           "format": "other",
           "servedHasManifest": false,
           "servedMarkers": [],
@@ -160,7 +165,7 @@
           "survival": "served-only"
         },
         {
-          "url": "https://modpagespeed.com/logo-dark.svg",
+          "url": "https://protected.example.net/logo-dark.svg",
           "format": "other",
           "servedHasManifest": false,
           "servedMarkers": [],
@@ -200,7 +205,7 @@
       "requestsObserved": 3,
       "httpStatus": 403,
       "trackerListVersion": "pcl-2",
-      "note": "Render blocked (HTTP 403; only challenge hosts contacted (challenges.cloudflare.com)): what rendered was a bot wall or challenge page, not the real page, so its requests could not be classified."
+      "note": "Render blocked (HTTP 403; only challenge hosts contacted (challenges.cloudflare.com)): what rendered was a bot wall or challenge page, not the real page, so its pre-consent requests could not be observed."
     },
     "scriptInventory": {
       "status": "blocked",
@@ -208,34 +213,25 @@
       "reasons": [],
       "blockedBy": ["http-status", "anti-bot-hosts"],
       "totals": {
-        "scripts": 14,
-        "inline": 13,
-        "inlineBytes": 19981,
-        "external": 1,
+        "scripts": 0,
+        "inline": 0,
+        "inlineBytes": 0,
+        "external": 0,
         "firstPartyExternal": 0,
-        "thirdPartyExternal": 1,
-        "thirdPartyHosts": 1,
+        "thirdPartyExternal": 0,
+        "thirdPartyHosts": 0,
         "thirdPartyWithIntegrity": 0,
-        "nonExecutable": 5
+        "nonExecutable": 0
       },
-      "scriptHosts": [
-        {
-          "host": "umami.we-amp.com",
-          "party": "third",
-          "scripts": 1,
-          "withIntegrity": 0,
-          "category": "other",
-          "listed": false
-        }
-      ],
+      "scriptHosts": [],
       "sriMissing": [],
       "floating": [],
       "duplicates": [],
       "integrityWithoutCors": 0,
       "csp": {
-        "enforced": true,
+        "enforced": false,
         "reportOnly": false,
-        "scriptSrc": true,
+        "scriptSrc": false,
         "reporting": false
       },
       "firstParty": ["example.net"],
@@ -257,16 +253,16 @@
         "jsonld": 0
       },
       "blockedBy": ["http-status", "anti-bot-hosts"],
-      "staticCompared": true,
+      "staticCompared": false,
       "notMeasured": [],
       "canonical": {
         "static": {
-          "count": 1,
-          "href": "https://modpagespeed.com/"
+          "count": 0,
+          "href": null
         },
         "rendered": {
-          "count": 1,
-          "href": "https://modpagespeed.com/"
+          "count": 0,
+          "href": null
         },
         "header": null
       },
@@ -280,34 +276,34 @@
       },
       "title": {
         "static": {
-          "count": 1,
-          "text": "PageSpeed module for nginx and Apache: mod_pagespeed 2.1"
+          "count": 0,
+          "text": null
         },
         "rendered": {
-          "count": 1,
-          "text": "PageSpeed module for nginx and Apache: mod_pagespeed 2.1"
+          "count": 0,
+          "text": null
         }
       },
       "description": {
         "static": {
-          "count": 1,
-          "text": "The PageSpeed module, maintained again and open source under the Apache License 2.0. Install mod_pagespeed 2.1 on nginx or Apache with apt or yum."
+          "count": 0,
+          "text": null
         },
         "rendered": {
-          "count": 1,
-          "text": "The PageSpeed module, maintained again and open source under the Apache License 2.0. Install mod_pagespeed 2.1 on nginx or Apache with apt or yum."
+          "count": 0,
+          "text": null
         }
       },
       "jsonLd": {
         "static": {
-          "blocks": 4,
+          "blocks": 0,
           "invalid": 0,
-          "types": ["Organization", "WebSite", "Product", "SoftwareApplication", "FAQPage"]
+          "types": []
         },
         "rendered": {
-          "blocks": 4,
+          "blocks": 0,
           "invalid": 0,
-          "types": ["Organization", "WebSite", "Product", "SoftwareApplication", "FAQPage"]
+          "types": []
         },
         "renderOnlyTypes": []
       },
@@ -328,7 +324,7 @@
       },
       "delivery": {
         "cdn": null,
-        "server": "nginx"
+        "server": null
       },
       "firstParty": ["example.net"],
       "requestsObserved": 3,

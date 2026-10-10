@@ -31,11 +31,9 @@ start of every run, so copy the PNGs out before running another suite.
 
 `report-full.json` (grade C, every lens present, all eight gates fire),
 `report-clean.json` (grade A, nothing fires), `report-blocked.json` (risk lenses
-blocked or errored), `psi-mobile.json`, `psi-desktop.json` and `psi-429.json`.
+blocked or errored), `psi-mobile.json`, `psi-desktop.json` and `psi-429.html` (nginx's default 429 page, which is what the proxy's own rate limit returns).
 `fixtures.test.ts` (run by `npx vitest run`) checks them against the gate
-predicates in `src/lib/scan/demand.mjs`. The PSI files are trimmed responses for
-modpagespeed.com with a set of flagged audits added so the Speed panel has
-fixes to show.
+predicates in `src/lib/scan/demand.mjs`. The PSI files are trimmed real responses, relabelled for https://shop.example.com/, with a set of flagged audits added and the scores set to 0.46 (mobile) and 0.81 (desktop) so the Speed panel has fixes to show.
 
 ## Review checklist
 

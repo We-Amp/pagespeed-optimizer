@@ -53,8 +53,7 @@ export default defineConfig({
           {
             name: 'visual',
             testMatch: /visual\/.*\.visual\.spec\.ts/,
-            // One worker per file keeps the dev server's first-hit compile and
-            // reload cycle out of the screenshots.
+            fullyParallel: false,
             use: {
               ...devices['Desktop Chrome'],
               viewport: { width: 1280, height: 800 },
