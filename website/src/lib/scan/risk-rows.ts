@@ -85,7 +85,8 @@ function siReasonText(si: Lens): string {
     bits.push('scripts from public CDNs without an integrity hash');
   if (reasons.includes('floating-version')) bits.push('CDN scripts with no pinned version');
   if (reasons.includes('duplicate-library')) bits.push('the same library at more than one version');
-  if (reasons.includes('unlisted-origin')) bits.push('script hosts not on our list of known hosts');
+  if (reasons.includes('unlisted-origin'))
+    bits.push('scripts from hosts not on our known-host list');
   return bits.length ? 'Flagged: ' + bits.join('; ') + '.' : '';
 }
 
