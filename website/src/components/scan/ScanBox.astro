@@ -13,6 +13,10 @@ interface Props {
 }
 
 const { idPrefix = 'scan', surface } = Astro.props;
+
+// One string so the formatter cannot split the link from its full stop.
+const privacyLink =
+  '<a href="/privacy/" class="text-interactive hover:text-interactive-hover underline">Privacy policy</a>.';
 ---
 
 <form
@@ -24,7 +28,9 @@ const { idPrefix = 'scan', surface } = Astro.props;
   data-scan-surface={surface}
   aria-describedby={`${idPrefix}-form-error`}
 >
-  <label for={`${idPrefix}-url`} class="block text-sm font-medium text-text-body">Page URL</label>
+  <label for={`${idPrefix}-url`} class="block text-sm font-medium text-text-body">
+    Page URL
+  </label>
   <div class="mt-2 flex flex-col sm:flex-row gap-3">
     <input
       id={`${idPrefix}-url`}
@@ -56,9 +62,7 @@ const { idPrefix = 'scan', surface } = Astro.props;
     API (in the US) through a proxy on this site, and our scanner loads the page once in a headless
     browser. Scanned content is used only for this result. Your IP address is logged and
     rate-limited to prevent abuse. See our
-    <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline"
-      >Privacy policy</a
-    >.
+    <span set:html={privacyLink} />
   </p>
   <p class="mt-3 text-xs text-text-annotation leading-relaxed">
     This tool calls Google's public PageSpeed Insights API. mod_pagespeed 2.1 is built by We-Amp

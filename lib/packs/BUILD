@@ -116,10 +116,12 @@ cc_library(
         "//lib/html:html_keywords",
         "//lib/html:safe_entity_decode",
         "@com_google_absl//absl/strings",
+        "@nlohmann_json//:json",
     ],
 )
 
-# HtmlFilter that applies the head rules (canonical, title, description).
+# HtmlFilter that applies the pack rules (canonical, title, description,
+# hreflang, jsonld).
 cc_library(
     name = "pack_filter",
     srcs = ["pack_filter.cc"],

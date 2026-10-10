@@ -95,6 +95,23 @@ TEST(PackLoaderTest, BaseLoads) {
   EXPECT_EQ(p->rules.size(), 5u);
 }
 
+TEST(PackLoaderTest, ADeeplyNestedJsonLdTemplateIsALoadError) {
+  Json j = Base();
+  const std::string deep = std::string(kMaxJsonLdDepth + 1, '[') +
+                           std::string(kMaxJsonLdDepth + 1, ']');
+  j["rules"][4]["value"]["template"] = deep;
+  auto p = Load(j);
+  ASSERT_FALSE(p.ok());
+  EXPECT_NE(std::string(p.status().message()).find("nested deeper"),
+            std::string::npos)
+      << p.status();
+  // Brackets inside strings do not count.
+  j["rules"][4]["value"]["template"] =
+      "{\"@type\":\"Thing\",\"name\":\"" +
+      std::string(kMaxJsonLdDepth * 2, '[') + "\"}";
+  EXPECT_TRUE(Load(j).ok());
+}
+
 TEST(PackLoaderTest, DefaultsAreSafe) {
   auto p = Load(Base());
   ASSERT_TRUE(p.ok());
