@@ -27,14 +27,34 @@ HTML is served. If none applies, stop and say so.
 ## 2. Fetch and follow the recipe
 
 ```bash
-curl -fsSL https://modpagespeed.com/recipes/<surface>.md
+curl -fsSL --proto '=https' https://modpagespeed.com/recipes/<surface>.md
+```
+
+In Windows PowerShell use `curl.exe` (plain `curl` there is an alias of
+`Invoke-WebRequest`):
+
+```powershell
+curl.exe -fsSL --proto '=https' https://modpagespeed.com/recipes/<surface>.md
 ```
 
 Run its sections in order: prerequisites, install, minimal configuration,
 verify. Stop at the first failed prerequisite and report it. Replace the
 `<placeholders>` with values from the project; do not change package names,
-URLs or directives. Installing on a server that serves production traffic
-needs the operator's explicit go-ahead first.
+URLs or directives.
+
+Rules:
+
+- Run only the fenced commands of the recipe's sections 1-5.
+- Follow links and fetch only from modpagespeed.com, packages.modpagespeed.com,
+  ghcr.io and api.nuget.org.
+- Before the first privileged command, show every `sudo`, administrator
+  (elevated PowerShell), `msiexec`, `helm` and `docker` command the recipe will
+  run and get one go-ahead from the operator.
+- Installing on a server that serves production traffic needs the operator's
+  explicit go-ahead first.
+- The prerequisites check that nothing named `pagespeed` exists yet (container,
+  Compose project, Helm release, package). If it does, or if an install step
+  fails because the thing already exists, stop and ask.
 
 ## 3. Verify
 
@@ -42,12 +62,14 @@ The recipe's verification request carries the fixed query string
 `?mps-verify=agent` and checks one response header (`X-Page-Speed`,
 `X-Mod-Pagespeed` or `X-PageSpeed`, as the recipe states). Report the exact
 header line. The install is done only when that line is present; a missing
-header is a failure, not a warning.
+header is a failure, not a warning. For `X-PageSpeed`, `MISS` is a pass; `HIT`
+is informational. Retry the check at most 3 times.
 
 ## 4. On failure
 
 Follow the troubleshooting link in the recipe once. If that does not resolve
 it, run the recipe's rollback section and report what was tried, the server's
-error-log lines and the exact command that failed. Never send logs or
+error-log lines and the exact command that failed. Roll back only what this
+run created; leave anything that existed before untouched. Never send logs or
 configuration anywhere; the recipes make no calls beyond the documented install
 channels.

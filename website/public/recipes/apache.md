@@ -8,16 +8,28 @@ use the EasyApache 4 RPM instead: https://modpagespeed.com/docs/cpanel/
 
 ## 1. Prerequisites
 
-Debian 12 or 13, Ubuntu 22.04 or 24.04, or AlmaLinux, RHEL or Rocky 9 or 10,
-with Apache 2.4 or newer.
+Debian 12 or 13 or Ubuntu 22.04 or 24.04 (amd64 or arm64), or AlmaLinux, RHEL
+or Rocky 9 (x86_64 or aarch64) or 10 (x86_64 only), with Apache 2.4 or newer.
 
 ```bash
-. /etc/os-release && echo "$ID $VERSION_ID"
+. /etc/os-release && echo "$ID $VERSION_ID $(uname -m)"
 apache2ctl -v 2>/dev/null || httpd -v
 test -d /usr/local/cpanel && echo 'cPanel host: use https://modpagespeed.com/docs/cpanel/ instead'
+dpkg -s mod-pagespeed pagespeed-optimizer   # Debian / Ubuntu: both must report "is not installed"
+rpm -q mod-pagespeed pagespeed-optimizer    # AlmaLinux / RHEL / Rocky: both must report "is not installed"
 ```
 
+Stop and ask if either package is already installed.
+
 ## 2. Install
+
+The default `pagespeed.conf` sets `ModPagespeed on` for every virtual host on
+this Apache. On a host that serves more than one site, get the operator's OK
+first; turning it on per virtual host instead:
+https://modpagespeed.com/docs/configuration/#virtual-hosts
+
+The apt and dnf repositories that `install.sh` configures are GPG-signed; apt
+and dnf check every package against the repository key.
 
 ```bash
 curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
@@ -52,12 +64,12 @@ https://modpagespeed.com/docs/troubleshooting/#no-x-mod-pagespeed-or-x-page-spee
 
 ```bash
 # Off without removing: set `ModPagespeed off` in pagespeed.conf, then
-sudo systemctl restart apache2   # httpd on Enterprise Linux
+sudo apachectl configtest && sudo systemctl restart apache2   # httpd on Enterprise Linux
 
 # Remove the module and the worker
 sudo apt-get remove -y mod-pagespeed pagespeed-optimizer   # Debian / Ubuntu
 sudo dnf remove -y mod-pagespeed pagespeed-optimizer       # AlmaLinux / RHEL / Rocky
-sudo systemctl restart apache2   # httpd on Enterprise Linux
+sudo apachectl configtest && sudo systemctl restart apache2   # httpd on Enterprise Linux
 ```
 
 What stays behind and rolling back a release: https://modpagespeed.com/docs/uninstall/

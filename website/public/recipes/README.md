@@ -17,7 +17,10 @@ commands, placeholders in angle brackets, no prose beyond what a command needs.
 
 In a checkout of the repository the files are under `website/public/recipes/`.
 A Claude Code skill that picks the recipe for the detected server and runs it,
-verification included, is at `.claude/skills/install-modpagespeed/SKILL.md`.
+verification included, is at
+https://github.com/We-Amp/pagespeed-optimizer/blob/main/.claude/skills/install-modpagespeed/SKILL.md;
+to use it in another project, copy it to that project's
+`.claude/skills/install-modpagespeed/SKILL.md`.
 
 ## Conventions
 
@@ -41,36 +44,15 @@ query string:
 ```
 
 The module ignores the parameter. It is there so that whoever runs the server
-can count agent-run verifications in the access log the server already writes;
-the request never leaves the server it verifies.
+can count agent-run verifications in the access log the server already writes.
+The request goes only to the server being verified, so marker hits land only
+in that server's own access log; nobody else sees them.
 
 ```bash
 grep -c 'mps-verify=agent' /var/log/nginx/access.log     # nginx
-grep -c 'mps-verify=agent' /var/log/apache2/access.log   # Apache on Debian/Ubuntu; /var/log/httpd/ on Enterprise Linux
+grep -c 'mps-verify=agent' /var/log/apache2/access.log   # Apache on Debian/Ubuntu
+grep -c 'mps-verify=agent' /var/log/httpd/access_log     # Apache on Enterprise Linux
 ```
 
 On IIS the marker is in the `cs-uri-query` field of the W3C log under
 `%SystemDrive%\inetpub\logs\LogFiles\`.
-
-## Agent-originated installs (the metric)
-
-"Agent-originated installs" is approximated, per week, as the number of
-requests for these recipe files and for `/llms.txt` whose `User-Agent` matches
-a known coding agent or a non-browser client, read from the web server's access
-log, plus the verification-marker hits above. Nothing is collected beyond the
-access log the web server already writes.
-
-User-Agent substrings matched, case-insensitively:
-
-- Coding agents and their fetchers: `Claude-User`, `ClaudeBot`, `anthropic-ai`,
-  `Claude-Web`, `ChatGPT-User`, `GPTBot`, `OAI-SearchBot`, `Codex`, `Cursor`,
-  `Copilot`
-- Non-browser clients: `python-requests`, `python-httpx`, `aiohttp`,
-  `node-fetch`, `undici`, `axios`, `Go-http-client`, `curl/`, `Wget/`
-
-One line over an nginx access log in the default `combined` format:
-
-```bash
-grep -h -E '"(GET|HEAD) /(recipes/[a-z-]+\.md|llms(-full)?\.txt)[ ?]' /var/log/nginx/access.log* \
-  | grep -i -c -E 'Claude-User|ClaudeBot|anthropic-ai|Claude-Web|ChatGPT-User|GPTBot|OAI-SearchBot|Codex|Cursor|Copilot|python-requests|python-httpx|aiohttp|node-fetch|undici|axios|Go-http-client|curl/|Wget/'
-```

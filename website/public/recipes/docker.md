@@ -1,24 +1,34 @@
 # Docker: install and verify mod_pagespeed 2.1 (nginx reverse proxy)
 
 Source: https://modpagespeed.com/docs/installation-docker/. Header: `X-PageSpeed`.
-Scope: the containers in front of an existing HTTP origin. Section 2 is the
-one-container evaluation path; production runs the worker and nginx as
-separate services (section 3).
+Scope: the containers in front of an existing HTTP origin. Run section 2 (one
+container, for evaluation) or section 3 (the production stack, the worker and
+nginx as separate services), not both: each publishes port 8080.
 
 ## 1. Prerequisites
 
-Docker 24 or newer, Docker Compose v2, and an origin the container can reach.
+Docker 24 or newer, Docker Compose v2, an origin the container can reach, host
+port 8080 free, and nothing named `pagespeed` yet.
 
 ```bash
 docker version --format '{{.Server.Version}}'
 docker compose version
-curl -s -o /dev/null -w '%{http_code}\n' 'http://<origin-host>:<origin-port>/'   # the origin answers
+docker ps -a --filter 'name=^pagespeed$' --format '{{.Names}}'   # nothing
+docker compose -p pagespeed ps -a -q                             # nothing
+test -e pagespeed && echo 'a pagespeed directory exists here'    # nothing
+curl -s -o /dev/null -w '%{http_code}\n' http://localhost:8080/   # 000: nothing listens on 8080
+curl -s -o /dev/null -w '%{http_code}\n' 'http://<origin-host>:<origin-port>/'   # 200: the origin answers
 ```
+
+Stop and ask if a `pagespeed` container, project or directory already exists or
+port 8080 is taken. An origin on the Docker host must listen on `0.0.0.0` (or
+the Docker bridge address), not only on `127.0.0.1`, for
+`host.docker.internal` to reach it.
 
 ## 2. Install (one container)
 
 ```bash
-docker run -d --name pagespeed -p 80:80 \
+docker run -d --name pagespeed -p 8080:80 \
   --add-host=host.docker.internal:host-gateway \
   -e BACKEND_HOST=host.docker.internal -e BACKEND_PORT=<origin-port> \
   -e ACCEPT_EULA=Y \
@@ -27,15 +37,32 @@ docker run -d --name pagespeed -p 80:80 \
 
 `BACKEND_HOST` and `BACKEND_PORT` point at the origin; `host.docker.internal`
 is the Docker host. `ACCEPT_EULA=Y` acknowledges the terms of service at
-https://modpagespeed.com/terms/.
+https://modpagespeed.com/terms/. For production, pin the image by digest
+(`ghcr.io/we-amp/pagespeed-combined@sha256:<digest>`) instead of `:latest`.
 
 ## 3. Minimal configuration (production)
 
-Create `docker-compose.yml`, `nginx.conf` and `entrypoint-worker.sh` as given
-in the source document, which carries the current image tags, then:
+Work in a new directory so no existing `docker-compose.yml` or `nginx.conf` is
+touched:
 
 ```bash
-docker compose up -d && docker compose ps   # worker and nginx running
+mkdir pagespeed && cd pagespeed
+```
+
+Create `docker-compose.yml`, `nginx.conf` and `entrypoint-worker.sh` (then
+`chmod +x entrypoint-worker.sh`) as given in the source document, which carries
+the current image tags, with two changes:
+
+- Leave out the placeholder `origin` service, and `origin` from the worker's
+  `depends_on`.
+- Point `proxy_pass` at the real origin: `proxy_pass http://<origin-host>:<origin-port>;`.
+  For an origin on the Docker host use `host.docker.internal` and add
+  `extra_hosts: ['host.docker.internal:host-gateway']` to the `nginx` service.
+
+Never overwrite an existing `docker-compose.yml` or `nginx.conf`. Then:
+
+```bash
+docker compose -p pagespeed up -d && docker compose -p pagespeed ps   # pidns, worker and nginx running
 ```
 
 The nginx directives that matter are `pagespeed on;` and
@@ -45,21 +72,29 @@ volume and one PID namespace, as that compose file sets up.
 ## 4. Verify
 
 ```bash
-curl -s -o /dev/null -D - 'http://localhost/?mps-verify=agent' | grep -i '^x-pagespeed:'
-curl -s -o /dev/null -D - 'http://localhost/?mps-verify=agent' | grep -i '^x-pagespeed:'
+curl -s -o /dev/null -D - 'http://localhost:8080/?mps-verify=agent' | grep -i '^x-pagespeed:'
 ```
 
-Port 80 for the single container, 8080 for the compose stack. Pass:
-`X-PageSpeed: MISS` on the first request, `HIT` on a later one; optimization is
-asynchronous, so a second `MISS` moments later means the worker is not done
-yet. No header: https://modpagespeed.com/docs/installation-docker/#troubleshooting
+Pass: an `X-PageSpeed` line. `MISS` proves the module is active; `HIT` on a
+later request means the optimized variant is cached, and is informational only:
+optimization is asynchronous, and responses the origin marks uncacheable
+(`Set-Cookie`, `private`, `no-store`) stay `MISS`
+(https://modpagespeed.com/docs/troubleshooting/#cache-miss-on-every-request).
+The header is added only to a 2xx response. No header: retry at most 3 times a
+few seconds apart, then
+https://modpagespeed.com/docs/installation-docker/#troubleshooting
 
 ## 5. Rollback
 
 ```bash
-docker rm -f pagespeed   # the single container
-docker compose down      # the stack; add -v to drop the cache volume too
+# Section 2: the single container and its image
+docker rm -f pagespeed
 docker rmi ghcr.io/we-amp/pagespeed-combined:latest
+
+# Section 3: from the pagespeed directory, the stack and its images
+cd pagespeed && docker compose -p pagespeed down --rmi all
 ```
 
-Image tags and rolling back a release: https://modpagespeed.com/docs/uninstall/#docker
+Do not add `-v` to `down` unless the operator asks: it deletes the cache
+volume. Image tags and rolling back a release:
+https://modpagespeed.com/docs/uninstall/#docker

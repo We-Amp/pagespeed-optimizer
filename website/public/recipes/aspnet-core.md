@@ -16,6 +16,13 @@ dotnet --list-sdks              # 8.x or 10.x
 dotnet --info | grep -i 'RID'   # linux-x64, linux-arm64, osx-arm64 or win-x64
 ```
 
+PowerShell:
+
+```powershell
+dotnet --list-sdks                       # 8.x or 10.x
+dotnet --info | Select-String 'RID'      # win-x64
+```
+
 ## 2. Install
 
 In the project directory:
@@ -60,14 +67,35 @@ https://modpagespeed.com/docs/aspnet-configuration/
 
 ## 4. Verify
 
+Start the app in the background on a free port, wait until it answers, check
+the header on a route that returns a full HTML page, then stop the app.
+
 ```bash
-dotnet run   # note the listening URL, e.g. http://localhost:5123
-curl -s -o /dev/null -D - 'http://localhost:<port>/?mps-verify=agent' | grep -i '^x-pagespeed:'
+dotnet run -- --urls http://localhost:<port> > pagespeed-verify.log 2>&1 &
+APP_PID=$!
+for i in $(seq 1 30); do curl -s -o /dev/null http://localhost:<port>/ && break; sleep 2; done
+curl -s -o /dev/null -D - 'http://localhost:<port>/<html-route>?mps-verify=agent' | grep -i '^x-pagespeed:'
+kill "$APP_PID"
 ```
 
-Pass: `X-PageSpeed: MISS` on the first request, `HIT` once the worker has
-written the variant. Use a content route such as `/`, not `/console/*`, which
-carries no header. No header: https://modpagespeed.com/docs/troubleshooting/
+PowerShell:
+
+```powershell
+$app = Start-Process dotnet -ArgumentList 'run','--','--urls','http://localhost:<port>' -PassThru -NoNewWindow -RedirectStandardOutput pagespeed-verify.log
+foreach ($i in 1..30) { curl.exe -s -o NUL http://localhost:<port>/; if ($LASTEXITCODE -eq 0) { break }; Start-Sleep 2 }
+curl.exe -s -o NUL -D - 'http://localhost:<port>/<html-route>?mps-verify=agent' | Select-String '^x-pagespeed:'
+Stop-Process -Id $app.Id
+```
+
+If the port still answers after the stop, stop the app process that listens on
+it.
+
+Pass: an `X-PageSpeed` line, `MISS` on the first request and `HIT` once the
+worker has written the variant. The middleware sets the header only on a
+`text/html` response it rewrites: non-HTML (the `/` of a fresh
+`dotnet new web` app returns plain text), HTML it leaves unchanged and
+`/console/*` get no header. Use a route that returns a real HTML page. No
+header: https://modpagespeed.com/docs/troubleshooting/
 
 ## 5. Rollback
 
@@ -76,5 +104,7 @@ dotnet remove package WeAmp.PageSpeed.AspNetCore
 ```
 
 Remove `AddPageSpeed()`, `UsePageSpeed()` and the `using` from `Program.cs`,
-the `PageSpeed` section from `appsettings.json`, and the cache volume file.
-Pinning a previous version: https://modpagespeed.com/docs/uninstall/#aspnet-core
+the `PageSpeed` section from `appsettings.json`, the cache volume file and
+`pagespeed-verify.log`. Pinning a previous version:
+https://modpagespeed.com/docs/uninstall/#aspnet-core and
+https://modpagespeed.com/docs/uninstall/#roll-back-to-the-previous-release

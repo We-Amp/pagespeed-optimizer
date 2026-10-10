@@ -226,7 +226,7 @@ export const SURFACES = [
         path: '/recipes/iis.md',
         title: 'Recipe: IIS module',
         description:
-          'The signed MSI on Windows Server and the two-line pagespeed.config; checks X-Page-Speed.',
+          'The signed MSI on Windows Server, checksum-verified, and a per-site pagespeed.config; checks X-Page-Speed.',
       },
       {
         path: '/recipes/aspnet-core.md',

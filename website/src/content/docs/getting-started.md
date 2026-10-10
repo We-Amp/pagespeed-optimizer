@@ -74,8 +74,9 @@ sudo systemctl restart nginx
 
 Apache optimizes immediately: the package enables the module, its default
 `pagespeed.conf`, and the configuration that points it at the worker. On nginx,
-make sure `load_module modules/ngx_pagespeed_module.so;` is at the top of
-`nginx.conf`, then turn the module on in a `server` block:
+make sure `load_module modules/ngx_pagespeed_module.so;` (on Enterprise Linux
+`load_module /usr/lib64/nginx/modules/ngx_pagespeed_module.so;`) is at the top
+of `nginx.conf`, then turn the module on in a `server` block:
 
 ```nginx
 pagespeed on;

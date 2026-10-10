@@ -178,7 +178,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [Install recipes for coding agents](https://modpagespeed.com/recipes/README.md): One machine-first install recipe per server (nginx, Apache, IIS, ASP.NET Core, Docker, Helm): prerequisites check, install, minimal configuration, a response-header verification and a rollback. The index defines the verification marker.
 - [Recipe: nginx module](https://modpagespeed.com/recipes/nginx.md): The native nginx module from the signed package repository on the distribution's stock nginx; checks X-Page-Speed.
 - [Recipe: Apache module](https://modpagespeed.com/recipes/apache.md): The native Apache module from the signed package repository, optimizer worker included; checks X-Mod-Pagespeed.
-- [Recipe: IIS module](https://modpagespeed.com/recipes/iis.md): The signed MSI on Windows Server and the two-line pagespeed.config; checks X-Page-Speed.
+- [Recipe: IIS module](https://modpagespeed.com/recipes/iis.md): The signed MSI on Windows Server, checksum-verified, and a per-site pagespeed.config; checks X-Page-Speed.
 - [Recipe: ASP.NET Core middleware](https://modpagespeed.com/recipes/aspnet-core.md): The WeAmp.PageSpeed.AspNetCore NuGet package, Program.cs and appsettings.json; checks X-PageSpeed.
 - [Recipe: Docker](https://modpagespeed.com/recipes/docker.md): The nginx reverse proxy and the optimizer worker in containers in front of an origin; checks X-PageSpeed.
 - [Recipe: Helm](https://modpagespeed.com/recipes/helm.md): The pagespeed Helm chart in front of an origin Service; checks X-PageSpeed.
