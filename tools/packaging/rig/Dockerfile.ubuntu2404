@@ -4,7 +4,7 @@
 # Package-install verification image: Ubuntu 24.04 (deb flavor).
 # See Dockerfile.debian12 for why this base is not digest-pinned and why the
 # image carries full systemd.
-FROM ubuntu:24.04
+FROM ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55
 # The official Ubuntu image ships /etc/dpkg/dpkg.cfg.d/excludes, which sets
 # path-exclude=/usr/share/doc/* (keeping only copyright and changelog). Left
 # in place, dpkg silently discards the drop-in examples this package installs

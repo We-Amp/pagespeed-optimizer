@@ -20,7 +20,7 @@
 
 # ── Stage 1: Build native binaries ───────────────────────────────────────────
 
-FROM ubuntu:24.04 AS build-native
+FROM ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 AS build-native
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -86,7 +86,7 @@ RUN mkdir /staging && \
 
 # ── Stage 2: Build .NET app ────────────────────────────────────────────────
 
-FROM mcr.microsoft.com/dotnet/sdk:9.0-noble AS build-dotnet
+FROM mcr.microsoft.com/dotnet/sdk:9.0-noble@sha256:64c94a5a8fac55f965e0fb74b0e6a46b73b7323257c492170befbe5537dfafef AS build-dotnet
 
 WORKDIR /src
 
@@ -100,7 +100,7 @@ RUN dotnet publish samples/DemoSite/DemoSite.csproj \
 
 # ── Stage 3a: ASP.NET runtime ───────────────────────────────────────────────
 
-FROM mcr.microsoft.com/dotnet/aspnet:9.0-noble AS aspnet-runtime
+FROM mcr.microsoft.com/dotnet/aspnet:9.0-noble@sha256:f6ca5cf8e277d5fd590ebeb0df890f1039ad8da0a953c94cb4ee8d3f2cae5dff AS aspnet-runtime
 
 # Cache volume directory
 RUN mkdir -p /tmp/pagespeed-demo
@@ -120,7 +120,7 @@ ENTRYPOINT ["dotnet", "DemoSite.dll"]
 
 # ── Stage 2b: Build web console (SvelteKit static) ──────────────────────────
 
-FROM node:22-slim AS build-console
+FROM node:22-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS build-console
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
@@ -132,7 +132,7 @@ RUN pnpm -C packages/web-shell build
 
 # ── Stage 3b: Worker runtime ────────────────────────────────────────────────
 
-FROM ubuntu:24.04 AS worker-runtime
+FROM ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 AS worker-runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \

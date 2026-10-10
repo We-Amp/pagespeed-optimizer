@@ -20,7 +20,7 @@
 # straces the daemon inside this image, and the census's curl-child posture
 # needs a real curl. Neither is a package dependency -- the shipped deb/rpm
 # still depends on libc alone.
-FROM debian:12
+FROM debian:12@sha256:2c037a04925515fdd6ea85ea14a682d0e79931f5e9f5d07b6dbfc6ba12f9e858
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get -qq update \
     && apt-get -qq -y install --no-install-recommends \
