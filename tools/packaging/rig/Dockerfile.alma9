@@ -10,7 +10,7 @@
 # already ships curl-minimal, and the full curl package conflicts with it.
 # Neither is a package dependency: the shipped rpm still depends on libc
 # alone.
-FROM almalinux:9
+FROM almalinux:9@sha256:9819dc675b67b595c2b59e42be7763fca1a8bb217fa5944e04daa22e9a64db16
 RUN dnf -y install --setopt=install_weak_deps=False \
         systemd procps-ng python3 rpm-build systemd-rpm-macros binutils \
         shadow-utils util-linux \

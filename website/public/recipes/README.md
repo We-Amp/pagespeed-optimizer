@@ -10,6 +10,7 @@ commands, placeholders in angle brackets, no prose beyond what a command needs.
 | ------------------------- | ----------------------------------------------------------------- | ------------------------------ |
 | nginx (native module)     | [nginx.md](https://modpagespeed.com/recipes/nginx.md)             | `X-Page-Speed`                 |
 | Apache (native module)    | [apache.md](https://modpagespeed.com/recipes/apache.md)           | `X-Mod-Pagespeed`              |
+| cPanel / EasyApache 4     | [cpanel.md](https://modpagespeed.com/recipes/cpanel.md)           | `X-Mod-Pagespeed`              |
 | IIS (native module)       | [iis.md](https://modpagespeed.com/recipes/iis.md)                 | `X-Page-Speed`                 |
 | ASP.NET Core (middleware) | [aspnet-core.md](https://modpagespeed.com/recipes/aspnet-core.md) | `X-PageSpeed`                  |
 | Docker (reverse proxy)    | [docker.md](https://modpagespeed.com/recipes/docker.md)           | `X-PageSpeed`                  |

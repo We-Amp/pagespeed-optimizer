@@ -176,9 +176,10 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [Product summary (JSON)](https://modpagespeed.com/api/product.json): Product, license, support tiers, image-format support per line and the related packages, as data.
 - [llms-full.txt](https://modpagespeed.com/llms-full.txt): This index followed by the full Markdown text of every documentation page.
 - [AI plugin manifest](https://modpagespeed.com/.well-known/ai-plugin.json): The model-facing description of the product.
-- [Install recipes for coding agents](https://modpagespeed.com/recipes/README.md): One machine-first install recipe per server (nginx, Apache, IIS, ASP.NET Core, Docker, Helm): prerequisites check, install, minimal configuration, a response-header verification and a rollback. The index defines the verification marker.
+- [Install recipes for coding agents](https://modpagespeed.com/recipes/README.md): One machine-first install recipe per server (nginx, Apache, cPanel, IIS, ASP.NET Core, Docker, Helm): prerequisites check, install, minimal configuration, a response-header verification and a rollback. The index defines the verification marker.
 - [Recipe: nginx module](https://modpagespeed.com/recipes/nginx.md): The native nginx module from the signed package repository on the distribution's stock nginx; checks X-Page-Speed.
 - [Recipe: Apache module](https://modpagespeed.com/recipes/apache.md): The native Apache module from the signed package repository, optimizer worker included; checks X-Mod-Pagespeed.
+- [Recipe: cPanel / EasyApache 4](https://modpagespeed.com/recipes/cpanel.md): The signed ea-apache24-mod_pagespeed RPM on cPanel / WHM EasyApache 4 Apache, enabled in WHM; checks X-Mod-Pagespeed.
 - [Recipe: IIS module](https://modpagespeed.com/recipes/iis.md): The signed MSI on Windows Server, checksum-verified, and a per-site pagespeed.config; checks X-Page-Speed.
 - [Recipe: ASP.NET Core middleware](https://modpagespeed.com/recipes/aspnet-core.md): The WeAmp.PageSpeed.AspNetCore NuGet package, Program.cs and appsettings.json; checks X-PageSpeed.
 - [Recipe: Docker](https://modpagespeed.com/recipes/docker.md): The nginx reverse proxy and the optimizer worker in containers in front of an origin; checks X-PageSpeed.
@@ -2297,6 +2298,7 @@ and the recipe follows.
 | Index of all recipes      | [README.md](https://modpagespeed.com/recipes/README.md)           |                                                                      |
 | nginx (native module)     | [nginx.md](https://modpagespeed.com/recipes/nginx.md)             | [Install the module on Apache and nginx](https://modpagespeed.com/docs/installation-module/) |
 | Apache (native module)    | [apache.md](https://modpagespeed.com/recipes/apache.md)           | [Install the module on Apache and nginx](https://modpagespeed.com/docs/installation-module/) |
+| cPanel / EasyApache 4     | [cpanel.md](https://modpagespeed.com/recipes/cpanel.md)           | [cPanel / EasyApache 4](https://modpagespeed.com/docs/cpanel/)                               |
 | IIS (native module)       | [iis.md](https://modpagespeed.com/recipes/iis.md)                 | [Install on IIS](https://modpagespeed.com/docs/install-iis/)                                 |
 | ASP.NET Core (middleware) | [aspnet-core.md](https://modpagespeed.com/recipes/aspnet-core.md) | [Install ASP.NET Core middleware](https://modpagespeed.com/docs/aspnet-getting-started/)     |
 | Docker (reverse proxy)    | [docker.md](https://modpagespeed.com/recipes/docker.md)           | [Install with Docker](https://modpagespeed.com/docs/installation-docker/)                    |
