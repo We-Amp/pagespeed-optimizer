@@ -18,6 +18,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <shared_mutex>
@@ -984,6 +985,40 @@ class PageSpeedCache {
                          std::string_view scheme,
                          std::span<const AlternateId> preserve);
 
+  // Drop everything the worker DERIVED for a URL and keep what the front end
+  // recorded: the mirror image of RemoveAlternatesExcept.
+  //
+  // RemoveAlternatesExcept serves the origin-refresh event, where the durable
+  // original (0x0C) is the SUPERSEDED response and must die with the variants
+  // built from it, so it refuses to preserve it.  This entry point serves the
+  // opposite event: the front end has just recorded a NEW original, and the
+  // variants (optimized, gzip/brotli copies, decline tombstone, content-hash
+  // oracle, agent markdown, ...) were built from the old one.  The original
+  // must survive so the rebuild starts from the new bytes.  The two are
+  // deliberately separate; do not fold one into the other.
+  //
+  // Preserved: the durable original (0x0C), the headers sidecar (0x6C), and
+  // the identity slot when it is a front end's genuine recording
+  // (kFlagWorkerProcessed clear, read from disk).  A worker-processed
+  // identity is derived and is removed.  Everything else is removed, and
+  // each removed id is evicted from this process's RAM tier.
+  //
+  // Same non-transactional, bounded-pass semantics as RemoveAlternatesExcept,
+  // including its escalation: a chain that cannot be unlinked is dropped as a
+  // whole key, original included (the front end re-records on the next
+  // request; a stale variant that cannot be removed is the worse outcome).
+  //
+  // Purge-generation fence: this function does not touch the worker's
+  // generation counters.  A caller that fences concurrent writers must bump
+  // its generation around this call AND re-read it afterwards, before the
+  // rebuild's writes, or the rebuild is fenced by its own bump.
+  //
+  // Returns the number of alternates removed.  A missing key is 0, not an
+  // error.
+  [[nodiscard]] std::expected<size_t, cyclone::CacheError>
+  RemoveDerivedAlternates(std::string_view url, std::string_view hostname,
+                          std::string_view scheme);
+
   // Evict a single (key, alternate) entry from THIS process's RAM tier
   // without touching the on-disk document.  Needed because Cyclone's RAM
   // tier is write-around (reads populate it, writes do NOT evict): after
@@ -1063,6 +1098,14 @@ class PageSpeedCache {
   // Raw substrate access, for tests only — see VolumeCapacityBytes().
   friend class PageSpeedCacheTestPeer;
   cyclone::Cache& RawCycloneCacheForTesting() { return *cache_; }
+
+  // Shared removal passes for RemoveAlternatesExcept and
+  // RemoveDerivedAlternates.  The caller holds reset_mutex_ (shared) and has
+  // validated its own preserve rules; `is_preserved` decides per alternate id.
+  [[nodiscard]] std::expected<size_t, cyclone::CacheError>
+  RemoveAlternatesWhereLocked(
+      std::string_view url, std::string_view hostname, std::string_view scheme,
+      const std::function<bool(AlternateId)>& is_preserved, const char* label);
 
   // Compose a CacheKey from URL, hostname, and scheme (normalizes hostname).
   cyclone::CacheKey ComposeKey(std::string_view url, std::string_view hostname,

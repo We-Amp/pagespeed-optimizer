@@ -34,6 +34,7 @@
 #include "gtest/gtest.h"
 #include "lib/cache/cache.h"
 #include "lib/cache/freshness.h"
+#include "lib/cache/headers_sidecar.h"
 #include "lib/classify/alternate_id.h"
 #include "lib/classify/alternate_metadata.h"
 #include "lib/classify/capability_mask.h"
@@ -102,9 +103,10 @@ class DurableOriginalsTest : public ::testing::Test {
 
   // Store an ordinary content variant at the alternate id its mask implies.
   void WriteVariant(std::string_view url, const CapabilityMask& mask,
-                    std::string_view body) {
+                    std::string_view body, uint8_t flags = 0) {
     AlternateMetadata meta;
     meta.full_mask = mask.Encode();
+    meta.flags = flags;
     meta.content_type = ContentType::kImage;
     meta.origin_content_type = "image/jpeg";
     auto id = MaskToAlternateId(static_cast<uint8_t>(mask.Encode() & 0xFF));
@@ -542,6 +544,159 @@ TEST_F(DurableOriginalsTest, TheOriginalCannotBePreservedAcrossARefresh) {
   auto alts = cache_->ListAlternates("/hero.jpg", "example.com", "https");
   ASSERT_TRUE(alts.has_value());
   EXPECT_EQ(alts->size(), 3u);
+}
+
+// ---------------------------------------------------------------------------
+// RemoveDerivedAlternates: the mirror image, for a NEW original.
+// ---------------------------------------------------------------------------
+
+namespace {
+CapabilityMask GzipMask() {
+  return CapabilityMask(CapabilityMask::ImageFormat::kOriginal,
+                        CapabilityMask::Viewport::kDesktop,
+                        CapabilityMask::PixelDensity::k1x,
+                        CapabilityMask::SaveData::kOff,
+                        CapabilityMask::TransferEncoding::kGzip);
+}
+constexpr AlternateId kSentinelHash =
+    static_cast<AlternateId>(SentinelId::kContentHash);
+}  // namespace
+
+TEST_F(DurableOriginalsTest, DerivedPurgeKeepsTheOriginalAndRemovesTheRest) {
+  CreateCache();
+  const AlternateId identity =
+      MaskToAlternateId(static_cast<uint8_t>(CapabilityMask().Encode() & 0xFF));
+  const AlternateId gzip =
+      MaskToAlternateId(static_cast<uint8_t>(GzipMask().Encode() & 0xFF));
+  ASSERT_NE(gzip, identity);
+
+  ASSERT_TRUE(WriteOriginalTo("/logo.svg", "NEWORIGINAL", OriginalMetadata()));
+  WriteVariant("/logo.svg", GzipMask(), "gzip-of-old");
+  WriteVariant("/logo.svg", CapabilityMask(), "worker-identity",
+               AlternateMetadata::kFlagWorkerProcessed);
+  {
+    auto oracle = cache_->WriteSentinel("/logo.svg", "example.com", "https",
+                                        SentinelId::kContentHash, 4);
+    ASSERT_TRUE(oracle.has_value());
+    ASSERT_TRUE(
+        oracle->write_sync(std::as_bytes(std::span("hash", 4))).has_value());
+    ASSERT_TRUE(oracle->close_sync().has_value());
+  }
+  // Warm this process's RAM tier so a stale RAM copy would show.
+  ASSERT_TRUE(
+      cache_->ReadAlternate("/logo.svg", "example.com", "https", gzip)
+          .has_value());
+
+  auto removed = cache_->RemoveDerivedAlternates("/logo.svg", "example.com",
+                                                 "https");
+  ASSERT_TRUE(removed.has_value());
+  EXPECT_EQ(*removed, 3u);  // gzip copy, worker identity, content-hash oracle
+
+  EXPECT_FALSE(
+      cache_->AlternateExists("/logo.svg", "example.com", "https", gzip));
+  EXPECT_FALSE(
+      cache_->AlternateExists("/logo.svg", "example.com", "https", identity));
+  EXPECT_FALSE(cache_->AlternateExists("/logo.svg", "example.com", "https",
+                                       kSentinelHash));
+  // The RAM copy went with the disk entry.
+  EXPECT_FALSE(
+      cache_->ReadAlternate("/logo.svg", "example.com", "https", gzip)
+          .has_value());
+  auto original =
+      cache_->ReadOriginalAlternate("/logo.svg", "example.com", "https");
+  ASSERT_TRUE(original.has_value());
+  EXPECT_EQ(BodyOf(*original), "NEWORIGINAL");
+}
+
+TEST_F(DurableOriginalsTest, DerivedPurgeKeepsAGenuineIdentityAndTheSidecar) {
+  CreateCache();
+  const AlternateId identity =
+      MaskToAlternateId(static_cast<uint8_t>(CapabilityMask().Encode() & 0xFF));
+  const AlternateId gzip =
+      MaskToAlternateId(static_cast<uint8_t>(GzipMask().Encode() & 0xFF));
+
+  ASSERT_TRUE(WriteOriginalTo("/site.css", "NEW", OriginalMetadata()));
+  WriteVariant("/site.css", CapabilityMask(), "front-end-identity");  // flag 0
+  WriteVariant("/site.css", GzipMask(), "gzip-of-old");
+  const std::vector<HeaderField> headers = {
+      {"X-Content-Type-Options", "nosniff"}};
+  ASSERT_TRUE(cache_->WriteHeadersSidecar("/site.css", "example.com", "https",
+                                          headers)
+                  .has_value());
+
+  auto removed =
+      cache_->RemoveDerivedAlternates("/site.css", "example.com", "https");
+  ASSERT_TRUE(removed.has_value());
+  EXPECT_EQ(*removed, 1u);  // only the gzip copy
+
+  EXPECT_TRUE(
+      cache_->AlternateExists("/site.css", "example.com", "https", identity));
+  EXPECT_TRUE(cache_->AlternateExists("/site.css", "example.com", "https",
+                                      kOriginalId));
+  EXPECT_TRUE(cache_->AlternateExists(
+      "/site.css", "example.com", "https",
+      static_cast<AlternateId>(SentinelId::kHeadersSidecar)));
+  EXPECT_FALSE(
+      cache_->AlternateExists("/site.css", "example.com", "https", gzip));
+}
+
+TEST_F(DurableOriginalsTest, DerivedPurgeReadsTheIdentityFlagFromDisk) {
+  // A stale RAM copy of a worker-processed identity must not make a genuine
+  // re-recorded identity look derived, nor the reverse.
+  CreateCache();
+  const AlternateId identity =
+      MaskToAlternateId(static_cast<uint8_t>(CapabilityMask().Encode() & 0xFF));
+  ASSERT_TRUE(WriteOriginalTo("/a.svg", "O", OriginalMetadata()));
+  WriteVariant("/a.svg", CapabilityMask(), "derived",
+               AlternateMetadata::kFlagWorkerProcessed);
+  ASSERT_TRUE(
+      cache_->ReadAlternate("/a.svg", "example.com", "https", identity)
+          .has_value());  // RAM now holds the worker-processed entry
+
+  // A peer handle re-records a genuine identity over it.
+  PageSpeedCacheConfig config;
+  config.volume_path = cache_path_;
+  config.volume_size = static_cast<uint64_t>(10 * 1024 * 1024);
+  auto peer = PageSpeedCache::Create(config);
+  ASSERT_TRUE(peer.has_value());
+  {
+    AlternateMetadata meta;
+    meta.full_mask = CapabilityMask().Encode();
+    meta.content_type = ContentType::kImage;
+    meta.origin_content_type = "image/svg+xml";
+    auto wh = (*peer)->WriteAlternate("/a.svg", "example.com", "https",
+                                      identity, 7, meta);
+    ASSERT_TRUE(wh.has_value());
+    ASSERT_TRUE(wh->write_sync(std::as_bytes(std::span("genuine", 7)))
+                    .has_value());
+    ASSERT_TRUE(wh->close_sync().has_value());
+  }
+
+  auto removed = cache_->RemoveDerivedAlternates("/a.svg", "example.com",
+                                                 "https");
+  ASSERT_TRUE(removed.has_value());
+  EXPECT_EQ(*removed, 0u);
+  EXPECT_TRUE(
+      cache_->AlternateExists("/a.svg", "example.com", "https", identity));
+}
+
+TEST_F(DurableOriginalsTest, DerivedPurgeOnAMissingKeyRemovesNothing) {
+  CreateCache();
+  auto removed =
+      cache_->RemoveDerivedAlternates("/never.svg", "example.com", "https");
+  ASSERT_TRUE(removed.has_value());
+  EXPECT_EQ(*removed, 0u);
+}
+
+TEST_F(DurableOriginalsTest, DerivedPurgeWithOnlyThePreservedClassesIsANoOp) {
+  CreateCache();
+  ASSERT_TRUE(WriteOriginalTo("/only.svg", "O", OriginalMetadata()));
+  auto removed =
+      cache_->RemoveDerivedAlternates("/only.svg", "example.com", "https");
+  ASSERT_TRUE(removed.has_value());
+  EXPECT_EQ(*removed, 0u);
+  EXPECT_TRUE(cache_->ReadOriginalAlternate("/only.svg", "example.com", "https")
+                  .has_value());
 }
 
 // ---------------------------------------------------------------------------
