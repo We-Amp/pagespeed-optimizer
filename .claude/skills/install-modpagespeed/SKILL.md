@@ -15,7 +15,8 @@ pagespeed-optimizer repository the same files are under
 | Signal                                                                                  | Surface       |
 | --------------------------------------------------------------------------------------- | ------------- |
 | `nginx -v` works and the site is served by nginx on Debian, Ubuntu or Enterprise Linux   | `nginx`       |
-| `apache2ctl -v` or `httpd -v` works (the recipe routes cPanel hosts to the EA4 guide)    | `apache`      |
+| `apache2ctl -v` or `httpd -v` works (the recipe routes cPanel hosts to `cpanel`)   | `apache`      |
+| `/usr/local/cpanel` exists (cPanel / WHM, EA4 Apache)                                    | `cpanel`      |
 | Windows Server with IIS (`HKLM:\SOFTWARE\Microsoft\InetStp` exists)                      | `iis`         |
 | A `.csproj` using `Microsoft.NET.Sdk.Web`                                               | `aspnet-core` |
 | Docker is available and the origin is a container or is not Apache, nginx or IIS        | `docker`      |

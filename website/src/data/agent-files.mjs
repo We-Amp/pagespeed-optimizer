@@ -208,7 +208,7 @@ export const SURFACES = [
         path: '/recipes/README.md',
         title: 'Install recipes for coding agents',
         description:
-          'One machine-first install recipe per server (nginx, Apache, IIS, ASP.NET Core, Docker, Helm): prerequisites check, install, minimal configuration, a response-header verification and a rollback. The index defines the verification marker.',
+          'One machine-first install recipe per server (nginx, Apache, cPanel, IIS, ASP.NET Core, Docker, Helm): prerequisites check, install, minimal configuration, a response-header verification and a rollback. The index defines the verification marker.',
       },
       {
         path: '/recipes/nginx.md',
@@ -221,6 +221,12 @@ export const SURFACES = [
         title: 'Recipe: Apache module',
         description:
           'The native Apache module from the signed package repository, optimizer worker included; checks X-Mod-Pagespeed.',
+      },
+      {
+        path: '/recipes/cpanel.md',
+        title: 'Recipe: cPanel / EasyApache 4',
+        description:
+          'The signed ea-apache24-mod_pagespeed RPM on cPanel / WHM EasyApache 4 Apache, enabled in WHM; checks X-Mod-Pagespeed.',
       },
       {
         path: '/recipes/iis.md',
