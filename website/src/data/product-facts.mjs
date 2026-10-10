@@ -59,14 +59,13 @@ export const LICENSING_TERMS_URL = 'https://we-amp.com/licensing/';
 
 // --- Commercial contact -------------------------------------------------------
 // The ONE address the site gives for anything commercial: support
-// subscriptions, hardened builds, the hosting partner program, consulting,
+// subscriptions, the hosting partner program, consulting,
 // IISpeed transfers. Security disclosure keeps its own address
 // (security@modpagespeed.com) and is never routed here.
 export const COMMERCIAL_EMAIL = 'info@we-amp.com';
 
 // --- Offerings (converged line — no published prices) ------------------------
-// What is for sale is support, in three tiers, with hardened builds included
-// from Priority up. The software is free and identical under every tier. These
+// What is for sale is support, in three tiers. The software is free and identical under every tier. These
 // rows are what /support/ and /pricing/ present and what the agent files and
 // /api/product.json describe. Prices are NULL until published — no surface may
 // render a price or a per-tier response-time target (response targets by
@@ -75,8 +74,8 @@ export const COMMERCIAL_EMAIL = 'info@we-amp.com';
 //               production deployment; the bands the quote form asks for)
 //   includes    what the tier adds, in display order; the first entry of a
 //               higher tier names the tier it builds on
-//   hardened    whether hardened builds through the subscriber repository are
-//               included
+//   hardened    whether the private package repository is live; false until
+//               it exists (it is being set up)
 export const SUPPORT_TIERS = [
   {
     id: 'standard',
@@ -96,14 +95,14 @@ export const SUPPORT_TIERS = [
   {
     id: 'priority',
     name: 'Priority support',
-    kind: 'support+hardened',
-    hardened: true,
+    kind: 'support',
+    hardened: false,
     servers: 'up to 25 production servers',
     prices: { annualUsd: null, monthlyUsd: null },
-    note: 'everything in Standard plus hardened builds through the subscriber repository, for up to 25 production servers',
+    note: 'everything in Standard plus a private package repository (being set up), for up to 25 production servers',
     includes: [
       'Everything in Standard',
-      'Hardened builds through the subscriber repository',
+      'Private package repository (being set up)',
       'Upgrade rehearsal on request',
       'Quarterly review call',
     ],
@@ -111,15 +110,14 @@ export const SUPPORT_TIERS = [
   {
     id: 'enterprise',
     name: 'Enterprise',
-    kind: 'support+hardened',
-    hardened: true,
+    kind: 'support',
+    hardened: false,
     servers: 'unlimited servers and sites, one organization',
     prices: { annualUsd: null, monthlyUsd: null },
-    note: 'everything in Priority plus a named engineer and custom build targets, for one organization without a server limit',
+    note: 'everything in Priority plus a named engineer; builds for additional platforms available on request, quoted separately',
     includes: [
       'Everything in Priority',
       'A named engineer',
-      'Custom build targets (distributions, nginx versions)',
       'Backport commitments and pre-notification of security advisories',
       'Master agreement, purchase order and invoice',
       'Roadmap input and consulting days',
@@ -130,17 +128,20 @@ export const SUPPORT_TIERS = [
 export const PRICING_ON_REQUEST =
   'Pricing on request: published once agreements with current customers close; early subscribers keep their quoted rate for three years.';
 export const RESPONSE_TARGETS_LINE = 'Response targets by severity are stated in your quote.';
-// The paid-artifact axis: the standard signed packages are free for everyone;
-// hardened builds come through the subscriber repository, included from the
-// Priority tier up. What ships today for everyone: the GPG-signed apt/yum
-// repositories, SHA256SUMS on release assets, and the SPDX SBOM in the source
-// tree. No surface may claim a signed SBOM or build provenance per package
-// build until the release pipeline produces one. Hardened artifacts carry the
-// same software license as the standard packages (SOURCE_PUBLICATION).
+// The artifact axis: the standard signed packages are free for everyone.
+// What ships today for everyone:
+// GPG-signed apt/yum repositories, .asc signatures on release packages, the
+// Authenticode-signed Windows installer, cosign-signed container images with
+// an SBOM attestation and build provenance, and the source-tree SPDX SBOM and
+// OpenVEX file. No surface may claim a per-release SBOM/VEX on the release
+// assets or provenance on packages; release SBOM and VEX are available on
+// request. The private package repository for Priority and Enterprise is being
+// set up; say so, never that it exists.
 export const ARTIFACT_ACCESS = {
   standardPackages: 'free',
-  hardenedBuilds: 'included-from-priority',
-  hardenedPricing: 'on-request',
+  hardenedBuilds: 'not-offered',
+  hardenedPricing: 'not-offered',
+  privateRepository: 'being-set-up',
 };
 // The support ladder as markdown bullets and one line, price-free by design
 // (pure helpers — see the purity rule below).

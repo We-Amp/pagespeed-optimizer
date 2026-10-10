@@ -4,7 +4,7 @@
 import { test, expect } from '@playwright/test';
 
 // /support/ is the commercial product page: what a subscription buys, the
-// three tiers, hardened builds (what ships today, what subscribers add, how to
+// three tiers, signed packages and images (what ships today, how to
 // verify), partners, consulting, existing customers, and the FAQ.
 test.describe('Support page', () => {
   test.beforeEach(async ({ page }) => {
@@ -46,14 +46,24 @@ test.describe('Support page', () => {
     await expect(readout).toContainText('CET business days');
   });
 
-  test('hardened builds say only what ships today', async ({ page }) => {
+  test('custom builds are a quoted Enterprise option, never included', async ({ page }) => {
+    const option = page.locator('[data-enterprise-option]');
+    await expect(option).toContainText('available on request and quoted per project');
+    await expect(page.locator('#tiers [data-tier="enterprise"]')).not.toContainText('build targets');
+  });
+
+  test('signed artifacts say only what ships today', async ({ page }) => {
     const section = page.locator('#hardened-builds');
     await expect(section).toContainText('GPG-signed');
     await expect(section).toContainText('SHA256SUMS');
     await expect(section).toContainText('SPDX');
-    await expect(section).toContainText('hardened build pipeline');
-    await expect(section).toContainText('ahead of the public release');
-    await expect(section).toContainText('Enterprise adds custom build targets');
+    await expect(section).toContainText('cosign');
+    await expect(section).toContainText('SBOM and VEX');
+    await expect(section).not.toContainText('custom build targets');
+    // The private repository is stated as being set up, never as existing.
+    await expect(section).toContainText('is being set up');
+    await expect(section).not.toContainText('ahead of the public release');
+    await expect(section).not.toContainText('hardened build pipeline');
     // The packages carry no per-build signed SBOM or provenance claim.
     await expect(section).not.toContainText('signed SBOM');
     await expect(section).not.toContainText('with every build');
@@ -84,11 +94,11 @@ test.describe('Support page', () => {
     ).toBeVisible();
   });
 
-  test('FAQ has eight questions and the FAQPage JSON-LD mirrors them', async ({ page }) => {
+  test('FAQ has nine questions and the FAQPage JSON-LD mirrors them', async ({ page }) => {
     const visible = (await page.locator('#faq details > summary').allInnerTexts()).map((t) =>
       t.trim(),
     );
-    expect(visible).toHaveLength(8);
+    expect(visible).toHaveLength(9);
     const blocks = await page.locator('script[type="application/ld+json"]').allTextContents();
     const faq = blocks.map((b) => JSON.parse(b)).find((d) => d['@type'] === 'FAQPage');
     expect(faq).toBeTruthy();
@@ -103,7 +113,7 @@ test.describe('Support page', () => {
   }) => {
     const ctas = page.locator('main [data-umami-event="cta_commercial"]');
     const count = await ctas.count();
-    expect(count).toBeGreaterThanOrEqual(8);
+    expect(count).toBeGreaterThanOrEqual(9);
     const offers = new Set<string>();
     for (let i = 0; i < count; i++) {
       const cta = ctas.nth(i);

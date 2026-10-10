@@ -3,7 +3,7 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
 // /pricing/ — the software is free; what is sold is support in three tiers,
-// with hardened builds included from Priority up. Owner ruling: no price
+// in three tiers, with a private package repository (being set up) for Priority up. Owner ruling: no price
 // amounts and no per-tier response-time targets on the site. The page shows
 // what each tier includes, states the pricing status once (PRICING_ON_REQUEST),
 // and collects a quote request whose qualifiers are folded into the message
@@ -54,7 +54,7 @@ const jsonLd = {
       applicationCategory: 'WebApplication',
       operatingSystem: PRODUCT_OPERATING_SYSTEMS,
       softwareVersion,
-      description: `Self-hosted web performance optimization: a native module for Apache and nginx with a separate optimizer worker. ${LICENSE_CLAUSE_CAP}; support subscriptions and hardened builds are sold separately, pricing on request.`,
+      description: `Self-hosted web performance optimization: a native module for Apache and nginx with a separate optimizer worker. ${LICENSE_CLAUSE_CAP}; support subscriptions are sold separately, pricing on request.`,
       offers: offer,
     },
     {
@@ -104,18 +104,17 @@ const inputClass =
 
 <BaseLayout
   title="Pricing: free software, paid support — mod_pagespeed 2.1"
-  description="mod_pagespeed 2.1 is free under Apache-2.0. Support comes in three tiers, hardened builds from Priority up. Pricing on request; ask for a quote."
+  description="mod_pagespeed 2.1 is free under Apache-2.0. Support in three tiers, plus a private package repository (being set up). Pricing on request; ask for a quote."
   jsonLd={jsonLd}
 >
   <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-16 pb-8">
     <div class="text-center">
       <h1 class="h1-hero text-text-body">
-        The software is free. We sell support and hardened builds.
+        The software is free. We sell support.
       </h1>
       <p class="lede mt-6 max-w-3xl mx-auto">
         {PRODUCT} is {LICENSE_CLAUSE}: free to install and run, in development and in production, on
-        any number of servers. Support comes in three tiers, with hardened builds included from
-        Priority up. None of them changes what the software does.
+        any number of servers. Support comes in three tiers; Priority and Enterprise add a private package repository (being set up). None of them changes what the software does.
       </p>
     </div>
   </section>
@@ -126,7 +125,7 @@ const inputClass =
       <p class="text-text-body font-medium" data-pricing-status>{PRICING_ON_REQUEST}</p>
       <p class="mt-1">
         {RESPONSE_TARGETS_LINE} Support runs on CET business days. What each tier covers in detail, and
-        how hardened builds are verified, is on the <a
+        how the signed packages are verified, is on the <a
           href="/support/"
           class="text-interactive hover:text-interactive-hover underline"
           data-umami-event="cta_commercial"
