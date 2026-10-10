@@ -172,133 +172,123 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
         datetime={post.data.date.toISOString()}
         class="font-mono text-xs font-medium uppercase tracking-wider text-text-annotation"
       >
-        {
-          post.data.date.toLocaleDateString('en-US', {
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          })
-        }
+        {post.data.date.toLocaleDateString('en-US', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric',
+        })}
       </time>
       <h1 class="mt-1 text-4xl font-bold tracking-tight leading-tight text-text-body">
         {post.data.title}
       </h1>
       <p class="mt-3 text-sm text-text-muted">
-        By <a
+        By{' '}
+        <a
           href="https://www.linkedin.com/in/oschaaf"
           target="_blank"
           rel="noopener noreferrer"
           class="text-text-body hover:text-interactive underline decoration-border-strong underline-offset-2"
-          >{post.data.author}</a
         >
+          {post.data.author}
+        </a>
       </p>
-      {
-        post.data.tags.length > 0 && (
-          <div class="mt-4 flex flex-wrap gap-2">
-            {post.data.tags.map((tag: string) => (
-              <span class="inline-block rounded-full bg-interactive-wash ring-1 ring-interactive/40 px-3 py-1 text-xs font-medium text-interactive">
-                {tag}
-              </span>
-            ))}
-          </div>
-        )
-      }
+      {post.data.tags.length > 0 && (
+        <div class="mt-4 flex flex-wrap gap-2">
+          {post.data.tags.map((tag: string) => (
+            <span class="inline-block rounded-full bg-interactive-wash ring-1 ring-interactive/40 px-3 py-1 text-xs font-medium text-interactive">
+              {tag}
+            </span>
+          ))}
+        </div>
+      )}
     </header>
 
-    <div
-      class="mt-10 prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive"
-    >
+    <div class="mt-10 prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive">
       <Content />
     </div>
 
     <ShareButtons title={post.data.title} url={canonicalUrl} surface="blog" />
 
     <aside class="mt-12 rounded-lg border border-interactive/40 bg-interactive/10 p-6">
-      {
-        isOneOne ? (
-          <>
-            <p class="text-base font-semibold text-text-body">
-              Run mod_pagespeed 2.1 — Apache, nginx and IIS.
-            </p>
-            <p class="mt-2 text-sm text-text-muted">
-              Signed builds · Current dependency graph · Apache License 2.0
-            </p>
-            <p class="mt-2 text-sm text-text-muted">
-              The IIS package ships from the 1.15 packaging channel.
-            </p>
-            <div class="mt-5 flex flex-wrap items-center gap-3">
-              <a
-                href="/docs/"
-                data-umami-event="cta_blog_bottom_install"
-                class="inline-flex items-center rounded-md bg-interactive hover:bg-interactive-hover px-4 py-2 text-sm font-semibold text-on-accent transition-colors"
-              >
-                Get started &rarr;
-              </a>
-              <a
-                href="/pricing/"
-                data-umami-event="cta_blog_bottom_buy"
-                class="text-sm font-medium text-text-body hover:text-interactive underline decoration-border-strong underline-offset-2"
-              >
-                See pricing
-              </a>
-            </div>
-          </>
-        ) : (
-          <>
-            <p class="text-base font-semibold text-text-body">
-              Run mod_pagespeed — deploy with Docker Compose in 5 minutes.
-            </p>
-            <p class="mt-2 text-sm text-text-muted">No bandwidth fees · {FREE_TO_RUN_LINE}</p>
-            <div class="mt-5 flex flex-wrap items-center gap-3">
-              <a
-                href="/docs/getting-started/"
-                data-umami-event="cta_blog_bottom_install"
-                class="inline-flex items-center rounded-md bg-interactive hover:bg-interactive-hover px-4 py-2 text-sm font-semibold text-on-accent transition-colors"
-              >
-                Install &amp; run &rarr;
-              </a>
-              <a
-                href="/pricing/"
-                data-umami-event="cta_blog_bottom_buy"
-                class="text-sm font-medium text-text-body hover:text-interactive underline decoration-border-strong underline-offset-2"
-              >
-                Support plans
-              </a>
-            </div>
-          </>
-        )
-      }
+      {isOneOne ? (
+        <>
+          <p class="text-base font-semibold text-text-body">
+            Run mod_pagespeed 2.1 — Apache, nginx and IIS.
+          </p>
+          <p class="mt-2 text-sm text-text-muted">
+            Signed builds · Current dependency graph · Apache License 2.0
+          </p>
+          <p class="mt-2 text-sm text-text-muted">
+            The IIS package ships from the 1.15 packaging channel.
+          </p>
+          <div class="mt-5 flex flex-wrap items-center gap-3">
+            <a
+              href="/docs/"
+              data-umami-event="cta_blog_bottom_install"
+              class="inline-flex items-center rounded-md bg-interactive hover:bg-interactive-hover px-4 py-2 text-sm font-semibold text-on-accent transition-colors"
+            >
+              Get started &rarr;
+            </a>
+            <a
+              href="/pricing/"
+              data-umami-event="cta_blog_bottom_buy"
+              class="text-sm font-medium text-text-body hover:text-interactive underline decoration-border-strong underline-offset-2"
+            >
+              See pricing
+            </a>
+          </div>
+        </>
+      ) : (
+        <>
+          <p class="text-base font-semibold text-text-body">
+            Run mod_pagespeed — deploy with Docker Compose in 5 minutes.
+          </p>
+          <p class="mt-2 text-sm text-text-muted">No bandwidth fees · {FREE_TO_RUN_LINE}</p>
+          <div class="mt-5 flex flex-wrap items-center gap-3">
+            <a
+              href="/docs/getting-started/"
+              data-umami-event="cta_blog_bottom_install"
+              class="inline-flex items-center rounded-md bg-interactive hover:bg-interactive-hover px-4 py-2 text-sm font-semibold text-on-accent transition-colors"
+            >
+              Install &amp; run &rarr;
+            </a>
+            <a
+              href="/pricing/"
+              data-umami-event="cta_blog_bottom_buy"
+              class="text-sm font-medium text-text-body hover:text-interactive underline decoration-border-strong underline-offset-2"
+            >
+              Support plans
+            </a>
+          </div>
+        </>
+      )}
     </aside>
 
-    {
-      /* Newsletter signup — contextual, after the product CTA and before
-        "Read next". Shared component, blog variant. */
-    }
+    {/* Newsletter signup — contextual, after the product CTA and before
+        "Read next". Shared component, blog variant. */}
     <div class="mt-8">
       <NewsletterSignup variant="blog" slug={post.id} />
     </div>
 
-    {
-      related.length > 0 && (
-        <section class="mt-12 border-t border-border pt-8">
-          <h2 class="text-sm font-semibold uppercase tracking-wider text-text-annotation">
-            Read next
-          </h2>
-          <ul class="mt-4 space-y-4">
-            {related.map((r) => (
-              <li>
-                <a href={`/blog/${r.id}/`} class="group block">
-                  <h3 class="text-base font-semibold text-text-body group-hover:text-interactive transition-colors">
-                    {r.data.title}
-                  </h3>
-                  <p class="mt-1 text-sm text-text-muted">{r.data.description}</p>
-                </a>
-              </li>
-            ))}
-          </ul>
-        </section>
-      )
-    }
+    {related.length > 0 && (
+      <section class="mt-12 border-t border-border pt-8">
+        <h2 class="text-sm font-semibold uppercase tracking-wider text-text-annotation">
+          Read next
+        </h2>
+        <ul class="mt-4 space-y-4">
+          {related.map((r) => (
+            <li>
+              <a href={`/blog/${r.id}/`} class="group block">
+                <h3 class="text-base font-semibold text-text-body group-hover:text-interactive transition-colors">
+                  {r.data.title}
+                </h3>
+                <p class="mt-1 text-sm text-text-muted">{r.data.description}</p>
+              </a>
+            </li>
+          ))}
+        </ul>
+      </section>
+    )}
 
     <nav class="mt-8 border-t border-border pt-8" aria-label="Article navigation">
       <a href="/blog/" class="text-sm font-medium text-interactive hover:text-interactive-hover">
@@ -317,7 +307,9 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
     hidden
   >
     <div class="cyc-lb-panel">
-      <button type="button" class="cyc-lb-close" aria-label="Close enlarged chart">&times;</button>
+      <button type="button" class="cyc-lb-close" aria-label="Close enlarged chart">
+        &times;
+      </button>
       <div class="cyc-lb-body"></div>
     </div>
   </div>

@@ -95,36 +95,35 @@ const jsonLd = {
     </SectionHeader>
 
     <p class="readout-plate mt-8 max-w-2xl px-4 py-3 text-sm text-text-muted">
-      <span class="font-mono text-xs text-interactive">Status</span><br />
-      None of these packs ships today. The interceptor they would run on does. Early access means you
-      hear first when there is a build to try, and your input shapes it.
+      <span class="font-mono text-xs text-interactive">Status</span>
+      <br />
+      None of these packs ships today. The interceptor they would run on does. Early access means
+      you hear first when there is a build to try, and your input shapes it.
     </p>
 
     <div class="mt-12 grid grid-cols-1 gap-6 md:grid-cols-2">
-      {
-        packs.map((pack) => (
-          <article class="card flex flex-col" aria-labelledby={`pack-${pack.wedge}`}>
-            <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
-              <Icon name={pack.icon} class="h-5 w-5 text-interactive" />
-            </div>
-            <h2 id={`pack-${pack.wedge}`} class="mt-4 text-lg font-semibold text-text-body">
-              {pack.title}
-            </h2>
-            <p class="mt-2 text-sm text-text-muted">{pack.body}</p>
-            {pack.more && (
-              <p class="mt-2 text-sm">
-                <a
-                  href={pack.more.href}
-                  class="text-interactive hover:text-interactive-hover underline"
-                >
-                  {pack.more.label}
-                </a>
-              </p>
-            )}
-            <PlatformInterestForm wedge={pack.wedge} pack={pack.title} />
-          </article>
-        ))
-      }
+      {packs.map((pack) => (
+        <article class="card flex flex-col" aria-labelledby={`pack-${pack.wedge}`}>
+          <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
+            <Icon name={pack.icon} class="h-5 w-5 text-interactive" />
+          </div>
+          <h2 id={`pack-${pack.wedge}`} class="mt-4 text-lg font-semibold text-text-body">
+            {pack.title}
+          </h2>
+          <p class="mt-2 text-sm text-text-muted">{pack.body}</p>
+          {pack.more && (
+            <p class="mt-2 text-sm">
+              <a
+                href={pack.more.href}
+                class="text-interactive hover:text-interactive-hover underline"
+              >
+                {pack.more.label}
+              </a>
+            </p>
+          )}
+          <PlatformInterestForm wedge={pack.wedge} pack={pack.title} />
+        </article>
+      ))}
 
       <article class="card flex flex-col md:col-span-2" aria-labelledby="pack-request-a-pack">
         <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">

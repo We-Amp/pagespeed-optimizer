@@ -55,35 +55,36 @@ const jsonLd = {
       Alternatives to mod_pagespeed, ngx_pagespeed, and IISpeed
     </h1>
     <p class="lede mt-6 max-w-2xl">
-      <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">mod_pagespeed</code> and <code
-        class="rounded bg-bg-elevated px-1 py-0.5 text-base">ngx_pagespeed</code
-      > are deprecated. IISpeed is in transition. These pages cover the actively-maintained continuation,
+      <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">mod_pagespeed</code> and{' '}
+      <code class="rounded bg-bg-elevated px-1 py-0.5 text-base">ngx_pagespeed</code> are
+      deprecated. IISpeed is in transition. These pages cover the actively-maintained continuation,
       mod_pagespeed 2.1, and how each server reaches it.
     </p>
     <p class="lede-sub mt-4 max-w-2xl text-sm text-text-muted">
-      mod_pagespeed 2.1 shares the optimization core that powers <span
-        class="font-semibold text-text-body">230,000+ live sites</span
-      > today (<a
+      mod_pagespeed 2.1 shares the optimization core that powers{' '}
+      <span class="font-semibold text-text-body">230,000+ live sites</span> today (
+      <a
         href="https://trends.builtwith.com/Server/mod_pagespeed"
         target="_blank"
         rel="noopener noreferrer"
-        class="text-interactive hover:text-interactive-hover underline">BuiltWith, May 2026</a
-      >) &mdash; not We-Amp customers, but proof it works at scale.
+        class="text-interactive hover:text-interactive-hover underline"
+      >
+        BuiltWith, May 2026
+      </a>
+      ) &mdash; not We-Amp customers, but proof it works at scale.
     </p>
 
     <div class="mt-12 grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-      {
-        cards.map((card) => (
-          <a
-            href={card.href}
-            class="card rounded-2xl border border-border bg-bg-elevated p-6 md:p-7 hover:border-interactive/40 transition-colors flex flex-col"
-          >
-            <h2 class="text-lg font-semibold text-text-body">{card.title}</h2>
-            <p class="mt-2 text-sm text-text-muted flex-1">{card.summary}</p>
-            <span class="mt-4 text-sm font-medium text-interactive">Read &rarr;</span>
-          </a>
-        ))
-      }
+      {cards.map((card) => (
+        <a
+          href={card.href}
+          class="card rounded-2xl border border-border bg-bg-elevated p-6 md:p-7 hover:border-interactive/40 transition-colors flex flex-col"
+        >
+          <h2 class="text-lg font-semibold text-text-body">{card.title}</h2>
+          <p class="mt-2 text-sm text-text-muted flex-1">{card.summary}</p>
+          <span class="mt-4 text-sm font-medium text-interactive">Read &rarr;</span>
+        </a>
+      ))}
     </div>
 
     <section class="mt-16">
@@ -93,44 +94,58 @@ const jsonLd = {
           <a
             href="/blog/mod-pagespeed-alternatives/"
             class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed alternatives in 2026</a
-          > — the deep comparison of what is available to replace the deprecated module, written for teams
-          evaluating their options.
+          >
+            mod_pagespeed alternatives in 2026
+          </a>{' '}
+          — the deep comparison of what is available to replace the deprecated module, written for
+          teams evaluating their options.
         </li>
         <li>
           <a
             href="/blog/mod-pagespeed-deprecated-2026/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Is mod_pagespeed deprecated? Yes &mdash; here's what to use in 2026</a
-          > &mdash; the full history of the deprecation and a path-by-path forward plan.
+          >
+            Is mod_pagespeed deprecated? Yes &mdash; here's what to use in 2026
+          </a>{' '}
+          &mdash; the full history of the deprecation and a path-by-path forward plan.
         </li>
         <li>
           <a
             href="/mod-pagespeed-still-maintained/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Is mod_pagespeed still maintained?</a
-          > &mdash; what development resumed and what has shipped since.
+          >
+            Is mod_pagespeed still maintained?
+          </a>{' '}
+          &mdash; what development resumed and what has shipped since.
         </li>
         <li>
           <a
             href="/pagespeed-insights/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Improving your PageSpeed Insights score</a
-          > &mdash; which render-blocking, next-gen image, and caching audits a server module fixes.
+          >
+            Improving your PageSpeed Insights score
+          </a>{' '}
+          &mdash; which render-blocking, next-gen image, and caching audits a server module fixes.
         </li>
         <li>
-          Serving images yourself? <a
+          Serving images yourself?{' '}
+          <a
             href="/self-hosted-image-optimization/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Self-hosted image optimization</a
-          > covers WebP and AVIF serving without a third-party image CDN.
+          >
+            Self-hosted image optimization
+          </a>{' '}
+          covers WebP and AVIF serving without a third-party image CDN.
         </li>
         <li>
-          Running Apache? The <a
+          Running Apache? The{' '}
+          <a
             href="/docs/installation-module/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Apache PageSpeed module</a
-          > is the native in-process continuation for httpd.
+          >
+            Apache PageSpeed module
+          </a>{' '}
+          is the native in-process continuation for httpd.
         </li>
       </ul>
     </section>
@@ -139,28 +154,34 @@ const jsonLd = {
       <h2 class="h2-section text-text-body">Try mod_pagespeed</h2>
       <p class="mt-4 text-text-body">
         Every integration is licensed under the Apache License 2.0. The software is free. We sell
-        support; Priority and Enterprise add a private package repository (being set up). See <a
+        support; Priority and Enterprise add a private package repository (being set up). See{' '}
+        <a
           href="/support/"
           class="text-interactive hover:text-interactive-hover underline"
           data-umami-event="cta_commercial"
           data-umami-event-offer="support"
           data-umami-event-surface="alternatives"
-          data-umami-event-position="try_section">support</a
-        > and the <a
-          href="/license/"
-          class="text-interactive hover:text-interactive-hover underline">software license</a
-        >.
+          data-umami-event-position="try_section"
+        >
+          support
+        </a>{' '}
+        and the{' '}
+        <a href="/license/" class="text-interactive hover:text-interactive-hover underline">
+          software license
+        </a>
+        .
       </p>
       <div class="mt-6 flex flex-wrap gap-3">
-        <a href="/download/" class="btn-primary" data-umami-event="cta_alternatives_hub_download"
-          >Download &amp; run</a
-        >
+        <a href="/download/" class="btn-primary" data-umami-event="cta_alternatives_hub_download">
+          Download &amp; run
+        </a>
         <a
           href="/pricing/"
           data-umami-event="cta_alternatives_hub_buy"
           class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-          >Support plans</a
         >
+          Support plans
+        </a>
       </div>
       <p class="mt-3 text-sm text-text-annotation">
         {LICENSE_CLAUSE_CAP} &mdash; free in development and in production.

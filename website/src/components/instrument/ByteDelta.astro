@@ -34,20 +34,18 @@ const width = (bytes: number) => (max > 0 ? Math.round((bytes / max) * 1000) / 1
 
 <figure class="panel" data-ui="byte-delta">
   <dl class="bd-rows">
-    {
-      rows.map((row) => (
-        <div class="bd-row">
-          <dt>{row.label}</dt>
-          <dd class="bd-bar" aria-hidden="true">
-            <i
-              class={row.bytes < baseline ? 'bd-smaller' : ''}
-              style={`inline-size:${width(row.bytes)}%`}
-            />
-          </dd>
-          <dd class="bd-num display-num">{formatBytes(row.bytes)}</dd>
-        </div>
-      ))
-    }
+    {rows.map((row) => (
+      <div class="bd-row">
+        <dt>{row.label}</dt>
+        <dd class="bd-bar" aria-hidden="true">
+          <i
+            class={row.bytes < baseline ? 'bd-smaller' : ''}
+            style={`inline-size:${width(row.bytes)}%`}
+          />
+        </dd>
+        <dd class="bd-num display-num">{formatBytes(row.bytes)}</dd>
+      </div>
+    ))}
   </dl>
   <p class="bd-total">
     <span class="bd-total-nums">
@@ -55,11 +53,13 @@ const width = (bytes: number) => (max > 0 ? Math.round((bytes / max) * 1000) / 1
         class:list={[
           'display-num text-3xl font-semibold',
           delta < 0 ? 'text-success' : 'text-text-body',
-        ]}>{deltaText}</span
+        ]}
       >
-      <span class="font-mono text-xs text-text-annotation"
-        >{`${pct > 0 ? '+' : ''}${formatPct(pct)}`} {deltaNote}</span
-      >
+        {deltaText}
+      </span>
+      <span class="font-mono text-xs text-text-annotation">
+        {`${pct > 0 ? '+' : ''}${formatPct(pct)}`} {deltaNote}
+      </span>
     </span>
     {caption && <span class="font-mono text-xs text-text-annotation">{caption}</span>}
   </p>

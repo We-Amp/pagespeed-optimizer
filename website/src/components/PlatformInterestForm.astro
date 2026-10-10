@@ -73,7 +73,9 @@ const inputClass =
   <input type="hidden" name="wedge" value={wedge} />
 
   <div>
-    <label for={`${id}-email`} class="eyebrow">Email</label>
+    <label for={`${id}-email`} class="eyebrow">
+      Email
+    </label>
     <input
       id={`${id}-email`}
       name="email"
@@ -85,43 +87,39 @@ const inputClass =
     />
   </div>
 
-  {
-    site && (
-      <div>
-        <label for={`${id}-site`} class="eyebrow">
-          Site URL <span class="font-normal text-text-annotation">(optional)</span>
-        </label>
-        <input
-          id={`${id}-site`}
-          name="site"
-          type="url"
-          inputmode="url"
-          autocomplete="url"
-          placeholder="https://"
-          class={inputClass}
-        />
-      </div>
-    )
-  }
+  {site && (
+    <div>
+      <label for={`${id}-site`} class="eyebrow">
+        Site URL <span class="font-normal text-text-annotation">(optional)</span>
+      </label>
+      <input
+        id={`${id}-site`}
+        name="site"
+        type="url"
+        inputmode="url"
+        autocomplete="url"
+        placeholder="https://"
+        class={inputClass}
+      />
+    </div>
+  )}
 
-  {
-    sites && (
-      <div>
-        <label for={`${id}-sites`} class="eyebrow">
-          Sites you manage <span class="font-normal text-text-annotation">(optional)</span>
-        </label>
-        <input
-          id={`${id}-sites`}
-          name="sites"
-          type="number"
-          min="1"
-          step="1"
-          inputmode="numeric"
-          class={inputClass}
-        />
-      </div>
-    )
-  }
+  {sites && (
+    <div>
+      <label for={`${id}-sites`} class="eyebrow">
+        Sites you manage <span class="font-normal text-text-annotation">(optional)</span>
+      </label>
+      <input
+        id={`${id}-sites`}
+        name="sites"
+        type="number"
+        min="1"
+        step="1"
+        inputmode="numeric"
+        class={inputClass}
+      />
+    </div>
+  )}
 
   <div>
     <label for={`${id}-message`} class="eyebrow">
@@ -136,25 +134,27 @@ const inputClass =
       required={messageRequired}
       aria-required={messageRequired ? 'true' : undefined}
       aria-describedby={messageHint ? `${id}-message-hint` : undefined}
-      class={inputClass}></textarea>
-    {
-      messageHint && (
-        <p id={`${id}-message-hint`} class="mt-1 text-sm text-text-annotation">
-          {messageHint}
-        </p>
-      )
-    }
+      class={inputClass}
+    ></textarea>
+    {messageHint && (
+      <p id={`${id}-message-hint`} class="mt-1 text-sm text-text-annotation">
+        {messageHint}
+      </p>
+    )}
   </div>
 
   <p class="text-xs text-text-annotation">
     We use what you send to reply and to email you when there is a build to try. See the
-    <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline"
-      >privacy policy</a
-    >.
+    <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline">
+      privacy policy
+    </a>
+    .
   </p>
 
   <div class="flex flex-col gap-2">
-    <button type="submit" class="btn-primary self-start" data-submit>{submitLabel}</button>
+    <button type="submit" class="btn-primary self-start" data-submit>
+      {submitLabel}
+    </button>
     <p data-status role="status" aria-live="polite" class="hidden text-sm"></p>
   </div>
 </form>

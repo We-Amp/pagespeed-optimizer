@@ -28,47 +28,45 @@ const EMPHASIZED = 'priority';
 ---
 
 <div class="grid grid-cols-1 gap-6 lg:grid-cols-3" data-tier-cards>
-  {
-    SUPPORT_TIERS.map((tier) => {
-      const featured = tier.id === EMPHASIZED;
-      return (
-        <div
-          class:list={[
-            'flex flex-col',
-            featured
-              ? 'card-featured border-t-2 border-t-interactive'
-              : 'card-product card-product-stone',
-          ]}
-          data-tier={tier.id}
-        >
-          <div class="flex flex-wrap items-center justify-between gap-2">
-            <h3 class="text-lg font-semibold text-text-body">{tier.name}</h3>
-            {featured && <Chip tone="interactive" label="Recommended" />}
-          </div>
-          <p class="mt-1 font-mono text-xs uppercase tracking-wider text-text-annotation">
-            {tier.servers}
-          </p>
-          <ul class="mt-5 flex-1 space-y-2 text-sm text-text-muted">
-            {tier.includes.map((item) => (
-              <li class="flex gap-2">
-                <Icon name="check" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
-                <span>{item}</span>
-              </li>
-            ))}
-          </ul>
-          <a
-            href={ctaHref}
-            class:list={['mt-6', featured ? 'btn-primary' : 'btn-secondary']}
-            data-umami-event="cta_commercial"
-            data-umami-event-offer="support"
-            data-umami-event-surface={surface}
-            data-umami-event-position={`tier_${tier.id}`}
-            aria-label={`${ctaLabel}: ${tier.name}`}
-          >
-            {ctaLabel} &rarr;
-          </a>
+  {SUPPORT_TIERS.map((tier) => {
+    const featured = tier.id === EMPHASIZED;
+    return (
+      <div
+        class:list={[
+          'flex flex-col',
+          featured
+            ? 'card-featured border-t-2 border-t-interactive'
+            : 'card-product card-product-stone',
+        ]}
+        data-tier={tier.id}
+      >
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h3 class="text-lg font-semibold text-text-body">{tier.name}</h3>
+          {featured && <Chip tone="interactive" label="Recommended" />}
         </div>
-      );
-    })
-  }
+        <p class="mt-1 font-mono text-xs uppercase tracking-wider text-text-annotation">
+          {tier.servers}
+        </p>
+        <ul class="mt-5 flex-1 space-y-2 text-sm text-text-muted">
+          {tier.includes.map((item) => (
+            <li class="flex gap-2">
+              <Icon name="check" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
+              <span>{item}</span>
+            </li>
+          ))}
+        </ul>
+        <a
+          href={ctaHref}
+          class:list={['mt-6', featured ? 'btn-primary' : 'btn-secondary']}
+          data-umami-event="cta_commercial"
+          data-umami-event-offer="support"
+          data-umami-event-surface={surface}
+          data-umami-event-position={`tier_${tier.id}`}
+          aria-label={`${ctaLabel}: ${tier.name}`}
+        >
+          {ctaLabel} &rarr;
+        </a>
+      </div>
+    );
+  })}
 </div>

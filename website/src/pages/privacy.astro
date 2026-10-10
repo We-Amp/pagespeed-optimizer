@@ -23,14 +23,17 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
       Effective date: September 2026 &middot; Version 2026-09
     </p>
     <p class="mt-6 text-lg text-text-muted">
-      This notice covers how the <strong>modpagespeed.com</strong> website and its services process personal
-      data, and what the software you install does with data. {VENDOR} operates several websites; this
-      page is the specific notice for modpagespeed.com. For the company-wide policy, see the
+      This notice covers how the <strong>modpagespeed.com</strong> website and its services process
+      personal data, and what the software you install does with data. {VENDOR} operates several
+      websites; this page is the specific notice for modpagespeed.com. For the company-wide policy,
+      see the
       <a
         href="https://we-amp.com/privacy/"
         class="text-interactive hover:text-interactive-hover underline"
-        >We-Amp B.V. privacy policy</a
-      >, of which this is a part.
+      >
+        We-Amp B.V. privacy policy
+      </a>
+      , of which this is a part.
     </p>
 
     <div class="mt-12 space-y-10">
@@ -42,14 +45,20 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
         </p>
         <ul class="mt-3 list-none text-text-muted space-y-1">
           <li>{VENDOR}, Castricum, the Netherlands</li>
-          <li>KvK (Chamber of Commerce): <span class="font-mono">{COMPANY_KVK}</span></li>
-          <li>VAT (BTW): <span class="font-mono">NL852784429B01</span></li>
+          <li>
+            KvK (Chamber of Commerce): <span class="font-mono">{COMPANY_KVK}</span>
+          </li>
+          <li>
+            VAT (BTW): <span class="font-mono">NL852784429B01</span>
+          </li>
           <li>
             Privacy contact:
             <a
               href="mailto:privacy@we-amp.com"
-              class="text-interactive hover:text-interactive-hover underline">privacy@we-amp.com</a
+              class="text-interactive hover:text-interactive-hover underline"
             >
+              privacy@we-amp.com
+            </a>
           </li>
         </ul>
       </div>
@@ -57,39 +66,40 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
       <!-- The software -->
       <div>
         <h2 class="text-2xl font-bold text-text-body">The software you run</h2>
-        {
-          /* TODO(counsel-T5): the predecessor-line sentence below is drafted from the relicensing
+        {/* TODO(counsel-T5): the predecessor-line sentence below is drafted from the relicensing
             decision's retirement sequence: installs sold a production license may keep polling the
             retired license-renewal endpoints, which first go inert and are decommissioned only
             after every legacy paid term expires; the hosted collection machinery was removed.
             Counsel to confirm the final wording against engineering facts — exactly which
             predecessor releases, in which license state, can still contact the retired endpoints.
-            Minimal alignment only; the rest of this notice is untouched. */
-        }
+            Minimal alignment only; the rest of this notice is untouched. */}
         <p class="mt-4 text-text-muted">
-          {PRODUCT} runs on your servers. It sends no telemetry to us and opens no outbound connection
-          of its own accord. The only traffic that leaves a host is what you, the operator, configure:
-          fetches to your own origin for the resources it optimizes and, when you enable browser analysis,
-          requests to the pages you point it at (and whatever those pages load). Your visitors&rsquo;
-          data never reaches {VENDOR}, and we have no way to see it. This is true with or without a
-          support subscription.
+          {PRODUCT} runs on your servers. It sends no telemetry to us and opens no outbound
+          connection of its own accord. The only traffic that leaves a host is what you, the
+          operator, configure: fetches to your own origin for the resources it optimizes and, when
+          you enable browser analysis, requests to the pages you point it at (and whatever those
+          pages load). Your visitors&rsquo; data never reaches {VENDOR}, and we have no way to see
+          it. This is true with or without a support subscription.
         </p>
         <p class="mt-2 text-text-muted">
-          The predecessor lines &mdash; mod_pagespeed {V1_LINE} and ModPageSpeed {V2_LINE} &mdash; behave
-          the same way for installs that run without a paid license: they never sent us anything. Installs
-          of predecessor releases sold a production license may still contact our retired license-renewal
-          endpoints; those endpoints no longer record anything and are being switched off as the last
-          legacy terms expire.
+          The predecessor lines &mdash; mod_pagespeed {V1_LINE} and ModPageSpeed {V2_LINE} &mdash;
+          behave the same way for installs that run without a paid license: they never sent us
+          anything. Installs of predecessor releases sold a production license may still contact our
+          retired license-renewal endpoints; those endpoints no longer record anything and are being
+          switched off as the last legacy terms expire.
         </p>
         <p class="mt-2 text-text-muted">
-          Because of this, for most deployments {VENDOR} is not a processor of your visitors&rsquo; data
-          at all. Where we do act as a processor for a business customer &mdash; for example during a
-          support engagement in which you share logs or configuration with us &mdash; a Data Processing
-          Agreement is available on request at
+          Because of this, for most deployments {VENDOR} is not a processor of your visitors&rsquo;
+          data at all. Where we do act as a processor for a business customer &mdash; for example
+          during a support engagement in which you share logs or configuration with us &mdash; a
+          Data Processing Agreement is available on request at
           <a
             href="mailto:privacy@we-amp.com"
-            class="text-interactive hover:text-interactive-hover underline">privacy@we-amp.com</a
-          >.
+            class="text-interactive hover:text-interactive-hover underline"
+          >
+            privacy@we-amp.com
+          </a>
+          .
         </p>
       </div>
 
@@ -144,12 +154,13 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
             <h3 class="font-semibold text-text-body">PageSpeed Insights proxy (/analyze)</h3>
             <p class="mt-2 text-text-muted">
               When you submit a URL on the
-              <a href="/analyze/" class="text-interactive hover:text-interactive-hover underline"
-                >/analyze</a
-              > page, our server forwards that URL to Google&rsquo;s PageSpeed Insights API (operated
-              by Google in the United States) and returns the result. The URL you submit may itself contain
-              personal data if you choose to enter such a URL &mdash; please don&rsquo;t. We also log
-              and rate-limit by your IP address to prevent abuse of the shared API access.
+              <a href="/analyze/" class="text-interactive hover:text-interactive-hover underline">
+                /analyze
+              </a>{' '}
+              page, our server forwards that URL to Google&rsquo;s PageSpeed Insights API (operated
+              by Google in the United States) and returns the result. The URL you submit may itself
+              contain personal data if you choose to enter such a URL &mdash; please don&rsquo;t. We
+              also log and rate-limit by your IP address to prevent abuse of the shared API access.
             </p>
             <p class="mt-2 text-sm text-text-annotation">
               Lawful basis: legitimate interest (Art. 6(1)(f) GDPR) in offering the tool and
@@ -228,8 +239,10 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
               <a
                 href="mailto:privacy@we-amp.com"
                 class="text-interactive hover:text-interactive-hover underline"
-                >privacy@we-amp.com</a
-              > (and, once we start sending updates, via the unsubscribe link in any message).
+              >
+                privacy@we-amp.com
+              </a>{' '}
+              (and, once we start sending updates, via the unsubscribe link in any message).
             </p>
           </div>
         </div>
@@ -243,28 +256,28 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
         </p>
         <ul class="mt-3 list-disc list-inside text-text-muted space-y-1">
           <li>
-            <strong>Analytics:</strong> aggregate event data is retained on a rolling basis and is not
-            tied to an identified person.
+            <strong>Analytics:</strong> aggregate event data is retained on a rolling basis and is
+            not tied to an identified person.
           </li>
           <li>
             <strong>Server access logs (including PageSpeed Insights / scanner requests):</strong>
-            access and rate-limit logs are kept short-term for abuse prevention and operations, then rotated
-            out.
+            access and rate-limit logs are kept short-term for abuse prevention and operations, then
+            rotated out.
           </li>
           <li>
-            <strong>Subscriptions, orders and invoices:</strong> retained for as long as your subscription
-            is active and afterward as required by Dutch tax law (a 7-year retention obligation applies
-            to accounting records).
+            <strong>Subscriptions, orders and invoices:</strong> retained for as long as your
+            subscription is active and afterward as required by Dutch tax law (a 7-year retention
+            obligation applies to accounting records).
           </li>
           <li>
-            <strong>Correspondence:</strong> kept as long as needed to handle your request and for a reasonable
-            period afterward.
+            <strong>Correspondence:</strong> kept as long as needed to handle your request and for a
+            reasonable period afterward.
           </li>
           <li>
-            <strong>Newsletter / marketing consent:</strong> your email address and consent record are
-            kept for as long as you remain subscribed. While we set up a dedicated email tool, these are
-            held in the interim server-side log described above; once that tool is live we migrate your
-            record to it and remove the interim copy.
+            <strong>Newsletter / marketing consent:</strong> your email address and consent record
+            are kept for as long as you remain subscribed. While we set up a dedicated email tool,
+            these are held in the interim server-side log described above; once that tool is live we
+            migrate your record to it and remove the interim copy.
           </li>
         </ul>
       </div>
@@ -293,9 +306,9 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
               </tr>
               <tr class="border-b border-border">
                 <td class="py-2 pr-4">Google Cloud (Cloud Run)</td>
-                <td class="py-2 pr-4"
-                  >Hosts the AI-readability scanner that renders submitted URLs</td
-                >
+                <td class="py-2 pr-4">
+                  Hosts the AI-readability scanner that renders submitted URLs
+                </td>
                 <td class="py-2">United States (us-central1)</td>
               </tr>
               <tr class="border-b border-border">
@@ -325,12 +338,16 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
           third-party processor.
         </p>
         <p class="mt-2 text-xs text-text-annotation">
-          GeoIP data is provided by <a
+          GeoIP data is provided by{' '}
+          <a
             href="https://db-ip.com"
             target="_blank"
             rel="noopener noreferrer"
-            class="text-interactive hover:text-interactive-hover underline">DB-IP.com</a
-          > under the Creative Commons Attribution 4.0 International License.
+            class="text-interactive hover:text-interactive-hover underline"
+          >
+            DB-IP.com
+          </a>{' '}
+          under the Creative Commons Attribution 4.0 International License.
         </p>
       </div>
 
@@ -356,8 +373,11 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
           these, email
           <a
             href="mailto:privacy@we-amp.com"
-            class="text-interactive hover:text-interactive-hover underline">privacy@we-amp.com</a
-          >. We will respond within the timeframe required by law.
+            class="text-interactive hover:text-interactive-hover underline"
+          >
+            privacy@we-amp.com
+          </a>
+          . We will respond within the timeframe required by law.
         </p>
         <p class="mt-2 text-text-muted">
           You also have the right to lodge a complaint with a supervisory authority. In the
@@ -393,8 +413,11 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
           Questions about privacy? Reach us at
           <a
             href="mailto:privacy@we-amp.com"
-            class="text-interactive hover:text-interactive-hover underline">privacy@we-amp.com</a
-          >.
+            class="text-interactive hover:text-interactive-hover underline"
+          >
+            privacy@we-amp.com
+          </a>
+          .
         </p>
       </div>
     </div>

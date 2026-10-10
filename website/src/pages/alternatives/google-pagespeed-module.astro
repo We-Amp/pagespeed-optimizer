@@ -106,8 +106,8 @@ const jsonLd = [
         The Google PageSpeed module is an open-source web server module, originally developed at
         Google, that optimizes pages as the server sends them: it rewrites HTML, CSS, JavaScript and
         images at request time. It shipped as <code>mod_pagespeed</code> for Apache and
-        <code>ngx_pagespeed</code> for nginx. The original project is archived; its maintained continuation
-        is mod_pagespeed 2.1.
+        <code>ngx_pagespeed</code> for nginx. The original project is archived; its maintained
+        continuation is mod_pagespeed 2.1.
       </p>
       <p class="mt-4 text-text-muted">
         Two different Google products share the "PageSpeed" name. One is the server-side module that
@@ -115,36 +115,43 @@ const jsonLd = [
         Here is what the module was, what continues it, and how not to confuse the two.
       </p>
       <div class="mt-6 flex flex-wrap gap-3">
-        <a href="/download/" class="btn-primary" data-umami-event="cta_alternatives_google_download"
-          >Download &amp; run</a
+        <a
+          href="/download/"
+          class="btn-primary"
+          data-umami-event="cta_alternatives_google_download"
         >
+          Download &amp; run
+        </a>
         <a
           href="/pricing/"
           data-umami-event="cta_alternatives_google_buy"
           class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-          >Support plans</a
         >
+          Support plans
+        </a>
       </div>
-      <p class="mt-3 text-sm text-text-annotation">
-        {FREE_TO_RUN_LINE}
-      </p>
+      <p class="mt-3 text-sm text-text-annotation">{FREE_TO_RUN_LINE}</p>
     </header>
 
-    <div
-      class="mt-12 prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive dark:prose-invert"
-    >
+    <div class="mt-12 prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive dark:prose-invert">
       <table tabindex="0" aria-labelledby="google-pagespeed-module-title">
-        <thead><tr><th>What</th><th>Status</th><th>What it does</th></tr></thead>
+        <thead>
+          <tr>
+            <th>What</th>
+            <th>Status</th>
+            <th>What it does</th>
+          </tr>
+        </thead>
         <tbody>
           <tr>
-            <td
-              ><strong>PageSpeed Module</strong> (<code>mod_pagespeed</code>, <code
-                >ngx_pagespeed</code
-              >)</td
-            >
+            <td>
+              <strong>PageSpeed Module</strong> (<code>mod_pagespeed</code>,{' '}
+              <code>ngx_pagespeed</code>)
+            </td>
             <td>Deprecated (last release 2020)</td>
-            <td>Server-side optimization module that rewrites HTML/CSS/JS/images at request time</td
-            >
+            <td>
+              Server-side optimization module that rewrites HTML/CSS/JS/images at request time
+            </td>
           </tr>
           <tr>
             <td>
@@ -167,8 +174,11 @@ const jsonLd = [
         Only as an archive. The original code is read-only on GitHub at
         <a
           href="https://github.com/apache/incubator-pagespeed-mod"
-          rel="noopener noreferrer external">apache/incubator-pagespeed-mod</a
-        >, and the last 1.13.35.2 binaries still install and run. They have not had a security patch
+          rel="noopener noreferrer external"
+        >
+          apache/incubator-pagespeed-mod
+        </a>
+        , and the last 1.13.35.2 binaries still install and run. They have not had a security patch
         in years, and ngx_pagespeed does not build against current nginx.
       </p>
       <p>
@@ -183,8 +193,8 @@ const jsonLd = [
       <p>
         Google released <code>mod_pagespeed</code> in 2010 as an Apache module. The
         <code>ngx_pagespeed</code> nginx port followed in 2013. The original landing page lived at
-        <code>developers.google.com/speed/pagespeed/module</code> and the code shipped under the Apache
-        2.0 license.
+        <code>developers.google.com/speed/pagespeed/module</code> and the code shipped under the
+        Apache 2.0 license.
       </p>
       <p>
         Google donated the project to the Apache Software Foundation in 2017. The Apache Incubator
@@ -192,8 +202,11 @@ const jsonLd = [
         archived code now lives at
         <a
           href="https://github.com/apache/incubator-pagespeed-mod"
-          rel="noopener noreferrer external">apache/incubator-pagespeed-mod</a
-        >.
+          rel="noopener noreferrer external"
+        >
+          apache/incubator-pagespeed-mod
+        </a>
+        .
       </p>
       <p>
         The archived 1.13.35.2 binaries still install and still run. They also haven't received a
@@ -224,13 +237,13 @@ const jsonLd = [
       </p>
       <p>
         With the Apache module or the reverse-proxy deployment, the <code>pagespeed-optimizer</code>
-        worker runs alongside and takes the heavy work off the request path: image transcoding, critical
-        CSS, SVG auto-vectorization, ML-predicted image quality, and the variant-aware cache the module
-        then serves from with zero-copy <code>mmap</code>. Up to 37 variants per asset are generated
-        per client capability. On the deb and rpm channels the module and the worker install and
-        upgrade together as a matching pair, and a version mismatch between them is reported loudly
-        rather than absorbed. The native nginx module runs on its own; to use the optimizer worker
-        with nginx, run the reverse-proxy deployment.
+        worker runs alongside and takes the heavy work off the request path: image transcoding,
+        critical CSS, SVG auto-vectorization, ML-predicted image quality, and the variant-aware
+        cache the module then serves from with zero-copy <code>mmap</code>. Up to 37 variants per
+        asset are generated per client capability. On the deb and rpm channels the module and the
+        worker install and upgrade together as a matching pair, and a version mismatch between them
+        is reported loudly rather than absorbed. The native nginx module runs on its own; to use the
+        optimizer worker with nginx, run the reverse-proxy deployment.
       </p>
 
       <pre><code>{`# Apache — the native mod_pagespeed 2.1 module
@@ -243,28 +256,34 @@ ModPagespeed on`}</code></pre>
         version to bet on:
       </p>
       <table>
-        <thead><tr><th>Your stack</th><th>How mod_pagespeed 2.1 installs</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Your stack</th>
+            <th>How mod_pagespeed 2.1 installs</th>
+          </tr>
+        </thead>
         <tbody>
           <tr>
             <td>Apache httpd 2.4+</td>
-            <td
-              >Native in-process module from the signed
-              <code>packages.modpagespeed.com</code> repository, with the worker as a matching package</td
-            >
+            <td>
+              Native in-process module from the signed
+              <code>packages.modpagespeed.com</code> repository, with the worker as a matching
+              package
+            </td>
           </tr>
           <tr>
             <td>nginx on Debian, Ubuntu, or Enterprise Linux</td>
-            <td
-              >Native dynamic module from the same signed repository, built against your
-              distribution's stock nginx &mdash; no rebuild, no traffic detour</td
-            >
+            <td>
+              Native dynamic module from the same signed repository, built against your
+              distribution's stock nginx &mdash; no rebuild, no traffic detour
+            </td>
           </tr>
           <tr>
             <td>Containers, in front of any HTTP origin</td>
-            <td
-              >The Docker / nginx reverse proxy: the nginx and worker images sharing a Cyclone cache
-              volume, with your origin untouched behind them</td
-            >
+            <td>
+              The Docker / nginx reverse proxy: the nginx and worker images sharing a Cyclone cache
+              volume, with your origin untouched behind them
+            </td>
           </tr>
           <tr>
             <td>Kubernetes</td>
@@ -276,8 +295,8 @@ ModPagespeed on`}</code></pre>
         Three further integrations are available separately, outside those packages. The IIS package
         ships from the 1.15 packaging channel. For ASP.NET Core there is the
         <code>WeAmp.PageSpeed.AspNetCore</code> middleware, added in two lines of
-        <code>Program.cs</code>, and the <code>WeAmp.PageSpeed.Sidecar</code> package, which runs a bundled
-        nginx optimizer on loopback behind your Kestrel app.
+        <code>Program.cs</code>, and the <code>WeAmp.PageSpeed.Sidecar</code> package, which runs a
+        bundled nginx optimizer on loopback behind your Kestrel app.
       </p>
 
       <pre><code>{`# ASP.NET Core — the middleware package
@@ -285,9 +304,12 @@ dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
 
       <h2>PageSpeed Insights is a different product</h2>
       <p>
-        <a href="https://pagespeed.web.dev/" rel="noopener noreferrer">pagespeed.web.dev</a> is Google's
-        Lighthouse-powered diagnostic tool. It loads a URL in a headless Chrome, scores it on Core Web
-        Vitals (LCP, INP, CLS) and a long list of best-practice audits, and returns suggestions.
+        <a href="https://pagespeed.web.dev/" rel="noopener noreferrer">
+          pagespeed.web.dev
+        </a>{' '}
+        is Google's Lighthouse-powered diagnostic tool. It loads a URL in a headless Chrome, scores
+        it on Core Web Vitals (LCP, INP, CLS) and a long list of best-practice audits, and returns
+        suggestions.
       </p>
       <p>
         PSI is not deprecated. It's still actively maintained and still the canonical reference for
@@ -298,7 +320,10 @@ dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
       <p>PSI and mod_pagespeed are complementary, not competing:</p>
       <table>
         <thead>
-          <tr><th>PSI (diagnostic)</th><th>mod_pagespeed 2.1 (server-side fix)</th></tr>
+          <tr>
+            <th>PSI (diagnostic)</th>
+            <th>mod_pagespeed 2.1 (server-side fix)</th>
+          </tr>
         </thead>
         <tbody>
           <tr>
@@ -311,8 +336,9 @@ dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
           </tr>
           <tr>
             <td>Flags "Properly size images"</td>
-            <td>Generates viewport-matched variants &mdash; 480px for mobile, 1280px for desktop</td
-            >
+            <td>
+              Generates viewport-matched variants &mdash; 480px for mobile, 1280px for desktop
+            </td>
           </tr>
           <tr>
             <td>Flags "Minify CSS/JS"</td>
@@ -332,30 +358,42 @@ dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
 
       <h2>Which one fits</h2>
       <table>
-        <thead><tr><th>You're looking for</th><th>Use</th></tr></thead>
+        <thead>
+          <tr>
+            <th>You're looking for</th>
+            <th>Use</th>
+          </tr>
+        </thead>
         <tbody>
           <tr>
             <td>A server-side optimization module to fix Core Web Vitals</td>
-            <td><a href="/">mod_pagespeed 2.1</a></td>
+            <td>
+              <a href="/">mod_pagespeed 2.1</a>
+            </td>
           </tr>
           <tr>
             <td>To know whether a URL passes Core Web Vitals</td>
             <td>
-              <a href="https://pagespeed.web.dev/" rel="noopener noreferrer">PageSpeed Insights</a>
+              <a href="https://pagespeed.web.dev/" rel="noopener noreferrer">
+                PageSpeed Insights
+              </a>
             </td>
           </tr>
-          <tr><td>Both</td><td>Run PSI before and after deploying mod_pagespeed</td></tr>
+          <tr>
+            <td>Both</td>
+            <td>Run PSI before and after deploying mod_pagespeed</td>
+          </tr>
         </tbody>
       </table>
 
       <h2>A maintained, drop-in alternative to the Google PageSpeed module</h2>
       <p>
         If you arrived here because the module you were running is no longer maintained &mdash; the
-        archived <code>mod_pagespeed</code> or <code>ngx_pagespeed</code> binaries won't build against
-        a newer nginx or Apache, the version-pinned <code>.so</code> stopped loading after an upgrade,
-        or the GitHub repositories went read-only &mdash; the directly comparable alternative to the deprecated
-        Google PageSpeed module is a maintained continuation of the same module, not a different category
-        of tool.
+        archived <code>mod_pagespeed</code> or <code>ngx_pagespeed</code> binaries won't build
+        against a newer nginx or Apache, the version-pinned <code>.so</code> stopped loading after
+        an upgrade, or the GitHub repositories went read-only &mdash; the directly comparable
+        alternative to the deprecated Google PageSpeed module is a maintained continuation of the
+        same module, not a different category of tool.
       </p>
       <p>
         That continuation is mod_pagespeed 2.1, developed by We-Amp B.V. (the team that helped build
@@ -370,26 +408,24 @@ dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
         If you're standing up a new deployment rather than rescuing an old one, the same product has
         a container-native shape: the Docker / nginx reverse proxy in front of any HTTP origin, with
         the optimizer worker doing SVG auto-vectorization and
-        <a href="/features/">variant-aware caching and image optimization</a> off the request path. Either
-        way the lineage is continuous: this is the maintained version of the module you were already running,
-        kept self-hosted rather than moved behind a CDN.
+        <a href="/features/">variant-aware caching and image optimization</a> off the request path.
+        Either way the lineage is continuous: this is the maintained version of the module you were
+        already running, kept self-hosted rather than moved behind a CDN.
       </p>
       <p>
-        Looking instead for a tool to <em>measure</em> a URL's score, a PageSpeed Insights or GTmetrix-style
-        report? That's a different job, and the module isn't it. Head to
-        <a href="/analyze/">our analyzer</a> for testing intent; this page is about the server-side optimization
-        software that fixes what those reports flag.
+        Looking instead for a tool to <em>measure</em> a URL's score, a PageSpeed Insights or
+        GTmetrix-style report? That's a different job, and the module isn't it. Head to
+        <a href="/analyze/">our analyzer</a> for testing intent; this page is about the server-side
+        optimization software that fixes what those reports flag.
       </p>
 
       <h2>Frequently asked questions</h2>
-      {
-        faq.map((entry) => (
-          <>
-            <h3>{entry.q}</h3>
-            {entry.html ? <p set:html={entry.html} /> : <p>{entry.a}</p>}
-          </>
-        ))
-      }
+      {faq.map((entry) => (
+        <>
+          <h3>{entry.q}</h3>
+          {entry.html ? <p set:html={entry.html} /> : <p>{entry.a}</p>}
+        </>
+      ))}
 
       <h2>Get mod_pagespeed</h2>
       <p>
@@ -399,9 +435,10 @@ dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
       <ul>
         <li>
           <strong>Native module (Apache, nginx)</strong> &mdash;
-          <a href="https://packages.modpagespeed.com/" rel="noopener noreferrer external"
-            >package repos</a
-          > &middot; <a href="/download/apt-yum/">apt / yum install</a>
+          <a href="https://packages.modpagespeed.com/" rel="noopener noreferrer external">
+            package repos
+          </a>{' '}
+          &middot; <a href="/download/apt-yum/">apt / yum install</a>
         </li>
         <li>
           <strong>Docker and Kubernetes</strong> &mdash;
@@ -419,18 +456,24 @@ dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
       <h2>Related</h2>
       <ul>
         <li>
-          <a href="/mod-pagespeed-still-maintained/"
-            >Is mod_pagespeed still maintained? &mdash; the current state of the project</a
-          >
+          <a href="/mod-pagespeed-still-maintained/">
+            Is mod_pagespeed still maintained? &mdash; the current state of the project
+          </a>
         </li>
         <li>
-          <a href="/blog/mod-pagespeed-deprecated-2026/"
-            >Is mod_pagespeed deprecated? &mdash; what changed and what to use</a
-          >
+          <a href="/blog/mod-pagespeed-deprecated-2026/">
+            Is mod_pagespeed deprecated? &mdash; what changed and what to use
+          </a>
         </li>
-        <li><a href="/alternatives/mod-pagespeed/">mod_pagespeed alternative</a></li>
-        <li><a href="/alternatives/ngx-pagespeed/">ngx_pagespeed alternative</a></li>
-        <li><a href="/alternatives/iispeed/">IISpeed alternative</a></li>
+        <li>
+          <a href="/alternatives/mod-pagespeed/">mod_pagespeed alternative</a>
+        </li>
+        <li>
+          <a href="/alternatives/ngx-pagespeed/">ngx_pagespeed alternative</a>
+        </li>
+        <li>
+          <a href="/alternatives/iispeed/">IISpeed alternative</a>
+        </li>
       </ul>
 
       <p class="text-xs text-text-annotation">
