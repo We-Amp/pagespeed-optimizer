@@ -15,6 +15,7 @@ import {
   speedStatus,
   type TileStatus,
 } from '../../lib/scan/status';
+import { renderAireadPanel } from './panels/airead';
 
 type Pillar = 'speed' | 'airead' | 'risk';
 type Strategy = 'mobile' | 'desktop';
@@ -109,7 +110,7 @@ function renderNotMeasured(panel: HTMLElement, ctx: PanelContext) {
 }
 export const renderPanel: Record<Pillar, PanelRenderer> = {
   speed: renderNotMeasured,
-  airead: renderNotMeasured,
+  airead: renderAireadPanel,
   risk: renderNotMeasured,
 };
 
