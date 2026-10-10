@@ -59,6 +59,54 @@ describe('riskStatus', () => {
   });
 });
 
+describe('riskStatus: k and n', () => {
+  const ok = (verdict: string) => ({ status: 'ok', verdict });
+  it('shrinks k when a lens is disabled or missing', () => {
+    const r = riskStatus({
+      preConsentLeak: ok('clean'),
+      scriptInventory: { status: 'disabled', verdict: 'unknown' },
+      seoDefects: ok('attention'),
+    });
+    expect(r.value).toBe('1 of 2 checks flagged');
+  });
+  it('excludes a verdict of unknown, a missing verdict and non-ok statuses from k', () => {
+    const r = riskStatus({
+      preConsentLeak: ok('unknown'),
+      scriptInventory: { status: 'ok' },
+      seoDefects: { status: 'blocked', verdict: 'attention' },
+      responseExposure: ok('attention'),
+    });
+    expect(r).toMatchObject({
+      state: 'flagged',
+      word: '1 flagged',
+      value: '1 of 1 checks flagged',
+    });
+  });
+  it('is not measured when every lens is blocked, errored, disabled or unknown', () => {
+    expect(
+      riskStatus({
+        preConsentLeak: { status: 'blocked', verdict: 'unknown' },
+        scriptInventory: { status: 'error', reason: 'x' },
+        seoDefects: { status: 'disabled', verdict: 'unknown' },
+        responseExposure: ok('unknown'),
+      }),
+    ).toEqual(NOT_MEASURED);
+    expect(riskStatus({})).toEqual(NOT_MEASURED);
+  });
+  it('counts n across all four lenses', () => {
+    const r = riskStatus({
+      preConsentLeak: ok('leaks'),
+      scriptInventory: ok('attention'),
+      seoDefects: ok('attention'),
+      responseExposure: ok('clean'),
+    });
+    expect(r).toMatchObject({ word: '3 flagged', value: '3 of 4 checks flagged' });
+  });
+  it('treats a leaks verdict only as flagged for the pre-consent lens', () => {
+    expect(riskStatus({ scriptInventory: ok('leaks') }).state).toBe('clean');
+  });
+});
+
 describe('healthLine', () => {
   const good = speedStatus(95, 95);
   const poor = speedStatus(20, 20);

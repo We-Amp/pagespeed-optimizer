@@ -17,6 +17,7 @@ import {
 } from '../../lib/scan/status';
 import { renderAireadPanel } from './panels/airead';
 import { initLeadForm } from './lead-form';
+import { renderRisk } from './panels/risk';
 import {
   classifyError,
   isMappingFailed,
@@ -127,6 +128,7 @@ export const renderPanel: Record<Pillar, PanelRenderer> = {
   airead: renderAireadPanel,
   risk: renderNotMeasured,
 };
+renderPanel.risk = renderRisk;
 
 /** The latest run's raw results, for the renderers and for tests. */
 export const state: {
