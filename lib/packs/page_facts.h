@@ -37,7 +37,15 @@ struct ElementFact {
 // read once at the end of the document.
 struct PageFacts {
   net_instaweb::HtmlElement* head = nullptr;  // first explicit <head>
-  std::string base_href;                      // first <base href>, decoded
+  // Where the logical <head> ends when the document does not close it with
+  // </head>: the first element that cannot be head content (usually <body>).
+  // Inserts go before it. Null when </head> (or the end of the document)
+  // closes the head.
+  net_instaweb::HtmlElement* insert_before = nullptr;
+  // The head cannot be edited safely (an inert element such as <svg> is
+  // still open where the head ends).
+  bool malformed_head = false;
+  std::string base_href;  // first <base href>, decoded
   std::vector<ElementFact> canonicals;
   std::vector<ElementFact> titles;
   std::vector<ElementFact> descriptions;

@@ -70,8 +70,11 @@ std::string DecisionsToJsonl(std::string_view host, std::string_view path,
 struct CaseRun {
   std::string input_html;
   std::string url;
-  RunResult enforce;     // global mode as the request says
-  RunResult report;      // forced report-only
+  RunResult enforce;  // global mode as the request says
+  RunResult report;   // forced report-only
+  // The input through the writer with no pack: what "unchanged" looks like,
+  // since the kernel re-serializes some tag whitespace.
+  RunResult roundtrip;
   RunResult idempotent;  // `enforce` output run again
   // Output under each pass variant (global mode as the request says).
   RunResult other_transforms;

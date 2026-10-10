@@ -26,6 +26,7 @@ enum class SkipReason {
   kNone,
   kHostNotListed,
   kNoHead,
+  kMalformedHead,
   kNotRewritable,
   kSizeLimit,
   kError,
@@ -67,8 +68,16 @@ struct Plan {
 // The page is skipped whole (no rule plans) when its host is not listed, when
 // no explicit <head> exists, or when the bytes to add exceed
 // `max_added_bytes`.
+//
+// `extra_bytes_per_change` is added to the byte count of every insert or
+// value change (room for the debug comment the filter may write).
 Plan BuildPlan(const Pack& pack, const PageContext& ctx, const PageFacts& facts,
-               size_t max_added_bytes = kMaxAddedBytesPerPage);
+               size_t max_added_bytes = kMaxAddedBytesPerPage,
+               size_t extra_bytes_per_change = 0);
+
+// Escapes `s` for use as an attribute value (inside double quotes): & < > "
+// and ' only, so UTF-8 passes through untouched.
+std::string EscapeAttributeValue(std::string_view s);
 
 // Whitespace-collapses (ASCII whitespace runs become one space, ends
 // trimmed). Exposed for the filter and tests.

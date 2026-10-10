@@ -13,6 +13,7 @@
 
 #include "lib/html/empty_html_filter.h"
 #include "lib/html/html_element.h"
+#include "lib/html/html_name.h"
 #include "lib/html/html_node.h"
 #include "lib/html/html_parse.h"
 #include "lib/packs/decision.h"
@@ -45,6 +46,11 @@ struct PackFilterOptions {
 // that is no longer rewritable at that point makes the filter drop the whole
 // plan and leave the page untouched.
 //
+// The head ends at </head>, at <body>, or at the first element that cannot be
+// head content, whichever comes first; inserts go there. If an inert element
+// (svg, noscript, ...) is still open at that point the page is skipped
+// (kMalformedHead).
+//
 // A rule changes the HTML only when its effective mode is `enforce`
 // (the lowest of the global mode, the matching site's mode and the rule's
 // own opt-in). Otherwise the filter still records what the rule would do in
@@ -67,7 +73,9 @@ class PackFilter : public net_instaweb::EmptyHtmlFilter {
   void Characters(net_instaweb::HtmlCharactersNode* characters) override;
   void EndDocument() override;
 
-  // True when the filter changed the document.
+  // True when the filter changed the document. When false the caller serves
+  // the ORIGINAL bytes: the kernel re-serializes some tag whitespace, so the
+  // filter's own output can differ from the input without any rule acting.
   bool modified() const { return modified_; }
   // True when at least one rule has something to do on this page, whatever
   // its mode (an enforcing rule that did it, or a report-only rule that
@@ -85,8 +93,12 @@ class PackFilter : public net_instaweb::EmptyHtmlFilter {
   void ApplyOp(const Rule& rule, const PackDecision& decision,
                const PlanOp& op);
   void AddDebugComment(const Rule& rule, const PackDecision& decision,
-                       net_instaweb::HtmlElement* before,
-                       net_instaweb::HtmlElement* head);
+                       net_instaweb::HtmlElement* before);
+  void EndLogicalHead(net_instaweb::HtmlElement* ender);
+  void InsertAtHeadEnd(net_instaweb::HtmlNode* node);
+  void SetEscaped(net_instaweb::HtmlElement* el,
+                  net_instaweb::HtmlName::Keyword kw,
+                  const std::string& escaped);
 
   net_instaweb::HtmlParse* parser_;
   std::shared_ptr<const Pack> pack_;
@@ -98,7 +110,7 @@ class PackFilter : public net_instaweb::EmptyHtmlFilter {
   PageFacts facts_;
   std::vector<net_instaweb::HtmlElement*> inert_;
   net_instaweb::HtmlElement* open_head_ = nullptr;
-  ElementFact* open_title_ = nullptr;
+  int open_title_ = -1;  // index into facts_.titles
   std::string open_title_raw_;
 
   bool modified_ = false;

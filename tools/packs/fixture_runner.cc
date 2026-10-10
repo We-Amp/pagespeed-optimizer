@@ -143,6 +143,10 @@ absl::StatusOr<CaseRun> RunCase(const std::string& fixtures_dir,
   if (!r1.ok()) return r1.status();
   run.enforce = *std::move(r1);
 
+  auto rt = RunPackOnHtml(nullptr, run.url, run.input_html, opts);
+  if (!rt.ok()) return rt.status();
+  run.roundtrip = *std::move(rt);
+
   RunOptions report = opts;
   report.global_mode = Mode::kReport;
   auto r2 = RunPackOnHtml(pack, run.url, run.input_html, report);

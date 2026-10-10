@@ -41,3 +41,8 @@ bazel run //tools/packs:fixture_runner -- --update "$PWD/packs/edge-seo/fixtures
 - `HtmlKeywords::Init()` must have run before entity decoding; `BuildPlan()` calls it (idempotent).
 - Elements inside svg, math, template, noscript, noembed and noframes are ignored; a page without an explicit `<head>` is skipped.
 - Decision `old`/`new` are FNV-1a hashes of the normalized values, never text.
+- Attribute values: the kernel's decoded value is empty for non-ASCII bytes and for entities such as `&eacute;`. The filter reads `EscapedAttributeValue()` and decodes it with `SafeDecodeHtmlEntities()`, and writes with `AddEscapedAttribute`/`SetEscapedValue` after escaping only `& < > \" '` (`EscapeAttributeValue`), so UTF-8 survives. An entity-encoded value that `SafeDecodeHtmlEntities` cannot decode to UTF-8 (`&eacute;`) compares as written, so under `replace` it is rewritten even if it means the same text.
+- Every pack write sets the attribute's quote style to double quotes; an unquoted attribute otherwise stays unquoted around a value that may hold spaces or quotes.
+- An element with other `rel` tokens (`rel="canonical alternate"`) is never rewritten in place: the `canonical` token is removed and a new element is inserted.
+- A `<head>` the source never closes ends at `<body>` or the first element that is not head content; inserts go before that element. If an inert element (svg, noscript, ...) is still open there, the page is skipped (`malformed_head`).
+- The kernel re-serializes some tag whitespace (`<head  >`, `<TITLE >`). When `modified()` is false the caller must serve the original bytes, not the filter's output.

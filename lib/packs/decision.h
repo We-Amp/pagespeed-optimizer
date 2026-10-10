@@ -4,6 +4,7 @@
 #ifndef PAGESPEED_LIB_PACKS_DECISION_H_
 #define PAGESPEED_LIB_PACKS_DECISION_H_
 
+#include <cstddef>
 #include <string>
 #include <string_view>
 
@@ -33,8 +34,9 @@ enum class Reason {
 std::string_view ActionName(Action action);
 std::string_view ReasonName(Reason reason);
 
-// One rule's decision on one page. Values are recorded as hashes only, never
-// as text, so a decision log cannot leak page or rule content.
+// One rule's decision on one page. The value that was on the page is recorded
+// as a hash only, never as text; the value the rule puts there comes from the
+// pack, never from the page, and is recorded as text.
 struct PackDecision {
   std::string rule_id;
   Kind kind = Kind::kCanonical;
@@ -46,19 +48,26 @@ struct PackDecision {
   // The defect id (as the SEO-defects lens names it) this decision clears or
   // observes; empty when the situation is not a lens defect.
   std::string defect;
-  // Hash of the value before and after; empty when there was none.
-  std::string old_hash;
-  std::string new_hash;
+  // Hash of the value that was on the page; empty when there was none.
+  std::string before_hash;
+  // The value the rule sets (pack-derived), at most kMaxAfterBytes bytes;
+  // empty when the decision sets nothing.
+  std::string after;
 
   bool operator==(const PackDecision&) const = default;
 };
 
 // Stable 64-bit FNV-1a of `value`, as "fnv1a64:" plus 16 lowercase hex
 // digits. Deterministic across runs and platforms (no per-process seed).
+// Cuts `value` to at most `max_bytes` bytes without splitting a UTF-8
+// sequence.
+inline constexpr size_t kMaxAfterBytes = 200;
+std::string TruncateUtf8(std::string_view value, size_t max_bytes);
+
 std::string HashValue(std::string_view value);
 
 // One JSON object, no trailing newline, keys in a fixed order:
-// host, path, rule, kind, mode, action, reason, defect, old, new. The path
+// host, path, rule, kind, mode, action, reason, defect, before, after. The path
 // is cut to 300 bytes. Contains no timestamp: the caller adds `ts`.
 std::string DecisionToJsonLine(std::string_view host, std::string_view path,
                                const PackDecision& decision);

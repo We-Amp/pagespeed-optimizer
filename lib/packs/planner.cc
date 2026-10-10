@@ -30,6 +30,8 @@ std::string_view SkipReasonName(SkipReason reason) {
       return "host_not_listed";
     case SkipReason::kNoHead:
       return "no_head";
+    case SkipReason::kMalformedHead:
+      return "malformed_head";
     case SkipReason::kNotRewritable:
       return "not_rewritable";
     case SkipReason::kSizeLimit:
@@ -85,6 +87,33 @@ std::string RemoveDotSegments(std::string_view s) {
 }
 
 }  // namespace
+
+std::string EscapeAttributeValue(std::string_view s) {
+  std::string out;
+  out.reserve(s.size());
+  for (char c : s) {
+    switch (c) {
+      case '&':
+        out += "&amp;";
+        break;
+      case '<':
+        out += "&lt;";
+        break;
+      case '>':
+        out += "&gt;";
+        break;
+      case '"':
+        out += "&quot;";
+        break;
+      case '\'':
+        out += "&#39;";
+        break;
+      default:
+        out.push_back(c);
+    }
+  }
+  return out;
+}
 
 std::string CollapseWhitespace(std::string_view s) {
   std::string out;
@@ -147,6 +176,8 @@ struct Target {
   // What it compares as: NormUrl() for a canonical, the whitespace-collapsed
   // decoded text otherwise.
   std::string norm;
+  // The value as text, for the decision log.
+  std::string logical;
 };
 
 std::string LogicalText(Kind kind, std::string_view value) {
@@ -227,6 +258,7 @@ Target ComputeTarget(const Pack& pack, const Rule& rule, const RuleHit& hit,
       return t;
     }
   }
+  t.logical = kind == Kind::kCanonical ? raw : t.norm;
   t.value = std::move(raw);
   t.status = TargetStatus::kOk;
   return t;
@@ -241,6 +273,10 @@ struct Cand {
   std::string norm;     // empty when blank or unparsable
   bool blank = false;   // no value at all
   bool usable = false;  // in <head> and carries a valid value
+  // In <head> and safe to rewrite in place: an element with other rel tokens
+  // (an alternate link, say) is never reused, because its other meaning would
+  // change with its href.
+  bool reusable = false;
 };
 
 std::vector<Cand> MakeCands(Kind kind, const std::vector<ElementFact>& facts,
@@ -262,6 +298,7 @@ std::vector<Cand> MakeCands(Kind kind, const std::vector<ElementFact>& facts,
       c.blank = c.norm.empty();
     }
     c.usable = f.in_head && !c.norm.empty();
+    c.reusable = f.in_head && f.other_rel_tokens.empty();
     out.push_back(std::move(c));
   }
   return out;
@@ -284,6 +321,12 @@ std::string UnusableDefect(Kind kind) {
 Reason UnusableReason(const Cand& c) {
   if (c.blank) return Reason::kEmpty;
   return c.fact->in_head ? Reason::kUnusable : Reason::kOutOfHead;
+}
+
+// Why a new element is inserted although one exists.
+Reason InsertReason(const Cand& c) {
+  if (c.blank) return Reason::kEmpty;
+  return c.fact->in_head ? Reason::kPresent : Reason::kOutOfHead;
 }
 
 PlanOp RemoveOp(Kind kind, const Cand& c) {
@@ -331,7 +374,7 @@ void Finish(RulePlan* rp, Action action, Reason reason, std::string defect) {
 void SetOldHash(RulePlan* rp, const std::vector<Cand>& cands) {
   for (const Cand& c : cands) {
     if (!c.norm.empty()) {
-      rp->decision.old_hash = HashValue(c.norm);
+      rp->decision.before_hash = HashValue(c.norm);
       return;
     }
   }
@@ -366,13 +409,14 @@ void PlanKeep(Kind kind, const std::vector<Cand>& cands, const Target& t,
   }
   const size_t distinct = keeper.size();
   if (removed > 0) {
-    rp->decision.old_hash = HashValue(old_norm);
+    rp->decision.before_hash = HashValue(old_norm);
     Finish(rp, Action::kDedupe, Reason::kDuplicate,
            distinct > 1 ? MultipleDefect(kind) : std::string());
   } else if (distinct > 1) {
     Finish(rp, Action::kNone, Reason::kConflict, MultipleDefect(kind));
   } else if (distinct == 0) {
-    Finish(rp, Action::kNone, Reason::kEmpty, UnusableDefect(kind));
+    // Only blank elements: keep stands down, as for any present element.
+    Finish(rp, Action::kNone, Reason::kPresent, UnusableDefect(kind));
   } else if (keeper.begin()->first == t.norm) {
     Finish(rp, Action::kNone, Reason::kEqual, std::string());
   } else {
@@ -400,7 +444,7 @@ void PlanRepair(Kind kind, const std::vector<Cand>& cands, const Target& t,
     // place; otherwise add one. Everything else goes.
     const Cand* reuse = nullptr;
     for (const Cand& c : cands) {
-      if (c.fact->in_head) {
+      if (c.reusable) {
         reuse = &c;
         break;
       }
@@ -411,14 +455,15 @@ void PlanRepair(Kind kind, const std::vector<Cand>& cands, const Target& t,
     if (reuse != nullptr) {
       rp->ops.insert(rp->ops.begin(), SetOp(kind, *reuse, t));
       if (!reuse->norm.empty()) {
-        rp->decision.old_hash = HashValue(reuse->norm);
+        rp->decision.before_hash = HashValue(reuse->norm);
       }
       Finish(rp, reuse->blank ? Action::kFill : Action::kReplace,
              UnusableReason(*reuse), UnusableDefect(kind));
     } else {
       rp->ops.push_back(InsertOp(kind, t));
       SetOldHash(rp, cands);
-      Finish(rp, Action::kReplace, Reason::kOutOfHead, UnusableDefect(kind));
+      Finish(rp, Action::kReplace, InsertReason(cands.front()),
+             UnusableDefect(kind));
     }
     return;
   }
@@ -445,7 +490,7 @@ void PlanRepair(Kind kind, const std::vector<Cand>& cands, const Target& t,
            std::string());
     return;
   }
-  rp->decision.old_hash = HashValue(old_norm);
+  rp->decision.before_hash = HashValue(old_norm);
   if (conflict) {
     Finish(rp, Action::kRemove, Reason::kConflict, MultipleDefect(kind));
   } else if (unusable) {
@@ -468,7 +513,7 @@ void PlanReplace(Kind kind, const std::vector<Cand>& cands, const Target& t,
   const Cand* reuse = nullptr;   // else the first element in <head>
   for (const Cand& c : cands) {
     if (keeper == nullptr && c.fact->in_head && c.norm == t.norm) keeper = &c;
-    if (reuse == nullptr && c.fact->in_head) reuse = &c;
+    if (reuse == nullptr && c.reusable) reuse = &c;
   }
   const Cand* kept = keeper != nullptr ? keeper : reuse;
   bool distinct_removed = false;
@@ -484,7 +529,7 @@ void PlanReplace(Kind kind, const std::vector<Cand>& cands, const Target& t,
     if (rp->ops.empty()) {
       Finish(rp, Action::kNone, Reason::kEqual, std::string());
     } else {
-      rp->decision.old_hash = HashValue(old_norm);
+      rp->decision.before_hash = HashValue(old_norm);
       Finish(rp, distinct_removed ? Action::kRemove : Action::kDedupe,
              distinct_removed ? Reason::kConflict : Reason::kDuplicate,
              distinct_removed ? MultipleDefect(kind) : std::string());
@@ -493,7 +538,7 @@ void PlanReplace(Kind kind, const std::vector<Cand>& cands, const Target& t,
   }
   if (reuse != nullptr) {
     rp->ops.insert(rp->ops.begin(), SetOp(kind, *reuse, t));
-    if (!reuse->norm.empty()) rp->decision.old_hash = HashValue(reuse->norm);
+    if (!reuse->norm.empty()) rp->decision.before_hash = HashValue(reuse->norm);
     std::string defect = multiple ? MultipleDefect(kind) : std::string();
     if (defect.empty() && !reuse->usable) defect = UnusableDefect(kind);
     Finish(rp, reuse->blank ? Action::kFill : Action::kReplace,
@@ -502,14 +547,22 @@ void PlanReplace(Kind kind, const std::vector<Cand>& cands, const Target& t,
   }
   rp->ops.push_back(InsertOp(kind, t));
   SetOldHash(rp, cands);
-  Finish(rp, Action::kReplace, Reason::kOutOfHead, UnusableDefect(kind));
+  // (Only elements that cannot be reused get here: they sit outside <head>
+  // or carry other rel tokens; a usable value is not a defect.)
+  Finish(rp, Action::kReplace, InsertReason(cands.front()),
+         cands.front().usable ? std::string() : UnusableDefect(kind));
 }
 
-size_t AddedBytes(const RulePlan& rp) {
+// Bytes the plan adds to the page, counted after escaping (a title's value is
+// already escaped).
+size_t AddedBytes(const RulePlan& rp, size_t extra) {
   size_t n = 0;
   for (const PlanOp& op : rp.ops) {
-    if (op.type == OpType::kInsert) n += op.value.size() + 48;
-    if (op.type == OpType::kSetValue) n += op.value.size();
+    if (op.type != OpType::kInsert && op.type != OpType::kSetValue) continue;
+    const size_t value = op.kind == Kind::kTitle
+                             ? op.value.size()
+                             : EscapeAttributeValue(op.value).size();
+    n += value + extra + (op.type == OpType::kInsert ? 64 : 0);
   }
   return n;
 }
@@ -517,7 +570,7 @@ size_t AddedBytes(const RulePlan& rp) {
 }  // namespace
 
 Plan BuildPlan(const Pack& pack, const PageContext& ctx, const PageFacts& facts,
-               size_t max_added_bytes) {
+               size_t max_added_bytes, size_t extra_bytes_per_change) {
   Plan plan;
   // Entity decoding needs the keyword tables; initialization is idempotent.
   net_instaweb::HtmlKeywords::Init();
@@ -533,6 +586,10 @@ Plan BuildPlan(const Pack& pack, const PageContext& ctx, const PageFacts& facts,
     if (sel.by_kind[static_cast<int>(kind)].has_value()) any = true;
   }
   if (!any) return plan;
+  if (facts.malformed_head) {
+    plan.skip = SkipReason::kMalformedHead;
+    return plan;
+  }
   if (facts.head == nullptr) {
     plan.skip = SkipReason::kNoHead;
     return plan;
@@ -583,10 +640,10 @@ Plan BuildPlan(const Pack& pack, const PageContext& ctx, const PageFacts& facts,
     }
     for (const PlanOp& op : rp.ops) {
       if (op.type == OpType::kInsert || op.type == OpType::kSetValue) {
-        rp.decision.new_hash = HashValue(target.norm);
+        rp.decision.after = TruncateUtf8(target.logical, kMaxAfterBytes);
       }
     }
-    plan.added_bytes += AddedBytes(rp);
+    plan.added_bytes += AddedBytes(rp, extra_bytes_per_change);
     plan.rules.push_back(std::move(rp));
   }
 

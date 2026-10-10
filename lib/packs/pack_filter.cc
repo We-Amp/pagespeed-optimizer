@@ -18,6 +18,7 @@
 #include "lib/html/html_name.h"
 #include "lib/html/safe_entity_decode.h"
 #include "lib/packs/matcher.h"
+#include "lib/packs/planner.h"
 
 namespace pagespeed::packs {
 
@@ -51,6 +52,37 @@ std::optional<PageUrl> ParsePageUrl(std::string_view url) {
 
 namespace {
 
+// Decoded value of an attribute, tolerant of non-ASCII bytes and entities:
+// the kernel's own decoded value is empty for those, so the escaped value is
+// read and decoded here. `present` is false when the attribute is absent or
+// has no value.
+std::string AttrValue(const HtmlElement* element, HtmlName::Keyword kw,
+                      bool* present = nullptr) {
+  const char* escaped = element->EscapedAttributeValue(kw);
+  if (present != nullptr) *present = escaped != nullptr;
+  if (escaped == nullptr) return std::string();
+  return net_instaweb::SafeDecodeHtmlEntities(escaped);
+}
+
+// Elements that may appear in <head>. The first other element (usually
+// <body>) ends the head even when the document never writes </head>.
+bool IsHeadContent(HtmlName::Keyword kw, std::string_view lower_name) {
+  switch (kw) {
+    case HtmlName::kTitle:
+    case HtmlName::kMeta:
+    case HtmlName::kLink:
+    case HtmlName::kBase:
+    case HtmlName::kScript:
+    case HtmlName::kStyle:
+    case HtmlName::kNoscript:
+      return true;
+    default:
+      return lower_name == "template" || lower_name == "svg" ||
+             lower_name == "math" || lower_name == "noembed" ||
+             lower_name == "noframes";
+  }
+}
+
 bool IsInertTag(std::string_view lower_name) {
   return lower_name == "svg" || lower_name == "math" ||
          lower_name == "template" || lower_name == "noscript" ||
@@ -81,7 +113,7 @@ void PackFilter::StartDocument() {
   facts_ = PageFacts();
   inert_.clear();
   open_head_ = nullptr;
-  open_title_ = nullptr;
+  open_title_ = -1;
   open_title_raw_.clear();
   modified_ = false;
   would_modify_ = false;
@@ -89,15 +121,32 @@ void PackFilter::StartDocument() {
   decisions_.clear();
 }
 
+void PackFilter::EndLogicalHead(HtmlElement* ender) {
+  // An inert element (svg, noscript, ...) that is still open here swallowed
+  // the end of the head; where the head really ends is not knowable.
+  if (!inert_.empty()) facts_.malformed_head = true;
+  facts_.insert_before = ender;
+  open_head_ = nullptr;
+}
+
 void PackFilter::StartElement(HtmlElement* element) {
   const std::string name = absl::AsciiStrToLower(element->name_str());
+  const HtmlName::Keyword kw = element->keyword();
+
+  // The head ends at </head>, at <body>, or at the first element that cannot
+  // be head content, whichever comes first.
+  if (open_head_ != nullptr && element != open_head_) {
+    if (kw == HtmlName::kBody || (inert_.empty() && !IsHeadContent(kw, name))) {
+      EndLogicalHead(element);
+    }
+  }
+
   if (IsInertTag(name)) {
     inert_.push_back(element);
     return;
   }
   if (!inert_.empty()) return;
 
-  const HtmlName::Keyword kw = element->keyword();
   const bool in_head = open_head_ != nullptr;
   if (kw == HtmlName::kHead) {
     if (facts_.head == nullptr) {
@@ -106,12 +155,12 @@ void PackFilter::StartElement(HtmlElement* element) {
     }
   } else if (kw == HtmlName::kBase) {
     if (facts_.base_href.empty()) {
-      const char* href = element->AttributeValue(HtmlName::kHref);
-      if (href != nullptr) facts_.base_href = href;
+      facts_.base_href = AttrValue(element, HtmlName::kHref);
     }
   } else if (kw == HtmlName::kLink) {
-    const char* rel = element->AttributeValue(HtmlName::kRel);
-    if (rel == nullptr) return;
+    bool has_rel = false;
+    const std::string rel = AttrValue(element, HtmlName::kRel, &has_rel);
+    if (!has_rel) return;
     bool canonical = false;
     std::vector<std::string> others;
     for (std::string_view tok :
@@ -126,9 +175,7 @@ void PackFilter::StartElement(HtmlElement* element) {
     ElementFact f;
     f.element = element;
     f.in_head = in_head;
-    const char* href = element->AttributeValue(HtmlName::kHref);
-    f.has_value_attr = href != nullptr;
-    if (href != nullptr) f.value = href;
+    f.value = AttrValue(element, HtmlName::kHref, &f.has_value_attr);
     f.other_rel_tokens = std::move(others);
     facts_.canonicals.push_back(std::move(f));
   } else if (kw == HtmlName::kTitle) {
@@ -136,39 +183,52 @@ void PackFilter::StartElement(HtmlElement* element) {
     f.element = element;
     f.in_head = in_head;
     facts_.titles.push_back(std::move(f));
-    open_title_ = &facts_.titles.back();
+    open_title_ = static_cast<int>(facts_.titles.size()) - 1;
     open_title_raw_.clear();
   } else if (kw == HtmlName::kMeta) {
-    const char* nm = element->AttributeValue(HtmlName::kName);
-    if (nm == nullptr || !absl::EqualsIgnoreCase(nm, "description")) return;
+    const std::string nm = AttrValue(element, HtmlName::kName);
+    if (!absl::EqualsIgnoreCase(nm, "description")) return;
     ElementFact f;
     f.element = element;
     f.in_head = in_head;
-    const char* content = element->AttributeValue(HtmlName::kContent);
-    f.has_value_attr = content != nullptr;
-    if (content != nullptr) f.value = content;
+    f.value = AttrValue(element, HtmlName::kContent, &f.has_value_attr);
     facts_.descriptions.push_back(std::move(f));
   }
 }
 
 void PackFilter::EndElement(HtmlElement* element) {
-  if (!inert_.empty()) {
-    if (inert_.back() == element) inert_.pop_back();
+  if (element == open_head_) {
+    // </head>, explicit or implied by the parser at the end of the document.
+    if (!inert_.empty()) facts_.malformed_head = true;
+    open_head_ = nullptr;
     return;
   }
-  if (element == open_head_) {
-    open_head_ = nullptr;
-  } else if (open_title_ != nullptr && open_title_->element == element) {
-    open_title_->value = net_instaweb::SafeDecodeHtmlEntities(open_title_raw_);
-    open_title_ = nullptr;
+  if (!inert_.empty()) {
+    if (inert_.back() == element) {
+      inert_.pop_back();
+      // An inert element in <head> that the source never closed was closed by
+      // the parser at the end of the head; where the head really ends is not
+      // knowable.
+      const auto style = element->style();
+      if (open_head_ != nullptr && (style == HtmlElement::AUTO_CLOSE ||
+                                    style == HtmlElement::UNCLOSED)) {
+        facts_.malformed_head = true;
+      }
+    }
+    return;
+  }
+  if (open_title_ >= 0 && facts_.titles[open_title_].element == element) {
+    facts_.titles[open_title_].value =
+        net_instaweb::SafeDecodeHtmlEntities(open_title_raw_);
+    open_title_ = -1;
   }
 }
 
 void PackFilter::Characters(HtmlCharactersNode* characters) {
-  if (open_title_ != nullptr && inert_.empty() &&
-      characters->parent() == open_title_->element) {
+  if (open_title_ >= 0 && inert_.empty() &&
+      characters->parent() == facts_.titles[open_title_].element) {
     open_title_raw_.append(characters->contents());
-    open_title_->text_nodes.push_back(characters);
+    facts_.titles[open_title_].text_nodes.push_back(characters);
   }
 }
 
@@ -177,7 +237,9 @@ void PackFilter::EndDocument() {
   PageContext ctx;
   ctx.url = url_;
   ctx.global_mode = global_mode_;
-  Plan plan = BuildPlan(*pack_, ctx, facts_, options_.max_added_bytes);
+  // Room for the debug comment in front of every change.
+  const size_t extra = options_.debug_comments ? 256 : 0;
+  Plan plan = BuildPlan(*pack_, ctx, facts_, options_.max_added_bytes, extra);
   skip_reason_ = plan.skip;
   if (plan.skip != SkipReason::kNone) return;
 
@@ -199,6 +261,10 @@ bool PackFilter::Rewritable(const Plan& plan) const {
     for (const PlanOp& op : rp.ops) {
       if (op.type == OpType::kInsert) {
         if (!parser_->IsRewritable(facts_.head)) return false;
+        if (facts_.insert_before != nullptr &&
+            !parser_->IsRewritable(facts_.insert_before)) {
+          return false;
+        }
         continue;
       }
       if (!parser_->IsRewritable(op.target.element)) return false;
@@ -217,10 +283,31 @@ void PackFilter::Apply(const Plan& plan) {
   }
 }
 
+void PackFilter::InsertAtHeadEnd(net_instaweb::HtmlNode* node) {
+  if (facts_.insert_before != nullptr) {
+    parser_->InsertNodeBeforeNode(facts_.insert_before, node);
+  } else {
+    parser_->AppendChild(facts_.head, node);
+  }
+}
+
+void PackFilter::SetEscaped(HtmlElement* el, HtmlName::Keyword kw,
+                            const std::string& escaped) {
+  auto* attr = el->FindAttribute(kw);
+  if (attr != nullptr) {
+    attr->SetEscapedValue(escaped);
+    // An attribute that was unquoted would otherwise stay unquoted around a
+    // value that may now hold spaces or quotes.
+    attr->set_quote_style(HtmlElement::DOUBLE_QUOTE);
+  } else {
+    parser_->AddEscapedAttribute(el, kw, escaped);
+  }
+}
+
 void PackFilter::AddDebugComment(const Rule& rule, const PackDecision& decision,
-                                 HtmlElement* before, HtmlElement* head) {
+                                 HtmlElement* before) {
   if (!options_.debug_comments) return;
-  HtmlElement* parent = before != nullptr ? before->parent() : head;
+  HtmlElement* parent = before != nullptr ? before->parent() : facts_.head;
   auto* comment = parser_->NewCommentNode(
       parent, absl::StrCat(" pagespeed-pack ", pack_->info.id, "@",
                            pack_->info.version, " rule=", rule.id,
@@ -228,7 +315,7 @@ void PackFilter::AddDebugComment(const Rule& rule, const PackDecision& decision,
   if (before != nullptr) {
     parser_->InsertNodeBeforeNode(before, comment);
   } else {
-    parser_->AppendChild(head, comment);
+    InsertAtHeadEnd(comment);
   }
 }
 
@@ -239,31 +326,26 @@ void PackFilter::ApplyOp(const Rule& rule, const PackDecision& decision,
     case OpType::kRemove:
       if (parser_->DeleteNode(el)) modified_ = true;
       return;
-    case OpType::kRemoveCanonicalToken: {
-      auto* rel = el->FindAttribute(HtmlName::kRel);
-      if (rel != nullptr) {
-        rel->SetValue(absl::StrJoin(op.target.other_rel_tokens, " "));
+    case OpType::kRemoveCanonicalToken:
+      if (el->FindAttribute(HtmlName::kRel) != nullptr) {
+        SetEscaped(el, HtmlName::kRel,
+                   EscapeAttributeValue(
+                       absl::StrJoin(op.target.other_rel_tokens, " ")));
         modified_ = true;
       }
       return;
-    }
     case OpType::kSetValue: {
-      AddDebugComment(rule, decision, el, nullptr);
+      AddDebugComment(rule, decision, el);
       if (op.kind == Kind::kTitle) {
         for (HtmlCharactersNode* t : op.target.text_nodes) {
           parser_->DeleteNode(t);
         }
-        auto* text = parser_->NewCharactersNode(el, op.value);
-        parser_->AppendChild(el, text);
+        parser_->AppendChild(el, parser_->NewCharactersNode(el, op.value));
       } else {
-        const HtmlName::Keyword attr =
-            op.kind == Kind::kCanonical ? HtmlName::kHref : HtmlName::kContent;
-        auto* a = el->FindAttribute(attr);
-        if (a != nullptr) {
-          a->SetValue(op.value);
-        } else {
-          parser_->AddAttribute(el, attr, op.value);
-        }
+        SetEscaped(
+            el,
+            op.kind == Kind::kCanonical ? HtmlName::kHref : HtmlName::kContent,
+            EscapeAttributeValue(op.value));
       }
       modified_ = true;
       return;
@@ -274,20 +356,22 @@ void PackFilter::ApplyOp(const Rule& rule, const PackDecision& decision,
       switch (op.kind) {
         case Kind::kCanonical:
           fresh = parser_->NewElement(head, HtmlName::kLink);
-          parser_->AddAttribute(fresh, HtmlName::kRel, "canonical");
-          parser_->AddAttribute(fresh, HtmlName::kHref, op.value);
+          parser_->AddEscapedAttribute(fresh, HtmlName::kRel, "canonical");
+          parser_->AddEscapedAttribute(fresh, HtmlName::kHref,
+                                       EscapeAttributeValue(op.value));
           break;
         case Kind::kTitle:
           fresh = parser_->NewElement(head, HtmlName::kTitle);
           break;
         default:
           fresh = parser_->NewElement(head, HtmlName::kMeta);
-          parser_->AddAttribute(fresh, HtmlName::kName, "description");
-          parser_->AddAttribute(fresh, HtmlName::kContent, op.value);
+          parser_->AddEscapedAttribute(fresh, HtmlName::kName, "description");
+          parser_->AddEscapedAttribute(fresh, HtmlName::kContent,
+                                       EscapeAttributeValue(op.value));
           break;
       }
-      AddDebugComment(rule, decision, nullptr, head);
-      parser_->AppendChild(head, fresh);
+      AddDebugComment(rule, decision, nullptr);
+      InsertAtHeadEnd(fresh);
       if (op.kind == Kind::kTitle) {
         parser_->AppendChild(fresh,
                              parser_->NewCharactersNode(fresh, op.value));

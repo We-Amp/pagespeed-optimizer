@@ -74,6 +74,13 @@ std::string HashValue(std::string_view value) {
   return out;
 }
 
+std::string TruncateUtf8(std::string_view value, size_t max_bytes) {
+  if (value.size() <= max_bytes) return std::string(value);
+  size_t n = max_bytes;
+  while (n > 0 && (static_cast<unsigned char>(value[n]) & 0xC0) == 0x80) --n;
+  return std::string(value.substr(0, n));
+}
+
 namespace {
 std::string Quote(std::string_view s) {
   return absl::StrCat("\"", EscapeJsonString(s), "\"");
@@ -90,8 +97,8 @@ std::string DecisionToJsonLine(std::string_view host, std::string_view path,
       ",\"mode\":", Quote(ModeName(d.mode)),
       ",\"action\":", Quote(ActionName(d.action)),
       ",\"reason\":", Quote(ReasonName(d.reason)),
-      ",\"defect\":", Quote(d.defect), ",\"old\":", Quote(d.old_hash),
-      ",\"new\":", Quote(d.new_hash), "}");
+      ",\"defect\":", Quote(d.defect), ",\"before\":", Quote(d.before_hash),
+      ",\"after\":", Quote(d.after), "}");
 }
 
 }  // namespace pagespeed::packs
