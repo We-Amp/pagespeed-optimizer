@@ -929,7 +929,7 @@ const sdScan = (sd?: unknown) => ({
 });
 const SD_ROW = (page: Page) => page.locator('.ar-lens', { hasText: 'SEO defects' });
 const SD_CARD_TEXT =
-  'This page has 3 technical SEO issue(s) that a rule on the server could fix in the HTML it serves (canonical, title). We are building that rule set for sites whose CMS changes take weeks. Tell us how many sites you manage.';
+  'This page has 3 technical SEO issue(s) (canonical, title). Issues like these are the kind a rule on the server could correct in the HTML it serves, without a CMS release.';
 
 test.describe('AI-readability SEO-defects lens and edge-SEO card', () => {
   test('an attention page gets the row, the card, and an edge-seo lead with the lens signal', async ({
@@ -952,7 +952,9 @@ test.describe('AI-readability SEO-defects lens and edge-SEO card', () => {
     await expect(page.locator('#ar-h-seo')).toHaveText('SEO fixes without a CMS release');
     await expect(card.locator('p.ar-v')).toHaveText([
       SD_CARD_TEXT,
+      'We are building that rule set.',
       'Server header: nginx; CDN headers seen: cloudflare.',
+      'If your CMS changes take weeks, tell us how many sites you manage.',
     ]);
     await expect(card.locator('a[href="/platform/edge-seo/"]')).toHaveText(
       'Edge SEO at the origin →',

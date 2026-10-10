@@ -2223,15 +2223,17 @@ const jsonLd = [webApp, faqPage];
           '<h3 id="ar-h-seo" class="ar-h3">SEO fixes without a CMS release</h3>' +
           '<p class="ar-v">This page has ' +
           esc(String(sd.counts.total)) +
-          ' technical SEO issue(s) that a rule on the server could fix in the HTML it serves (' +
+          ' technical SEO issue(s) (' +
           esc(groups) +
-          '). We are building that rule set for sites whose CMS changes take weeks. Tell us how many sites you manage.</p>' +
+          '). Issues like these are the kind a rule on the server could correct in the HTML it serves, without a CMS release.</p>' +
+          '<p class="ar-v">We are building that rule set.</p>' +
           '<p class="ar-v">' +
           esc(sdServedBy(sd)) +
           '</p>' +
           '<div class="ar-cta-row">' +
           '<a class="ar-cta-link" href="/platform/edge-seo/" data-umami-event="airead-cta-edge-seo">Edge SEO at the origin →</a>' +
           '</div>' +
+          '<p class="ar-v">If your CMS changes take weeks, tell us how many sites you manage.</p>' +
           '<form id="ar-seo-form" class="ar-next-form" data-wedge="edge-seo">' +
           '<label class="ar-field"><span class="ar-field-label">Your email</span>' +
           '<input id="ar-seo-email" type="email" autocomplete="email" required /></label>' +
