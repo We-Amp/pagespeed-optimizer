@@ -39,6 +39,7 @@ export interface RiskRow {
 }
 
 const DEFAULT_NOTE = 'Not measured: the site blocked the scanner.';
+const ERROR_NOTE = 'Not measured: the scanner could not complete this check.';
 
 const NAMES: Record<RiskRow['key'], string> = {
   preConsentLeak: 'Pre-consent leak',
@@ -291,12 +292,13 @@ function rxVerdict(rx: Lens): string {
 }
 
 export const RX_BUILDING =
-  'A response-firewall pack for mod_pagespeed 2.1 is planned. It would mask leaked stack traces, strip version tells and add missing security headers in the response, on your own server. None of these packs ships today.';
+  'A response-firewall pack for mod_pagespeed 2.1 is planned. It would mask leaked stack traces, strip version tells and add missing security headers in the response, on your own server. No pack ships today.';
 
 // ---- Rows ----------------------------------------------------------------
 
 function notMeasuredRow(key: RiskRow['key'], lens: Lens): RiskRow {
-  const note = typeof lens.note === 'string' && lens.note.trim() ? lens.note.trim() : DEFAULT_NOTE;
+  const fallback = lens.status === 'error' ? ERROR_NOTE : DEFAULT_NOTE;
+  const note = typeof lens.note === 'string' && lens.note.trim() ? lens.note.trim() : fallback;
   return {
     key,
     name: NAMES[key],

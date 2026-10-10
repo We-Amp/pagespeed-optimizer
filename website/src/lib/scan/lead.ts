@@ -79,7 +79,7 @@ const GATED: ChipDef[] = [
   },
   {
     id: 'response-firewall',
-    label: 'Legacy sites: error output and old software',
+    label: 'Leaked errors and outdated software',
     fires: (r) => responseFirewallCtaApplies(r.responseExposure),
   },
 ];

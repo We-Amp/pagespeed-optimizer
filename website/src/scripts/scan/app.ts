@@ -365,7 +365,7 @@ export function init() {
       const err = state.lastPsi.errors.mobile ?? state.lastPsi.errors.desktop;
       const reason = err
         ? err.kind === 'network'
-          ? 'Couldn’t reach PSI.'
+          ? 'PageSpeed Insights did not answer.'
           : err.message
         : 'No result.';
       settle('speed', status, reason);

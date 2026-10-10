@@ -50,7 +50,7 @@ describe('riskStatus', () => {
     expect(r).toMatchObject({
       state: 'flagged',
       word: '1 flagged',
-      value: '1 of 2 checks flagged',
+      value: '1 need attention',
     });
   });
   it('is clean when nothing is flagged and not measured when nothing is measured', () => {
@@ -67,7 +67,7 @@ describe('riskStatus: k and n', () => {
       scriptInventory: { status: 'disabled', verdict: 'unknown' },
       seoDefects: ok('attention'),
     });
-    expect(r.value).toBe('1 of 2 checks flagged');
+    expect(r.value).toBe('1 need attention');
   });
   it('excludes a verdict of unknown, a missing verdict and non-ok statuses from k', () => {
     const r = riskStatus({
@@ -79,7 +79,7 @@ describe('riskStatus: k and n', () => {
     expect(r).toMatchObject({
       state: 'flagged',
       word: '1 flagged',
-      value: '1 of 1 checks flagged',
+      value: '1 need attention',
     });
   });
   it('is not measured when every lens is blocked, errored, disabled or unknown', () => {
@@ -100,7 +100,7 @@ describe('riskStatus: k and n', () => {
       seoDefects: ok('attention'),
       responseExposure: ok('clean'),
     });
-    expect(r).toMatchObject({ word: '3 flagged', value: '3 of 4 checks flagged' });
+    expect(r).toMatchObject({ word: '3 flagged', value: '3 need attention' });
   });
   it('treats a leaks verdict only as flagged for the pre-consent lens', () => {
     expect(riskStatus({ scriptInventory: ok('leaks') }).state).toBe('clean');
@@ -114,7 +114,7 @@ describe('healthLine', () => {
     expect(healthLine([CHECKING, good, CHECKING])).toBe('Checking 2 of 3 areas…');
   });
   it('summarises attention among measured areas', () => {
-    expect(healthLine([good, good, good])).toBe('Nothing here needs attention');
+    expect(healthLine([good, good, good])).toBe('None of the 3 areas checked needs attention.');
     expect(healthLine([poor, good, NOT_MEASURED])).toBe('1 of 2 areas needs attention');
     expect(healthLine([poor, poor, good])).toBe('2 of 3 areas need attention');
     expect(healthLine([NOT_MEASURED, NOT_MEASURED, NOT_MEASURED])).toBe(

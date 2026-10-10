@@ -144,6 +144,7 @@ function fixRow(item: AggregatedAudit, edition: Edition): HTMLLIElement {
   li.appendChild(
     el('span', full ? 'badge-success' : 'badge-accent', full ? 'Fully addressed' : 'Partial fix'),
   );
+  if (item.mapping.confidence !== 'high') li.appendChild(el('span', 'badge-neutral', 'Test first'));
   const saved = savingsText(item);
   if (saved) li.appendChild(el('span', 'text-xs text-text-annotation', `est. ${saved}`));
   if (item.mapping.filters.length > 0) {
@@ -259,8 +260,13 @@ function retry(ctx: PanelContext): HTMLButtonElement {
 
 // A timeout already says what happened; the network advice would be wrong.
 function describe(err: RequestError): { title: string; body: string } {
-  if (err.kind === 'timeout') return { title: 'Couldn’t reach PSI.', body: err.message };
-  return classifyError(err);
+  if (err.kind === 'timeout')
+    return { title: 'PageSpeed Insights did not answer.', body: err.message };
+  const c = classifyError(err);
+  // The shared network fallback keeps its wording for the original analyzer.
+  if (c.title === 'Couldn’t reach PSI.')
+    return { ...c, title: 'PageSpeed Insights did not answer.' };
+  return c;
 }
 
 function reloadProblem(): HTMLElement {
@@ -413,7 +419,7 @@ function drawResults(
       el(
         'p',
         'text-sm text-text-muted',
-        `${count} ${count === 1 ? 'audit' : 'audits'} outside an optimizer's reach`,
+        `${count} ${count === 1 ? 'audit' : 'audits'} mod_pagespeed does not address`,
       ),
     );
     const id = 'scan-speed-unfixable';

@@ -323,7 +323,8 @@ export function initLeadForm(state: ScanState) {
     thanks.tabIndex = -1;
     const line = document.createElement('p');
     line.className = 'text-text-body';
-    line.textContent = 'Thanks — your answer is in.';
+    line.textContent =
+      'Thanks, your message is in. An engineer replies within one business day (CET).';
     const topics = document.createElement('p');
     topics.className = 'mt-1 text-sm text-text-muted';
     topics.textContent = `Topics sent: ${[...sent.values()].join(', ')}.`;

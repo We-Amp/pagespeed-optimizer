@@ -165,7 +165,7 @@ test.describe('AI readability panel', () => {
       'hidden layer',
       'posture',
       'blocked',
-      'accessibility',
+      'accessibility score',
     ]) {
       expect(body).not.toContain(gone);
     }
@@ -180,7 +180,7 @@ test.describe('AI readability panel', () => {
     await expect(found).toHaveCount(3);
     await expect(found.nth(0)).toContainText('can’t tell a real signed agent from an impostor');
     await expect(found.nth(1)).toContainText('signed-agent requests differently');
-    await expect(found.nth(2)).toContainText('self-hosted optimizer can address server-side');
+    await expect(found.nth(2)).toContainText('self-hosted optimizer can fix on your own servers');
   });
 
   test('no "Also found" block on a clean report', async ({ page }) => {

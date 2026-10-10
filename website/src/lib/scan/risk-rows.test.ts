@@ -103,9 +103,11 @@ describe('riskRows over the blocked report', () => {
       expect(m[key].link).toBeNull();
       expect(m[key].building).toEqual([]);
     }
-    // the error shape has a reason and no note
+    // the error shape has a reason and no note: it gets the error default, not the blocked one
     expect(m.responseExposure.state).toBe('none');
-    expect(m.responseExposure.sentence).toBe('Not measured: the site blocked the scanner.');
+    expect(m.responseExposure.sentence).toBe(
+      'Not measured: the scanner could not complete this check.',
+    );
   });
 });
 

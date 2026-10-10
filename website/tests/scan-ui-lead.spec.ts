@@ -176,7 +176,12 @@ test.describe('the one lead form', () => {
     await page.getByLabel('Anything we should know? (optional)').fill('WordPress');
     await page.getByRole('button', { name: 'Talk to us' }).click();
 
-    await expect(page.getByText('Thanks — your answer is in.', { exact: true })).toBeVisible();
+    await expect(
+      page.getByText(
+        'Thanks, your message is in. An engineer replies within one business day (CET).',
+        { exact: true },
+      ),
+    ).toBeVisible();
     await expect(page.getByText(/^Topics sent: /)).toContainText('SEO fixes at the server');
     await expect(form(page)).toBeHidden();
     expect(posted.map((p) => p.topic)).toEqual([
@@ -238,7 +243,12 @@ test.describe('the one lead form', () => {
     mocked.failTopics.length = 0;
     mocked.posted.length = 0;
     await page.getByRole('button', { name: 'Talk to us' }).click();
-    await expect(page.getByText('Thanks — your answer is in.', { exact: true })).toBeVisible();
+    await expect(
+      page.getByText(
+        'Thanks, your message is in. An engineer replies within one business day (CET).',
+        { exact: true },
+      ),
+    ).toBeVisible();
     expect(mocked.posted.map((p) => p.topic)).toEqual(['agentpass']);
     await expect(page.getByText(/^Topics sent: /)).toContainText('Origin controls');
     const events = await trackedEvents(page);
@@ -303,7 +313,7 @@ test.describe('next steps and share', () => {
     expect(download.suggestedFilename()).toBe('pagespeed-report-shop.example.com.md');
     const body = readFileSync((await download.path())!, 'utf8');
     expect(body).toContain('AI readability: grade C (64/100)');
-    expect(body).toContain('- Pre-consent leak: attention');
+    expect(body).toContain('- Pre-consent leak: Attention');
     const events = await trackedEvents(page);
     expect(events.filter((e) => e.name === 'analyze_report_download')).toHaveLength(1);
   });
@@ -374,7 +384,12 @@ test.describe('v1 and v2 send the same lead', () => {
       if (c.sites) await p2.getByLabel('Sites you run (optional)').fill(c.sites);
       if (c.note) await p2.getByLabel('Anything we should know? (optional)').fill(c.note);
       await p2.getByRole('button', { name: 'Talk to us' }).click();
-      await expect(p2.getByText('Thanks — your answer is in.', { exact: true })).toBeVisible();
+      await expect(
+        p2.getByText(
+          'Thanks, your message is in. An engineer replies within one business day (CET).',
+          { exact: true },
+        ),
+      ).toBeVisible();
       expect(v2.posted).toHaveLength(1);
       expect(v2.posted[0]).toEqual(v1.posted[0]);
     });

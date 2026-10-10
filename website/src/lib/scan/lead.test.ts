@@ -318,9 +318,9 @@ describe('report markdown', () => {
       desktop: null,
       report: full,
     });
-    expect(md).toContain('Scores: mobile 58/100, desktop n/a');
+    expect(md).toContain('Speed (PageSpeed Insights): mobile 58/100, desktop n/a');
     expect(md).toContain('AI readability: grade C (64/100)');
-    expect(md).toContain('- Pre-consent leak: attention');
+    expect(md).toContain('- Pre-consent leak: Attention');
   });
 
   it('says not measured without a report', () => {
