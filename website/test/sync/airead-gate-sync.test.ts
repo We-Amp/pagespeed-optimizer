@@ -5,7 +5,7 @@
 // gate predicates inlined into the public RenderPeek page.
 //
 // CONTEXT
-//   src/pages/ai-readability/index.astro carries a VERBATIM inline copy of four
+//   src/pages/ai-readability/index.astro carries a VERBATIM inline copy of five
 //   functions whose canonical source of truth is the scanner repo's
 //   src/demand.mjs (agent-readability-scanner). The page inlines them (rather
 //   than importing) because in production it is the Astro-built
@@ -17,7 +17,7 @@
 //   This (mps2) repo cannot import the scanner's demand.mjs — it lives in a
 //   separate private repo and is not vendored here. So instead of comparing the
 //   two implementations directly, we:
-//     (a) read index.astro and extract the four inline function definitions
+//     (a) read index.astro and extract the five inline function definitions
 //         straight out of the <script is:inline> region (between the
 //         KEEP-IN-SYNC comment and the normalizeUrl helper),
 //     (b) evaluate them in an isolated VM sandbox,
@@ -38,9 +38,13 @@
 //     status === 'ok' && classification in {'verifying','signature-aware'}
 //   complianceFixCtaApplies(accessibility): true iff
 //     accessibility.available && accessibility.detail.fixableInline > 0
+//   consentEnforcementCtaApplies(preConsentLeak): true iff
+//     status === 'ok' && verdict === 'leaks' && trackerCount > 0
 //   buildLeadPayload({wedge,email,name,note,report}) -> { topic, email, name,
-//     url, wedge, lensSignal, message }; lensSignal shape is lens-specific and
-//     message is the human-readable mirror.
+//     url, wedge, lensSignal, message }; lensSignal shape is lens-specific
+//     (tollbooth / agentpass / compliancefix / consent-enforcement), null for a
+//     wedge with no scanner lens behind it (then no Signal line), and message
+//     is the human-readable mirror.
 //
 // This test asserts behavior only; it does NOT modify the page.
 
@@ -54,7 +58,7 @@ const ASTRO_PAGE = fileURLToPath(
 );
 
 // ---------------------------------------------------------------------------
-// (a) Extract the three inline gate functions from index.astro and evaluate
+// (a) Extract the five inline gate functions from index.astro and evaluate
 //     them in an isolated VM sandbox. We slice the source between the
 //     KEEP-IN-SYNC anchor (start of the gate block) and the normalizeUrl
 //     comment (first line after buildLeadPayload). If those anchors ever move,
@@ -64,6 +68,7 @@ function extractGateFunctions(): {
   tollboothCtaApplies: (av: unknown) => boolean;
   agentPassCtaApplies: (sa: unknown) => boolean;
   complianceFixCtaApplies: (ax: unknown) => boolean;
+  consentEnforcementCtaApplies: (pcl: unknown) => boolean;
   buildLeadPayload: (opts: unknown) => Record<string, unknown>;
 } {
   const src = readFileSync(ASTRO_PAGE, 'utf8');
@@ -89,8 +94,14 @@ function extractGateFunctions(): {
 
   const block = src.slice(startIdx, endIdx).trim();
 
-  // Sanity: all four canonical functions must be present in the extracted slice.
-  for (const fn of ['tollboothCtaApplies', 'agentPassCtaApplies', 'complianceFixCtaApplies', 'buildLeadPayload']) {
+  // Sanity: all five canonical functions must be present in the extracted slice.
+  for (const fn of [
+    'tollboothCtaApplies',
+    'agentPassCtaApplies',
+    'complianceFixCtaApplies',
+    'consentEnforcementCtaApplies',
+    'buildLeadPayload',
+  ]) {
     if (!block.includes(`function ${fn}(`)) {
       throw new Error(
         `Extracted gate block from index.astro is missing function "${fn}". ` +
@@ -104,7 +115,7 @@ function extractGateFunctions(): {
   // Declaring the functions then exposing them via globals lets us pull the
   // function objects back out of the sandbox without trusting the page's own
   // call sites.
-  const wrapped = `${block}\nglobalThis.__gate__ = { tollboothCtaApplies, agentPassCtaApplies, complianceFixCtaApplies, buildLeadPayload };`;
+  const wrapped = `${block}\nglobalThis.__gate__ = { tollboothCtaApplies, agentPassCtaApplies, complianceFixCtaApplies, consentEnforcementCtaApplies, buildLeadPayload };`;
   vm.runInContext(wrapped, context, { filename: 'index.astro:inline-gate' });
 
   const gate = (sandbox as { __gate__?: Record<string, unknown> }).__gate__;
@@ -114,8 +125,13 @@ function extractGateFunctions(): {
   return gate as ReturnType<typeof extractGateFunctions>;
 }
 
-const { tollboothCtaApplies, agentPassCtaApplies, complianceFixCtaApplies, buildLeadPayload } =
-  extractGateFunctions();
+const {
+  tollboothCtaApplies,
+  agentPassCtaApplies,
+  complianceFixCtaApplies,
+  consentEnforcementCtaApplies,
+  buildLeadPayload,
+} = extractGateFunctions();
 
 // ---------------------------------------------------------------------------
 // (b) Fixtures — cover every branch of each predicate and both lenses of the
@@ -222,7 +238,54 @@ const complianceFixtures: Array<{ name: string; input: unknown; expected: boolea
   { name: 'available, detail.fixableInline large passes', input: { available: true, detail: { fixableInline: 42 } }, expected: true },
 ];
 
-// --- buildLeadPayload: both lenses + name/note variations ---
+// --- consentEnforcementCtaApplies: every guard branch ---
+const consentFixtures: Array<{ name: string; input: unknown; expected: boolean }> = [
+  { name: 'null preConsentLeak', input: null, expected: false },
+  { name: 'undefined preConsentLeak', input: undefined, expected: false },
+  { name: 'empty object', input: {}, expected: false },
+  {
+    name: 'ok + leaks + trackerCount > 0 passes',
+    input: { status: 'ok', verdict: 'leaks', trackerCount: 1 },
+    expected: true,
+  },
+  {
+    name: 'ok + leaks + many trackers passes',
+    input: { status: 'ok', verdict: 'leaks', trackerCount: 12 },
+    expected: true,
+  },
+  {
+    name: 'clean blocks (no observed request is not a finding)',
+    input: { status: 'ok', verdict: 'clean', trackerCount: 0 },
+    expected: false,
+  },
+  {
+    name: 'unknown blocks (render failed)',
+    input: { status: 'ok', verdict: 'unknown', trackerCount: 0 },
+    expected: false,
+  },
+  {
+    name: 'disabled lens blocks',
+    input: { status: 'disabled', verdict: 'unknown', trackerCount: 0 },
+    expected: false,
+  },
+  {
+    name: 'errored lens blocks even with a leaks verdict',
+    input: { status: 'error', verdict: 'leaks', trackerCount: 3 },
+    expected: false,
+  },
+  {
+    name: 'blocked render (bot wall / challenge page) blocks',
+    input: { status: 'blocked', verdict: 'unknown', trackerCount: 0, note: 'challenge page' },
+    expected: false,
+  },
+  {
+    name: 'leaks verdict with trackerCount 0 blocks (inconsistent count)',
+    input: { status: 'ok', verdict: 'leaks', trackerCount: 0 },
+    expected: false,
+  },
+];
+
+// --- buildLeadPayload: all four lenses, a lens-free wedge, name/note variations ---
 const tollboothReport = {
   url: 'https://example.com/',
   agentVerifiability: {
@@ -260,6 +323,38 @@ const complianceReport = {
       byImpact: { critical: 2, serious: 5 },
       topRules: ['image-alt', 'color-contrast'],
     },
+  },
+};
+
+const consentReport = {
+  url: 'https://shop.example.com/',
+  preConsentLeak: {
+    status: 'ok',
+    verdict: 'leaks',
+    trackerCount: 4,
+    thirdPartyCount: 7,
+    thirdPartyHosts: [
+      { host: 'www.google-analytics.com', requests: 3, category: 'analytics', tracker: true },
+      { host: 'www.googletagmanager.com', requests: 1, category: 'tag-manager', tracker: true },
+      { host: 'connect.facebook.net', requests: 1, category: 'social', tracker: true },
+      { host: 'static.hotjar.com', requests: 1, category: 'session-replay', tracker: true },
+      { host: 'consent.cookiebot.com', requests: 1, category: 'cmp', tracker: false },
+    ],
+    cmpDetected: { detected: true, vendor: 'Cookiebot' },
+    firstParty: ['shop.example.com'],
+    requestsObserved: 22,
+  },
+};
+
+// A leaks verdict whose host list is missing: topHosts falls back to [].
+const consentReportNoHosts = {
+  url: 'https://shop.example.com/',
+  preConsentLeak: {
+    status: 'ok',
+    verdict: 'leaks',
+    trackerCount: 2,
+    thirdPartyCount: 2,
+    cmpDetected: { detected: false, vendor: null },
   },
 };
 
@@ -379,6 +474,87 @@ const buildLeadFixtures: Array<{ name: string; input: unknown; expected: Record<
         'Signal: {"total":12,"fixableInline":7,"byImpact":{"critical":2,"serious":5},"topRules":["image-alt","color-contrast"]}',
     },
   },
+  {
+    name: 'consent-enforcement lens with name + note: top three hosts, tracker flag dropped',
+    input: {
+      wedge: 'consent-enforcement',
+      email: 'ops@shop.example.com',
+      name: 'Ada',
+      note: 'Cookiebot, GTM consent mode',
+      report: consentReport,
+    },
+    expected: {
+      topic: 'consent-enforcement',
+      email: 'ops@shop.example.com',
+      name: 'Ada',
+      url: 'https://shop.example.com/',
+      wedge: 'consent-enforcement',
+      lensSignal: {
+        verdict: 'leaks',
+        trackerCount: 4,
+        thirdPartyCount: 7,
+        topHosts: [
+          { host: 'www.google-analytics.com', requests: 3, category: 'analytics' },
+          { host: 'www.googletagmanager.com', requests: 1, category: 'tag-manager' },
+          { host: 'connect.facebook.net', requests: 1, category: 'social' },
+        ],
+        cmpDetected: { detected: true, vendor: 'Cookiebot' },
+      },
+      message:
+        '[consent-enforcement] lead from RenderPeek result\n' +
+        'Scanned: https://shop.example.com/\n' +
+        'Operator note / crawl volume: Cookiebot, GTM consent mode\n' +
+        'Signal: {"verdict":"leaks","trackerCount":4,"thirdPartyCount":7,"topHosts":[{"host":"www.google-analytics.com","requests":3,"category":"analytics"},{"host":"www.googletagmanager.com","requests":1,"category":"tag-manager"},{"host":"connect.facebook.net","requests":1,"category":"social"}],"cmpDetected":{"detected":true,"vendor":"Cookiebot"}}',
+    },
+  },
+  {
+    name: 'consent-enforcement lens without a host list (topHosts falls back to [])',
+    input: {
+      wedge: 'consent-enforcement',
+      email: 'ops@shop.example.com',
+      report: consentReportNoHosts,
+    },
+    expected: {
+      topic: 'consent-enforcement',
+      email: 'ops@shop.example.com',
+      name: '',
+      url: 'https://shop.example.com/',
+      wedge: 'consent-enforcement',
+      lensSignal: {
+        verdict: 'leaks',
+        trackerCount: 2,
+        thirdPartyCount: 2,
+        topHosts: [],
+        cmpDetected: { detected: false, vendor: null },
+      },
+      message:
+        '[consent-enforcement] lead from RenderPeek result\n' +
+        'Scanned: https://shop.example.com/\n' +
+        'Signal: {"verdict":"leaks","trackerCount":2,"thirdPartyCount":2,"topHosts":[],"cmpDetected":{"detected":false,"vendor":null}}',
+    },
+  },
+  {
+    name: 'lens-free wedge id: lensSignal null and no Signal line',
+    input: {
+      wedge: 'pricing',
+      email: 'ops@shop.example.com',
+      name: 'Ada',
+      note: 'count us in',
+      report: consentReport,
+    },
+    expected: {
+      topic: 'pricing',
+      email: 'ops@shop.example.com',
+      name: 'Ada',
+      url: 'https://shop.example.com/',
+      wedge: 'pricing',
+      lensSignal: null,
+      message:
+        '[pricing] lead from RenderPeek result\n' +
+        'Scanned: https://shop.example.com/\n' +
+        'Operator note / crawl volume: count us in',
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -405,6 +581,14 @@ describe('ai-readability inline gate predicates (drift sync-check vs scanner src
     for (const f of complianceFixtures) {
       it(`${f.name} -> ${f.expected}`, () => {
         expect(complianceFixCtaApplies(f.input)).toBe(f.expected);
+      });
+    }
+  });
+
+  describe('consentEnforcementCtaApplies', () => {
+    for (const f of consentFixtures) {
+      it(`${f.name} -> ${f.expected}`, () => {
+        expect(consentEnforcementCtaApplies(f.input)).toBe(f.expected);
       });
     }
   });
