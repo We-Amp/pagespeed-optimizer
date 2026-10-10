@@ -4,14 +4,14 @@
 // Pre-paint scan interface chooser. ScanUiBoot.astro inlines this file as a
 // classic script ahead of both interface variants; the test in
 // test/scan-ui-boot.test.ts runs this same file. Plain ES5: it cannot import.
-// The default and the storage key come from a <meta name="scan-ui-default">
-// element that precedes the script (content = the default, data-key = the
-// storage key), so the file needs no build-time substitution. The rules mirror
-// resolveScanUi() in src/lib/scan/flag.ts.
+// The default and the storage key come from data-default and data-key on the
+// <script> element itself (read through document.currentScript), so the file
+// needs no build-time substitution. The rules mirror resolveScanUi() in
+// src/lib/scan/flag.ts.
 (function () {
-  var meta = document.querySelector('meta[name="scan-ui-default"]');
-  var ui = meta && meta.getAttribute('content') === 'v2' ? 'v2' : 'v1';
-  var key = (meta && meta.getAttribute('data-key')) || 'scan-ui';
+  var cfg = (document.currentScript && document.currentScript.dataset) || {};
+  var ui = cfg.default === 'v2' ? 'v2' : 'v1';
+  var key = cfg.key || 'scan-ui';
   var store = null;
   try {
     store = window.localStorage;

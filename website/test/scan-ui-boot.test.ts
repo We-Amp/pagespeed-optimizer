@@ -23,14 +23,13 @@ function boot(search: string, stored: string | null, broken: boolean, fallback: 
       data[k] = v;
     },
   };
-  const attrs: Record<string, string> = { content: fallback, 'data-key': SCAN_UI_STORAGE_KEY };
   const html = { dataset: {} as Record<string, string> };
   runInNewContext(bootSource, {
     window: { localStorage: storage },
     location: { search },
     document: {
       documentElement: html,
-      querySelector: () => ({ getAttribute: (n: string) => attrs[n] ?? null }),
+      currentScript: { dataset: { default: fallback, key: SCAN_UI_STORAGE_KEY } },
     },
     URLSearchParams,
   });
