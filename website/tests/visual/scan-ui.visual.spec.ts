@@ -292,7 +292,7 @@ const STATES: State[] = [
     slug: 'scan-error',
     title: 'scan error',
     mock: 'scan status 503 with an error body (0 ms); both PSI answer 200.',
-    opts: { scan: { status: 503, body: { error: 'scan_unavailable' } } },
+    opts: { scan: { status: 503, body: { error: 'busy — try again in a moment' } } },
     run: async ({ page, mocks, shot }) => {
       await submitScan(page);
       await expect(status(page, 'airead')).toHaveText('Not measured', { timeout: 15000 });
@@ -362,7 +362,7 @@ const STATES: State[] = [
     slug: 'scan-error-panel',
     title: 'scan error, AI readability panel open',
     mock: 'As state 13; open the AI readability tile.',
-    opts: { scan: { status: 503, body: { error: 'scan_unavailable' } } },
+    opts: { scan: { status: 503, body: { error: 'busy — try again in a moment' } } },
     run: async ({ page, shot }) => {
       await submitScan(page);
       await expect(status(page, 'airead')).toHaveText('Not measured', { timeout: 15000 });
