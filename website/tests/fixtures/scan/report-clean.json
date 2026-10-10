@@ -7,7 +7,7 @@
     "url": "https://www.example.org/",
     "scannedAt": "2026-10-10T12:00:00.000Z",
     "grade": "A",
-    "score": 98,
+    "score": 100,
     "categories": {
       "Content fidelity": {
         "score": 30,
@@ -39,7 +39,7 @@
         }
       },
       "Crawler access": {
-        "score": 18,
+        "score": 20,
         "max": 20,
         "verdict": "AI crawlers are allowed to fetch the page. robots.txt allows AI crawlers; llms.txt present.",
         "detail": {

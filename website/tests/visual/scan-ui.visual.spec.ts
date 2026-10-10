@@ -97,6 +97,8 @@ interface State {
   /** State number from the plan; also the filename prefix. */
   n: number;
   slug: string;
+  /** Filename prefix when it is not the zero-padded number (a variant such as 13b). */
+  file?: string;
   title: string;
   /** Mock timing the state needs; the state body reads this. */
   mock: string;
@@ -256,7 +258,12 @@ const STATES: State[] = [
       await toForm(page);
       await page.fill('input[name="email"]', 'reviewer@example.com');
       await page.click('form[data-scan-lead] button[type="submit"]');
-      await expect(page.getByText('Thanks — your answer is in.', { exact: true })).toBeVisible();
+      await expect(
+        page.getByText(
+          'Thanks, your message is in. An engineer replies within one business day (CET).',
+          { exact: true },
+        ),
+      ).toBeVisible();
       expect(mocks.calls.contact).toBe(4);
       await shot('submitted', { fullPage: true });
     },
@@ -319,7 +326,7 @@ const STATES: State[] = [
     run: async ({ page, mocks, shot }) => {
       await submitScan(page);
       await resultsSettled(page);
-      await expect(health(page)).toHaveText('Nothing here needs attention');
+      await expect(health(page)).toHaveText('None of the 3 areas checked needs attention.');
       await shot('clean', { fullPage: true });
     },
   },
@@ -349,6 +356,40 @@ const STATES: State[] = [
       await shot('form-keyboard', { fullPage: true });
     },
   },
+  {
+    n: 13,
+    file: '13b',
+    slug: 'scan-error-panel',
+    title: 'scan error, AI readability panel open',
+    mock: 'As state 13; open the AI readability tile.',
+    opts: { scan: { status: 503, body: { error: 'scan_unavailable' } } },
+    run: async ({ page, shot }) => {
+      await submitScan(page);
+      await expect(status(page, 'airead')).toHaveText('Not measured', { timeout: 15000 });
+      await expect(status(page, 'speed')).not.toHaveText('Checking…');
+      await tile(page, 'airead').click();
+      await expect(tile(page, 'airead')).toHaveAttribute('aria-expanded', 'true');
+      await expect(page.locator('[data-scan-panel="airead"]')).toBeVisible();
+      await shot('scan-error-panel', { fullPage: true });
+    },
+  },
+  {
+    n: 14,
+    file: '14b',
+    slug: 'psi-rate-limited-panel',
+    title: 'PSI rate-limited, Speed panel open',
+    mock: 'As state 14; open the Speed tile.',
+    opts: { psiMobile: { status: 429 }, psiDesktop: { status: 429 } },
+    run: async ({ page, shot }) => {
+      await submitScan(page);
+      await expect(status(page, 'airead')).not.toHaveText('Checking…', { timeout: 15000 });
+      await expect(status(page, 'speed')).toHaveText('Not measured', { timeout: 15000 });
+      await tile(page, 'speed').click();
+      await expect(tile(page, 'speed')).toHaveAttribute('aria-expanded', 'true');
+      await expect(page.locator('[data-scan-panel="speed"]')).toBeVisible();
+      await shot('psi-rate-limited-panel', { fullPage: true });
+    },
+  },
 ];
 
 test.describe('scan UI visual states', () => {
@@ -359,7 +400,7 @@ test.describe('scan UI visual states', () => {
   for (const target of PAGES) {
     for (const viewport of VIEWPORTS) {
       for (const state of STATES) {
-        const name = `${pad(state.n)} ${state.title} [${target.name}, ${viewport.name}]`;
+        const name = `${state.file ?? pad(state.n)} ${state.title} [${target.name}, ${viewport.name}]`;
         const run = state.run;
         test(name, async ({ page }) => {
           await page.setViewportSize({ width: viewport.width, height: viewport.height });
@@ -398,12 +439,13 @@ test.describe('scan UI visual states', () => {
                 if (box > 0)
                   clip = { x: 0, y: 0, width: viewport.width, height: Math.ceil(box) + 24 };
               }
-              const n = STATES.find((s) => s.slug === slug)?.n ?? 0;
+              const found = STATES.find((s) => s.slug === slug);
+              const prefix = found?.file ?? pad(found?.n ?? 0);
               await page.screenshot({
                 // The telemetry strip shows live timings; mask it for stable runs.
                 mask: [page.locator('[data-ui="telemetry-strip"]')],
                 maskColor: '#070809',
-                path: `${OUT_DIR}/${target.name}-${pad(n)}-${slug}-${viewport.name}.png`,
+                path: `${OUT_DIR}/${target.name}-${prefix}-${slug}-${viewport.name}.png`,
                 animations: 'disabled',
                 caret: 'hide',
                 fullPage: options?.fullPage ?? false,
