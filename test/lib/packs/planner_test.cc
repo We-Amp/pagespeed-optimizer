@@ -89,7 +89,7 @@ TEST(PlannerTest, KeepInsertsOnlyWhenAbsent) {
   EXPECT_EQ(rp.decision.action, Action::kInsert);
   EXPECT_EQ(rp.decision.reason, Reason::kAbsent);
   EXPECT_EQ(rp.decision.defect, "canonical-missing");
-  EXPECT_FALSE(rp.decision.new_hash.empty());
+  EXPECT_EQ(rp.decision.after, "https://t.test/x");
 }
 
 TEST(PlannerTest, KeepLeavesEveryPresentFormAlone) {
@@ -303,13 +303,15 @@ TEST(PlannerTest, SizeLimitDropsTheWholePlan) {
   EXPECT_TRUE(plan.rules.empty());
 }
 
-TEST(PlannerTest, DecisionsCarryHashesNeverText) {
+TEST(PlannerTest, DecisionsHashWhatWasOnThePageAndQuoteWhatTheRuleSets) {
   Pack pack = MakePack("canonical", "replace");
   PageFacts facts = Facts();
   facts.canonicals.push_back(Fact(1, "https://secret.test/page"));
   const RulePlan rp = Only(BuildPlan(pack, Ctx(), facts));
   const std::string line = DecisionToJsonLine("t.test", "/x", rp.decision);
   EXPECT_EQ(line.find("secret"), std::string::npos);
+  EXPECT_NE(line.find("\"after\":\"https://t.test/x\""), std::string::npos);
+  EXPECT_FALSE(rp.decision.before_hash.empty());
   EXPECT_NE(line.find("fnv1a64:"), std::string::npos);
 }
 

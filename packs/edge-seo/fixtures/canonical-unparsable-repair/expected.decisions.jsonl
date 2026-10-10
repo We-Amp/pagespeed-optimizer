@@ -1,1 +1,1 @@
-{"host":"fixture.test","path":"/c/repair/junk","rule":"canonical-repair","kind":"canonical","mode":"enforce","action":"replace","reason":"unusable","defect":"canonical-unusable","old":"","new":"fnv1a64:d8f54c7c362f9576"}
+{"host":"fixture.test","path":"/c/repair/junk","rule":"canonical-repair","kind":"canonical","mode":"enforce","action":"replace","reason":"unusable","defect":"canonical-unusable","before":"","after":"https://fixture.test/c/repair/junk"}

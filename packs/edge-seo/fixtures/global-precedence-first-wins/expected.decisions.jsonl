@@ -1,1 +1,1 @@
-{"host":"fixture.test","path":"/p/page","rule":"canonical-first","kind":"canonical","mode":"enforce","action":"insert","reason":"absent","defect":"canonical-missing","old":"","new":"fnv1a64:d90bbbf5ec8dc13d"}
+{"host":"fixture.test","path":"/p/page","rule":"canonical-first","kind":"canonical","mode":"enforce","action":"insert","reason":"absent","defect":"canonical-missing","before":"","after":"https://fixture.test/first/p/page"}

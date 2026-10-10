@@ -1,3 +1,3 @@
-{"host":"fixture.test","path":"/g/debug","rule":"canonical-keep","kind":"canonical","mode":"enforce","action":"insert","reason":"absent","defect":"canonical-missing","old":"","new":"fnv1a64:b55df88d8b5fc355"}
-{"host":"fixture.test","path":"/g/debug","rule":"title-keep","kind":"title","mode":"enforce","action":"insert","reason":"absent","defect":"title-missing","old":"","new":"fnv1a64:6e86f595ca700d38"}
-{"host":"fixture.test","path":"/g/debug","rule":"description-keep","kind":"description","mode":"enforce","action":"insert","reason":"absent","defect":"description-missing","old":"","new":"fnv1a64:32b707304e731d38"}
+{"host":"fixture.test","path":"/g/debug","rule":"canonical-keep","kind":"canonical","mode":"enforce","action":"insert","reason":"absent","defect":"canonical-missing","before":"","after":"https://fixture.test/g/debug"}
+{"host":"fixture.test","path":"/g/debug","rule":"title-keep","kind":"title","mode":"enforce","action":"insert","reason":"absent","defect":"title-missing","before":"","after":"Title for /g/debug"}
+{"host":"fixture.test","path":"/g/debug","rule":"description-keep","kind":"description","mode":"enforce","action":"insert","reason":"absent","defect":"description-missing","before":"","after":"Description for /g/debug"}

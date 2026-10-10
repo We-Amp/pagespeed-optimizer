@@ -265,6 +265,56 @@ TEST(PackFilterTest, OutputDoesNotDependOnTheOtherTransforms) {
   EXPECT_EQ(a.decisions, b.decisions);
 }
 
+TEST(PackFilterTest, UnclosedInertElementInHeadSkipsThePage) {
+  const std::string html =
+      "<html><head><svg><title>t</title></head><body><p>x</p></body></html>";
+  FilterRun r = RunFilter(MakePack(kCanonicalKeep), "https://t.test/x", html);
+  EXPECT_EQ(r.skip, SkipReason::kMalformedHead);
+  EXPECT_FALSE(r.modified);
+  EXPECT_TRUE(r.decisions.empty());
+}
+
+TEST(PackFilterTest, HeadWithoutCloseEndsAtBody) {
+  FilterRun r =
+      RunFilter(MakePack(kCanonicalKeep), "https://t.test/x",
+                "<html><head><title>T</title>\n<body><p>hi</p></body></html>");
+  EXPECT_EQ(r.html,
+            "<html><head><title>T</title>\n<link rel=\"canonical\" "
+            "href=\"https://t.test/x\"><body><p>hi</p></body></html>");
+}
+
+TEST(PackFilterTest, ManyTitlesDoNotInvalidateTheOpenOne) {
+  // More titles than a vector's first allocation: the element being read
+  // must survive the growth.
+  std::string html = "<html><head>";
+  for (int i = 0; i < 40; ++i) html += absl::StrCat("<title>t", i, "</title>");
+  html += "</head><body></body></html>";
+  auto pack = MakePack(
+      R"({"id":"t","kind":"title","enforce":true,"on_present":"repair",)"
+      R"("value":{"template":"T"}})");
+  FilterRun r = RunFilter(pack, "https://t.test/x", html);
+  EXPECT_TRUE(r.modified);
+  EXPECT_NE(r.html.find("<title>t0</title>"), std::string::npos);
+  EXPECT_EQ(r.html.find("<title>t1</title>"), std::string::npos);
+}
+
+TEST(PackFilterTest, SizeLimitCountsTheEscapedBytes) {
+  // 40 '&' are 200 bytes once escaped.
+  auto pack = MakePack(
+      R"({"id":"d","kind":"description","enforce":true,)"
+      R"("value":{"template":"&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&&"}})");
+  PackFilterOptions opts;
+  opts.max_added_bytes = 150;
+  const std::string html = "<html><head></head><body></body></html>";
+  EXPECT_EQ(
+      RunFilter(pack, "https://t.test/x", html, Mode::kEnforce, opts).skip,
+      SkipReason::kSizeLimit);
+  opts.max_added_bytes = 400;
+  EXPECT_EQ(
+      RunFilter(pack, "https://t.test/x", html, Mode::kEnforce, opts).skip,
+      SkipReason::kNone);
+}
+
 TEST(PackFilterTest, ParsePageUrl) {
   auto p = ParsePageUrl("HTTPS://Www.Example.com:8443/a/b?x=1#frag");
   ASSERT_TRUE(p.has_value());

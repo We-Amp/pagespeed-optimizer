@@ -1,1 +1,1 @@
-{"host":"fixture.test","path":"/t/keep/noscript","rule":"title-keep","kind":"title","mode":"enforce","action":"insert","reason":"absent","defect":"title-missing","old":"","new":"fnv1a64:c9c9073f576d8cd8"}
+{"host":"fixture.test","path":"/t/keep/noscript","rule":"title-keep","kind":"title","mode":"enforce","action":"insert","reason":"absent","defect":"title-missing","before":"","after":"Title for /t/keep/noscript"}

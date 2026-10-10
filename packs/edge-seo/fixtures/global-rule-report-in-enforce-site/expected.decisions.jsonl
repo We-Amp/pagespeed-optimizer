@@ -1,1 +1,1 @@
-{"host":"fixture.test","path":"/c/reportrule/x","rule":"canonical-report-rule","kind":"canonical","mode":"report","action":"insert","reason":"absent","defect":"canonical-missing","old":"","new":"fnv1a64:bdd62648d6ea815d"}
+{"host":"fixture.test","path":"/c/reportrule/x","rule":"canonical-report-rule","kind":"canonical","mode":"report","action":"insert","reason":"absent","defect":"canonical-missing","before":"","after":"https://fixture.test/c/reportrule/x"}

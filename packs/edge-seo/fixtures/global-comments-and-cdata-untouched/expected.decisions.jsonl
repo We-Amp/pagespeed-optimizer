@@ -1,3 +1,3 @@
-{"host":"fixture.test","path":"/g/cdata","rule":"canonical-keep","kind":"canonical","mode":"enforce","action":"insert","reason":"absent","defect":"canonical-missing","old":"","new":"fnv1a64:bcd94bb0b4a09a0b"}
-{"host":"fixture.test","path":"/g/cdata","rule":"title-keep","kind":"title","mode":"enforce","action":"insert","reason":"absent","defect":"title-missing","old":"","new":"fnv1a64:6777a272a18a5562"}
-{"host":"fixture.test","path":"/g/cdata","rule":"description-keep","kind":"description","mode":"enforce","action":"insert","reason":"absent","defect":"description-missing","old":"","new":"fnv1a64:2ba7b40d258d6562"}
+{"host":"fixture.test","path":"/g/cdata","rule":"canonical-keep","kind":"canonical","mode":"enforce","action":"insert","reason":"absent","defect":"canonical-missing","before":"","after":"https://fixture.test/g/cdata"}
+{"host":"fixture.test","path":"/g/cdata","rule":"title-keep","kind":"title","mode":"enforce","action":"insert","reason":"absent","defect":"title-missing","before":"","after":"Title for /g/cdata"}
+{"host":"fixture.test","path":"/g/cdata","rule":"description-keep","kind":"description","mode":"enforce","action":"insert","reason":"absent","defect":"description-missing","before":"","after":"Description for /g/cdata"}

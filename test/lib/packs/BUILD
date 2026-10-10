@@ -51,6 +51,7 @@ gtest_test(
         "//lib/packs:decision",
         "//lib/packs:pack_filter",
         "//tools/packs:fixture_runner_lib",
+        "@com_google_absl//absl/strings",
     ],
 )
 

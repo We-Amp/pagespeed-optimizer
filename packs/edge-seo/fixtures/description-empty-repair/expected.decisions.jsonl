@@ -1,1 +1,1 @@
-{"host":"fixture.test","path":"/d/repair/empty","rule":"description-repair","kind":"description","mode":"enforce","action":"fill","reason":"empty","defect":"description-missing","old":"","new":"fnv1a64:55b3efad2e771629"}
+{"host":"fixture.test","path":"/d/repair/empty","rule":"description-repair","kind":"description","mode":"enforce","action":"fill","reason":"empty","defect":"description-missing","before":"","after":"Description for /d/repair/empty"}

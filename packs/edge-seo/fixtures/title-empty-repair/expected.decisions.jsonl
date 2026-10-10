@@ -1,1 +1,1 @@
-{"host":"fixture.test","path":"/t/repair/empty","rule":"title-repair","kind":"title","mode":"enforce","action":"fill","reason":"empty","defect":"title-missing","old":"","new":"fnv1a64:85e98058d4f88e59"}
+{"host":"fixture.test","path":"/t/repair/empty","rule":"title-repair","kind":"title","mode":"enforce","action":"fill","reason":"empty","defect":"title-missing","before":"","after":"Title for /t/repair/empty"}

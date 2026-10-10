@@ -6,10 +6,23 @@
     "description": "Fixture pack for the head rules"
   },
   "sites": [
-    { "host": "fixture.test", "mode": "enforce" },
-    { "host": "report.fixture.test", "mode": "report" }
+    {
+      "host": "fixture.test",
+      "mode": "enforce"
+    },
+    {
+      "host": "report.fixture.test",
+      "mode": "report"
+    }
   ],
-  "defaults": { "paths": ["/**"], "exclude_paths": ["/excluded/**"] },
+  "defaults": {
+    "paths": [
+      "/**"
+    ],
+    "exclude_paths": [
+      "/excluded/**"
+    ]
+  },
   "tables": {
     "canonicals": {
       "/c/table/hit": "https://fixture.test/canon/hit",
@@ -25,128 +38,307 @@
       "kind": "canonical",
       "enabled": false,
       "enforce": true,
-      "match": { "paths": ["/c/disabled/**"] },
-      "value": { "template": "https://fixture.test{path}" }
+      "match": {
+        "paths": [
+          "/c/disabled/**"
+        ]
+      },
+      "value": {
+        "template": "https://fixture.test{path}"
+      }
     },
     {
       "id": "canonical-report-rule",
       "kind": "canonical",
       "enforce": false,
-      "match": { "paths": ["/c/reportrule/**"] },
-      "value": { "template": "https://fixture.test{path}" }
+      "match": {
+        "paths": [
+          "/c/reportrule/**"
+        ]
+      },
+      "value": {
+        "template": "https://fixture.test{path}"
+      }
     },
     {
       "id": "canonical-first",
       "kind": "canonical",
       "enforce": true,
-      "match": { "paths": ["/p/**"] },
-      "value": { "template": "https://fixture.test/first{path}" }
+      "match": {
+        "paths": [
+          "/p/**"
+        ]
+      },
+      "value": {
+        "template": "https://fixture.test/first{path}"
+      }
     },
     {
       "id": "canonical-second",
       "kind": "canonical",
       "enforce": true,
-      "match": { "paths": ["/p/**"] },
-      "value": { "template": "https://fixture.test/second{path}" }
+      "match": {
+        "paths": [
+          "/p/**"
+        ]
+      },
+      "value": {
+        "template": "https://fixture.test/second{path}"
+      }
     },
     {
       "id": "canonical-table",
       "kind": "canonical",
       "enforce": true,
-      "match": { "paths": ["/c/table/**"] },
-      "value": { "table": "canonicals" }
+      "match": {
+        "paths": [
+          "/c/table/**"
+        ]
+      },
+      "value": {
+        "table": "canonicals"
+      }
     },
     {
       "id": "canonical-invalid",
       "kind": "canonical",
       "enforce": true,
-      "match": { "paths": ["/c/invalid/**"] },
-      "value": { "template": "{path}" }
+      "match": {
+        "paths": [
+          "/c/invalid/**"
+        ]
+      },
+      "value": {
+        "template": "{path}"
+      }
     },
     {
       "id": "canonical-keep",
       "kind": "canonical",
       "enforce": true,
-      "match": { "paths": ["/c/keep/**", "/g/**", "/excluded/**", "/"] },
-      "value": { "template": "https://fixture.test{path}" },
+      "match": {
+        "paths": [
+          "/c/keep/**",
+          "/g/**",
+          "/excluded/**",
+          "/"
+        ]
+      },
+      "value": {
+        "template": "https://fixture.test{path}"
+      },
       "on_present": "keep"
     },
     {
       "id": "canonical-repair",
       "kind": "canonical",
       "enforce": true,
-      "match": { "paths": ["/c/repair/**"] },
-      "value": { "template": "https://fixture.test{path}" },
+      "match": {
+        "paths": [
+          "/c/repair/**"
+        ]
+      },
+      "value": {
+        "template": "https://fixture.test{path}"
+      },
       "on_present": "repair"
     },
     {
       "id": "canonical-replace",
       "kind": "canonical",
       "enforce": true,
-      "match": { "paths": ["/c/replace/**"] },
-      "value": { "template": "https://fixture.test{path}" },
+      "match": {
+        "paths": [
+          "/c/replace/**"
+        ]
+      },
+      "value": {
+        "template": "https://fixture.test{path}"
+      },
       "on_present": "replace"
     },
     {
       "id": "title-keep",
       "kind": "title",
       "enforce": true,
-      "match": { "paths": ["/t/keep/**", "/g/**", "/excluded/**"] },
-      "value": { "template": "Title for {path}" },
+      "match": {
+        "paths": [
+          "/t/keep/**",
+          "/g/**",
+          "/excluded/**"
+        ]
+      },
+      "value": {
+        "template": "Title for {path}"
+      },
       "on_present": "keep"
     },
     {
       "id": "title-repair",
       "kind": "title",
       "enforce": true,
-      "match": { "paths": ["/t/repair/**"] },
-      "value": { "template": "Title for {path}" },
+      "match": {
+        "paths": [
+          "/t/repair/**"
+        ]
+      },
+      "value": {
+        "template": "Title for {path}"
+      },
       "on_present": "repair"
     },
     {
       "id": "title-replace",
       "kind": "title",
       "enforce": true,
-      "match": { "paths": ["/t/replace/**"] },
-      "value": { "template": "Title for {path}" },
+      "match": {
+        "paths": [
+          "/t/replace/**"
+        ]
+      },
+      "value": {
+        "template": "Title for {path}"
+      },
       "on_present": "replace"
     },
     {
       "id": "title-escape",
       "kind": "title",
       "enforce": true,
-      "match": { "paths": ["/t/escape/**"] },
-      "value": { "template": "Fish & Chips <b> \"quoted\" {path}" }
+      "match": {
+        "paths": [
+          "/t/escape/**"
+        ]
+      },
+      "value": {
+        "template": "Fish & Chips <b> \"quoted\" {path}"
+      }
     },
     {
       "id": "title-table",
       "kind": "title",
       "enforce": true,
-      "match": { "paths": ["/t/table/**"] },
-      "value": { "table": "titles" }
+      "match": {
+        "paths": [
+          "/t/table/**"
+        ]
+      },
+      "value": {
+        "table": "titles"
+      }
     },
     {
       "id": "description-keep",
       "kind": "description",
       "enforce": true,
-      "match": { "paths": ["/d/keep/**", "/g/**", "/excluded/**"] },
-      "value": { "template": "Description for {path}" },
+      "match": {
+        "paths": [
+          "/d/keep/**",
+          "/g/**",
+          "/excluded/**"
+        ]
+      },
+      "value": {
+        "template": "Description for {path}"
+      },
       "on_present": "keep"
     },
     {
       "id": "description-repair",
       "kind": "description",
       "enforce": true,
-      "match": { "paths": ["/d/repair/**"] },
-      "value": { "template": "Description for {path}" },
+      "match": {
+        "paths": [
+          "/d/repair/**"
+        ]
+      },
+      "value": {
+        "template": "Description for {path}"
+      },
       "on_present": "repair"
     },
     {
       "id": "description-replace",
       "kind": "description",
       "enforce": true,
-      "match": { "paths": ["/d/replace/**"] },
-      "value": { "template": "Description for {path}" },
+      "match": {
+        "paths": [
+          "/d/replace/**"
+        ]
+      },
+      "value": {
+        "template": "Description for {path}"
+      },
+      "on_present": "replace"
+    },
+    {
+      "id": "description-unicode",
+      "kind": "description",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/d/u/**"
+        ]
+      },
+      "value": {
+        "template": "Café crème — ok {path}"
+      },
+      "on_present": "replace"
+    },
+    {
+      "id": "title-unicode",
+      "kind": "title",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/t/u/**"
+        ]
+      },
+      "value": {
+        "template": "Café — ok"
+      },
+      "on_present": "replace"
+    },
+    {
+      "id": "description-quotes",
+      "kind": "description",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/d/q/**"
+        ]
+      },
+      "value": {
+        "template": "It's \"quoted\" & <b> {path}"
+      },
+      "on_present": "replace"
+    },
+    {
+      "id": "canonical-amp",
+      "kind": "canonical",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/c/amp/**"
+        ]
+      },
+      "value": {
+        "template": "https://fixture.test{path}?a=1&b=2"
+      },
+      "on_present": "replace"
+    },
+    {
+      "id": "canonical-unicode",
+      "kind": "canonical",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/c/utf8/**"
+        ]
+      },
+      "value": {
+        "template": "https://fixture.test/café{path}"
+      },
       "on_present": "replace"
     }
   ]
