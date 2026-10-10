@@ -100,6 +100,8 @@ export function healthLine(statuses: readonly TileStatus[]): string {
       : `None of the ${measured.length} areas checked needs attention.`;
   }
   if (measured.length === 1) return 'The one area checked needs attention.';
-  if (n === 1) return `1 of ${measured.length} areas needs attention`;
-  return `${n} of ${measured.length} areas need attention`;
+  const k = measured.length;
+  const what = k === 3 ? 'areas' : 'areas checked';
+  if (n === 1) return `1 of ${k} ${what} needs attention.`;
+  return `${n} of ${k} ${what} need attention.`;
 }
