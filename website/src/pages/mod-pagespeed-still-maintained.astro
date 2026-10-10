@@ -169,7 +169,9 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
 >
   <article class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
     <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
-      <a href="/" class="hover:text-text-body">Home</a>
+      <a href="/" class="hover:text-text-body">
+        Home
+      </a>
       <span class="mx-1">/</span>
       <span>Is mod_pagespeed still maintained?</span>
     </nav>
@@ -182,11 +184,10 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
     >
       <p>
         Yes. The original Google and Apache-incubator repositories are archived, and the project
-        went dormant in 2024 and 2025. It is maintained again: We-Amp ships <span
-          class="whitespace-nowrap">mod_pagespeed 2.1</span
-        >, the open-source (Apache-2.0) continuation, with the dependency CVEs cleared and signed
-        apt and yum packages. This page sets out what stopped, what did not, and what there is to
-        run today.
+        went dormant in 2024 and 2025. It is maintained again: We-Amp ships{' '}
+        <span class="whitespace-nowrap">mod_pagespeed 2.1</span>, the open-source (Apache-2.0)
+        continuation, with the dependency CVEs cleared and signed apt and yum packages. This page
+        sets out what stopped, what did not, and what there is to run today.
       </p>
     </SectionHeader>
 
@@ -209,14 +210,17 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
           <a
             href="/download/"
             class="btn-primary"
-            data-umami-event="cta_stillmaintained_download_hero">Install the maintained build</a
+            data-umami-event="cta_stillmaintained_download_hero"
           >
+            Install the maintained build
+          </a>
           <a
             href="/alternatives/mod-pagespeed/"
             class="btn-secondary"
             data-umami-event="cta_stillmaintained_alternatives_hero"
-            >The maintained mod_pagespeed <span aria-hidden="true">&rarr;</span></a
           >
+            The maintained mod_pagespeed <span aria-hidden="true">&rarr;</span>
+          </a>
         </div>
       </div>
     </section>
@@ -231,9 +235,9 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
       <p class="mt-4 text-text-body">
         When people call mod_pagespeed dead or deprecated, they are describing the upstream
         repositories. Google moved the project to an Apache Software Foundation incubator, which
-        published a single release, <code class="text-[0.9em] bg-bg-elevated px-1 rounded"
-          >{LAST_UPSTREAM_VERSION}</code
-        >, in August 2020. The incubator then went quiet: the podling retired on
+        published a single release,{' '}
+        <code class="text-[0.9em] bg-bg-elevated px-1 rounded">{LAST_UPSTREAM_VERSION}</code>, in
+        August 2020. The incubator then went quiet: the podling retired on
         <span class="whitespace-nowrap">2023-03-17</span>, and its GitHub repositories were archived
         and made read-only on <span class="whitespace-nowrap">2025-04-10</span>. That part is true:
         the original repositories are frozen.
@@ -259,18 +263,16 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
         again. The figures below are the commit counts per calendar year.
       </p>
       <ol class="mt-8 space-y-4">
-        {
-          timeline.map((row) => (
-            <li class={`rounded-2xl border p-5 md:p-6 ${toneClasses[row.tone]}`}>
-              <div class="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:gap-5">
-                <span class="display-num shrink-0 font-mono text-sm font-semibold uppercase tracking-wide text-text-body sm:w-28">
-                  {row.when}
-                </span>
-                <span class="text-sm text-text-body">{row.what}</span>
-              </div>
-            </li>
-          ))
-        }
+        {timeline.map((row) => (
+          <li class={`rounded-2xl border p-5 md:p-6 ${toneClasses[row.tone]}`}>
+            <div class="flex flex-col gap-2 sm:flex-row sm:items-baseline sm:gap-5">
+              <span class="display-num shrink-0 font-mono text-sm font-semibold uppercase tracking-wide text-text-body sm:w-28">
+                {row.when}
+              </span>
+              <span class="text-sm text-text-body">{row.what}</span>
+            </div>
+          </li>
+        ))}
       </ol>
       <p class="mt-6 text-sm text-text-muted">
         Commits per year, for reference: <span class="display-num">2020</span> = 61,
@@ -300,14 +302,14 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
           exploited in the wild.
         </li>
         <li>
-          The image codecs <code class="text-[0.9em] bg-bg-elevated px-1 rounded">libpng</code>, <code
-            class="text-[0.9em] bg-bg-elevated px-1 rounded">giflib</code
-          >, and <code class="text-[0.9em] bg-bg-elevated px-1 rounded">libjpeg-turbo</code> were brought
+          The image codecs <code class="text-[0.9em] bg-bg-elevated px-1 rounded">libpng</code>,{' '}
+          <code class="text-[0.9em] bg-bg-elevated px-1 rounded">giflib</code>, and{' '}
+          <code class="text-[0.9em] bg-bg-elevated px-1 rounded">libjpeg-turbo</code> were brought
           to current upstream versions.
         </li>
         <li>
-          <code class="text-[0.9em] bg-bg-elevated px-1 rounded">curl</code> moved to the 8.x line and
-          was bumped to clear a CVE cluster, with the HTTP fetcher rewritten on top of it.
+          <code class="text-[0.9em] bg-bg-elevated px-1 rounded">curl</code> moved to the 8.x line
+          and was bumped to clear a CVE cluster, with the HTTP fetcher rewritten on top of it.
         </li>
         <li>
           An Ubuntu security patch to nginx (<span class="whitespace-nowrap">CVE-2026-49975</span>)
@@ -318,11 +320,14 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
         </li>
       </ul>
       <p class="mt-5 text-sm text-text-muted">
-        The <a
+        The{' '}
+        <a
           href="/blog/mod-pagespeed-1-1-release/"
           class="text-interactive hover:text-interactive-hover underline"
-          >mod_pagespeed {V1_LINE} release write-up</a
-        > walks through the full dependency graph and the sanitizer coverage behind these fixes.
+        >
+          mod_pagespeed {V1_LINE} release write-up
+        </a>{' '}
+        walks through the full dependency graph and the sanitizer coverage behind these fixes.
       </p>
     </section>
 
@@ -332,8 +337,8 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
     <section>
       <h2 class="h2-section text-text-body">What there is to run today</h2>
       <p class="mt-4 text-text-body">
-        The maintained line is <span class="whitespace-nowrap">mod_pagespeed 2.1</span> — one product,
-        converging the two lines We-Amp shipped through 2026.
+        The maintained line is <span class="whitespace-nowrap">mod_pagespeed 2.1</span> — one
+        product, converging the two lines We-Amp shipped through 2026.
       </p>
       <div class="mt-8 grid grid-cols-1 max-w-xl">
         <div class="rounded-2xl border border-border bg-bg-elevated p-6">
@@ -351,8 +356,9 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
             <a
               href="/alternatives/mod-pagespeed/"
               class="font-medium text-interactive hover:text-interactive-hover underline underline-offset-4"
-              >The maintained mod_pagespeed &rarr;</a
             >
+              The maintained mod_pagespeed &rarr;
+            </a>
           </p>
         </div>
       </div>
@@ -361,28 +367,35 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
         <a
           href="/docs/migrating-to-2-1/#upgrading-from-1-15"
           class="font-medium text-interactive hover:text-interactive-hover underline underline-offset-4"
-          >upgrade guide</a
-        >. Running ModPageSpeed 2.0 Docker/Helm? See the
+        >
+          upgrade guide
+        </a>
+        . Running ModPageSpeed 2.0 Docker/Helm? See the
         <a
           href="/docs/migrating-to-2-1/"
           class="font-medium text-interactive hover:text-interactive-hover underline underline-offset-4"
-          >migration guide</a
-        >.
+        >
+          migration guide
+        </a>
+        .
       </p>
       <p class="mt-4 text-sm text-text-muted">
         Running IISpeed? Its license transfers to mod_pagespeed 2.1 at no cost — see the
         <a
           href="/alternatives/iispeed/"
           class="font-medium text-interactive hover:text-interactive-hover underline underline-offset-4"
-          >IISpeed transfer details</a
-        >.
+        >
+          IISpeed transfer details
+        </a>
+        .
       </p>
       <p class="mt-6 text-sm text-text-muted">
         mod_pagespeed 2.1 is {LICENSE_CLAUSE}: free to install and run. Support &mdash; and hardened
-        builds &mdash; are what&rsquo;s for sale; see <a
-          href="/pricing/"
-          class="text-interactive hover:text-interactive-hover underline">support</a
-        >.
+        builds &mdash; are what&rsquo;s for sale; see{' '}
+        <a href="/pricing/" class="text-interactive hover:text-interactive-hover underline">
+          support
+        </a>
+        .
       </p>
     </section>
 
@@ -392,16 +405,18 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
     <section>
       <h2 class="h2-section text-text-body">Installing the maintained build</h2>
       <p class="mt-4 text-text-body">
-        The maintained packages are signed and live at <a
+        The maintained packages are signed and live at{' '}
+        <a
           href="https://packages.modpagespeed.com/"
           rel="noopener noreferrer external"
           class="text-interactive hover:text-interactive-hover underline"
-          >packages.modpagespeed.com</a
-        >. On Debian and Ubuntu the nginx module installs from apt &mdash; no compiling the 2020
+        >
+          packages.modpagespeed.com
+        </a>
+        . On Debian and Ubuntu the nginx module installs from apt &mdash; no compiling the 2020
         toolchain:
       </p>
-      <pre
-        class="mt-4 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm"><code class="text-text-body">{`# add the signed repo, then:
+      <pre class="mt-4 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm"><code class="text-text-body">{`# add the signed repo, then:
 apt-get install nginx-module-pagespeed
 
 # the package drops the module in and adds a modules-enabled
@@ -412,23 +427,27 @@ server {
     pagespeed FileCachePath /var/cache/pagespeed;
 }`}</code></pre>
       <p class="mt-4 text-sm text-text-muted">
-        The signed apt matrix is exact-version-pinned to each distro&rsquo;s stock nginx ({
-          NGINX_APT_MATRIX
-        }), for {NGINX_APT_ARCHES}. The Apache module ships across the same distros via apt, and
-        there is an el9 yum tree. The pin is required: nginx&rsquo;s <code
-          class="text-[0.9em] bg-bg-elevated px-1 rounded">--with-compat</code
-        > does not relax the dynamic-module version check, so each module is built against its distro&rsquo;s
-        exact nginx. See the <a
-          href="/docs/"
-          class="text-interactive hover:text-interactive-hover underline"
-          >mod_pagespeed documentation</a
-        > and the <a
+        The signed apt matrix is exact-version-pinned to each distro&rsquo;s stock nginx (
+        {NGINX_APT_MATRIX}), for {NGINX_APT_ARCHES}. The Apache module ships across the same distros
+        via apt, and there is an el9 yum tree. The pin is required: nginx&rsquo;s{' '}
+        <code class="text-[0.9em] bg-bg-elevated px-1 rounded">--with-compat</code> does not relax
+        the dynamic-module version check, so each module is built against its distro&rsquo;s exact
+        nginx. See the{' '}
+        <a href="/docs/" class="text-interactive hover:text-interactive-hover underline">
+          mod_pagespeed documentation
+        </a>{' '}
+        and the{' '}
+        <a
           href="/docs/production-deployment/"
           class="text-interactive hover:text-interactive-hover underline"
-          >production deployment guide</a
-        >, or the <a href="/demo/" class="text-interactive hover:text-interactive-hover underline"
-          >live demo</a
-        > for a running instance.
+        >
+          production deployment guide
+        </a>
+        , or the{' '}
+        <a href="/demo/" class="text-interactive hover:text-interactive-hover underline">
+          live demo
+        </a>{' '}
+        for a running instance.
       </p>
     </section>
 
@@ -437,10 +456,11 @@ server {
       <div class="rounded-2xl border border-border bg-bg-secondary p-6 md:p-8">
         <h2 class="h2-section text-text-body">Move off the archived build</h2>
         <p class="mt-3 text-text-body">
-          If you are running a frozen 2020-era build, the maintained <span class="whitespace-nowrap"
-            >mod_pagespeed 2.1</span
-          > is a drop-in replacement: the directives are unchanged, and the dependency CVEs are cleared.
-          It is {LICENSE_CLAUSE} &mdash; install and run it freely. Support is what&rsquo;s for sale; Priority and Enterprise add a private package repository (being set up).
+          If you are running a frozen 2020-era build, the maintained{' '}
+          <span class="whitespace-nowrap">mod_pagespeed 2.1</span> is a drop-in replacement: the
+          directives are unchanged, and the dependency CVEs are cleared. It is {LICENSE_CLAUSE}{' '}
+          &mdash; install and run it freely. Support is what&rsquo;s for sale; Priority and
+          Enterprise add a private package repository (being set up).
         </p>
         <div class="mt-6 flex flex-wrap gap-3">
           <a href="/download/" class="btn-primary" data-umami-event="cta_stillmaintained_download">
@@ -464,14 +484,12 @@ server {
     <section class="mt-16">
       <h2 class="h2-section text-text-body">mod_pagespeed maintenance: common questions</h2>
       <dl class="mt-8 space-y-6">
-        {
-          faqEntries.map((entry) => (
-            <div class="border-b border-border pb-6">
-              <dt class="font-semibold text-text-body">{entry.q}</dt>
-              <dd class="mt-2 text-sm text-text-muted">{entry.a}</dd>
-            </div>
-          ))
-        }
+        {faqEntries.map((entry) => (
+          <div class="border-b border-border pb-6">
+            <dt class="font-semibold text-text-body">{entry.q}</dt>
+            <dd class="mt-2 text-sm text-text-muted">{entry.a}</dd>
+          </div>
+        ))}
       </dl>
     </section>
 
@@ -483,29 +501,37 @@ server {
           <a
             href="/alternatives/ngx-pagespeed/"
             class="text-interactive hover:text-interactive-hover underline"
-            >ngx_pagespeed, maintained</a
-          > &mdash; the nginx side, including why the old source tree no longer builds.
+          >
+            ngx_pagespeed, maintained
+          </a>{' '}
+          &mdash; the nginx side, including why the old source tree no longer builds.
         </li>
         <li>
           <a
             href="/blog/mod-pagespeed-deprecated-2026/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Is mod_pagespeed deprecated? What actually happened</a
-          > &mdash; the longer write-up behind this status page.
+          >
+            Is mod_pagespeed deprecated? What actually happened
+          </a>{' '}
+          &mdash; the longer write-up behind this status page.
         </li>
         <li>
           <a
             href="/blog/why-i-rebuilt-mod-pagespeed/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Why we rebuilt mod_pagespeed</a
-          > &mdash; the reasoning behind the 2.0 rewrite.
+          >
+            Why we rebuilt mod_pagespeed
+          </a>{' '}
+          &mdash; the reasoning behind the 2.0 rewrite.
         </li>
         <li>
           <a
             href="/pagespeed-markers/"
             class="text-interactive hover:text-interactive-hover underline"
-            >PageSpeed markers reference</a
-          > &mdash; what the runtime attributes and headers on a live install mean.
+          >
+            PageSpeed markers reference
+          </a>{' '}
+          &mdash; what the runtime attributes and headers on a live install mean.
         </li>
       </ul>
     </section>

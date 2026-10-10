@@ -92,30 +92,29 @@ const nextSteps = [
     <div class="text-center">
       <h1 class="h1-hero text-text-body">One form for setup, support and partnerships.</h1>
       <p class="mt-4 text-lg text-text-muted max-w-2xl mx-auto">
-        Setup help, support subscriptions, partnerships and consulting all go
-        through this form. We reply within one business day (CET). Security reports have their own
-        channel.
+        Setup help, support subscriptions, partnerships and consulting all go through this form. We
+        reply within one business day (CET). Security reports have their own channel.
       </p>
       <p class="mt-3 text-sm text-text-annotation max-w-2xl mx-auto">
         Setup steps live in the
-        <a href="/docs/" class="text-interactive hover:text-interactive-hover underline"
-          >documentation</a
-        >; what a subscription covers is on the
-        <a href="/support/" class="text-interactive hover:text-interactive-hover underline"
-          >support page</a
-        >.
+        <a href="/docs/" class="text-interactive hover:text-interactive-hover underline">
+          documentation
+        </a>
+        ; what a subscription covers is on the
+        <a href="/support/" class="text-interactive hover:text-interactive-hover underline">
+          support page
+        </a>
+        .
       </p>
     </div>
 
     <ol class="mt-10 grid grid-cols-1 gap-3 sm:grid-cols-3" aria-label="What happens next">
-      {
-        nextSteps.map((step) => (
-          <li class="readout-plate px-4 py-3">
-            <p class="font-mono text-xs text-interactive">{step.when}</p>
-            <p class="mt-1 text-sm text-text-muted">{step.what}</p>
-          </li>
-        ))
-      }
+      {nextSteps.map((step) => (
+        <li class="readout-plate px-4 py-3">
+          <p class="font-mono text-xs text-interactive">{step.when}</p>
+          <p class="mt-1 text-sm text-text-muted">{step.what}</p>
+        </li>
+      ))}
     </ol>
 
     <!-- Contact form. Behavior: JS-enabled clients POST to the capture endpoint
@@ -132,7 +131,10 @@ const nextSteps = [
       class="mt-8 rounded-lg border border-border bg-bg-elevated p-6 sm:p-8 space-y-5"
     >
       <div>
-        <label for="contact-name" class="eyebrow"> Name </label>
+        <label for="contact-name" class="eyebrow">
+          {' '}
+          Name{' '}
+        </label>
         <input
           id="contact-name"
           name="name"
@@ -145,7 +147,10 @@ const nextSteps = [
       </div>
 
       <div>
-        <label for="contact-email" class="eyebrow"> Email </label>
+        <label for="contact-email" class="eyebrow">
+          {' '}
+          Email{' '}
+        </label>
         <input
           id="contact-email"
           name="email"
@@ -158,7 +163,10 @@ const nextSteps = [
       </div>
 
       <div>
-        <label for="contact-topic" class="eyebrow"> Topic </label>
+        <label for="contact-topic" class="eyebrow">
+          {' '}
+          Topic{' '}
+        </label>
         <select
           id="contact-topic"
           name="topic"
@@ -167,7 +175,9 @@ const nextSteps = [
           aria-describedby="contact-topic-hint"
           class="mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 focus:border-interactive focus:ring-2 focus:ring-interactive"
         >
-          {TOPICS.map((t) => <option value={t.value}>{t.label}</option>)}
+          {TOPICS.map((t) => (
+            <option value={t.value}>{t.label}</option>
+          ))}
         </select>
         <p id="contact-topic-hint" class="mt-1 text-sm text-text-annotation" data-topic-hint>
           {TOPICS[0].hint}
@@ -180,7 +190,9 @@ const nextSteps = [
         </legend>
         <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <label for="contact-org" class="eyebrow">Company</label>
+            <label for="contact-org" class="eyebrow">
+              Company
+            </label>
             <input
               id="contact-org"
               name="org"
@@ -190,7 +202,9 @@ const nextSteps = [
             />
           </div>
           <div>
-            <label for="contact-role" class="eyebrow">Role</label>
+            <label for="contact-role" class="eyebrow">
+              Role
+            </label>
             <input
               id="contact-role"
               name="role"
@@ -201,7 +215,9 @@ const nextSteps = [
           </div>
         </div>
         <div>
-          <label for="contact-servers" class="eyebrow">Production servers</label>
+          <label for="contact-servers" class="eyebrow">
+            Production servers
+          </label>
           <select id="contact-servers" name="servers" class={inputClass}>
             <option value="">Choose one</option>
             <option value="Up to 5">Up to 5</option>
@@ -212,7 +228,10 @@ const nextSteps = [
       </fieldset>
 
       <div>
-        <label for="contact-message" class="eyebrow"> Message </label>
+        <label for="contact-message" class="eyebrow">
+          {' '}
+          Message{' '}
+        </label>
         <textarea
           id="contact-message"
           name="message"
@@ -229,9 +248,10 @@ const nextSteps = [
 
       <p class="text-xs text-text-annotation">
         We use what you send only to reply. See the
-        <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline"
-          >privacy policy</a
-        >.
+        <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline">
+          privacy policy
+        </a>
+        .
       </p>
 
       <div class="flex flex-col gap-2">
@@ -247,13 +267,19 @@ const nextSteps = [
           We reply within one business day (CET). Prefer email? Reach us at
           <a
             href={`mailto:${COMMERCIAL_EMAIL}`}
-            class="text-interactive hover:text-interactive-hover underline">{COMMERCIAL_EMAIL}</a
-          ><button
+            class="text-interactive hover:text-interactive-hover underline"
+          >
+            {COMMERCIAL_EMAIL}
+          </a>
+          <button
             type="button"
             id="contact-copy-email"
             data-copy={COMMERCIAL_EMAIL}
-            class="ml-1 text-interactive hover:text-interactive-hover underline">(copy)</button
-          >.
+            class="ml-1 text-interactive hover:text-interactive-hover underline"
+          >
+            (copy)
+          </button>
+          .
         </p>
         <p id="contact-status" role="status" aria-live="polite" class="hidden text-sm"></p>
       </div>
@@ -477,7 +503,6 @@ const nextSteps = [
         }
       });
     </script>
-
     <!-- Security disclosure (separate channel) -->
     <div class="mt-12 rounded-lg border border-border bg-bg-secondary p-6">
       <h2 class="text-lg font-semibold text-text-body">Security disclosure</h2>
@@ -486,11 +511,14 @@ const nextSteps = [
         <a
           href="mailto:security@modpagespeed.com"
           class="text-interactive hover:text-interactive-hover underline"
-          >security@modpagespeed.com</a
-        >. See the
-        <a href="/security/" class="text-interactive hover:text-interactive-hover underline"
-          >security policy</a
-        > for safe-harbor terms and what to include in a report.
+        >
+          security@modpagespeed.com
+        </a>
+        . See the
+        <a href="/security/" class="text-interactive hover:text-interactive-hover underline">
+          security policy
+        </a>{' '}
+        for safe-harbor terms and what to include in a report.
       </p>
     </div>
 
@@ -505,8 +533,10 @@ const nextSteps = [
           rel="noopener noreferrer"
           data-umami-event="outbound_fastspring_portal"
           class="text-interactive hover:text-interactive-hover underline transition-colors"
-          >FastSpring customer portal</a
-        >.
+        >
+          FastSpring customer portal
+        </a>
+        .
       </p>
     </div>
 
@@ -516,8 +546,11 @@ const nextSteps = [
           href="https://we-amp.com/"
           target="_blank"
           rel="noopener noreferrer"
-          class="hover:text-text-muted transition-colors">We-Amp B.V.</a
-        >, The Netherlands
+          class="hover:text-text-muted transition-colors"
+        >
+          We-Amp B.V.
+        </a>
+        , The Netherlands
       </p>
     </div>
   </section>

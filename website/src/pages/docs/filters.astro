@@ -146,9 +146,7 @@ const tone = (f: Filter) =>
   jsonLd={jsonLd}
 >
   <section class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-16 lg:py-20">
-    <div
-      class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:flex-wrap"
-    >
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-4 sm:flex-wrap">
       <h1 class="h1-hero break-words text-text-body">PageSpeed filters</h1>
       <a
         href="/docs/"
@@ -161,63 +159,76 @@ const tone = (f: Filter) =>
     </div>
 
     <p class="mt-4 text-lg text-text-muted">
-      A PageSpeed filter is one named optimization that <a
+      A PageSpeed filter is one named optimization that{' '}
+      <a
         href="/"
         class="text-interactive hover:text-interactive-hover underline underline-offset-4"
-        >mod_pagespeed</a
-      >, the in-process module for Apache, nginx and IIS, applies to a page or a resource as the
+      >
+        mod_pagespeed
+      </a>
+      , the in-process module for Apache, nginx and IIS, applies to a page or a resource as the
       server serves it: recompress an image, minify and combine CSS and JavaScript, inline the
       critical CSS, extend a cache lifetime. The table lists every filter mod_pagespeed 2.1 accepts
-      &mdash; {counts.shipped} filters and {counts.aliases} compound names that expand to several &mdash;
-      generated from the module source at {FILTERS_SOURCE.tag}, so it is the list the shipped module
-      knows. Each name links to the entry that explains what the filter changes, when to use it and
-      what can go wrong.
+      &mdash; {counts.shipped} filters and {counts.aliases} compound names that expand to several
+      &mdash; generated from the module source at {FILTERS_SOURCE.tag}, so it is the list the
+      shipped module knows. Each name links to the entry that explains what the filter changes, when
+      to use it and what can go wrong.
     </p>
 
-    <p
-      class="mt-4 rounded-lg border border-border bg-bg-elevated px-4 py-3 text-sm text-text-muted"
-    >
-      Looking for the Google PageSpeed Insights score at <a
+    <p class="mt-4 rounded-lg border border-border bg-bg-elevated px-4 py-3 text-sm text-text-muted">
+      Looking for the Google PageSpeed Insights score at{' '}
+      <a
         href="https://pagespeed.web.dev"
         rel="noopener"
         class="text-interactive hover:text-interactive-hover underline underline-offset-4"
-        >pagespeed.web.dev</a
-      >? That is Google&rsquo;s online scoring tool. This page documents the optimization filters
-      that do the work, not the score. To measure a URL yourself, use <a
+      >
+        pagespeed.web.dev
+      </a>
+      ? That is Google&rsquo;s online scoring tool. This page documents the optimization filters
+      that do the work, not the score. To measure a URL yourself, use{' '}
+      <a
         href="/analyze/"
         class="text-interactive hover:text-interactive-hover underline underline-offset-4"
-        >Analyze</a
-      >.
+      >
+        Analyze
+      </a>
+      .
     </p>
 
     <h2 class="mt-10 text-xl font-semibold text-text-body" id="how-to-enable">
       How to enable a filter
     </h2>
     <p class="mt-2 text-sm text-text-muted">
-      <code class="text-sm bg-bg-elevated px-1.5 py-0.5 rounded font-mono">RewriteLevel</code> picks the
-      baseline set: <strong>CoreFilters</strong> (the default) enables the {counts.core} filters marked
+      <code class="text-sm bg-bg-elevated px-1.5 py-0.5 rounded font-mono">RewriteLevel</code> picks
+      the baseline set: <strong>CoreFilters</strong> (the default) enables the {counts.core} filters
+      marked
       <em>Core</em>, <strong>OptimizeForBandwidth</strong> enables the {counts.ofb} marked
-      <em>OFB</em> and leaves URLs unchanged, <strong>PassThrough</strong> enables none. Add or remove
-      individual filters by name:
+      <em>OFB</em> and leaves URLs unchanged, <strong>PassThrough</strong> enables none. Add or
+      remove individual filters by name:
     </p>
-    <pre
-      class="mt-3 rounded-lg border border-border bg-bg-elevated p-4 text-sm font-mono overflow-x-auto"><code>pagespeed EnableFilters rewrite_images,lazyload_images;   # nginx
+    <pre class="mt-3 rounded-lg border border-border bg-bg-elevated p-4 text-sm font-mono overflow-x-auto"><code>pagespeed EnableFilters rewrite_images,lazyload_images;   # nginx
 pagespeed DisableFilters convert_jpeg_to_webp;
 ModPagespeedEnableFilters rewrite_images,lazyload_images   # Apache
 pagespeed EnableFilters rewrite_images,lazyload_images     # IIS (pagespeed.config)</code></pre>
     <p class="mt-2 text-sm text-text-muted">
-      Scoping per virtual host and location, <code
-        class="text-sm bg-bg-elevated px-1.5 py-0.5 rounded font-mono">ForbidFilters</code
-      > and the thresholds each filter reads are on <a
+      Scoping per virtual host and location,{' '}
+      <code class="text-sm bg-bg-elevated px-1.5 py-0.5 rounded font-mono">ForbidFilters</code> and
+      the thresholds each filter reads are on{' '}
+      <a
         href="/docs/filter-selection/"
         class="text-interactive hover:text-interactive-hover underline underline-offset-4"
-        >Choosing filters</a
-      >. The optimizer worker behind the Docker image runs a different pipeline, configured by flags
-      rather than this list: see <a
+      >
+        Choosing filters
+      </a>
+      . The optimizer worker behind the Docker image runs a different pipeline, configured by flags
+      rather than this list: see{' '}
+      <a
         href="/docs/worker-configuration/"
         class="text-interactive hover:text-interactive-hover underline underline-offset-4"
-        >Worker and reverse-proxy configuration</a
-      >.
+      >
+        Worker and reverse-proxy configuration
+      </a>
+      .
     </p>
 
     <h2 class="mt-10 text-xl font-semibold text-text-body" id="all-filters">
@@ -226,131 +237,141 @@ pagespeed EnableFilters rewrite_images,lazyload_images     # IIS (pagespeed.conf
     <p class="mt-1 text-sm text-text-muted">
       Alphabetical. <em>Core</em> and <em>OFB</em>: enabled by RewriteLevel CoreFilters /
       OptimizeForBandwidth (<em>Part</em>: a compound name whose members are only partly in the
-      set). <em>Risk</em>: the rating from the group page; <em>Dangerous</em> marks the module&rsquo;s
-      own dangerous set, which AllFilters never enables, and <em>Deprecated</em> a name that is accepted
-      but does nothing. <em>Example</em> opens the live before/after demo where the gallery has one.
+      set). <em>Risk</em>: the rating from the group page; <em>Dangerous</em> marks the
+      module&rsquo;s own dangerous set, which AllFilters never enables, and <em>Deprecated</em> a
+      name that is accepted but does nothing. <em>Example</em> opens the live before/after demo
+      where the gallery has one.
     </p>
 
     <div class="mt-4 overflow-x-auto">
       <table class="w-full border-collapse text-sm">
         <thead>
           <tr class="border-b border-border text-left align-bottom">
-            <th scope="col" class="py-2 pr-4 font-semibold text-text-body">Filter</th>
-            <th scope="col" class="py-2 pr-4 font-semibold text-text-body">What it does</th>
-            <th scope="col" class="py-2 pr-3 font-semibold text-text-body whitespace-nowrap"
-              >Category</th
-            >
-            <th scope="col" class="py-2 pr-3 font-semibold text-text-body">Core</th>
-            <th scope="col" class="py-2 pr-3 font-semibold text-text-body">OFB</th>
-            <th scope="col" class="py-2 pr-3 font-semibold text-text-body">Risk</th>
-            <th scope="col" class="py-2 font-semibold text-text-body">Example</th>
+            <th scope="col" class="py-2 pr-4 font-semibold text-text-body">
+              Filter
+            </th>
+            <th scope="col" class="py-2 pr-4 font-semibold text-text-body">
+              What it does
+            </th>
+            <th scope="col" class="py-2 pr-3 font-semibold text-text-body whitespace-nowrap">
+              Category
+            </th>
+            <th scope="col" class="py-2 pr-3 font-semibold text-text-body">
+              Core
+            </th>
+            <th scope="col" class="py-2 pr-3 font-semibold text-text-body">
+              OFB
+            </th>
+            <th scope="col" class="py-2 pr-3 font-semibold text-text-body">
+              Risk
+            </th>
+            <th scope="col" class="py-2 font-semibold text-text-body">
+              Example
+            </th>
           </tr>
         </thead>
         <tbody>
-          {
-            rows.map((f) => (
-              <tr class={`border-b border-border/60 ${tone(f)}`} id={f.name}>
-                <td class="py-2 pr-4 align-top">
+          {rows.map((f) => (
+            <tr class={`border-b border-border/60 ${tone(f)}`} id={f.name}>
+              <td class="py-2 pr-4 align-top">
+                <a
+                  href={f.topic}
+                  class="font-mono text-interactive hover:text-interactive-hover break-all"
+                  data-topic-link
+                >
+                  {f.name}
+                </a>
+                {!f.topicIndexable && (
                   <a
-                    href={f.topic}
-                    class="font-mono text-interactive hover:text-interactive-hover break-all"
-                    data-topic-link
+                    href={f.href}
+                    class="ml-1 text-xs text-text-annotation hover:text-interactive"
+                    data-section-link
                   >
-                    {f.name}
+                    (section)
                   </a>
-                  {!f.topicIndexable && (
-                    <a
-                      href={f.href}
-                      class="ml-1 text-xs text-text-annotation hover:text-interactive"
-                      data-section-link
-                    >
-                      (section)
-                    </a>
-                  )}
-                  {f.alias && (
-                    <span class="block text-xs text-text-annotation">= {f.members.join(', ')}</span>
-                  )}
-                  {f.alternateSpellingOf && (
-                    <span class="block text-xs text-text-annotation">
-                      alternate spelling of {f.alternateSpellingOf}
-                    </span>
-                  )}
-                </td>
-                <td class="py-2 pr-4 align-top">
-                  {f.description}
-                  {f.note && <span class="block text-xs text-text-annotation">{f.note}</span>}
-                </td>
-                <td class="py-2 pr-3 align-top whitespace-nowrap">{f.category}</td>
-                <td class="py-2 pr-3 align-top">{yesNo(f.core)}</td>
-                <td class="py-2 pr-3 align-top">{yesNo(f.optimizeForBandwidth)}</td>
-                <td class="py-2 pr-3 align-top whitespace-nowrap">{riskLabel(f)}</td>
-                <td class="py-2 align-top whitespace-nowrap">
-                  {f.example ? (
-                    <a
-                      href={f.example}
-                      class="text-interactive hover:text-interactive-hover underline-offset-4 hover:underline"
-                    >
-                      demo
-                    </a>
-                  ) : (
-                    <span aria-hidden="true">—</span>
-                  )}
-                </td>
-              </tr>
-            ))
-          }
+                )}
+                {f.alias && (
+                  <span class="block text-xs text-text-annotation">= {f.members.join(', ')}</span>
+                )}
+                {f.alternateSpellingOf && (
+                  <span class="block text-xs text-text-annotation">
+                    alternate spelling of {f.alternateSpellingOf}
+                  </span>
+                )}
+              </td>
+              <td class="py-2 pr-4 align-top">
+                {f.description}
+                {f.note && <span class="block text-xs text-text-annotation">{f.note}</span>}
+              </td>
+              <td class="py-2 pr-3 align-top whitespace-nowrap">{f.category}</td>
+              <td class="py-2 pr-3 align-top">{yesNo(f.core)}</td>
+              <td class="py-2 pr-3 align-top">{yesNo(f.optimizeForBandwidth)}</td>
+              <td class="py-2 pr-3 align-top whitespace-nowrap">{riskLabel(f)}</td>
+              <td class="py-2 align-top whitespace-nowrap">
+                {f.example ? (
+                  <a
+                    href={f.example}
+                    class="text-interactive hover:text-interactive-hover underline-offset-4 hover:underline"
+                  >
+                    demo
+                  </a>
+                ) : (
+                  <span aria-hidden="true">—</span>
+                )}
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
 
     <p class="mt-4 text-sm text-text-muted">
       {counts.shipped} filters, {counts.aliases} compound names, {counts.core} in CoreFilters,
-      {counts.ofb} in OptimizeForBandwidth, {counts.dangerous} in the dangerous set, {
-        counts.deprecated
-      }
+      {counts.ofb} in OptimizeForBandwidth, {counts.dangerous} in the dangerous set,{' '}
+      {counts.deprecated}
       deprecated. Generated from the module source at {FILTERS_SOURCE.tag}.
     </p>
 
     <div class="mt-12 border-t border-border pt-8">
-      <h2 class="text-xl font-semibold text-text-body" id="by-category">Filters by category</h2>
+      <h2 class="text-xl font-semibold text-text-body" id="by-category">
+        Filters by category
+      </h2>
       <p class="mt-1 text-sm text-text-muted">
         The group pages hold the entry for every filter: what it changes, when to use it, the
         directive to enable it, its risks and the live example.
       </p>
       <div class="mt-6 space-y-3">
-        {
-          categories.map((cat) => {
-            const n = groups.find((g) => PAGE_BY_CATEGORY[g.category] === cat.slug)?.filters.length;
-            return (
-              <a
-                href={`/docs/${cat.slug}/`}
-                class="block rounded-lg border border-border bg-bg-elevated p-6 hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
-              >
-                <h3 class="text-lg font-semibold text-text-body">
-                  {cat.title}
-                  {n !== undefined && (
-                    <span class="ml-2 text-sm font-normal text-text-annotation">{n} filters</span>
-                  )}
-                </h3>
-                <p class="mt-1 text-sm text-text-muted">{cat.description}</p>
-              </a>
-            );
-          })
-        }
+        {categories.map((cat) => {
+          const n = groups.find((g) => PAGE_BY_CATEGORY[g.category] === cat.slug)?.filters.length;
+          return (
+            <a
+              href={`/docs/${cat.slug}/`}
+              class="block rounded-lg border border-border bg-bg-elevated p-6 hover:border-interactive/40 hover:bg-interactive/10 transition-colors"
+            >
+              <h3 class="text-lg font-semibold text-text-body">
+                {cat.title}
+                {n !== undefined && (
+                  <span class="ml-2 text-sm font-normal text-text-annotation">{n} filters</span>
+                )}
+              </h3>
+              <p class="mt-1 text-sm text-text-muted">{cat.description}</p>
+            </a>
+          );
+        })}
       </div>
     </div>
 
     <div class="mt-12 border-t border-border pt-8">
-      <h2 class="text-xl font-semibold text-text-body" id="faq">Frequently asked questions</h2>
+      <h2 class="text-xl font-semibold text-text-body" id="faq">
+        Frequently asked questions
+      </h2>
       <dl class="mt-4 space-y-5">
-        {
-          faq.map((item) => (
-            <div>
-              <dt class="font-semibold text-text-body">{item.q}</dt>
-              <dd class="mt-1 text-sm text-text-muted">{item.a}</dd>
-            </div>
-          ))
-        }
+        {faq.map((item) => (
+          <div>
+            <dt class="font-semibold text-text-body">{item.q}</dt>
+            <dd class="mt-1 text-sm text-text-muted">{item.a}</dd>
+          </div>
+        ))}
       </dl>
     </div>
 

@@ -28,31 +28,27 @@ const improved = tone === 'improved';
 <div class="readout" data-ui="readout">
   <div class="readout-row">
     <p class="readout-value display-num">
-      {
-        before !== undefined && (
-          <>
-            <span class="text-text-annotation">{before}</span>
-            <span aria-hidden="true"> → </span>
-            <span class="sr-only"> to </span>
-          </>
-        )
-      }
+      {before !== undefined && (
+        <>
+          <span class="text-text-annotation">{before}</span>
+          <span aria-hidden="true"> → </span>
+          <span class="sr-only"> to </span>
+        </>
+      )}
       <span class={improved ? 'text-success' : 'text-text-body'}>{after}</span>
     </p>
     <p class="readout-label text-sm text-text-muted">{label}</p>
   </div>
-  {
-    gauge && (
-      <div class="readout-gauge" aria-hidden="true">
-        <i class="track" />
-        {beforeWidth !== undefined && <i class="before" style={`inline-size:${beforeWidth}%`} />}
-        <i
-          class:list={['after', improved ? 'after-improved' : 'after-neutral']}
-          style={`inline-size:${afterWidth}%`}
-        />
-      </div>
-    )
-  }
+  {gauge && (
+    <div class="readout-gauge" aria-hidden="true">
+      <i class="track" />
+      {beforeWidth !== undefined && <i class="before" style={`inline-size:${beforeWidth}%`} />}
+      <i
+        class:list={['after', improved ? 'after-improved' : 'after-neutral']}
+        style={`inline-size:${afterWidth}%`}
+      />
+    </div>
+  )}
 </div>
 
 <style>

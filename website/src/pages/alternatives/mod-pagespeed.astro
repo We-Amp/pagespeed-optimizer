@@ -77,28 +77,31 @@ const jsonLd = [
         <a
           href="/download/"
           class="btn-primary"
-          data-umami-event="cta_alternatives_modpagespeed_install">Download &amp; run</a
+          data-umami-event="cta_alternatives_modpagespeed_install"
         >
+          Download &amp; run
+        </a>
         <a
           href="/pricing/"
           data-umami-event="cta_alternatives_modpagespeed_buy"
           class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-          >Support plans</a
         >
+          Support plans
+        </a>
       </div>
-      <p class="mt-3 text-sm text-text-annotation">
-        {FREE_TO_RUN_LINE}
-      </p>
+      <p class="mt-3 text-sm text-text-annotation">{FREE_TO_RUN_LINE}</p>
     </header>
 
-    <div
-      class="mt-12 prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive dark:prose-invert"
-    >
+    <div class="mt-12 prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive dark:prose-invert">
       <p>
-        The repository still exists, read-only, at <a
+        The repository still exists, read-only, at{' '}
+        <a
           href="https://github.com/apache/incubator-pagespeed-mod"
-          rel="noopener noreferrer external">apache/incubator-pagespeed-mod</a
-        >. The 1.13.35.2 binaries still install and serve pages. They also haven't taken a security
+          rel="noopener noreferrer external"
+        >
+          apache/incubator-pagespeed-mod
+        </a>
+        . The 1.13.35.2 binaries still install and serve pages. They also haven't taken a security
         patch in years, won't build against current Apache, emit no Core Web Vitals telemetry, and
         have no AVIF.
       </p>
@@ -112,24 +115,47 @@ const jsonLd = [
           </tr>
         </thead>
         <tbody>
-          <tr><td>2010</td><td>Google releases <code>mod_pagespeed</code> for Apache</td></tr>
-          <tr><td>2013</td><td>Nginx port released as <code>ngx_pagespeed</code></td></tr>
-          <tr
-            ><td>2017</td><td
-              >Google donates the project to the Apache Software Foundation; active Google
-              development ends</td
-            ></tr
-          >
-          <tr><td>2018</td><td>The last Google-era stable release, 1.13.35.2</td></tr>
-          <tr><td>2020</td><td>Final open-source release, 1.14.36.1 (Apache incubator)</td></tr>
-          <tr><td>2023</td><td>Apache Incubator podling retires</td></tr>
-          <tr><td>2025</td><td>GitHub repositories marked read-only</td></tr>
+          <tr>
+            <td>2010</td>
+            <td>
+              Google releases <code>mod_pagespeed</code> for Apache
+            </td>
+          </tr>
+          <tr>
+            <td>2013</td>
+            <td>
+              Nginx port released as <code>ngx_pagespeed</code>
+            </td>
+          </tr>
+          <tr>
+            <td>2017</td>
+            <td>
+              Google donates the project to the Apache Software Foundation; active Google
+              development ends
+            </td>
+          </tr>
+          <tr>
+            <td>2018</td>
+            <td>The last Google-era stable release, 1.13.35.2</td>
+          </tr>
+          <tr>
+            <td>2020</td>
+            <td>Final open-source release, 1.14.36.1 (Apache incubator)</td>
+          </tr>
+          <tr>
+            <td>2023</td>
+            <td>Apache Incubator podling retires</td>
+          </tr>
+          <tr>
+            <td>2025</td>
+            <td>GitHub repositories marked read-only</td>
+          </tr>
           <tr>
             <td>2026</td>
-            <td
-              >Development continues as mod_pagespeed 2.1: the native in-process module for Apache
-              and nginx, with the optimizer worker alongside it</td
-            >
+            <td>
+              Development continues as mod_pagespeed 2.1: the native in-process module for Apache
+              and nginx, with the optimizer worker alongside it
+            </td>
           </tr>
         </tbody>
       </table>
@@ -137,10 +163,12 @@ const jsonLd = [
       <p>
         We-Amp B.V. &mdash; the team that helped build ngx_pagespeed, maintained mod_pagespeed, and
         drove the project's Apache incubation &mdash; develops that continuation. The
-        <a href="https://we-amp.com/open-source/" rel="noopener noreferrer">open-source history</a> on
-        we-amp.com has the longer version of how the project changed hands, and
-        <a href="/mod-pagespeed-still-maintained/">is mod_pagespeed still maintained?</a> covers what
-        development resumed and what shipped since.
+        <a href="https://we-amp.com/open-source/" rel="noopener noreferrer">
+          open-source history
+        </a>{' '}
+        on we-amp.com has the longer version of how the project changed hands, and
+        <a href="/mod-pagespeed-still-maintained/">is mod_pagespeed still maintained?</a> covers
+        what development resumed and what shipped since.
       </p>
       <p>
         Public development going quiet did not mean the work stopped. We-Amp kept PageSpeed
@@ -157,31 +185,33 @@ const jsonLd = [
       </p>
       <ul>
         <li>
-          <strong>No security patches in years.</strong> Unpatched dependencies (libpng, libwebp, libjpeg,
-          ICU) carry known CVEs (e.g. libwebp CVE-2023-4863).
+          <strong>No security patches in years.</strong> Unpatched dependencies (libpng, libwebp,
+          libjpeg, ICU) carry known CVEs (e.g. libwebp CVE-2023-4863).
         </li>
         <li>
-          <strong>No build against current Apache.</strong> The build needs the original toolchain and
-          won't compile against current Apache releases without patching.
+          <strong>No build against current Apache.</strong> The build needs the original toolchain
+          and won't compile against current Apache releases without patching.
         </li>
         <li>
-          <strong>No Core Web Vitals tooling.</strong> LCP and INP signals are missing from the filter
-          set.
+          <strong>No Core Web Vitals tooling.</strong> LCP and INP signals are missing from the
+          filter set.
         </li>
-        <li><strong>No modern image formats.</strong> AVIF support never landed.</li>
         <li>
-          <strong>Dated build toolchain.</strong> Bazel 0.x, glibc constraints, and pinned Python 2 in
-          the build scripts.
+          <strong>No modern image formats.</strong> AVIF support never landed.
+        </li>
+        <li>
+          <strong>Dated build toolchain.</strong> Bazel 0.x, glibc constraints, and pinned Python 2
+          in the build scripts.
         </li>
       </ul>
 
       <h2>mod_pagespeed 2.1 &mdash; the native module and the optimizer worker</h2>
       <p>
         mod_pagespeed 2.1 is one product with two moving parts. The native module loads in-process
-        and handles the request; the <code>pagespeed-optimizer</code> worker does the heavy work outside
-        it. The worker reads originals from a shared Cyclone cache, generates up to 37 variants per asset
-        (WebP, AVIF, viewport sizes, pixel densities, save-data, plus SVG for eligible images), and writes
-        them back. The serving side returns cache hits via zero-copy
+        and handles the request; the <code>pagespeed-optimizer</code> worker does the heavy work
+        outside it. The worker reads originals from a shared Cyclone cache, generates up to 37
+        variants per asset (WebP, AVIF, viewport sizes, pixel densities, save-data, plus SVG for
+        eligible images), and writes them back. The serving side returns cache hits via zero-copy
         <code>mmap</code>. On the deb and rpm channels the two install and upgrade together as a
         matching pair, and the Apache packages install the configuration that points the module at
         the worker. The native nginx module runs on its own; to use the optimizer worker with nginx,
@@ -194,9 +224,10 @@ const jsonLd = [
 
       <p>
         <a href="/docs/">Read the docs</a> &middot; <a href="/features/">the full feature set</a>
-        &middot; <a href="/pricing/" data-umami-event="cta_alternatives_modpagespeed_buy_docs"
-          >Support plans</a
-        >
+        &middot;{' '}
+        <a href="/pricing/" data-umami-event="cta_alternatives_modpagespeed_buy_docs">
+          Support plans
+        </a>
       </p>
 
       <h2>The native module for Apache and nginx</h2>
@@ -229,9 +260,9 @@ ModPagespeedFileCachePath /var/cache/mod_pagespeed`}</code></pre>
       <p>
         <a href="/download/apt-yum/">Install from apt / yum</a> &middot;
         <a href="/docs/installation-module/">Apache PageSpeed module</a> &middot;
-        <a href="https://packages.modpagespeed.com/" rel="noopener noreferrer external"
-          >Package repositories (packages.modpagespeed.com)</a
-        >
+        <a href="https://packages.modpagespeed.com/" rel="noopener noreferrer external">
+          Package repositories (packages.modpagespeed.com)
+        </a>
       </p>
 
       <h2>Apache, nginx, Docker, Kubernetes &mdash; which integration fits</h2>
@@ -241,7 +272,10 @@ ModPagespeedFileCachePath /var/cache/mod_pagespeed`}</code></pre>
       </p>
       <table>
         <thead>
-          <tr><th>Your stack</th><th>How mod_pagespeed 2.1 installs</th></tr>
+          <tr>
+            <th>Your stack</th>
+            <th>How mod_pagespeed 2.1 installs</th>
+          </tr>
         </thead>
         <tbody>
           <tr>
@@ -250,22 +284,23 @@ ModPagespeedFileCachePath /var/cache/mod_pagespeed`}</code></pre>
           </tr>
           <tr>
             <td>nginx on Debian, Ubuntu, or Enterprise Linux</td>
-            <td
-              >Native dynamic module from the same repository, built against your distribution's
-              stock nginx</td
-            >
+            <td>
+              Native dynamic module from the same repository, built against your distribution's
+              stock nginx
+            </td>
           </tr>
           <tr>
-            <td
-              >Existing <code>mod_pagespeed</code> 1.13.35.2 deployment, want a patched, drop-in replacement</td
-            >
+            <td>
+              Existing <code>mod_pagespeed</code> 1.13.35.2 deployment, want a patched, drop-in
+              replacement
+            </td>
             <td>Native module &mdash; the directive surface and filter names carry over</td>
           </tr>
           <tr>
             <td>New container-native deployment, in front of any HTTP origin</td>
-            <td
-              >Docker / nginx reverse proxy &mdash; nginx and worker images, shared cache volume</td
-            >
+            <td>
+              Docker / nginx reverse proxy &mdash; nginx and worker images, shared cache volume
+            </td>
           </tr>
           <tr>
             <td>Kubernetes</td>
@@ -277,8 +312,8 @@ ModPagespeedFileCachePath /var/cache/mod_pagespeed`}</code></pre>
         Three further integrations are available separately, outside those packages. The IIS package
         ships from the 1.15 packaging channel. For ASP.NET Core there is the
         <code>WeAmp.PageSpeed.AspNetCore</code> middleware, added in two lines of
-        <code>Program.cs</code>, and the <code>WeAmp.PageSpeed.Sidecar</code> package, which runs a bundled
-        nginx optimizer on loopback behind your Kestrel app.
+        <code>Program.cs</code>, and the <code>WeAmp.PageSpeed.Sidecar</code> package, which runs a
+        bundled nginx optimizer on loopback behind your Kestrel app.
       </p>
 
       <h2>Migration</h2>
@@ -286,28 +321,27 @@ ModPagespeedFileCachePath /var/cache/mod_pagespeed`}</code></pre>
         The 2.1 directive surface is the same as 1.13.35.2 &mdash; most installs are a package swap,
         and the module reports a version mismatch with its worker loudly instead of absorbing it.
         Container deployments configure the reverse proxy instead, which is a smaller surface than
-        an inline module. See <a href="/docs/getting-started/">getting started</a> for both install paths,
-        and the <a href="/blog/mod-pagespeed-alternatives/">deeper comparison</a>
+        an inline module. See <a href="/docs/getting-started/">getting started</a> for both install
+        paths, and the <a href="/blog/mod-pagespeed-alternatives/">deeper comparison</a>
         for how it lines up against other tools.
       </p>
 
       <h2>Frequently asked questions</h2>
-      {
-        faq.map((entry) => (
-          <>
-            <h3>{entry.q}</h3>
-            <p>{entry.a}</p>
-          </>
-        ))
-      }
+      {faq.map((entry) => (
+        <>
+          <h3>{entry.q}</h3>
+          <p>{entry.a}</p>
+        </>
+      ))}
 
       <h2>Install and run</h2>
       <ul>
         <li>
           <strong>Native module (Apache, nginx)</strong> &mdash;
-          <a href="https://packages.modpagespeed.com/" rel="noopener noreferrer external"
-            >package repos</a
-          > &middot; <a href="/download/apt-yum/">apt / yum install</a>
+          <a href="https://packages.modpagespeed.com/" rel="noopener noreferrer external">
+            package repos
+          </a>{' '}
+          &middot; <a href="/download/apt-yum/">apt / yum install</a>
         </li>
         <li>
           <strong>Docker and Kubernetes</strong> &mdash;
@@ -325,32 +359,42 @@ ModPagespeedFileCachePath /var/cache/mod_pagespeed`}</code></pre>
       <h2>Related</h2>
       <ul>
         <li>
-          <a href="/mod-pagespeed-still-maintained/"
-            >Is mod_pagespeed still maintained? &mdash; the current state of the project</a
-          >
+          <a href="/mod-pagespeed-still-maintained/">
+            Is mod_pagespeed still maintained? &mdash; the current state of the project
+          </a>
         </li>
         <li>
-          <a href="/blog/mod-pagespeed-deprecated-2026/"
-            >Is mod_pagespeed deprecated? &mdash; what changed and what to use</a
-          >
+          <a href="/blog/mod-pagespeed-deprecated-2026/">
+            Is mod_pagespeed deprecated? &mdash; what changed and what to use
+          </a>
         </li>
         <li>
-          <a href="/blog/mod-pagespeed-alternatives/"
-            >mod_pagespeed alternatives &mdash; the deep comparison</a
-          >
+          <a href="/blog/mod-pagespeed-alternatives/">
+            mod_pagespeed alternatives &mdash; the deep comparison
+          </a>
         </li>
-        <li><a href="/alternatives/ngx-pagespeed/">ngx_pagespeed alternative</a></li>
-        <li><a href="/alternatives/iispeed/">IISpeed alternative</a></li>
+        <li>
+          <a href="/alternatives/ngx-pagespeed/">ngx_pagespeed alternative</a>
+        </li>
+        <li>
+          <a href="/alternatives/iispeed/">IISpeed alternative</a>
+        </li>
         <li>
           <a href="/alternatives/google-pagespeed-module/">Google PageSpeed Module alternative</a>
         </li>
-        <li><a href="/vs/wp-rocket/">mod_pagespeed vs WP Rocket</a></li>
-        <li><a href="/vs/cloudflare-apo/">mod_pagespeed vs Cloudflare APO</a></li>
-        <li><a href="/vs/">All mod_pagespeed comparisons</a></li>
         <li>
-          <a href="https://we-amp.com/open-source/" rel="noopener noreferrer"
-            >We-Amp open-source history</a
-          >
+          <a href="/vs/wp-rocket/">mod_pagespeed vs WP Rocket</a>
+        </li>
+        <li>
+          <a href="/vs/cloudflare-apo/">mod_pagespeed vs Cloudflare APO</a>
+        </li>
+        <li>
+          <a href="/vs/">All mod_pagespeed comparisons</a>
+        </li>
+        <li>
+          <a href="https://we-amp.com/open-source/" rel="noopener noreferrer">
+            We-Amp open-source history
+          </a>
         </li>
       </ul>
 

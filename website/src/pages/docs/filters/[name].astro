@@ -252,11 +252,17 @@ const yesNo = (v: boolean | 'partial') => (v === true ? 'Yes' : v === 'partial' 
       aria-label="Breadcrumb"
       data-pagefind-ignore
     >
-      <a href="/" class="hover:text-text-body">Home</a>
+      <a href="/" class="hover:text-text-body">
+        Home
+      </a>
       <span class="mx-1">/</span>
-      <a href="/docs/" class="hover:text-text-body">Docs</a>
+      <a href="/docs/" class="hover:text-text-body">
+        Docs
+      </a>
       <span class="mx-1">/</span>
-      <a href="/docs/filters/" class="hover:text-text-body">Filters</a>
+      <a href="/docs/filters/" class="hover:text-text-body">
+        Filters
+      </a>
       <span class="mx-1">/</span>
       <span class="font-mono break-all">{t.name}</span>
     </nav>
@@ -288,250 +294,244 @@ const yesNo = (v: boolean | 'partial') => (v === true ? 'Yes' : v === 'partial' 
 
     {lede && <p class="mt-6 lede text-text-body" data-topic-lede set:html={lede} />}
 
-    {
-      t.alias && members.length > 0 && (
-        <div class="mt-8">
-          <h2 class="text-xl font-semibold text-text-body" id="members">
-            What it switches on
-          </h2>
-          <p class="mt-2 text-sm text-text-muted">
-            <code>{t.name}</code> is a compound name. Enabling it enables these {members.length}{' '}
-            filters; each can be disabled on its own.
-          </p>
-          <ul class="mt-3 grid gap-x-6 gap-y-1 sm:grid-cols-2 text-sm" data-alias-members>
-            {members.map((m) => (
-              <li>
-                <a class="font-mono text-interactive hover:underline" href={m.path}>
-                  {m.name}
-                </a>
-                <span class="text-text-annotation"> — {m.human}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )
-    }
-
-    {
-      body.length > 0 && (
-        <div class="mt-10">
-          <h2 class="text-xl font-semibold text-text-body" id="how-it-works">
-            How it works
-          </h2>
-          {body.map((g) => (
-            <div class="mt-4">
-              {g.heading && (
-                <h3 class="text-lg font-semibold text-text-body" set:html={g.heading} />
-              )}
-              <div class={`mt-2 ${prose}`} set:html={g.html} />
-            </div>
+    {t.alias && members.length > 0 && (
+      <div class="mt-8">
+        <h2 class="text-xl font-semibold text-text-body" id="members">
+          What it switches on
+        </h2>
+        <p class="mt-2 text-sm text-text-muted">
+          <code>{t.name}</code> is a compound name. Enabling it enables these {members.length}{' '}
+          filters; each can be disabled on its own.
+        </p>
+        <ul class="mt-3 grid gap-x-6 gap-y-1 sm:grid-cols-2 text-sm" data-alias-members>
+          {members.map((m) => (
+            <li>
+              <a class="font-mono text-interactive hover:underline" href={m.path}>
+                {m.name}
+              </a>
+              <span class="text-text-annotation"> — {m.human}</span>
+            </li>
           ))}
-        </div>
-      )
-    }
+        </ul>
+      </div>
+    )}
+
+    {body.length > 0 && (
+      <div class="mt-10">
+        <h2 class="text-xl font-semibold text-text-body" id="how-it-works">
+          How it works
+        </h2>
+        {body.map((g) => (
+          <div class="mt-4">
+            {g.heading && <h3 class="text-lg font-semibold text-text-body" set:html={g.heading} />}
+            <div class={`mt-2 ${prose}`} set:html={g.html} />
+          </div>
+        ))}
+      </div>
+    )}
 
     <div class="mt-10">
-      <h2 class="text-xl font-semibold text-text-body" id="when-to-use">When to use it</h2>
+      <h2 class="text-xl font-semibold text-text-body" id="when-to-use">
+        When to use it
+      </h2>
       <ul class="mt-3 list-disc space-y-1 pl-5 text-text-muted">
-        {facts.map((f) => <li set:html={f} />)}
+        {facts.map((f) => (
+          <li set:html={f} />
+        ))}
       </ul>
     </div>
 
     <div class="mt-10">
-      <h2 class="text-xl font-semibold text-text-body" id="risks">Risks</h2>
-      {
-        risks ? (
-          <div class={`mt-3 ${prose}`} set:html={risks} />
-        ) : (
-          <p class="mt-3 text-text-muted">
-            The{' '}
-            <a class="text-interactive underline" href={groupHref}>
-              {groupName}
-            </a>{' '}
-            page lists no specific risks for this filter.
-            {t.disable && (
-              <>
-                {' '}
-                If a page misbehaves with it, <code>DisableFilters {t.name}</code> turns it off for
-                the scope you set it in.
-              </>
-            )}
-          </p>
-        )
-      }
+      <h2 class="text-xl font-semibold text-text-body" id="risks">
+        Risks
+      </h2>
+      {risks ? (
+        <div class={`mt-3 ${prose}`} set:html={risks} />
+      ) : (
+        <p class="mt-3 text-text-muted">
+          The{' '}
+          <a class="text-interactive underline" href={groupHref}>
+            {groupName}
+          </a>{' '}
+          page lists no specific risks for this filter.
+          {t.disable && (
+            <>
+              {' '}
+              If a page misbehaves with it, <code>DisableFilters {t.name}</code> turns it off for
+              the scope you set it in.
+            </>
+          )}
+        </p>
+      )}
     </div>
 
-    {
-      (serverBlocks.length > 0 || sectionConfig.length > 0 || worker) && (
-        <div class="mt-10">
-          <h2 class="text-xl font-semibold text-text-body" id="configuration">
-            Configuration
-          </h2>
-          {serverBlocks.length > 0 && (
-            <>
-              <p class="mt-3 text-sm text-text-muted">
-                Enable it in the module configuration, at server, virtual-host or location scope:
-              </p>
-              <div class="mt-3 space-y-3">
-                {serverBlocks.map((b) => (
-                  <div>
-                    <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">
-                      {b.label}
-                    </p>
-                    <div class={prose} set:html={b.html} />
-                  </div>
-                ))}
-              </div>
-            </>
-          )}
-          {disableBlock && (
-            <>
-              <p class="mt-4 text-sm text-text-muted">
-                It is on by default under CoreFilters; to turn it off:
-              </p>
-              <div class={prose} set:html={disableBlock} />
-            </>
-          )}
-          {sectionConfig.length > 0 && (
-            <div class={`mt-4 ${prose}`}>
-              {sectionConfig.map((h) => (
-                <Fragment set:html={h} />
+    {(serverBlocks.length > 0 || sectionConfig.length > 0 || worker) && (
+      <div class="mt-10">
+        <h2 class="text-xl font-semibold text-text-body" id="configuration">
+          Configuration
+        </h2>
+        {serverBlocks.length > 0 && (
+          <>
+            <p class="mt-3 text-sm text-text-muted">
+              Enable it in the module configuration, at server, virtual-host or location scope:
+            </p>
+            <div class="mt-3 space-y-3">
+              {serverBlocks.map((b) => (
+                <div>
+                  <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">
+                    {b.label}
+                  </p>
+                  <div class={prose} set:html={b.html} />
+                </div>
               ))}
             </div>
-          )}
-          {worker && (
-            <>
-              <h3 class="mt-6 text-lg font-semibold text-text-body">On the worker</h3>
-              <p class="mt-2 text-sm text-text-muted" data-topic-worker>
-                The worker runs its own pipeline, configured by flags. Its equivalent of this filter
-                is the{' '}
-                <a
-                  class="text-interactive underline"
-                  href={`/docs/worker-configuration/#${worker.id}`}
-                >
-                  {worker.title.toLowerCase()}
-                </a>{' '}
-                transform. <Fragment set:html={worker.control} />
-              </p>
-            </>
-          )}
-          <p class="mt-4 text-sm text-text-muted">
-            Scoping, <code>ForbidFilters</code> and the thresholds filters read:{' '}
-            <a class="text-interactive underline" href="/docs/filter-selection/">
-              Choosing filters
-            </a>
-            .
-          </p>
-        </div>
-      )
-    }
-
-    {
-      impact && (
-        <div class="mt-10" data-topic-example>
-          <h2 class="text-xl font-semibold text-text-body" id="example">
-            Live example
-          </h2>
-          <p class="mt-3 text-text-muted">{impact.ex.blurb}</p>
-          {impact.tiles.length > 0 && (
-            <>
-              <p class="mt-3 text-sm text-text-muted">
-                Measured on the demo page, original against optimized:
-              </p>
-              <ul class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
-                {impact.tiles.map((tile) => (
-                  <li class="rounded-lg border border-border bg-bg-elevated p-4 text-center">
-                    <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">
-                      {tile.label}
-                    </p>
-                    <p class="mt-1 text-sm text-text-body">
-                      <span class="line-through text-text-annotation">{tile.before}</span> →{' '}
-                      <span class="font-semibold">{tile.after}</span>{' '}
-                      <span class="badge-success">{tile.pill}</span>
-                    </p>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-          {impact.hasData && impact.substantive && impact.tiles.length === 0 && (
-            <p class="mt-3 text-sm text-text-muted">
-              This filter changes how the page is structured or delivered, not its size, so the
-              example shows a source diff rather than a byte or request reduction.
+          </>
+        )}
+        {disableBlock && (
+          <>
+            <p class="mt-4 text-sm text-text-muted">
+              It is on by default under CoreFilters; to turn it off:
             </p>
-          )}
-          {impact.present && (!impact.hasData || impact.nonSubstantive) && (
-            <p class="mt-3 text-sm text-text-muted">
-              {impact.mechanism === 'beacon'
-                ? 'mod_pagespeed applies this only after a real browser loads the page and reports back, so the example shows it live rather than as a captured diff.'
-                : impact.mechanism === 'header'
-                  ? 'This optimization works at the response-header or document-head hint level, so it leaves no change in the page body to diff; the example shows it live.'
-                  : impact.mechanism === 'config'
-                    ? "This filter needs configuration or content the public demo doesn't provide, so the example has no diff to show."
-                    : 'This optimization leaves no change in the HTML source to diff; the example shows it applied live.'}
-            </p>
-          )}
-          <p class="mt-4">
-            <a
-              class="text-sm font-medium text-interactive hover:underline"
-              href={`/examples/${impact.ex.slug}/`}
-            >
-              See the before and after, with the source diff &rarr;
-            </a>
-          </p>
-        </div>
-      )
-    }
-
-    {
-      faq.length > 0 && (
-        <div class="mt-12 border-t border-border pt-8">
-          <h2 class="text-xl font-semibold text-text-body" id="faq">
-            Frequently asked questions
-          </h2>
-          <dl class="mt-4 space-y-5" data-topic-faq>
-            {faq.map((item) => (
-              <div>
-                <dt class="font-semibold text-text-body">{item.q}</dt>
-                <dd class="mt-1 text-sm text-text-muted" set:html={item.html} />
-              </div>
+            <div class={prose} set:html={disableBlock} />
+          </>
+        )}
+        {sectionConfig.length > 0 && (
+          <div class={`mt-4 ${prose}`}>
+            {sectionConfig.map((h) => (
+              <Fragment set:html={h} />
             ))}
-          </dl>
-        </div>
-      )
-    }
+          </div>
+        )}
+        {worker && (
+          <>
+            <h3 class="mt-6 text-lg font-semibold text-text-body">On the worker</h3>
+            <p class="mt-2 text-sm text-text-muted" data-topic-worker>
+              The worker runs its own pipeline, configured by flags. Its equivalent of this filter
+              is the{' '}
+              <a
+                class="text-interactive underline"
+                href={`/docs/worker-configuration/#${worker.id}`}
+              >
+                {worker.title.toLowerCase()}
+              </a>{' '}
+              transform. <Fragment set:html={worker.control} />
+            </p>
+          </>
+        )}
+        <p class="mt-4 text-sm text-text-muted">
+          Scoping, <code>ForbidFilters</code> and the thresholds filters read:{' '}
+          <a class="text-interactive underline" href="/docs/filter-selection/">
+            Choosing filters
+          </a>
+          .
+        </p>
+      </div>
+    )}
+
+    {impact && (
+      <div class="mt-10" data-topic-example>
+        <h2 class="text-xl font-semibold text-text-body" id="example">
+          Live example
+        </h2>
+        <p class="mt-3 text-text-muted">{impact.ex.blurb}</p>
+        {impact.tiles.length > 0 && (
+          <>
+            <p class="mt-3 text-sm text-text-muted">
+              Measured on the demo page, original against optimized:
+            </p>
+            <ul class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-3">
+              {impact.tiles.map((tile) => (
+                <li class="rounded-lg border border-border bg-bg-elevated p-4 text-center">
+                  <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">
+                    {tile.label}
+                  </p>
+                  <p class="mt-1 text-sm text-text-body">
+                    <span class="line-through text-text-annotation">{tile.before}</span> →{' '}
+                    <span class="font-semibold">{tile.after}</span>{' '}
+                    <span class="badge-success">{tile.pill}</span>
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+        {impact.hasData && impact.substantive && impact.tiles.length === 0 && (
+          <p class="mt-3 text-sm text-text-muted">
+            This filter changes how the page is structured or delivered, not its size, so the
+            example shows a source diff rather than a byte or request reduction.
+          </p>
+        )}
+        {impact.present && (!impact.hasData || impact.nonSubstantive) && (
+          <p class="mt-3 text-sm text-text-muted">
+            {impact.mechanism === 'beacon'
+              ? 'mod_pagespeed applies this only after a real browser loads the page and reports back, so the example shows it live rather than as a captured diff.'
+              : impact.mechanism === 'header'
+                ? 'This optimization works at the response-header or document-head hint level, so it leaves no change in the page body to diff; the example shows it live.'
+                : impact.mechanism === 'config'
+                  ? "This filter needs configuration or content the public demo doesn't provide, so the example has no diff to show."
+                  : 'This optimization leaves no change in the HTML source to diff; the example shows it applied live.'}
+          </p>
+        )}
+        <p class="mt-4">
+          <a
+            class="text-sm font-medium text-interactive hover:underline"
+            href={`/examples/${impact.ex.slug}/`}
+          >
+            See the before and after, with the source diff &rarr;
+          </a>
+        </p>
+      </div>
+    )}
+
+    {faq.length > 0 && (
+      <div class="mt-12 border-t border-border pt-8">
+        <h2 class="text-xl font-semibold text-text-body" id="faq">
+          Frequently asked questions
+        </h2>
+        <dl class="mt-4 space-y-5" data-topic-faq>
+          {faq.map((item) => (
+            <div>
+              <dt class="font-semibold text-text-body">{item.q}</dt>
+              <dd class="mt-1 text-sm text-text-muted" set:html={item.html} />
+            </div>
+          ))}
+        </dl>
+      </div>
+    )}
 
     <div class="mt-12 border-t border-border pt-8" data-pagefind-ignore>
-      <h2 class="text-xl font-semibold text-text-body" id="related">Related filters</h2>
-      {
-        related.length > 0 && (
-          <ul class="mt-3 grid gap-x-6 gap-y-1 sm:grid-cols-2 text-sm">
-            {related.map((r) => (
-              <li>
-                <a class="font-mono text-interactive hover:underline" href={r.path}>
-                  {r.name}
-                </a>
-                <span class="text-text-annotation"> — {r.human}</span>
-              </li>
-            ))}
-          </ul>
-        )
-      }
+      <h2 class="text-xl font-semibold text-text-body" id="related">
+        Related filters
+      </h2>
+      {related.length > 0 && (
+        <ul class="mt-3 grid gap-x-6 gap-y-1 sm:grid-cols-2 text-sm">
+          {related.map((r) => (
+            <li>
+              <a class="font-mono text-interactive hover:underline" href={r.path}>
+                {r.name}
+              </a>
+              <span class="text-text-annotation"> — {r.human}</span>
+            </li>
+          ))}
+        </ul>
+      )}
       <p class="mt-4 text-sm text-text-muted">
-        This page is drawn from the <a class="text-interactive underline" href={groupHref}
-          >{t.name} entry on {groupName}</a
-        >. Every filter in one table: <a class="text-interactive underline" href="/docs/filters/"
-          >PageSpeed filters</a
-        >.
+        This page is drawn from the{' '}
+        <a class="text-interactive underline" href={groupHref}>
+          {t.name} entry on {groupName}
+        </a>
+        . Every filter in one table:{' '}
+        <a class="text-interactive underline" href="/docs/filters/">
+          PageSpeed filters
+        </a>
+        .
       </p>
-      {
-        namesGoogle && (
-          <p class="mt-3 text-xs text-text-annotation">
-            Google Analytics, AdSense, Fonts and Hosted Libraries are Google products. We-Amp isn't
-            affiliated with or endorsed by Google.
-          </p>
-        )
-      }
+      {namesGoogle && (
+        <p class="mt-3 text-xs text-text-annotation">
+          Google Analytics, AdSense, Fonts and Hosted Libraries are Google products. We-Amp isn't
+          affiliated with or endorsed by Google.
+        </p>
+      )}
     </div>
 
     <aside

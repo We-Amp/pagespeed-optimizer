@@ -138,7 +138,9 @@ const faqJsonLd = {
 >
   <article class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 py-16">
     <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
-      <a href="/" class="hover:text-text-body">Home</a>
+      <a href="/" class="hover:text-text-body">
+        Home
+      </a>
       <span class="mx-1">/</span>
       <span>Core Web Vitals</span>
     </nav>
@@ -157,12 +159,12 @@ const faqJsonLd = {
       </p>
     </SectionHeader>
     <div class="mt-8 flex flex-wrap gap-3">
-      <a href="/analyze/" class="btn-primary" data-umami-event="cta_cwv_hero_analyze"
-        >Analyze a page &rarr;</a
-      >
-      <a href="/features/" class="btn-secondary" data-umami-event="cta_cwv_hero_features"
-        >See what mod_pagespeed 2.1 fixes</a
-      >
+      <a href="/analyze/" class="btn-primary" data-umami-event="cta_cwv_hero_analyze">
+        Analyze a page &rarr;
+      </a>
+      <a href="/features/" class="btn-secondary" data-umami-event="cta_cwv_hero_features">
+        See what mod_pagespeed 2.1 fixes
+      </a>
     </div>
 
     <!-- What each metric measures -->
@@ -170,10 +172,14 @@ const faqJsonLd = {
       <h2 class="h2-section text-text-body">What the three metrics measure</h2>
       <p class="mt-4 text-text-body">
         Each metric has a field measurement, taken from real Chrome users over the trailing 28 days
-        in the CrUX dataset, and a lab approximation from Lighthouse or <a
+        in the CrUX dataset, and a lab approximation from Lighthouse or{' '}
+        <a
           href="/pagespeed-insights/"
-          class="text-interactive hover:text-interactive-hover underline">PageSpeed Insights</a
-        >. The two routinely disagree, because real visitors run slower hardware on slower
+          class="text-interactive hover:text-interactive-hover underline"
+        >
+          PageSpeed Insights
+        </a>
+        . The two routinely disagree, because real visitors run slower hardware on slower
         connections than the machine you test on. Optimize toward the field number.
       </p>
       <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
@@ -187,16 +193,17 @@ const faqJsonLd = {
             a hero image, a banner, or the first heading. Under 2.5 s is good; over 4 s is poor.
           </p>
           <p class="mt-3 text-sm text-text-muted">
-            <span class="font-medium text-text-body">Typical causes:</span> the hero image is not preloaded,
-            a chain of render-blocking stylesheets delays first paint, or a large unoptimized image takes
-            too long to download.
+            <span class="font-medium text-text-body">Typical causes:</span> the hero image is not
+            preloaded, a chain of render-blocking stylesheets delays first paint, or a large
+            unoptimized image takes too long to download.
           </p>
           <p class="mt-4 text-sm">
             <a
               href="/core-web-vitals/lcp/"
               class="font-medium text-interactive hover:text-interactive-hover underline underline-offset-4"
-              >Fix LCP &rarr;</a
             >
+              Fix LCP &rarr;
+            </a>
           </p>
         </div>
         <div class="rounded-2xl border border-border bg-bg-elevated p-6">
@@ -209,16 +216,17 @@ const faqJsonLd = {
             moved and how far. Under 0.1 is good; 0.25 and up is poor.
           </p>
           <p class="mt-3 text-sm text-text-muted">
-            <span class="font-medium text-text-body">Typical causes:</span> images and embeds without
-            explicit width and height, web fonts that reflow text on swap, and content injected above
-            what the user is already reading.
+            <span class="font-medium text-text-body">Typical causes:</span> images and embeds
+            without explicit width and height, web fonts that reflow text on swap, and content
+            injected above what the user is already reading.
           </p>
           <p class="mt-4 text-sm">
             <a
               href="/core-web-vitals/cls/"
               class="font-medium text-interactive hover:text-interactive-hover underline underline-offset-4"
-              >Fix CLS &rarr;</a
             >
+              Fix CLS &rarr;
+            </a>
           </p>
         </div>
         <div class="rounded-2xl border border-border bg-bg-elevated p-6">
@@ -231,16 +239,17 @@ const faqJsonLd = {
             next frame the browser paints in response. Under 200 ms is good; over 500 ms is poor.
           </p>
           <p class="mt-3 text-sm text-text-muted">
-            <span class="font-medium text-text-body">Typical causes:</span> long JavaScript tasks blocking
-            the main thread, heavy event handlers, and frameworks whose interaction model requires a round-trip
-            before paint.
+            <span class="font-medium text-text-body">Typical causes:</span> long JavaScript tasks
+            blocking the main thread, heavy event handlers, and frameworks whose interaction model
+            requires a round-trip before paint.
           </p>
           <p class="mt-4 text-sm">
             <a
               href="/core-web-vitals/inp/"
               class="font-medium text-interactive hover:text-interactive-hover underline underline-offset-4"
-              >Fix INP &rarr;</a
             >
+              Fix INP &rarr;
+            </a>
           </p>
         </div>
       </div>
@@ -265,48 +274,44 @@ const faqJsonLd = {
           </caption>
           <thead>
             <tr class="border-b border-border">
-              <th scope="col" class="py-3 pr-4 text-left font-semibold text-text-body">Metric</th>
-              {
-                platforms.map((platform) => (
-                  <th scope="col" class="px-3 py-3 text-left font-semibold text-text-body">
-                    {platform.label}
-                  </th>
-                ))
-              }
+              <th scope="col" class="py-3 pr-4 text-left font-semibold text-text-body">
+                Metric
+              </th>
+              {platforms.map((platform) => (
+                <th scope="col" class="px-3 py-3 text-left font-semibold text-text-body">
+                  {platform.label}
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>
-            {
-              metrics.map((metric) => (
-                <tr class="border-b border-border align-top">
-                  <th scope="row" class="py-4 pr-4 text-left font-semibold text-text-body">
-                    <span class="block">{metric.abbr}</span>
-                    <span class="block text-xs font-normal text-text-annotation">
-                      {metric.name}
-                    </span>
-                  </th>
-                  {platforms.map((platform) => {
-                    const k = `${metric.key}-${platform.key}`;
-                    return (
-                      <td class="px-3 py-4">
-                        <a
-                          href={postHref(metric.key, platform.key)}
-                          class="group inline-flex flex-col gap-0.5 text-interactive hover:text-interactive-hover"
-                        >
-                          <span class="font-medium underline-offset-4 group-hover:underline">
-                            Fix {metric.abbr} on {platform.label}
-                            <span aria-hidden="true"> &rarr;</span>
-                          </span>
-                          <span class="text-xs font-normal text-text-annotation">
-                            {postTitles[k]}
-                          </span>
-                        </a>
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))
-            }
+            {metrics.map((metric) => (
+              <tr class="border-b border-border align-top">
+                <th scope="row" class="py-4 pr-4 text-left font-semibold text-text-body">
+                  <span class="block">{metric.abbr}</span>
+                  <span class="block text-xs font-normal text-text-annotation">{metric.name}</span>
+                </th>
+                {platforms.map((platform) => {
+                  const k = `${metric.key}-${platform.key}`;
+                  return (
+                    <td class="px-3 py-4">
+                      <a
+                        href={postHref(metric.key, platform.key)}
+                        class="group inline-flex flex-col gap-0.5 text-interactive hover:text-interactive-hover"
+                      >
+                        <span class="font-medium underline-offset-4 group-hover:underline">
+                          Fix {metric.abbr} on {platform.label}
+                          <span aria-hidden="true"> &rarr;</span>
+                        </span>
+                        <span class="text-xs font-normal text-text-annotation">
+                          {postTitles[k]}
+                        </span>
+                      </a>
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -328,10 +333,14 @@ const faqJsonLd = {
             Heuristic critical CSS extraction inlines above-the-fold rules and defers the rest,
             removing the render-blocking stylesheet chain that delays first paint. Image transcoding
             to WebP and AVIF, plus responsive variants sized to the viewport, shrinks the hero image
-            so it downloads sooner. The detected LCP image receives a <a
+            so it downloads sooner. The detected LCP image receives a{' '}
+            <a
               href="/blog/server-injected-resource-hints-speculation-rules/"
-              class="text-interactive hover:text-interactive-hover underline">preload hint</a
-            > so the browser starts fetching it earlier. Each of these attacks a distinct part of the
+              class="text-interactive hover:text-interactive-hover underline"
+            >
+              preload hint
+            </a>{' '}
+            so the browser starts fetching it earlier. Each of these attacks a distinct part of the
             LCP timing breakdown.
           </p>
         </div>
@@ -339,11 +348,11 @@ const faqJsonLd = {
         <div class="rounded-2xl border border-border bg-bg-elevated p-6">
           <h3 class="font-semibold text-text-body">CLS &mdash; materially helped</h3>
           <p class="mt-2 text-sm text-text-muted">
-            The worker injects explicit width and height on <code
-              class="text-xs bg-bg-elevated px-1 rounded">&lt;img&gt;</code
-            > tags that lack them, using dimensions read from the cached image data. That lets the browser
-            reserve the correct layout box before pixels arrive, which removes the most common source
-            of image-driven layout shift. Inlined critical CSS also stabilizes early layout by making
+            The worker injects explicit width and height on{' '}
+            <code class="text-xs bg-bg-elevated px-1 rounded">&lt;img&gt;</code> tags that lack
+            them, using dimensions read from the cached image data. That lets the browser reserve
+            the correct layout box before pixels arrive, which removes the most common source of
+            image-driven layout shift. Inlined critical CSS also stabilizes early layout by making
             above-the-fold styling available without waiting on external stylesheets.
           </p>
         </div>
@@ -360,15 +369,19 @@ const faqJsonLd = {
           </p>
           <p class="mt-3 text-sm text-text-muted">
             What it can do is reduce how much JavaScript competes for the main thread before the
-            user interacts: <a
+            user interacts:{' '}
+            <a
               href="/blog/safe-javascript-minification-semicolon-insertion/"
-              class="text-interactive hover:text-interactive-hover underline">minifying scripts</a
-            > and deferring those it can prove are safe to defer moves parser-blocking work off the critical
-            path, which can lower INP on pages whose responsiveness was being throttled by startup script
-            execution. Where INP is structural &mdash; for example a Blazor Server interaction that is
-            a network round-trip by design, or a heavy client framework &mdash; the fix lives in your
-            application, not in the server layer. The per-platform guides above are explicit about which
-            case you are in.
+              class="text-interactive hover:text-interactive-hover underline"
+            >
+              minifying scripts
+            </a>{' '}
+            and deferring those it can prove are safe to defer moves parser-blocking work off the
+            critical path, which can lower INP on pages whose responsiveness was being throttled by
+            startup script execution. Where INP is structural &mdash; for example a Blazor Server
+            interaction that is a network round-trip by design, or a heavy client framework &mdash;
+            the fix lives in your application, not in the server layer. The per-platform guides
+            above are explicit about which case you are in.
           </p>
         </div>
       </div>
@@ -378,14 +391,12 @@ const faqJsonLd = {
     <section class="mt-16">
       <h2 class="h2-section text-text-body">Core Web Vitals: common questions</h2>
       <dl class="mt-8 space-y-6">
-        {
-          faqEntries.map((entry) => (
-            <div class="border-b border-border pb-6">
-              <dt class="font-semibold text-text-body">{entry.q}</dt>
-              <dd class="mt-2 text-sm text-text-muted" set:html={entry.a} />
-            </div>
-          ))
-        }
+        {faqEntries.map((entry) => (
+          <div class="border-b border-border pb-6">
+            <dt class="font-semibold text-text-body">{entry.q}</dt>
+            <dd class="mt-2 text-sm text-text-muted" set:html={entry.a} />
+          </div>
+        ))}
       </dl>
     </section>
 
@@ -400,9 +411,9 @@ const faqJsonLd = {
           immediately, and it is free in development and in production.
         </p>
         <div class="mt-6 flex flex-wrap gap-3">
-          <a href="/analyze/" class="btn-primary" data-umami-event="cta_cwv_analyze"
-            >Analyze a page</a
-          >
+          <a href="/analyze/" class="btn-primary" data-umami-event="cta_cwv_analyze">
+            Analyze a page
+          </a>
           <a href="/pricing/" class="btn-secondary" data-umami-event="cta_cwv_pricing">
             See support plans
             <span aria-hidden="true">&rarr;</span>
@@ -416,30 +427,37 @@ const faqJsonLd = {
       <p class="text-base font-semibold uppercase tracking-wide text-text-body">See also:</p>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
-          <a href="/features/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed 2.1 features</a
-          > &mdash; image transcoding, critical CSS, minification, and variant-aware caching
+          <a href="/features/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed 2.1 features
+          </a>{' '}
+          &mdash; image transcoding, critical CSS, minification, and variant-aware caching
         </li>
         <li>
           <a
             href="/blog/critical-css-heuristics/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Critical CSS without a headless browser</a
-          > &mdash; the heuristic behind the LCP and CLS wins above
+          >
+            Critical CSS without a headless browser
+          </a>{' '}
+          &mdash; the heuristic behind the LCP and CLS wins above
         </li>
         <li>
           <a
             href="/blog/server-side-critical-css-nginx/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Server-side critical CSS on nginx</a
-          > &mdash; the same approach, configured in nginx
+          >
+            Server-side critical CSS on nginx
+          </a>{' '}
+          &mdash; the same approach, configured in nginx
         </li>
         <li>
           <a
             href="/blog/reduce-ttfb-server-layer-2026/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Reduce TTFB at the server layer</a
-          > &mdash; the slow first byte that delays every Core Web Vital, fixed before you reach for a
+          >
+            Reduce TTFB at the server layer
+          </a>{' '}
+          &mdash; the slow first byte that delays every Core Web Vital, fixed before you reach for a
           CDN
         </li>
       </ul>

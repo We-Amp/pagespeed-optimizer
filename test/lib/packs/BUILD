@@ -38,3 +38,55 @@ gtest_test(
         "@nlohmann_json//:json",
     ],
 )
+
+gtest_test(
+    name = "fixture_runner_test",
+    # Vendored lib/html headers name unused parameters (canonical idiom).
+    copts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-Wno-error=unused-parameter"],
+    }),
+    data = ["//packs:edge_seo_fixtures"],
+    deps = [
+        "//lib/packs:decision",
+        "//lib/packs:pack_filter",
+        "//tools/packs:fixture_runner_lib",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+gtest_test(
+    name = "planner_test",
+    # Vendored lib/html headers name unused parameters (canonical idiom).
+    copts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-Wno-error=unused-parameter"],
+    }),
+    deps = [
+        "//lib/packs:decision",
+        "//lib/packs:pack",
+        "//lib/packs:pack_loader",
+        "//lib/packs:planner",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+gtest_test(
+    name = "pack_filter_test",
+    # Vendored lib/html headers name unused parameters (canonical idiom).
+    copts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-Wno-error=unused-parameter"],
+    }),
+    deps = [
+        "//lib/base:string_writer",
+        "//lib/html:html_keywords",
+        "//lib/html:html_parse",
+        "//lib/html:html_writer_filter",
+        "//lib/packs:pack",
+        "//lib/packs:pack_filter",
+        "//lib/packs:pack_loader",
+        "//src/worker:html_transform_filter",
+        "@com_google_absl//absl/strings",
+    ],
+)
