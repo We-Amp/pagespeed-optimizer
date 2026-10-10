@@ -25,7 +25,7 @@ export function riskStates(report: Report | null): Array<{ name: string; state: 
     const measured = v.status === 'ok' && v.verdict !== 'unknown';
     rows.push({
       name: LENS_NAME[lens.key],
-      state: !measured ? 'not measured' : v.verdict === lens.flagged ? 'attention' : 'clean',
+      state: !measured ? 'Not measured' : v.verdict === lens.flagged ? 'Attention' : 'Clean',
     });
   }
   return rows;
@@ -44,11 +44,11 @@ export function buildReportMarkdown(input: {
 }): string {
   const { report } = input;
   const lines = [
-    '# PageSpeed report',
+    '# Scan report',
     '',
     `Analyzed: ${input.url}`,
     `When: ${input.when}`,
-    `Scores: mobile ${SCORE(input.mobile)}, desktop ${SCORE(input.desktop)}`,
+    `Speed (PageSpeed Insights): mobile ${SCORE(input.mobile)}, desktop ${SCORE(input.desktop)}`,
     report && report.grade
       ? `AI readability: grade ${report.grade} (${SCORE(report.score)})`
       : 'AI readability: not measured',

@@ -142,7 +142,7 @@ test.describe('v2 Speed panel', () => {
     await scan(page);
     await expect(tile(page)).toHaveAttribute('data-state', 'poor', { timeout: 15000 });
     await openSpeed(page);
-    const line = panel(page).getByText(/audits? outside an optimizer's reach/);
+    const line = panel(page).getByText(/audits? mod_pagespeed does not address/);
     await expect(line).toBeVisible();
     const toggle = panel(page).getByRole('button', { name: 'Show them' });
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');
@@ -243,7 +243,12 @@ test.describe('v2 Speed panel', () => {
       title: 'PSI is having trouble.',
       body: 'returned a server error',
     },
-    { name: 'network', reply: 'abort', title: 'Couldn’t reach PSI.', body: 'Check your network' },
+    {
+      name: 'network',
+      reply: 'abort',
+      title: 'PageSpeed Insights did not answer.',
+      body: 'Check your network',
+    },
   ];
   for (const f of failures) {
     test(`${f.name}: the Speed tile is not measured and the others are not`, async ({ page }) => {
@@ -269,7 +274,7 @@ test.describe('v2 Speed panel', () => {
     await page.clock.fastForward(61_000);
     await expect(tile(page)).toHaveAttribute('data-state', 'none', { timeout: 15000 });
     await openSpeed(page);
-    await expect(panel(page)).toContainText('Couldn’t reach PSI.');
+    await expect(panel(page)).toContainText('PageSpeed Insights did not answer.');
     await expect(panel(page)).toContainText('PageSpeed Insights did not answer within a minute.');
     await expect(panel(page)).not.toContainText('Check your network');
   });
@@ -334,7 +339,9 @@ test.describe('v2 Speed panel', () => {
     await expect(page.locator('[data-scan-tile="airead"]')).toHaveAttribute('data-state', 'good', {
       timeout: 15000,
     });
-    await expect(page.locator('[data-scan-health]')).toHaveText('Nothing here needs attention');
+    await expect(page.locator('[data-scan-health]')).toHaveText(
+      'The one area checked needs no attention.',
+    );
     const seen = await page.evaluate(() => (window as unknown as { __live: string[] }).__live);
     expect(seen.join(' | ')).toContain('Speed not measured');
     expect(seen.join(' | ')).not.toContain('Speed ready');

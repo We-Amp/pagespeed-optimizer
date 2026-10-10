@@ -76,7 +76,7 @@ test.describe('Risk & SEO panel', () => {
     await mock(page, fixture('full'));
     const panel = await scan(page);
     await expect(page.locator('[data-scan-tile="risk"] [data-scan-value]')).toHaveText(
-      '4 of 4 checks flagged',
+      '4 need attention',
     );
     await expect(panel.locator('[data-risk-row] h3')).toHaveText([
       'Pre-consent leak',
@@ -98,6 +98,14 @@ test.describe('Risk & SEO panel', () => {
     await expect(row(panel, 'responseExposure').locator('[data-risk-building]')).toContainText(
       'A response-firewall pack for mod_pagespeed 2.1 is planned.',
     );
+    // One verdict sentence per row: no counts, host lists, CSP or server lines.
+    const text = await panel.locator('[data-risk-sentence]').allTextContents();
+    expect(text.join('\n')).not.toMatch(
+      /script\(s\)|from other hosts|CSP:|Server header|CDN headers|jquery|google-analytics|…/,
+    );
+    await expect(row(panel, 'scriptInventory').locator('[data-risk-sentence]')).toContainText(
+      'Some scripts on this page need attention.',
+    );
     const links = {
       preConsentLeak: ['/platform/consent/', 'airead-cta-consent'],
       scriptInventory: ['/platform/', 'airead-cta-page-integrity'],
@@ -114,7 +122,9 @@ test.describe('Risk & SEO panel', () => {
   test('clean: four clean rows with no gated sentence and no link', async ({ page }) => {
     await mock(page, fixture('clean'));
     const panel = await scan(page);
-    await expect(page.locator('[data-scan-tile="risk"] [data-scan-status]')).toHaveText('Clean');
+    await expect(page.locator('[data-scan-tile="risk"] [data-scan-status]')).toHaveText(
+      'Nothing flagged',
+    );
     await expect(panel.locator('.scan-risk-chip')).toHaveText(['Clean', 'Clean', 'Clean', 'Clean']);
     await expect(panel.locator('a')).toHaveCount(0);
     await expect(panel.locator('[data-risk-building]')).toHaveCount(0);
@@ -132,9 +142,9 @@ test.describe('Risk & SEO panel', () => {
       'Not measured',
       'Not measured',
     ]);
-    // the response-exposure error shape has a reason and no note: the default shows
+    // the response-exposure error shape has a reason and no note: the error default shows
     await expect(row(panel, 'responseExposure').locator('[data-risk-sentence]')).toHaveText(
-      'Not measured: the site blocked the scanner.',
+      'Not measured: the scanner could not complete this check.',
     );
     await expect(panel.locator('a')).toHaveCount(0);
     await expect(panel.getByRole('button', { name: 'Try again' })).toBeVisible();
@@ -167,7 +177,7 @@ test.describe('Risk & SEO panel', () => {
     await expect(row(panel, 'scriptInventory')).toHaveCount(0);
     await expect(row(panel, 'responseExposure')).toHaveCount(0);
     await expect(page.locator('[data-scan-tile="risk"] [data-scan-value]')).toHaveText(
-      '2 of 2 checks flagged',
+      '2 need attention',
     );
   });
 
@@ -183,7 +193,7 @@ test.describe('Risk & SEO panel', () => {
     );
     await expect(r.locator('a')).toHaveCount(0);
     await expect(page.locator('[data-scan-tile="risk"] [data-scan-value]')).toHaveText(
-      '3 of 3 checks flagged',
+      '3 need attention',
     );
   });
 
@@ -240,7 +250,9 @@ test.describe('Risk & SEO panel', () => {
       json: { cached: false, id: 'x', permalink: '', report: fixture('clean') },
     });
     await panel.getByRole('button', { name: 'Try again' }).click();
-    await expect(page.locator('[data-scan-tile="risk"] [data-scan-status]')).toHaveText('Clean');
+    await expect(page.locator('[data-scan-tile="risk"] [data-scan-status]')).toHaveText(
+      'Nothing flagged',
+    );
     expect(m.scan).toBe(2);
     expect(m.psi).toBe(psiBefore);
     await expect(panel.locator('[data-risk-row]')).toHaveCount(4);

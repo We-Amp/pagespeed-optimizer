@@ -60,7 +60,7 @@ const WORDS: Record<string, string> = {
 };
 
 export const TOKEN_CAPTION =
-  'The readable words in your raw HTML are what most AI crawlers get. A big shortfall before JavaScript runs means your content barely exists until your scripts run.';
+  'Most AI crawlers read only the raw HTML. When the raw count is far below the count after JavaScript, those crawlers see little of your content.';
 
 /** The reason sentences for the three gated topics, worded as on the original page. */
 export function alsoFoundSentences(r: Report): AireadModel['alsoFound'] {
@@ -84,7 +84,7 @@ export function alsoFoundSentences(r: Report): AireadModel['alsoFound'] {
       wedge: 'agentpass',
       text:
         sa.classification === 'verifying'
-          ? 'Your origin responded differently to our validly-signed probe than to a corrupted signature — behaviour consistent with cryptographic verification.'
+          ? 'Your origin answered our signed test request differently from one with a corrupted signature, which is consistent with checking agent signatures.'
           : 'Your origin already treats signed-agent requests differently from unsigned ones.',
     });
   }
@@ -92,10 +92,13 @@ export function alsoFoundSentences(r: Report): AireadModel['alsoFound'] {
     out.push({
       wedge: 'compliancefix',
       text:
-        (ax.detail.fixableInline === 1
-          ? '1 of these issues looks'
-          : ax.detail.fixableInline + ' of these issues look') +
-        ' like the kind a self-hosted optimizer can address server-side, on your own servers, with no app changes.',
+        'Automated checks flagged ' +
+        (ax.detail.total === 1
+          ? '1 accessibility issue'
+          : ax.detail.total + ' accessibility issues') +
+        ' on this page; ' +
+        (ax.detail.fixableInline === 1 ? '1 looks' : ax.detail.fixableInline + ' look') +
+        ' like the kind a self-hosted optimizer can fix on your own servers, with no app changes. We don’t issue compliance certificates.',
     });
   }
   return out;
@@ -119,7 +122,7 @@ export function formatAiread(r: Report): AireadModel {
     word: WORDS[String(r.grade)] || '',
     url: r.url ?? '',
     categories,
-    tokenLine: `Raw HTML: ${tokens(d.staticCleanTokens)} tokens · after JavaScript: ${tokens(d.renderedCleanTokens)} tokens`,
+    tokenLine: `Readable text in raw HTML: ${tokens(d.staticCleanTokens)} tokens · after JavaScript: ${tokens(d.renderedCleanTokens)} tokens`,
     rawMarkdown: d.staticMarkdown && d.staticMarkdown.trim() ? d.staticMarkdown : '',
     alsoFound: alsoFoundSentences(r),
   };

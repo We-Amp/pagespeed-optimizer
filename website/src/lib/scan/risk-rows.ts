@@ -39,6 +39,7 @@ export interface RiskRow {
 }
 
 const DEFAULT_NOTE = 'Not measured: the site blocked the scanner.';
+const ERROR_NOTE = 'Not measured: the scanner could not complete this check.';
 
 const NAMES: Record<RiskRow['key'], string> = {
   preConsentLeak: 'Pre-consent leak',
@@ -58,84 +59,31 @@ function pclVerdict(pcl: Lens): string {
     return 'We could not render this page, so we could not observe which third parties it contacts before consent.';
   }
   if (pcl.trackerCount === 0) {
-    return (
-      'No tracker requests observed before any interaction (' +
-      pcl.thirdPartyCount +
-      ' third-party host(s) contacted, none in a tracker category). Fresh browser, no cookies, no storage; heuristic host list — not legal advice.'
-    );
+    return 'No tracker requests observed before any interaction, in a fresh browser with no cookies and no storage. Heuristic host list; not legal advice.';
   }
-  const trackers: Lens[] = Array.isArray(pcl.thirdPartyHosts)
-    ? pcl.thirdPartyHosts.filter((h: Lens) => h.tracker)
-    : [];
-  const ex = trackers
-    .slice(0, 3)
-    .map((h) => h.host + ' (' + h.category + ')')
-    .join(', ');
   const vendor = pcl.cmpDetected && pcl.cmpDetected.detected ? pcl.cmpDetected.vendor : null;
   return (
     pcl.trackerCount +
-    ' tracker host(s) contacted before any interaction, in a fresh browser with no consent given' +
-    (ex ? ': ' + ex : '') +
-    (pcl.trackerCount > 3 ? ', …' : '') +
-    '.' +
+    ' tracker host(s) contacted before any interaction, in a fresh browser with no consent given.' +
     (vendor
       ? ' A consent banner (' +
         vendor +
         ') is present, but these requests fire before it can be answered.'
       : '') +
-    ' Heuristic host list — not legal advice or a compliance certificate.'
+    ' Heuristic host list; not legal advice or a compliance certificate.'
   );
 }
 
 // ---- Script inventory (v1 wording) -------------------------------------
 
-function hostsOf(list: unknown): string {
-  const seen: string[] = [];
-  (Array.isArray(list) ? list : []).forEach((x: Lens) => {
-    if (x && !seen.includes(x.host)) seen.push(x.host);
-  });
-  return seen.slice(0, 3).join(', ');
-}
-
 function siReasonText(si: Lens): string {
-  if (si.verdict !== 'attention') return '';
   const reasons: string[] = Array.isArray(si.reasons) ? si.reasons : [];
   const bits: string[] = [];
-  if (reasons.includes('sri-missing')) {
-    bits.push(
-      (si.sriMissing || []).length +
-        ' script(s) from public CDNs without an integrity hash (' +
-        hostsOf(si.sriMissing) +
-        ')',
-    );
-  }
-  if (reasons.includes('floating-version')) {
-    bits.push(
-      (si.floating || []).length +
-        ' CDN script(s) with no pinned version (' +
-        hostsOf(si.floating) +
-        ')',
-    );
-  }
-  if (reasons.includes('duplicate-library')) {
-    bits.push(
-      'the same library at more than one version: ' +
-        (si.duplicates || [])
-          .slice(0, 3)
-          .map((d: Lens) => d.library + ' ' + (d.versions || []).join(' + '))
-          .join(', '),
-    );
-  }
-  if (reasons.includes('unlisted-origin')) {
-    bits.push(
-      'script hosts not on our list of known hosts: ' +
-        (si.scriptHosts || [])
-          .filter((h: Lens) => h.party === 'third' && !h.listed)
-          .slice(0, 3)
-          .map((h: Lens) => h.host)
-          .join(', '),
-    );
-  }
+  if (reasons.includes('sri-missing'))
+    bits.push('scripts from public CDNs without an integrity hash');
+  if (reasons.includes('floating-version')) bits.push('CDN scripts with no pinned version');
+  if (reasons.includes('duplicate-library')) bits.push('the same library at more than one version');
+  if (reasons.includes('unlisted-origin')) bits.push('script hosts not on our list of known hosts');
   return bits.length ? ' Flagged: ' + bits.join('; ') + '.' : '';
 }
 
@@ -143,20 +91,11 @@ function siVerdict(si: Lens): string {
   if (si.verdict === 'unknown') {
     return 'We could not render this page, so we could not inventory its scripts.';
   }
-  const t = si.totals || {};
-  const csp = si.csp || {};
-  return (
-    t.scripts +
-    ' script(s) · ' +
-    t.thirdPartyExternal +
-    ' from other hosts · ' +
-    t.thirdPartyWithIntegrity +
-    ' with integrity · CSP: ' +
-    (csp.enforced ? 'enforced' : csp.reportOnly ? 'report-only' : 'none') +
-    '.' +
-    siReasonText(si) +
-    ' Heuristic host list; not an assessment against any standard.'
-  );
+  const head =
+    si.verdict === 'attention'
+      ? 'Some scripts on this page need attention.' + siReasonText(si)
+      : 'No script issues flagged on this page.';
+  return head + ' Heuristic host list; not an assessment against any standard.';
 }
 
 // ---- SEO defects (v1 wording) ------------------------------------------
@@ -178,17 +117,6 @@ const SD_NOT_MEASURED: Record<string, string> = {
 
 function sdFiredGroups(sd: Lens): [string, string][] {
   return sd.status === 'ok' && sd.counts ? SD_GROUPS.filter((g) => sd.counts[g[0]] > 0) : [];
-}
-
-function sdServedBy(sd: Lens): string {
-  const dl = sd.delivery;
-  return (
-    'Server header: ' +
-    ((dl && dl.server) || 'none') +
-    '; CDN headers seen: ' +
-    ((dl && dl.cdn) || 'none') +
-    '.'
-  );
 }
 
 function sdPartialText(sd: Lens): string {
@@ -224,9 +152,7 @@ function sdVerdict(sd: Lens): string {
     sdFiredGroups(sd)
       .map((g) => g[1] + ' ' + counts[g[0]])
       .join(', ') +
-    '. ' +
-    sdServedBy(sd) +
-    ' One page only; not a ranking assessment.'
+    '. One page only; not a ranking assessment.'
   );
 }
 
@@ -291,12 +217,13 @@ function rxVerdict(rx: Lens): string {
 }
 
 export const RX_BUILDING =
-  'A response-firewall pack for mod_pagespeed 2.1 is planned. It would mask leaked stack traces, strip version tells and add missing security headers in the response, on your own server. None of these packs ships today.';
+  'A response-firewall pack for mod_pagespeed 2.1 is planned. It would mask leaked stack traces, strip version tells and add missing security headers in the response, on your own server. No pack ships today.';
 
 // ---- Rows ----------------------------------------------------------------
 
 function notMeasuredRow(key: RiskRow['key'], lens: Lens): RiskRow {
-  const note = typeof lens.note === 'string' && lens.note.trim() ? lens.note.trim() : DEFAULT_NOTE;
+  const fallback = lens.status === 'error' ? ERROR_NOTE : DEFAULT_NOTE;
+  const note = typeof lens.note === 'string' && lens.note.trim() ? lens.note.trim() : fallback;
   return {
     key,
     name: NAMES[key],
