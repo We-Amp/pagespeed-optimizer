@@ -96,6 +96,84 @@ const SCAN_TWO_WEDGES_LINK = {
   },
 };
 
+// The pre-consent lens observed tracker requests before any interaction: the
+// "Pre-consent leak" row reads "leaks before consent" and the consent-
+// enforcement card renders with its own form (no other wedge fires, so the
+// consolidated next-step form must not).
+const PCL_LEAKS = {
+  status: 'ok',
+  verdict: 'leaks',
+  trackerCount: 4,
+  thirdPartyCount: 5,
+  thirdPartyHosts: [
+    { host: 'www.google-analytics.com', requests: 3, category: 'analytics', tracker: true },
+    { host: 'www.googletagmanager.com', requests: 1, category: 'tag-manager', tracker: true },
+    { host: 'connect.facebook.net', requests: 1, category: 'social', tracker: true },
+    { host: 'static.hotjar.com', requests: 1, category: 'session-replay', tracker: true },
+    { host: 'consent.cookiebot.com', requests: 1, category: 'cmp', tracker: false },
+  ],
+  cmpDetected: { detected: true, vendor: 'Cookiebot' },
+  firstParty: ['example.com'],
+  requestsObserved: 22,
+};
+const SCAN_CONSENT_LEAKS = { report: { ...SCAN_OK.report, preConsentLeak: PCL_LEAKS } };
+
+// Third parties but no tracker: the row reads "clean" and no card renders.
+const SCAN_CONSENT_CLEAN = {
+  report: {
+    ...SCAN_OK.report,
+    preConsentLeak: {
+      status: 'ok',
+      verdict: 'clean',
+      trackerCount: 0,
+      thirdPartyCount: 1,
+      thirdPartyHosts: [
+        { host: 'fonts.googleapis.com', requests: 1, category: 'cdn', tracker: false },
+      ],
+      cmpDetected: { detected: false, vendor: null },
+      firstParty: ['example.com'],
+      requestsObserved: 5,
+    },
+  },
+};
+
+// The lens is switched off at the scanner: stable shape, nothing rendered.
+const SCAN_CONSENT_DISABLED = {
+  report: {
+    ...SCAN_OK.report,
+    preConsentLeak: {
+      status: 'disabled',
+      verdict: 'unknown',
+      trackerCount: 0,
+      thirdPartyCount: 0,
+      thirdPartyHosts: [],
+      cmpDetected: { detected: false, vendor: null },
+    },
+  },
+};
+
+// The render hit a bot wall or a challenge page: the scanner reports the lens
+// as blocked with a note. The row says so, carries no counts, and no card
+// renders. An errored lens without a note renders the same way with the
+// default line.
+const SCAN_CONSENT_BLOCKED = {
+  report: {
+    ...SCAN_OK.report,
+    preConsentLeak: {
+      status: 'blocked',
+      verdict: 'unknown',
+      trackerCount: 0,
+      thirdPartyCount: 0,
+      thirdPartyHosts: [],
+      cmpDetected: { detected: false, vendor: null },
+      note: 'The site answered our render with a challenge page, so we could not observe its requests.',
+    },
+  },
+};
+const SCAN_CONSENT_ERROR = {
+  report: { ...SCAN_OK.report, preConsentLeak: { status: 'error', reason: 'boom' } },
+};
+
 // Minimal PSI response: a 0.9 performance score and one flagged audit
 // (render-blocking-resources maps to mod_pagespeed coverage "full").
 const PSI_OK = {
@@ -374,6 +452,162 @@ test.describe('AI-readability checker capture cards', () => {
     expect(posted).toHaveLength(1);
     const events = await trackedEvents(page);
     expect(events.filter((e) => e.name === 'lead_submit')).toHaveLength(0);
+  });
+});
+
+test.describe('AI-readability pre-consent leak lens and consent-enforcement card', () => {
+  test('a leaking page gets the row, the card, and a consent-enforcement lead with the lens signal', async ({
+    page,
+  }) => {
+    const posted = await stubContact(page);
+    await stubUmami(page);
+    await runScan(page, SCAN_CONSENT_LEAKS);
+
+    // The row: verdict label, counts, consent banner, the top three hosts (trackers first).
+    const row = page.locator('.ar-lens', { hasText: 'Pre-consent leak' });
+    await expect(row).toHaveCount(1);
+    await expect(row).toHaveClass(/ar-finding/);
+    await expect(row.locator('.ar-h4-r')).toHaveText('leaks before consent');
+    await expect(row).toContainText(
+      '4 tracker host(s) contacted before any interaction, in a fresh browser with no consent given: www.google-analytics.com (analytics), www.googletagmanager.com (tag-manager), connect.facebook.net (social), ….',
+    );
+    await expect(row).toContainText('A consent banner (Cookiebot) is present');
+    await expect(row.locator('.ar-chip-label')).toHaveText(
+      '4 tracker hosts · 5 third-party hosts · consent banner: Cookiebot',
+    );
+    await expect(row.locator('.ar-chip')).toHaveText([
+      'www.google-analytics.com · analytics',
+      'www.googletagmanager.com · tag-manager',
+      'connect.facebook.net · social',
+    ]);
+
+    // The card: heading, the one-sentence fix, the platform link, the disclosure.
+    const card = page.locator('section[aria-labelledby="ar-h-consent"]');
+    await expect(page.locator('#ar-h-consent')).toHaveText('Tags fire before consent');
+    await expect(card).toContainText(
+      'With consent enforcement at the origin, third-party tags stay inert at the server until the consent cookie grants them.',
+    );
+    await expect(card.locator('a[href="/platform/consent/"]')).toHaveText(
+      'Consent enforcement at the origin →',
+    );
+    await expect(card.locator('p.ar-disclosure')).toContainText(
+      'We use them only for this request',
+    );
+    // No other wedge fired, so the consolidated next-step form is absent.
+    await expect(page.locator('#ar-next-form')).toHaveCount(0);
+
+    await page.fill('#ar-consent-email', 'operator@example.com');
+    await page.click('#ar-consent-form button[type="submit"]');
+
+    await expect(page.locator('#ar-consent-msg')).toContainText('Thanks');
+    await expect(page.locator('#ar-consent-form')).toHaveCount(0);
+    expect(posted).toHaveLength(1);
+    expect(posted[0]).toEqual({
+      topic: 'consent-enforcement',
+      email: 'operator@example.com',
+      name: '',
+      url: 'https://example.com/',
+      wedge: 'consent-enforcement',
+      lensSignal: {
+        verdict: 'leaks',
+        trackerCount: 4,
+        thirdPartyCount: 5,
+        topHosts: [
+          { host: 'www.google-analytics.com', requests: 3, category: 'analytics' },
+          { host: 'www.googletagmanager.com', requests: 1, category: 'tag-manager' },
+          { host: 'connect.facebook.net', requests: 1, category: 'social' },
+        ],
+        cmpDetected: { detected: true, vendor: 'Cookiebot' },
+      },
+      message:
+        '[consent-enforcement] lead from RenderPeek result\n' +
+        'Scanned: https://example.com/\n' +
+        'Signal: {"verdict":"leaks","trackerCount":4,"thirdPartyCount":5,"topHosts":[{"host":"www.google-analytics.com","requests":3,"category":"analytics"},{"host":"www.googletagmanager.com","requests":1,"category":"tag-manager"},{"host":"connect.facebook.net","requests":1,"category":"social"}],"cmpDetected":{"detected":true,"vendor":"Cookiebot"}}',
+    });
+
+    const events = await trackedEvents(page);
+    expect(events.filter((e) => e.name === 'lead_submit')).toEqual([
+      {
+        name: 'lead_submit',
+        data: {
+          channel: 'scan',
+          topic: 'consent-enforcement',
+          wedge: 'consent-enforcement',
+          source_path: '/ai-readability/',
+        },
+      },
+    ]);
+  });
+
+  test('a clean page gets a neutral row and no card', async ({ page }) => {
+    await stubUmami(page);
+    await runScan(page, SCAN_CONSENT_CLEAN);
+
+    const row = page.locator('.ar-lens', { hasText: 'Pre-consent leak' });
+    await expect(row).toHaveCount(1);
+    await expect(row).not.toHaveClass(/ar-finding/);
+    await expect(row.locator('.ar-h4-r')).toHaveText('clean');
+    await expect(row).toContainText(
+      'No tracker requests observed before any interaction (1 third-party host(s) contacted, none in a tracker category).',
+    );
+    await expect(row.locator('.ar-chip-label')).toHaveText(
+      '0 tracker hosts · 1 third-party host · consent banner: none detected',
+    );
+    await expect(row.locator('.ar-chip')).toHaveText(['fonts.googleapis.com · cdn']);
+    await expect(page.locator('#ar-h-consent')).toHaveCount(0);
+    await expect(page.locator('#ar-consent-form')).toHaveCount(0);
+  });
+
+  test('a disabled lens renders neither the row nor the card', async ({ page }) => {
+    await stubUmami(page);
+    await runScan(page, SCAN_CONSENT_DISABLED);
+
+    await expect(page.locator('.ar-lens', { hasText: 'Pre-consent leak' })).toHaveCount(0);
+    await expect(page.locator('#ar-h-consent')).toHaveCount(0);
+    await expect(page.locator('#ar-consent-form')).toHaveCount(0);
+  });
+
+  test('a blocked render gets a muted not-measured row with the note and no card', async ({
+    page,
+  }) => {
+    await stubUmami(page);
+    await runScan(page, SCAN_CONSENT_BLOCKED);
+
+    const row = page.locator('.ar-lens', { hasText: 'Pre-consent leak' });
+    await expect(row).toHaveCount(1);
+    await expect(row).not.toHaveClass(/ar-finding/);
+    await expect(row.locator('.ar-h4-r')).toHaveText('not measured');
+    await expect(row.locator('p.ar-def')).toHaveText(
+      'The site answered our render with a challenge page, so we could not observe its requests.',
+    );
+    await expect(row.locator('.ar-chip-label')).toHaveCount(0);
+    await expect(row.locator('.ar-chip')).toHaveCount(0);
+    await expect(page.locator('#ar-h-consent')).toHaveCount(0);
+    await expect(page.locator('#ar-consent-form')).toHaveCount(0);
+  });
+
+  test('an errored lens without a note gets the default not-measured line and no card', async ({
+    page,
+  }) => {
+    await stubUmami(page);
+    await runScan(page, SCAN_CONSENT_ERROR);
+
+    const row = page.locator('.ar-lens', { hasText: 'Pre-consent leak' });
+    await expect(row).toHaveCount(1);
+    await expect(row.locator('.ar-h4-r')).toHaveText('not measured');
+    await expect(row.locator('p.ar-def')).toHaveText('Not measured: the site blocked the scanner.');
+    await expect(row.locator('.ar-chip-label')).toHaveCount(0);
+    await expect(page.locator('#ar-h-consent')).toHaveCount(0);
+    await expect(page.locator('#ar-consent-form')).toHaveCount(0);
+  });
+
+  test('a scan without the lens key renders neither the row nor the card', async ({ page }) => {
+    await stubUmami(page);
+    await runScan(page);
+
+    await expect(page.locator('.ar-lens', { hasText: 'Pre-consent leak' })).toHaveCount(0);
+    await expect(page.locator('#ar-h-consent')).toHaveCount(0);
+    await expect(page.locator('#ar-consent-form')).toHaveCount(0);
   });
 });
 

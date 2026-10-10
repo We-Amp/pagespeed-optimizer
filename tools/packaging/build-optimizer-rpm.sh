@@ -246,6 +246,7 @@ image/css/js optimization with quality verification, a shared cache
 volume, and a systemd-supervised service. Ships the daemon and the C API
 client library (libpagespeed.so) that serving modules bind. Serving-module
 packages depend on this package at an exact version; the two ship together.
+Agent install recipes: https://modpagespeed.com/recipes/README.md
 
 %install
 [ -n "%{getenv:OPT_STAGE}" ] || { echo "OPT_STAGE not set" >&2; exit 1; }

@@ -17,6 +17,8 @@ IISpeed. Download the signed MSI, run it, `iisreset`, and the module optimizes
 every site that has a `pagespeed.config`. The IIS package ships from the 1.15
 packaging channel.
 
+Machine-readable recipe for coding agents: [modpagespeed.com/recipes/iis.md](https://modpagespeed.com/recipes/iis.md) (see [Install with a coding agent](/docs/agent-install/)).
+
 ## Requirements
 
 - Windows Server 2019 or later (IIS 10 or later)
