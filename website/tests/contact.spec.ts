@@ -115,7 +115,8 @@ test.describe('Contact page', () => {
 
     await expect(page.locator('#contact-status')).toContainText('Thanks');
     expect(posted).toMatchObject({ topic: 'support', name: 'Grace', email: 'grace@example.com' });
-    expect(posted).not.toHaveProperty('company');
+    // The honeypot rides along empty; the visible company field is `org`.
+    expect(posted).toMatchObject({ company: '' });
     const message = String((posted as unknown as { message: string }).message);
     expect(message).toContain('Company: Example Corp');
     expect(message).toContain('Role: SRE lead');
