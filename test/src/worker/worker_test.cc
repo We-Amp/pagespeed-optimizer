@@ -17739,6 +17739,137 @@ TEST_F(WorkerTest, NativeSvgNotificationMarksDedup) {
 }
 
 // =============================================================================
+// An origin file rewritten in place, recorded by a PEER process, must replace
+// the worker's stored gzip/brotli copies.
+//
+// The front end is a SECOND cache handle on the same volume: a same-handle
+// write evicts its own RAM copy and would hide the worker's stale RAM read of
+// the durable original.  The worker keeps its RAM tier on (the default).
+// =============================================================================
+
+class WorkerPeerRewriteTest : public WorkerTest {
+ protected:
+  static constexpr uint32_t kStamp1 = 1'700'000'000;
+  static constexpr uint32_t kStamp2 = 1'700'000'005;
+
+  // Waits for the worker to drain every notification sent so far.
+  void NotifySvgAndDrain(Worker& worker, const std::string& url) {
+    CacheNotification notification;
+    notification.url = url;
+    notification.scheme = "https";
+    notification.content_type = ContentType::kImage;
+    notification.capability_mask = CapabilityMask().Encode();
+    SendNotification(notification);
+    WaitForWorkerIdle(worker);
+  }
+
+  std::string SvgBody(const std::string& color) {
+    return R"(<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">)"
+           R"(<circle cx="50" cy="50" r="40" fill=")" +
+           color + R"("/></svg>)";
+  }
+
+  // `rotate_dedup_set`: shrink the processed set to one entry and notify other
+  // SVGs between the rewrite and the second notification, so the dedup key is
+  // gone and only the stale source read can serve the old bytes.
+  void RunScenario(bool rotate_dedup_set) {
+    WorkerConfig config;
+    config.socket_path = socket_path_;
+    config.cache_path = cache_path_;
+    config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+    config.proactive_image_variants = false;
+    config.proactive_viewport_variants = false;
+    config.proactive_savedata_variants = false;
+    config.proactive_density_variants = false;
+    if (rotate_dedup_set) config.max_processed_entries = 1;
+
+    NullMessageHandler handler;
+    Worker worker(config, &handler);
+    ASSERT_TRUE(worker.Initialize());
+
+    // The front end: a second handle onto the worker's volume.
+    PageSpeedCacheConfig fe_config;
+    fe_config.volume_path = cache_path_;
+    fe_config.volume_size = static_cast<uint64_t>(10 * 1024 * 1024);
+    auto front_end = PageSpeedCache::Create(fe_config);
+    ASSERT_TRUE(front_end.has_value());
+
+    const std::string url = "http://example.com/images/logo.svg";
+    const std::string v1 = SvgBody("blue");
+    const std::string v2 = SvgBody("red");
+    ASSERT_NE(v1, v2);
+    CacheDurableOriginal(front_end->get(), url, v1, "image/svg+xml",
+                         ContentType::kImage, kStamp1, 600);
+
+    std::thread worker_thread([&worker]() { worker.Run(); });
+    WorkerStopper stopper(worker, worker_thread);
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+    NotifySvgAndDrain(worker, url);
+    for (int i = 0; i < 60 * kSanitizerBudgetScale; ++i) {
+      if (worker.stats().gzip_variants_written.load() >= 1) break;
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    ASSERT_GE(worker.stats().gzip_variants_written.load(), 1u);
+    WaitForWorkerIdle(worker);
+
+    // A reader with no RAM tier sees what is on disk.
+    PageSpeedCacheConfig reader_config = fe_config;
+    reader_config.ram_cache_size = 0;
+    auto reader = PageSpeedCache::Create(reader_config);
+    ASSERT_TRUE(reader.has_value());
+    CapabilityMask gz_mask;
+    gz_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kGzip);
+    CapabilityMask br_mask;
+    br_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kBrotli);
+    ASSERT_EQ(GzipDecompress(ReadVariant(reader->get(), url, gz_mask)), v1);
+    ASSERT_EQ(BrotliDecompress(ReadVariant(reader->get(), url, br_mask)), v1);
+
+    // The front end re-records the origin file with NEW bytes and a newer
+    // stamp, then (as every re-record does) sends the plain notification.
+    CacheDurableOriginal(front_end->get(), url, v2, "image/svg+xml",
+                         ContentType::kImage, kStamp2, 600);
+    if (rotate_dedup_set) {
+      for (int i = 0; i < 3; ++i) {
+        const std::string other =
+            "http://example.com/images/other" + std::to_string(i) + ".svg";
+        CacheDurableOriginal(front_end->get(), other, SvgBody("green"),
+                             "image/svg+xml", ContentType::kImage, kStamp1,
+                             600);
+        NotifySvgAndDrain(worker, other);
+      }
+    }
+    NotifySvgAndDrain(worker, url);
+
+    // Give an asynchronous rebuild time to land before judging.
+    const std::string want_gz = v2;
+    for (int i = 0; i < 20 * kSanitizerBudgetScale; ++i) {
+      if (GzipDecompress(ReadVariant(reader->get(), url, gz_mask)) == want_gz &&
+          BrotliDecompress(ReadVariant(reader->get(), url, br_mask)) == v2) {
+        break;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    EXPECT_EQ(GzipDecompress(ReadVariant(reader->get(), url, gz_mask)), v2)
+        << "the gzip copy still holds the previous origin bytes";
+    EXPECT_EQ(BrotliDecompress(ReadVariant(reader->get(), url, br_mask)), v2)
+        << "the brotli copy still holds the previous origin bytes";
+  }
+};
+
+// Marked DISABLED_ until the worker rebuilds on a changed durable original;
+// run with --gtest_also_run_disabled_tests to see it fail.
+TEST_F(WorkerPeerRewriteTest,
+       DISABLED_NativeSvgPeerRewrittenOriginalRebuildsCodedCopies) {
+  RunScenario(/*rotate_dedup_set=*/false);
+}
+
+TEST_F(WorkerPeerRewriteTest,
+       DISABLED_NativeSvgPeerRewriteAfterDedupRotationReadsFreshOriginal) {
+  RunScenario(/*rotate_dedup_set=*/true);
+}
+
+// =============================================================================
 // Issue B: content-hash self-purge + own-write-failure loop (agent_optimize)
 //
 // Root cause: the kContentHash sentinel is computed by re-hashing the worker's
