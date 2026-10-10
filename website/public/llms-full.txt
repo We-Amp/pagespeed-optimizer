@@ -2287,8 +2287,8 @@ rollback. The commands are fenced, the values to fill in are placeholders in
 angle brackets, and there is no prose beyond what a command needs.
 
 The recipes derive from these docs. Every command in a recipe comes from the
-docs page it links to at the top, and when a command changes, the docs page
-changes first and the recipe follows.
+docs pages it names at the top; when a command changes, the docs change first
+and the recipe follows.
 
 ## The recipes
 
@@ -2317,8 +2317,8 @@ changes first and the recipe follows.
    (ASP.NET Core, Docker, Helm). The install is complete only when that header
    is present.
 5. **Roll back.** If verification fails after one pass through the
-   troubleshooting link, the rollback section undoes what the run created and
-   leaves everything that existed before untouched.
+   troubleshooting link, the rollback section is written to undo only what the
+   run created and to leave anything that existed before in place.
 
 ## The verification marker
 
@@ -2331,9 +2331,10 @@ operator can count agent-run verifications:
 grep -c 'mps-verify=agent' /var/log/nginx/access.log
 ```
 
-Nothing in a recipe reports anywhere. The recipes call only the documented
-install channels: the package repository, GHCR, the Helm repository, nuget.org
-and the download page.
+Nothing in a recipe reports anywhere. The recipes themselves call only the
+documented install channels: the package repository, GHCR, the Helm repository,
+nuget.org and the download page. apt, dnf, Docker and Helm then pull
+dependencies from the sources they are configured with.
 
 ## The install skill
 
@@ -2350,12 +2351,11 @@ claude plugin marketplace add We-Amp/pagespeed-optimizer
 claude plugin install modpagespeed@modpagespeed
 ```
 
-The skill then runs when you ask for a mod_pagespeed install, or directly as
-`/modpagespeed:install-modpagespeed`.
+Claude Code can then pick the skill when you ask for a mod_pagespeed install,
+or you can run it directly as `/modpagespeed:install-modpagespeed`.
 
 For other agents that read skill directories, the `skills` command-line tool
-copies the skill into the current project (add `-g` to install it for your
-user instead):
+copies the skill into the current project:
 
 ```bash
 npx skills add We-Amp/pagespeed-optimizer --skill install-modpagespeed
