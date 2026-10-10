@@ -39,6 +39,8 @@ Already running a predecessor? The [upgrade and migration pages](/docs/upgrade/)
 cover mod_pagespeed 1.15, ModPageSpeed 2.0, ngx_pagespeed, IISpeed and the
 archived open-source module.
 
+Installing with a coding agent? [Install with a coding agent](/docs/agent-install/) lists one machine-readable recipe per server, indexed at [modpagespeed.com/recipes/README.md](https://modpagespeed.com/recipes/README.md).
+
 ## Prerequisites
 
 - **Native module:** Debian 12 or 13, Ubuntu 22.04 or 24.04, or RHEL, AlmaLinux

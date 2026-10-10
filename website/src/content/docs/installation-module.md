@@ -24,6 +24,8 @@ working options:
   [Docker / nginx reverse proxy](/docs/installation-docker/) in front of your
   origin.
 
+Machine-readable recipes for coding agents: [modpagespeed.com/recipes/nginx.md](https://modpagespeed.com/recipes/nginx.md) and [modpagespeed.com/recipes/apache.md](https://modpagespeed.com/recipes/apache.md) (see [Install with a coding agent](/docs/agent-install/)).
+
 ## Native Apache module
 
 The signed repository at `packages.modpagespeed.com` ships the Apache module
