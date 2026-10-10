@@ -220,6 +220,7 @@ Description: PageSpeed optimizer daemon
  volume, and a systemd-supervised service. Ships the daemon and the C API
  client library (libpagespeed.so) that serving modules bind. Serving-module
  packages depend on this package at an exact version; the two ship together.
+ Agent install recipes: https://modpagespeed.com/recipes/README.md
 EOF
   printf '/etc/default/%s\n' "$PKG" > "$staging/DEBIAN/conffiles"
   cat > "$staging/DEBIAN/postinst" <<'EOF'
