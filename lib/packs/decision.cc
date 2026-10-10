@@ -98,7 +98,10 @@ std::string DecisionToJsonLine(std::string_view host, std::string_view path,
       ",\"action\":", Quote(ActionName(d.action)),
       ",\"reason\":", Quote(ReasonName(d.reason)),
       ",\"defect\":", Quote(d.defect), ",\"before\":", Quote(d.before_hash),
-      ",\"after\":", Quote(d.after), "}");
+      ",\"after\":", Quote(d.after),
+      d.removed.empty() ? std::string()
+                        : absl::StrCat(",\"removed\":", Quote(d.removed)),
+      "}");
 }
 
 }  // namespace pagespeed::packs

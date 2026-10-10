@@ -39,6 +39,9 @@ inline constexpr size_t kMaxJsonLdBytes = 16 * 1024;        // expanded
 // An existing JSON-LD block larger than this is not parsed; the jsonld rule
 // then leaves the page's JSON-LD alone.
 inline constexpr size_t kMaxJsonLdScanBytes = 1024 * 1024;  // per block
+// Deepest [ / { nesting a JSON-LD block or template may have. Deeper blocks
+// are never parsed (parsing and printing recurse per level).
+inline constexpr size_t kMaxJsonLdDepth = 64;
 inline constexpr size_t kMaxAddedBytesPerPage = 64 * 1024;  // per page
 inline constexpr size_t kMaxJsonDepth = 32;                 // pack file
 inline constexpr size_t kMaxRuleIdLength = 64;
@@ -175,6 +178,10 @@ absl::Status CheckUrlValue(std::string_view value);
 // path are matched byte for byte (`.` matches any byte, including 0xFF), with
 // the per-regex memory budget and logging off.
 RE2::Options MakeRegexOptions();
+
+// True when the [ / { nesting of `s` (outside JSON strings) exceeds
+// `max_depth`. A lexical scan; it does not need `s` to be valid JSON.
+bool JsonNestingExceeds(std::string_view s, size_t max_depth);
 
 // True when `s` contains NUL or any other C0 control character, or DEL.
 bool HasControlChars(std::string_view s);

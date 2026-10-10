@@ -1,1 +1,1 @@
-{"host":"fixture.test","path":"/j/graph/a","rule":"jsonld-graph","kind":"jsonld","mode":"enforce","action":"insert","reason":"absent","defect":"jsonld-js-only","before":"","after":"Organization, WebSite"}
+{"host":"fixture.test","path":"/j/graph/a","rule":"jsonld-graph","kind":"jsonld","mode":"enforce","action":"insert","reason":"absent","defect":"","before":"","after":"Organization, WebSite"}

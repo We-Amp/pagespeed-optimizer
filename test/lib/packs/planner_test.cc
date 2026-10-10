@@ -389,7 +389,7 @@ TEST(HreflangPlannerTest, KeepInsertsTheWholeClusterSortedByCode) {
   EXPECT_EQ(rp.ops[1].value, "https://t.test/en/p");
   EXPECT_EQ(rp.decision.action, Action::kInsert);
   EXPECT_EQ(rp.decision.reason, Reason::kAbsent);
-  EXPECT_EQ(rp.decision.defect, "hreflang-js-only");
+  EXPECT_EQ(rp.decision.defect, "");
 }
 
 TEST(HreflangPlannerTest, KeepNeverTouchesAnExistingCluster) {
@@ -626,6 +626,47 @@ TEST(JsonLdPlannerTest, ReplaceRewritesInPlaceAndSparesOtherTypes) {
   EXPECT_EQ(rp.ops[0].target.element, Handle(2));
   EXPECT_EQ(rp.ops[1].type, OpType::kRemove);
   EXPECT_EQ(rp.ops[1].target.element, Handle(3));
+}
+
+TEST(JsonLdPlannerTest, ReplaceStandsDownOnABlockWithOtherTypesToo) {
+  Pack pack = MakeRaw(JsonRule("replace", kOrgTemplate));
+  for (const char* block :
+       {R"({"@graph":[{"@type":"WebPage"},{"@type":"Organization"}]})",
+        R"({"@type":["Organization","LocalBusiness"],"address":"x"})"}) {
+    PageFacts facts = Facts();
+    facts.jsonlds.push_back(Ld(1, R"({"@type":"Organization"})"));
+    facts.jsonlds.push_back(Ld(2, block));
+    const RulePlan rp = Only(BuildPlan(pack, Ctx(), facts));
+    EXPECT_TRUE(rp.ops.empty()) << block;
+    EXPECT_EQ(rp.decision.reason, Reason::kConflict) << block;
+  }
+}
+
+TEST(JsonLdPlannerTest, ADeeplyNestedBlockIsNeverParsedOrRemoved) {
+  for (std::string_view on_present : {"keep", "repair", "replace"}) {
+    Pack pack = MakeRaw(JsonRule(on_present, kOrgTemplate));
+    PageFacts facts = Facts();
+    facts.jsonlds.push_back(Ld(1, std::string(100000, '[') +
+                                       std::string(100000, ']')));
+    const RulePlan rp = Only(BuildPlan(pack, Ctx(), facts));
+    EXPECT_TRUE(rp.ops.empty()) << on_present;
+    EXPECT_EQ(rp.decision.reason, Reason::kPresent) << on_present;
+  }
+}
+
+TEST(HreflangPlannerTest, RepairNeverDropsTheEntryForThePageInAConflict) {
+  Pack pack = HreflangPackFor("repair");
+  PageFacts facts = Facts();
+  facts.hreflangs.push_back(Alt(1, "en", "https://t.test/en/other"));
+  facts.hreflangs.push_back(Alt(2, "en", "https://t.test/en/p"));
+  facts.hreflangs.push_back(Alt(3, "x-default", "https://t.test/en/p"));
+  facts.hreflangs.push_back(Alt(4, "de", "https://t.test/de/p"));
+  const RulePlan rp = Only(BuildPlan(pack, EnCtx(), facts));
+  ASSERT_EQ(rp.ops.size(), 1u);
+  EXPECT_EQ(rp.ops[0].type, OpType::kRemove);
+  EXPECT_EQ(rp.ops[0].target.element, Handle(1));
+  EXPECT_EQ(rp.decision.reason, Reason::kConflict);
+  EXPECT_NE(rp.decision.removed.find("(conflict)"), std::string::npos);
 }
 
 TEST(JsonLdPlannerTest, ReplaceLeavesAnEqualBlockAlone) {

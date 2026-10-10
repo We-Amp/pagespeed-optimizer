@@ -4,6 +4,7 @@
 #include "lib/packs/pack_filter.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -52,6 +53,67 @@ std::optional<PageUrl> ParsePageUrl(std::string_view url) {
 
 namespace {
 
+void AppendUtf8(uint32_t cp, std::string* out) {
+  if (cp < 0x80) {
+    out->push_back(static_cast<char>(cp));
+  } else if (cp < 0x800) {
+    out->push_back(static_cast<char>(0xC0 | (cp >> 6)));
+    out->push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+  } else if (cp < 0x10000) {
+    out->push_back(static_cast<char>(0xE0 | (cp >> 12)));
+    out->push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+    out->push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+  } else {
+    out->push_back(static_cast<char>(0xF0 | (cp >> 18)));
+    out->push_back(static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
+    out->push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+    out->push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+  }
+}
+
+// Decodes an attribute value as written: numeric character references
+// (&#233; and &#xE9;) become UTF-8, the rest goes through the kernel's safe
+// decoder segment by segment, so "&amp;#233;" stays "&#233;". Used only to
+// compare what the page says with what the rule says.
+std::string DecodeAttribute(std::string_view escaped) {
+  std::string out;
+  size_t seg = 0;
+  size_t i = 0;
+  while (i < escaped.size()) {
+    if (escaped[i] == '&' && i + 2 < escaped.size() && escaped[i + 1] == '#') {
+      size_t j = i + 2;
+      const bool hex = escaped[j] == 'x' || escaped[j] == 'X';
+      if (hex) ++j;
+      const size_t digits_at = j;
+      uint32_t cp = 0;
+      while (j < escaped.size() && j - digits_at < 8) {
+        const unsigned char d = static_cast<unsigned char>(escaped[j]);
+        uint32_t v;
+        if (absl::ascii_isdigit(d)) {
+          v = d - '0';
+        } else if (hex && absl::ascii_isxdigit(d)) {
+          v = absl::ascii_tolower(d) - 'a' + 10;
+        } else {
+          break;
+        }
+        cp = cp * (hex ? 16 : 10) + v;
+        ++j;
+      }
+      if (j > digits_at && j < escaped.size() && escaped[j] == ';' &&
+          cp >= 0x20 && cp <= 0x10FFFF && !(cp >= 0xD800 && cp <= 0xDFFF)) {
+        out += net_instaweb::SafeDecodeHtmlEntities(
+            escaped.substr(seg, i - seg));
+        AppendUtf8(cp, &out);
+        i = seg = j + 1;
+        continue;
+      }
+    }
+    ++i;
+  }
+  out += net_instaweb::SafeDecodeHtmlEntities(escaped.substr(seg));
+  return out;
+}
+
 // Decoded value of an attribute, tolerant of non-ASCII bytes and entities:
 // the kernel's own decoded value is empty for those, so the escaped value is
 // read and decoded here. `present` is false when the attribute is absent or
@@ -61,7 +123,7 @@ std::string AttrValue(const HtmlElement* element, HtmlName::Keyword kw,
   const char* escaped = element->EscapedAttributeValue(kw);
   if (present != nullptr) *present = escaped != nullptr;
   if (escaped == nullptr) return std::string();
-  return net_instaweb::SafeDecodeHtmlEntities(escaped);
+  return DecodeAttribute(escaped);
 }
 
 // Elements that may appear in <head>. The first other element (usually
@@ -199,8 +261,7 @@ void PackFilter::StartElement(HtmlElement* element) {
         f.in_head = in_head;
         f.code = attr->escaped_value() == nullptr
                      ? std::string()
-                     : net_instaweb::SafeDecodeHtmlEntities(
-                           attr->escaped_value());
+                     : DecodeAttribute(attr->escaped_value());
         f.value = AttrValue(element, HtmlName::kHref, &f.has_value_attr);
         facts_.hreflangs.push_back(std::move(f));
       }
@@ -221,8 +282,9 @@ void PackFilter::StartElement(HtmlElement* element) {
     open_title_raw_.clear();
   } else if (kw == HtmlName::kScript) {
     std::string type = AttrValue(element, HtmlName::kType);
-    if (absl::EqualsIgnoreCase(absl::StripAsciiWhitespace(type),
-                               "application/ld+json")) {
+    // Exactly this media type, ASCII case-insensitive; a parameter
+    // ("; charset=utf-8") or surrounding space is not JSON-LD to the lens.
+    if (absl::EqualsIgnoreCase(type, "application/ld+json")) {
       ElementFact f;
       f.element = element;
       f.in_head = in_head;

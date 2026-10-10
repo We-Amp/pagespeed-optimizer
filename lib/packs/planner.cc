@@ -611,6 +611,12 @@ void Summarize(RulePlan* rp, const Flags& f) {
   }
 }
 
+// Appends "item (reason)" to the decision's list of removed things.
+void NoteRemoved(RulePlan* rp, std::string_view item, std::string_view reason) {
+  if (!rp->decision.removed.empty()) rp->decision.removed += "; ";
+  absl::StrAppend(&rp->decision.removed, item, " (", reason, ")");
+}
+
 // ---------------------------------------------------------------------------
 // hreflang
 // ---------------------------------------------------------------------------
@@ -752,17 +758,24 @@ void PlanHreflang(const HreflangTarget& t, OnPresent on_present,
                   const std::vector<HCand>& cands, RulePlan* rp) {
   Flags f;
   f.had_any = !cands.empty();
-  f.absent_defect = "hreflang-js-only";
   f.self_defect = "hreflang-no-self";
   f.unusable_defect = "hreflang-invalid";
 
-  // The first usable element per code, in document order.
+  // The element that survives per code: the first usable one in document
+  // order, except that one pointing at the page itself wins, so that a
+  // conflict never costs the page its own entry.
   std::map<std::string, const HCand*> first;
-  bool existing_self = false;
   for (const HCand& c : cands) {
     if (!c.usable) continue;
-    first.emplace(c.code, &c);
-    if (c.href_norm == t.page_norm) existing_self = true;
+    auto [it, inserted] = first.emplace(c.code, &c);
+    if (!inserted && it->second->href_norm != t.page_norm &&
+        c.href_norm == t.page_norm) {
+      it->second = &c;
+    }
+  }
+  bool existing_self = false;
+  for (const auto& [code, c] : first) {
+    if (c->href_norm == t.page_norm) existing_self = true;
   }
   const bool self_missing = !cands.empty() && !existing_self;
   auto note_before = [&](const HCand& c) {
@@ -792,6 +805,7 @@ void PlanHreflang(const HreflangTarget& t, OnPresent on_present,
       }
       if (!seen.insert(c.key()).second) {
         rp->ops.push_back(HreflangRemove(c));
+        NoteRemoved(rp, HreflangBeforeKey(c), ReasonName(Reason::kDuplicate));
         note_before(c);
         f.removed = f.duplicate = true;
       } else if (first[c.code] != &c) {
@@ -817,21 +831,26 @@ void PlanHreflang(const HreflangTarget& t, OnPresent on_present,
 
   if (on_present == OnPresent::kRepair) {
     for (const HCand& c : cands) {
+      Reason why;
       if (!c.usable) {
+        why = HreflangUnusableReason(c);
         if (!f.has_unusable) {
           f.has_unusable = true;
-          f.unusable_reason = HreflangUnusableReason(c);
+          f.unusable_reason = why;
         }
       } else if (first[c.code] != &c) {
         if (first[c.code]->href_norm != c.href_norm) {
           f.conflict = true;
+          why = Reason::kConflict;
         } else {
           f.duplicate = true;
+          why = Reason::kDuplicate;
         }
       } else {
         continue;
       }
       rp->ops.push_back(HreflangRemove(c));
+      NoteRemoved(rp, HreflangBeforeKey(c), ReasonName(why));
       note_before(c);
       f.removed = true;
     }
@@ -893,16 +912,21 @@ void PlanHreflang(const HreflangTarget& t, OnPresent on_present,
     rp->ops.push_back(HreflangRemove(c));
     note_before(c);
     f.removed = true;
+    Reason why;
     if (!c.usable) {
+      why = HreflangUnusableReason(c);
       if (!f.has_unusable) {
         f.has_unusable = true;
-        f.unusable_reason = HreflangUnusableReason(c);
+        f.unusable_reason = why;
       }
     } else if (first[c.code] == &c) {
       f.conflict = true;  // a distinct code the target does not carry
+      why = Reason::kConflict;
     } else {
       f.duplicate = true;
+      why = Reason::kDuplicate;
     }
+    NoteRemoved(rp, HreflangBeforeKey(c), ReasonName(why));
   }
   f.self_missing = self_missing;
   f.idle_reason = Reason::kEqual;
@@ -951,6 +975,9 @@ std::set<std::string> TypesOf(const Json& doc) {
 struct JCand {
   const ElementFact* fact = nullptr;
   bool valid = false;
+  // Too deeply nested to parse safely: neither valid nor invalid, and never
+  // touched.
+  bool unreadable = false;
   std::set<std::string> types;
   std::string dump;  // canonical form of a valid block
   std::string hash_key;
@@ -967,6 +994,10 @@ bool Intersects(const std::set<std::string>& a,
 JCand MakeJsonCand(const ElementFact& f) {
   JCand c;
   c.fact = &f;
+  if (f.unreadable || JsonNestingExceeds(f.value, kMaxJsonLdDepth)) {
+    c.unreadable = true;
+    return c;
+  }
   Json doc = Json::parse(f.value, nullptr, false);
   if (!doc.is_discarded() && (doc.is_object() || doc.is_array())) {
     c.valid = true;
@@ -999,7 +1030,7 @@ JsonTarget ComputeJsonTarget(const Rule& rule, const RuleHit& hit,
   ex.canonical = canonical;
   auto s = ExpandTemplate(rule.value.tpl, ex, EscapeContext::kJsonString,
                           kMaxJsonLdBytes);
-  if (!s.ok()) {
+  if (!s.ok() || JsonNestingExceeds(*s, kMaxJsonLdDepth)) {
     t.status = TargetStatus::kInvalid;
     return t;
   }
@@ -1049,11 +1080,20 @@ Reason JsonUnusableReason(const JCand& c) {
                                                    : Reason::kUnusable;
 }
 
+std::string TypesText(const JCand& c) {
+  if (!c.valid) return "unparsable block";
+  std::string out;
+  for (const std::string& ty : c.types) {
+    if (!out.empty()) out += ",";
+    out += ty;
+  }
+  return out.empty() ? "untyped block" : out;
+}
+
 void PlanJsonLd(const JsonTarget& t, OnPresent on_present,
                 const std::vector<JCand>& cands, RulePlan* rp) {
   Flags f;
   f.had_any = !cands.empty();
-  f.absent_defect = "jsonld-js-only";
   f.unusable_defect = "jsonld-invalid";
   auto matching = [&](const JCand& c) {
     return c.valid && Intersects(c.types, t.types);
@@ -1096,6 +1136,7 @@ void PlanJsonLd(const JsonTarget& t, OnPresent on_present,
     }
     for (const JCand* d : duplicates) {
       rp->ops.push_back(JsonRemove(*d));
+      NoteRemoved(rp, TypesText(*d), ReasonName(Reason::kDuplicate));
       note_before(*d);
       f.removed = f.duplicate = true;
     }
@@ -1109,6 +1150,7 @@ void PlanJsonLd(const JsonTarget& t, OnPresent on_present,
     for (const JCand& c : cands) {
       if (!c.valid) {
         rp->ops.push_back(JsonRemove(c));
+        NoteRemoved(rp, TypesText(c), ReasonName(JsonUnusableReason(c)));
         note_before(c);
         f.removed = true;
         if (!f.has_unusable) {
@@ -1117,6 +1159,7 @@ void PlanJsonLd(const JsonTarget& t, OnPresent on_present,
         }
       } else if (duplicates.count(&c) != 0) {
         rp->ops.push_back(JsonRemove(c));
+        NoteRemoved(rp, TypesText(c), ReasonName(Reason::kDuplicate));
         note_before(c);
         f.removed = f.duplicate = true;
       }
@@ -1130,12 +1173,38 @@ void PlanJsonLd(const JsonTarget& t, OnPresent on_present,
     return;
   }
 
-  // replace: exactly one block with the rule's content. Blocks of other
-  // types stay.
-  const JCand* kept = equal_block;
+  // replace: exactly one block with the rule's content. Only blocks whose
+  // types are all among the rule's are the rule's to rewrite or remove. A
+  // block that shares a type but carries others (a @graph with a WebPage and
+  // an Organization, a ["Organization", "LocalBusiness"] block) would lose
+  // data, so the rule stands down for the page.
+  auto subset = [&](const JCand& c) {
+    if (!c.valid || c.types.empty()) return false;
+    for (const std::string& ty : c.types) {
+      if (t.types.count(ty) == 0) return false;
+    }
+    return true;
+  };
+  for (const JCand& c : cands) {
+    if (matching(c) && !subset(c)) {
+      Finish(rp, Action::kNone, Reason::kConflict, std::string());
+      return;
+    }
+  }
+  const JCand* first_owned = nullptr;
+  const JCand* equal_owned = nullptr;
+  std::set<std::string> seen_owned;
+  std::set<const JCand*> dup_owned;
+  for (const JCand& c : cands) {
+    if (!subset(c)) continue;
+    if (first_owned == nullptr) first_owned = &c;
+    if (equal_owned == nullptr && c.dump == t.dump) equal_owned = &c;
+    if (!seen_owned.insert(c.dump).second) dup_owned.insert(&c);
+  }
+  const JCand* kept = equal_owned;
   const JCand* reuse = nullptr;
   if (kept == nullptr) {
-    reuse = first_matching != nullptr ? first_matching : first_invalid;
+    reuse = first_owned != nullptr ? first_owned : first_invalid;
   }
   if (reuse != nullptr) {
     rp->ops.push_back(JsonSet(*reuse, t.text));
@@ -1144,20 +1213,25 @@ void PlanJsonLd(const JsonTarget& t, OnPresent on_present,
   }
   for (const JCand& c : cands) {
     if (&c == kept || &c == reuse) continue;
-    if (c.valid && !matching(c)) continue;
+    if (c.valid && !subset(c)) continue;
     rp->ops.push_back(JsonRemove(c));
     note_before(c);
     f.removed = true;
+    Reason why;
     if (!c.valid) {
+      why = JsonUnusableReason(c);
       if (!f.has_unusable) {
         f.has_unusable = true;
-        f.unusable_reason = JsonUnusableReason(c);
+        f.unusable_reason = why;
       }
-    } else if (c.dump == t.dump || duplicates.count(&c) != 0) {
+    } else if (c.dump == t.dump || dup_owned.count(&c) != 0) {
       f.duplicate = true;
+      why = Reason::kDuplicate;
     } else {
       f.conflict = true;
+      why = Reason::kConflict;
     }
+    NoteRemoved(rp, TypesText(c), ReasonName(why));
   }
   if (kept == nullptr && reuse == nullptr) {
     rp->ops.push_back(JsonInsert(t.text));
@@ -1360,10 +1434,14 @@ Plan BuildPlan(const Pack& pack, const PageContext& ctx, const PageFacts& facts,
       PlanHreflang(t, rule.on_present, cands, &rp);
       rp.decision.after = HreflangAfter(rp);
     } else {
-      // A block too large to read: leave the page's JSON-LD alone.
+      // Blocks too large or too deeply nested to read: leave the page's
+      // JSON-LD alone.
+      std::vector<JCand> cands;
+      cands.reserve(facts.jsonlds.size());
       bool unreadable = false;
       for (const ElementFact& f : facts.jsonlds) {
-        if (f.unreadable) unreadable = true;
+        cands.push_back(MakeJsonCand(f));
+        if (cands.back().unreadable) unreadable = true;
       }
       const Finals& fin =
           rp.decision.mode == Mode::kEnforce ? actual : planned;
@@ -1374,11 +1452,6 @@ Plan BuildPlan(const Pack& pack, const PageContext& ctx, const PageFacts& facts,
       } else if (unreadable) {
         Finish(&rp, Action::kNone, Reason::kPresent, std::string());
       } else {
-        std::vector<JCand> cands;
-        cands.reserve(facts.jsonlds.size());
-        for (const ElementFact& f : facts.jsonlds) {
-          cands.push_back(MakeJsonCand(f));
-        }
         PlanJsonLd(t, rule.on_present, cands, &rp);
         for (const PlanOp& op : rp.ops) {
           if (op.type == OpType::kInsert || op.type == OpType::kSetValue) {
