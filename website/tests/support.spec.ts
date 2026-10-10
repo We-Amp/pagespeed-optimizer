@@ -4,7 +4,7 @@
 import { test, expect } from '@playwright/test';
 
 // /support/ is the commercial product page: what a subscription buys, the
-// three tiers, hardened builds (what ships today, what subscribers add, how to
+// three tiers, signed packages and images (what ships today, how to
 // verify), partners, consulting, existing customers, and the FAQ.
 test.describe('Support page', () => {
   test.beforeEach(async ({ page }) => {
@@ -46,14 +46,18 @@ test.describe('Support page', () => {
     await expect(readout).toContainText('CET business days');
   });
 
-  test('hardened builds say only what ships today', async ({ page }) => {
+  test('signed artifacts say only what ships today', async ({ page }) => {
     const section = page.locator('#hardened-builds');
     await expect(section).toContainText('GPG-signed');
     await expect(section).toContainText('SHA256SUMS');
     await expect(section).toContainText('SPDX');
-    await expect(section).toContainText('hardened build pipeline');
-    await expect(section).toContainText('ahead of the public release');
+    await expect(section).toContainText('cosign');
+    await expect(section).toContainText('SBOM and VEX');
     await expect(section).toContainText('Enterprise adds custom build targets');
+    // There is no subscriber repository and no early delivery of releases.
+    await expect(section).not.toContainText('subscriber repository');
+    await expect(section).not.toContainText('ahead of the public release');
+    await expect(section).not.toContainText('hardened build pipeline');
     // The packages carry no per-build signed SBOM or provenance claim.
     await expect(section).not.toContainText('signed SBOM');
     await expect(section).not.toContainText('with every build');

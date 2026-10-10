@@ -1,6 +1,6 @@
 ---
 title: 'License'
-description: 'mod_pagespeed 2.1 is licensed under the Apache License 2.0; what is sold is support subscriptions and hardened builds.'
+description: 'mod_pagespeed 2.1 is licensed under the Apache License 2.0; what is sold is support subscriptions.'
 order: 71
 group: 'Reference'
 lastUpdated: 2026-09-19

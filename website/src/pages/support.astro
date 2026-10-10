@@ -3,16 +3,17 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
 // /support/ — the commercial product page: what a support subscription buys,
-// the three tiers, hardened builds (what ships today vs. what the subscriber
-// repository adds, with a verify recipe), the hosting partner program, the
+// the three tiers, signed packages and images (what ships today, with a verify
+// recipe), the hosting partner program, the
 // consulting handoff, the path for existing customers, and the FAQ.
 //
 // Facts: tiers from SUPPORT_TIERS, the pricing status and commercial address
 // from product-facts.mjs, the signing-key URL from the 2.1 release manifest.
 // No price amounts and no per-tier response targets (owner ruling): response
-// targets by severity are stated in the quote. Hardened builds are described
-// only by what ships today; nothing here claims a per-build signed SBOM or
-// build provenance for the packages.
+// targets by severity are stated in the quote. Signed artifacts are described
+// only by what ships today; there is no subscriber repository, and nothing
+// here claims a per-release SBOM/VEX on release assets or provenance on
+// packages.
 
 import BaseLayout from '../layouts/BaseLayout.astro';
 import SectionHeader from '../components/instrument/SectionHeader.astro';
@@ -54,7 +55,7 @@ const jsonLd = [
     '@type': 'WebPage',
     name: `Support for ${PRODUCT}`,
     url: 'https://modpagespeed.com/support/',
-    description: `Support subscriptions for ${PRODUCT} from We-Amp B.V.: a direct channel to the engineers who build it, response targets by severity agreed in the quote, and hardened builds from the Priority tier up.`,
+    description: `Support subscriptions for ${PRODUCT} from We-Amp B.V.: a direct channel to the engineers who build it, response targets by severity agreed in the quote, and release SBOM and VEX documents on request.`,
     publisher: { '@type': 'Organization', name: 'We-Amp B.V.', url: 'https://we-amp.com/' },
   },
   {
@@ -95,7 +96,7 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
 
 <BaseLayout
   title={`${PRODUCT} support from the people who build it`}
-  description="Support subscriptions for mod_pagespeed 2.1: a direct line to its engineers, response targets by severity, hardened builds, hosting partners."
+  description="Support subscriptions for mod_pagespeed 2.1: a direct line to its engineers, response targets by severity, signed packages and images, hosting partners."
   jsonLd={jsonLd}
 >
   <section
@@ -177,14 +178,14 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
     </p>
   </section>
 
-  {/* Hardened builds */}
+  {/* Signed packages and images */}
   <section id="hardened-builds" class="border-t border-border bg-bg-secondary py-16">
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <p class="eyebrow">For your security team</p>
-      <h2 class="mt-3 h2-section text-text-body">Hardened builds</h2>
+      <h2 class="mt-3 h2-section text-text-body">Signed packages and images</h2>
       <p class="mt-4 text-text-muted max-w-3xl">
-        Every build of {PRODUCT} comes from the same source. Hardened builds differ in how they are built
-        and delivered, never in what they do. They are included in Priority and Enterprise.
+        Every install of {PRODUCT} runs the same software from the same source, whatever the support tier.
+        Here is what is signed today, for everyone.
       </p>
 
       <div class="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -233,15 +234,15 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
           </ul>
         </div>
         <div class="card">
-          <h3 class="font-semibold text-text-body">What the subscriber repository adds</h3>
+          <h3 class="font-semibold text-text-body">What a subscription adds</h3>
           <ul class="mt-4 space-y-3 text-sm text-text-muted">
             <li class="flex gap-2">
               <Icon name="lock" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
-              <span>Packages built through a hardened build pipeline.</span>
+              <span>Release SBOM and VEX documents on request.</span>
             </li>
             <li class="flex gap-2">
               <Icon name="shield-check" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
-              <span>Security updates ahead of the public release.</span>
+              <span>Advance notice of security updates.</span>
             </li>
             <li class="flex gap-2">
               <Icon name="cpu" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
@@ -249,8 +250,8 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
             </li>
           </ul>
           <p class="mt-4 text-sm text-text-muted">
-            Hardened artifacts carry the same {SOURCE_PUBLICATION.license} as the standard packages. A
-            subscription covers access to the repository, not a different license.
+            Everything is the same software under the {SOURCE_PUBLICATION.license}. A subscription
+            adds support, not a different license.
           </p>
           <a
             href="/contact/?topic=hardened"
@@ -258,7 +259,7 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
             data-umami-event="cta_commercial"
             data-umami-event-offer="hardened"
             data-umami-event-surface="support"
-            data-umami-event-position="hardened_builds">Ask about hardened builds</a
+            data-umami-event-position="hardened_builds">Ask about SBOM and VEX</a
           >
         </div>
       </div>

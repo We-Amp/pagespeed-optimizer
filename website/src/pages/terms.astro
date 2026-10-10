@@ -52,7 +52,7 @@ const LICENSE = SOURCE_PUBLICATION.license;
             the free standard package repository at
             <code class="font-mono text-sm">packages.modpagespeed.com</code>;
           </li>
-          <li>the subscriber repository through which we deliver hardened builds; and</li>
+          <li>the container images we publish on GHCR; and</li>
           <li>support subscriptions.</li>
         </ul>
         <p class="mt-2 text-text-muted">
@@ -70,8 +70,8 @@ const LICENSE = SOURCE_PUBLICATION.license;
           The software &mdash; {PRODUCT}, and the predecessor lines mod_pagespeed {V1_LINE} and ModPageSpeed
           {V2_LINE} &mdash; is licensed under the {LICENSE}. That license, not these terms, governs
           your rights to install, run, copy, modify and redistribute the software. It applies to
-          every artifact we publish, including the hardened builds: an artifact you obtain
-          through a subscription carries the same license as a standard package.
+          every artifact we publish, including the container images: every artifact carries
+          the same license, whether or not you hold a subscription.
         </p>
         <p class="mt-2 text-text-muted">
           Nothing in these terms narrows the rights the {LICENSE} grants you. Where these terms and that
@@ -112,7 +112,7 @@ const LICENSE = SOURCE_PUBLICATION.license;
       <!-- Subscriptions -->
       <div>
         <h2 class="text-2xl font-bold text-text-body">Subscriptions</h2>
-        <p class="mt-4 text-text-muted">We sell two things:</p>
+        <p class="mt-4 text-text-muted">We sell one thing:</p>
         <ul class="mt-2 list-disc list-inside text-text-muted space-y-2">
           <li>
             <strong>Support subscriptions.</strong> Support from the people who build the product: a direct
@@ -120,29 +120,14 @@ const LICENSE = SOURCE_PUBLICATION.license;
             delivery of security updates. The scope, response times and contact channel of your subscription
             are set out in your order.
           </li>
-          <li>
-            <strong>Hardened builds.</strong> Builds of the same code the standard packages are built
-            from, produced through a hardened build pipeline and delivered through a subscriber
-            repository. They differ from the standard packages in how they are built and delivered, never
-            in features. What is signed and attested today applies to every user: the apt and yum
-            repositories are GPG-signed, release assets are listed with their checksums in a SHA256SUMS
-            file, an SPDX software bill of materials (SBOM) is published in the source tree, and the
-            container images on GHCR are signed with keyless cosign and carry SBOM and build-provenance
-            attestations.
-          </li>
         </ul>
         <p class="mt-4 text-text-muted">
-          <strong>What a subscription grants.</strong> For its term, a subscription gives you access to
-          the subscriber repository and the builds in it, and the support services in your order.
-          Access to the subscriber repository
-          is for your organization: do not share it outside your organization or use it to mirror the
-          repository for others. You may deploy the builds you obtain on as many of your own systems as
-          you like, and you may redistribute them under the {LICENSE} &mdash; the restriction is on access
-          to the repository, not on the artifacts.
+          <strong>What a subscription grants.</strong> For its term, a subscription gives you the support
+          services in your order. It grants no access to any different build of the software: the
+          packages and images we publish are the same for everyone.
         </p>
         <p class="mt-2 text-text-muted">
-          <strong>What a subscription does not do.</strong> A subscription covers access to the subscriber
-          repository and to support. The software itself is the same for everyone and behaves the same
+          <strong>What a subscription does not do.</strong> A subscription covers support. The software itself is the same for everyone and behaves the same
           with or without one. A subscription grants no rights in the software beyond the {LICENSE},
           and it does not make us responsible for your deployment (see
           <em>Your responsibilities</em>).
@@ -170,9 +155,8 @@ const LICENSE = SOURCE_PUBLICATION.license;
         </p>
         <p class="mt-2 text-text-muted">
           <strong>Ending a subscription.</strong> We may suspend or end a subscription if you materially
-          breach these terms and do not remedy the breach within 14 days of our written notice; sharing
-          subscriber repository access outside your organization ends it immediately. When a subscription
-          ends, for whatever reason, access to the subscriber repository and to support ends with it.
+          breach these terms and do not remedy the breach within 14 days of our written notice; When a subscription
+          ends, for whatever reason, support ends with it.
           Your right to keep using, modifying and redistributing every artifact you already obtained does
           not end: those artifacts are licensed under the {LICENSE}, and nothing we do under these
           terms revokes that license.
@@ -189,10 +173,6 @@ const LICENSE = SOURCE_PUBLICATION.license;
           <li>
             overload, load-test, scrape or benchmark our websites, demo tools or repositories
             without our written permission;
-          </li>
-          <li>
-            circumvent access controls on the subscriber repository, or share its access details
-            outside your organization;
           </li>
           <li>submit sites you have no right to test to the analysis tools on this site;</li>
           <li>use the services to attack, disrupt or overload third-party systems; or</li>
@@ -246,7 +226,7 @@ const LICENSE = SOURCE_PUBLICATION.license;
         <p class="mt-2 text-text-muted">
           <strong>The services.</strong> We perform support with reasonable skill and care, within the
           response times in your order. We do not warrant that support will resolve every issue, or that
-          a hardened build is free of defects or vulnerabilities: signatures, checksums, SBOMs and
+          a build is free of defects or vulnerabilities: signatures, checksums, SBOMs and
           attestations describe where an artifact came from and what went into it, not that it is
           defect-free. The free services are provided
           as-is.

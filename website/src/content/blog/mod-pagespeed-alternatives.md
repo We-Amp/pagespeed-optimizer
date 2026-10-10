@@ -118,4 +118,4 @@ See the [getting started guide](/docs/getting-started/) for full setup instructi
 
 **The native module** ships prebuilt packages for Apache (`.deb`/`.rpm`) and a prebuilt, signed `nginx-module-pagespeed` for Debian 11/12/13 and Ubuntu 22.04/24.04 (amd64 + arm64), plus AlmaLinux/RHEL/Rocky 9 (x86_64 + aarch64) and 10 (x86_64) — see [Downloads](https://modpagespeed.com/download/) or [packages.modpagespeed.com](https://packages.modpagespeed.com/) for the signed apt/yum repo.
 
-Licensing is the same either way: mod_pagespeed 2.1 is open source under the Apache License 2.0, free to install and run on any number of servers whichever integration you use. See the [pricing page](/pricing/) for what's sold alongside it (support and hardened builds).
+Licensing is the same either way: mod_pagespeed 2.1 is open source under the Apache License 2.0, free to install and run on any number of servers whichever integration you use. See the [pricing page](/pricing/) for what's sold alongside it (support).
