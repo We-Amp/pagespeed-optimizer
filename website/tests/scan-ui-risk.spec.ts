@@ -249,7 +249,8 @@ test.describe('Risk & SEO panel', () => {
     await expect(page.locator('[data-scan-tile="risk"] [data-scan-status]')).toHaveText(
       'Not measured',
     );
-    await expect(panel).toContainText('scanner unavailable');
+    await expect(panel).toContainText('The scan did not complete.');
+    await expect(panel).not.toContainText('scanner unavailable');
     const psiBefore = m.psi;
     m.body = () => ({
       status: 200,

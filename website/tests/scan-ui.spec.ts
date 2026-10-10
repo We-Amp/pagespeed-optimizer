@@ -86,7 +86,7 @@ async function mockBackends(
     await route.fulfill({
       status,
       contentType: 'application/json',
-      body: JSON.stringify(status === 200 ? SCAN_BODY : { error: 'scanner unavailable' }),
+      body: JSON.stringify(status === 200 ? SCAN_BODY : { error: 'scan failed' }),
     });
   });
   return calls;
@@ -215,13 +215,15 @@ test.describe('v2 shell tile states', () => {
       await expect(tile.locator('[data-scan-status]')).toHaveText('Not measured', {
         timeout: 15000,
       });
-      await expect(tile.locator('[data-scan-value]')).toContainText('scanner unavailable');
+      await expect(tile.locator('[data-scan-value]')).toContainText(
+        'The scan did not complete. Try again in a moment.',
+      );
       // The reason is one truncated line: the value box keeps its 28 px height.
       const box = await tile.locator('[data-scan-value]').boundingBox();
       expect(Math.round(box!.height)).toBe(28);
       await tile.click();
       const panel = page.locator(`#scan-panel-${p}`);
-      await expect(panel).toContainText('scanner unavailable');
+      await expect(panel).toContainText('The scan did not complete. Try again in a moment.');
       await expect(panel.getByRole('button', { name: 'Try again' })).toBeVisible();
     }
   });

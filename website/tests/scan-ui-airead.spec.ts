@@ -197,7 +197,7 @@ test.describe('AI readability panel', () => {
 
 test.describe('scanner failures', () => {
   test('an error answer marks both tiles Not measured and shows the message', async ({ page }) => {
-    await mock(page, { scanStatus: 503, scanError: 'The scanner is busy. Try again shortly.' });
+    await mock(page, { scanStatus: 503, scanError: 'busy — try again in a moment' });
     await scanV2(page);
     for (const t of ['airead', 'risk']) {
       await expect(page.locator(`[data-scan-tile="${t}"] [data-scan-status]`)).toHaveText(
@@ -206,12 +206,13 @@ test.describe('scanner failures', () => {
     }
     await openAiread(page);
     await expect(panel(page)).toContainText('Couldn’t scan that.');
-    await expect(panel(page)).toContainText('The scanner is busy. Try again shortly.');
+    await expect(panel(page)).toContainText('The scanner is busy. Try again in a moment.');
     await expect(panel(page).getByRole('button', { name: 'Try again' })).toBeVisible();
     await page.click('[data-scan-tile="risk"]');
     await expect(page.locator('[data-scan-panel="risk"]')).toContainText(
-      'The scanner is busy. Try again shortly.',
+      'The scanner is busy. Try again in a moment.',
     );
+    await expect(panel(page)).not.toContainText('busy —');
   });
 
   test('an unreachable scanner says so', async ({ page }) => {
