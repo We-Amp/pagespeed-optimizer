@@ -67,6 +67,7 @@ gtest_test(
         "//lib/packs:pack",
         "//lib/packs:pack_loader",
         "//lib/packs:planner",
+        "//lib/packs:url_norm",
         "@com_google_absl//absl/strings",
     ],
 )

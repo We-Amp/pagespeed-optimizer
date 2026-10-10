@@ -12,6 +12,7 @@
 
 #include "tools/packs/fixture_runner.h"
 
+#include <regex>
 #include <string>
 #include <vector>
 
@@ -93,6 +94,41 @@ TEST_P(FixtureTest, HoldsTheFourProperties) {
   } else {
     EXPECT_EQ(run->other_transforms.html, *expected_html);
   }
+}
+
+// Every cluster the pack wrote (or repaired) has a valid code on every entry
+// and an entry for the page itself.
+TEST_P(FixtureTest, EmittedHreflangClustersAreValidAndHaveSelf) {
+  const FixtureCase& c = GetParam();
+  auto run = RunCase(kFixturesDir, c);
+  ASSERT_TRUE(run.ok()) << run.status();
+  bool acted = false;
+  for (const PackDecision& d : run->enforce.decisions) {
+    if (d.kind == Kind::kHreflang && d.mode == Mode::kEnforce &&
+        (d.action == Action::kInsert || d.action == Action::kReplace)) {
+      acted = true;
+    }
+  }
+  if (!acted) return;
+  static const std::regex kLens(
+      "^(x-default|[a-z]{2,3}(-[a-z]{4})?(-([a-z]{2}|\\d{3}))?)$");
+  static const std::regex kLink(
+      "<link rel=\"alternate\" hreflang=\"([^\"]*)\" href=\"([^\"]*)\">");
+  const std::string& html = run->enforce.html;
+  size_t entries = 0;
+  bool self = false;
+  for (auto it = std::sregex_iterator(html.begin(), html.end(), kLink);
+       it != std::sregex_iterator(); ++it) {
+    ++entries;
+    EXPECT_TRUE(std::regex_match((*it)[1].str(), kLens)) << (*it)[1].str();
+    std::string href = (*it)[2].str();
+    std::string page = run->url;
+    while (!href.empty() && href.back() == '/') href.pop_back();
+    while (!page.empty() && page.back() == '/') page.pop_back();
+    if (href == page) self = true;
+  }
+  EXPECT_GT(entries, 0u);
+  EXPECT_TRUE(self) << "no hreflang entry for " << run->url;
 }
 
 INSTANTIATE_TEST_SUITE_P(Cases, FixtureTest, testing::ValuesIn(Cases()),

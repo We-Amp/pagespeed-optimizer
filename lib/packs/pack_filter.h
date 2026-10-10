@@ -36,8 +36,8 @@ struct PackFilterOptions {
   size_t max_added_bytes = kMaxAddedBytesPerPage;
 };
 
-// Applies the head rules of a transform pack (canonical, title and
-// description) to one HTML document.
+// Applies the rules of a transform pack (canonical, title, description,
+// hreflang and jsonld) to one HTML document.
 //
 // The filter collects facts while the document streams by (StartElement,
 // EndElement, Characters), then decides and mutates only at EndDocument,
@@ -65,7 +65,9 @@ class PackFilter : public net_instaweb::EmptyHtmlFilter {
 
   const char* Name() const override { return "PackFilter"; }
   bool CanModifyUrls() override { return can_modify_urls_; }
-  ScriptUsage GetScriptUsage() const override { return kNeverInjectsScripts; }
+  ScriptUsage GetScriptUsage() const override {
+    return may_inject_scripts_ ? kMayInjectScripts : kNeverInjectsScripts;
+  }
 
   void StartDocument() override;
   void StartElement(net_instaweb::HtmlElement* element) override;
@@ -106,12 +108,15 @@ class PackFilter : public net_instaweb::EmptyHtmlFilter {
   Mode global_mode_;
   PackFilterOptions options_;
   bool can_modify_urls_ = false;
+  bool may_inject_scripts_ = false;
 
   PageFacts facts_;
   std::vector<net_instaweb::HtmlElement*> inert_;
   net_instaweb::HtmlElement* open_head_ = nullptr;
   int open_title_ = -1;  // index into facts_.titles
   std::string open_title_raw_;
+  int open_jsonld_ = -1;  // index into facts_.jsonlds
+  const Rule* commented_rule_ = nullptr;
 
   bool modified_ = false;
   bool would_modify_ = false;

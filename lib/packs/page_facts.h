@@ -29,8 +29,14 @@ struct ElementFact {
   bool has_value_attr = false;
   // canonical only: the rel tokens other than "canonical", as written.
   std::vector<std::string> other_rel_tokens;
-  // title only: the text nodes that make up its content.
+  // title, jsonld: the text nodes that make up its content.
   std::vector<net_instaweb::HtmlCharactersNode*> text_nodes;
+  // hreflang: the hreflang attribute, decoded and not normalized (`value`
+  // holds the href).
+  std::string code;
+  // jsonld: the block is too large to be read; the planner leaves the
+  // document's JSON-LD alone. `value` is empty then.
+  bool unreadable = false;
 };
 
 // What the traversal collected. Filled in StartElement/EndElement/Characters,
@@ -49,6 +55,11 @@ struct PageFacts {
   std::vector<ElementFact> canonicals;
   std::vector<ElementFact> titles;
   std::vector<ElementFact> descriptions;
+  // <link rel~=alternate hreflang=...> anywhere in the document.
+  std::vector<ElementFact> hreflangs;
+  // <script type="application/ld+json"> anywhere in the document; `value` is
+  // the raw script text.
+  std::vector<ElementFact> jsonlds;
 
   const std::vector<ElementFact>& For(Kind kind) const {
     switch (kind) {
@@ -56,6 +67,10 @@ struct PageFacts {
         return canonicals;
       case Kind::kTitle:
         return titles;
+      case Kind::kHreflang:
+        return hreflangs;
+      case Kind::kJsonLd:
+        return jsonlds;
       default:
         return descriptions;
     }

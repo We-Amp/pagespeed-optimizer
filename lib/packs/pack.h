@@ -36,6 +36,9 @@ inline constexpr size_t kMaxUrlBytes = 2048;                // per value
 inline constexpr size_t kMaxTitleChars = 300;               // per value
 inline constexpr size_t kMaxDescriptionChars = 1000;        // per value
 inline constexpr size_t kMaxJsonLdBytes = 16 * 1024;        // expanded
+// An existing JSON-LD block larger than this is not parsed; the jsonld rule
+// then leaves the page's JSON-LD alone.
+inline constexpr size_t kMaxJsonLdScanBytes = 1024 * 1024;  // per block
 inline constexpr size_t kMaxAddedBytesPerPage = 64 * 1024;  // per page
 inline constexpr size_t kMaxJsonDepth = 32;                 // pack file
 inline constexpr size_t kMaxRuleIdLength = 64;

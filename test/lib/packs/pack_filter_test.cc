@@ -343,5 +343,97 @@ TEST(PackFilterTest, FilterContract) {
   EXPECT_FALSE(report.CanModifyUrls());
 }
 
+constexpr char kHreflangRepair[] =
+    R"({"id":"h","kind":"hreflang","enforce":true,"on_present":"repair",)"
+    R"("value":{"pattern":{"en":"https://t.test{path}",)"
+    R"("de":"https://t.test/de"}}})";
+constexpr char kJsonLdKeep[] =
+    R"({"id":"j","kind":"jsonld","enforce":true,"value":{"template":)"
+    R"("{\"@type\":\"Organization\",\"name\":\"{title}\"}"}})";
+
+TEST(PackFilterTest, HreflangAndJsonLdFilterContract) {
+  net_instaweb::NullMessageHandler handler;
+  net_instaweb::HtmlParse parser(&handler);
+  auto url = *ParsePageUrl("https://t.test/");
+  PackFilter hreflang(&parser, MakePack(kHreflangRepair), url, Mode::kEnforce);
+  EXPECT_TRUE(hreflang.CanModifyUrls());
+  EXPECT_EQ(hreflang.GetScriptUsage(),
+            net_instaweb::HtmlFilter::kNeverInjectsScripts);
+  PackFilter jsonld(&parser, MakePack(kJsonLdKeep), url, Mode::kEnforce);
+  EXPECT_FALSE(jsonld.CanModifyUrls());
+  EXPECT_EQ(jsonld.GetScriptUsage(),
+            net_instaweb::HtmlFilter::kMayInjectScripts);
+  // A pack that only reports injects nothing.
+  PackFilter report(&parser, MakePack(kJsonLdKeep), url, Mode::kReport);
+  EXPECT_EQ(report.GetScriptUsage(),
+            net_instaweb::HtmlFilter::kNeverInjectsScripts);
+}
+
+TEST(PackFilterTest, HreflangAttributeNamesAreCaseInsensitive) {
+  const std::string html =
+      "<html><head><LINK REL=Alternate HREFLANG=EN HREF=https://t.test/x>"
+      "<LINK REL=Alternate HREFLANG=de HREF=https://t.test/de></head>"
+      "<body></body></html>";
+  FilterRun r = RunFilter(MakePack(kHreflangRepair), "https://t.test/x", html);
+  ASSERT_EQ(r.decisions.size(), 1u);
+  EXPECT_EQ(r.decisions[0].action, Action::kNone);
+  EXPECT_EQ(r.decisions[0].reason, Reason::kEqual);
+  EXPECT_FALSE(r.modified);
+}
+
+TEST(PackFilterTest, JsonLdTextIsReadFromEverySplitOfTheScript) {
+  // The script text arrives in several pieces when the source has a
+  // comment-like or entity-like run; the filter must see the whole block.
+  const std::string html =
+      "<html><head><script type=\"application/ld+json\">"
+      "{\"@type\":\"Organization\",\"name\":\"a &amp; b\"}"
+      "</script></head><body></body></html>";
+  FilterRun r = RunFilter(MakePack(kJsonLdKeep), "https://t.test/x", html);
+  ASSERT_EQ(r.decisions.size(), 1u);
+  EXPECT_EQ(r.decisions[0].action, Action::kNone);
+  EXPECT_FALSE(r.modified);
+}
+
+TEST(PackFilterTest, AnOversizeJsonLdBlockIsLeftAlone) {
+  std::string html =
+      "<html><head><script type=\"application/ld+json\">{\"@type\":\"Thing\","
+      "\"pad\":\"";
+  html.append(kMaxJsonLdScanBytes + 100, 'x');
+  html += "\"}</script></head><body></body></html>";
+  const char* kReplace =
+      R"({"id":"j","kind":"jsonld","enforce":true,"on_present":"replace",)"
+      R"("value":{"template":"{\"@type\":\"Organization\"}"}})";
+  FilterRun r = RunFilter(MakePack(kReplace), "https://t.test/x", html);
+  EXPECT_FALSE(r.modified);
+  ASSERT_EQ(r.decisions.size(), 1u);
+  EXPECT_EQ(r.decisions[0].action, Action::kNone);
+}
+
+TEST(PackFilterTest, OneDebugCommentPerHreflangRule) {
+  PackFilterOptions options;
+  options.debug_comments = true;
+  FilterRun r = RunFilter(
+      MakePack(kHreflangRepair), "https://t.test/x",
+      "<html><head></head><body></body></html>", Mode::kEnforce, options);
+  size_t comments = 0;
+  const std::string marker = "<!-- pagespeed-pack";
+  for (size_t at = r.html.find(marker); at != std::string::npos;
+       at = r.html.find(marker, at + 1)) {
+    ++comments;
+  }
+  EXPECT_EQ(comments, 1u);
+}
+
+TEST(PackFilterTest, InsertedJsonLdSurvivesTheOtherTransforms) {
+  const std::string html =
+      "<html><head><title>T</title></head><body><p>x</p></body></html>";
+  FilterRun alone = RunFilter(MakePack(kJsonLdKeep), "https://t.test/x", html);
+  FilterRun with = RunFilter(MakePack(kJsonLdKeep), "https://t.test/x", html,
+                             Mode::kEnforce, {}, true, true);
+  EXPECT_NE(alone.html.find("application/ld+json"), std::string::npos);
+  EXPECT_EQ(with.html.substr(0, with.html.find("<body")),
+            alone.html.substr(0, alone.html.find("<body")));
+}
+
 }  // namespace
 }  // namespace pagespeed::packs
