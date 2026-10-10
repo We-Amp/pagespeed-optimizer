@@ -10,7 +10,10 @@
 // default reaches it through the <meta> element below.
 import boot from '../../scripts/scan/boot.js?raw';
 import { SCAN_UI_DEFAULT, SCAN_UI_STORAGE_KEY } from '../../lib/scan/flag';
+
+// The file's leading comment is for readers of the source, not for every page.
+const source = boot.replace(/^(\/\/.*\n)+/, '');
 ---
 
 <meta name="scan-ui-default" content={SCAN_UI_DEFAULT} data-key={SCAN_UI_STORAGE_KEY} />
-<script is:inline set:html={boot}></script>
+<script is:inline set:html={source}></script>
