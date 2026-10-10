@@ -24,6 +24,7 @@ and the recipe follows.
 | Index of all recipes      | [README.md](https://modpagespeed.com/recipes/README.md)           |                                                                      |
 | nginx (native module)     | [nginx.md](https://modpagespeed.com/recipes/nginx.md)             | [Install the module on Apache and nginx](/docs/installation-module/) |
 | Apache (native module)    | [apache.md](https://modpagespeed.com/recipes/apache.md)           | [Install the module on Apache and nginx](/docs/installation-module/) |
+| cPanel / EasyApache 4     | [cpanel.md](https://modpagespeed.com/recipes/cpanel.md)           | [cPanel / EasyApache 4](/docs/cpanel/)                               |
 | IIS (native module)       | [iis.md](https://modpagespeed.com/recipes/iis.md)                 | [Install on IIS](/docs/install-iis/)                                 |
 | ASP.NET Core (middleware) | [aspnet-core.md](https://modpagespeed.com/recipes/aspnet-core.md) | [Install ASP.NET Core middleware](/docs/aspnet-getting-started/)     |
 | Docker (reverse proxy)    | [docker.md](https://modpagespeed.com/recipes/docker.md)           | [Install with Docker](/docs/installation-docker/)                    |
