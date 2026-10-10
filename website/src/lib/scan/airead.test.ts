@@ -53,7 +53,19 @@ const decode = (s: string) =>
     .replace(/&quot;/g, '"')
     .replace(/&#39;/g, "'")
     .replace(/&amp;/g, '&');
-const text = (html: string) => decode(html.replace(/<[^>]+>/g, ''));
+// Drop everything between a '<' and the next '>' by walking the string, so no
+// tag pattern is matched with a regular expression.
+function stripTags(html: string): string {
+  let out = '';
+  let inTag = false;
+  for (const ch of html) {
+    if (ch === '<') inTag = true;
+    else if (ch === '>' && inTag) inTag = false;
+    else if (!inTag) out += ch;
+  }
+  return out;
+}
+const text = (html: string) => decode(stripTags(html));
 
 describe.each(['full', 'clean'])('grading parity (%s report)', (name) => {
   const report = fixture(name);
