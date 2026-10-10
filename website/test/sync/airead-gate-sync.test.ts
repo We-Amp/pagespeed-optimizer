@@ -74,7 +74,7 @@ const ASTRO_PAGE = fileURLToPath(
 //     comment (first line after buildLeadPayload). If those anchors ever move,
 //     this extraction throws loudly rather than silently testing nothing.
 // ---------------------------------------------------------------------------
-function extractGateFunctions(): {
+type Gate = {
   tollboothCtaApplies: (av: unknown) => boolean;
   agentPassCtaApplies: (sa: unknown) => boolean;
   complianceFixCtaApplies: (ax: unknown) => boolean;
@@ -82,8 +82,11 @@ function extractGateFunctions(): {
   pageIntegrityCtaApplies: (si: unknown) => boolean;
   thirdPartyFreezeCtaApplies: (si: unknown) => boolean;
   edgeSeoCtaApplies: (sd: unknown) => boolean;
+  responseFirewallCtaApplies?: (rx: unknown) => boolean;
   buildLeadPayload: (opts: unknown) => Record<string, unknown>;
-} {
+};
+
+function extractGateFunctions(): Gate {
   const src = readFileSync(ASTRO_PAGE, 'utf8');
 
   const startMarker = 'function tollboothCtaApplies(';
@@ -138,19 +141,44 @@ function extractGateFunctions(): {
   if (!gate) {
     throw new Error('Extracted gate block did not expose the expected functions.');
   }
-  return gate as ReturnType<typeof extractGateFunctions>;
+  return gate as Gate;
 }
 
-const {
-  tollboothCtaApplies,
-  agentPassCtaApplies,
-  complianceFixCtaApplies,
-  consentEnforcementCtaApplies,
-  pageIntegrityCtaApplies,
-  thirdPartyFreezeCtaApplies,
-  edgeSeoCtaApplies,
-  buildLeadPayload,
-} = extractGateFunctions();
+// The second source: the scanner's demand module as vendored for the v2
+// interface. It carries all eight gates; the page's inline copy predates the
+// response-exposure gate, so that predicate is checked on this copy only.
+const DEMAND_MODULE = fileURLToPath(new URL('../../src/lib/scan/demand.mjs', import.meta.url));
+
+function loadDemandModule(): Gate {
+  const src = readFileSync(DEMAND_MODULE, 'utf8').replace(/^export /gm, '');
+  const sandbox: Record<string, unknown> = {};
+  const context = vm.createContext(sandbox);
+  const names = [
+    'tollboothCtaApplies',
+    'agentPassCtaApplies',
+    'complianceFixCtaApplies',
+    'consentEnforcementCtaApplies',
+    'pageIntegrityCtaApplies',
+    'thirdPartyFreezeCtaApplies',
+    'edgeSeoCtaApplies',
+    'responseFirewallCtaApplies',
+    'buildLeadPayload',
+  ];
+  for (const fn of names) {
+    if (!src.includes(`function ${fn}(`)) {
+      throw new Error(`demand.mjs is missing function "${fn}".`);
+    }
+  }
+  vm.runInContext(`${src}\nglobalThis.__gate__ = { ${names.join(', ')} };`, context, {
+    filename: 'demand.mjs',
+  });
+  return (sandbox as { __gate__: Gate }).__gate__;
+}
+
+const SOURCES: Array<[string, Gate]> = [
+  ['inline copy in the v1 page', extractGateFunctions()],
+  ['src/lib/scan/demand.mjs', loadDemandModule()],
+];
 
 // ---------------------------------------------------------------------------
 // (b) Fixtures — cover every branch of each predicate and both lenses of the
@@ -885,132 +913,172 @@ const seoExpectedSignal = {
 // ---------------------------------------------------------------------------
 // (c)+(d) Run fixtures and assert against the golden outputs.
 // ---------------------------------------------------------------------------
-describe('ai-readability inline gate predicates (drift sync-check vs scanner src/demand.mjs)', () => {
-  describe('tollboothCtaApplies', () => {
-    for (const f of tollboothFixtures) {
-      it(`${f.name} -> ${f.expected}`, () => {
-        expect(tollboothCtaApplies(f.input)).toBe(f.expected);
-      });
-    }
-  });
+describe.each(SOURCES)(
+  'gate predicates: %s (drift sync-check vs scanner src/demand.mjs)',
+  (_label, gate) => {
+    const {
+      tollboothCtaApplies,
+      agentPassCtaApplies,
+      complianceFixCtaApplies,
+      consentEnforcementCtaApplies,
+      pageIntegrityCtaApplies,
+      thirdPartyFreezeCtaApplies,
+      edgeSeoCtaApplies,
+      responseFirewallCtaApplies,
+      buildLeadPayload,
+    } = gate;
 
-  describe('agentPassCtaApplies', () => {
-    for (const f of agentPassFixtures) {
-      it(`${f.name} -> ${f.expected}`, () => {
-        expect(agentPassCtaApplies(f.input)).toBe(f.expected);
-      });
-    }
-  });
-
-  describe('complianceFixCtaApplies', () => {
-    for (const f of complianceFixtures) {
-      it(`${f.name} -> ${f.expected}`, () => {
-        expect(complianceFixCtaApplies(f.input)).toBe(f.expected);
-      });
-    }
-  });
-
-  describe('consentEnforcementCtaApplies', () => {
-    for (const f of consentFixtures) {
-      it(`${f.name} -> ${f.expected}`, () => {
-        expect(consentEnforcementCtaApplies(f.input)).toBe(f.expected);
-      });
-    }
-  });
-
-  describe('pageIntegrityCtaApplies', () => {
-    for (const f of pageIntegrityFixtures) {
-      it(`${f.name} -> ${f.expected}`, () => {
-        expect(pageIntegrityCtaApplies(f.input)).toBe(f.expected);
-      });
-    }
-  });
-
-  describe('thirdPartyFreezeCtaApplies', () => {
-    for (const f of thirdPartyFreezeFixtures) {
-      it(`${f.name} -> ${f.expected}`, () => {
-        expect(thirdPartyFreezeCtaApplies(f.input)).toBe(f.expected);
-      });
-    }
-  });
-
-  describe('script-inventory payload', () => {
-    for (const f of siPayloadFixtures) {
-      it(f.name, () => {
-        const out = buildLeadPayload(f.input);
-        expect(out).toEqual(f.expected);
-        expect(JSON.stringify(out)).not.toContain('/secret/path');
-        expect(JSON.stringify(out.lensSignal).length).toBeLessThan(2000);
-      });
-    }
-  });
-
-  describe('edgeSeoCtaApplies', () => {
-    for (const f of edgeSeoFixtures) {
-      it(`${f.name} -> ${f.expected}`, () => {
-        expect(edgeSeoCtaApplies(f.input)).toBe(f.expected);
-      });
-    }
-  });
-
-  describe('edge-seo payload', () => {
-    it('carries ids, counts, booleans and two tokens, never page text or URLs', () => {
-      const out = buildLeadPayload({
-        wedge: 'edge-seo',
-        email: 'ops@agency.example.com',
-        name: '',
-        note: 'sites: 12; WordPress',
-        report: seoReport,
-      });
-      expect(out).toEqual({
-        topic: 'edge-seo',
-        email: 'ops@agency.example.com',
-        name: '',
-        url: 'https://news.example.com/story',
-        wedge: 'edge-seo',
-        lensSignal: seoExpectedSignal,
-        message:
-          '[edge-seo] lead from RenderPeek result\n' +
-          'Scanned: https://news.example.com/story\n' +
-          'Operator note / crawl volume: sites: 12; WordPress\n' +
-          `Signal: ${JSON.stringify(seoExpectedSignal)}`,
-      });
-      const signal = JSON.stringify(out.lensSignal);
-      for (const leak of ['secret-canonical', 'Secret Title', 'Secret description', 'SecretType']) {
-        expect(signal).not.toContain(leak);
+    describe('tollboothCtaApplies', () => {
+      for (const f of tollboothFixtures) {
+        it(`${f.name} -> ${f.expected}`, () => {
+          expect(tollboothCtaApplies(f.input)).toBe(f.expected);
+        });
       }
-      expect(signal.length).toBeLessThan(2000);
     });
 
-    it('reports no robots mismatch, no JSON-LD and null delivery tokens when absent', () => {
-      const out = buildLeadPayload({
-        wedge: 'edge-seo',
-        email: 'a@b.example',
-        report: {
-          url: 'https://x.example/',
-          seoDefects: {
-            verdict: 'attention',
-            defects: ['canonical-missing'],
-            counts: { total: 1, canonical: 1, hreflang: 0, title: 0, description: 0, jsonld: 0 },
-            staticCompared: true,
-            notMeasured: [],
-            jsonLd: { static: { blocks: 0 }, rendered: { blocks: 0 } },
+    describe('agentPassCtaApplies', () => {
+      for (const f of agentPassFixtures) {
+        it(`${f.name} -> ${f.expected}`, () => {
+          expect(agentPassCtaApplies(f.input)).toBe(f.expected);
+        });
+      }
+    });
+
+    describe('complianceFixCtaApplies', () => {
+      for (const f of complianceFixtures) {
+        it(`${f.name} -> ${f.expected}`, () => {
+          expect(complianceFixCtaApplies(f.input)).toBe(f.expected);
+        });
+      }
+    });
+
+    describe('consentEnforcementCtaApplies', () => {
+      for (const f of consentFixtures) {
+        it(`${f.name} -> ${f.expected}`, () => {
+          expect(consentEnforcementCtaApplies(f.input)).toBe(f.expected);
+        });
+      }
+    });
+
+    describe('pageIntegrityCtaApplies', () => {
+      for (const f of pageIntegrityFixtures) {
+        it(`${f.name} -> ${f.expected}`, () => {
+          expect(pageIntegrityCtaApplies(f.input)).toBe(f.expected);
+        });
+      }
+    });
+
+    describe('thirdPartyFreezeCtaApplies', () => {
+      for (const f of thirdPartyFreezeFixtures) {
+        it(`${f.name} -> ${f.expected}`, () => {
+          expect(thirdPartyFreezeCtaApplies(f.input)).toBe(f.expected);
+        });
+      }
+    });
+
+    describe('script-inventory payload', () => {
+      for (const f of siPayloadFixtures) {
+        it(f.name, () => {
+          const out = buildLeadPayload(f.input);
+          expect(out).toEqual(f.expected);
+          expect(JSON.stringify(out)).not.toContain('/secret/path');
+          expect(JSON.stringify(out.lensSignal).length).toBeLessThan(2000);
+        });
+      }
+    });
+
+    describe('edgeSeoCtaApplies', () => {
+      for (const f of edgeSeoFixtures) {
+        it(`${f.name} -> ${f.expected}`, () => {
+          expect(edgeSeoCtaApplies(f.input)).toBe(f.expected);
+        });
+      }
+    });
+
+    describe('edge-seo payload', () => {
+      it('carries ids, counts, booleans and two tokens, never page text or URLs', () => {
+        const out = buildLeadPayload({
+          wedge: 'edge-seo',
+          email: 'ops@agency.example.com',
+          name: '',
+          note: 'sites: 12; WordPress',
+          report: seoReport,
+        });
+        expect(out).toEqual({
+          topic: 'edge-seo',
+          email: 'ops@agency.example.com',
+          name: '',
+          url: 'https://news.example.com/story',
+          wedge: 'edge-seo',
+          lensSignal: seoExpectedSignal,
+          message:
+            '[edge-seo] lead from RenderPeek result\n' +
+            'Scanned: https://news.example.com/story\n' +
+            'Operator note / crawl volume: sites: 12; WordPress\n' +
+            `Signal: ${JSON.stringify(seoExpectedSignal)}`,
+        });
+        const signal = JSON.stringify(out.lensSignal);
+        for (const leak of [
+          'secret-canonical',
+          'Secret Title',
+          'Secret description',
+          'SecretType',
+        ]) {
+          expect(signal).not.toContain(leak);
+        }
+        expect(signal.length).toBeLessThan(2000);
+      });
+
+      it('reports no robots mismatch, no JSON-LD and null delivery tokens when absent', () => {
+        const out = buildLeadPayload({
+          wedge: 'edge-seo',
+          email: 'a@b.example',
+          report: {
+            url: 'https://x.example/',
+            seoDefects: {
+              verdict: 'attention',
+              defects: ['canonical-missing'],
+              counts: { total: 1, canonical: 1, hreflang: 0, title: 0, description: 0, jsonld: 0 },
+              staticCompared: true,
+              notMeasured: [],
+              jsonLd: { static: { blocks: 0 }, rendered: { blocks: 0 } },
+            },
           },
-        },
-      });
-      expect(out.lensSignal).toMatchObject({
-        robotsMismatch: false,
-        jsonLdPresent: false,
-        delivery: { cdn: null, server: null },
+        });
+        expect(out.lensSignal).toMatchObject({
+          robotsMismatch: false,
+          jsonLdPresent: false,
+          delivery: { cdn: null, server: null },
+        });
       });
     });
-  });
 
-  describe('buildLeadPayload', () => {
-    for (const f of buildLeadFixtures) {
-      it(f.name, () => {
-        expect(buildLeadPayload(f.input)).toEqual(f.expected);
-      });
-    }
-  });
-});
+    describe('buildLeadPayload', () => {
+      for (const f of buildLeadFixtures) {
+        it(f.name, () => {
+          expect(buildLeadPayload(f.input)).toEqual(f.expected);
+        });
+      }
+    });
+
+    describe('responseFirewallCtaApplies (demand module only)', () => {
+      it.skipIf(!gate.responseFirewallCtaApplies)(
+        'fires on debug output or an end-of-life product',
+        () => {
+          const f = responseFirewallCtaApplies!;
+          const ok = (reasons: unknown) => f({ status: 'ok', verdict: 'attention', reasons });
+          expect(f(null)).toBe(false);
+          expect(f({ status: 'blocked', verdict: 'attention', reasons: ['debug-output'] })).toBe(
+            false,
+          );
+          expect(f({ status: 'ok', verdict: 'clean', reasons: ['debug-output'] })).toBe(false);
+          expect(f({ status: 'ok', verdict: 'attention', reasons: 'debug-output' })).toBe(false);
+          expect(ok(['missing-headers'])).toBe(false);
+          expect(ok(['debug-output'])).toBe(true);
+          expect(ok(['end-of-life'])).toBe(true);
+          expect(ok(['missing-headers', 'end-of-life'])).toBe(true);
+        },
+      );
+    });
+  },
+);

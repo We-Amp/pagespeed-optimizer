@@ -16,6 +16,7 @@ import {
   type TileStatus,
 } from '../../lib/scan/status';
 import { renderAireadPanel } from './panels/airead';
+import { initLeadForm } from './lead-form';
 
 type Pillar = 'speed' | 'airead' | 'risk';
 type Strategy = 'mobile' | 'desktop';
@@ -444,6 +445,8 @@ export function init() {
       void (pillar === 'speed' ? runSpeed(runId, state.url) : runScan(runId, state.url));
     },
   };
+
+  initLeadForm(state);
 
   form.addEventListener('submit', (ev) => {
     ev.preventDefault();
