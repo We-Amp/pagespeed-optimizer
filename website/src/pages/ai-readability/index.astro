@@ -1013,6 +1013,15 @@ const jsonLd = [webApp, faqPage];
           si.totals.thirdPartyExternal > si.totals.thirdPartyWithIntegrity
         );
       }
+      function edgeSeoCtaApplies(sd) {
+        return !!(
+          sd &&
+          sd.status === 'ok' &&
+          sd.verdict === 'attention' &&
+          Array.isArray(sd.defects) &&
+          sd.defects.length > 0
+        );
+      }
       function buildLeadPayload(opts) {
         const wedge = opts.wedge,
           email = opts.email,
@@ -1075,6 +1084,22 @@ const jsonLd = [webApp, faqPage];
               .map((h) => ({ host: h.host, scripts: h.scripts, category: h.category })),
             duplicates: (s.duplicates || []).slice(0, 3),
             csp: s.csp,
+          };
+        } else if (wedge === 'edge-seo') {
+          // Ids, counts, booleans and two fixed tokens: no URLs, titles, descriptions or JSON-LD types.
+          const s = report.seoDefects;
+          lensSignal = {
+            verdict: s.verdict,
+            defects: s.defects,
+            counts: s.counts,
+            staticCompared: s.staticCompared,
+            notMeasured: s.notMeasured,
+            robotsMismatch: !!(s.robots && s.robots.mismatch),
+            jsonLdPresent: !!(s.jsonLd && s.jsonLd.static.blocks + s.jsonLd.rendered.blocks > 0),
+            delivery: {
+              cdn: s.delivery ? s.delivery.cdn : null,
+              server: s.delivery ? s.delivery.server : null,
+            },
           };
         } else {
           lensSignal = null; // a wedge with no scanner lens behind it
@@ -1746,6 +1771,125 @@ const jsonLd = [webApp, faqPage];
         );
       }
 
+      // SEO-defects lens (NON-SCORED): canonical, hreflang, title, meta description and
+      // structured-data problems in the head, found by comparing the page as served without
+      // JavaScript with the rendered page. Wording mirrors the scanner's index.html — KEEP IN SYNC.
+      // Absent/disabled -> no row; blocked/error -> one muted "not measured" line, no chips or card.
+      const SD_GROUPS = [
+        ['canonical', 'canonical'],
+        ['hreflang', 'hreflang'],
+        ['title', 'title'],
+        ['description', 'meta description'],
+        ['jsonld', 'structured data'],
+      ];
+      const SD_NOT_MEASURED = {
+        'canonical-js': 'canonical',
+        'hreflang-js': 'hreflang',
+        'title-js': 'title',
+        'description-js': 'meta description',
+        'jsonld-js': 'structured data',
+      };
+      function sdFiredGroups(sd) {
+        return sd && sd.status === 'ok' && sd.counts
+          ? SD_GROUPS.filter((g) => sd.counts[g[0]] > 0)
+          : [];
+      }
+      function sdServedBy(sd) {
+        const dl = sd && sd.delivery;
+        return (
+          'Server header: ' +
+          ((dl && dl.server) || 'none') +
+          '; CDN headers seen: ' +
+          ((dl && dl.cdn) || 'none') +
+          '.'
+        );
+      }
+      function sdPartialText(sd) {
+        if (!(sd && sd.status === 'ok' && sd.staticCompared === false)) return '';
+        const names = (Array.isArray(sd.notMeasured) ? sd.notMeasured : [])
+          .map((k) => SD_NOT_MEASURED[k])
+          .filter(Boolean);
+        if (!names.length) return '';
+        return (
+          'The no-JavaScript fetch was refused, so only the rendered page was checked. ' +
+          'Not measured: whether the ' +
+          names.join(', ') +
+          ' in the served HTML match the page after JavaScript.'
+        );
+      }
+      function sdVerdict(sd) {
+        if (sd.verdict === 'unknown')
+          return sdPartialText(sd)
+            ? 'The no-JavaScript fetch was refused, so only the rendered page was checked and it showed no defect; the comparison with the served HTML did not run.'
+            : 'We could not render this page, so we could not check its head.';
+        if (sd.verdict === 'clean' && sd.staticCompared === false)
+          return 'No defects found on the rendered page; the comparison with the served HTML did not run. One page only; not a ranking assessment.';
+        if (sd.verdict === 'clean')
+          return 'No defects found: the canonical, title, meta description, hreflang and structured data in the served HTML match the page after JavaScript. One page only; not a ranking assessment.';
+        return (
+          sd.counts.total +
+          ' issue(s): ' +
+          sdFiredGroups(sd)
+            .map((g) => g[1] + ' ' + sd.counts[g[0]])
+            .join(', ') +
+          '. ' +
+          sdServedBy(sd) +
+          ' One page only; not a ranking assessment.'
+        );
+      }
+      function sdBlock(sd) {
+        if (!sd || sd.status === 'disabled') return '';
+        if (sd.status !== 'ok') {
+          const why =
+            typeof sd.note === 'string' && sd.note.trim()
+              ? sd.note.trim()
+              : 'Not measured: the site blocked the scanner.';
+          return (
+            '<div class="ar-lens">' +
+            '<h4 class="ar-h4"><span class="ar-h4-l">SEO defects ' +
+            NS_BADGE +
+            '</span><span class="ar-h4-r">not measured</span></h4>' +
+            '<p class="ar-def">' +
+            esc(why) +
+            '</p></div>'
+          );
+        }
+        const label =
+          sd.verdict === 'attention' ? 'attention' : sd.verdict === 'clean' ? 'clean' : 'unknown';
+        const fired = sd.verdict === 'attention' ? sdFiredGroups(sd) : [];
+        const chips = fired.length
+          ? '<div class="ar-chips">' +
+            fired
+              .map(
+                (g) =>
+                  '<span class="ar-chip ar-chip-block">' +
+                  esc(g[1]) +
+                  ' · ' +
+                  esc(String(sd.counts[g[0]])) +
+                  '</span>',
+              )
+              .join('') +
+            '</div>'
+          : '';
+        const partial = sdPartialText(sd);
+        return (
+          '<div class="ar-lens' +
+          (sd.verdict === 'attention' ? ' ar-finding' : '') +
+          '">' +
+          '<h4 class="ar-h4"><span class="ar-h4-l">SEO defects ' +
+          NS_BADGE +
+          '</span><span class="ar-h4-r">' +
+          label +
+          '</span></h4>' +
+          '<div class="ar-v">' +
+          esc(sdVerdict(sd)) +
+          '</div>' +
+          chips +
+          (partial ? '<p class="ar-def">' + esc(partial) + '</p>' : '') +
+          '</div>'
+        );
+      }
+
       // Hidden-layer lens (NON-SCORED): human-invisible-but-agent-readable
       // content found on the owner's OWN page. Reports observations to the owner; it
       // never asserts a "safe/screened" status. Technique chips + per-node evidence
@@ -2064,6 +2208,49 @@ const jsonLd = [webApp, faqPage];
         );
       }
 
+      // Edge-SEO card: renders when the SEO-defects lens found a defect a rule on the served
+      // HTML could resolve (edgeSeoCtaApplies). One email, an optional site count that rides in
+      // the note as "sites: <n>; ", and a lead with wedge 'edge-seo' plus the lens signal.
+      // Copy mirrors the scanner's index.html verbatim — KEEP IN SYNC.
+      function seoCard(r) {
+        const sd = r.seoDefects;
+        if (!edgeSeoCtaApplies(sd)) return '';
+        const groups = sdFiredGroups(sd)
+          .map((g) => g[1])
+          .join(', ');
+        return (
+          '<section class="ar-sec" aria-labelledby="ar-h-seo">' +
+          '<h3 id="ar-h-seo" class="ar-h3">SEO fixes without a CMS release</h3>' +
+          '<p class="ar-v">This page has ' +
+          esc(String(sd.counts.total)) +
+          ' technical SEO issue(s) (' +
+          esc(groups) +
+          '). Issues like these are the kind a rule on the server could correct in the HTML it serves, without a CMS release.</p>' +
+          '<p class="ar-v">We are building that rule set.</p>' +
+          '<p class="ar-v">' +
+          esc(sdServedBy(sd)) +
+          '</p>' +
+          '<div class="ar-cta-row">' +
+          '<a class="ar-cta-link" href="/platform/edge-seo/" data-umami-event="airead-cta-edge-seo">Edge SEO at the origin →</a>' +
+          '</div>' +
+          '<p class="ar-v">If your CMS changes take weeks, tell us how many sites you manage.</p>' +
+          '<form id="ar-seo-form" class="ar-next-form" data-wedge="edge-seo">' +
+          '<label class="ar-field"><span class="ar-field-label">Your email</span>' +
+          '<input id="ar-seo-email" type="email" autocomplete="email" required /></label>' +
+          '<label class="ar-field"><span class="ar-field-label">Sites you manage (optional)</span>' +
+          '<input id="ar-seo-sites" type="number" min="1" max="1000000" step="1" inputmode="numeric" /></label>' +
+          '<label class="ar-field"><span class="ar-field-label">Anything we should know? CMS, hosting, who ships changes (optional)</span>' +
+          '<textarea id="ar-seo-note" rows="3" maxlength="1500"></textarea></label>' +
+          '<button type="submit" data-umami-event="airead-next-edge-seo">Talk to us about edge SEO</button>' +
+          '</form>' +
+          // Same per-request disclosure as the other wedge forms (it posts to /contact).
+          '<p class="ar-disclosure">Submitting this sends us your email and a summary of this scan’s findings. ' +
+          'We use them only for this request; see our <a href="/privacy/">privacy policy</a>.</p>' +
+          '<div id="ar-seo-msg" class="ar-next-msg" role="status" aria-live="polite" tabindex="-1"></div>' +
+          '</section>'
+        );
+      }
+
       // Capture cards that ship with every result, independent of which wedge
       // fired: an interest signup for AI-readability updates (topic
       // ai-readability-updates, explicit consent checkbox) and the
@@ -2225,6 +2412,7 @@ const jsonLd = [webApp, faqPage];
         const seBlk = seBlock(r.sovereigntyExposure);
         const pclBlk = pclBlock(r.preConsentLeak);
         const siBlk = siBlock(r.scriptInventory);
+        const sdBlk = sdBlock(r.seoDefects);
         const ghostBlk = ghostBlock(r.ghostLayer);
 
         // SECTION 5 — share: the permalink the scanner mints for every scan, plus a
@@ -2267,6 +2455,7 @@ const jsonLd = [webApp, faqPage];
           seBlk +
           pclBlk +
           siBlk +
+          sdBlk +
           aaBlock +
           ghostBlk +
           '</section>' +
@@ -2275,12 +2464,14 @@ const jsonLd = [webApp, faqPage];
           '</section>' +
           consentCard(r) +
           scriptCard(r) +
+          seoCard(r) +
           captureBlocks() +
           (share ? '<section class="ar-sec" aria-label="Share">' + share + '</section>' : '') +
           '</div>';
         wireNext(r, primaryWedge, multiWedge);
         wireConsentCard(r);
         wireScriptCard(r);
+        wireSeoCard(r);
         wireLeadCards(r);
         wireCopyLink(data.permalink);
         // Position the hidden-layer overlay boxes over the screenshot (no-op if not detected).
@@ -2521,6 +2712,46 @@ const jsonLd = [webApp, faqPage];
           } else {
             if (msg) msg.textContent = 'Something went wrong. Please try again in a moment.';
             form.querySelectorAll('button[type="submit"]').forEach((b) => (b.disabled = false));
+          }
+        });
+      }
+
+      // Wire the edge-SEO card (see seoCard): buildLeadPayload('edge-seo', …) → POST /contact.
+      // The optional site count is prefixed into the note as "sites: <n>; ".
+      function wireSeoCard(r) {
+        const form = $('#ar-seo-form');
+        if (!form) return;
+        const msg = $('#ar-seo-msg');
+        const emailEl = $('#ar-seo-email');
+        const sitesEl = $('#ar-seo-sites');
+        const noteEl = $('#ar-seo-note');
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const email = ((emailEl && emailEl.value) || '').trim();
+          if (!email || !form.checkValidity()) {
+            form.reportValidity();
+            return;
+          }
+          const sites = sitesEl ? parseInt(sitesEl.value, 10) : NaN;
+          const text = ((noteEl && noteEl.value) || '').trim().slice(0, 1500);
+          const note = [Number.isInteger(sites) && sites > 0 ? 'sites: ' + sites : '', text]
+            .filter(Boolean)
+            .join('; ');
+          const btn = form.querySelector('button[type="submit"]');
+          if (btn) btn.disabled = true;
+          const ok = await postLead(
+            buildLeadPayload({ wedge: 'edge-seo', email: email, name: '', note: note, report: r }),
+          );
+          if (ok) {
+            leadSubmit('edge-seo', 'edge-seo');
+            if (msg) {
+              msg.textContent = 'Thanks. We will be in touch by email.';
+              msg.focus && msg.focus();
+            }
+            form.remove();
+          } else {
+            if (msg) msg.textContent = 'Something went wrong. Please try again in a moment.';
+            if (btn) btn.disabled = false;
           }
         });
       }

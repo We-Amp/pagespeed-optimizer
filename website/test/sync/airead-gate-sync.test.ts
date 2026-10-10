@@ -5,19 +5,19 @@
 // gate predicates inlined into the public RenderPeek page.
 //
 // CONTEXT
-//   src/pages/ai-readability/index.astro carries a VERBATIM inline copy of seven
+//   src/pages/ai-readability/index.astro carries a VERBATIM inline copy of eight
 //   functions whose canonical source of truth is the scanner repo's
-//   src/demand.mjs (agent-readability-scanner). The page inlines them (rather
+//   the scanner's demand gate (canonical copy maintained with the scanner). The page inlines them (rather
 //   than importing) because in production it is the Astro-built
 //   modpagespeed.com/ai-readability/ page and only /ai-readability/api/* is
 //   proxied to the render service — there is no /src/ route to import from. The
 //   page and scanner each carry a "KEEP IN SYNC" comment.
 //
 // WHY A GOLDEN CONTRACT (not an import-and-compare)
-//   This (mps2) repo cannot import the scanner's demand.mjs — it lives in a
-//   separate private repo and is not vendored here. So instead of comparing the
-//   two implementations directly, we:
-//     (a) read index.astro and extract the seven inline function definitions
+//   The canonical implementation lives in the scanner and is not vendored
+//   here; this test pins the inline copy against golden fixtures. So instead of
+//   comparing the two implementations directly, we:
+//     (a) read index.astro and extract the eight inline function definitions
 //         straight out of the <script is:inline> region (between the
 //         KEEP-IN-SYNC comment and the normalizeUrl helper),
 //     (b) evaluate them in an isolated VM sandbox,
@@ -29,7 +29,7 @@
 //   changes), the extracted functions produce different output and this test
 //   fails — which is exactly the drift this sync-check must catch.
 //
-// CANONICAL CONTRACT (mirror of agent-readability-scanner:src/demand.mjs)
+// CANONICAL CONTRACT (mirror of the scanner's demand gate; canonical copy maintained with the scanner)
 //   tollboothCtaApplies(agentVerifiability): true iff
 //     detail.verifiable === false && detail.renderOk === true &&
 //     Array.isArray(detail.aiCrawlersAllowed) && detail.aiCrawlersAllowed.length > 0 &&
@@ -45,11 +45,14 @@
 //   thirdPartyFreezeCtaApplies(scriptInventory): true iff
 //     status === 'ok' && verdict !== 'unknown' && totals &&
 //     totals.thirdPartyExternal > totals.thirdPartyWithIntegrity
+//   edgeSeoCtaApplies(seoDefects): true iff
+//     status === 'ok' && verdict === 'attention' && defects is a non-empty array
 //   buildLeadPayload({wedge,email,name,note,report}) -> { topic, email, name,
 //     url, wedge, lensSignal, message }; lensSignal shape is lens-specific
 //     (tollbooth / agentpass / compliancefix / consent-enforcement /
 //     page-integrity + third-party-freeze, which share one script-inventory
-//     signal: hosts only, never script URLs), null for a
+//     signal: hosts only, never script URLs / edge-seo: ids, counts, booleans
+//     and two fixed tokens, never page URLs or text), null for a
 //     wedge with no scanner lens behind it (then no Signal line), and message
 //     is the human-readable mirror.
 //
@@ -78,6 +81,7 @@ function extractGateFunctions(): {
   consentEnforcementCtaApplies: (pcl: unknown) => boolean;
   pageIntegrityCtaApplies: (si: unknown) => boolean;
   thirdPartyFreezeCtaApplies: (si: unknown) => boolean;
+  edgeSeoCtaApplies: (sd: unknown) => boolean;
   buildLeadPayload: (opts: unknown) => Record<string, unknown>;
 } {
   const src = readFileSync(ASTRO_PAGE, 'utf8');
@@ -103,7 +107,7 @@ function extractGateFunctions(): {
 
   const block = src.slice(startIdx, endIdx).trim();
 
-  // Sanity: all seven canonical functions must be present in the extracted slice.
+  // Sanity: all eight canonical functions must be present in the extracted slice.
   for (const fn of [
     'tollboothCtaApplies',
     'agentPassCtaApplies',
@@ -111,6 +115,7 @@ function extractGateFunctions(): {
     'consentEnforcementCtaApplies',
     'pageIntegrityCtaApplies',
     'thirdPartyFreezeCtaApplies',
+    'edgeSeoCtaApplies',
     'buildLeadPayload',
   ]) {
     if (!block.includes(`function ${fn}(`)) {
@@ -126,7 +131,7 @@ function extractGateFunctions(): {
   // Declaring the functions then exposing them via globals lets us pull the
   // function objects back out of the sandbox without trusting the page's own
   // call sites.
-  const wrapped = `${block}\nglobalThis.__gate__ = { tollboothCtaApplies, agentPassCtaApplies, complianceFixCtaApplies, consentEnforcementCtaApplies, pageIntegrityCtaApplies, thirdPartyFreezeCtaApplies, buildLeadPayload };`;
+  const wrapped = `${block}\nglobalThis.__gate__ = { tollboothCtaApplies, agentPassCtaApplies, complianceFixCtaApplies, consentEnforcementCtaApplies, pageIntegrityCtaApplies, thirdPartyFreezeCtaApplies, edgeSeoCtaApplies, buildLeadPayload };`;
   vm.runInContext(wrapped, context, { filename: 'index.astro:inline-gate' });
 
   const gate = (sandbox as { __gate__?: Record<string, unknown> }).__gate__;
@@ -143,6 +148,7 @@ const {
   consentEnforcementCtaApplies,
   pageIntegrityCtaApplies,
   thirdPartyFreezeCtaApplies,
+  edgeSeoCtaApplies,
   buildLeadPayload,
 } = extractGateFunctions();
 
@@ -779,6 +785,103 @@ const siPayloadFixtures = ['page-integrity', 'third-party-freeze'].map((wedge) =
   },
 }));
 
+// --- edgeSeoCtaApplies -----------------------------------------------------
+const edgeSeoFixtures: Array<{ name: string; input: unknown; expected: boolean }> = [
+  { name: 'null', input: null, expected: false },
+  { name: 'undefined', input: undefined, expected: false },
+  {
+    name: 'ok + attention + defects',
+    input: { status: 'ok', verdict: 'attention', defects: ['canonical-missing'] },
+    expected: true,
+  },
+  {
+    name: 'ok + attention + empty defects',
+    input: { status: 'ok', verdict: 'attention', defects: [] },
+    expected: false,
+  },
+  {
+    name: 'ok + attention + defects not an array',
+    input: { status: 'ok', verdict: 'attention', defects: 'canonical-missing' },
+    expected: false,
+  },
+  {
+    name: 'ok + attention + defects missing',
+    input: { status: 'ok', verdict: 'attention' },
+    expected: false,
+  },
+  {
+    name: 'ok + clean',
+    input: { status: 'ok', verdict: 'clean', defects: [] },
+    expected: false,
+  },
+  {
+    name: 'ok + unknown',
+    input: { status: 'ok', verdict: 'unknown', defects: ['canonical-missing'] },
+    expected: false,
+  },
+  {
+    name: 'blocked + attention (hostile)',
+    input: { status: 'blocked', verdict: 'attention', defects: ['canonical-missing'] },
+    expected: false,
+  },
+  {
+    name: 'error + attention (hostile)',
+    input: { status: 'error', verdict: 'attention', defects: ['canonical-missing'] },
+    expected: false,
+  },
+  {
+    name: 'disabled + attention (hostile)',
+    input: { status: 'disabled', verdict: 'attention', defects: ['canonical-missing'] },
+    expected: false,
+  },
+];
+
+// edge-seo payload: ids, counts, booleans and two fixed tokens only.
+const seoCounts = { total: 20, canonical: 5, hreflang: 5, title: 4, description: 3, jsonld: 3 };
+const seoReport = {
+  url: 'https://news.example.com/story',
+  seoDefects: {
+    status: 'ok',
+    verdict: 'attention',
+    defects: Array.from({ length: 20 }, (_, i) => `defect-${i}`),
+    counts: seoCounts,
+    blockedBy: [],
+    staticCompared: false,
+    notMeasured: ['canonical-js', 'hreflang-js', 'title-js', 'description-js', 'jsonld-js'],
+    canonical: {
+      static: { count: 0, href: 'https://news.example.com/secret-canonical' },
+      rendered: { count: 1, href: 'https://news.example.com/secret-canonical' },
+      header: null,
+    },
+    title: {
+      static: { count: 1, text: 'Secret Title Text' },
+      rendered: { count: 1, text: 'Secret Title Text' },
+    },
+    description: {
+      static: { count: 1, text: 'Secret description text' },
+      rendered: { count: 1, text: 'Secret description text' },
+    },
+    jsonLd: {
+      static: { blocks: 0, invalid: 0, types: [] },
+      rendered: { blocks: 2, invalid: 0, types: ['SecretType'] },
+      renderOnlyTypes: ['SecretType'],
+    },
+    robots: { mismatch: true },
+    delivery: { cdn: 'cloudflare', server: 'nginx' },
+    note: 'x',
+  },
+};
+const seoExpectedSignal = {
+  verdict: 'attention',
+  defects: seoReport.seoDefects.defects,
+  counts: seoCounts,
+  staticCompared: false,
+  notMeasured: seoReport.seoDefects.notMeasured,
+  robotsMismatch: true,
+  jsonLdPresent: true,
+  delivery: { cdn: 'cloudflare', server: 'nginx' },
+};
+
 // ---------------------------------------------------------------------------
 // (c)+(d) Run fixtures and assert against the golden outputs.
 // ---------------------------------------------------------------------------
@@ -840,6 +943,67 @@ describe('ai-readability inline gate predicates (drift sync-check vs scanner src
         expect(JSON.stringify(out.lensSignal).length).toBeLessThan(2000);
       });
     }
+  });
+
+  describe('edgeSeoCtaApplies', () => {
+    for (const f of edgeSeoFixtures) {
+      it(`${f.name} -> ${f.expected}`, () => {
+        expect(edgeSeoCtaApplies(f.input)).toBe(f.expected);
+      });
+    }
+  });
+
+  describe('edge-seo payload', () => {
+    it('carries ids, counts, booleans and two tokens, never page text or URLs', () => {
+      const out = buildLeadPayload({
+        wedge: 'edge-seo',
+        email: 'ops@agency.example.com',
+        name: '',
+        note: 'sites: 12; WordPress',
+        report: seoReport,
+      });
+      expect(out).toEqual({
+        topic: 'edge-seo',
+        email: 'ops@agency.example.com',
+        name: '',
+        url: 'https://news.example.com/story',
+        wedge: 'edge-seo',
+        lensSignal: seoExpectedSignal,
+        message:
+          '[edge-seo] lead from RenderPeek result\n' +
+          'Scanned: https://news.example.com/story\n' +
+          'Operator note / crawl volume: sites: 12; WordPress\n' +
+          `Signal: ${JSON.stringify(seoExpectedSignal)}`,
+      });
+      const signal = JSON.stringify(out.lensSignal);
+      for (const leak of ['secret-canonical', 'Secret Title', 'Secret description', 'SecretType']) {
+        expect(signal).not.toContain(leak);
+      }
+      expect(signal.length).toBeLessThan(2000);
+    });
+
+    it('reports no robots mismatch, no JSON-LD and null delivery tokens when absent', () => {
+      const out = buildLeadPayload({
+        wedge: 'edge-seo',
+        email: 'a@b.example',
+        report: {
+          url: 'https://x.example/',
+          seoDefects: {
+            verdict: 'attention',
+            defects: ['canonical-missing'],
+            counts: { total: 1, canonical: 1, hreflang: 0, title: 0, description: 0, jsonld: 0 },
+            staticCompared: true,
+            notMeasured: [],
+            jsonLd: { static: { blocks: 0 }, rendered: { blocks: 0 } },
+          },
+        },
+      });
+      expect(out.lensSignal).toMatchObject({
+        robotsMismatch: false,
+        jsonLdPresent: false,
+        delivery: { cdn: null, server: null },
+      });
+    });
   });
 
   describe('buildLeadPayload', () => {

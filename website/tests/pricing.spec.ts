@@ -4,8 +4,8 @@
 import { test, expect } from '@playwright/test';
 import { stubUmami, trackedEvents } from './helpers/umami';
 
-// /pricing/: the software is free; support is sold in three tiers with hardened
-// builds from Priority up. Owner ruling: no price amounts and no per-tier
+// /pricing/: the software is free; support is sold in three tiers.
+// Owner ruling: no price amounts and no per-tier
 // response-time targets anywhere on the page, and a quote form instead of a
 // checkout.
 test.describe('Pricing page', () => {
@@ -15,7 +15,7 @@ test.describe('Pricing page', () => {
 
   test('hero states the model', async ({ page }) => {
     await expect(page.locator('h1').first()).toHaveText(
-      'The software is free. We sell support and hardened builds.',
+      'The software is free. We sell support.',
     );
   });
 
@@ -26,9 +26,9 @@ test.describe('Pricing page', () => {
       await expect(page.locator('#plans').getByRole('heading', { name, exact: true })).toBeVisible();
     }
     await expect(page.locator('#plans [data-tier="priority"]')).toHaveClass(/card-featured/);
-    await expect(page.locator('#plans [data-tier="priority"]')).toContainText('Hardened builds');
+    await expect(page.locator('#plans [data-tier="priority"]')).toContainText('Private package repository (being set up)');
     await expect(page.locator('#plans [data-tier="standard"]')).not.toContainText(
-      'Hardened builds',
+      'Private package repository',
     );
   });
 
