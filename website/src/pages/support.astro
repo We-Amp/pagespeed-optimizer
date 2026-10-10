@@ -172,7 +172,10 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
     <div class="mt-10">
       <SupportTiers surface="support" ctaHref="/pricing/#quote" ctaLabel="Ask for a quote" />
     </div>
-    <p class="mt-6 text-sm text-text-muted" data-pricing-status>
+    <p class="mt-6 text-sm text-text-muted" data-enterprise-option>
+      Enterprise: builds for additional platforms are available on request and quoted per project.
+    </p>
+    <p class="mt-2 text-sm text-text-muted" data-pricing-status>
       {PRICING_ON_REQUEST}
       {RESPONSE_TARGETS_LINE}
     </p>
@@ -243,10 +246,6 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
             <li class="flex gap-2">
               <Icon name="shield-check" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
               <span>Until then, subscribers receive the release SBOM and VEX on request and advance notice of security releases.</span>
-            </li>
-            <li class="flex gap-2">
-              <Icon name="cpu" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
-              <span>Enterprise adds custom build targets.</span>
             </li>
           </ul>
           <p class="mt-4 text-sm text-text-muted">

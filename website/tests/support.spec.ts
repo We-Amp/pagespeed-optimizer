@@ -46,6 +46,12 @@ test.describe('Support page', () => {
     await expect(readout).toContainText('CET business days');
   });
 
+  test('custom builds are a quoted Enterprise option, never included', async ({ page }) => {
+    const option = page.locator('[data-enterprise-option]');
+    await expect(option).toContainText('available on request and quoted per project');
+    await expect(page.locator('#tiers [data-tier="enterprise"]')).not.toContainText('build targets');
+  });
+
   test('signed artifacts say only what ships today', async ({ page }) => {
     const section = page.locator('#hardened-builds');
     await expect(section).toContainText('GPG-signed');
@@ -53,7 +59,7 @@ test.describe('Support page', () => {
     await expect(section).toContainText('SPDX');
     await expect(section).toContainText('cosign');
     await expect(section).toContainText('SBOM and VEX');
-    await expect(section).toContainText('Enterprise adds custom build targets');
+    await expect(section).not.toContainText('custom build targets');
     // The private repository is stated as being set up, never as existing.
     await expect(section).toContainText('is being set up');
     await expect(section).not.toContainText('ahead of the public release');

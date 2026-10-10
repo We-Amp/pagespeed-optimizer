@@ -114,11 +114,10 @@ export const SUPPORT_TIERS = [
     hardened: false,
     servers: 'unlimited servers and sites, one organization',
     prices: { annualUsd: null, monthlyUsd: null },
-    note: 'everything in Priority plus a named engineer and custom build targets, for one organization without a server limit',
+    note: 'everything in Priority plus a named engineer; builds for additional platforms available on request, quoted separately',
     includes: [
       'Everything in Priority',
       'A named engineer',
-      'Custom build targets (distributions, nginx versions)',
       'Backport commitments and pre-notification of security advisories',
       'Master agreement, purchase order and invoice',
       'Roadmap input and consulting days',

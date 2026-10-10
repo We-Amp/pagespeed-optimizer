@@ -19,7 +19,7 @@ mod_pagespeed 2.1 is open source under the Apache License 2.0: free to install a
 
 - Standard support — a direct channel to the engineers who build the product, for up to 5 production servers
 - Priority support — everything in Standard plus a private package repository (being set up), for up to 25 production servers
-- Enterprise — everything in Priority plus a named engineer and custom build targets, for one organization without a server limit
+- Enterprise — everything in Priority plus a named engineer; builds for additional platforms available on request, quoted separately
 - Pricing on request: published once agreements with current customers close; early subscribers keep their quoted rate for three years. Response targets by severity are stated in your quote.
 - No bandwidth fees, no per-request charges, no feature gates; the software itself costs nothing. Support terms: https://we-amp.com/licensing/
 
@@ -160,7 +160,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [The apt/yum repository](https://modpagespeed.com/download/apt-yum/): The signed apt and yum repository for the Apache and nginx modules and the optimizer worker: one line sets it up.
 - [Features](https://modpagespeed.com/features/): Self-hosted WebP/AVIF/SVG transcoding, heuristic critical CSS, and variant-aware caching: the full feature set.
 - [Support](https://modpagespeed.com/support/): What a support subscription buys, the three tiers, signed packages and images and how to verify what ships today, the hosting partner program and consulting.
-- [Pricing](https://modpagespeed.com/pricing/): What We-Amp sells: Standard support (a direct channel to the engineers who build the product, for up to 5 production servers); Priority support (everything in Standard plus a private package repository (being set up), for up to 25 production servers); Enterprise (everything in Priority plus a named engineer and custom build targets, for one organization without a server limit). The software is free to run. Pricing on request, with a quote form.
+- [Pricing](https://modpagespeed.com/pricing/): What We-Amp sells: Standard support (a direct channel to the engineers who build the product, for up to 5 production servers); Priority support (everything in Standard plus a private package repository (being set up), for up to 25 production servers); Enterprise (everything in Priority plus a named engineer; builds for additional platforms available on request, quoted separately). The software is free to run. Pricing on request, with a quote form.
 - [Software license](https://modpagespeed.com/license/): mod_pagespeed 2.1 is open source under the Apache License 2.0: free to install and run, in development and in production.
 - [Security](https://modpagespeed.com/security/): Security policy: how to report a vulnerability, the threat model, supply-chain security and the safe harbor for researchers.
 - [Contact](https://modpagespeed.com/contact/): Setup help, support subscriptions, the hosting partner program, consulting and IISpeed license transfers; replies within one business day (CET). Security disclosure has its own channel.
