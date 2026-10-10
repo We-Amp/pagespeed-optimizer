@@ -1705,7 +1705,7 @@ Machine-readable recipe for coding agents: [modpagespeed.com/recipes/iis.md](htt
    signature next to it.
 2. Run it on the Windows Server host. The installer registers the module in
    IIS as a native HTTP module and creates the default cache directory at
-   `%ProgramData%\We-Amp\IISWebSpeed\Cache`.
+   `%ProgramData%\We-Amp\PageSpeed\Cache`.
 3. Run `iisreset`.
 
 The module reads `pagespeed.config`. A site is optimized only when its own
@@ -1716,7 +1716,7 @@ in the Default Web Site root. The minimal file is two lines:
 
 ```text
 pagespeed on
-pagespeed FileCachePath %ProgramData%\We-Amp\IISWebSpeed\Cache
+pagespeed FileCachePath %ProgramData%\We-Amp\PageSpeed\Cache
 ```
 
 [IIS configuration](https://modpagespeed.com/docs/iis-configuration/) documents the file format, the
@@ -2973,7 +2973,7 @@ channel.
 2. **Install the module.** Download the signed MSI from the
    [download page](https://modpagespeed.com/download/) and run it, then `iisreset`. The installer
    registers the module as a native HTTP module and creates the default cache
-   directory at `%ProgramData%\We-Amp\IISWebSpeed\Cache`.
+   directory at `%ProgramData%\We-Amp\PageSpeed\Cache`.
    [Install on IIS](https://modpagespeed.com/docs/install-iis/) has the requirements.
 3. **Check that the configuration is read.** The module looks for
    `pagespeed.config` first and `iiswebspeed.config` second, in the site root
@@ -10463,7 +10463,7 @@ Since v1.15.0+r18, config parsing is more robust and more diagnosable: a malform
 pagespeed on
 
 # Set the cache path
-pagespeed FileCachePath %ProgramData%\We-Amp\IISWebSpeed\Cache
+pagespeed FileCachePath %ProgramData%\We-Amp\PageSpeed\Cache
 
 # Enable specific filters
 pagespeed EnableFilters collapse_whitespace,remove_comments
@@ -10520,7 +10520,7 @@ The IIS worker process needs write access to the cache directory set by `FileCac
 Set the path explicitly with `FileCachePath`:
 
 ```text
-pagespeed FileCachePath %ProgramData%\We-Amp\IISWebSpeed\Cache
+pagespeed FileCachePath %ProgramData%\We-Amp\PageSpeed\Cache
 ```
 
 To validate the cache path, make a request to any page on your server and check that files appear in the cache directory.
@@ -10544,8 +10544,8 @@ A site that serves a local-only diagnostic page reporting that the configured `F
 Windows environment variables are expanded in path values:
 
 ```text
-pagespeed FileCachePath %ProgramData%\We-Amp\IISWebSpeed\Cache
-pagespeed LogDir %ProgramData%\We-Amp\IISWebSpeed\Logs
+pagespeed FileCachePath %ProgramData%\We-Amp\PageSpeed\Cache
+pagespeed LogDir %ProgramData%\We-Amp\PageSpeed\Logs
 ```
 
 Common variables:
@@ -10643,7 +10643,7 @@ The `header_` prefix is stripped; the remaining text becomes the header name.
 
 ```text
 pagespeed on
-pagespeed FileCachePath %ProgramData%\We-Amp\IISWebSpeed\Cache
+pagespeed FileCachePath %ProgramData%\We-Amp\PageSpeed\Cache
 ```
 
 ### Production configuration
@@ -10651,7 +10651,7 @@ pagespeed FileCachePath %ProgramData%\We-Amp\IISWebSpeed\Cache
 ```text
 # Enable optimization with CoreFilters
 pagespeed on
-pagespeed FileCachePath %ProgramData%\We-Amp\IISWebSpeed\Cache
+pagespeed FileCachePath %ProgramData%\We-Amp\PageSpeed\Cache
 pagespeed FileCacheSizeKb 2097152
 
 # Add image optimization and critical CSS
@@ -10669,7 +10669,7 @@ pagespeed AdminPath /pagespeed_admin
 pagespeed GlobalAdminPath /pagespeed_global_admin
 pagespeed MessageBufferSize 100000
 pagespeed StatisticsLogging on
-pagespeed LogDir %ProgramData%\We-Amp\IISWebSpeed\Logs
+pagespeed LogDir %ProgramData%\We-Amp\PageSpeed\Logs
 ```
 
 ### Multi-site configuration
@@ -10677,7 +10677,7 @@ pagespeed LogDir %ProgramData%\We-Amp\IISWebSpeed\Logs
 ```text
 # Server-wide defaults
 pagespeed on
-pagespeed FileCachePath %ProgramData%\We-Amp\IISWebSpeed\Cache
+pagespeed FileCachePath %ProgramData%\We-Amp\PageSpeed\Cache
 pagespeed RewriteLevel CoreFilters
 
 # Marketing site: aggressive optimization

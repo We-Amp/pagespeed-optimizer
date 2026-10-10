@@ -37,7 +37,7 @@ channel.
 2. **Install the module.** Download the signed MSI from the
    [download page](/download/) and run it, then `iisreset`. The installer
    registers the module as a native HTTP module and creates the default cache
-   directory at `%ProgramData%\We-Amp\IISWebSpeed\Cache`.
+   directory at `%ProgramData%\We-Amp\PageSpeed\Cache`.
    [Install on IIS](/docs/install-iis/) has the requirements.
 3. **Check that the configuration is read.** The module looks for
    `pagespeed.config` first and `iiswebspeed.config` second, in the site root

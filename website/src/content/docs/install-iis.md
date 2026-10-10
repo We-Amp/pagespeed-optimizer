@@ -33,7 +33,7 @@ Machine-readable recipe for coding agents: [modpagespeed.com/recipes/iis.md](htt
    signature next to it.
 2. Run it on the Windows Server host. The installer registers the module in
    IIS as a native HTTP module and creates the default cache directory at
-   `%ProgramData%\We-Amp\IISWebSpeed\Cache`.
+   `%ProgramData%\We-Amp\PageSpeed\Cache`.
 3. Run `iisreset`.
 
 The module reads `pagespeed.config`. A site is optimized only when its own
@@ -44,7 +44,7 @@ in the Default Web Site root. The minimal file is two lines:
 
 ```text
 pagespeed on
-pagespeed FileCachePath %ProgramData%\We-Amp\IISWebSpeed\Cache
+pagespeed FileCachePath %ProgramData%\We-Amp\PageSpeed\Cache
 ```
 
 [IIS configuration](/docs/iis-configuration/) documents the file format, the
