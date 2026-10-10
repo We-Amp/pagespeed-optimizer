@@ -43,49 +43,49 @@ const pillars = [
     >
       Results for <span data-scan-host></span>
     </h2>
-    <p class="mt-2 min-h-6 text-sm text-text-muted" data-scan-health>
-      Checking 3 of 3 areas…
-    </p>
+    <p class="mt-2 min-h-6 text-sm text-text-muted" data-scan-health>Checking 3 of 3 areas…</p>
   </div>
 
   <div class="scan-tiles mt-4" data-scan-tiles>
-    {pillars.map((p) => (
-      <>
-        <button
-          type="button"
-          id={`${idPrefix}-tile-${p.id}`}
-          class="scan-tile"
-          data-scan-tile={p.id}
-          data-state="checking"
-          aria-expanded="false"
-          aria-controls={`${idPrefix}-panel-${p.id}`}
-          aria-label={`Show ${p.name} details`}
-          aria-describedby={`${idPrefix}-status-${p.id} ${idPrefix}-value-${p.id}`}
-        >
-          <span id={`${idPrefix}-name-${p.id}`} class="scan-tile-name" aria-hidden="true">
-            {p.name}
-          </span>
-          <span
-            id={`${idPrefix}-status-${p.id}`}
-            class="scan-tile-status badge-neutral"
-            data-scan-status
+    {
+      pillars.map((p) => (
+        <>
+          <button
+            type="button"
+            id={`${idPrefix}-tile-${p.id}`}
+            class="scan-tile"
+            data-scan-tile={p.id}
+            data-state="checking"
+            aria-expanded="false"
+            aria-controls={`${idPrefix}-panel-${p.id}`}
+            aria-label={`Show ${p.name} details`}
+            aria-describedby={`${idPrefix}-status-${p.id} ${idPrefix}-value-${p.id}`}
           >
-            Checking…
-          </span>
-          <span id={`${idPrefix}-value-${p.id}`} class="scan-tile-value" data-scan-value>
-            <span class="scan-skeleton" aria-hidden="true" />
-          </span>
-        </button>
-        <div
-          id={`${idPrefix}-panel-${p.id}`}
-          class="scan-panel"
-          role="region"
-          aria-labelledby={`${idPrefix}-name-${p.id}`}
-          data-scan-panel={p.id}
-          hidden
-        />
-      </>
-    ))}
+            <span id={`${idPrefix}-name-${p.id}`} class="scan-tile-name" aria-hidden="true">
+              {p.name}
+            </span>
+            <span
+              id={`${idPrefix}-status-${p.id}`}
+              class="scan-tile-status badge-neutral"
+              data-scan-status
+            >
+              Checking…
+            </span>
+            <span id={`${idPrefix}-value-${p.id}`} class="scan-tile-value" data-scan-value>
+              <span class="scan-skeleton" aria-hidden="true" />
+            </span>
+          </button>
+          <div
+            id={`${idPrefix}-panel-${p.id}`}
+            class="scan-panel"
+            role="region"
+            aria-labelledby={`${idPrefix}-name-${p.id}`}
+            data-scan-panel={p.id}
+            hidden
+          />
+        </>
+      ))
+    }
   </div>
 
   <form
@@ -96,9 +96,7 @@ const pillars = [
     novalidate
     hidden
   >
-    <h3 id={`${idPrefix}-lead-heading`} class="text-lg font-semibold text-text-body">
-      Talk to us
-    </h3>
+    <h3 id={`${idPrefix}-lead-heading`} class="text-lg font-semibold text-text-body">Talk to us</h3>
     <p class="mt-1 text-sm text-text-muted">
       Pick what you want to talk about. We pre-selected topics from your results.
     </p>
@@ -106,9 +104,9 @@ const pillars = [
       <legend class="text-sm font-medium text-text-body">Topics</legend>
       <div class="mt-2 flex flex-wrap gap-2" data-scan-chips></div>
     </fieldset>
-    <label for={`${idPrefix}-lead-email`} class="mt-4 block text-sm font-medium text-text-body">
-      Your email
-    </label>
+    <label for={`${idPrefix}-lead-email`} class="mt-4 block text-sm font-medium text-text-body"
+      >Your email</label
+    >
     <input
       id={`${idPrefix}-lead-email`}
       name="email"
@@ -116,9 +114,9 @@ const pillars = [
       autocomplete="email"
       class="mt-1 w-full min-h-11 rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-elevated focus:border-interactive focus:ring-2 focus:ring-interactive sm:text-sm"
     />
-    <label for={`${idPrefix}-lead-sites`} class="mt-4 block text-sm font-medium text-text-body">
-      Sites you run (optional)
-    </label>
+    <label for={`${idPrefix}-lead-sites`} class="mt-4 block text-sm font-medium text-text-body"
+      >Sites you run (optional)</label
+    >
     <input
       id={`${idPrefix}-lead-sites`}
       name="sites"
@@ -131,9 +129,9 @@ const pillars = [
       data-scan-sites
       hidden
     />
-    <label for={`${idPrefix}-lead-note`} class="mt-4 block text-sm font-medium text-text-body">
-      Anything we should know? (optional)
-    </label>
+    <label for={`${idPrefix}-lead-note`} class="mt-4 block text-sm font-medium text-text-body"
+      >Anything we should know? (optional)</label
+    >
     <textarea
       id={`${idPrefix}-lead-note`}
       name="note"
@@ -144,27 +142,17 @@ const pillars = [
     />
 
     <p class="mt-4 text-xs text-text-annotation">
-      Submitting this sends us your email and a summary of this scan’s findings. We use them only
-      for this request; see our{' '}
-      <a href="/privacy/" class="underline">
-        privacy policy
-      </a>
-      .
+      Submitting this sends us your email and a summary of this scan’s findings. We use them only for
+      this request; see our <a href="/privacy/" class="underline">privacy policy</a>.
     </p>
-    <button type="submit" class="btn-primary mt-4 min-h-11">
-      Talk to us
-    </button>
+    <button type="submit" class="btn-primary mt-4 min-h-11">Talk to us</button>
     <p id={`${idPrefix}-lead-msg`} class="mt-2 text-sm text-accent" data-scan-lead-msg></p>
   </form>
 
   <div class="mt-8 flex flex-col items-center gap-3" data-scan-next hidden>
     <div class="flex flex-wrap items-center justify-center gap-4">
-      <a href="/download/" class="btn-primary min-h-11" data-scan-cta="download">
-        Download &amp; run &rarr;
-      </a>
-      <a href="/pricing/" class="btn-secondary min-h-11" data-scan-cta="support">
-        Support plans &rarr;
-      </a>
+      <a href="/download/" class="btn-primary min-h-11" data-scan-cta="download">Download &amp; run &rarr;</a>
+      <a href="/pricing/" class="btn-secondary min-h-11" data-scan-cta="support">Support plans &rarr;</a>
     </div>
     <p class="text-xs text-text-annotation">{FREE_TO_RUN_LINE}</p>
   </div>
