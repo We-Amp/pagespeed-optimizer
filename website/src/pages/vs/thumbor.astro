@@ -84,9 +84,13 @@ const jsonLd = [
 >
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16">
     <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
-      <a href="/" class="hover:text-text-body">Home</a>
+      <a href="/" class="hover:text-text-body">
+        Home
+      </a>
       <span class="mx-1">/</span>
-      <a href="/vs/" class="hover:text-text-body">Comparisons</a>
+      <a href="/vs/" class="hover:text-text-body">
+        Comparisons
+      </a>
       <span class="mx-1">/</span>
       <span>vs Thumbor</span>
     </nav>
@@ -97,18 +101,21 @@ const jsonLd = [
       <h2 class="h2-section text-text-body">TL;DR</h2>
       <p class="mt-4 text-text-body">
         Thumbor is a long-running open-source image processing server with smart cropping and a
-        plugin ecosystem. mod_pagespeed is a <a
-          href="/features/"
-          class="text-interactive hover:text-interactive-hover underline"
-          >self-hosted optimization pipeline</a
-        > that handles images plus critical CSS, JS/CSS minification, and HTML rewriting. If you specifically
-        need Thumbor's smart-crop and face-detection features, mod_pagespeed isn't a replacement. For
-        everything else page-optimization-related, mod_pagespeed covers more ground in one process.
+        plugin ecosystem. mod_pagespeed is a{' '}
+        <a href="/features/" class="text-interactive hover:text-interactive-hover underline">
+          self-hosted optimization pipeline
+        </a>{' '}
+        that handles images plus critical CSS, JS/CSS minification, and HTML rewriting. If you
+        specifically need Thumbor's smart-crop and face-detection features, mod_pagespeed isn't a
+        replacement. For everything else page-optimization-related, mod_pagespeed covers more ground
+        in one process.
       </p>
     </section>
 
     <section class="mt-12">
-      <h2 id="at-a-glance" class="h2-section text-text-body">At a glance</h2>
+      <h2 id="at-a-glance" class="h2-section text-text-body">
+        At a glance
+      </h2>
       <div class="mt-4">
         <CompareTable competitor="Thumbor" rows={rows} labelledBy="at-a-glance" />
       </div>
@@ -181,8 +188,8 @@ const jsonLd = [
       <p class="mt-4 text-text-body">If you do migrate:</p>
       <ol class="mt-3 space-y-2 list-decimal pl-6 text-text-body">
         <li>
-          Audit your templates for hard-coded Thumbor URL patterns (<code>/unsafe/300x200/...</code
-          >). mod_pagespeed rewrites image URLs at the HTML layer; many template patterns can be
+          Audit your templates for hard-coded Thumbor URL patterns (<code>/unsafe/300x200/...</code>
+          ). mod_pagespeed rewrites image URLs at the HTML layer; many template patterns can be
           simplified or removed.
         </li>
         <li>
@@ -190,11 +197,14 @@ const jsonLd = [
           runtime transforms for user uploads may still belong in a dedicated image service.
         </li>
         <li>
-          Configure the module and shared cache directory before retiring the Thumbor service. The <a
+          Configure the module and shared cache directory before retiring the Thumbor service. The{' '}
+          <a
             href="/blog/run-with-docker-compose/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Docker Compose walkthrough</a
-          > covers a working baseline.
+          >
+            Docker Compose walkthrough
+          </a>{' '}
+          covers a working baseline.
         </li>
       </ol>
     </section>
@@ -204,26 +214,24 @@ const jsonLd = [
       <p class="mt-4 text-text-body">
         <strong>Resize and convert to WebP in Thumbor</strong> (URL-based):
       </p>
-      <pre
-        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>/unsafe/800x600/filters:format(webp)/example.com/photo.jpg</code></pre>
+      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>/unsafe/800x600/filters:format(webp)/example.com/photo.jpg</code></pre>
       <p class="mt-4 text-text-body">
-        <strong>Equivalent in mod_pagespeed 2.1.</strong> Install the nginx module on Debian&nbsp;11/12/13,
-        Ubuntu&nbsp;22.04/24.04 (amd64 + arm64), or AlmaLinux&nbsp;9 (x86_64 + aarch64):
+        <strong>Equivalent in mod_pagespeed 2.1.</strong> Install the nginx module on
+        Debian&nbsp;11/12/13, Ubuntu&nbsp;22.04/24.04 (amd64 + arm64), or AlmaLinux&nbsp;9 (x86_64 +
+        aarch64):
       </p>
-      <pre
-        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo apt install nginx-module-pagespeed   # or: sudo dnf install nginx-module-pagespeed</code></pre>
       <p class="mt-4 text-text-body">
         Then enable the filters (nginx config; the filter decides per-request):
       </p>
-      <pre
-        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>pagespeed on;
+      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>pagespeed on;
 pagespeed EnableFilters resize_images,convert_jpeg_to_webp;
 pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
       <p class="mt-4 text-text-body">
-        mod_pagespeed reads the client's <code>Accept</code> header and serves WebP only to browsers that
-        support it. Thumbor requires the URL to commit to the format up front (or you build content negotiation
-        around it yourself).
+        mod_pagespeed reads the client's <code>Accept</code> header and serves WebP only to browsers
+        that support it. Thumbor requires the URL to commit to the format up front (or you build
+        content negotiation around it yourself).
       </p>
     </section>
 
@@ -233,23 +241,27 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
         <p class="mt-3 text-text-body">
           Keep Thumbor for face-aware crops; add format negotiation, CSS/JS minification, and
           critical CSS in one server-layer pipeline. On our own pages the full pipeline measures
-          <span class="font-mono tabular-nums font-semibold text-success">&minus;68%</span> page size.
-          Install and run it &mdash; {LICENSE_CLAUSE}, free in development and in production.
+          <span class="font-mono tabular-nums font-semibold text-success">&minus;68%</span> page
+          size. Install and run it &mdash; {LICENSE_CLAUSE}, free in development and in production.
         </p>
         <div class="mt-5 flex flex-wrap gap-3">
-          <a href="/download/" class="btn-primary" data-umami-event="cta_vs_thumbor_install"
-            >Download &amp; run</a
-          >
+          <a href="/download/" class="btn-primary" data-umami-event="cta_vs_thumbor_install">
+            Download &amp; run
+          </a>
           <a
             href="/pricing/"
             class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-            data-umami-event="cta_vs_thumbor_buy">Support plans</a
+            data-umami-event="cta_vs_thumbor_buy"
           >
+            Support plans
+          </a>
           <a
             href="#migrating-from-thumbor-to-modpagespeed"
             class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-            data-umami-event="cta_vs_thumbor_migrate">See the migration steps &rarr;</a
+            data-umami-event="cta_vs_thumbor_migrate"
           >
+            See the migration steps &rarr;
+          </a>
         </div>
       </div>
     </section>
@@ -258,34 +270,41 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
       <p class="text-base font-semibold uppercase tracking-wide text-text-body">See also:</p>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
-          <a href="/vs/imgproxy/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed vs imgproxy</a
-          > &mdash; imgproxy is closer to Thumbor than to mod_pagespeed
+          <a href="/vs/imgproxy/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed vs imgproxy
+          </a>{' '}
+          &mdash; imgproxy is closer to Thumbor than to mod_pagespeed
         </li>
         <li>
-          <a href="/vs/cloudinary/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed vs Cloudinary</a
-          > &mdash; managed SaaS alternative if you don't want to self-host
+          <a href="/vs/cloudinary/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed vs Cloudinary
+          </a>{' '}
+          &mdash; managed SaaS alternative if you don't want to self-host
         </li>
         <li>
           <a
             href="/self-hosted-image-optimization/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Self-hosted image optimization</a
-          > &mdash; WebP/AVIF generated and served from your own origin
+          >
+            Self-hosted image optimization
+          </a>{' '}
+          &mdash; WebP/AVIF generated and served from your own origin
         </li>
         <li>
           <a
             href="/alternatives/mod-pagespeed/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Alternatives to mod_pagespeed</a
-          > &mdash; for readers searching for a mod_pagespeed replacement
+          >
+            Alternatives to mod_pagespeed
+          </a>{' '}
+          &mdash; for readers searching for a mod_pagespeed replacement
         </li>
         <li>
-          <a href="/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed 2.1</a
-          > &mdash; drop-in continuation with native modules for Apache and nginx. The IIS package ships
-          from the 1.15 packaging channel.
+          <a href="/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed 2.1
+          </a>{' '}
+          &mdash; drop-in continuation with native modules for Apache and nginx. The IIS package
+          ships from the 1.15 packaging channel.
         </li>
       </ul>
     </section>

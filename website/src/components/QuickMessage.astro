@@ -41,10 +41,24 @@
     {/* Message plate with one lit cyan transmit arrow — "send us a note". */}
     <svg class="qm-ico" viewBox="0 0 24 24" width="22" height="22" aria-hidden="true" fill="none">
       {/* readout plate */}
-      <rect x="3" y="5.5" width="14" height="11" rx="1.5" stroke="currentColor" stroke-width="1.6"
+      <rect
+        x="3"
+        y="5.5"
+        width="14"
+        height="11"
+        rx="1.5"
+        stroke="currentColor"
+        stroke-width="1.6"
       ></rect>
       {/* two engraved message lines */}
-      <line x1="6" y1="9.5" x2="14" y2="9.5" stroke="currentColor" stroke-width="1.5" opacity="0.5"
+      <line
+        x1="6"
+        y1="9.5"
+        x2="14"
+        y2="9.5"
+        stroke="currentColor"
+        stroke-width="1.5"
+        opacity="0.5"
       ></line>
       <line
         x1="6"
@@ -53,14 +67,16 @@
         y2="12.5"
         stroke="currentColor"
         stroke-width="1.5"
-        opacity="0.5"></line>
+        opacity="0.5"
+      ></line>
       {/* the one lit cyan element: a transmit arrow leaving the plate */}
       <path
         class="qm-ico-send"
         d="M16 11h5M19 9l2 2-2 2"
         stroke-width="1.75"
         stroke-linecap="square"
-        stroke-linejoin="miter"></path>
+        stroke-linejoin="miter"
+      ></path>
     </svg>
   </button>
 
@@ -77,14 +93,17 @@
     <div class="qm-tickrule" aria-hidden="true"></div>
 
     <div class="qm-head">
-      <p id="qm-title" class="qm-eyebrow">// Quick message</p>
+      <p id="qm-title" class="qm-eyebrow">
+        // Quick message
+      </p>
       <button type="button" data-qm-close class="qm-close" aria-label="Close">
         <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" fill="none">
           <path
             d="M6 6l12 12M18 6 6 18"
             stroke="currentColor"
             stroke-width="1.75"
-            stroke-linecap="square"></path>
+            stroke-linecap="square"
+          ></path>
         </svg>
       </button>
     </div>
@@ -94,7 +113,9 @@
       <p class="qm-lede">One line is enough. Leave an email if you want a reply.</p>
 
       <div class="qm-field">
-        <label for="qm-message" class="sr-only">Your message</label>
+        <label for="qm-message" class="sr-only">
+          Your message
+        </label>
         <textarea
           id="qm-message"
           name="message"
@@ -104,13 +125,18 @@
           maxlength="1000"
           required
           aria-required="true"
-          placeholder="Question, idea, bug — anything."></textarea>
-        <p class="qm-count" data-qm-count aria-hidden="true">0 / 1000</p>
+          placeholder="Question, idea, bug — anything."
+        ></textarea>
+        <p class="qm-count" data-qm-count aria-hidden="true">
+          0 / 1000
+        </p>
       </div>
 
       {/* Optional email — visible by default, never required. */}
       <div id="qm-email-wrap" data-qm-email-wrap class="qm-email-wrap">
-        <label for="qm-email" class="qm-label">your email (optional, for a reply)</label>
+        <label for="qm-email" class="qm-label">
+          your email (optional, for a reply)
+        </label>
         <input
           id="qm-email"
           name="email"
@@ -123,10 +149,8 @@
         />
       </div>
 
-      {
-        /* Honeypot — off-screen (not display:none; some bots skip those). Bots
-          fill it, humans never see it. A filled value fake-succeeds + no POST. */
-      }
+      {/* Honeypot — off-screen (not display:none; some bots skip those). Bots
+          fill it, humans never see it. A filled value fake-succeeds + no POST. */}
       <div class="qm-hp" aria-hidden="true">
         <label for="qm-company">Company</label>
         <input
@@ -149,7 +173,8 @@
               stroke="currentColor"
               stroke-width="1.75"
               stroke-linecap="square"
-              stroke-linejoin="miter"></path>
+              stroke-linejoin="miter"
+            ></path>
           </svg>
         </button>
       </div>
@@ -159,9 +184,8 @@
 
       {/* GDPR transparency notice — names Telegram, optionality, privacy link. */}
       <p class="qm-privacy">
-        Your message and the page you're on go to We-Amp, delivered via Telegram. Email is optional. <a
-          href="/privacy/">Privacy</a
-        >.
+        Your message and the page you're on go to We-Amp, delivered via Telegram. Email is optional.{' '}
+        <a href="/privacy/">Privacy</a>.
       </p>
     </form>
 
@@ -174,12 +198,17 @@
             stroke="currentColor"
             stroke-width="2"
             stroke-linecap="square"
-            stroke-linejoin="miter"></path>
+            stroke-linejoin="miter"
+          ></path>
         </svg>
       </div>
       <p class="qm-success-title">Sent — thanks.</p>
-      <p class="qm-success-sub" data-qm-success-sub>We read every message.</p>
-      <button type="button" data-qm-again class="btn-ghost qm-again">Send another</button>
+      <p class="qm-success-sub" data-qm-success-sub>
+        We read every message.
+      </p>
+      <button type="button" data-qm-again class="btn-ghost qm-again">
+        Send another
+      </button>
     </div>
   </div>
 </div>

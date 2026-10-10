@@ -105,27 +105,30 @@ const jsonLd = [softwareApplication, faqPage];
   <!-- Hero -->
   <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-20 text-center">
     <h1 class="h1-hero text-text-body">
-      Server-side image optimization:<br />
-      <span class="relative inline-block text-text-body border-b-[3px] border-interactive pb-1"
-        >WebP, AVIF, and critical CSS.</span
-      >
+      Server-side image optimization:
+      <br />
+      <span class="relative inline-block text-text-body border-b-[3px] border-interactive pb-1">
+        WebP, AVIF, and critical CSS.
+      </span>
     </h1>
     <p class="lede mt-8 max-w-xl mx-auto">
       One decode pass yields up to 37 cache variants; the right one is served via mmap, in
       microseconds, with no third party in the request path.
     </p>
     <div class="mt-8 flex flex-wrap items-center justify-center gap-3">
-      <a href="/download/" class="btn-primary" data-umami-event="cta_features_hero_download"
-        >Download &amp; run</a
-      >
+      <a href="/download/" class="btn-primary" data-umami-event="cta_features_hero_download">
+        Download &amp; run
+      </a>
       <a
         href="/pricing/"
         class="btn-secondary"
         data-umami-event="cta_commercial"
         data-umami-event-offer="support"
         data-umami-event-surface="features"
-        data-umami-event-position="hero">See pricing</a
+        data-umami-event-position="hero"
       >
+        See pricing
+      </a>
     </div>
     <div class="mt-4 flex justify-center">
       <a
@@ -215,8 +218,10 @@ const jsonLd = [softwareApplication, faqPage];
           geography, and TLS termination.
         </li>
         <li>
-          <span class="font-semibold text-text-body">Web application firewall / bot protection</span
-          >: use your WAF; we do not inspect request payloads or enforce policy.
+          <span class="font-semibold text-text-body">
+            Web application firewall / bot protection
+          </span>
+          : use your WAF; we do not inspect request payloads or enforce policy.
         </li>
         <li>
           <span class="font-semibold text-text-body">RUM / observability platforms</span>: we expose
@@ -229,10 +234,11 @@ const jsonLd = [softwareApplication, faqPage];
         </li>
       </ul>
       <p class="mt-4 text-sm text-text-muted">
-        For how the optimizations above map to the metrics Google measures, see the <a
-          href="/core-web-vitals/"
-          class="text-interactive hover:text-interactive-hover underline">Core Web Vitals</a
-        > hub.
+        For how the optimizations above map to the metrics Google measures, see the{' '}
+        <a href="/core-web-vitals/" class="text-interactive hover:text-interactive-hover underline">
+          Core Web Vitals
+        </a>{' '}
+        hub.
       </p>
     </div>
   </section>
@@ -249,28 +255,36 @@ const jsonLd = [softwareApplication, faqPage];
           <p class="mt-4 text-text-muted">
             Automatically transcode images to the best format each client supports. No manual srcset
             management, no build pipelines, no CDN configuration. If you're weighing the trade-offs,
-            see <a
+            see{' '}
+            <a
               href="/blog/avif-vs-webp-2026/"
               class="text-interactive hover:text-interactive-hover underline"
-              >AVIF vs WebP: which to serve</a
-            >, or learn how this works as <a
+            >
+              AVIF vs WebP: which to serve
+            </a>
+            , or learn how this works as{' '}
+            <a
               href="/blog/nginx-image-optimization-module/"
               class="text-interactive hover:text-interactive-hover underline"
-              >the nginx image optimization module</a
-            >. For how this compares to a hosted pipeline, see <a
+            >
+              the nginx image optimization module
+            </a>
+            . For how this compares to a hosted pipeline, see{' '}
+            <a
               href="/self-hosted-image-optimization/"
               class="text-interactive hover:text-interactive-hover underline"
-              >self-hosted image optimization</a
-            >.
+            >
+              self-hosted image optimization
+            </a>
+            .
           </p>
         </div>
         <div class="mt-8 lg:mt-0">
           <ul class="space-y-4">
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">WebP/AVIF transcoding</p>
                 <p class="text-sm text-text-muted">
@@ -280,10 +294,9 @@ const jsonLd = [softwareApplication, faqPage];
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Responsive image generation</p>
                 <p class="text-sm text-text-muted">
@@ -293,10 +306,9 @@ const jsonLd = [softwareApplication, faqPage];
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Lossless PNG reduction</p>
                 <p class="text-sm text-text-muted">
@@ -306,10 +318,9 @@ const jsonLd = [softwareApplication, faqPage];
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">GIF-to-WebP for animated GIFs</p>
                 <p class="text-sm text-text-muted">
@@ -319,10 +330,9 @@ const jsonLd = [softwareApplication, faqPage];
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Save-Data aware compression</p>
                 <p class="text-sm text-text-muted">
@@ -333,10 +343,9 @@ const jsonLd = [softwareApplication, faqPage];
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Proactive variant generation</p>
                 <p class="text-sm text-text-muted">
@@ -348,33 +357,34 @@ const jsonLd = [softwareApplication, faqPage];
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">SVG auto-vectorization</p>
                 <p class="text-sm text-text-muted">
-                  Logos, icons, and simple graphics are automatically <a
+                  Logos, icons, and simple graphics are automatically{' '}
+                  <a
                     href="/blog/svg-auto-vectorization/"
                     class="text-interactive hover:text-interactive-hover underline"
-                    >converted from raster to SVG</a
-                  > using VTracer (Rust FFI). The resulting vector is resolution-independent — one variant
-                  serves all viewports and pixel densities. A size gate stores the SVG only when it is
-                  smaller than the raster original. It runs in the optimizer worker, with the Apache module
-                  or the reverse-proxy deployment; the default <code
-                    class="text-xs bg-bg-elevated px-1 rounded">--svg-mode detect</code
-                  > scores candidates without vectorizing, and <code
-                    class="text-xs bg-bg-elevated px-1 rounded">--svg-mode auto</code
-                  > serves them.
+                  >
+                    converted from raster to SVG
+                  </a>{' '}
+                  using VTracer (Rust FFI). The resulting vector is resolution-independent — one
+                  variant serves all viewports and pixel densities. A size gate stores the SVG only
+                  when it is smaller than the raster original. It runs in the optimizer worker, with
+                  the Apache module or the reverse-proxy deployment; the default{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">--svg-mode detect</code> scores
+                  candidates without vectorizing, and{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">--svg-mode auto</code> serves
+                  them.
                 </p>
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Jpegli encoder with perceptual quality</p>
                 <p class="text-sm text-text-muted">
@@ -385,28 +395,29 @@ const jsonLd = [softwareApplication, faqPage];
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">ML-predicted encoder quality</p>
                 <p class="text-sm text-text-muted">
-                  Per-format <a
+                  Per-format{' '}
+                  <a
                     href="/blog/learned-quality-prediction/"
                     class="text-interactive hover:text-interactive-hover underline"
-                    >ML models predict the optimal encoder quality</a
-                  > for a target SSIMULACRA2 score. Trained LightGBM decision trees compiled to C run
-                  in ~5 microseconds per format with zero runtime dependencies. SSIMULACRA2 verification
-                  catches outliers.
+                  >
+                    ML models predict the optimal encoder quality
+                  </a>{' '}
+                  for a target SSIMULACRA2 score. Trained LightGBM decision trees compiled to C run
+                  in ~5 microseconds per format with zero runtime dependencies. SSIMULACRA2
+                  verification catches outliers.
                 </p>
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Content-aware quality classification</p>
                 <p class="text-sm text-text-muted">
@@ -418,10 +429,9 @@ const jsonLd = [softwareApplication, faqPage];
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Quality baselining</p>
                 <p class="text-sm text-text-muted">
@@ -450,19 +460,22 @@ const jsonLd = [softwareApplication, faqPage];
             Reduce render-blocking CSS to the minimum required for first paint. Heuristic critical
             CSS extraction runs standalone — no headless browser required. Optional browser analysis
             adds CSS coverage validation, waterfall capture, and visual comparison. This targets the
-            render-blocking resources flagged by <a
+            render-blocking resources flagged by{' '}
+            <a
               href="/pagespeed-insights/"
-              class="text-interactive hover:text-interactive-hover underline">PageSpeed Insights</a
-            >.
+              class="text-interactive hover:text-interactive-hover underline"
+            >
+              PageSpeed Insights
+            </a>
+            .
           </p>
         </div>
         <div class="mt-8 lg:mt-0">
           <ul class="space-y-4">
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Minification</p>
                 <p class="text-sm text-text-muted">
@@ -473,53 +486,49 @@ const jsonLd = [softwareApplication, faqPage];
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Critical CSS extraction</p>
                 <p class="text-sm text-text-muted">
                   Heuristic-based above-the-fold CSS extraction. Automatically includes selectors
-                  for <code class="text-xs bg-bg-elevated px-1 rounded">html</code>, <code
-                    class="text-xs bg-bg-elevated px-1 rounded">body</code
-                  >, <code class="text-xs bg-bg-elevated px-1 rounded">:root</code>, first 300 body
+                  for <code class="text-xs bg-bg-elevated px-1 rounded">html</code>,{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">body</code>,{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">:root</code>, first 300 body
                   elements, fixed-position elements, and header/nav/hero patterns. Optional browser
                   pipeline adds Lighthouse validation, waterfall capture, and visual comparison.
                 </p>
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Injected into HTML</p>
                 <p class="text-sm text-text-muted">
-                  Critical CSS is injected as a <code class="text-xs bg-bg-elevated px-1 rounded"
-                    >&lt;style&gt;</code
-                  > tag before <code class="text-xs bg-bg-elevated px-1 rounded">&lt;/head&gt;</code
-                  >, creating a self-contained HTML variant that renders without blocking on
-                  external stylesheets.
+                  Critical CSS is injected as a{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">&lt;style&gt;</code> tag before{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">&lt;/head&gt;</code>, creating a
+                  self-contained HTML variant that renders without blocking on external stylesheets.
                 </p>
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Async CSS loading</p>
                 <p class="text-sm text-text-muted">
-                  Render-blocking stylesheets are deprioritized using <code
-                    class="text-xs bg-bg-elevated px-1 rounded">fetchpriority="low"</code
-                  >, keeping them as normal stylesheets with no JavaScript dependency. Activated
+                  Render-blocking stylesheets are deprioritized using{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">fetchpriority="low"</code>,
+                  keeping them as normal stylesheets with no JavaScript dependency. Activated
                   automatically by the optimization policy when CSS coverage data indicates low
-                  stylesheet utilization. Requires <code class="text-xs bg-bg-elevated px-1 rounded"
-                    >--enable-browser-analysis</code
-                  >.
+                  stylesheet utilization. Requires{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">--enable-browser-analysis</code>
+                  .
                 </p>
               </div>
             </li>
@@ -546,26 +555,27 @@ const jsonLd = [softwareApplication, faqPage];
         <div class="mt-8 lg:mt-0">
           <ul class="space-y-4">
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Minification</p>
                 <p class="text-sm text-text-muted">
-                  Comments, whitespace, and unnecessary semicolons are removed. <a
+                  Comments, whitespace, and unnecessary semicolons are removed.{' '}
+                  <a
                     href="/blog/safe-javascript-minification-semicolon-insertion/"
                     class="text-interactive hover:text-interactive-hover underline"
-                    >Safe by construction</a
-                  > — no variable renaming, no AST transforms.
+                  >
+                    Safe by construction
+                  </a>{' '}
+                  — no variable renaming, no AST transforms.
                 </p>
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Size-gated optimization</p>
                 <p class="text-sm text-text-muted">
@@ -575,24 +585,22 @@ const jsonLd = [softwareApplication, faqPage];
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Script deferral</p>
                 <p class="text-sm text-text-muted">
-                  Browser script analysis identifies scripts safe to defer. The worker adds <code
-                    class="text-xs bg-bg-elevated px-1 rounded">defer</code
-                  > to those <code class="text-xs bg-bg-elevated px-1 rounded"
-                    >&lt;script src="..."&gt;</code
-                  > tags, moving them off the critical path. Scripts already marked <code
-                    class="text-xs bg-bg-elevated px-1 rounded">async</code
-                  >, <code class="text-xs bg-bg-elevated px-1 rounded">defer</code>, or <code
-                    class="text-xs bg-bg-elevated px-1 rounded">type="module"</code
-                  > are left unchanged. Requires <code class="text-xs bg-bg-elevated px-1 rounded"
-                    >--enable-browser-analysis</code
-                  >.
+                  Browser script analysis identifies scripts safe to defer. The worker adds{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">defer</code> to those{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">&lt;script src="..."&gt;</code>{' '}
+                  tags, moving them off the critical path. Scripts already marked{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">async</code>,{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">defer</code>, or{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">type="module"</code> are left
+                  unchanged. Requires{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">--enable-browser-analysis</code>
+                  .
                 </p>
               </div>
             </li>
@@ -620,82 +628,82 @@ const jsonLd = [softwareApplication, faqPage];
         <div class="mt-8 lg:mt-0">
           <ul class="space-y-4">
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Critical CSS injection</p>
                 <p class="text-sm text-text-muted">
                   Heuristic-based above-the-fold CSS extraction. The worker scans HTML and linked
                   stylesheets, extracts rules matching header, nav, hero, and early DOM elements,
-                  and injects them as a <code class="text-xs bg-bg-elevated px-1 rounded"
-                    >&lt;style&gt;</code
-                  > tag before <code class="text-xs bg-bg-elevated px-1 rounded">&lt;/head&gt;</code
-                  >. Optional browser analysis adds Lighthouse validation, waterfall capture, and
-                  visual comparison.
+                  and injects them as a{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">&lt;style&gt;</code> tag before{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">&lt;/head&gt;</code>. Optional
+                  browser analysis adds Lighthouse validation, waterfall capture, and visual
+                  comparison.
                 </p>
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Early Hints (103)</p>
                 <p class="text-sm text-text-muted">
                   The worker stores stylesheet preload hints in the cache. On subsequent requests,
-                  the server sends <code class="text-xs bg-bg-elevated px-1 rounded"
-                    >103 Early Hints</code
-                  >
-                  responses with <code class="text-xs bg-bg-elevated px-1 rounded"
-                    >Link: rel=preload</code
-                  > headers before the origin responds, letting the browser fetch CSS while waiting.
+                  the server sends{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">103 Early Hints</code>
+                  responses with{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">Link: rel=preload</code> headers
+                  before the origin responds, letting the browser fetch CSS while waiting.
                 </p>
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Preconnect injection</p>
                 <p class="text-sm text-text-muted">
-                  Third-party origins discovered during HTML processing automatically receive <code
-                    class="text-xs bg-bg-elevated px-1 rounded">Link: rel=preconnect</code
-                  > headers, eliminating DNS/TLS setup time for external resources. Enabled by default.
+                  Third-party origins discovered during HTML processing automatically receive{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">Link: rel=preconnect</code>{' '}
+                  headers, eliminating DNS/TLS setup time for external resources. Enabled by
+                  default.
                 </p>
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-bg-elevated text-text-muted text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-bg-elevated text-text-muted text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">
                   Speculation Rules
                   <span class="ml-1 badge-neutral">Experimental</span>
                 </p>
                 <p class="text-sm text-text-muted">
-                  Opt-in prefetching via the <a
+                  Opt-in prefetching via the{' '}
+                  <a
                     href="/blog/server-injected-resource-hints-speculation-rules/"
                     class="text-interactive hover:text-interactive-hover underline"
-                    >Speculation Rules API</a
-                  >. When enabled with <code class="text-xs bg-bg-elevated px-1 rounded"
-                    >--enable-speculation-rules</code
-                  >, the worker injects prefetch hints for frequently-accessed URLs detected by the
+                  >
+                    Speculation Rules API
+                  </a>
+                  . When enabled with{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">
+                    --enable-speculation-rules
+                  </code>
+                  , the worker injects prefetch hints for frequently-accessed URLs detected by the
                   hot URL tracker. Off by default.
                 </p>
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Hot URL warmup</p>
                 <p class="text-sm text-text-muted">
@@ -706,62 +714,59 @@ const jsonLd = [softwareApplication, faqPage];
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Native lazy loading</p>
                 <p class="text-sm text-text-muted">
-                  The worker automatically adds <code class="text-xs bg-bg-elevated px-1 rounded"
-                    >loading="lazy"</code
-                  > to off-screen <code class="text-xs bg-bg-elevated px-1 rounded"
-                    >&lt;img&gt;</code
-                  >
-                  and <code class="text-xs bg-bg-elevated px-1 rounded">&lt;iframe&gt;</code> elements.
-                  The LCP candidate (or first body image as fallback) receives <code
-                    class="text-xs bg-bg-elevated px-1 rounded">fetchpriority="high"</code
-                  > instead, ensuring above-the-fold content loads at full priority. Enabled by default.
+                  The worker automatically adds{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">loading="lazy"</code> to
+                  off-screen <code class="text-xs bg-bg-elevated px-1 rounded">&lt;img&gt;</code>
+                  and <code class="text-xs bg-bg-elevated px-1 rounded">&lt;iframe&gt;</code>{' '}
+                  elements. The LCP candidate (or first body image as fallback) receives{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">fetchpriority="high"</code>{' '}
+                  instead, ensuring above-the-fold content loads at full priority. Enabled by
+                  default.
                 </p>
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Explicit image dimensions</p>
                 <p class="text-sm text-text-muted">
-                  Width and height attributes are injected on <code
-                    class="text-xs bg-bg-elevated px-1 rounded">&lt;img&gt;</code
-                  > tags that lack them, using dimensions from cached image data. This prevents Cumulative
-                  Layout Shift (CLS) caused by images loading without reserved space. Enabled by default.
+                  Width and height attributes are injected on{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">&lt;img&gt;</code> tags that
+                  lack them, using dimensions from cached image data. This prevents Cumulative
+                  Layout Shift (CLS) caused by images loading without reserved space. Enabled by
+                  default.
                 </p>
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">LCP image preload</p>
                 <p class="text-sm text-text-muted">
-                  The detected LCP candidate image receives a <code
-                    class="text-xs bg-bg-elevated px-1 rounded"
-                    >&lt;link rel="preload" as="image"&gt;</code
-                  > hint, telling the browser to fetch it before encountering the <code
-                    class="text-xs bg-bg-elevated px-1 rounded">&lt;img&gt;</code
-                  > tag. Reduces LCP by starting the download earlier.
+                  The detected LCP candidate image receives a{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">
+                    &lt;link rel="preload" as="image"&gt;
+                  </code>{' '}
+                  hint, telling the browser to fetch it before encountering the{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">&lt;img&gt;</code> tag. Reduces
+                  LCP by starting the download earlier.
                 </p>
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Font preloading</p>
                 <p class="text-sm text-text-muted">
@@ -797,43 +802,40 @@ const jsonLd = [softwareApplication, faqPage];
             <div class="space-y-3 text-sm">
               <div class="flex justify-between">
                 <span class="text-text-muted">Bits 0-1</span>
-                <span class="font-medium text-text-body"
-                  >Image Format <span class="text-text-annotation"
-                    >(Original / WebP / AVIF / SVG)</span
-                  ></span
-                >
+                <span class="font-medium text-text-body">
+                  Image Format{' '}
+                  <span class="text-text-annotation">(Original / WebP / AVIF / SVG)</span>
+                </span>
               </div>
               <div class="border-t border-border"></div>
               <div class="flex justify-between">
                 <span class="text-text-muted">Bits 2-3</span>
-                <span class="font-medium text-text-body"
-                  >Viewport Class <span class="text-text-annotation"
-                    >(Mobile / Tablet / Desktop)</span
-                  ></span
-                >
+                <span class="font-medium text-text-body">
+                  Viewport Class{' '}
+                  <span class="text-text-annotation">(Mobile / Tablet / Desktop)</span>
+                </span>
               </div>
               <div class="border-t border-border"></div>
               <div class="flex justify-between">
                 <span class="text-text-muted">Bit 4</span>
-                <span class="font-medium text-text-body"
-                  >Pixel Density <span class="text-text-annotation">(1x / 2x+)</span></span
-                >
+                <span class="font-medium text-text-body">
+                  Pixel Density <span class="text-text-annotation">(1x / 2x+)</span>
+                </span>
               </div>
               <div class="border-t border-border"></div>
               <div class="flex justify-between">
                 <span class="text-text-muted">Bit 5</span>
-                <span class="font-medium text-text-body"
-                  >Save-Data <span class="text-text-annotation">(off / on)</span></span
-                >
+                <span class="font-medium text-text-body">
+                  Save-Data <span class="text-text-annotation">(off / on)</span>
+                </span>
               </div>
               <div class="border-t border-border"></div>
               <div class="flex justify-between">
                 <span class="text-text-muted">Bits 6-7</span>
-                <span class="font-medium text-text-body"
-                  >Transfer Encoding <span class="text-text-annotation"
-                    >(Identity / Gzip / Brotli / Reserved)</span
-                  ></span
-                >
+                <span class="font-medium text-text-body">
+                  Transfer Encoding{' '}
+                  <span class="text-text-annotation">(Identity / Gzip / Brotli / Reserved)</span>
+                </span>
               </div>
             </div>
           </div>
@@ -875,47 +877,42 @@ const jsonLd = [softwareApplication, faqPage];
             <p class="text-sm font-medium text-text-body mb-4">Cache hit path</p>
             <ol class="space-y-3 text-sm">
               <li class="flex items-start gap-3">
-                <span
-                  class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-interactive text-on-accent text-xs font-bold"
-                  >1</span
-                >
+                <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-interactive text-on-accent text-xs font-bold">
+                  1
+                </span>
                 <p class="text-text-muted">
                   Caching proxy classifies the request into a 32-bit capability mask
                 </p>
               </li>
               <li class="flex items-start gap-3">
-                <span
-                  class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-interactive text-on-accent text-xs font-bold"
-                  >2</span
-                >
+                <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-interactive text-on-accent text-xs font-bold">
+                  2
+                </span>
                 <p class="text-text-muted">
                   URL is looked up in cache; best-fit variant selected by capability mask
                 </p>
               </li>
               <li class="flex items-start gap-3">
-                <span
-                  class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-interactive text-on-accent text-xs font-bold"
-                  >3</span
-                >
+                <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-interactive text-on-accent text-xs font-bold">
+                  3
+                </span>
                 <p class="text-text-muted">
                   Cyclone lookup returns an mmap'd pointer with best-fit fallback
                 </p>
               </li>
               <li class="flex items-start gap-3">
-                <span
-                  class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-interactive text-on-accent text-xs font-bold"
-                  >4</span
-                >
+                <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-interactive text-on-accent text-xs font-bold">
+                  4
+                </span>
                 <p class="text-text-muted">
                   Pointer is passed directly to the server's output chain — zero copy, zero
                   allocation
                 </p>
               </li>
               <li class="flex items-start gap-3">
-                <span
-                  class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-interactive text-on-accent text-xs font-bold"
-                  >5</span
-                >
+                <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-interactive text-on-accent text-xs font-bold">
+                  5
+                </span>
                 <p class="text-text-muted">
                   On miss: origin is served immediately, the worker is notified via Unix socket to
                   generate the optimized variant
@@ -925,11 +922,14 @@ const jsonLd = [softwareApplication, faqPage];
           </div>
           <p class="mt-4 text-sm text-text-muted">
             Sub-millisecond cache hits. The hot path is a hash lookup and a pointer assignment — no
-            data copying, no content processing in the request path. This is one of several ways to <a
+            data copying, no content processing in the request path. This is one of several ways to{' '}
+            <a
               href="/blog/reduce-ttfb-server-layer-2026/"
               class="text-interactive hover:text-interactive-hover underline"
-              >reduce TTFB at the server layer</a
-            > before you reach for a CDN.
+            >
+              reduce TTFB at the server layer
+            </a>{' '}
+            before you reach for a CDN.
           </p>
         </div>
       </div>
@@ -950,19 +950,18 @@ const jsonLd = [softwareApplication, faqPage];
           </h2>
           <p class="mt-4 text-text-muted">
             LLM and AI crawlers fetch your page and read the raw HTML. If your content arrives after
-            JavaScript runs, they see an empty shell. The experimental <code
-              class="text-xs bg-bg-elevated px-1 rounded">agent_optimize</code
-            >
-            capability renders each page server-side and serves the complete, post-render content at the
-            same URL, so an agent that never executes a line of your JavaScript still sees the page a
-            browser would.
+            JavaScript runs, they see an empty shell. The experimental{' '}
+            <code class="text-xs bg-bg-elevated px-1 rounded">agent_optimize</code>
+            capability renders each page server-side and serves the complete, post-render content at
+            the same URL, so an agent that never executes a line of your JavaScript still sees the
+            page a browser would.
           </p>
           <p class="mt-4 text-text-muted">
             Rendering, cleaning, and serving all happen on your own server. Browsers and search
             engines keep receiving your normal HTML — only a request that explicitly negotiates the
-            agent representation gets the rendered copy, and the response carries <code
-              class="text-xs bg-bg-elevated px-1 rounded">Vary: Accept</code
-            > so shared caches never mix the two.
+            agent representation gets the rendered copy, and the response carries{' '}
+            <code class="text-xs bg-bg-elevated px-1 rounded">Vary: Accept</code> so shared caches
+            never mix the two.
           </p>
           <div class="mt-6 flex flex-wrap gap-3">
             <a
@@ -984,10 +983,9 @@ const jsonLd = [softwareApplication, faqPage];
         <div class="mt-8 lg:mt-0">
           <ul class="space-y-4">
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">
                   Server-side rendered, no client JS required
@@ -1000,25 +998,23 @@ const jsonLd = [softwareApplication, faqPage];
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Same URL, content-negotiated</p>
                 <p class="text-sm text-text-muted">
                   No alternate hostname, no separate sitemap. The rendered representation is served
-                  at the canonical URL and selected by the request's <code
-                    class="text-xs bg-bg-elevated px-1 rounded">Accept</code
-                  > header, leaving the experience for browsers and search engines untouched.
+                  at the canonical URL and selected by the request's{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">Accept</code> header, leaving
+                  the experience for browsers and search engines untouched.
                 </p>
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Nothing leaves your server</p>
                 <p class="text-sm text-text-muted">
@@ -1028,23 +1024,23 @@ const jsonLd = [softwareApplication, faqPage];
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">
                   Experimental, off by default, enabled by a flag
                 </p>
                 <p class="text-sm text-text-muted">
-                  <code class="text-xs bg-bg-elevated px-1 rounded">agent_optimize</code> ships in every
-                  build and stays off until you start the optimizer worker with <code
-                    class="text-xs bg-bg-elevated px-1 rounded">--agent-optimize</code
-                  > (<code class="text-xs bg-bg-elevated px-1 rounded"
-                    >PAGESPEED_AGENT_OPTIMIZE=true</code
-                  > in the Docker images). It also needs browser analysis (<code
-                    class="text-xs bg-bg-elevated px-1 rounded">--enable-browser-analysis</code
-                  >). Its flags and behavior may change in a future release; every install runs the
+                  <code class="text-xs bg-bg-elevated px-1 rounded">agent_optimize</code> ships in
+                  every build and stays off until you start the optimizer worker with{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">--agent-optimize</code> (
+                  <code class="text-xs bg-bg-elevated px-1 rounded">
+                    PAGESPEED_AGENT_OPTIMIZE=true
+                  </code>{' '}
+                  in the Docker images). It also needs browser analysis (
+                  <code class="text-xs bg-bg-elevated px-1 rounded">--enable-browser-analysis</code>
+                  ). Its flags and behavior may change in a future release; every install runs the
                   same binary.
                 </p>
               </div>
@@ -1112,24 +1108,33 @@ const jsonLd = [softwareApplication, faqPage];
         the reverse-proxy deployment.
       </p>
       <p class="mt-4 text-sm text-text-muted text-center max-w-2xl mx-auto">
-        Beyond nginx, mod_pagespeed integrates as middleware for ASP.NET Core applications via the <code
-          class="text-xs bg-bg-elevated px-1 rounded">libpagespeed.so</code
-        > C API — same optimization pipeline, different stack.
+        Beyond nginx, mod_pagespeed integrates as middleware for ASP.NET Core applications via the{' '}
+        <code class="text-xs bg-bg-elevated px-1 rounded">libpagespeed.so</code> C API — same
+        optimization pipeline, different stack.
       </p>
       <p class="mt-4 text-sm text-text-muted text-center max-w-2xl mx-auto">
-        Go deeper into how it works: <a
+        Go deeper into how it works:{' '}
+        <a
           href="/how-it-works/css-parsing/"
           class="text-interactive hover:text-interactive-hover underline"
-          >how the CSS parser builds a syntax tree</a
-        >, <a
+        >
+          how the CSS parser builds a syntax tree
+        </a>
+        ,{' '}
+        <a
           href="/how-it-works/metadata-cache/"
           class="text-interactive hover:text-interactive-hover underline"
-          >how the cache serves the right variant</a
-        >, and <a
+        >
+          how the cache serves the right variant
+        </a>
+        , and{' '}
+        <a
           href="/how-it-works/async-rewriting/"
           class="text-interactive hover:text-interactive-hover underline"
-          >how the worker optimizes off the request path</a
-        >.
+        >
+          how the worker optimizes off the request path
+        </a>
+        .
       </p>
     </div>
   </section>
@@ -1152,17 +1157,19 @@ const jsonLd = [softwareApplication, faqPage];
               href="https://we-amp.com/pagespeed_global_admin/"
               rel="noopener"
               data-umami-event="cta_live_console_features"
-              class="text-interactive underline underline-offset-2">Open the live console</a
-            ><span class="text-text-muted"> on our own sites.</span>
+              class="text-interactive underline underline-offset-2"
+            >
+              Open the live console
+            </a>
+            <span class="text-text-muted"> on our own sites.</span>
           </p>
         </div>
         <div class="mt-8 lg:mt-0">
           <ul class="space-y-4">
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Prometheus metrics</p>
                 <p class="text-sm text-text-muted">
@@ -1173,10 +1180,9 @@ const jsonLd = [softwareApplication, faqPage];
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Helm chart for Kubernetes</p>
                 <p class="text-sm text-text-muted">
@@ -1186,10 +1192,9 @@ const jsonLd = [softwareApplication, faqPage];
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Cache invalidation</p>
                 <p class="text-sm text-text-muted">
@@ -1199,29 +1204,28 @@ const jsonLd = [softwareApplication, faqPage];
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Web console</p>
                 <p class="text-sm text-text-muted">
-                  Built-in web console at <code class="text-xs bg-bg-elevated px-1 rounded"
-                    >/console/</code
-                  >
-                  for cache inspection, live dashboard, and URL analysis. <a
+                  Built-in web console at{' '}
+                  <code class="text-xs bg-bg-elevated px-1 rounded">/console/</code>
+                  for cache inspection, live dashboard, and URL analysis.{' '}
+                  <a
                     href="https://we-amp.com/pagespeed_global_admin/"
                     class="text-interactive underline underline-offset-2"
-                    >See the live admin console →</a
                   >
+                    See the live admin console →
+                  </a>
                 </p>
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">HTTP management API</p>
                 <p class="text-sm text-text-muted">
@@ -1231,10 +1235,9 @@ const jsonLd = [softwareApplication, faqPage];
               </div>
             </li>
             <li class="flex items-start gap-3">
-              <span
-                class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold"
-                >&check;</span
-              >
+              <span class="mt-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-interactive/10 text-interactive text-xs font-bold">
+                &check;
+              </span>
               <div>
                 <p class="font-medium text-text-body">Configuration hot-reload</p>
                 <p class="text-sm text-text-muted">
@@ -1258,10 +1261,12 @@ const jsonLd = [softwareApplication, faqPage];
     <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
       <h2 class="h2-section text-text-body">ASP.NET Core middleware</h2>
       <p class="mt-4 text-text-muted max-w-3xl">
-        The same optimization pipeline runs inside ASP.NET Core: the <code
-          class="rounded bg-bg-elevated px-1 py-0.5 text-sm">{rel20.artifacts.nuget.package}</code
-        > NuGet package calls the native library through P/Invoke. No nginx. No reverse proxy. Same image
-        transcoding, same CSS extraction, same variant-aware caching.
+        The same optimization pipeline runs inside ASP.NET Core: the{' '}
+        <code class="rounded bg-bg-elevated px-1 py-0.5 text-sm">
+          {rel20.artifacts.nuget.package}
+        </code>{' '}
+        NuGet package calls the native library through P/Invoke. No nginx. No reverse proxy. Same
+        image transcoding, same CSS extraction, same variant-aware caching.
       </p>
 
       <div class="mt-10 grid gap-8 lg:grid-cols-2">
@@ -1292,7 +1297,9 @@ const jsonLd = [softwareApplication, faqPage];
       </div>
 
       <div class="mt-10 max-w-2xl">
-        <p id="features-install-label" class="text-sm font-medium text-text-body mb-3">Install</p>
+        <p id="features-install-label" class="text-sm font-medium text-text-body mb-3">
+          Install
+        </p>
         <div
           class="rounded-lg border border-border bg-bg-secondary p-4 overflow-x-auto"
           tabindex="0"
@@ -1328,20 +1335,18 @@ const jsonLd = [softwareApplication, faqPage];
     <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
       <h2 class="h2-section text-text-body">Frequently asked questions</h2>
       <div class="mt-8 space-y-3">
-        {
-          faqPage.mainEntity.map((item) => (
-            <details class="group rounded-lg border border-border bg-bg-elevated">
-              <summary class="flex cursor-pointer items-center justify-between gap-4 px-5 py-4 font-medium text-text-body">
-                {item.name}
-                <Icon
-                  name="chevron-down"
-                  class="h-5 w-5 shrink-0 text-text-annotation group-open:rotate-180"
-                />
-              </summary>
-              <p class="px-5 pb-5 text-sm text-text-muted">{item.acceptedAnswer.text}</p>
-            </details>
-          ))
-        }
+        {faqPage.mainEntity.map((item) => (
+          <details class="group rounded-lg border border-border bg-bg-elevated">
+            <summary class="flex cursor-pointer items-center justify-between gap-4 px-5 py-4 font-medium text-text-body">
+              {item.name}
+              <Icon
+                name="chevron-down"
+                class="h-5 w-5 shrink-0 text-text-annotation group-open:rotate-180"
+              />
+            </summary>
+            <p class="px-5 pb-5 text-sm text-text-muted">{item.acceptedAnswer.text}</p>
+          </details>
+        ))}
       </div>
     </div>
   </section>
@@ -1366,9 +1371,7 @@ const jsonLd = [softwareApplication, faqPage];
           See the demo
         </a>
       </div>
-      <p class="mt-4 text-sm text-on-accent/80">
-        {FREE_TO_RUN_LINE}
-      </p>
+      <p class="mt-4 text-sm text-on-accent/80">{FREE_TO_RUN_LINE}</p>
     </div>
   </section>
 </BaseLayout>

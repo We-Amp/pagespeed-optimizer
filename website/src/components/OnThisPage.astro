@@ -38,11 +38,37 @@ const items = headings.filter((h) => h.depth >= 2 && h.depth <= 3);
 const show = items.length >= minItems;
 ---
 
-{
-  show && variant === 'rail' && (
-    <nav aria-label="On this page" class="text-sm">
-      <p class="eyebrow mb-3">On this page</p>
-      <ul class="space-y-1 border-l border-border">
+{show && variant === 'rail' && (
+  <nav aria-label="On this page" class="text-sm">
+    <p class="eyebrow mb-3">On this page</p>
+    <ul class="space-y-1 border-l border-border">
+      {items.map((h) => (
+        <li>
+          <a
+            href={`#${h.slug}`}
+            data-toc-link
+            data-toc-target={h.slug}
+            class:list={[
+              '-ml-px block border-l-2 border-transparent py-1 transition-colors hover:border-border-strong hover:text-text-body',
+              h.depth === 2 ? 'pl-4 text-text-muted' : 'pl-7 text-[0.8125rem] text-text-annotation',
+            ]}
+          >
+            {h.text}
+          </a>
+        </li>
+      ))}
+    </ul>
+  </nav>
+)}
+
+{show && variant === 'inline' && (
+  <details class="mb-8 rounded-lg border border-border bg-bg-secondary">
+    <summary class="flex cursor-pointer select-none items-center justify-between px-4 py-3 text-sm font-semibold text-text-body">
+      On this page
+      <Icon name="chevron-down" class="toc-chevron h-4 w-4 text-text-annotation" />
+    </summary>
+    <nav aria-label="On this page" class="border-t border-border px-2 py-2 text-sm">
+      <ul class="space-y-0.5">
         {items.map((h) => (
           <li>
             <a
@@ -50,10 +76,10 @@ const show = items.length >= minItems;
               data-toc-link
               data-toc-target={h.slug}
               class:list={[
-                '-ml-px block border-l-2 border-transparent py-1 transition-colors hover:border-border-strong hover:text-text-body',
+                'block rounded px-2 py-1.5 transition-colors hover:bg-bg-primary hover:text-text-body',
                 h.depth === 2
-                  ? 'pl-4 text-text-muted'
-                  : 'pl-7 text-[0.8125rem] text-text-annotation',
+                  ? 'pl-2 text-text-body'
+                  : 'pl-6 text-[0.8125rem] text-text-annotation',
               ]}
             >
               {h.text}
@@ -62,40 +88,8 @@ const show = items.length >= minItems;
         ))}
       </ul>
     </nav>
-  )
-}
-
-{
-  show && variant === 'inline' && (
-    <details class="mb-8 rounded-lg border border-border bg-bg-secondary">
-      <summary class="flex cursor-pointer select-none items-center justify-between px-4 py-3 text-sm font-semibold text-text-body">
-        On this page
-        <Icon name="chevron-down" class="toc-chevron h-4 w-4 text-text-annotation" />
-      </summary>
-      <nav aria-label="On this page" class="border-t border-border px-2 py-2 text-sm">
-        <ul class="space-y-0.5">
-          {items.map((h) => (
-            <li>
-              <a
-                href={`#${h.slug}`}
-                data-toc-link
-                data-toc-target={h.slug}
-                class:list={[
-                  'block rounded px-2 py-1.5 transition-colors hover:bg-bg-primary hover:text-text-body',
-                  h.depth === 2
-                    ? 'pl-2 text-text-body'
-                    : 'pl-6 text-[0.8125rem] text-text-annotation',
-                ]}
-              >
-                {h.text}
-              </a>
-            </li>
-          ))}
-        </ul>
-      </nav>
-    </details>
-  )
-}
+  </details>
+)}
 
 <style>
   /* Active section — driven by the scroll-spy script via aria-current. Scoped

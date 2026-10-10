@@ -62,9 +62,9 @@ const itemListJsonLd = {
         <SectionHeader id="examples" as="h1" eyebrow="Live gallery" title="Optimization examples">
           <p>
             Every optimization the mod_pagespeed 2.1 module performs, shown live. Each of these{' '}
-            {total} examples is a small page served by the module — in-process in Apache, nginx and IIS.
-            Open one to see the original and the optimized output side by side, read exactly what changed
-            in the source, and see the bytes and requests it saved.
+            {total} examples is a small page served by the module — in-process in Apache, nginx and
+            IIS. Open one to see the original and the optimized output side by side, read exactly
+            what changed in the source, and see the bytes and requests it saved.
           </p>
         </SectionHeader>
       </div>
@@ -80,13 +80,13 @@ const itemListJsonLd = {
           model — on the worker, read these as what the pipeline does, not a list of toggles.
         </p>
         <p class="mt-3 text-sm">
-          <a class="font-medium text-interactive hover:underline" href="/docs/"
-            >Read the module docs</a
-          >
+          <a class="font-medium text-interactive hover:underline" href="/docs/">
+            Read the module docs
+          </a>
           <span class="mx-1 text-text-annotation">·</span>
-          <a class="font-medium text-interactive hover:underline" href="/demo/"
-            >See mod_pagespeed optimize a whole site</a
-          >
+          <a class="font-medium text-interactive hover:underline" href="/demo/">
+            See mod_pagespeed optimize a whole site
+          </a>
         </p>
       </div>
 
@@ -94,80 +94,73 @@ const itemListJsonLd = {
         Served live from <code class="font-mono">{DEMO_ORIGIN.replace('https://', '')}</code>. These
         revive the classic open-source mod_pagespeed example showcase; mod_pagespeed was originally
         developed at Google, and examples that name Google services (Analytics, AdSense, Fonts)
-        interoperate with them but imply no affiliation.{
-          data.generated_at && (
-            <>
-              {' '}
-              Measured{' '}
-              {new Date(data.generated_at).toLocaleDateString('en-US', {
-                year: 'numeric',
-                month: 'short',
-                day: 'numeric',
-              })}
-              .
-            </>
-          )
-        }
+        interoperate with them but imply no affiliation.
+        {data.generated_at && (
+          <>
+            {' '}
+            Measured{' '}
+            {new Date(data.generated_at).toLocaleDateString('en-US', {
+              year: 'numeric',
+              month: 'short',
+              day: 'numeric',
+            })}
+            .
+          </>
+        )}
       </p>
 
       {/* Category jump links */}
       <nav class="mt-10 flex flex-wrap gap-2" aria-label="Example categories">
-        {
-          byCategory.map((g) => (
-            <a
-              href={`#${g.cat.toLowerCase()}`}
-              aria-label={`${g.cat}, ${g.items.length} examples`}
-              class="rounded-full border border-border px-4 py-1.5 text-sm font-medium text-text-body hover:border-interactive/40 hover:text-interactive transition-colors"
-            >
-              {g.cat}
-              <span aria-hidden="true" class="ml-1.5 text-xs text-text-annotation">
-                {g.items.length}
-              </span>
-            </a>
-          ))
-        }
+        {byCategory.map((g) => (
+          <a
+            href={`#${g.cat.toLowerCase()}`}
+            aria-label={`${g.cat}, ${g.items.length} examples`}
+            class="rounded-full border border-border px-4 py-1.5 text-sm font-medium text-text-body hover:border-interactive/40 hover:text-interactive transition-colors"
+          >
+            {g.cat}
+            <span aria-hidden="true" class="ml-1.5 text-xs text-text-annotation">
+              {g.items.length}
+            </span>
+          </a>
+        ))}
       </nav>
 
       {/* Category sections */}
-      {
-        byCategory.map((g) => (
-          <section class="mt-14 scroll-mt-24" id={g.cat.toLowerCase()}>
-            <div class="border-b border-border pb-3">
-              <h2 class="h2-section text-text-body">{g.cat}</h2>
-              <p class="mt-1 text-sm text-text-annotation">{g.blurb}</p>
-            </div>
-            <ul class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {g.items.map((ex) => {
-                const metric = headlineMetric(ex.slug);
-                return (
-                  <li>
-                    <a
-                      href={`/examples/${ex.slug}/`}
-                      class="group flex h-full flex-col rounded-lg border border-border bg-bg-elevated p-5 transition-colors hover:border-interactive/40"
-                    >
-                      <div class="flex items-start justify-between gap-3">
-                        <h3 class="text-base font-semibold text-text-body group-hover:text-interactive">
-                          {ex.title}
-                        </h3>
-                        <div class="flex shrink-0 flex-col items-end gap-1.5">
-                          {newLabel(ex.addedIn) && (
-                            <span class="badge-interactive">{newLabel(ex.addedIn)}</span>
-                          )}
-                          {metric && <span class="badge-success">{metric}</span>}
-                        </div>
+      {byCategory.map((g) => (
+        <section class="mt-14 scroll-mt-24" id={g.cat.toLowerCase()}>
+          <div class="border-b border-border pb-3">
+            <h2 class="h2-section text-text-body">{g.cat}</h2>
+            <p class="mt-1 text-sm text-text-annotation">{g.blurb}</p>
+          </div>
+          <ul class="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {g.items.map((ex) => {
+              const metric = headlineMetric(ex.slug);
+              return (
+                <li>
+                  <a
+                    href={`/examples/${ex.slug}/`}
+                    class="group flex h-full flex-col rounded-lg border border-border bg-bg-elevated p-5 transition-colors hover:border-interactive/40"
+                  >
+                    <div class="flex items-start justify-between gap-3">
+                      <h3 class="text-base font-semibold text-text-body group-hover:text-interactive">
+                        {ex.title}
+                      </h3>
+                      <div class="flex shrink-0 flex-col items-end gap-1.5">
+                        {newLabel(ex.addedIn) && (
+                          <span class="badge-interactive">{newLabel(ex.addedIn)}</span>
+                        )}
+                        {metric && <span class="badge-success">{metric}</span>}
                       </div>
-                      <p class="mt-2 text-sm text-text-muted">{ex.blurb}</p>
-                      <code class="mt-3 block font-mono text-xs text-text-annotation">
-                        {ex.slug}
-                      </code>
-                    </a>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        ))
-      }
+                    </div>
+                    <p class="mt-2 text-sm text-text-muted">{ex.blurb}</p>
+                    <code class="mt-3 block font-mono text-xs text-text-annotation">{ex.slug}</code>
+                  </a>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
     </div>
   </section>
 </BaseLayout>

@@ -92,56 +92,63 @@ const jsonLd = {
       title="mod_pagespeed vs the alternatives"
     >
       <p>
-        {comparisons.length} side-by-side write-ups: where mod_pagespeed overlaps with adjacent tools,
-        and where it doesn't. A self-hosted nginx pipeline behaves nothing like a SaaS CDN or a WordPress
-        plugin, so each write-up says where mod_pagespeed wins and where the other tool does.
+        {comparisons.length} side-by-side write-ups: where mod_pagespeed overlaps with adjacent
+        tools, and where it doesn't. A self-hosted nginx pipeline behaves nothing like a SaaS CDN or
+        a WordPress plugin, so each write-up says where mod_pagespeed wins and where the other tool
+        does.
       </p>
     </SectionHeader>
     <p class="mt-4 text-sm text-text-muted">
-      The optimization core these tools are weighed against powers <span
-        class="font-semibold text-text-body">230,000+ live sites</span
-      > today (<a
+      The optimization core these tools are weighed against powers{' '}
+      <span class="font-semibold text-text-body">230,000+ live sites</span> today (
+      <a
         href="https://trends.builtwith.com/Server/mod_pagespeed"
         target="_blank"
         rel="noopener noreferrer"
-        class="text-interactive hover:text-interactive-hover underline">BuiltWith, May 2026</a
-      >) &mdash; not We-Amp customers, but proof it works at scale.
+        class="text-interactive hover:text-interactive-hover underline"
+      >
+        BuiltWith, May 2026
+      </a>
+      ) &mdash; not We-Amp customers, but proof it works at scale.
     </p>
     <p class="mt-4 text-sm text-text-annotation">
-      Looking for the open-source predecessor instead? See <a
+      Looking for the open-source predecessor instead? See{' '}
+      <a
         href="/alternatives/mod-pagespeed/"
         class="text-interactive hover:text-interactive-hover underline"
-        >alternatives to mod_pagespeed</a
-      >.
+      >
+        alternatives to mod_pagespeed
+      </a>
+      .
     </p>
   </section>
 
   <!-- Comparison cards -->
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 pb-20">
     <ul class="grid grid-cols-1 sm:grid-cols-2 gap-4">
-      {
-        comparisons.map((c) => (
-          <li>
-            <a
-              href={`/vs/${c.slug}/`}
-              class="block h-full rounded-lg border border-border bg-bg-elevated p-5 hover:border-interactive/40 transition-colors"
-            >
-              <p class="text-xs font-semibold uppercase tracking-wide text-text-annotation">
-                {c.kind}
-              </p>
-              <h2 class="mt-2 text-lg font-semibold text-text-body">{c.title}</h2>
-              <p class="mt-2 text-sm text-text-muted">{c.summary}</p>
-              <p class="mt-3 text-sm font-medium text-interactive">Read the comparison &rarr;</p>
-            </a>
-          </li>
-        ))
-      }
+      {comparisons.map((c) => (
+        <li>
+          <a
+            href={`/vs/${c.slug}/`}
+            class="block h-full rounded-lg border border-border bg-bg-elevated p-5 hover:border-interactive/40 transition-colors"
+          >
+            <p class="text-xs font-semibold uppercase tracking-wide text-text-annotation">
+              {c.kind}
+            </p>
+            <h2 class="mt-2 text-lg font-semibold text-text-body">{c.title}</h2>
+            <p class="mt-2 text-sm text-text-muted">{c.summary}</p>
+            <p class="mt-3 text-sm font-medium text-interactive">Read the comparison &rarr;</p>
+          </a>
+        </li>
+      ))}
     </ul>
   </section>
 
   <!-- At-a-glance comparison -->
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 pb-12">
-    <h2 id="where-each-tool-fits" class="h2-section text-text-body">Where each tool fits</h2>
+    <h2 id="where-each-tool-fits" class="h2-section text-text-body">
+      Where each tool fits
+    </h2>
     <p class="mt-3 text-text-muted">
       mod_pagespeed optimizes at your origin: one self-hosted pipeline for images, CSS, JS, and
       HTML. The tools below each solve part of that, or solve it somewhere else &mdash; at the edge,
@@ -159,18 +166,21 @@ const jsonLd = {
             <th
               scope="col"
               class="sticky top-0 z-10 bg-bg-elevated py-3 pl-4 pr-4 font-semibold text-text-body"
-              >Tool</th
             >
+              Tool
+            </th>
             <th
               scope="col"
               class="sticky top-0 z-10 bg-bg-elevated py-3 pr-4 font-semibold text-text-body"
-              >Type</th
             >
+              Type
+            </th>
             <th
               scope="col"
               class="sticky top-0 z-10 bg-bg-elevated py-3 pr-4 font-semibold text-text-body"
-              >Best at</th
             >
+              Best at
+            </th>
             <th
               scope="col"
               class="sticky top-0 z-10 border-l-2 border-interactive/40 bg-interactive/10 py-3 px-4 font-semibold text-text-body"
@@ -180,72 +190,67 @@ const jsonLd = {
           </tr>
         </thead>
         <tbody class="text-text-muted">
-          {
-            [
-              {
-                tool: 'imgproxy',
-                type: 'Self-hosted image proxy',
-                best: 'On-demand image transforms by URL',
-                fits: 'Images plus CSS, JS, and HTML in one pipeline',
-              },
-              {
-                tool: 'Thumbor',
-                type: 'Self-hosted Python image server',
-                best: 'Face-aware smart cropping',
-                fits: 'Images plus CSS, JS, and HTML',
-              },
-              {
-                tool: 'Cloudflare APO',
-                type: 'Managed edge cache',
-                best: 'Edge HTML caching for WordPress',
-                fits: 'Origin-side optimization on any stack',
-              },
-              {
-                tool: 'NitroPack',
-                type: 'Managed SaaS (WordPress)',
-                best: 'Turnkey, hosted setup',
-                fits: 'Runs on your server, free under Apache-2.0, no traffic tiers',
-              },
-              {
-                tool: 'WP Rocket',
-                type: 'WordPress plugin',
-                best: 'Deep WordPress integration',
-                fits: 'Server-layer, CMS-independent',
-              },
-              {
-                tool: 'Cloudinary',
-                type: 'Managed media CDN',
-                best: 'Video and digital-asset management',
-                fits: 'Self-hosted image optimization in a broader pipeline',
-              },
-              {
-                tool: 'ShortPixel',
-                type: 'WordPress plugin / image CDN',
-                best: 'WordPress image compression + CDN delivery',
-                fits: 'Full origin pipeline (images, CSS, JS, HTML), any CMS',
-              },
-              {
-                tool: 'imgix',
-                type: 'Managed image CDN',
-                best: 'Real-time image transforms by URL',
-                fits: 'Self-hosted; images stay at your origin, plus CSS/JS/HTML',
-              },
-            ].map((r) => (
-              <tr class="border-t border-border">
-                <th
-                  scope="row"
-                  class="py-3 pl-4 pr-4 text-left align-top font-medium text-text-body"
-                >
-                  {r.tool}
-                </th>
-                <td class="py-3 pr-4 align-top">{r.type}</td>
-                <td class="py-3 pr-4 align-top">{r.best}</td>
-                <td class="border-l-2 border-interactive/40 bg-interactive/10 py-3 px-4 align-top">
-                  {r.fits}
-                </td>
-              </tr>
-            ))
-          }
+          {[
+            {
+              tool: 'imgproxy',
+              type: 'Self-hosted image proxy',
+              best: 'On-demand image transforms by URL',
+              fits: 'Images plus CSS, JS, and HTML in one pipeline',
+            },
+            {
+              tool: 'Thumbor',
+              type: 'Self-hosted Python image server',
+              best: 'Face-aware smart cropping',
+              fits: 'Images plus CSS, JS, and HTML',
+            },
+            {
+              tool: 'Cloudflare APO',
+              type: 'Managed edge cache',
+              best: 'Edge HTML caching for WordPress',
+              fits: 'Origin-side optimization on any stack',
+            },
+            {
+              tool: 'NitroPack',
+              type: 'Managed SaaS (WordPress)',
+              best: 'Turnkey, hosted setup',
+              fits: 'Runs on your server, free under Apache-2.0, no traffic tiers',
+            },
+            {
+              tool: 'WP Rocket',
+              type: 'WordPress plugin',
+              best: 'Deep WordPress integration',
+              fits: 'Server-layer, CMS-independent',
+            },
+            {
+              tool: 'Cloudinary',
+              type: 'Managed media CDN',
+              best: 'Video and digital-asset management',
+              fits: 'Self-hosted image optimization in a broader pipeline',
+            },
+            {
+              tool: 'ShortPixel',
+              type: 'WordPress plugin / image CDN',
+              best: 'WordPress image compression + CDN delivery',
+              fits: 'Full origin pipeline (images, CSS, JS, HTML), any CMS',
+            },
+            {
+              tool: 'imgix',
+              type: 'Managed image CDN',
+              best: 'Real-time image transforms by URL',
+              fits: 'Self-hosted; images stay at your origin, plus CSS/JS/HTML',
+            },
+          ].map((r) => (
+            <tr class="border-t border-border">
+              <th scope="row" class="py-3 pl-4 pr-4 text-left align-top font-medium text-text-body">
+                {r.tool}
+              </th>
+              <td class="py-3 pr-4 align-top">{r.type}</td>
+              <td class="py-3 pr-4 align-top">{r.best}</td>
+              <td class="border-l-2 border-interactive/40 bg-interactive/10 py-3 px-4 align-top">
+                {r.fits}
+              </td>
+            </tr>
+          ))}
         </tbody>
       </table>
     </div>
@@ -259,12 +264,15 @@ const jsonLd = {
         competitor is the better fit for your stack, the comparison says so.
       </p>
       <p class="mt-3">
-        Still comparing? See <a
-          href="/pricing/"
-          class="text-interactive hover:text-interactive-hover underline">pricing</a
-        > or the <a href="/" class="text-interactive hover:text-interactive-hover underline"
-          >mod_pagespeed 2.1</a
-        > module page.
+        Still comparing? See{' '}
+        <a href="/pricing/" class="text-interactive hover:text-interactive-hover underline">
+          pricing
+        </a>{' '}
+        or the{' '}
+        <a href="/" class="text-interactive hover:text-interactive-hover underline">
+          mod_pagespeed 2.1
+        </a>{' '}
+        module page.
       </p>
       <p class="mt-4 text-xs text-text-annotation">
         imgproxy, Thumbor, Cloudflare, NitroPack, WP Rocket, Cloudinary, ShortPixel, imgix, and
@@ -280,22 +288,22 @@ const jsonLd = {
       <h2 class="h2-section text-text-body">Try mod_pagespeed</h2>
       <p class="mt-3 text-text-body">
         Install and run it &mdash; mod_pagespeed 2.1 is {LICENSE_CLAUSE}, free in development and in
-        production. Support from the people who build it is
-        what's for sale; Priority and Enterprise add a private package repository (being set up).
+        production. Support from the people who build it is what's for sale; Priority and Enterprise
+        add a private package repository (being set up).
       </p>
       <div class="mt-6 flex flex-wrap gap-3">
-        <a href="/docs/getting-started/" class="btn-primary" data-umami-event="cta_vs_hub_install"
-          >Download &amp; run</a
-        >
+        <a href="/docs/getting-started/" class="btn-primary" data-umami-event="cta_vs_hub_install">
+          Download &amp; run
+        </a>
         <a
           href="/pricing/"
           class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-          data-umami-event="cta_vs_hub_buy">Support plans</a
+          data-umami-event="cta_vs_hub_buy"
         >
+          Support plans
+        </a>
       </div>
-      <p class="mt-3 text-xs text-text-annotation">
-        {FREE_TO_RUN_LINE}
-      </p>
+      <p class="mt-3 text-xs text-text-annotation">{FREE_TO_RUN_LINE}</p>
     </div>
   </section>
 </BaseLayout>

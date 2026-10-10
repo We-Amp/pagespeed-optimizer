@@ -19,14 +19,12 @@ const { tone, label, wash = false, href } = Astro.props;
 const classes = [`badge-${tone}`, wash ? 'badge-wash' : null];
 ---
 
-{
-  href ? (
-    <a href={href} class:list={classes} data-ui="chip">
-      {label}
-    </a>
-  ) : (
-    <span class:list={classes} data-ui="chip">
-      {label}
-    </span>
-  )
-}
+{href ? (
+  <a href={href} class:list={classes} data-ui="chip">
+    {label}
+  </a>
+) : (
+  <span class:list={classes} data-ui="chip">
+    {label}
+  </span>
+)}
