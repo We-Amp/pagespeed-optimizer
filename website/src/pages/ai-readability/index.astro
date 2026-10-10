@@ -995,6 +995,10 @@ const jsonLd = [webApp, faqPage];
         const a = accessibility;
         return !!(a && a.available && a.detail && a.detail.fixableInline > 0);
       }
+      function consentEnforcementCtaApplies(preConsentLeak) {
+        const p = preConsentLeak;
+        return !!(p && p.status === 'ok' && p.verdict === 'leaks' && p.trackerCount > 0);
+      }
       function buildLeadPayload(opts) {
         const wedge = opts.wedge,
           email = opts.email,
@@ -1020,7 +1024,7 @@ const jsonLd = [webApp, faqPage];
             evidence: s.evidence,
             probes: s.probes,
           };
-        } else {
+        } else if (wedge === 'compliancefix') {
           const d = report.accessibility.detail;
           lensSignal = {
             total: d.total,
@@ -1028,12 +1032,25 @@ const jsonLd = [webApp, faqPage];
             byImpact: d.byImpact,
             topRules: d.topRules,
           };
+        } else if (wedge === 'consent-enforcement') {
+          const p = report.preConsentLeak;
+          lensSignal = {
+            verdict: p.verdict,
+            trackerCount: p.trackerCount,
+            thirdPartyCount: p.thirdPartyCount,
+            topHosts: (p.thirdPartyHosts || [])
+              .slice(0, 3)
+              .map((h) => ({ host: h.host, requests: h.requests, category: h.category })),
+            cmpDetected: p.cmpDetected,
+          };
+        } else {
+          lensSignal = null; // a wedge with no scanner lens behind it
         }
         const message = [
           '[' + wedge + '] lead from RenderPeek result',
           'Scanned: ' + url,
           note ? 'Operator note / crawl volume: ' + note : null,
-          'Signal: ' + JSON.stringify(lensSignal),
+          lensSignal ? 'Signal: ' + JSON.stringify(lensSignal) : null,
         ]
           .filter(Boolean)
           .join('\n');
@@ -1301,7 +1318,7 @@ const jsonLd = [webApp, faqPage];
         );
       }
 
-      // ---- Four FREE, NON-SCORED lenses. Each is an
+      // ---- Five FREE, NON-SCORED lenses. Each is an
       // owner-facing observation that NEVER touches the 0-100 grade. The verdict
       // strings (incl. their mandatory honesty/heuristic disclaimers) mirror the
       // scanner's index.html builders verbatim — KEEP IN SYNC. Rendered as compact
@@ -1433,6 +1450,126 @@ const jsonLd = [webApp, faqPage];
           '<div class="ar-v">' +
           esc(seVerdict(se)) +
           '</div></div>'
+        );
+      }
+
+      // Pre-consent leak lens (NON-SCORED): the third-party hosts this page contacted in
+      // a fresh browser (no cookies, no storage, no interaction) before any consent could
+      // be given. Verdict strings mirror the scanner's index.html verbatim — KEEP IN SYNC.
+      // Absent or disabled lens → no row. A lens that could not observe the page
+      // (status 'blocked': a bot wall or challenge page answered the render; status
+      // 'error') → one muted "not measured" line carrying the scanner's note when it has
+      // one, no counts, no chips, and the CTA predicate stays false. The top-three host
+      // chips are the same hosts the consent lead's lensSignal carries (trackers first,
+      // busiest first).
+      function pclTrackers(pcl) {
+        return pcl && pcl.status === 'ok' && Array.isArray(pcl.thirdPartyHosts)
+          ? pcl.thirdPartyHosts.filter((h) => h.tracker)
+          : [];
+      }
+      function pclVendor(pcl) {
+        return pcl && pcl.cmpDetected && pcl.cmpDetected.detected ? pcl.cmpDetected.vendor : null;
+      }
+      function pclVerdict(pcl) {
+        if (!pcl || pcl.status !== 'ok')
+          return 'Pre-consent request scan unavailable for this page.';
+        if (pcl.verdict === 'unknown')
+          return 'We could not render this page, so we could not observe which third parties it contacts before consent.';
+        if (pcl.trackerCount === 0)
+          return (
+            'No tracker requests observed before any interaction (' +
+            pcl.thirdPartyCount +
+            ' third-party host(s) contacted, none in a tracker category). Fresh browser, no cookies, no storage; heuristic host list — not legal advice.'
+          );
+        const ex = pclTrackers(pcl)
+          .slice(0, 3)
+          .map((h) => h.host + ' (' + h.category + ')')
+          .join(', ');
+        const vendor = pclVendor(pcl);
+        return (
+          pcl.trackerCount +
+          ' tracker host(s) contacted before any interaction, in a fresh browser with no consent given: ' +
+          ex +
+          (pcl.trackerCount > 3 ? ', …' : '') +
+          '.' +
+          (vendor
+            ? ' A consent banner (' +
+              vendor +
+              ') is present, but these requests fire before it can be answered.'
+            : '') +
+          ' Heuristic host list — not legal advice or a compliance certificate.'
+        );
+      }
+      function pclBlock(pcl) {
+        if (!pcl || pcl.status === 'disabled') return '';
+        const ok = pcl.status === 'ok';
+        if (!ok) {
+          const why =
+            typeof pcl.note === 'string' && pcl.note.trim()
+              ? pcl.note.trim()
+              : 'Not measured: the site blocked the scanner.';
+          return (
+            '<div class="ar-lens">' +
+            '<h4 class="ar-h4"><span class="ar-h4-l">Pre-consent leak ' +
+            NS_BADGE +
+            '</span><span class="ar-h4-r">not measured</span></h4>' +
+            '<p class="ar-def">' +
+            esc(why) +
+            '</p></div>'
+          );
+        }
+        const label =
+          pcl.verdict === 'leaks'
+            ? 'leaks before consent'
+            : pcl.verdict === 'clean'
+              ? 'clean'
+              : 'unknown';
+        let facts = '';
+        if (pcl.verdict !== 'unknown') {
+          const vendor = pclVendor(pcl);
+          const top = (Array.isArray(pcl.thirdPartyHosts) ? pcl.thirdPartyHosts : []).slice(0, 3);
+          const plural = (n, word) => n + ' ' + word + (n === 1 ? '' : 's');
+          facts =
+            '<div class="ar-chip-label">' +
+            plural(pcl.trackerCount, 'tracker host') +
+            ' · ' +
+            plural(pcl.thirdPartyCount, 'third-party host') +
+            ' · consent banner: ' +
+            (vendor ? esc(vendor) : 'none detected') +
+            '</div>' +
+            (top.length
+              ? '<div class="ar-chips">' +
+                top
+                  .map(
+                    (h) =>
+                      // Tracker hosts take the accent chip (the same one that marks
+                      // blocked crawlers above); plain third parties stay neutral.
+                      '<span class="ar-chip' +
+                      (h.tracker ? ' ar-chip-block' : '') +
+                      '">' +
+                      esc(h.host) +
+                      ' · ' +
+                      esc(h.category) +
+                      '</span>',
+                  )
+                  .join('') +
+                '</div>'
+              : '');
+        }
+        return (
+          '<div class="ar-lens' +
+          (pcl.verdict === 'leaks' ? ' ar-finding' : '') +
+          '">' +
+          '<h4 class="ar-h4"><span class="ar-h4-l">Pre-consent leak ' +
+          NS_BADGE +
+          '</span><span class="ar-h4-r">' +
+          label +
+          '</span></h4>' +
+          '<div class="ar-v">' +
+          esc(pclVerdict(pcl)) +
+          '</div>' +
+          facts +
+          '</div>'
         );
       }
 
@@ -1682,6 +1819,33 @@ const jsonLd = [webApp, faqPage];
         );
       }
 
+      // Consent-enforcement card: renders only when the pre-consent lens observed tracker
+      // requests before any interaction (consentEnforcementCtaApplies). Its own section
+      // beside the consolidated next-step form; the lead posts wedge 'consent-enforcement'
+      // with the lens signal (buildLeadPayload) to /contact, like the other wedge leads.
+      function consentCard(r) {
+        if (!consentEnforcementCtaApplies(r.preConsentLeak)) return '';
+        return (
+          '<section class="ar-sec" aria-labelledby="ar-h-consent">' +
+          '<h3 id="ar-h-consent" class="ar-h3">Tags fire before consent</h3>' +
+          '<p class="ar-v">With consent enforcement at the origin, third-party tags stay inert at the server until the consent cookie grants them.</p>' +
+          '<div class="ar-cta-row">' +
+          '<a class="ar-cta-link" href="/platform/consent/" data-umami-event="airead-cta-consent">Consent enforcement at the origin →</a>' +
+          '</div>' +
+          '<form id="ar-consent-form" class="ar-next-form" data-wedge="consent-enforcement">' +
+          '<label class="ar-field"><span class="ar-field-label">Your email</span>' +
+          '<input id="ar-consent-email" type="email" autocomplete="email" required /></label>' +
+          '<button type="submit" data-umami-event="airead-next-consent-enforcement">Talk to us</button>' +
+          '</form>' +
+          // Same per-request disclosure as the next-step wedge form (it posts to /contact).
+          '<p class="ar-disclosure">Submitting this sends us your email and a summary of this scan’s findings. ' +
+          'We use them only for this request; see our <a href="/privacy/">privacy policy</a>.</p>' +
+          // Own explicit aria-live for the same reason as #ar-next-msg (see nextStep).
+          '<div id="ar-consent-msg" class="ar-next-msg" role="status" aria-live="polite" tabindex="-1"></div>' +
+          '</section>'
+        );
+      }
+
       // Capture cards that ship with every result, independent of which wedge
       // fired: an interest signup for AI-readability updates (topic
       // ai-readability-updates, explicit consent checkbox) and the
@@ -1835,12 +1999,13 @@ const jsonLd = [webApp, faqPage];
         const avBlock = avDetail(av);
         const axBlock = axDetail(ax);
         const aaBlock = aaLine(r);
-        // Four free non-scored lenses + the hidden-layer lens.
+        // Five free non-scored lenses + the hidden-layer lens.
         // Each renders only when present in the report; all neutral.
         const avpBlk = avpBlock(r.agentVerificationPosture);
         const saBlk = signedAgentBlock(r.signedAgentVerification);
         const psBlk = psBlock(r.provenanceSurvival);
         const seBlk = seBlock(r.sovereigntyExposure);
+        const pclBlk = pclBlock(r.preConsentLeak);
         const ghostBlk = ghostBlock(r.ghostLayer);
 
         // SECTION 5 — share: the permalink the scanner mints for every scan, plus a
@@ -1881,16 +2046,19 @@ const jsonLd = [webApp, faqPage];
           axBlock +
           psBlk +
           seBlk +
+          pclBlk +
           aaBlock +
           ghostBlk +
           '</section>' +
           '<section class="ar-sec" aria-labelledby="ar-h-next">' +
           nextStep(r, primaryWedge, firedWedges) +
           '</section>' +
+          consentCard(r) +
           captureBlocks() +
           (share ? '<section class="ar-sec" aria-label="Share">' + share + '</section>' : '') +
           '</div>';
         wireNext(r, primaryWedge, multiWedge);
+        wireConsentCard(r);
         wireLeadCards(r);
         wireCopyLink(data.permalink);
         // Position the hidden-layer overlay boxes over the screenshot (no-op if not detected).
@@ -2058,6 +2226,45 @@ const jsonLd = [webApp, faqPage];
         } catch (_) {
           return false;
         }
+      }
+
+      // Wire the consent-enforcement card (see consentCard): one email, one submit,
+      // buildLeadPayload('consent-enforcement', …) → POST /contact.
+      function wireConsentCard(r) {
+        const form = $('#ar-consent-form');
+        if (!form) return;
+        const msg = $('#ar-consent-msg');
+        const emailEl = $('#ar-consent-email');
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const email = ((emailEl && emailEl.value) || '').trim();
+          if (!email || !form.checkValidity()) {
+            form.reportValidity();
+            return;
+          }
+          const btn = form.querySelector('button[type="submit"]');
+          if (btn) btn.disabled = true;
+          const ok = await postLead(
+            buildLeadPayload({
+              wedge: 'consent-enforcement',
+              email: email,
+              name: '',
+              note: '',
+              report: r,
+            }),
+          );
+          if (ok) {
+            leadSubmit('consent-enforcement', 'consent-enforcement');
+            if (msg) {
+              msg.textContent = 'Thanks — your answer is in.';
+              msg.focus && msg.focus();
+            }
+            form.remove();
+          } else {
+            if (msg) msg.textContent = 'Something went wrong. Please try again in a moment.';
+            if (btn) btn.disabled = false;
+          }
+        });
       }
 
       // Wire the two capture cards that ship with every result (see captureBlocks).
