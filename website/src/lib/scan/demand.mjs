@@ -1,0 +1,184 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2024-2026 We-Amp B.V.
+//
+// Gate predicates and lead-payload builder for the scanner results. Pure
+// functions: data in, value out. This is a copy of the scanner's own
+// demand module with the comments removed; keep it in sync with the scanner
+// and with the inline copy in src/pages/ai-readability/index.astro.
+
+export function tollboothCtaApplies(agentVerifiability) {
+  const d = agentVerifiability && agentVerifiability.detail;
+  if (!d) return false;
+  return (
+    d.verifiable === false &&
+    d.renderOk === true &&
+    Array.isArray(d.aiCrawlersAllowed) &&
+    d.aiCrawlersAllowed.length > 0 &&
+    d.exposurePct >= 30
+  );
+}
+
+export function agentPassCtaApplies(signedAgentVerification) {
+  const s = signedAgentVerification;
+  return !!(
+    s &&
+    s.status === 'ok' &&
+    (s.classification === 'verifying' || s.classification === 'signature-aware')
+  );
+}
+
+export function complianceFixCtaApplies(accessibility) {
+  const a = accessibility;
+  return !!(a && a.available && a.detail && a.detail.fixableInline > 0);
+}
+
+export function consentEnforcementCtaApplies(preConsentLeak) {
+  const p = preConsentLeak;
+  return !!(p && p.status === 'ok' && p.verdict === 'leaks' && p.trackerCount > 0);
+}
+
+export function pageIntegrityCtaApplies(scriptInventory) {
+  const si = scriptInventory;
+  return !!(si && si.status === 'ok' && si.verdict === 'attention');
+}
+
+export function thirdPartyFreezeCtaApplies(scriptInventory) {
+  const si = scriptInventory;
+  return !!(
+    si &&
+    si.status === 'ok' &&
+    si.verdict !== 'unknown' &&
+    si.totals &&
+    si.totals.thirdPartyExternal > si.totals.thirdPartyWithIntegrity
+  );
+}
+
+export function edgeSeoCtaApplies(sd) {
+  return !!(
+    sd &&
+    sd.status === 'ok' &&
+    sd.verdict === 'attention' &&
+    Array.isArray(sd.defects) &&
+    sd.defects.length > 0
+  );
+}
+
+export function responseFirewallCtaApplies(rx) {
+  return !!(
+    rx &&
+    rx.status === 'ok' &&
+    rx.verdict === 'attention' &&
+    Array.isArray(rx.reasons) &&
+    (rx.reasons.includes('debug-output') || rx.reasons.includes('end-of-life'))
+  );
+}
+
+export function buildLeadPayload({ wedge, email, name, note, report }) {
+  const url = (report && report.url) || '';
+  let lensSignal;
+  if (wedge === 'tollbooth') {
+    const d = report.agentVerifiability.detail;
+    lensSignal = {
+      verifiable: d.verifiable,
+      exposurePct: d.exposurePct,
+      aiCrawlersAllowed: d.aiCrawlersAllowed,
+      aiCrawlersBlocked: d.aiCrawlersBlocked,
+      botAuthHeaders: d.botAuthHeaders,
+      renderOk: d.renderOk,
+    };
+  } else if (wedge === 'agentpass') {
+    const s = report.signedAgentVerification;
+    lensSignal = {
+      classification: s.classification,
+      evidence: s.evidence,
+      probes: s.probes,
+    };
+  } else if (wedge === 'compliancefix') {
+    const d = report.accessibility.detail;
+    lensSignal = {
+      total: d.total,
+      fixableInline: d.fixableInline,
+      byImpact: d.byImpact,
+      topRules: d.topRules,
+    };
+  } else if (wedge === 'consent-enforcement') {
+    const p = report.preConsentLeak;
+    lensSignal = {
+      verdict: p.verdict,
+      trackerCount: p.trackerCount,
+      thirdPartyCount: p.thirdPartyCount,
+      topHosts: (p.thirdPartyHosts || [])
+        .slice(0, 3)
+        .map((h) => ({ host: h.host, requests: h.requests, category: h.category })),
+      cmpDetected: p.cmpDetected,
+    };
+  } else if (wedge === 'page-integrity' || wedge === 'third-party-freeze') {
+    const s = report.scriptInventory;
+    lensSignal = {
+      verdict: s.verdict,
+      reasons: s.reasons,
+      totals: {
+        scripts: s.totals.scripts,
+        inline: s.totals.inline,
+        thirdPartyExternal: s.totals.thirdPartyExternal,
+        thirdPartyHosts: s.totals.thirdPartyHosts,
+        thirdPartyWithIntegrity: s.totals.thirdPartyWithIntegrity,
+      },
+      topHosts: (s.scriptHosts || [])
+        .filter((h) => h.party === 'third')
+        .slice(0, 3)
+        .map((h) => ({ host: h.host, scripts: h.scripts, category: h.category })),
+      duplicates: (s.duplicates || []).slice(0, 3),
+      csp: s.csp,
+    };
+  } else if (wedge === 'edge-seo') {
+    const s = report.seoDefects;
+    lensSignal = {
+      verdict: s.verdict,
+      defects: s.defects,
+      counts: s.counts,
+      staticCompared: s.staticCompared,
+      notMeasured: s.notMeasured,
+      robotsMismatch: !!(s.robots && s.robots.mismatch),
+      jsonLdPresent: !!(s.jsonLd && s.jsonLd.static.blocks + s.jsonLd.rendered.blocks > 0),
+      delivery: {
+        cdn: s.delivery ? s.delivery.cdn : null,
+        server: s.delivery ? s.delivery.server : null,
+      },
+    };
+  } else if (wedge === 'response-firewall') {
+    const s = report.responseExposure;
+    lensSignal =
+      s && s.status === 'ok'
+        ? {
+            verdict: s.verdict,
+            reasons: s.reasons,
+            leaks: (s.leaks || []).map((l) => ({ id: l.id, count: l.count })),
+            endOfLife: (s.endOfLife || []).map((e) => ({
+              product: e.product,
+              line: e.line,
+              basis: e.basis,
+            })),
+            tells: [...new Set((s.tells || []).map((t) => t.product))].slice(0, 10),
+            missingHeaders: s.headers ? s.headers.missing : [],
+            https: !!(s.headers && s.headers.https),
+            pagespeedBucket: s.pagespeed ? s.pagespeed.bucket : null,
+            delivery: {
+              cdn: s.delivery ? s.delivery.cdn : null,
+              server: s.delivery ? s.delivery.server : null,
+            },
+          }
+        : null;
+  } else {
+    lensSignal = null;
+  }
+  const message = [
+    `[${wedge}] lead from RenderPeek result`,
+    `Scanned: ${url}`,
+    note ? `Operator note / crawl volume: ${note}` : null,
+    lensSignal ? `Signal: ${JSON.stringify(lensSignal)}` : null,
+  ]
+    .filter(Boolean)
+    .join('\n');
+  return { topic: wedge, email, name: name || '', url, wedge, lensSignal, message };
+}

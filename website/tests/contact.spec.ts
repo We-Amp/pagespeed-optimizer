@@ -179,3 +179,12 @@ test.describe('Hosting partners qualifier form', () => {
     await expect(page.locator('#contact-message')).toHaveValue(/Hosts: Up to 100 hosts/);
   });
 });
+
+test.describe('Contact thank-you page', () => {
+  test('/contact/thanks/ renders the confirmation and is noindex', async ({ page }) => {
+    const res = await page.goto('/contact/thanks/');
+    expect(res?.status()).toBe(200);
+    await expect(page.getByRole('heading', { level: 1 })).toHaveText('Thanks, your message is in.');
+    await expect(page.locator('meta[name="robots"]')).toHaveAttribute('content', /noindex/);
+  });
+});
