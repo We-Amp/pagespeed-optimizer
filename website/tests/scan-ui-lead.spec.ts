@@ -323,49 +323,60 @@ test.describe('next steps and share', () => {
 });
 
 test.describe('v1 and v2 send the same lead', () => {
-  test('the signed-agent lead has the same body in both', async ({ page }) => {
-    const report = {
-      permalink: 'https://modpagespeed.com/ai-readability/r/testscan1',
-      report: {
-        url: 'https://example.com/',
-        grade: 'B',
-        score: 72,
-        categories: {
-          'Content fidelity': { score: 18, max: 30, verdict: 'Most content is in the raw HTML.' },
-        },
-        diff: {
-          staticCleanTokens: 100,
-          staticMarkdown: '# Example',
-          renderedCleanTokens: 120,
-          renderedMarkdown: '# Example',
-        },
-        signedAgentVerification: {
-          status: 'ok',
-          classification: 'verifying',
-          evidence: ['valid signature accepted, corrupted signature rejected'],
-          probes: [{ name: 'valid' }, { name: 'corrupted' }, { name: 'unsigned' }],
-        },
-      },
-    };
-    const v1 = await mock(page, { report });
-    await stubUmami(page);
-    await page.goto('/ai-readability/?ui=v1');
-    await page.fill('#ar-url', 'example.com');
-    await page.click('#ar-go');
-    await expect(page.locator('#ar-next-form')).toBeVisible({ timeout: 15000 });
-    await page.fill('#ar-next-email', 'operator@example.com');
-    await page.click('#ar-next-form button[type="submit"]');
-    await expect(page.locator('#ar-next-msg')).toContainText('Thanks');
-    expect(v1.posted).toHaveLength(1);
+  // Every wedge the original page offers, on the full report. Each case fills
+  // the original form, then the new one with only that topic ticked, and the
+  // two POST bodies must be identical.
+  const cases: Array<{ wedge: string; sites?: string; note?: string }> = [
+    { wedge: 'tollbooth' },
+    { wedge: 'agentpass' },
+    { wedge: 'compliancefix' },
+    { wedge: 'consent-enforcement' },
+    { wedge: 'page-integrity' },
+    { wedge: 'third-party-freeze' },
+    { wedge: 'edge-seo', sites: '12' },
+    { wedge: 'edge-seo', sites: '12', note: 'WordPress' },
+    { wedge: 'edge-seo', note: 'WordPress' },
+  ];
 
-    const p2 = await page.context().newPage();
-    const v2 = await mock(p2, { report });
-    await scanV2(p2);
-    await expect(chip(p2, 'agentpass')).toBeChecked();
-    await p2.fill('input[name="email"]', 'operator@example.com');
-    await p2.getByRole('button', { name: 'Talk to us' }).click();
-    await expect(p2.getByText('Thanks — your answer is in.', { exact: true })).toBeVisible();
-    expect(v2.posted).toHaveLength(1);
-    expect(v2.posted[0]).toEqual(v1.posted[0]);
-  });
+  for (const c of cases) {
+    const name = `${c.wedge}${c.sites ? ' with sites' : ''}${c.note ? ' with a note' : ' and an empty note'}`;
+    test(`${name}: the same body in both`, async ({ page }) => {
+      const v1 = await mock(page);
+      await stubUmami(page);
+      await page.goto('/ai-readability/?ui=v1');
+      await page.fill('#ar-url', 'shop.example.com');
+      await page.click('#ar-go');
+      const email = 'operator@example.com';
+      if (c.wedge === 'edge-seo') {
+        await page.fill('#ar-seo-email', email);
+        if (c.sites) await page.fill('#ar-seo-sites', c.sites);
+        if (c.note) await page.fill('#ar-seo-note', c.note);
+        await page.click('#ar-seo-form button[type="submit"]');
+      } else if (c.wedge === 'consent-enforcement') {
+        await page.fill('#ar-consent-email', email);
+        await page.click('#ar-consent-form button[type="submit"]');
+      } else if (c.wedge === 'page-integrity' || c.wedge === 'third-party-freeze') {
+        await page.fill('#ar-scripts-email', email);
+        await page.click(`#ar-scripts-form button[data-wedge="${c.wedge}"]`);
+      } else {
+        await page.fill('#ar-next-email', email);
+        await page.check(`input[name="ar-topic"][value="${c.wedge}"]`);
+        await page.click('#ar-next-form button[type="submit"]');
+      }
+      await expect.poll(() => v1.posted.length, { timeout: 15000 }).toBe(1);
+
+      const p2 = await page.context().newPage();
+      const v2 = await mock(p2);
+      await scanV2(p2);
+      for (const id of await checkedIds(p2)) await chip(p2, id).uncheck();
+      await chip(p2, c.wedge).check();
+      await p2.fill('input[name="email"]', email);
+      if (c.sites) await p2.getByLabel('Sites you run (optional)').fill(c.sites);
+      if (c.note) await p2.getByLabel('Anything we should know? (optional)').fill(c.note);
+      await p2.getByRole('button', { name: 'Talk to us' }).click();
+      await expect(p2.getByText('Thanks — your answer is in.', { exact: true })).toBeVisible();
+      expect(v2.posted).toHaveLength(1);
+      expect(v2.posted[0]).toEqual(v1.posted[0]);
+    });
+  }
 });

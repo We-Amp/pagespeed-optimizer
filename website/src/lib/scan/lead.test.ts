@@ -153,7 +153,11 @@ describe('noteFor', () => {
     expect(noteFor('response-firewall', form)).toBe('sites: 12; WordPress');
     expect(noteFor('tollbooth', form)).toBe('WordPress');
     expect(noteFor('edge-seo', { sites: '', note: 'x' })).toBe('x');
-    expect(noteFor('edge-seo', { sites: '3', note: '' })).toBe('sites: 3; ');
+    expect(noteFor('edge-seo', { sites: '3', note: '' })).toBe('sites: 3');
+    for (const bad of ['-3', '0', '', 'abc']) {
+      expect(noteFor('edge-seo', { sites: bad, note: 'x' })).toBe('x');
+    }
+    expect(noteFor('edge-seo', { sites: '1.5', note: '' })).toBe('sites: 1');
   });
 });
 

@@ -53,6 +53,7 @@ export interface ScanReport extends Record<string, unknown> {
 interface ScanBody {
   error?: string;
   report?: ScanReport;
+  permalink?: string;
 }
 
 export class RequestError extends Error {
@@ -78,6 +79,8 @@ export interface ScanOutcome {
   error: RequestError | null;
   /** The reason shown when the scan did not produce a report. */
   reason: string;
+  /** The scanner's shareable link for this result, when it returned one. */
+  permalink?: string;
 }
 
 /** Everything a panel renderer needs; a renderer fills only its own panel. */
@@ -334,6 +337,7 @@ export function init() {
     let report: ScanReport | null = null;
     let error: RequestError | null = null;
     let reason = '';
+    let permalink: string | undefined;
     try {
       const body = await getJson<ScanBody>(
         `${apiBase()}/scan?url=${encodeURIComponent(url)}`,
@@ -341,7 +345,10 @@ export function init() {
         SCAN_TIMEOUT_REASON,
       );
       if (body.error) reason = body.error;
-      else report = body.report ?? null;
+      else {
+        report = body.report ?? null;
+        permalink = typeof body.permalink === 'string' ? body.permalink : undefined;
+      }
     } catch (err) {
       error = err instanceof RequestError ? err : null;
       // A bare "HTTP 502" (a proxy's non-JSON answer) is not a service message.
@@ -356,7 +363,7 @@ export function init() {
     if (id !== runId) return;
     if (!report && !reason) reason = 'The scanner returned no result.';
     state.lastReport = report;
-    state.lastScan = { report, error, reason: report ? '' : reason };
+    state.lastScan = { report, error, reason: report ? '' : reason, permalink };
     if (report) {
       track('ai-scan', {
         domain: hostOf(url),

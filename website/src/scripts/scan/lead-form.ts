@@ -7,7 +7,7 @@
 // the speed result settles, and sends one lead per selected chip. Messages go
 // through the shell's single live region.
 
-import { speedStatus } from '../../lib/scan/status';
+import { speedStatus, type TileState } from '../../lib/scan/status';
 import {
   MAX_TOPICS,
   SITES_WEDGES,
@@ -45,8 +45,6 @@ const perfScore = (r: PsiBody | null): number | null => {
 const CHIP_CLASS =
   'inline-flex min-h-11 cursor-pointer items-center gap-2 rounded-full border border-border bg-bg-secondary px-4 py-2 text-sm text-text-body has-[:checked]:border-interactive has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-interactive has-[:disabled]:cursor-default has-[:disabled]:opacity-60';
 
-let fetchTapped = false;
-
 export function initLeadForm(state: ScanState) {
   const root = document.querySelector<HTMLElement>('[data-scan-results]');
   const box = document.querySelector<HTMLFormElement>('form[data-scan-box]');
@@ -56,6 +54,7 @@ export function initLeadForm(state: ScanState) {
   const form: HTMLFormElement = found;
   const surface = box?.dataset.scanSurface === 'airead' ? 'airead' : 'analyze';
   const live = root.querySelector<HTMLElement>('[data-scan-live]')!;
+  const topicsEl = form.querySelector<HTMLElement>('[data-scan-topics]')!;
   const chipsEl = form.querySelector<HTMLElement>('[data-scan-chips]')!;
   const emailEl = form.querySelector<HTMLInputElement>('input[name="email"]')!;
   const sitesEl = form.querySelector<HTMLInputElement>('[data-scan-sites]')!;
@@ -73,7 +72,7 @@ export function initLeadForm(state: ScanState) {
   emailEl.required = true;
 
   let rendered: ScanOutcome | null = null;
-  let renderedSpeed: string | null = null;
+  let renderedSpeed: TileState | null = null;
   let chips: Chip[] = [];
   let busy = false;
   let pending = false;
@@ -82,36 +81,15 @@ export function initLeadForm(state: ScanState) {
   const sent = new Map<string, string>();
   const fired = new Set<string>();
 
-  // The scan response carries the permalink; the controller does not keep it,
-  // so read it off the scan request's response as it passes.
-  if (!fetchTapped) {
-    fetchTapped = true;
-    const original = window.fetch.bind(window);
-    window.fetch = (input, init) => {
-      const p = original(input, init);
-      try {
-        const u = typeof input === 'string' ? input : input instanceof URL ? input.href : input.url;
-        if (/\/scan\?/.test(u)) {
-          void p
-            .then((r) => r.clone().json())
-            .then((b: { permalink?: unknown }) => {
-              if (typeof b?.permalink === 'string') setPermalink(b.permalink);
-            })
-            .catch(() => {});
-        }
-      } catch {
-        /* the tap must never change the request */
-      }
-      return p;
-    };
-  }
-
   function announce(text: string) {
     live.textContent = '';
     live.textContent = text;
   }
   function message(text: string, spoken = true) {
     msgEl.textContent = text;
+    const invalid = text ? 'true' : 'false';
+    emailEl.setAttribute('aria-invalid', invalid);
+    topicsEl.setAttribute('aria-invalid', invalid);
     if (spoken && text) announce(text);
   }
 
@@ -177,7 +155,7 @@ export function initLeadForm(state: ScanState) {
     };
   }
 
-  function speedState(): string | null {
+  function speedState(): TileState | null {
     if (!state.lastPsi) return null;
     const { mobile, desktop } = psiNumbers();
     return speedStatus(mobile, desktop).state;
@@ -223,13 +201,14 @@ export function initLeadForm(state: ScanState) {
     if (scan !== rendered) {
       rendered = scan;
       renderedSpeed = speed;
+      if (scan.permalink) setPermalink(scan.permalink);
       pending = false;
       thanks?.remove();
       thanks = null;
       sent.clear();
       fired.clear();
       chipsEl.replaceChildren();
-      chips = chipsFor(scan.report, speed as never);
+      chips = chipsFor(scan.report, speed);
       chips.forEach(addChip);
       form.hidden = false;
       submitBtn.disabled = false;
@@ -239,9 +218,11 @@ export function initLeadForm(state: ScanState) {
     if (speed !== renderedSpeed && !thanks) {
       renderedSpeed = speed;
       // Add the speed-help chip without touching the visitor's choices.
-      const next = chipsFor(scan.report, speed as never);
+      const next = chipsFor(scan.report, speed);
       for (const chip of next) {
         if (!chips.some((c) => c.id === chip.id)) {
+          // A late chip is pre-selected only while there is room under the cap.
+          if (chip.selected && selected().length >= MAX_TOPICS) chip.selected = false;
           chips = next.map((c) => chips.find((o) => o.id === c.id) ?? c);
           addChip(chip);
         }

@@ -1079,6 +1079,93 @@ describe.each(SOURCES)(
           expect(ok(['missing-headers', 'end-of-life'])).toBe(true);
         },
       );
+
+      describe('response-firewall payload (demand module only)', () => {
+        const rxOk = (o = {}) => ({
+          status: 'ok',
+          verdict: 'attention',
+          reasons: ['debug-output', 'version-tell', 'missing-headers'],
+          leaks: [{ id: 'php-error', count: 2, where: 'both' }],
+          tells: [
+            { product: 'apache', source: 'server', version: '2.4.29' },
+            { product: 'php', source: 'x-powered-by', version: '7.4.33' },
+          ],
+          endOfLife: [{ product: 'php', line: '7.4', basis: 'eol-date', date: '2022-11-28' }],
+          pagespeed: { header: 'x-mod-pagespeed', bucket: 'google-era' },
+          headers: { https: true, present: ['hsts'], missing: ['nosniff', 'framing'] },
+          delivery: { cdn: 'cloudflare', server: 'apache' },
+          ...o,
+        });
+        const skip = !gate.responseFirewallCtaApplies;
+
+        it.skipIf(skip)('carries ids, counts, product and line tokens and no versions', () => {
+          const p = buildLeadPayload({
+            wedge: 'response-firewall',
+            email: 'op@hoster.example',
+            note: 'sites: 40',
+            report: { url: 'https://shop.example/', responseExposure: rxOk() },
+          });
+          expect(p.topic).toBe('response-firewall');
+          expect(p.wedge).toBe('response-firewall');
+          expect(p.lensSignal).toEqual({
+            verdict: 'attention',
+            reasons: ['debug-output', 'version-tell', 'missing-headers'],
+            leaks: [{ id: 'php-error', count: 2 }],
+            endOfLife: [{ product: 'php', line: '7.4', basis: 'eol-date' }],
+            tells: ['apache', 'php'],
+            missingHeaders: ['nosniff', 'framing'],
+            https: true,
+            pagespeedBucket: 'google-era',
+            delivery: { cdn: 'cloudflare', server: 'apache' },
+          });
+          expect(String(p.message)).toContain('[response-firewall] lead from RenderPeek result');
+          expect(String(p.message)).toContain('Operator note / crawl volume: sites: 40');
+          const js = JSON.stringify(p.lensSignal);
+          expect(js).not.toContain('://');
+          expect(js).not.toContain('7.4.33');
+          expect(js).not.toContain('2.4.29');
+          expect(p.url).toBe('https://shop.example/');
+        });
+
+        it.skipIf(skip)('gives a null signal for a blocked, disabled or missing lens', () => {
+          for (const rx of [
+            { status: 'blocked' },
+            { status: 'disabled' },
+            { status: 'error' },
+            undefined,
+          ]) {
+            const p = buildLeadPayload({
+              wedge: 'response-firewall',
+              email: 'op@hoster.example',
+              report: { url: 'https://shop.example/', responseExposure: rx },
+            });
+            expect(p.lensSignal).toBeNull();
+            expect(String(p.message)).not.toContain('Signal:');
+          }
+        });
+
+        it.skipIf(skip)('tolerates missing headers, pagespeed and delivery', () => {
+          const p = buildLeadPayload({
+            wedge: 'response-firewall',
+            email: 'op@hoster.example',
+            report: {
+              url: 'https://x.example/',
+              responseExposure: { status: 'ok', verdict: 'attention', reasons: ['end-of-life'] },
+            },
+          });
+          expect(p.lensSignal).toEqual({
+            verdict: 'attention',
+            reasons: ['end-of-life'],
+            leaks: [],
+            endOfLife: [],
+            tells: [],
+            missingHeaders: [],
+            https: false,
+            pagespeedBucket: null,
+            delivery: { cdn: null, server: null },
+          });
+        });
+      });
     });
   },
 );

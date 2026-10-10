@@ -147,9 +147,10 @@ const SCORE = (n: number | null | undefined) => (typeof n === 'number' ? `${n}/1
 
 /** The note for one chip: the site count only for the wedges that use it. */
 export function noteFor(wedge: string, form: Pick<LeadForm, 'sites' | 'note'>): string {
-  const sites = (form.sites ?? '').trim();
+  const n = parseInt((form.sites ?? '').trim(), 10);
   const text = (form.note ?? '').trim();
-  return (sites && SITES_WEDGES.includes(wedge) ? 'sites: ' + sites + '; ' : '') + text;
+  const sites = SITES_WEDGES.includes(wedge) && Number.isInteger(n) && n > 0 ? 'sites: ' + n : '';
+  return [sites, text].filter(Boolean).join('; ');
 }
 
 /** The POST body for one chip. Gated chips use the shared builder unchanged. */
