@@ -13,6 +13,7 @@ import {
   aggregate,
   buildConfigSnippet,
   classifyError,
+  describePsiError,
   collectFlaggedAuditIds,
   coverageSentence,
   formatBytes,
@@ -97,7 +98,7 @@ function plate(label: string, score: number | null, err: RequestError | null): H
   chip.dataset.speedBucket = '';
   box.appendChild(chip);
   if (score === null && err) {
-    box.appendChild(el('p', 'mt-2 text-xs text-text-muted', describe(err).title));
+    box.appendChild(el('p', 'mt-2 text-xs text-text-muted', describePsiError(err).title));
   }
   return box;
 }
@@ -258,17 +259,6 @@ function retry(ctx: PanelContext): HTMLButtonElement {
   return b;
 }
 
-// A timeout already says what happened; the network advice would be wrong.
-function describe(err: RequestError): { title: string; body: string } {
-  if (err.kind === 'timeout')
-    return { title: 'PageSpeed Insights did not answer.', body: err.message };
-  const c = classifyError(err);
-  // The shared network fallback keeps its wording for the original analyzer.
-  if (c.title === 'Couldn’t reach PSI.')
-    return { ...c, title: 'PageSpeed Insights did not answer.' };
-  return c;
-}
-
 function reloadProblem(): HTMLElement {
   const reload = button('btn-secondary mt-3 min-h-11', 'Reload the page');
   reload.addEventListener('click', () => location.reload());
@@ -289,7 +279,7 @@ export function renderSpeedPanel(panel: HTMLElement, ctx: PanelContext) {
       panel.appendChild(reloadProblem());
       return;
     }
-    const { title, body } = describe(err);
+    const { title, body } = describePsiError(err);
     panel.appendChild(problem(title, body, retry(ctx)));
     return;
   }
@@ -368,7 +358,7 @@ function drawResults(
     const note = el(
       'p',
       'mb-3 text-sm text-text-muted',
-      `${missing} not measured${err ? `: ${describe(err).title}` : '.'} The results below come from the other profile.`,
+      `${missing} not measured${err ? `: ${describePsiError(err).title}` : '.'} The results below come from the other profile.`,
     );
     note.dataset.speedPartial = '';
     const again = retry(ctx);

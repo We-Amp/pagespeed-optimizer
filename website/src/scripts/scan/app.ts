@@ -20,6 +20,7 @@ import { initLeadForm } from './lead-form';
 import { renderRisk } from './panels/risk';
 import {
   classifyError,
+  describePsiError,
   isMappingFailed,
   loadMapping,
   markMappingFailed,
@@ -372,11 +373,7 @@ export function init() {
     }
     if (status.state === 'none') {
       const err = state.lastPsi.errors.mobile ?? state.lastPsi.errors.desktop;
-      const reason = err
-        ? err.kind === 'network'
-          ? 'PageSpeed Insights did not answer.'
-          : err.message
-        : 'No result.';
+      const reason = err ? describePsiError(err).title : 'No result.';
       settle('speed', status, reason);
       arrival(`Speed not measured. ${reason}`);
     } else {
