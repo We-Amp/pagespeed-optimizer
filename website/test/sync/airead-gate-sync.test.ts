@@ -7,7 +7,7 @@
 // CONTEXT
 //   src/pages/ai-readability/index.astro carries a VERBATIM inline copy of eight
 //   functions whose canonical source of truth is the scanner repo's
-//   src/demand.mjs (agent-readability-scanner). The page inlines them (rather
+//   the scanner's demand gate (canonical copy maintained with the scanner). The page inlines them (rather
 //   than importing) because in production it is the Astro-built
 //   modpagespeed.com/ai-readability/ page and only /ai-readability/api/* is
 //   proxied to the render service — there is no /src/ route to import from. The
@@ -29,7 +29,7 @@
 //   changes), the extracted functions produce different output and this test
 //   fails — which is exactly the drift this sync-check must catch.
 //
-// CANONICAL CONTRACT (mirror of agent-readability-scanner:src/demand.mjs)
+// CANONICAL CONTRACT (mirror of the scanner's demand gate; canonical copy maintained with the scanner)
 //   tollboothCtaApplies(agentVerifiability): true iff
 //     detail.verifiable === false && detail.renderOk === true &&
 //     Array.isArray(detail.aiCrawlersAllowed) && detail.aiCrawlersAllowed.length > 0 &&
