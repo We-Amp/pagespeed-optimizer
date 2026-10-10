@@ -30,7 +30,7 @@ export { PRICE_VALID_UNTIL };
 // packages cost $0).
 export const DEFAULT_OFFER_DESCRIPTION =
   `${LICENSE_CLAUSE_CAP} — the standard signed packages are free ` +
-  `to install and run. Support plans are sold separately: ${SUPPORT_URL}`;
+  `to install and run. Support plans, and a private package repository (being set up), are sold separately: ${SUPPORT_URL}`;
 
 // Return policy intentionally omitted from structured data — /terms/ grants no
 // unconditional money-back guarantee; the EU 14-day withdrawal right is

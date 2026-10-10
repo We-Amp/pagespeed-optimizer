@@ -54,8 +54,8 @@ test.describe('Support page', () => {
     await expect(section).toContainText('cosign');
     await expect(section).toContainText('SBOM and VEX');
     await expect(section).toContainText('Enterprise adds custom build targets');
-    // There is no subscriber repository and no early delivery of releases.
-    await expect(section).not.toContainText('subscriber repository');
+    // The private repository is stated as being set up, never as existing.
+    await expect(section).toContainText('is being set up');
     await expect(section).not.toContainText('ahead of the public release');
     await expect(section).not.toContainText('hardened build pipeline');
     // The packages carry no per-build signed SBOM or provenance claim.
@@ -88,11 +88,11 @@ test.describe('Support page', () => {
     ).toBeVisible();
   });
 
-  test('FAQ has eight questions and the FAQPage JSON-LD mirrors them', async ({ page }) => {
+  test('FAQ has nine questions and the FAQPage JSON-LD mirrors them', async ({ page }) => {
     const visible = (await page.locator('#faq details > summary').allInnerTexts()).map((t) =>
       t.trim(),
     );
-    expect(visible).toHaveLength(8);
+    expect(visible).toHaveLength(9);
     const blocks = await page.locator('script[type="application/ld+json"]').allTextContents();
     const faq = blocks.map((b) => JSON.parse(b)).find((d) => d['@type'] === 'FAQPage');
     expect(faq).toBeTruthy();
@@ -107,7 +107,7 @@ test.describe('Support page', () => {
   }) => {
     const ctas = page.locator('main [data-umami-event="cta_commercial"]');
     const count = await ctas.count();
-    expect(count).toBeGreaterThanOrEqual(8);
+    expect(count).toBeGreaterThanOrEqual(9);
     const offers = new Set<string>();
     for (let i = 0; i < count; i++) {
       const cta = ctas.nth(i);

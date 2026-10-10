@@ -36,7 +36,7 @@ What it does:
 - Variant-aware caching keyed on a 32-bit capability mask (image format, viewport, pixel density, Save-Data, transfer encoding), served zero-copy from the shared Cyclone cache
 - The module's classic filter set: CSS and JavaScript combining, image spriting, in-place resource optimization, domain mapping, and the built-in admin console
 
-{{PRODUCT_NAME}} {{CURRENT_LINE}} is {{LICENSE_CLAUSE}}: free to install and run, in development and in production, with free standard signed packages. What We-Amp sells is support, in three tiers:
+{{PRODUCT_NAME}} {{CURRENT_LINE}} is {{LICENSE_CLAUSE}}: free to install and run, in development and in production, with free standard signed packages. What We-Amp sells is support, in three tiers, with a private package repository (being set up) for Priority and Enterprise:
 
 {{SUPPORT_LADDER_MD}}
 - {{PRICING_ON_REQUEST}} {{RESPONSE_TARGETS_LINE}}
@@ -44,7 +44,7 @@ What it does:
 
 Every documentation page below is also served as Markdown at its URL with a \`.md\` suffix (for example https://modpagespeed.com/docs/getting-started.md), and https://modpagespeed.com/llms-full.txt carries this index followed by the full text of every page.
 
-We-Amp B.V., The Netherlands (founded {{COMPANY_FOUNDED_YEAR}}, KvK {{COMPANY_KVK}}); {{COMMERCIAL_EMAIL}} for support, partnerships and consulting; security@modpagespeed.com for vulnerability reports only. License: {{LICENSE_NAME}}; the LICENSE, NOTICE and THIRD-PARTY-NOTICES files ship with every distribution. mod_pagespeed is an open-source project originally developed at Google. {{PRODUCT_NAME}} {{CURRENT_LINE}} is developed by We-Amp B.V. and is not affiliated with or endorsed by Google.`;
+We-Amp B.V., The Netherlands (founded {{COMPANY_FOUNDED_YEAR}}, KvK {{COMPANY_KVK}}); {{COMMERCIAL_EMAIL}} for support, the private package repository (being set up), partnerships and consulting; security@modpagespeed.com for vulnerability reports only. License: {{LICENSE_NAME}}; the LICENSE, NOTICE and THIRD-PARTY-NOTICES files ship with every distribution. mod_pagespeed is an open-source project originally developed at Google. {{PRODUCT_NAME}} {{CURRENT_LINE}} is developed by We-Amp B.V. and is not affiliated with or endorsed by Google.`;
 
 /**
  * The filters table is a page of its own (src/pages/docs/filters.astro), not a

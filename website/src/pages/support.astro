@@ -11,7 +11,7 @@
 // from product-facts.mjs, the signing-key URL from the 2.1 release manifest.
 // No price amounts and no per-tier response targets (owner ruling): response
 // targets by severity are stated in the quote. Signed artifacts are described
-// only by what ships today; there is no subscriber repository, and nothing
+// only by what ships today; the private package repository is stated as being set up, and nothing
 // here claims a per-release SBOM/VEX on release assets or provenance on
 // packages.
 
@@ -55,7 +55,7 @@ const jsonLd = [
     '@type': 'WebPage',
     name: `Support for ${PRODUCT}`,
     url: 'https://modpagespeed.com/support/',
-    description: `Support subscriptions for ${PRODUCT} from We-Amp B.V.: a direct channel to the engineers who build it, response targets by severity agreed in the quote, and release SBOM and VEX documents on request.`,
+    description: `Support subscriptions for ${PRODUCT} from We-Amp B.V.: a direct channel to the engineers who build it, response targets by severity agreed in the quote, and a private package repository (being set up) for Priority and Enterprise.`,
     publisher: { '@type': 'Organization', name: 'We-Amp B.V.', url: 'https://we-amp.com/' },
   },
   {
@@ -96,7 +96,7 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
 
 <BaseLayout
   title={`${PRODUCT} support from the people who build it`}
-  description="Support subscriptions for mod_pagespeed 2.1: a direct line to its engineers, response targets by severity, signed packages and images, hosting partners."
+  description="Support subscriptions for mod_pagespeed 2.1: a direct line to its engineers, response targets, a private repository (being set up)."
   jsonLd={jsonLd}
 >
   <section
@@ -234,15 +234,15 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
           </ul>
         </div>
         <div class="card">
-          <h3 class="font-semibold text-text-body">What a subscription adds</h3>
+          <h3 class="font-semibold text-text-body">Private package repository (being set up)</h3>
           <ul class="mt-4 space-y-3 text-sm text-text-muted">
             <li class="flex gap-2">
               <Icon name="lock" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
-              <span>Release SBOM and VEX documents on request.</span>
+              <span>A private package repository for Priority and Enterprise subscribers, with security fixes delivered before the public release, is being set up.</span>
             </li>
             <li class="flex gap-2">
               <Icon name="shield-check" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
-              <span>Advance notice of security updates.</span>
+              <span>Until then, subscribers receive the release SBOM and VEX on request and advance notice of security releases.</span>
             </li>
             <li class="flex gap-2">
               <Icon name="cpu" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
@@ -259,7 +259,7 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
             data-umami-event="cta_commercial"
             data-umami-event-offer="hardened"
             data-umami-event-surface="support"
-            data-umami-event-position="hardened_builds">Ask about SBOM and VEX</a
+            data-umami-event-position="hardened_builds">Ask about the private repository</a
           >
         </div>
       </div>

@@ -189,5 +189,5 @@ what changed and what did not; the archived 1.0 docs are at [/1.0/](/1.0/).
 
 mod_pagespeed 2.1 is licensed under the Apache License 2.0, free in
 development and in production. What We-Amp sells on the converged line is
-[support](/support/) from the people who build
+[support, and a private package repository (being set up)](/support/) from the people who build
 the product; the standard signed packages stay free.

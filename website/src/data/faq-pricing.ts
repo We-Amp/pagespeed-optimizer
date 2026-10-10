@@ -22,7 +22,7 @@ const link = (href: string, text: string) =>
 export const faqPricing: FaqEntry[] = [
   {
     q: 'Is the software really free?',
-    a: `Yes. mod_pagespeed 2.1 is ${LICENSE_CLAUSE}: free to install and run, in development and in production, on any number of servers, with no registration. What We-Amp sells is support.`,
+    a: `Yes. mod_pagespeed 2.1 is ${LICENSE_CLAUSE}: free to install and run, in development and in production, on any number of servers, with no registration. What We-Amp sells is support; Priority and Enterprise add a private package repository (being set up).`,
   },
   {
     q: 'Why is there no price on this page?',
@@ -34,7 +34,7 @@ export const faqPricing: FaqEntry[] = [
   },
   {
     q: 'Which tier do I need?',
-    a: `The server band decides most of it: Standard covers up to 5 production servers, Priority up to 25, Enterprise one organization without a limit. Choose Priority or Enterprise when your security team wants release SBOM and VEX documents. ${link('/support/', 'What each tier includes')}.`,
+    a: `The server band decides most of it: Standard covers up to 5 production servers, Priority up to 25, Enterprise one organization without a limit. Choose Priority or Enterprise when your security team wants release SBOM and VEX documents or the private package repository (being set up). ${link('/support/', 'What each tier includes')}.`,
   },
   {
     q: 'What happens after I ask for a quote?',

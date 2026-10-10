@@ -71,7 +71,7 @@ test.describe('/terms/ page', () => {
     await page.goto('/terms/');
     const main = page.locator('main');
     await expect(main).toContainText('Apache License 2.0');
-    await expect(main).not.toContainText('subscriber repository');
+    await expect(main).toContainText('subscriber repository');
     await expect(main).not.toContainText('X-PageSpeed-Warn');
     await expect(main).not.toContainText('unlicensed');
     await expect(main).not.toContainText('license key');

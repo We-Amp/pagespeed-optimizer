@@ -74,7 +74,8 @@ export const COMMERCIAL_EMAIL = 'info@we-amp.com';
 //               production deployment; the bands the quote form asks for)
 //   includes    what the tier adds, in display order; the first entry of a
 //               higher tier names the tier it builds on
-//   hardened    kept for compatibility; no separate build channel exists
+//   hardened    whether the private package repository is live; false until
+//               it exists (it is being set up)
 export const SUPPORT_TIERS = [
   {
     id: 'standard',
@@ -94,14 +95,14 @@ export const SUPPORT_TIERS = [
   {
     id: 'priority',
     name: 'Priority support',
-    kind: 'support',
+    kind: 'support+repository',
     hardened: false,
     servers: 'up to 25 production servers',
     prices: { annualUsd: null, monthlyUsd: null },
-    note: 'everything in Standard plus release SBOM and VEX on request, for up to 25 production servers',
+    note: 'everything in Standard plus a private package repository (being set up) and release SBOM and VEX on request, for up to 25 production servers',
     includes: [
       'Everything in Standard',
-      'Signed packages and container images; the images carry an SBOM attestation and build provenance; release SBOM and VEX available on request',
+      'Private package repository (being set up); until then, release SBOM and VEX on request and advance notice of security releases',
       'Upgrade rehearsal on request',
       'Quarterly review call',
     ],
@@ -109,7 +110,7 @@ export const SUPPORT_TIERS = [
   {
     id: 'enterprise',
     name: 'Enterprise',
-    kind: 'support',
+    kind: 'support+repository',
     hardened: false,
     servers: 'unlimited servers and sites, one organization',
     prices: { annualUsd: null, monthlyUsd: null },
@@ -135,9 +136,12 @@ export const RESPONSE_TARGETS_LINE = 'Response targets by severity are stated in
 // an SBOM attestation and build provenance, and the source-tree SPDX SBOM and
 // OpenVEX file. No surface may claim a per-release SBOM/VEX on the release
 // assets or provenance on packages; release SBOM and VEX are available on
-// request.
+// request. The private package repository for Priority and Enterprise is being
+// set up; say so, never that it exists.
 export const ARTIFACT_ACCESS = {
   standardPackages: 'free',
+  hardenedBuilds: 'being-set-up',
+  hardenedPricing: 'on-request',
 };
 // The support ladder as markdown bullets and one line, price-free by design
 // (pure helpers — see the purity rule below).
