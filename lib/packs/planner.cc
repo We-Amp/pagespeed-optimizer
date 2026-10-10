@@ -617,6 +617,31 @@ void NoteRemoved(RulePlan* rp, std::string_view item, std::string_view reason) {
   absl::StrAppend(&rp->decision.removed, item, " (", reason, ")");
 }
 
+// Cuts the removed list to kMaxAfterBytes at an item boundary and says how
+// many items did not fit: "a (x); b (y); ...(+3)". `total` is the number of
+// items that were noted.
+void CapRemoved(RulePlan* rp, size_t total) {
+  std::string& r = rp->decision.removed;
+  if (r.size() <= kMaxAfterBytes) return;
+  const std::string marker_room = "; ...(+9999)";
+  const std::string_view head =
+      std::string_view(r).substr(0, kMaxAfterBytes - marker_room.size());
+  size_t cut = head.rfind("; ");
+  size_t kept = 0;
+  std::string out;
+  if (cut != std::string_view::npos) {
+    out = std::string(head.substr(0, cut));
+    for (size_t at = out.find("; "); at != std::string::npos;
+         at = out.find("; ", at + 2)) {
+      ++kept;
+    }
+    ++kept;
+  }
+  out = TruncateUtf8(out, kMaxAfterBytes);
+  absl::StrAppend(&out, out.empty() ? "" : "; ", "...(+", total - kept, ")");
+  r = std::move(out);
+}
+
 // ---------------------------------------------------------------------------
 // hreflang
 // ---------------------------------------------------------------------------
@@ -1460,6 +1485,9 @@ Plan BuildPlan(const Pack& pack, const PageContext& ctx, const PageFacts& facts,
         }
       }
     }
+    size_t removals = 0;
+    for (const PlanOp& op : rp.ops) removals += op.type == OpType::kRemove;
+    CapRemoved(&rp, removals);
     plan.added_bytes += AddedBytes(rp, extra_bytes_per_change);
     plan.rules.push_back(std::move(rp));
   }

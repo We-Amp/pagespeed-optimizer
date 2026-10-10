@@ -669,6 +669,28 @@ TEST(HreflangPlannerTest, RepairNeverDropsTheEntryForThePageInAConflict) {
   EXPECT_NE(rp.decision.removed.find("(conflict)"), std::string::npos);
 }
 
+TEST(HreflangPlannerTest, TheRemovedListIsCappedAndCountsWhatDidNotFit) {
+  Pack pack = HreflangPackFor("repair");
+  PageFacts facts = Facts();
+  for (int i = 0; i < 300; ++i) {
+    facts.hreflangs.push_back(
+        Alt(i + 1, "xx_1", absl::StrCat("https://t.test/many/", i)));
+  }
+  const RulePlan rp = Only(BuildPlan(pack, EnCtx(), facts));
+  EXPECT_EQ(CountOps(rp, OpType::kRemove), 300u);
+  EXPECT_LE(rp.decision.removed.size(), kMaxAfterBytes);
+  const size_t at = rp.decision.removed.rfind("...(+");
+  ASSERT_NE(at, std::string::npos) << rp.decision.removed;
+  size_t listed = 1;
+  for (size_t p = rp.decision.removed.find("; "); p < at;
+       p = rp.decision.removed.find("; ", p + 2)) {
+    ++listed;
+  }
+  listed -= 1;  // the "; " before the marker
+  const size_t more = std::stoul(rp.decision.removed.substr(at + 5));
+  EXPECT_EQ(listed + more, 300u) << rp.decision.removed;
+}
+
 TEST(JsonLdPlannerTest, ReplaceLeavesAnEqualBlockAlone) {
   Pack pack = MakeRaw(JsonRule("replace", kOrgTemplate));
   PageFacts facts = Facts();
