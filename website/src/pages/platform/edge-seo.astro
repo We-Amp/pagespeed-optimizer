@@ -2,42 +2,42 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
-// /platform/edge-seo/ — the edge-SEO-at-the-origin direction: what it fixes,
-// who it is for, how it works, and one interest form (wedge edge-seo) with
-// an optional "sites you manage" count.
+// /platform/edge-seo/ — the edge-SEO-at-the-origin direction: what the pack
+// would fix, who it is for, how it would work, and one interest form
+// (edge-seo) with an optional "sites you manage" count. The pack is
+// described in the conditional: it does not ship.
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import SectionHeader from '../../components/instrument/SectionHeader.astro';
 import PlatformInterestForm from '../../components/PlatformInterestForm.astro';
 
 const fixes = [
-  {
-    what: 'Canonical tags',
-    how: 'set where missing, corrected where they point at the wrong URL.',
-  },
+  { what: 'Canonical tags', how: 'set where missing, by rule.' },
   { what: 'hreflang', how: 'clusters completed and made reciprocal across the language variants.' },
   {
     what: 'Titles and meta descriptions',
     how: 'repaired per URL pattern, from a rule, not a CMS edit.',
   },
   { what: 'Broken internal links', how: 'rewritten to their current targets in the HTML.' },
-  { what: 'Redirect chains', how: 'flattened so the link points at the final URL in one hop.' },
+  { what: 'Internal links to redirect chains:', how: 'rewritten to point at the final URL.' },
   { what: 'Structured data', how: 'injected as JSON-LD from the page content and your rules.' },
 ];
+
+const description =
+  'Early access: a planned pack for canonicals, hreflang, titles, structured data and redirect chains in the HTML stream on your server. Not shipping yet.';
 
 const jsonLd = {
   '@context': 'https://schema.org',
   '@type': 'WebPage',
   name: 'Edge SEO at the origin for mod_pagespeed 2.1',
   url: 'https://modpagespeed.com/platform/edge-seo/',
-  description:
-    'Canonicals, hreflang, titles, structured data and redirect chains fixed in the HTML stream by the interceptor. No CMS change, no CDN.',
+  description,
 };
 ---
 
 <BaseLayout
   title="Edge SEO at the origin for mod_pagespeed 2.1"
-  description="Canonicals, hreflang, titles, structured data and redirect chains fixed in the HTML stream by the mod_pagespeed 2.1 interceptor. No CMS change, no CDN."
-  ogImage="/og-cards/platform-edge-seo.png?v=1"
+  description={description}
+  ogImage="/og-cards/platform-edge-seo.png?v=2"
   jsonLd={jsonLd}
 >
   <section class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16" aria-labelledby="edge-seo-title">
@@ -47,13 +47,13 @@ const jsonLd = {
       title="Technical SEO fixes at serve time, for sites that are not on a CDN"
       as="h1"
     >
-      Edge workers made technical SEO a deploy instead of a CMS ticket, for the sites that sit
-      behind one. This pack does the same work at the origin, in the HTML stream the interceptor
+      Edge workers can turn technical SEO into a deploy instead of a CMS ticket, for sites behind a
+      CDN. This pack would do the same work at the origin, in the HTML stream the interceptor
       already rewrites.
     </SectionHeader>
 
     <div class="mt-10">
-      <h2 class="text-lg font-semibold text-text-body">What it fixes</h2>
+      <h2 class="text-lg font-semibold text-text-body">What it would fix</h2>
       <ul class="mt-3 space-y-2 text-sm text-text-muted">
         {
           fixes.map((f) => (
@@ -71,31 +71,31 @@ const jsonLd = {
     <div class="mt-10">
       <h2 class="text-lg font-semibold text-text-body">Who it is for</h2>
       <p class="mt-2 text-text-muted">
-        Agencies and in-house SEO teams whose clients are not on Cloudflare, so an edge worker is
-        not an option, and whose CMS releases take weeks. The fix is a rule you deploy on the
-        server, and it lands on every matching page in the next response.
+        Agencies and in-house SEO teams whose sites are not behind a CDN with edge workers, and
+        whose CMS releases take weeks. The fix would be a rule you deploy on the server, applied to
+        every matching page it serves.
       </p>
     </div>
 
     <div class="mt-10">
       <h2 class="text-lg font-semibold text-text-body">How it works</h2>
       <p class="mt-2 text-text-muted">
-        The interceptor already parses every HTML response as a stream on your server. A pack adds
-        rules to that pass: match a URL pattern or an element, then set, rewrite or inject. The CMS
-        is untouched and the original markup stays where it is; the rule changes what is served.
+        The interceptor parses HTML responses as a stream on your server. A pack would add rules to
+        that pass: match a URL pattern or an element, then set, rewrite or inject. The CMS is
+        untouched; the rule changes what is served.
       </p>
     </div>
 
     <p class="readout-plate mt-10 px-4 py-3 text-sm text-text-muted">
       <span class="font-mono text-xs text-interactive">Status</span><br />
-      This pack does not ship today. The interceptor that would run it does. Early access means you get
-      the first build and shape its evidence export.
+      None of these packs ships today. The interceptor they would run on does. Early access means you
+      hear first when there is a build to try, and your input shapes it.
     </p>
 
     <div class="mt-10 rounded-lg border border-border bg-bg-elevated p-6 sm:p-8">
       <h2 class="text-lg font-semibold text-text-body">Tell us you need this</h2>
       <p class="mt-2 text-sm text-text-muted">
-        Leave an email, and roughly how many sites you would run it on. We write when there is a
+        Leave an email, and roughly how many sites you would run it on. We email you if there is a
         build to try.
       </p>
       <PlatformInterestForm wedge="edge-seo" pack="Edge SEO at the origin" sites={true} />

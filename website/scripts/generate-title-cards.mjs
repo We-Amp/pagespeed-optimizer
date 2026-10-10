@@ -93,22 +93,22 @@ const colors = {
 };
 
 // Static pages with a card of their own: slug -> file name under og-cards/,
-// eyebrow and title as the card shows them. The title is the page's H1 (or
-// its first clause when the H1 would run past three lines).
+// eyebrow and title as the card shows them. The eyebrow is the page's own
+// eyebrow and the title its H1.
 const PAGE_CARDS = [
   {
     slug: 'platform',
-    eyebrow: 'mod_pagespeed 2.1 · early access',
+    eyebrow: 'early access · transform packs',
     title: 'One interceptor, many packs',
   },
   {
     slug: 'platform-consent',
-    eyebrow: 'mod_pagespeed 2.1 · early access',
+    eyebrow: 'early access · consent enforcement at the origin',
     title: 'Does your site leak before consent?',
   },
   {
     slug: 'platform-edge-seo',
-    eyebrow: 'mod_pagespeed 2.1 · early access',
+    eyebrow: 'early access · edge SEO at the origin',
     title: 'Technical SEO fixes at serve time, for sites that are not on a CDN',
   },
 ];

@@ -147,7 +147,7 @@ const inputClass =
   </div>
 
   <p class="text-xs text-text-annotation">
-    We use what you send only to reply. See the
+    We use what you send to reply and to email you when there is a build to try. See the
     <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline"
       >privacy policy</a
     >.
@@ -256,7 +256,7 @@ const inputClass =
         });
         setStatus(
           'success',
-          'Thanks, you are on the list. We email you when there is a build to try.',
+          'Thanks, we have your request. We will email you if there is a build to try.',
         );
       } catch {
         setStatus('error', `Could not send just now. Try again, or email ${recipient}.`);
