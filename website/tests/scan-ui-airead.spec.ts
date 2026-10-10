@@ -78,14 +78,7 @@ async function openAiread(page: Page) {
 
 test.describe('AI readability panel', () => {
   test('the grade row and category rows match the original page', async ({ page }) => {
-    // The original page throws on the fixture's script-inventory block (a shape
-    // it does not read), so give it the same grading data without that lens.
-    const body = JSON.parse(fixture('full'));
-    delete body.report.scriptInventory;
     await mock(page);
-    await page.route('**/ai-readability/api/scan**', (route) =>
-      route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(body) }),
-    );
     await warm(page, '/ai-readability/?ui=v1');
     await page.fill('#ar-url', 'shop.example.com');
     await page.click('#ar-go');
@@ -171,6 +164,8 @@ test.describe('AI readability panel', () => {
       'webmcp',
       'hidden layer',
       'posture',
+      'blocked',
+      'accessibility',
     ]) {
       expect(body).not.toContain(gone);
     }
@@ -228,6 +223,20 @@ test.describe('scanner failures', () => {
     await expect(panel(page)).toContainText(
       'Could not reach the scanner service. Check the URL and try again.',
     );
+  });
+
+  test('a non-JSON proxy error reads as unreachable, not as a raw status', async ({ page }) => {
+    await page.route('**/psi/v5/runPagespeed**', (route) => route.abort());
+    await page.route('**/ai-readability/api/scan**', (route) =>
+      route.fulfill({ status: 502, contentType: 'text/html', body: '<h1>Bad gateway</h1>' }),
+    );
+    await scanV2(page);
+    await openAiread(page);
+    await expect(panel(page)).toContainText(
+      'Could not reach the scanner service. Check the URL and try again.',
+    );
+    await expect(panel(page)).not.toContainText('HTTP 502');
+    await expect(panel(page)).not.toContainText('Couldn’t scan that.');
   });
 
   test('a scanner that never answers times out', async ({ page }) => {

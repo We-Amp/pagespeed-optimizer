@@ -303,7 +303,7 @@
           "path": "/npm/swiper/swiper-bundle.min.js"
         }
       ],
-      "duplicates": [["jquery", ["3.6.0", "1.12.4"]]],
+      "duplicates": [{ "library": "jquery", "versions": ["1.12.4", "3.6.0"] }],
       "integrityWithoutCors": 0,
       "csp": {
         "enforced": false,

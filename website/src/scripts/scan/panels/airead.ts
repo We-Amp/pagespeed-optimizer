@@ -18,14 +18,14 @@ function el<K extends keyof HTMLElementTagNameMap>(
   return node;
 }
 
-function notMeasured(panel: HTMLElement, ctx: PanelContext) {
+export function notMeasured(panel: HTMLElement, ctx: PanelContext) {
   const err = ctx.scan?.error;
   // A scanner answer (an error body or an HTTP error) gets the title; a
   // timeout or an unreachable service has its own sentence.
   const serviceMessage = !err || err.kind === 'http';
   if (serviceMessage)
     panel.append(el('p', 'text-sm font-semibold text-text-body', 'Couldn’t scan that.'));
-  panel.append(el('p', 'text-sm text-text-muted', ctx.reason));
+  panel.append(el('p', 'text-sm text-text-muted', ctx.reason || 'The scanner returned no result.'));
   const retry = el('button', 'btn-secondary mt-3 min-h-11', 'Try again');
   retry.type = 'button';
   retry.addEventListener('click', ctx.rerun);
@@ -84,6 +84,7 @@ export function renderAireadPanel(panel: HTMLElement, ctx: PanelContext) {
     'flex min-h-11 cursor-pointer items-center text-sm font-medium text-interactive',
     'Show what a crawler reads',
   );
+  summary.id = 'scan-airead-crawler-label';
   details.append(summary);
   if (m.rawMarkdown) {
     const pre = el(
@@ -95,6 +96,8 @@ export function renderAireadPanel(panel: HTMLElement, ctx: PanelContext) {
     pre.style.lineHeight = '1.5';
     pre.style.whiteSpace = 'pre-wrap';
     pre.tabIndex = 0;
+    pre.setAttribute('role', 'region');
+    pre.setAttribute('aria-labelledby', summary.id);
     pre.setAttribute('data-scan-crawler-text', '');
     details.append(pre);
   } else {
@@ -106,7 +109,7 @@ export function renderAireadPanel(panel: HTMLElement, ctx: PanelContext) {
   if (m.alsoFound.length) {
     const found = el('div', 'mt-6');
     found.setAttribute('data-scan-also-found', '');
-    found.append(el('h4', 'text-sm font-semibold text-text-body', 'Also found'));
+    found.append(el('h3', 'text-sm font-semibold text-text-body', 'Also found'));
     const list = el('ul', 'mt-2 list-disc space-y-2 pl-5 text-sm text-text-muted');
     for (const f of m.alsoFound) {
       const li = el('li', '', f.text);

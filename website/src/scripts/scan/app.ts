@@ -343,6 +343,10 @@ export function init() {
       else report = body.report ?? null;
     } catch (err) {
       error = err instanceof RequestError ? err : null;
+      // A bare "HTTP 502" (a proxy's non-JSON answer) is not a service message.
+      if (error && error.kind === 'http' && /^HTTP \d+$/.test(error.message)) {
+        error = new RequestError(error.message, 'network');
+      }
       reason =
         error && error.kind !== 'network'
           ? error.message
@@ -364,6 +368,7 @@ export function init() {
     }
     const ai = report ? aireadStatus(report) : NOT_MEASURED;
     const risk = report ? riskStatus(report) : NOT_MEASURED;
+    if (ai.state === 'none' && !reason) reason = 'The scanner returned no result.';
     settle('airead', ai, ai.state === 'none' ? reason : '');
     settle('risk', risk, risk.state === 'none' ? reason : '');
     arrival(
