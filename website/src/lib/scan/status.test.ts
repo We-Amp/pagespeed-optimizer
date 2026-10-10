@@ -122,3 +122,20 @@ describe('healthLine', () => {
     );
   });
 });
+
+describe('aireadStatus grades and gaps', () => {
+  it.each([
+    ['A', 'good', 'Good'],
+    ['B', 'good', 'Good'],
+    ['C', 'needs-work', 'Needs work'],
+    ['D', 'poor', 'Poor'],
+    ['F', 'poor', 'Poor'],
+  ])('grade %s is %s', (grade, state, word) => {
+    expect(aireadStatus({ grade, score: 50 })).toMatchObject({ state, word });
+  });
+  it('is not measured without a grade or a score', () => {
+    expect(aireadStatus({ score: 50 })).toEqual(NOT_MEASURED);
+    expect(aireadStatus({ grade: 'A' })).toEqual(NOT_MEASURED);
+    expect(aireadStatus({})).toEqual(NOT_MEASURED);
+  });
+});

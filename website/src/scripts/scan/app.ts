@@ -15,6 +15,8 @@ import {
   speedStatus,
   type TileStatus,
 } from '../../lib/scan/status';
+import { renderAireadPanel } from './panels/airead';
+import { initLeadForm } from './lead-form';
 import { renderRisk } from './panels/risk';
 import {
   classifyError,
@@ -60,6 +62,7 @@ export interface ScanReport extends Record<string, unknown> {
 interface ScanBody {
   error?: string;
   report?: ScanReport;
+  permalink?: string;
 }
 
 export class RequestError extends Error {
@@ -85,6 +88,8 @@ export interface ScanOutcome {
   error: RequestError | null;
   /** The reason shown when the scan did not produce a report. */
   reason: string;
+  /** The scanner's shareable link for this result, when it returned one. */
+  permalink?: string;
 }
 
 /** Everything a panel renderer needs; a renderer fills only its own panel. */
@@ -120,7 +125,7 @@ function renderNotMeasured(panel: HTMLElement, ctx: PanelContext) {
 }
 export const renderPanel: Record<Pillar, PanelRenderer> = {
   speed: renderSpeedPanel,
-  airead: renderNotMeasured,
+  airead: renderAireadPanel,
   risk: renderNotMeasured,
 };
 renderPanel.risk = renderRisk;
@@ -375,6 +380,7 @@ export function init() {
     let report: ScanReport | null = null;
     let error: RequestError | null = null;
     let reason = '';
+    let permalink: string | undefined;
     try {
       const body = await getJson<ScanBody>(
         `${apiBase()}/scan?url=${encodeURIComponent(url)}`,
@@ -382,9 +388,16 @@ export function init() {
         SCAN_TIMEOUT_REASON,
       );
       if (body.error) reason = body.error;
-      else report = body.report ?? null;
+      else {
+        report = body.report ?? null;
+        permalink = typeof body.permalink === 'string' ? body.permalink : undefined;
+      }
     } catch (err) {
       error = err instanceof RequestError ? err : null;
+      // A bare "HTTP 502" (a proxy's non-JSON answer) is not a service message.
+      if (error && error.kind === 'http' && /^HTTP \d+$/.test(error.message)) {
+        error = new RequestError(error.message, 'network');
+      }
       reason =
         error && error.kind !== 'network'
           ? error.message
@@ -393,7 +406,7 @@ export function init() {
     if (id !== runId) return;
     if (!report && !reason) reason = 'The scanner returned no result.';
     state.lastReport = report;
-    state.lastScan = { report, error, reason: report ? '' : reason };
+    state.lastScan = { report, error, reason: report ? '' : reason, permalink };
     if (report) {
       track('ai-scan', {
         domain: hostOf(url),
@@ -406,6 +419,7 @@ export function init() {
     }
     const ai = report ? aireadStatus(report) : NOT_MEASURED;
     const risk = report ? riskStatus(report) : NOT_MEASURED;
+    if (ai.state === 'none' && !reason) reason = 'The scanner returned no result.';
     settle('airead', ai, ai.state === 'none' ? reason : '');
     settle('risk', risk, risk.state === 'none' ? reason : '');
     arrival(
@@ -481,6 +495,8 @@ export function init() {
       void (pillar === 'speed' ? runSpeed(runId, state.url) : runScan(runId, state.url));
     },
   };
+
+  initLeadForm(state);
 
   form.addEventListener('submit', (ev) => {
     ev.preventDefault();
