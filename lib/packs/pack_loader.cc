@@ -459,6 +459,11 @@ absl::Status Loader::ParseTpl(const std::string& path, const std::string& text,
                 "template cannot contain NUL or other control "
                 "characters");
   }
+  if (rule.kind == Kind::kJsonLd &&
+      JsonNestingExceeds(text, kMaxJsonLdDepth)) {
+    return Fail(path, absl::StrCat("template is nested deeper than ",
+                                   kMaxJsonLdDepth, " levels"));
+  }
   TemplateParseOptions options;
   options.allow_page_values = rule.kind == Kind::kJsonLd;
   options.capture_groups = rule.match.path_regex_groups;

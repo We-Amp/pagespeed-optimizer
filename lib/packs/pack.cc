@@ -87,6 +87,30 @@ bool HasControlChars(std::string_view s) {
   return false;
 }
 
+bool JsonNestingExceeds(std::string_view s, size_t max_depth) {
+  size_t depth = 0;
+  bool in_string = false;
+  bool escaped = false;
+  for (char c : s) {
+    if (in_string) {
+      if (escaped) {
+        escaped = false;
+      } else if (c == '\\') {
+        escaped = true;
+      } else if (c == '"') {
+        in_string = false;
+      }
+    } else if (c == '"') {
+      in_string = true;
+    } else if (c == '[' || c == '{') {
+      if (++depth > max_depth) return true;
+    } else if ((c == ']' || c == '}') && depth > 0) {
+      --depth;
+    }
+  }
+  return false;
+}
+
 size_t Utf8Length(std::string_view s) {
   size_t n = 0;
   for (char c : s) {
