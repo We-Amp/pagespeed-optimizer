@@ -1,7 +1,7 @@
 ---
 title: 'The state of the PageSpeed installed base, 2026'
 description: 'HTTP Archive data on the PageSpeed installed base in 2026: adoption since 2020, versions, servers, networks, and what no longer receives fixes.'
-date: 2026-10-31
+date: 2026-10-10
 author: 'Otto van der Schaaf'
 tags: ['data', 'mod_pagespeed', 'ngx_pagespeed', 'security', 'hosting']
 draft: false
