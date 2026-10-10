@@ -119,7 +119,10 @@ const NAMED_ENTITIES = {
 export function decodeEntities(text) {
   return text.replace(/&(#x?[0-9a-f]+|[a-z][a-z0-9]*);/gi, (whole, name) => {
     if (name[0] === '#') {
-      const code = name[1] === 'x' || name[1] === 'X' ? parseInt(name.slice(2), 16) : parseInt(name.slice(1), 10);
+      const code =
+        name[1] === 'x' || name[1] === 'X'
+          ? parseInt(name.slice(2), 16)
+          : parseInt(name.slice(1), 10);
       return Number.isFinite(code) && code > 0 ? String.fromCodePoint(code) : whole;
     }
     return NAMED_ENTITIES[name.toLowerCase()] ?? whole;
@@ -166,7 +169,8 @@ const RAW_TEXT_ELEMENTS = new Set([
  */
 export function tokens(html) {
   const out = [];
-  const re = /<!--[\s\S]*?-->|<!doctype[^>]*>|<(\/?)([a-zA-Z][a-zA-Z0-9:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/gi;
+  const re =
+    /<!--[\s\S]*?-->|<!doctype[^>]*>|<(\/?)([a-zA-Z][a-zA-Z0-9:-]*)((?:[^>"']|"[^"]*"|'[^']*')*)>/gi;
   let match;
   while ((match = re.exec(html))) {
     if (!match[2]) {
@@ -181,7 +185,13 @@ export function tokens(html) {
     }
     const name = match[2].toLowerCase();
     const close = match[1] === '/';
-    out.push({ kind: close ? 'close' : 'open', name, attrs: match[3], start: match.index, end: re.lastIndex });
+    out.push({
+      kind: close ? 'close' : 'open',
+      name,
+      attrs: match[3],
+      start: match.index,
+      end: re.lastIndex,
+    });
     if (!close && RAW_TEXT_ELEMENTS.has(name) && !/\/\s*$/.test(match[3])) {
       const endRe = new RegExp(`</${name}\\s*>`, 'ig');
       endRe.lastIndex = re.lastIndex;
@@ -224,7 +234,9 @@ export function titleInfo(html) {
   const titles = documentTitleTokens(tk);
   let raw = '';
   if (titles.length) {
-    const close = tk.find((t) => t.kind === 'close' && t.name === 'title' && t.start >= titles[0].end);
+    const close = tk.find(
+      (t) => t.kind === 'close' && t.name === 'title' && t.start >= titles[0].end,
+    );
     raw = close ? html.slice(titles[0].end, close.start) : '';
   }
   return {
@@ -235,7 +247,9 @@ export function titleInfo(html) {
 
 /** Description tag count and decoded content of the first one. */
 export function descriptionInfo(html) {
-  const tags = openTokens(html, 'meta').filter((t) => attrValue(t.attrs, 'name').toLowerCase() === 'description');
+  const tags = openTokens(html, 'meta').filter(
+    (t) => attrValue(t.attrs, 'name').toLowerCase() === 'description',
+  );
   return {
     count: tags.length,
     text: decodeEntities(collapseWhitespace(tags[0] ? attrValue(tags[0].attrs, 'content') : '')),
@@ -244,14 +258,18 @@ export function descriptionInfo(html) {
 
 /** Decoded content of the first <meta property="…"> ('' when absent). */
 function metaProperty(html, property) {
-  const tag = openTokens(html, 'meta').find((t) => attrValue(t.attrs, 'property').toLowerCase() === property);
+  const tag = openTokens(html, 'meta').find(
+    (t) => attrValue(t.attrs, 'property').toLowerCase() === property,
+  );
   return decodeEntities(collapseWhitespace(tag ? attrValue(tag.attrs, 'content') : ''));
 }
 
 /** A page is non-indexable when robots says so, however the value is ordered. */
 export function isNoindex(html) {
   return openTokens(html, 'meta').some(
-    (t) => attrValue(t.attrs, 'name').toLowerCase() === 'robots' && /\bnoindex\b/i.test(attrValue(t.attrs, 'content')),
+    (t) =>
+      attrValue(t.attrs, 'name').toLowerCase() === 'robots' &&
+      /\bnoindex\b/i.test(attrValue(t.attrs, 'content')),
   );
 }
 
@@ -263,7 +281,9 @@ export function isNoindex(html) {
 export function isRedirectStub(html) {
   return (
     isNoindex(html) &&
-    openTokens(html, 'meta').some((t) => attrValue(t.attrs, 'http-equiv').toLowerCase() === 'refresh')
+    openTokens(html, 'meta').some(
+      (t) => attrValue(t.attrs, 'http-equiv').toLowerCase() === 'refresh',
+    )
   );
 }
 
@@ -280,7 +300,9 @@ export function stripNonVisible(html) {
 /** The text a visitor reads: body, tags stripped, entities decoded. */
 export function visibleText(html) {
   const body = /<body\b[^>]*>([\s\S]*?)<\/body\s*>/i.exec(html)?.[1] ?? html;
-  return collapseWhitespace(decodeEntities(stripNonVisible(body).replace(/<(?:[^>"']|"[^"]*"|'[^']*')*>/g, ' ')));
+  return collapseWhitespace(
+    decodeEntities(stripNonVisible(body).replace(/<(?:[^>"']|"[^"]*"|'[^']*')*>/g, ' ')),
+  );
 }
 
 /** Count <h1> opening tags outside script/style/comments. */
@@ -307,8 +329,10 @@ export function documentStructureProblems(html) {
   const opens = (name) => tk.filter((t) => t.kind === 'open' && t.name === name);
   const closes = (name) => tk.filter((t) => t.kind === 'close' && t.name === name);
   for (const name of ['html', 'head', 'body']) {
-    if (opens(name).length !== 1) problems.push(`${opens(name).length} <${name}> start tags (want 1)`);
-    if (closes(name).length !== 1) problems.push(`${closes(name).length} </${name}> end tags (want 1)`);
+    if (opens(name).length !== 1)
+      problems.push(`${opens(name).length} <${name}> start tags (want 1)`);
+    if (closes(name).length !== 1)
+      problems.push(`${closes(name).length} </${name}> end tags (want 1)`);
   }
   if (problems.length) return problems;
 
@@ -320,15 +344,28 @@ export function documentStructureProblems(html) {
     closes('body')[0],
     closes('html')[0],
   ];
-  if (!(htmlOpen.start < headOpen.start && headOpen.end <= headClose.start && headClose.end <= bodyOpen.start && bodyClose.end <= htmlClose.start)) {
+  if (
+    !(
+      htmlOpen.start < headOpen.start &&
+      headOpen.end <= headClose.start &&
+      headClose.end <= bodyOpen.start &&
+      bodyClose.end <= htmlClose.start
+    )
+  ) {
     problems.push('html/head/body tags out of order');
   }
 
-  const gap = (from, to) => html.slice(from, to).replace(/<!--[\s\S]*?-->/g, '').trim();
+  const gap = (from, to) =>
+    html
+      .slice(from, to)
+      .replace(/<!--[\s\S]*?-->/g, '')
+      .trim();
   const betweenHeadAndBody = gap(headClose.end, bodyOpen.start);
-  if (betweenHeadAndBody) problems.push(`content between </head> and <body>: "${betweenHeadAndBody.slice(0, 80)}"`);
+  if (betweenHeadAndBody)
+    problems.push(`content between </head> and <body>: "${betweenHeadAndBody.slice(0, 80)}"`);
   const betweenBodyAndHtml = gap(bodyClose.end, htmlClose.start);
-  if (betweenBodyAndHtml) problems.push(`content between </body> and </html>: "${betweenBodyAndHtml.slice(0, 80)}"`);
+  if (betweenBodyAndHtml)
+    problems.push(`content between </body> and </html>: "${betweenBodyAndHtml.slice(0, 80)}"`);
   const afterHtml = gap(htmlClose.end, html.length);
   if (afterHtml) problems.push(`content after </html>: "${afterHtml.slice(0, 80)}"`);
 
@@ -336,23 +373,32 @@ export function documentStructureProblems(html) {
 
   const titles = documentTitleTokens(tk);
   if (titles.length !== 1) problems.push(`${titles.length} document <title> elements (want 1)`);
-  else if (!inHead(titles[0])) problems.push(`<title> is outside <head> at offset ${titles[0].start}`);
+  else if (!inHead(titles[0]))
+    problems.push(`<title> is outside <head> at offset ${titles[0].start}`);
 
   for (const t of tk) {
     if (t.kind !== 'open') continue;
     const where = `at offset ${t.start}`;
-    if (t.name === 'script' && attrValue(t.attrs, 'type').trim().toLowerCase() === 'application/ld+json' && !inHead(t)) {
+    if (
+      t.name === 'script' &&
+      attrValue(t.attrs, 'type').trim().toLowerCase() === 'application/ld+json' &&
+      !inHead(t)
+    ) {
       problems.push(`application/ld+json <script> outside <head> ${where}`);
     }
     if (t.name === 'link') {
       const rel = attrValue(t.attrs, 'rel');
-      if (/(^|\s)stylesheet(\s|$)/i.test(rel) && !inHead(t)) problems.push(`<link rel="stylesheet"> outside <head> ${where}`);
-      if (/(^|\s)canonical(\s|$)/i.test(rel) && !inHead(t)) problems.push(`<link rel="canonical"> outside <head> ${where}`);
+      if (/(^|\s)stylesheet(\s|$)/i.test(rel) && !inHead(t))
+        problems.push(`<link rel="stylesheet"> outside <head> ${where}`);
+      if (/(^|\s)canonical(\s|$)/i.test(rel) && !inHead(t))
+        problems.push(`<link rel="canonical"> outside <head> ${where}`);
     }
     if (t.name === 'meta') {
       const name = attrValue(t.attrs, 'name').toLowerCase();
-      if (['description', 'robots', 'viewport'].includes(name) && !inHead(t)) problems.push(`<meta name="${name}"> outside <head> ${where}`);
-      if (/(^|\s)charset\s*=/i.test(t.attrs) && !inHead(t)) problems.push(`<meta charset> outside <head> ${where}`);
+      if (['description', 'robots', 'viewport'].includes(name) && !inHead(t))
+        problems.push(`<meta name="${name}"> outside <head> ${where}`);
+      if (/(^|\s)charset\s*=/i.test(t.attrs) && !inHead(t))
+        problems.push(`<meta charset> outside <head> ${where}`);
     }
   }
   return problems;
@@ -458,7 +504,10 @@ export function lintPage(html) {
   for (const text of [visibleText(html), title.text, description.text]) {
     const naming = NAMING_RES.map((re) => re.exec(text)).find(Boolean);
     if (naming) {
-      fails('product-naming', `"${naming[0]}" never named a product line: …${around(text, naming)}…`);
+      fails(
+        'product-naming',
+        `"${naming[0]}" never named a product line: …${around(text, naming)}…`,
+      );
       break;
     }
   }
@@ -466,7 +515,10 @@ export function lintPage(html) {
   if (indexable) {
     const hrefs = canonicalHrefs(html);
     if (hrefs.length !== 1) {
-      fails('canonical', hrefs.length === 0 ? 'no <link rel="canonical">' : `${hrefs.length} <link rel="canonical">`);
+      fails(
+        'canonical',
+        hrefs.length === 0 ? 'no <link rel="canonical">' : `${hrefs.length} <link rel="canonical">`,
+      );
     } else {
       const problem = canonicalProblem(hrefs[0]);
       if (problem) fails('canonical', problem);
@@ -488,7 +540,12 @@ export function lintPages(pages, allowlist = {}) {
   const known = new Set(pages.map((p) => p.url));
   for (const url of Object.keys(allowlist)) {
     if (!known.has(url)) {
-      failures.push({ url, rule: 'allowlist', level: 'error', message: 'allowlist entry matches no built page' });
+      failures.push({
+        url,
+        rule: 'allowlist',
+        level: 'error',
+        message: 'allowlist entry matches no built page',
+      });
     }
   }
 
@@ -497,7 +554,12 @@ export function lintPages(pages, allowlist = {}) {
     const exempt = allowlist[page.url] ?? {};
     for (const { rule, message } of lintPage(page.html)) {
       if (exempt[rule] !== undefined) {
-        warnings.push({ url: page.url, rule: 'allowlist', level: 'warn', message: `exempted ${rule}: ${exempt[rule]}` });
+        warnings.push({
+          url: page.url,
+          rule: 'allowlist',
+          level: 'warn',
+          message: `exempted ${rule}: ${exempt[rule]}`,
+        });
         continue;
       }
       const level = RULES[rule]?.level ?? 'error';
@@ -515,7 +577,9 @@ export function lintPages(pages, allowlist = {}) {
     }
   }
   for (const [d, urls] of byDescription) {
-    const live = urls.filter((url) => (allowlist[url] ?? {})['description-duplicate'] === undefined);
+    const live = urls.filter(
+      (url) => (allowlist[url] ?? {})['description-duplicate'] === undefined,
+    );
     if (live.length > 1) {
       const failure = {
         url: live[0],
@@ -595,11 +659,15 @@ function summary(failures, warnings, pageCount) {
   const lines = [`content-lint: ${pageCount} pages checked`];
   for (const [rule, { level }] of Object.entries(RULES)) {
     const n = byRule.get(rule) ?? { error: 0, warn: 0 };
-    lines.push(`  ${rule.padEnd(22)} ${String(n.error).padStart(3)} errors  ${String(n.warn).padStart(3)} warnings  (${level})`);
+    lines.push(
+      `  ${rule.padEnd(22)} ${String(n.error).padStart(3)} errors  ${String(n.warn).padStart(3)} warnings  (${level})`,
+    );
   }
   const allow = byRule.get('allowlist') ?? { error: 0, warn: 0 };
   if (allow.error || allow.warn) {
-    lines.push(`  ${'allowlist'.padEnd(22)} ${String(allow.error).padStart(3)} errors  ${String(allow.warn).padStart(3)} exemptions`);
+    lines.push(
+      `  ${'allowlist'.padEnd(22)} ${String(allow.error).padStart(3)} errors  ${String(allow.warn).padStart(3)} exemptions`,
+    );
   }
   return lines.join('\n');
 }

@@ -138,9 +138,9 @@ const jsonLd = [
     <ScanUiBoot />
     <div data-scan-variant="v1">
       <p class="mt-3 text-xs text-text-annotation max-w-2xl mx-auto">
-        This tool calls Google's public PageSpeed Insights API. mod_pagespeed 2.1 is developed by We-Amp
-        B.V. and is not affiliated with or endorsed by Google. PageSpeed Insights is a trademark of
-        Google LLC.
+        This tool calls Google's public PageSpeed Insights API. mod_pagespeed 2.1 is developed by
+        We-Amp B.V. and is not affiliated with or endorsed by Google. PageSpeed Insights is a
+        trademark of Google LLC.
       </p>
 
       <form
@@ -149,7 +149,10 @@ const jsonLd = [
         novalidate
         aria-describedby="psi-form-error"
       >
-        <label for="psi-url" class="block text-sm font-medium text-text-body"> Page URL </label>
+        <label for="psi-url" class="block text-sm font-medium text-text-body">
+          {' '}
+          Page URL{' '}
+        </label>
         <div class="mt-2 flex flex-col sm:flex-row gap-3">
           <input
             id="psi-url"
@@ -180,12 +183,14 @@ const jsonLd = [
                 r="10"
                 stroke="currentColor"
                 stroke-width="3"
-                stroke-opacity="0.25"></circle>
+                stroke-opacity="0.25"
+              ></circle>
               <path
                 d="M22 12a10 10 0 0 0-10-10"
                 stroke="currentColor"
                 stroke-width="3"
-                stroke-linecap="round"></path>
+                stroke-linecap="round"
+              ></path>
             </svg>
           </button>
         </div>
@@ -194,9 +199,10 @@ const jsonLd = [
           The URL you submit is sent to Google's PageSpeed Insights API (in the US) through a small
           proxy on this site that holds the API key and caches results. Your IP address is logged
           and rate-limited to 30 requests per minute per visitor to prevent abuse. See our
-          <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline"
-            >Privacy policy</a
-          >.
+          <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline">
+            Privacy policy
+          </a>
+          .
         </p>
       </form>
     </div>
@@ -234,12 +240,14 @@ const jsonLd = [
               r="10"
               stroke="currentColor"
               stroke-width="3"
-              stroke-opacity="0.25"></circle>
+              stroke-opacity="0.25"
+            ></circle>
             <path
               d="M22 12a10 10 0 0 0-10-10"
               stroke="currentColor"
               stroke-width="3"
-              stroke-linecap="round"></path>
+              stroke-linecap="round"
+            ></path>
           </svg>
           <p class="text-sm font-medium text-text-body">
             Running PageSpeed Insights for mobile and desktop. Usually 10–20 seconds.
@@ -282,7 +290,9 @@ const jsonLd = [
     <section id="psi-results" class="mx-auto max-w-5xl px-4 sm:px-6 lg:px-8 pb-16 hidden">
       <!-- Headline coverage banner -->
       <div id="psi-headline" class="rounded-2xl border border-border bg-bg-elevated p-6 sm:p-8">
-        <p class="eyebrow" id="psi-headline-url">—</p>
+        <p class="eyebrow" id="psi-headline-url">
+          —
+        </p>
         <h2
           id="psi-headline-text"
           class="mt-2 text-2xl sm:text-3xl font-bold tracking-tight text-text-body"
@@ -300,7 +310,9 @@ const jsonLd = [
           <div class="readout readout-plate p-4" data-ui="readout">
             <p class="readout-label text-sm text-text-muted">Mobile</p>
             <p class="readout-value display-num mt-1">
-              <span id="psi-score-mobile" class="text-text-body">—</span>
+              <span id="psi-score-mobile" class="text-text-body">
+                —
+              </span>
             </p>
             <div class="readout-gauge" aria-hidden="true">
               <i class="track"></i>
@@ -311,7 +323,9 @@ const jsonLd = [
           <div class="readout readout-plate p-4" data-ui="readout">
             <p class="readout-label text-sm text-text-muted">Desktop</p>
             <p class="readout-value display-num mt-1">
-              <span id="psi-score-desktop" class="text-text-body">—</span>
+              <span id="psi-score-desktop" class="text-text-body">
+                —
+              </span>
             </p>
             <div class="readout-gauge" aria-hidden="true">
               <i class="track"></i>
@@ -403,8 +417,7 @@ const jsonLd = [
             <span id="psi-config-copy-label">Copy</span>
           </button>
         </div>
-        <pre
-          class="mt-4 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm"><code id="psi-config-snippet" class="text-text-body">pagespeed on;</code></pre>
+        <pre class="mt-4 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm"><code id="psi-config-snippet" class="text-text-body">pagespeed on;</code></pre>
       </div>
 
       <!-- Result-moment CTA: surfaced right after the config (the lead magnet
@@ -524,9 +537,7 @@ const jsonLd = [
             Read the configuration docs &rarr;
           </a>
         </div>
-        <p class="text-xs text-text-annotation">
-          {FREE_TO_RUN_LINE}
-        </p>
+        <p class="text-xs text-text-annotation">{FREE_TO_RUN_LINE}</p>
       </div>
 
       <!-- Report download — revealed with the result (hidden until then, so no
@@ -549,8 +560,7 @@ const jsonLd = [
           role="status"
           aria-live="polite"
           class="mt-2 text-sm text-text-muted"
-        >
-        </p>
+        ></p>
       </div>
 
       <!-- Error state -->
@@ -586,9 +596,7 @@ const jsonLd = [
 
     <ol class="mt-10 grid gap-6 sm:grid-cols-3">
       <li class="rounded-xl border border-border bg-bg-elevated p-6">
-        <div
-          class="flex h-8 w-8 items-center justify-center rounded-full bg-interactive text-on-accent text-sm font-semibold"
-        >
+        <div class="flex h-8 w-8 items-center justify-center rounded-full bg-interactive text-on-accent text-sm font-semibold">
           1
         </div>
         <h3 class="mt-4 text-base font-semibold text-text-body">
@@ -601,9 +609,7 @@ const jsonLd = [
         </p>
       </li>
       <li class="rounded-xl border border-border bg-bg-elevated p-6">
-        <div
-          class="flex h-8 w-8 items-center justify-center rounded-full bg-interactive text-on-accent text-sm font-semibold"
-        >
+        <div class="flex h-8 w-8 items-center justify-center rounded-full bg-interactive text-on-accent text-sm font-semibold">
           2
         </div>
         <h3 class="mt-4 text-base font-semibold text-text-body">
@@ -615,15 +621,13 @@ const jsonLd = [
         </p>
       </li>
       <li class="rounded-xl border border-border bg-bg-elevated p-6">
-        <div
-          class="flex h-8 w-8 items-center justify-center rounded-full bg-interactive text-on-accent text-sm font-semibold"
-        >
+        <div class="flex h-8 w-8 items-center justify-center rounded-full bg-interactive text-on-accent text-sm font-semibold">
           3
         </div>
         <h3 class="mt-4 text-base font-semibold text-text-body">Copy a working nginx config</h3>
         <p class="mt-2 text-sm text-text-muted">
-          You get a ready-to-paste <code class="text-xs">pagespeed</code> directive block that enables
-          exactly the filters your page needs. Drop it in, reload nginx, re-run the test.
+          You get a ready-to-paste <code class="text-xs">pagespeed</code> directive block that
+          enables exactly the filters your page needs. Drop it in, reload nginx, re-run the test.
         </p>
       </li>
     </ol>
@@ -637,15 +641,13 @@ const jsonLd = [
     <p class="lede mt-3 text-center max-w-2xl mx-auto">
       These are the PageSpeed Insights findings mod_pagespeed addresses on every request, with no
       code changes on the origin. Most filters below have been production-tested in the upstream
-      <code class="text-sm">mod_pagespeed</code> codebase since 2010. A few are still marked &ldquo;test
-      first&rdquo;; the analyzer flags those per-page in the live results.
+      <code class="text-sm">mod_pagespeed</code> codebase since 2010. A few are still marked
+      &ldquo;test first&rdquo;; the analyzer flags those per-page in the live results.
     </p>
 
-    {
-      /* Inline edition toggle for the highlights cards. Always visible (the
+    {/* Inline edition toggle for the highlights cards. Always visible (the
         toggle inside the results panel is only surfaced after analysis).
-        Both toggles read+write the same JS state via syncEditionUi(). */
-    }
+        Both toggles read+write the same JS state via syncEditionUi(). */}
     <div id="psi-highlights-toggle" class="mt-8 flex flex-col items-center gap-2">
       <span class="text-xs font-medium uppercase tracking-wide text-text-annotation">
         Showing cards for
@@ -679,49 +681,47 @@ const jsonLd = [
     </div>
 
     <ul id="psi-highlights-list" class="mt-10 grid gap-4 sm:grid-cols-2">
-      {
-        fixedHighlights.map((item) => {
-          // Worker-side audits get a "Worker" coverage marker; module-side
-          // audits get a "Module" marker. Both parts ship in mod_pagespeed
-          // 2.1; the marker says where the fix runs, not which product you
-          // need. Cards toggle their hidden state client-side based on the
-          // chosen part.
-          const isTwoOnly = item.availableIn.includes('2.0') && !item.availableIn.includes('1.1');
-          const isOneOnly = item.availableIn.includes('1.1') && !item.availableIn.includes('2.0');
-          // Title overrides — keep the brand-honest framing for cards
-          // whose audit ID is generic (e.g. "Document request latency")
-          // but whose worker-only behaviour is the HTML cache.
-          const displayTitle =
-            isTwoOnly && item.auditId === 'document-latency-insight'
-              ? 'Mask slow origin TTFB with HTML caching'
-              : item.auditTitle;
-          return (
-            <li
-              data-highlight-id={item.auditId}
-              data-available-in={item.availableIn.join(',')}
-              class="rounded-xl border border-border bg-bg-elevated p-5"
-            >
-              <div class="flex items-start justify-between gap-2">
-                <h3 class="text-base font-semibold text-text-body">{displayTitle}</h3>
-                {isTwoOnly && <Chip tone="neutral" label="Worker" />}
-                {isOneOnly && <Chip tone="neutral" label="Module" />}
-              </div>
-              <p class="mt-2 text-sm text-text-muted leading-relaxed">{item.explanation}</p>
-              {item.filters.length > 0 && (
-                <ul class="mt-3 flex flex-wrap gap-1.5 list-none">
-                  {item.filters.map((f) => (
-                    <li>
-                      <code class="inline-flex items-center rounded-md border border-border-strong bg-bg-secondary px-2 py-0.5 text-xs font-mono text-text-body">
-                        {f}
-                      </code>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </li>
-          );
-        })
-      }
+      {fixedHighlights.map((item) => {
+        // Worker-side audits get a "Worker" coverage marker; module-side
+        // audits get a "Module" marker. Both parts ship in mod_pagespeed
+        // 2.1; the marker says where the fix runs, not which product you
+        // need. Cards toggle their hidden state client-side based on the
+        // chosen part.
+        const isTwoOnly = item.availableIn.includes('2.0') && !item.availableIn.includes('1.1');
+        const isOneOnly = item.availableIn.includes('1.1') && !item.availableIn.includes('2.0');
+        // Title overrides — keep the brand-honest framing for cards
+        // whose audit ID is generic (e.g. "Document request latency")
+        // but whose worker-only behaviour is the HTML cache.
+        const displayTitle =
+          isTwoOnly && item.auditId === 'document-latency-insight'
+            ? 'Mask slow origin TTFB with HTML caching'
+            : item.auditTitle;
+        return (
+          <li
+            data-highlight-id={item.auditId}
+            data-available-in={item.availableIn.join(',')}
+            class="rounded-xl border border-border bg-bg-elevated p-5"
+          >
+            <div class="flex items-start justify-between gap-2">
+              <h3 class="text-base font-semibold text-text-body">{displayTitle}</h3>
+              {isTwoOnly && <Chip tone="neutral" label="Worker" />}
+              {isOneOnly && <Chip tone="neutral" label="Module" />}
+            </div>
+            <p class="mt-2 text-sm text-text-muted leading-relaxed">{item.explanation}</p>
+            {item.filters.length > 0 && (
+              <ul class="mt-3 flex flex-wrap gap-1.5 list-none">
+                {item.filters.map((f) => (
+                  <li>
+                    <code class="inline-flex items-center rounded-md border border-border-strong bg-bg-secondary px-2 py-0.5 text-xs font-mono text-text-body">
+                      {f}
+                    </code>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </li>
+        );
+      })}
     </ul>
 
     <div class="mt-10 rounded-xl border border-border bg-bg-secondary p-6">
@@ -749,14 +749,12 @@ const jsonLd = [
     </p>
 
     <dl class="mt-10 space-y-6">
-      {
-        faqEntries.map((entry) => (
-          <div class="rounded-xl border border-border bg-bg-elevated p-6">
-            <dt class="text-base font-semibold text-text-body">{entry.q}</dt>
-            <dd class="mt-2 text-sm text-text-muted leading-relaxed">{entry.a}</dd>
-          </div>
-        ))
-      }
+      {faqEntries.map((entry) => (
+        <div class="rounded-xl border border-border bg-bg-elevated p-6">
+          <dt class="text-base font-semibold text-text-body">{entry.q}</dt>
+          <dd class="mt-2 text-sm text-text-muted leading-relaxed">{entry.a}</dd>
+        </div>
+      ))}
     </dl>
 
     <div class="mt-10 flex flex-col items-center gap-3">
@@ -768,26 +766,17 @@ const jsonLd = [
           See every filter &rarr;
         </a>
       </div>
-      <p class="text-xs text-text-annotation">
-        {FREE_TO_RUN_LINE}
-      </p>
+      <p class="text-xs text-text-annotation">{FREE_TO_RUN_LINE}</p>
+      <!-- prettier-ignore -->
       <p class="mt-6 text-sm text-text-muted text-center max-w-2xl">
-        Next: read what <a
-          href="/core-web-vitals/"
-          class="text-interactive hover:text-interactive-hover underline">LCP, CLS, and INP</a
-        > mean, decode the <a
-          href="/pagespeed-markers/"
-          class="text-interactive hover:text-interactive-hover underline"
-          >.pagespeed. URLs and markers</a
-        > in your report, dig into <a
-          href="/self-hosted-image-optimization/"
-          class="text-interactive hover:text-interactive-hover underline"
-          >self-hosted image optimization</a
-        >, or see how to <a
-          href="/blog/reduce-ttfb-server-layer-2026/"
-          class="text-interactive hover:text-interactive-hover underline"
-          >cut TTFB at the server layer</a
-        >.
+        Next: read what{' '}
+        <a href="/core-web-vitals/" class="text-interactive hover:text-interactive-hover underline">LCP, CLS, and INP</a>{' '}
+        mean, decode the{' '}
+        <a href="/pagespeed-markers/" class="text-interactive hover:text-interactive-hover underline">.pagespeed. URLs and markers</a>{' '}
+        in your report, dig into{' '}
+        <a href="/self-hosted-image-optimization/" class="text-interactive hover:text-interactive-hover underline">self-hosted image optimization</a>,
+        or see how to{' '}
+        <a href="/blog/reduce-ttfb-server-layer-2026/" class="text-interactive hover:text-interactive-hover underline">cut TTFB at the server layer</a>.
       </p>
     </div>
   </section>
@@ -1609,7 +1598,6 @@ const jsonLd = [
       if (result.ok) void runAnalysis(result.url);
     })();
   </script>
-
   <style>
     /* Score readouts in the Readout idiom (display numeral over a tick-scale
        gauge on a recessed plate), label above the value: the page's text

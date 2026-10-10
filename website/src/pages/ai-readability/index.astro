@@ -109,8 +109,11 @@ const jsonLd = [webApp, faqPage];
       of the page at the same URL &mdash; an
       <a
         href="/blog/serve-markdown-to-ai-agents/"
-        class="text-interactive underline underline-offset-2">experimental feature</a
-      >, off by default, that we dogfood here.
+        class="text-interactive underline underline-offset-2"
+      >
+        experimental feature
+      </a>
+      , off by default, that we dogfood here.
     </SectionHeader>
 
     <ScanUiBoot />
@@ -147,18 +150,19 @@ const jsonLd = [webApp, faqPage];
         Only scan sites you own or are authorized to test. Scanned content is used only to produce
         this readability result and is not retained or shared beyond that. Your IP address is logged
         and rate-limited to 20 requests per minute per visitor to prevent abuse. See our
-        <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline"
-          >Privacy policy</a
-        >.
+        <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline">
+          Privacy policy
+        </a>
+        .
       </p>
     </div>
     <div data-scan-variant="v2" data-pagefind-ignore>
       <ScanBox surface="airead" />
     </div>
 
+    <!-- prettier-ignore -->
     <p class="mt-4 text-sm text-text-annotation">
-      From
-      <a href="/about/" class="text-interactive underline underline-offset-2">We-Amp</a>
+      From <a href="/about/" class="text-interactive underline underline-offset-2">We-Amp</a>
       &mdash; the team behind ngx_pagespeed.
     </p>
   </section>
@@ -185,9 +189,7 @@ const jsonLd = [webApp, faqPage];
           produces &mdash; an illustrative sample, not a live measurement:
         </p>
         <div class="mt-5 flex items-center gap-4">
-          <div
-            class="flex h-16 w-16 items-center justify-center rounded-xl border-2 border-accent text-3xl font-bold text-accent"
-          >
+          <div class="flex h-16 w-16 items-center justify-center rounded-xl border-2 border-accent text-3xl font-bold text-accent">
             C
           </div>
           <div>
@@ -243,8 +245,11 @@ const jsonLd = [webApp, faqPage];
         JavaScript ran. Read
         <a
           href="/blog/can-ai-read-your-website/"
-          class="text-interactive underline underline-offset-2">the full results</a
-        >.
+          class="text-interactive underline underline-offset-2"
+        >
+          the full results
+        </a>
+        .
       </p>
     </div>
 
@@ -260,36 +265,41 @@ const jsonLd = [webApp, faqPage];
         sites &mdash; see
         <a
           href="/blog/can-ai-read-your-website/"
-          class="text-interactive underline underline-offset-2">what we found</a
-        >.
+          class="text-interactive underline underline-offset-2"
+        >
+          what we found
+        </a>
+        .
       </p>
       <div class="mt-5 overflow-hidden rounded-2xl border border-border">
         <table class="w-full text-left text-sm">
           <thead class="bg-bg-secondary">
             <tr>
-              <th scope="col" class="px-4 py-3 font-semibold text-text-body"> Crawler </th>
-              <th scope="col" class="px-4 py-3 font-semibold text-text-body"> Used by </th>
+              <th scope="col" class="px-4 py-3 font-semibold text-text-body">
+                Crawler
+              </th>
+              <th scope="col" class="px-4 py-3 font-semibold text-text-body">
+                Used by
+              </th>
               <th scope="col" class="px-4 py-3 font-semibold text-text-body">
                 Renders JavaScript?
               </th>
             </tr>
           </thead>
           <tbody>
-            {
-              botRendering.map((row) => (
-                <tr class="border-t border-border">
-                  <td class="px-4 py-3 font-medium text-text-body">{row.bot}</td>
-                  <td class="px-4 py-3 text-text-muted">{row.agent}</td>
-                  <td class="px-4 py-3">
-                    {row.rendersJs ? (
-                      <span class="font-medium text-success">Renders JS</span>
-                    ) : (
-                      <span class="font-medium text-text-annotation">No — static HTML only</span>
-                    )}
-                  </td>
-                </tr>
-              ))
-            }
+            {botRendering.map((row) => (
+              <tr class="border-t border-border">
+                <td class="px-4 py-3 font-medium text-text-body">{row.bot}</td>
+                <td class="px-4 py-3 text-text-muted">{row.agent}</td>
+                <td class="px-4 py-3">
+                  {row.rendersJs ? (
+                    <span class="font-medium text-success">Renders JS</span>
+                  ) : (
+                    <span class="font-medium text-text-annotation">No — static HTML only</span>
+                  )}
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
@@ -301,22 +311,20 @@ const jsonLd = [webApp, faqPage];
     <div class="mt-14 max-w-2xl">
       <h2 class="text-xl font-semibold text-text-body">Frequently asked questions</h2>
       <div class="mt-6 space-y-3">
-        {
-          faqPage.mainEntity.map((item) => (
-            <details class="group rounded-2xl border border-border bg-bg-elevated">
-              <summary class="flex cursor-pointer items-center justify-between gap-4 px-5 py-4 text-sm font-semibold text-text-body">
-                {item.name}
-                <Icon
-                  name="chevron-down"
-                  class="h-5 w-5 shrink-0 text-text-annotation group-open:rotate-180"
-                />
-              </summary>
-              <p class="px-5 pb-5 text-sm text-text-annotation leading-relaxed">
-                {item.acceptedAnswer.text}
-              </p>
-            </details>
-          ))
-        }
+        {faqPage.mainEntity.map((item) => (
+          <details class="group rounded-2xl border border-border bg-bg-elevated">
+            <summary class="flex cursor-pointer items-center justify-between gap-4 px-5 py-4 text-sm font-semibold text-text-body">
+              {item.name}
+              <Icon
+                name="chevron-down"
+                class="h-5 w-5 shrink-0 text-text-annotation group-open:rotate-180"
+              />
+            </summary>
+            <p class="px-5 pb-5 text-sm text-text-annotation leading-relaxed">
+              {item.acceptedAnswer.text}
+            </p>
+          </details>
+        ))}
       </div>
     </div>
   </section>

@@ -157,8 +157,12 @@ test.describe('Accessibility', () => {
       await page.emulateMedia({ reducedMotion: 'reduce' });
       await page.goto(pagePath);
 
-      const builder = new AxeBuilder({ page })
-        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa']);
+      const builder = new AxeBuilder({ page }).withTags([
+        'wcag2a',
+        'wcag2aa',
+        'wcag21a',
+        'wcag21aa',
+      ]);
 
       // Demo page embeds third-party demo sites in iframes with intentionally
       // non-optimized assets. Exclude iframe content and scrollable demo panels.
