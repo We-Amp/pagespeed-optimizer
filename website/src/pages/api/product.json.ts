@@ -48,7 +48,8 @@ const productData = {
     status: SOURCE_PUBLICATION.status,
     license: SOURCE_PUBLICATION.licenseId,
   },
-  // What is for sale is support and the hardened build channel. Prices are
+  // What is for sale is support; Priority and Enterprise add a private package repository
+  // (being set up). Prices are
   // placeholders (null) until published.
   support: {
     url: SUPPORT_URL,
@@ -68,14 +69,13 @@ const productData = {
     contact: COMMERCIAL_EMAIL,
   },
   // Artifact access, expressed additively (new key, existing keys unchanged):
-  // the standard signed packages are free; hardened builds come through the
-  // subscriber repository, included from the Priority tier up, pricing on
-  // request. Paid artifacts carry the same software license as the standard
-  // packages.
+  // the standard signed packages are free for everyone; the private package
+  // repository for Priority and Enterprise is being set up (not yet live).
   artifacts: {
     standard_packages: ARTIFACT_ACCESS.standardPackages,
     hardened_builds: ARTIFACT_ACCESS.hardenedBuilds,
     hardened_pricing: ARTIFACT_ACCESS.hardenedPricing,
+    private_repository: ARTIFACT_ACCESS.privateRepository,
   },
   features: {
     // `image_formats` is the flat format list. Its key name, shape (flat array

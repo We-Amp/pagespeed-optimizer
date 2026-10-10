@@ -91,7 +91,7 @@ test.describe('Navigation', () => {
     const panel = page.locator('.nav-dropdown-panel:visible');
     const expected = [
       { href: '/support/', label: 'Support plans', offer: 'support' },
-      { href: '/support/#hardened-builds', label: 'Hardened builds', offer: 'hardened' },
+      { href: '/support/#hardened-builds', label: 'Signed artifacts', offer: 'hardened' },
       { href: '/hosting-partners/', label: 'Hosting partners', offer: 'hosting' },
       { href: 'https://we-amp.com/consulting/', label: 'Consulting', offer: 'consulting' },
     ];

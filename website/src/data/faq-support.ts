@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 
-// The /support/ page FAQ: what a subscription covers and how hardened builds
-// work. Rendered visibly on the page and emitted as FAQPage JSON-LD from the
+// The /support/ page FAQ: what a subscription covers and how the signed
+// artifacts are verified. Rendered visibly on the page and emitted as FAQPage JSON-LD from the
 // same entries, so the structured data never says more than the page does.
 // Answers may contain HTML; JSON-LD callers pipe them through stripHtml().
 // No price amounts and no per-tier response-time targets (the quote states
@@ -17,7 +17,7 @@ const link = (href: string, text: string) =>
 export const faqSupport: FaqEntry[] = [
   {
     q: 'Does a subscription change what the software does?',
-    a: `No. Every install runs the same software under the ${SOURCE_PUBLICATION.license}, with every optimization enabled by configuration, not by a plan. A subscription changes who answers when you need help, and for Priority and Enterprise, which repository your packages come from.`,
+    a: `No. Every install runs the same software under the ${SOURCE_PUBLICATION.license}, with every optimization enabled by configuration, not by a plan. A subscription changes who answers when you need help. Once the private package repository for Priority and Enterprise is live, it will also change where those subscribers' packages come from.`,
   },
   {
     q: 'Who answers a ticket?',
@@ -29,19 +29,23 @@ export const faqSupport: FaqEntry[] = [
   },
   {
     q: 'How do security updates reach me?',
-    a: `Everyone gets security fixes as regular releases through the channel they installed from, listed under Security in the ${link('/docs/release-notes/', 'release notes')}. Subscribers get advance notice, with a delivery window stated in their quote. Priority and Enterprise subscribers receive the update through the subscriber repository before the public release.`,
+    a: `Everyone gets security fixes as regular releases through the channel they installed from, listed under Security in the ${link('/docs/release-notes/', 'release notes')}. Subscribers get advance notice, with a delivery window stated in their quote. A private package repository for Priority and Enterprise subscribers, with security fixes delivered before the public release, is being set up; until then, subscribers can request the release SBOM and VEX.`,
   },
   {
     q: 'What counts as a production server?',
     a: 'A server that serves production traffic with the module or the optimizer worker. You declare the band (up to 5, up to 25, or more) when you ask for a quote; there is no metering and the software never reports a count.',
   },
   {
-    q: 'What does "hardened" mean for the builds?',
-    a: `The same source, built through a hardened build pipeline and delivered through the subscriber repository, with security updates ahead of the public release. Enterprise adds custom build targets. The artifacts carry the same ${SOURCE_PUBLICATION.license} as the standard packages. See ${link('#hardened-builds', 'hardened builds')}.`,
+    q: 'What is the private package repository?',
+    a: 'A private package repository for Priority and Enterprise subscribers, with security fixes delivered before the public release, is being set up. Until then, subscribers receive the release SBOM and VEX on request and advance notice of security releases. Packages in it will carry the same license as the standard packages.',
+  },
+  {
+    q: 'What is signed today?',
+    a: `The apt and yum repositories are GPG-signed, release packages carry .asc signatures, and the Windows installer is Authenticode-signed. The container images are cosign-signed and carry an SBOM attestation and build provenance. Release SBOM and VEX documents are available to subscribers (any tier) on request. Everything is the same software under the ${SOURCE_PUBLICATION.license}. See ${link('#hardened-builds', 'signed packages and images')}.`,
   },
   {
     q: 'Can I verify the standard packages without a subscription?',
-    a: `Yes. The apt and yum repositories are GPG-signed, every release asset is listed in SHA256SUMS, and the SPDX SBOM is published in the source tree. The ${link('#verify', 'four-line recipe')} on this page checks the key and the checksums.`,
+    a: `Yes. The apt and yum repositories are GPG-signed, every release asset is listed in SHA256SUMS, and the SPDX SBOM and OpenVEX file are published in the source tree. The ${link('#verify', 'four-line recipe')} on this page checks the key and the checksums.`,
   },
   {
     q: 'What happens if a subscription lapses?',

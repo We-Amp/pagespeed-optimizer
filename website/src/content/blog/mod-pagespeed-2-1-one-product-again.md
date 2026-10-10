@@ -59,8 +59,8 @@ original codebase — and the relicensing is retroactive, covering the
 predecessor lines as well. The source lives at
 [github.com/We-Amp/mod_pagespeed](https://github.com/We-Amp/mod_pagespeed).
 There are no editions and no usage registration, and the standard signed
-packages are free. What's for sale is support and hardened, attested builds: [SLA-backed plans, enterprise attestation with hardened builds, and a
-hoster partner program](/pricing/) from the people who build it.
+packages are free. What's for sale is support: [SLA-backed plans and a
+hoster partner program](/pricing/) from the people who build it; Priority and Enterprise add a private package repository (being set up).
 
 ## What this means for you
 
