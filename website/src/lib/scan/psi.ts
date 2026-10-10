@@ -557,3 +557,18 @@ export function classifyError(err: unknown): { title: string; body: string } {
     body: `${message} Check your network connection and try again.`,
   };
 }
+
+// What a failed PSI request is called, on the tile and in the panel alike. A
+// timeout already says what happened; the network advice would be wrong.
+export function describePsiError(err: { kind?: string; message: string; status?: number }): {
+  title: string;
+  body: string;
+} {
+  if (err.kind === 'timeout')
+    return { title: 'PageSpeed Insights did not answer.', body: err.message };
+  const c = classifyError(err);
+  // The shared network fallback keeps its wording for the original analyzer.
+  if (c.title === 'Couldn’t reach PSI.')
+    return { ...c, title: 'PageSpeed Insights did not answer.' };
+  return c;
+}

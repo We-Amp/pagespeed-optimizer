@@ -197,7 +197,9 @@ test.describe('v2 shell tile states', () => {
     await expect(airead.locator('[data-scan-value]')).toHaveText('Grade C · 64/100');
     await expect(risk.locator('[data-scan-status]')).toHaveText('1 flagged');
     await expect(risk.locator('[data-scan-value]')).toHaveText('1 need attention');
-    await expect(page.locator('[data-scan-health]')).toHaveText('3 of 3 areas need attention');
+    await expect(page.locator('[data-scan-health]')).toHaveText(
+      '3 of 3 areas checked need attention.',
+    );
     await expect(page.locator('[data-scan-live]')).not.toBeEmpty();
   });
 

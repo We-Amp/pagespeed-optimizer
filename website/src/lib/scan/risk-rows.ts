@@ -33,6 +33,8 @@ export interface RiskRow {
   chip: string;
   /** The one verdict sentence, or the not-measured note. */
   sentence: string;
+  /** Secondary muted line listing what was flagged; empty when there is none. */
+  detail: string;
   /** "What we are building" sentences; empty unless the lens's gate fires. */
   building: string[];
   link: RiskLink | null;
@@ -84,7 +86,7 @@ function siReasonText(si: Lens): string {
   if (reasons.includes('floating-version')) bits.push('CDN scripts with no pinned version');
   if (reasons.includes('duplicate-library')) bits.push('the same library at more than one version');
   if (reasons.includes('unlisted-origin')) bits.push('script hosts not on our list of known hosts');
-  return bits.length ? ' Flagged: ' + bits.join('; ') + '.' : '';
+  return bits.length ? 'Flagged: ' + bits.join('; ') + '.' : '';
 }
 
 function siVerdict(si: Lens): string {
@@ -93,7 +95,7 @@ function siVerdict(si: Lens): string {
   }
   const head =
     si.verdict === 'attention'
-      ? 'Some scripts on this page need attention.' + siReasonText(si)
+      ? 'Some scripts on this page need attention.'
       : 'No script issues flagged on this page.';
   return head + ' Heuristic host list; not an assessment against any standard.';
 }
@@ -230,6 +232,7 @@ function notMeasuredRow(key: RiskRow['key'], lens: Lens): RiskRow {
     state: 'none',
     chip: 'Not measured',
     sentence: note,
+    detail: '',
     building: [],
     link: null,
   };
@@ -335,6 +338,7 @@ export function riskRows(report: Record<string, unknown> | null | undefined): Ri
         state: 'none',
         chip: 'Not measured',
         sentence: VERDICT[key]({ ...lens, verdict: 'unknown' }),
+        detail: '',
         building: [],
         link: null,
       });
@@ -348,6 +352,7 @@ export function riskRows(report: Record<string, unknown> | null | undefined): Ri
       state: attention ? 'attention' : 'clean',
       chip: attention ? 'Attention' : 'Clean',
       sentence: VERDICT[key](lens),
+      detail: attention && key === 'scriptInventory' ? siReasonText(lens) : '',
       building,
       link,
     });

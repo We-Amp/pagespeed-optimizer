@@ -49,6 +49,11 @@ function rowNode(row: RiskRow): HTMLElement {
   sentence.dataset.riskSentence = '';
   li.append(sentence);
 
+  if (row.detail) {
+    const d = el('p', 'mt-2 text-sm text-text-muted [overflow-wrap:anywhere]', row.detail);
+    d.dataset.riskDetail = '';
+    li.append(d);
+  }
   for (const text of row.building) {
     const p = el('p', 'mt-2 text-sm text-text-muted', text);
     p.dataset.riskBuilding = '';
