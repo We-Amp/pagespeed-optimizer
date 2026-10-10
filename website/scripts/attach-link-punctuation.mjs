@@ -2,7 +2,7 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 
 /**
- * Keep punctuation attached to the inline link it follows.
+ * Keep punctuation attached to the inline link or inline code it follows.
  *
  * The formatter puts every closing </a> on its own line and the sentence
  * punctuation after it on the next, so the HTML source holds
@@ -13,7 +13,8 @@
  * whitespace between a link's end and a following . , ; : ) ! ? is removed, as
  * is trailing whitespace inside the link, which would be underlined.
  *
- * Text inside <pre>, <script>, <style> and <textarea> is left alone.
+ * Inline <code> is rewritten the same way; the content of <pre>, <script>,
+ * <style> and <textarea> is not.
  */
 
 import { readFileSync, writeFileSync, readdirSync, existsSync } from 'node:fs';
@@ -22,18 +23,31 @@ import path from 'node:path';
 
 const DIST = fileURLToPath(new URL('../dist/client', import.meta.url));
 
-const LITERAL = /<(pre|script|style|textarea)\b[\s\S]*?<\/\1>/gi;
-const GAP = /\s*<\/a>\s+(?=[.,;:)!?])/g;
+const OPEN = /<!--|<(pre|script|style|textarea)(?=[\s/>])[^>]*>/gi;
+// ASCII whitespace only: a non-breaking space before punctuation is deliberate.
+// The lookbehind makes a match start at the beginning of a whitespace run, so
+// long runs stay linear.
+const GAP = /(?<![ \t\n\r\f])[ \t\n\r\f]*<\/(a|code)>[ \t\n\r\f]+(?=[.,;:)!?])/g;
 
 /** @param {string} html */
 export function attachLinkPunctuation(html) {
+  const fix = (/** @type {string} */ text) => text.replace(GAP, '</$1>');
   let out = '';
-  let last = 0;
-  for (const m of html.matchAll(LITERAL)) {
-    out += html.slice(last, m.index).replace(GAP, '</a>') + m[0];
-    last = m.index + m[0].length;
+  let pos = 0;
+  OPEN.lastIndex = 0;
+  for (let open = OPEN.exec(html); open; open = OPEN.exec(html)) {
+    out += fix(html.slice(pos, open.index));
+    // A comment may mention a raw-text tag; it runs to the next -->.
+    const close = open[1] ? new RegExp(`</${open[1]}(?=[\\s/>])[^>]*>`, 'gi') : /-->/g;
+    close.lastIndex = OPEN.lastIndex;
+    const end = close.exec(html);
+    // An unclosed raw-text element runs to the end of the document.
+    const stop = end ? close.lastIndex : html.length;
+    out += html.slice(open.index, stop);
+    pos = stop;
+    OPEN.lastIndex = stop;
   }
-  return out + html.slice(last).replace(GAP, '</a>');
+  return out + fix(html.slice(pos));
 }
 
 /** @param {string} dir @returns {string[]} */
