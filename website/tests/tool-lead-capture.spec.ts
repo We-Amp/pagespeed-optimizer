@@ -897,6 +897,230 @@ test.describe('AI-readability script-inventory lens and script-control card', ()
   });
 });
 
+// SEO-defects lens: one row after the script-inventory row, and one edge-SEO card whose
+// optional site count rides in the note.
+const SD_COUNTS = { total: 3, canonical: 1, hreflang: 0, title: 2, description: 0, jsonld: 0 };
+const SD_ATTENTION = {
+  status: 'ok',
+  verdict: 'attention',
+  defects: ['canonical-missing', 'title-missing', 'title-duplicate'],
+  counts: SD_COUNTS,
+  blockedBy: [],
+  staticCompared: true,
+  notMeasured: [],
+  canonical: { static: { count: 0, href: null }, rendered: { count: 0, href: null }, header: null },
+  jsonLd: {
+    static: { blocks: 1, invalid: 0, types: ['SecretType'] },
+    rendered: { blocks: 1, invalid: 0, types: ['SecretType'] },
+    renderOnlyTypes: [],
+  },
+  robots: { mismatch: false },
+  delivery: { cdn: 'cloudflare', server: 'nginx' },
+  note: 'x',
+};
+const SD_CLEAN = {
+  ...SD_ATTENTION,
+  verdict: 'clean',
+  defects: [],
+  counts: { ...SD_COUNTS, total: 0, canonical: 0, title: 0 },
+};
+const sdScan = (sd?: unknown) => ({
+  report: { ...SCAN_OK.report, ...(sd ? { seoDefects: sd } : {}) },
+});
+const SD_ROW = (page: Page) => page.locator('.ar-lens', { hasText: 'SEO defects' });
+const SD_CARD_TEXT =
+  'This page has 3 technical SEO issue(s) (canonical, title). Issues like these are the kind a rule on the server could correct in the HTML it serves, without a CMS release.';
+
+test.describe('AI-readability SEO-defects lens and edge-SEO card', () => {
+  test('an attention page gets the row, the card, and an edge-seo lead with the lens signal', async ({
+    page,
+  }) => {
+    const posted = await stubContact(page);
+    await stubUmami(page);
+    await runScan(page, sdScan(SD_ATTENTION));
+
+    const row = SD_ROW(page);
+    await expect(row).toHaveCount(1);
+    await expect(row).toHaveClass(/ar-finding/);
+    await expect(row.locator('.ar-h4-r')).toHaveText('attention');
+    await expect(row).toContainText('3 issue(s): canonical 1, title 2.');
+    await expect(row).toContainText('Server header: nginx; CDN headers seen: cloudflare.');
+    await expect(row.locator('.ar-chip-block')).toHaveText(['canonical · 1', 'title · 2']);
+    await expect(row.locator('p.ar-def')).toHaveCount(0);
+
+    const card = page.locator('section[aria-labelledby="ar-h-seo"]');
+    await expect(page.locator('#ar-h-seo')).toHaveText('SEO fixes without a CMS release');
+    await expect(card.locator('p.ar-v')).toHaveText([
+      SD_CARD_TEXT,
+      'We are building that rule set.',
+      'Server header: nginx; CDN headers seen: cloudflare.',
+      'If your CMS changes take weeks, tell us how many sites you manage.',
+    ]);
+    await expect(card.locator('a[href="/platform/edge-seo/"]')).toHaveText(
+      'Edge SEO at the origin →',
+    );
+    await expect(card.locator('button[type="submit"]')).toHaveText('Talk to us about edge SEO');
+    await expect(card.locator('p.ar-disclosure')).toContainText(
+      'We use them only for this request',
+    );
+
+    await page.fill('#ar-seo-email', 'agency@example.com');
+    await page.fill('#ar-seo-sites', '12');
+    await page.fill('#ar-seo-note', 'WordPress, slow releases');
+    await page.click('#ar-seo-form button[type="submit"]');
+    await expect(page.locator('#ar-seo-msg')).toHaveText('Thanks. We will be in touch by email.');
+    await expect(page.locator('#ar-seo-form')).toHaveCount(0);
+
+    expect(posted).toHaveLength(1);
+    expect(posted[0]).toMatchObject({
+      topic: 'edge-seo',
+      email: 'agency@example.com',
+      url: 'https://example.com/',
+      wedge: 'edge-seo',
+      lensSignal: {
+        verdict: 'attention',
+        defects: ['canonical-missing', 'title-missing', 'title-duplicate'],
+        counts: SD_COUNTS,
+        staticCompared: true,
+        notMeasured: [],
+        robotsMismatch: false,
+        jsonLdPresent: true,
+        delivery: { cdn: 'cloudflare', server: 'nginx' },
+      },
+    });
+    expect(String(posted[0].message)).toContain(
+      'Operator note / crawl volume: sites: 12; WordPress, slow releases',
+    );
+    expect(JSON.stringify(posted[0].lensSignal)).not.toContain('SecretType');
+
+    const events = await trackedEvents(page);
+    expect(events.filter((e) => e.name === 'lead_submit')).toEqual([
+      {
+        name: 'lead_submit',
+        data: {
+          channel: 'scan',
+          topic: 'edge-seo',
+          wedge: 'edge-seo',
+          source_path: '/ai-readability/',
+        },
+      },
+    ]);
+  });
+
+  test('the site count is optional and left out of the note when empty', async ({ page }) => {
+    const posted = await stubContact(page);
+    await stubUmami(page);
+    await runScan(page, sdScan(SD_ATTENTION));
+
+    await page.fill('#ar-seo-email', 'agency@example.com');
+    await page.click('#ar-seo-form button[type="submit"]');
+    await expect(page.locator('#ar-seo-msg')).toHaveText('Thanks. We will be in touch by email.');
+    expect(posted).toHaveLength(1);
+    expect(String(posted[0].message)).not.toContain('sites:');
+  });
+
+  test('a clean page shows the row and no card', async ({ page }) => {
+    await stubUmami(page);
+    await runScan(page, sdScan(SD_CLEAN));
+
+    const row = SD_ROW(page);
+    await expect(row.locator('.ar-h4-r')).toHaveText('clean');
+    await expect(row).not.toHaveClass(/ar-finding/);
+    await expect(row.locator('.ar-chip')).toHaveCount(0);
+    await expect(page.locator('#ar-h-seo')).toHaveCount(0);
+    await expect(page.locator('#ar-seo-form')).toHaveCount(0);
+  });
+
+  test('a clean page whose served HTML was not compared does not claim a match', async ({
+    page,
+  }) => {
+    await stubUmami(page);
+    await runScan(page, sdScan({ ...SD_CLEAN, staticCompared: false, notMeasured: ['title-js'] }));
+
+    const row = SD_ROW(page);
+    await expect(row.locator('.ar-h4-r')).toHaveText('clean');
+    await expect(row.locator('.ar-v')).toHaveText(
+      'No defects found on the rendered page; the comparison with the served HTML did not run. One page only; not a ranking assessment.',
+    );
+    await expect(page.locator('#ar-h-seo')).toHaveCount(0);
+  });
+
+  test('without the no-JavaScript comparison the row names what was not measured and the card stays', async ({
+    page,
+  }) => {
+    await stubUmami(page);
+    await runScan(
+      page,
+      sdScan({
+        ...SD_ATTENTION,
+        staticCompared: false,
+        notMeasured: ['canonical-js', 'title-js'],
+      }),
+    );
+
+    const row = SD_ROW(page);
+    await expect(row.locator('.ar-h4-r')).toHaveText('attention');
+    await expect(row.locator('p.ar-def')).toHaveText(
+      'The no-JavaScript fetch was refused, so only the rendered page was checked. Not measured: whether the canonical, title in the served HTML match the page after JavaScript.',
+    );
+    await expect(page.locator('#ar-h-seo')).toHaveCount(1);
+    await expect(page.locator('#ar-seo-form')).toHaveCount(1);
+  });
+
+  test('a blocked lens never fires the card, even with attention fields present', async ({
+    page,
+  }) => {
+    await stubUmami(page);
+    await runScan(
+      page,
+      sdScan({
+        ...SD_ATTENTION,
+        status: 'blocked',
+        note: 'The site answered our render with a challenge page, so we could not check its head.',
+      }),
+    );
+
+    const row = SD_ROW(page);
+    await expect(row).toHaveCount(1);
+    await expect(row).not.toHaveClass(/ar-finding/);
+    await expect(row.locator('.ar-h4-r')).toHaveText('not measured');
+    await expect(row.locator('p.ar-def')).toHaveText(
+      'The site answered our render with a challenge page, so we could not check its head.',
+    );
+    await expect(row.locator('.ar-chip')).toHaveCount(0);
+    await expect(page.locator('#ar-h-seo')).toHaveCount(0);
+    await expect(page.locator('#ar-seo-form')).toHaveCount(0);
+  });
+
+  test('an errored lens gets the default not-measured line and no card', async ({ page }) => {
+    await stubUmami(page);
+    await runScan(page, sdScan({ status: 'error', reason: 'boom' }));
+
+    const row = SD_ROW(page);
+    await expect(row).toHaveCount(1);
+    await expect(row.locator('.ar-h4-r')).toHaveText('not measured');
+    await expect(row.locator('p.ar-def')).toHaveText('Not measured: the site blocked the scanner.');
+    await expect(page.locator('#ar-h-seo')).toHaveCount(0);
+  });
+
+  test('a disabled lens renders neither the row nor the card', async ({ page }) => {
+    await stubUmami(page);
+    await runScan(page, sdScan({ ...SD_ATTENTION, status: 'disabled' }));
+
+    await expect(SD_ROW(page)).toHaveCount(0);
+    await expect(page.locator('#ar-h-seo')).toHaveCount(0);
+  });
+
+  test('a scan without the lens key renders neither the row nor the card', async ({ page }) => {
+    await stubUmami(page);
+    await runScan(page);
+
+    await expect(SD_ROW(page)).toHaveCount(0);
+    await expect(page.locator('#ar-h-seo')).toHaveCount(0);
+    await expect(page.locator('#ar-seo-form')).toHaveCount(0);
+  });
+});
+
 test.describe('AI-readability result link (copy replaces the email-me path)', () => {
   // The copy assertions read the clipboard back, which needs the grant.
   test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
