@@ -1,0 +1,1 @@
+{"host":"fixture.test","path":"/d/keep/missing","rule":"description-keep","kind":"description","mode":"enforce","action":"insert","reason":"absent","defect":"description-missing","old":"","new":"fnv1a64:18af691263a8c9e0"}

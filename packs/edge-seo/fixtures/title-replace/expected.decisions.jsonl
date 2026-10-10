@@ -1,0 +1,1 @@
+{"host":"fixture.test","path":"/t/replace/x","rule":"title-replace","kind":"title","mode":"enforce","action":"replace","reason":"present","defect":"title-multiple","old":"fnv1a64:3018cd19bf898cd6","new":"fnv1a64:691f115c28eab959"}

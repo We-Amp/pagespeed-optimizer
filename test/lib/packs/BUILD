@@ -40,6 +40,21 @@ gtest_test(
 )
 
 gtest_test(
+    name = "fixture_runner_test",
+    # Vendored lib/html headers name unused parameters (canonical idiom).
+    copts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-Wno-error=unused-parameter"],
+    }),
+    data = ["//packs:edge_seo_fixtures"],
+    deps = [
+        "//lib/packs:decision",
+        "//lib/packs:pack_filter",
+        "//tools/packs:fixture_runner_lib",
+    ],
+)
+
+gtest_test(
     name = "planner_test",
     # Vendored lib/html headers name unused parameters (canonical idiom).
     copts = select({

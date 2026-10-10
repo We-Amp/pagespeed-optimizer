@@ -1,0 +1,153 @@
+{
+  "pack": {
+    "id": "edge-seo",
+    "version": "0.1.0",
+    "publisher": "local",
+    "description": "Fixture pack for the head rules"
+  },
+  "sites": [
+    { "host": "fixture.test", "mode": "enforce" },
+    { "host": "report.fixture.test", "mode": "report" }
+  ],
+  "defaults": { "paths": ["/**"], "exclude_paths": ["/excluded/**"] },
+  "tables": {
+    "canonicals": {
+      "/c/table/hit": "https://fixture.test/canon/hit",
+      "/c/table/q?id=12": "https://fixture.test/canon/q12"
+    },
+    "titles": {
+      "/t/table/amp": "Fish & Chips <b>"
+    }
+  },
+  "rules": [
+    {
+      "id": "canonical-disabled",
+      "kind": "canonical",
+      "enabled": false,
+      "enforce": true,
+      "match": { "paths": ["/c/disabled/**"] },
+      "value": { "template": "https://fixture.test{path}" }
+    },
+    {
+      "id": "canonical-report-rule",
+      "kind": "canonical",
+      "enforce": false,
+      "match": { "paths": ["/c/reportrule/**"] },
+      "value": { "template": "https://fixture.test{path}" }
+    },
+    {
+      "id": "canonical-first",
+      "kind": "canonical",
+      "enforce": true,
+      "match": { "paths": ["/p/**"] },
+      "value": { "template": "https://fixture.test/first{path}" }
+    },
+    {
+      "id": "canonical-second",
+      "kind": "canonical",
+      "enforce": true,
+      "match": { "paths": ["/p/**"] },
+      "value": { "template": "https://fixture.test/second{path}" }
+    },
+    {
+      "id": "canonical-table",
+      "kind": "canonical",
+      "enforce": true,
+      "match": { "paths": ["/c/table/**"] },
+      "value": { "table": "canonicals" }
+    },
+    {
+      "id": "canonical-invalid",
+      "kind": "canonical",
+      "enforce": true,
+      "match": { "paths": ["/c/invalid/**"] },
+      "value": { "template": "{path}" }
+    },
+    {
+      "id": "canonical-keep",
+      "kind": "canonical",
+      "enforce": true,
+      "match": { "paths": ["/c/keep/**", "/g/**", "/excluded/**", "/"] },
+      "value": { "template": "https://fixture.test{path}" },
+      "on_present": "keep"
+    },
+    {
+      "id": "canonical-repair",
+      "kind": "canonical",
+      "enforce": true,
+      "match": { "paths": ["/c/repair/**"] },
+      "value": { "template": "https://fixture.test{path}" },
+      "on_present": "repair"
+    },
+    {
+      "id": "canonical-replace",
+      "kind": "canonical",
+      "enforce": true,
+      "match": { "paths": ["/c/replace/**"] },
+      "value": { "template": "https://fixture.test{path}" },
+      "on_present": "replace"
+    },
+    {
+      "id": "title-keep",
+      "kind": "title",
+      "enforce": true,
+      "match": { "paths": ["/t/keep/**", "/g/**", "/excluded/**"] },
+      "value": { "template": "Title for {path}" },
+      "on_present": "keep"
+    },
+    {
+      "id": "title-repair",
+      "kind": "title",
+      "enforce": true,
+      "match": { "paths": ["/t/repair/**"] },
+      "value": { "template": "Title for {path}" },
+      "on_present": "repair"
+    },
+    {
+      "id": "title-replace",
+      "kind": "title",
+      "enforce": true,
+      "match": { "paths": ["/t/replace/**"] },
+      "value": { "template": "Title for {path}" },
+      "on_present": "replace"
+    },
+    {
+      "id": "title-escape",
+      "kind": "title",
+      "enforce": true,
+      "match": { "paths": ["/t/escape/**"] },
+      "value": { "template": "Fish & Chips <b> \"quoted\" {path}" }
+    },
+    {
+      "id": "title-table",
+      "kind": "title",
+      "enforce": true,
+      "match": { "paths": ["/t/table/**"] },
+      "value": { "table": "titles" }
+    },
+    {
+      "id": "description-keep",
+      "kind": "description",
+      "enforce": true,
+      "match": { "paths": ["/d/keep/**", "/g/**", "/excluded/**"] },
+      "value": { "template": "Description for {path}" },
+      "on_present": "keep"
+    },
+    {
+      "id": "description-repair",
+      "kind": "description",
+      "enforce": true,
+      "match": { "paths": ["/d/repair/**"] },
+      "value": { "template": "Description for {path}" },
+      "on_present": "repair"
+    },
+    {
+      "id": "description-replace",
+      "kind": "description",
+      "enforce": true,
+      "match": { "paths": ["/d/replace/**"] },
+      "value": { "template": "Description for {path}" },
+      "on_present": "replace"
+    }
+  ]
+}

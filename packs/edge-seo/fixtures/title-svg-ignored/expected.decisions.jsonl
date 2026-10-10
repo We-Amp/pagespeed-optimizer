@@ -1,0 +1,1 @@
+{"host":"fixture.test","path":"/t/keep/svg","rule":"title-keep","kind":"title","mode":"enforce","action":"insert","reason":"absent","defect":"title-missing","old":"","new":"fnv1a64:a1a7ec3ea5756b0e"}

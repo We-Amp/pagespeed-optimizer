@@ -1,0 +1,1 @@
+{"host":"fixture.test","path":"/c/table/hit","rule":"canonical-table","kind":"canonical","mode":"enforce","action":"insert","reason":"absent","defect":"canonical-missing","old":"","new":"fnv1a64:911555554ce652b5"}

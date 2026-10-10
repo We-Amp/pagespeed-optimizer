@@ -1,0 +1,1 @@
+{"host":"fixture.test","path":"/t/escape/x","rule":"title-escape","kind":"title","mode":"enforce","action":"insert","reason":"absent","defect":"title-missing","old":"","new":"fnv1a64:2a68ac9b52ade692"}
