@@ -23,29 +23,67 @@ import path from 'node:path';
 
 const DIST = fileURLToPath(new URL('../dist/client', import.meta.url));
 
-const OPEN = /<!--|<(pre|script|style|textarea)(?=[\s/>])[^>]*>/gi;
 // ASCII whitespace only: a non-breaking space before punctuation is deliberate.
 // The lookbehind makes a match start at the beginning of a whitespace run, so
 // long runs stay linear.
 const GAP = /(?<![ \t\n\r\f])[ \t\n\r\f]*<\/(a|code)>[ \t\n\r\f]+(?=[.,;:)!?])/g;
 
+const RAW_TEXT = ['pre', 'script', 'style', 'textarea'];
+
+/** @param {string} c */
+const isTagBoundary = (c) => c === '>' || c === '/' || c === ' ' || /[\t\n\r\f]/.test(c);
+
+/** ASCII-only lowercasing, so indexes stay valid in the original string. */
+const asciiLower = (/** @type {string} */ s) =>
+  s.replace(/[A-Z]/g, (c) => String.fromCharCode(c.charCodeAt(0) + 32));
+
+/**
+ * End of the literal region that starts at `at`: a comment (up to --> or --!>)
+ * or a raw-text element (through its closing tag). Returns -1 when `at` starts
+ * neither. A region that is never closed runs to the end of the document.
+ * Plain string scanning, no tag or comment regular expressions.
+ * @param {string} html @param {string} lower @param {number} at
+ */
+function literalEnd(html, lower, at) {
+  if (html.startsWith('<!--', at)) {
+    const ends = [html.indexOf('-->', at + 4), html.indexOf('--!>', at + 4)].filter((i) => i >= 0);
+    return ends.length
+      ? Math.min(...ends) + (html[Math.min(...ends) + 2] === '>' ? 3 : 4)
+      : html.length;
+  }
+  for (const name of RAW_TEXT) {
+    if (!lower.startsWith(name, at + 1) || !isTagBoundary(html.charAt(at + 1 + name.length))) {
+      continue;
+    }
+    const openEnd = html.indexOf('>', at);
+    if (openEnd < 0) return html.length;
+    for (
+      let i = lower.indexOf(`</${name}`, openEnd);
+      i >= 0;
+      i = lower.indexOf(`</${name}`, i + 1)
+    ) {
+      if (isTagBoundary(html.charAt(i + 2 + name.length))) {
+        const closeEnd = html.indexOf('>', i);
+        return closeEnd < 0 ? html.length : closeEnd + 1;
+      }
+    }
+    return html.length;
+  }
+  return -1;
+}
+
 /** @param {string} html */
 export function attachLinkPunctuation(html) {
   const fix = (/** @type {string} */ text) => text.replace(GAP, '</$1>');
+  const lower = asciiLower(html);
   let out = '';
   let pos = 0;
-  OPEN.lastIndex = 0;
-  for (let open = OPEN.exec(html); open; open = OPEN.exec(html)) {
-    out += fix(html.slice(pos, open.index));
-    // A comment may mention a raw-text tag; it runs to the next -->.
-    const close = open[1] ? new RegExp(`</${open[1]}(?=[\\s/>])[^>]*>`, 'gi') : /-->/g;
-    close.lastIndex = OPEN.lastIndex;
-    const end = close.exec(html);
-    // An unclosed raw-text element runs to the end of the document.
-    const stop = end ? close.lastIndex : html.length;
-    out += html.slice(open.index, stop);
-    pos = stop;
-    OPEN.lastIndex = stop;
+  for (let at = html.indexOf('<'); at >= 0; at = html.indexOf('<', at + 1)) {
+    if (at < pos) continue;
+    const end = literalEnd(html, lower, at);
+    if (end < 0) continue;
+    out += fix(html.slice(pos, at)) + html.slice(at, end);
+    pos = end;
   }
   return out + fix(html.slice(pos));
 }

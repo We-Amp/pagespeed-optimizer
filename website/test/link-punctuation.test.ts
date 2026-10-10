@@ -61,6 +61,14 @@ describe('attachLinkPunctuation (unit)', () => {
     expect(attachLinkPunctuation('<!-- <style> --><a>y</a>\n.')).toBe('<!-- <style> --><a>y</a>.');
   });
 
+  it('ends a comment at --!> as well as -->', () => {
+    const html = '<!-- <pre> --!><a>y</a>\n.';
+    expect(attachLinkPunctuation(html)).toBe('<!-- <pre> --!><a>y</a>.');
+    expect(attachLinkPunctuation('<!-- x --!><pre><a>y</a>\n.</pre>')).toBe(
+      '<!-- x --!><pre><a>y</a>\n.</pre>',
+    );
+  });
+
   it('keeps a non-breaking space before punctuation', () => {
     const html = '<a href="/x/">x</a> .';
     expect(attachLinkPunctuation(html)).toBe(html);
