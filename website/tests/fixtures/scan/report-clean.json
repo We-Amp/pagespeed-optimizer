@@ -131,7 +131,7 @@
       },
       "evidence": [],
       "keyid": "GBxqWscB-GOkwNXEhmWQA4SY2gWRH2Hz4dAvzRcK1gw",
-      "signatureAgent": "https://modpagespeed.com/.well-known/http-message-signatures-directory",
+      "signatureAgent": "https://www.example.org/.well-known/http-message-signatures-directory",
       "note": "Classification derived solely from the scanner’s own three probe exchanges (valid signature, corrupted signature, unsigned). “no-signal” does NOT mean the origin runs no verifier: observe-only verifiers are externally invisible, and an origin can only fully verify our probe if it trusts our key directory. The corrupted-signature probe is the strongest discriminator. We only report what our own three exchanges showed."
     },
     "provenanceSurvival": {
@@ -141,7 +141,7 @@
       "strippedOnServe": 0,
       "images": [
         {
-          "url": "https://modpagespeed.com/logo.svg",
+          "url": "https://www.example.org/logo.svg",
           "format": "other",
           "servedHasManifest": false,
           "servedMarkers": [],
@@ -150,7 +150,7 @@
           "survival": "served-only"
         },
         {
-          "url": "https://modpagespeed.com/logo-dark.svg",
+          "url": "https://www.example.org/logo-dark.svg",
           "format": "other",
           "servedHasManifest": false,
           "servedMarkers": [],
@@ -245,11 +245,11 @@
       "canonical": {
         "static": {
           "count": 1,
-          "href": "https://modpagespeed.com/"
+          "href": "https://www.example.org/"
         },
         "rendered": {
           "count": 1,
-          "href": "https://modpagespeed.com/"
+          "href": "https://www.example.org/"
         },
         "header": null
       },
@@ -264,33 +264,33 @@
       "title": {
         "static": {
           "count": 1,
-          "text": "PageSpeed module for nginx and Apache: mod_pagespeed 2.1"
+          "text": "Example Organisation"
         },
         "rendered": {
           "count": 1,
-          "text": "PageSpeed module for nginx and Apache: mod_pagespeed 2.1"
+          "text": "Example Organisation"
         }
       },
       "description": {
         "static": {
           "count": 1,
-          "text": "The PageSpeed module, maintained again and open source under the Apache License 2.0. Install mod_pagespeed 2.1 on nginx or Apache with apt or yum."
+          "text": "News and research from Example Organisation."
         },
         "rendered": {
           "count": 1,
-          "text": "The PageSpeed module, maintained again and open source under the Apache License 2.0. Install mod_pagespeed 2.1 on nginx or Apache with apt or yum."
+          "text": "News and research from Example Organisation."
         }
       },
       "jsonLd": {
         "static": {
-          "blocks": 4,
+          "blocks": 3,
           "invalid": 0,
-          "types": ["Organization", "WebSite", "Product", "SoftwareApplication", "FAQPage"]
+          "types": ["Organization", "WebSite", "Article"]
         },
         "rendered": {
-          "blocks": 4,
+          "blocks": 3,
           "invalid": 0,
-          "types": ["Organization", "WebSite", "Product", "SoftwareApplication", "FAQPage"]
+          "types": ["Organization", "WebSite", "Article"]
         },
         "renderOnlyTypes": []
       },
