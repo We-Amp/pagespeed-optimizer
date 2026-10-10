@@ -231,7 +231,7 @@ function sdVerdict(sd: Lens): string {
 }
 
 // ---- Response exposure --------------------------------------------------
-// These sentences are new to the site; they are listed for copy review.
+// The wording follows the scanner's own response-exposure line.
 
 const EOL_PRODUCT: Record<string, string> = {
   drupal: 'Drupal',
@@ -239,7 +239,6 @@ const EOL_PRODUCT: Record<string, string> = {
   apache: 'Apache',
   'microsoft-iis': 'IIS',
   joomla: 'Joomla',
-  mod_pagespeed: 'mod_pagespeed',
 };
 const MISSING_HEADER: Record<string, string> = {
   hsts: 'HSTS',
@@ -248,23 +247,32 @@ const MISSING_HEADER: Record<string, string> = {
 };
 
 function rxVerdict(rx: Lens): string {
+  const nm: string[] = Array.isArray(rx.notMeasured) ? rx.notMeasured : [];
+  const notChecked = nm.length
+    ? ' Not checked: ' +
+      nm
+        .map((k) =>
+          k === 'static-html' ? 'the HTML as served without JavaScript' : 'the response headers',
+        )
+        .join(', ') +
+      '.'
+    : '';
   if (rx.verdict === 'unknown') {
-    return 'We could not render this page, so we could not read its response.';
-  }
-  if (rx.verdict === 'clean') {
-    return 'No error output, version numbers, end-of-life software or missing security headers found in this page’s response. One page only; not a security assessment.';
+    return 'We could not read enough of this response to say.' + notChecked;
   }
   const leaks = Array.isArray(rx.leaks) ? rx.leaks.length : 0;
   const tells = (Array.isArray(rx.tells) ? rx.tells : []).filter(
     (t: Lens) => t && t.version,
   ).length;
-  const eol = (Array.isArray(rx.endOfLife) ? rx.endOfLife : [])
-    .map((e: Lens) =>
-      e.basis === 'no-fixes'
-        ? 'mod_pagespeed (no longer receives fixes)'
-        : (EOL_PRODUCT[e.product] || e.product) + ' ' + e.line,
-    )
-    .join(', ');
+  const list: Lens[] = Array.isArray(rx.endOfLife) ? rx.endOfLife : [];
+  const eol = [
+    ...list
+      .filter((e) => e.basis === 'eol-date' && EOL_PRODUCT[e.product])
+      .map((e) => EOL_PRODUCT[e.product] + ' ' + e.line),
+    ...(list.some((e) => e.basis === 'no-fixes')
+      ? ['mod_pagespeed (no longer receives fixes)']
+      : []),
+  ];
   const missing = (Array.isArray(rx.headers?.missing) ? rx.headers.missing : [])
     .map((m: string) => MISSING_HEADER[m] || m)
     .join(', ');
@@ -273,10 +281,12 @@ function rxVerdict(rx: Lens): string {
     ' error-output pattern(s) · ' +
     tells +
     ' version tell(s) · end of life: ' +
-    (eol || 'none seen') +
+    (eol.length ? eol.join(', ') : 'none seen') +
     ' · missing: ' +
     (missing || 'none') +
-    '. One page only; not a security assessment.'
+    '.' +
+    notChecked +
+    ' One page only; not a security assessment.'
   );
 }
 

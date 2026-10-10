@@ -63,6 +63,9 @@ describe('riskRows over the full report', () => {
       '1 error-output pattern(s) · 2 version tell(s) · end of life: PHP 7.4 · missing: nosniff, framing. One page only; not a security assessment.',
     );
   });
+  it('names duplicate libraries and versions', () => {
+    expect(m.scriptInventory.sentence).toContain('jquery 1.12.4 + 3.6.0');
+  });
   it('gives the script row both building sentences when both gates fire', () => {
     expect(m.scriptInventory.building).toHaveLength(2);
     expect(m.scriptInventory.building[0]).toBe(
@@ -138,13 +141,38 @@ describe('riskRows edge cases', () => {
     expect(m.seoDefects.sentence).toBe(
       'We could not render this page, so we could not check its head.',
     );
-    expect(m.responseExposure.sentence).toBe(
-      'We could not render this page, so we could not read its response.',
-    );
+    expect(m.responseExposure.sentence).toBe('We could not read enough of this response to say.');
     for (const r of Object.values(m)) {
       expect(r.state).toBe('none');
       expect(r.link).toBeNull();
     }
+  });
+  it('shows the clean response row as its facts line, and what was not checked', () => {
+    const clean = riskRows(
+      rx({ verdict: 'clean', leaks: [], tells: [], endOfLife: [], headers: { missing: [] } }),
+    )[0];
+    expect(clean.sentence).toBe(
+      '0 error-output pattern(s) · 0 version tell(s) · end of life: none seen · missing: none. One page only; not a security assessment.',
+    );
+    const unknown = riskRows(
+      rx({ verdict: 'unknown', notMeasured: ['static-html', 'headers'] }),
+    )[0];
+    expect(unknown.sentence).toBe(
+      'We could not read enough of this response to say. Not checked: the HTML as served without JavaScript, the response headers.',
+    );
+  });
+  it('lists the mod_pagespeed phrase once', () => {
+    const row = riskRows(
+      rx({
+        verdict: 'attention',
+        reasons: ['end-of-life'],
+        endOfLife: [
+          { product: 'mod_pagespeed', line: 'a', basis: 'no-fixes' },
+          { product: 'mod_pagespeed', line: 'b', basis: 'no-fixes' },
+        ],
+      }),
+    )[0];
+    expect(row.sentence.match(/no longer receives fixes/g)).toHaveLength(1);
   });
   it('shows the response row without a link for version tells and missing headers only', () => {
     const row = riskRows(
