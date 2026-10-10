@@ -10,6 +10,7 @@ const PAGES_FOR_AXE_SCAN = [
   '/pricing/',
   '/support/',
   '/hosting-partners/',
+  '/platform/',
   '/demo/',
   '/docs/',
   '/license/',

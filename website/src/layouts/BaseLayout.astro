@@ -261,6 +261,11 @@ const footerGroups: Array<{ title: string; links: FooterLink[] }> = [
       { href: '/features/', label: 'Features' },
       { href: '/download/', label: 'Download & install', umamiEvent: 'cta_footer_download' },
       { href: '/how-it-works/', label: 'How it works' },
+      {
+        href: '/platform/',
+        label: 'Transform packs (early access)',
+        umamiEvent: 'nav-platform-footer',
+      },
       { href: '/docs/release-notes/', label: 'Release notes' },
       { href: '/security/', label: 'Security' },
       { href: '/docs/migrating-to-2-1/', label: 'Upgrade to 2.1' },
@@ -387,6 +392,9 @@ const segmentNames: Record<string, string> = {
   download: 'Download',
   'aspnet-getting-started': 'ASP.NET getting started',
   'aspnet-configuration': 'ASP.NET configuration',
+  platform: 'Transform packs',
+  consent: 'Zero-leak consent',
+  'edge-seo': 'Edge SEO at the origin',
 };
 
 // Fallback for a segment with no entry above: sentence case, with the
