@@ -268,7 +268,12 @@ json BuildStatsJson(ApiContext& ctx) {
       // rather than purged — and refreshes deferred to the record+notify
       // convergence because the re-recorded origin had not landed yet.
       {"unchanged", s.origin_refresh_unchanged.load()},
-      {"deferred", s.origin_refresh_deferred.load()}};
+      {"deferred", s.origin_refresh_deferred.load()},
+      // A re-recorded original seen on a dedup hit: looked at, rebuilt
+      // (new bytes), restamped (same bytes).
+      {"rechecked", s.notifications_origin_rechecked.load()},
+      {"change_rebuilt", s.origin_change_rebuilt.load()},
+      {"unchanged_restamped", s.origin_unchanged_restamped.load()}};
   // Durability (#19): agent_markdown coverage telemetry — preserved
   // counts unchanged-content refreshes that kept the variant alive (the lift),
   // purged_on_change counts genuine content changes that dropped it, and
@@ -716,6 +721,18 @@ std::string BuildPrometheusMetricsText(const PrometheusMetricsInputs& in) {
           "held a worker-processed (stale) variant, not the refreshed "
           "origin; the next record+notify rebuilds from fresh bytes.",
           s.origin_refresh_rebuild_refused.load());
+  counter("pagespeed_notifications_origin_rechecked_total",
+          "Notifications whose recorded original differed in origin state "
+          "from the stored variant set and were checked by content hash.",
+          s.notifications_origin_rechecked.load());
+  counter("pagespeed_origin_change_rebuilt_total",
+          "Variant sets rebuilt because the front end recorded changed "
+          "origin content.",
+          s.origin_change_rebuilt.load());
+  counter("pagespeed_origin_unchanged_restamped_total",
+          "Re-recorded originals with identical content whose variant set "
+          "was only restamped.",
+          s.origin_unchanged_restamped.load());
 
   // Learned quality prediction
   counter("pagespeed_learned_quality_predictions_total",

@@ -41,6 +41,7 @@ gtest_test(
     srcs = ["durable_originals_test.cc"],
     deps = [
         "//lib/cache:freshness",
+        "//lib/cache:headers_sidecar",
         "//lib/cache:pagespeed_cache",
         "//lib/classify:alternate_id",
         "//lib/classify:alternate_metadata",
