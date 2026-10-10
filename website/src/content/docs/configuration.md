@@ -79,7 +79,7 @@ format.
 <div data-platform="nginx" data-platform-label="nginx">
 
 ```nginx
-load_module modules/ngx_pagespeed_module.so;
+load_module modules/ngx_pagespeed_module.so;   # Enterprise Linux: /usr/lib64/nginx/modules/ngx_pagespeed_module.so
 
 http {
     server {

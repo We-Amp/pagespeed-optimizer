@@ -249,6 +249,14 @@ const SCAN_BUCKETS: ScanBucket[] = [
     ]),
     floor: 3,
   },
+  {
+    // The install recipes for coding agents (README.md plus one per surface)
+    // repeat distributions, .NET versions, RIDs, package names and headers as
+    // literals, so they get the same denylist as the docs.
+    name: 'recipes',
+    files: walk(path.join(WEBSITE_ROOT, 'public/recipes'), ['.md']),
+    floor: 7,
+  },
 ];
 
 const CONTENT_FILES = SCAN_BUCKETS.find((b) => b.name === 'content')!.files;

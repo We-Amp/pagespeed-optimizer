@@ -60,7 +60,7 @@ The module searches for configuration files in two locations:
 %ProgramData%\We-Amp\PageSpeed\pagespeed.config
 ```
 
-The server-level file is `%ProgramData%\We-Amp\PageSpeed\pagespeed.config`. Installs upgraded from IISpeed also read `%ProgramData%\We-Amp\IISWebSpeed\pagespeed.config`. Settings here apply to all websites on the server.
+The server-level file is `%ProgramData%\We-Amp\PageSpeed\pagespeed.config`. Installs upgraded from IISpeed also read `%ProgramData%\We-Amp\IISWebSpeed\pagespeed.config`. Settings here are the defaults for every website that has its own `pagespeed.config`; this file alone turns no website on.
 
 ### Site-level config
 

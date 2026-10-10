@@ -34,9 +34,11 @@ packaging channel.
    `%ProgramData%\We-Amp\IISWebSpeed\Cache`.
 3. Run `iisreset`.
 
-The module reads `pagespeed.config`: a server-level file at
-`%ProgramData%\We-Amp\PageSpeed\pagespeed.config` and, optionally, one in each
-site's physical root. The minimal file is two lines:
+The module reads `pagespeed.config`. A site is optimized only when its own
+physical root holds one; the server-level file at
+`%ProgramData%\We-Amp\PageSpeed\pagespeed.config` supplies the defaults for
+those sites and turns no site on by itself. The installer seeds a per-site copy
+in the Default Web Site root. The minimal file is two lines:
 
 ```text
 pagespeed on
@@ -82,7 +84,7 @@ On IIS the module emits `X-Page-Speed`, the same header as the nginx module.
 Check for it with PowerShell:
 
 ```powershell
-(Invoke-WebRequest http://localhost/ -Method Head).Headers["X-Page-Speed"]
+(Invoke-WebRequest http://localhost/ -UseBasicParsing).Headers["X-Page-Speed"]
 ```
 
 Then open `/pagespeed_global_admin` on the server itself.

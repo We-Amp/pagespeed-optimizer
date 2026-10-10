@@ -204,6 +204,47 @@ export const SURFACES = [
         title: 'AI plugin manifest',
         description: 'The model-facing description of the product.',
       },
+      {
+        path: '/recipes/README.md',
+        title: 'Install recipes for coding agents',
+        description:
+          'One machine-first install recipe per server (nginx, Apache, IIS, ASP.NET Core, Docker, Helm): prerequisites check, install, minimal configuration, a response-header verification and a rollback. The index defines the verification marker.',
+      },
+      {
+        path: '/recipes/nginx.md',
+        title: 'Recipe: nginx module',
+        description:
+          "The native nginx module from the signed package repository on the distribution's stock nginx; checks X-Page-Speed.",
+      },
+      {
+        path: '/recipes/apache.md',
+        title: 'Recipe: Apache module',
+        description:
+          'The native Apache module from the signed package repository, optimizer worker included; checks X-Mod-Pagespeed.',
+      },
+      {
+        path: '/recipes/iis.md',
+        title: 'Recipe: IIS module',
+        description:
+          'The signed MSI on Windows Server, checksum-verified, and a per-site pagespeed.config; checks X-Page-Speed.',
+      },
+      {
+        path: '/recipes/aspnet-core.md',
+        title: 'Recipe: ASP.NET Core middleware',
+        description:
+          'The WeAmp.PageSpeed.AspNetCore NuGet package, Program.cs and appsettings.json; checks X-PageSpeed.',
+      },
+      {
+        path: '/recipes/docker.md',
+        title: 'Recipe: Docker',
+        description:
+          'The nginx reverse proxy and the optimizer worker in containers in front of an origin; checks X-PageSpeed.',
+      },
+      {
+        path: '/recipes/helm.md',
+        title: 'Recipe: Helm',
+        description: 'The pagespeed Helm chart in front of an origin Service; checks X-PageSpeed.',
+      },
     ],
   },
 ];

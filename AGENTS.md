@@ -33,4 +33,16 @@ module), C#/.NET middleware (`samples/aspnetcore/`), and a pnpm workbench
   worker writes are invisible to nginx (HIT serves the original, not optimized,
   content). See CLAUDE.md → "Cross-Process Cache Sharing".
 
+## Installing the product with an agent
+
+Machine-first install recipes, one per server (nginx, Apache, IIS, ASP.NET Core,
+Docker, Helm), each with a prerequisites check, install commands, minimal
+configuration, a response-header verification and a rollback, live in
+`website/public/recipes/` and are served at
+`https://modpagespeed.com/recipes/<surface>.md` (index: `README.md`). The Claude
+Code skill `.claude/skills/install-modpagespeed/SKILL.md` selects the recipe for
+the detected server and runs it, verification included. The recipes derive from
+the docs under `website/src/content/docs/`: when a command changes, change the
+doc first and the recipe with it.
+
 Default branch: `main`.

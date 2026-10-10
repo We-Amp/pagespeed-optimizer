@@ -175,6 +175,13 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [Product summary (JSON)](https://modpagespeed.com/api/product.json): Product, license, support tiers, image-format support per line and the related packages, as data.
 - [llms-full.txt](https://modpagespeed.com/llms-full.txt): This index followed by the full Markdown text of every documentation page.
 - [AI plugin manifest](https://modpagespeed.com/.well-known/ai-plugin.json): The model-facing description of the product.
+- [Install recipes for coding agents](https://modpagespeed.com/recipes/README.md): One machine-first install recipe per server (nginx, Apache, IIS, ASP.NET Core, Docker, Helm): prerequisites check, install, minimal configuration, a response-header verification and a rollback. The index defines the verification marker.
+- [Recipe: nginx module](https://modpagespeed.com/recipes/nginx.md): The native nginx module from the signed package repository on the distribution's stock nginx; checks X-Page-Speed.
+- [Recipe: Apache module](https://modpagespeed.com/recipes/apache.md): The native Apache module from the signed package repository, optimizer worker included; checks X-Mod-Pagespeed.
+- [Recipe: IIS module](https://modpagespeed.com/recipes/iis.md): The signed MSI on Windows Server, checksum-verified, and a per-site pagespeed.config; checks X-Page-Speed.
+- [Recipe: ASP.NET Core middleware](https://modpagespeed.com/recipes/aspnet-core.md): The WeAmp.PageSpeed.AspNetCore NuGet package, Program.cs and appsettings.json; checks X-PageSpeed.
+- [Recipe: Docker](https://modpagespeed.com/recipes/docker.md): The nginx reverse proxy and the optimizer worker in containers in front of an origin; checks X-PageSpeed.
+- [Recipe: Helm](https://modpagespeed.com/recipes/helm.md): The pagespeed Helm chart in front of an origin Service; checks X-PageSpeed.
 
 ## Distribution
 
@@ -249,8 +256,9 @@ sudo systemctl restart nginx
 
 Apache optimizes immediately: the package enables the module, its default
 `pagespeed.conf`, and the configuration that points it at the worker. On nginx,
-make sure `load_module modules/ngx_pagespeed_module.so;` is at the top of
-`nginx.conf`, then turn the module on in a `server` block:
+make sure `load_module modules/ngx_pagespeed_module.so;` (on Enterprise Linux
+`load_module /usr/lib64/nginx/modules/ngx_pagespeed_module.so;`) is at the top
+of `nginx.conf`, then turn the module on in a `server` block:
 
 ```nginx
 pagespeed on;
@@ -852,7 +860,7 @@ services:
     volumes:
       - ./<your-site>:/usr/share/nginx/html:ro
     expose:
-      - '8081'
+      - '80'
 
   # Holds the PID namespace the worker and nginx share (see below)
   pidns:
@@ -945,7 +953,7 @@ http {
         # Worker socket path is read from pagespeed-shared.conf automatically
 
         location / {
-            proxy_pass http://origin:8081;
+            proxy_pass http://origin:80;
             proxy_set_header Host $host;
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -1689,9 +1697,11 @@ packaging channel.
    `%ProgramData%\We-Amp\IISWebSpeed\Cache`.
 3. Run `iisreset`.
 
-The module reads `pagespeed.config`: a server-level file at
-`%ProgramData%\We-Amp\PageSpeed\pagespeed.config` and, optionally, one in each
-site's physical root. The minimal file is two lines:
+The module reads `pagespeed.config`. A site is optimized only when its own
+physical root holds one; the server-level file at
+`%ProgramData%\We-Amp\PageSpeed\pagespeed.config` supplies the defaults for
+those sites and turns no site on by itself. The installer seeds a per-site copy
+in the Default Web Site root. The minimal file is two lines:
 
 ```text
 pagespeed on
@@ -1737,7 +1747,7 @@ On IIS the module emits `X-Page-Speed`, the same header as the nginx module.
 Check for it with PowerShell:
 
 ```powershell
-(Invoke-WebRequest http://localhost/ -Method Head).Headers["X-Page-Speed"]
+(Invoke-WebRequest http://localhost/ -UseBasicParsing).Headers["X-Page-Speed"]
 ```
 
 Then open `/pagespeed_global_admin` on the server itself.
@@ -3091,7 +3101,7 @@ format.
 **nginx**
 
 ```nginx
-load_module modules/ngx_pagespeed_module.so;
+load_module modules/ngx_pagespeed_module.so;   # Enterprise Linux: /usr/lib64/nginx/modules/ngx_pagespeed_module.so
 
 http {
     server {
@@ -10377,7 +10387,7 @@ The module searches for configuration files in two locations:
 %ProgramData%\We-Amp\PageSpeed\pagespeed.config
 ```
 
-The server-level file is `%ProgramData%\We-Amp\PageSpeed\pagespeed.config`. Installs upgraded from IISpeed also read `%ProgramData%\We-Amp\IISWebSpeed\pagespeed.config`. Settings here apply to all websites on the server.
+The server-level file is `%ProgramData%\We-Amp\PageSpeed\pagespeed.config`. Installs upgraded from IISpeed also read `%ProgramData%\We-Amp\IISWebSpeed\pagespeed.config`. Settings here are the defaults for every website that has its own `pagespeed.config`; this file alone turns no website on.
 
 ### Site-level config
 
