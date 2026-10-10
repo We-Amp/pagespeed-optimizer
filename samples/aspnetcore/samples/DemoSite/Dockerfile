@@ -100,7 +100,7 @@ RUN dotnet publish samples/DemoSite/DemoSite.csproj \
 
 # ── Stage 3a: ASP.NET runtime ───────────────────────────────────────────────
 
-FROM mcr.microsoft.com/dotnet/aspnet:9.0-noble@sha256:f6ca5cf8e277d5fd590ebeb0df890f1039ad8da0a953c94cb4ee8d3f2cae5dff AS aspnet-runtime
+FROM mcr.microsoft.com/dotnet/aspnet:10.0-noble@sha256:222759b391a1aaf241166672c8f99b2d4ada452e7b5319f3c6e8f265a37b5ad4 AS aspnet-runtime
 
 # Cache volume directory
 RUN mkdir -p /tmp/pagespeed-demo
