@@ -11,6 +11,7 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import * as prettier from 'prettier';
+import { LICENSE_CLAUSE_CAP } from '../src/data/product-facts.mjs';
 
 const args = process.argv.slice(2);
 const dateIdx = args.indexOf('--date');
@@ -115,10 +116,22 @@ const detectedPages = signal('both') + signal('wappalyzer_only');
 
 const change = Number(h.change_first_to_latest_pct);
 
+// Crawl size (root pages, both clients) for the two crawls around HTTP Archive's 2022 growth.
+const crawlSize = (d) => {
+  const row = t.series.find((r) => r.date === d);
+  if (!row) throw new Error(`series has no crawl ${d}`);
+  return n(row.all_origins);
+};
+
+// The site's canonical license sentence, verbatim from product-facts.mjs.
+const licenseLine = LICENSE_CLAUSE_CAP.endsWith('.') ? LICENSE_CLAUSE_CAP : `${LICENSE_CLAUSE_CAP}.`;
+
 const blocks = {
   headline: `In the ${month(h.crawl_date)} crawl, HTTP Archive saw PageSpeed answering on **${n(h.latest_total)} origins**. ${n(h.versioned_total)} of them report a version; ${n(h.hidden_total)} send the header with the version hidden. In ${month(h.first_date)}, the first crawl in this census, the count was ${n(h.first_total)}: it has ${change < 0 ? 'fallen' : 'risen'} by ${Math.abs(change)}% since. The peak in this window was ${n(h.peak_total)} origins in ${month(h.peak_date)}.`,
   'security-numbers': `${pct(h.share_out_of_fixes)} of the origins that report a version run a build that no longer receives fixes: ${pct(h.share_google_of_versioned)} a Google-era build last updated in 2018, ${pct(h.share_incubator_of_versioned)} an incubator-era build last updated in 2020. ${n(h.current)} origins report the current line, which receives fixes. Update recommended.`,
   'series-chart': figure('series'),
+  'crawl-size-note': `HTTP Archive's crawl grew from ${crawlSize('2022-06-01')} root pages in ${month('2022-06-01')} to ${crawlSize('2022-08-01')} in ${month('2022-08-01')}; the jump in the chart that year follows it.`,
+  'license-line': licenseLine,
   'series-table': table(
     ['Crawl', 'Google-era', 'Incubator-era', 'Current line', 'Version hidden', 'Total'],
     seriesRows,

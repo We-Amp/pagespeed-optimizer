@@ -17,7 +17,7 @@ In the September 2026 crawl, HTTP Archive saw PageSpeed answering on **39,564 or
 
 The census counts origins. One origin is the root page of a site: scheme, host and `/`. Every number comes from the monthly HTTP Archive crawl, which loads the root pages of the sites in Chrome's popularity data and records what each server sends back. An origin counts as PageSpeed-serving when HTTP Archive's technology detection finds PageSpeed on its root page. The version is the value of the response header the module sends. The headline and the series combine the desktop and mobile crawls per origin; the server, detection and network tables use the desktop crawl only.
 
-The dataset publishes aggregates only. It names no origin, no hostname and no IP address, and neither does this post. The queries, the tables and the method are in the [pagespeed-census repository](https://github.com/We-Amp/pagespeed-census), with the details in its [methodology](https://github.com/We-Amp/pagespeed-census/blob/main/METHODOLOGY.md). We maintain the current mod_pagespeed line, so we have an interest in these numbers. That is why the data, the queries and the method are public: you can rerun them and check our reading.
+The dataset publishes aggregates only. It names no origin, no hostname and no IP address, and neither does this post. The queries, the tables and the method are in the [pagespeed-census repository](https://github.com/We-Amp/pagespeed-census), with the details in its [methodology](https://github.com/We-Amp/pagespeed-census/blob/main/METHODOLOGY.md). We maintain the current mod_pagespeed line, so we have an interest in these numbers. That is why everything is public: you can rerun it and check our reading.
 
 ## Adoption since December 2020
 
@@ -57,7 +57,15 @@ svg.census .census-panel-title{font-weight:600}
 
 Before June 2026 the current-line column counts source builds of the unreleased incubator trunk, which already carried version 1.15.0.0; around the release it is an upper bound.
 
-The count moves with the crawl as well as with the web. HTTP Archive roughly doubled the size of its crawl in mid-2022, and the jump in the chart that year follows it. The split between versioned and hidden origins also shifts between some crawls, so read the buckets as trends. Since early 2023, with the crawl at a stable size, the count has fallen in most crawls.
+The count moves with the crawl as well as with the web.
+
+<!-- census:begin crawl-size-note -->
+
+HTTP Archive's crawl grew from 8,388,540 root pages in June 2022 to 15,586,166 in August 2022; the jump in the chart that year follows it.
+
+<!-- census:end crawl-size-note -->
+
+The split between versioned and hidden origins also shifts between some crawls, so read the buckets as trends. Since early 2023, with the crawl at a stable size, the count has fallen in most crawls.
 
 Google-era builds are still the largest group of origins that report a version, and they account for most of the decline. Incubator-era builds grew until 2025 and have eased since. A large cohort sends the header with the version hidden. Since 2023 it has shrunk more slowly than the rest. Before June 2026 fewer than a hundred origins reported a version from the current line in any crawl. Those are source builds of the unreleased incubator trunk: the project's version file carried 1.15.0.0 from December 2018, although no 1.15 release existed until We-Amp's in June 2026. The current-line count is therefore an upper bound in and around the 1.15.0 release window. The release itself shows up from the July 2026 crawl on, and it is still a small group.
 
@@ -232,13 +240,13 @@ The shares are of header-bearing desktop root pages with an IP address the routi
 
 <!-- census:end security-numbers -->
 
-The buckets follow the release history. Google-era builds run up to `1.13.35.2-stable`, released on 5 February 2018, the last release before the project entered the Apache Incubator. Incubator-era builds are the 1.14 line, last published as `1.14.36.1` in July 2020 from the Apache Incubator repository; the incubator project was later retired and its repository archived in 2023. The current line starts at `1.15.0`, released by We-Amp in June 2026. Origins that hide their version are not counted as out of date, so the true share across all PageSpeed origins is unknown in either direction.
+The buckets follow the release history. Google-era builds run up to `1.13.35.2-stable`, released on 5 February 2018, the last release before the project entered the Apache Incubator. Incubator-era builds are the 1.14 line, last published as `1.14.36.1` in July 2020 from the [Apache Incubator repository](https://github.com/apache/incubator-pagespeed-mod), which was archived in 2023. The current line starts at `1.15.0`, released by We-Amp in June 2026. Origins that hide their version are not counted as out of date, so the true share across all PageSpeed origins is unknown in either direction.
 
-This post lists no vulnerabilities, by design. The fix for every one of them is the same: update. Details belong on the [security page](/security/), together with how to report a problem.
+This post lists no vulnerabilities. Builds before 1.15.0 no longer receive fixes; update recommended. Advisories and how to report a problem are on the [security page](/security/).
 
 ## How to get current
 
-The current line installs from a signed apt and yum repository. One line sets it up:
+The census counts versions 1.15.0 and later as the current line. It installs from the signed repository below.
 
 ```sh
 curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
@@ -246,7 +254,13 @@ curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 
 Then install the module for your server; the [download page](/download/) has the per-server steps and the other channels. Later updates arrive through `apt-get upgrade` or `dnf upgrade`.
 
-The software is free to run, in development and in production, and stays that way. If you run PageSpeed for customers, the [hosting partner program](/hosting-partners/) adds fleet support and a direct channel. If you want a support agreement for your own sites, the [pricing page](/pricing/) lists the support tiers.
+<!-- census:begin license-line -->
+
+Open source under the Apache License 2.0.
+
+<!-- census:end license-line -->
+
+If you run PageSpeed for customers, the [hosting partner program](/hosting-partners/) adds fleet support and a direct channel. If you want a support agreement for your own sites, the [pricing page](/pricing/) lists the support tiers.
 
 ## Method and data
 
@@ -276,4 +290,4 @@ The limits, in short:
 
 ## Where PageSpeed comes from
 
-mod_pagespeed is an open-source project originally developed at Google. mod_pagespeed 2.1 is developed by We-Amp B.V. and is not affiliated with or endorsed by Google. mod_pagespeed 1.15 and later is the line this census counts as current, and the line the signed repository ships.
+mod_pagespeed is an open-source project originally developed at Google. mod_pagespeed 2.1 is developed by We-Amp B.V. and is not affiliated with or endorsed by Google.
