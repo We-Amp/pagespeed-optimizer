@@ -999,6 +999,20 @@ const jsonLd = [webApp, faqPage];
         const p = preConsentLeak;
         return !!(p && p.status === 'ok' && p.verdict === 'leaks' && p.trackerCount > 0);
       }
+      function pageIntegrityCtaApplies(scriptInventory) {
+        const si = scriptInventory;
+        return !!(si && si.status === 'ok' && si.verdict === 'attention');
+      }
+      function thirdPartyFreezeCtaApplies(scriptInventory) {
+        const si = scriptInventory;
+        return !!(
+          si &&
+          si.status === 'ok' &&
+          si.verdict !== 'unknown' &&
+          si.totals &&
+          si.totals.thirdPartyExternal > si.totals.thirdPartyWithIntegrity
+        );
+      }
       function buildLeadPayload(opts) {
         const wedge = opts.wedge,
           email = opts.email,
@@ -1042,6 +1056,25 @@ const jsonLd = [webApp, faqPage];
               .slice(0, 3)
               .map((h) => ({ host: h.host, requests: h.requests, category: h.category })),
             cmpDetected: p.cmpDetected,
+          };
+        } else if (wedge === 'page-integrity' || wedge === 'third-party-freeze') {
+          const s = report.scriptInventory;
+          lensSignal = {
+            verdict: s.verdict,
+            reasons: s.reasons,
+            totals: {
+              scripts: s.totals.scripts,
+              inline: s.totals.inline,
+              thirdPartyExternal: s.totals.thirdPartyExternal,
+              thirdPartyHosts: s.totals.thirdPartyHosts,
+              thirdPartyWithIntegrity: s.totals.thirdPartyWithIntegrity,
+            },
+            topHosts: (s.scriptHosts || [])
+              .filter((h) => h.party === 'third')
+              .slice(0, 3)
+              .map((h) => ({ host: h.host, scripts: h.scripts, category: h.category })),
+            duplicates: (s.duplicates || []).slice(0, 3),
+            csp: s.csp,
           };
         } else {
           lensSignal = null; // a wedge with no scanner lens behind it
@@ -1573,6 +1606,146 @@ const jsonLd = [webApp, faqPage];
         );
       }
 
+      // Script inventory lens (NON-SCORED): the <script> elements of the rendered page,
+      // third-party and unpinned ones counted. Same stance as pclBlock: absent or
+      // disabled -> no row; blocked or error -> one muted "not measured" line, no counts,
+      // no chips, and both CTA predicates stay false. Chips are the third-party hosts the
+      // lead's lensSignal carries; hosts behind an attention reason take the accent chip.
+      // Wording mirrors the scanner's index.html — KEEP IN SYNC.
+      function siHostsOf(list) {
+        const seen = [];
+        (Array.isArray(list) ? list : []).forEach((x) => {
+          if (x && seen.indexOf(x.host) === -1) seen.push(x.host);
+        });
+        return seen.slice(0, 3).join(', ');
+      }
+      function siFlagged(si) {
+        const flagged = {};
+        const reasons = Array.isArray(si.reasons) ? si.reasons : [];
+        if (reasons.indexOf('sri-missing') !== -1)
+          (si.sriMissing || []).forEach((x) => (flagged[x.host] = true));
+        if (reasons.indexOf('floating-version') !== -1)
+          (si.floating || []).forEach((x) => (flagged[x.host] = true));
+        if (reasons.indexOf('unlisted-origin') !== -1)
+          (si.scriptHosts || []).forEach((h) => {
+            if (h.party === 'third' && !h.listed) flagged[h.host] = true;
+          });
+        return flagged;
+      }
+      function siReasonText(si) {
+        if (si.verdict !== 'attention') return '';
+        const reasons = Array.isArray(si.reasons) ? si.reasons : [];
+        const bits = [];
+        if (reasons.indexOf('sri-missing') !== -1)
+          bits.push(
+            (si.sriMissing || []).length +
+              ' script(s) from public CDNs without an integrity hash (' +
+              siHostsOf(si.sriMissing) +
+              ')',
+          );
+        if (reasons.indexOf('floating-version') !== -1)
+          bits.push(
+            (si.floating || []).length +
+              ' CDN script(s) with no pinned version (' +
+              siHostsOf(si.floating) +
+              ')',
+          );
+        if (reasons.indexOf('duplicate-library') !== -1)
+          bits.push(
+            'the same library at more than one version: ' +
+              (si.duplicates || [])
+                .slice(0, 3)
+                .map((d) => d.library + ' ' + d.versions.join(' + '))
+                .join(', '),
+          );
+        if (reasons.indexOf('unlisted-origin') !== -1)
+          bits.push(
+            'script hosts not on our list of known hosts: ' +
+              (si.scriptHosts || [])
+                .filter((h) => h.party === 'third' && !h.listed)
+                .slice(0, 3)
+                .map((h) => h.host)
+                .join(', '),
+          );
+        return bits.length ? ' Flagged: ' + bits.join('; ') + '.' : '';
+      }
+      function siVerdict(si) {
+        if (si.verdict === 'unknown')
+          return 'We could not render this page, so we could not inventory its scripts.';
+        const t = si.totals || {};
+        const csp = si.csp || {};
+        return (
+          t.scripts +
+          ' script(s) · ' +
+          t.thirdPartyExternal +
+          ' from other hosts · ' +
+          t.thirdPartyWithIntegrity +
+          ' with integrity · CSP: ' +
+          (csp.enforced ? 'enforced' : csp.reportOnly ? 'report-only' : 'none') +
+          '.' +
+          siReasonText(si) +
+          ' Heuristic host list; not an assessment against any standard.'
+        );
+      }
+      function siBlock(si) {
+        if (!si || si.status === 'disabled') return '';
+        if (si.status !== 'ok') {
+          const why =
+            typeof si.note === 'string' && si.note.trim()
+              ? si.note.trim()
+              : 'Not measured: the site blocked the scanner.';
+          return (
+            '<div class="ar-lens">' +
+            '<h4 class="ar-h4"><span class="ar-h4-l">Script inventory ' +
+            NS_BADGE +
+            '</span><span class="ar-h4-r">not measured</span></h4>' +
+            '<p class="ar-def">' +
+            esc(why) +
+            '</p></div>'
+          );
+        }
+        const label =
+          si.verdict === 'attention' ? 'attention' : si.verdict === 'clean' ? 'clean' : 'unknown';
+        let chips = '';
+        if (si.verdict !== 'unknown') {
+          const flagged = siFlagged(si);
+          const top = (Array.isArray(si.scriptHosts) ? si.scriptHosts : [])
+            .filter((h) => h.party === 'third')
+            .slice(0, 3);
+          chips = top.length
+            ? '<div class="ar-chips">' +
+              top
+                .map(
+                  (h) =>
+                    '<span class="ar-chip' +
+                    (flagged[h.host] ? ' ar-chip-block' : '') +
+                    '">' +
+                    esc(h.host) +
+                    ' · ' +
+                    esc(h.category) +
+                    '</span>',
+                )
+                .join('') +
+              '</div>'
+            : '';
+        }
+        return (
+          '<div class="ar-lens' +
+          (si.verdict === 'attention' ? ' ar-finding' : '') +
+          '">' +
+          '<h4 class="ar-h4"><span class="ar-h4-l">Script inventory ' +
+          NS_BADGE +
+          '</span><span class="ar-h4-r">' +
+          label +
+          '</span></h4>' +
+          '<div class="ar-v">' +
+          esc(siVerdict(si)) +
+          '</div>' +
+          chips +
+          '</div>'
+        );
+      }
+
       // Hidden-layer lens (NON-SCORED): human-invisible-but-agent-readable
       // content found on the owner's OWN page. Reports observations to the owner; it
       // never asserts a "safe/screened" status. Technique chips + per-node evidence
@@ -1846,6 +2019,49 @@ const jsonLd = [webApp, faqPage];
         );
       }
 
+      // Script-control card: renders when either script-inventory gate applies
+      // (pageIntegrityCtaApplies / thirdPartyFreezeCtaApplies); each gate contributes its own
+      // sentence and its own submit button. One form, one email; the button pressed picks
+      // the wedge, and the lead carries the lens signal (buildLeadPayload) to /contact.
+      // Copy mirrors the scanner's index.html verbatim — KEEP IN SYNC.
+      function scriptCard(r) {
+        const si = r.scriptInventory;
+        const pi = pageIntegrityCtaApplies(si);
+        const tf = thirdPartyFreezeCtaApplies(si);
+        if (!pi && !tf) return '';
+        const unpinned = tf ? si.totals.thirdPartyExternal - si.totals.thirdPartyWithIntegrity : 0;
+        return (
+          '<section class="ar-sec" aria-labelledby="ar-h-scripts">' +
+          '<h3 id="ar-h-scripts" class="ar-h3">Scripts you do not control</h3>' +
+          (pi
+            ? '<p class="ar-v">Payment pages must list every script they load and show each one is approved (PCI DSS 6.4.3 and 11.6.1); we are building a server module that keeps that list and enforces it at your origin. Tell us what you run.</p>'
+            : '') +
+          (tf
+            ? '<p class="ar-v">' +
+              unpinned +
+              ' third-party script(s) on this page can change upstream without notice; we are building a way to serve each one at a version you approved until you accept the update. Tell us what you run.</p>'
+            : '') +
+          '<div class="ar-cta-row">' +
+          '<a class="ar-cta-link" href="/platform/" data-umami-event="airead-cta-page-integrity">Origin modules we are building →</a>' +
+          '</div>' +
+          '<form id="ar-scripts-form" class="ar-next-form">' +
+          '<label class="ar-field"><span class="ar-field-label">Your email</span>' +
+          '<input id="ar-scripts-email" type="email" autocomplete="email" required /></label>' +
+          (pi
+            ? '<button type="submit" data-wedge="page-integrity" data-umami-event="airead-next-page-integrity">Talk to us about script control</button>'
+            : '') +
+          (tf
+            ? '<button type="submit" data-wedge="third-party-freeze" data-umami-event="airead-next-third-party-freeze">Talk to us about pinning scripts</button>'
+            : '') +
+          '</form>' +
+          // Same per-request disclosure as the other wedge forms (it posts to /contact).
+          '<p class="ar-disclosure">Submitting this sends us your email and a summary of this scan’s findings. ' +
+          'We use them only for this request; see our <a href="/privacy/">privacy policy</a>.</p>' +
+          '<div id="ar-scripts-msg" class="ar-next-msg" role="status" aria-live="polite" tabindex="-1"></div>' +
+          '</section>'
+        );
+      }
+
       // Capture cards that ship with every result, independent of which wedge
       // fired: an interest signup for AI-readability updates (topic
       // ai-readability-updates, explicit consent checkbox) and the
@@ -2006,6 +2222,7 @@ const jsonLd = [webApp, faqPage];
         const psBlk = psBlock(r.provenanceSurvival);
         const seBlk = seBlock(r.sovereigntyExposure);
         const pclBlk = pclBlock(r.preConsentLeak);
+        const siBlk = siBlock(r.scriptInventory);
         const ghostBlk = ghostBlock(r.ghostLayer);
 
         // SECTION 5 — share: the permalink the scanner mints for every scan, plus a
@@ -2047,6 +2264,7 @@ const jsonLd = [webApp, faqPage];
           psBlk +
           seBlk +
           pclBlk +
+          siBlk +
           aaBlock +
           ghostBlk +
           '</section>' +
@@ -2054,11 +2272,13 @@ const jsonLd = [webApp, faqPage];
           nextStep(r, primaryWedge, firedWedges) +
           '</section>' +
           consentCard(r) +
+          scriptCard(r) +
           captureBlocks() +
           (share ? '<section class="ar-sec" aria-label="Share">' + share + '</section>' : '') +
           '</div>';
         wireNext(r, primaryWedge, multiWedge);
         wireConsentCard(r);
+        wireScriptCard(r);
         wireLeadCards(r);
         wireCopyLink(data.permalink);
         // Position the hidden-layer overlay boxes over the screenshot (no-op if not detected).
@@ -2263,6 +2483,42 @@ const jsonLd = [webApp, faqPage];
           } else {
             if (msg) msg.textContent = 'Something went wrong. Please try again in a moment.';
             if (btn) btn.disabled = false;
+          }
+        });
+      }
+
+      // Wire the script-control card (see scriptCard): the submit button pressed names the
+      // wedge (page-integrity or third-party-freeze); falls back to the first button's wedge.
+      function wireScriptCard(r) {
+        const form = $('#ar-scripts-form');
+        if (!form) return;
+        const msg = $('#ar-scripts-msg');
+        const emailEl = $('#ar-scripts-email');
+        form.addEventListener('submit', async (e) => {
+          e.preventDefault();
+          const email = ((emailEl && emailEl.value) || '').trim();
+          if (!email || !form.checkValidity()) {
+            form.reportValidity();
+            return;
+          }
+          const first = form.querySelector('button[type="submit"]');
+          const sub =
+            e.submitter && e.submitter.dataset && e.submitter.dataset.wedge ? e.submitter : first;
+          const wedge = (sub && sub.dataset && sub.dataset.wedge) || 'page-integrity';
+          form.querySelectorAll('button[type="submit"]').forEach((b) => (b.disabled = true));
+          const ok = await postLead(
+            buildLeadPayload({ wedge: wedge, email: email, name: '', note: '', report: r }),
+          );
+          if (ok) {
+            leadSubmit(wedge, wedge);
+            if (msg) {
+              msg.textContent = 'Thanks — your answer is in.';
+              msg.focus && msg.focus();
+            }
+            form.remove();
+          } else {
+            if (msg) msg.textContent = 'Something went wrong. Please try again in a moment.';
+            form.querySelectorAll('button[type="submit"]').forEach((b) => (b.disabled = false));
           }
         });
       }

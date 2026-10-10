@@ -611,6 +611,283 @@ test.describe('AI-readability pre-consent leak lens and consent-enforcement card
   });
 });
 
+// Script-inventory lens: one row after the pre-consent row, and one card whose two
+// submit buttons each post their own wedge.
+const SI_TOTALS = {
+  scripts: 14,
+  inline: 3,
+  external: 11,
+  firstPartyExternal: 6,
+  thirdPartyExternal: 5,
+  thirdPartyHosts: 3,
+  thirdPartyWithIntegrity: 1,
+  nonExecutable: 0,
+};
+const SI_HOSTS = [
+  {
+    host: 'cdnjs.cloudflare.com',
+    party: 'third',
+    scripts: 3,
+    withIntegrity: 0,
+    category: 'cdn',
+    listed: true,
+  },
+  {
+    host: 'www.googletagmanager.com',
+    party: 'third',
+    scripts: 1,
+    withIntegrity: 1,
+    category: 'tag-manager',
+    listed: true,
+  },
+  {
+    host: 'widgets.example.net',
+    party: 'third',
+    scripts: 1,
+    withIntegrity: 0,
+    category: 'unlisted',
+    listed: false,
+  },
+  {
+    host: 'example.com',
+    party: 'first',
+    scripts: 6,
+    withIntegrity: 0,
+    category: 'first-party',
+    listed: true,
+  },
+];
+const SI_CSP = { enforced: false, reportOnly: true, scriptSrc: [], reporting: false };
+const SI_ATTENTION = {
+  status: 'ok',
+  verdict: 'attention',
+  reasons: ['sri-missing'],
+  blockedBy: [],
+  totals: SI_TOTALS,
+  scriptHosts: SI_HOSTS,
+  sriMissing: [
+    { host: 'cdnjs.cloudflare.com', path: '/ajax/libs/lodash.js/4.17.21/lodash.min.js' },
+  ],
+  floating: [],
+  duplicates: [],
+  csp: SI_CSP,
+  firstParty: ['example.com'],
+  scriptListVersion: 'si-1',
+  note: 'x',
+};
+const SI_CLEAN_UNPINNED = {
+  ...SI_ATTENTION,
+  verdict: 'clean',
+  reasons: [],
+  sriMissing: [],
+  totals: { ...SI_TOTALS, thirdPartyExternal: 2, thirdPartyHosts: 2, thirdPartyWithIntegrity: 0 },
+};
+const SI_CLEAN_NONE = {
+  ...SI_ATTENTION,
+  verdict: 'clean',
+  reasons: [],
+  sriMissing: [],
+  totals: { ...SI_TOTALS, thirdPartyExternal: 0, thirdPartyHosts: 0, thirdPartyWithIntegrity: 0 },
+  scriptHosts: [SI_HOSTS[3]],
+};
+const siScan = (si?: unknown) => ({
+  report: { ...SCAN_OK.report, ...(si ? { scriptInventory: si } : {}) },
+});
+const SI_ROW = (page: Page) => page.locator('.ar-lens', { hasText: 'Script inventory' });
+const SI_PI_TEXT =
+  'Payment pages must list every script they load and show each one is approved (PCI DSS 6.4.3 and 11.6.1); we are building a server module that keeps that list and enforces it at your origin. Tell us what you run.';
+
+test.describe('AI-readability script-inventory lens and script-control card', () => {
+  test('an attention page gets the row, both buttons, and each button posts its own wedge', async ({
+    page,
+  }) => {
+    const posted = await stubContact(page);
+    await stubUmami(page);
+    await runScan(page, siScan(SI_ATTENTION));
+
+    const row = SI_ROW(page);
+    await expect(row).toHaveCount(1);
+    await expect(row).toHaveClass(/ar-finding/);
+    await expect(row.locator('.ar-h4-r')).toHaveText('attention');
+    await expect(row).toContainText(
+      '14 script(s) · 5 from other hosts · 1 with integrity · CSP: report-only.',
+    );
+    await expect(row.locator('.ar-chip')).toHaveText([
+      'cdnjs.cloudflare.com · cdn',
+      'www.googletagmanager.com · tag-manager',
+      'widgets.example.net · unlisted',
+    ]);
+    await expect(row.locator('.ar-chip-block')).toHaveText(['cdnjs.cloudflare.com · cdn']);
+
+    const card = page.locator('section[aria-labelledby="ar-h-scripts"]');
+    await expect(page.locator('#ar-h-scripts')).toHaveText('Scripts you do not control');
+    await expect(card.locator('p.ar-v')).toHaveText([
+      SI_PI_TEXT,
+      '4 third-party script(s) on this page can change upstream without notice; we are building a way to serve each one at a version you approved until you accept the update. Tell us what you run.',
+    ]);
+    await expect(card.locator('a[href="/platform/"]')).toHaveText(
+      'Origin modules we are building →',
+    );
+    await expect(card.locator('button[type="submit"]')).toHaveText([
+      'Talk to us about script control',
+      'Talk to us about pinning scripts',
+    ]);
+    await expect(card.locator('p.ar-disclosure')).toContainText(
+      'We use them only for this request',
+    );
+
+    await page.fill('#ar-scripts-email', 'operator@example.com');
+    await page.click('#ar-scripts-form button[data-wedge="third-party-freeze"]');
+    await expect(page.locator('#ar-scripts-msg')).toContainText('Thanks');
+    await expect(page.locator('#ar-scripts-form')).toHaveCount(0);
+
+    expect(posted).toHaveLength(1);
+    expect(posted[0]).toMatchObject({
+      topic: 'third-party-freeze',
+      email: 'operator@example.com',
+      url: 'https://example.com/',
+      wedge: 'third-party-freeze',
+      lensSignal: {
+        verdict: 'attention',
+        reasons: ['sri-missing'],
+        totals: {
+          scripts: 14,
+          inline: 3,
+          thirdPartyExternal: 5,
+          thirdPartyHosts: 3,
+          thirdPartyWithIntegrity: 1,
+        },
+        topHosts: [
+          { host: 'cdnjs.cloudflare.com', scripts: 3, category: 'cdn' },
+          { host: 'www.googletagmanager.com', scripts: 1, category: 'tag-manager' },
+          { host: 'widgets.example.net', scripts: 1, category: 'unlisted' },
+        ],
+        duplicates: [],
+        csp: SI_CSP,
+      },
+    });
+    expect(JSON.stringify(posted[0])).not.toContain('lodash');
+
+    const events = await trackedEvents(page);
+    expect(events.filter((e) => e.name === 'lead_submit')).toEqual([
+      {
+        name: 'lead_submit',
+        data: {
+          channel: 'scan',
+          topic: 'third-party-freeze',
+          wedge: 'third-party-freeze',
+          source_path: '/ai-readability/',
+        },
+      },
+    ]);
+  });
+
+  test('the script control button posts the page-integrity wedge', async ({ page }) => {
+    const posted = await stubContact(page);
+    await stubUmami(page);
+    await runScan(page, siScan(SI_ATTENTION));
+
+    await page.fill('#ar-scripts-email', 'operator@example.com');
+    await page.click('#ar-scripts-form button[data-wedge="page-integrity"]');
+    await expect(page.locator('#ar-scripts-msg')).toContainText('Thanks');
+    expect(posted).toHaveLength(1);
+    expect(posted[0]).toMatchObject({
+      topic: 'page-integrity',
+      wedge: 'page-integrity',
+      lensSignal: { verdict: 'attention', reasons: ['sri-missing'] },
+    });
+  });
+
+  test('a clean page with unpinned third-party scripts shows only the pinning button', async ({
+    page,
+  }) => {
+    const posted = await stubContact(page);
+    await stubUmami(page);
+    await runScan(page, siScan(SI_CLEAN_UNPINNED));
+
+    const row = SI_ROW(page);
+    await expect(row.locator('.ar-h4-r')).toHaveText('clean');
+    await expect(row).not.toHaveClass(/ar-finding/);
+    const card = page.locator('section[aria-labelledby="ar-h-scripts"]');
+    await expect(card.locator('p.ar-v')).toHaveText([
+      '2 third-party script(s) on this page can change upstream without notice; we are building a way to serve each one at a version you approved until you accept the update. Tell us what you run.',
+    ]);
+    await expect(card.locator('button[type="submit"]')).toHaveText([
+      'Talk to us about pinning scripts',
+    ]);
+
+    await page.fill('#ar-scripts-email', 'operator@example.com');
+    await page.click('#ar-scripts-form button[type="submit"]');
+    await expect(page.locator('#ar-scripts-msg')).toContainText('Thanks');
+    expect(posted[0]).toMatchObject({ topic: 'third-party-freeze', wedge: 'third-party-freeze' });
+  });
+
+  test('a clean page with no third-party scripts shows the row and no card', async ({ page }) => {
+    await stubUmami(page);
+    await runScan(page, siScan(SI_CLEAN_NONE));
+
+    await expect(SI_ROW(page).locator('.ar-h4-r')).toHaveText('clean');
+    await expect(page.locator('#ar-h-scripts')).toHaveCount(0);
+    await expect(page.locator('#ar-scripts-form')).toHaveCount(0);
+  });
+
+  test('a blocked render gets a muted not-measured row with the note and no card', async ({
+    page,
+  }) => {
+    await stubUmami(page);
+    await runScan(
+      page,
+      siScan({
+        status: 'blocked',
+        verdict: 'attention',
+        reasons: [],
+        totals: SI_TOTALS,
+        note: 'The site answered our render with a challenge page, so we could not inventory its scripts.',
+      }),
+    );
+
+    const row = SI_ROW(page);
+    await expect(row).toHaveCount(1);
+    await expect(row).not.toHaveClass(/ar-finding/);
+    await expect(row.locator('.ar-h4-r')).toHaveText('not measured');
+    await expect(row.locator('p.ar-def')).toHaveText(
+      'The site answered our render with a challenge page, so we could not inventory its scripts.',
+    );
+    await expect(row.locator('.ar-chip')).toHaveCount(0);
+    await expect(page.locator('#ar-h-scripts')).toHaveCount(0);
+    await expect(page.locator('#ar-scripts-form')).toHaveCount(0);
+  });
+
+  test('an errored lens gets the default not-measured line and no card', async ({ page }) => {
+    await stubUmami(page);
+    await runScan(page, siScan({ status: 'error', reason: 'boom' }));
+
+    const row = SI_ROW(page);
+    await expect(row).toHaveCount(1);
+    await expect(row.locator('.ar-h4-r')).toHaveText('not measured');
+    await expect(row.locator('p.ar-def')).toHaveText('Not measured: the site blocked the scanner.');
+    await expect(page.locator('#ar-h-scripts')).toHaveCount(0);
+    await expect(page.locator('#ar-scripts-form')).toHaveCount(0);
+  });
+
+  test('a disabled lens renders neither the row nor the card', async ({ page }) => {
+    await stubUmami(page);
+    await runScan(page, siScan({ status: 'disabled', verdict: 'unknown', reasons: [] }));
+
+    await expect(SI_ROW(page)).toHaveCount(0);
+    await expect(page.locator('#ar-h-scripts')).toHaveCount(0);
+  });
+
+  test('a scan without the lens key renders neither the row nor the card', async ({ page }) => {
+    await stubUmami(page);
+    await runScan(page);
+
+    await expect(SI_ROW(page)).toHaveCount(0);
+    await expect(page.locator('#ar-h-scripts')).toHaveCount(0);
+    await expect(page.locator('#ar-scripts-form')).toHaveCount(0);
+  });
+});
+
 test.describe('AI-readability result link (copy replaces the email-me path)', () => {
   // The copy assertions read the clipboard back, which needs the grant.
   test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
