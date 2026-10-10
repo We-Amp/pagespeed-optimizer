@@ -16,11 +16,25 @@ commands, placeholders in angle brackets, no prose beyond what a command needs.
 | Kubernetes (Helm chart)   | [helm.md](https://modpagespeed.com/recipes/helm.md)               | `X-PageSpeed`                  |
 
 In a checkout of the repository the files are under `website/public/recipes/`.
-A Claude Code skill that picks the recipe for the detected server and runs it,
-verification included, is at
-https://github.com/We-Amp/pagespeed-optimizer/blob/main/.claude/skills/install-modpagespeed/SKILL.md;
-to use it in another project, copy it to that project's
-`.claude/skills/install-modpagespeed/SKILL.md`.
+The `install-modpagespeed` skill picks the recipe for the detected server and
+runs it, verification included. Source:
+https://github.com/We-Amp/pagespeed-optimizer/blob/main/.claude/skills/install-modpagespeed/SKILL.md
+
+Install it in Claude Code:
+
+```bash
+claude plugin marketplace add We-Amp/pagespeed-optimizer
+claude plugin install modpagespeed@modpagespeed
+```
+
+Install it into the current project for other agents that read skill
+directories:
+
+```bash
+npx skills add We-Amp/pagespeed-optimizer --skill install-modpagespeed
+```
+
+The human-readable overview is https://modpagespeed.com/docs/agent-install/.
 
 ## Conventions
 

@@ -59,6 +59,28 @@ Container images and a Helm chart cover the nginx deployment side; see
 including from 1.x — is an in-place package upgrade; see
 [UPGRADING.md](UPGRADING.md).
 
+## Install with a coding agent
+
+Machine-readable install recipes, one per server, are served at
+`https://modpagespeed.com/recipes/<surface>.md` (index:
+[recipes/README.md](https://modpagespeed.com/recipes/README.md); source:
+`website/public/recipes/`). The `install-modpagespeed` skill in
+`.claude/skills/` picks the recipe for the detected server, runs it and
+verifies the result. Install it in Claude Code:
+
+```bash
+claude plugin marketplace add We-Amp/pagespeed-optimizer
+claude plugin install modpagespeed@modpagespeed
+```
+
+or into another agent's skill directory with the `skills` CLI:
+
+```bash
+npx skills add We-Amp/pagespeed-optimizer --skill install-modpagespeed
+```
+
+See [Install with a coding agent](https://modpagespeed.com/docs/agent-install/).
+
 ## Features
 
 - **Image Optimization** — JPEG/PNG/GIF to WebP and AVIF transcoding,
