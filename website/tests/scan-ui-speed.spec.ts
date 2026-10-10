@@ -94,14 +94,10 @@ test.describe('v2 Speed panel', () => {
     await warm(page);
     await scan(page);
     await expect(tile(page)).toHaveAttribute('data-state', 'none', { timeout: 15000 });
-    await expect(tile(page)).toContainText(
-      'Rate limit reached. Try again in a minute.',
-    );
+    await expect(tile(page)).toContainText('Rate limit reached. Try again in a minute.');
     await expect(tile(page)).not.toContainText('HTTP 429');
     await openSpeed(page);
-    await expect(panel(page)).toContainText(
-      'Rate limit reached. Try again in a minute.',
-    );
+    await expect(panel(page)).toContainText('Rate limit reached. Try again in a minute.');
   });
 
   test('shows two plates, the sentences and the top five fixes', async ({ page }) => {
