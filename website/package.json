@@ -50,7 +50,7 @@
     "lighthouse": "13.5.0"
   },
   "devDependencies": {
-    "@astrojs/check": "^0.9.9",
+    "@astrojs/check": "^0.9.10",
     "@axe-core/playwright": "^4.11.1",
     "@fontsource/inter": "^5.2.8",
     "@lhci/cli": "0.15.1",
