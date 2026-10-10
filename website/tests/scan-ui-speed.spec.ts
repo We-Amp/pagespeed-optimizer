@@ -94,10 +94,14 @@ test.describe('v2 Speed panel', () => {
     await warm(page);
     await scan(page);
     await expect(tile(page)).toHaveAttribute('data-state', 'none', { timeout: 15000 });
-    await expect(tile(page)).toContainText('PSI rate limit hit.');
+    await expect(tile(page)).toContainText(
+      'PageSpeed Insights is busy right now. Try again in a minute.',
+    );
     await expect(tile(page)).not.toContainText('HTTP 429');
     await openSpeed(page);
-    await expect(panel(page)).toContainText('PSI rate limit hit.');
+    await expect(panel(page)).toContainText(
+      'PageSpeed Insights is busy right now. Try again in a minute.',
+    );
   });
 
   test('shows two plates, the sentences and the top five fixes', async ({ page }) => {
@@ -242,19 +246,19 @@ test.describe('v2 Speed panel', () => {
     {
       name: '429',
       reply: { status: 429, body: PSI_429 },
-      title: 'PSI rate limit hit.',
+      title: 'PageSpeed Insights is busy right now. Try again in a minute.',
       body: 'You’ve hit the per-visitor rate limit on this page.',
     },
     {
       name: '400',
       reply: errorBody(400, 'Bad URL'),
-      title: 'PSI couldn’t analyze that URL.',
+      title: 'PageSpeed Insights could not analyze that URL.',
       body: 'Bad URL Common causes',
     },
     {
       name: '5xx',
       reply: errorBody(503, 'down'),
-      title: 'PSI is having trouble.',
+      title: 'PageSpeed Insights returned an error. Try again later.',
       body: 'returned a server error',
     },
     {
