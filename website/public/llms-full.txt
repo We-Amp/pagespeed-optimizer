@@ -41,6 +41,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [Install on IIS](https://modpagespeed.com/docs/install-iis/): Install the mod_pagespeed IIS module on Windows Server: requirements, the signed MSI, IIS Express, the optional optimizer service and the first check.
 - [Envoy HTTP filter (experimental)](https://modpagespeed.com/docs/install-envoy/): PageSpeed for Envoy is an experimental HTTP filter built from the public source repository, not a packaged release: configuration, checks, known limits.
 - [Install ASP.NET Core middleware](https://modpagespeed.com/docs/aspnet-getting-started/): Install the mod_pagespeed 2.1 ASP.NET Core middleware via NuGet — the same optimization pipeline (image transcoding, critical CSS) inside your .NET app.
+- [Install with a coding agent](https://modpagespeed.com/docs/agent-install/): Machine-readable install recipes for coding agents, one per server: prerequisites, install, configure, verify and roll back, plus an install skill.
 
 ## Upgrade and migrate
 
@@ -220,6 +221,8 @@ install and run; the software is licensed under the Apache License 2.0.
 Already running a predecessor? The [upgrade and migration pages](https://modpagespeed.com/docs/upgrade/)
 cover mod_pagespeed 1.15, ModPageSpeed 2.0, ngx_pagespeed, IISpeed and the
 archived open-source module.
+
+Installing with a coding agent? [Install with a coding agent](https://modpagespeed.com/docs/agent-install/) lists one machine-readable recipe per server, indexed at [modpagespeed.com/recipes/README.md](https://modpagespeed.com/recipes/README.md).
 
 ## Prerequisites
 
@@ -567,6 +570,8 @@ working options:
   [Docker / nginx reverse proxy](https://modpagespeed.com/docs/installation-docker/) in front of your
   origin.
 
+Machine-readable recipes for coding agents: [modpagespeed.com/recipes/nginx.md](https://modpagespeed.com/recipes/nginx.md) and [modpagespeed.com/recipes/apache.md](https://modpagespeed.com/recipes/apache.md) (see [Install with a coding agent](https://modpagespeed.com/docs/agent-install/)).
+
 ## Native Apache module
 
 The signed repository at `packages.modpagespeed.com` ships the Apache module
@@ -804,6 +809,8 @@ Deploy mod_pagespeed 2.1 with Docker Compose. You run three containers — nginx
 with the pagespeed module, the worker, and your origin server — sharing a
 Cyclone cache volume. To try it against your own site in seconds first, start
 with the single combined container below.
+
+Machine-readable recipe for coding agents: [modpagespeed.com/recipes/docker.md](https://modpagespeed.com/recipes/docker.md) (see [Install with a coding agent](https://modpagespeed.com/docs/agent-install/)).
 
 ## Quick try (one container)
 
@@ -1233,6 +1240,8 @@ The official Helm chart deploys mod_pagespeed 2.1 as a two-container pod: the mo
 and the optimizer worker run as separate containers in the same pod, sharing
 an `emptyDir` volume for the Cyclone cache. This page covers installation,
 configuration, scaling, and upgrades.
+
+Machine-readable recipe for coding agents: [modpagespeed.com/recipes/helm.md](https://modpagespeed.com/recipes/helm.md) (see [Install with a coding agent](https://modpagespeed.com/docs/agent-install/)).
 
 ## Prerequisites
 
@@ -1680,6 +1689,8 @@ IISpeed. Download the signed MSI, run it, `iisreset`, and the module optimizes
 every site that has a `pagespeed.config`. The IIS package ships from the 1.15
 packaging channel.
 
+Machine-readable recipe for coding agents: [modpagespeed.com/recipes/iis.md](https://modpagespeed.com/recipes/iis.md) (see [Install with a coding agent](https://modpagespeed.com/docs/agent-install/)).
+
 ## Requirements
 
 - Windows Server 2019 or later (IIS 10 or later)
@@ -1873,6 +1884,8 @@ inside your ASP.NET Core pipeline, installed as a NuGet package. Same optimizati
 pipeline as the nginx integration — image transcoding, CSS/JS minification, critical
 CSS — invoked via P/Invoke to the native C/C++ library. No separate reverse proxy or
 sidecar is required.
+
+Machine-readable recipe for coding agents: [modpagespeed.com/recipes/aspnet-core.md](https://modpagespeed.com/recipes/aspnet-core.md) (see [Install with a coding agent](https://modpagespeed.com/docs/agent-install/)).
 
 ## Prerequisites
 
@@ -2258,6 +2271,98 @@ unless `Sidecar.AllowPublicAdmin` is enabled).
 - [Image optimization in C#](https://modpagespeed.com/blog/aspnet-core-image-optimization-c-sharp/) — the content-negotiation path in detail
 - Fix [LCP](https://modpagespeed.com/blog/fix-lcp-aspnet-core-2026/), [INP](https://modpagespeed.com/blog/fix-inp-aspnet-core-2026/), and [CLS](https://modpagespeed.com/blog/fix-cls-aspnet-core-2026/) in ASP.NET Core — targeted Core Web Vitals guides
 - [Software license](https://modpagespeed.com/license/) — Apache License 2.0
+
+---
+
+# Install with a coding agent
+
+Machine-readable install recipes for coding agents, one per server: prerequisites, install, configure, verify and roll back, plus an install skill.
+
+Canonical URL: https://modpagespeed.com/docs/agent-install/
+
+A coding agent can install mod_pagespeed 2.1 from a recipe: one Markdown file
+per server, written for an agent to run. Each recipe has the same five
+sections: prerequisites check, install, minimal configuration, verification and
+rollback. The commands are fenced, the values to fill in are placeholders in
+angle brackets, and there is no prose beyond what a command needs.
+
+The recipes derive from these docs. Every command in a recipe comes from the
+docs pages it names at the top; when a command changes, the docs change first
+and the recipe follows.
+
+## The recipes
+
+| Server                    | Recipe                                                            | Docs page                                                            |
+| ------------------------- | ----------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Index of all recipes      | [README.md](https://modpagespeed.com/recipes/README.md)           |                                                                      |
+| nginx (native module)     | [nginx.md](https://modpagespeed.com/recipes/nginx.md)             | [Install the module on Apache and nginx](https://modpagespeed.com/docs/installation-module/) |
+| Apache (native module)    | [apache.md](https://modpagespeed.com/recipes/apache.md)           | [Install the module on Apache and nginx](https://modpagespeed.com/docs/installation-module/) |
+| IIS (native module)       | [iis.md](https://modpagespeed.com/recipes/iis.md)                 | [Install on IIS](https://modpagespeed.com/docs/install-iis/)                                 |
+| ASP.NET Core (middleware) | [aspnet-core.md](https://modpagespeed.com/recipes/aspnet-core.md) | [Install ASP.NET Core middleware](https://modpagespeed.com/docs/aspnet-getting-started/)     |
+| Docker (reverse proxy)    | [docker.md](https://modpagespeed.com/recipes/docker.md)           | [Install with Docker](https://modpagespeed.com/docs/installation-docker/)                    |
+| Kubernetes (Helm chart)   | [helm.md](https://modpagespeed.com/recipes/helm.md)               | [Deploy with Helm](https://modpagespeed.com/docs/helm-deployment/)                           |
+
+## How an agent uses a recipe
+
+1. **Prerequisites.** Pick the recipe for the server that serves the site's
+   HTML and run its checks. Stop at the first failure and report it.
+2. **Install.** Run the install commands as written. Privileged commands
+   (`sudo`, an elevated PowerShell, `msiexec`, `docker`, `helm`) need the
+   operator's go-ahead, and so does any install on a server that takes
+   production traffic.
+3. **Configure.** Apply the minimal configuration, replacing each
+   `<placeholder>` with a value from the project.
+4. **Verify.** Request the site's own page and check one response header:
+   `X-Page-Speed` (nginx, IIS), `X-Mod-Pagespeed` (Apache) or `X-PageSpeed`
+   (ASP.NET Core, Docker, Helm). The install is complete only when that header
+   is present.
+5. **Roll back.** If verification fails after one pass through the
+   troubleshooting link, the rollback section is written to undo only what the
+   run created and to leave anything that existed before in place.
+
+## The verification marker
+
+The verification request carries a fixed query string, `?mps-verify=agent`.
+mod_pagespeed ignores the parameter. The request goes only to the server being
+verified, so the marker lands only in that server's own access log, where the
+operator can count agent-run verifications:
+
+```bash
+grep -c 'mps-verify=agent' /var/log/nginx/access.log
+```
+
+Nothing in a recipe reports anywhere. The recipes themselves call only the
+documented install channels: the package repository, GHCR, the Helm repository,
+nuget.org and the download page. apt, dnf, Docker and Helm then pull
+dependencies from the sources they are configured with.
+
+## The install skill
+
+The `install-modpagespeed` skill wraps the recipes for agents that load skills:
+it detects the server, fetches the matching recipe, runs it and runs the
+verification. Its source is in the
+[pagespeed-optimizer repository](https://github.com/We-Amp/pagespeed-optimizer/tree/main/.claude/skills/install-modpagespeed).
+
+In Claude Code, add the repository as a plugin marketplace and install the
+plugin:
+
+```bash
+claude plugin marketplace add We-Amp/pagespeed-optimizer
+claude plugin install modpagespeed@modpagespeed
+```
+
+Claude Code can then pick the skill when you ask for a mod_pagespeed install,
+or you can run it directly as `/modpagespeed:install-modpagespeed`.
+
+For other agents that read skill directories, the `skills` command-line tool
+copies the skill into the current project:
+
+```bash
+npx skills add We-Amp/pagespeed-optimizer --skill install-modpagespeed
+```
+
+An agent without skill support can be given a recipe URL directly, for example
+"install mod_pagespeed by following https://modpagespeed.com/recipes/nginx.md".
 
 ---
 

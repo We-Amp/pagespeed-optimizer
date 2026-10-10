@@ -41,7 +41,9 @@ configuration, a response-header verification and a rollback, live in
 `website/public/recipes/` and are served at
 `https://modpagespeed.com/recipes/<surface>.md` (index: `README.md`). The Claude
 Code skill `.claude/skills/install-modpagespeed/SKILL.md` selects the recipe for
-the detected server and runs it, verification included. The recipes derive from
+the detected server and runs it, verification included; `.claude-plugin/marketplace.json`
+publishes that same directory as the Claude Code plugin `modpagespeed`, so keep
+the skill in place rather than copying it. The recipes derive from
 the docs under `website/src/content/docs/`: when a command changes, change the
 doc first and the recipe with it.
 
