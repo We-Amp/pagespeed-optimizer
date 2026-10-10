@@ -109,9 +109,13 @@ const jsonLd = [
 >
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16">
     <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
-      <a href="/" class="hover:text-text-body">Home</a>
+      <a href="/" class="hover:text-text-body">
+        Home
+      </a>
       <span class="mx-1">/</span>
-      <a href="/vs/" class="hover:text-text-body">Comparisons</a>
+      <a href="/vs/" class="hover:text-text-body">
+        Comparisons
+      </a>
       <span class="mx-1">/</span>
       <span>vs ShortPixel</span>
     </nav>
@@ -135,7 +139,9 @@ const jsonLd = [
     </section>
 
     <section class="mt-12">
-      <h2 id="at-a-glance" class="h2-section text-text-body">At a glance</h2>
+      <h2 id="at-a-glance" class="h2-section text-text-body">
+        At a glance
+      </h2>
       <div class="mt-4">
         <CompareTable competitor="ShortPixel" rows={rows} labelledBy="at-a-glance" />
       </div>
@@ -172,10 +178,11 @@ const jsonLd = [
       <ul class="mt-4 space-y-2 list-disc pl-6 text-text-body">
         <li>
           You want the whole page optimized, not just images &mdash; critical CSS extraction,
-          render-blocking deferral, JS/CSS rewriting, and image variants in one <a
-            href="/features/"
-            class="text-interactive hover:text-interactive-hover underline">server-layer pipeline</a
-          >.
+          render-blocking deferral, JS/CSS rewriting, and image variants in one{' '}
+          <a href="/features/" class="text-interactive hover:text-interactive-hover underline">
+            server-layer pipeline
+          </a>
+          .
         </li>
         <li>
           You&rsquo;re not on WordPress, or you run a mix of platforms. mod_pagespeed works on any
@@ -201,10 +208,14 @@ const jsonLd = [
     <section class="mt-12">
       <h2 class="h2-section text-text-body">How they overlap</h2>
       <p class="mt-4 text-text-body">
-        Both products convert images to WebP and <a
+        Both products convert images to WebP and{' '}
+        <a
           href="/blog/avif-vs-webp-2026/"
-          class="text-interactive hover:text-interactive-hover underline">AVIF</a
-        >, generate responsive variants, and can lazy load below-the-fold images. ShortPixel&rsquo;s
+          class="text-interactive hover:text-interactive-hover underline"
+        >
+          AVIF
+        </a>
+        , generate responsive variants, and can lazy load below-the-fold images. ShortPixel&rsquo;s
         Adaptive Images also minifies CSS and JS, which overlaps with mod_pagespeed&rsquo;s asset
         rewriting. For an image-heavy WordPress page, the before/after numbers can land in a similar
         range.
@@ -255,11 +266,14 @@ const jsonLd = [
         <li>
           Verify mod_pagespeed&rsquo;s filter set produces the optimizations you relied on (WebP and
           AVIF conversion, responsive variants, lazy load) plus the ones ShortPixel didn&rsquo;t
-          cover (critical CSS). The <a
+          cover (critical CSS). The{' '}
+          <a
             href="/blog/server-side-critical-css-nginx/"
             class="text-interactive hover:text-interactive-hover underline"
-            >server-side critical CSS in nginx</a
-          > post walks through the setup.
+          >
+            server-side critical CSS in nginx
+          </a>{' '}
+          post walks through the setup.
         </li>
         <li>
           Keep WordPress&rsquo;s own object cache and database cache; mod_pagespeed doesn&rsquo;t
@@ -276,18 +290,17 @@ const jsonLd = [
         WebP/AVIF and (for Adaptive Images) CDN delivery. No server config.
       </p>
       <p class="mt-4 text-text-body">
-        <strong>Equivalent in mod_pagespeed 2.1.</strong> Install the nginx module on Debian&nbsp;11/12/13,
-        Ubuntu&nbsp;22.04/24.04 (amd64 + arm64), or AlmaLinux&nbsp;9 (x86_64 + aarch64):
+        <strong>Equivalent in mod_pagespeed 2.1.</strong> Install the nginx module on
+        Debian&nbsp;11/12/13, Ubuntu&nbsp;22.04/24.04 (amd64 + arm64), or AlmaLinux&nbsp;9 (x86_64 +
+        aarch64):
       </p>
-      <pre
-        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo apt install nginx-module-pagespeed   # or: sudo dnf install nginx-module-pagespeed</code></pre>
       <p class="mt-4 text-text-body">
         Then enable the filters (nginx config; images are optimized and served from your origin,
         alongside the rest of the pipeline):
       </p>
-      <pre
-        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>pagespeed on;
+      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>pagespeed on;
 pagespeed RewriteLevel CoreFilters;
 pagespeed EnableFilters convert_jpeg_to_webp,recompress_images,resize_images,lazyload_images,prioritize_critical_css;
 pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
@@ -304,23 +317,27 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
         <p class="mt-3 text-text-body">
           Server-layer optimization that covers the whole page &mdash; not just images &mdash; and
           keeps every byte at your origin. On our own pages it measures
-          <span class="font-mono tabular-nums font-semibold text-success">&minus;68%</span> page size.
-          Install and run it. {FREE_TO_RUN_LINE}
+          <span class="font-mono tabular-nums font-semibold text-success">&minus;68%</span> page
+          size. Install and run it. {FREE_TO_RUN_LINE}
         </p>
         <div class="mt-5 flex flex-wrap gap-3">
-          <a href="/download/" class="btn-primary" data-umami-event="cta_vs_shortpixel_install"
-            >Download &amp; run</a
-          >
+          <a href="/download/" class="btn-primary" data-umami-event="cta_vs_shortpixel_install">
+            Download &amp; run
+          </a>
           <a
             href="/pricing/"
             class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-            data-umami-event="cta_vs_shortpixel_buy">Support plans</a
+            data-umami-event="cta_vs_shortpixel_buy"
           >
+            Support plans
+          </a>
           <a
             href="#migrating-from-shortpixel-to-modpagespeed"
             class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-            data-umami-event="cta_vs_shortpixel_migrate">See the migration steps &rarr;</a
+            data-umami-event="cta_vs_shortpixel_migrate"
           >
+            See the migration steps &rarr;
+          </a>
         </div>
       </div>
     </section>
@@ -329,38 +346,46 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
       <p class="text-base font-semibold uppercase tracking-wide text-text-body">See also:</p>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
-          <a href="/vs/imgix/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed vs imgix</a
-          > &mdash; managed image-CDN alternative
+          <a href="/vs/imgix/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed vs imgix
+          </a>{' '}
+          &mdash; managed image-CDN alternative
         </li>
         <li>
-          <a href="/vs/cloudinary/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed vs Cloudinary</a
-          > &mdash; media optimization SaaS alternative
+          <a href="/vs/cloudinary/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed vs Cloudinary
+          </a>{' '}
+          &mdash; media optimization SaaS alternative
         </li>
         <li>
           <a
             href="/self-hosted-image-optimization/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Self-hosted image optimization</a
-          > &mdash; image work that keeps every byte at your origin
+          >
+            Self-hosted image optimization
+          </a>{' '}
+          &mdash; image work that keeps every byte at your origin
         </li>
         <li>
-          <a href="/vs/wp-rocket/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed vs WP Rocket</a
-          > &mdash; WordPress performance plugin alternative
+          <a href="/vs/wp-rocket/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed vs WP Rocket
+          </a>{' '}
+          &mdash; WordPress performance plugin alternative
         </li>
         <li>
-          <a href="/wordpress/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed on WordPress</a
-          > &mdash; server-layer image and page optimization behind any WordPress site
+          <a href="/wordpress/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed on WordPress
+          </a>{' '}
+          &mdash; server-layer image and page optimization behind any WordPress site
         </li>
         <li>
           <a
             href="/alternatives/mod-pagespeed/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Alternatives to mod_pagespeed</a
-          > &mdash; for readers searching for a mod_pagespeed replacement
+          >
+            Alternatives to mod_pagespeed
+          </a>{' '}
+          &mdash; for readers searching for a mod_pagespeed replacement
         </li>
       </ul>
     </section>

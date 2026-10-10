@@ -96,9 +96,13 @@ const jsonLd = [
 >
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16">
     <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
-      <a href="/" class="hover:text-text-body">Home</a>
+      <a href="/" class="hover:text-text-body">
+        Home
+      </a>
       <span class="mx-1">/</span>
-      <a href="/vs/" class="hover:text-text-body">Comparisons</a>
+      <a href="/vs/" class="hover:text-text-body">
+        Comparisons
+      </a>
       <span class="mx-1">/</span>
       <span>vs NitroPack</span>
     </nav>
@@ -117,7 +121,9 @@ const jsonLd = [
     </section>
 
     <section class="mt-12">
-      <h2 id="at-a-glance" class="h2-section text-text-body">At a glance</h2>
+      <h2 id="at-a-glance" class="h2-section text-text-body">
+        At a glance
+      </h2>
       <div class="mt-4">
         <CompareTable competitor="NitroPack" rows={rows} labelledBy="at-a-glance" />
       </div>
@@ -151,11 +157,12 @@ const jsonLd = [
       <ul class="mt-4 space-y-2 list-disc pl-6 text-text-body">
         <li>
           You don't run WordPress, or you run more stacks than just WordPress. NitroPack's strongest
-          support is on WordPress; the <a
-            href="/"
-            class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed 2.1 in-process module</a
-          > runs on any nginx, Apache, or IIS host. The IIS package ships from the 1.15 packaging channel.
+          support is on WordPress; the{' '}
+          <a href="/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed 2.1 in-process module
+          </a>{' '}
+          runs on any nginx, Apache, or IIS host. The IIS package ships from the 1.15 packaging
+          channel.
         </li>
         <li>
           You want no bill that tracks pageviews at all. NitroPack's tiers meter monthly traffic;
@@ -181,11 +188,11 @@ const jsonLd = [
       <h2 class="h2-section text-text-body">How they overlap</h2>
       <p class="mt-4 text-text-body">
         The list of optimizations both products perform is broadly similar: image compression and
-        format conversion, lazy loading, CSS/JS minification, <a
-          href="/features/"
-          class="text-interactive hover:text-interactive-hover underline"
-          >critical CSS, HTML caching, and the rest of the filter set</a
-        >. Both target Core Web Vitals &mdash; mod_pagespeed through LCP, render-blocking, and image
+        format conversion, lazy loading, CSS/JS minification,{' '}
+        <a href="/features/" class="text-interactive hover:text-interactive-hover underline">
+          critical CSS, HTML caching, and the rest of the filter set
+        </a>
+        . Both target Core Web Vitals &mdash; mod_pagespeed through LCP, render-blocking, and image
         work; INP and most CLS are application-side and outside its scope.
       </p>
       <p class="mt-4 text-text-body">
@@ -216,11 +223,14 @@ const jsonLd = [
       <ol class="mt-3 space-y-2 list-decimal pl-6 text-text-body">
         <li>
           Stand up mod_pagespeed on a staging origin and verify the filters you depended on
-          (critical CSS, image variants) produce comparable Lighthouse numbers. The <a
+          (critical CSS, image variants) produce comparable Lighthouse numbers. The{' '}
+          <a
             href="/blog/run-with-docker-compose/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Docker Compose walkthrough</a
-          > is a 60-second baseline.
+          >
+            Docker Compose walkthrough
+          </a>{' '}
+          is a 60-second baseline.
         </li>
         <li>
           Disable NitroPack's plugin before enabling mod_pagespeed's filters so the two don't
@@ -243,17 +253,15 @@ const jsonLd = [
         ID. Optimization happens in NitroPack's cloud &mdash; no server-side config.
       </p>
       <p class="mt-4 text-text-body">
-        <strong>Installing mod_pagespeed 2.1 for nginx</strong> on Debian&nbsp;11/12/13, Ubuntu&nbsp;22.04/24.04
-        (amd64 + arm64), or AlmaLinux&nbsp;9 (x86_64 + aarch64):
+        <strong>Installing mod_pagespeed 2.1 for nginx</strong> on Debian&nbsp;11/12/13,
+        Ubuntu&nbsp;22.04/24.04 (amd64 + arm64), or AlmaLinux&nbsp;9 (x86_64 + aarch64):
       </p>
-      <pre
-        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo apt install nginx-module-pagespeed   # or: sudo dnf install nginx-module-pagespeed</code></pre>
       <p class="mt-4 text-text-body">
         <strong>Then enable the filters</strong> (nginx config, one-time):
       </p>
-      <pre
-        class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>pagespeed on;
+      <pre class="mt-3 overflow-x-auto rounded bg-bg-secondary p-4 text-xs leading-snug text-text-body"><code>pagespeed on;
 pagespeed RewriteLevel CoreFilters;
 pagespeed EnableFilters lazyload_images,prioritize_critical_css,convert_jpeg_to_webp;
 pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
@@ -271,27 +279,29 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
           No per-request or per-GB bill at all &mdash; the software is free &mdash; content stays on
           your origin, works on any stack, no HTML routed through a third party. On our own pages
           the origin pipeline measures
-          <span class="font-mono tabular-nums font-semibold text-success">&minus;68%</span> page size.
-          Install and run it.
+          <span class="font-mono tabular-nums font-semibold text-success">&minus;68%</span> page
+          size. Install and run it.
         </p>
         <div class="mt-5 flex flex-wrap gap-3">
-          <a href="/download/" class="btn-primary" data-umami-event="cta_vs_nitropack_install"
-            >Download &amp; run</a
-          >
+          <a href="/download/" class="btn-primary" data-umami-event="cta_vs_nitropack_install">
+            Download &amp; run
+          </a>
           <a
             href="/pricing/"
             class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-            data-umami-event="cta_vs_nitropack_license">Support plans</a
+            data-umami-event="cta_vs_nitropack_license"
           >
+            Support plans
+          </a>
           <a
             href="#migrating-from-nitropack-to-modpagespeed"
             class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-            data-umami-event="cta_vs_nitropack_migrate">See the migration steps &rarr;</a
+            data-umami-event="cta_vs_nitropack_migrate"
           >
+            See the migration steps &rarr;
+          </a>
         </div>
-        <p class="mt-3 text-sm text-text-annotation">
-          {FREE_TO_RUN_LINE}
-        </p>
+        <p class="mt-3 text-sm text-text-annotation">{FREE_TO_RUN_LINE}</p>
       </div>
     </section>
 
@@ -299,30 +309,37 @@ pagespeed FileCachePath /var/cache/pagespeed;</code></pre>
       <p class="text-base font-semibold uppercase tracking-wide text-text-body">See also:</p>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
-          <a href="/vs/wp-rocket/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed vs WP Rocket</a
-          > &mdash; plugin-based WordPress alternative
+          <a href="/vs/wp-rocket/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed vs WP Rocket
+          </a>{' '}
+          &mdash; plugin-based WordPress alternative
         </li>
         <li>
           <a
             href="/vs/cloudflare-apo/"
             class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed vs Cloudflare APO</a
-          > &mdash; edge-cache alternative
+          >
+            mod_pagespeed vs Cloudflare APO
+          </a>{' '}
+          &mdash; edge-cache alternative
         </li>
         <li>
           <a
             href="/alternatives/mod-pagespeed/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Alternatives to mod_pagespeed</a
-          > &mdash; for readers searching for a mod_pagespeed replacement
+          >
+            Alternatives to mod_pagespeed
+          </a>{' '}
+          &mdash; for readers searching for a mod_pagespeed replacement
         </li>
         <li>
           <a
             href="/blog/run-with-docker-compose/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Docker Compose quickstart</a
-          > &mdash; mod_pagespeed in front of any HTTP origin
+          >
+            Docker Compose quickstart
+          </a>{' '}
+          &mdash; mod_pagespeed in front of any HTTP origin
         </li>
       </ul>
     </section>

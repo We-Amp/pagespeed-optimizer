@@ -143,9 +143,9 @@ const jsonLd = {
       {LICENSE_CLAUSE_CAP} — free to install and run, in development and in production.
     </p>
     <p class="mt-3 text-sm text-text-annotation max-w-2xl mx-auto">
-      After install, open the admin console at <code
-        class="rounded bg-bg-elevated px-1 py-0.5 text-xs">/pagespeed_global_admin</code
-      > on your server.
+      After install, open the admin console at{' '}
+      <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">/pagespeed_global_admin</code> on
+      your server.
     </p>
   </section>
 
@@ -160,46 +160,43 @@ const jsonLd = {
       comes from and how it integrates.
     </p>
     <p class="mt-3 text-sm text-text-annotation inline-flex items-center gap-3">
-      <span
-        class="inline-flex items-center rounded-md border border-border-strong bg-bg-secondary px-2 py-0.5 font-mono text-xs text-text-body"
-        >{rel21.display.badge_version}</span
-      >
-      <a href="/blog/" class="text-interactive hover:text-interactive-hover underline"
-        >see release notes</a
-      >
+      <span class="inline-flex items-center rounded-md border border-border-strong bg-bg-secondary px-2 py-0.5 font-mono text-xs text-text-body">
+        {rel21.display.badge_version}
+      </span>
+      <a href="/blog/" class="text-interactive hover:text-interactive-hover underline">
+        see release notes
+      </a>
     </p>
     <div class="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-      {
-        integrations.map((integration, index) => (
-          <a
-            href={integration.href}
-            data-umami-event={integration.umamiEvent}
-            class:list={[
-              'card flex flex-col',
-              // Full-width final card: 7 cards in 2 columns orphans the last
-              // one on its own half-empty row — give it the whole row instead.
-              index === integrations.length - 1 && 'md:col-span-2',
-            ]}
-          >
-            <div class="flex items-baseline justify-between gap-3">
-              <h3 class="text-xl font-semibold text-text-body">{integration.name}</h3>
-              <span class="text-xs font-semibold text-text-body">{integration.product}</span>
-            </div>
-            <p class="mt-2 text-xs font-semibold uppercase tracking-wide text-text-body">
-              {integration.badge}
-            </p>
-            <p class="mt-4 text-sm text-text-body">{integration.description}</p>
-            {integration.note && (
-              <p class="mt-3 text-xs italic text-text-annotation">{integration.note}</p>
-            )}
-            <p class="mt-3 text-xs text-text-annotation flex-1">{integration.requirements}</p>
-            <p class="mt-6 text-sm font-semibold text-text-body inline-flex items-center gap-2">
-              {integration.cta}
-              <span aria-hidden="true">&rarr;</span>
-            </p>
-          </a>
-        ))
-      }
+      {integrations.map((integration, index) => (
+        <a
+          href={integration.href}
+          data-umami-event={integration.umamiEvent}
+          class:list={[
+            'card flex flex-col',
+            // Full-width final card: 7 cards in 2 columns orphans the last
+            // one on its own half-empty row — give it the whole row instead.
+            index === integrations.length - 1 && 'md:col-span-2',
+          ]}
+        >
+          <div class="flex items-baseline justify-between gap-3">
+            <h3 class="text-xl font-semibold text-text-body">{integration.name}</h3>
+            <span class="text-xs font-semibold text-text-body">{integration.product}</span>
+          </div>
+          <p class="mt-2 text-xs font-semibold uppercase tracking-wide text-text-body">
+            {integration.badge}
+          </p>
+          <p class="mt-4 text-sm text-text-body">{integration.description}</p>
+          {integration.note && (
+            <p class="mt-3 text-xs italic text-text-annotation">{integration.note}</p>
+          )}
+          <p class="mt-3 text-xs text-text-annotation flex-1">{integration.requirements}</p>
+          <p class="mt-6 text-sm font-semibold text-text-body inline-flex items-center gap-2">
+            {integration.cta}
+            <span aria-hidden="true">&rarr;</span>
+          </p>
+        </a>
+      ))}
     </div>
     <p class="mt-6 text-xs text-text-annotation">
       The Apache and nginx packages keep their existing 1.15-line names — your apt/dnf upgrades them
@@ -210,21 +207,25 @@ const jsonLd = {
     <div class="mt-10 rounded-2xl border border-border bg-bg-secondary p-6">
       <div class="flex items-baseline justify-between gap-3 flex-wrap">
         <h3 class="text-base font-semibold text-text-body">Direct downloads</h3>
-        <span
-          class="inline-flex items-center rounded-md border border-border-strong bg-bg-elevated px-2 py-0.5 font-mono text-xs text-text-body"
-          >{rel11.release.tag}</span
-        >
+        <span class="inline-flex items-center rounded-md border border-border-strong bg-bg-elevated px-2 py-0.5 font-mono text-xs text-text-body">
+          {rel11.release.tag}
+        </span>
       </div>
       <p class="mt-2 text-sm text-text-muted">
-        Mirrored from our archive — no GitHub account needed. Verify with the published <a
-          href={archiveUrl(rel11, 'SHA256SUMS')}
-          class="text-interactive underline">SHA256SUMS</a
-        > or the <a href={rel11.urls.gpg_key} class="text-interactive underline">GPG signing key</a
-        >. Came from the old <code>dl-ssl.google.com</code>
-        <code class="text-xs">.deb</code>? <a
-          href="/blog/google-dl-ssl-mod-pagespeed-download/"
-          class="text-interactive underline">That build froze at 1.13.35.2 (2018)</a
-        > — these are the maintained packages.
+        Mirrored from our archive — no GitHub account needed. Verify with the published{' '}
+        <a href={archiveUrl(rel11, 'SHA256SUMS')} class="text-interactive underline">
+          SHA256SUMS
+        </a>{' '}
+        or the{' '}
+        <a href={rel11.urls.gpg_key} class="text-interactive underline">
+          GPG signing key
+        </a>
+        . Came from the old <code>dl-ssl.google.com</code>
+        <code class="text-xs">.deb</code>?{' '}
+        <a href="/blog/google-dl-ssl-mod-pagespeed-download/" class="text-interactive underline">
+          That build froze at 1.13.35.2 (2018)
+        </a>{' '}
+        — these are the maintained packages.
       </p>
 
       <div class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
@@ -236,48 +237,54 @@ const jsonLd = {
                 href={artifactUrl(rel11, 'deb', 'amd64')}
                 data-umami-event="cta_download_apache_deb_amd64"
                 class="text-interactive hover:underline"
-                >Debian/Ubuntu (amd64) <code class="text-xs">.deb</code></a
               >
+                Debian/Ubuntu (amd64) <code class="text-xs">.deb</code>
+              </a>
             </li>
             <li>
               <a
                 href={artifactUrl(rel11, 'deb', 'arm64')}
                 data-umami-event="cta_download_apache_deb_arm64"
                 class="text-interactive hover:underline"
-                >Debian/Ubuntu (arm64) <code class="text-xs">.deb</code></a
               >
+                Debian/Ubuntu (arm64) <code class="text-xs">.deb</code>
+              </a>
             </li>
             <li>
               <a
                 href={artifactUrl(rel11, 'rpm', 'x86_64')}
                 data-umami-event="cta_download_apache_rpm_x64"
                 class="text-interactive hover:underline"
-                >RHEL family (x86_64) <code class="text-xs">.rpm</code></a
               >
+                RHEL family (x86_64) <code class="text-xs">.rpm</code>
+              </a>
             </li>
             <li>
               <a
                 href={artifactUrl(rel11, 'rpm', 'aarch64')}
                 data-umami-event="cta_download_apache_rpm_aarch64"
                 class="text-interactive hover:underline"
-                >RHEL family (aarch64) <code class="text-xs">.rpm</code></a
               >
+                RHEL family (aarch64) <code class="text-xs">.rpm</code>
+              </a>
             </li>
             <li>
               <a
                 href={archiveUrl(rel11, 'libmod_pagespeed-linux-x86_64.so')}
                 data-umami-event="cta_download_apache_so_x64"
                 class="text-interactive hover:underline"
-                >Module only (x86_64) <code class="text-xs">.so</code></a
               >
+                Module only (x86_64) <code class="text-xs">.so</code>
+              </a>
             </li>
             <li>
               <a
                 href={archiveUrl(rel11, 'libmod_pagespeed-linux-aarch64.so')}
                 data-umami-event="cta_download_apache_so_aarch64"
                 class="text-interactive hover:underline"
-                >Module only (aarch64) <code class="text-xs">.so</code></a
               >
+                Module only (aarch64) <code class="text-xs">.so</code>
+              </a>
             </li>
           </ul>
           <p class="mt-3 text-xs text-text-annotation" id="download-module-only-lead">
@@ -295,19 +302,27 @@ sudo systemctl restart apache2`,
             ]}
           />
           <p class="mt-3 text-xs text-text-annotation">
-            Prefer a managed repo? Use the <a
+            Prefer a managed repo? Use the{' '}
+            <a
               href="/download/apt-yum/"
               data-umami-event="cta_download_apt_yum"
-              class="text-interactive underline">signed apt / yum repository</a
-            > for one-line install and automatic updates. On cPanel, see the <a
+              class="text-interactive underline"
+            >
+              signed apt / yum repository
+            </a>{' '}
+            for one-line install and automatic updates. On cPanel, see the{' '}
+            <a
               href="/docs/cpanel/"
               data-umami-event="cta_download_cpanel"
-              class="text-interactive underline">cPanel / EasyApache 4 guide</a
-            >.
+              class="text-interactive underline"
+            >
+              cPanel / EasyApache 4 guide
+            </a>
+            .
           </p>
           <p class="mt-3 text-xs text-text-annotation" id="download-direct-pkg-lead">
-            Downloaded the <code class="text-xs">.deb</code> or <code class="text-xs">.rpm</code> directly
-            instead of using a repo?
+            Downloaded the <code class="text-xs">.deb</code> or <code class="text-xs">.rpm</code>{' '}
+            directly instead of using a repo?
           </p>
           <TermPanel
             labelledby="download-direct-pkg-lead"
@@ -331,36 +346,41 @@ sudo dnf install -y ${artifactUrl(rel11, 'rpm', 'aarch64')}`,
                 href={artifactUrl(rel11, 'msi', 'win_x64')}
                 data-umami-event="cta_download_iis_msi"
                 class="text-interactive hover:underline"
-                >Windows Server 2019/2022/2025 (x64) <code class="text-xs">.msi</code></a
               >
+                Windows Server 2019/2022/2025 (x64) <code class="text-xs">.msi</code>
+              </a>
             </li>
           </ul>
           <p class="mt-3 text-xs text-text-annotation">
-            Each binary is GPG-signed; <code>.asc</code> next to every file (e.g. <code
-              >…msi.asc</code
-            >). nginx is GA &mdash; install it from the <a
-              href="/download/apt-yum/"
-              class="text-interactive underline">signed apt / yum repository</a
-            >. Need debug symbols? <a href="/contact/" class="text-interactive underline"
-              >Contact us</a
-            >.
+            Each binary is GPG-signed; <code>.asc</code> next to every file (e.g.{' '}
+            <code>…msi.asc</code>). nginx is GA &mdash; install it from the{' '}
+            <a href="/download/apt-yum/" class="text-interactive underline">
+              signed apt / yum repository
+            </a>
+            . Need debug symbols?{' '}
+            <a href="/contact/" class="text-interactive underline">
+              Contact us
+            </a>
+            .
           </p>
         </div>
       </div>
 
       <div class="mt-5 rounded-lg border border-border bg-bg-elevated p-4">
-        <p class="eyebrow" id="download-verify-lead">Verify a download</p>
-        <p class="mt-2 text-sm text-text-muted">
-          Installs through <code class="text-xs">packages.modpagespeed.com</code> verify signatures automatically
-          against the repository signing key (RSA 4096, fingerprint <code class="text-xs"
-            >DF00E296BE9141CEA5411346F50D6054F10712A0</code
-          >).
+        <p class="eyebrow" id="download-verify-lead">
+          Verify a download
         </p>
         <p class="mt-2 text-sm text-text-muted">
-          For direct downloads, each artifact is GPG-signed and listed in <a
-            href={archiveUrl(rel11, 'SHA256SUMS')}
-            class="text-interactive underline">SHA256SUMS</a
-          >:
+          Installs through <code class="text-xs">packages.modpagespeed.com</code> verify signatures
+          automatically against the repository signing key (RSA 4096, fingerprint{' '}
+          <code class="text-xs">DF00E296BE9141CEA5411346F50D6054F10712A0</code>).
+        </p>
+        <p class="mt-2 text-sm text-text-muted">
+          For direct downloads, each artifact is GPG-signed and listed in{' '}
+          <a href={archiveUrl(rel11, 'SHA256SUMS')} class="text-interactive underline">
+            SHA256SUMS
+          </a>
+          :
         </p>
         <TermPanel
           labelledby="download-verify-lead"
@@ -384,22 +404,29 @@ gpg --verify ${artifactUrl(rel11, 'deb', 'amd64').split('/').pop()}.asc`,
   <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-16 pb-20">
     <h2 class="text-base font-semibold text-text-body">Other integration paths</h2>
     <p class="mt-3 text-sm text-text-muted">
-      Running nginx specifically? <a
+      Running nginx specifically?{' '}
+      <a
         href="https://ngxpagespeed.com/"
-        class="text-interactive hover:text-interactive-hover underline">ngxpagespeed.com</a
-      > has the nginx install walkthrough.
+        class="text-interactive hover:text-interactive-hover underline"
+      >
+        ngxpagespeed.com
+      </a>{' '}
+      has the nginx install walkthrough.
     </p>
     <p class="mt-3 text-sm text-text-muted">
       IISpeed customer? Contact us about moving to mod_pagespeed — IIS deployments run on the native
-      Windows module from the 1.15 packaging channel. <a
+      Windows module from the 1.15 packaging channel.{' '}
+      <a
         href="/contact/?topic=iispeed-transfer"
         data-umami-event="cta_commercial"
         data-umami-event-offer="support"
         data-umami-event-surface="download"
         data-umami-event-position="iispeed_transfer"
         class="text-interactive hover:text-interactive-hover underline"
-        >Arrange your no-cost transfer</a
-      >.
+      >
+        Arrange your no-cost transfer
+      </a>
+      .
     </p>
   </section>
 
@@ -413,15 +440,19 @@ gpg --verify ${artifactUrl(rel11, 'deb', 'amd64').split('/').pop()}.asc`,
             Pricing
           </dt>
           <dd class="mt-1">
-            Free &mdash; {LICENSE_CLAUSE}, with no usage registration. What We-Amp sells is <a
+            Free &mdash; {LICENSE_CLAUSE}, with no usage registration. What We-Amp sells is{' '}
+            <a
               href="/pricing/"
               data-umami-event="cta_commercial"
               data-umami-event-offer="support"
               data-umami-event-surface="download"
               data-umami-event-position="licensing_pricing"
               class="text-interactive hover:text-interactive-hover underline"
-              >support</a
-            >; Priority and Enterprise add a private package repository (being set up). No per-request fees, no bandwidth metering.
+            >
+              support
+            </a>
+            ; Priority and Enterprise add a private package repository (being set up). No
+            per-request fees, no bandwidth metering.
           </dd>
         </div>
         <div>
@@ -431,14 +462,18 @@ gpg --verify ${artifactUrl(rel11, 'deb', 'amd64').split('/').pop()}.asc`,
           </dt>
           <dd class="mt-1">
             There is nothing to evaluate against a clock — the software is free, in full, under
-            Apache-2.0. Install it, measure the results on your own pages, and add a <a
+            Apache-2.0. Install it, measure the results on your own pages, and add a{' '}
+            <a
               href="/pricing/"
               data-umami-event="cta_commercial"
               data-umami-event-offer="support"
               data-umami-event-surface="download"
               data-umami-event-position="licensing_evaluation"
-              class="text-interactive hover:text-interactive-hover underline">support plan</a
-            > when you want support from the people who build it.
+              class="text-interactive hover:text-interactive-hover underline"
+            >
+              support plan
+            </a>{' '}
+            when you want support from the people who build it.
           </dd>
         </div>
         <div>
@@ -448,10 +483,11 @@ gpg --verify ${artifactUrl(rel11, 'deb', 'amd64').split('/').pop()}.asc`,
           </dt>
           <dd class="mt-1">
             Runs on your servers. No third-party proxy, no CDN dependency, no external service in
-            your request path. The software is <a
-              href="/license/"
-              class="text-interactive hover:text-interactive-hover underline">{LICENSE_CLAUSE}</a
-            >.
+            your request path. The software is{' '}
+            <a href="/license/" class="text-interactive hover:text-interactive-hover underline">
+              {LICENSE_CLAUSE}
+            </a>
+            .
           </dd>
         </div>
       </dl>

@@ -109,12 +109,11 @@ const inputClass =
 >
   <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-16 pb-8">
     <div class="text-center">
-      <h1 class="h1-hero text-text-body">
-        The software is free. We sell support.
-      </h1>
+      <h1 class="h1-hero text-text-body">The software is free. We sell support.</h1>
       <p class="lede mt-6 max-w-3xl mx-auto">
         {PRODUCT} is {LICENSE_CLAUSE}: free to install and run, in development and in production, on
-        any number of servers. Support comes in three tiers; Priority and Enterprise add a private package repository (being set up). None of them changes what the software does.
+        any number of servers. Support comes in three tiers; Priority and Enterprise add a private
+        package repository (being set up). None of them changes what the software does.
       </p>
     </div>
   </section>
@@ -122,17 +121,23 @@ const inputClass =
   <section id="plans" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pb-8">
     <SupportTiers surface="pricing" ctaHref="#quote" ctaLabel="Ask for a quote" />
     <div class="mt-6 rounded-lg border border-border bg-bg-secondary p-5 text-sm text-text-muted">
-      <p class="text-text-body font-medium" data-pricing-status>{PRICING_ON_REQUEST}</p>
+      <p class="text-text-body font-medium" data-pricing-status>
+        {PRICING_ON_REQUEST}
+      </p>
       <p class="mt-1">
-        {RESPONSE_TARGETS_LINE} Support runs on CET business days. What each tier covers in detail, and
-        how the signed packages are verified, is on the <a
+        {RESPONSE_TARGETS_LINE} Support runs on CET business days. What each tier covers in detail,
+        and how the signed packages are verified, is on the{' '}
+        <a
           href="/support/"
           class="text-interactive hover:text-interactive-hover underline"
           data-umami-event="cta_commercial"
           data-umami-event-offer="support"
           data-umami-event-surface="pricing"
-          data-umami-event-position="plans_detail">support page</a
-        >.
+          data-umami-event-position="plans_detail"
+        >
+          support page
+        </a>
+        .
       </p>
     </div>
   </section>
@@ -157,19 +162,25 @@ const inputClass =
         data-umami-event="cta_commercial"
         data-umami-event-offer="hosting"
         data-umami-event-surface="pricing"
-        data-umami-event-position="hosting_strip">Partner program &rarr;</a
+        data-umami-event-position="hosting_strip"
       >
+        Partner program &rarr;
+      </a>
     </div>
     <p class="mt-4 text-sm text-text-muted">
       Want someone to look at your site rather than the software? We-Amp's consulting practice runs
-      a fixed-price performance and configuration audit: <a
+      a fixed-price performance and configuration audit:{' '}
+      <a
         href="https://we-amp.com/consulting/"
         class="text-interactive hover:text-interactive-hover underline"
         data-umami-event="cta_commercial"
         data-umami-event-offer="consulting"
         data-umami-event-surface="pricing"
-        data-umami-event-position="consulting_line">consulting at we-amp.com</a
-      >.
+        data-umami-event-position="consulting_line"
+      >
+        consulting at we-amp.com
+      </a>
+      .
     </p>
   </section>
 
@@ -193,7 +204,9 @@ const inputClass =
         >
           <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
-              <label for="quote-name" class="eyebrow">Name</label>
+              <label for="quote-name" class="eyebrow">
+                Name
+              </label>
               <input
                 id="quote-name"
                 name="name"
@@ -205,7 +218,9 @@ const inputClass =
               />
             </div>
             <div>
-              <label for="quote-email" class="eyebrow">Email</label>
+              <label for="quote-email" class="eyebrow">
+                Email
+              </label>
               <input
                 id="quote-email"
                 name="email"
@@ -219,9 +234,9 @@ const inputClass =
           </div>
 
           <div>
-            <label for="quote-org" class="eyebrow"
-              >Company <span class="font-normal text-text-annotation">(optional)</span></label
-            >
+            <label for="quote-org" class="eyebrow">
+              Company <span class="font-normal text-text-annotation">(optional)</span>
+            </label>
             <input
               id="quote-org"
               name="org"
@@ -236,20 +251,18 @@ const inputClass =
               Production servers <span class="font-normal text-text-annotation">(optional)</span>
             </legend>
             <div class="mt-2 flex flex-wrap gap-x-6 gap-y-2">
-              {
-                serverBands.map((band) => (
-                  <label class="inline-flex items-center gap-2 text-sm text-text-muted">
-                    <input
-                      type="radio"
-                      name="servers"
-                      value={band.label}
-                      data-band={band.value}
-                      class="accent-interactive"
-                    />
-                    {band.label}
-                  </label>
-                ))
-              }
+              {serverBands.map((band) => (
+                <label class="inline-flex items-center gap-2 text-sm text-text-muted">
+                  <input
+                    type="radio"
+                    name="servers"
+                    value={band.label}
+                    data-band={band.value}
+                    class="accent-interactive"
+                  />
+                  {band.label}
+                </label>
+              ))}
             </div>
           </fieldset>
 
@@ -258,37 +271,37 @@ const inputClass =
               Platforms <span class="font-normal text-text-annotation">(optional, pick any)</span>
             </legend>
             <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {
-                platforms.map((p) => (
-                  <label class="inline-flex items-center gap-2 text-sm text-text-muted">
-                    <input type="checkbox" name="platforms" value={p} class="accent-interactive" />
-                    {p}
-                  </label>
-                ))
-              }
+              {platforms.map((p) => (
+                <label class="inline-flex items-center gap-2 text-sm text-text-muted">
+                  <input type="checkbox" name="platforms" value={p} class="accent-interactive" />
+                  {p}
+                </label>
+              ))}
             </div>
           </fieldset>
 
           <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
             <div>
-              <label for="quote-traffic" class="eyebrow"
-                >Monthly traffic <span class="font-normal text-text-annotation">(optional)</span
-                ></label
-              >
+              <label for="quote-traffic" class="eyebrow">
+                Monthly traffic <span class="font-normal text-text-annotation">(optional)</span>
+              </label>
               <select id="quote-traffic" name="traffic" class={inputClass}>
                 <option value="">Choose one</option>
-                {trafficBands.map((t) => <option value={t}>{t}</option>)}
+                {trafficBands.map((t) => (
+                  <option value={t}>{t}</option>
+                ))}
               </select>
             </div>
             <div>
-              <label for="quote-deadline" class="eyebrow"
-                >When do you need it? <span class="font-normal text-text-annotation"
-                  >(optional)</span
-                ></label
-              >
+              <label for="quote-deadline" class="eyebrow">
+                When do you need it?{' '}
+                <span class="font-normal text-text-annotation">(optional)</span>
+              </label>
               <select id="quote-deadline" name="deadline" class={inputClass}>
                 <option value="">Choose one</option>
-                {deadlines.map((d) => <option value={d}>{d}</option>)}
+                {deadlines.map((d) => (
+                  <option value={d}>{d}</option>
+                ))}
               </select>
             </div>
           </div>
@@ -301,38 +314,45 @@ const inputClass =
               value="yes"
               class="mt-1 accent-interactive"
             />
-            <span
-              >I'd like the early-subscriber rate: the quoted rate holds for three years if I
-              subscribe before prices are published.</span
-            >
+            <span>
+              I'd like the early-subscriber rate: the quoted rate holds for three years if I
+              subscribe before prices are published.
+            </span>
           </label>
 
           <div>
-            <label for="quote-message" class="eyebrow"
-              >Anything else <span class="font-normal text-text-annotation">(optional)</span></label
-            >
+            <label for="quote-message" class="eyebrow">
+              Anything else <span class="font-normal text-text-annotation">(optional)</span>
+            </label>
             <textarea
               id="quote-message"
               name="message"
               rows="4"
               aria-describedby="quote-message-hint"
-              class={inputClass}></textarea>
+              class={inputClass}
+            ></textarea>
             <p id="quote-message-hint" class="mt-1 text-sm text-text-annotation">
               Distributions, nginx or Apache versions, how you deploy, what worries you.
             </p>
           </div>
 
           <p class="text-xs text-text-annotation" data-terms-version={TERMS_VERSION_WEB}>
-            We use what you send only to reply and prepare the quote; see the <a
-              href="/privacy/"
-              class="text-interactive hover:text-interactive-hover underline">privacy policy</a
-            >. Subscriptions are governed by the <a
-              href="/terms/"
-              class="text-interactive hover:text-interactive-hover underline">terms of service</a
-            > (version {TERMS_VERSION_WEB}) and the <a
+            We use what you send only to reply and prepare the quote; see the{' '}
+            <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline">
+              privacy policy
+            </a>
+            . Subscriptions are governed by the{' '}
+            <a href="/terms/" class="text-interactive hover:text-interactive-hover underline">
+              terms of service
+            </a>{' '}
+            (version {TERMS_VERSION_WEB}) and the{' '}
+            <a
               href={LICENSING_TERMS_URL}
-              class="text-interactive hover:text-interactive-hover underline">support terms</a
-            >.
+              class="text-interactive hover:text-interactive-hover underline"
+            >
+              support terms
+            </a>
+            .
           </p>
 
           <div class="flex flex-col gap-2">
@@ -353,24 +373,27 @@ const inputClass =
       </div>
 
       <aside class="mt-10 lg:mt-24" aria-labelledby="quote-next-heading">
-        <h3 id="quote-next-heading" class="font-semibold text-text-body">What happens next</h3>
+        <h3 id="quote-next-heading" class="font-semibold text-text-body">
+          What happens next
+        </h3>
         <ol class="mt-4 space-y-4">
-          {
-            nextSteps.map((step, i) => (
-              <li class="readout-plate px-4 py-3">
-                <p class="font-mono text-xs text-interactive">
-                  {String(i + 1).padStart(2, '0')} · {step.when}
-                </p>
-                <p class="mt-1 text-sm text-text-muted">{step.what}</p>
-              </li>
-            ))
-          }
+          {nextSteps.map((step, i) => (
+            <li class="readout-plate px-4 py-3">
+              <p class="font-mono text-xs text-interactive">
+                {String(i + 1).padStart(2, '0')} · {step.when}
+              </p>
+              <p class="mt-1 text-sm text-text-muted">{step.what}</p>
+            </li>
+          ))}
         </ol>
         <p class="mt-4 text-xs text-text-annotation">
-          Prefer email? <a
+          Prefer email?{' '}
+          <a
             href={`mailto:${COMMERCIAL_EMAIL}`}
-            class="text-interactive hover:text-interactive-hover underline">{COMMERCIAL_EMAIL}</a
+            class="text-interactive hover:text-interactive-hover underline"
           >
+            {COMMERCIAL_EMAIL}
+          </a>
         </p>
       </aside>
     </div>
@@ -383,12 +406,15 @@ const inputClass =
         <Icon name="check" class="h-5 w-5 text-interactive" />
         <h3 class="mt-4 font-semibold text-text-body">What if I never subscribe?</h3>
         <p class="mt-2 text-sm text-text-muted">
-          Then you run the same software everyone else runs, free under the {
-            SOURCE_PUBLICATION.license
-          }, from the same <a
+          Then you run the same software everyone else runs, free under the{' '}
+          {SOURCE_PUBLICATION.license}, from the same{' '}
+          <a
             href="/download/apt-yum/"
-            class="text-interactive hover:text-interactive-hover underline">signed repositories</a
-          >. Running without a subscription is a first-class choice.
+            class="text-interactive hover:text-interactive-hover underline"
+          >
+            signed repositories
+          </a>
+          . Running without a subscription is a first-class choice.
         </p>
       </div>
       <div class="card">
@@ -404,20 +430,20 @@ const inputClass =
         <Icon name="server" class="h-5 w-5 text-interactive" />
         <h3 class="mt-4 font-semibold text-text-body">One small company: what's the risk?</h3>
         <p class="mt-2 text-sm text-text-muted">
-          Smaller than it used to be: {PRODUCT} is <a
-            href="/license/"
-            class="text-interactive hover:text-interactive-hover underline">{LICENSE_CLAUSE}</a
-          >, and there is no kill switch in the request path. If We-Amp disappeared tomorrow, your
-          deployment keeps running{
-            SOURCE_IS_PUBLISHED ? ' and the code stays yours to build, patch, and fork.' : '.'
-          }
+          Smaller than it used to be: {PRODUCT} is{' '}
+          <a href="/license/" class="text-interactive hover:text-interactive-hover underline">
+            {LICENSE_CLAUSE}
+          </a>
+          , and there is no kill switch in the request path. If We-Amp disappeared tomorrow, your
+          deployment keeps running
+          {SOURCE_IS_PUBLISHED ? ' and the code stays yours to build, patch, and fork.' : '.'}
         </p>
       </div>
     </div>
     <p class="mt-10 text-center text-sm text-text-annotation max-w-2xl mx-auto">
-      The optimization core behind <span class="font-semibold text-text-body"
-        >{BUILTWITH_SITES} live sites</span
-      > (per BuiltWith, {BUILTWITH_AS_OF}), maintained by the team that helped build ngx_pagespeed.
+      The optimization core behind{' '}
+      <span class="font-semibold text-text-body">{BUILTWITH_SITES} live sites</span> (per BuiltWith,{' '}
+      {BUILTWITH_AS_OF}), maintained by the team that helped build ngx_pagespeed.
     </p>
   </section>
 
@@ -426,20 +452,18 @@ const inputClass =
     <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
       <h2 class="h2-section text-center text-text-body">Pricing questions</h2>
       <div class="mt-8 space-y-3">
-        {
-          faqPricing.map((entry) => (
-            <details class="group rounded-lg border border-border bg-bg-elevated open:shadow-sm">
-              <summary class="flex items-center justify-between gap-3 cursor-pointer list-none px-4 py-3 text-sm font-semibold text-text-body">
-                <span>{entry.q}</span>
-                <Icon
-                  name="chevron-down"
-                  class="h-5 w-5 shrink-0 text-text-muted group-open:rotate-180"
-                />
-              </summary>
-              <p class="px-4 pb-4 pt-1 text-sm text-text-muted" set:html={entry.a} />
-            </details>
-          ))
-        }
+        {faqPricing.map((entry) => (
+          <details class="group rounded-lg border border-border bg-bg-elevated open:shadow-sm">
+            <summary class="flex items-center justify-between gap-3 cursor-pointer list-none px-4 py-3 text-sm font-semibold text-text-body">
+              <span>{entry.q}</span>
+              <Icon
+                name="chevron-down"
+                class="h-5 w-5 shrink-0 text-text-muted group-open:rotate-180"
+              />
+            </summary>
+            <p class="px-4 pb-4 pt-1 text-sm text-text-muted" set:html={entry.a} />
+          </details>
+        ))}
       </div>
     </div>
   </section>

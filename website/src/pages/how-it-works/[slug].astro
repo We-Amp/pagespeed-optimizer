@@ -91,9 +91,11 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
 ---
 
 <BaseLayout
-  title={doc.data.title.length + ' — mod_pagespeed'.length <= 60
-    ? `${doc.data.title} — mod_pagespeed`
-    : doc.data.title}
+  title={
+    doc.data.title.length + ' — mod_pagespeed'.length <= 60
+      ? `${doc.data.title} — mod_pagespeed`
+      : doc.data.title
+  }
   description={doc.data.description}
   jsonLd={jsonLdEntries}
   breadcrumbLeafName={doc.data.title}
@@ -107,9 +109,13 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
     <div class:list={['xl:grid xl:gap-12', showToc && 'xl:grid-cols-[minmax(0,1fr)_200px]']}>
       <article class="min-w-0">
         <nav class="mb-6 font-mono text-xs text-text-annotation" aria-label="Breadcrumb">
-          <a href="/" class="hover:text-text-body">Home</a>
+          <a href="/" class="hover:text-text-body">
+            Home
+          </a>
           <span class="mx-1">/</span>
-          <a href="/how-it-works/" class="hover:text-text-body">How it works</a>
+          <a href="/how-it-works/" class="hover:text-text-body">
+            How it works
+          </a>
           <span class="mx-1">/</span>
           <span>{doc.data.title}</span>
         </nav>
@@ -122,78 +128,66 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
           <p class="lede">{doc.data.description}</p>
         </SectionHeader>
 
-        {
-          showToc && (
-            <div class="mt-8 xl:hidden">
-              <OnThisPage variant="inline" headings={tocHeadings} />
-            </div>
-          )
-        }
+        {showToc && (
+          <div class="mt-8 xl:hidden">
+            <OnThisPage variant="inline" headings={tocHeadings} />
+          </div>
+        )}
 
-        <div
-          class="mt-8 prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive prose-a:underline prose-a:underline-offset-2 prose-a:decoration-interactive hover:prose-a:decoration-interactive"
-        >
+        <div class="mt-8 prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive prose-a:underline prose-a:underline-offset-2 prose-a:decoration-interactive hover:prose-a:decoration-interactive">
           <Content />
         </div>
 
-        {
-          faqItems.length > 0 && (
-            <section id="faq" class="mt-16">
-              <h2 class="text-2xl font-bold tracking-tight text-text-body">
-                Frequently asked questions
-              </h2>
-              <div class="mt-6 space-y-3">
-                {faqItems.map((item) => (
-                  <details class="group rounded-lg border border-border bg-bg-elevated">
-                    <summary class="flex cursor-pointer items-center justify-between gap-4 px-5 py-4 font-medium text-text-body">
-                      {item.q}
-                      <Icon
-                        name="chevron-down"
-                        class="h-5 w-5 shrink-0 text-text-annotation group-open:rotate-180"
-                      />
-                    </summary>
-                    <p
-                      class="px-5 pb-5 text-sm leading-relaxed text-text-muted [&_code]:rounded [&_code]:bg-bg-secondary [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_a]:font-medium [&_a]:text-interactive [&_a]:underline [&_strong]:font-semibold [&_strong]:text-text-body"
-                      set:html={item.a}
+        {faqItems.length > 0 && (
+          <section id="faq" class="mt-16">
+            <h2 class="text-2xl font-bold tracking-tight text-text-body">
+              Frequently asked questions
+            </h2>
+            <div class="mt-6 space-y-3">
+              {faqItems.map((item) => (
+                <details class="group rounded-lg border border-border bg-bg-elevated">
+                  <summary class="flex cursor-pointer items-center justify-between gap-4 px-5 py-4 font-medium text-text-body">
+                    {item.q}
+                    <Icon
+                      name="chevron-down"
+                      class="h-5 w-5 shrink-0 text-text-annotation group-open:rotate-180"
                     />
-                  </details>
-                ))}
-              </div>
-            </section>
-          )
-        }
+                  </summary>
+                  <p
+                    class="px-5 pb-5 text-sm leading-relaxed text-text-muted [&_code]:rounded [&_code]:bg-bg-secondary [&_code]:px-1.5 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_a]:font-medium [&_a]:text-interactive [&_a]:underline [&_strong]:font-semibold [&_strong]:text-text-body"
+                    set:html={item.a}
+                  />
+                </details>
+              ))}
+            </div>
+          </section>
+        )}
 
-        {
-          siblings.length > 0 && (
-            <section class="mt-14 border-t border-border pt-8">
-              <p class="eyebrow">More on how it works</p>
-              <ul class="mt-4 space-y-2 text-sm">
-                {siblings.map((d) => (
-                  <li>
-                    <a
-                      href={`/how-it-works/${d.id}/`}
-                      class="text-interactive hover:text-interactive-hover underline"
-                    >
-                      {d.data.title}
-                    </a>{' '}
-                    &mdash; {d.data.summary ?? d.data.description}
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )
-        }
+        {siblings.length > 0 && (
+          <section class="mt-14 border-t border-border pt-8">
+            <p class="eyebrow">More on how it works</p>
+            <ul class="mt-4 space-y-2 text-sm">
+              {siblings.map((d) => (
+                <li>
+                  <a
+                    href={`/how-it-works/${d.id}/`}
+                    class="text-interactive hover:text-interactive-hover underline"
+                  >
+                    {d.data.title}
+                  </a>{' '}
+                  &mdash; {d.data.summary ?? d.data.description}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
 
-        <aside
-          class="mt-12 rounded-lg border border-interactive/45 bg-interactive-wash p-6 text-center"
-        >
+        <aside class="mt-12 rounded-lg border border-interactive/45 bg-interactive-wash p-6 text-center">
           <p class="text-sm font-semibold text-text-body">
             This is the optimization core behind mod_pagespeed 2.1. Download and run it &mdash; it
             optimizes immediately, free to run.
           </p>
-          <p class="mt-1 text-sm text-text-muted">
-            {FREE_TO_RUN_LINE}
-          </p>
+          <p class="mt-1 text-sm text-text-muted">{FREE_TO_RUN_LINE}</p>
           <div class="mt-5 flex flex-wrap items-center justify-center gap-x-5 gap-y-3">
             <a
               href="/download/"
@@ -213,15 +207,13 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
         </aside>
       </article>
 
-      {
-        showToc && (
-          <div class="hidden xl:block">
-            <div class="sticky top-20 max-h-[calc(100vh-7rem)] overflow-y-auto pb-8">
-              <OnThisPage variant="rail" headings={tocHeadings} />
-            </div>
+      {showToc && (
+        <div class="hidden xl:block">
+          <div class="sticky top-20 max-h-[calc(100vh-7rem)] overflow-y-auto pb-8">
+            <OnThisPage variant="rail" headings={tocHeadings} />
           </div>
-        )
-      }
+        </div>
+      )}
     </div>
   </div>
 
