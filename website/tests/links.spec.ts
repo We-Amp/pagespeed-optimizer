@@ -47,6 +47,9 @@ if (PAGES_TO_CHECK.length === 0) {
   throw new Error(`links.spec.ts: discovered no pages under ${PAGES_DIR}`);
 }
 
+// Form endpoints served by the production proxy, not by the local preview.
+const PROXIED_API_PREFIX = '/ai-readability/api/';
+
 test.describe('Link integrity', () => {
   for (const pagePath of PAGES_TO_CHECK) {
     test(`all anchor hrefs on ${pagePath} resolve`, async ({ page, baseURL }) => {
@@ -142,6 +145,15 @@ test.describe('Link integrity', () => {
       );
 
       for (const action of formActions) {
+        // Actions under the API proxy prefix are served by the scanner behind
+        // the production proxy; the static preview does not serve them (404).
+        // Assert they stay root-relative on that prefix instead of posting.
+        if (action.startsWith(PROXIED_API_PREFIX)) {
+          expect(action.startsWith('//'), `${pagePath}: ${action} must be root-relative`).toBe(
+            false,
+          );
+          continue;
+        }
         const resp = await page.request.post(action, {
           headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
           data: 'test=1',
