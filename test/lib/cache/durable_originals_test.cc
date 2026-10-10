@@ -582,6 +582,22 @@ TEST_F(DurableOriginalsTest, DerivedPurgeKeepsTheOriginalAndRemovesTheRest) {
         oracle->write_sync(std::as_bytes(std::span("hash", 4))).has_value());
     ASSERT_TRUE(oracle->close_sync().has_value());
   }
+  {
+    auto tomb = cache_->WriteSentinel("/logo.svg", "example.com", "https",
+                                      SentinelId::kDeclineTombstone, 4);
+    ASSERT_TRUE(tomb.has_value());
+    ASSERT_TRUE(
+        tomb->write_sync(std::as_bytes(std::span("tomb", 4))).has_value());
+    ASSERT_TRUE(tomb->close_sync().has_value());
+    AlternateMetadata md_meta;
+    md_meta.full_mask = static_cast<uint32_t>(SentinelId::kAgentMarkdown);
+    md_meta.content_type = ContentType::kHtml;
+    auto md = cache_->WriteAgentAlternate("/logo.svg", "example.com", "https",
+                                          2, md_meta);
+    ASSERT_TRUE(md.has_value());
+    ASSERT_TRUE(md->write_sync(std::as_bytes(std::span("md", 2))).has_value());
+    ASSERT_TRUE(md->close_sync().has_value());
+  }
   // Warm this process's RAM tier so a stale RAM copy would show.
   ASSERT_TRUE(
       cache_->ReadAlternate("/logo.svg", "example.com", "https", gzip)
@@ -590,7 +606,8 @@ TEST_F(DurableOriginalsTest, DerivedPurgeKeepsTheOriginalAndRemovesTheRest) {
   auto removed = cache_->RemoveDerivedAlternates("/logo.svg", "example.com",
                                                  "https");
   ASSERT_TRUE(removed.has_value());
-  EXPECT_EQ(*removed, 3u);  // gzip copy, worker identity, content-hash oracle
+  // gzip copy, worker identity, content-hash oracle, tombstone, markdown
+  EXPECT_EQ(*removed, 5u);
 
   EXPECT_FALSE(
       cache_->AlternateExists("/logo.svg", "example.com", "https", gzip));
@@ -598,6 +615,12 @@ TEST_F(DurableOriginalsTest, DerivedPurgeKeepsTheOriginalAndRemovesTheRest) {
       cache_->AlternateExists("/logo.svg", "example.com", "https", identity));
   EXPECT_FALSE(cache_->AlternateExists("/logo.svg", "example.com", "https",
                                        kSentinelHash));
+  EXPECT_FALSE(cache_->AlternateExists(
+      "/logo.svg", "example.com", "https",
+      static_cast<AlternateId>(SentinelId::kDeclineTombstone)));
+  EXPECT_FALSE(cache_->AlternateExists(
+      "/logo.svg", "example.com", "https",
+      static_cast<AlternateId>(SentinelId::kAgentMarkdown)));
   // The RAM copy went with the disk entry.
   EXPECT_FALSE(
       cache_->ReadAlternate("/logo.svg", "example.com", "https", gzip)

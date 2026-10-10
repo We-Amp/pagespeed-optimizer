@@ -1008,6 +1008,16 @@ class PageSpeedCache {
   // whole key, original included (the front end re-records on the next
   // request; a stale variant that cannot be removed is the worse outcome).
   //
+  // The identity slot's flag is read BEFORE the removal takes reset_mutex_.
+  // A front end that records a genuine identity in that gap has it removed
+  // as if derived; the next request re-records it.
+  //
+  // A transient removal failure (e.g. Busy) stops the passes but the call
+  // still returns success with a partial count; the caller's next
+  // notification retries.  Do not read a success as "nothing derived remains".
+  // Only the unlinkable-chain escalation above drops the whole key, original
+  // included.
+  //
   // Purge-generation fence: this function does not touch the worker's
   // generation counters.  A caller that fences concurrent writers must bump
   // its generation around this call AND re-read it afterwards, before the
