@@ -34,16 +34,37 @@ export default defineConfig({
     baseURL: BASE_URL,
     screenshot: 'only-on-failure',
   },
+  // The fixtures test is a vitest file that lives next to the data it checks;
+  // the visual suite is opt-in (VISUAL=1) and has its own project.
+  testIgnore: ['**/fixtures/**'],
   projects: [
     {
       name: 'desktop',
       use: { ...devices['Desktop Chrome'] },
+      testIgnore: ['**/fixtures/**', '**/visual/**'],
     },
     {
       name: 'mobile',
       use: { ...devices['Pixel 5'] },
       testMatch: /responsive\.spec\.ts/,
     },
+    ...(process.env.VISUAL === '1'
+      ? [
+          {
+            name: 'visual',
+            testMatch: /visual\/.*\.visual\.spec\.ts/,
+            // One worker per file keeps the dev server's first-hit compile and
+            // reload cycle out of the screenshots.
+            use: {
+              ...devices['Desktop Chrome'],
+              viewport: { width: 1280, height: 800 },
+              colorScheme: 'dark' as const,
+              contextOptions: { reducedMotion: 'reduce' as const },
+              screenshot: 'off' as const,
+            },
+          },
+        ]
+      : []),
   ],
   webServer: {
     command: `npm run dev -- --port ${PORT} --ignore-lock`,
