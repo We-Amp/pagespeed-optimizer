@@ -59,8 +59,9 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       <div>
         <h2 class="h2-section text-text-body">Our commitment</h2>
         <p class="mt-4 text-text-muted">
-          We aim to acknowledge reports within a couple of business days (CET) and to triage shortly
-          after. Critical vulnerabilities affecting production deployments jump the queue.
+          We acknowledge reports within 72 hours and follow a 90-day coordinated disclosure window:
+          we aim to release a fix within 90 days of the initial report, after which the reporter may
+          publish details. Critical vulnerabilities affecting production deployments jump the queue.
         </p>
       </div>
 
@@ -119,7 +120,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
                 href="mailto:security@modpagespeed.com"
                 class="text-interactive hover:text-interactive-hover underline"
                 >security@modpagespeed.com</a
-              >. GPG key on request. See
+              >. Reports go by email; the repositories' SECURITY.md files state the same policy. See
               <a
                 href="/.well-known/security.txt"
                 class="text-interactive hover:text-interactive-hover underline">security.txt</a
@@ -139,8 +140,9 @@ import BaseLayout from '../layouts/BaseLayout.astro';
           <div>
             <h3 class="font-semibold text-text-body">Dependency audits</h3>
             <p class="mt-2 text-text-muted">
-              We aim to audit dependencies regularly, and we review them when a CVSS &ge; 7.0 CVE is
-              disclosed against a direct dependency.
+              The dependency gate blocks a change on any fixable vulnerability of medium severity or
+              higher, checked against a pinned vulnerability database, and a daily scan against the
+              live feed catches newly published ones.
             </p>
           </div>
           <div>
@@ -196,8 +198,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       <div>
         <h2 class="h2-section text-text-body">Supply chain</h2>
         <p class="mt-4 text-text-muted">
-          All dependencies are pinned with SHA-256 checksums in the build configuration. Builds are
-          reproducible from a given commit.
+          All dependencies are pinned with SHA-256 checksums in the build configuration.
         </p>
       </div>
     </div>
