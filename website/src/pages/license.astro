@@ -27,10 +27,11 @@ const product = `${PRODUCT_NAME} ${CURRENT_LINE}`;
     <p class="mt-6 text-lg text-text-muted">
       {product} is {LICENSE_CLAUSE} ({SP.licenseId}) &mdash; the same license the original
       mod_pagespeed codebase carried. Every feature is available to everyone, in development and in
-      production. The commercial terms for a support subscription live in the <a
-        href="/terms/"
-        class="text-interactive hover:text-interactive-hover underline">Terms of Service</a
-      >.
+      production. The commercial terms for a support subscription live in the{' '}
+      <a href="/terms/" class="text-interactive hover:text-interactive-hover underline">
+        Terms of Service
+      </a>
+      .
     </p>
 
     <div class="mt-12 space-y-12">
@@ -39,18 +40,16 @@ const product = `${PRODUCT_NAME} ${CURRENT_LINE}`;
         <h2 class="h2-section text-text-body">The license</h2>
         <p class="mt-4 text-text-muted">
           The web-server module and the optimizer worker are licensed under the {SP.license};
-          bundled third-party components are listed in <code
-            class="rounded bg-bg-elevated px-1 py-0.5 text-xs">THIRD-PARTY-NOTICES</code
-          > under their own licenses. The <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs"
-            >LICENSE</code
-          >, <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">NOTICE</code> and <code
-            class="rounded bg-bg-elevated px-1 py-0.5 text-xs">THIRD-PARTY-NOTICES</code
-          > files ship with every distribution &mdash; the signed .deb and .rpm packages, the Docker images,
+          bundled third-party components are listed in{' '}
+          <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">THIRD-PARTY-NOTICES</code> under
+          their own licenses. The{' '}
+          <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">LICENSE</code>,{' '}
+          <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">NOTICE</code> and{' '}
+          <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">THIRD-PARTY-NOTICES</code> files
+          ship with every distribution &mdash; the signed .deb and .rpm packages, the Docker images,
           and the NuGet packages.
-          {
-            SOURCE_IS_PUBLISHED &&
-              ' The source is published; you are free to build, modify, and redistribute it under the same terms.'
-          }
+          {SOURCE_IS_PUBLISHED &&
+            ' The source is published; you are free to build, modify, and redistribute it under the same terms.'}
         </p>
       </div>
 
@@ -60,18 +59,24 @@ const product = `${PRODUCT_NAME} ${CURRENT_LINE}`;
       <div>
         <h2 class="h2-section text-text-body">What We-Amp sells</h2>
         <p class="mt-4 text-text-muted">
-          Support; Priority and Enterprise add a private package repository (being set up). The software is the same for everyone and the
-          standard signed packages are free; <a
-            href="/support/"
-            class="text-interactive hover:text-interactive-hover underline"
-            >support plans</a
-          > from the people who build it are what&rsquo;s for sale. Support subscriptions are governed
-          by the <a href="/terms/" class="text-interactive hover:text-interactive-hover underline"
-            >Terms of Service</a
-          >; the support terms live at <a
+          Support; Priority and Enterprise add a private package repository (being set up). The
+          software is the same for everyone and the standard signed packages are free;{' '}
+          <a href="/support/" class="text-interactive hover:text-interactive-hover underline">
+            support plans
+          </a>{' '}
+          from the people who build it are what&rsquo;s for sale. Support subscriptions are governed
+          by the{' '}
+          <a href="/terms/" class="text-interactive hover:text-interactive-hover underline">
+            Terms of Service
+          </a>
+          ; the support terms live at{' '}
+          <a
             href="https://we-amp.com/licensing/"
-            class="text-interactive hover:text-interactive-hover underline">we-amp.com/licensing/</a
-          >.
+            class="text-interactive hover:text-interactive-hover underline"
+          >
+            we-amp.com/licensing/
+          </a>
+          .
         </p>
       </div>
 
@@ -82,15 +87,21 @@ const product = `${PRODUCT_NAME} ${CURRENT_LINE}`;
         <h2 class="h2-section text-text-body">Predecessor lines</h2>
         <p class="mt-4 text-text-muted">
           The predecessor lines carry the {SP.license} as well. Running ModPageSpeed {V2_LINE}? See
-          the <a
+          the{' '}
+          <a
             href="/docs/migrating-to-2-1/"
-            class="text-interactive hover:text-interactive-hover underline">migration guide</a
-          >. Running mod_pagespeed {V1_LINE}? See the guide to
+            class="text-interactive hover:text-interactive-hover underline"
+          >
+            migration guide
+          </a>
+          . Running mod_pagespeed {V1_LINE}? See the guide to
           <a
             href="/docs/migrating-to-2-1/#upgrading-from-1-15"
             class="text-interactive hover:text-interactive-hover underline"
-            >upgrading to {product}</a
-          >.
+          >
+            upgrading to {product}
+          </a>
+          .
         </p>
       </div>
 
@@ -101,9 +112,10 @@ const product = `${PRODUCT_NAME} ${CURRENT_LINE}`;
         <h2 class="h2-section text-text-body">Continuity</h2>
         <div class="mt-4 rounded-lg border border-interactive/45 bg-interactive-wash p-4">
           <p class="text-text-body">
-            The {SP.license} is a perpetual grant that does not depend on We-Amp B.V.&rsquo;s corporate
-            status. If the company is acquired, merged, reorganized, or wound down, the license you hold
-            stays in force, and support subscriptions remain governed by the same Terms of Service.
+            The {SP.license} is a perpetual grant that does not depend on We-Amp B.V.&rsquo;s
+            corporate status. If the company is acquired, merged, reorganized, or wound down, the
+            license you hold stays in force, and support subscriptions remain governed by the same
+            Terms of Service.
           </p>
         </div>
       </div>

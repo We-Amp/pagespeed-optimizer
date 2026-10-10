@@ -49,7 +49,9 @@ const jsonLd = [
     operatingSystem: ['Linux'],
     softwareRequirements: 'ASP.NET Core 6 or newer',
     description:
-      'GA 1.15 ASP.NET Core integration: your Kestrel app is the public front door, and the bundled nginx (' + SIDECAR_NGINX_VERSION + ') runs on loopback behind it as the optimize-proxy. Image optimization, CSS/JS minification, and critical CSS, powered by the mod_pagespeed 1.15 core.',
+      'GA 1.15 ASP.NET Core integration: your Kestrel app is the public front door, and the bundled nginx (' +
+      SIDECAR_NGINX_VERSION +
+      ') runs on loopback behind it as the optimize-proxy. Image optimization, CSS/JS minification, and critical CSS, powered by the mod_pagespeed 1.15 core.',
     sameAs: 'https://www.nuget.org/packages/WeAmp.PageSpeed.Sidecar',
     publisher: {
       '@type': 'Organization',
@@ -84,28 +86,31 @@ const jsonLd = [
         and critical CSS injection on the IIS pipeline for Windows-hosted sites.
       </p>
       <div class="mt-6 flex flex-wrap gap-3">
-        <a href="/download/" class="btn-primary" data-umami-event="cta_alternatives_iispeed_install"
-          >Download &amp; run mod_pagespeed for IIS</a
+        <a
+          href="/download/"
+          class="btn-primary"
+          data-umami-event="cta_alternatives_iispeed_install"
         >
+          Download &amp; run mod_pagespeed for IIS
+        </a>
         <a
           href="/pricing/"
           class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-          data-umami-event="cta_alternatives_iispeed_pricing">Support plans</a
+          data-umami-event="cta_alternatives_iispeed_pricing"
         >
+          Support plans
+        </a>
         <a
           href="mailto:license@we-amp.com?subject=IISpeed license transfer"
           class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
-          >Transfer my IISpeed license</a
         >
+          Transfer my IISpeed license
+        </a>
       </div>
-      <p class="mt-3 text-sm text-text-annotation">
-        {FREE_TO_RUN_LINE}
-      </p>
+      <p class="mt-3 text-sm text-text-annotation">{FREE_TO_RUN_LINE}</p>
     </header>
 
-    <div
-      class="mt-12 prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive dark:prose-invert"
-    >
+    <div class="mt-12 prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive dark:prose-invert">
       <p>
         IISpeed is now deprecated. Existing customers get a free license transfer to either
         mod_pagespeed 2.1 (native IIS port) or to the WeAmp.PageSpeed.Sidecar NuGet package for
@@ -115,12 +120,11 @@ const jsonLd = [
 
       <h2>What IISpeed was</h2>
       <p>
-        IISpeed wrapped the mod_pagespeed optimization libraries in an IIS module (<code
-          >IISpeedModule.dll</code
-        >) that registered against the IIS request pipeline. Configuration sat in <code
-          >web.config</code
-        > under <code>&lt;system.webServer&gt;</code>. Filters, variants, and the admin console all
-        worked the same way as the Apache and nginx ports.
+        IISpeed wrapped the mod_pagespeed optimization libraries in an IIS module (
+        <code>IISpeedModule.dll</code>) that registered against the IIS request pipeline.
+        Configuration sat in <code>web.config</code> under <code>&lt;system.webServer&gt;</code>.
+        Filters, variants, and the admin console all worked the same way as the Apache and nginx
+        ports.
       </p>
       <p>
         Customers ran it on Windows Server 2008 R2 through 2019. The IIS module ABI stayed
@@ -151,8 +155,8 @@ const jsonLd = [
       <p>
         If you have an IIS deployment and want a drop-in replacement, mod_pagespeed for IIS is a
         native IIS port with the same module surface IISpeed offered. Same <code>web.config</code>
-        syntax, a modernized, secured filter stack with new optimizers, same admin console &mdash; plus
-        security patches, current toolchain, and Cyclone Cache.
+        syntax, a modernized, secured filter stack with new optimizers, same admin console &mdash;
+        plus security patches, current toolchain, and Cyclone Cache.
       </p>
 
       <pre><code>{`<!-- web.config -->
@@ -167,8 +171,8 @@ const jsonLd = [
 
       <p>
         The MSI installer from the
-        <a href="/download/">downloads page</a> registers the module, creates the cache directory, and
-        warm-starts the worker.
+        <a href="/download/">downloads page</a> registers the module, creates the cache directory,
+        and warm-starts the worker.
       </p>
 
       <p>
@@ -180,9 +184,9 @@ const jsonLd = [
       <h2>Path 2 &mdash; WeAmp.PageSpeed.Sidecar NuGet package for ASP.NET Core</h2>
       <p>
         If your stack is ASP.NET Core, IIS is no longer the natural integration point. The
-        <code>WeAmp.PageSpeed.Sidecar</code> NuGet package is the GA 1.15 ASP.NET Core integration: your
-        Kestrel app stays the public front door, and the package's bundled nginx runs on loopback behind
-        it as the optimize-proxy:
+        <code>WeAmp.PageSpeed.Sidecar</code> NuGet package is the GA 1.15 ASP.NET Core integration:
+        your Kestrel app stays the public front door, and the package's bundled nginx runs on
+        loopback behind it as the optimize-proxy:
       </p>
 
       <pre><code>{`// Program.cs
@@ -198,8 +202,9 @@ app.Run();`}</code></pre>
       <pre><code>dotnet add package WeAmp.PageSpeed.Sidecar</code></pre>
 
       <p>
-        The package bundles the mod_pagespeed core (nginx {SIDECAR_NGINX_VERSION}) and starts it on loopback
-        automatically &mdash; no IIS module registration, no <code>web.config</code> editing, no
+        The package bundles the mod_pagespeed core (nginx {SIDECAR_NGINX_VERSION}) and starts it on
+        loopback automatically &mdash; no IIS module registration, no <code>web.config</code>{' '}
+        editing, no
         <code>gacutil</code>. It is Linux-only (linux-x64 / linux-arm64), for container and Linux
         deployments of ASP.NET Core.
       </p>
@@ -211,7 +216,12 @@ app.Run();`}</code></pre>
 
       <h2>Which path fits</h2>
       <table>
-        <thead><tr><th>Use case</th><th>Choose</th></tr></thead>
+        <thead>
+          <tr>
+            <th>Use case</th>
+            <th>Choose</th>
+          </tr>
+        </thead>
         <tbody>
           <tr>
             <td>Classic ASP.NET / WebForms / MVC 5 on IIS</td>
@@ -244,21 +254,22 @@ app.Run();`}</code></pre>
       <p>
         If you hold an IISpeed license, there is nothing to transfer: mod_pagespeed 2.1 and the
         WeAmp.PageSpeed.Sidecar NuGet package are free to install and run. Questions about an
-        existing IISpeed subscription go to <a href="mailto:license@we-amp.com"
-          >license@we-amp.com</a
-        >; the IISpeed transition window is documented at
-        <a href="https://iispeed.com/" rel="noopener noreferrer">iispeed.com</a>.
+        existing IISpeed subscription go to{' '}
+        <a href="mailto:license@we-amp.com">license@we-amp.com</a>; the IISpeed transition window is
+        documented at
+        <a href="https://iispeed.com/" rel="noopener noreferrer">
+          iispeed.com
+        </a>
+        .
       </p>
 
       <h2>Frequently asked questions</h2>
-      {
-        faq.map((entry) => (
-          <>
-            <h3>{entry.q}</h3>
-            <p>{entry.a}</p>
-          </>
-        ))
-      }
+      {faq.map((entry) => (
+        <>
+          <h3>{entry.q}</h3>
+          <p>{entry.a}</p>
+        </>
+      ))}
 
       <h2>Install and run</h2>
       <p>
@@ -269,36 +280,44 @@ app.Run();`}</code></pre>
       <ul>
         <li>
           <strong>mod_pagespeed for IIS</strong> &mdash;
-          <a href="/download/">Download the MSI</a> &middot; <a href="/pricing/">Support plans</a> &middot;
+          <a href="/download/">Download the MSI</a> &middot; <a href="/pricing/">Support plans</a>{' '}
+          &middot;
           <a href="/docs/iis-configuration/">IIS docs</a>
         </li>
         <li>
           <strong>WeAmp.PageSpeed.Sidecar NuGet package</strong> &mdash;
-          <a href="/go/nuget?pkg=sidecar&from=alternatives-iispeed-tryone">NuGet package</a> &middot;
+          <a href="/go/nuget?pkg=sidecar&from=alternatives-iispeed-tryone">NuGet package</a>{' '}
+          &middot;
           <a href="/docs/aspnet-getting-started/">ASP.NET Core docs</a>
         </li>
       </ul>
 
       <h2>Related</h2>
       <ul>
-        <li><a href="/alternatives/mod-pagespeed/">mod_pagespeed alternative</a></li>
-        <li><a href="/alternatives/ngx-pagespeed/">ngx_pagespeed alternative</a></li>
+        <li>
+          <a href="/alternatives/mod-pagespeed/">mod_pagespeed alternative</a>
+        </li>
+        <li>
+          <a href="/alternatives/ngx-pagespeed/">ngx_pagespeed alternative</a>
+        </li>
         <li>
           <a href="/alternatives/google-pagespeed-module/">Google PageSpeed Module alternative</a>
         </li>
         <li>
-          <a href="/blog/mod-pagespeed-deprecated-2026/"
-            >Is mod_pagespeed deprecated? &mdash; what changed and what to use</a
-          >
+          <a href="/blog/mod-pagespeed-deprecated-2026/">
+            Is mod_pagespeed deprecated? &mdash; what changed and what to use
+          </a>
         </li>
         <li>
-          <a href="https://iispeed.com/" rel="noopener noreferrer">iispeed.com</a> &mdash; transition
-          information for existing customers
+          <a href="https://iispeed.com/" rel="noopener noreferrer">
+            iispeed.com
+          </a>{' '}
+          &mdash; transition information for existing customers
         </li>
         <li>
-          <a href="https://iispeed.com/iis-core-web-vitals-2026/" rel="noopener noreferrer"
-            >IIS &amp; Core Web Vitals in 2026</a
-          >
+          <a href="https://iispeed.com/iis-core-web-vitals-2026/" rel="noopener noreferrer">
+            IIS &amp; Core Web Vitals in 2026
+          </a>
         </li>
       </ul>
 
