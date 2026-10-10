@@ -2,6 +2,9 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import Icon from '../../components/Icon.astro';
 import SectionHeader from '../../components/instrument/SectionHeader.astro';
+import ScanBox from '../../components/scan/ScanBox.astro';
+import ScanUiBoot from '../../components/scan/ScanUiBoot.astro';
+import ResultsView from '../../components/scan/ResultsView.astro';
 
 // Public front end for the AI-readability scanner (D10). The render backend
 // runs on a separate box; nginx proxies /ai-readability/api/* to it (see corp deploy).
@@ -90,7 +93,7 @@ const jsonLd = [webApp, faqPage];
   breadcrumbLeafName="AI readability checker"
 >
   <section
-    class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16 sm:py-20"
+    class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 pt-16 sm:pt-20"
     aria-labelledby="airead-title"
   >
     <SectionHeader
@@ -110,50 +113,66 @@ const jsonLd = [webApp, faqPage];
       >, off by default, that we dogfood here.
     </SectionHeader>
 
-    <!-- novalidate: the input is type=url for the mobile URL keyboard, but we accept a
+    <ScanUiBoot />
+    <div data-scan-variant="v1">
+      <!-- novalidate: the input is type=url for the mobile URL keyboard, but we accept a
          bare host (e.g. "example.com") and prepend https:// in normalizeUrl(), so we
          let the JS validator govern rather than the browser's scheme-required check. -->
-    <form id="ar-form" class="mt-8 flex flex-col sm:flex-row gap-3" autocomplete="off" novalidate>
-      <input
-        id="ar-url"
-        type="url"
-        inputmode="url"
-        autocomplete="url"
-        spellcheck="false"
-        autocapitalize="off"
-        placeholder="example.com"
-        aria-label="URL to scan"
-        class="flex-1 rounded-lg border border-control-border bg-bg-elevated px-4 py-3 text-base text-text-body placeholder:text-text-annotation focus:border-interactive focus:ring-2 focus:ring-interactive"
-      />
-      <button
-        id="ar-go"
-        type="submit"
-        class="btn-primary px-8 w-full sm:w-auto aria-disabled:opacity-50 aria-disabled:cursor-wait"
-      >
-        Scan
-      </button>
-    </form>
-    <p class="mt-3 text-sm text-text-annotation">
-      Free &middot; no signup &middot; one page at a time &middot; renders your page in a headless
-      browser (~5&ndash;10s).
-    </p>
+      <form id="ar-form" class="mt-8 flex flex-col sm:flex-row gap-3" autocomplete="off" novalidate>
+        <input
+          id="ar-url"
+          type="url"
+          inputmode="url"
+          autocomplete="url"
+          spellcheck="false"
+          autocapitalize="off"
+          placeholder="example.com"
+          aria-label="URL to scan"
+          class="flex-1 rounded-lg border border-control-border bg-bg-elevated px-4 py-3 text-base text-text-body placeholder:text-text-annotation focus:border-interactive focus:ring-2 focus:ring-interactive"
+        />
+        <button
+          id="ar-go"
+          type="submit"
+          class="btn-primary px-8 w-full sm:w-auto aria-disabled:opacity-50 aria-disabled:cursor-wait"
+        >
+          Scan
+        </button>
+      </form>
+      <p class="mt-3 text-sm text-text-annotation">
+        Free &middot; no signup &middot; one page at a time &middot; renders your page in a headless
+        browser (~5&ndash;10s).
+      </p>
 
-    <p class="mt-3 text-xs text-text-annotation leading-relaxed max-w-2xl">
-      Only scan sites you own or are authorized to test. Scanned content is used only to produce
-      this readability result and is not retained or shared beyond that. Your IP address is logged
-      and rate-limited to 20 requests per minute per visitor to prevent abuse. See our
-      <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline"
-        >Privacy policy</a
-      >.
-    </p>
+      <p class="mt-3 text-xs text-text-annotation leading-relaxed max-w-2xl">
+        Only scan sites you own or are authorized to test. Scanned content is used only to produce
+        this readability result and is not retained or shared beyond that. Your IP address is logged
+        and rate-limited to 20 requests per minute per visitor to prevent abuse. See our
+        <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline"
+          >Privacy policy</a
+        >.
+      </p>
+    </div>
+    <div data-scan-variant="v2" data-pagefind-ignore>
+      <ScanBox surface="airead" />
+    </div>
 
     <p class="mt-4 text-sm text-text-annotation">
       From
       <a href="/about/" class="text-interactive underline underline-offset-2">We-Amp</a>
       &mdash; the team behind ngx_pagespeed.
     </p>
+  </section>
 
-    <div id="ar-out" aria-live="polite"></div>
+  <!-- The shared results sit outside the narrow reading column so they get the
+       full tool width; the v1 result slot and everything below stay in it. -->
+  <div data-scan-variant="v2" data-pagefind-ignore>
+    <ResultsView />
+  </div>
+
+  <section class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 pb-16 sm:pb-20">
+    <div data-scan-variant="v1">
+      <div id="ar-out" aria-live="polite"></div>
+    </div>
 
     <!-- No-JS fallback (UX-9). The live scan is interactive, but the page should not
          be blank for crawlers and no-JS visitors. This is a static, illustrative sample
@@ -958,6 +977,8 @@ const jsonLd = [webApp, faqPage];
 
   <script is:inline>
     (function () {
+      // The shared scan interface (?ui=v2) drives this page instead.
+      if (document.documentElement.dataset.scanUi === 'v2') return;
       const API = new URLSearchParams(location.search).get('api') || '/ai-readability/api';
       const $ = (s) => document.querySelector(s);
       const out = $('#ar-out');
