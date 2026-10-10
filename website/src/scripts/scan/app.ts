@@ -15,6 +15,14 @@ import {
   speedStatus,
   type TileStatus,
 } from '../../lib/scan/status';
+import {
+  classifyError,
+  isMappingFailed,
+  loadMapping,
+  markMappingFailed,
+  reloadError,
+} from '../../lib/scan/psi';
+import { renderSpeedPanel } from './panels/speed';
 
 type Pillar = 'speed' | 'airead' | 'risk';
 type Strategy = 'mobile' | 'desktop';
@@ -89,6 +97,8 @@ export interface PanelContext {
   scan: ScanOutcome | null;
   /** Re-run only this pillar's source (the per-tile "Try again"). */
   rerun: () => void;
+  /** Change the tile after the panel was handed over (a late failure). */
+  setStatus: (status: TileStatus, reason?: string) => void;
 }
 export type PanelRenderer = (panel: HTMLElement, ctx: PanelContext) => void;
 
@@ -108,7 +118,7 @@ function renderNotMeasured(panel: HTMLElement, ctx: PanelContext) {
   panel.append(reason, retry);
 }
 export const renderPanel: Record<Pillar, PanelRenderer> = {
-  speed: renderNotMeasured,
+  speed: renderSpeedPanel,
   airead: renderNotMeasured,
   risk: renderNotMeasured,
 };
@@ -251,6 +261,7 @@ export function init() {
 
   // Paint the tile, then hand the panel to the pillar's renderer.
   function settle(pillar: Pillar, status: TileStatus, reason = '') {
+    const settledRun = runId;
     paintTile(pillar, status);
     renderPanel[pillar](panels.get(pillar)!, {
       pillar,
@@ -260,6 +271,11 @@ export function init() {
       psi: state.lastPsi,
       scan: state.lastScan,
       rerun: () => rerun(pillar),
+      setStatus: (s, r = '') => {
+        if (settledRun !== runId) return;
+        paintTile(pillar, s);
+        if (s.state === 'none') announce(`${PILLAR_NAME[pillar]} not measured. ${r}`);
+      },
     });
   }
 
@@ -289,7 +305,22 @@ export function init() {
     }
   }
 
+  // The mapping table could not load: a reload is the only way out, so say so
+  // instead of spending PSI calls (the proxy limits requests per visitor).
+  function speedNeedsReload() {
+    const { title } = classifyError(reloadError());
+    state.lastPsi = null;
+    settle('speed', NOT_MEASURED, title);
+    arrival(`Speed not measured. ${title}`);
+  }
+
   async function runSpeed(id: number, url: string) {
+    if (isMappingFailed()) {
+      speedNeedsReload();
+      return;
+    }
+    const mappingP = loadMapping();
+    mappingP.catch(() => {});
     const [m, d] = await Promise.allSettled([
       getJson<PsiBody>(psiUrl(url, 'mobile'), PSI_TIMEOUT_MS, PSI_TIMEOUT_REASON),
       getJson<PsiBody>(psiUrl(url, 'desktop'), PSI_TIMEOUT_MS, PSI_TIMEOUT_REASON),
@@ -313,6 +344,16 @@ export function init() {
       });
     }
     const status = speedStatus(mobile, desktop);
+    if (status.state !== 'none') {
+      try {
+        await mappingP;
+      } catch {
+        markMappingFailed();
+        if (id === runId) speedNeedsReload();
+        return;
+      }
+      if (id !== runId) return;
+    }
     if (status.state === 'none') {
       const err = state.lastPsi.errors.mobile ?? state.lastPsi.errors.desktop;
       const reason = err
