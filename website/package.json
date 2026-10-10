@@ -36,7 +36,7 @@
     "astro": "^7.3.3",
     "remark-custom-heading-id": "^2.0.0",
     "remark-directive": "^4.0.0",
-    "tailwindcss": "^4.1.18",
+    "tailwindcss": "^4.3.3",
     "yaml": "^2.8.3"
   },
   "overrides": {
