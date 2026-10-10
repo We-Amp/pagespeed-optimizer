@@ -299,25 +299,82 @@ TEST(FindClusterTest, MembershipUsesNormalizedUrls) {
     "pack": {"id": "edge-seo", "version": "0.1.0"},
     "sites": [{"host": "a.test"}],
     "tables": {"hreflang": [
-      {"en": "https://a.test/en/", "de": "https://a.test/de/"},
-      {"en": "https://a.test/other/", "x-default": "https://a.test/en/"}
+      {"en": "https://a.test/en/", "de": "https://a.test/de/",
+       "x-default": "https://a.test/en/"},
+      {"en": "https://a.test/other/"}
     ]},
     "rules": []
   })");
   const HreflangCluster* c = FindCluster(p, "HTTPS://A.test:443/de#frag");
   ASSERT_NE(c, nullptr);
-  EXPECT_EQ(c->entries.size(), 2u);
+  EXPECT_EQ(c->entries.size(), 3u);
   EXPECT_EQ(c->entries[0].first, "de");  // entries are sorted by code
-
-  // "/en/" is in both clusters: the first one wins.
-  c = FindCluster(p, "https://a.test/en");
+  EXPECT_EQ(FindCluster(p, "https://a.test/en"), c);
+  c = FindCluster(p, "https://a.test/other");
   ASSERT_NE(c, nullptr);
-  EXPECT_EQ(c->entries.size(), 2u);
-  EXPECT_EQ(c->entries[0].second, "https://a.test/de/");
-  EXPECT_EQ(c->entries[1].second, "https://a.test/en/");
+  EXPECT_EQ(c->entries.size(), 1u);
 
   EXPECT_EQ(FindCluster(p, "https://a.test/fr/"), nullptr);
   EXPECT_EQ(FindCluster(p, "not a url"), nullptr);
+}
+
+// ---- byte-exact matching, trailing dot, glob sets --------------------------
+
+TEST(GlobTest, MatchingIsByteExact) {
+  EXPECT_TRUE(G("/**", "/\xff"));
+  EXPECT_TRUE(G("/a/*", "/a/\xff\xfe"));
+  EXPECT_TRUE(G("/**", "/caf\xc3\xa9"));
+  EXPECT_TRUE(G("/caf\xc3\xa9", "/caf\xc3\xa9"));
+  EXPECT_FALSE(G("/caf\xc3\xa9", "/caf\xc3"));
+  // One byte per '.' : a two-byte UTF-8 letter is two characters.
+  EXPECT_TRUE(G("/**", "/\xc3\xa9\xc3\xa9"));
+}
+
+TEST(HostTest, OneTrailingDotIsStripped) {
+  EXPECT_EQ(NormalizeHost("www.example.com."), "www.example.com");
+  EXPECT_EQ(NormalizeHost("www.example.com.:8080"), "www.example.com");
+  EXPECT_EQ(NormalizeHost("www.example.com.."), "www.example.com.");
+  Pack p = Load(kSitesPack);
+  EXPECT_NE(FindSite(p, "WWW.shop.example.org."), nullptr);
+}
+
+TEST(SelectRulesTest, RuleGlobsAreMatchedAsASet) {
+  // The set and the per-glob fallback agree.
+  Pack p = Load(kRulesPack);
+  Rule r = p.rules[5];
+  EXPECT_TRUE(MatchRulePath(r, "/p/x").has_value());
+  r.match.paths_set = nullptr;
+  r.match.exclude_set = nullptr;
+  EXPECT_TRUE(MatchRulePath(r, "/p/x").has_value());
+  EXPECT_FALSE(MatchRulePath(r, "/p/private/x").has_value());
+  EXPECT_FALSE(MatchRulePath(r, "/q").has_value());
+}
+
+TEST(SelectRulesTest, ManyRulesWithManyGlobsLoadAndMatch) {
+  // 200 rules, 32 globs each (the same 32 shared by all). Timing-insensitive:
+  // only asserts the results.
+  std::string rules;
+  for (int i = 0; i < 200; ++i) {
+    std::string globs;
+    for (int g = 0; g < 32; ++g) {
+      if (g) globs += ",";
+      globs += "\"/sec" + std::to_string(g) + "/**\"";
+    }
+    if (i) rules += ",";
+    rules += R"({"id":"r)" + std::to_string(i) +
+             R"(","kind":"title","match":{"paths":[)" + globs +
+             R"(]},"value":{"template":"T"}})";
+  }
+  Pack p = Load(R"({"pack":{"id":"edge-seo","version":"0.1.0"},
+      "sites":[{"host":"a.test"}],"rules":[)" +
+                rules + "]}");
+  ASSERT_EQ(p.rules.size(), 200u);
+  Selection hit = SelectRules(p, "a.test", "/sec31/deep/page");
+  ASSERT_TRUE(hit.by_kind[static_cast<size_t>(Kind::kTitle)].has_value());
+  EXPECT_EQ(hit.by_kind[static_cast<size_t>(Kind::kTitle)]->rule->id, "r0");
+  EXPECT_EQ(hit.shadowed.size(), 199u);
+  Selection miss = SelectRules(p, "a.test", "/other");
+  EXPECT_FALSE(miss.by_kind[static_cast<size_t>(Kind::kTitle)].has_value());
 }
 
 }  // namespace

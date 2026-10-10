@@ -3,6 +3,7 @@
 
 #include "lib/packs/url_norm.h"
 
+#include <algorithm>
 #include <cstddef>
 
 #include "absl/strings/ascii.h"
@@ -12,9 +13,19 @@
 
 namespace pagespeed::packs {
 
-std::optional<std::string> NormUrl(std::string_view url) {
+std::optional<std::string> NormUrl(std::string_view url_in) {
+  // Leading and trailing whitespace is trimmed.
+  std::string_view url = absl::StripAsciiWhitespace(url_in);
   const size_t frag = url.find('#');
   if (frag != std::string_view::npos) url = url.substr(0, frag);
+
+  // As in a browser URL parser, a backslash before the query is a '/'.
+  std::string fixed(url);
+  const size_t qpos = fixed.find('?');
+  for (size_t i = 0; i < std::min(qpos, fixed.size()); ++i) {
+    if (fixed[i] == '\\') fixed[i] = '/';
+  }
+  url = fixed;
 
   std::string scheme;
   if (absl::StartsWithIgnoreCase(url, "https://")) {
@@ -74,7 +85,8 @@ std::optional<std::string> NormUrl(std::string_view url) {
   const size_t q = rest.find('?');
   if (q != std::string_view::npos) {
     path = rest.substr(0, q);
-    query = rest.substr(q);  // keeps the leading '?'
+    query = rest.substr(q);             // keeps the leading '?'
+    if (query.size() == 1) query = {};  // a bare trailing '?' is no query
   }
   if (!path.empty() && path.back() == '/') path.remove_suffix(1);
 

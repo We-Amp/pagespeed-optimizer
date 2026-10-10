@@ -3,6 +3,7 @@
 
 #include "lib/packs/template.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <string>
 #include <utility>
@@ -95,7 +96,7 @@ absl::StatusOr<Template> ParseTemplate(std::string_view text,
   return tpl;
 }
 
-std::string EscapeHtmlText(std::string_view s) {
+std::string EscapeForHtmlText(std::string_view s) {
   std::string out;
   out.reserve(s.size());
   for (char c : s) {
@@ -151,38 +152,6 @@ std::string EscapeJsonString(std::string_view s) {
   return out;
 }
 
-namespace {
-
-std::string PlaceholderValue(const TemplateSegment& seg,
-                             const ExpandContext& ctx) {
-  switch (seg.placeholder) {
-    case Placeholder::kScheme:
-      return ctx.url.scheme;
-    case Placeholder::kHost:
-      return ctx.url.host;
-    case Placeholder::kPath:
-      return ctx.url.path;
-    case Placeholder::kQuery:
-      return ctx.url.query.empty() ? std::string() : "?" + ctx.url.query;
-    case Placeholder::kUrl:
-      return absl::StrCat(ctx.url.scheme, "://", ctx.url.host, ctx.url.path,
-                          ctx.url.query.empty() ? "" : "?", ctx.url.query);
-    case Placeholder::kCapture: {
-      const size_t idx = static_cast<size_t>(seg.capture) - 1;
-      return idx < ctx.captures.size() ? ctx.captures[idx] : std::string();
-    }
-    case Placeholder::kTitle:
-      return ctx.title;
-    case Placeholder::kDescription:
-      return ctx.description;
-    case Placeholder::kCanonical:
-      return ctx.canonical;
-  }
-  return std::string();
-}
-
-}  // namespace
-
 absl::StatusOr<std::string> ExpandTemplate(const Template& tpl,
                                            const ExpandContext& ctx,
                                            EscapeContext escape,
@@ -192,30 +161,76 @@ absl::StatusOr<std::string> ExpandTemplate(const Template& tpl,
     return absl::ResourceExhaustedError(
         absl::StrCat("expanded value exceeds ", max_bytes, " bytes"));
   };
+
+  // Appends one piece. Escaping never shrinks a piece, so the raw size is a
+  // lower bound that is checked before anything is copied or escaped.
+  auto append = [&](std::string_view piece, bool is_value) -> bool {
+    if (piece.size() > max_bytes || out.size() + piece.size() > max_bytes) {
+      return false;
+    }
+    if (escape == EscapeContext::kHtmlText) {
+      out += EscapeForHtmlText(piece);
+    } else if (escape == EscapeContext::kJsonString && is_value) {
+      out += EscapeJsonString(piece);
+    } else {
+      out += piece;
+    }
+    return out.size() <= max_bytes;
+  };
+
   for (const TemplateSegment& seg : tpl.segments) {
     if (seg.is_literal) {
-      out += seg.literal;
-    } else {
-      std::string value = PlaceholderValue(seg, ctx);
-      switch (escape) {
-        case EscapeContext::kNone:
-          break;
-        case EscapeContext::kHtmlText:
-          value = EscapeHtmlText(value);
-          break;
-        case EscapeContext::kJsonString:
-          value = EscapeJsonString(value);
-          break;
-      }
-      out += value;
+      if (!append(seg.literal, false)) return too_big();
+      continue;
     }
-    // Every '<' can only grow under kJsonString (1 -> 6), so this is a lower
-    // bound; the exact check follows the final pass.
-    if (out.size() > max_bytes) return too_big();
+    bool ok = true;
+    switch (seg.placeholder) {
+      case Placeholder::kScheme:
+        ok = append(ctx.url.scheme, true);
+        break;
+      case Placeholder::kHost:
+        ok = append(ctx.url.host, true);
+        break;
+      case Placeholder::kPath:
+        ok = append(ctx.url.path, true);
+        break;
+      case Placeholder::kQuery:
+        if (!ctx.url.query.empty()) {
+          ok = append("?", true) && append(ctx.url.query, true);
+        }
+        break;
+      case Placeholder::kUrl:
+        ok = append(ctx.url.scheme, true) && append("://", true) &&
+             append(ctx.url.host, true) && append(ctx.url.path, true);
+        if (ok && !ctx.url.query.empty()) {
+          ok = append("?", true) && append(ctx.url.query, true);
+        }
+        break;
+      case Placeholder::kCapture: {
+        const size_t idx = static_cast<size_t>(seg.capture) - 1;
+        if (idx < ctx.captures.size()) ok = append(ctx.captures[idx], true);
+        break;
+      }
+      case Placeholder::kTitle:
+        ok = append(ctx.title, true);
+        break;
+      case Placeholder::kDescription:
+        ok = append(ctx.description, true);
+        break;
+      case Placeholder::kCanonical:
+        ok = append(ctx.canonical, true);
+        break;
+    }
+    if (!ok) return too_big();
   }
+
   if (escape == EscapeContext::kJsonString) {
+    // '<' grows 1 -> 6 bytes; count first so nothing big is built.
+    const size_t lt =
+        static_cast<size_t>(std::count(out.begin(), out.end(), '<'));
+    if (out.size() + lt * 5 > max_bytes) return too_big();
     std::string final_out;
-    final_out.reserve(out.size());
+    final_out.reserve(out.size() + lt * 5);
     for (char c : out) {
       if (c == '<') {
         final_out += "\\u003c";
@@ -224,7 +239,6 @@ absl::StatusOr<std::string> ExpandTemplate(const Template& tpl,
       }
     }
     out = std::move(final_out);
-    if (out.size() > max_bytes) return too_big();
   }
   return out;
 }

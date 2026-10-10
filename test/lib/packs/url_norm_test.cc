@@ -5,10 +5,49 @@
 
 #include "gtest/gtest.h"
 
+// The normalization cases below follow the agent-readability-scanner's
+// test/seo-head.test.mjs ("normUrl: case, default port, fragment, single
+// trailing slash, query kept"), the reference for this port.
 namespace pagespeed::packs {
 namespace {
 
 std::string N(std::string_view u) { return NormUrl(u).value_or("<invalid>"); }
+
+TEST(NormUrlTest, ScannerReferenceCases) {
+  EXPECT_EQ(N("HTTPS://Www.Example.COM:443/De/#top"),
+            "https://www.example.com/De");
+  EXPECT_EQ(N("http://example.com:80/a/"), "http://example.com/a");
+  EXPECT_EQ(N("https://example.com/a?b=1&c=2"),
+            "https://example.com/a?b=1&c=2");
+  EXPECT_EQ(N("https://example.com/a/?b=1"), "https://example.com/a?b=1");
+  EXPECT_EQ(N("https://example.com/a//"), "https://example.com/a/");
+  EXPECT_EQ(N("https://example.com"), N("https://example.com/"));
+  EXPECT_NE(N("https://example.com/A"), N("https://example.com/a"));
+  EXPECT_EQ(N("https://example.com:8443/a"), "https://example.com:8443/a");
+  EXPECT_FALSE(NormUrl("not a url").has_value());
+  EXPECT_FALSE(NormUrl("javascript:alert(1)").has_value());
+  EXPECT_FALSE(NormUrl("").has_value());
+  // The scanner also resolves "/rel" against a base; that is not ported.
+}
+
+TEST(NormUrlTest, BareTrailingQuestionMarkIsNoQuery) {
+  // new URL("https://a.test/x?").search === "" in the reference.
+  EXPECT_EQ(N("https://a.test/x?"), "https://a.test/x");
+  EXPECT_EQ(N("https://a.test/x/?"), "https://a.test/x");
+  EXPECT_EQ(N("https://a.test?"), "https://a.test");
+  EXPECT_EQ(N("https://a.test/x?#f"), "https://a.test/x");
+}
+
+TEST(NormUrlTest, BackslashesBeforeTheQueryAreSlashes) {
+  EXPECT_EQ(N("https://a.test\\x\\y"), "https://a.test/x/y");
+  EXPECT_EQ(N("https://a.test/x\\"), "https://a.test/x");
+  // After the '?' they are kept.
+  EXPECT_EQ(N("https://a.test/x?a=\\b"), "https://a.test/x?a=\\b");
+}
+
+TEST(NormUrlTest, SurroundingWhitespaceIsTrimmed) {
+  EXPECT_EQ(N("  https://a.test/x \n"), "https://a.test/x");
+}
 
 TEST(NormUrlTest, LowercasesSchemeAndHost) {
   EXPECT_EQ(N("HTTPS://WWW.Example.COM/Path"), "https://www.example.com/Path");

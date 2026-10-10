@@ -12,12 +12,14 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 #include <vector>
 
 #include "absl/status/status.h"
 #include "lib/packs/template.h"
 #include "re2/re2.h"
+#include "re2/set.h"
 
 namespace pagespeed::packs {
 
@@ -40,6 +42,8 @@ inline constexpr size_t kMaxRuleIdLength = 64;
 inline constexpr size_t kMaxTableNameLength = 64;
 inline constexpr size_t kMaxHostLength = 253;
 inline constexpr size_t kMaxGlobBytes = 512;
+inline constexpr size_t kMaxGlobsPerRule = 32;  // per list (paths, excludes)
+inline constexpr size_t kMaxGlobs = 2000;       // distinct globs in a pack
 inline constexpr size_t kMaxRegexBytes = 1024;
 inline constexpr int kMaxCaptureRefs = 9;  // {1}..{9}
 
@@ -89,13 +93,19 @@ struct Site {
 // '/'. Every other character is literal.
 struct Glob {
   std::string text;
+  std::string pattern;  // the RE2 source the glob compiles to
   std::shared_ptr<const RE2> regex;
 };
 
 // Effective path scope of a rule (rule values with defaults applied).
 struct RuleMatch {
-  std::vector<Glob> paths;                // never empty after loading
-  std::vector<Glob> exclude_paths;        // may be empty
+  std::vector<Glob> paths;          // never empty after loading
+  std::vector<Glob> exclude_paths;  // may be empty
+  // The same globs compiled into one anchored set each, so a rule costs one
+  // automaton run however many globs it has. Null for a hand-built rule, in
+  // which case matching falls back to the individual globs.
+  std::shared_ptr<const RE2::Set> paths_set;
+  std::shared_ptr<const RE2::Set> exclude_set;
   std::string path_regex_text;            // empty when absent
   std::shared_ptr<const RE2> path_regex;  // null when absent
   int path_regex_groups = 0;
@@ -140,6 +150,9 @@ struct Pack {
   std::vector<Glob> default_exclude_paths;  // may be empty
   std::map<std::string, ValueTable, std::less<>> tables;
   std::vector<HreflangCluster> hreflang_clusters;
+  // NormUrl(member href) -> index into hreflang_clusters. A URL can belong to
+  // one cluster only (a load error otherwise).
+  std::unordered_map<std::string, size_t> cluster_index;
   std::vector<Rule> rules;
   // Non-fatal findings from the load (currently: statically shadowed rules).
   std::vector<std::string> warnings;
@@ -151,8 +164,17 @@ struct Pack {
 // ---------------------------------------------------------------------------
 
 // OK when `value` is an absolute http(s) URL with a host, at most
-// kMaxUrlBytes long, and free of whitespace and control characters.
+// kMaxUrlBytes long, and free of whitespace, control characters, backslashes
+// and the characters " < >.
 absl::Status CheckUrlValue(std::string_view value);
+
+// RE2 options for every pattern in a pack: Latin-1, so a pattern and a URL
+// path are matched byte for byte (`.` matches any byte, including 0xFF), with
+// the per-regex memory budget and logging off.
+RE2::Options MakeRegexOptions();
+
+// True when `s` contains NUL or any other C0 control character, or DEL.
+bool HasControlChars(std::string_view s);
 
 // Number of UTF-8 code points (counts lead bytes; assumes valid UTF-8).
 size_t Utf8Length(std::string_view s);

@@ -79,21 +79,25 @@ struct ExpandContext {
 // How placeholder VALUES are escaped (literal template text never is).
 enum class EscapeContext {
   kNone,        // attribute values: the writer's attribute quoting applies
-  kHtmlText,    // title text: & < > are entity-escaped
+  kHtmlText,    // title text: & < > are entity-escaped in the WHOLE result,
+                // literal template text included
   kJsonString,  // JSON-LD: values are JSON-string-escaped, and every '<' in
                 // the whole result is emitted as < so "</script" can
                 // never appear
 };
 
 // Expands `tpl`. Fails with kResourceExhausted when the result would exceed
-// `max_bytes` (measured after escaping).
+// `max_bytes` (measured after escaping). The cap is checked before each piece
+// is escaped or appended, so an oversize value is never copied.
 absl::StatusOr<std::string> ExpandTemplate(const Template& tpl,
                                            const ExpandContext& ctx,
                                            EscapeContext escape,
                                            size_t max_bytes);
 
-// Escaping helpers (exposed for tests and later phases).
-std::string EscapeHtmlText(std::string_view s);
+// Entity-escapes & < > for use as HTML element text. This is the one helper
+// every caller must use for text that comes from a table value (or anywhere
+// else outside ExpandTemplate) before it becomes the content of an element.
+std::string EscapeForHtmlText(std::string_view s);
 std::string EscapeJsonString(std::string_view s);
 
 }  // namespace pagespeed::packs

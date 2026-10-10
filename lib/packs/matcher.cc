@@ -44,18 +44,33 @@ absl::StatusOr<Glob> CompileGlob(std::string_view text) {
       ++i;
     }
   }
-  RE2::Options options;
-  options.set_max_mem(kRegexMaxMemBytes);
-  options.set_log_errors(false);
-  auto re = std::make_shared<const RE2>(pattern, options);
+  auto re = std::make_shared<const RE2>(pattern, MakeRegexOptions());
   if (!re->ok()) {
     return absl::InvalidArgumentError(
         absl::StrCat("glob does not compile: ", re->error()));
   }
   Glob glob;
   glob.text = std::string(text);
+  glob.pattern = std::move(pattern);
   glob.regex = std::move(re);
   return glob;
+}
+
+absl::StatusOr<std::shared_ptr<const RE2::Set>> CompileGlobSet(
+    const std::vector<Glob>& globs) {
+  auto set = std::make_shared<RE2::Set>(MakeRegexOptions(), RE2::ANCHOR_BOTH);
+  for (const Glob& g : globs) {
+    std::string error;
+    if (set->Add(g.pattern, &error) < 0) {
+      return absl::InvalidArgumentError(
+          absl::StrCat("glob \"", g.text, "\" does not compile: ", error));
+    }
+  }
+  if (!set->Compile()) {
+    return absl::InvalidArgumentError(
+        "the globs together exceed the regex memory budget");
+  }
+  return std::shared_ptr<const RE2::Set>(std::move(set));
 }
 
 bool MatchGlob(const Glob& glob, std::string_view path) {
@@ -71,7 +86,9 @@ std::string NormalizeHost(std::string_view host) {
     const size_t colon = h.rfind(':');
     if (colon != std::string_view::npos) h = h.substr(0, colon);
   }
-  return absl::AsciiStrToLower(h);
+  std::string out = absl::AsciiStrToLower(h);
+  if (out.size() > 1 && out.back() == '.') out.pop_back();
+  return out;
 }
 
 bool SiteMatchesHost(const Site& site, std::string_view normalized_host) {
@@ -103,16 +120,22 @@ const Site* FindSite(const Pack& pack, std::string_view host) {
 std::optional<std::vector<std::string>> MatchRulePath(const Rule& rule,
                                                       std::string_view path) {
   const RuleMatch& m = rule.match;
-  bool included = false;
-  for (const Glob& g : m.paths) {
-    if (MatchGlob(g, path)) {
-      included = true;
-      break;
+  auto any_match = [&](const std::shared_ptr<const RE2::Set>& set,
+                       const std::vector<Glob>& globs) {
+    if (set != nullptr) {
+      RE2::Set::ErrorInfo info;
+      if (set->Match(path, nullptr, &info)) return true;
+      // "No match" is only trustworthy when the automaton ran to the end.
+      if (info.kind == RE2::Set::kNoError) return false;
     }
-  }
-  if (!included) return std::nullopt;
-  for (const Glob& g : m.exclude_paths) {
-    if (MatchGlob(g, path)) return std::nullopt;
+    for (const Glob& g : globs) {
+      if (MatchGlob(g, path)) return true;
+    }
+    return false;
+  };
+  if (!any_match(m.paths_set, m.paths)) return std::nullopt;
+  if (!m.exclude_paths.empty() && any_match(m.exclude_set, m.exclude_paths)) {
+    return std::nullopt;
   }
 
   std::vector<std::string> captures;
@@ -164,14 +187,9 @@ const HreflangCluster* FindCluster(const Pack& pack,
                                    std::string_view page_url) {
   const auto norm = NormUrl(page_url);
   if (!norm.has_value()) return nullptr;
-  for (const HreflangCluster& cluster : pack.hreflang_clusters) {
-    if (std::find(cluster.normalized_members.begin(),
-                  cluster.normalized_members.end(),
-                  *norm) != cluster.normalized_members.end()) {
-      return &cluster;
-    }
-  }
-  return nullptr;
+  auto it = pack.cluster_index.find(*norm);
+  return it == pack.cluster_index.end() ? nullptr
+                                        : &pack.hreflang_clusters[it->second];
 }
 
 }  // namespace pagespeed::packs

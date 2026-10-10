@@ -5,6 +5,7 @@
 #define PAGESPEED_LIB_PACKS_MATCHER_H_
 
 #include <array>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -21,11 +22,16 @@ namespace pagespeed::packs {
 // characters, and may not contain a run of three or more '*'.
 absl::StatusOr<Glob> CompileGlob(std::string_view text);
 
+// Compiles `globs` into one anchored RE2::Set (match any). Fails when the set
+// exceeds the regex memory budget.
+absl::StatusOr<std::shared_ptr<const RE2::Set>> CompileGlobSet(
+    const std::vector<Glob>& globs);
+
 // True when the whole of `path` matches the glob.
 bool MatchGlob(const Glob& glob, std::string_view path);
 
-// Lowercases a request host and strips a trailing ":port" (IPv6 literals in
-// brackets are handled).
+// Lowercases a request host, strips a trailing ":port" (IPv6 literals in
+// brackets are handled) and one trailing dot.
 std::string NormalizeHost(std::string_view host);
 
 // `normalized_host` must come from NormalizeHost(). An exact site matches

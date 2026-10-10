@@ -59,12 +59,32 @@ absl::Status CheckUrlValue(std::string_view value) {
       return absl::InvalidArgumentError(
           "URL contains whitespace or a control character");
     }
+    if (c == '"' || c == '<' || c == '>' || c == '\\') {
+      return absl::InvalidArgumentError(
+          "URL contains a backslash or one of the characters \" < >");
+    }
   }
   if (!NormUrl(value).has_value()) {
     return absl::InvalidArgumentError(
         "URL must be absolute (http:// or https://) with a host");
   }
   return absl::OkStatus();
+}
+
+RE2::Options MakeRegexOptions() {
+  RE2::Options options;
+  options.set_encoding(RE2::Options::EncodingLatin1);
+  options.set_max_mem(kRegexMaxMemBytes);
+  options.set_log_errors(false);
+  return options;
+}
+
+bool HasControlChars(std::string_view s) {
+  for (char c : s) {
+    const unsigned char u = static_cast<unsigned char>(c);
+    if (u < 0x20 || u == 0x7f) return true;
+  }
+  return false;
 }
 
 size_t Utf8Length(std::string_view s) {

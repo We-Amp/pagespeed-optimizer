@@ -137,15 +137,13 @@ TEST(TemplateEscapeTest, AttributeContextDoesNotEscape) {
   EXPECT_EQ(*r, "/a&b<c>\"d");
 }
 
-TEST(TemplateEscapeTest, HtmlTextEscapesValuesButNotLiterals) {
+TEST(TemplateEscapeTest, HtmlTextEscapesValuesAndLiterals) {
   ExpandContext c = Ctx();
   c.url.path = "/a&b<c>\"d'";
   auto r = ExpandTemplate(Parse("<{path}>&"), c, EscapeContext::kHtmlText, 100);
   ASSERT_TRUE(r.ok());
-  EXPECT_EQ(*r,
-            "<"
-            "/a&amp;b&lt;c&gt;\"d'"
-            ">&");
+  // The whole output is escaped, literal template text included.
+  EXPECT_EQ(*r, "&lt;/a&amp;b&lt;c&gt;\"d'&gt;&amp;");
 }
 
 TEST(TemplateEscapeTest, JsonStringEscapesValues) {
@@ -205,6 +203,53 @@ TEST(TemplateSizeTest, CapAppliesAfterEscaping) {
   // HTML text: '<' becomes "&lt;" (4 bytes).
   EXPECT_FALSE(ExpandTemplate(t, c, EscapeContext::kHtmlText, 15).ok());
   EXPECT_TRUE(ExpandTemplate(t, c, EscapeContext::kHtmlText, 16).ok());
+}
+
+TEST(TemplateEscapeTest, HtmlTextEscapesLiteralTemplateTextToo) {
+  auto r = ExpandTemplate(Parse("Tom & Jerry </title>"), Ctx(),
+                          EscapeContext::kHtmlText, 100);
+  ASSERT_TRUE(r.ok());
+  EXPECT_EQ(*r, "Tom &amp; Jerry &lt;/title&gt;");
+}
+
+TEST(TemplateEscapeTest, EscapeForHtmlTextForTableValues) {
+  EXPECT_EQ(EscapeForHtmlText("</title><script>alert(1)</script>"),
+            "&lt;/title&gt;&lt;script&gt;alert(1)&lt;/script&gt;");
+  EXPECT_EQ(EscapeForHtmlText("a & b"), "a &amp; b");
+  EXPECT_EQ(EscapeForHtmlText("&amp;"), "&amp;amp;");
+  EXPECT_EQ(EscapeForHtmlText(""), "");
+}
+
+TEST(TemplateSizeTest, HugeValueIsRejectedBeforeItIsEscapedOrCopied) {
+  ExpandContext c = Ctx();
+  c.title = std::string(5 * 1024 * 1024, '<');  // would be 20 MiB escaped
+  auto r = ExpandTemplate(Parse("{title}", true), c, EscapeContext::kHtmlText,
+                          16 * 1024);
+  ASSERT_FALSE(r.ok());
+  EXPECT_EQ(r.status().code(), absl::StatusCode::kResourceExhausted);
+  r = ExpandTemplate(Parse("{title}", true), c, EscapeContext::kJsonString,
+                     16 * 1024);
+  ASSERT_FALSE(r.ok());
+  EXPECT_EQ(r.status().code(), absl::StatusCode::kResourceExhausted);
+}
+
+TEST(TemplateSizeTest, CapIsCheckedPieceByPiece) {
+  ExpandContext c = Ctx();
+  c.url.path = std::string(10, 'x');
+  auto r = ExpandTemplate(Parse("{path}-{path}-{path}"), c,
+                          EscapeContext::kNone, 32);
+  EXPECT_TRUE(r.ok());
+  r = ExpandTemplate(Parse("{path}-{path}-{path}"), c, EscapeContext::kNone,
+                     31);
+  EXPECT_FALSE(r.ok());
+}
+
+TEST(TemplateExpandTest, UrlAndQueryExpandPieceWise) {
+  ExpandContext c = Ctx();
+  auto r =
+      ExpandTemplate(Parse("{url}|{query}"), c, EscapeContext::kHtmlText, 200);
+  ASSERT_TRUE(r.ok());
+  EXPECT_EQ(*r, "https://www.example.com/shop/blue?a=1&amp;b=2|?a=1&amp;b=2");
 }
 
 }  // namespace

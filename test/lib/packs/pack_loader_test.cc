@@ -4,6 +4,7 @@
 #include "lib/packs/pack_loader.h"
 
 #include <cstdio>
+#include <cstring>
 #include <fstream>
 #include <functional>
 #include <string>
@@ -13,13 +14,14 @@
 #include "lib/packs/matcher.h"
 #include "lib/packs/pack.h"
 #include "nlohmann/json.hpp"
+#include "src/product_version/version.h"
 
 namespace pagespeed::packs {
 namespace {
 
 using Json = nlohmann::json;
 
-constexpr char kExamplePath[] = "packs/examples/edge-seo.json";
+constexpr char kExamplePath[] = "packs/edge-seo/pack.example.json";
 
 std::string ReadFile(const std::string& path) {
   std::ifstream in(path, std::ios::binary);
@@ -196,11 +198,11 @@ TEST(PackLoaderTest, ZeroRulesIsAllowed) {
 // ---- the example pack -------------------------------------------------------
 
 TEST(PackLoaderExampleTest, ExampleLoadsClean) {
-  auto p = LoadPackFile(kExamplePath, "2.3.0");
+  auto p = LoadPackFile(kExamplePath, pagespeed::kPageSpeedVersion);
   ASSERT_TRUE(p.ok()) << p.status();
   EXPECT_EQ(p->info.id, "edge-seo");
   EXPECT_EQ(p->info.version, "0.1.0");
-  EXPECT_EQ(p->info.engine_min, "2.3.0");
+  EXPECT_EQ(p->info.engine_min, "2.2.0");
   ASSERT_EQ(p->sites.size(), 2u);
   EXPECT_EQ(p->sites[0].host, "www.example.com");
   EXPECT_EQ(p->sites[0].mode, Mode::kReport);
@@ -219,7 +221,7 @@ TEST(PackLoaderExampleTest, ExampleLoadsClean) {
 }
 
 TEST(PackLoaderExampleTest, ExampleBehavesAsDocumented) {
-  auto p = LoadPackFile(kExamplePath, "2.3.0");
+  auto p = LoadPackFile(kExamplePath, pagespeed::kPageSpeedVersion);
   ASSERT_TRUE(p.ok());
   Selection sel = SelectRules(*p, "www.example.com", "/shop/blue-widget");
   ASSERT_NE(sel.site, nullptr);
@@ -243,13 +245,13 @@ TEST(PackLoaderExampleTest, ExampleRoundTripsThroughTheLoader) {
   // Re-serialising the parsed JSON (different whitespace, same content) and
   // loading it again yields an equivalent pack.
   const std::string text = ReadFile(kExamplePath);
-  auto first = LoadPack(text, "2.3.0", kExamplePath);
+  auto first = LoadPack(text, pagespeed::kPageSpeedVersion, kExamplePath);
   ASSERT_TRUE(first.ok()) << first.status();
   const std::string compact = Json::parse(text).dump();
   const std::string pretty = Json::parse(text).dump(4);
   EXPECT_NE(compact, text);
   for (const std::string& variant : {compact, pretty}) {
-    auto again = LoadPack(variant, "2.3.0");
+    auto again = LoadPack(variant, pagespeed::kPageSpeedVersion);
     ASSERT_TRUE(again.ok()) << again.status();
     ASSERT_EQ(again->rules.size(), first->rules.size());
     for (size_t i = 0; i < first->rules.size(); ++i) {
@@ -271,7 +273,7 @@ TEST(PackLoaderExampleTest, ExampleRoundTripsThroughTheLoader) {
 }
 
 TEST(PackLoaderExampleTest, ExampleIsRefusedByAnOlderEngine) {
-  auto p = LoadPackFile(kExamplePath, "2.2.0");
+  auto p = LoadPackFile(kExamplePath, "2.1.9");
   ASSERT_FALSE(p.ok());
   EXPECT_NE(std::string(p.status().message()).find("pack.engine_min"),
             std::string::npos);
@@ -961,6 +963,195 @@ TEST(PackLoaderLintTest, DisabledEarlierRuleDoesNotShadow) {
   auto p = Load(j);
   ASSERT_TRUE(p.ok());
   EXPECT_TRUE(p->warnings.empty());
+}
+
+// ---- review hardening ---------------------------------------------------------
+
+Json RuleWithGlobs(const std::string& id, size_t count, size_t offset = 0) {
+  Json globs = Json::array();
+  for (size_t g = 0; g < count; ++g) {
+    globs.push_back(absl::StrCat("/g", offset + g, "/**"));
+  }
+  return {{"id", id},
+          {"kind", "title"},
+          {"match", {{"paths", globs}}},
+          {"value", {{"template", "T"}}}};
+}
+
+TEST(PackLoaderGlobLimitTest, TooManyGlobsInOneRule) {
+  Json j = Base();
+  j["rules"] = Json::array({RuleWithGlobs("a", kMaxGlobsPerRule + 1)});
+  ExpectLoadError(j, "rules[0].match.paths: has 33 globs; the limit is 32");
+  j["rules"] = Json::array({RuleWithGlobs("a", kMaxGlobsPerRule)});
+  EXPECT_TRUE(Load(j).ok());
+  Json k = Base();
+  Json excludes = Json::array();
+  for (size_t g = 0; g < kMaxGlobsPerRule + 1; ++g) {
+    excludes.push_back(absl::StrCat("/x", g));
+  }
+  k["rules"][1]["match"] = {{"exclude_paths", excludes}};
+  ExpectLoadError(k, "rules[1].match.exclude_paths: has 33 globs");
+}
+
+TEST(PackLoaderGlobLimitTest, TwoHundredRulesOf33GlobsIsALoadError) {
+  Json j = Base();
+  Json rules = Json::array();
+  for (size_t i = 0; i < 200; ++i) {
+    rules.push_back(RuleWithGlobs(absl::StrCat("r", i), 33));
+  }
+  j["rules"] = rules;
+  ExpectLoadError(j, "has 33 globs; the limit is 32");
+}
+
+TEST(PackLoaderGlobLimitTest, TwoHundredRulesOf32GlobsLoadsAndMatches) {
+  Json j = Base();
+  Json rules = Json::array();
+  for (size_t i = 0; i < 200; ++i) {
+    rules.push_back(RuleWithGlobs(absl::StrCat("r", i), 32));  // shared globs
+  }
+  j["rules"] = rules;
+  auto p = Load(j);
+  ASSERT_TRUE(p.ok()) << p.status();
+  EXPECT_TRUE(MatchRulePath(p->rules[199], "/g31/x").has_value());
+  EXPECT_FALSE(MatchRulePath(p->rules[199], "/g32/x").has_value());
+}
+
+TEST(PackLoaderGlobLimitTest, DistinctGlobTotalIsCapped) {
+  Json j = Base();
+  Json rules = Json::array();
+  // 63 rules x 32 distinct globs = 2016 > 2000.
+  for (size_t i = 0; i < 63; ++i) {
+    rules.push_back(RuleWithGlobs(absl::StrCat("r", i), 32, i * 32));
+  }
+  j["rules"] = rules;
+  ExpectLoadError(j, "the pack uses more than 2000 distinct globs");
+  rules.erase(rules.end() - 1);  // 62 x 32 = 1984
+  j["rules"] = rules;
+  EXPECT_TRUE(Load(j).ok());
+}
+
+TEST(PackLoaderHtmlTextTest, ControlCharactersInTitleValuesAreRejected) {
+  for (const char* bad : {"A\0B", "A\x01 B", "A\nB", "A\tB", "A\x7f"}) {
+    Json j = Base();
+    j["tables"]["titles"] = {
+        {"/", std::string(bad, bad[1] == '\0' ? 3 : strlen(bad))}};
+    ExpectLoadError(j,
+                    "a title cannot contain NUL or other control characters");
+  }
+  Json j = Base();
+  j["tables"]["titles"]["/"] = Json::parse("\"a\\u0000b\"");
+  ExpectLoadError(j, "a title cannot contain NUL");
+}
+
+TEST(PackLoaderHtmlTextTest, ControlCharactersInDescriptionAndTemplates) {
+  ExpectMutationError(
+      [](Json& j) {
+        j["tables"]["d"]["/"] = Json::parse("\"x\\u0000\"");
+        j["rules"][2]["value"] = {{"table", "d"}};
+      },
+      "a description cannot contain NUL");
+  ExpectMutationError(
+      [](Json& j) {
+        j["rules"][2]["value"] = {{"template", Json::parse("\"a\\u0001b\"")}};
+      },
+      "template cannot contain NUL or other control characters");
+  ExpectMutationError(
+      [](Json& j) {
+        j["rules"][1]["value"] = {{"template", Json::parse("\"a\\nb\"")}};
+      },
+      "template cannot contain NUL or other control characters");
+}
+
+TEST(PackLoaderUrlValueTest, UnsafeCharactersInUrlTableValues) {
+  for (const char* bad : {"https://a.test/\"x", "https://a.test/<x>",
+                          "https://a.test/a\\b", "https://a.test/x>"}) {
+    ExpectMutationError(
+        [&](Json& j) { j["tables"]["canonicals"] = {{"/p", bad}}; },
+        "backslash or one of the characters");
+    ExpectMutationError(
+        [&](Json& j) { j["tables"]["hreflang"] = {{{"en", bad}}}; },
+        "tables.hreflang[0].en: URL contains a backslash");
+  }
+}
+
+TEST(PackLoaderHostTest, WildcardNeedsTwoLabels) {
+  for (const char* bad : {"*.com", "*.localhost"}) {
+    ExpectMutationError([&](Json& j) { j["sites"][0]["host"] = bad; },
+                        "a wildcard needs at least two labels");
+  }
+  Json j = Base();
+  j["sites"][0]["host"] = "*.example.co.uk";
+  EXPECT_TRUE(Load(j).ok());
+}
+
+TEST(PackLoaderClusterTest, UrlInTwoClustersIsALoadError) {
+  ExpectMutationError(
+      [](Json& j) {
+        j["tables"]["hreflang"] = {
+            {{"en", "https://a.test/en/"}, {"de", "https://a.test/de/"}},
+            {{"en", "https://a.test/EN/x"}, {"fr", "https://A.test/de"}}};
+      },
+      "tables.hreflang[1]: URL https://a.test/de is also in cluster 0");
+}
+
+TEST(PackLoaderClusterTest, SameUrlTwiceInOneClusterIsFine) {
+  Json j = Base();
+  j["tables"]["hreflang"] = {
+      {{"en", "https://a.test/en/"}, {"x-default", "https://a.test/en/"}}};
+  auto p = Load(j);
+  ASSERT_TRUE(p.ok()) << p.status();
+  EXPECT_EQ(p->cluster_index.size(), 1u);
+}
+
+TEST(PackLoaderRegexTest, RegexMatchingIsByteExact) {
+  Json j = Base();
+  j["rules"][0]["match"]["path_regex"] = "^/p/(.+)$";
+  auto p = Load(j);
+  ASSERT_TRUE(p.ok()) << p.status();
+  auto m = MatchRulePath(p->rules[0], "/p/\xff\xfe");
+  ASSERT_TRUE(m.has_value());
+  EXPECT_EQ((*m)[0], "\xff\xfe");
+}
+
+TEST(PackLoaderDepthTest, DeepNestingIsRejectedWithoutBuildingIt) {
+  std::string deep = R"({"x":)";
+  for (int i = 0; i < 5000; ++i) deep += "[";
+  for (int i = 0; i < 5000; ++i) deep += "]";
+  deep += "}";
+  ExpectRawLoadError(deep, "nested deeper than");
+}
+
+TEST(PackLoaderFileTest, ReadsAtMostTheLimitPlusOneByte) {
+  const std::string path = ::testing::TempDir() + "/exact-pack.json";
+  std::string text = Base().dump();
+  text.resize(kMaxPackFileBytes, ' ');
+  {
+    std::ofstream out(path, std::ios::binary);
+    out << text;
+  }
+  auto p = LoadPackFile(path, "");
+  std::remove(path.c_str());
+  EXPECT_TRUE(p.ok()) << p.status();
+}
+
+TEST(PackLoaderLintTest, EarlierExcludesMustBeASubsetOfTheLaterOnes) {
+  Json j = Base();
+  // Earlier rule skips /x/**; the later rule applies there, so not shadowed.
+  j["rules"] = Json::array(
+      {{{"id", "t1"},
+        {"kind", "title"},
+        {"match", {{"exclude_paths", {"/x/**"}}}},
+        {"value", {{"template", "A"}}}},
+       {{"id", "t2"}, {"kind", "title"}, {"value", {{"template", "B"}}}}});
+  auto p = Load(j);
+  ASSERT_TRUE(p.ok());
+  EXPECT_TRUE(p->warnings.empty());
+
+  // Later rule excludes at least what the earlier one does: shadowed.
+  j["rules"][1]["match"] = {{"exclude_paths", {"/x/**", "/y"}}};
+  p = Load(j);
+  ASSERT_TRUE(p.ok());
+  EXPECT_EQ(p->warnings.size(), 1u);
 }
 
 }  // namespace

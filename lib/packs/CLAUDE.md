@@ -20,4 +20,10 @@ bazel test //test/lib/packs/...
 - Unknown keys, duplicate keys and unknown `{placeholders}` are load errors on purpose.
 - JSON objects are unordered: hreflang entries are sorted by code.
 - A `{` that does not open a `{identifier}` token is literal (JSON templates need no escaping).
-- The example pack lives in `packs/examples/edge-seo.json` and is loaded by the loader test.
+- - The example pack lives in `packs/edge-seo/pack.example.json`; the loader test loads it against the real product version.
+- A rule-level `exclude_paths` REPLACES `defaults.exclude_paths` (likewise `paths`); it does not add to them.
+- `/shop/**` requires the slash: it matches `/shop/` and below, not `/shop`.
+- jsonld rules take a template only (no table); an unknown or out-of-range `{n}` capture group is a load error.
+- Globs and `path_regex` are compiled as Latin-1, so matching is byte-exact (`.` matches `\xff`); a non-ASCII pattern is matched as its UTF-8 bytes.
+- Limits: 32 globs per list, 2000 distinct globs per pack; a rule's globs run as one RE2::Set.
+- Table values that become title or description text must go through `EscapeForHtmlText()`; `ExpandTemplate(kHtmlText)` escapes the whole output.

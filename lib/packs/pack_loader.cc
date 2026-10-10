@@ -8,9 +8,9 @@
 #include <filesystem>
 #include <fstream>
 #include <initializer_list>
+#include <map>
 #include <memory>
 #include <set>
-#include <sstream>
 #include <string>
 #include <system_error>
 #include <tuple>
@@ -142,6 +142,10 @@ class Loader {
   Pack pack_;
   size_t table_entries_ = 0;
   std::set<std::pair<std::string, int>> checked_tables_;
+  mutable std::set<std::string> distinct_globs_;
+  std::map<std::string, std::shared_ptr<const RE2::Set>> glob_sets_;
+
+  absl::Status BuildSets(const std::string& path, RuleMatch* match);
 };
 
 absl::Status Loader::CheckKeys(
@@ -188,12 +192,21 @@ absl::Status Loader::GetGlobs(const Json& obj, const std::string& path,
   const std::string kpath = Child(path, key);
   if (!it->is_array()) return Fail(kpath, "must be an array of path globs");
   if (it->empty()) return Fail(kpath, "must not be empty");
+  if (it->size() > kMaxGlobsPerRule) {
+    return Fail(kpath, absl::StrCat("has ", it->size(), " globs; the limit is ",
+                                    kMaxGlobsPerRule, " per list"));
+  }
   out->clear();
   for (size_t i = 0; i < it->size(); ++i) {
     const Json& e = (*it)[i];
     if (!e.is_string()) return Fail(Index(kpath, i), "must be a string");
     auto glob = CompileGlob(e.get<std::string>());
     if (!glob.ok()) return Fail(Index(kpath, i), glob.status().message());
+    if (distinct_globs_.insert(glob->text).second &&
+        distinct_globs_.size() > kMaxGlobs) {
+      return Fail(Index(kpath, i), absl::StrCat("the pack uses more than ",
+                                                kMaxGlobs, " distinct globs"));
+    }
     out->push_back(*std::move(glob));
   }
   return absl::OkStatus();
@@ -270,6 +283,10 @@ absl::Status Loader::LoadSites(const Json& j) {
                   "must be a lowercase host name, or \"*.\" followed by one "
                   "(no port, no other wildcard)");
     }
+    if (site.wildcard && h.find('.') == std::string_view::npos) {
+      return Fail(Child(p, "host"),
+                  "a wildcard needs at least two labels after \"*.\"");
+    }
     site.host = std::string(h);
     if (mode == "report") {
       site.mode = Mode::kReport;
@@ -333,6 +350,15 @@ absl::Status Loader::LoadHreflangTable(const Json& j, const std::string& path) {
     out.normalized_members.clear();
     for (const auto& entry : out.entries) {
       out.normalized_members.push_back(*NormUrl(entry.second));
+    }
+    const size_t index = pack_.hreflang_clusters.size();
+    for (const std::string& member : out.normalized_members) {
+      auto [pos, inserted] = pack_.cluster_index.emplace(member, index);
+      if (!inserted && pos->second != index) {
+        return Fail(
+            cp, absl::StrCat("URL ", member, " is also in cluster ",
+                             pos->second, "; a URL can belong to one cluster"));
+      }
     }
     pack_.hreflang_clusters.push_back(std::move(out));
   }
@@ -409,10 +435,7 @@ absl::Status Loader::LoadMatch(const Json& j, const std::string& path,
       return Fail(rp,
                   absl::StrCat("is longer than ", kMaxRegexBytes, " bytes"));
     }
-    RE2::Options options;
-    options.set_max_mem(kRegexMaxMemBytes);
-    options.set_log_errors(false);
-    auto re = std::make_shared<const RE2>(text, options);
+    auto re = std::make_shared<const RE2>(text, MakeRegexOptions());
     if (!re->ok()) {
       return Fail(rp, absl::StrCat("invalid RE2 pattern: ", re->error()));
     }
@@ -429,6 +452,12 @@ absl::Status Loader::ParseTpl(const std::string& path, const std::string& text,
   if (text.size() > kMaxTemplateBytes) {
     return Fail(path, absl::StrCat("template is longer than ",
                                    kMaxTemplateBytes, " bytes"));
+  }
+  if ((rule.kind == Kind::kTitle || rule.kind == Kind::kDescription) &&
+      HasControlChars(text)) {
+    return Fail(path,
+                "template cannot contain NUL or other control "
+                "characters");
   }
   TemplateParseOptions options;
   options.allow_page_values = rule.kind == Kind::kJsonLd;
@@ -458,12 +487,22 @@ absl::Status Loader::CheckTableValues(const std::string& path,
         break;
       }
       case Kind::kTitle:
+        if (HasControlChars(value)) {
+          return Fail(ep, absl::StrCat("a title cannot contain NUL or other "
+                                       "control characters (used by ",
+                                       path, ")"));
+        }
         if (value.empty() || Utf8Length(value) > kMaxTitleChars) {
           return Fail(ep, absl::StrCat("a title must be 1 to ", kMaxTitleChars,
                                        " characters (used by ", path, ")"));
         }
         break;
       case Kind::kDescription:
+        if (HasControlChars(value)) {
+          return Fail(ep, absl::StrCat("a description cannot contain NUL or "
+                                       "other control characters (used by ",
+                                       path, ")"));
+        }
         if (value.empty() || Utf8Length(value) > kMaxDescriptionChars) {
           return Fail(ep, absl::StrCat("a description must be 1 to ",
                                        kMaxDescriptionChars,
@@ -628,7 +667,27 @@ absl::Status Loader::LoadRule(const Json& j, const std::string& path,
   if (rule->match.exclude_paths.empty()) {
     rule->match.exclude_paths = pack_.default_exclude_paths;
   }
+  PACKS_RETURN_IF_ERROR(BuildSets(Child(path, "match"), &rule->match));
   return LoadValue(j["value"], Child(path, "value"), rule);
+}
+
+absl::Status Loader::BuildSets(const std::string& path, RuleMatch* match) {
+  auto build = [&](const std::vector<Glob>& globs,
+                   std::shared_ptr<const RE2::Set>* out) -> absl::Status {
+    if (globs.empty()) return absl::OkStatus();
+    std::string key;
+    for (const Glob& g : globs) absl::StrAppend(&key, g.text, "\n");
+    auto it = glob_sets_.find(key);
+    if (it == glob_sets_.end()) {
+      auto set = CompileGlobSet(globs);
+      if (!set.ok()) return Fail(path, set.status().message());
+      it = glob_sets_.emplace(key, *std::move(set)).first;
+    }
+    *out = it->second;
+    return absl::OkStatus();
+  };
+  PACKS_RETURN_IF_ERROR(build(match->paths, &match->paths_set));
+  return build(match->exclude_paths, &match->exclude_set);
 }
 
 absl::Status Loader::LoadRules(const Json& j) {
@@ -674,10 +733,17 @@ void Loader::LintShadowing() {
     for (size_t a = 0; a < b; ++a) {
       const Rule& earlier = pack_.rules[a];
       if (!earlier.enabled || earlier.kind != later.kind) continue;
-      if (earlier.match.path_regex != nullptr ||
-          !earlier.match.exclude_paths.empty()) {
-        continue;
-      }
+      if (earlier.match.path_regex != nullptr) continue;
+      // The earlier rule's excludes must all be excluded by the later rule
+      // too, or the later rule could match a path the earlier one skips.
+      const bool excludes_subset = std::all_of(
+          earlier.match.exclude_paths.begin(),
+          earlier.match.exclude_paths.end(), [&](const Glob& e) {
+            return std::any_of(later.match.exclude_paths.begin(),
+                               later.match.exclude_paths.end(),
+                               [&](const Glob& l) { return GlobCovers(l, e); });
+          });
+      if (!excludes_subset) continue;
       const bool covered = std::all_of(
           later.match.paths.begin(), later.match.paths.end(),
           [&](const Glob& g) {
@@ -713,7 +779,10 @@ absl::StatusOr<Pack> Loader::Load(std::string_view text) {
       case Json::parse_event_t::object_start:
       case Json::parse_event_t::array_start:
         key_stack.emplace_back();
-        if (static_cast<size_t>(depth) > kMaxJsonDepth) too_deep = true;
+        if (static_cast<size_t>(depth) > kMaxJsonDepth) {
+          too_deep = true;
+          return false;  // discard the value instead of building it
+        }
         break;
       case Json::parse_event_t::object_end:
       case Json::parse_event_t::array_end:
@@ -795,9 +864,12 @@ absl::StatusOr<Pack> LoadPackFile(const std::string& path,
   if (!in) {
     return absl::NotFoundError(absl::StrCat(path, ": cannot open pack file"));
   }
-  std::ostringstream buf;
-  buf << in.rdbuf();
-  return LoadPack(buf.str(), engine_version, path);
+  // Read at most one byte past the limit, so a file that grew since the size
+  // check is still bounded (and then rejected by LoadPack).
+  std::string text(kMaxPackFileBytes + 1, '\0');
+  in.read(text.data(), static_cast<std::streamsize>(text.size()));
+  text.resize(static_cast<size_t>(in.gcount()));
+  return LoadPack(text, engine_version, path);
 }
 
 }  // namespace pagespeed::packs

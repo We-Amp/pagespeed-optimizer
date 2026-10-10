@@ -14,7 +14,9 @@ namespace pagespeed::packs {
 //   - scheme and host are lowercased;
 //   - the default port (80 for http, 443 for https) is dropped;
 //   - the fragment is dropped;
-//   - path and query are kept as written;
+//   - path and query are kept as written, except that a backslash before the
+//     query counts as '/' and a bare trailing '?' (empty query) is dropped;
+//   - surrounding whitespace is trimmed;
 //   - a single trailing '/' on the path is ignored (so "https://a.test/" and
 //     "https://a.test" are equal, and "https://a.test/x/" equals
 //     "https://a.test/x").
