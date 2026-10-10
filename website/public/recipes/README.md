@@ -30,9 +30,10 @@ to use it in another project, copy it to that project's
   PowerShell.
 - Stop at the first failed prerequisite and report it; do not work around it.
 - A recipe is complete only when its verification step passes.
-- Nothing in a recipe reports anywhere. The only network calls are the
+- Nothing in a recipe reports anywhere. The recipes themselves call only the
   documented install channels: the package repository, GHCR, the Helm
-  repository, nuget.org and the download page.
+  repository, nuget.org and the download page. apt, dnf, Docker and Helm then
+  pull dependencies from the sources they are configured with.
 
 ## The verification marker
 

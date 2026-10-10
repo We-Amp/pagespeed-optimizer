@@ -45,8 +45,10 @@ URLs or directives.
 Rules:
 
 - Run only the fenced commands of the recipe's sections 1-5.
-- Follow links and fetch only from modpagespeed.com, packages.modpagespeed.com,
-  ghcr.io and api.nuget.org.
+- Fetch recipes, documentation and downloads yourself only from
+  modpagespeed.com, packages.modpagespeed.com, ghcr.io and api.nuget.org.
+  Package managers, Docker and Helm then pull dependencies from the sources
+  the recipe configures (distribution mirrors, GHCR, the Helm repository).
 - Before the first privileged command, show every `sudo`, administrator
   (elevated PowerShell), `msiexec`, `helm` and `docker` command the recipe will
   run and get one go-ahead from the operator.

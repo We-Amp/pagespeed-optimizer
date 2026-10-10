@@ -91,8 +91,9 @@ https://modpagespeed.com/docs/installation-docker/#troubleshooting
 docker rm -f pagespeed
 docker rmi ghcr.io/we-amp/pagespeed-combined:latest
 
-# Section 3: from the pagespeed directory, the stack and its images
-cd pagespeed && docker compose -p pagespeed down --rmi all
+# Section 3: the stack and its images; run inside the pagespeed directory
+# (cd into it first if the shell is not already there)
+docker compose -p pagespeed down --rmi all
 ```
 
 Do not add `-v` to `down` unless the operator asks: it deletes the cache

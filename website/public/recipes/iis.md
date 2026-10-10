@@ -116,6 +116,7 @@ if ($createdByThisRun) { Remove-Item $cfg } else { Rename-Item $cfg 'pagespeed.c
 # Remove the module with the same MSI, then restart IIS
 $dir = Join-Path $env:TEMP 'pagespeed-install'
 $msi = Join-Path $dir 'pagespeed-iis-<version>-win-x64.msi'
+if (-not (Test-Path $msi)) { throw 'MSI not found in TEMP; uninstall mod_pagespeed from Apps and features instead' }
 $p = Start-Process msiexec.exe -ArgumentList "/x `"$msi`" /qn /norestart /l*v `"$dir\uninstall.log`"" -Wait -PassThru
 if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { throw "msiexec failed with exit code $($p.ExitCode)" }
 iisreset
