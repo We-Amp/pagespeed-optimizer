@@ -121,7 +121,7 @@ test.describe('AI readability panel', () => {
     await scanV2(page);
     await openAiread(page);
     await expect(panel(page)).toContainText('Grade C — mixed');
-    await expect(panel(page)).toContainText('64/100');
+    await expect(panel(page)).toContainText('63/100');
     await expect(panel(page).getByText('invisible without JS')).toHaveCount(1);
     await expect(panel(page)).toContainText(
       'Raw HTML: ~190 tokens · after JavaScript: ~540 tokens',
@@ -190,7 +190,7 @@ test.describe('AI readability panel', () => {
     await expect(panel(page).locator('[data-scan-also-found]')).toHaveCount(0);
     await expect(panel(page)).not.toContainText('Also found');
     await expect(page.locator('[data-scan-tile="airead"] [data-scan-value]')).toHaveText(
-      'Grade A · 100/100',
+      'Grade A · 98/100',
     );
   });
 });

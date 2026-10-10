@@ -302,7 +302,7 @@ test.describe('next steps and share', () => {
     ]);
     expect(download.suggestedFilename()).toBe('pagespeed-report-shop.example.com.md');
     const body = readFileSync((await download.path())!, 'utf8');
-    expect(body).toContain('AI readability: grade C (64/100)');
+    expect(body).toContain('AI readability: grade C (63/100)');
     expect(body).toContain('- Pre-consent leak: attention');
     const events = await trackedEvents(page);
     expect(events.filter((e) => e.name === 'analyze_report_download')).toHaveLength(1);

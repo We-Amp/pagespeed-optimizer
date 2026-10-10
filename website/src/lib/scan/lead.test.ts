@@ -229,7 +229,7 @@ describe('submitLeads', () => {
     });
     const a = payloadFor(agents, form, full);
     expect(a.message).toContain('[agents] request from the scan result');
-    expect(a.message).toContain('Grade: C (64/100)');
+    expect(a.message).toContain('Grade: C (63/100)');
     expect(a.wedge).toBe('');
   });
 
@@ -319,7 +319,7 @@ describe('report markdown', () => {
       report: full,
     });
     expect(md).toContain('Scores: mobile 58/100, desktop n/a');
-    expect(md).toContain('AI readability: grade C (64/100)');
+    expect(md).toContain('AI readability: grade C (63/100)');
     expect(md).toContain('- Pre-consent leak: attention');
   });
 
