@@ -15,7 +15,7 @@ In the September 2026 crawl, HTTP Archive saw PageSpeed answering on **39,564 or
 
 ## What this census is
 
-The census counts origins. One origin is the root page of a site: scheme, host and `/`. Every number comes from the monthly HTTP Archive crawl, which loads the root pages of the sites in Chrome's popularity data and records what each server sends back. An origin counts as PageSpeed-serving when HTTP Archive's technology detection finds PageSpeed on its root page. The version is the value of the response header the module sends.
+The census counts origins. One origin is the root page of a site: scheme, host and `/`. Every number comes from the monthly HTTP Archive crawl, which loads the root pages of the sites in Chrome's popularity data and records what each server sends back. An origin counts as PageSpeed-serving when HTTP Archive's technology detection finds PageSpeed on its root page. The version is the value of the response header the module sends. The headline and the series combine the desktop and mobile crawls per origin; the server, detection and network tables use the desktop crawl only.
 
 The dataset publishes aggregates only. It names no origin, no hostname and no IP address, and neither does this post. The queries, the tables and the method are in the [pagespeed-census repository](https://github.com/We-Amp/pagespeed-census), with the details in its [methodology](https://github.com/We-Amp/pagespeed-census/blob/main/METHODOLOGY.md). We maintain the current mod_pagespeed line, so we have an interest in these numbers. That is why the data, the queries and the method are public: you can rerun them and check our reading.
 
@@ -55,9 +55,11 @@ svg.census .census-panel-title{font-weight:600}
 
 <!-- census:end series-table -->
 
-The count moves with the crawl as well as with the web. HTTP Archive roughly doubled the size of its crawl in mid-2022, and the jump in the chart that year follows it. The split between versioned and hidden origins also shifts between some crawls, so read the buckets as trends. Since early 2023, with the crawl at a stable size, the count has fallen in almost every crawl.
+Before June 2026 the current-line column counts source builds of the unreleased incubator trunk, which already carried version 1.15.0.0; around the release it is an upper bound.
 
-Google-era builds are still the largest group of origins that report a version, and they account for most of the decline. Incubator-era builds grew until 2025 and have eased since. A large cohort sends the header with the version hidden; it shrinks more slowly than the rest. Before June 2026 fewer than a hundred origins reported a version from the current line in any crawl. The 1.15.0 release shows up from the July 2026 crawl on, and it is still a small group.
+The count moves with the crawl as well as with the web. HTTP Archive roughly doubled the size of its crawl in mid-2022, and the jump in the chart that year follows it. The split between versioned and hidden origins also shifts between some crawls, so read the buckets as trends. Since early 2023, with the crawl at a stable size, the count has fallen in most crawls.
+
+Google-era builds are still the largest group of origins that report a version, and they account for most of the decline. Incubator-era builds grew until 2025 and have eased since. A large cohort sends the header with the version hidden. Since 2023 it has shrunk more slowly than the rest. Before June 2026 fewer than a hundred origins reported a version from the current line in any crawl. Those are source builds of the unreleased incubator trunk: the project's version file carried 1.15.0.0 from December 2018, although no 1.15 release existed until We-Amp's in June 2026. The current-line count is therefore an upper bound in and around the 1.15.0 release window. The release itself shows up from the July 2026 crawl on, and it is still a small group.
 
 ## Who runs it today
 
@@ -154,22 +156,22 @@ svg.census .census-panel-title{font-weight:600}
 
 <!-- census:begin ranks-table -->
 
-| Popularity rank | PageSpeed origins | All origins | Share |
-| --------------- | ----------------- | ----------- | ----- |
-| top 1k          | 0                 | 772         | 0.00% |
-| top 5k          | 9                 | 3,060       | 0.29% |
-| top 10k         | 5                 | 3,814       | 0.13% |
-| top 50k         | 54                | 30,373      | 0.18% |
-| top 100k        | 86                | 38,526      | 0.22% |
-| top 500k        | 888               | 318,986     | 0.28% |
-| top 1M          | 1,146             | 412,641     | 0.28% |
-| top 5M          | 9,939             | 3,472,144   | 0.29% |
-| top 10M         | 11,537            | 4,504,092   | 0.26% |
-| top 50M         | 15,900            | 7,366,216   | 0.22% |
+| Rank band | PageSpeed origins | All origins | Share |
+| --------- | ----------------- | ----------- | ----- |
+| top 1k    | 0                 | 772         | 0.00% |
+| 1k–5k     | 9                 | 3,060       | 0.29% |
+| 5k–10k    | 5                 | 3,814       | 0.13% |
+| 10k–50k   | 54                | 30,373      | 0.18% |
+| 50k–100k  | 86                | 38,526      | 0.22% |
+| 100k–500k | 888               | 318,986     | 0.28% |
+| 500k–1M   | 1,146             | 412,641     | 0.28% |
+| 1M–5M     | 9,939             | 3,472,144   | 0.29% |
+| 5M–10M    | 11,537            | 4,504,092   | 0.26% |
+| 10M–50M   | 15,900            | 7,366,216   | 0.22% |
 
 <!-- census:end ranks-table -->
 
-No origin in the top 1k serves PageSpeed. Below that the share is small and roughly flat: a few origins in every thousand, in every bucket. The ranks come from HTTP Archive's rank buckets, which start with the March 2021 crawl. The latest crawl has no unranked origins, so the table leaves that row out.
+No origin in the top 1k serves PageSpeed. Below that the share is small and roughly flat: a few origins in every thousand, in every band. The bands come from HTTP Archive's rank buckets, which start with the March 2021 crawl; each origin falls in exactly one band. The latest crawl has no unranked origins, so the table leaves that row out.
 
 <!-- census:begin cooccurrence-table -->
 
@@ -205,18 +207,18 @@ svg.census .census-panel-title{font-weight:600}
 
 <!-- census:begin networks-table -->
 
-| Network                              | Share of PageSpeed origins |
-| ------------------------------------ | -------------------------- |
-| CLOUDFLARENET - Cloudflare, Inc., US | 14.5%                      |
-| XSERVER - Xserver Inc., JP           | 9.4%                       |
-| Ukraine-AS - Hosting Ukraine LTD, UA | 9.2%                       |
-| HETZNER-AS - Hetzner Online GmbH, DE | 7.8%                       |
-| NETARTGROUP - Nazwa.pl Sp.z.o.o., PL | 6.1%                       |
-| GMO-I-R1 - GMO Internet, Inc., JP    | 6.0%                       |
-| AMAZON-02 - Amazon.com, Inc., US     | 5.0%                       |
-| GMO-I-R2 - GMO Internet, Inc., JP    | 3.7%                       |
-| AMAZON-AES - Amazon.com, Inc., US    | 2.9%                       |
-| IDCF - IDC Frontier Inc., JP         | 2.6%                       |
+| Network                              | Share of header-bearing desktop pages |
+| ------------------------------------ | ------------------------------------- |
+| CLOUDFLARENET - Cloudflare, Inc., US | 14.5%                                 |
+| XSERVER - Xserver Inc., JP           | 9.4%                                  |
+| Ukraine-AS - Hosting Ukraine LTD, UA | 9.2%                                  |
+| HETZNER-AS - Hetzner Online GmbH, DE | 7.8%                                  |
+| NETARTGROUP - Nazwa.pl Sp.z.o.o., PL | 6.1%                                  |
+| GMO-I-R1 - GMO Internet, Inc., JP    | 6.0%                                  |
+| AMAZON-02 - Amazon.com, Inc., US     | 5.0%                                  |
+| GMO-I-R2 - GMO Internet, Inc., JP    | 3.7%                                  |
+| AMAZON-AES - Amazon.com, Inc., US    | 2.9%                                  |
+| IDCF - IDC Frontier Inc., JP         | 2.6%                                  |
 
 <!-- census:end networks-table -->
 
@@ -274,6 +276,4 @@ The limits, in short:
 
 ## Where PageSpeed comes from
 
-mod_pagespeed is an open-source project originally developed at Google, and ngx_pagespeed brought it to nginx. The public record shows who else worked on it. Google's 2013 [launch post for PageSpeed for Nginx](https://developers.googleblog.com/en/speed-up-your-sites-with-pagespeed-for-nginx/) credits the module to "developers from Google, Taobao, We-Amp, and many other individual volunteers". The [Apache Incubator proposal](https://cwiki.apache.org/confluence/display/INCUBATOR/PageSpeedProposal) names We-Amp B.V. as one of two founding committer organizations.
-
-Throughout the Google era, We-Amp helped build ngx_pagespeed, maintained mod_pagespeed and drove the project's Apache incubation. mod_pagespeed 2.1 is developed by We-Amp B.V. and is not affiliated with or endorsed by Google. The maintained line today is the current line this census counts: mod_pagespeed 1.15 and later, now released as mod_pagespeed 2.1.
+mod_pagespeed is an open-source project originally developed at Google. mod_pagespeed 2.1 is developed by We-Amp B.V. and is not affiliated with or endorsed by Google. mod_pagespeed 1.15 and later is the line this census counts as current, and the line the signed repository ships.

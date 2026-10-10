@@ -16,7 +16,7 @@ const args = process.argv.slice(2);
 const dateIdx = args.indexOf('--date');
 const date = dateIdx >= 0 ? args[dateIdx + 1] : undefined;
 const check = args.includes('--check');
-if (!date) throw new Error('--date YYYY-MM-01 is required');
+if (!date || date.startsWith('--')) throw new Error('--date YYYY-MM-01 is required');
 
 const root = resolve(import.meta.dirname, '..');
 const post = resolve(root, 'src/content/blog/pagespeed-installed-base-2026.md');
@@ -55,6 +55,24 @@ const familyName = {
   iis: 'IIS',
   other: 'Other',
   hidden: 'Not sent',
+};
+// The dataset labels rank buckets by their upper bound ("top 5k"), but the buckets are
+// exclusive bands: each origin falls in exactly one and the rows sum to the total.
+const rankBand = {
+  'top 1k': 'top 1k',
+  'top 5k': '1k–5k',
+  'top 10k': '5k–10k',
+  'top 50k': '10k–50k',
+  'top 100k': '50k–100k',
+  'top 500k': '100k–500k',
+  'top 1M': '500k–1M',
+  'top 5M': '1M–5M',
+  'top 10M': '5M–10M',
+  'top 50M': '10M–50M',
+};
+const band = (label) => {
+  if (!(label in rankBand)) throw new Error(`unknown rank bucket "${label}"`);
+  return rankBand[label];
 };
 const signalName = {
   both: 'Header and technology detection',
@@ -114,13 +132,13 @@ const blocks = {
   ),
   // The latest crawl has no unranked origins; an empty row is omitted rather than shown as 0 of 0.
   'ranks-table': table(
-    ['Popularity rank', 'PageSpeed origins', 'All origins', 'Share'],
+    ['Rank band', 'PageSpeed origins', 'All origins', 'Share'],
     t.ranks
       .filter((r) => Number(r.all_origins) > 0)
-      .map((r) => [r.rank, n(r.pagespeed_origins), n(r.all_origins), pct(r.share, 2)]),
+      .map((r) => [band(r.rank), n(r.pagespeed_origins), n(r.all_origins), pct(r.share, 2)]),
   ),
   'networks-table': table(
-    ['Network', 'Share of PageSpeed origins'],
+    ['Network', 'Share of header-bearing desktop pages'],
     t.networks_top10.map((r) => [r.network, `${r.share_pct}%`]),
   ),
   'servers-numbers': `On the desktop crawl, ${n(serverOrigins('apache-module'))} origins send \`X-Mod-Pagespeed\`, the Apache module's header, and ${n(serverOrigins('nginx-module'))} send \`X-Page-Speed\`, the nginx module's header. The Apache module answers behind an nginx front on ${n(serverOrigins('apache-module', 'nginx'))} origins and behind Cloudflare on ${n(serverOrigins('apache-module', 'cloudflare'))}.`,
@@ -145,6 +163,13 @@ const blocks = {
     ]),
   ),
 };
+
+// A missing or renamed field in the dataset renders as NaN or undefined; refuse to write it.
+for (const [name, body] of Object.entries(blocks)) {
+  if (/\bNaN\b|\bundefined\b/.test(body)) {
+    throw new Error(`block "${name}" contains NaN or undefined; check the census data shape`);
+  }
+}
 
 let text = readFileSync(post, 'utf8');
 const original = text;
