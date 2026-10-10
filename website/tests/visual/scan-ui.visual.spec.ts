@@ -179,6 +179,7 @@ test.describe('scan UI visual states', () => {
               await page.screenshot({
                 // The telemetry strip shows live timings; mask it for stable runs.
                 mask: [page.locator('[data-ui="telemetry-strip"]')],
+                maskColor: '#070809',
                 path: `${OUT_DIR}/${target.name}-${pad(n)}-${slug}-${viewport.name}.png`,
                 animations: 'disabled',
                 caret: 'hide',
