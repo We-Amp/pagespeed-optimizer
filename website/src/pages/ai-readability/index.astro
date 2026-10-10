@@ -93,7 +93,7 @@ const jsonLd = [webApp, faqPage];
   breadcrumbLeafName="AI readability checker"
 >
   <section
-    class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-16 sm:py-20"
+    class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 pt-16 sm:pt-20"
     aria-labelledby="airead-title"
   >
     <SectionHeader
@@ -161,12 +161,17 @@ const jsonLd = [webApp, faqPage];
       <a href="/about/" class="text-interactive underline underline-offset-2">We-Amp</a>
       &mdash; the team behind ngx_pagespeed.
     </p>
+  </section>
 
+  <!-- The shared results sit outside the narrow reading column so they get the
+       full tool width; the v1 result slot and everything below stay in it. -->
+  <div data-scan-variant="v2" data-pagefind-ignore>
+    <ResultsView />
+  </div>
+
+  <section class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 pb-16 sm:pb-20">
     <div data-scan-variant="v1">
       <div id="ar-out" aria-live="polite"></div>
-    </div>
-    <div data-scan-variant="v2" data-pagefind-ignore>
-      <ResultsView />
     </div>
 
     <!-- No-JS fallback (UX-9). The live scan is interactive, but the page should not

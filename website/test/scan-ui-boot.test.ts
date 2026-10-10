@@ -12,7 +12,7 @@ import { SCAN_UI_STORAGE_KEY, resolveScanUi } from '../src/lib/scan/flag';
 const source = readFileSync('src/components/scan/ScanUiBoot.astro', 'utf8');
 const body = source.match(/<script[^>]*>([\s\S]*?)<\/script>/)![1];
 
-function boot(search: string, stored: string | null, broken = false, fallback = 'v1') {
+function boot(search: string, stored: string | null, broken: boolean, fallback: 'v1' | 'v2') {
   const data: Record<string, string> = stored === null ? {} : { [SCAN_UI_STORAGE_KEY]: stored };
   const storage = {
     getItem: (k: string) => {
@@ -37,7 +37,7 @@ function boot(search: string, stored: string | null, broken = false, fallback = 
   return { ui: html.dataset.scanUi, data };
 }
 
-describe('pre-paint scan interface script', () => {
+describe.each(['v1', 'v2'] as const)('pre-paint scan interface script (default %s)', (fallback) => {
   const cases: Array<[string, string | null, boolean]> = [
     ['', null, false],
     ['?ui=v2', null, false],
@@ -62,12 +62,13 @@ describe('pre-paint scan interface script', () => {
               },
             }
           : { getItem: () => stored, setItem: () => undefined },
+        fallback,
       );
-      expect(boot(search, stored, broken).ui).toBe(expected);
+      expect(boot(search, stored, broken, fallback).ui).toBe(expected);
     });
   }
 
   it('remembers an explicit choice', () => {
-    expect(boot('?ui=v2', null).data[SCAN_UI_STORAGE_KEY]).toBe('v2');
+    expect(boot('?ui=v2', null, false, fallback).data[SCAN_UI_STORAGE_KEY]).toBe('v2');
   });
 });

@@ -41,21 +41,90 @@ const TONE: Record<TileStatus['state'], string> = {
 const SCAN_TIMEOUT_REASON = 'The scanner did not answer in time.';
 const PSI_TIMEOUT_REASON = 'PageSpeed Insights did not answer within a minute.';
 
-interface PsiBody {
+export interface PsiBody {
   lighthouseResult?: { categories?: { performance?: { score?: number | null } } };
+}
+export interface ScanReport extends Record<string, unknown> {
+  grade?: string;
+  score?: number;
 }
 interface ScanBody {
   error?: string;
-  report?: Record<string, unknown> & { grade?: string; score?: number };
+  report?: ScanReport;
 }
 
-class RequestError extends Error {
+export class RequestError extends Error {
   constructor(
     message: string,
     readonly kind: 'timeout' | 'network' | 'http',
+    /** The HTTP status for kind 'http'; the panel renderers classify on it. */
+    readonly status?: number,
   ) {
     super(message);
   }
+}
+
+/** What the two PageSpeed Insights requests returned, kept after the tile is set. */
+export interface PsiResults {
+  mobile: PsiBody | null;
+  desktop: PsiBody | null;
+  errors: { mobile: RequestError | null; desktop: RequestError | null };
+}
+/** What the scanner returned, kept after the tiles are set. */
+export interface ScanOutcome {
+  report: ScanReport | null;
+  error: RequestError | null;
+  /** The reason shown when the scan did not produce a report. */
+  reason: string;
+}
+
+/** Everything a panel renderer needs; a renderer fills only its own panel. */
+export interface PanelContext {
+  pillar: Pillar;
+  url: string;
+  status: TileStatus;
+  /** Why the pillar was not measured; empty otherwise. */
+  reason: string;
+  psi: PsiResults | null;
+  scan: ScanOutcome | null;
+  /** Re-run only this pillar's source (the per-tile "Try again"). */
+  rerun: () => void;
+}
+export type PanelRenderer = (panel: HTMLElement, ctx: PanelContext) => void;
+
+// The shell renders only the not-measured reason and its retry. Each pillar's
+// task replaces its own entry here; nothing else needs to change.
+function renderNotMeasured(panel: HTMLElement, ctx: PanelContext) {
+  panel.replaceChildren();
+  if (ctx.status.state !== 'none') return;
+  const reason = document.createElement('p');
+  reason.className = 'text-sm text-text-muted';
+  reason.textContent = ctx.reason;
+  const retry = document.createElement('button');
+  retry.type = 'button';
+  retry.className = 'btn-secondary mt-3 min-h-11';
+  retry.textContent = 'Try again';
+  retry.addEventListener('click', ctx.rerun);
+  panel.append(reason, retry);
+}
+export const renderPanel: Record<Pillar, PanelRenderer> = {
+  speed: renderNotMeasured,
+  airead: renderNotMeasured,
+  risk: renderNotMeasured,
+};
+
+/** The latest run's raw results, for the renderers and for tests. */
+export const state: {
+  url: string;
+  lastPsi: PsiResults | null;
+  lastScan: ScanOutcome | null;
+  lastReport: ScanReport | null;
+} = { url: '', lastPsi: null, lastScan: null, lastReport: null };
+
+let controller: { rerun: (pillar: Pillar) => void } | null = null;
+/** Re-run one pillar's source: speed runs PageSpeed Insights, the others the scanner. */
+export function rerun(pillar: Pillar) {
+  controller?.rerun(pillar);
 }
 
 // Normalise what the visitor typed: a bare host gets https://, then it must
@@ -98,7 +167,7 @@ async function getJson<T>(url: string, timeoutMs: number, timeoutReason: string)
         typeof detail === 'string'
           ? detail
           : ((detail as { message?: string } | undefined)?.message ?? `HTTP ${res.status}`);
-      throw new RequestError(message, 'http');
+      throw new RequestError(message, 'http', res.status);
     }
     return body as T;
   } catch (err) {
@@ -155,13 +224,13 @@ export function init() {
   let running = false;
   let announcedFirst = false;
 
-  track('scan-ui', { variant: 'v2' });
-
   function announce(text: string) {
     live.textContent = text;
   }
 
-  function paintTile(pillar: Pillar, status: TileStatus, reason = '') {
+  // The tile value stays one line in every state, so a failing source never
+  // changes the tile's height; the reason goes in the panel.
+  function paintTile(pillar: Pillar, status: TileStatus) {
     statuses[pillar] = status;
     const tile = tiles.get(pillar)!;
     tile.dataset.state = status.state;
@@ -175,11 +244,23 @@ export function init() {
       bar.setAttribute('aria-hidden', 'true');
       value.replaceChildren(bar);
     } else {
-      value.textContent = status.value || reason;
-      if (!status.value && reason) value.style.fontWeight = '400';
-      else value.style.removeProperty('font-weight');
+      value.textContent = status.value || '—';
     }
     healthEl.textContent = healthLine(PILLARS.map((p) => statuses[p]));
+  }
+
+  // Paint the tile, then hand the panel to the pillar's renderer.
+  function settle(pillar: Pillar, status: TileStatus, reason = '') {
+    paintTile(pillar, status);
+    renderPanel[pillar](panels.get(pillar)!, {
+      pillar,
+      url: state.url,
+      status,
+      reason,
+      psi: state.lastPsi,
+      scan: state.lastScan,
+      rerun: () => rerun(pillar),
+    });
   }
 
   function setOpen(open: Pillar | null) {
@@ -214,42 +295,42 @@ export function init() {
       getJson<PsiBody>(psiUrl(url, 'desktop'), PSI_TIMEOUT_MS, PSI_TIMEOUT_REASON),
     ]);
     if (id !== runId) return;
-    const mobile = m.status === 'fulfilled' ? perfScore(m.value) : null;
-    const desktop = d.status === 'fulfilled' ? perfScore(d.value) : null;
+    const asError = (r: PromiseSettledResult<PsiBody>) =>
+      r.status === 'rejected' && r.reason instanceof RequestError ? r.reason : null;
+    state.lastPsi = {
+      mobile: m.status === 'fulfilled' ? m.value : null,
+      desktop: d.status === 'fulfilled' ? d.value : null,
+      errors: { mobile: asError(m), desktop: asError(d) },
+    };
+    const mobile = state.lastPsi.mobile ? perfScore(state.lastPsi.mobile) : null;
+    const desktop = state.lastPsi.desktop ? perfScore(state.lastPsi.desktop) : null;
     if (mobile !== null || desktop !== null) {
-      let hostname = '';
-      try {
-        hostname = new URL(url).hostname;
-      } catch {
-        /* url was validated */
-      }
       track('psi-analyze-result', {
         url,
-        hostname,
+        hostname: hostOf(url),
         mobile_score: mobile,
         desktop_score: desktop,
       });
     }
     const status = speedStatus(mobile, desktop);
     if (status.state === 'none') {
-      const failed = m.status === 'rejected' ? m : d.status === 'rejected' ? d : null;
-      const err = failed?.reason;
-      const reason =
-        err instanceof RequestError
-          ? err.kind === 'network'
-            ? 'Couldn’t reach PSI.'
-            : err.message
-          : 'No result.';
-      paintTile('speed', status, reason);
+      const err = state.lastPsi.errors.mobile ?? state.lastPsi.errors.desktop;
+      const reason = err
+        ? err.kind === 'network'
+          ? 'Couldn’t reach PSI.'
+          : err.message
+        : 'No result.';
+      settle('speed', status, reason);
       arrival(`Speed not measured. ${reason}`);
     } else {
-      paintTile('speed', status);
+      settle('speed', status);
       arrival(`Speed ready: ${status.word.toLowerCase()}. ${status.value}.`);
     }
   }
 
   async function runScan(id: number, url: string) {
-    let report: ScanBody['report'] | null = null;
+    let report: ScanReport | null = null;
+    let error: RequestError | null = null;
     let reason = '';
     try {
       const body = await getJson<ScanBody>(
@@ -260,12 +341,16 @@ export function init() {
       if (body.error) reason = body.error;
       else report = body.report ?? null;
     } catch (err) {
+      error = err instanceof RequestError ? err : null;
       reason =
-        err instanceof RequestError && err.kind !== 'network'
-          ? err.message
+        error && error.kind !== 'network'
+          ? error.message
           : 'Could not reach the scanner service. Check the URL and try again.';
     }
     if (id !== runId) return;
+    if (!report && !reason) reason = 'The scanner returned no result.';
+    state.lastReport = report;
+    state.lastScan = { report, error, reason: report ? '' : reason };
     if (report) {
       track('ai-scan', {
         domain: hostOf(url),
@@ -278,12 +363,11 @@ export function init() {
     }
     const ai = report ? aireadStatus(report) : NOT_MEASURED;
     const risk = report ? riskStatus(report) : NOT_MEASURED;
-    const why = reason || 'The scanner returned no result.';
-    paintTile('airead', ai, why);
-    paintTile('risk', risk, why);
+    settle('airead', ai, ai.state === 'none' ? reason : '');
+    settle('risk', risk, risk.state === 'none' ? reason : '');
     arrival(
       ai.state === 'none'
-        ? `AI readability not measured. ${why}`
+        ? `AI readability not measured. ${reason}`
         : `AI readability ready: grade ${report!.grade}, ${report!.score} of 100.`,
     );
   }
@@ -323,7 +407,14 @@ export function init() {
     setBusy(true);
     hostEl.textContent = hostOf(url);
     root!.hidden = false;
-    for (const p of PILLARS) paintTile(p, CHECKING);
+    state.url = url;
+    state.lastPsi = null;
+    state.lastScan = null;
+    state.lastReport = null;
+    for (const p of PILLARS) {
+      paintTile(p, CHECKING);
+      panels.get(p)!.replaceChildren();
+    }
     setOpen(null);
     track('psi-analyze-submit');
     const done = Promise.allSettled([runSpeed(id, url), runScan(id, url)]);
@@ -335,6 +426,18 @@ export function init() {
       block: 'start',
     });
   }
+
+  controller = {
+    rerun(pillar) {
+      if (!state.url) return;
+      const redo: Pillar[] = pillar === 'speed' ? ['speed'] : ['airead', 'risk'];
+      for (const p of redo) {
+        paintTile(p, CHECKING);
+        panels.get(p)!.replaceChildren();
+      }
+      void (pillar === 'speed' ? runSpeed(runId, state.url) : runScan(runId, state.url));
+    },
+  };
 
   form.addEventListener('submit', (ev) => {
     ev.preventDefault();

@@ -2,6 +2,7 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 
 import { test, expect, type Page } from '@playwright/test';
+import { stubUmami, trackedEvents } from './helpers/umami';
 
 // The shared scan interface ships behind a flag: v1 stays the default, `?ui=v2`
 // opts in (and sticks), `?ui=v1` opts out. These specs pin the flag, the
@@ -42,7 +43,14 @@ interface Calls {
 
 async function mockBackends(
   page: Page,
-  opts: { mobile?: number; desktop?: number; scanStatus?: number; delayMs?: number } = {},
+  opts: {
+    mobile?: number;
+    desktop?: number;
+    psiStatus?: number;
+    scanStatus?: number;
+    scanAbort?: boolean;
+    delayMs?: number;
+  } = {},
 ): Promise<Calls> {
   const calls: Calls = { mobile: 0, desktop: 0, scan: 0 };
   const delay = () => new Promise((r) => setTimeout(r, opts.delayMs ?? 0));
@@ -51,6 +59,14 @@ async function mockBackends(
     if (strategy === 'mobile') calls.mobile += 1;
     if (strategy === 'desktop') calls.desktop += 1;
     await delay();
+    if (opts.psiStatus && opts.psiStatus !== 200) {
+      await route.fulfill({
+        status: opts.psiStatus,
+        contentType: 'application/json',
+        body: JSON.stringify({ error: { message: 'PSI rate limit' } }),
+      });
+      return;
+    }
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -62,6 +78,10 @@ async function mockBackends(
   await page.route('**/ai-readability/api/scan**', async (route) => {
     calls.scan += 1;
     await delay();
+    if (opts.scanAbort) {
+      await route.abort();
+      return;
+    }
     const status = opts.scanStatus ?? 200;
     await route.fulfill({
       status,
@@ -181,7 +201,9 @@ test.describe('v2 shell tile states', () => {
     await expect(page.locator('[data-scan-live]')).not.toBeEmpty();
   });
 
-  test('a scanner error marks AI readability and Risk & SEO as not measured', async ({ page }) => {
+  test('a scanner error keeps the tile value to one line and explains in the panel', async ({
+    page,
+  }) => {
     await mockBackends(page, { scanStatus: 503 });
     await warm(page, '/ai-readability/?ui=v2');
     await page.fill('#scan-url', 'https://example.com');
@@ -191,8 +213,34 @@ test.describe('v2 shell tile states', () => {
       await expect(tile.locator('[data-scan-status]')).toHaveText('Not measured', {
         timeout: 15000,
       });
-      await expect(tile.locator('[data-scan-value]')).toHaveText('scanner unavailable');
+      await expect(tile.locator('[data-scan-value]')).toHaveText('—');
+      await tile.click();
+      const panel = page.locator(`#scan-panel-${p}`);
+      await expect(panel).toContainText('scanner unavailable');
+      await expect(panel.getByRole('button', { name: 'Try again' })).toBeVisible();
     }
+  });
+
+  test('Try again re-runs only the source behind that tile', async ({ page }) => {
+    const calls = await mockBackends(page, { scanStatus: 503 });
+    await warm(page, '/analyze/?ui=v2');
+    await page.fill('#scan-url', 'https://example.com');
+    await page.click('#scan-submit');
+    await expect(page.locator('[data-scan-tile="airead"] [data-scan-status]')).toHaveText(
+      'Not measured',
+      { timeout: 15000 },
+    );
+    await expect(page.locator('[data-scan-tile="speed"] [data-scan-status]')).toHaveText('Poor');
+    const before = { ...calls };
+    await page.locator('[data-scan-tile="airead"]').click();
+    await page.locator('#scan-panel-airead').getByRole('button', { name: 'Try again' }).click();
+    await expect(page.locator('[data-scan-tile="airead"] [data-scan-status]')).toHaveText(
+      'Not measured',
+    );
+    await page.waitForTimeout(300);
+    expect(calls.scan).toBe(before.scan + 1);
+    expect(calls.mobile).toBe(before.mobile);
+    expect(calls.desktop).toBe(before.desktop);
   });
 
   test('an invalid URL is rejected before any request', async ({ page }) => {
@@ -241,9 +289,68 @@ test.describe('v2 shell tile states', () => {
   });
 });
 
+test.describe('v2 shell details', () => {
+  test('tiles open and close with Enter and Space', async ({ page }) => {
+    await warm(page, '/analyze/?ui=v2');
+    await page.goto('/analyze/?ui=v2&fixture=full');
+    const speed = page.locator('[data-scan-tile="speed"]');
+    await expect(speed).toBeVisible();
+    await speed.focus();
+    await page.keyboard.press('Enter');
+    await expect(speed).toHaveAttribute('aria-expanded', 'true');
+    await page.keyboard.press('Space');
+    await expect(speed).toHaveAttribute('aria-expanded', 'false');
+    await page.keyboard.press('Space');
+    await expect(speed).toHaveAttribute('aria-expanded', 'true');
+  });
+
+  test('the panel region is named by the tile name', async ({ page }) => {
+    await warm(page, '/analyze/?ui=v2');
+    await page.goto('/analyze/?ui=v2&fixture=full');
+    await page.locator('[data-scan-tile="speed"]').click();
+    await expect(page.getByRole('region', { name: 'Speed', exact: true })).toBeVisible();
+  });
+
+  test('the Talk to us note starts empty', async ({ page }) => {
+    await page.goto('/analyze/?ui=v2');
+    await expect(page.locator('#scan-lead-note')).toHaveValue('');
+  });
+
+  for (const path of ['/analyze/', '/ai-readability/']) {
+    for (const ui of ['v1', 'v2']) {
+      test(`${path}?ui=${ui} has no duplicate ids`, async ({ page }) => {
+        await page.goto(`${path}?ui=${ui}`);
+        const dupes = await page.evaluate(() => {
+          const seen = new Map<string, number>();
+          for (const el of document.querySelectorAll('[id]')) {
+            seen.set(el.id, (seen.get(el.id) ?? 0) + 1);
+          }
+          return [...seen].filter(([, n]) => n > 1).map(([id]) => id);
+        });
+        expect(dupes).toEqual([]);
+      });
+
+      test(`${path}?ui=${ui} counts one scan-ui page view`, async ({ page }) => {
+        await stubUmami(page);
+        await page.goto(`${path}?ui=${ui}`);
+        await page.waitForLoadState('networkidle');
+        const events = (await trackedEvents(page)).filter((e) => e.name === 'scan-ui');
+        expect(events).toEqual([{ name: 'scan-ui', data: { variant: ui } }]);
+      });
+    }
+  }
+
+  test('/ai-readability/?url= under v1 makes no request of its own', async ({ page }) => {
+    const calls = await mockBackends(page);
+    await warm(page, '/ai-readability/?ui=v1');
+    await page.goto('/ai-readability/?ui=v1&url=https://example.com');
+    await page.waitForTimeout(800);
+    expect(calls).toEqual({ mobile: 0, desktop: 0, scan: 0 });
+  });
+});
+
 test.describe('v2 layout', () => {
   test('one tile column on a phone, three on a desktop, no horizontal scroll', async ({ page }) => {
-    await page.route('**/psi/v5/runPagespeed**', (r) => r.fulfill({ status: 200, body: '{}' }));
     await warm(page, '/analyze/?ui=v2');
     for (const [width, columns] of [
       [390, 1],
@@ -290,6 +397,54 @@ test.describe('v2 layout', () => {
       await expect(page.locator('[data-scan-tile="risk"] [data-scan-status]')).toHaveText(
         '1 flagged',
       );
+      await page.waitForTimeout(500);
+      const cls = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
+      expect(cls).toBeLessThanOrEqual(0.02);
+    });
+  }
+
+  test('/ai-readability/ results use the full tool width with a 16 px gutter on a phone', async ({
+    page,
+  }) => {
+    await warm(page, '/ai-readability/?ui=v2');
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto('/ai-readability/?ui=v2&fixture=full');
+    await expect(page.locator('[data-scan-results]')).toBeVisible();
+    const tile = await page.locator('[data-scan-tile="speed"]').boundingBox();
+    expect(Math.round(tile!.x)).toBe(16);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto('/ai-readability/?ui=v2&fixture=full');
+    await expect(page.locator('[data-scan-results]')).toBeVisible();
+    const grid = await page.locator('[data-scan-tiles]').boundingBox();
+    expect(grid!.width).toBeGreaterThan(900);
+  });
+
+  for (const path of ['/analyze/', '/ai-readability/']) {
+    test(`${path}: the error path shifts the layout by at most 0.02 at 390 px`, async ({
+      page,
+    }) => {
+      await page.addInitScript(() => {
+        const w = window as unknown as { __cls: number };
+        w.__cls = 0;
+        new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) {
+            const shift = entry as PerformanceEntry & { hadRecentInput?: boolean; value?: number };
+            if (!shift.hadRecentInput) w.__cls += shift.value ?? 0;
+          }
+        }).observe({ type: 'layout-shift', buffered: true });
+      });
+      await page.setViewportSize({ width: 390, height: 844 });
+      await mockBackends(page, { psiStatus: 429, scanAbort: true, delayMs: 1500 });
+      await warm(page, `${path}?ui=v2`);
+      await page.goto(`${path}?ui=v2`);
+      await page.fill('#scan-url', 'https://example.com');
+      await page.click('#scan-submit');
+      for (const p of ['speed', 'airead', 'risk']) {
+        await expect(page.locator(`[data-scan-tile="${p}"] [data-scan-status]`)).toHaveText(
+          'Not measured',
+          { timeout: 15000 },
+        );
+      }
       await page.waitForTimeout(500);
       const cls = await page.evaluate(() => (window as unknown as { __cls: number }).__cls);
       expect(cls).toBeLessThanOrEqual(0.02);

@@ -61,7 +61,7 @@ const pillars = [
             aria-label={`Show ${p.name} details`}
             aria-describedby={`${idPrefix}-status-${p.id} ${idPrefix}-value-${p.id}`}
           >
-            <span class="scan-tile-name" aria-hidden="true">
+            <span id={`${idPrefix}-name-${p.id}`} class="scan-tile-name" aria-hidden="true">
               {p.name}
             </span>
             <span
@@ -79,7 +79,7 @@ const pillars = [
             id={`${idPrefix}-panel-${p.id}`}
             class="scan-panel"
             role="region"
-            aria-labelledby={`${idPrefix}-tile-${p.id}`}
+            aria-labelledby={`${idPrefix}-name-${p.id}`}
             data-scan-panel={p.id}
             hidden
           />
@@ -138,8 +138,9 @@ const pillars = [
       rows="3"
       maxlength="1000"
       class="mt-1 w-full rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-elevated focus:border-interactive focus:ring-2 focus:ring-interactive sm:text-sm"
-    >
-    </textarea>
+      set:text=""
+    />
+
     <button type="submit" class="btn-primary mt-4 min-h-11">Talk to us</button>
     <p id={`${idPrefix}-lead-msg`} role="status" aria-live="polite" class="mt-2 text-sm"></p>
   </form>
@@ -163,9 +164,18 @@ const pillars = [
 </section>
 
 <script>
-  // Load the scan controller only when the v2 interface is active, so the
-  // default interface pays for nothing but this check.
-  if (document.documentElement.dataset.scanUi === 'v2') {
+  // Count one page view per variant so the two interfaces can be compared,
+  // then load the scan controller only when v2 is active: the default
+  // interface pays for nothing but this check.
+  const ui = document.documentElement.dataset.scanUi === 'v2' ? 'v2' : 'v1';
+  try {
+    (
+      window as unknown as { umami?: { track: (name: string, data?: unknown) => void } }
+    ).umami?.track('scan-ui', { variant: ui });
+  } catch {
+    /* analytics must never break the page */
+  }
+  if (ui === 'v2') {
     void import('../../scripts/scan/app').then((m) => m.init());
   }
 </script>

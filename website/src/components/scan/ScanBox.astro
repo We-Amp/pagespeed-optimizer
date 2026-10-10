@@ -17,7 +17,7 @@ const { idPrefix = 'scan', surface } = Astro.props;
 
 <form
   id={`${idPrefix}-form`}
-  class="mt-10 mx-auto max-w-2xl text-left"
+  class:list={['mt-10 max-w-2xl text-left', surface === 'analyze' && 'mx-auto']}
   novalidate
   autocomplete="off"
   data-scan-box
