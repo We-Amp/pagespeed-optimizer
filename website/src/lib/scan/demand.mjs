@@ -3,7 +3,7 @@
 //
 // Gate predicates and lead-payload builder for the scanner results. Pure
 // functions: data in, value out. This is a copy of the scanner's own
-// demand module with the comments removed and the layout reformatted (prettier); keep it in sync with the scanner
+// demand module with the comments removed; keep it in sync with the scanner
 // and with the inline copy in src/pages/ai-readability/index.astro.
 
 export function tollboothCtaApplies(agentVerifiability) {

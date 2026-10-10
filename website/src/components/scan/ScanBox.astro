@@ -1,0 +1,72 @@
+---
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2024-2026 We-Amp B.V.
+//
+// The shared scan box: one URL field, one submit button, one combined note.
+// Identical on /analyze/ and /ai-readability/; `surface` only selects which
+// page it sits on (for event names), never any copy. Rendered inside the
+// variant-v2 wrapper of each page.
+
+interface Props {
+  idPrefix?: string;
+  surface: 'analyze' | 'airead';
+}
+
+const { idPrefix = 'scan', surface } = Astro.props;
+
+// One string so the formatter cannot split the link from its full stop.
+const privacyLink =
+  '<a href="/privacy/" class="text-interactive hover:text-interactive-hover underline">Privacy policy</a>.';
+---
+
+<form
+  id={`${idPrefix}-form`}
+  class:list={['mt-10 max-w-2xl text-left', surface === 'analyze' && 'mx-auto']}
+  novalidate
+  autocomplete="off"
+  data-scan-box
+  data-scan-surface={surface}
+  aria-describedby={`${idPrefix}-form-error`}
+>
+  <label for={`${idPrefix}-url`} class="block text-sm font-medium text-text-body">
+    Page URL
+  </label>
+  <div class="mt-2 flex flex-col sm:flex-row gap-3">
+    <input
+      id={`${idPrefix}-url`}
+      name="url"
+      type="url"
+      inputmode="url"
+      autocomplete="url"
+      spellcheck="false"
+      autocapitalize="off"
+      placeholder="https://example.com"
+      aria-invalid="false"
+      aria-describedby={`${idPrefix}-form-error`}
+      class="flex-1 min-h-11 rounded-md border border-control-border px-4 py-3 text-text-body bg-bg-elevated focus:border-interactive focus:ring-2 focus:ring-interactive aria-[invalid=true]:border-accent aria-[invalid=true]:ring-1 aria-[invalid=true]:ring-accent sm:text-sm"
+    />
+    <button
+      id={`${idPrefix}-submit`}
+      type="submit"
+      class="btn-primary min-h-11 whitespace-nowrap aria-disabled:opacity-50 aria-disabled:cursor-wait"
+    >
+      <span data-scan-submit-label>Check page</span>
+    </button>
+  </div>
+  <p id={`${idPrefix}-form-error`} role="alert" class="mt-2 hidden text-sm text-accent"></p>
+  <p class="mt-3 text-sm text-text-annotation">
+    Free &middot; no signup &middot; one page at a time &middot; about 20 seconds.
+  </p>
+  <p class="mt-3 text-xs text-text-annotation leading-relaxed">
+    Only check sites you own or are authorized to test. The URL goes to Google's PageSpeed Insights
+    API (in the US) through a proxy on this site, and our scanner loads the page once in a headless
+    browser. Scanned content is used only for this result. Your IP address is logged and
+    rate-limited to prevent abuse. See our
+    <span set:html={privacyLink} />
+  </p>
+  <p class="mt-3 text-xs text-text-annotation leading-relaxed">
+    This tool calls Google's public PageSpeed Insights API. mod_pagespeed 2.1 is built by We-Amp
+    B.V. and is not affiliated with or endorsed by Google. PageSpeed Insights is a trademark of
+    Google LLC.
+  </p>
+</form>
