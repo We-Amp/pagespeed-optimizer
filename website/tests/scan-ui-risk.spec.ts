@@ -124,6 +124,39 @@ test.describe('Risk & SEO panel', () => {
     }
   });
 
+  test('desktop: the secondary text is plain paragraphs, no disclosure', async ({ page }) => {
+    await mock(page, fixture('full'));
+    const panel = await scan(page);
+    await expect(panel.locator('details')).toHaveCount(0);
+    await expect(panel.locator('[data-risk-building]').first()).toBeVisible();
+  });
+
+  test('mobile: each row with secondary text has one closed disclosure', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mock(page, fixture('full'));
+    const panel = await scan(page);
+    const details = panel.locator('details');
+    const withText = panel.locator('[data-risk-row]:has([data-risk-building])');
+    const rows = await withText.count();
+    expect(rows).toBeGreaterThan(0);
+    await expect(details).toHaveCount(rows);
+    await expect(details.locator('summary')).toHaveText(Array(rows).fill('What we are building'));
+    for (let i = 0; i < rows; i++) {
+      await expect(details.nth(i)).not.toHaveAttribute('open', /.*/);
+      await expect(details.nth(i).locator('[data-risk-building]').first()).toBeHidden();
+    }
+    // The verdict and the Flagged line stay visible, and the link stays outside.
+    await expect(panel.locator('[data-risk-sentence]').first()).toBeVisible();
+    await expect(row(panel, 'scriptInventory').locator('[data-risk-detail]')).toBeVisible();
+    await expect(row(panel, 'seoDefects').locator('a')).toBeVisible();
+    // Two paragraphs on the script-inventory row share one disclosure.
+    await expect(row(panel, 'scriptInventory').locator('details [data-risk-building]')).toHaveCount(
+      2,
+    );
+    await details.nth(0).locator('summary').click();
+    await expect(details.nth(0).locator('[data-risk-building]').first()).toBeVisible();
+  });
+
   test('clean: four clean rows with no gated sentence and no link', async ({ page }) => {
     await mock(page, fixture('clean'));
     const panel = await scan(page);

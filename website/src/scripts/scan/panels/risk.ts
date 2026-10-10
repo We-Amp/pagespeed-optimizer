@@ -54,10 +54,24 @@ function rowNode(row: RiskRow): HTMLElement {
     d.dataset.riskDetail = '';
     li.append(d);
   }
+  // On a phone the secondary text sits behind one disclosure per row, closed by
+  // default; the panel is hidden when this runs, so it cannot shift the page.
+  const narrow = row.building.length > 0 && matchMedia('(max-width: 639px)').matches;
+  const holder = narrow ? el('details', 'scan-risk-more') : li;
+  if (narrow) {
+    holder.append(
+      el(
+        'summary',
+        'flex min-h-11 cursor-pointer items-center text-sm font-medium text-interactive',
+        'What we are building',
+      ),
+    );
+    li.append(holder);
+  }
   for (const text of row.building) {
     const p = el('p', 'mt-2 text-sm text-text-muted', text);
     p.dataset.riskBuilding = '';
-    li.append(p);
+    holder.append(p);
   }
   if (row.link) {
     const a = el(
