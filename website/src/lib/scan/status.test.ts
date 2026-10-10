@@ -115,11 +115,14 @@ describe('healthLine', () => {
   });
   it('summarises attention among measured areas', () => {
     expect(healthLine([good, good, good])).toBe('None of the 3 areas checked needs attention.');
-    expect(healthLine([poor, good, NOT_MEASURED])).toBe('1 of 2 areas needs attention');
+    expect(healthLine([poor, good, NOT_MEASURED])).toBe('1 of 2 areas checked needs attention.');
     expect(healthLine([poor, NOT_MEASURED, NOT_MEASURED])).toBe(
       'The one area checked needs attention.',
     );
-    expect(healthLine([poor, poor, good])).toBe('2 of 3 areas need attention');
+    expect(healthLine([poor, poor, good])).toBe('2 of 3 areas checked need attention.');
+    expect(healthLine([poor, poor, NOT_MEASURED])).toBe('2 of 2 areas checked need attention.');
+    expect(healthLine([poor, good, good])).toBe('1 of 3 areas checked needs attention.');
+    expect(healthLine([poor, poor, poor])).toBe('3 of 3 areas checked need attention.');
     expect(healthLine([NOT_MEASURED, NOT_MEASURED, NOT_MEASURED])).toBe(
       'We could not check this page.',
     );

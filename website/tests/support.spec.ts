@@ -49,7 +49,9 @@ test.describe('Support page', () => {
   test('custom builds are a quoted Enterprise option, never included', async ({ page }) => {
     const option = page.locator('[data-enterprise-option]');
     await expect(option).toContainText('available on request and quoted per project');
-    await expect(page.locator('#tiers [data-tier="enterprise"]')).not.toContainText('build targets');
+    await expect(page.locator('#tiers [data-tier="enterprise"]')).not.toContainText(
+      'build targets',
+    );
   });
 
   test('signed artifacts say only what ships today', async ({ page }) => {
@@ -127,7 +129,9 @@ test.describe('Support page', () => {
   });
 
   test('consulting hands off to we-amp.com', async ({ page }) => {
-    await expect(page.locator('#consulting a[href="https://we-amp.com/consulting/"]')).toBeVisible();
+    await expect(
+      page.locator('#consulting a[href="https://we-amp.com/consulting/"]'),
+    ).toBeVisible();
     await expect(page.locator('#consulting')).toContainText('fixed-price');
   });
 });

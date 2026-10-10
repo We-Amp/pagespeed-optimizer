@@ -106,6 +106,11 @@ test.describe('Risk & SEO panel', () => {
     await expect(row(panel, 'scriptInventory').locator('[data-risk-sentence]')).toContainText(
       'Some scripts on this page need attention.',
     );
+    const detail = panel.locator('[data-risk-detail]');
+    await expect(detail).toHaveCount(1);
+    await expect(row(panel, 'scriptInventory').locator('[data-risk-detail]')).toHaveText(
+      /^Flagged: /,
+    );
     const links = {
       preConsentLeak: ['/platform/consent/', 'airead-cta-consent'],
       scriptInventory: ['/platform/', 'airead-cta-page-integrity'],
@@ -128,6 +133,7 @@ test.describe('Risk & SEO panel', () => {
     await expect(panel.locator('.scan-risk-chip')).toHaveText(['Clean', 'Clean', 'Clean', 'Clean']);
     await expect(panel.locator('a')).toHaveCount(0);
     await expect(panel.locator('[data-risk-building]')).toHaveCount(0);
+    await expect(panel.locator('[data-risk-detail]')).toHaveCount(0);
   });
 
   test('blocked and error lenses are muted not-measured rows, k shrinks', async ({ page }) => {
