@@ -190,6 +190,34 @@ fx="$tmp/no-webserver"
 mkdir -p "$fx/etc"
 check "no web-server configuration stays silent" "clean" "$(stale "$fx")"
 
+# A failing `systemctl daemon-reload` must not abort configuration: run
+# the shipped systemd block (deb under set -e, rpm %post) with a fake
+# systemctl whose daemon-reload exits 1, and require the later steps ran.
+fake="$tmp/fakebin"
+mkdir -p "$fake"
+cat > "$fake/systemctl" <<'SH'
+#!/bin/sh
+echo "$*" >> "$SYSTEMCTL_LOG"
+[ "$1" = daemon-reload ] && exit 1
+exit 0
+SH
+chmod +x "$fake/systemctl"
+reload_case() { # label script-text -> logs the calls, checks restart ran
+  local body
+  body="$(printf '%s\n' "$2" \
+    | sed -n '/^if \[ -d \/run\/systemd\/system \]; then$/,/^fi$/p' \
+    | sed "s#/run/systemd/system#$tmp#; s/\$PKG/pagespeed-optimizer/g")"
+  printf '#!/bin/sh\nset -e\n%s\necho done\n' "$body" > "$tmp/systemd-block.sh"
+  : > "$tmp/systemctl.log"
+  out="$(SYSTEMCTL_LOG="$tmp/systemctl.log" PATH="$fake:$PATH" \
+    sh "$tmp/systemd-block.sh" configure 2>&1)" || out="aborted"
+  check "$1: failing daemon-reload does not abort" "done" "$(tail -n 1 <<<"$out")"
+  check "$1: restart still runs after failing daemon-reload" "1" \
+    "$(grep -c '^restart pagespeed-optimizer.service$' "$tmp/systemctl.log" || true)"
+}
+reload_case "deb postinst" "$deb_postinst"
+reload_case "rpm %post" "$rpm_post"
+
 if [[ "$fails" -gt 0 ]]; then
   echo "test-postinst-stale-config: $fails FAILURE(S)" >&2
   exit 1

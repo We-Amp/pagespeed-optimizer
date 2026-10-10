@@ -4,6 +4,10 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Fixed: the Debian package no longer aborts configuration when
+`systemctl daemon-reload` fails during install or upgrade; the RPM scriptlet
+is guarded the same way for consistency.
+
 Fixed: after a file changed on the origin, mod_pagespeed with
 `DaemonServeStoredEncodings on` could keep sending the previous version of an
 SVG image to clients that accept gzip or brotli, while other clients already
