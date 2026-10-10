@@ -38,7 +38,7 @@ const errorBody = (status: number, message: string): Reply => ({
   body: JSON.stringify({ error: { code: status, message } }),
 });
 
-async function mock(page: Page, mocks: Mocks): Promise<Calls> {
+async function mock(page: Page, mocks: Mocks, scanDelayMs = 0): Promise<Calls> {
   const calls: Calls = { mobile: 0, desktop: 0, scan: 0 };
   await page.route('**/psi/v5/runPagespeed**', async (route) => {
     const strategy = new URL(route.request().url()).searchParams.get('strategy') as
@@ -56,6 +56,7 @@ async function mock(page: Page, mocks: Mocks): Promise<Calls> {
   });
   await page.route('**/ai-readability/api/scan**', async (route) => {
     calls.scan += 1;
+    if (scanDelayMs) await new Promise((r) => setTimeout(r, scanDelayMs));
     await route.fulfill({ status: 200, contentType: 'application/json', body: SCAN_OK });
   });
   return calls;
@@ -270,6 +271,7 @@ test.describe('v2 Speed panel', () => {
     await openSpeed(page);
     await expect(panel(page)).toContainText('Couldn’t reach PSI.');
     await expect(panel(page)).toContainText('PageSpeed Insights did not answer within a minute.');
+    await expect(panel(page)).not.toContainText('Check your network');
   });
 
   test('one strategy failing shows what returned and marks the other', async ({ page }) => {
@@ -306,6 +308,45 @@ test.describe('v2 Speed panel', () => {
     const visible = await page.locator('body').innerText();
     expect(visible).not.toContain('psi-mps-mapping');
     expect(visible).not.toContain('/_astro/');
+  });
+
+  test('a late chunk failure never counts toward the health line or the live region', async ({
+    page,
+  }) => {
+    const calls = await mock(page, { mobile: ok(PSI_MOBILE), desktop: ok(PSI_DESKTOP) }, 2500);
+    await page.route('**/psi-mps-mapping*', (route) => route.abort());
+    await warm(page);
+    await page.addInitScript(() => {
+      const seen: string[] = [];
+      Object.defineProperty(window, '__live', { value: seen });
+      document.addEventListener('DOMContentLoaded', () => {
+        const live = document.querySelector('[data-scan-live]')!;
+        new MutationObserver(() => seen.push(live.textContent ?? '')).observe(live, {
+          childList: true,
+          characterData: true,
+          subtree: true,
+        });
+      });
+    });
+    await scan(page);
+    await expect(tile(page)).toHaveAttribute('data-state', 'none', { timeout: 15000 });
+    await expect(page.locator('[data-scan-health]')).toContainText('Checking 2 of 3 areas');
+    await expect(page.locator('[data-scan-tile="airead"]')).toHaveAttribute('data-state', 'good', {
+      timeout: 15000,
+    });
+    await expect(page.locator('[data-scan-health]')).toHaveText('Nothing here needs attention');
+    const seen = await page.evaluate(() => (window as unknown as { __live: string[] }).__live);
+    expect(seen.join(' | ')).toContain('Speed not measured');
+    expect(seen.join(' | ')).not.toContain('Speed ready');
+
+    // A second run does not spend PSI calls: only a reload recovers.
+    const before = calls.mobile + calls.desktop;
+    await page.locator('form[data-scan-box] button[type="submit"]').click();
+    await expect(tile(page)).toHaveAttribute('data-state', 'none');
+    await expect(page.locator('[data-scan-tile="airead"]')).toHaveAttribute('data-state', 'good', {
+      timeout: 15000,
+    });
+    expect(calls.mobile + calls.desktop).toBe(before);
   });
 
   test('Try again re-runs only PageSpeed Insights', async ({ page }) => {

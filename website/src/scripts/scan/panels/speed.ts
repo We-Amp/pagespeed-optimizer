@@ -29,7 +29,7 @@ import {
   type Edition,
   type PsiResult,
 } from '../../../lib/scan/psi';
-import { healthLine, type TileState, type TileStatus } from '../../../lib/scan/status';
+import { NOT_MEASURED } from '../../../lib/scan/status';
 import type { PanelContext, RequestError } from '../app';
 
 const TOP_N = 5;
@@ -97,7 +97,7 @@ function plate(label: string, score: number | null, err: RequestError | null): H
   chip.dataset.speedBucket = '';
   box.appendChild(chip);
   if (score === null && err) {
-    box.appendChild(el('p', 'mt-2 text-xs text-text-muted', classifyError(err).title));
+    box.appendChild(el('p', 'mt-2 text-xs text-text-muted', describe(err).title));
   }
   return box;
 }
@@ -113,7 +113,7 @@ function savingsText(item: AggregatedAudit): string {
 // the worker the page is the transform the filter belongs to.
 function filterCode(name: string, edition: Edition): HTMLButtonElement {
   const chip = button(
-    'inline-flex items-center rounded-md border border-border-strong bg-bg-secondary px-2 py-1 text-xs font-mono text-text-body hover:bg-bg-elevated transition-colors min-h-11 sm:min-h-0',
+    'inline-flex items-center rounded px-1 py-1 text-left text-xs font-mono text-interactive underline-offset-2 hover:underline min-h-11 sm:min-h-0 [overflow-wrap:anywhere]',
     name,
   );
   chip.setAttribute('data-umami-event', 'psi-result-filter-click');
@@ -257,30 +257,17 @@ function retry(ctx: PanelContext): HTMLButtonElement {
   return b;
 }
 
-// The tile was painted from the scores before the mapping table loaded; if
-// the table cannot load, take the tile back to "Not measured" and refresh the
-// health line from the tiles as they now stand.
-function markTileNotMeasured(panel: HTMLElement) {
-  const root = panel.closest<HTMLElement>('[data-scan-results]');
-  const tile = root?.querySelector<HTMLElement>('[data-scan-tile="speed"]');
-  if (!root || !tile) return;
-  tile.dataset.state = 'none';
-  const word = tile.querySelector<HTMLElement>('[data-scan-status]');
-  if (word) {
-    word.textContent = 'Not measured';
-    word.className = 'scan-tile-status badge-neutral';
-  }
-  const value = tile.querySelector<HTMLElement>('[data-scan-value]');
-  if (value) value.textContent = '—';
-  const statuses = [...root.querySelectorAll<HTMLElement>('[data-scan-tile]')].map(
-    (t): TileStatus => ({
-      state: (t.dataset.state ?? 'checking') as TileState,
-      word: '',
-      value: '',
-    }),
-  );
-  const health = root.querySelector<HTMLElement>('[data-scan-health]');
-  if (health) health.textContent = healthLine(statuses);
+// A timeout already says what happened; the network advice would be wrong.
+function describe(err: RequestError): { title: string; body: string } {
+  if (err.kind === 'timeout') return { title: 'Couldn’t reach PSI.', body: err.message };
+  return classifyError(err);
+}
+
+function reloadProblem(): HTMLElement {
+  const reload = button('btn-secondary mt-3 min-h-11', 'Reload the page');
+  reload.addEventListener('click', () => location.reload());
+  const { title, body } = classifyError(reloadError());
+  return problem(title, body, reload);
 }
 
 export function renderSpeedPanel(panel: HTMLElement, ctx: PanelContext) {
@@ -291,12 +278,12 @@ export function renderSpeedPanel(panel: HTMLElement, ctx: PanelContext) {
   // Nothing came back from PSI: the title and body of the first error.
   if (ctx.status.state === 'none') {
     const err = ctx.psi?.errors.mobile ?? ctx.psi?.errors.desktop ?? null;
-    const { title, body } = err
-      ? classifyError(err)
-      : {
-          title: 'Couldn’t reach PSI.',
-          body: `${ctx.reason} Check your network connection and try again.`,
-        };
+    if (!err) {
+      // No PSI error: the mapping table could not load, so only a reload helps.
+      panel.appendChild(reloadProblem());
+      return;
+    }
+    const { title, body } = describe(err);
     panel.appendChild(problem(title, body, retry(ctx)));
     return;
   }
@@ -326,9 +313,6 @@ export function renderSpeedPanel(panel: HTMLElement, ctx: PanelContext) {
   panel.appendChild(rest);
 
   const partial = !mobile || !desktop;
-  const showProblem = (title: string, body: string, action: HTMLElement) => {
-    rest.replaceChildren(problem(title, body, action));
-  };
 
   const table = isMappingFailed() ? Promise.reject(new Error('chunk')) : loadMapping();
   void table.then(
@@ -348,11 +332,8 @@ export function renderSpeedPanel(panel: HTMLElement, ctx: PanelContext) {
     () => {
       if (tokens.get(panel) !== token) return;
       markMappingFailed();
-      markTileNotMeasured(panel);
-      const reload = button('btn-secondary mt-3 min-h-11', 'Reload the page');
-      reload.addEventListener('click', () => location.reload());
-      const { title, body } = classifyError(reloadError());
-      showProblem(title, body, reload);
+      ctx.setStatus(NOT_MEASURED, classifyError(reloadError()).title);
+      panel.replaceChildren(reloadProblem());
     },
   );
 }
@@ -381,7 +362,7 @@ function drawResults(
     const note = el(
       'p',
       'mb-3 text-sm text-text-muted',
-      `${missing} not measured${err ? `: ${classifyError(err).title}` : '.'} The results below come from the other profile.`,
+      `${missing} not measured${err ? `: ${describe(err).title}` : '.'} The results below come from the other profile.`,
     );
     note.dataset.speedPartial = '';
     const again = retry(ctx);
@@ -405,6 +386,7 @@ function drawResults(
       el('h3', 'mt-6 text-base font-semibold text-text-body', 'Fixes on your server'),
     );
     const list = el('ul', 'mt-1 divide-y divide-border');
+    list.id = 'scan-speed-fixes';
     const shown = view.showAll ? fixable : fixable.slice(0, TOP_N);
     for (const item of shown) list.appendChild(fixRow(item, view.edition));
     rest.appendChild(list);
@@ -412,13 +394,12 @@ function drawResults(
       const more = disclosure(
         view.showAll ? 'Show fewer' : `Show all ${fixable.length}`,
         view.showAll,
-        '',
+        'scan-speed-fixes',
         () => {
           view.showAll = !view.showAll;
           redraw('all');
         },
       );
-      more.removeAttribute('aria-controls');
       more.classList.add('mt-3');
       more.dataset.speedFocus = 'all';
       rest.appendChild(more);

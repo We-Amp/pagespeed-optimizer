@@ -13,8 +13,7 @@ export type { AuditMapping, Coverage, Edition };
 
 // The audit→filter mapping table is only needed once a run completes, so
 // it is split out of the page's initial bundle and imported on the first
-// submit. render() only runs after loadMapping() has resolved (directly
-// from runAnalysis, or from an edition toggle after a completed run).
+// submit. Callers draw results only after loadMapping() has resolved.
 let mappingCache: AuditMapping[] | null = null;
 // Set when the mapping chunk failed to load (typically deploy skew: a
 // deploy replaced the _astro/ hashes after the page was loaded). Once
@@ -75,7 +74,7 @@ export const CONFIG_DESC: Record<Edition, string> = {
 // The slug values below must match the per-transform anchors in
 // worker-configuration.md. Named filters with no
 // worker equivalent (e.g. animated WebP) are intentionally absent and
-// fall back to the named-filter reference; see the click handler below.
+// fall back to the named-filter reference.
 export const FILTER_TO_2_0_ANCHOR: Record<string, string> = {
   // image pipeline — every image-touching filter collapses into one transform
   rewrite_images: 'image-pipeline',
