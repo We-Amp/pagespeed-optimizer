@@ -15,6 +15,7 @@ import {
   speedStatus,
   type TileStatus,
 } from '../../lib/scan/status';
+import { renderRisk } from './panels/risk';
 
 type Pillar = 'speed' | 'airead' | 'risk';
 type Strategy = 'mobile' | 'desktop';
@@ -112,6 +113,7 @@ export const renderPanel: Record<Pillar, PanelRenderer> = {
   airead: renderNotMeasured,
   risk: renderNotMeasured,
 };
+renderPanel.risk = renderRisk;
 
 /** The latest run's raw results, for the renderers and for tests. */
 export const state: {

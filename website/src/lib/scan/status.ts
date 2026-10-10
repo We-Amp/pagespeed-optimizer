@@ -58,15 +58,25 @@ export const RISK_LENSES = [
   { key: 'responseExposure', flagged: 'attention' },
 ] as const;
 
+interface LensLike {
+  status?: string;
+  verdict?: string;
+}
+
+/** A lens counts toward k only when it ran (status ok) and reached a verdict. */
+export function lensMeasured(v: LensLike | null | undefined): boolean {
+  return !!v && v.status === 'ok' && typeof v.verdict === 'string' && v.verdict !== 'unknown';
+}
+
 export function riskStatus(report: ReportLike | null | undefined): TileStatus {
   if (!report) return NOT_MEASURED;
   let k = 0;
   let n = 0;
   for (const lens of RISK_LENSES) {
-    const v = report[lens.key] as { status?: string; verdict?: string } | undefined;
-    if (!v || v.status !== 'ok' || v.verdict === 'unknown') continue;
+    const v = report[lens.key] as LensLike | null | undefined;
+    if (!lensMeasured(v)) continue;
     k += 1;
-    if (v.verdict === lens.flagged) n += 1;
+    if (v!.verdict === lens.flagged) n += 1;
   }
   if (k === 0) return NOT_MEASURED;
   return {
