@@ -26,6 +26,7 @@ import {
   markMappingFailed,
   reloadError,
 } from '../../lib/scan/psi';
+import { scanErrorCopy } from '../../lib/scan/scan-errors';
 import { renderSpeedPanel } from './panels/speed';
 
 type Pillar = 'speed' | 'airead' | 'risk';
@@ -393,7 +394,7 @@ export function init() {
         SCAN_TIMEOUT_MS,
         SCAN_TIMEOUT_REASON,
       );
-      if (body.error) reason = body.error;
+      if (body.error) reason = scanErrorCopy(body.error);
       else {
         report = body.report ?? null;
         permalink = typeof body.permalink === 'string' ? body.permalink : undefined;
@@ -406,7 +407,9 @@ export function init() {
       }
       reason =
         error && error.kind !== 'network'
-          ? error.message
+          ? error.kind === 'http'
+            ? scanErrorCopy(error.message)
+            : error.message
           : 'Could not reach the scanner service. Check the URL and try again.';
     }
     if (id !== runId) return;

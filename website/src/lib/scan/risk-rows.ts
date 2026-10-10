@@ -14,6 +14,7 @@ import {
   responseFirewallCtaApplies,
   thirdPartyFreezeCtaApplies,
 } from './demand.mjs';
+import { plural } from './plural';
 import { RISK_LENSES, lensMeasured } from './status';
 
 export type RowState = 'attention' | 'clean' | 'none';
@@ -65,8 +66,8 @@ function pclVerdict(pcl: Lens): string {
   }
   const vendor = pcl.cmpDetected && pcl.cmpDetected.detected ? pcl.cmpDetected.vendor : null;
   return (
-    pcl.trackerCount +
-    ' tracker host(s) contacted before any interaction, in a fresh browser with no consent given.' +
+    plural(pcl.trackerCount, 'tracker host') +
+    ' contacted before any interaction, in a fresh browser with no consent given.' +
     (vendor
       ? ' A consent banner (' +
         vendor +
@@ -150,8 +151,8 @@ function sdVerdict(sd: Lens): string {
   }
   const counts = sd.counts || {};
   return (
-    (counts.total ?? 0) +
-    ' issue(s): ' +
+    plural(counts.total ?? 0, 'issue') +
+    ': ' +
     sdFiredGroups(sd)
       .map((g) => g[1] + ' ' + counts[g[0]])
       .join(', ') +
@@ -206,10 +207,10 @@ function rxVerdict(rx: Lens): string {
     .map((m: string) => MISSING_HEADER[m] || m)
     .join(', ');
   return (
-    leaks +
-    ' error-output pattern(s) · ' +
-    tells +
-    ' version tell(s) · end of life: ' +
+    plural(leaks, 'error-output pattern') +
+    ' · ' +
+    plural(tells, 'version tell') +
+    ' · end of life: ' +
     (eol.length ? eol.join(', ') : 'none seen') +
     ' · missing: ' +
     (missing || 'none') +
@@ -267,8 +268,13 @@ function buildingFor(
       if (thirdPartyFreezeCtaApplies(lens)) {
         const unpinned = lens.totals.thirdPartyExternal - lens.totals.thirdPartyWithIntegrity;
         building.push(
-          unpinned +
-            ' third-party script(s) on this page load without an integrity hash, so their content can change upstream without notice. We are building a way to serve each one at a version you approved until you accept the update.',
+          plural(unpinned, 'third-party script') +
+            (unpinned === 1
+              ? ' on this page loads without an integrity hash, so its content can change upstream without notice.'
+              : ' on this page load without an integrity hash, so their content can change upstream without notice.') +
+            (unpinned === 1
+              ? ' We are building a way to serve it at a version you approved until you accept the update.'
+              : ' We are building a way to serve each one at a version you approved until you accept the update.'),
         );
       }
       return building.length

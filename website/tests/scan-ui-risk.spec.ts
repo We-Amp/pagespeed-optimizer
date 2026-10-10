@@ -93,7 +93,7 @@ test.describe('Risk & SEO panel', () => {
       'With consent enforcement at the origin, third-party tags stay inert at the server until the consent cookie grants them.',
     );
     await expect(row(panel, 'seoDefects').locator('[data-risk-sentence]')).toContainText(
-      '3 issue(s): canonical 1, title 1, structured data 1.',
+      '3 issues: canonical 1, title 1, structured data 1.',
     );
     await expect(row(panel, 'responseExposure').locator('[data-risk-building]')).toContainText(
       'A response-firewall pack for mod_pagespeed 2.1 is planned.',
@@ -122,6 +122,45 @@ test.describe('Risk & SEO panel', () => {
       await expect(a).toHaveAttribute('href', href);
       await expect(a).toHaveAttribute('data-umami-event', event);
     }
+  });
+
+  test('desktop: the secondary text is plain paragraphs, no disclosure', async ({ page }) => {
+    await mock(page, fixture('full'));
+    const panel = await scan(page);
+    await expect(panel.locator('details')).toHaveCount(0);
+    await expect(panel.locator('[data-risk-building]').first()).toBeVisible();
+  });
+
+  test('mobile: each row with secondary text has one closed disclosure', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await mock(page, fixture('full'));
+    const panel = await scan(page);
+    const details = panel.locator('details');
+    const withText = panel.locator('[data-risk-row]:has([data-risk-building])');
+    const rows = await withText.count();
+    expect(rows).toBeGreaterThan(0);
+    await expect(details).toHaveCount(rows);
+    await expect(details.locator('summary')).toContainText(
+      Array(rows).fill('What we are building'),
+    );
+    for (let i = 0; i < rows; i++) {
+      await expect(details.nth(i)).not.toHaveAttribute('open', /.*/);
+      await expect(details.nth(i).locator('[data-risk-building]').first()).toBeHidden();
+    }
+    // The verdict and the Flagged line stay visible, and the link stays outside.
+    await expect(panel.locator('[data-risk-sentence]').first()).toBeVisible();
+    await expect(row(panel, 'scriptInventory').locator('[data-risk-detail]')).toBeVisible();
+    await expect(row(panel, 'seoDefects').locator('a')).toBeVisible();
+    // Two paragraphs on the script-inventory row share one disclosure.
+    await expect(row(panel, 'scriptInventory').locator('details [data-risk-building]')).toHaveCount(
+      2,
+    );
+    await expect(details.locator('summary')).toContainText(Array(rows).fill('▾'));
+    const box = await details.nth(0).locator('summary').boundingBox();
+    expect(box!.height).toBeGreaterThanOrEqual(44);
+    await details.nth(0).locator('summary').click();
+    await expect(details.nth(0).locator('summary')).toContainText('▴');
+    await expect(details.nth(0).locator('[data-risk-building]').first()).toBeVisible();
   });
 
   test('clean: four clean rows with no gated sentence and no link', async ({ page }) => {
@@ -249,7 +288,8 @@ test.describe('Risk & SEO panel', () => {
     await expect(page.locator('[data-scan-tile="risk"] [data-scan-status]')).toHaveText(
       'Not measured',
     );
-    await expect(panel).toContainText('scanner unavailable');
+    await expect(panel).toContainText('The scan did not complete.');
+    await expect(panel).not.toContainText('scanner unavailable');
     const psiBefore = m.psi;
     m.body = () => ({
       status: 200,

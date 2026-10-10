@@ -113,6 +113,13 @@ describe('formatAiread extras', () => {
     ]);
     expect(formatAiread(fixture('clean')).alsoFound).toEqual([]);
   });
+  it('pluralises the AI crawler count from the number', () => {
+    const full = fixture('full');
+    const text = (r: unknown) => formatAiread(r).alsoFound[0].text;
+    expect(text(full)).toContain('9 AI crawlers can read');
+    full.agentVerifiability.detail.aiCrawlersAllowed = ['GPTBot'];
+    expect(text(full)).toContain('1 AI crawler can read');
+  });
   it('builds the token line from the report', () => {
     expect(formatAiread(fixture('full')).tokenLine).toBe(
       'Readable text in raw HTML: ~190 tokens · after JavaScript: ~540 tokens',

@@ -5,6 +5,7 @@
 // rows (same arithmetic and wording as the original result page), the token
 // line, the raw-HTML Markdown and the "Also found" sentences. No DOM here.
 
+import { plural } from './plural';
 import { agentPassCtaApplies, complianceFixCtaApplies, tollboothCtaApplies } from './demand.mjs';
 
 interface Category {
@@ -75,8 +76,8 @@ export function alsoFoundSentences(r: Report): AireadModel['alsoFound'] {
         'About ' +
         av.detail.exposurePct +
         '% of your content is already in the raw HTML ' +
-        av.detail.aiCrawlersAllowed.length +
-        ' AI crawler(s) can read — but your origin can’t tell a real signed agent from an impostor.',
+        plural(av.detail.aiCrawlersAllowed.length, 'AI crawler') +
+        ' can read — but your origin can’t tell a real signed agent from an impostor.',
     });
   }
   if (agentPassCtaApplies(sa)) {
