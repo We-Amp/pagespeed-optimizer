@@ -236,7 +236,8 @@ export default defineConfig({
           page.includes('/1.0/') ||
           page.includes('/buy/') ||
           page.includes('/go/') ||
-          page.includes('/error/')
+          page.includes('/error/') ||
+          page.endsWith('/contact/thanks/')
         )
           return false;
         // The Markdown twins of the docs pages (/docs/<slug>.md) are for
