@@ -369,6 +369,12 @@ auto ReadSourceOnce(PageSpeedCache* cache, const std::string& url,
       cache->ReadBestAlternate(url, hostname, scheme, CapabilityMask());
   if (selected.has_value()) return selected;
 
+  // The durable original is recorded by the front end, often another
+  // process.  Cyclone's RAM tier is write-around and process-local, so an
+  // earlier read here would keep answering with the superseded bytes.
+  cache->EvictAlternateFromRamCache(
+      url, hostname, scheme,
+      static_cast<AlternateId>(SentinelId::kOriginalContent));
   auto original = cache->ReadOriginalAlternate(url, hostname, scheme);
   if (original.has_value()) {
     stats.source_reads_from_durable_original.fetch_add(
@@ -3839,6 +3845,127 @@ Worker::CombinedCssResult Worker::BuildCombinedCss(
   return out;
 }
 
+Worker::OriginRecheck Worker::RecheckRecordedOriginal(
+    const CacheNotification& notification) {
+  const auto cfg = live_config_.load();
+  const AlternateId durable_id =
+      static_cast<AlternateId>(SentinelId::kOriginalContent);
+  // Metadata-only look first (RAM evicted, no byte copy, no hash): a
+  // notification whose original was not re-recorded costs one small read.
+  cache_->EvictAlternateFromRamCache(notification.url, notification.hostname,
+                                     notification.scheme, durable_id);
+  AlternateMetadata recorded;
+  {
+    auto durable = cache_->ReadOriginalAlternate(
+        notification.url, notification.hostname, notification.scheme);
+    if (!durable.has_value() || !durable->is_valid()) {
+      // No recorded original: nothing to compare.
+      return OriginRecheck::kUnchanged;
+    }
+    recorded = durable->metadata;
+    durable->release();
+  }
+  if (recorded.cache_inserted_at == 0) return OriginRecheck::kUnchanged;
+
+  // What the variant set inherited: the newest stamp and, from the variant
+  // that carries it, the validators.
+  uint32_t newest = 0;
+  AlternateMetadata built_from;
+  {
+    auto alts = cache_->ListAlternates(notification.url, notification.hostname,
+                                       notification.scheme);
+    if (!alts.has_value()) return OriginRecheck::kUnchanged;
+    for (const auto& alt : *alts) {
+      const AlternateId pid = static_cast<uint8_t>(alt.id);
+      if (IsSentinel(pid)) continue;
+      auto entry = cache_->ReadAlternate(
+          notification.url, notification.hostname, notification.scheme, pid);
+      if (!entry.has_value() || !entry->is_valid()) continue;
+      if (entry->metadata.cache_inserted_at >= newest) {
+        newest = entry->metadata.cache_inserted_at;
+        built_from = entry->metadata;
+      }
+      entry->release();
+    }
+  }
+  if (newest == 0) return OriginRecheck::kUnchanged;
+  const bool newer = recorded.cache_inserted_at > newest;
+  const bool etag_differs = !recorded.origin_etag.empty() &&
+                            !built_from.origin_etag.empty() &&
+                            recorded.origin_etag != built_from.origin_etag;
+  const bool lm_differs = recorded.origin_last_modified != 0 &&
+                          built_from.origin_last_modified != 0 &&
+                          recorded.origin_last_modified !=
+                              built_from.origin_last_modified;
+  if (!newer && !etag_differs && !lm_differs) return OriginRecheck::kUnchanged;
+
+  stats_.notifications_origin_rechecked.fetch_add(1, std::memory_order_relaxed);
+
+  // The origin state moved: decide on the bytes.
+  PristineOriginRead pristine = ReadPristineOrigin(
+      cache_.get(), notification.url, notification.hostname,
+      notification.scheme, cfg->read_lease_duration_ms > 0, stats_, handler_);
+  if (!pristine.found || pristine.id != durable_id) {
+    return OriginRecheck::kUnchanged;
+  }
+  bool hash_matches = false;
+  {
+    auto stored = cache_->ReadAlternate(
+        notification.url, notification.hostname, notification.scheme,
+        static_cast<AlternateId>(SentinelId::kContentHash));
+    if (stored.has_value()) {
+      auto sc = stored->content();
+      hash_matches = sc.size() == 32 &&
+                     std::memcmp(sc.data(), pristine.hash.data(), 32) == 0;
+    }
+  }
+  if (hash_matches) {
+    PurgeDispatchGen gen = CapturePurgeGen(
+        notification.url, notification.hostname, notification.scheme);
+    PurgeCheck fence = [this, url = notification.url,
+                        hostname = notification.hostname,
+                        scheme = notification.scheme, gen]() {
+      return WasPurgedSinceDispatch(url, hostname, gen, scheme);
+    };
+    RestampVariantSetFreshness(cache_.get(), notification.url,
+                               notification.hostname, notification.scheme,
+                               pristine.meta, pristine.id, fence);
+    stats_.origin_unchanged_restamped.fetch_add(1, std::memory_order_relaxed);
+    return OriginRecheck::kRestamped;
+  }
+
+  // Changed (or no oracle to prove otherwise): drop everything derived from
+  // the old bytes, keep the new original, and rebuild.  The bump and the
+  // removal happen under the purge-generation lock so a concurrent writer
+  // from the old set is fenced; the caller re-reads the generation after
+  // this returns, or the rebuild would be fenced by this very bump.
+  {
+    std::string gen_key = ComposeInternalKey(
+        notification.url, notification.hostname, notification.scheme);
+    std::lock_guard<std::mutex> lock(purge_gen_mutex_);
+    BumpPurgeGenerationLocked(gen_key);
+    auto purged = cache_->RemoveDerivedAlternates(
+        notification.url, notification.hostname, notification.scheme);
+    if (!purged.has_value()) {
+      LogWarning(
+          "Targeted purge for %s failed (%s): stale copies may remain until "
+          "the next notification",
+          notification.url.c_str(),
+          make_error_code(purged.error()).message().c_str());
+      return OriginRecheck::kUnchanged;
+    }
+  }
+  ClearUrlProcessingState(notification.url, notification.hostname,
+                          notification.scheme);
+  // Evict again: the rebuild's source read must observe the on-disk original.
+  cache_->EvictAlternateFromRamCache(notification.url, notification.hostname,
+                                     notification.scheme, durable_id);
+  stats_.origin_change_rebuilt.fetch_add(1, std::memory_order_relaxed);
+  LogInfo("Recorded original for %s changed: derived copies purged, rebuilding",
+          notification.url.c_str());
+  return OriginRecheck::kPurgedRebuild;
+}
+
 void Worker::HandleNotification(const CacheNotification& notification,
                                 const PurgeDispatchGen& purge_gen) {
   // Snapshot live config for this notification (RCU read).
@@ -4025,6 +4152,29 @@ void Worker::HandleNotification(const CacheNotification& notification,
                   processed_previous_.contains(dedup_key);
       copy_expected = copy_written_current_.contains(dedup_key) ||
                       copy_written_previous_.contains(dedup_key);
+    }
+    if (dedup_hit && cache_ != nullptr) {
+      // The dedup key is the URL plus a variant id, never the content, so a
+      // front end that re-recorded the durable original with NEW bytes after
+      // this set was built would be skipped here and keep serving the old
+      // derived copies.  Compare the recorded original's origin state with
+      // the one the variant set inherited; on a difference, hash it and
+      // either restamp (same bytes) or purge the derived copies and rebuild.
+      const auto verdict = RecheckRecordedOriginal(notification);
+      if (verdict == OriginRecheck::kRestamped) {
+        stats_.notifications_skipped_dedup.fetch_add(1,
+                                                     std::memory_order_relaxed);
+        return;
+      }
+      if (verdict == OriginRecheck::kPurgedRebuild) {
+        // The processed-set entry is gone and the purge generation was
+        // re-read AFTER the purge, so this pass is not fenced by its own bump.
+        HandleNotification(
+            notification, CapturePurgeGen(notification.url,
+                                          notification.hostname,
+                                          notification.scheme));
+        return;
+      }
     }
     if (dedup_hit) {
       // Orphaned-entry heal.  A dedup
@@ -5274,6 +5424,10 @@ void Worker::HandleNotification(const CacheNotification& notification,
         const std::string svg_data(
             reinterpret_cast<const char*>(svg_span.data()), svg_span.size());
         AlternateMetadata svg_origin_meta = img_read_result->metadata;
+        // Only a front end's own recording may seed the change oracle.
+        const bool svg_source_genuine =
+            (svg_origin_meta.flags & AlternateMetadata::kFlagWorkerProcessed) ==
+            0;
         // Verify the copy is untorn before releasing (issue #934):
         // a wrap during the copy would feed torn SVG bytes into the compressed
         // variants.  On failure, skip — a later notification re-reads a
@@ -5297,6 +5451,25 @@ void Worker::HandleNotification(const CacheNotification& notification,
             cache_.get(), notification.url, notification.hostname,
             notification.scheme, CapabilityMask(), svg_data, svg_origin_meta,
             cfg->gzip_level, cfg->brotli_level, stats_, purge_check, this);
+        if (svg_source_genuine && !(purge_check && purge_check())) {
+          // Bind the compressed copies to the bytes they were built from, so
+          // a later re-record can tell "same bytes" from "new bytes".
+          auto svg_hash = cyclone::crypto::SHA256::hash(
+              std::span<const std::byte>(
+                  reinterpret_cast<const std::byte*>(svg_data.data()),
+                  svg_data.size()));
+          auto wh = cache_->WriteSentinel(
+              notification.url, notification.hostname, notification.scheme,
+              SentinelId::kContentHash, 32);
+          if (wh) {
+            (void)wh->write_sync(
+                std::as_bytes(std::span(svg_hash.data(), svg_hash.size())));
+            (void)wh->close_sync();
+            cache_->EvictAlternateFromRamCache(
+                notification.url, notification.hostname, notification.scheme,
+                static_cast<AlternateId>(SentinelId::kContentHash));
+          }
+        }
         MarkVariantProcessed(
             notification.url, notification.hostname, notification.scheme,
             MaskToId(NormalizeMaskForDedup(notification.capability_mask)),

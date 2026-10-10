@@ -17772,7 +17772,7 @@ class WorkerPeerRewriteTest : public WorkerTest {
   // `rotate_dedup_set`: shrink the processed set to one entry and notify other
   // SVGs between the rewrite and the second notification, so the dedup key is
   // gone and only the stale source read can serve the old bytes.
-  void RunScenario(bool rotate_dedup_set) {
+  void RunScenario(bool rotate_dedup_set, bool same_bytes = false) {
     WorkerConfig config;
     config.socket_path = socket_path_;
     config.cache_path = cache_path_;
@@ -17796,8 +17796,8 @@ class WorkerPeerRewriteTest : public WorkerTest {
 
     const std::string url = "http://example.com/images/logo.svg";
     const std::string v1 = SvgBody("blue");
-    const std::string v2 = SvgBody("red");
-    ASSERT_NE(v1, v2);
+    const std::string v2 = same_bytes ? v1 : SvgBody("red");
+    ASSERT_EQ(v1 == v2, same_bytes);
     CacheDurableOriginal(front_end->get(), url, v1, "image/svg+xml",
                          ContentType::kImage, kStamp1, 600);
 
@@ -17839,8 +17839,26 @@ class WorkerPeerRewriteTest : public WorkerTest {
         NotifySvgAndDrain(worker, other);
       }
     }
+    const uint64_t gz_before = worker.stats().gzip_variants_written.load();
     NotifySvgAndDrain(worker, url);
-
+    if (same_bytes) {
+      for (int i = 0; i < 40 * kSanitizerBudgetScale; ++i) {
+        if (worker.stats().origin_unchanged_restamped.load() >= 1) break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      }
+      WaitForWorkerIdle(worker);
+      // Same bytes re-recorded: freshness is adopted, nothing is recompressed.
+      EXPECT_EQ(worker.stats().gzip_variants_written.load(), gz_before);
+      EXPECT_EQ(worker.stats().notifications_origin_rechecked.load(), 1u);
+      EXPECT_EQ(worker.stats().origin_unchanged_restamped.load(), 1u);
+      EXPECT_EQ(worker.stats().origin_change_rebuilt.load(), 0u);
+      auto gz = reader->get()->ReadAlternate(
+          "/images/logo.svg", "", "https",
+          MaskToAlternateId(static_cast<uint8_t>(gz_mask.Encode() & 0xFF)));
+      ASSERT_TRUE(gz.has_value());
+      EXPECT_EQ(gz->metadata.cache_inserted_at, kStamp2);
+      return;
+    }
     // Give an asynchronous rebuild time to land before judging.
     const std::string want_gz = v2;
     for (int i = 0; i < 20 * kSanitizerBudgetScale; ++i) {
@@ -17850,6 +17868,9 @@ class WorkerPeerRewriteTest : public WorkerTest {
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
+    if (!rotate_dedup_set) {
+      EXPECT_EQ(worker.stats().origin_change_rebuilt.load(), 1u);
+    }
     EXPECT_EQ(GzipDecompress(ReadVariant(reader->get(), url, gz_mask)), v2)
         << "the gzip copy still holds the previous origin bytes";
     EXPECT_EQ(BrotliDecompress(ReadVariant(reader->get(), url, br_mask)), v2)
@@ -17857,15 +17878,18 @@ class WorkerPeerRewriteTest : public WorkerTest {
   }
 };
 
-// Marked DISABLED_ until the worker rebuilds on a changed durable original;
-// run with --gtest_also_run_disabled_tests to see it fail.
 TEST_F(WorkerPeerRewriteTest,
-       DISABLED_NativeSvgPeerRewrittenOriginalRebuildsCodedCopies) {
+       NativeSvgPeerRewrittenOriginalRebuildsCodedCopies) {
   RunScenario(/*rotate_dedup_set=*/false);
 }
 
 TEST_F(WorkerPeerRewriteTest,
-       DISABLED_NativeSvgPeerRewriteAfterDedupRotationReadsFreshOriginal) {
+       NativeSvgPeerRewriteUnchangedBytesRestampsWithoutRecompress) {
+  RunScenario(/*rotate_dedup_set=*/false, /*same_bytes=*/true);
+}
+
+TEST_F(WorkerPeerRewriteTest,
+       NativeSvgPeerRewriteAfterDedupRotationReadsFreshOriginal) {
   RunScenario(/*rotate_dedup_set=*/true);
 }
 

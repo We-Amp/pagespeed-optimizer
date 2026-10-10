@@ -378,6 +378,13 @@ struct WorkerStats {
   // cleared by the purge).  Not an error: it is the refresh convergence
   // taking the safe leg.
   std::atomic<uint64_t> origin_refresh_rebuild_refused{0};
+  // A dedup-hit notification whose recorded original's origin state differs
+  // from the variant set's (a front end re-recorded it): how many were
+  // looked at, how many led to a targeted purge + rebuild, and how many
+  // turned out to be the same bytes and were only restamped.
+  std::atomic<uint64_t> notifications_origin_rechecked{0};
+  std::atomic<uint64_t> origin_change_rebuilt{0};
+  std::atomic<uint64_t> origin_unchanged_restamped{0};
 
   // Origin-refreshed sentinels where the pristine origin reference hashed
   // equal to the content-hash oracle: the origin did NOT change, so the
@@ -1482,6 +1489,17 @@ class Worker {
   // monotonicity — issue #652 review), then rotate the maps on overflow.
   // REQUIRES purge_gen_mutex_ held by the caller.
   void BumpPurgeGenerationLocked(const std::string& gen_key);
+
+  // Outcome of RecheckRecordedOriginal.
+  enum class OriginRecheck {
+    kUnchanged,      // Nothing to do; the caller's dedup skip stands.
+    kRestamped,      // Same bytes re-recorded: freshness adopted, no rebuild.
+    kPurgedRebuild,  // New bytes: derived copies purged; caller rebuilds.
+  };
+  // Compares the durable original a front end recorded with the origin state
+  // the URL's variant set was built from.  See the call site in
+  // HandleNotification.
+  OriginRecheck RecheckRecordedOriginal(const CacheNotification& notification);
 
   // Clear the per-URL dedup entries, incomplete-retry tracking and
   // write-failure cooldowns — everything InvalidateUrl clears EXCEPT the
