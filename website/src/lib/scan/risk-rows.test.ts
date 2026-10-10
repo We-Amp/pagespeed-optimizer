@@ -48,23 +48,28 @@ describe('riskRows over the full report', () => {
     });
     expect(m.responseExposure.building).toEqual([RX_BUILDING]);
   });
-  it('uses the approved verdict sentences', () => {
+  it('uses one verdict sentence per lens, without counts, host lists or server lines', () => {
     expect(m.preConsentLeak.sentence).toMatch(
-      /^\d+ tracker host\(s\) contacted before any interaction, in a fresh browser with no consent given: /,
+      /^\d+ tracker host\(s\) contacted before any interaction, in a fresh browser with no consent given\./,
     );
     expect(m.preConsentLeak.sentence).toMatch(/not legal advice or a compliance certificate\.$/);
-    expect(m.scriptInventory.sentence).toMatch(
-      /^27 script\(s\) · 13 from other hosts · 1 with integrity/,
+    expect(m.preConsentLeak.sentence).not.toMatch(/google|analytics|…|\(analytics\)/i);
+    expect(m.scriptInventory.sentence).toMatch(/^Some scripts on this page need attention\./);
+    expect(m.scriptInventory.sentence).toMatch(/not an assessment against any standard\.$/);
+    expect(m.scriptInventory.sentence).not.toMatch(
+      /script\(s\)|CSP|from other hosts|with integrity/,
     );
-    expect(m.seoDefects.sentence).toMatch(
-      /^3 issue\(s\): canonical 1, title 1, structured data 1\. /,
+    expect(m.seoDefects.sentence).toBe(
+      '3 issue(s): canonical 1, title 1, structured data 1. One page only; not a ranking assessment.',
     );
+    expect(m.seoDefects.sentence).not.toMatch(/Server header|CDN headers/);
     expect(m.responseExposure.sentence).toBe(
       '1 error-output pattern(s) · 2 version tell(s) · end of life: PHP 7.4 · missing: nosniff, framing. One page only; not a security assessment.',
     );
   });
-  it('names duplicate libraries and versions', () => {
-    expect(m.scriptInventory.sentence).toContain('jquery 1.12.4 + 3.6.0');
+  it('names no library, version or host in the script row', () => {
+    expect(m.scriptInventory.sentence).not.toContain('jquery');
+    expect(m.scriptInventory.sentence).not.toMatch(/\d+\.\d+/);
   });
   it('gives the script row both building sentences when both gates fire', () => {
     expect(m.scriptInventory.building).toHaveLength(2);
@@ -88,8 +93,10 @@ describe('riskRows over the clean report', () => {
   it('uses the approved clean sentences', () => {
     const m = byKey(rows);
     expect(m.preConsentLeak.sentence).toMatch(
-      /^No tracker requests observed before any interaction/,
+      /^No tracker requests observed before any interaction, in a fresh browser/,
     );
+    expect(m.preConsentLeak.sentence).not.toMatch(/third-party host/);
+    expect(m.scriptInventory.sentence).toMatch(/^No script issues flagged on this page\./);
     expect(m.seoDefects.sentence).toMatch(/^No defects found: the canonical/);
   });
 });

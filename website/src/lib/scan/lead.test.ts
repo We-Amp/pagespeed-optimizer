@@ -90,6 +90,20 @@ describe('chipsFor', () => {
     expect(chips.find((c) => c.id === 'consulting')!.selected).toBe(false);
   });
 
+  it('gives the speed-help chip pre-selection priority on /analyze/ when Speed is Poor', () => {
+    const chips = chipsFor(full, 'poor', 'analyze');
+    expect(chips.map((c) => c.id)).toEqual([...GATED_ORDER, 'consulting', 'agents']);
+    expect(chips.filter((c) => c.selected).map((c) => c.id)).toEqual([
+      ...GATED_ORDER.slice(0, MAX_TOPICS - 1),
+      'consulting',
+    ]);
+    expect(
+      chipsFor(full, 'needs-work', 'analyze')
+        .filter((c) => c.selected)
+        .map((c) => c.id),
+    ).toEqual(GATED_ORDER.slice(0, MAX_TOPICS));
+  });
+
   it('pre-selects every gated chip when four or fewer fire', () => {
     const report = structuredClone(full);
     for (const id of ['tollbooth', 'agentpass', 'compliancefix', 'consent-enforcement']) {

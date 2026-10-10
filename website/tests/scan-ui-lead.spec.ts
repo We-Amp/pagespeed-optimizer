@@ -121,6 +121,47 @@ test.describe('the one lead form', () => {
     expect(await checkedIds(page)).toEqual(['consulting']);
   });
 
+  test('on /analyze/ a Poor speed result takes a pre-selection slot from the gated chips', async ({
+    page,
+  }) => {
+    await mock(page, { psi: 0.3 });
+    await scanV2(page, '/analyze/?ui=v2');
+    expect(await checkedIds(page)).toEqual([...ALL.slice(0, 3), 'consulting']);
+    // On /ai-readability/ display order stands.
+    await mock(page, { psi: 0.3 });
+    await scanV2(page);
+    expect(await checkedIds(page)).toEqual(ALL.slice(0, 4));
+  });
+
+  test('says topics were pre-selected only when one is, and hides the report button until a result', async ({
+    page,
+  }) => {
+    await mock(page, { report: 'clean' });
+    await scanV2(page);
+    await expect(form(page).locator('[data-scan-preselected]')).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Download this report' })).toBeVisible();
+
+    await mock(page);
+    await scanV2(page);
+    await expect(form(page).locator('[data-scan-preselected]')).toBeVisible();
+    await expect(form(page)).toContainText('We pre-selected topics from your results.');
+  });
+
+  test('the report button stays hidden while nothing has arrived', async ({ page }) => {
+    await mock(page);
+    await page.route('**/ai-readability/api/scan**', () => {});
+    await page.route('**/psi/v5/runPagespeed**', () => {});
+    await stubUmami(page);
+    await page.goto('/ai-readability/?ui=v2');
+    await page.waitForLoadState('networkidle');
+    await page.fill('#scan-url', 'shop.example.com');
+    await page.click('#scan-submit');
+    await expect(page.locator('[data-scan-tile="speed"] [data-scan-status]')).toHaveText(
+      'Checking…',
+    );
+    await expect(page.getByRole('button', { name: 'Download this report' })).toBeHidden();
+  });
+
   test('still renders with the ungated chips when the scan fails', async ({ page }) => {
     await mock(page);
     await page.route('**/ai-readability/api/scan**', (route) => route.abort());
@@ -229,7 +270,7 @@ test.describe('the one lead form', () => {
     await page.fill('input[name="email"]', 'ops@example.com');
     await page.getByRole('button', { name: 'Talk to us' }).click();
     await expect(page.locator('[data-scan-lead-msg]')).toHaveText(
-      'We could not send: Signed-agent verification (prove which agent is which). Try again.',
+      'Sent: Origin controls (who reads / verifies), Accessibility remediation, Consent enforcement. We could not send: Signed-agent verification (prove which agent is which). Try again.',
     );
     await expect(form(page)).toBeVisible();
     expect(await checkedIds(page)).toEqual(['agentpass']);

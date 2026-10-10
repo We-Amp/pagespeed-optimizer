@@ -115,7 +115,7 @@ describe('formatAiread extras', () => {
   });
   it('builds the token line from the report', () => {
     expect(formatAiread(fixture('full')).tokenLine).toBe(
-      'Raw HTML: ~190 tokens · after JavaScript: ~540 tokens',
+      'Readable text in raw HTML: ~190 tokens · after JavaScript: ~540 tokens',
     );
   });
 });

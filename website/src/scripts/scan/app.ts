@@ -247,7 +247,7 @@ export function init() {
 
   // The tile value stays one line in every state, so a failing source never
   // changes the tile's height; the reason goes in the panel.
-  function paintTile(pillar: Pillar, status: TileStatus) {
+  function paintTile(pillar: Pillar, status: TileStatus, reason = '') {
     statuses[pillar] = status;
     const tile = tiles.get(pillar)!;
     tile.dataset.state = status.state;
@@ -260,8 +260,17 @@ export function init() {
       bar.className = 'scan-skeleton';
       bar.setAttribute('aria-hidden', 'true');
       value.replaceChildren(bar);
+      value.removeAttribute('title');
+    } else if (status.state === 'none' && reason) {
+      // One line, truncated: the tile keeps its height; the panel has the full text.
+      const line = document.createElement('span');
+      line.className = 'scan-tile-reason';
+      line.textContent = reason;
+      value.replaceChildren(line);
+      value.title = reason;
     } else {
       value.textContent = status.value || '—';
+      value.removeAttribute('title');
     }
     healthEl.textContent = healthLine(PILLARS.map((p) => statuses[p]));
   }
@@ -269,7 +278,7 @@ export function init() {
   // Paint the tile, then hand the panel to the pillar's renderer.
   function settle(pillar: Pillar, status: TileStatus, reason = '') {
     const settledRun = runId;
-    paintTile(pillar, status);
+    paintTile(pillar, status, reason);
     renderPanel[pillar](panels.get(pillar)!, {
       pillar,
       url: state.url,
@@ -280,7 +289,7 @@ export function init() {
       rerun: () => rerun(pillar),
       setStatus: (s, r = '') => {
         if (settledRun !== runId) return;
-        paintTile(pillar, s);
+        paintTile(pillar, s, r);
         if (s.state === 'none') announce(`${PILLAR_NAME[pillar]} not measured. ${r}`);
       },
     });

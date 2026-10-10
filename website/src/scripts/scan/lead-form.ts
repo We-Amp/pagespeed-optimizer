@@ -62,6 +62,7 @@ export function initLeadForm(state: ScanState) {
   const noteEl = form.querySelector<HTMLTextAreaElement>('textarea[name="note"]')!;
   const submitBtn = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
   const msgEl = form.querySelector<HTMLElement>('[data-scan-lead-msg]')!;
+  const preselectedEl = form.querySelector<HTMLElement>('[data-scan-preselected]')!;
   const nextRow = root.querySelector<HTMLElement>('[data-scan-next]')!;
   const shareRow = root.querySelector<HTMLElement>('[data-scan-share]')!;
   const linkRow = shareRow.querySelector<HTMLElement>('[data-scan-permalink-row]')!;
@@ -80,6 +81,8 @@ export function initLeadForm(state: ScanState) {
   let thanks: HTMLElement | null = null;
   const sent = new Map<string, string>();
   const fired = new Set<string>();
+  // True once the visitor has changed a topic by hand: their choices are then left alone.
+  let touched = false;
 
   function announce(text: string) {
     live.textContent = '';
@@ -118,7 +121,10 @@ export function initLeadForm(state: ScanState) {
     input.value = chip.id;
     input.checked = chip.selected;
     input.className = 'h-4 w-4 accent-[var(--color-interactive)]';
-    input.addEventListener('change', onTopicsChange);
+    input.addEventListener('change', () => {
+      touched = true;
+      onTopicsChange();
+    });
     const text = document.createElement('span');
     text.textContent = chip.label;
     label.append(input, text);
@@ -148,6 +154,11 @@ export function initLeadForm(state: ScanState) {
     else if (msgEl.textContent === 'Pick up to four topics.') message('', false);
   }
 
+  // The second lead sentence is true only while a chip is pre-selected.
+  function syncPreselectedNote() {
+    preselectedEl.hidden = !chips.some((c) => inputOf(c.id)?.checked);
+  }
+
   function psiNumbers() {
     return {
       mobile: perfScore(state.lastPsi?.mobile ?? null),
@@ -171,7 +182,10 @@ export function initLeadForm(state: ScanState) {
     sent.clear();
     fired.clear();
     permalink = '';
+    touched = false;
     pending = true;
+    preselectedEl.hidden = true;
+    downloadBtn.hidden = true;
     const bar = document.createElement('span');
     bar.className = 'scan-skeleton';
     bar.setAttribute('aria-hidden', 'true');
@@ -192,6 +206,7 @@ export function initLeadForm(state: ScanState) {
 
   function sync() {
     const scan = state.lastScan;
+    if (scan || state.lastPsi) downloadBtn.hidden = false;
     if (!scan && !state.lastPsi) {
       if (!pending && !root!.hidden) showPending();
       return;
@@ -207,9 +222,11 @@ export function initLeadForm(state: ScanState) {
       thanks = null;
       sent.clear();
       fired.clear();
+      touched = false;
       chipsEl.replaceChildren();
-      chips = chipsFor(scan.report, speed);
+      chips = chipsFor(scan.report, speed, surface);
       chips.forEach(addChip);
+      syncPreselectedNote();
       form.hidden = false;
       submitBtn.disabled = false;
       onTopicsChange();
@@ -218,7 +235,15 @@ export function initLeadForm(state: ScanState) {
     if (speed !== renderedSpeed && !thanks) {
       renderedSpeed = speed;
       // Add the speed-help chip without touching the visitor's choices.
-      const next = chipsFor(scan.report, speed);
+      const next = chipsFor(scan.report, speed, surface);
+      // Until the visitor touches a topic, the pre-selection follows the
+      // newest result (a Poor speed result can take a slot from the others).
+      if (!touched) {
+        for (const c of next) {
+          const input = inputOf(c.id);
+          if (input) input.checked = c.selected;
+        }
+      }
       for (const chip of next) {
         if (!chips.some((c) => c.id === chip.id)) {
           // A late chip is pre-selected only while there is room under the cap.
@@ -227,6 +252,7 @@ export function initLeadForm(state: ScanState) {
           addChip(chip);
         }
       }
+      syncPreselectedNote();
       onTopicsChange();
     }
   }
@@ -309,7 +335,11 @@ export function initLeadForm(state: ScanState) {
     }
     const failed = outcomes.filter((o) => !o.ok).map((o) => o.chip.label);
     if (failed.length) {
-      message(`We could not send: ${failed.join(', ')}. Try again.`);
+      const done = [...sent.values()];
+      message(
+        (done.length ? `Sent: ${done.join(', ')}. ` : '') +
+          `We could not send: ${failed.join(', ')}. Try again.`,
+      );
       onTopicsChange();
       return;
     }

@@ -91,7 +91,7 @@ function plate(label: string, score: number | null, err: RequestError | null): H
   box.appendChild(gauge);
   const chip = el(
     'p',
-    `mt-2 ${bucket ? BUCKET_BADGE_CLASS[bucket] : 'badge-neutral'}`,
+    `mt-2 ${bucket ? (bucket === 'needs-work' ? 'badge-accent' : BUCKET_BADGE_CLASS[bucket]) : 'badge-neutral'}`,
     bucket ? BUCKET_LABEL[bucket] : 'Not measured',
   );
   chip.dataset.speedBucket = '';

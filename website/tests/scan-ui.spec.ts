@@ -213,12 +213,55 @@ test.describe('v2 shell tile states', () => {
       await expect(tile.locator('[data-scan-status]')).toHaveText('Not measured', {
         timeout: 15000,
       });
-      await expect(tile.locator('[data-scan-value]')).toHaveText('—');
+      await expect(tile.locator('[data-scan-value]')).toContainText('scanner unavailable');
+      // The reason is one truncated line: the value box keeps its 28 px height.
+      const box = await tile.locator('[data-scan-value]').boundingBox();
+      expect(Math.round(box!.height)).toBe(28);
       await tile.click();
       const panel = page.locator(`#scan-panel-${p}`);
       await expect(panel).toContainText('scanner unavailable');
       await expect(panel.getByRole('button', { name: 'Try again' })).toBeVisible();
     }
+  });
+
+  test('a not-measured tile is exactly as tall as a measured one', async ({ page }) => {
+    await mockBackends(page, { scanStatus: 503 });
+    await warm(page, '/analyze/?ui=v2');
+    await page.fill('#scan-url', 'https://example.com');
+    await page.click('#scan-submit');
+    await expect(page.locator('[data-scan-tile="airead"] [data-scan-status]')).toHaveText(
+      'Not measured',
+      { timeout: 15000 },
+    );
+    const heights = await page
+      .locator('[data-scan-tile]')
+      .evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+    expect(new Set(heights).size).toBe(1);
+    const values = await page
+      .locator('[data-scan-value]')
+      .evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height)));
+    expect(new Set(values).size).toBe(1);
+  });
+
+  test('each tile shows a visible Details / Hide control that follows aria-expanded', async ({
+    page,
+  }) => {
+    await mockBackends(page);
+    await warm(page, '/analyze/?ui=v2');
+    await page.fill('#scan-url', 'https://example.com');
+    await page.click('#scan-submit');
+    const speed = page.locator('[data-scan-tile="speed"]');
+    await expect(speed.getByText('Details ▾')).toBeVisible();
+    await expect(speed.getByText('Hide ▴')).toBeHidden();
+    const closed = await speed.boundingBox();
+    await speed.click();
+    await expect(speed.getByText('Hide ▴')).toBeVisible();
+    await expect(speed.getByText('Details ▾')).toBeHidden();
+    // A non-colour cue: the open tile carries an inset ring on top of its border.
+    expect(await speed.evaluate((e) => getComputedStyle(e).boxShadow)).not.toBe('none');
+    expect((await speed.boundingBox())!.height).toBe(closed!.height);
+    // The accessible name stays on the button, not on the visible control.
+    await expect(speed).toHaveAttribute('aria-label', 'Hide Speed details');
   });
 
   test('Try again re-runs only the source behind that tile', async ({ page }) => {
