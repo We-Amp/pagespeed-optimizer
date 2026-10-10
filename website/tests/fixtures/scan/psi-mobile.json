@@ -1,9 +1,9 @@
 {
   "kind": "pagespeedonline#result",
-  "id": "https://modpagespeed.com/",
+  "id": "https://shop.example.com/",
   "lighthouseResult": {
-    "requestedUrl": "https://modpagespeed.com/",
-    "finalUrl": "https://modpagespeed.com/",
+    "requestedUrl": "https://shop.example.com/",
+    "finalUrl": "https://shop.example.com/",
     "fetchTime": "2026-10-10T12:00:00.000Z",
     "configSettings": {
       "formFactor": "mobile"
