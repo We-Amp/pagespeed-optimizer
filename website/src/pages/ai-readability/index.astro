@@ -5,6 +5,7 @@ import SectionHeader from '../../components/instrument/SectionHeader.astro';
 import ScanBox from '../../components/scan/ScanBox.astro';
 import ScanUiBoot from '../../components/scan/ScanUiBoot.astro';
 import ResultsView from '../../components/scan/ResultsView.astro';
+import NoscriptLead from '../../components/scan/NoscriptLead.astro';
 
 // Public front end for the AI-readability scanner (D10). The render backend
 // runs on a separate box; nginx proxies /ai-readability/api/* to it (see corp deploy).
@@ -166,6 +167,8 @@ const jsonLd = [webApp, faqPage];
       &mdash; the team behind ngx_pagespeed.
     </p>
   </section>
+
+  <NoscriptLead topic="agents" />
 
   <!-- The shared results sit outside the narrow reading column so they get the
        full tool width; the v1 result slot and everything below stay in it. -->

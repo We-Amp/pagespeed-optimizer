@@ -7,6 +7,7 @@ import { FREE_TO_RUN_LINE } from '../data/product-facts.mjs';
 import ScanBox from '../components/scan/ScanBox.astro';
 import ScanUiBoot from '../components/scan/ScanUiBoot.astro';
 import ResultsView from '../components/scan/ResultsView.astro';
+import NoscriptLead from '../components/scan/NoscriptLead.astro';
 
 const title = 'Free PageSpeed Insights test, with the fix attached';
 const description =
@@ -210,6 +211,8 @@ const jsonLd = [
       <ScanBox surface="analyze" />
     </div>
   </section>
+
+  <NoscriptLead topic="consulting" />
 
   <div data-scan-variant="v1">
     <!-- ============================================================ -->
