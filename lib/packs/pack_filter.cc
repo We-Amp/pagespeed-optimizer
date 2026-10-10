@@ -4,6 +4,7 @@
 #include "lib/packs/pack_filter.h"
 
 #include <cstddef>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -52,6 +53,67 @@ std::optional<PageUrl> ParsePageUrl(std::string_view url) {
 
 namespace {
 
+void AppendUtf8(uint32_t cp, std::string* out) {
+  if (cp < 0x80) {
+    out->push_back(static_cast<char>(cp));
+  } else if (cp < 0x800) {
+    out->push_back(static_cast<char>(0xC0 | (cp >> 6)));
+    out->push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+  } else if (cp < 0x10000) {
+    out->push_back(static_cast<char>(0xE0 | (cp >> 12)));
+    out->push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+    out->push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+  } else {
+    out->push_back(static_cast<char>(0xF0 | (cp >> 18)));
+    out->push_back(static_cast<char>(0x80 | ((cp >> 12) & 0x3F)));
+    out->push_back(static_cast<char>(0x80 | ((cp >> 6) & 0x3F)));
+    out->push_back(static_cast<char>(0x80 | (cp & 0x3F)));
+  }
+}
+
+// Decodes an attribute value as written: numeric character references
+// (&#233; and &#xE9;) become UTF-8, the rest goes through the kernel's safe
+// decoder segment by segment, so "&amp;#233;" stays "&#233;". Used only to
+// compare what the page says with what the rule says.
+std::string DecodeAttribute(std::string_view escaped) {
+  std::string out;
+  size_t seg = 0;
+  size_t i = 0;
+  while (i < escaped.size()) {
+    if (escaped[i] == '&' && i + 2 < escaped.size() && escaped[i + 1] == '#') {
+      size_t j = i + 2;
+      const bool hex = escaped[j] == 'x' || escaped[j] == 'X';
+      if (hex) ++j;
+      const size_t digits_at = j;
+      uint32_t cp = 0;
+      while (j < escaped.size() && j - digits_at < 8) {
+        const unsigned char d = static_cast<unsigned char>(escaped[j]);
+        uint32_t v;
+        if (absl::ascii_isdigit(d)) {
+          v = d - '0';
+        } else if (hex && absl::ascii_isxdigit(d)) {
+          v = absl::ascii_tolower(d) - 'a' + 10;
+        } else {
+          break;
+        }
+        cp = cp * (hex ? 16 : 10) + v;
+        ++j;
+      }
+      if (j > digits_at && j < escaped.size() && escaped[j] == ';' &&
+          cp >= 0x20 && cp <= 0x10FFFF && !(cp >= 0xD800 && cp <= 0xDFFF)) {
+        out += net_instaweb::SafeDecodeHtmlEntities(
+            escaped.substr(seg, i - seg));
+        AppendUtf8(cp, &out);
+        i = seg = j + 1;
+        continue;
+      }
+    }
+    ++i;
+  }
+  out += net_instaweb::SafeDecodeHtmlEntities(escaped.substr(seg));
+  return out;
+}
+
 // Decoded value of an attribute, tolerant of non-ASCII bytes and entities:
 // the kernel's own decoded value is empty for those, so the escaped value is
 // read and decoded here. `present` is false when the attribute is absent or
@@ -61,7 +123,7 @@ std::string AttrValue(const HtmlElement* element, HtmlName::Keyword kw,
   const char* escaped = element->EscapedAttributeValue(kw);
   if (present != nullptr) *present = escaped != nullptr;
   if (escaped == nullptr) return std::string();
-  return net_instaweb::SafeDecodeHtmlEntities(escaped);
+  return DecodeAttribute(escaped);
 }
 
 // Elements that may appear in <head>. The first other element (usually
@@ -101,10 +163,12 @@ PackFilter::PackFilter(net_instaweb::HtmlParse* parser,
       options_(options) {
   if (global_mode_ == Mode::kEnforce && pack_ != nullptr) {
     for (const Rule& r : pack_->rules) {
-      if (r.enabled && r.enforce && r.kind == Kind::kCanonical &&
+      if (!r.enabled || !r.enforce) continue;
+      if ((r.kind == Kind::kCanonical || r.kind == Kind::kHreflang) &&
           r.on_present != OnPresent::kKeep) {
         can_modify_urls_ = true;
       }
+      if (r.kind == Kind::kJsonLd) may_inject_scripts_ = true;
     }
   }
 }
@@ -115,6 +179,8 @@ void PackFilter::StartDocument() {
   open_head_ = nullptr;
   open_title_ = -1;
   open_title_raw_.clear();
+  open_jsonld_ = -1;
+  commented_rule_ = nullptr;
   modified_ = false;
   would_modify_ = false;
   skip_reason_ = SkipReason::kNone;
@@ -162,13 +228,42 @@ void PackFilter::StartElement(HtmlElement* element) {
     const std::string rel = AttrValue(element, HtmlName::kRel, &has_rel);
     if (!has_rel) return;
     bool canonical = false;
+    bool alternate = false;
     std::vector<std::string> others;
+    std::vector<std::string> others_but_alternate;
     for (std::string_view tok :
          absl::StrSplit(rel, absl::ByAnyChar(" \t\n\r\f"), absl::SkipEmpty())) {
       if (absl::EqualsIgnoreCase(tok, "canonical")) {
         canonical = true;
       } else {
         others.emplace_back(tok);
+        if (absl::EqualsIgnoreCase(tok, "alternate")) {
+          alternate = true;
+        } else {
+          others_but_alternate.emplace_back(tok);
+        }
+      }
+    }
+    if (alternate && others_but_alternate.empty() && !canonical) {
+      // An alternate link without other meanings: an hreflang entry when it
+      // names a language. (A link with extra rel tokens is never touched.)
+      const HtmlElement::Attribute* attr = nullptr;
+      for (auto it = element->attributes().begin();
+           it != element->attributes().end(); ++it) {
+        if (absl::EqualsIgnoreCase(it->name_str(), "hreflang")) {
+          attr = &*it;
+          break;
+        }
+      }
+      if (attr != nullptr) {
+        ElementFact f;
+        f.element = element;
+        f.in_head = in_head;
+        f.code = attr->escaped_value() == nullptr
+                     ? std::string()
+                     : DecodeAttribute(attr->escaped_value());
+        f.value = AttrValue(element, HtmlName::kHref, &f.has_value_attr);
+        facts_.hreflangs.push_back(std::move(f));
       }
     }
     if (!canonical) return;
@@ -185,6 +280,17 @@ void PackFilter::StartElement(HtmlElement* element) {
     facts_.titles.push_back(std::move(f));
     open_title_ = static_cast<int>(facts_.titles.size()) - 1;
     open_title_raw_.clear();
+  } else if (kw == HtmlName::kScript) {
+    std::string type = AttrValue(element, HtmlName::kType);
+    // Exactly this media type, ASCII case-insensitive; a parameter
+    // ("; charset=utf-8") or surrounding space is not JSON-LD to the lens.
+    if (absl::EqualsIgnoreCase(type, "application/ld+json")) {
+      ElementFact f;
+      f.element = element;
+      f.in_head = in_head;
+      facts_.jsonlds.push_back(std::move(f));
+      open_jsonld_ = static_cast<int>(facts_.jsonlds.size()) - 1;
+    }
   } else if (kw == HtmlName::kMeta) {
     const std::string nm = AttrValue(element, HtmlName::kName);
     if (!absl::EqualsIgnoreCase(nm, "description")) return;
@@ -217,6 +323,10 @@ void PackFilter::EndElement(HtmlElement* element) {
     }
     return;
   }
+  if (open_jsonld_ >= 0 && facts_.jsonlds[open_jsonld_].element == element) {
+    open_jsonld_ = -1;
+    return;
+  }
   if (open_title_ >= 0 && facts_.titles[open_title_].element == element) {
     facts_.titles[open_title_].value =
         net_instaweb::SafeDecodeHtmlEntities(open_title_raw_);
@@ -225,6 +335,19 @@ void PackFilter::EndElement(HtmlElement* element) {
 }
 
 void PackFilter::Characters(HtmlCharactersNode* characters) {
+  if (open_jsonld_ >= 0 && inert_.empty() &&
+      characters->parent() == facts_.jsonlds[open_jsonld_].element) {
+    ElementFact& f = facts_.jsonlds[open_jsonld_];
+    f.text_nodes.push_back(characters);
+    if (f.unreadable || f.value.size() + characters->contents().size() >
+                            kMaxJsonLdScanBytes) {
+      f.unreadable = true;
+      f.value.clear();
+    } else {
+      f.value.append(characters->contents());
+    }
+    return;
+  }
   if (open_title_ >= 0 && inert_.empty() &&
       characters->parent() == facts_.titles[open_title_].element) {
     open_title_raw_.append(characters->contents());
@@ -307,6 +430,11 @@ void PackFilter::SetEscaped(HtmlElement* el, HtmlName::Keyword kw,
 void PackFilter::AddDebugComment(const Rule& rule, const PackDecision& decision,
                                  HtmlElement* before) {
   if (!options_.debug_comments) return;
+  // One comment per rule, however many links it writes.
+  if (decision.kind == Kind::kHreflang) {
+    if (commented_rule_ == &rule) return;
+    commented_rule_ = &rule;
+  }
   HtmlElement* parent = before != nullptr ? before->parent() : facts_.head;
   auto* comment = parser_->NewCommentNode(
       parent, absl::StrCat(" pagespeed-pack ", pack_->info.id, "@",
@@ -336,16 +464,17 @@ void PackFilter::ApplyOp(const Rule& rule, const PackDecision& decision,
       return;
     case OpType::kSetValue: {
       AddDebugComment(rule, decision, el);
-      if (op.kind == Kind::kTitle) {
+      if (op.kind == Kind::kTitle || op.kind == Kind::kJsonLd) {
         for (HtmlCharactersNode* t : op.target.text_nodes) {
           parser_->DeleteNode(t);
         }
         parser_->AppendChild(el, parser_->NewCharactersNode(el, op.value));
       } else {
-        SetEscaped(
-            el,
-            op.kind == Kind::kCanonical ? HtmlName::kHref : HtmlName::kContent,
-            EscapeAttributeValue(op.value));
+        SetEscaped(el,
+                   op.kind == Kind::kCanonical || op.kind == Kind::kHreflang
+                       ? HtmlName::kHref
+                       : HtmlName::kContent,
+                   EscapeAttributeValue(op.value));
       }
       modified_ = true;
       return;
@@ -363,6 +492,20 @@ void PackFilter::ApplyOp(const Rule& rule, const PackDecision& decision,
         case Kind::kTitle:
           fresh = parser_->NewElement(head, HtmlName::kTitle);
           break;
+        case Kind::kHreflang:
+          fresh = parser_->NewElement(head, HtmlName::kLink);
+          parser_->AddEscapedAttribute(fresh, HtmlName::kRel, "alternate");
+          fresh->AddEscapedAttribute(parser_->MakeName("hreflang"),
+                                     EscapeAttributeValue(op.code),
+                                     HtmlElement::DOUBLE_QUOTE);
+          parser_->AddEscapedAttribute(fresh, HtmlName::kHref,
+                                       EscapeAttributeValue(op.value));
+          break;
+        case Kind::kJsonLd:
+          fresh = parser_->NewElement(head, HtmlName::kScript);
+          parser_->AddEscapedAttribute(fresh, HtmlName::kType,
+                                       "application/ld+json");
+          break;
         default:
           fresh = parser_->NewElement(head, HtmlName::kMeta);
           parser_->AddEscapedAttribute(fresh, HtmlName::kName, "description");
@@ -372,7 +515,7 @@ void PackFilter::ApplyOp(const Rule& rule, const PackDecision& decision,
       }
       AddDebugComment(rule, decision, nullptr);
       InsertAtHeadEnd(fresh);
-      if (op.kind == Kind::kTitle) {
+      if (op.kind == Kind::kTitle || op.kind == Kind::kJsonLd) {
         parser_->AppendChild(fresh,
                              parser_->NewCharactersNode(fresh, op.value));
       }
