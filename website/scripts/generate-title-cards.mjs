@@ -27,6 +27,14 @@
 //   - Otherwise the generator synthesizes /og-cards/{slug}.png and the
 //     renderer points at that file.
 //
+// Page cards:
+//   PAGE_CARDS below lists the .astro pages that carry a card of their own
+//   (public/og-cards/{slug}.png, referenced by the page's ogImage prop).
+//   They have no source file to compare mtimes against, so they are always
+//   rendered and written only when the bytes differ: the output is
+//   deterministic for a given font set and script, so a build on a current
+//   tree leaves the directory clean.
+//
 // Determinism / incrementality:
 //   - Each PNG is regenerated only when its source markdown's mtime is
 //     newer than the PNG (or the PNG is missing). Re-running the script
@@ -83,6 +91,27 @@ const colors = {
   bitLit: '#5eb1c9', // --color-bit-lit
   bitClear: '#20242a', // --color-bit-clear
 };
+
+// Static pages with a card of their own: slug -> file name under og-cards/,
+// eyebrow and title as the card shows them. The eyebrow is the page's own
+// eyebrow and the title its H1.
+const PAGE_CARDS = [
+  {
+    slug: 'platform',
+    eyebrow: 'early access · transform packs',
+    title: 'One interceptor, many packs',
+  },
+  {
+    slug: 'platform-consent',
+    eyebrow: 'early access · consent enforcement at the origin',
+    title: 'Does your site leak before consent?',
+  },
+  {
+    slug: 'platform-edge-seo',
+    eyebrow: 'early access · edge SEO at the origin',
+    title: 'Technical SEO fixes at serve time, for sites that are not on a CDN',
+  },
+];
 
 // Minimal YAML frontmatter parser. The blog frontmatter shape is
 // deliberately simple — string/date scalars + a string array for tags. We
@@ -298,6 +327,20 @@ async function main() {
     console.log(`generated: ${label}`);
   }
 
+  // Render, then write only when the bytes differ (page cards: no source
+  // mtime to compare against). Returns true when the file changed.
+  async function renderCardIfChanged(tree, outPath, label) {
+    const svg = await satori(tree, { width: WIDTH, height: HEIGHT, fonts });
+    const png = new Resvg(svg, { fitTo: { mode: 'width', value: WIDTH } }).render().asPng();
+    if (fs.existsSync(outPath) && Buffer.compare(fs.readFileSync(outPath), png) === 0) {
+      console.log(`skipped (unchanged): ${label}`);
+      return false;
+    }
+    fs.writeFileSync(outPath, png);
+    console.log(`generated: ${label}`);
+    return true;
+  }
+
   const scriptMtime = fs.statSync(__filename).mtimeMs;
   const stale = (outPath, depMtimes) =>
     !fs.existsSync(outPath) || fs.statSync(outPath).mtimeMs <= Math.max(scriptMtime, ...depMtimes);
@@ -322,6 +365,13 @@ async function main() {
   } else {
     console.log('skipped (cached): og-default.png');
     skipped++;
+  }
+
+  for (const card of PAGE_CARDS) {
+    const outPath = path.join(outDir, `${card.slug}.png`);
+    const tree = buildTree({ title: card.title, eyebrow: card.eyebrow });
+    if (await renderCardIfChanged(tree, outPath, `og-cards/${card.slug}.png`)) generated++;
+    else skipped++;
   }
 
   const entries = fs
@@ -364,7 +414,7 @@ async function main() {
   }
 
   console.log(
-    `\ntitle cards: ${generated} generated, ${skipped} skipped, ${entries.length + 1} total`,
+    `\ntitle cards: ${generated} generated, ${skipped} skipped, ${entries.length + PAGE_CARDS.length + 1} total`,
   );
 }
 
