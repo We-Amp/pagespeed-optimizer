@@ -36,7 +36,7 @@
 # HTTP Compliance startup skew: module 1030001 vs runtime 1030002). nginx.org
 # publishes every upstream version under both jammy and noble, so the
 # jammy-sourced build version installs cleanly here as -1~noble.
-FROM ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55
+FROM ubuntu:26.04@sha256:f144425ff09be612d6d9ad965196e9cdc23dae1f42110a8a11a3e9a8198759f7
 
 ENV DEBIAN_FRONTEND=noninteractive
 
