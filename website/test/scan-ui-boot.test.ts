@@ -7,10 +7,9 @@ import { describe, expect, it } from 'vitest';
 import { SCAN_UI_STORAGE_KEY, resolveScanUi } from '../src/lib/scan/flag';
 
 // The pre-paint script cannot import, so it carries its own copy of the
-// resolution rules. Run that very script against the cases resolveScanUi
+// resolution rules. Run that very file against the cases resolveScanUi
 // answers and require the same result.
-const source = readFileSync('src/components/scan/ScanUiBoot.astro', 'utf8');
-const body = source.match(/<script[^>]*>([\s\S]*?)<\/script>/)![1];
+const bootSource = readFileSync('src/scripts/scan/boot.js', 'utf8');
 
 function boot(search: string, stored: string | null, broken: boolean, fallback: 'v1' | 'v2') {
   const data: Record<string, string> = stored === null ? {} : { [SCAN_UI_STORAGE_KEY]: stored };
@@ -24,16 +23,17 @@ function boot(search: string, stored: string | null, broken: boolean, fallback: 
       data[k] = v;
     },
   };
+  const attrs: Record<string, string> = { content: fallback, 'data-key': SCAN_UI_STORAGE_KEY };
   const html = { dataset: {} as Record<string, string> };
-  runInNewContext(
-    `(function(){ const SCAN_UI_DEFAULT = ${JSON.stringify(fallback)}; const SCAN_UI_STORAGE_KEY = ${JSON.stringify(SCAN_UI_STORAGE_KEY)}; ${body} })();`,
-    {
-      window: { localStorage: storage },
-      location: { search },
-      document: { documentElement: html },
-      URLSearchParams,
+  runInNewContext(bootSource, {
+    window: { localStorage: storage },
+    location: { search },
+    document: {
+      documentElement: html,
+      querySelector: () => ({ getAttribute: (n: string) => attrs[n] ?? null }),
     },
-  );
+    URLSearchParams,
+  });
   return { ui: html.dataset.scanUi, data };
 }
 
@@ -41,9 +41,11 @@ describe.each(['v1', 'v2'] as const)('pre-paint scan interface script (default %
   const cases: Array<[string, string | null, boolean]> = [
     ['', null, false],
     ['?ui=v2', null, false],
+    ['?ui=v1', null, false],
     ['?ui=v2', 'v1', false],
     ['?ui=v1', 'v2', false],
     ['?url=https://example.com', 'v2', false],
+    ['?url=https://example.com', 'v1', false],
     ['?ui=nope', 'v2', false],
     ['?ui=v2', null, true],
     ['', 'v2', true],
