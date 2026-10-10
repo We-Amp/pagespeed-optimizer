@@ -16,6 +16,7 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
+import { parse } from 'parse5';
 import { describe, it, expect } from 'vitest';
 
 const DIST = path.join(fileURLToPath(new URL('..', import.meta.url)), 'dist/client');
@@ -74,19 +75,30 @@ const GOLDENS: Golden[] = [
   },
 ];
 
-const decode = (s: string) =>
-  s
-    .replace(/&#39;|&#x27;|&apos;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&amp;/g, '&');
+interface Node {
+  nodeName: string;
+  value?: string;
+  attrs?: { name: string; value: string }[];
+  childNodes?: Node[];
+}
 
-const page = (route: string) => readFileSync(path.join(DIST, route, 'index.html'), 'utf8');
+const page = (route: string): Node =>
+  parse(readFileSync(path.join(DIST, route, 'index.html'), 'utf8')) as unknown as Node;
 
-function metaContent(html: string, attr: 'name' | 'property', key: string): string | undefined {
-  const m = html.match(new RegExp(`<meta ${attr}="${key}" content="([^"]*)"`));
-  return m ? decode(m[1]) : undefined;
+function all(node: Node, tag: string, out: Node[] = []): Node[] {
+  if (node.nodeName === tag) out.push(node);
+  (node.childNodes ?? []).forEach((c) => all(c, tag, out));
+  return out;
+}
+
+const attr = (n: Node, name: string) => n.attrs?.find((a) => a.name === name)?.value;
+
+const text = (n: Node): string =>
+  n.nodeName === '#text' ? (n.value ?? '') : (n.childNodes ?? []).map(text).join('');
+
+function meta(doc: Node, key: 'name' | 'property', value: string): string | undefined {
+  const m = all(doc, 'meta').find((n) => attr(n, key) === value);
+  return m && attr(m, 'content');
 }
 
 function collectTypes(node: unknown, out: Set<string>): void {
@@ -100,12 +112,10 @@ function collectTypes(node: unknown, out: Set<string>): void {
   }
 }
 
-function jsonLdTypes(html: string): string[] {
+function jsonLdTypes(doc: Node): string[] {
   const out = new Set<string>();
-  for (const m of html.matchAll(
-    /<script type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g,
-  )) {
-    collectTypes(JSON.parse(m[1]), out);
+  for (const s of all(doc, 'script')) {
+    if (attr(s, 'type') === 'application/ld+json') collectTypes(JSON.parse(text(s)), out);
   }
   return [...out].sort();
 }
@@ -113,36 +123,38 @@ function jsonLdTypes(html: string): string[] {
 describe.skipIf(!BUILT)('scan landing pages: SEO goldens (built output)', () => {
   for (const g of GOLDENS) {
     describe(g.route, () => {
-      const html = BUILT ? page(g.route) : '';
+      const doc = BUILT ? page(g.route) : ({ nodeName: '' } as Node);
 
       it('title', () => {
-        const m = html.match(/<title>([^<]*)<\/title>/);
-        expect(m && decode(m[1])).toBe(g.title);
+        const titles = all(doc, 'title');
+        expect(titles).toHaveLength(1);
+        expect(text(titles[0])).toBe(g.title);
       });
 
       it('meta description', () => {
-        expect(metaContent(html, 'name', 'description')).toBe(g.description);
+        expect(meta(doc, 'name', 'description')).toBe(g.description);
       });
 
       it('canonical, without a query string', () => {
-        const m = html.match(/<link rel="canonical" href="([^"]*)"/);
-        expect(m && decode(m[1])).toBe(g.canonical);
+        const links = all(doc, 'link').filter((n) => attr(n, 'rel') === 'canonical');
+        expect(links).toHaveLength(1);
+        expect(attr(links[0], 'href')).toBe(g.canonical);
         expect(g.canonical).not.toContain('?');
       });
 
       it('og:title and twitter:title match the title', () => {
-        expect(metaContent(html, 'property', 'og:title')).toBe(g.title);
-        expect(metaContent(html, 'name', 'twitter:title')).toBe(g.title);
+        expect(meta(doc, 'property', 'og:title')).toBe(g.title);
+        expect(meta(doc, 'name', 'twitter:title')).toBe(g.title);
       });
 
       it('exactly one h1, with the golden text', () => {
-        const h1s = [...html.matchAll(/<h1[^>]*>([\s\S]*?)<\/h1>/g)];
+        const h1s = all(doc, 'h1');
         expect(h1s).toHaveLength(1);
-        expect(decode(h1s[0][1].replace(/<[^>]*>/g, '').trim())).toBe(g.h1);
+        expect(text(h1s[0]).trim()).toBe(g.h1);
       });
 
       it('JSON-LD @type list', () => {
-        expect(jsonLdTypes(html)).toEqual(g.types);
+        expect(jsonLdTypes(doc)).toEqual(g.types);
       });
     });
   }
@@ -152,9 +164,10 @@ describe.skipIf(!BUILT)('scan landing pages: SEO goldens (built output)', () => 
   });
 
   it('/pagespeed-insights/ still links to /analyze/ from both CTAs', () => {
-    const html = page('/pagespeed-insights/');
+    const anchors = all(page('/pagespeed-insights/'), 'a');
     for (const event of ['cta_psi_analyze_hero', 'cta_psi_analyze']) {
-      expect(html).toMatch(new RegExp(`<a href="/analyze/"[^>]*data-umami-event="${event}"`));
+      const a = anchors.find((n) => attr(n, 'data-umami-event') === event);
+      expect(a && attr(a, 'href')).toBe('/analyze/');
     }
   });
 });
