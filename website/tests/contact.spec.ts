@@ -88,7 +88,11 @@ test.describe('Contact page', () => {
     await expect(steps).toHaveCount(3);
     await expect(page.locator('a[href="mailto:info@we-amp.com"]').first()).toBeVisible();
     await expect(page.locator('a[href="mailto:security@modpagespeed.com"]')).toBeVisible();
-    await expect(page.locator('#contact-form')).toHaveAttribute('action', 'mailto:info@we-amp.com');
+    // Without JavaScript the form posts natively to the capture endpoint.
+    await expect(page.locator('#contact-form')).toHaveAttribute(
+      'action',
+      '/ai-readability/api/contact',
+    );
     expect(await page.content()).not.toContain(['sales', 'we-amp.com'].join('@'));
   });
 
