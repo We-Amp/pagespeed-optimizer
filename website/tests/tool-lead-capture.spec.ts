@@ -944,15 +944,15 @@ test.describe('AI-readability SEO-defects lens and edge-SEO card', () => {
     await expect(row).toHaveClass(/ar-finding/);
     await expect(row.locator('.ar-h4-r')).toHaveText('attention');
     await expect(row).toContainText('3 issue(s): canonical 1, title 2.');
-    await expect(row).toContainText('Served by nginx; cloudflare headers seen.');
+    await expect(row).toContainText('Server header: nginx; CDN headers seen: cloudflare.');
     await expect(row.locator('.ar-chip-block')).toHaveText(['canonical · 1', 'title · 2']);
     await expect(row.locator('p.ar-def')).toHaveCount(0);
 
     const card = page.locator('section[aria-labelledby="ar-h-seo"]');
-    await expect(page.locator('#ar-h-seo')).toHaveText('SEO fixes waiting on a CMS release');
+    await expect(page.locator('#ar-h-seo')).toHaveText('SEO fixes without a CMS release');
     await expect(card.locator('p.ar-v')).toHaveText([
       SD_CARD_TEXT,
-      'Served by nginx; cloudflare headers seen.',
+      'Server header: nginx; CDN headers seen: cloudflare.',
     ]);
     await expect(card.locator('a[href="/platform/edge-seo/"]')).toHaveText(
       'Edge SEO at the origin →',
@@ -1027,6 +1027,20 @@ test.describe('AI-readability SEO-defects lens and edge-SEO card', () => {
     await expect(row.locator('.ar-chip')).toHaveCount(0);
     await expect(page.locator('#ar-h-seo')).toHaveCount(0);
     await expect(page.locator('#ar-seo-form')).toHaveCount(0);
+  });
+
+  test('a clean page whose served HTML was not compared does not claim a match', async ({
+    page,
+  }) => {
+    await stubUmami(page);
+    await runScan(page, sdScan({ ...SD_CLEAN, staticCompared: false, notMeasured: ['title-js'] }));
+
+    const row = SD_ROW(page);
+    await expect(row.locator('.ar-h4-r')).toHaveText('clean');
+    await expect(row.locator('.ar-v')).toHaveText(
+      'No defects found on the rendered page; the comparison with the served HTML did not run. One page only; not a ranking assessment.',
+    );
+    await expect(page.locator('#ar-h-seo')).toHaveCount(0);
   });
 
   test('without the no-JavaScript comparison the row names what was not measured and the card stays', async ({

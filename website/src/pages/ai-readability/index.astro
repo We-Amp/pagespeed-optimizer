@@ -1797,10 +1797,10 @@ const jsonLd = [webApp, faqPage];
       function sdServedBy(sd) {
         const dl = sd && sd.delivery;
         return (
-          'Served by ' +
-          ((dl && dl.server) || 'unknown server') +
-          '; ' +
-          (dl && dl.cdn ? dl.cdn + ' headers seen' : 'no CDN header seen') +
+          'Server header: ' +
+          ((dl && dl.server) || 'none') +
+          '; CDN headers seen: ' +
+          ((dl && dl.cdn) || 'none') +
           '.'
         );
       }
@@ -1822,6 +1822,8 @@ const jsonLd = [webApp, faqPage];
           return sdPartialText(sd)
             ? 'The no-JavaScript fetch was refused, so only the rendered page was checked and it showed no defect; the comparison with the served HTML did not run.'
             : 'We could not render this page, so we could not check its head.';
+        if (sd.verdict === 'clean' && sd.staticCompared === false)
+          return 'No defects found on the rendered page; the comparison with the served HTML did not run. One page only; not a ranking assessment.';
         if (sd.verdict === 'clean')
           return 'No defects found: the canonical, title, meta description, hreflang and structured data in the served HTML match the page after JavaScript. One page only; not a ranking assessment.';
         return (
@@ -2218,7 +2220,7 @@ const jsonLd = [webApp, faqPage];
           .join(', ');
         return (
           '<section class="ar-sec" aria-labelledby="ar-h-seo">' +
-          '<h3 id="ar-h-seo" class="ar-h3">SEO fixes waiting on a CMS release</h3>' +
+          '<h3 id="ar-h-seo" class="ar-h3">SEO fixes without a CMS release</h3>' +
           '<p class="ar-v">This page has ' +
           esc(String(sd.counts.total)) +
           ' technical SEO issue(s) that a rule on the server could fix in the HTML it serves (' +

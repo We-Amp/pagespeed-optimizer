@@ -14,9 +14,9 @@
 //   page and scanner each carry a "KEEP IN SYNC" comment.
 //
 // WHY A GOLDEN CONTRACT (not an import-and-compare)
-//   This (mps2) repo cannot import the scanner's demand.mjs — it lives in a
-//   separate private repo and is not vendored here. So instead of comparing the
-//   two implementations directly, we:
+//   The canonical implementation lives in the scanner and is not vendored
+//   here; this test pins the inline copy against golden fixtures. So instead of
+//   comparing the two implementations directly, we:
 //     (a) read index.astro and extract the eight inline function definitions
 //         straight out of the <script is:inline> region (between the
 //         KEEP-IN-SYNC comment and the normalizeUrl helper),
