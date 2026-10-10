@@ -287,6 +287,7 @@ test.describe('v2 Speed panel', () => {
     await expect(tile(page)).toHaveAttribute('data-state', 'checking');
     await page.clock.fastForward(61_000);
     await expect(tile(page)).toHaveAttribute('data-state', 'none', { timeout: 15000 });
+    await expect(tile(page)).toContainText('PageSpeed Insights did not answer.');
     await openSpeed(page);
     await expect(panel(page)).toContainText('PageSpeed Insights did not answer.');
     await expect(panel(page)).toContainText('PageSpeed Insights did not answer within a minute.');
