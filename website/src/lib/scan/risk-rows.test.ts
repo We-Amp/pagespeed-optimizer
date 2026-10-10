@@ -56,6 +56,8 @@ describe('riskRows over the full report', () => {
     expect(m.preConsentLeak.sentence).not.toMatch(/google|analytics|…|\(analytics\)/i);
     expect(m.scriptInventory.sentence).toMatch(/^Some scripts on this page need attention\./);
     expect(m.scriptInventory.sentence).toMatch(/not an assessment against any standard\.$/);
+    expect(m.scriptInventory.sentence).not.toMatch(/Flagged:/);
+    expect(m.scriptInventory.detail).toMatch(/^Flagged: .+\.$/);
     expect(m.scriptInventory.sentence).not.toMatch(
       /script\(s\)|CSP|from other hosts|with integrity/,
     );
