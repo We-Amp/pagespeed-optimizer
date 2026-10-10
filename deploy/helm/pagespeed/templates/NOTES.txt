@@ -15,3 +15,5 @@ Get the application URL:
 
 Verify the deployment:
   kubectl get pods -l app.kubernetes.io/name={{ include "pagespeed.name" . }}
+
+Agent install recipe: https://modpagespeed.com/recipes/helm.md

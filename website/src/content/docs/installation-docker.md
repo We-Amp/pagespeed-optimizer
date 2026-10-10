@@ -11,6 +11,8 @@ with the pagespeed module, the worker, and your origin server — sharing a
 Cyclone cache volume. To try it against your own site in seconds first, start
 with the single combined container below.
 
+Machine-readable recipe for coding agents: [modpagespeed.com/recipes/docker.md](https://modpagespeed.com/recipes/docker.md) (see [Install with a coding agent](/docs/agent-install/)).
+
 ## Quick try (one container)
 
 The fastest way to see mod_pagespeed against your own site is the combined

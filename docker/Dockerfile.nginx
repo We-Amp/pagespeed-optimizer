@@ -81,6 +81,7 @@ ARG BUILD_DATE
 LABEL org.opencontainers.image.title="mod_pagespeed 2.1 Nginx Module" \
       org.opencontainers.image.vendor="We-Amp B.V." \
       org.opencontainers.image.licenses="Apache-2.0" \
+      org.opencontainers.image.documentation="https://modpagespeed.com/recipes/docker.md" \
       org.opencontainers.image.source="https://github.com/We-Amp/pagespeed-optimizer" \
       org.opencontainers.image.version="${VERSION}" \
       org.opencontainers.image.created="${BUILD_DATE}"

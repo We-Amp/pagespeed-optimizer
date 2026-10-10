@@ -1,0 +1,18 @@
+{
+  "name": "modpagespeed",
+  "description": "Install mod_pagespeed 2.1 with a coding agent: the install-modpagespeed skill runs the machine-readable recipe for the detected server and verifies it.",
+  "owner": {
+    "name": "We-Amp B.V.",
+    "url": "https://modpagespeed.com"
+  },
+  "plugins": [
+    {
+      "name": "modpagespeed",
+      "source": "./.claude/skills/install-modpagespeed",
+      "description": "Install and verify mod_pagespeed 2.1 on nginx, Apache, IIS, ASP.NET Core, Docker or Helm from the recipes at modpagespeed.com/recipes/.",
+      "homepage": "https://modpagespeed.com/docs/agent-install/",
+      "repository": "https://github.com/We-Amp/pagespeed-optimizer",
+      "license": "Apache-2.0"
+    }
+  ]
+}
