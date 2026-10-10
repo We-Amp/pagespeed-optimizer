@@ -44,9 +44,12 @@ struct PlanOp {
   OpType type = OpType::kInsert;
   Kind kind = Kind::kCanonical;
   ElementFact target;  // the existing element (not for kInsert)
-  // kInsert, kSetValue: the attribute value (canonical, description) or the
-  // already HTML-escaped text (title).
+  // kInsert, kSetValue: the attribute value (canonical, description, the href
+  // of an hreflang link), the already HTML-escaped text (title) or the script
+  // text (jsonld).
   std::string value;
+  // hreflang, kInsert: the (normalized) language code of the new link.
+  std::string code;
 };
 
 struct RulePlan {

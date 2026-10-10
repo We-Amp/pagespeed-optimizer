@@ -53,6 +53,11 @@ struct PackDecision {
   // The value the rule sets (pack-derived), at most kMaxAfterBytes bytes;
   // empty when the decision sets nothing.
   std::string after;
+  // What the rule took out of the page, as "code=href (reason)" entries for
+  // hreflang and "@types (reason)" for jsonld, separated by "; ", at most
+  // kMaxAfterBytes bytes. This is page data, not pack data. Left out of the
+  // log line when empty.
+  std::string removed;
 
   bool operator==(const PackDecision&) const = default;
 };
@@ -67,7 +72,8 @@ std::string TruncateUtf8(std::string_view value, size_t max_bytes);
 std::string HashValue(std::string_view value);
 
 // One JSON object, no trailing newline, keys in a fixed order:
-// host, path, rule, kind, mode, action, reason, defect, before, after. The path
+// host, path, rule, kind, mode, action, reason, defect, before, after and,
+// only when something was removed, removed. The path
 // is cut to 300 bytes. Contains no timestamp: the caller adds `ts`.
 std::string DecisionToJsonLine(std::string_view host, std::string_view path,
                                const PackDecision& decision);

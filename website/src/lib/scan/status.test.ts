@@ -21,6 +21,8 @@ describe('speedStatus', () => {
   it('falls back to desktop and reports what it has', () => {
     expect(speedStatus(null, 95)).toMatchObject({ state: 'good', value: 'Mobile — · Desktop 95' });
     expect(speedStatus(72, 91).value).toBe('Mobile 72 · Desktop 91');
+    expect(speedStatus(null, 40)).toMatchObject({ state: 'poor', value: 'Mobile — · Desktop 40' });
+    expect(speedStatus(undefined, 50).state).toBe('needs-work');
     expect(speedStatus(null, null)).toEqual(NOT_MEASURED);
   });
 });
