@@ -3,7 +3,7 @@
 ## Reporting a Vulnerability
 
 If you discover a security vulnerability in mod_pagespeed 2.1, please report it
-responsibly by emailing **security@we-amp.com**. Do NOT open a public GitHub
+responsibly by emailing **security@modpagespeed.com**. Do NOT open a public GitHub
 issue.
 
 We will acknowledge your report within 72 hours and work with you to understand
@@ -46,5 +46,5 @@ include your name (or alias) in the release notes.
 
 ## Contact
 
-- **Email:** security@we-amp.com
+- **Email:** security@modpagespeed.com
 - **Company:** We-Amp B.V., Castricum, The Netherlands
