@@ -53,12 +53,15 @@ const jsonLd = {
         <h3 class="mt-4 font-semibold text-text-body">The packages you already trust</h3>
         <p class="mt-2 text-sm text-text-muted">
           No partner-specific builds: the same signed packages every nginx and Apache deployment
-          uses, from <a
+          uses, from{' '}
+          <a
             href="https://packages.modpagespeed.com/"
             rel="noopener noreferrer external"
             class="text-interactive hover:text-interactive-hover underline"
-            >packages.modpagespeed.com</a
-          > — including cPanel/EA4 RPMs.
+          >
+            packages.modpagespeed.com
+          </a>{' '}
+          — including cPanel/EA4 RPMs.
         </p>
       </div>
       <div class="card">
@@ -77,10 +80,14 @@ const jsonLd = {
         </div>
         <h3 class="mt-4 font-semibold text-text-body">Annual partner agreement</h3>
         <p class="mt-2 text-sm text-text-muted">
-          One agreement per provider, under the <a
+          One agreement per provider, under the{' '}
+          <a
             href={LICENSING_TERMS_URL}
-            class="text-interactive hover:text-interactive-hover underline">We-Amp terms</a
-          >. {PRICING_ON_REQUEST}
+            class="text-interactive hover:text-interactive-hover underline"
+          >
+            We-Amp terms
+          </a>
+          . {PRICING_ON_REQUEST}
         </p>
       </div>
     </div>
@@ -98,19 +105,29 @@ const jsonLd = {
       >
         <input type="hidden" name="topic" value="hosting" />
         <div>
-          <label for="hp-hosts" class="eyebrow">Hosts</label>
+          <label for="hp-hosts" class="eyebrow">
+            Hosts
+          </label>
           <select id="hp-hosts" name="hosts" class={fieldClass}>
-            {hostBands.map((b) => <option value={b}>{b}</option>)}
+            {hostBands.map((b) => (
+              <option value={b}>{b}</option>
+            ))}
           </select>
         </div>
         <div>
-          <label for="hp-panel" class="eyebrow">Control panel</label>
+          <label for="hp-panel" class="eyebrow">
+            Control panel
+          </label>
           <select id="hp-panel" name="panel" class={fieldClass}>
-            {panels.map((p) => <option value={p}>{p}</option>)}
+            {panels.map((p) => (
+              <option value={p}>{p}</option>
+            ))}
           </select>
         </div>
         <div>
-          <label for="hp-distros" class="eyebrow">Distributions</label>
+          <label for="hp-distros" class="eyebrow">
+            Distributions
+          </label>
           <input
             id="hp-distros"
             name="distros"
@@ -126,16 +143,20 @@ const jsonLd = {
             data-umami-event="cta_commercial"
             data-umami-event-offer="hosting"
             data-umami-event-surface="hosting-partners"
-            data-umami-event-position="qualifier_form">Continue to the contact form</button
+            data-umami-event-position="qualifier_form"
           >
+            Continue to the contact form
+          </button>
           <a
             href="/contact/?topic=hosting"
             class="text-sm text-interactive hover:text-interactive-hover underline"
             data-umami-event="cta_commercial"
             data-umami-event-offer="hosting"
             data-umami-event-surface="hosting-partners"
-            data-umami-event-position="contact_link">Or just write to us</a
+            data-umami-event-position="contact_link"
           >
+            Or just write to us
+          </a>
         </div>
       </form>
     </div>

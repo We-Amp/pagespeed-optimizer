@@ -3,20 +3,13 @@
 // Used as a client:visible island on the features page
 ---
 
-<div
-  class="rounded-lg border border-border bg-bg-elevated p-4"
-  id="bitmask-viz"
->
-  <p class="text-xs font-medium text-text-body mb-4">
-    Interactive: build a capability mask
-  </p>
+<div class="rounded-lg border border-border bg-bg-elevated p-4" id="bitmask-viz">
+  <p class="text-xs font-medium text-text-body mb-4">Interactive: build a capability mask</p>
 
   <div class="grid grid-cols-2 sm:grid-cols-3 gap-3 text-xs">
     {/* Format */}
     <div>
-      <p class="font-medium text-text-annotation mb-1.5 font-mono">
-        Bits 0-1: Format
-      </p>
+      <p class="font-medium text-text-annotation mb-1.5 font-mono">Bits 0-1: Format</p>
       <div class="space-y-1" id="bitmask-format">
         <label class="flex items-center gap-1.5 cursor-pointer">
           <input type="radio" name="bm-format" value="0" class="accent-interactive" />
@@ -39,9 +32,7 @@
 
     {/* Viewport */}
     <div>
-      <p class="font-medium text-text-annotation mb-1.5 font-mono">
-        Bits 2-3: Viewport
-      </p>
+      <p class="font-medium text-text-annotation mb-1.5 font-mono">Bits 2-3: Viewport</p>
       <div class="space-y-1" id="bitmask-viewport">
         <label class="flex items-center gap-1.5 cursor-pointer">
           <input type="radio" name="bm-viewport" value="0" class="accent-interactive" />
@@ -79,7 +70,9 @@
           >
             <option value="0">Identity</option>
             <option value="1">Gzip</option>
-            <option value="2" selected>Brotli</option>
+            <option value="2" selected>
+              Brotli
+            </option>
           </select>
         </div>
       </div>
@@ -90,27 +83,18 @@
   <div class="mt-4 pt-3 border-t border-border">
     <div class="flex items-center gap-2 flex-wrap">
       <div class="flex items-center gap-[3px]" id="bm-bits">
-        {
-          [0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
-            <div
-              class="h-5 w-5 rounded-sm border border-border-strong transition-colors duration-150"
-              data-bit={i}
-            />
-          ))
-        }
+        {[0, 1, 2, 3, 4, 5, 6, 7].map((i) => (
+          <div
+            class="h-5 w-5 rounded-sm border border-border-strong transition-colors duration-150"
+            data-bit={i}
+          />
+        ))}
       </div>
-      <span
-        class="text-sm font-mono font-bold text-text-body ml-1"
-        id="bm-hex"
-        aria-live="polite"
-        >0x00</span
-      >
+      <span class="text-sm font-mono font-bold text-text-body ml-1" id="bm-hex" aria-live="polite">
+        0x00
+      </span>
     </div>
-    <p
-      class="mt-1.5 text-[10px] text-text-annotation font-mono"
-      id="bm-desc"
-      aria-live="polite"
-    >
+    <p class="mt-1.5 text-[10px] text-text-annotation font-mono" id="bm-desc" aria-live="polite">
       Original · Mobile · 1x · no Save-Data · Identity
     </p>
   </div>

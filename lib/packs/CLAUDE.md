@@ -1,6 +1,7 @@
 # Packs Library
 
-Loader, matching model and head-rule filter for declarative transform packs
+Loader, matching model and head-rule filter (canonical, title, description,
+hreflang, JSON-LD) for declarative transform packs
 (JSON). The loader, matcher and templates are pure functions over strings; the
 filter (`pack_filter`) is the only part that touches HTML. Nothing here is
 wired into the worker yet.
@@ -13,7 +14,7 @@ wired into the worker yet.
 - `url_norm.h` -- `NormUrl()` equality normalization, `NormalizeHreflangCode()`
 
 - `page_facts.h` -- what the traversal collects (element handles, values)
-- `planner.h` -- `BuildPlan()`: pure facts-in, plan-out; one `PackDecision` per rule (canonical, title, description)
+- `planner.h` -- `BuildPlan()`: pure facts-in, plan-out; one `PackDecision` per rule (every kind, in `kKindOrder`)
 - `decision.h` -- `PackDecision` (values as hashes only) and the JSONL line encoder
 - `pack_filter.h` -- `PackFilter`, an `EmptyHtmlFilter`: collects facts while streaming, decides and mutates at `EndDocument`
 
@@ -46,3 +47,16 @@ bazel run //tools/packs:fixture_runner -- --update "$PWD/packs/edge-seo/fixtures
 - An element with other `rel` tokens (`rel="canonical alternate"`) is never rewritten in place: the `canonical` token is removed and a new element is inserted.
 - A `<head>` the source never closes ends at `<body>` or the first element that is not head content; inserts go before that element. If an inert element (svg, noscript, ...) is still open there, the page is skipped (`malformed_head`).
 - The kernel re-serializes some tag whitespace (`<head  >`, `<TITLE >`). When `modified()` is false the caller must serve the original bytes, not the filter's output.
+- hreflang: an `<link rel~=alternate hreflang=...>` is a cluster entry only when `alternate` is its sole rel token; a link with other tokens (`rel="alternate stylesheet"`) is never read or touched. The attribute name is matched case-insensitively.
+- hreflang codes are valid only as the page wrote them (`en_US` is invalid on a page); the pack emits codes lowercased and `-`-separated. An href is usable only when absolute; relative hrefs are never resolved, they are `unusable` under `repair`/`replace`.
+- hreflang never emits a cluster without an entry for the page itself (`cluster_without_self`); a table miss is `no_value`. `repair` leaves a usable entry alone whatever its href, except that when no entry points at the page it rewrites the href of a self code. Numeric entities in hrefs that do not decode to UTF-8 compare as written.
+- jsonld identity is the set of top-level `@type` values plus the members of a top-level `@graph`; a block "matches" the rule when the sets overlap. `keep` and `repair` match on overlap. `replace` only rewrites or removes blocks whose types are ALL among the template's; a block that overlaps but carries other types (a @graph with a WebPage and an Organization, `["Organization","LocalBusiness"]`) makes the rule stand down for the page with reason `conflict`. Blocks of other types are never touched. A block that does not parse (or is not an object/array) is `invalid`: `keep` stands down, `repair` and `replace` remove it. A block over `kMaxJsonLdScanBytes`, or nested deeper than `kMaxJsonLdDepth` (64, checked lexically before any parse), is unreadable: the rule stands down for the page and the block is never removed. A template nested deeper than that is a load error. Only `type="application/ld+json"` (ASCII case-insensitive, no parameters, no surrounding space) is JSON-LD, as in the SEO-defects scanner.
+- jsonld rewrites in place under `replace` (attributes such as `id` and `nonce` survive); inserts go at the end of `<head>`. Blocks may sit anywhere in the document (body included) but not inside noscript/template/svg.
+- jsonld placeholders use the final canonical/title/description: an enforcing jsonld rule quotes only what an enforcing earlier rule writes (otherwise the document's own value); a report-only jsonld rule quotes the values the whole pack would write.
+- jsonld decisions log the `@type` list as `after` and a hash of the block as `before`, never block text.
+- Numeric character references in attribute values (`caf&#233;`, `&#xE9;`) are decoded to UTF-8 for comparison only; an equal element is never rewritten.
+- hreflang `repair` keeps, per code, the first usable entry, except that an entry pointing at the page wins, so a conflict never removes the page's own entry.
+- The decision log gets a `removed` field only when something was removed: `code=href (reason); ...` for hreflang, `@types (reason)` for jsonld, at most 200 bytes. It is page data (never block text).
+- Plain-absent inserts carry no defect id (the pack cannot tell a page that lacks the markup from one that adds it with a script).
+- Self detection uses the request URL including its query. A page served with a query string that the cluster does not list is `cluster_without_self` (a known trap; list the query form or match on a path pattern).
+- Templates that use `{title}`, `{description}` or `{canonical}` should use `replace` (or be flipped together with the rules they read). After flipping an earlier title or description rule to enforce, purge the cached variants: `keep` and `repair` treat the pack's own earlier output as present and will not recompute the block.

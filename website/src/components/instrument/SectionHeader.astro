@@ -35,12 +35,10 @@ const hasLead = lead.trim().length > 0;
   <Tag id={id} class="h2-section text-text-body mt-3">
     {title}
   </Tag>
-  {
-    hasLead && (
-      <div
-        class:list={['lede mt-4 max-w-2xl', align === 'center' && 'mx-auto text-center']}
-        set:html={lead}
-      />
-    )
-  }
+  {hasLead && (
+    <div
+      class:list={['lede mt-4 max-w-2xl', align === 'center' && 'mx-auto text-center']}
+      set:html={lead}
+    />
+  )}
 </header>

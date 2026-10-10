@@ -79,113 +79,103 @@ const boolLabel = (v: string) => (v === 'yes' ? 'Yes' : v === 'no' ? 'No' : 'Par
         </tr>
       </thead>
       <tbody class="text-text-body">
-        {
-          rows.map((row: Row) => (
-            <tr class={`border-t border-border ${row.highlight ? 'bg-success-wash' : ''}`}>
-              <th scope="row" class="py-3 pl-4 pr-4 text-left align-top font-medium text-text-body">
-                {row.label}
-              </th>
-              <td
-                class={`border-l-2 border-interactive/40 ${
-                  row.highlight ? '' : 'bg-interactive/10'
-                } py-3 px-4 align-top`}
-              >
-                {isBool(row.mps) ? (
-                  <span
-                    class={`cmp-glyph cmp-${row.mps}`}
-                    role="img"
-                    aria-label={boolLabel(row.mps)}
-                  >
-                    <span aria-hidden="true">
-                      {row.mps === 'yes' ? '✓' : row.mps === 'partial' ? '◐' : '✗'}
-                    </span>
+        {rows.map((row: Row) => (
+          <tr class={`border-t border-border ${row.highlight ? 'bg-success-wash' : ''}`}>
+            <th scope="row" class="py-3 pl-4 pr-4 text-left align-top font-medium text-text-body">
+              {row.label}
+            </th>
+            <td
+              class={`border-l-2 border-interactive/40 ${
+                row.highlight ? '' : 'bg-interactive/10'
+              } py-3 px-4 align-top`}
+            >
+              {isBool(row.mps) ? (
+                <span class={`cmp-glyph cmp-${row.mps}`} role="img" aria-label={boolLabel(row.mps)}>
+                  <span aria-hidden="true">
+                    {row.mps === 'yes' ? '✓' : row.mps === 'partial' ? '◐' : '✗'}
                   </span>
-                ) : (
-                  <Fragment set:html={row.mps} />
-                )}
-              </td>
-              <td class="py-3 px-4 align-top">
-                {isBool(row.other) ? (
-                  <span
-                    class={`cmp-glyph cmp-${row.other}`}
-                    role="img"
-                    aria-label={boolLabel(row.other)}
-                  >
-                    <span aria-hidden="true">
-                      {row.other === 'yes' ? '✓' : row.other === 'partial' ? '◐' : '✗'}
-                    </span>
+                </span>
+              ) : (
+                <Fragment set:html={row.mps} />
+              )}
+            </td>
+            <td class="py-3 px-4 align-top">
+              {isBool(row.other) ? (
+                <span
+                  class={`cmp-glyph cmp-${row.other}`}
+                  role="img"
+                  aria-label={boolLabel(row.other)}
+                >
+                  <span aria-hidden="true">
+                    {row.other === 'yes' ? '✓' : row.other === 'partial' ? '◐' : '✗'}
                   </span>
-                ) : (
-                  <Fragment set:html={row.other} />
-                )}
-              </td>
-            </tr>
-          ))
-        }
+                </span>
+              ) : (
+                <Fragment set:html={row.other} />
+              )}
+            </td>
+          </tr>
+        ))}
       </tbody>
     </table>
   </div>
 
   <!-- Stacked layout: one card per row, shown below sm -->
   <ul class="sm:hidden space-y-3">
-    {
-      rows.map((row: Row) => (
-        <li
-          class={`rounded-xl border border-border p-4 ${
-            row.highlight ? 'bg-success-wash' : 'bg-bg-elevated'
-          }`}
-        >
-          <p class="text-sm font-semibold text-text-body">{row.label}</p>
-          <dl class="mt-3 grid grid-cols-1 gap-3">
-            <div
-              class={`rounded-lg border-l-2 border-interactive/40 ${
-                row.highlight ? '' : 'bg-interactive/10'
-              } px-3 py-2`}
-            >
-              <dt class="text-xs font-semibold uppercase tracking-wide text-interactive">
-                {mpsHeader}
-              </dt>
-              <dd class="mt-1 text-sm text-text-body">
-                {isBool(row.mps) ? (
-                  <span class={`cmp-glyph cmp-${row.mps}`}>
-                    <span aria-hidden="true">
-                      {row.mps === 'yes' ? '✓' : row.mps === 'partial' ? '◐' : '✗'}
-                    </span>
-                    <span class="ml-1.5 align-middle text-sm">{boolLabel(row.mps)}</span>
+    {rows.map((row: Row) => (
+      <li
+        class={`rounded-xl border border-border p-4 ${
+          row.highlight ? 'bg-success-wash' : 'bg-bg-elevated'
+        }`}
+      >
+        <p class="text-sm font-semibold text-text-body">{row.label}</p>
+        <dl class="mt-3 grid grid-cols-1 gap-3">
+          <div
+            class={`rounded-lg border-l-2 border-interactive/40 ${
+              row.highlight ? '' : 'bg-interactive/10'
+            } px-3 py-2`}
+          >
+            <dt class="text-xs font-semibold uppercase tracking-wide text-interactive">
+              {mpsHeader}
+            </dt>
+            <dd class="mt-1 text-sm text-text-body">
+              {isBool(row.mps) ? (
+                <span class={`cmp-glyph cmp-${row.mps}`}>
+                  <span aria-hidden="true">
+                    {row.mps === 'yes' ? '✓' : row.mps === 'partial' ? '◐' : '✗'}
                   </span>
-                ) : (
-                  <Fragment set:html={row.mps} />
-                )}
-              </dd>
-            </div>
-            <div class="px-3 py-2">
-              <dt class="text-xs font-semibold uppercase tracking-wide text-text-annotation">
-                {competitor}
-              </dt>
-              <dd class="mt-1 text-sm text-text-body">
-                {isBool(row.other) ? (
-                  <span class={`cmp-glyph cmp-${row.other}`}>
-                    <span aria-hidden="true">
-                      {row.other === 'yes' ? '✓' : row.other === 'partial' ? '◐' : '✗'}
-                    </span>
-                    <span class="ml-1.5 align-middle text-sm">{boolLabel(row.other)}</span>
+                  <span class="ml-1.5 align-middle text-sm">{boolLabel(row.mps)}</span>
+                </span>
+              ) : (
+                <Fragment set:html={row.mps} />
+              )}
+            </dd>
+          </div>
+          <div class="px-3 py-2">
+            <dt class="text-xs font-semibold uppercase tracking-wide text-text-annotation">
+              {competitor}
+            </dt>
+            <dd class="mt-1 text-sm text-text-body">
+              {isBool(row.other) ? (
+                <span class={`cmp-glyph cmp-${row.other}`}>
+                  <span aria-hidden="true">
+                    {row.other === 'yes' ? '✓' : row.other === 'partial' ? '◐' : '✗'}
                   </span>
-                ) : (
-                  <Fragment set:html={row.other} />
-                )}
-              </dd>
-            </div>
-          </dl>
-        </li>
-      ))
-    }
+                  <span class="ml-1.5 align-middle text-sm">{boolLabel(row.other)}</span>
+                </span>
+              ) : (
+                <Fragment set:html={row.other} />
+              )}
+            </dd>
+          </div>
+        </dl>
+      </li>
+    ))}
   </ul>
 
   <!-- Compact CTA: shared across every /vs/ and /alternatives/ page, so keep it
        generic (no per-product param). -->
-  <div
-    class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-bg-secondary/60 px-4 py-3 text-sm"
-  >
+  <div class="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-xl border border-border bg-bg-secondary/60 px-4 py-3 text-sm">
     <span class="font-medium text-text-body">See for yourself:</span>
     <a
       href="/download/"

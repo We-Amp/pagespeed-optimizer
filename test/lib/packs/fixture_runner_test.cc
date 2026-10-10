@@ -12,6 +12,7 @@
 
 #include "tools/packs/fixture_runner.h"
 
+#include <regex>
 #include <string>
 #include <vector>
 
@@ -93,6 +94,59 @@ TEST_P(FixtureTest, HoldsTheFourProperties) {
   } else {
     EXPECT_EQ(run->other_transforms.html, *expected_html);
   }
+}
+
+// Whenever an enforcing hreflang rule did anything, the cluster the head ends
+// with has a valid code on every entry and an entry for the page itself.
+TEST_P(FixtureTest, HreflangClustersAreValidAndHaveSelf) {
+  const FixtureCase& c = GetParam();
+  auto run = RunCase(kFixturesDir, c);
+  ASSERT_TRUE(run.ok()) << run.status();
+  bool acted = false;
+  for (const PackDecision& d : run->enforce.decisions) {
+    if (d.kind == Kind::kHreflang && d.mode == Mode::kEnforce &&
+        d.action != Action::kNone) {
+      acted = true;
+    }
+  }
+  if (!acted) return;
+  static const std::regex kLens(
+      "^(x-default|[a-z]{2,3}(-[a-z]{4})?(-([a-z]{2}|\\d{3}))?)$");
+  static const std::regex kTag("<link\\b[^>]*>", std::regex::icase);
+  static const std::regex kAttr(
+      "([a-zA-Z-]+)\\s*=\\s*(?:\"([^\"]*)\"|'([^']*)'|([^\\s>\"']+))");
+  const std::string head = HeadOf(run->enforce.html);
+  size_t entries = 0;
+  bool self = false;
+  for (auto tag = std::sregex_iterator(head.begin(), head.end(), kTag);
+       tag != std::sregex_iterator(); ++tag) {
+    const std::string text = tag->str();
+    std::string rel, code, href;
+    bool has_code = false;
+    for (auto at = std::sregex_iterator(text.begin(), text.end(), kAttr);
+         at != std::sregex_iterator(); ++at) {
+      const std::string name = absl::AsciiStrToLower((*at)[1].str());
+      std::string value = (*at)[2].matched   ? (*at)[2].str()
+                          : (*at)[3].matched ? (*at)[3].str()
+                                             : (*at)[4].str();
+      if (name == "rel") rel = absl::AsciiStrToLower(value);
+      if (name == "hreflang") {
+        code = absl::AsciiStrToLower(value);
+        has_code = true;
+      }
+      if (name == "href") href = value;
+    }
+    // Only plain alternate links are entries of the cluster.
+    if (!has_code || rel != "alternate") continue;
+    ++entries;
+    EXPECT_TRUE(std::regex_match(code, kLens)) << code;
+    std::string page = run->url;
+    while (!href.empty() && href.back() == '/') href.pop_back();
+    while (!page.empty() && page.back() == '/') page.pop_back();
+    if (href == page) self = true;
+  }
+  EXPECT_GT(entries, 0u);
+  EXPECT_TRUE(self) << "no hreflang entry for " << run->url;
 }
 
 INSTANTIATE_TEST_SUITE_P(Cases, FixtureTest, testing::ValuesIn(Cases()),

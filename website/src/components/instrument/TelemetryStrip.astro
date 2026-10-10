@@ -107,20 +107,24 @@ const fields = [
   <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 telemetry-row">
     <span class="t-state">
       <i class="t-led" aria-hidden="true"></i>
-      <a class="t-state-link" href="/pagespeed-markers/"><span data-t="state">{stateText}</span></a>
-      <span class="t-state-plain"><span data-t="state">{stateText}</span></span>
+      <a class="t-state-link" href="/pagespeed-markers/">
+        <span data-t="state">{stateText}</span>
+      </a>
+      <span class="t-state-plain">
+        <span data-t="state">{stateText}</span>
+      </span>
     </span>
     <dl class="t-fields">
-      {
-        fields.map((f) => (
-          <div class:list={['t-f', f.wide && 't-wide', f.mid && 't-mid']} style={`--w:${f.width}`}>
-            <dt>{f.term}</dt>
-            <dd data-t={f.t}>{f.value}</dd>
-          </div>
-        ))
-      }
+      {fields.map((f) => (
+        <div class:list={['t-f', f.wide && 't-wide', f.mid && 't-mid']} style={`--w:${f.width}`}>
+          <dt>{f.term}</dt>
+          <dd data-t={f.t}>{f.value}</dd>
+        </div>
+      ))}
     </dl>
-    <a class="t-more" href="/pagespeed-markers/">what these headers mean</a>
+    <a class="t-more" href="/pagespeed-markers/">
+      what these headers mean
+    </a>
   </div>
 </aside>
 

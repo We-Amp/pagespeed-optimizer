@@ -109,9 +109,9 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
       title={`Support from the engineers who build ${PRODUCT}`}
       as="h1"
     >
-      The software is {LICENSE_CLAUSE} and does the same thing with or without a subscription. A subscription
-      decides who answers when something breaks and, from Priority up, which repository your packages
-      come from.
+      The software is {LICENSE_CLAUSE} and does the same thing with or without a subscription. A
+      subscription decides who answers when something breaks and, from Priority up, which repository
+      your packages come from.
     </SectionHeader>
     <div class="mt-8 flex flex-wrap gap-3">
       <a
@@ -120,16 +120,20 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
         data-umami-event="cta_commercial"
         data-umami-event-offer="support"
         data-umami-event-surface="support"
-        data-umami-event-position="hero_quote">Ask for a quote &rarr;</a
+        data-umami-event-position="hero_quote"
       >
+        Ask for a quote &rarr;
+      </a>
       <a
         href="/contact/?topic=support"
         class="btn-secondary"
         data-umami-event="cta_commercial"
         data-umami-event-offer="support"
         data-umami-event-surface="support"
-        data-umami-event-position="hero_contact">Talk to an engineer</a
+        data-umami-event-position="hero_contact"
       >
+        Talk to an engineer
+      </a>
     </div>
   </section>
 
@@ -139,26 +143,26 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
   <section id="what-you-get" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-16">
     <h2 class="h2-section text-text-body">What a subscription buys</h2>
     <dl class="mt-8 readout-plate divide-y divide-border">
-      {
-        buys.map((row) => (
-          <div class="grid grid-cols-1 gap-1 px-5 py-4 sm:grid-cols-[16rem_1fr] sm:gap-6">
-            <dt class="font-mono text-sm">
-              <span class="text-text-annotation">{row.key}:</span>{' '}
-              <span class="text-interactive">{row.value}</span>
-            </dt>
-            <dd class="text-sm text-text-muted">{row.detail}</dd>
-          </div>
-        ))
-      }
+      {buys.map((row) => (
+        <div class="grid grid-cols-1 gap-1 px-5 py-4 sm:grid-cols-[16rem_1fr] sm:gap-6">
+          <dt class="font-mono text-sm">
+            <span class="text-text-annotation">{row.key}:</span>{' '}
+            <span class="text-interactive">{row.value}</span>
+          </dt>
+          <dd class="text-sm text-text-muted">{row.detail}</dd>
+        </div>
+      ))}
     </dl>
     <p class="mt-6 text-sm text-text-muted max-w-3xl">
-      Subscriptions are governed by the <a
-        href={LICENSING_TERMS_URL}
-        class="text-interactive hover:text-interactive-hover underline">support terms</a
-      > together with the <a
-        href="/terms/"
-        class="text-interactive hover:text-interactive-hover underline">terms of service</a
-      >.
+      Subscriptions are governed by the{' '}
+      <a href={LICENSING_TERMS_URL} class="text-interactive hover:text-interactive-hover underline">
+        support terms
+      </a>{' '}
+      together with the{' '}
+      <a href="/terms/" class="text-interactive hover:text-interactive-hover underline">
+        terms of service
+      </a>
+      .
     </p>
   </section>
 
@@ -187,8 +191,8 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
       <p class="eyebrow">For your security team</p>
       <h2 class="mt-3 h2-section text-text-body">Signed packages and images</h2>
       <p class="mt-4 text-text-muted max-w-3xl">
-        Every install of {PRODUCT} runs the same software from the same source, whatever the support tier.
-        Here is what is signed today, for everyone.
+        Every install of {PRODUCT} runs the same software from the same source, whatever the support
+        tier. Here is what is signed today, for everyone.
       </p>
 
       <div class="mt-10 grid grid-cols-1 gap-6 lg:grid-cols-2">
@@ -197,42 +201,48 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
           <ul class="mt-4 space-y-3 text-sm text-text-muted">
             <li class="flex gap-2">
               <Icon name="key-round" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
-              <span
-                >The apt and yum repositories at <code class="text-xs"
-                  >packages.modpagespeed.com</code
-                > are GPG-signed (RSA 4096, fingerprint <code class="text-xs break-all"
-                  >{KEY_FINGERPRINT}</code
-                >); apt and dnf verify what they install against that key.</span
-              >
+              <span>
+                The apt and yum repositories at{' '}
+                <code class="text-xs">packages.modpagespeed.com</code> are GPG-signed (RSA 4096,
+                fingerprint <code class="text-xs break-all">{KEY_FINGERPRINT}</code>); apt and dnf
+                verify what they install against that key.
+              </span>
             </li>
             <li class="flex gap-2">
               <Icon name="check" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
-              <span
-                >Every release asset on GitHub is listed in a <code class="text-xs">SHA256SUMS</code
-                > file published with the release.</span
-              >
+              <span>
+                Every release asset on GitHub is listed in a <code class="text-xs">SHA256SUMS</code>{' '}
+                file published with the release.
+              </span>
             </li>
             <li class="flex gap-2">
               <Icon name="database" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
-              <span
-                >An SPDX 2.3 SBOM for the {CURRENT_LINE} line, with a VEX document, is published in the
+              <span>
+                An SPDX 2.3 SBOM for the {CURRENT_LINE} line, with a VEX document, is published in
+                the
                 <a
                   href={SBOM_URL}
                   rel="noopener noreferrer"
                   class="text-interactive hover:text-interactive-hover underline"
-                  ><code class="text-xs">sbom/</code> directory</a
-                > of the source tree.</span
-              >
+                >
+                  <code class="text-xs">sbom/</code> directory
+                </a>{' '}
+                of the source tree.
+              </span>
             </li>
             <li class="flex gap-2">
               <Icon name="shield-check" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
-              <span
-                >The container images on GHCR are signed with keyless cosign and carry an SBOM
-                attestation and build provenance; the <a
+              <span>
+                The container images on GHCR are signed with keyless cosign and carry an SBOM
+                attestation and build provenance; the{' '}
+                <a
                   href="/docs/deployment/#verify-the-images"
-                  class="text-interactive hover:text-interactive-hover underline">verify commands</a
-                > are in the deployment guide.</span
-              >
+                  class="text-interactive hover:text-interactive-hover underline"
+                >
+                  verify commands
+                </a>{' '}
+                are in the deployment guide.
+              </span>
             </li>
           </ul>
         </div>
@@ -241,11 +251,17 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
           <ul class="mt-4 space-y-3 text-sm text-text-muted">
             <li class="flex gap-2">
               <Icon name="lock" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
-              <span>A private package repository for Priority and Enterprise subscribers, with security fixes delivered before the public release, is being set up.</span>
+              <span>
+                A private package repository for Priority and Enterprise subscribers, with security
+                fixes delivered before the public release, is being set up.
+              </span>
             </li>
             <li class="flex gap-2">
               <Icon name="shield-check" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
-              <span>Until then, subscribers receive the release SBOM and VEX on request and advance notice of security releases.</span>
+              <span>
+                Until then, subscribers receive the release SBOM and VEX on request and advance
+                notice of security releases.
+              </span>
             </li>
           </ul>
           <p class="mt-4 text-sm text-text-muted">
@@ -258,8 +274,10 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
             data-umami-event="cta_commercial"
             data-umami-event-offer="hardened"
             data-umami-event-surface="support"
-            data-umami-event-position="hardened_builds">Ask about the private repository</a
+            data-umami-event-position="hardened_builds"
           >
+            Ask about the private repository
+          </a>
         </div>
       </div>
 
@@ -269,13 +287,16 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
           Four lines: fetch the repository key, check its fingerprint, pin apt to it, and check the
           checksums of anything downloaded from a release page.
         </p>
-        <pre
-          class="mt-4 overflow-x-auto rounded-lg bg-bg-recessed p-4 text-xs text-text-body"><code>{verifyRecipe}</code></pre>
+        <pre class="mt-4 overflow-x-auto rounded-lg bg-bg-recessed p-4 text-xs text-text-body"><code>{verifyRecipe}</code></pre>
         <p class="mt-3 text-xs text-text-annotation">
-          On dnf, the <a
+          On dnf, the{' '}
+          <a
             href="/download/apt-yum/"
-            class="text-interactive hover:text-interactive-hover underline">repository file</a
-          > sets <code>gpgcheck=1</code> against the same key.
+            class="text-interactive hover:text-interactive-hover underline"
+          >
+            repository file
+          </a>{' '}
+          sets <code>gpgcheck=1</code> against the same key.
         </p>
       </div>
     </div>
@@ -287,9 +308,9 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
       <div id="hosting-partners" class="card flex flex-col">
         <h2 class="text-xl font-semibold text-text-body">Hosting partner program</h2>
         <p class="mt-3 flex-1 text-sm text-text-muted">
-          For providers running {PRODUCT} across a multi-tenant fleet: Priority-level support for your
-          second- and third-line team, plus cPanel/EA4 and distribution-channel upkeep. One agreement
-          per provider, unlimited hosted domains.
+          For providers running {PRODUCT} across a multi-tenant fleet: Priority-level support for
+          your second- and third-line team, plus cPanel/EA4 and distribution-channel upkeep. One
+          agreement per provider, unlimited hosted domains.
         </p>
         <a
           href="/hosting-partners/"
@@ -297,8 +318,10 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
           data-umami-event="cta_commercial"
           data-umami-event-offer="hosting"
           data-umami-event-surface="support"
-          data-umami-event-position="hosting_card">The partner program &rarr;</a
+          data-umami-event-position="hosting_card"
         >
+          The partner program &rarr;
+        </a>
       </div>
       <div id="consulting" class="card flex flex-col">
         <h2 class="text-xl font-semibold text-text-body">Consulting</h2>
@@ -313,8 +336,10 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
           data-umami-event="cta_commercial"
           data-umami-event-offer="consulting"
           data-umami-event-surface="support"
-          data-umami-event-position="consulting_card">Consulting at we-amp.com &rarr;</a
+          data-umami-event-position="consulting_card"
         >
+          Consulting at we-amp.com &rarr;
+        </a>
       </div>
     </div>
   </section>
@@ -325,34 +350,48 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
       <div id="existing-customers" class="rounded-lg border border-border bg-bg-secondary p-6">
         <h2 class="text-xl font-semibold text-text-body">Already a customer?</h2>
         <p class="mt-3 text-sm text-text-muted">
-          IISpeed and mod_pagespeed 1.x license holders move to {PRODUCT} at no cost, and paid terms are
-          honored to expiry. To transfer a license or renew into a support subscription, use the <a
+          IISpeed and mod_pagespeed 1.x license holders move to {PRODUCT} at no cost, and paid terms
+          are honored to expiry. To transfer a license or renew into a support subscription, use the{' '}
+          <a
             href="/contact/?topic=iispeed-transfer"
             class="text-interactive hover:text-interactive-hover underline"
             data-umami-event="cta_commercial"
             data-umami-event-offer="support"
             data-umami-event-surface="support"
-            data-umami-event-position="existing_customers">contact form</a
-          > with the topic “IISpeed license transfer” and include the order number or the email address
-          the license was bought under.
+            data-umami-event-position="existing_customers"
+          >
+            contact form
+          </a>{' '}
+          with the topic “IISpeed license transfer” and include the order number or the email
+          address the license was bought under.
         </p>
       </div>
       <div id="reach-us" class="rounded-lg border border-border bg-bg-secondary p-6">
         <h2 class="text-xl font-semibold text-text-body">How to reach us</h2>
         <p class="mt-3 text-sm text-text-muted">
-          The <a href="/contact/" class="text-interactive hover:text-interactive-hover underline"
-            >contact form</a
-          >, or email <a
+          The{' '}
+          <a href="/contact/" class="text-interactive hover:text-interactive-hover underline">
+            contact form
+          </a>
+          , or email{' '}
+          <a
             href={`mailto:${COMMERCIAL_EMAIL}`}
-            class="text-interactive hover:text-interactive-hover underline">{COMMERCIAL_EMAIL}</a
-          >. We reply within one business day (CET). Vulnerability reports go to <a
+            class="text-interactive hover:text-interactive-hover underline"
+          >
+            {COMMERCIAL_EMAIL}
+          </a>
+          . We reply within one business day (CET). Vulnerability reports go to{' '}
+          <a
             href="mailto:security@modpagespeed.com"
             class="text-interactive hover:text-interactive-hover underline"
-            >security@modpagespeed.com</a
-          > under the <a
-            href="/security/"
-            class="text-interactive hover:text-interactive-hover underline">security policy</a
-          >, never to the commercial address.
+          >
+            security@modpagespeed.com
+          </a>{' '}
+          under the{' '}
+          <a href="/security/" class="text-interactive hover:text-interactive-hover underline">
+            security policy
+          </a>
+          , never to the commercial address.
         </p>
       </div>
     </div>
@@ -363,20 +402,18 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
     <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8">
       <h2 class="h2-section text-center text-text-body">Support questions</h2>
       <div class="mt-8 space-y-3">
-        {
-          faqSupport.map((entry) => (
-            <details class="group rounded-lg border border-border bg-bg-elevated open:shadow-sm">
-              <summary class="flex items-center justify-between gap-3 cursor-pointer list-none px-4 py-3 text-sm font-semibold text-text-body">
-                <span>{entry.q}</span>
-                <Icon
-                  name="chevron-down"
-                  class="h-5 w-5 shrink-0 text-text-muted group-open:rotate-180"
-                />
-              </summary>
-              <p class="px-4 pb-4 pt-1 text-sm text-text-muted" set:html={entry.a} />
-            </details>
-          ))
-        }
+        {faqSupport.map((entry) => (
+          <details class="group rounded-lg border border-border bg-bg-elevated open:shadow-sm">
+            <summary class="flex items-center justify-between gap-3 cursor-pointer list-none px-4 py-3 text-sm font-semibold text-text-body">
+              <span>{entry.q}</span>
+              <Icon
+                name="chevron-down"
+                class="h-5 w-5 shrink-0 text-text-muted group-open:rotate-180"
+              />
+            </summary>
+            <p class="px-4 pb-4 pt-1 text-sm text-text-muted" set:html={entry.a} />
+          </details>
+        ))}
       </div>
     </div>
   </section>

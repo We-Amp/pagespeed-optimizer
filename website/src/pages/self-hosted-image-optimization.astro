@@ -156,7 +156,9 @@ const faqJsonLd = {
 >
   <article class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
     <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
-      <a href="/" class="hover:text-text-body">Home</a>
+      <a href="/" class="hover:text-text-body">
+        Home
+      </a>
       <span class="mx-1">/</span>
       <span>Self-hosted image optimization</span>
     </nav>
@@ -194,39 +196,41 @@ const faqJsonLd = {
           </caption>
           <thead>
             <tr class="border-b border-border">
-              <th scope="col" class="py-3 pr-4 text-left font-semibold text-text-body">Dimension</th
-              >
-              <th scope="col" class="px-3 py-3 text-left font-semibold text-text-body"
-                >Hosted image service</th
-              >
-              <th scope="col" class="px-3 py-3 text-left font-semibold text-text-body"
-                >Self-hosted (mod_pagespeed)</th
-              >
+              <th scope="col" class="py-3 pr-4 text-left font-semibold text-text-body">
+                Dimension
+              </th>
+              <th scope="col" class="px-3 py-3 text-left font-semibold text-text-body">
+                Hosted image service
+              </th>
+              <th scope="col" class="px-3 py-3 text-left font-semibold text-text-body">
+                Self-hosted (mod_pagespeed)
+              </th>
             </tr>
           </thead>
           <tbody>
-            {
-              hostedComparison.map((row) => (
-                <tr class="border-b border-border align-top">
-                  <th scope="row" class="py-4 pr-4 text-left font-medium text-text-body">
-                    {row.dimension}
-                  </th>
-                  <td class="px-3 py-4 text-text-muted">{row.hosted}</td>
-                  <td class="px-3 py-4 text-text-body">{row.selfHosted}</td>
-                </tr>
-              ))
-            }
+            {hostedComparison.map((row) => (
+              <tr class="border-b border-border align-top">
+                <th scope="row" class="py-4 pr-4 text-left font-medium text-text-body">
+                  {row.dimension}
+                </th>
+                <td class="px-3 py-4 text-text-muted">{row.hosted}</td>
+                <td class="px-3 py-4 text-text-body">{row.selfHosted}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
       <p class="mt-6 text-sm text-text-annotation">
         This is the same trade hosted services make against running your own server. mod_pagespeed
-        is a self-hosted optimizer, in the same category as <a
-          href="/vs/imgproxy/"
-          class="text-interactive hover:text-interactive-hover underline">imgproxy</a
-        > and <a href="/vs/thumbor/" class="text-interactive hover:text-interactive-hover underline"
-          >Thumbor</a
-        >, with one difference: it sits in the response path of the site you already serve, so you
+        is a self-hosted optimizer, in the same category as{' '}
+        <a href="/vs/imgproxy/" class="text-interactive hover:text-interactive-hover underline">
+          imgproxy
+        </a>{' '}
+        and{' '}
+        <a href="/vs/thumbor/" class="text-interactive hover:text-interactive-hover underline">
+          Thumbor
+        </a>
+        , with one difference: it sits in the response path of the site you already serve, so you
         don&rsquo;t rewrite image URLs to point at a separate image server.
       </p>
     </section>
@@ -236,20 +240,23 @@ const faqJsonLd = {
     <!-- What it actually does to an image -->
     <section class="mt-2">
       <h2 class="h2-section text-text-body">What it does to each image</h2>
-      <p class="mt-4 text-text-body">
-        {savingsClaim}
-      </p>
+      <p class="mt-4 text-text-body">{savingsClaim}</p>
       <div class="mt-8 grid grid-cols-1 md:grid-cols-3 gap-4 md:gap-6">
         <div class="rounded-2xl border border-border bg-bg-elevated p-6">
           <p class="eyebrow">Transcode</p>
           <p class="mt-3 text-sm text-text-muted">
-            JPEG, PNG, and GIF are transcoded to <span class="font-medium text-text-body">WebP</span
-            > and <span class="font-medium text-text-body">AVIF</span> when the browser advertises support,
-            with the original kept as a fallback. Supported formats:
-            {IMAGE_FORMATS.join(', ')}. See how the two modern formats compare in <a
+            JPEG, PNG, and GIF are transcoded to{' '}
+            <span class="font-medium text-text-body">WebP</span> and{' '}
+            <span class="font-medium text-text-body">AVIF</span> when the browser advertises
+            support, with the original kept as a fallback. Supported formats:
+            {IMAGE_FORMATS.join(', ')}. See how the two modern formats compare in{' '}
+            <a
               href="/blog/avif-vs-webp-2026/"
-              class="text-interactive hover:text-interactive-hover underline">AVIF vs WebP</a
-            >.
+              class="text-interactive hover:text-interactive-hover underline"
+            >
+              AVIF vs WebP
+            </a>
+            .
           </p>
         </div>
         <div class="rounded-2xl border border-border bg-bg-elevated p-6">
@@ -257,18 +264,17 @@ const faqJsonLd = {
           <p class="mt-3 text-sm text-text-muted">
             Each image is resized to the dimensions it is actually displayed at, so a phone
             doesn&rsquo;t download a desktop-sized hero. The optimizer worker generates
-            viewport-tagged variants instead of shipping one large image with a <code
-              class="rounded bg-bg-elevated px-1 py-0.5 text-xs">srcset</code
-            >.
+            viewport-tagged variants instead of shipping one large image with a{' '}
+            <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">srcset</code>.
           </p>
         </div>
         <div class="rounded-2xl border border-border bg-bg-elevated p-6">
           <p class="eyebrow">Target quality</p>
           <p class="mt-3 text-sm text-text-muted">
             A learned quality model picks the encoder setting that hits a target
-            <span class="font-medium text-text-body">SSIMULACRA2</span> score &mdash; a perceptual metric
-            &mdash; per image, instead of one global quality number applied to everything. It runs on
-            CPU; no GPU.
+            <span class="font-medium text-text-body">SSIMULACRA2</span> score &mdash; a perceptual
+            metric &mdash; per image, instead of one global quality number applied to everything. It
+            runs on CPU; no GPU.
           </p>
         </div>
       </div>
@@ -282,11 +288,14 @@ const faqJsonLd = {
       <p class="mt-4 text-text-body">
         The optimizer worker doesn&rsquo;t produce one optimized file per image &mdash; it produces
         a set of variants and serves the one that matches the requesting browser. The raster
-        variants multiply out from four axes; an <a
+        variants multiply out from four axes; an{' '}
+        <a
           href="/blog/svg-auto-vectorization/"
           class="text-interactive hover:text-interactive-hover underline"
-          >auto-vectorized SVG variant</a
-        > for eligible images brings the ceiling to
+        >
+          auto-vectorized SVG variant
+        </a>{' '}
+        for eligible images brings the ceiling to
         {MAX_VARIANTS}.
       </p>
       <div
@@ -301,36 +310,40 @@ const faqJsonLd = {
           </caption>
           <thead>
             <tr class="border-b border-border">
-              <th scope="col" class="py-3 pr-4 text-left font-semibold text-text-body">Axis</th>
-              <th scope="col" class="px-3 py-3 text-left font-semibold text-text-body">Values</th>
-              <th scope="col" class="px-3 py-3 text-right font-semibold text-text-body">Count</th>
+              <th scope="col" class="py-3 pr-4 text-left font-semibold text-text-body">
+                Axis
+              </th>
+              <th scope="col" class="px-3 py-3 text-left font-semibold text-text-body">
+                Values
+              </th>
+              <th scope="col" class="px-3 py-3 text-right font-semibold text-text-body">
+                Count
+              </th>
             </tr>
           </thead>
           <tbody>
-            {
-              variantAxes.map((row) => (
-                <tr class="border-b border-border">
-                  <th scope="row" class="py-3 pr-4 text-left font-medium text-text-body">
-                    {row.axis}
-                  </th>
-                  <td class="px-3 py-3 text-text-muted">{row.values}</td>
-                  <td class="px-3 py-3 text-right display-num text-text-body">{row.count}</td>
-                </tr>
-              ))
-            }
+            {variantAxes.map((row) => (
+              <tr class="border-b border-border">
+                <th scope="row" class="py-3 pr-4 text-left font-medium text-text-body">
+                  {row.axis}
+                </th>
+                <td class="px-3 py-3 text-text-muted">{row.values}</td>
+                <td class="px-3 py-3 text-right display-num text-text-body">{row.count}</td>
+              </tr>
+            ))}
             <tr class="border-b border-border">
-              <th scope="row" class="py-3 pr-4 text-left font-semibold text-text-body"
-                >Raster variants</th
-              >
+              <th scope="row" class="py-3 pr-4 text-left font-semibold text-text-body">
+                Raster variants
+              </th>
               <td class="px-3 py-3 text-text-annotation">3 &times; 3 &times; 2 &times; 2</td>
               <td class="px-3 py-3 text-right display-num font-semibold text-text-body">
                 {RASTER_VARIANTS}
               </td>
             </tr>
             <tr>
-              <th scope="row" class="py-3 pr-4 text-left font-semibold text-text-body"
-                >+ SVG for eligible images</th
-              >
+              <th scope="row" class="py-3 pr-4 text-left font-semibold text-text-body">
+                + SVG for eligible images
+              </th>
               <td class="px-3 py-3 text-text-annotation">total per image</td>
               <td class="px-3 py-3 text-right display-num font-semibold text-interactive">
                 {MAX_VARIANTS}
@@ -358,39 +371,47 @@ const faqJsonLd = {
         Image transcoding, resizing, and recompression are on as soon as it is enabled &mdash; there
         is no per-filter list to assemble. On nginx, mod_pagespeed 2.1 is two directives:
       </p>
-      <pre
-        class="mt-4 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm"><code class="text-text-body">{`# nginx — mod_pagespeed 2.1
+      <pre class="mt-4 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm"><code class="text-text-body">{`# nginx — mod_pagespeed 2.1
 pagespeed on;
 pagespeed_cache_path /var/lib/pagespeed/cache.vol;`}</code></pre>
       <p class="mt-4 text-text-body">
         That is the whole image pipeline: the worker reads originals from the cache, generates the
         variants, and writes them back; the nginx reverse proxy serves the matching variant from the
-        memory-mapped cache. To turn image work off you set a worker flag (<code
-          class="rounded bg-bg-elevated px-1 py-0.5 text-xs">--disable-image</code
-        >), not on.
+        memory-mapped cache. To turn image work off you set a worker flag (
+        <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">--disable-image</code>), not on.
       </p>
       <p class="mt-6 text-text-body">
         For .NET, the same engine ships as ASP.NET Core middleware &mdash; one package, native
         worker bundled, no separate image server to deploy:
       </p>
-      <pre
-        class="mt-4 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm"><code class="text-text-body">{`# ASP.NET Core — mod_pagespeed 2.1 middleware
+      <pre class="mt-4 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm"><code class="text-text-body">{`# ASP.NET Core — mod_pagespeed 2.1 middleware
 dotnet add package ${PKG_ASPNETCORE}`}</code></pre>
       <p class="mt-4 text-sm text-text-muted">
-        See the <a
+        See the{' '}
+        <a
           href="/docs/getting-started/"
-          class="text-interactive hover:text-interactive-hover underline">getting-started guide</a
-        > for the nginx setup and <a
+          class="text-interactive hover:text-interactive-hover underline"
+        >
+          getting-started guide
+        </a>{' '}
+        for the nginx setup and{' '}
+        <a
           href="/docs/aspnet-configuration/"
-          class="text-interactive hover:text-interactive-hover underline">ASP.NET configuration</a
-        > for the middleware. The module also transcodes WebP and AVIF in-process (SVG auto-vectorization,
-        Jpegli and the learned-quality model run in the optimizer worker); its prebuilt, signed packages
-        cover {NGINX_APT_MATRIX} for {NGINX_APT_ARCHES} via <a
+          class="text-interactive hover:text-interactive-hover underline"
+        >
+          ASP.NET configuration
+        </a>{' '}
+        for the middleware. The module also transcodes WebP and AVIF in-process (SVG
+        auto-vectorization, Jpegli and the learned-quality model run in the optimizer worker); its
+        prebuilt, signed packages cover {NGINX_APT_MATRIX} for {NGINX_APT_ARCHES} via{' '}
+        <a
           href="https://packages.modpagespeed.com/"
           rel="noopener noreferrer external"
           class="text-interactive hover:text-interactive-hover underline"
-          >packages.modpagespeed.com</a
-        >.
+        >
+          packages.modpagespeed.com
+        </a>
+        .
       </p>
     </section>
 
@@ -405,38 +426,51 @@ dotnet add package ${PKG_ASPNETCORE}`}</code></pre>
         <li>
           <a
             href="/examples/rewrite_images/"
-            class="text-interactive hover:text-interactive-hover underline">rewrite_images</a
-          > &mdash; transcode and recompress an image, with the before/after byte sizes
+            class="text-interactive hover:text-interactive-hover underline"
+          >
+            rewrite_images
+          </a>{' '}
+          &mdash; transcode and recompress an image, with the before/after byte sizes
         </li>
         <li>
           <a
             href="/examples/responsive_images/"
-            class="text-interactive hover:text-interactive-hover underline">responsive_images</a
-          > &mdash; generate resolution variants for a single <code
-            class="rounded bg-bg-elevated px-1 py-0.5 text-xs">&lt;img&gt;</code
+            class="text-interactive hover:text-interactive-hover underline"
           >
+            responsive_images
+          </a>{' '}
+          &mdash; generate resolution variants for a single{' '}
+          <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">&lt;img&gt;</code>
         </li>
         <li>
           <a
             href="/examples/resize_rendered_image_dimensions/"
             class="text-interactive hover:text-interactive-hover underline"
-            >resize_rendered_image_dimensions</a
-          > &mdash; resize to the size the page actually renders the image at
+          >
+            resize_rendered_image_dimensions
+          </a>{' '}
+          &mdash; resize to the size the page actually renders the image at
         </li>
         <li>
           <a
             href="/examples/lazyload_images/"
-            class="text-interactive hover:text-interactive-hover underline">lazyload_images</a
-          > &mdash; keep below-the-fold images off the critical path
+            class="text-interactive hover:text-interactive-hover underline"
+          >
+            lazyload_images
+          </a>{' '}
+          &mdash; keep below-the-fold images off the critical path
         </li>
       </ul>
       <p class="mt-6 text-sm text-text-muted">
-        The <a href="/demo/" class="text-interactive hover:text-interactive-hover underline"
-          >live demo</a
-        > runs a real site through the pipeline and shows the page-weight delta, and the <a
-          href="/calculator/"
-          class="text-interactive hover:text-interactive-hover underline">savings calculator</a
-        > estimates the byte reduction for your own traffic.
+        The{' '}
+        <a href="/demo/" class="text-interactive hover:text-interactive-hover underline">
+          live demo
+        </a>{' '}
+        runs a real site through the pipeline and shows the page-weight delta, and the{' '}
+        <a href="/calculator/" class="text-interactive hover:text-interactive-hover underline">
+          savings calculator
+        </a>{' '}
+        estimates the byte reduction for your own traffic.
       </p>
     </section>
 
@@ -444,14 +478,12 @@ dotnet add package ${PKG_ASPNETCORE}`}</code></pre>
     <section class="mt-16">
       <h2 class="h2-section text-text-body">Self-hosted image optimization: common questions</h2>
       <dl class="mt-8 space-y-6">
-        {
-          faqEntries.map((entry) => (
-            <div class="border-b border-border pb-6">
-              <dt class="font-semibold text-text-body">{entry.q}</dt>
-              <dd class="mt-2 text-sm text-text-muted">{entry.a}</dd>
-            </div>
-          ))
-        }
+        {faqEntries.map((entry) => (
+          <div class="border-b border-border pb-6">
+            <dt class="font-semibold text-text-body">{entry.q}</dt>
+            <dd class="mt-2 text-sm text-text-muted">{entry.a}</dd>
+          </div>
+        ))}
       </dl>
     </section>
 
@@ -464,19 +496,20 @@ dotnet add package ${PKG_ASPNETCORE}`}</code></pre>
           {FREE_TO_RUN_LINE}
         </p>
         <div class="mt-6 flex flex-wrap gap-3">
-          <a href="/download/" class="btn-primary" data-umami-event="cta_selfhostedimages_download"
-            >Download &amp; run</a
-          >
+          <a href="/download/" class="btn-primary" data-umami-event="cta_selfhostedimages_download">
+            Download &amp; run
+          </a>
           <a href="/pricing/" class="btn-secondary" data-umami-event="cta_selfhostedimages_pricing">
             See support plans
             <span aria-hidden="true">&rarr;</span>
           </a>
         </div>
         <p class="mt-3 text-xs text-text-annotation">
-          Free software, not per-image or per-byte billing &mdash; see the <a
-            href="/pricing/"
-            class="text-interactive hover:text-interactive-hover underline">support plans</a
-          >.
+          Free software, not per-image or per-byte billing &mdash; see the{' '}
+          <a href="/pricing/" class="text-interactive hover:text-interactive-hover underline">
+            support plans
+          </a>
+          .
         </p>
       </div>
     </section>
@@ -489,45 +522,56 @@ dotnet add package ${PKG_ASPNETCORE}`}</code></pre>
           <a
             href="/blog/economics-of-image-optimization/"
             class="text-interactive hover:text-interactive-hover underline"
-            >The economics of image optimization</a
-          > &mdash; where the per-transform and egress costs actually come from
+          >
+            The economics of image optimization
+          </a>{' '}
+          &mdash; where the per-transform and egress costs actually come from
         </li>
         <li>
           <a
             href="/blog/self-hosted-image-optimization/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Self-hosted image optimization, in depth</a
-          > &mdash; the longer write-up behind this page
+          >
+            Self-hosted image optimization, in depth
+          </a>{' '}
+          &mdash; the longer write-up behind this page
         </li>
         <li>
           <a
             href="/blog/nginx-image-optimization-module/"
             class="text-interactive hover:text-interactive-hover underline"
-            >The nginx image-optimization module</a
-          > &mdash; how the pipeline fits into an nginx server
+          >
+            The nginx image-optimization module
+          </a>{' '}
+          &mdash; how the pipeline fits into an nginx server
         </li>
         <li>
           <a
             href="/blog/aspnet-core-image-optimization-c-sharp/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Image optimization in ASP.NET Core</a
-          > &mdash; the same engine as .NET middleware
-        </li>
-        <li>
-          <a href="/vs/cloudinary/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed vs Cloudinary</a
-          > &middot;
-          <a href="/vs/imgproxy/" class="text-interactive hover:text-interactive-hover underline"
-            >vs imgproxy</a
-          > &middot;
-          <a href="/vs/thumbor/" class="text-interactive hover:text-interactive-hover underline"
-            >vs Thumbor</a
           >
+            Image optimization in ASP.NET Core
+          </a>{' '}
+          &mdash; the same engine as .NET middleware
         </li>
         <li>
-          <a href="/features/" class="text-interactive hover:text-interactive-hover underline"
-            >mod_pagespeed 2.1 features</a
-          > &mdash; image transcoding, critical CSS, minification, and variant-aware caching
+          <a href="/vs/cloudinary/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed vs Cloudinary
+          </a>{' '}
+          &middot;
+          <a href="/vs/imgproxy/" class="text-interactive hover:text-interactive-hover underline">
+            vs imgproxy
+          </a>{' '}
+          &middot;
+          <a href="/vs/thumbor/" class="text-interactive hover:text-interactive-hover underline">
+            vs Thumbor
+          </a>
+        </li>
+        <li>
+          <a href="/features/" class="text-interactive hover:text-interactive-hover underline">
+            mod_pagespeed 2.1 features
+          </a>{' '}
+          &mdash; image transcoding, critical CSS, minification, and variant-aware caching
         </li>
       </ul>
       <p class="mt-8 text-xs text-text-annotation">

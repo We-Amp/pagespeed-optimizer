@@ -30,7 +30,19 @@
     },
     "titles": {
       "/t/table/amp": "Fish & Chips <b>"
-    }
+    },
+    "hreflang": [
+      {
+        "en": "https://fixture.test/h/table/en/",
+        "de": "https://fixture.test/h/table/de/",
+        "x-default": "https://fixture.test/h/table/en/"
+      },
+      {
+        "en": "https://fixture.test/h/u/café",
+        "de": "https://fixture.test/h/u/käse",
+        "ru": "https://fixture.test/h/u/привет"
+      }
+    ]
   },
   "rules": [
     {
@@ -340,6 +352,293 @@
         "template": "https://fixture.test/café{path}"
       },
       "on_present": "replace"
+    },
+    {
+      "id": "hreflang-keep",
+      "kind": "hreflang",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/h/keep/**"
+        ],
+        "path_regex": "^/h/keep/(en|de)(/.*)?$"
+      },
+      "value": {
+        "pattern": {
+          "en": "https://fixture.test/h/keep/en{2}",
+          "de": "https://fixture.test/h/keep/de{2}",
+          "x-default": "https://fixture.test/h/keep/en{2}"
+        }
+      },
+      "on_present": "keep"
+    },
+    {
+      "id": "hreflang-repair",
+      "kind": "hreflang",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/h/repair/**"
+        ],
+        "path_regex": "^/h/repair/(en|de)(/.*)?$"
+      },
+      "value": {
+        "pattern": {
+          "en": "https://fixture.test/h/repair/en{2}",
+          "de": "https://fixture.test/h/repair/de{2}",
+          "x-default": "https://fixture.test/h/repair/en{2}"
+        }
+      },
+      "on_present": "repair"
+    },
+    {
+      "id": "hreflang-replace",
+      "kind": "hreflang",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/h/replace/**"
+        ],
+        "path_regex": "^/h/replace/(en|de)(/.*)?$"
+      },
+      "value": {
+        "pattern": {
+          "en": "https://fixture.test/h/replace/en{2}",
+          "de": "https://fixture.test/h/replace/de{2}",
+          "x-default": "https://fixture.test/h/replace/en{2}"
+        }
+      },
+      "on_present": "replace"
+    },
+    {
+      "id": "hreflang-table",
+      "kind": "hreflang",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/h/table/**"
+        ]
+      },
+      "value": {
+        "table": "hreflang"
+      },
+      "on_present": "keep"
+    },
+    {
+      "id": "hreflang-unicode",
+      "kind": "hreflang",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/h/u/**"
+        ]
+      },
+      "value": {
+        "table": "hreflang"
+      },
+      "on_present": "replace"
+    },
+    {
+      "id": "hreflang-noself",
+      "kind": "hreflang",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/h/noself/**"
+        ]
+      },
+      "value": {
+        "pattern": {
+          "en": "https://fixture.test/elsewhere/en"
+        }
+      },
+      "on_present": "keep"
+    },
+    {
+      "id": "hreflang-badpattern",
+      "kind": "hreflang",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/h/bad/**"
+        ]
+      },
+      "value": {
+        "pattern": {
+          "en": "{path}"
+        }
+      },
+      "on_present": "keep"
+    },
+    {
+      "id": "canonical-jsonld",
+      "kind": "canonical",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/j/final/**",
+          "/j/escape/**",
+          "/j/u/**"
+        ]
+      },
+      "value": {
+        "template": "https://fixture.test{path}"
+      },
+      "on_present": "keep"
+    },
+    {
+      "id": "title-jsonld",
+      "kind": "title",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/j/final/**"
+        ]
+      },
+      "value": {
+        "template": "Final title for {path}"
+      },
+      "on_present": "keep"
+    },
+    {
+      "id": "description-jsonld",
+      "kind": "description",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/j/final/**"
+        ]
+      },
+      "value": {
+        "template": "Final description for {path}"
+      },
+      "on_present": "keep"
+    },
+    {
+      "id": "jsonld-keep",
+      "kind": "jsonld",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/j/keep/**"
+        ]
+      },
+      "value": {
+        "template": "{\"@context\":\"https://schema.org\",\"@type\":\"Organization\",\"name\":\"Fixture\",\"url\":\"https://fixture.test/\"}"
+      },
+      "on_present": "keep"
+    },
+    {
+      "id": "jsonld-repair",
+      "kind": "jsonld",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/j/repair/**"
+        ]
+      },
+      "value": {
+        "template": "{\"@context\":\"https://schema.org\",\"@type\":\"Organization\",\"name\":\"Fixture\",\"url\":\"https://fixture.test/\"}"
+      },
+      "on_present": "repair"
+    },
+    {
+      "id": "jsonld-replace",
+      "kind": "jsonld",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/j/replace/**"
+        ]
+      },
+      "value": {
+        "template": "{\"@context\":\"https://schema.org\",\"@type\":\"Organization\",\"name\":\"Fixture\",\"url\":\"https://fixture.test/\"}"
+      },
+      "on_present": "replace"
+    },
+    {
+      "id": "jsonld-final",
+      "kind": "jsonld",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/j/final/**"
+        ]
+      },
+      "value": {
+        "template": "{\"@context\":\"https://schema.org\",\"@type\":\"WebPage\",\"name\":\"{title}\",\"description\":\"{description}\",\"url\":\"{canonical}\"}"
+      },
+      "on_present": "keep"
+    },
+    {
+      "id": "jsonld-escape",
+      "kind": "jsonld",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/j/escape/**"
+        ]
+      },
+      "value": {
+        "template": "{\"@context\":\"https://schema.org\",\"@type\":\"WebPage\",\"name\":\"{title}\",\"url\":\"{canonical}\"}"
+      },
+      "on_present": "keep"
+    },
+    {
+      "id": "jsonld-graph",
+      "kind": "jsonld",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/j/graph/**"
+        ]
+      },
+      "value": {
+        "template": "{\"@context\":\"https://schema.org\",\"@graph\":[{\"@type\":\"Organization\",\"name\":\"Fixture\"},{\"@type\":\"WebSite\",\"url\":\"https://fixture.test/\"}]}"
+      },
+      "on_present": "keep"
+    },
+    {
+      "id": "jsonld-unicode",
+      "kind": "jsonld",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/j/u/**"
+        ]
+      },
+      "value": {
+        "template": "{\"@context\":\"https://schema.org\",\"@type\":\"WebPage\",\"name\":\"{title} — Café\",\"inLanguage\":\"ru\",\"description\":\"Привет {path}\"}"
+      },
+      "on_present": "keep"
+    },
+    {
+      "id": "jsonld-badtpl",
+      "kind": "jsonld",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/j/badtpl/**"
+        ]
+      },
+      "value": {
+        "template": "{\"@type\":\"Thing\",\"name\":\"{title}\""
+      },
+      "on_present": "keep"
+    },
+    {
+      "id": "jsonld-notype",
+      "kind": "jsonld",
+      "enforce": true,
+      "match": {
+        "paths": [
+          "/j/notype/**"
+        ]
+      },
+      "value": {
+        "template": "{\"name\":\"no type\"}"
+      },
+      "on_present": "keep"
     }
   ]
 }

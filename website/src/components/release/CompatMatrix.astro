@@ -42,26 +42,22 @@ const lines: Record<'nginx' | 'apache' | 'iis', string> = {
 };
 ---
 
-{
-  surface === 'all' && !inline && (
-    <ul>
-      <li>
-        <strong>nginx:</strong> {lines.nginx}
-      </li>
-      <li>
-        <strong>Apache:</strong> {lines.apache}
-      </li>
-      <li>
-        <strong>IIS:</strong> {lines.iis}
-      </li>
-    </ul>
-  )
-}
-{
-  surface === 'all' && inline && (
-    <Fragment>
-      {lines.nginx} &middot; {lines.apache} &middot; {lines.iis}
-    </Fragment>
-  )
-}
+{surface === 'all' && !inline && (
+  <ul>
+    <li>
+      <strong>nginx:</strong> {lines.nginx}
+    </li>
+    <li>
+      <strong>Apache:</strong> {lines.apache}
+    </li>
+    <li>
+      <strong>IIS:</strong> {lines.iis}
+    </li>
+  </ul>
+)}
+{surface === 'all' && inline && (
+  <Fragment>
+    {lines.nginx} &middot; {lines.apache} &middot; {lines.iis}
+  </Fragment>
+)}
 {surface !== 'all' && <Fragment>{lines[surface]}</Fragment>}

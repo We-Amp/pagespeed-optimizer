@@ -39,11 +39,9 @@ const consentId = `${uid}-consent`;
 const statusId = `${uid}-status`;
 ---
 
-{
-  /* method="post" (not the GET default) so that if JS is unavailable a submit
+{/* method="post" (not the GET default) so that if JS is unavailable a submit
     cannot place the typed email into the URL/query string — capture is JS-only
-    (the handler calls preventDefault), but this keeps the no-JS edge safe. */
-}
+    (the handler calls preventDefault), but this keeps the no-JS edge safe. */}
 <form
   data-newsletter
   data-variant={variant}
@@ -52,30 +50,28 @@ const statusId = `${uid}-status`;
   class:list={[isBlog ? 'rounded-lg border border-border bg-bg-secondary p-6' : '']}
   novalidate
 >
-  {
-    isBlog ? (
-      <>
-        <p class="text-base font-semibold text-text-body">Like this kind of writeup?</p>
-        <p class="mt-2 text-sm text-text-muted">
-          We write about how mod_pagespeed actually works, and what we learn shipping it. Get the
-          next post by email.
-        </p>
-      </>
-    ) : (
-      <>
-        <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">
-          Newsletter
-        </p>
-        <p class="mt-3 text-sm text-text-muted">
-          New writing on web performance and PageSpeed engineering. We only email when there's a new
-          post.
-        </p>
-      </>
-    )
-  }
+  {isBlog ? (
+    <>
+      <p class="text-base font-semibold text-text-body">Like this kind of writeup?</p>
+      <p class="mt-2 text-sm text-text-muted">
+        We write about how mod_pagespeed actually works, and what we learn shipping it. Get the next
+        post by email.
+      </p>
+    </>
+  ) : (
+    <>
+      <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">Newsletter</p>
+      <p class="mt-3 text-sm text-text-muted">
+        New writing on web performance and PageSpeed engineering. We only email when there's a new
+        post.
+      </p>
+    </>
+  )}
 
   <div class:list={[isBlog ? 'mt-5' : 'mt-3']}>
-    <label for={emailId} class="sr-only">Email address</label>
+    <label for={emailId} class="sr-only">
+      Email address
+    </label>
     <input
       id={emailId}
       name="email"
@@ -102,9 +98,10 @@ const statusId = `${uid}-status`;
     />
     <span>
       Email me new posts. I can unsubscribe anytime. See the
-      <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline"
-        >Privacy policy</a
-      >.
+      <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline">
+        Privacy policy
+      </a>
+      .
     </span>
   </label>
 
@@ -116,8 +113,13 @@ const statusId = `${uid}-status`;
     >
       Subscribe
     </button>
-    <p id={statusId} data-newsletter-status role="status" aria-live="polite" class="hidden text-sm">
-    </p>
+    <p
+      id={statusId}
+      data-newsletter-status
+      role="status"
+      aria-live="polite"
+      class="hidden text-sm"
+    ></p>
   </div>
 </form>
 

@@ -165,7 +165,9 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
 >
   <article class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
     <nav class="text-sm text-text-annotation" aria-label="Breadcrumb">
-      <a href="/" class="hover:text-text-body">Home</a>
+      <a href="/" class="hover:text-text-body">
+        Home
+      </a>
       <span class="mx-1">/</span>
       <span>PageSpeed Insights</span>
     </nav>
@@ -181,29 +183,28 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
         those failures are delivery problems that live below your application &mdash;
         render-blocking CSS, oversized images, weak cache headers &mdash; where a server-layer
         optimizer applies. Others are in your own JavaScript. This page maps each common audit onto
-        what mod_pagespeed 2.1 does about it, marks every claim <span class="text-success"
-          >auto-fix</span
-        >,
-        <span class="text-accent">assistive</span>, or
+        what mod_pagespeed 2.1 does about it, marks every claim{' '}
+        <span class="text-success">auto-fix</span>,<span class="text-accent">assistive</span>, or
         <span class="text-text-muted">client-side</span>, and links a real before/after for the ones
         it fixes.
       </p>
     </SectionHeader>
 
     <div class="mt-8 flex flex-wrap gap-3">
-      <a href="/analyze/" class="btn-primary" data-umami-event="cta_psi_analyze_hero"
-        >Analyze a page</a
-      >
+      <a href="/analyze/" class="btn-primary" data-umami-event="cta_psi_analyze_hero">
+        Analyze a page
+      </a>
       <a href="/download/" class="btn-secondary" data-umami-event="cta_psi_download_hero">
         Download &amp; run <span aria-hidden="true">&rarr;</span>
       </a>
     </div>
     <p class="mt-4 text-xs text-text-annotation max-w-3xl">
       PageSpeed Insights and Lighthouse are products of Google LLC. mod_pagespeed 2.1 is built by
-      We-Amp B.V. and is not affiliated with or endorsed by Google. The <a
-        href="/analyze/"
-        class="text-interactive hover:text-interactive-hover underline">Analyze tool</a
-      > calls Google's public PageSpeed Insights API and reports its results.
+      We-Amp B.V. and is not affiliated with or endorsed by Google. The{' '}
+      <a href="/analyze/" class="text-interactive hover:text-interactive-hover underline">
+        Analyze tool
+      </a>{' '}
+      calls Google's public PageSpeed Insights API and reports its results.
     </p>
 
     <!-- Lab vs field framing -->
@@ -215,15 +216,17 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
         0&ndash;100 Performance score and the opportunity audits below. The field half &mdash; shown
         when a URL has enough traffic &mdash; reports Core Web Vitals from real Chrome users over
         the trailing 28 days, the CrUX dataset. Google ranks on the field data. The lab audits are a
-        diagnostic for <span class="italic">what</span> to fix; they are not themselves the ranking signal.
+        diagnostic for <span class="italic">what</span> to fix; they are not themselves the ranking
+        signal.
       </p>
       <p class="mt-4 text-text-body">
         The two routinely disagree, because real visitors run slower hardware on slower connections
         than a lab run. Use the lab audits to find the problem, then verify the change moved the
         field number. The
-        <a href="/core-web-vitals/" class="text-interactive hover:text-interactive-hover underline"
-          >Core Web Vitals hub</a
-        > covers the field metrics in detail.
+        <a href="/core-web-vitals/" class="text-interactive hover:text-interactive-hover underline">
+          Core Web Vitals hub
+        </a>{' '}
+        covers the field metrics in detail.
       </p>
     </section>
 
@@ -234,31 +237,34 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
       <h2 class="h2-section text-text-body">The audit map: what the server layer fixes</h2>
       <p class="mt-4 text-text-body">
         Each row is a Lighthouse audit and whether mod_pagespeed addresses it. Of the audits below,
-        {autoFixCount} are auto-fixes: mod_pagespeed handles them with no change to your markup. The rest
-        are assistive (it helps but cannot fully resolve the audit) or client-side (the fix lives in your
-        application or build step).
+        {autoFixCount} are auto-fixes: mod_pagespeed handles them with no change to your markup. The
+        rest are assistive (it helps but cannot fully resolve the audit) or client-side (the fix
+        lives in your application or build step).
       </p>
 
       <div class="mt-8 flex flex-wrap gap-3 text-xs">
         <span class="inline-flex items-center gap-2">
           <span
             class={`inline-flex items-center rounded-md px-2 py-0.5 font-semibold uppercase tracking-wide ${coverageBadge.full.cls}`}
-            >Auto-fix</span
           >
+            Auto-fix
+          </span>
           <span class="text-text-muted">handled at the server, no markup change</span>
         </span>
         <span class="inline-flex items-center gap-2">
           <span
             class={`inline-flex items-center rounded-md px-2 py-0.5 font-semibold uppercase tracking-wide ${coverageBadge.partial.cls}`}
-            >Assistive</span
           >
+            Assistive
+          </span>
           <span class="text-text-muted">helps, but cannot fully resolve it</span>
         </span>
         <span class="inline-flex items-center gap-2">
           <span
             class={`inline-flex items-center rounded-md px-2 py-0.5 font-semibold uppercase tracking-wide ${coverageBadge.none.cls}`}
-            >Client-side</span
           >
+            Client-side
+          </span>
           <span class="text-text-muted">application or build-step fix</span>
         </span>
       </div>
@@ -276,58 +282,60 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
           </caption>
           <thead>
             <tr class="border-b border-border">
-              <th scope="col" class="py-3 pr-4 text-left font-semibold text-text-body">Audit</th>
-              <th scope="col" class="px-3 py-3 text-left font-semibold text-text-body">Coverage</th>
-              <th scope="col" class="px-3 py-3 text-left font-semibold text-text-body"
-                >What mod_pagespeed does</th
-              >
+              <th scope="col" class="py-3 pr-4 text-left font-semibold text-text-body">
+                Audit
+              </th>
+              <th scope="col" class="px-3 py-3 text-left font-semibold text-text-body">
+                Coverage
+              </th>
+              <th scope="col" class="px-3 py-3 text-left font-semibold text-text-body">
+                What mod_pagespeed does
+              </th>
             </tr>
           </thead>
           <tbody>
-            {
-              featured.map((m) => {
-                const badge = coverageBadge[m.coverage];
-                const ex = auditExamples[m.auditId];
-                return (
-                  <tr class="border-b border-border align-top">
-                    <th scope="row" class="py-4 pr-4 text-left font-medium text-text-body">
-                      {m.auditTitle}
-                      {m.filters.length > 0 && (
-                        <span class="mt-1 block font-mono text-xs font-normal text-text-annotation">
-                          {m.filters.slice(0, 3).join(', ')}
-                        </span>
-                      )}
-                    </th>
-                    <td class="px-3 py-4">
-                      <span
-                        class={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${badge.cls}`}
-                      >
-                        {badge.label}
+            {featured.map((m) => {
+              const badge = coverageBadge[m.coverage];
+              const ex = auditExamples[m.auditId];
+              return (
+                <tr class="border-b border-border align-top">
+                  <th scope="row" class="py-4 pr-4 text-left font-medium text-text-body">
+                    {m.auditTitle}
+                    {m.filters.length > 0 && (
+                      <span class="mt-1 block font-mono text-xs font-normal text-text-annotation">
+                        {m.filters.slice(0, 3).join(', ')}
                       </span>
-                    </td>
-                    <td class="px-3 py-4 text-text-muted">
-                      {m.explanation}
-                      {m.caveats && (
-                        <span class="mt-2 block text-xs text-text-annotation">
-                          Caveat: {m.caveats}
-                        </span>
-                      )}
-                      {ex && (
-                        <span class="mt-2 block text-xs">
-                          <a
-                            href={`/examples/${ex.slug}/`}
-                            class="text-interactive hover:text-interactive-hover underline"
-                          >
-                            Before/after: {ex.label}
-                            <span aria-hidden="true"> &rarr;</span>
-                          </a>
-                        </span>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })
-            }
+                    )}
+                  </th>
+                  <td class="px-3 py-4">
+                    <span
+                      class={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${badge.cls}`}
+                    >
+                      {badge.label}
+                    </span>
+                  </td>
+                  <td class="px-3 py-4 text-text-muted">
+                    {m.explanation}
+                    {m.caveats && (
+                      <span class="mt-2 block text-xs text-text-annotation">
+                        Caveat: {m.caveats}
+                      </span>
+                    )}
+                    {ex && (
+                      <span class="mt-2 block text-xs">
+                        <a
+                          href={`/examples/${ex.slug}/`}
+                          class="text-interactive hover:text-interactive-hover underline"
+                        >
+                          Before/after: {ex.label}
+                          <span aria-hidden="true"> &rarr;</span>
+                        </a>
+                      </span>
+                    )}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
@@ -345,74 +353,78 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
         minification and
         <a
           href="/blog/server-side-critical-css-nginx/"
-          class="text-interactive hover:text-interactive-hover underline">critical-CSS extraction</a
-        > run from the master switch, so the snippet is the same minimal block.
+          class="text-interactive hover:text-interactive-hover underline"
+        >
+          critical-CSS extraction
+        </a>{' '}
+        run from the master switch, so the snippet is the same minimal block.
       </p>
 
       <div class="mt-8 space-y-8">
-        {
-          featured
-            .filter((m) => m.coverage === 'full' && (m.snippet11 || m.snippet20))
-            .map((m) => {
-              const ex = auditExamples[m.auditId];
-              return (
-                <div class="rounded-2xl border border-border bg-bg-elevated p-6">
-                  <div class="flex flex-wrap items-center gap-3">
-                    <h3 class="font-semibold text-text-body">{m.auditTitle}</h3>
-                    <span
-                      class={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${coverageBadge.full.cls}`}
-                    >
-                      Auto-fix
-                    </span>
-                  </div>
-                  <p class="mt-3 text-sm text-text-muted">{m.explanation}</p>
-                  {m.snippet11 && (
-                    <>
-                      <p class="mt-4 font-mono text-xs uppercase tracking-wide text-text-annotation">
-                        Module (named filters)
-                      </p>
-                      <pre class="mt-2 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm">
+        {featured
+          .filter((m) => m.coverage === 'full' && (m.snippet11 || m.snippet20))
+          .map((m) => {
+            const ex = auditExamples[m.auditId];
+            return (
+              <div class="rounded-2xl border border-border bg-bg-elevated p-6">
+                <div class="flex flex-wrap items-center gap-3">
+                  <h3 class="font-semibold text-text-body">{m.auditTitle}</h3>
+                  <span
+                    class={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide ${coverageBadge.full.cls}`}
+                  >
+                    Auto-fix
+                  </span>
+                </div>
+                <p class="mt-3 text-sm text-text-muted">{m.explanation}</p>
+                {m.snippet11 && (
+                  <>
+                    <p class="mt-4 font-mono text-xs uppercase tracking-wide text-text-annotation">
+                      Module (named filters)
+                    </p>
+                    <pre class="mt-2 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm">
                         <code class="text-text-body">{m.snippet11}</code>
                       </pre>
-                    </>
-                  )}
-                  {m.snippet20 && (
-                    <>
-                      <p class="mt-4 font-mono text-xs uppercase tracking-wide text-text-annotation">
-                        Optimizer worker (nginx)
-                      </p>
-                      <pre class="mt-2 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm">
+                  </>
+                )}
+                {m.snippet20 && (
+                  <>
+                    <p class="mt-4 font-mono text-xs uppercase tracking-wide text-text-annotation">
+                      Optimizer worker (nginx)
+                    </p>
+                    <pre class="mt-2 overflow-x-auto rounded-md bg-bg-recessed p-4 text-xs sm:text-sm">
                         <code class="text-text-body">{m.snippet20}</code>
                       </pre>
-                    </>
-                  )}
-                  {ex && (
-                    <p class="mt-4 text-sm">
-                      <a
-                        href={`/examples/${ex.slug}/`}
-                        class="text-interactive hover:text-interactive-hover underline"
-                      >
-                        See the measured before/after for {ex.label}
-                        <span aria-hidden="true"> &rarr;</span>
-                      </a>
-                    </p>
-                  )}
-                </div>
-              );
-            })
-        }
+                  </>
+                )}
+                {ex && (
+                  <p class="mt-4 text-sm">
+                    <a
+                      href={`/examples/${ex.slug}/`}
+                      class="text-interactive hover:text-interactive-hover underline"
+                    >
+                      See the measured before/after for {ex.label}
+                      <span aria-hidden="true"> &rarr;</span>
+                    </a>
+                  </p>
+                )}
+              </div>
+            );
+          })}
       </div>
 
       <p class="mt-6 text-sm text-text-muted">
-        The optimizer worker generates up to {MAX_VARIANTS} variants per image (format, viewport, pixel
-        density, and a Save-Data path) and serves the right one per request, so the image audits clear
-        for every device class, not just the one Lighthouse tested. The full set of transforms is on the
-        <a href="/features/" class="text-interactive hover:text-interactive-hover underline"
-          >features</a
-        > page, and each optimization has a live before/after under
-        <a href="/examples/" class="text-interactive hover:text-interactive-hover underline"
-          >examples</a
-        >.
+        The optimizer worker generates up to {MAX_VARIANTS} variants per image (format, viewport,
+        pixel density, and a Save-Data path) and serves the right one per request, so the image
+        audits clear for every device class, not just the one Lighthouse tested. The full set of
+        transforms is on the
+        <a href="/features/" class="text-interactive hover:text-interactive-hover underline">
+          features
+        </a>{' '}
+        page, and each optimization has a live before/after under
+        <a href="/examples/" class="text-interactive hover:text-interactive-hover underline">
+          examples
+        </a>
+        .
       </p>
     </section>
 
@@ -428,24 +440,25 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
       </p>
       <div class="mt-8 rounded-2xl border border-accent/40 bg-accent-wash p-6">
         <dl class="space-y-5">
-          {
-            clientSide.map((m) => (
-              <div>
-                <dt class="font-semibold text-text-body">{m.auditTitle}</dt>
-                <dd class="mt-1 text-sm text-text-muted">{m.explanation}</dd>
-              </div>
-            ))
-          }
+          {clientSide.map((m) => (
+            <div>
+              <dt class="font-semibold text-text-body">{m.auditTitle}</dt>
+              <dd class="mt-1 text-sm text-text-muted">{m.explanation}</dd>
+            </div>
+          ))}
         </dl>
       </div>
       <p class="mt-4 text-sm text-text-muted">
-        mod_pagespeed can reduce the <span class="italic">competing</span> startup script by minifying
-        it and deferring what it can prove is safe to defer, which frees main-thread time around an interaction.
-        It will not make a slow click handler fast. The
+        mod_pagespeed can reduce the <span class="italic">competing</span> startup script by
+        minifying it and deferring what it can prove is safe to defer, which frees main-thread time
+        around an interaction. It will not make a slow click handler fast. The
         <a
           href="/core-web-vitals/inp/"
-          class="text-interactive hover:text-interactive-hover underline">INP guide</a
-        > covers the application-side fixes.
+          class="text-interactive hover:text-interactive-hover underline"
+        >
+          INP guide
+        </a>{' '}
+        covers the application-side fixes.
       </p>
     </section>
 
@@ -461,16 +474,14 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
           and clear the ones it owns. It optimizes immediately.
         </p>
         <div class="mt-6 flex flex-wrap gap-3">
-          <a href="/analyze/" class="btn-primary" data-umami-event="cta_psi_analyze"
-            >Analyze a page</a
-          >
+          <a href="/analyze/" class="btn-primary" data-umami-event="cta_psi_analyze">
+            Analyze a page
+          </a>
           <a href="/download/" class="btn-secondary" data-umami-event="cta_psi_download">
             Download &amp; run <span aria-hidden="true">&rarr;</span>
           </a>
         </div>
-        <p class="mt-3 text-xs text-text-annotation">
-          {FREE_TO_RUN_LINE}
-        </p>
+        <p class="mt-3 text-xs text-text-annotation">{FREE_TO_RUN_LINE}</p>
       </div>
     </section>
 
@@ -478,14 +489,12 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
     <section class="mt-16">
       <h2 class="h2-section text-text-body">PageSpeed Insights: common questions</h2>
       <dl class="mt-8 space-y-6">
-        {
-          faqEntries.map((entry) => (
-            <div class="border-b border-border pb-6">
-              <dt class="font-semibold text-text-body">{entry.q}</dt>
-              <dd class="mt-2 text-sm text-text-muted" set:html={entry.a} />
-            </div>
-          ))
-        }
+        {faqEntries.map((entry) => (
+          <div class="border-b border-border pb-6">
+            <dt class="font-semibold text-text-body">{entry.q}</dt>
+            <dd class="mt-2 text-sm text-text-muted" set:html={entry.a} />
+          </div>
+        ))}
       </dl>
     </section>
 
@@ -494,41 +503,52 @@ const autoFixCount = featured.filter((m) => m.coverage === 'full').length;
       <p class="text-base font-semibold uppercase tracking-wide text-text-body">See also:</p>
       <ul class="mt-4 space-y-2 text-sm">
         <li>
-          <a href="/analyze/" class="text-interactive hover:text-interactive-hover underline"
-            >Analyze a URL</a
-          > &mdash; score any page and see which findings the module fixes, live.
+          <a href="/analyze/" class="text-interactive hover:text-interactive-hover underline">
+            Analyze a URL
+          </a>{' '}
+          &mdash; score any page and see which findings the module fixes, live.
         </li>
         <li>
           <a
             href="/self-hosted-image-optimization/"
             class="text-interactive hover:text-interactive-hover underline"
-            >Self-hosted image optimization</a
-          > &mdash; the image side: WebP/AVIF on your own origin, no per-transform fee.
+          >
+            Self-hosted image optimization
+          </a>{' '}
+          &mdash; the image side: WebP/AVIF on your own origin, no per-transform fee.
         </li>
         <li>
           <a
             href="/aspnet-core-performance/"
             class="text-interactive hover:text-interactive-hover underline"
-            >ASP.NET Core performance</a
-          > &mdash; the same audits fixed in-process for .NET, via NuGet middleware.
+          >
+            ASP.NET Core performance
+          </a>{' '}
+          &mdash; the same audits fixed in-process for .NET, via NuGet middleware.
         </li>
         <li>
           <a
             href="/core-web-vitals/"
-            class="text-interactive hover:text-interactive-hover underline">Core Web Vitals</a
-          > &mdash; what the field metrics measure and which ones the server layer moves.
+            class="text-interactive hover:text-interactive-hover underline"
+          >
+            Core Web Vitals
+          </a>{' '}
+          &mdash; what the field metrics measure and which ones the server layer moves.
         </li>
         <li>
-          <a href="/examples/" class="text-interactive hover:text-interactive-hover underline"
-            >Optimization examples</a
-          > &mdash; a measured before/after for every filter referenced above.
+          <a href="/examples/" class="text-interactive hover:text-interactive-hover underline">
+            Optimization examples
+          </a>{' '}
+          &mdash; a measured before/after for every filter referenced above.
         </li>
         <li>
           <a
             href="/blog/economics-of-image-optimization/"
             class="text-interactive hover:text-interactive-hover underline"
-            >The economics of image optimization</a
-          > &mdash; why the next-gen-image and encoding audits are the biggest byte-weight wins.
+          >
+            The economics of image optimization
+          </a>{' '}
+          &mdash; why the next-gen-image and encoding audits are the biggest byte-weight wins.
         </li>
       </ul>
     </section>
