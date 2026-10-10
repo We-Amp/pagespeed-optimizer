@@ -78,3 +78,71 @@ cc_library(
         "@nlohmann_json//:json",
     ],
 )
+
+# Decision records and the decision-log line encoder (no I/O).
+cc_library(
+    name = "decision",
+    srcs = ["decision.cc"],
+    hdrs = ["decision.h"],
+    visibility = ["//:internal"],
+    deps = [
+        ":pack",
+        ":template",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+# What the HTML traversal collects about a page (header only).
+cc_library(
+    name = "page_facts",
+    hdrs = ["page_facts.h"],
+    visibility = ["//:internal"],
+    deps = [":pack"],
+)
+
+# Pure planner: pack + page URL + page facts -> per-rule plan and decisions.
+cc_library(
+    name = "planner",
+    srcs = ["planner.cc"],
+    hdrs = ["planner.h"],
+    visibility = ["//:internal"],
+    deps = [
+        ":decision",
+        ":matcher",
+        ":pack",
+        ":page_facts",
+        ":template",
+        ":url_norm",
+        "//lib/html:html_keywords",
+        "//lib/html:safe_entity_decode",
+        "@com_google_absl//absl/strings",
+    ],
+)
+
+# HtmlFilter that applies the head rules (canonical, title, description).
+cc_library(
+    name = "pack_filter",
+    srcs = ["pack_filter.cc"],
+    hdrs = ["pack_filter.h"],
+    # Vendored lib/html headers name unused parameters (canonical idiom);
+    # keep the warnings non-fatal in consumer TUs.
+    copts = select({
+        "@platforms//os:windows": [],
+        "//conditions:default": ["-Wno-error=unused-parameter"],
+    }),
+    visibility = ["//:internal"],
+    deps = [
+        ":decision",
+        ":matcher",
+        ":pack",
+        ":page_facts",
+        ":planner",
+        ":template",
+        "//lib/html:empty_html_filter",
+        "//lib/html:html_name",
+        "//lib/html:html_node",
+        "//lib/html:html_parse",
+        "//lib/html:safe_entity_decode",
+        "@com_google_absl//absl/strings",
+    ],
+)
