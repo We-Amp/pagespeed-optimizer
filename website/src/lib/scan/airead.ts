@@ -122,7 +122,7 @@ export function formatAiread(r: Report): AireadModel {
     word: WORDS[String(r.grade)] || '',
     url: r.url ?? '',
     categories,
-    tokenLine: `Raw HTML: ${tokens(d.staticCleanTokens)} tokens · after JavaScript: ${tokens(d.renderedCleanTokens)} tokens`,
+    tokenLine: `Readable text in raw HTML: ${tokens(d.staticCleanTokens)} tokens · after JavaScript: ${tokens(d.renderedCleanTokens)} tokens`,
     rawMarkdown: d.staticMarkdown && d.staticMarkdown.trim() ? d.staticMarkdown : '',
     alsoFound: alsoFoundSentences(r),
   };

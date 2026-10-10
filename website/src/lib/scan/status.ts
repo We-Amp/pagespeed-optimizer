@@ -99,6 +99,7 @@ export function healthLine(statuses: readonly TileStatus[]): string {
       ? 'The one area checked needs no attention.'
       : `None of the ${measured.length} areas checked needs attention.`;
   }
+  if (measured.length === 1) return 'The one area checked needs attention.';
   if (n === 1) return `1 of ${measured.length} areas needs attention`;
   return `${n} of ${measured.length} areas need attention`;
 }

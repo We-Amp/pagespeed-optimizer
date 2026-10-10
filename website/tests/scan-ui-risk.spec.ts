@@ -98,6 +98,14 @@ test.describe('Risk & SEO panel', () => {
     await expect(row(panel, 'responseExposure').locator('[data-risk-building]')).toContainText(
       'A response-firewall pack for mod_pagespeed 2.1 is planned.',
     );
+    // One verdict sentence per row: no counts, host lists, CSP or server lines.
+    const text = await panel.locator('[data-risk-sentence]').allTextContents();
+    expect(text.join('\n')).not.toMatch(
+      /script\(s\)|from other hosts|CSP:|Server header|CDN headers|jquery|google-analytics|…/,
+    );
+    await expect(row(panel, 'scriptInventory').locator('[data-risk-sentence]')).toContainText(
+      'Some scripts on this page need attention.',
+    );
     const links = {
       preConsentLeak: ['/platform/consent/', 'airead-cta-consent'],
       scriptInventory: ['/platform/', 'airead-cta-page-integrity'],

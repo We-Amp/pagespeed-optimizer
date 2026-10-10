@@ -124,7 +124,7 @@ test.describe('AI readability panel', () => {
     await expect(panel(page)).toContainText('64/100');
     await expect(panel(page).getByText('invisible without JS')).toHaveCount(1);
     await expect(panel(page)).toContainText(
-      'Raw HTML: ~190 tokens · after JavaScript: ~540 tokens',
+      'Readable text in raw HTML: ~190 tokens · after JavaScript: ~540 tokens',
     );
   });
 
@@ -207,6 +207,7 @@ test.describe('scanner failures', () => {
     await openAiread(page);
     await expect(panel(page)).toContainText('Couldn’t scan that.');
     await expect(panel(page)).toContainText('The scanner is busy. Try again shortly.');
+    await expect(panel(page).getByRole('button', { name: 'Try again' })).toBeVisible();
     await page.click('[data-scan-tile="risk"]');
     await expect(page.locator('[data-scan-panel="risk"]')).toContainText(
       'The scanner is busy. Try again shortly.',

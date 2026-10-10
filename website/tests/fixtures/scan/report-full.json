@@ -65,7 +65,7 @@
     },
     "agentVerifiability": {
       "verifiable": false,
-      "verdict": "Your origin cannot cryptographically verify signed AI agents, and allows 9 AI crawler(s) unrestricted access to ~72% of your content for free.",
+      "verdict": "Your origin cannot cryptographically verify signed AI agents, and allows 9 AI crawler(s) unrestricted access to ~38% of your content for free.",
       "detail": {
         "verifiable": false,
         "aiCrawlersAllowed": [
@@ -80,7 +80,7 @@
           "Amazonbot"
         ],
         "aiCrawlersBlocked": [],
-        "exposurePct": 72,
+        "exposurePct": 38,
         "botAuthHeaders": [],
         "renderOk": true
       }

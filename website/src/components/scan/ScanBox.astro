@@ -48,7 +48,7 @@ const privacyLink =
     <button
       id={`${idPrefix}-submit`}
       type="submit"
-      class="btn-primary min-h-11 whitespace-nowrap aria-disabled:opacity-50 aria-disabled:cursor-wait"
+      class="btn-primary min-h-11 whitespace-nowrap scan-submit aria-disabled:cursor-wait"
     >
       <span data-scan-submit-label>Check page</span>
     </button>
@@ -71,3 +71,13 @@ const privacyLink =
     Google LLC.
   </p>
 </form>
+
+<style is:global>
+  /* Busy: keep the label at full contrast (the dimmed primary fill failed AA). */
+  .scan-submit[aria-disabled='true'],
+  .scan-submit[aria-disabled='true']:hover {
+    background-color: var(--color-bg-secondary);
+    color: var(--color-text-body);
+    border: 1px solid var(--color-control-border);
+  }
+</style>
