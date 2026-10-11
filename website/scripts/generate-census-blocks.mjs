@@ -135,7 +135,9 @@ const crawlSize = (d) => {
 };
 
 // The site's canonical license sentence, verbatim from product-facts.mjs.
-const licenseLine = LICENSE_CLAUSE_CAP.endsWith('.') ? LICENSE_CLAUSE_CAP : `${LICENSE_CLAUSE_CAP}.`;
+const licenseLine = LICENSE_CLAUSE_CAP.endsWith('.')
+  ? LICENSE_CLAUSE_CAP
+  : `${LICENSE_CLAUSE_CAP}.`;
 
 const blocks = {
   headline: `In the ${month(h.crawl_date)} crawl, HTTP Archive saw PageSpeed answering on **${n(h.latest_total)} origins**. ${n(h.versioned_total)} of them report a version; ${n(h.hidden_total)} send the header with the version hidden. PageSpeed-serving origins are ${pct(h.latest_share, 3)} of the root pages in the crawl, ${Number(h.latest_share) < Number(h.first_share) ? 'down' : 'up'} from ${pct(h.first_share, 3)} in ${month(h.first_date)}, the first crawl in this census.`,

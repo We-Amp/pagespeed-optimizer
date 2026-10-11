@@ -1342,7 +1342,7 @@ test.describe('PageSpeed analyzer report download', () => {
     const leaks: string[] = [];
     page.on('request', (req) => {
       const sent = req.url() + '\n' + (req.postData() ?? '');
-      if (req.method() !== 'GET' || /PageSpeed report|render-blocking/.test(sent)) {
+      if (req.method() !== 'GET' || /PageSpeed report|Scan report|render-blocking/.test(sent)) {
         leaks.push(`${req.method()} ${req.url()}`);
       }
     });

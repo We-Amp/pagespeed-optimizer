@@ -14,19 +14,21 @@ test.describe('Pricing page', () => {
   });
 
   test('hero states the model', async ({ page }) => {
-    await expect(page.locator('h1').first()).toHaveText(
-      'The software is free. We sell support.',
-    );
+    await expect(page.locator('h1').first()).toHaveText('The software is free. We sell support.');
   });
 
   test('renders the three tiers, Priority emphasized', async ({ page }) => {
     const cards = page.locator('#plans [data-tier]');
     await expect(cards).toHaveCount(3);
     for (const name of ['Standard support', 'Priority support', 'Enterprise']) {
-      await expect(page.locator('#plans').getByRole('heading', { name, exact: true })).toBeVisible();
+      await expect(
+        page.locator('#plans').getByRole('heading', { name, exact: true }),
+      ).toBeVisible();
     }
     await expect(page.locator('#plans [data-tier="priority"]')).toHaveClass(/card-featured/);
-    await expect(page.locator('#plans [data-tier="priority"]')).toContainText('Private package repository (being set up)');
+    await expect(page.locator('#plans [data-tier="priority"]')).toContainText(
+      'Private package repository (being set up)',
+    );
     await expect(page.locator('#plans [data-tier="standard"]')).not.toContainText(
       'Private package repository',
     );

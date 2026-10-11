@@ -26,9 +26,13 @@ test.describe('Landing page', () => {
   });
 
   test('feature cards are visible (6 cards)', async ({ page }) => {
-    await expect(page.locator('h3:has-text("One decode pass, up to 37 variants out")')).toBeVisible();
+    await expect(
+      page.locator('h3:has-text("One decode pass, up to 37 variants out")'),
+    ).toBeVisible();
     await expect(page.locator('h3:has-text("Render-blocking CSS eliminated")')).toBeVisible();
-    await expect(page.locator('h3:has-text("Cache hits are a pointer, not a pipeline")')).toBeVisible();
+    await expect(
+      page.locator('h3:has-text("Cache hits are a pointer, not a pipeline")'),
+    ).toBeVisible();
     await expect(page.locator('h3:has-text("Self-hosted by design")')).toBeVisible();
     await expect(page.locator('h3:has-text("Deliberately conservative")')).toBeVisible();
     await expect(page.locator('h3:has-text("The right bytes for every client")')).toBeVisible();
@@ -47,7 +51,10 @@ test.describe('Landing page', () => {
     // the CTA now lives in a card-featured panel labelled by #s-cta.
     const ctaSection = page.locator('section[aria-labelledby="s-cta"]');
     await expect(ctaSection.locator('h2')).toBeVisible();
-    await expect(ctaSection.locator('a:has-text("Download")')).toHaveAttribute('href', '/download/');
+    await expect(ctaSection.locator('a:has-text("Download")')).toHaveAttribute(
+      'href',
+      '/download/',
+    );
     await expect(ctaSection.locator('a:has-text("Run the numbers")')).toHaveAttribute(
       'href',
       '/calculator/',
@@ -80,9 +87,7 @@ test.describe('Landing page', () => {
     await expect(img).toHaveAttribute('height', '760');
     await expect(img).toHaveAttribute('loading', 'lazy');
     await expect(img).toHaveAttribute('alt', /admin console/);
-    await expect(
-      section.locator('figure:has(img) figcaption'),
-    ).toContainText('public on purpose');
+    await expect(section.locator('figure:has(img) figcaption')).toContainText('public on purpose');
     const link = section.locator('a[href="https://we-amp.com/pagespeed_global_admin/"]');
     await expect(link).toHaveText('Open the live console');
   });

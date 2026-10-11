@@ -387,7 +387,7 @@ PSENVHDR
   fi
 fi
 if [ -d /run/systemd/system ]; then
-  systemctl daemon-reload
+  systemctl daemon-reload || true
   systemctl enable pagespeed-optimizer.service >/dev/null 2>&1 || true
   # abort-remove: a failed removal already ran prerm's stop; bring the
   # service back up just as a fresh configure would.

@@ -17,8 +17,7 @@ if (inputs.length === 0) {
   process.exit(1);
 }
 
-const fmt = (n) =>
-  n >= 1024 ? `${(n / 1024).toFixed(1)} KB` : `${n} B`;
+const fmt = (n) => (n >= 1024 ? `${(n / 1024).toFixed(1)} KB` : `${n} B`);
 
 for (const input of inputs) {
   if (extname(input).toLowerCase() !== '.png') {

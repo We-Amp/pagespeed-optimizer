@@ -30,6 +30,11 @@ Key methods:
   which its read and removal walks do not guard against and whose write-time
   single-id reset does not cover a key that also holds an original -- never for
   a failed removal or an unreadable listing
+- `RemoveDerivedAlternates(url, hostname, scheme)` -- the mirror image: drop
+  everything the worker derived (variants, coded copies, oracle, tombstone,
+  markdown, a worker-processed identity) and KEEP the durable original, the
+  headers sidecar and a genuine identity. For the case where the original is
+  the NEW one. The caller re-reads its purge generation after the call
 - `ListAlternates(url, hostname)` -- enumerate all variants for a URL
 
 ## Testing

@@ -6,7 +6,7 @@ import { test, expect } from '@playwright/test';
 // Deploy-skew failure mode on /analyze/: the audit-mapping table is a lazy
 // chunk requested on the first submit. If a deploy replaced the _astro/
 // hashes after the page loaded, the chunk request fails. The run must then
-// show a reload-the-page error — not the "Couldn't reach PSI." wording, and
+// show a reload-the-page error — not the "PageSpeed Insights did not answer." wording, and
 // never the internal chunk URL — and "Try again" must not fire PSI
 // requests, because the browser caches the failed module fetch and a retry
 // can never recover until the page is reloaded.

@@ -35,7 +35,7 @@ describe('decodeEntities', () => {
   });
 
   it('decodes decimal and hex numeric references', () => {
-    expect(decodeEntities('&#8212; &#x27;')).toBe('— \'');
+    expect(decodeEntities('&#8212; &#x27;')).toBe("— '");
   });
 
   it('leaves unknown entities alone', () => {
@@ -58,7 +58,8 @@ describe('collapseWhitespace', () => {
 
 describe('titleInfo', () => {
   it('reads and decodes the document title from head', () => {
-    const html = '<html><head><title>Fine &amp; dandy</title></head><body><svg><title>icon</title></svg></body></html>';
+    const html =
+      '<html><head><title>Fine &amp; dandy</title></head><body><svg><title>icon</title></svg></body></html>';
     const t = titleInfo(html);
     expect(t.count).toBe(1);
     expect(t.text).toBe('Fine & dandy');
@@ -96,7 +97,9 @@ describe('descriptionInfo', () => {
       '<meta name="description" content="Moves large inline <style> blocks into external files with measured savings.">';
     const info = descriptionInfo(html);
     expect(info.count).toBe(1);
-    expect(info.text).toBe('Moves large inline <style> blocks into external files with measured savings.');
+    expect(info.text).toBe(
+      'Moves large inline <style> blocks into external files with measured savings.',
+    );
   });
 
   it('reports absence', () => {
@@ -126,7 +129,8 @@ describe('isRedirectStub', () => {
   });
 
   it('does not see a meta refresh that only appears in a script string', () => {
-    const html = '<meta name="robots" content="noindex"><script>const h = \'http-equiv="refresh"\';</script>';
+    const html =
+      '<meta name="robots" content="noindex"><script>const h = \'http-equiv="refresh"\';</script>';
     expect(isRedirectStub(html)).toBe(false);
   });
 });
@@ -149,7 +153,8 @@ describe('visible text extraction', () => {
 
 describe('h1Count', () => {
   it('counts only h1 opening tags outside script and comments', () => {
-    const html = '<h1>One</h1><script>const s = "<h1>no</h1>";</script><!-- <h1>no</h1> --><h2>Two</h2>';
+    const html =
+      '<h1>One</h1><script>const s = "<h1>no</h1>";</script><!-- <h1>no</h1> --><h2>Two</h2>';
     expect(h1Count(html)).toBe(1);
   });
 
@@ -172,7 +177,12 @@ describe('tokens', () => {
 
   it('skips the content of raw-text elements', () => {
     const tk = tokens('<script>const s = "</head>"; if (1 < 2) x();</script><p>text</p>');
-    expect(tk.map((t) => `${t.kind}:${t.name}`)).toEqual(['open:script', 'close:script', 'open:p', 'close:p']);
+    expect(tk.map((t) => `${t.kind}:${t.name}`)).toEqual([
+      'open:script',
+      'close:script',
+      'open:p',
+      'close:p',
+    ]);
   });
 
   it('reports an unterminated raw-text element', () => {
@@ -182,7 +192,12 @@ describe('tokens', () => {
 
   it('collects comments and doctypes without tag names', () => {
     const tk = tokens('<!doctype html><!-- note --><p>x</p>');
-    expect(tk.map((t) => `${t.kind}:${t.name || '-'}`)).toEqual(['doctype:-', 'comment:-', 'open:p', 'close:p']);
+    expect(tk.map((t) => `${t.kind}:${t.name || '-'}`)).toEqual([
+      'doctype:-',
+      'comment:-',
+      'open:p',
+      'close:p',
+    ]);
   });
 });
 
@@ -198,7 +213,9 @@ describe('documentStructureProblems / document-structure rule', () => {
     `<!doctype html><html lang="en"><head>${head}</head><body>${body}</body></html>${afterHtml}`;
 
   it('accepts a well-formed page', () => {
-    expect(documentStructureProblems(page(goodHead, '<h1>H</h1><p>The worker serves.</p>'))).toEqual([]);
+    expect(
+      documentStructureProblems(page(goodHead, '<h1>H</h1><p>The worker serves.</p>')),
+    ).toEqual([]);
     expect(lintPage(page(goodHead, '<h1>H</h1><p>The worker serves.</p>'))).toEqual([]);
   });
 
@@ -216,15 +233,22 @@ describe('documentStructureProblems / document-structure rule', () => {
   // Regression variant B: </head> right after the title, so the JSON-LD
   // block ends up in the body. Everything else passes; only this rule sees it.
   it('reports a JSON-LD script below </head>', () => {
-    const html = page(goodHead, '<h1>H</h1><script type="application/ld+json">{"@context":"https://schema.org"}</script>');
+    const html = page(
+      goodHead,
+      '<h1>H</h1><script type="application/ld+json">{"@context":"https://schema.org"}</script>',
+    );
     const structure = lintPage(html).filter((f) => f.rule === 'document-structure');
     expect(structure).toHaveLength(1);
-    expect(structure[0].message).toMatch(/application\/ld\+json <script> outside <head> at offset \d+/);
+    expect(structure[0].message).toMatch(
+      /application\/ld\+json <script> outside <head> at offset \d+/,
+    );
   });
 
   it('reports content after </html>', () => {
     const html = page(goodHead, '<h1>H</h1>', '\n<script>tail();</script>\n');
-    expect(documentStructureProblems(html)).toEqual([expect.stringMatching(/^content after <\/html>/)]);
+    expect(documentStructureProblems(html)).toEqual([
+      expect.stringMatching(/^content after <\/html>/),
+    ]);
   });
 
   it('reports a second <body>', () => {
@@ -370,7 +394,11 @@ describe('lintPage', () => {
     const titled = `<html><head>${goodHead.replace('A title of usable length', 'The daemon settings explained well')}</head><body><h1>H</h1></body></html>`;
     const ogHit = lintPage(og).find((f) => f.rule === 'term-drift-daemon');
     expect(ogHit?.message).toMatch(/^og:description: /);
-    expect(lintPage(titled).some((f) => f.rule === 'term-drift-daemon' && f.message.startsWith('<title>: '))).toBe(true);
+    expect(
+      lintPage(titled).some(
+        (f) => f.rule === 'term-drift-daemon' && f.message.startsWith('<title>: '),
+      ),
+    ).toBe(true);
   });
 
   it('flags never-valid product names in text, title and description', () => {
@@ -380,29 +408,45 @@ describe('lintPage', () => {
       }<link rel="canonical" href="https://modpagespeed.com/x/"></head><body><h1>H</h1><p>${body}</p></body></html>`;
 
     // Never valid, in any case, with underscore or space.
-    expect(lintPage(page('Runs mod_pagespeed 2.0 today')).map((f) => f.rule)).toContain('product-naming');
-    expect(lintPage(page('Runs MOD_PAGESPEED 2.0 today')).map((f) => f.rule)).toContain('product-naming');
-    expect(lintPage(page('Runs mod pagespeed 2.0 today')).map((f) => f.rule)).toContain('product-naming');
-    // The current line under its old CamelCase name.
-    expect(lintPage(page('Runs ModPageSpeed 2.1 today')).map((f) => f.rule)).toContain('product-naming');
-    // In the title and description, not only in body text.
-    expect(lintPage(page('All fine', 'Upgrading from mod_pagespeed 2.0 explained')).map((f) => f.rule)).toContain(
+    expect(lintPage(page('Runs mod_pagespeed 2.0 today')).map((f) => f.rule)).toContain(
       'product-naming',
     );
+    expect(lintPage(page('Runs MOD_PAGESPEED 2.0 today')).map((f) => f.rule)).toContain(
+      'product-naming',
+    );
+    expect(lintPage(page('Runs mod pagespeed 2.0 today')).map((f) => f.rule)).toContain(
+      'product-naming',
+    );
+    // The current line under its old CamelCase name.
+    expect(lintPage(page('Runs ModPageSpeed 2.1 today')).map((f) => f.rule)).toContain(
+      'product-naming',
+    );
+    // In the title and description, not only in body text.
     expect(
-      lintPage(page('All fine', undefined, 'How mod_pagespeed 2.0 installs differ from this release here')).map(
-        (f) => f.rule,
-      ),
+      lintPage(page('All fine', 'Upgrading from mod_pagespeed 2.0 explained')).map((f) => f.rule),
+    ).toContain('product-naming');
+    expect(
+      lintPage(
+        page('All fine', undefined, 'How mod_pagespeed 2.0 installs differ from this release here'),
+      ).map((f) => f.rule),
     ).toContain('product-naming');
 
     // The predecessor line under its real CamelCase name is history, and
     // the current product name is fine.
-    expect(lintPage(page('Migrating from ModPageSpeed 2.0 today')).map((f) => f.rule)).not.toContain('product-naming');
-    expect(lintPage(page('Runs mod_pagespeed 2.1 today')).map((f) => f.rule)).not.toContain('product-naming');
-    expect(lintPage(page('Runs mod_pagespeed 1.15 today')).map((f) => f.rule)).not.toContain('product-naming');
+    expect(
+      lintPage(page('Migrating from ModPageSpeed 2.0 today')).map((f) => f.rule),
+    ).not.toContain('product-naming');
+    expect(lintPage(page('Runs mod_pagespeed 2.1 today')).map((f) => f.rule)).not.toContain(
+      'product-naming',
+    );
+    expect(lintPage(page('Runs mod_pagespeed 1.15 today')).map((f) => f.rule)).not.toContain(
+      'product-naming',
+    );
 
     // The message quotes the name that actually matched.
-    const hit = lintPage(page('Runs mod pagespeed 2.0 today')).find((f) => f.rule === 'product-naming');
+    const hit = lintPage(page('Runs mod pagespeed 2.0 today')).find(
+      (f) => f.rule === 'product-naming',
+    );
     expect(hit?.message).toMatch(/"mod pagespeed 2\.0" never named a product line/);
   });
 
@@ -455,20 +499,28 @@ describe('lintPages', () => {
     expect(exempt.failures.filter((f) => f.url === '/a/')).toEqual([]);
     expect(
       exempt.warnings.some(
-        (w) => w.url === '/a/' && w.rule === 'allowlist' && /exempted description-length: generator gap/.test(w.message),
+        (w) =>
+          w.url === '/a/' &&
+          w.rule === 'allowlist' &&
+          /exempted description-length: generator gap/.test(w.message),
       ),
     ).toBe(true);
 
     // An entry naming a rule that passes drops nothing: the real failure
     // still fails the build.
     const wrongRule = lintPages([page('/a/', 'short')], { '/a/': { canonical: 'reason' } });
-    expect(wrongRule.failures.some((f) => f.url === '/a/' && f.rule === 'description-length')).toBe(true);
+    expect(wrongRule.failures.some((f) => f.url === '/a/' && f.rule === 'description-length')).toBe(
+      true,
+    );
   });
 
   it('errors on allowlist entries that match no built page', () => {
-    const { failures } = lintPages([page('/a/', 'A different description that is long enough to be valid')], {
-      '/gone/': { canonical: 'stale entry' },
-    });
+    const { failures } = lintPages(
+      [page('/a/', 'A different description that is long enough to be valid')],
+      {
+        '/gone/': { canonical: 'stale entry' },
+      },
+    );
     const stale = failures.find((f) => f.rule === 'allowlist');
     expect(stale?.url).toBe('/gone/');
     expect(stale?.message).toMatch(/matches no built page/);

@@ -20,14 +20,13 @@ test.describe('Navigation', () => {
     ];
     for (const link of directLinks) {
       await page.goto('/');
-      await page
-        .locator(`header nav .md\\:flex > a:has-text("${link.label}")`)
-        .first()
-        .click();
+      await page.locator(`header nav .md\\:flex > a:has-text("${link.label}")`).first().click();
       await expect(page).toHaveURL(link.href);
     }
     await page.goto('/');
-    await expect(page.locator('header nav button.nav-dropdown-btn:has-text("Docs")')).toHaveCount(0);
+    await expect(page.locator('header nav button.nav-dropdown-btn:has-text("Docs")')).toHaveCount(
+      0,
+    );
     const groups = await page.locator('header nav button.nav-dropdown-btn').allInnerTexts();
     expect(groups.map((g) => g.trim())).toEqual(['Tools', 'Support', 'Compare']);
   });

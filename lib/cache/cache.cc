@@ -24,6 +24,7 @@ inline int chmod(const char*, int) { return 0; }
 #include <cstring>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <limits>
 #include <mutex>
 #include <optional>
@@ -1027,13 +1028,58 @@ PageSpeedCache::RemoveAlternatesExcept(std::string_view url,
       return std::unexpected(cyclone::CacheError::InvalidArgument);
     }
   }
-  auto is_preserved = [&](AlternateId id) {
-    for (AlternateId k : preserve) {
-      if (k == id) return true;
-    }
-    return false;
-  };
+  return RemoveAlternatesWhereLocked(
+      url, hostname, scheme,
+      [&](AlternateId id) {
+        for (AlternateId k : preserve) {
+          if (k == id) return true;
+        }
+        return false;
+      },
+      "RemoveAlternatesExcept");
+}
 
+std::expected<size_t, cyclone::CacheError>
+PageSpeedCache::RemoveDerivedAlternates(std::string_view url,
+                                        std::string_view hostname,
+                                        std::string_view scheme) {
+  constexpr auto kOriginal =
+      static_cast<AlternateId>(SentinelId::kOriginalContent);
+  constexpr auto kSidecar =
+      static_cast<AlternateId>(SentinelId::kHeadersSidecar);
+  const AlternateId identity_id = MaskToAlternateId(
+      static_cast<uint8_t>(CapabilityMask().Encode() & 0xFF));
+
+  // Is the identity slot a front end's genuine recording, or a worker-derived
+  // copy?  Read the ON-DISK entry: this process's RAM tier is write-around, so
+  // an earlier read here (or a peer's later overwrite) would otherwise answer
+  // with a superseded entry's flag.  An absent or unreadable slot is not
+  // preserved: there is nothing to keep, and a worker-derived entry that fails
+  // to read must not survive a purge.
+  EvictAlternateFromRamCache(url, hostname, scheme, identity_id);
+  bool keep_identity = false;
+  {
+    auto identity = ReadAlternate(url, hostname, scheme, identity_id);
+    if (identity.has_value() && identity->is_valid()) {
+      keep_identity = (identity->metadata.flags &
+                       AlternateMetadata::kFlagWorkerProcessed) == 0;
+    }
+  }
+
+  std::shared_lock lock(reset_mutex_);
+  return RemoveAlternatesWhereLocked(
+      url, hostname, scheme,
+      [&](AlternateId id) {
+        return id == kOriginal || id == kSidecar ||
+               (keep_identity && id == identity_id);
+      },
+      "RemoveDerivedAlternates");
+}
+
+std::expected<size_t, cyclone::CacheError>
+PageSpeedCache::RemoveAlternatesWhereLocked(
+    std::string_view url, std::string_view hostname, std::string_view scheme,
+    const std::function<bool(AlternateId)>& is_preserved, const char* label) {
   auto key = ComposeKey(url, hostname, scheme);
 
   // One listing is one traversal of the key's alternate chain, and a
@@ -1172,10 +1218,10 @@ PageSpeedCache::RemoveAlternatesExcept(std::string_view url,
     if (survivor) {
       if (handler_ != nullptr) {
         handler_->Warning(
-            "RemoveAlternatesExcept %.*s: the alternate chain cannot be "
+            "%s %.*s: the alternate chain cannot be "
             "unlinked (removals report success and the chain is unchanged); "
             "removing the whole key",
-            static_cast<int>(url.size()), url.data());
+            label, static_cast<int>(url.size()), url.data());
       }
       auto dropped = cache_->remove_sync(key);
       if (!dropped && dropped.error() != cyclone::CacheError::NotFound) {
@@ -1188,8 +1234,8 @@ PageSpeedCache::RemoveAlternatesExcept(std::string_view url,
   }
 
   if (handler_ != nullptr) {
-    handler_->Info("RemoveAlternatesExcept %.*s removed=%zu",
-                   static_cast<int>(url.size()), url.data(), removed);
+    handler_->Info("%s %.*s removed=%zu", label, static_cast<int>(url.size()),
+                   url.data(), removed);
   }
   return removed;
 }

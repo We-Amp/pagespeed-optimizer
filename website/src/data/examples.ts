@@ -121,7 +121,8 @@ export const EXAMPLES: Example[] = [
     category: 'Images',
     page: 'prioritize_critical_images.html',
     filters: 'prioritize_critical_images',
-    blurb: 'Marks the largest above-the-fold image fetchpriority=high so the browser loads it first.',
+    blurb:
+      'Marks the largest above-the-fold image fetchpriority=high so the browser loads it first.',
     addedIn: '1.15.0-r20',
   },
   {
@@ -479,7 +480,8 @@ export const EXAMPLES: Example[] = [
     category: 'Resources',
     page: 'collapse_whitespace.html',
     filters: 'insert_speculation_rules',
-    blurb: 'Injects a speculation-rules script so supporting browsers prefetch same-origin links a visitor is likely to open next.',
+    blurb:
+      'Injects a speculation-rules script so supporting browsers prefetch same-origin links a visitor is likely to open next.',
     addedIn: '1.15.0-r20',
   },
   {

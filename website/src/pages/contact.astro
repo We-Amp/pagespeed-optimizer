@@ -117,19 +117,34 @@ const nextSteps = [
       ))}
     </ol>
 
-    <!-- Contact form. Behavior: JS-enabled clients POST to the capture endpoint
-         (/ai-readability/api/contact → render service → Telegram + logged), with a
-         mailto: fallback if that POST fails. No-JS clients post to the mailto:
-         action below. Either path lands the message with us. -->
+    <!-- Contact form. JS-enabled clients intercept the submit and POST JSON to the
+         capture endpoint (/ai-readability/api/contact → render service → Telegram +
+         logged), with a mailto: fallback if that POST fails. Without JavaScript the
+         browser posts the form natively to the same endpoint, which answers with a
+         redirect to the thanks page. -->
     <form
       id="contact-form"
-      action={`mailto:${COMMERCIAL_EMAIL}`}
+      action="/ai-readability/api/contact"
       method="post"
-      enctype="text/plain"
       data-fallback-email={COMMERCIAL_EMAIL}
       data-topic-config={JSON.stringify(topicConfig)}
       class="mt-8 rounded-lg border border-border bg-bg-elevated p-6 sm:p-8 space-y-5"
     >
+      <input type="hidden" name="redirect" value="/contact/thanks/" />
+      <div
+        style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden"
+        aria-hidden="true"
+      >
+        <label for="contact-company">Leave this field empty</label>
+        <input
+          id="contact-company"
+          name="company"
+          type="text"
+          tabindex="-1"
+          autocomplete="new-password"
+        />
+      </div>
+
       <div>
         <label for="contact-name" class="eyebrow">
           {' '}
@@ -184,7 +199,7 @@ const nextSteps = [
         </p>
       </div>
 
-      <fieldset id="contact-qualifiers" class="space-y-4" data-qualifiers>
+      <fieldset id="contact-qualifiers" class="space-y-4" data-qualifiers hidden disabled>
         <legend class="eyebrow">
           About your organization <span class="font-normal text-text-annotation">(optional)</span>
         </legend>
@@ -462,7 +477,13 @@ const nextSteps = [
           const res = await fetch('/ai-readability/api/contact', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify({ email, name, topic, message }),
+            body: JSON.stringify({
+              email,
+              name,
+              topic,
+              message,
+              company: String(data.get('company') ?? ''),
+            }),
           });
           if (!res.ok) throw new Error(`status ${res.status}`);
           form.reset();

@@ -790,6 +790,9 @@ increment when the corresponding feature (`has_async_css` /
 | `alternates.writes_fenced` | `pagespeed_alternate_writes_fenced_total` | Benign writes dropped by a post-dispatch purge fence |
 | `origin_refresh.purges` | `pagespeed_origin_refresh_purges_total` | Origin-refresh sentinels that purged a stale variant set |
 | `origin_refresh.rate_limited` | `pagespeed_origin_refresh_rate_limited_total` | Origin-refresh sentinels rate-limited away |
+| `origin_refresh.rechecked` | `pagespeed_notifications_origin_rechecked_total` | Dedup-hit notifications whose re-recorded original differed in origin state from the variant set (SVG/raster only) |
+| `origin_refresh.change_rebuilt` | `pagespeed_origin_change_rebuilt_total` | Variant sets purged (original kept) and rebuilt because the recorded bytes changed |
+| `origin_refresh.unchanged_restamped` | `pagespeed_origin_unchanged_restamped_total` | Re-recorded originals with identical bytes: copies restamped, not rebuilt |
 
 `WriteVariant` returns false for both benign purge-fences and hard cache errors.
 The failure branches now probe `purge_check()` first: a post-dispatch purge
