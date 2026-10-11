@@ -210,7 +210,7 @@ async function runScan(page: Page, scanBody: unknown = SCAN_OK) {
       body: JSON.stringify(scanBody),
     });
   });
-  await page.goto('/ai-readability/');
+  await page.goto('/ai-readability/?ui=v1');
   await page.fill('#ar-url', 'example.com');
   await page.click('#ar-go');
   // Generous timeout: the dev server compiles the page on first hit.
@@ -225,7 +225,7 @@ async function runAnalysis(page: Page) {
       body: JSON.stringify(PSI_OK),
     });
   });
-  await page.goto('/analyze/');
+  await page.goto('/analyze/?ui=v1');
   await page.fill('#psi-url', 'https://example.com');
   await page.click('#psi-submit');
   // Generous timeout: the dev server compiles the page on first hit.
@@ -1255,7 +1255,7 @@ test.describe('AI-readability result link (copy replaces the email-me path)', ()
         body: JSON.stringify(SCAN_LINK),
       });
     });
-    await page.goto('/ai-readability/');
+    await page.goto('/ai-readability/?ui=v1');
     await page.fill('#ar-url', 'https://example.com');
     await page.click('#ar-go');
     await expect(page.locator('#ar-watch-form')).toBeVisible({ timeout: 15000 });
@@ -1296,7 +1296,7 @@ test.describe('AI-readability result link (copy replaces the email-me path)', ()
       { width: 1536, height: 730 },
     ]) {
       await page.setViewportSize(vp);
-      await page.goto('/ai-readability/');
+      await page.goto('/ai-readability/?ui=v1');
       await page.fill('#ar-url', 'https://example.com');
       await page.click('#ar-go');
       await expect(page.locator('#ar-out .ar-err')).toBeVisible({ timeout: 15000 });
