@@ -26,7 +26,7 @@ import {
   markMappingFailed,
   reloadError,
 } from '../../lib/scan/psi';
-import { scanErrorCopy } from '../../lib/scan/scan-errors';
+import { proxyErrorText, scanErrorCopy } from '../../lib/scan/scan-errors';
 import { renderSpeedPanel } from './panels/speed';
 
 type Pillar = 'speed' | 'airead' | 'risk';
@@ -402,6 +402,10 @@ export function init() {
     } catch (err) {
       error = err instanceof RequestError ? err : null;
       // A bare "HTTP 502" (a proxy's non-JSON answer) is not a service message.
+      const proxyStatus =
+        error && error.kind === 'http' && /^HTTP \d+$/.test(error.message)
+          ? error.status
+          : undefined;
       if (error && error.kind === 'http' && /^HTTP \d+$/.test(error.message)) {
         error = new RequestError(error.message, 'network');
       }
@@ -410,7 +414,7 @@ export function init() {
           ? error.kind === 'http'
             ? scanErrorCopy(error.message)
             : error.message
-          : 'Could not reach the scanner service. Check the URL and try again.';
+          : proxyErrorText(proxyStatus);
     }
     if (id !== runId) return;
     if (!report && !reason) reason = 'The scanner returned no result.';
