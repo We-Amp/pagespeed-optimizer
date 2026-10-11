@@ -18,6 +18,8 @@ import PlatformInterestForm from '../../components/PlatformInterestForm.astro';
 const REPO = 'https://github.com/We-Amp/pagespeed-optimizer';
 const PACKS_DIR = `${REPO}/tree/main/packs`;
 const EXAMPLE_PACK = `${REPO}/blob/main/packs/edge-seo/pack.example.json`;
+const DOCS_PACK_FORMAT = '/docs/rule-packs/#pack-format';
+const LINK = 'text-interactive hover:text-interactive-hover underline';
 
 const levels = [
   {
@@ -205,17 +207,15 @@ const jsonLd = {
         ))}
       </ul>
       <p class="mt-3 text-sm text-text-muted">
-        <a href={EXAMPLE_PACK} class="text-interactive hover:text-interactive-hover underline">
-          An example pack
-        </a>
-        shows every part. The full reference is in the
-        <a
-          href="/docs/rule-packs/#pack-format"
-          class="text-interactive hover:text-interactive-hover underline"
-        >
+        The{' '}
+        <a href={EXAMPLE_PACK} class={LINK}>
+          free template
+        </a>{' '}
+        has one worked rule for each kind. See the{' '}
+        <a href={DOCS_PACK_FORMAT} class={LINK}>
           rule packs documentation
-        </a>
-        .
+        </a>{' '}
+        for the full reference.
       </p>
     </div>
 
