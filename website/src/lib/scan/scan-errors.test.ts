@@ -2,7 +2,7 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 
 import { describe, expect, it } from 'vitest';
-import { scanErrorCopy } from './scan-errors';
+import { proxyErrorText, scanErrorCopy } from './scan-errors';
 
 describe('scanErrorCopy', () => {
   it.each([
@@ -28,5 +28,19 @@ describe('scanErrorCopy', () => {
     expect(scanErrorCopy('database on fire')).toBe('The scan did not complete.');
     expect(scanErrorCopy(undefined)).toBe('The scan did not complete.');
     expect(scanErrorCopy({ message: 'x' })).toBe('The scan did not complete.');
+  });
+});
+
+describe('proxyErrorText', () => {
+  it('maps a proxy status to site copy', () => {
+    expect(proxyErrorText(429)).toBe('Rate limit reached. Try again in a minute.');
+    expect(proxyErrorText(502)).toBe('The scanner is busy. Try again in a moment.');
+    expect(proxyErrorText(503)).toBe('The scanner is busy. Try again in a moment.');
+    expect(proxyErrorText(404)).toBe(
+      'Could not reach the scanner service. Check the URL and try again.',
+    );
+    expect(proxyErrorText(undefined)).toBe(
+      'Could not reach the scanner service. Check the URL and try again.',
+    );
   });
 });
