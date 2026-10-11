@@ -115,7 +115,7 @@ describe('formatAiread extras', () => {
   });
   it('pluralises the AI crawler count from the number', () => {
     const full = fixture('full');
-    const text = (r: unknown) => formatAiread(r).alsoFound[0].text;
+    const text = (r: Parameters<typeof formatAiread>[0]) => formatAiread(r).alsoFound[0].text;
     expect(text(full)).toContain('9 AI crawlers can read');
     full.agentVerifiability.detail.aiCrawlersAllowed = ['GPTBot'];
     expect(text(full)).toContain('1 AI crawler can read');
