@@ -4,17 +4,28 @@
 # Hashed hygiene tokens, enforced by tools/ci/check-public-hygiene.py (run from
 # tools/ci/check-public-hygiene.sh). Some blocked vocabulary is itself
 # non-public (private host names, private repository slugs, held-back private
-# paths), so it must not be spelled out in this public tree. Each line is
+# paths), so it must not be spelled out in this public tree.
+#
+# HONEST LIMIT: plain sha256 of a short, word-like token is guessable (brute
+# force plus word lists recovers many of them in seconds). This protects
+# against casual reading and against grep, nothing more. For that reason the
+# list holds internal TOPOLOGY tokens only (host names, runner prefixes,
+# private repository slugs, internal paths) and must never hold a customer,
+# partner, person or credential-shaped token.
+#
+# Each line is
 #
 #   <class> <TAB> <scope> <TAB> <sha256 of the lowercase token> <TAB> <mode>
 #
 # The checker lowercases and hashes every candidate token found in the tracked
-# tree and fails on a hash listed here. Candidate tokens are: hyphen/underscore
-# delimited words and runs of up to two of them (so "x-y" matches as a word and
-# "x-y-z" still contains it), and runs of up to three consecutive path segments
-# joined by "/". scope "all" applies to every tracked text file, scope "md"
-# to markdown files only. mode "block" fails the gate; mode "advisory" prints a
-# warning only (no rule uses it today; kept for rules awaiting a ruling).
+# tree and fails on a hash listed here. Candidate tokens: runs of up to two
+# words joined by "-" inside one path segment (words split on "-", "_" and ".",
+# so host.local, host_name and x-y-z all contain their words), and runs of up
+# to three consecutive path segments joined by "/". A backslash counts as "/"
+# and a trailing ".git" is stripped from a segment. scope "all" applies to
+# every tracked text file, scope "md" to markdown files only. mode "block"
+# fails the gate; mode "advisory" prints a warning only (no rule uses it
+# today; kept for rules awaiting a ruling).
 # To add a token:
 #   printf '%s' 'token' | tr A-Z a-z | shasum -a 256
 # Classes: internal-hosts (private machine names), private-repos (private

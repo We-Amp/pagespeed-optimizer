@@ -9,15 +9,19 @@ a line-oriented regex cannot express without spelling out non-public names:
   1. Hashed tokens (.github/hygiene-hashed-tokens.txt). Every tracked text
      file is tokenised; each token is lowercased, sha256-hashed and compared
      with the listed hashes. The blocked literals are never written in this
-     tree. Tokens are path-run based: hyphen-delimited word windows (1-2
-     pieces) inside each path segment, plus windows of 1-3 consecutive
-     segments joined by "/".
-  2. Relative markdown links. In every tracked *.md file (fenced code blocks
-     skipped) a relative link target must resolve to a tracked file or to a
-     directory holding a tracked file. URLs, mailto:, fragment-only and
-     root-relative targets are not checked.
+     tree. Tokens are path-run based (backslashes count as "/", a trailing
+     ".git" is stripped from a segment): windows of 1-2 pieces joined by "-"
+     inside each segment, where pieces are split on any of "-", "_" and ".";
+     plus windows of 1-3 consecutive raw segments joined by "/".
+  2. Relative markdown links. In every tracked *.md / *.mdx file (fenced code
+     blocks and inline code spans skipped; inline, balanced-paren and
+     reference-style targets) a relative link target must resolve to a tracked
+     file or to a directory holding a tracked file. URLs, mailto:,
+     fragment-only and root-relative targets are not checked.
 
-Usage: check-public-hygiene.py [--root DIR]   (DIR defaults to the repo root)
+Usage: check-public-hygiene.py [--root DIR] [--tokens FILE]
+  DIR defaults to the current directory; FILE defaults to the tracked token
+  list (the self-test passes a temporary file of made-up tokens).
 """
 import hashlib
 import os
@@ -34,7 +38,28 @@ EXCLUDE = {
     "tools/async-css-probe/fixtures/modpagespeed-com/index.html",
 }
 RUN = re.compile(r"[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)*")
-LINK = re.compile(r"\]\(([^)]*)\)")
+REFDEF = re.compile(r"^\s{0,3}\[[^\]]+\]:\s*(<[^>]*>|\S+)")
+CODESPAN = re.compile(r"`+[^`]*`+")
+
+
+def link_targets(line):
+    """Inline ](target) with balanced parens, plus reference definitions."""
+    line = CODESPAN.sub("", line)
+    m = REFDEF.match(line)
+    if m:
+        yield m.group(1)
+    i = 0
+    while True:
+        i = line.find("](", i)
+        if i < 0:
+            return
+        j, depth = i + 2, 1
+        while j < len(line) and depth:
+            depth += {"(": 1, ")": -1}.get(line[j], 0)
+            j += 1
+        if depth == 0:
+            yield line[i + 2:j - 1]
+        i = j
 
 
 def sha(s):
@@ -42,15 +67,16 @@ def sha(s):
 
 
 def tokens_of(text):
-    for run in RUN.findall(text):
+    for run in RUN.findall(text.replace("\\", "/")):
         segs = [s.strip(".") for s in run.split("/")]
+        segs = [s[:-4] if s.lower().endswith(".git") else s for s in segs]
         segs = [s for s in segs if s]
         for i in range(len(segs)):
             for n in (1, 2, 3):
                 if i + n <= len(segs):
                     yield "/".join(segs[i:i + n])
         for s in segs:
-            pieces = [p for p in s.split("-") if p]
+            pieces = [p for p in re.split(r"[-_.]", s) if p]
             for i in range(len(pieces)):
                 for n in (1, 2):
                     if i + n <= len(pieces):
@@ -59,8 +85,16 @@ def tokens_of(text):
 
 def main():
     root = os.getcwd()
-    if len(sys.argv) == 3 and sys.argv[1] == "--root":
-        root = sys.argv[2]
+    tokens = TOKENS
+    args = sys.argv[1:]
+    while args:
+        if len(args) >= 2 and args[0] == "--root":
+            root = args[1]
+        elif len(args) >= 2 and args[0] == "--tokens":
+            tokens = os.path.abspath(args[1])
+        else:
+            sys.exit("usage: check-public-hygiene.py [--root DIR] [--tokens FILE]")
+        args = args[2:]
     os.chdir(root)
     files = subprocess.run(
         ["git", "ls-files", "-z"], check=True, capture_output=True
@@ -74,13 +108,13 @@ def main():
             dirs.add(d)
 
     hashes = {}
-    with open(TOKENS) as fh:
+    with open(tokens) as fh:
         for ln, line in enumerate(fh, 1):
             if not line.strip() or line.startswith("#"):
                 continue
             parts = line.rstrip("\n").split("\t")
             if len(parts) != 4 or parts[3] not in ("block", "advisory") or not re.fullmatch(r"[0-9a-f]{64}", parts[2]) or parts[1] not in ("all", "md"):
-                sys.exit("::error::%s:%d: malformed line" % (TOKENS, ln))
+                sys.exit("::error::%s:%d: malformed line" % (tokens, ln))
             hashes[parts[2]] = (parts[0], parts[1], parts[3])
 
     bad = 0
@@ -92,7 +126,7 @@ def main():
         if b"\0" in data:
             continue
         text = data.decode("utf-8", "replace")
-        is_md = f.endswith(".md")
+        is_md = f.endswith((".md", ".mdx"))
         lines = text.split("\n")
         # 1. hashed tokens, per line so a hit reports path:line
         for i, line in enumerate(lines, 1):
@@ -116,7 +150,7 @@ def main():
                     continue
                 if fenced:
                     continue
-                for tgt in LINK.findall(line):
+                for tgt in link_targets(line):
                     t = re.split(r"[#?]", tgt, 1)[0]
                     if t.startswith("<") and t.endswith(">"):
                         t = t[1:-1]
