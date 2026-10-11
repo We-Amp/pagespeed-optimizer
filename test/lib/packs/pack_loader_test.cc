@@ -106,9 +106,9 @@ TEST(PackLoaderTest, ADeeplyNestedJsonLdTemplateIsALoadError) {
             std::string::npos)
       << p.status();
   // Brackets inside strings do not count.
-  j["rules"][4]["value"]["template"] =
-      "{\"@type\":\"Thing\",\"name\":\"" +
-      std::string(kMaxJsonLdDepth * 2, '[') + "\"}";
+  j["rules"][4]["value"]["template"] = "{\"@type\":\"Thing\",\"name\":\"" +
+                                       std::string(kMaxJsonLdDepth * 2, '[') +
+                                       "\"}";
   EXPECT_TRUE(Load(j).ok());
 }
 
@@ -218,43 +218,56 @@ TEST(PackLoaderExampleTest, ExampleLoadsClean) {
   auto p = LoadPackFile(kExamplePath, pagespeed::kPageSpeedVersion);
   ASSERT_TRUE(p.ok()) << p.status();
   EXPECT_EQ(p->info.id, "edge-seo");
-  EXPECT_EQ(p->info.version, "0.1.0");
-  EXPECT_EQ(p->info.engine_min, "2.2.0");
-  ASSERT_EQ(p->sites.size(), 2u);
+  EXPECT_EQ(p->info.version, "1.0.0");
+  EXPECT_EQ(p->info.publisher, "We-Amp");
+  EXPECT_EQ(p->info.engine_min, "1.18.0");
+  ASSERT_EQ(p->sites.size(), 1u);
   EXPECT_EQ(p->sites[0].host, "www.example.com");
+  EXPECT_FALSE(p->sites[0].wildcard);
   EXPECT_EQ(p->sites[0].mode, Mode::kReport);
-  EXPECT_TRUE(p->sites[1].wildcard);
-  EXPECT_EQ(p->sites[1].host, "example.org");
-  EXPECT_EQ(p->sites[1].mode, Mode::kEnforce);
-  ASSERT_EQ(p->rules.size(), 4u);
-  EXPECT_EQ(p->rules[0].id, "canonical-shop");
-  EXPECT_EQ(p->rules[1].on_present, OnPresent::kRepair);
-  EXPECT_EQ(p->rules[2].value.source, ValueSource::kPattern);
-  EXPECT_EQ(p->rules[2].value.pattern.size(), 3u);
-  EXPECT_EQ(p->rules[3].kind, Kind::kJsonLd);
+  // One rule per kind, each reporting only and keeping what the page has.
+  ASSERT_EQ(p->rules.size(), 5u);
+  EXPECT_EQ(p->rules[0].kind, Kind::kCanonical);
+  EXPECT_EQ(p->rules[1].kind, Kind::kTitle);
+  EXPECT_EQ(p->rules[2].kind, Kind::kDescription);
+  EXPECT_EQ(p->rules[3].kind, Kind::kHreflang);
+  EXPECT_EQ(p->rules[4].kind, Kind::kJsonLd);
+  for (const Rule& r : p->rules) {
+    EXPECT_TRUE(r.enabled) << r.id;
+    EXPECT_FALSE(r.enforce) << r.id;
+    EXPECT_EQ(r.on_present, OnPresent::kKeep) << r.id;
+  }
+  EXPECT_EQ(p->rules[0].value.source, ValueSource::kTemplate);
+  EXPECT_EQ(p->rules[3].value.source, ValueSource::kTable);
   EXPECT_TRUE(p->warnings.empty());
   // defaults.exclude_paths apply to rules without their own.
-  EXPECT_EQ(p->rules[1].match.exclude_paths.size(), 2u);
+  EXPECT_EQ(p->rules[1].match.exclude_paths.size(), 1u);
 }
 
 TEST(PackLoaderExampleTest, ExampleBehavesAsDocumented) {
   auto p = LoadPackFile(kExamplePath, pagespeed::kPageSpeedVersion);
   ASSERT_TRUE(p.ok());
-  Selection sel = SelectRules(*p, "www.example.com", "/shop/blue-widget");
+  Selection sel = SelectRules(*p, "www.example.com", "/about");
   ASSERT_NE(sel.site, nullptr);
-  ASSERT_TRUE(sel.by_kind[static_cast<size_t>(Kind::kCanonical)].has_value());
-  EXPECT_EQ(sel.by_kind[static_cast<size_t>(Kind::kCanonical)]->captures[0],
-            "blue-widget");
-  EXPECT_FALSE(sel.by_kind[static_cast<size_t>(Kind::kTitle)].has_value());
-  EXPECT_EQ(SelectRules(*p, "www.example.com", "/cart/x")
+  EXPECT_TRUE(sel.by_kind[static_cast<size_t>(Kind::kCanonical)].has_value());
+  EXPECT_TRUE(sel.by_kind[static_cast<size_t>(Kind::kTitle)].has_value());
+  EXPECT_FALSE(sel.by_kind[static_cast<size_t>(Kind::kHreflang)].has_value());
+  EXPECT_FALSE(sel.by_kind[static_cast<size_t>(Kind::kJsonLd)].has_value());
+  EXPECT_TRUE(SelectRules(*p, "www.example.com", "/")
+                  .by_kind[static_cast<size_t>(Kind::kJsonLd)]
+                  .has_value());
+  EXPECT_TRUE(SelectRules(*p, "www.example.com", "/de/")
+                  .by_kind[static_cast<size_t>(Kind::kHreflang)]
+                  .has_value());
+  EXPECT_EQ(SelectRules(*p, "www.example.com", "/admin/x")
                 .by_kind[static_cast<size_t>(Kind::kCanonical)]
                 .has_value(),
             false);
-  EXPECT_EQ(FindSite(*p, "example.org"), nullptr);
-  EXPECT_NE(FindSite(*p, "blog.example.org"), nullptr);
-  const ValueTable& canon = p->tables.at("canonicals");
-  EXPECT_EQ(*LookupTableValue(canon, "/shop/index.php", "id=12"),
-            "https://www.example.com/shop/blue-widget");
+  // Only the listed host: not the apex, not another subdomain.
+  EXPECT_EQ(FindSite(*p, "example.com"), nullptr);
+  EXPECT_EQ(FindSite(*p, "blog.example.com"), nullptr);
+  const ValueTable& titles = p->tables.at("titles");
+  EXPECT_EQ(*LookupTableValue(titles, "/about", ""), "About Example");
   EXPECT_NE(FindCluster(*p, "https://www.example.com/de/"), nullptr);
 }
 
@@ -290,7 +303,7 @@ TEST(PackLoaderExampleTest, ExampleRoundTripsThroughTheLoader) {
 }
 
 TEST(PackLoaderExampleTest, ExampleIsRefusedByAnOlderEngine) {
-  auto p = LoadPackFile(kExamplePath, "2.1.9");
+  auto p = LoadPackFile(kExamplePath, "1.17.9");
   ASSERT_FALSE(p.ok());
   EXPECT_NE(std::string(p.status().message()).find("pack.engine_min"),
             std::string::npos);
