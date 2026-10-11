@@ -227,16 +227,38 @@ test.describe('scanner failures', () => {
     );
   });
 
-  test('a non-JSON proxy error reads as unreachable, not as a raw status', async ({ page }) => {
+  test('a non-JSON proxy rate-limit page reads as a rate limit, not as a bad URL', async ({
+    page,
+  }) => {
+    await page.route('**/psi/v5/runPagespeed**', (route) => route.abort());
+    await page.route('**/ai-readability/api/scan**', (route) =>
+      route.fulfill({
+        status: 429,
+        contentType: 'text/html',
+        body: '<h1>429 Too Many Requests</h1>',
+      }),
+    );
+    await scanV2(page);
+    await expect(page.locator('[data-scan-tile="airead"] [data-scan-status]')).toHaveText(
+      'Not measured',
+    );
+    await expect(page.locator('[data-scan-tile="airead"]')).toContainText(
+      'Rate limit reached. Try again in a minute.',
+    );
+    await openAiread(page);
+    await expect(panel(page)).toContainText('Rate limit reached. Try again in a minute.');
+    await expect(panel(page)).not.toContainText('Check the URL');
+    await expect(panel(page)).not.toContainText('HTTP 429');
+  });
+
+  test('a non-JSON proxy 502 reads as busy, not as a raw status', async ({ page }) => {
     await page.route('**/psi/v5/runPagespeed**', (route) => route.abort());
     await page.route('**/ai-readability/api/scan**', (route) =>
       route.fulfill({ status: 502, contentType: 'text/html', body: '<h1>Bad gateway</h1>' }),
     );
     await scanV2(page);
     await openAiread(page);
-    await expect(panel(page)).toContainText(
-      'Could not reach the scanner service. Check the URL and try again.',
-    );
+    await expect(panel(page)).toContainText('The scanner is busy. Try again in a moment.');
     await expect(panel(page)).not.toContainText('HTTP 502');
     await expect(panel(page)).not.toContainText('Couldn’t scan that.');
   });
