@@ -2,7 +2,7 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 
 import { describe, expect, it } from 'vitest';
-import { SCAN_UI_STORAGE_KEY, resolveScanUi } from './flag';
+import { SCAN_UI_DEFAULT, SCAN_UI_STORAGE_KEY, resolveScanUi } from './flag';
 
 function memoryStorage(initial: Record<string, string> = {}) {
   const data = { ...initial };
@@ -24,6 +24,14 @@ describe('resolveScanUi', () => {
     expect(resolveScanUi('', memoryStorage(), 'v1')).toBe('v1');
     expect(resolveScanUi('', memoryStorage(), 'v2')).toBe('v2');
     expect(resolveScanUi('?url=https://example.com', memoryStorage(), 'v1')).toBe('v1');
+  });
+
+  it('ships v2 as the default and keeps a stored v1', () => {
+    expect(SCAN_UI_DEFAULT).toBe('v2');
+    expect(resolveScanUi('', memoryStorage())).toBe('v2');
+    expect(resolveScanUi('?url=https://example.com', memoryStorage())).toBe('v2');
+    expect(resolveScanUi('', memoryStorage({ [SCAN_UI_STORAGE_KEY]: 'v1' }))).toBe('v1');
+    expect(resolveScanUi('?ui=v1', memoryStorage())).toBe('v1');
   });
 
   it('lets ?ui=v2 win over the default and over a stored v1, and stores it', () => {

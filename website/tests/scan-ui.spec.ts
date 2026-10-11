@@ -4,8 +4,8 @@
 import { test, expect, type Page } from '@playwright/test';
 import { stubUmami, trackedEvents } from './helpers/umami';
 
-// The shared scan interface ships behind a flag: v1 stays the default, `?ui=v2`
-// opts in (and sticks), `?ui=v1` opts out. These specs pin the flag, the
+// The shared scan interface ships behind a flag: v2 is the default, `?ui=v1`
+// opts out (and sticks), `?ui=v2` opts back in. These specs pin the flag, the
 // double-execution guard and the tile states of the v2 shell.
 
 const PSI_BODY = (score: number) => ({
@@ -106,17 +106,26 @@ const PAGES = [
 
 test.describe('scan interface flag', () => {
   for (const { path, v1Form } of PAGES) {
-    test(`${path}: v1 is untouched by default`, async ({ page }) => {
+    test(`${path}: v2 is the default`, async ({ page }) => {
       await page.goto(path);
+      await expect(page.locator('html')).toHaveAttribute('data-scan-ui', 'v2');
+      await expect(page.locator('form[data-scan-box]')).toBeVisible();
+      await expect(page.locator(v1Form)).toBeHidden();
+    });
+
+    test(`${path}: ?ui=v1 shows v1, sticks after a reload, and ?ui=v2 returns to v2`, async ({
+      page,
+    }) => {
+      await page.goto(`${path}?ui=v1`);
       await expect(page.locator('html')).toHaveAttribute('data-scan-ui', 'v1');
       await expect(page.locator(v1Form)).toBeVisible();
       await expect(page.locator('form[data-scan-box]')).toBeHidden();
       await expect(page.locator('[data-scan-results]')).toBeHidden();
-    });
 
-    test(`${path}: ?ui=v2 shows v2, sticks after a reload, and ?ui=v1 escapes`, async ({
-      page,
-    }) => {
+      await page.goto(path);
+      await expect(page.locator('html')).toHaveAttribute('data-scan-ui', 'v1');
+      await expect(page.locator(v1Form)).toBeVisible();
+
       await page.goto(`${path}?ui=v2`);
       await expect(page.locator('html')).toHaveAttribute('data-scan-ui', 'v2');
       await expect(page.locator('form[data-scan-box]')).toBeVisible();

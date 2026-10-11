@@ -50,13 +50,13 @@ test.describe('analyzer mapping chunk failure', () => {
     // page reload, which would re-fire the auto-run mid-test. This visit
     // has no ?url= param, so it starts no run; the reload cycle completes
     // here and the measured run below is stable.
-    await page.goto('/analyze/');
+    await page.goto('/analyze/?ui=v1');
     await page.waitForLoadState('networkidle');
 
     // Trigger through the ?url= deep-link auto-run: the page script starts
     // the analysis itself once it initializes, so the test does not depend
     // on click-vs-init timing (the dev server compiles the page lazily).
-    await page.goto('/analyze/?url=https://example.com');
+    await page.goto('/analyze/?ui=v1&url=https://example.com');
 
     await expect(page.locator('#psi-error')).toBeVisible({ timeout: 15000 });
     await expect(page.locator('#psi-error-title')).toHaveText('This page needs a reload.');
