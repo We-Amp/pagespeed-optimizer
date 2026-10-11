@@ -3,9 +3,9 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
 // /platform/edge-seo/ — the edge-SEO-at-the-origin direction: what the pack
-// would fix, who it is for, how it would work, and one interest form
-// (edge-seo) with an optional "sites you manage" count. The pack is
-// described in the conditional: it does not ship.
+// fixes, who it is for, how it works, and one interest form
+// (edge-seo) with an optional "sites you manage" count. The pack is free and
+// arrives with the next release, as /packs/ says.
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import SectionHeader from '../../components/instrument/SectionHeader.astro';
 import PlatformInterestForm from '../../components/PlatformInterestForm.astro';
@@ -17,13 +17,11 @@ const fixes = [
     what: 'Titles and meta descriptions',
     how: 'repaired per URL pattern, from a rule, not a CMS edit.',
   },
-  { what: 'Broken internal links', how: 'rewritten to their current targets in the HTML.' },
-  { what: 'Internal links to redirect chains:', how: 'rewritten to point at the final URL.' },
-  { what: 'Structured data', how: 'injected as JSON-LD from the page content and your rules.' },
+  { what: 'Structured data', how: 'injected as JSON-LD from your rules.' },
 ];
 
 const description =
-  'Early access: a planned pack for canonicals, hreflang, titles, structured data and redirect chains in the HTML stream on your server. Not shipping yet.';
+  'The free edge-SEO pack for canonicals, hreflang, titles, descriptions and structured data in the HTML stream on your server, available with the next release of mod_pagespeed.';
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -48,12 +46,12 @@ const jsonLd = {
       as="h1"
     >
       Edge workers can turn technical SEO into a deploy instead of a CMS ticket, for sites behind a
-      CDN. This pack would do the same work at the origin, in the HTML stream the interceptor
-      already rewrites.
+      CDN. This pack does the same work at the origin, in the HTML stream the interceptor already
+      rewrites.
     </SectionHeader>
 
     <div class="mt-10">
-      <h2 class="text-lg font-semibold text-text-body">What it would fix</h2>
+      <h2 class="text-lg font-semibold text-text-body">What it fixes</h2>
       <ul class="mt-3 space-y-2 text-sm text-text-muted">
         {fixes.map((f) => (
           <li class="flex gap-2">
@@ -70,25 +68,29 @@ const jsonLd = {
       <h2 class="text-lg font-semibold text-text-body">Who it is for</h2>
       <p class="mt-2 text-text-muted">
         Agencies and in-house SEO teams whose sites are not behind a CDN with edge workers, and
-        whose CMS releases take weeks. The fix would be a rule you deploy on the server, applied to
-        every matching page it serves.
+        whose CMS releases take weeks. The fix is a rule you deploy on the server, applied to every
+        matching page it serves.
       </p>
     </div>
 
     <div class="mt-10">
       <h2 class="text-lg font-semibold text-text-body">How it works</h2>
       <p class="mt-2 text-text-muted">
-        The interceptor parses HTML responses as a stream on your server. A pack would add rules to
-        that pass: match a URL pattern or an element, then set, rewrite or inject. The CMS is
-        untouched; the rule changes what is served.
+        The interceptor parses HTML responses as a stream on your server. A pack adds rules to that
+        pass: match a URL pattern or an element, then set, rewrite or inject. The CMS is untouched;
+        the rule changes what is served.
       </p>
     </div>
 
     <p class="readout-plate mt-10 px-4 py-3 text-sm text-text-muted">
       <span class="font-mono text-xs text-interactive">Status</span>
       <br />
-      None of these packs ships today. The interceptor they would run on does. Early access means
-      you hear first when there is a build to try, and your input shapes it.
+      The edge-SEO pack is free and is available with the next release of mod_pagespeed. The other
+      packs are planned and none of them ships today. Early access means you hear first when there
+      is a build to try, and your input shapes it.
+      <a href="/packs/" class="text-interactive hover:text-interactive-hover underline">
+        See the pack catalogue.
+      </a>
     </p>
 
     <div class="mt-10 rounded-lg border border-border bg-bg-elevated p-6 sm:p-8">

@@ -21,10 +21,14 @@ const HUB_WEDGES = [
 ];
 
 test.describe('Transform packs early access', () => {
-  test('/platform/ carries one form per direction and says nothing ships', async ({ page }) => {
+  test('/platform/ carries one form per direction and the status line', async ({ page }) => {
     await page.goto('/platform/');
     await expect(page.locator('h1')).toHaveText('One interceptor, many packs');
-    await expect(page.locator('main')).toContainText('None of these packs ships today.');
+    await expect(page.locator('main')).toContainText(
+      'The edge-SEO pack is free and is available with the next release of mod_pagespeed.',
+    );
+    await expect(page.locator('main')).toContainText('none of them ships today.');
+    await expect(page.locator('main a[href="/packs/"]')).toBeVisible();
     const wedges = await page
       .locator('form[data-platform-form]')
       .evaluateAll((forms) => forms.map((f) => (f as HTMLElement).dataset.wedge));
