@@ -8,8 +8,8 @@
 // release; the two planned packs (under their own sub-heading) reuse the framing of the /ai-readability/
 // script card verbatim ("We are building ...", "Tell us what you run.") and
 // its two wedges, through the same interest form /platform/ uses. No prices,
-// no dates. The #download and #pack-format anchors stand in for the operator
-// guide until it is published.
+// no dates. The #pack-format section summarises the format and links to the
+// full reference at /docs/rule-packs/#pack-format.
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import SectionHeader from '../../components/instrument/SectionHeader.astro';
 import Icon from '../../components/Icon.astro';
@@ -208,7 +208,14 @@ const jsonLd = {
         <a href={EXAMPLE_PACK} class="text-interactive hover:text-interactive-hover underline">
           An example pack
         </a>
-        shows every part. The operator guide, with the full reference, ships with the next release.
+        shows every part. The full reference is in the
+        <a
+          href="/docs/rule-packs/#pack-format"
+          class="text-interactive hover:text-interactive-hover underline"
+        >
+          rule packs documentation
+        </a>
+        .
       </p>
     </div>
 
