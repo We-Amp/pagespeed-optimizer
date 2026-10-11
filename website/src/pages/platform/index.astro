@@ -4,10 +4,10 @@
 //
 // /platform/ — the early-access hub for transform packs: one card per
 // direction, each with its own interest form, so interest is recorded per
-// direction (the structured field on the form) rather than per page. Nothing
-// here ships today and the copy says so, in the conditional; no prices, no
-// dates, no roadmap beyond "early access". The social card is rendered at
-// build time by scripts/generate-title-cards.mjs (PAGE_CARDS).
+// direction (the structured field on the form) rather than per page. The
+// edge-SEO pack is free with the next release and the others are planned, and
+// the copy says so; no prices beyond "free", no dates beyond "with the next
+// release". The social card is rendered at build time by scripts/generate-title-cards.mjs (PAGE_CARDS).
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import SectionHeader from '../../components/instrument/SectionHeader.astro';
 import Icon from '../../components/Icon.astro';
@@ -46,8 +46,8 @@ const packs: Array<{
     wedge: 'edge-seo',
     icon: 'route',
     title: 'Edge SEO at the origin',
-    body: 'Canonicals, hreflang, titles and structured data fixed at serve time, with no CMS change and no CDN. The pack would apply rules to the HTML stream in the interceptor, so a fix reaches every page the rule matches.',
-    more: { href: '/platform/edge-seo/', label: 'What it would fix and who it is for' },
+    body: 'Canonicals, hreflang, titles and structured data fixed at serve time, with no CMS change and no CDN. From the next release of mod_pagespeed, the pack applies rules to the HTML stream in the interceptor, so a fix reaches every page the rule matches.',
+    more: { href: '/platform/edge-seo/', label: 'What it fixes and who it is for' },
   },
   {
     wedge: 'response-firewall',
@@ -64,7 +64,7 @@ const packs: Array<{
 ];
 
 const description =
-  'Early access for planned transform packs for mod_pagespeed 2.1: compliance, privacy and SEO rules for the HTML stream on your server. None ships yet.';
+  'Transform packs for mod_pagespeed: compliance, privacy and SEO rules in the HTML stream on your server. Edge SEO is free with the next release.';
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -97,8 +97,11 @@ const jsonLd = {
     <p class="readout-plate mt-8 max-w-2xl px-4 py-3 text-sm text-text-muted">
       <span class="font-mono text-xs text-interactive">Status</span>
       <br />
-      None of these packs ships today. The interceptor they would run on does. Early access means
-      you hear first when there is a build to try, and your input shapes it.
+      The edge-SEO pack is free and arrives with the next release of mod_pagespeed; it does not ship
+      today. The other packs are planned. The interceptor they would run on ships today.
+      <a href="/packs/" class="text-interactive hover:text-interactive-hover underline">
+        See the pack catalogue.
+      </a>
     </p>
 
     <div class="mt-12 grid grid-cols-1 gap-6 md:grid-cols-2">
