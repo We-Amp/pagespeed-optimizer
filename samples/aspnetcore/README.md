@@ -9,6 +9,8 @@ zero-copy.
 Single-package install. Hot-reloadable config. Optimization runs out of the
 box.
 
+Agent install recipe: https://modpagespeed.com/recipes/aspnet-core.md
+
 ## Quick Start
 
 **1. Install the package**

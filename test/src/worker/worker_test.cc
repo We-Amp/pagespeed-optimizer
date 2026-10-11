@@ -397,36 +397,29 @@ class WorkerTest : public ::testing::Test {
                   << (kMaxPolls / 100) << "s";
   }
 
-  // Barrier: wait until the worker's variant pipeline has produced at least
-  // one write, then wait for every dispatched work item to retire.
+  // Barrier: wait for the notification this test sent to retire (the
+  // worker has consumed it and every work item it dispatched has finished),
+  // then check that at least one variant was written.
   //
-  // WaitForWorkerIdle alone races worker STARTUP: between SendNotification's
+  // A bare WaitForWorkerIdle races worker STARTUP: between SendNotification's
   // pipe write and DispatchNotification registering the work item on the
-  // event loop, in_flight_work() still reads 0, so a bare idle-wait can
-  // return before the notification was even consumed (a slowdown-heavy
-  // build stretches that window from microseconds to observable time).
-  // variants_written only moves on a pool thread strictly inside a work
-  // item's in-flight window (incremented after in_flight_work_ goes up,
-  // before it comes down), so once it is observed non-zero the idle-wait
-  // below cannot return until that item -- and the rest of its variant
-  // matrix, which runs within the same work item -- has retired.
+  // event loop, in_flight_work() still reads 0, so it can return before the
+  // notification was even consumed.  WaitForNotificationsRetired also
+  // requires notifications_received >= 1, which closes that window.
+  //
+  // The wait is progress-based, not a wall-clock budget: it gives up only
+  // after kWorkerStallBudget without any worker counter moving, so a slow
+  // host that keeps making progress is never cut off (issue #1756).
   //
   // Only usable in tests whose expected outcome includes at least one
-  // successful variant write; there the gate cannot mask anything, because
-  // a pipeline that writes nothing trips the ADD_FAILURE here and the
-  // test's own assertions right after.
-  void WaitForFirstVariantThenIdle(Worker& worker) {
-    const int kMaxPolls = 6000 * kSanitizerBudgetScale;
-    for (int i = 0; i < kMaxPolls; ++i) {
-      if (worker.stats().variants_written.load(std::memory_order_relaxed) >=
-          1) {
-        WaitForWorkerIdle(worker);
-        return;
-      }
-      std::this_thread::sleep_for(std::chrono::milliseconds(10));
-    }
-    ADD_FAILURE() << "no variant write observed within " << (kMaxPolls / 100)
-                  << "s";
+  // successful variant write; a pipeline that writes nothing fails the
+  // EXPECT_GE below.  Callers wrap it in ASSERT_NO_FATAL_FAILURE.
+  void WaitForNotificationRetiredWithVariant(Worker& worker) {
+    ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(
+        worker, 1, kWorkerStallBudget));
+    EXPECT_GE(worker.stats().variants_written.load(std::memory_order_relaxed),
+              1u)
+        << "notification retired without a variant write";
   }
 
   // Strip scheme+authority from a URL, matching what the worker's
@@ -5761,7 +5754,7 @@ TEST_F(WorkerTest, ImageNotificationGeneratesSaveDataSiblings) {
   // proactive matrix, so wait for the matrix to retire (a condition wait,
   // not a fixed poll budget) and then read the sibling.  The old 6s poll
   // expired mid-transcode under TSan's ~10x slowdown.
-  WaitForFirstVariantThenIdle(worker);
+  ASSERT_NO_FATAL_FAILURE(WaitForNotificationRetiredWithVariant(worker));
   CapabilityMask sd_mask(
       CapabilityMask::ImageFormat::kWebP, CapabilityMask::Viewport::kMobile,
       CapabilityMask::PixelDensity::k1x, CapabilityMask::SaveData::kOn,
@@ -13104,7 +13097,7 @@ TEST_F(WorkerTest, ImageProactiveMultiFormatCreation) {
   // a single AVIF transcode leaves the counter flat well past 3s
   // mid-matrix, so the wait declared completion at 3 of the expected >=4
   // variants.  Retiring the work item is the true completion signal.
-  WaitForFirstVariantThenIdle(worker);
+  ASSERT_NO_FATAL_FAILURE(WaitForNotificationRetiredWithVariant(worker));
 
   // Stats should show variants written + dedup skips cover the expected matrix.
   uint64_t written = worker.stats().variants_written.load();
@@ -13167,31 +13160,24 @@ TEST_F(WorkerTest, ImageProactivePerFormatSsimulacra2InMetadata) {
   notification.capability_mask = mobile_webp.Encode();
   SendNotification(notification);
 
-  // Poll for WebP and Original variants at Mobile viewport.
-  // 160 iterations × 100ms = 16s — Windows image transcoding is slower.
+  // WebP and Original variants at Mobile viewport.
   CapabilityMask mobile_original(
       CapabilityMask::ImageFormat::kOriginal, CapabilityMask::Viewport::kMobile,
       CapabilityMask::PixelDensity::k1x, CapabilityMask::SaveData::kOff,
       CapabilityMask::TransferEncoding::kIdentity);
 
-  std::optional<VariantWithMeta> webp_meta;
-  std::optional<VariantWithMeta> orig_meta;
-  // 600 iterations × 100ms = 60s. The verify loop now runs its full
-  // attempt budget before binding its verdict (the old loop broke early on
-  // a negative or incomparable attempt and shipped what it had), so this
-  // notification's transcode — AVIF at speed 10 with up to four attempts —
-  // takes ~25s before ANY variant, including the Mobile/Original baseline,
-  // is written (writes happen when the whole multi-format transcode
-  // returns). The 16s ceiling sized for the early-break world expires
-  // before the first write.
-  for (int i = 0; i < 600 * kSanitizerBudgetScale; ++i) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    if (!webp_meta)
-      webp_meta = ReadVariantWithMeta(worker.cache(), url, mobile_webp);
-    if (!orig_meta)
-      orig_meta = ReadVariantWithMeta(worker.cache(), url, mobile_original);
-    if (webp_meta && orig_meta) break;
-  }
+  // Wait for the notification's whole transcode to retire (the verify loop
+  // runs its full attempt budget and every variant is written when the
+  // multi-format transcode returns), then read both variants.  A fixed
+  // poll budget expired on a loaded Windows runner (issue #1756) with the
+  // pipeline still making progress; the stall-based wait only gives up when
+  // the worker stops moving.
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+  std::optional<VariantWithMeta> webp_meta =
+      ReadVariantWithMeta(worker.cache(), url, mobile_webp);
+  std::optional<VariantWithMeta> orig_meta =
+      ReadVariantWithMeta(worker.cache(), url, mobile_original);
 
   // At least the Original variant should always be written (resized JPEG).
   // WebP may not be written if its output exceeds the resized JPEG size gate.
@@ -14696,7 +14682,7 @@ TEST_F(WorkerTest, WarmupSentinelPropagatesMetadata) {
   // The old fixed poll -- even its bumped sanitizer branch (50s) -- expired
   // mid-transcode under TSan's ~10x slowdown on the AVIF / SSIMULACRA2
   // verification path (it aborted the shard).
-  WaitForFirstVariantThenIdle(worker);
+  ASSERT_NO_FATAL_FAILURE(WaitForNotificationRetiredWithVariant(worker));
 
   // Non-save-data Desktop/WebP variant (written early in the warmup loop,
   // before the save-data iterations).
@@ -14775,7 +14761,7 @@ TEST_F(WorkerTest, CompleteMatrixMarksProcessedAndAllowsDedup) {
   // notifications_skipped_dedup).  The old two-poll wait — counter moved,
   // then "stable for 100ms" — could declare completion in that window.
   SendNotification(notification);
-  WaitForFirstVariantThenIdle(worker);
+  ASSERT_NO_FATAL_FAILURE(WaitForNotificationRetiredWithVariant(worker));
   EXPECT_GE(worker.stats().images_processed.load(), 1u)
       << "Image should be processed";
   EXPECT_EQ(worker.stats().image_incomplete_matrices.load(), 0u)
@@ -15122,7 +15108,7 @@ TEST_F(WorkerTest, ProactiveWriteDoesNotDuplicate) {
   // TSan a single slow transcode (AVIF via libaom) leaves the counter flat
   // for over a second mid-matrix, so the poll declared completion at 3 of the
   // expected variants.  Retiring the work item is the true completion signal.
-  WaitForFirstVariantThenIdle(worker);
+  ASSERT_NO_FATAL_FAILURE(WaitForNotificationRetiredWithVariant(worker));
 
   uint64_t written = worker.stats().variants_written.load();
   uint64_t attempts = worker.stats().alternate_writes.load();
@@ -16371,7 +16357,7 @@ TEST_F(WorkerTest, OriginRefreshedUnchangedImageRestampsWithoutPurge) {
   notification.content_type = ContentType::kImage;
   notification.capability_mask = CapabilityMask().Encode();
   SendNotification(notification);
-  WaitForFirstVariantThenIdle(worker);
+  ASSERT_NO_FATAL_FAILURE(WaitForNotificationRetiredWithVariant(worker));
 
   // The first pass wrote the variant set, stamped the kContentHash oracle
   // over the raw origin, and (typically) poisoned the identity slot with
@@ -16462,7 +16448,7 @@ TEST_F(WorkerTest, OriginRefreshedAgeBackdatedReferenceRestampsWithoutDefer) {
   notification.content_type = ContentType::kImage;
   notification.capability_mask = CapabilityMask().Encode();
   SendNotification(notification);
-  WaitForFirstVariantThenIdle(worker);
+  ASSERT_NO_FATAL_FAILURE(WaitForNotificationRetiredWithVariant(worker));
 
   CapabilityMask webp_mask(
       CapabilityMask::ImageFormat::kWebP, CapabilityMask::Viewport::kDesktop,
@@ -16551,7 +16537,7 @@ TEST_F(WorkerTest, OriginRefreshedUnchangedImageDefersThenRestampsOnNotify) {
   notification.content_type = ContentType::kImage;
   notification.capability_mask = CapabilityMask().Encode();
   SendNotification(notification);
-  WaitForFirstVariantThenIdle(worker);
+  ASSERT_NO_FATAL_FAILURE(WaitForNotificationRetiredWithVariant(worker));
 
   CapabilityMask webp_mask(
       CapabilityMask::ImageFormat::kWebP, CapabilityMask::Viewport::kDesktop,
@@ -16653,7 +16639,7 @@ TEST_F(WorkerTest, OriginRefreshedChangedImageStillPurgesAndRebuilds) {
   notification.content_type = ContentType::kImage;
   notification.capability_mask = CapabilityMask().Encode();
   SendNotification(notification);
-  WaitForFirstVariantThenIdle(worker);
+  ASSERT_NO_FATAL_FAILURE(WaitForNotificationRetiredWithVariant(worker));
 
   CapabilityMask identity_mask;  // Desktop/Original/Identity = 0x08
   auto identity_v1 = ReadVariantWithMeta(worker.cache(), url, identity_mask);
