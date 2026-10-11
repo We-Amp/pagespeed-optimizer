@@ -283,8 +283,20 @@ test.describe('v2 Speed panel', () => {
     await page.clock.install();
     await mock(page, { mobile: 'hang', desktop: 'hang' });
     await warm(page);
+    // The client arms its 60s timer when it issues each PSI request, which is
+    // after the tile first reads 'checking'. Advance the fake clock only once
+    // both requests are in flight; otherwise the jump lands before the timers
+    // exist and nothing ever fires.
+    const inFlight = ['mobile', 'desktop'].map((strategy) =>
+      page.waitForRequest(
+        (req) =>
+          req.url().includes('/psi/v5/runPagespeed') &&
+          new URL(req.url()).searchParams.get('strategy') === strategy,
+      ),
+    );
     await scan(page);
     await expect(tile(page)).toHaveAttribute('data-state', 'checking');
+    await Promise.all(inFlight);
     await page.clock.fastForward(61_000);
     await expect(tile(page)).toHaveAttribute('data-state', 'none', { timeout: 15000 });
     await expect(tile(page)).toContainText('PageSpeed Insights did not answer.');
