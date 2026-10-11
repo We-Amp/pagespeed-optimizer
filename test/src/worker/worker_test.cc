@@ -17835,8 +17835,8 @@ class WorkerPeerRewriteTest : public WorkerTest {
         const uint64_t before = worker.stats().gzip_variants_written.load();
         NotifySvgAndDrain(worker, other);
         // Processed for real, so the one-entry set has rotated.
-        ASSERT_TRUE(WaitForAtLeast(worker.stats().gzip_variants_written,
-                                   before + 1));
+        ASSERT_TRUE(
+            WaitForAtLeast(worker.stats().gzip_variants_written, before + 1));
       }
     }
     const uint64_t gz_before = worker.stats().gzip_variants_written.load();
@@ -18156,6 +18156,40 @@ class WorkerPeerRewriteTypesTest : public WorkerPeerRewriteTest {
     EXPECT_EQ(rig.worker->stats().alternate_writes_fenced.load(), 0u);
   }
 
+  // The same bytes re-recorded with a newer stamp: the copies' freshness is
+  // refreshed, and nothing is rebuilt or recompressed.
+  void ExpectUnchangedBytesRestamp(const std::string& url,
+                                   const std::string& mime, ContentType type,
+                                   const std::string& body) {
+    Rig rig;
+    ASSERT_NO_FATAL_FAILURE(StartRig(rig));
+    CacheDurableOriginal(rig.front_end.get(), url, body, mime, type, kStamp1,
+                         600);
+    StartWorker(rig);
+    Notify(*rig.worker, url, type);
+    ASSERT_EQ(WaitForOracleChange(rig, url, "").size(), 32u);
+    WaitForWorkerIdle(*rig.worker);
+    const uint64_t gz_before = rig.worker->stats().gzip_variants_written.load();
+    const uint64_t written_before = rig.worker->stats().variants_written.load();
+
+    CacheDurableOriginal(rig.front_end.get(), url, body, mime, type, kStamp2,
+                         600);
+    Notify(*rig.worker, url, type);
+    ASSERT_TRUE(
+        WaitForAtLeast(rig.worker->stats().origin_unchanged_restamped, 1));
+    WaitForWorkerIdle(*rig.worker);
+    EXPECT_EQ(rig.worker->stats().origin_change_rebuilt.load(), 0u);
+    EXPECT_EQ(rig.worker->stats().gzip_variants_written.load(), gz_before);
+    EXPECT_EQ(rig.worker->stats().variants_written.load(), written_before);
+    CapabilityMask gz_mask;
+    gz_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kGzip);
+    auto gz = rig.reader->ReadAlternate(
+        StripSchemeAuthority(url), "", "https",
+        MaskToAlternateId(static_cast<uint8_t>(gz_mask.Encode() & 0xFF)));
+    ASSERT_TRUE(gz.has_value());
+    EXPECT_EQ(gz->metadata.cache_inserted_at, kStamp2);
+  }
+
   std::string Coded(Rig& rig, const std::string& url,
                     CapabilityMask::TransferEncoding encoding) {
     CapabilityMask mask;
@@ -18188,10 +18222,10 @@ TEST_F(WorkerPeerRewriteTypesTest,
   Rig rig;
   ASSERT_NO_FATAL_FAILURE(StartRig(rig));
   const std::string url = "http://example.com/css/site.css";
-  ASSERT_NO_FATAL_FAILURE(BuildThenRewrite(
-      rig, url, "text/css", ContentType::kCss,
-      "a {\n  color : red ;\n}\n\n/* first */\n",
-      "a {\n  color : blue ;\n}\n\n/* second */\n"));
+  ASSERT_NO_FATAL_FAILURE(
+      BuildThenRewrite(rig, url, "text/css", ContentType::kCss,
+                       "a {\n  color : red ;\n}\n\n/* first */\n",
+                       "a {\n  color : blue ;\n}\n\n/* second */\n"));
   ASSERT_TRUE(WaitForCodedContaining(rig, url, "blue"));
   for (auto enc : {CapabilityMask::TransferEncoding::kGzip,
                    CapabilityMask::TransferEncoding::kBrotli}) {
@@ -18200,8 +18234,7 @@ TEST_F(WorkerPeerRewriteTypesTest,
     EXPECT_EQ(body.find("second"), std::string::npos)
         << "the coded copy of a minified sheet must not carry comments";
   }
-  EXPECT_NE(ReadVariant(rig.reader.get(), url, CapabilityMask())
-                .find("blue"),
+  EXPECT_NE(ReadVariant(rig.reader.get(), url, CapabilityMask()).find("blue"),
             std::string::npos);
 }
 
@@ -18219,8 +18252,7 @@ TEST_F(WorkerPeerRewriteTypesTest,
                    CapabilityMask::TransferEncoding::kBrotli}) {
     EXPECT_EQ(Coded(rig, url, enc).find("first"), std::string::npos);
   }
-  EXPECT_NE(ReadVariant(rig.reader.get(), url, CapabilityMask())
-                .find("second"),
+  EXPECT_NE(ReadVariant(rig.reader.get(), url, CapabilityMask()).find("second"),
             std::string::npos);
 }
 
@@ -18265,34 +18297,85 @@ TEST_F(WorkerPeerRewriteTypesTest,
   const std::string url = "http://example.com/favicon.ico";
   const std::string v1 = std::string("icon-one-") + std::string(300, 'a');
   const std::string v2 = std::string("icon-two-") + std::string(300, 'b');
-  ASSERT_NO_FATAL_FAILURE(BuildThenRewrite(rig, url, "image/x-icon",
-                                           ContentType::kImage, v1, v2));
+  ASSERT_NO_FATAL_FAILURE(
+      BuildThenRewrite(rig, url, "image/x-icon", ContentType::kImage, v1, v2));
   ASSERT_TRUE(WaitForCodedContaining(rig, url, "icon-two-"));
   EXPECT_EQ(Coded(rig, url, CapabilityMask::TransferEncoding::kGzip), v2);
   EXPECT_EQ(Coded(rig, url, CapabilityMask::TransferEncoding::kBrotli), v2);
 }
 
-TEST_F(WorkerPeerRewriteTypesTest,
-       UnchangedBytesOfTheseTypesRestampWithoutRebuild) {
-  Rig rig;
-  ASSERT_NO_FATAL_FAILURE(StartRig(rig));
-  const std::string url = "http://example.com/favicon.ico";
-  const std::string body = std::string("icon-") + std::string(300, 'a');
-  CacheDurableOriginal(rig.front_end.get(), url, body, "image/x-icon",
-                       ContentType::kImage, kStamp1, 600);
-  StartWorker(rig);
-  Notify(*rig.worker, url, ContentType::kImage);
-  ASSERT_EQ(WaitForOracleChange(rig, url, "").size(), 32u);
-  WaitForWorkerIdle(*rig.worker);
-  const uint64_t gz_before = rig.worker->stats().gzip_variants_written.load();
+TEST_F(WorkerPeerRewriteTypesTest, UnchangedCssBytesRestampWithoutRebuild) {
+  ExpectUnchangedBytesRestamp("http://example.com/css/same.css", "text/css",
+                              ContentType::kCss,
+                              "a {\n  color : red ;\n}\n\n/* note */\n");
+}
 
-  CacheDurableOriginal(rig.front_end.get(), url, body, "image/x-icon",
-                       ContentType::kImage, kStamp2, 600);
-  Notify(*rig.worker, url, ContentType::kImage);
-  ASSERT_TRUE(
-      WaitForAtLeast(rig.worker->stats().origin_unchanged_restamped, 1));
-  EXPECT_EQ(rig.worker->stats().origin_change_rebuilt.load(), 0u);
-  EXPECT_EQ(rig.worker->stats().gzip_variants_written.load(), gz_before);
+TEST_F(WorkerPeerRewriteTypesTest, UnchangedJsBytesRestampWithoutRebuild) {
+  ExpectUnchangedBytesRestamp(
+      "http://example.com/js/same.js", "application/javascript",
+      ContentType::kJs, "function same ( value ) {\n  return value + 1 ;\n}\n");
+}
+
+TEST_F(WorkerPeerRewriteTypesTest,
+       UnchangedUnsupportedImageBytesRestampWithoutRebuild) {
+  ExpectUnchangedBytesRestamp("http://example.com/favicon.ico", "image/x-icon",
+                              ContentType::kImage,
+                              std::string("icon-") + std::string(300, 'a'));
+}
+
+TEST_F(WorkerPeerRewriteTypesTest,
+       StylesheetsEmbeddingImportsKeepNoHashAndHealAtTheSentinel) {
+  // A sheet whose output includes other files (a resolved @import, or an
+  // import that was skipped as unresolved) is not bound to its own bytes: an
+  // unchanged main sheet must not restamp over a changed child, so the
+  // sentinel purges as it always did.
+  struct Case {
+    const char* url;
+    bool child_cached;
+  };
+  const Case cases[] = {{"http://example.com/css/flat.css", true},
+                        {"http://example.com/css/skipped.css", false}};
+  for (const Case& c : cases) {
+    SCOPED_TRACE(c.url);
+    Rig rig;
+    ASSERT_NO_FATAL_FAILURE(StartRig(rig));
+    if (c.child_cached) {
+      CacheOriginal(rig.front_end.get(), "http://example.com/css/child.css",
+                    "h1  {  color:  blue;  }\n");
+    }
+    CacheDurableOriginal(
+        rig.front_end.get(), c.url,
+        c.child_cached ? "@import url(\"http://example.com/css/child.css\");\n"
+                         "p  {  font-size:  16px;  }\n"
+                       : "@import url(\"http://example.com/css/absent.css\");\n"
+                         "p  {  font-size:  16px;  }\n",
+        "text/css", ContentType::kCss, kStamp1, 600);
+    StartWorker(rig);
+    Notify(*rig.worker, c.url, ContentType::kCss);
+    ASSERT_TRUE(WaitForAtLeast(rig.worker->stats().gzip_variants_written, 1));
+    ASSERT_TRUE(WaitForAtLeast(rig.worker->stats().brotli_variants_written, 1));
+    WaitForWorkerIdle(*rig.worker);
+    EXPECT_EQ(Oracle(rig, c.url), "");
+
+    // Same main sheet re-recorded, then the sentinel: purged, not restamped.
+    CacheDurableOriginal(
+        rig.front_end.get(), c.url,
+        c.child_cached ? "@import url(\"http://example.com/css/child.css\");\n"
+                         "p  {  font-size:  16px;  }\n"
+                       : "@import url(\"http://example.com/css/absent.css\");\n"
+                         "p  {  font-size:  16px;  }\n",
+        "text/css", ContentType::kCss, kStamp2, 600);
+    CacheNotification refresh;
+    refresh.url = c.url;
+    refresh.scheme = "https";
+    refresh.content_type = ContentType::kCss;
+    refresh.capability_mask = kOriginRefreshedSentinel;
+    SendNotification(refresh);
+    ASSERT_TRUE(WaitForAtLeast(rig.worker->stats().origin_refresh_purges, 1));
+    WaitForWorkerIdle(*rig.worker);
+    EXPECT_EQ(rig.worker->stats().origin_refresh_purges.load(), 1u);
+    EXPECT_EQ(rig.worker->stats().origin_refresh_unchanged.load(), 0u);
+  }
 }
 
 TEST_F(WorkerPeerRewriteTypesTest,
@@ -18305,12 +18388,11 @@ TEST_F(WorkerPeerRewriteTypesTest,
   ASSERT_FALSE(v1.empty());
   ASSERT_FALSE(v2.empty());
   ASSERT_NE(v1, v2);
-  ASSERT_NO_FATAL_FAILURE(BuildThenRewrite(rig, url, "image/jpeg",
-                                           ContentType::kImage, v1, v2));
+  ASSERT_NO_FATAL_FAILURE(
+      BuildThenRewrite(rig, url, "image/jpeg", ContentType::kImage, v1, v2));
 }
 
-TEST_F(WorkerPeerRewriteTypesTest,
-       NoOracleIsWrittenWithoutAPristineReference) {
+TEST_F(WorkerPeerRewriteTypesTest, NoOracleIsWrittenWithoutAPristineReference) {
   // A source that is not a front end's own recording (it carries the worker's
   // flag) must not seed the change record: it could not prove "same bytes"
   // later.  Both a text type and an unsupported image type.
@@ -18337,8 +18419,7 @@ TEST_F(WorkerPeerRewriteTypesTest,
     Notify(*rig.worker, c.url, c.type);
     // Both coded copies are written, so the record would be due by now.
     ASSERT_TRUE(WaitForAtLeast(rig.worker->stats().gzip_variants_written, 1));
-    ASSERT_TRUE(
-        WaitForAtLeast(rig.worker->stats().brotli_variants_written, 1));
+    ASSERT_TRUE(WaitForAtLeast(rig.worker->stats().brotli_variants_written, 1));
     WaitForWorkerIdle(*rig.worker);
     EXPECT_EQ(Oracle(rig, c.url), "");
   }
@@ -18371,6 +18452,7 @@ TEST_F(WorkerPeerRewriteTypesTest,
   SendNotification(refresh);
   ASSERT_TRUE(WaitForAtLeast(rig.worker->stats().origin_refresh_purges, 1));
   WaitForWorkerIdle(*rig.worker);
+  EXPECT_EQ(rig.worker->stats().origin_refresh_purges.load(), 1u);
 
   // The sentinel purge also dropped the recorded original, so the front end
   // records again and sends the plain notification, which builds from the new

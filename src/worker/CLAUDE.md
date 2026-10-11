@@ -540,6 +540,8 @@ relative URL resolution, media query wrapping). Disable: `--no-css-import-flatte
 Flattening is all-or-nothing per sheet: any uninlinable import → the original is
 minified instead, and since CSS variants have no revalidation (only HTML does),
 the skip heals only at TTL expiry/purge. See `lib/css/css_import_flattener.h`.
+Import-free CSS and JS record a content hash and restamp on a matching hash after a
+re-record; flattened sheets (and sheets with a skipped import) record none and still heal only at TTL/purge.
 
 ## Pre-Compressed Text Variants
 

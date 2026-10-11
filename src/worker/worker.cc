@@ -599,8 +599,8 @@ void RecordSourceHash(PageSpeedCache* cache, std::string_view url,
   }
   auto hash = cyclone::crypto::SHA256::hash(std::span<const std::byte>(
       reinterpret_cast<const std::byte*>(source.data()), source.size()));
-  auto wh = cache->WriteSentinel(url, hostname, scheme,
-                                 SentinelId::kContentHash, 32);
+  auto wh =
+      cache->WriteSentinel(url, hostname, scheme, SentinelId::kContentHash, 32);
   if (wh) {
     (void)wh->write_sync(std::as_bytes(std::span(hash.data(), hash.size())));
     (void)wh->close_sync();
@@ -3501,21 +3501,20 @@ void Worker::StoreDeclineTombstone(
       static_cast<AlternateId>(SentinelId::kDeclineTombstone));
 }
 
-void Worker::WriteTextVariant(const CacheNotification& notification,
-                              ReadResult& read_result,
-                              std::string_view original_input,
-                              std::string_view minified,
-                              ContentType content_type, const char* type_name,
-                              std::atomic<uint64_t>& processed_stat,
-                              std::atomic<uint64_t>& already_optimal_count,
-                              std::atomic<uint64_t>& already_optimal_bytes,
-                              const std::function<bool()>& purge_check,
-                              const PurgeDispatchGen& purge_gen,
-                              const std::shared_ptr<const WorkerConfig>& cfg) {
-  // Only a front end's own recording may seed the change oracle.
+void Worker::WriteTextVariant(
+    const CacheNotification& notification, ReadResult& read_result,
+    std::string_view original_input, std::string_view minified,
+    ContentType content_type, const char* type_name,
+    std::atomic<uint64_t>& processed_stat,
+    std::atomic<uint64_t>& already_optimal_count,
+    std::atomic<uint64_t>& already_optimal_bytes,
+    const std::function<bool()>& purge_check, const PurgeDispatchGen& purge_gen,
+    const std::shared_ptr<const WorkerConfig>& cfg, bool record_source_hash) {
+  // Only a front end's own recording may seed the change oracle, and not for
+  // a sheet that embeds other files (see the CSS caller).
   const bool source_genuine =
-      (read_result.metadata.flags & AlternateMetadata::kFlagWorkerProcessed) ==
-      0;
+      record_source_hash && (read_result.metadata.flags &
+                             AlternateMetadata::kFlagWorkerProcessed) == 0;
   if (minified.size() < original_input.size()) {
     CapabilityMask mask = NormalizeMaskForDedup(notification.capability_mask);
     AlternateMetadata variant_meta = CreateWorkerMetadata(
@@ -3944,14 +3943,14 @@ Worker::OriginRecheck Worker::RecheckRecordedOriginal(
   const bool etag_differs = !recorded.origin_etag.empty() &&
                             !built_from.origin_etag.empty() &&
                             recorded.origin_etag != built_from.origin_etag;
-  const bool lm_differs = recorded.origin_last_modified != 0 &&
-                          built_from.origin_last_modified != 0 &&
-                          recorded.origin_last_modified !=
-                              built_from.origin_last_modified;
-  const bool length_differs = recorded.origin_content_length != 0 &&
-                              built_from.origin_content_length != 0 &&
-                              recorded.origin_content_length !=
-                                  built_from.origin_content_length;
+  const bool lm_differs =
+      recorded.origin_last_modified != 0 &&
+      built_from.origin_last_modified != 0 &&
+      recorded.origin_last_modified != built_from.origin_last_modified;
+  const bool length_differs =
+      recorded.origin_content_length != 0 &&
+      built_from.origin_content_length != 0 &&
+      recorded.origin_content_length != built_from.origin_content_length;
   if (!newer && !etag_differs && !lm_differs && !length_differs) {
     return OriginRecheck::kUnchanged;
   }
@@ -3999,16 +3998,15 @@ Worker::OriginRecheck Worker::RecheckRecordedOriginal(
     if (stored.has_value()) {
       auto sc = stored->content();
       have_oracle = sc.size() == 32;
-      hash_matches = have_oracle &&
-                     std::memcmp(sc.data(), pristine.hash.data(), 32) == 0;
+      hash_matches =
+          have_oracle && std::memcmp(sc.data(), pristine.hash.data(), 32) == 0;
     }
   }
   // A re-recorded response that forbids shared storage must not extend the
   // copies' life: purge instead of restamping (as HandleOriginRefreshed does).
-  const bool storage_forbidden =
-      (pristine.meta.origin_cc_flags &
-       (AlternateMetadata::kCCOriginNoStore |
-        AlternateMetadata::kCCOriginPrivate)) != 0;
+  const bool storage_forbidden = (pristine.meta.origin_cc_flags &
+                                  (AlternateMetadata::kCCOriginNoStore |
+                                   AlternateMetadata::kCCOriginPrivate)) != 0;
   if (limited && !(have_oracle && !hash_matches)) {
     // Inside the window and not provably changed: leave the copies alone.
     return OriginRecheck::kRestamped;
@@ -4263,10 +4261,9 @@ void Worker::HandleNotification(const CacheNotification& notification,
       if (verdict == OriginRecheck::kPurgedRebuild) {
         // The processed-set entry is gone and the purge generation was
         // re-read AFTER the purge, so this pass is not fenced by its own bump.
-        HandleNotification(
-            notification, CapturePurgeGen(notification.url,
-                                          notification.hostname,
-                                          notification.scheme));
+        HandleNotification(notification, CapturePurgeGen(notification.url,
+                                                         notification.hostname,
+                                                         notification.scheme));
         return;
       }
     }
@@ -6264,6 +6261,11 @@ void Worker::HandleNotification(const CacheNotification& notification,
 
       // Flatten @import statements before minification.
       std::string css_to_minify;
+      // A sheet whose output depends on other files (inlined imports, or an
+      // import that could not be inlined) is not bound to its own bytes: the
+      // hash of this file cannot show that an imported child changed, so
+      // such sheets keep healing at TTL expiry or purge.
+      bool css_embeds_imports = false;
       if (!cfg->disable_css_import_flattening) {
         auto lookup = [&](std::string_view url) -> std::optional<std::string> {
           stats_.selector_invocations.fetch_add(1, std::memory_order_relaxed);
@@ -6281,6 +6283,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
         };
         auto flatten_result =
             css::FlattenImports(css_input, notification.url, lookup);
+        css_embeds_imports = flatten_result.imports_resolved > 0 ||
+                             flatten_result.skipped_unresolved_import;
         if (flatten_result.imports_resolved > 0) {
           // Flattening is all-or-nothing: success implies 0 unresolved.
           css_to_minify = std::move(flatten_result.css);
@@ -6317,7 +6321,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
                        ContentType::kCss, "CSS", stats_.css_processed,
                        stats_.css_already_optimal_count,
                        stats_.css_already_optimal_bytes, purge_check, purge_gen,
-                       cfg);
+                       cfg, /*record_source_hash=*/!css_embeds_imports);
       break;
     }
 

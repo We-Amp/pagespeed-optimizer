@@ -11,9 +11,10 @@ is guarded the same way for consistency.
 Fixed: after a file changed on the origin, mod_pagespeed could keep sending
 the previous version of a CSS, JavaScript or image file until the old copy's
 cache lifetime ran out. For CSS and JavaScript every client was affected. For
-images, clients that accept gzip or brotli were, with
-`DaemonServeStoredEncodings on`, while other clients already got the new one.
-The optimizer now replaces its stored copies as soon as the web server has
+images, the converted WebP and AVIF copies could stay stale for every client
+that accepts them, and with `DaemonServeStoredEncodings on` so could the gzip
+and brotli copies, while other clients already got the new version. The
+optimizer now replaces its stored copies as soon as the web server has
 recorded the new version. If you have been resetting the optimizer's cache
 after each deploy to work around this, that is no longer needed.
 
