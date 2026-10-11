@@ -18,6 +18,7 @@ import PlatformInterestForm from '../../components/PlatformInterestForm.astro';
 const REPO = 'https://github.com/We-Amp/pagespeed-optimizer';
 const PACKS_DIR = `${REPO}/tree/main/packs`;
 const EXAMPLE_PACK = `${REPO}/blob/main/packs/edge-seo/pack.example.json`;
+const DOCS_RULE_PACKS = '/docs/rule-packs/';
 const DOCS_PACK_FORMAT = '/docs/rule-packs/#pack-format';
 const LINK = 'text-interactive hover:text-interactive-hover underline';
 
@@ -189,8 +190,8 @@ const jsonLd = {
           packs directory
         </a>
         of the pagespeed-optimizer repository; its README and the
-        <a href={GUIDE} class="text-interactive hover:text-interactive-hover underline">
-          operator guide
+        <a href={DOCS_RULE_PACKS} class={LINK}>
+          rule packs documentation
         </a>
         explain how to adapt and enable it. The pack is a template: you list your own hosts and fill
         in the rules for your pages. It runs in report mode first, on Apache, nginx and IIS. The
