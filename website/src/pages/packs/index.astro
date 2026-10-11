@@ -8,8 +8,8 @@
 // release; the two planned packs (under their own sub-heading) reuse the framing of the /ai-readability/
 // script card verbatim ("We are building ...", "Tell us what you run.") and
 // its two wedges, through the same interest form /platform/ uses. No prices,
-// no dates. The #download and #pack-format anchors stand in for the operator
-// guide until it is published.
+// no dates. The #pack-format section summarises the format and links to the
+// full reference at /docs/rule-packs/#pack-format.
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import SectionHeader from '../../components/instrument/SectionHeader.astro';
 import Icon from '../../components/Icon.astro';
@@ -18,6 +18,8 @@ import PlatformInterestForm from '../../components/PlatformInterestForm.astro';
 const REPO = 'https://github.com/We-Amp/pagespeed-optimizer';
 const PACKS_DIR = `${REPO}/tree/main/packs`;
 const EXAMPLE_PACK = `${REPO}/blob/main/packs/edge-seo/pack.example.json`;
+const DOCS_PACK_FORMAT = '/docs/rule-packs/#pack-format';
+const LINK = 'text-interactive hover:text-interactive-hover underline';
 
 const levels = [
   {
@@ -205,10 +207,15 @@ const jsonLd = {
         ))}
       </ul>
       <p class="mt-3 text-sm text-text-muted">
-        <a href={EXAMPLE_PACK} class="text-interactive hover:text-interactive-hover underline">
-          An example pack
-        </a>
-        shows every part. The operator guide, with the full reference, ships with the next release.
+        The{' '}
+        <a href={EXAMPLE_PACK} class={LINK}>
+          free template
+        </a>{' '}
+        has one worked rule for each kind. See the{' '}
+        <a href={DOCS_PACK_FORMAT} class={LINK}>
+          rule packs documentation
+        </a>{' '}
+        for the full reference.
       </p>
     </div>
 
