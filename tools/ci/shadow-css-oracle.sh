@@ -25,8 +25,10 @@
 #   SRC_DIR   post-cutover source tree (the PR checkout)
 #   OLD_REV   git rev resolvable in SRC_DIR holding the baseline
 #             comparator (the scheduled job pins the last RATIFIED
-#             comparator rev — currently 1c2976215, bumped after the
-#             #1245 cutover + #1246 `.0.`-guard transitions; bump it
+#             comparator rev — currently e9e08bd5: 1c2976215 after the
+#             #1245 cutover + #1246 `.0.`-guard transitions, then
+#             e9e08bd5 after the #1750 group-semicolon fix, whose five
+#             new seeds changed verdict on purpose; bump it
 #             DELIBERATELY in the same PR as any intentional comparator
 #             evolution, or the lane hard-fails on every intentional
 #             divergence). May also be a directory holding an
