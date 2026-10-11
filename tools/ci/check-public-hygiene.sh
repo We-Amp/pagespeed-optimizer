@@ -76,6 +76,11 @@ while IFS=$'\t' read -r flags pattern || [[ -n "$flags" ]]; do
   fi
 done < "$RULES"
 
+# Hashed-token rules and the relative-link check (see the .py header).
+if ! python3 -I tools/ci/check-public-hygiene.py; then
+  status=1
+fi
+
 if [[ $status -ne 0 ]]; then
   echo "::error::public-tree hygiene gate FAILED -- see the matched paths above" >&2
   exit 1
