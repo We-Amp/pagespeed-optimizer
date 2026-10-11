@@ -177,7 +177,7 @@ const MISSING_HEADER: Record<string, string> = {
   framing: 'framing',
 };
 
-const MPS_PRODUCT = /^mod[_-]?pagespeed$/i;
+const MPS_PRODUCT = /^(mod[_-]?pagespeed|modpagespeed)$/i;
 
 /**
  * The detected mod_pagespeed versions, one per major.minor line: the full
@@ -295,7 +295,7 @@ function buildingFor(
       const building: string[] = [];
       if (pageIntegrityCtaApplies(lens)) {
         building.push(
-          'A server module that keeps a list of approved scripts at your origin is planned.',
+          'Payment-page script integrity, a pack that would enforce an allowlist of approved scripts at your origin, is planned.',
         );
       }
       if (thirdPartyFreezeCtaApplies(lens)) {
@@ -306,8 +306,8 @@ function buildingFor(
               ? ' on this page loads without an integrity hash, so its content can change upstream without notice.'
               : ' on this page load without an integrity hash, so their content can change upstream without notice.') +
             (unpinned === 1
-              ? ' Serving it at a version you approved until you accept the update is planned.'
-              : ' Serving each one at a version you approved until you accept the update is planned.'),
+              ? ' A third-party freeze pack is planned: it would serve it at a version you approved until you accept the update.'
+              : ' A third-party freeze pack is planned: it would serve each one at a version you approved until you accept the update.'),
         );
       }
       return building.length
@@ -315,7 +315,7 @@ function buildingFor(
             building,
             link: {
               href: '/platform/',
-              label: 'Origin modules that are planned →',
+              label: 'Transform packs (early access) →',
               event: 'airead-cta-page-integrity',
             },
           }

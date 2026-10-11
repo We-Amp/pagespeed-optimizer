@@ -76,7 +76,7 @@ describe('riskRows over the full report', () => {
   it('gives the script row both building sentences when both gates fire', () => {
     expect(m.scriptInventory.building).toHaveLength(2);
     expect(m.scriptInventory.building[0]).toBe(
-      'A server module that keeps a list of approved scripts at your origin is planned.',
+      'Payment-page script integrity, a pack that would enforce an allowlist of approved scripts at your origin, is planned.',
     );
   });
 });
@@ -211,7 +211,7 @@ describe('riskRows edge cases', () => {
     )[0];
     expect(row.link?.event).toBe('airead-cta-response-firewall');
     expect(row.sentence).toContain(
-      'mod_pagespeed 1.13: this line no longer receives fixes. Upgrade in place to the current release.',
+      'mod_pagespeed 1.13: this line no longer receives fixes. Move to the current release; configuration carries over.',
     );
     expect(row.sentence).not.toContain('(no longer receives fixes)');
   });
@@ -227,10 +227,10 @@ describe('riskRows edge cases', () => {
         }),
       )[0].sentence;
     expect(sentence('1.16.0.2')).toContain(
-      ' mod_pagespeed 1.16.0.2: supported line. Update to the current release for the latest fixes. One page only',
+      ' mod_pagespeed 1.16.0.2: a newer release is available. Update recommended. One page only',
     );
     expect(sentence('2.0.3')).toContain(
-      ' mod_pagespeed 2.0.3: frozen line, security fixes only until 2027-02-07. Upgrade in place to the current release. One page only',
+      ' ModPageSpeed 2.0.3: see Migrate from ModPageSpeed 2.0 for whether your setup moves to the current line. One page only',
     );
     expect(sentence('2.1.0')).toBe(
       '0 error-output patterns · 1 version tell · end of life: none seen · missing: none. One page only; not a security assessment.',
@@ -283,7 +283,7 @@ describe('riskRows unpinned script wording', () => {
     expect(text).toContain(
       '1 third-party script on this page loads without an integrity hash, so its content can change',
     );
-    expect(text).toContain('Serving it at a version you approved');
-    expect(text).not.toContain('Serving each one');
+    expect(text).toContain('it would serve it at a version you approved');
+    expect(text).not.toContain('it would serve each one');
   });
 });
