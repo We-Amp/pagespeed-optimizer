@@ -40,7 +40,7 @@ entries:
     - name: we-amp
     name: pagespeed
     sources:
-    - https://github.com/oschaaf/modpagespeed-2
+    - https://github.com/We-Amp/pagespeed-optimizer
     type: application
     urls:
     - https://modpagespeed.com/charts/pagespeed-0.3.4.tgz
@@ -62,7 +62,7 @@ entries:
     - name: we-amp
     name: pagespeed
     sources:
-    - https://github.com/oschaaf/modpagespeed-2
+    - https://github.com/We-Amp/pagespeed-optimizer
     type: application
     urls:
     - https://modpagespeed.com/charts/pagespeed-0.3.3.tgz
@@ -84,7 +84,7 @@ entries:
     - name: we-amp
     name: pagespeed
     sources:
-    - https://github.com/oschaaf/modpagespeed-2
+    - https://github.com/We-Amp/pagespeed-optimizer
     type: application
     urls:
     - https://modpagespeed.com/charts/pagespeed-0.3.2.tgz
@@ -106,7 +106,7 @@ entries:
     - name: we-amp
     name: pagespeed
     sources:
-    - https://github.com/oschaaf/modpagespeed-2
+    - https://github.com/We-Amp/pagespeed-optimizer
     type: application
     urls:
     - https://modpagespeed.com/charts/pagespeed-0.3.1.tgz
@@ -128,7 +128,7 @@ entries:
     - name: we-amp
     name: pagespeed
     sources:
-    - https://github.com/oschaaf/modpagespeed-2
+    - https://github.com/We-Amp/pagespeed-optimizer
     type: application
     urls:
     - https://modpagespeed.com/charts/pagespeed-0.3.0.tgz
@@ -150,7 +150,7 @@ entries:
     - name: we-amp
     name: pagespeed
     sources:
-    - https://github.com/oschaaf/modpagespeed-2
+    - https://github.com/We-Amp/pagespeed-optimizer
     type: application
     urls:
     - https://modpagespeed.com/charts/pagespeed-0.2.6.tgz
@@ -172,7 +172,7 @@ entries:
     - name: we-amp
     name: pagespeed
     sources:
-    - https://github.com/oschaaf/modpagespeed-2
+    - https://github.com/We-Amp/pagespeed-optimizer
     type: application
     urls:
     - https://modpagespeed.com/charts/pagespeed-0.2.5.tgz
@@ -194,7 +194,7 @@ entries:
     - name: we-amp
     name: pagespeed
     sources:
-    - https://github.com/oschaaf/modpagespeed-2
+    - https://github.com/We-Amp/pagespeed-optimizer
     type: application
     urls:
     - https://modpagespeed.com/charts/pagespeed-0.2.4.tgz
@@ -216,7 +216,7 @@ entries:
     - name: we-amp
     name: pagespeed
     sources:
-    - https://github.com/oschaaf/modpagespeed-2
+    - https://github.com/We-Amp/pagespeed-optimizer
     type: application
     urls:
     - https://modpagespeed.com/charts/pagespeed-0.2.3.tgz
@@ -238,7 +238,7 @@ entries:
     - name: we-amp
     name: pagespeed
     sources:
-    - https://github.com/oschaaf/modpagespeed-2
+    - https://github.com/We-Amp/pagespeed-optimizer
     type: application
     urls:
     - https://modpagespeed.com/charts/pagespeed-0.2.2.tgz
@@ -260,7 +260,7 @@ entries:
     - name: we-amp
     name: pagespeed
     sources:
-    - https://github.com/oschaaf/modpagespeed-2
+    - https://github.com/We-Amp/pagespeed-optimizer
     type: application
     urls:
     - https://modpagespeed.com/charts/pagespeed-0.2.1.tgz
@@ -282,7 +282,7 @@ entries:
     - name: we-amp
     name: pagespeed
     sources:
-    - https://github.com/oschaaf/modpagespeed-2
+    - https://github.com/We-Amp/pagespeed-optimizer
     type: application
     urls:
     - https://modpagespeed.com/charts/pagespeed-0.2.0.tgz
