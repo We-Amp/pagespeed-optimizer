@@ -540,6 +540,8 @@ relative URL resolution, media query wrapping). Disable: `--no-css-import-flatte
 Flattening is all-or-nothing per sheet: any uninlinable import → the original is
 minified instead, and since CSS variants have no revalidation (only HTML does),
 the skip heals only at TTL expiry/purge. See `lib/css/css_import_flattener.h`.
+Import-free CSS and JS record a content hash and restamp on a matching hash after a
+re-record; flattened sheets (and sheets with a skipped import) record none and still heal only at TTL/purge.
 
 ## Pre-Compressed Text Variants
 
@@ -790,7 +792,7 @@ increment when the corresponding feature (`has_async_css` /
 | `alternates.writes_fenced` | `pagespeed_alternate_writes_fenced_total` | Benign writes dropped by a post-dispatch purge fence |
 | `origin_refresh.purges` | `pagespeed_origin_refresh_purges_total` | Origin-refresh sentinels that purged a stale variant set |
 | `origin_refresh.rate_limited` | `pagespeed_origin_refresh_rate_limited_total` | Origin-refresh sentinels rate-limited away |
-| `origin_refresh.rechecked` | `pagespeed_notifications_origin_rechecked_total` | Dedup-hit notifications whose re-recorded original differed in origin state from the variant set (SVG/raster only) |
+| `origin_refresh.rechecked` | `pagespeed_notifications_origin_rechecked_total` | Dedup-hit notifications whose re-recorded original differed in origin state from the variant set |
 | `origin_refresh.change_rebuilt` | `pagespeed_origin_change_rebuilt_total` | Variant sets purged (original kept) and rebuilt because the recorded bytes changed |
 | `origin_refresh.unchanged_restamped` | `pagespeed_origin_unchanged_restamped_total` | Re-recorded originals with identical bytes: copies restamped, not rebuilt |
 

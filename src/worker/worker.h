@@ -1051,7 +1051,8 @@ class Worker {
                         std::atomic<uint64_t>& already_optimal_bytes,
                         const std::function<bool()>& purge_check,
                         const PurgeDispatchGen& purge_gen,
-                        const std::shared_ptr<const WorkerConfig>& cfg);
+                        const std::shared_ptr<const WorkerConfig>& cfg,
+                        bool record_source_hash = true);
 
   // Result of WriteImageVariants -- outputs consumed by SVG gate and
   // incomplete-matrix retry tracking.

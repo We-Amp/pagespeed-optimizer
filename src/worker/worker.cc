@@ -578,6 +578,38 @@ void WriteCompressedVariants(PageSpeedCache* cache, std::string_view url,
   }
 }
 
+// Bind the stored gzip/brotli copies to the bytes they were built from, so a
+// later re-record of the original can tell "same bytes" from "new bytes"
+// (RecheckRecordedOriginal).  Only a front end's own recording may seed the
+// oracle (|genuine|), and only once both coded copies exist and no purge has
+// fenced the writes.
+void RecordSourceHash(PageSpeedCache* cache, std::string_view url,
+                      std::string_view hostname, std::string_view scheme,
+                      const CapabilityMask& identity_mask,
+                      std::string_view source, bool genuine,
+                      const PurgeCheck& purge_check) {
+  if (!genuine || (purge_check && purge_check())) return;
+  CapabilityMask gz_mask = identity_mask;
+  gz_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kGzip);
+  CapabilityMask br_mask = identity_mask;
+  br_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kBrotli);
+  if (!VariantExistsForMask(cache, url, hostname, scheme, gz_mask) ||
+      !VariantExistsForMask(cache, url, hostname, scheme, br_mask)) {
+    return;
+  }
+  auto hash = cyclone::crypto::SHA256::hash(std::span<const std::byte>(
+      reinterpret_cast<const std::byte*>(source.data()), source.size()));
+  auto wh =
+      cache->WriteSentinel(url, hostname, scheme, SentinelId::kContentHash, 32);
+  if (wh) {
+    (void)wh->write_sync(std::as_bytes(std::span(hash.data(), hash.size())));
+    (void)wh->close_sync();
+    cache->EvictAlternateFromRamCache(
+        url, hostname, scheme,
+        static_cast<AlternateId>(SentinelId::kContentHash));
+  }
+}
+
 // Map net_instaweb::ImageType (magic-byte detection) to the
 // pagespeed::ImageType enum used by EvaluateSvgCandidacy().
 ImageType ToSvgImageType(std::string_view image_data) {
@@ -3469,17 +3501,20 @@ void Worker::StoreDeclineTombstone(
       static_cast<AlternateId>(SentinelId::kDeclineTombstone));
 }
 
-void Worker::WriteTextVariant(const CacheNotification& notification,
-                              ReadResult& read_result,
-                              std::string_view original_input,
-                              std::string_view minified,
-                              ContentType content_type, const char* type_name,
-                              std::atomic<uint64_t>& processed_stat,
-                              std::atomic<uint64_t>& already_optimal_count,
-                              std::atomic<uint64_t>& already_optimal_bytes,
-                              const std::function<bool()>& purge_check,
-                              const PurgeDispatchGen& purge_gen,
-                              const std::shared_ptr<const WorkerConfig>& cfg) {
+void Worker::WriteTextVariant(
+    const CacheNotification& notification, ReadResult& read_result,
+    std::string_view original_input, std::string_view minified,
+    ContentType content_type, const char* type_name,
+    std::atomic<uint64_t>& processed_stat,
+    std::atomic<uint64_t>& already_optimal_count,
+    std::atomic<uint64_t>& already_optimal_bytes,
+    const std::function<bool()>& purge_check, const PurgeDispatchGen& purge_gen,
+    const std::shared_ptr<const WorkerConfig>& cfg, bool record_source_hash) {
+  // Only a front end's own recording may seed the change oracle, and not for
+  // a sheet that embeds other files (see the CSS caller).
+  const bool source_genuine =
+      record_source_hash && (read_result.metadata.flags &
+                             AlternateMetadata::kFlagWorkerProcessed) == 0;
   if (minified.size() < original_input.size()) {
     CapabilityMask mask = NormalizeMaskForDedup(notification.capability_mask);
     AlternateMetadata variant_meta = CreateWorkerMetadata(
@@ -3532,6 +3567,9 @@ void Worker::WriteTextVariant(const CacheNotification& notification,
                               notification.hostname, notification.scheme, mask,
                               minified, variant_meta, cfg->gzip_level,
                               cfg->brotli_level, stats_, purge_check, this);
+      RecordSourceHash(cache_.get(), notification.url, notification.hostname,
+                       notification.scheme, mask, original_input,
+                       source_genuine, purge_check);
       // Clear tentative cooldown on success (matches HTML path).
       {
         std::string ck = ComposeInternalKey(
@@ -3585,6 +3623,9 @@ void Worker::WriteTextVariant(const CacheNotification& notification,
                             notification.hostname, notification.scheme, mask,
                             owned_input, orig_meta, cfg->gzip_level,
                             cfg->brotli_level, stats_, purge_check, this);
+    RecordSourceHash(cache_.get(), notification.url, notification.hostname,
+                     notification.scheme, mask, owned_input, source_genuine,
+                     purge_check);
     // Clear tentative cooldown on success (matches HTML path).
     {
       std::string ck = ComposeInternalKey(
@@ -3866,19 +3907,14 @@ Worker::OriginRecheck Worker::RecheckRecordedOriginal(
     durable->release();
   }
   if (recorded.cache_inserted_at == 0) return OriginRecheck::kUnchanged;
-  // Covered content: native SVG and the raster types, the ones that record a
-  // content hash of the bytes they were built from.  Text and other image
-  // types never get that record, so a recheck could not tell "same bytes"
-  // from "new bytes" and would rebuild on every re-record.
-  {
-    std::string_view ct = recorded.origin_content_type;
-    const bool covered = notification.content_type == ContentType::kImage &&
-                         (ct.starts_with("image/svg+xml") ||
-                          ct.starts_with("image/jpeg") ||
-                          ct.starts_with("image/png") ||
-                          ct.starts_with("image/gif") ||
-                          ct.starts_with("image/webp"));
-    if (!covered) return OriginRecheck::kUnchanged;
+  // Covered content: images, CSS and JS, the types that record a content
+  // hash of the bytes they were built from.  Anything else would have no way
+  // to tell "same bytes" from "new bytes" and would rebuild on every
+  // re-record.
+  if (notification.content_type != ContentType::kImage &&
+      notification.content_type != ContentType::kCss &&
+      notification.content_type != ContentType::kJs) {
+    return OriginRecheck::kUnchanged;
   }
 
   // What the variant set inherited: the newest stamp and, from the variant
@@ -3907,14 +3943,14 @@ Worker::OriginRecheck Worker::RecheckRecordedOriginal(
   const bool etag_differs = !recorded.origin_etag.empty() &&
                             !built_from.origin_etag.empty() &&
                             recorded.origin_etag != built_from.origin_etag;
-  const bool lm_differs = recorded.origin_last_modified != 0 &&
-                          built_from.origin_last_modified != 0 &&
-                          recorded.origin_last_modified !=
-                              built_from.origin_last_modified;
-  const bool length_differs = recorded.origin_content_length != 0 &&
-                              built_from.origin_content_length != 0 &&
-                              recorded.origin_content_length !=
-                                  built_from.origin_content_length;
+  const bool lm_differs =
+      recorded.origin_last_modified != 0 &&
+      built_from.origin_last_modified != 0 &&
+      recorded.origin_last_modified != built_from.origin_last_modified;
+  const bool length_differs =
+      recorded.origin_content_length != 0 &&
+      built_from.origin_content_length != 0 &&
+      recorded.origin_content_length != built_from.origin_content_length;
   if (!newer && !etag_differs && !lm_differs && !length_differs) {
     return OriginRecheck::kUnchanged;
   }
@@ -3962,16 +3998,15 @@ Worker::OriginRecheck Worker::RecheckRecordedOriginal(
     if (stored.has_value()) {
       auto sc = stored->content();
       have_oracle = sc.size() == 32;
-      hash_matches = have_oracle &&
-                     std::memcmp(sc.data(), pristine.hash.data(), 32) == 0;
+      hash_matches =
+          have_oracle && std::memcmp(sc.data(), pristine.hash.data(), 32) == 0;
     }
   }
   // A re-recorded response that forbids shared storage must not extend the
   // copies' life: purge instead of restamping (as HandleOriginRefreshed does).
-  const bool storage_forbidden =
-      (pristine.meta.origin_cc_flags &
-       (AlternateMetadata::kCCOriginNoStore |
-        AlternateMetadata::kCCOriginPrivate)) != 0;
+  const bool storage_forbidden = (pristine.meta.origin_cc_flags &
+                                  (AlternateMetadata::kCCOriginNoStore |
+                                   AlternateMetadata::kCCOriginPrivate)) != 0;
   if (limited && !(have_oracle && !hash_matches)) {
     // Inside the window and not provably changed: leave the copies alone.
     return OriginRecheck::kRestamped;
@@ -4226,10 +4261,9 @@ void Worker::HandleNotification(const CacheNotification& notification,
       if (verdict == OriginRecheck::kPurgedRebuild) {
         // The processed-set entry is gone and the purge generation was
         // re-read AFTER the purge, so this pass is not fenced by its own bump.
-        HandleNotification(
-            notification, CapturePurgeGen(notification.url,
-                                          notification.hostname,
-                                          notification.scheme));
+        HandleNotification(notification, CapturePurgeGen(notification.url,
+                                                         notification.hostname,
+                                                         notification.scheme));
         return;
       }
     }
@@ -5508,37 +5542,9 @@ void Worker::HandleNotification(const CacheNotification& notification,
             cache_.get(), notification.url, notification.hostname,
             notification.scheme, CapabilityMask(), svg_data, svg_origin_meta,
             cfg->gzip_level, cfg->brotli_level, stats_, purge_check, this);
-        CapabilityMask svg_gz_mask;
-        svg_gz_mask.set_transfer_encoding(
-            CapabilityMask::TransferEncoding::kGzip);
-        CapabilityMask svg_br_mask;
-        svg_br_mask.set_transfer_encoding(
-            CapabilityMask::TransferEncoding::kBrotli);
-        if (svg_source_genuine && !(purge_check && purge_check()) &&
-            VariantExistsForMask(cache_.get(), notification.url,
-                                 notification.hostname, notification.scheme,
-                                 svg_gz_mask) &&
-            VariantExistsForMask(cache_.get(), notification.url,
-                                 notification.hostname, notification.scheme,
-                                 svg_br_mask)) {
-          // Bind the compressed copies to the bytes they were built from, so
-          // a later re-record can tell "same bytes" from "new bytes".
-          auto svg_hash = cyclone::crypto::SHA256::hash(
-              std::span<const std::byte>(
-                  reinterpret_cast<const std::byte*>(svg_data.data()),
-                  svg_data.size()));
-          auto wh = cache_->WriteSentinel(
-              notification.url, notification.hostname, notification.scheme,
-              SentinelId::kContentHash, 32);
-          if (wh) {
-            (void)wh->write_sync(
-                std::as_bytes(std::span(svg_hash.data(), svg_hash.size())));
-            (void)wh->close_sync();
-            cache_->EvictAlternateFromRamCache(
-                notification.url, notification.hostname, notification.scheme,
-                static_cast<AlternateId>(SentinelId::kContentHash));
-          }
-        }
+        RecordSourceHash(cache_.get(), notification.url, notification.hostname,
+                         notification.scheme, CapabilityMask(), svg_data,
+                         svg_source_genuine, purge_check);
         MarkVariantProcessed(
             notification.url, notification.hostname, notification.scheme,
             MaskToId(NormalizeMaskForDedup(notification.capability_mask)),
@@ -5583,6 +5589,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
         const std::string data(reinterpret_cast<const char*>(span.data()),
                                span.size());
         AlternateMetadata meta = img_read_result->metadata;
+        const bool source_genuine =
+            (meta.flags & AlternateMetadata::kFlagWorkerProcessed) == 0;
         // Verify the copy is untorn before releasing (issue #934);
         // see the SVG branch above.  On failure, skip.
         if (!BorrowCopyUntorn(*img_read_result,
@@ -5604,6 +5612,9 @@ void Worker::HandleNotification(const CacheNotification& notification,
                                 notification.hostname, notification.scheme,
                                 CapabilityMask(), data, meta, cfg->gzip_level,
                                 cfg->brotli_level, stats_, purge_check, this);
+        RecordSourceHash(cache_.get(), notification.url, notification.hostname,
+                         notification.scheme, CapabilityMask(), data,
+                         source_genuine, purge_check);
         MarkVariantProcessed(
             notification.url, notification.hostname, notification.scheme,
             MaskToId(NormalizeMaskForDedup(notification.capability_mask)),
@@ -6250,6 +6261,11 @@ void Worker::HandleNotification(const CacheNotification& notification,
 
       // Flatten @import statements before minification.
       std::string css_to_minify;
+      // A sheet whose output depends on other files (inlined imports, or an
+      // import that could not be inlined) is not bound to its own bytes: the
+      // hash of this file cannot show that an imported child changed, so
+      // such sheets keep healing at TTL expiry or purge.
+      bool css_embeds_imports = false;
       if (!cfg->disable_css_import_flattening) {
         auto lookup = [&](std::string_view url) -> std::optional<std::string> {
           stats_.selector_invocations.fetch_add(1, std::memory_order_relaxed);
@@ -6267,6 +6283,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
         };
         auto flatten_result =
             css::FlattenImports(css_input, notification.url, lookup);
+        css_embeds_imports = flatten_result.imports_resolved > 0 ||
+                             flatten_result.skipped_unresolved_import;
         if (flatten_result.imports_resolved > 0) {
           // Flattening is all-or-nothing: success implies 0 unresolved.
           css_to_minify = std::move(flatten_result.css);
@@ -6303,7 +6321,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
                        ContentType::kCss, "CSS", stats_.css_processed,
                        stats_.css_already_optimal_count,
                        stats_.css_already_optimal_bytes, purge_check, purge_gen,
-                       cfg);
+                       cfg, /*record_source_hash=*/!css_embeds_imports);
       break;
     }
 
