@@ -6,7 +6,7 @@ import { test, expect, type Page } from '@playwright/test';
 import { stubUmami } from './helpers/umami';
 
 // The v2 Risk & SEO panel: four rows, a state chip each, one verdict sentence,
-// and the "what we are building" sentence and link only when the lens's gate
+// and the "what is planned" sentence and link only when the lens's gate
 // fires. The scanner and PageSpeed Insights are mocked.
 
 type Report = Record<string, unknown>;
@@ -90,7 +90,7 @@ test.describe('Risk & SEO panel', () => {
       await expect(row(panel, key).locator('a')).toHaveCount(1);
     }
     await expect(row(panel, 'preConsentLeak').locator('[data-risk-building]')).toHaveText(
-      'With consent enforcement at the origin, third-party tags stay inert at the server until the consent cookie grants them.',
+      'Consent enforcement at the origin is planned: third-party tags would stay inert at the server until the consent cookie grants them.',
     );
     await expect(row(panel, 'seoDefects').locator('[data-risk-sentence]')).toContainText(
       '3 issues: canonical 1, title 1, structured data 1.',
@@ -140,9 +140,7 @@ test.describe('Risk & SEO panel', () => {
     const rows = await withText.count();
     expect(rows).toBeGreaterThan(0);
     await expect(details).toHaveCount(rows);
-    await expect(details.locator('summary')).toContainText(
-      Array(rows).fill('What we are building'),
-    );
+    await expect(details.locator('summary')).toContainText(Array(rows).fill('What is planned'));
     for (let i = 0; i < rows; i++) {
       await expect(details.nth(i)).not.toHaveAttribute('open', /.*/);
       await expect(details.nth(i).locator('[data-risk-building]').first()).toBeHidden();
@@ -169,7 +167,12 @@ test.describe('Risk & SEO panel', () => {
     await expect(page.locator('[data-scan-tile="risk"] [data-scan-status]')).toHaveText(
       'Nothing flagged',
     );
-    await expect(panel.locator('.scan-risk-chip')).toHaveText(['Clean', 'Clean', 'Clean', 'Clean']);
+    await expect(panel.locator('.scan-risk-chip')).toHaveText([
+      'Nothing flagged',
+      'Nothing flagged',
+      'Nothing flagged',
+      'Nothing flagged',
+    ]);
     await expect(panel.locator('a')).toHaveCount(0);
     await expect(panel.locator('[data-risk-building]')).toHaveCount(0);
     await expect(panel.locator('[data-risk-detail]')).toHaveCount(0);

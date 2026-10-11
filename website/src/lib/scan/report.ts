@@ -25,7 +25,11 @@ export function riskStates(report: Report | null): Array<{ name: string; state: 
     const measured = v.status === 'ok' && v.verdict !== 'unknown';
     rows.push({
       name: LENS_NAME[lens.key],
-      state: !measured ? 'Not measured' : v.verdict === lens.flagged ? 'Attention' : 'Clean',
+      state: !measured
+        ? 'Not measured'
+        : v.verdict === lens.flagged
+          ? 'Attention'
+          : 'Nothing flagged',
     });
   }
   return rows;

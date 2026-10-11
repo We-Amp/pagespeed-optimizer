@@ -3,7 +3,7 @@
 //
 // Risk & SEO drill-down panel: four rows (pre-consent leak, script inventory,
 // SEO defects, response exposure), each with a state chip and one verdict
-// sentence, plus the "what we are building" sentence and link only when the
+// sentence, plus the "what is planned" sentence and link only when the
 // lens's gate fires. All text is written with textContent.
 
 import type { PanelContext } from '../app';
@@ -63,7 +63,7 @@ function rowNode(row: RiskRow): HTMLElement {
       'summary',
       'scan-risk-more-summary flex min-h-11 cursor-pointer items-center justify-between gap-3 text-sm font-medium text-interactive',
     );
-    summary.append(el('span', '', 'What we are building'));
+    summary.append(el('span', '', 'What is planned'));
     const mark = el('span', 'scan-risk-more-mark', '▾');
     mark.setAttribute('aria-hidden', 'true');
     summary.append(mark);
