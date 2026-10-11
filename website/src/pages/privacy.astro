@@ -20,7 +20,7 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
     <h1 class="text-3xl sm:text-4xl font-bold tracking-tight text-text-body">Privacy</h1>
     <p class="mt-4 text-sm text-text-annotation">
-      Effective date: September 2026 &middot; Version 2026-09
+      Effective date: October 2026 &middot; Version 2026-10-10
     </p>
     <p class="mt-6 text-lg text-text-muted">
       This notice covers how the <strong>modpagespeed.com</strong> website and its services process
@@ -151,16 +151,26 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
 
           <!-- PSI proxy -->
           <div>
-            <h3 class="font-semibold text-text-body">PageSpeed Insights proxy (/analyze)</h3>
+            <h3 class="font-semibold text-text-body">
+              PageSpeed Insights proxy (/analyze and /ai-readability)
+            </h3>
             <p class="mt-2 text-text-muted">
               When you submit a URL on the
               <a href="/analyze/" class="text-interactive hover:text-interactive-hover underline">
                 /analyze
               </a>{' '}
+              or
+              <a
+                href="/ai-readability/"
+                class="text-interactive hover:text-interactive-hover underline"
+              >
+                /ai-readability
+              </a>{' '}
               page, our server forwards that URL to Google&rsquo;s PageSpeed Insights API (operated
-              by Google in the United States) and returns the result. The URL you submit may itself
-              contain personal data if you choose to enter such a URL &mdash; please don&rsquo;t. We
-              also log and rate-limit by your IP address to prevent abuse of the shared API access.
+              by Google in the United States), in two requests per check (mobile and desktop), and
+              returns the result. The URL you submit may itself contain personal data if you choose
+              to enter such a URL &mdash; please don&rsquo;t. We log your IP address and rate-limit
+              requests per address to prevent abuse.
             </p>
             <p class="mt-2 text-sm text-text-annotation">
               Lawful basis: legitimate interest (Art. 6(1)(f) GDPR) in offering the tool and
@@ -173,11 +183,15 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
           <div>
             <h3 class="font-semibold text-text-body">AI-readability scanner (RenderPeek)</h3>
             <p class="mt-2 text-text-muted">
-              The AI-readability scanner renders a URL you submit so we can report how it looks to
-              automated agents. Rendering runs on Google Cloud Run. As with the PageSpeed Insights
-              proxy, we process the submitted URL and your IP address for the request and to
-              rate-limit abuse. We do not retain the rendered page content beyond what is needed to
-              return your result.
+              The AI-readability scanner fetches a URL you submit so we can report how it looks to
+              automated agents. It makes a few requests to that page: one in a headless browser, and
+              several plain requests (one without JavaScript, and agent requests with valid and
+              deliberately invalid signatures). Rendering runs on Google Cloud Run. As with the
+              PageSpeed Insights proxy, we process the submitted URL for the request, and we log
+              your IP address and rate-limit requests per address to prevent abuse. We keep the
+              result for up to 24 hours behind a shareable link. The link is unguessable, but anyone
+              who has it can view the result during that time. We do not otherwise retain the page
+              content.
             </p>
             <p class="mt-2 text-sm text-text-annotation">
               Lawful basis: legitimate interest (Art. 6(1)(f) GDPR) in offering the tool and
@@ -210,9 +224,9 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
               details to reply and keep a record of the correspondence. When you submit the contact
               form, your name, email address, chosen topic and message are posted to a We-Amp
               contact-handling endpoint, which delivers the message to us (as a Telegram
-              notification) and logs it so we can follow up. If that submission fails, or if
-              JavaScript is disabled, the form falls back to opening a pre-filled email in your own
-              mail client instead.
+              notification) and logs it so we can follow up. The same applies when the form is sent
+              as a plain form post without JavaScript. If a scripted submission fails, the form
+              falls back to opening a pre-filled email in your own mail client instead.
             </p>
             <p class="mt-2 text-sm text-text-annotation">
               Lawful basis: legitimate interest (Art. 6(1)(f) GDPR) in responding to your request,
@@ -265,6 +279,10 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
             rotated out.
           </li>
           <li>
+            <strong>Page-check results:</strong> kept for up to 24 hours, together with their
+            shareable link.
+          </li>
+          <li>
             <strong>Subscriptions, orders and invoices:</strong> retained for as long as your
             subscription is active and afterward as required by Dutch tax law (a 7-year retention
             obligation applies to accounting records).
@@ -301,7 +319,7 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
             <tbody>
               <tr class="border-b border-border">
                 <td class="py-2 pr-4">Google (PageSpeed Insights API)</td>
-                <td class="py-2 pr-4">Scores URLs submitted to /analyze</td>
+                <td class="py-2 pr-4">Scores URLs submitted to /analyze and /ai-readability</td>
                 <td class="py-2">United States</td>
               </tr>
               <tr class="border-b border-border">
