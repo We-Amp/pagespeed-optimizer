@@ -578,6 +578,38 @@ void WriteCompressedVariants(PageSpeedCache* cache, std::string_view url,
   }
 }
 
+// Bind the stored gzip/brotli copies to the bytes they were built from, so a
+// later re-record of the original can tell "same bytes" from "new bytes"
+// (RecheckRecordedOriginal).  Only a front end's own recording may seed the
+// oracle (|genuine|), and only once both coded copies exist and no purge has
+// fenced the writes.
+void RecordSourceHash(PageSpeedCache* cache, std::string_view url,
+                      std::string_view hostname, std::string_view scheme,
+                      const CapabilityMask& identity_mask,
+                      std::string_view source, bool genuine,
+                      const PurgeCheck& purge_check) {
+  if (!genuine || (purge_check && purge_check())) return;
+  CapabilityMask gz_mask = identity_mask;
+  gz_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kGzip);
+  CapabilityMask br_mask = identity_mask;
+  br_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kBrotli);
+  if (!VariantExistsForMask(cache, url, hostname, scheme, gz_mask) ||
+      !VariantExistsForMask(cache, url, hostname, scheme, br_mask)) {
+    return;
+  }
+  auto hash = cyclone::crypto::SHA256::hash(std::span<const std::byte>(
+      reinterpret_cast<const std::byte*>(source.data()), source.size()));
+  auto wh = cache->WriteSentinel(url, hostname, scheme,
+                                 SentinelId::kContentHash, 32);
+  if (wh) {
+    (void)wh->write_sync(std::as_bytes(std::span(hash.data(), hash.size())));
+    (void)wh->close_sync();
+    cache->EvictAlternateFromRamCache(
+        url, hostname, scheme,
+        static_cast<AlternateId>(SentinelId::kContentHash));
+  }
+}
+
 // Map net_instaweb::ImageType (magic-byte detection) to the
 // pagespeed::ImageType enum used by EvaluateSvgCandidacy().
 ImageType ToSvgImageType(std::string_view image_data) {
@@ -3480,6 +3512,10 @@ void Worker::WriteTextVariant(const CacheNotification& notification,
                               const std::function<bool()>& purge_check,
                               const PurgeDispatchGen& purge_gen,
                               const std::shared_ptr<const WorkerConfig>& cfg) {
+  // Only a front end's own recording may seed the change oracle.
+  const bool source_genuine =
+      (read_result.metadata.flags & AlternateMetadata::kFlagWorkerProcessed) ==
+      0;
   if (minified.size() < original_input.size()) {
     CapabilityMask mask = NormalizeMaskForDedup(notification.capability_mask);
     AlternateMetadata variant_meta = CreateWorkerMetadata(
@@ -3532,6 +3568,9 @@ void Worker::WriteTextVariant(const CacheNotification& notification,
                               notification.hostname, notification.scheme, mask,
                               minified, variant_meta, cfg->gzip_level,
                               cfg->brotli_level, stats_, purge_check, this);
+      RecordSourceHash(cache_.get(), notification.url, notification.hostname,
+                       notification.scheme, mask, original_input,
+                       source_genuine, purge_check);
       // Clear tentative cooldown on success (matches HTML path).
       {
         std::string ck = ComposeInternalKey(
@@ -3585,6 +3624,9 @@ void Worker::WriteTextVariant(const CacheNotification& notification,
                             notification.hostname, notification.scheme, mask,
                             owned_input, orig_meta, cfg->gzip_level,
                             cfg->brotli_level, stats_, purge_check, this);
+    RecordSourceHash(cache_.get(), notification.url, notification.hostname,
+                     notification.scheme, mask, owned_input, source_genuine,
+                     purge_check);
     // Clear tentative cooldown on success (matches HTML path).
     {
       std::string ck = ComposeInternalKey(
@@ -3866,19 +3908,14 @@ Worker::OriginRecheck Worker::RecheckRecordedOriginal(
     durable->release();
   }
   if (recorded.cache_inserted_at == 0) return OriginRecheck::kUnchanged;
-  // Covered content: native SVG and the raster types, the ones that record a
-  // content hash of the bytes they were built from.  Text and other image
-  // types never get that record, so a recheck could not tell "same bytes"
-  // from "new bytes" and would rebuild on every re-record.
-  {
-    std::string_view ct = recorded.origin_content_type;
-    const bool covered = notification.content_type == ContentType::kImage &&
-                         (ct.starts_with("image/svg+xml") ||
-                          ct.starts_with("image/jpeg") ||
-                          ct.starts_with("image/png") ||
-                          ct.starts_with("image/gif") ||
-                          ct.starts_with("image/webp"));
-    if (!covered) return OriginRecheck::kUnchanged;
+  // Covered content: images, CSS and JS, the types that record a content
+  // hash of the bytes they were built from.  Anything else would have no way
+  // to tell "same bytes" from "new bytes" and would rebuild on every
+  // re-record.
+  if (notification.content_type != ContentType::kImage &&
+      notification.content_type != ContentType::kCss &&
+      notification.content_type != ContentType::kJs) {
+    return OriginRecheck::kUnchanged;
   }
 
   // What the variant set inherited: the newest stamp and, from the variant
@@ -5508,37 +5545,9 @@ void Worker::HandleNotification(const CacheNotification& notification,
             cache_.get(), notification.url, notification.hostname,
             notification.scheme, CapabilityMask(), svg_data, svg_origin_meta,
             cfg->gzip_level, cfg->brotli_level, stats_, purge_check, this);
-        CapabilityMask svg_gz_mask;
-        svg_gz_mask.set_transfer_encoding(
-            CapabilityMask::TransferEncoding::kGzip);
-        CapabilityMask svg_br_mask;
-        svg_br_mask.set_transfer_encoding(
-            CapabilityMask::TransferEncoding::kBrotli);
-        if (svg_source_genuine && !(purge_check && purge_check()) &&
-            VariantExistsForMask(cache_.get(), notification.url,
-                                 notification.hostname, notification.scheme,
-                                 svg_gz_mask) &&
-            VariantExistsForMask(cache_.get(), notification.url,
-                                 notification.hostname, notification.scheme,
-                                 svg_br_mask)) {
-          // Bind the compressed copies to the bytes they were built from, so
-          // a later re-record can tell "same bytes" from "new bytes".
-          auto svg_hash = cyclone::crypto::SHA256::hash(
-              std::span<const std::byte>(
-                  reinterpret_cast<const std::byte*>(svg_data.data()),
-                  svg_data.size()));
-          auto wh = cache_->WriteSentinel(
-              notification.url, notification.hostname, notification.scheme,
-              SentinelId::kContentHash, 32);
-          if (wh) {
-            (void)wh->write_sync(
-                std::as_bytes(std::span(svg_hash.data(), svg_hash.size())));
-            (void)wh->close_sync();
-            cache_->EvictAlternateFromRamCache(
-                notification.url, notification.hostname, notification.scheme,
-                static_cast<AlternateId>(SentinelId::kContentHash));
-          }
-        }
+        RecordSourceHash(cache_.get(), notification.url, notification.hostname,
+                         notification.scheme, CapabilityMask(), svg_data,
+                         svg_source_genuine, purge_check);
         MarkVariantProcessed(
             notification.url, notification.hostname, notification.scheme,
             MaskToId(NormalizeMaskForDedup(notification.capability_mask)),
@@ -5583,6 +5592,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
         const std::string data(reinterpret_cast<const char*>(span.data()),
                                span.size());
         AlternateMetadata meta = img_read_result->metadata;
+        const bool source_genuine =
+            (meta.flags & AlternateMetadata::kFlagWorkerProcessed) == 0;
         // Verify the copy is untorn before releasing (issue #934);
         // see the SVG branch above.  On failure, skip.
         if (!BorrowCopyUntorn(*img_read_result,
@@ -5604,6 +5615,9 @@ void Worker::HandleNotification(const CacheNotification& notification,
                                 notification.hostname, notification.scheme,
                                 CapabilityMask(), data, meta, cfg->gzip_level,
                                 cfg->brotli_level, stats_, purge_check, this);
+        RecordSourceHash(cache_.get(), notification.url, notification.hostname,
+                         notification.scheme, CapabilityMask(), data,
+                         source_genuine, purge_check);
         MarkVariantProcessed(
             notification.url, notification.hostname, notification.scheme,
             MaskToId(NormalizeMaskForDedup(notification.capability_mask)),

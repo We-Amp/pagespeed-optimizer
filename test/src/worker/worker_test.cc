@@ -18057,6 +18057,336 @@ TEST_F(WorkerPeerRewriteTest, SvgOracleMakesTheAgeExpirySentinelDefer) {
   EXPECT_EQ(worker.stats().origin_refresh_purges.load(), 0u);
 }
 
+// The same peer-rewrite scenarios for the other types that record a content
+// hash of their source: CSS, JS, unsupported image types, and raster images.
+class WorkerPeerRewriteTypesTest : public WorkerPeerRewriteTest {
+ protected:
+  struct Rig {
+    NullMessageHandler handler;
+    std::unique_ptr<Worker> worker;
+    std::unique_ptr<PageSpeedCache> front_end;
+    std::unique_ptr<PageSpeedCache> reader;
+    std::thread thread;
+    ~Rig() {
+      if (worker) worker->Shutdown();
+      if (thread.joinable()) thread.join();
+    }
+  };
+
+  void StartRig(Rig& rig) {
+    WorkerConfig config;
+    config.socket_path = socket_path_;
+    config.cache_path = cache_path_;
+    config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+    config.proactive_image_variants = false;
+    config.proactive_viewport_variants = false;
+    config.proactive_savedata_variants = false;
+    config.proactive_density_variants = false;
+    rig.worker = std::make_unique<Worker>(config, &rig.handler);
+    ASSERT_TRUE(rig.worker->Initialize());
+    PageSpeedCacheConfig fe_config;
+    fe_config.volume_path = cache_path_;
+    fe_config.volume_size = static_cast<uint64_t>(10 * 1024 * 1024);
+    auto fe = PageSpeedCache::Create(fe_config);
+    ASSERT_TRUE(fe.has_value());
+    rig.front_end = std::move(*fe);
+    PageSpeedCacheConfig reader_config = fe_config;
+    reader_config.ram_cache_size = 0;
+    auto reader = PageSpeedCache::Create(reader_config);
+    ASSERT_TRUE(reader.has_value());
+    rig.reader = std::move(*reader);
+  }
+
+  void StartWorker(Rig& rig) {
+    Worker* worker = rig.worker.get();
+    rig.thread = std::thread([worker]() { worker->Run(); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  }
+
+  void Notify(Worker& worker, const std::string& url, ContentType type) {
+    CacheNotification notification;
+    notification.url = url;
+    notification.scheme = "https";
+    notification.content_type = type;
+    notification.capability_mask = CapabilityMask().Encode();
+    SendNotification(notification);
+    WaitForWorkerIdle(worker);
+  }
+
+  // The content-hash record, read from disk ("" when absent).
+  std::string Oracle(Rig& rig, const std::string& url) {
+    return ReadSentinel(rig.reader.get(), url, SentinelId::kContentHash);
+  }
+
+  // Polls until the on-disk content-hash record differs from `previous`.
+  std::string WaitForOracleChange(Rig& rig, const std::string& url,
+                                  const std::string& previous) {
+    std::string now = Oracle(rig, url);
+    for (int i = 0; i < 60 * kSanitizerBudgetScale && now == previous; ++i) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+      now = Oracle(rig, url);
+    }
+    return now;
+  }
+
+  // Builds `url` from `v1`, re-records it as `v2` through the second handle,
+  // and notifies again.  Returns once the recheck rebuilt and the record
+  // moved; the caller judges the stored copies.
+  void BuildThenRewrite(Rig& rig, const std::string& url,
+                        const std::string& mime, ContentType type,
+                        const std::string& v1, const std::string& v2) {
+    CacheDurableOriginal(rig.front_end.get(), url, v1, mime, type, kStamp1,
+                         600);
+    StartWorker(rig);
+    Notify(*rig.worker, url, type);
+    std::string first = WaitForOracleChange(rig, url, "");
+    ASSERT_EQ(first.size(), 32u)
+        << "the build must record a hash of the source";
+    WaitForWorkerIdle(*rig.worker);
+
+    CacheDurableOriginal(rig.front_end.get(), url, v2, mime, type, kStamp2,
+                         600);
+    Notify(*rig.worker, url, type);
+    ASSERT_TRUE(WaitForAtLeast(rig.worker->stats().origin_change_rebuilt, 1));
+    WaitForWorkerIdle(*rig.worker);
+    const std::string second = WaitForOracleChange(rig, url, first);
+    EXPECT_EQ(second.size(), 32u);
+    EXPECT_NE(second, first) << "the record still binds the previous bytes";
+    EXPECT_EQ(rig.worker->stats().origin_change_rebuilt.load(), 1u);
+    EXPECT_EQ(rig.worker->stats().alternate_writes_fenced.load(), 0u);
+  }
+
+  std::string Coded(Rig& rig, const std::string& url,
+                    CapabilityMask::TransferEncoding encoding) {
+    CapabilityMask mask;
+    mask.set_transfer_encoding(encoding);
+    std::string body = ReadVariant(rig.reader.get(), url, mask);
+    return encoding == CapabilityMask::TransferEncoding::kGzip
+               ? GzipDecompress(body)
+               : BrotliDecompress(body);
+  }
+
+  // Polls (bounded) until both coded copies decode to something containing
+  // `needle`.
+  bool WaitForCodedContaining(Rig& rig, const std::string& url,
+                              const std::string& needle) {
+    for (int i = 0; i < 40 * kSanitizerBudgetScale; ++i) {
+      if (Coded(rig, url, CapabilityMask::TransferEncoding::kGzip)
+                  .find(needle) != std::string::npos &&
+          Coded(rig, url, CapabilityMask::TransferEncoding::kBrotli)
+                  .find(needle) != std::string::npos) {
+        return true;
+      }
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    return false;
+  }
+};
+
+TEST_F(WorkerPeerRewriteTypesTest,
+       CssPeerRewriteRebuildsMinifiedAndCodedCopies) {
+  Rig rig;
+  ASSERT_NO_FATAL_FAILURE(StartRig(rig));
+  const std::string url = "http://example.com/css/site.css";
+  ASSERT_NO_FATAL_FAILURE(BuildThenRewrite(
+      rig, url, "text/css", ContentType::kCss,
+      "a {\n  color : red ;\n}\n\n/* first */\n",
+      "a {\n  color : blue ;\n}\n\n/* second */\n"));
+  ASSERT_TRUE(WaitForCodedContaining(rig, url, "blue"));
+  for (auto enc : {CapabilityMask::TransferEncoding::kGzip,
+                   CapabilityMask::TransferEncoding::kBrotli}) {
+    const std::string body = Coded(rig, url, enc);
+    EXPECT_EQ(body.find("red"), std::string::npos) << body;
+    EXPECT_EQ(body.find("second"), std::string::npos)
+        << "the coded copy of a minified sheet must not carry comments";
+  }
+  EXPECT_NE(ReadVariant(rig.reader.get(), url, CapabilityMask())
+                .find("blue"),
+            std::string::npos);
+}
+
+TEST_F(WorkerPeerRewriteTypesTest,
+       JsPeerRewriteRebuildsMinifiedAndCodedCopies) {
+  Rig rig;
+  ASSERT_NO_FATAL_FAILURE(StartRig(rig));
+  const std::string url = "http://example.com/js/app.js";
+  ASSERT_NO_FATAL_FAILURE(BuildThenRewrite(
+      rig, url, "application/javascript", ContentType::kJs,
+      "function first ( value ) {\n  return value + 1 ;\n}\n",
+      "function second ( value ) {\n  return value + 2 ;\n}\n"));
+  ASSERT_TRUE(WaitForCodedContaining(rig, url, "second"));
+  for (auto enc : {CapabilityMask::TransferEncoding::kGzip,
+                   CapabilityMask::TransferEncoding::kBrotli}) {
+    EXPECT_EQ(Coded(rig, url, enc).find("first"), std::string::npos);
+  }
+  EXPECT_NE(ReadVariant(rig.reader.get(), url, CapabilityMask())
+                .find("second"),
+            std::string::npos);
+}
+
+TEST_F(WorkerPeerRewriteTypesTest,
+       CssRewrittenToAlreadyMinimalRemovesTheOldMinifiedCopy) {
+  Rig rig;
+  ASSERT_NO_FATAL_FAILURE(StartRig(rig));
+  const std::string url = "http://example.com/css/minimal.css";
+  const std::string v2 = "a{color:blue}";
+  CacheDurableOriginal(rig.front_end.get(), url,
+                       "a {\n  color : red ;\n}\n\n/* first */\n", "text/css",
+                       ContentType::kCss, kStamp1, 600);
+  StartWorker(rig);
+  Notify(*rig.worker, url, ContentType::kCss);
+  const std::string first = WaitForOracleChange(rig, url, "");
+  ASSERT_EQ(first.size(), 32u);
+  WaitForWorkerIdle(*rig.worker);
+  // The first build stored a worker-minified copy in the identity slot.
+  ASSERT_FALSE(ReadVariant(rig.reader.get(), url, CapabilityMask()).empty());
+
+  CacheDurableOriginal(rig.front_end.get(), url, v2, "text/css",
+                       ContentType::kCss, kStamp2, 600);
+  Notify(*rig.worker, url, ContentType::kCss);
+  ASSERT_TRUE(WaitForAtLeast(rig.worker->stats().origin_change_rebuilt, 1));
+  WaitForWorkerIdle(*rig.worker);
+  ASSERT_NE(WaitForOracleChange(rig, url, first), first);
+  WaitForWorkerIdle(*rig.worker);
+
+  // The new bytes are already minimal: no minified copy is written, and the
+  // old one (the identity slot) must be gone, not left to be served.
+  EXPECT_EQ(ReadVariant(rig.reader.get(), url, CapabilityMask()), "")
+      << "the previous minified copy survived the rebuild";
+  ASSERT_TRUE(WaitForCodedContaining(rig, url, v2));
+  EXPECT_EQ(Coded(rig, url, CapabilityMask::TransferEncoding::kGzip), v2);
+  EXPECT_EQ(Coded(rig, url, CapabilityMask::TransferEncoding::kBrotli), v2);
+}
+
+TEST_F(WorkerPeerRewriteTypesTest,
+       UnsupportedImageTypePeerRewriteRebuildsCodedCopies) {
+  Rig rig;
+  ASSERT_NO_FATAL_FAILURE(StartRig(rig));
+  const std::string url = "http://example.com/favicon.ico";
+  const std::string v1 = std::string("icon-one-") + std::string(300, 'a');
+  const std::string v2 = std::string("icon-two-") + std::string(300, 'b');
+  ASSERT_NO_FATAL_FAILURE(BuildThenRewrite(rig, url, "image/x-icon",
+                                           ContentType::kImage, v1, v2));
+  ASSERT_TRUE(WaitForCodedContaining(rig, url, "icon-two-"));
+  EXPECT_EQ(Coded(rig, url, CapabilityMask::TransferEncoding::kGzip), v2);
+  EXPECT_EQ(Coded(rig, url, CapabilityMask::TransferEncoding::kBrotli), v2);
+}
+
+TEST_F(WorkerPeerRewriteTypesTest,
+       UnchangedBytesOfTheseTypesRestampWithoutRebuild) {
+  Rig rig;
+  ASSERT_NO_FATAL_FAILURE(StartRig(rig));
+  const std::string url = "http://example.com/favicon.ico";
+  const std::string body = std::string("icon-") + std::string(300, 'a');
+  CacheDurableOriginal(rig.front_end.get(), url, body, "image/x-icon",
+                       ContentType::kImage, kStamp1, 600);
+  StartWorker(rig);
+  Notify(*rig.worker, url, ContentType::kImage);
+  ASSERT_EQ(WaitForOracleChange(rig, url, "").size(), 32u);
+  WaitForWorkerIdle(*rig.worker);
+  const uint64_t gz_before = rig.worker->stats().gzip_variants_written.load();
+
+  CacheDurableOriginal(rig.front_end.get(), url, body, "image/x-icon",
+                       ContentType::kImage, kStamp2, 600);
+  Notify(*rig.worker, url, ContentType::kImage);
+  ASSERT_TRUE(
+      WaitForAtLeast(rig.worker->stats().origin_unchanged_restamped, 1));
+  EXPECT_EQ(rig.worker->stats().origin_change_rebuilt.load(), 0u);
+  EXPECT_EQ(rig.worker->stats().gzip_variants_written.load(), gz_before);
+}
+
+TEST_F(WorkerPeerRewriteTypesTest,
+       RasterPeerRewriteReachesTheContentHashRedecide) {
+  Rig rig;
+  ASSERT_NO_FATAL_FAILURE(StartRig(rig));
+  const std::string url = "http://example.com/images/photo.jpg";
+  const std::string v1 = ReadTestFile("jpeg/quality100.jpg");
+  const std::string v2 = ReadTestFile("jpeg/progressive.jpg");
+  ASSERT_FALSE(v1.empty());
+  ASSERT_FALSE(v2.empty());
+  ASSERT_NE(v1, v2);
+  ASSERT_NO_FATAL_FAILURE(BuildThenRewrite(rig, url, "image/jpeg",
+                                           ContentType::kImage, v1, v2));
+}
+
+TEST_F(WorkerPeerRewriteTypesTest,
+       NoOracleIsWrittenWithoutAPristineReference) {
+  // A source that is not a front end's own recording (it carries the worker's
+  // flag) must not seed the change record: it could not prove "same bytes"
+  // later.  Both a text type and an unsupported image type.
+  struct Case {
+    const char* url;
+    const char* mime;
+    ContentType type;
+    std::string body;
+  };
+  const Case cases[] = {
+      {"http://example.com/css/derived.css", "text/css", ContentType::kCss,
+       "a {\n  color : red ;\n}\n"},
+      {"http://example.com/derived.ico", "image/x-icon", ContentType::kImage,
+       std::string("icon-") + std::string(300, 'a')},
+  };
+  for (const Case& c : cases) {
+    SCOPED_TRACE(c.url);
+    Rig rig;
+    ASSERT_NO_FATAL_FAILURE(StartRig(rig));
+    CacheDurableOriginal(rig.front_end.get(), c.url, c.body, c.mime, c.type,
+                         kStamp1, 600, "",
+                         AlternateMetadata::kFlagWorkerProcessed);
+    StartWorker(rig);
+    Notify(*rig.worker, c.url, c.type);
+    // Both coded copies are written, so the record would be due by now.
+    ASSERT_TRUE(WaitForAtLeast(rig.worker->stats().gzip_variants_written, 1));
+    ASSERT_TRUE(
+        WaitForAtLeast(rig.worker->stats().brotli_variants_written, 1));
+    WaitForWorkerIdle(*rig.worker);
+    EXPECT_EQ(Oracle(rig, c.url), "");
+  }
+}
+
+TEST_F(WorkerPeerRewriteTypesTest,
+       OriginRefreshedSentinelAfterAChangedSvgRebuildsOnce) {
+  Rig rig;
+  ASSERT_NO_FATAL_FAILURE(StartRig(rig));
+  const std::string url = "http://example.com/images/logo.svg";
+  const std::string v1 = SvgBody("blue");
+  const std::string v2 = SvgBody("red");
+  CacheDurableOriginal(rig.front_end.get(), url, v1, "image/svg+xml",
+                       ContentType::kImage, kStamp1, 600);
+  StartWorker(rig);
+  Notify(*rig.worker, url, ContentType::kImage);
+  const std::string first = WaitForOracleChange(rig, url, "");
+  ASSERT_EQ(first.size(), 32u);
+  WaitForWorkerIdle(*rig.worker);
+
+  // Re-record with new bytes, then deliver the origin-refreshed sentinel
+  // instead of the plain notification.
+  CacheDurableOriginal(rig.front_end.get(), url, v2, "image/svg+xml",
+                       ContentType::kImage, kStamp2, 600);
+  CacheNotification refresh;
+  refresh.url = url;
+  refresh.scheme = "https";
+  refresh.content_type = ContentType::kImage;
+  refresh.capability_mask = kOriginRefreshedSentinel;
+  SendNotification(refresh);
+  ASSERT_TRUE(WaitForAtLeast(rig.worker->stats().origin_refresh_purges, 1));
+  WaitForWorkerIdle(*rig.worker);
+
+  // The sentinel purge also dropped the recorded original, so the front end
+  // records again and sends the plain notification, which builds from the new
+  // bytes.  The old set is already gone, so the recheck does not fire.
+  CacheDurableOriginal(rig.front_end.get(), url, v2, "image/svg+xml",
+                       ContentType::kImage, kStamp2 + 5, 600);
+  Notify(*rig.worker, url, ContentType::kImage);
+  const std::string second = WaitForOracleChange(rig, url, "");
+  ASSERT_EQ(second.size(), 32u);
+  EXPECT_NE(second, first);
+  ASSERT_TRUE(WaitForCodedContaining(rig, url, "red"));
+  EXPECT_EQ(Coded(rig, url, CapabilityMask::TransferEncoding::kGzip), v2);
+  EXPECT_EQ(Coded(rig, url, CapabilityMask::TransferEncoding::kBrotli), v2);
+  EXPECT_EQ(rig.worker->stats().origin_change_rebuilt.load(), 0u);
+}
+
 // =============================================================================
 // Issue B: content-hash self-purge + own-write-failure loop (agent_optimize)
 //
