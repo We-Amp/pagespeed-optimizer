@@ -23,10 +23,10 @@
 # EOL basis: lane-4 ruling = 6 months per channel from the 2026-08-07
 # ruling date; dates publish at the freeze (publication rule) and
 # land in the EOL/support-lifecycle extraction ADR.
-# CARVE-OUT (operator ruling on corp#1156 review): the NuGet/middleware
+# CARVE-OUT (operator ruling): the NuGet/middleware
 # line CONTINUES as a live product (ratified D1/D9) and is NOT covered by
 # this freeze — no eol entry for nuget. It re-homes to its own
-# manifest/line when it next ships (We-Amp/corp#1157).
+# manifest/line when it next ships.
 
 schema_version: 2
 

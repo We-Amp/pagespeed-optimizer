@@ -14,8 +14,7 @@
 # "x-y-z" still contains it), and runs of up to three consecutive path segments
 # joined by "/". scope "all" applies to every tracked text file, scope "md"
 # to markdown files only. mode "block" fails the gate; mode "advisory" prints a
-# warning only, and is used for the rules whose current hits are copied release
-# or website files awaiting an owner decision (listed in the PR that added them).
+# warning only (no rule uses it today; kept for rules awaiting a ruling).
 # To add a token:
 #   printf '%s' 'token' | tr A-Z a-z | shasum -a 256
 # Classes: internal-hosts (private machine names), private-repos (private
@@ -34,14 +33,14 @@ internal-hosts	all	c9b6f05aad023506545548cda9ca3a9a64e22b234c326ee6ffca7a9b6d565
 internal-hosts	all	baee24c9de40ce203e3518f7eab38dd5c452da0c883d5e569c91445fff408aa4	block
 build-infra	all	a63c63c5a8fb6d0a2b4bf11cadbf30b9da65b5852ed251c5fd7e5aa2583fad5e	block
 dangling-tooling	all	25eea3d269aa397a0aeb451ab03879d34c8df68865db5e0065dc1812c2b36ed0	block
-dangling-tooling	all	9b1f16cd9f62c74e8463fb6dafcd6c4a3036750dfcb6eb1f41968b72f2bebc42	advisory
-private-repos	all	3f5e71b3bc494d90c10b7760750954b80003473ad4c133989597019cb79fd201	advisory
+dangling-tooling	all	9b1f16cd9f62c74e8463fb6dafcd6c4a3036750dfcb6eb1f41968b72f2bebc42	block
+private-repos	all	3f5e71b3bc494d90c10b7760750954b80003473ad4c133989597019cb79fd201	block
 private-repos	all	efe8c3498e1d50979010165bd5d5d54ebb3501fcb8123e6a4fa1034a79ebacd6	block
 private-repos	all	8661fe8bd638eaf875b29a6bc44ccbed4cfa3453b59d406870d7545bd2eeae22	block
 private-repos	all	67fa90f021245252dc3a776582d89ca202b433c2718aebe31034f9ef24ca1c44	block
 private-repos	all	42339940f295d93d4adf612d2811f4f0b14f739a2107129c7cf4bee9da3ce1f1	block
 private-repos	all	e94ad3bd92fe32143664327a15f1dbead39f26345b8f128d2d594fc2c22e04d7	block
-private-repos	all	d6d0512474c21d9a33029fd5dcd4dc050c4bc4d02ac90b23ec1e4d9d10463011	advisory
+private-repos	all	d6d0512474c21d9a33029fd5dcd4dc050c4bc4d02ac90b23ec1e4d9d10463011	block
 private-repos	all	c5a9f2df10804fec5f870589405901da6d1b127dc41a40d4132a25d5fb8defae	block
 private-repos	all	c09c230b17fefff08caa93283358d72e17b9013578ad4a33ce5e20e329a7c7bd	block
 private-repos	all	c06ca6d0d38878fc58b0085d8e3e4aab6b512f8954e46d4591b4733e47fbeb62	block
