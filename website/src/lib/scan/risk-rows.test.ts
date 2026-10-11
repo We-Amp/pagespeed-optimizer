@@ -76,7 +76,7 @@ describe('riskRows over the full report', () => {
   it('gives the script row both building sentences when both gates fire', () => {
     expect(m.scriptInventory.building).toHaveLength(2);
     expect(m.scriptInventory.building[0]).toBe(
-      'We are building a server module that keeps a list of approved scripts at your origin.',
+      'A server module that keeps a list of approved scripts at your origin is planned.',
     );
   });
 });
@@ -87,7 +87,7 @@ describe('riskRows over the clean report', () => {
     expect(rows).toHaveLength(4);
     for (const r of rows) {
       expect(r.state).toBe('clean');
-      expect(r.chip).toBe('Clean');
+      expect(r.chip).toBe('Nothing flagged');
       expect(r.building).toEqual([]);
       expect(r.link).toBeNull();
     }
@@ -210,7 +210,32 @@ describe('riskRows edge cases', () => {
       }),
     )[0];
     expect(row.link?.event).toBe('airead-cta-response-firewall');
-    expect(row.sentence).toContain('mod_pagespeed (no longer receives fixes)');
+    expect(row.sentence).toContain(
+      'mod_pagespeed 1.13: this line no longer receives fixes. Upgrade in place to the current release.',
+    );
+    expect(row.sentence).not.toContain('(no longer receives fixes)');
+  });
+  it('adds a lifecycle sentence per detected mod_pagespeed band, none for 2.1', () => {
+    const sentence = (tell: string) =>
+      riskRows(
+        rx({
+          verdict: 'clean',
+          leaks: [],
+          tells: [{ product: 'mod_pagespeed', source: 'x-page-speed', version: tell }],
+          endOfLife: [],
+          headers: { missing: [] },
+        }),
+      )[0].sentence;
+    expect(sentence('1.16.0.2')).toContain(
+      ' mod_pagespeed 1.16.0.2: supported line. Update to the current release for the latest fixes. One page only',
+    );
+    expect(sentence('2.0.3')).toContain(
+      ' mod_pagespeed 2.0.3: frozen line, security fixes only until 2027-02-07. Upgrade in place to the current release. One page only',
+    );
+    expect(sentence('2.1.0')).toBe(
+      '0 error-output patterns · 1 version tell · end of life: none seen · missing: none. One page only; not a security assessment.',
+    );
+    expect(sentence('unknown')).not.toContain('mod_pagespeed ');
   });
   it('does not fire the response link for a hostile blocked fixture', () => {
     const row = riskRows({
@@ -258,7 +283,7 @@ describe('riskRows unpinned script wording', () => {
     expect(text).toContain(
       '1 third-party script on this page loads without an integrity hash, so its content can change',
     );
-    expect(text).toContain('serve it at a version you approved');
-    expect(text).not.toContain('serve each one');
+    expect(text).toContain('Serving it at a version you approved');
+    expect(text).not.toContain('Serving each one');
   });
 });

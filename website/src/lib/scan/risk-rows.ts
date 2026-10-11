@@ -3,7 +3,7 @@
 //
 // Pure row model for the Risk & SEO panel: for each of the four lenses, the
 // state chip, the one verdict sentence, and (only when the lens's gate fires)
-// the "what we are building" sentences with the link and its event name.
+// the "what is planned" sentences with the link and its event name.
 // The verdict and card sentences of the first three lenses are the approved
 // wording of the v1 results page. The gate predicates come from demand.mjs.
 
@@ -14,6 +14,7 @@ import {
   responseFirewallCtaApplies,
   thirdPartyFreezeCtaApplies,
 } from './demand.mjs';
+import { lifecycleSentence, parseVersion } from './lifecycle';
 import { plural } from './plural';
 import { RISK_LENSES, lensMeasured } from './status';
 
@@ -36,7 +37,7 @@ export interface RiskRow {
   sentence: string;
   /** Secondary muted line listing what was flagged; empty when there is none. */
   detail: string;
-  /** "What we are building" sentences; empty unless the lens's gate fires. */
+  /** "What is planned" sentences; empty unless the lens's gate fires. */
   building: string[];
   link: RiskLink | null;
 }
@@ -176,6 +177,30 @@ const MISSING_HEADER: Record<string, string> = {
   framing: 'framing',
 };
 
+const MPS_PRODUCT = /^mod[_-]?pagespeed$/i;
+
+/**
+ * The detected mod_pagespeed versions, one per major.minor line: the full
+ * version from a version tell wins over the line named by an end-of-life entry.
+ */
+function mpsVersions(rx: Lens): string[] {
+  const byLine = new Map<string, string>();
+  const add = (v: unknown) => {
+    const p = parseVersion(v);
+    if (!p || typeof v !== 'string') return;
+    const key = p.major + '.' + p.minor;
+    const had = byLine.get(key);
+    if (!had || v.trim().length > had.length) byLine.set(key, v.trim());
+  };
+  for (const t of Array.isArray(rx.tells) ? rx.tells : []) {
+    if (t && MPS_PRODUCT.test(String(t.product))) add(t.version);
+  }
+  for (const e of Array.isArray(rx.endOfLife) ? rx.endOfLife : []) {
+    if (e && MPS_PRODUCT.test(String(e.product))) add(e.line);
+  }
+  return [...byLine.values()];
+}
+
 function rxVerdict(rx: Lens): string {
   const nm: string[] = Array.isArray(rx.notMeasured) ? rx.notMeasured : [];
   const notChecked = nm.length
@@ -195,11 +220,18 @@ function rxVerdict(rx: Lens): string {
     (t: Lens) => t && t.version,
   ).length;
   const list: Lens[] = Array.isArray(rx.endOfLife) ? rx.endOfLife : [];
+  const lifecycle = mpsVersions(rx)
+    .map((v) => lifecycleSentence(v))
+    .filter(Boolean)
+    .map((t) => ' ' + t)
+    .join('');
   const eol = [
     ...list
       .filter((e) => e.basis === 'eol-date' && EOL_PRODUCT[e.product])
       .map((e) => EOL_PRODUCT[e.product] + ' ' + e.line),
-    ...(list.some((e) => e.basis === 'no-fixes')
+    // A no-fixes entry with no parsable version keeps the bare phrase; with a
+    // version, the lifecycle sentence below says it.
+    ...(list.some((e) => e.basis === 'no-fixes') && !lifecycle.includes('no longer receives fixes')
       ? ['mod_pagespeed (no longer receives fixes)']
       : []),
   ];
@@ -216,6 +248,7 @@ function rxVerdict(rx: Lens): string {
     (missing || 'none') +
     '.' +
     notChecked +
+    lifecycle +
     ' One page only; not a security assessment.'
   );
 }
@@ -249,7 +282,7 @@ function buildingFor(
       return consentEnforcementCtaApplies(lens)
         ? {
             building: [
-              'With consent enforcement at the origin, third-party tags stay inert at the server until the consent cookie grants them.',
+              'Consent enforcement at the origin is planned: third-party tags would stay inert at the server until the consent cookie grants them.',
             ],
             link: {
               href: '/platform/consent/',
@@ -262,7 +295,7 @@ function buildingFor(
       const building: string[] = [];
       if (pageIntegrityCtaApplies(lens)) {
         building.push(
-          'We are building a server module that keeps a list of approved scripts at your origin.',
+          'A server module that keeps a list of approved scripts at your origin is planned.',
         );
       }
       if (thirdPartyFreezeCtaApplies(lens)) {
@@ -273,8 +306,8 @@ function buildingFor(
               ? ' on this page loads without an integrity hash, so its content can change upstream without notice.'
               : ' on this page load without an integrity hash, so their content can change upstream without notice.') +
             (unpinned === 1
-              ? ' We are building a way to serve it at a version you approved until you accept the update.'
-              : ' We are building a way to serve each one at a version you approved until you accept the update.'),
+              ? ' Serving it at a version you approved until you accept the update is planned.'
+              : ' Serving each one at a version you approved until you accept the update is planned.'),
         );
       }
       return building.length
@@ -282,7 +315,7 @@ function buildingFor(
             building,
             link: {
               href: '/platform/',
-              label: 'Origin modules we are building →',
+              label: 'Origin modules that are planned →',
               event: 'airead-cta-page-integrity',
             },
           }
@@ -292,7 +325,7 @@ function buildingFor(
       return edgeSeoCtaApplies(lens)
         ? {
             building: [
-              'Issues like these are the kind a rule on the server could correct in the HTML it serves, without a CMS release. We are building that rule set.',
+              'Issues like these are the kind a rule on the server could correct in the HTML it serves, without a CMS release. That rule set is planned.',
             ],
             link: {
               href: '/platform/edge-seo/',
@@ -357,7 +390,7 @@ export function riskRows(report: Record<string, unknown> | null | undefined): Ri
       key,
       name: NAMES[key],
       state: attention ? 'attention' : 'clean',
-      chip: attention ? 'Attention' : 'Clean',
+      chip: attention ? 'Attention' : 'Nothing flagged',
       sentence: VERDICT[key](lens),
       detail: attention && key === 'scriptInventory' ? siReasonText(lens) : '',
       building,
