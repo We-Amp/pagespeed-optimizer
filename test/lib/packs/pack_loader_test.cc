@@ -13,6 +13,7 @@
 #include "gtest/gtest.h"
 #include "lib/packs/matcher.h"
 #include "lib/packs/pack.h"
+#include "lib/packs/template.h"
 #include "nlohmann/json.hpp"
 #include "src/product_version/version.h"
 
@@ -269,6 +270,15 @@ TEST(PackLoaderExampleTest, ExampleBehavesAsDocumented) {
   const ValueTable& titles = p->tables.at("titles");
   EXPECT_EQ(*LookupTableValue(titles, "/about", ""), "About Example");
   EXPECT_NE(FindCluster(*p, "https://www.example.com/de/"), nullptr);
+  // The JSON-LD template quotes the canonical the page ends up with.
+  ExpandContext ctx;
+  ctx.canonical = "https://www.example.com/";
+  auto jsonld = ExpandTemplate(p->rules[4].value.tpl, ctx,
+                               EscapeContext::kJsonString, 16 * 1024);
+  ASSERT_TRUE(jsonld.ok()) << jsonld.status();
+  EXPECT_NE(jsonld->find("\"url\":\"https://www.example.com/\""),
+            std::string::npos)
+      << *jsonld;
 }
 
 TEST(PackLoaderExampleTest, ExampleRoundTripsThroughTheLoader) {

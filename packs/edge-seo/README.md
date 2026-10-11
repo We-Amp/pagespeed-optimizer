@@ -4,9 +4,9 @@
 template: every host, URL and text in it is an `example.com` placeholder that
 you replace with your own before the pack does anything useful.
 
-The pack holds one worked rule for each kind of head element the `rule_packs`
-filter handles: the canonical link, the title, the meta description, the
-hreflang cluster and a JSON-LD block. It needs mod_pagespeed 1.18.0 or newer
+The pack holds one worked rule for each kind of element the `rule_packs`
+filter handles: the head elements (the canonical link, the title, the meta
+description and the hreflang cluster) and the JSON-LD block. It needs mod_pagespeed 1.18.0 or newer
 (`engine_min`); an older module refuses to load it.
 
 ## What it is and is not
@@ -17,17 +17,27 @@ hreflang cluster and a JSON-LD block. It needs mod_pagespeed 1.18.0 or newer
 - It starts in report mode. The site is listed with `"mode": "report"` and every
   rule has `"enforce": false`, so the module records what each rule would
   change and serves the HTML unchanged.
-- It edits only the head elements named above (and, for a canonical rule with
-  `link_header`, the `Link` response header). It does not touch the rest of the
-  page, your CSS, scripts or images.
+- It edits only the head elements and the JSON-LD block named above (and, for
+  a canonical rule with `link_header`, the `Link` response header). The module
+  adds a new JSON-LD block at the end of the body. A canonical, title,
+  description or hreflang element that appears late, in the body, can be
+  removed too (see below). It does not touch the rest of the page, your CSS,
+  scripts or images.
 - It acts only on the hosts listed in `sites`. The template lists
   `www.example.com`, so as shipped it does nothing on your site.
 - Every rule uses `on_present: keep`: it adds an element only when the page has
-  none, and removes only exact duplicates. A value your page already sets stays.
+  none, and otherwise removes only exact duplicates. A value your page already
+  sets in its head stays. The one exception is a late element: when the pack
+  inserted a canonical, title or description on a page, a late one of the same
+  kind in the body is removed, and when it inserted an hreflang cluster, a late
+  hreflang link for a language in that cluster is removed. In report mode
+  nothing is removed; the decision is only logged.
 - It is not signed. Signing is for packs a publisher distributes for you to use
   as they are; a template you edit gets a new hash with every change, so a
   signature on it would not survive your first edit. The server logs a warning
-  that the pack is unsigned when it loads it, which is expected here.
+  that the pack is unsigned when it loads it, which is expected here. With
+  `RulePackRequireSigned on` this unsigned template is refused, so leave that
+  directive off (its default) for the free pack.
 
 ## Adapting it
 
@@ -176,9 +186,10 @@ the file alone keeps the last loaded pack in use.
 
 ## The full reference
 
-The operator guide, `docs/rule-packs.md` in the mod_pagespeed repository,
-describes every field, the limits, the decision log format, the statistics,
-signed packs and troubleshooting.
+The operator guide, `docs/rule-packs.md` in the mod_pagespeed repository, is
+published with the release that ships rule packs. It describes every field, the
+limits, the decision log format, the statistics, signed packs and
+troubleshooting.
 
 The pack is free to use and to change. The test fixtures under `fixtures/` are
 the cases the rules are checked against.
