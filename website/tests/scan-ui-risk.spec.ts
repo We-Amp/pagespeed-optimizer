@@ -92,6 +92,9 @@ test.describe('Risk & SEO panel', () => {
     await expect(row(panel, 'preConsentLeak').locator('[data-risk-building]')).toHaveText(
       'Consent enforcement at the origin is planned: third-party tags would stay inert at the server until the consent cookie grants them.',
     );
+    await expect(row(panel, 'seoDefects').locator('[data-risk-building]')).toHaveText(
+      'Issues like these are the kind a rule on the server corrects in the HTML it serves, without a CMS release. The free edge-SEO pack for mod_pagespeed does that, in report mode first.',
+    );
     await expect(row(panel, 'seoDefects').locator('[data-risk-sentence]')).toContainText(
       '3 issues: canonical 1, title 1, structured data 1.',
     );

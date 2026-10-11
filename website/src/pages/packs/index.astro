@@ -4,8 +4,8 @@
 //
 // /packs/ — the rule-pack catalogue: what a pack is (a JSON file of head
 // rules, report first, enforce per site and per rule), one card per pack and
-// a "write your own" card. The edge-SEO pack is free and arrives with the next
-// release; the two planned packs (under their own sub-heading) reuse the framing of the /ai-readability/
+// a "write your own" card. The edge-SEO pack is free and available now, as a
+// template in this repository's packs/ directory; the two planned packs (under their own sub-heading) reuse the framing of the /ai-readability/
 // script card verbatim ("We are building ...", "Tell us what you run.") and
 // its two wedges, through the same interest form /platform/ uses. No prices,
 // no dates. The #pack-format section summarises the format and links to the
@@ -95,9 +95,7 @@ const jsonLd = {
         <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
           <Icon name="route" class="h-5 w-5 text-interactive" />
         </div>
-        <p class="mt-4 font-mono text-xs text-interactive">
-          Free · available with the next release
-        </p>
+        <p class="mt-4 font-mono text-xs text-interactive">Free</p>
         <h2 id="pack-edge-seo" class="mt-1 text-lg font-semibold text-text-body">
           Edge SEO
         </h2>
@@ -186,13 +184,14 @@ const jsonLd = {
         Get the edge-SEO pack
       </h2>
       <p class="mt-2 text-text-muted">
-        The edge-SEO pack is free. It will be downloadable from the
+        The edge-SEO pack is free. Download it from the
         <a href={PACKS_DIR} class="text-interactive hover:text-interactive-hover underline">
           packs directory
         </a>
-        of the pagespeed-optimizer repository, together with the operator guide, with the next
-        release. Until then that directory holds an example pack and the test fixtures the rules are
-        checked against.
+        of the pagespeed-optimizer repository, where its README explains how to install it. The pack
+        is a template: you list your own hosts and fill in the rules for your pages. It runs in
+        report mode first, on Apache, nginx and IIS. The pack is not signed, and applying it fetches
+        nothing over the network.
       </p>
 
       <h2 id="pack-format" class="mt-10 text-lg font-semibold text-text-body">

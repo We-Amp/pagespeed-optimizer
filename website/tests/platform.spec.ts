@@ -25,7 +25,7 @@ test.describe('Transform packs early access', () => {
     await page.goto('/platform/');
     await expect(page.locator('h1')).toHaveText('One interceptor, many packs');
     await expect(page.locator('main')).toContainText(
-      'The edge-SEO pack is free and arrives with the next release of mod_pagespeed; it does not ship today.',
+      'The edge-SEO pack is free and available now.',
     );
     await expect(page.locator('main')).toContainText('The other packs are planned.');
     await expect(page.locator('main a[href="/packs/"]')).toBeVisible();
@@ -136,7 +136,7 @@ test.describe('Transform packs early access', () => {
   test('the footer links to the hub', async ({ page }) => {
     await page.goto('/');
     const link = page.locator('footer a[href="/platform/"]');
-    await expect(link).toHaveText('Transform packs (early access)');
+    await expect(link).toHaveText('Transform packs');
     await expect(link).toHaveAttribute('data-umami-event', 'nav-platform-footer');
   });
 });

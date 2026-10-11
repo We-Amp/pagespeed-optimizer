@@ -108,7 +108,7 @@ const PAGE_CARDS = [
   },
   {
     slug: 'platform-edge-seo',
-    eyebrow: 'early access · edge SEO at the origin',
+    eyebrow: 'free pack · edge SEO at the origin',
     title: 'Technical SEO fixes at serve time, for sites that are not on a CDN',
   },
 ];

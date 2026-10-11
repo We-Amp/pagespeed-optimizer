@@ -315,7 +315,7 @@ function buildingFor(
             building,
             link: {
               href: '/platform/',
-              label: 'Transform packs (early access) →',
+              label: 'Transform packs →',
               event: 'airead-cta-page-integrity',
             },
           }
@@ -325,7 +325,7 @@ function buildingFor(
       return edgeSeoCtaApplies(lens)
         ? {
             building: [
-              'Issues like these are the kind a rule on the server could correct in the HTML it serves, without a CMS release. That rule set is planned.',
+              'Issues like these are the kind a rule on the server corrects in the HTML it serves, without a CMS release. The free edge-SEO pack for mod_pagespeed does that, in report mode first.',
             ],
             link: {
               href: '/platform/edge-seo/',
