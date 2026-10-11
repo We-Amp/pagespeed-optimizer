@@ -8,7 +8,7 @@
 
 export type ScanUi = 'v1' | 'v2';
 
-export const SCAN_UI_DEFAULT: ScanUi = 'v1';
+export const SCAN_UI_DEFAULT: ScanUi = 'v2';
 
 export const SCAN_UI_STORAGE_KEY = 'scan-ui';
 

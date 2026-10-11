@@ -34,7 +34,7 @@ interface Ctx {
   shot: (state: string, options?: { fullPage?: boolean }) => Promise<void>;
 }
 
-// The v2 interface is not the default yet; ?ui=v2 selects it.
+// v2 is the default; ?ui=v2 pins it explicitly.
 const V2 = '?ui=v2';
 const URL_TO_SCAN = 'shop.example.com';
 
