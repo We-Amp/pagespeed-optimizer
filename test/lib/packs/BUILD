@@ -33,6 +33,7 @@ gtest_test(
         "//lib/packs:matcher",
         "//lib/packs:pack",
         "//lib/packs:pack_loader",
+        "//lib/packs:template",
         "//src/product_version:version",
         "@com_google_absl//absl/strings",
         "@nlohmann_json//:json",
