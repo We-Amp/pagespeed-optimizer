@@ -188,10 +188,14 @@ const jsonLd = {
         <a href={PACKS_DIR} class="text-interactive hover:text-interactive-hover underline">
           packs directory
         </a>
-        of the pagespeed-optimizer repository, where its README explains how to install it. The pack
-        is a template: you list your own hosts and fill in the rules for your pages. It runs in
-        report mode first, on Apache, nginx and IIS. The pack is not signed, and applying it fetches
-        nothing over the network.
+        of the pagespeed-optimizer repository; its README and the
+        <a href={GUIDE} class="text-interactive hover:text-interactive-hover underline">
+          operator guide
+        </a>
+        explain how to adapt and enable it. The pack is a template: you list your own hosts and fill
+        in the rules for your pages. It runs in report mode first, on Apache, nginx and IIS. The
+        pack is not signed, because it is a template you edit, and applying it fetches nothing over
+        the network.
       </p>
 
       <h2 id="pack-format" class="mt-10 text-lg font-semibold text-text-body">

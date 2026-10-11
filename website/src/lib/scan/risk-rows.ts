@@ -325,7 +325,7 @@ function buildingFor(
       return edgeSeoCtaApplies(lens)
         ? {
             building: [
-              'Issues like these are the kind a rule on the server corrects in the HTML it serves, without a CMS release. The free edge-SEO pack for mod_pagespeed does that, in report mode first.',
+              'Issues like these are the kind a rule on the server can correct in the HTML it serves, without a CMS release. The free edge-SEO pack for mod_pagespeed is a template for writing those rules, starting in report mode.',
             ],
             link: {
               href: '/platform/edge-seo/',

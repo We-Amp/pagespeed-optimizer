@@ -45,7 +45,7 @@ const packs: Array<{
     wedge: 'edge-seo',
     icon: 'route',
     title: 'Edge SEO at the origin',
-    body: 'Canonicals, hreflang, titles and structured data fixed at serve time, with no CMS change and no CDN. The pack applies rules to the HTML stream in the interceptor, so a fix reaches every page the rule matches.',
+    body: 'Canonicals, hreflang, titles and structured data set at serve time, with no CMS change and no CDN. The pack applies the rules you write to the HTML stream in the interceptor, so once enforced a fix reaches every page the rule matches.',
     more: { href: '/platform/edge-seo/', label: 'What it fixes and who it is for' },
   },
   {
@@ -58,12 +58,12 @@ const packs: Array<{
     wedge: 'rewriter-sdk',
     icon: 'braces',
     title: 'Write your own',
-    body: "A pack is a declarative JSON file, so you write your own rules in the same format as the edge-SEO pack and run them in report mode first. The server can check a pack's signature against keys you trust. Tell us if you would write custom filters.",
+    body: "A pack is a declarative JSON file: you can write your own edge-SEO rules in the same format and run them in report mode first. The server can check a pack's signature against keys you trust. Tell us if you would write custom filters.",
   },
 ];
 
 const description =
-  'Transform packs for mod_pagespeed: compliance, privacy and SEO rules in the HTML stream on your server. The edge-SEO pack is free.';
+  'Transform packs for mod_pagespeed: SEO rules in the HTML stream on your server today, compliance and privacy packs planned. The edge-SEO pack is free.';
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -77,20 +77,19 @@ const jsonLd = {
 <BaseLayout
   title="Transform packs for mod_pagespeed 2.1"
   description={description}
-  ogImage="/og-cards/platform.png?v=2"
+  ogImage="/og-cards/platform.png?v=3"
   jsonLd={jsonLd}
 >
   <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-16" aria-labelledby="platform-title">
     <SectionHeader
       id="platform-title"
-      eyebrow="Early access · transform packs"
+      eyebrow="Transform packs"
       title="One interceptor, many packs"
       as="h1"
     >
       mod_pagespeed 2.1 parses and rewrites HTML responses on your own server, as a stream.
-      Transform packs add declarative rules to that pipeline, for jobs that often need a CDN feature
-      or a JavaScript agent today. The edge-SEO pack is the first; compliance and privacy packs are
-      planned. Tell us which pack you need.
+      Transform packs add declarative rules to that pipeline. The edge-SEO pack is available now;
+      compliance and privacy packs are planned. Tell us which pack you need.
     </SectionHeader>
 
     <p class="readout-plate mt-8 max-w-2xl px-4 py-3 text-sm text-text-muted">
