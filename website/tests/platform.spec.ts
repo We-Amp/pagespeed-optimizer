@@ -25,9 +25,9 @@ test.describe('Transform packs early access', () => {
     await page.goto('/platform/');
     await expect(page.locator('h1')).toHaveText('One interceptor, many packs');
     await expect(page.locator('main')).toContainText(
-      'The edge-SEO pack is free and is available with the next release of mod_pagespeed.',
+      'The edge-SEO pack is free and arrives with the next release of mod_pagespeed; it does not ship today.',
     );
-    await expect(page.locator('main')).toContainText('none of them ships today.');
+    await expect(page.locator('main')).toContainText('The other packs are planned.');
     await expect(page.locator('main a[href="/packs/"]')).toBeVisible();
     const wedges = await page
       .locator('form[data-platform-form]')
