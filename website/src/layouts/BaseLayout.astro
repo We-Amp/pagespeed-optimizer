@@ -129,6 +129,7 @@ const navLinks: Array<{
   children?: NavChild[];
 }> = [
   { href: '/docs/', label: 'Docs', umamiEvent: 'nav-docs' },
+  { href: '/packs/', label: 'Rule packs', umamiEvent: 'nav-packs', desktopOnlyFromLg: true },
   {
     label: 'Tools',
     children: [
@@ -847,8 +848,8 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
                     data-umami-event={link.umamiEvent}
                     aria-current={currentPath.startsWith(link.href!) ? 'page' : undefined}
                     class:list={[
-                      'text-sm font-medium tracking-wide transition-colors inline-flex items-center gap-1.5',
-                      link.desktopOnlyFromLg ? 'hidden lg:inline-flex' : '',
+                      'text-sm font-medium tracking-wide transition-colors items-center gap-1.5',
+                      link.desktopOnlyFromLg ? 'hidden lg:inline-flex' : 'inline-flex',
                       currentPath.startsWith(link.href!)
                         ? 'text-interactive nav-item-active'
                         : 'text-text-muted hover:text-text-body',

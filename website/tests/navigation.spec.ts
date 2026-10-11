@@ -10,11 +10,12 @@ test.describe('Navigation', () => {
     await expect(page).toHaveURL('/');
   });
 
-  test('header nav: Docs, Blog and Contact are direct links', async ({ page }) => {
+  test('header nav: Docs, Rule packs, Blog and Contact are direct links', async ({ page }) => {
     // Target IA: Docs is a direct link (no dropdown); Tools, Support and
     // Compare are click-to-open dropdowns; Blog and Contact are flat.
     const directLinks = [
       { label: 'Docs', href: '/docs/' },
+      { label: 'Rule packs', href: '/packs/' },
       { label: 'Blog', href: '/blog/' },
       { label: 'Contact', href: '/contact/' },
     ];
@@ -258,6 +259,8 @@ test.describe('Navigation', () => {
       await expect(mobileMenu.locator(`a[href="${href}"]`), href).toBeVisible();
     }
     await expect(mobileMenu.locator('[data-qm-open]')).toHaveCount(0);
+
+    await expect(mobileMenu.locator('a[href="/packs/"]')).toContainText('Rule packs');
 
     await mobileMenu.locator('a[href="/docs/"]').click();
     await expect(page).toHaveURL('/docs/');
