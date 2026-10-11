@@ -54,7 +54,7 @@ export function lifecycleSentence(
   if (v.major >= 3) return '';
   if (v.major === 2) {
     return v.minor === 0
-      ? `ModPageSpeed ${label}: see Migrate from ModPageSpeed 2.0 for whether your setup moves to the current line.`
+      ? `ModPageSpeed ${label}: Migrate from ModPageSpeed 2.0 explains whether your setup moves to 2.1 today.`
       : '';
   }
   const cur = parseVersion(current);

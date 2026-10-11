@@ -306,8 +306,8 @@ function buildingFor(
               ? ' on this page loads without an integrity hash, so its content can change upstream without notice.'
               : ' on this page load without an integrity hash, so their content can change upstream without notice.') +
             (unpinned === 1
-              ? ' A third-party freeze pack is planned: it would serve it at a version you approved until you accept the update.'
-              : ' A third-party freeze pack is planned: it would serve each one at a version you approved until you accept the update.'),
+              ? ' A third-party freeze pack is planned: it would serve that script at a version you approved until you accept the update.'
+              : ' A third-party freeze pack is planned: it would serve those scripts at a version you approved until you accept the update.'),
         );
       }
       return building.length
