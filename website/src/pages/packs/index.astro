@@ -5,7 +5,7 @@
 // /packs/ — the rule-pack catalogue: what a pack is (a JSON file of head
 // rules, report first, enforce per site and per rule), one card per pack and
 // a "write your own" card. The edge-SEO pack is free and arrives with the next
-// release; the two planned packs reuse the framing of the /ai-readability/
+// release; the two planned packs (under their own sub-heading) reuse the framing of the /ai-readability/
 // script card verbatim ("We are building ...", "Tell us what you run.") and
 // its two wedges, through the same interest form /platform/ uses. No prices,
 // no dates. The #download and #pack-format anchors stand in for the operator
@@ -37,7 +37,7 @@ const levels = [
 const formatPoints = [
   'One JSON file: the pack name, version and publisher, the sites it applies to, lookup tables and the rules.',
   'Each rule names a kind (canonical, title, description, hreflang or JSON-LD), the paths it matches and the value it sets, from a table or a template.',
-  'Each rule says what to do when the page already has the element: keep it or repair it.',
+  'Each rule says what to do when the page already has the element: keep it, repair it or replace it.',
   'Your own packs use the same format, the same report mode and the same opt-in as the packs we publish.',
 ];
 
@@ -82,9 +82,9 @@ const jsonLd = {
         ))}
       </ul>
       <p class="mt-4 text-sm text-text-muted">
-        Every pack is signed by its publisher. When the server loads a pack it logs the publisher
-        and the pack's hash, so you can see which pack, and which version of it, is running. The
-        signature records where a pack came from; it does not lock the file.
+        Each pack names its publisher and version. When the server loads a pack it logs the pack's
+        id, version and SHA-256 hash, so you can see which pack, and which version of it, is
+        running.
       </p>
     </div>
 
@@ -111,14 +111,38 @@ const jsonLd = {
         </p>
       </article>
 
+      <article class="card flex flex-col" aria-labelledby="pack-write-your-own">
+        <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
+          <Icon name="braces" class="h-5 w-5 text-interactive" />
+        </div>
+        <p class="mt-4 font-mono text-xs text-interactive">Your rules</p>
+        <h2 id="pack-write-your-own" class="mt-1 text-lg font-semibold text-text-body">
+          Write your own
+        </h2>
+        <p class="mt-2 text-sm text-text-muted">
+          A pack is a plain JSON file. Write one for your own sites in the same format, and run it
+          in report mode until the log shows what you expect.
+        </p>
+        <p class="mt-auto pt-4 text-sm">
+          <a href="#pack-format" class="text-interactive hover:text-interactive-hover underline">
+            The pack format
+          </a>
+        </p>
+      </article>
+    </div>
+
+    <h2 id="planned" class="mt-16 text-lg font-semibold text-text-body">
+      Planned: script control at the origin
+    </h2>
+    <div class="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
       <article class="card flex flex-col" aria-labelledby="pack-page-integrity">
         <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
           <Icon name="badge-check" class="h-5 w-5 text-interactive" />
         </div>
         <p class="mt-4 font-mono text-xs text-interactive">Planned</p>
-        <h2 id="pack-page-integrity" class="mt-1 text-lg font-semibold text-text-body">
+        <h3 id="pack-page-integrity" class="mt-1 text-lg font-semibold text-text-body">
           Payment-page script integrity
-        </h2>
+        </h3>
         <p class="mt-2 text-sm text-text-muted">
           PCI DSS 4.0 (requirement 6.4.3) asks payment pages to keep an inventory of the scripts
           they load and to authorise each one; requirement 11.6.1 asks for detection of unauthorised
@@ -138,9 +162,9 @@ const jsonLd = {
           <Icon name="lock" class="h-5 w-5 text-interactive" />
         </div>
         <p class="mt-4 font-mono text-xs text-interactive">Planned</p>
-        <h2 id="pack-third-party-freeze" class="mt-1 text-lg font-semibold text-text-body">
-          Third-party script freeze
-        </h2>
+        <h3 id="pack-third-party-freeze" class="mt-1 text-lg font-semibold text-text-body">
+          Third-party freeze
+        </h3>
         <p class="mt-2 text-sm text-text-muted">
           A third-party script that loads without an integrity hash can change upstream without
           notice. We are building a way to serve each one at a version you approved until you accept
@@ -149,28 +173,9 @@ const jsonLd = {
         <p class="mt-3 text-sm text-text-body">Tell us what you run.</p>
         <PlatformInterestForm
           wedge="third-party-freeze"
-          pack="Third-party script freeze"
+          pack="Third-party freeze"
           submitLabel="Talk to us about pinning scripts"
         />
-      </article>
-
-      <article class="card flex flex-col" aria-labelledby="pack-write-your-own">
-        <div class="h-10 w-10 rounded-lg bg-interactive/10 flex items-center justify-center">
-          <Icon name="braces" class="h-5 w-5 text-interactive" />
-        </div>
-        <p class="mt-4 font-mono text-xs text-interactive">Your rules</p>
-        <h2 id="pack-write-your-own" class="mt-1 text-lg font-semibold text-text-body">
-          Write your own
-        </h2>
-        <p class="mt-2 text-sm text-text-muted">
-          A pack is a plain JSON file. Write one for your own sites in the same format, and run it
-          in report mode until the log shows what you expect.
-        </p>
-        <p class="mt-auto pt-4 text-sm">
-          <a href="#pack-format" class="text-interactive hover:text-interactive-hover underline">
-            The pack format
-          </a>
-        </p>
       </article>
     </div>
 
@@ -210,8 +215,7 @@ const jsonLd = {
     <p class="readout-plate mt-12 max-w-3xl px-4 py-3 text-sm text-text-muted">
       <span class="font-mono text-xs text-interactive">Updates</span>
       <br />
-      Curated packs from We-Amp come with updates through a subscriber repository. You pull them
-      when you choose; the server never phones home.
+      Packs we curate will come with updates you pull when you choose; the server never phones home.
     </p>
 
     <p class="mt-8 text-sm text-text-annotation">
