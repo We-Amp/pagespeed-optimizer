@@ -1,1 +1,0 @@
-{"host":"fixture.test","path":"/t/repair/empty","rule":"title-repair","kind":"title","mode":"enforce","action":"fill","reason":"empty","defect":"title-missing","before":"","after":"Title for /t/repair/empty"}

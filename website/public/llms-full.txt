@@ -13825,7 +13825,7 @@ The [packs directory](https://github.com/We-Amp/pagespeed-optimizer/tree/main/pa
 - an hreflang cluster from the `hreflang` table;
 - an `Organization` JSON-LD block that uses `{canonical}`.
 
-Every host and URL in the template is a placeholder to replace with your own. A host that is not listed in `sites` is never touched, so as shipped the template does nothing on your site. The same directory holds the test fixtures the rules are checked against.
+Every host and URL in the template is a placeholder to replace with your own. A host that is not listed in `sites` is never touched, so as shipped the template does nothing on your site.
 
 ## Keep, repair, replace
 

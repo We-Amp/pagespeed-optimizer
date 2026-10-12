@@ -1,1 +1,0 @@
-{"host":"fixture.test","path":"/j/replace/a","rule":"jsonld-replace","kind":"jsonld","mode":"enforce","action":"replace","reason":"present","defect":"","before":"fnv1a64:341cebfa000f14fe","after":"Organization"}
