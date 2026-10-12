@@ -2,7 +2,7 @@
 
 All notable changes to mod_pagespeed 2.1 are documented in this file.
 
-## Unreleased
+## 2.3.0 — 2026-10-12
 
 This release fixes stale copies of CSS, JavaScript and image files after
 they changed on the origin; updating is recommended for every installation.
