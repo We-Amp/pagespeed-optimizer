@@ -4,11 +4,11 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
-Update recommended: a fix for stale copies of CSS, JavaScript and image files
-after they changed on the origin. Also new: a free edge-SEO rule pack
-template for the `rule_packs` filter of mod_pagespeed 1.18.0. With module
-1.18.0 on Apache, nginx and IIS the optimizer no longer serves HTML; see
-Changed below.
+This release fixes stale copies of CSS, JavaScript and image files after
+they changed on the origin; updating is recommended for every installation.
+Also new: a free edge-SEO rule pack template for the `rule_packs` filter of
+mod_pagespeed 1.18.0. With module 1.18.0 on Apache, nginx and IIS the
+optimizer no longer serves HTML; see Changed below.
 
 Fixed: after a file changed on the origin, mod_pagespeed could keep sending
 the previous version of a CSS, JavaScript or image file until the old copy's
@@ -54,9 +54,8 @@ the optimizer's own HTML improvements (such as critical CSS and LCP hints)
 are not applied there. CSS, JavaScript and images are served by the
 optimizer as before.
 
-Changed: a library bundled in the optimizer's image tracing support is
-updated (crossbeam-epoch 0.9.20, RUSTSEC-2026-0204). No exploitation is
-known; the update keeps vulnerability scans clean.
+Changed: the bundled crossbeam-epoch library is updated to 0.9.20
+(RUSTSEC-2026-0204), so dependency scanners no longer report it.
 
 Changed: the packaged systemd unit describes the service as the "PageSpeed
 Optimizer Worker" (what `systemctl status` shows) and the README calls the
