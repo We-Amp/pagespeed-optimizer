@@ -20395,7 +20395,7 @@ Security: the nginx bundled with the NuGet sidecar package is updated to 1.30.5.
 
 **Before you upgrade**
 
-Breaking: the optimizer worker no longer serves HTML. Every HTML response is rewritten by the module's filter chain; CSS, JavaScript and images are served by the optimizer worker as before. HTML no longer gets the optimizer worker's own HTML improvements (such as critical CSS and LCP hints); it keeps the module's own HTML rewriting. On a host with the optimizer worker enabled, the `ipro_daemon_fallthrough` statistic now rises on HTML requests; adjust any alert on that statistic.
+Breaking: the optimizer worker no longer serves HTML on Apache, nginx and IIS. Every HTML response is rewritten by the module's filter chain; CSS, JavaScript and images are served by the optimizer worker as before. HTML no longer gets the optimizer worker's own HTML improvements (such as critical CSS and LCP hints); it keeps the module's own HTML rewriting. On a host with the optimizer worker enabled, the `ipro_daemon_fallthrough` statistic now rises on HTML requests; adjust any alert on that statistic.
 
 Breaking: animated images with more than 200 frames are no longer converted. An animated GIF with more frames than the new `ImageMaxAnimatedFrames` (default 200; 0 or a negative value disables the limit) is served unconverted. It can be set in the server, virtual-host or directory configuration, but not through query parameters or request headers. Raise it if you rely on converting longer animations.
 
@@ -20416,7 +20416,7 @@ Added: rule packs. The new `rule_packs` filter applies a rule pack, a JSON file 
 - Signed packs. A pack file may carry an Ed25519 signature in a `.sig` sidecar; `RulePackTrustKey` names a trusted publisher key and `RulePackRequireSigned` (off by default) refuses a pack without a valid signature. With `RulePackRequireSigned` off, a pack without a valid signature still loads and logs a warning once per file version per server process; a second warning gives the reason when a signature file is present but fails its check. Six `rule_pack_*` statistics count the outcomes, and `tools/rule-packs/sign-pack.sh` in the source tree signs and verifies packs. See [Signed packs](https://modpagespeed.com/docs/rule-packs/#signed-packs). `RulePackTrustKey` is not available on Envoy.
 - Licence fields. The `pack` object may carry a `license` object with an `entitlement` name, an `expires` date (`YYYY-MM-DD`) and a `terms` URL (`https://`). The module checks their format and writes them to the server log (at info level) once per pack version per server process, when that version is first used; they are informational and do not change what the pack does. The top-level key `signature` is reserved; a pack that uses it does not load.
 
-Added: a free edge-SEO rule pack template, `packs/edge-seo/pack.example.json`, with a README, ships with the optimizer source, for the `rule_packs` filter of mod_pagespeed 1.18.0 and later. It lists one placeholder host in report mode and one rule per kind (canonical, title, description, hreflang, JSON-LD); replace the example values with your own. It is not signed.
+Added: a free edge-SEO rule pack template, `packs/edge-seo/pack.example.json`, with a README, for the `rule_packs` filter of mod_pagespeed 1.18.0 and later. It lists one placeholder host in report mode and one rule per kind (canonical, title, description, hreflang, JSON-LD); replace the example values with your own. It is not signed.
 
 **Optimizer worker**
 
