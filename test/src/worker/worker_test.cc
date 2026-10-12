@@ -18073,8 +18073,10 @@ class WorkerPeerRewriteTypesTest : public WorkerPeerRewriteTest {
     }
   };
 
-  void StartRig(Rig& rig) {
+  void StartRig(Rig& rig, int gzip_level = 6, int brotli_level = 6) {
     WorkerConfig config;
+    config.gzip_level = gzip_level;
+    config.brotli_level = brotli_level;
     config.socket_path = socket_path_;
     config.cache_path = cache_path_;
     config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
@@ -18321,6 +18323,69 @@ TEST_F(WorkerPeerRewriteTypesTest,
   ExpectUnchangedBytesRestamp("http://example.com/favicon.ico", "image/x-icon",
                               ContentType::kImage,
                               std::string("icon-") + std::string(300, 'a'));
+}
+
+// A disabled encoding is never written, so it must not keep the source hash
+// from being recorded: without the hash every origin change purges and
+// rebuilds instead of being told apart from a mere re-record.
+TEST_F(WorkerPeerRewriteTypesTest, HashIsRecordedWithGzipDisabled) {
+  Rig rig;
+  ASSERT_NO_FATAL_FAILURE(StartRig(rig, /*gzip_level=*/0, /*brotli_level=*/6));
+  const std::string url = "http://example.com/css/nogzip.css";
+  ASSERT_NO_FATAL_FAILURE(
+      BuildThenRewrite(rig, url, "text/css", ContentType::kCss,
+                       "a {\n  color : red ;\n}\n\n/* first */\n",
+                       "a {\n  color : blue ;\n}\n\n/* second */\n"));
+  EXPECT_EQ(Coded(rig, url, CapabilityMask::TransferEncoding::kGzip), "");
+  ASSERT_TRUE(WaitForAtLeast(rig.worker->stats().brotli_variants_written, 1));
+}
+
+TEST_F(WorkerPeerRewriteTypesTest, HashIsRecordedWithBrotliDisabled) {
+  Rig rig;
+  ASSERT_NO_FATAL_FAILURE(StartRig(rig, /*gzip_level=*/6, /*brotli_level=*/0));
+  const std::string url = "http://example.com/js/nobrotli.js";
+  ASSERT_NO_FATAL_FAILURE(BuildThenRewrite(
+      rig, url, "application/javascript", ContentType::kJs,
+      "function first ( value ) {\n  return value + 1 ;\n}\n",
+      "function second ( value ) {\n  return value + 2 ;\n}\n"));
+  EXPECT_EQ(rig.worker->stats().brotli_variants_written.load(), 0u);
+  ASSERT_TRUE(WaitForAtLeast(rig.worker->stats().gzip_variants_written, 1));
+}
+
+TEST_F(WorkerPeerRewriteTypesTest, HashIsRecordedWithBothEncodingsDisabled) {
+  // The minified identity copy is the only stored copy left to keep honest.
+  Rig rig;
+  ASSERT_NO_FATAL_FAILURE(StartRig(rig, /*gzip_level=*/0, /*brotli_level=*/0));
+  const std::string url = "http://example.com/css/nocoding.css";
+  ASSERT_NO_FATAL_FAILURE(
+      BuildThenRewrite(rig, url, "text/css", ContentType::kCss,
+                       "a {\n  color : red ;\n}\n\n/* first */\n",
+                       "a {\n  color : blue ;\n}\n\n/* second */\n"));
+  EXPECT_EQ(rig.worker->stats().gzip_variants_written.load(), 0u);
+  EXPECT_EQ(rig.worker->stats().brotli_variants_written.load(), 0u);
+  EXPECT_NE(ReadVariant(rig.reader.get(), url, CapabilityMask()).find("blue"),
+            std::string::npos);
+}
+
+TEST_F(WorkerPeerRewriteTypesTest, UnchangedBytesRestampWithGzipDisabled) {
+  // Same bytes, newer stamp, no gzip copy: still told apart from a change.
+  Rig rig;
+  ASSERT_NO_FATAL_FAILURE(StartRig(rig, /*gzip_level=*/0, /*brotli_level=*/6));
+  const std::string url = "http://example.com/css/nogzip-same.css";
+  const std::string body = "a {\n  color : red ;\n}\n\n/* note */\n";
+  CacheDurableOriginal(rig.front_end.get(), url, body, "text/css",
+                       ContentType::kCss, kStamp1, 600);
+  StartWorker(rig);
+  Notify(*rig.worker, url, ContentType::kCss);
+  ASSERT_EQ(WaitForOracleChange(rig, url, "").size(), 32u);
+  WaitForWorkerIdle(*rig.worker);
+  CacheDurableOriginal(rig.front_end.get(), url, body, "text/css",
+                       ContentType::kCss, kStamp2, 600);
+  Notify(*rig.worker, url, ContentType::kCss);
+  ASSERT_TRUE(
+      WaitForAtLeast(rig.worker->stats().origin_unchanged_restamped, 1));
+  WaitForWorkerIdle(*rig.worker);
+  EXPECT_EQ(rig.worker->stats().origin_change_rebuilt.load(), 0u);
 }
 
 TEST_F(WorkerPeerRewriteTypesTest,

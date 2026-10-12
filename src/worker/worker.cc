@@ -581,19 +581,24 @@ void WriteCompressedVariants(PageSpeedCache* cache, std::string_view url,
 // Bind the stored gzip/brotli copies to the bytes they were built from, so a
 // later re-record of the original can tell "same bytes" from "new bytes"
 // (RecheckRecordedOriginal).  Only a front end's own recording may seed the
-// oracle (|genuine|), and only once both coded copies exist and no purge has
-// fenced the writes.
+// oracle (|genuine|), and only once every coded copy the configuration enables
+// exists (a level of 0 disables that encoding, so its copy is never expected)
+// and no purge has fenced the writes.
 void RecordSourceHash(PageSpeedCache* cache, std::string_view url,
                       std::string_view hostname, std::string_view scheme,
                       const CapabilityMask& identity_mask,
-                      std::string_view source, bool genuine,
-                      const PurgeCheck& purge_check) {
+                      std::string_view source, bool genuine, int gzip_level,
+                      int brotli_level, const PurgeCheck& purge_check) {
   if (!genuine || (purge_check && purge_check())) return;
   CapabilityMask gz_mask = identity_mask;
   gz_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kGzip);
   CapabilityMask br_mask = identity_mask;
   br_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kBrotli);
-  if (!VariantExistsForMask(cache, url, hostname, scheme, gz_mask) ||
+  if (gzip_level > 0 &&
+      !VariantExistsForMask(cache, url, hostname, scheme, gz_mask)) {
+    return;
+  }
+  if (brotli_level > 0 &&
       !VariantExistsForMask(cache, url, hostname, scheme, br_mask)) {
     return;
   }
@@ -3569,7 +3574,8 @@ void Worker::WriteTextVariant(
                               cfg->brotli_level, stats_, purge_check, this);
       RecordSourceHash(cache_.get(), notification.url, notification.hostname,
                        notification.scheme, mask, original_input,
-                       source_genuine, purge_check);
+                       source_genuine, cfg->gzip_level, cfg->brotli_level,
+                       purge_check);
       // Clear tentative cooldown on success (matches HTML path).
       {
         std::string ck = ComposeInternalKey(
@@ -3625,7 +3631,7 @@ void Worker::WriteTextVariant(
                             cfg->brotli_level, stats_, purge_check, this);
     RecordSourceHash(cache_.get(), notification.url, notification.hostname,
                      notification.scheme, mask, owned_input, source_genuine,
-                     purge_check);
+                     cfg->gzip_level, cfg->brotli_level, purge_check);
     // Clear tentative cooldown on success (matches HTML path).
     {
       std::string ck = ComposeInternalKey(
@@ -5544,7 +5550,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
             cfg->gzip_level, cfg->brotli_level, stats_, purge_check, this);
         RecordSourceHash(cache_.get(), notification.url, notification.hostname,
                          notification.scheme, CapabilityMask(), svg_data,
-                         svg_source_genuine, purge_check);
+                         svg_source_genuine, cfg->gzip_level, cfg->brotli_level,
+                         purge_check);
         MarkVariantProcessed(
             notification.url, notification.hostname, notification.scheme,
             MaskToId(NormalizeMaskForDedup(notification.capability_mask)),
@@ -5614,7 +5621,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
                                 cfg->brotli_level, stats_, purge_check, this);
         RecordSourceHash(cache_.get(), notification.url, notification.hostname,
                          notification.scheme, CapabilityMask(), data,
-                         source_genuine, purge_check);
+                         source_genuine, cfg->gzip_level, cfg->brotli_level,
+                         purge_check);
         MarkVariantProcessed(
             notification.url, notification.hostname, notification.scheme,
             MaskToId(NormalizeMaskForDedup(notification.capability_mask)),
