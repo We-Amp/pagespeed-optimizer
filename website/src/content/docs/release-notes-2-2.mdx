@@ -3,20 +3,20 @@ title: 'Release notes: 2.2'
 description: 'mod_pagespeed 2.2.0 release notes: the module and the optimizer worker as one release (packages 1.17.0), its security fixes and what changed.'
 order: 80
 group: 'Release notes by line'
-lastUpdated: 2026-10-07
+lastUpdated: 2026-10-12
 ---
 
 import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
 
 <ReleaseNotesDeepLink />
 
-mod_pagespeed 2.2.0 is the current release: the module and the optimizer worker, released together on 2026-10-06 and installed as a matching pair. In the signed apt and yum repositories both parts carry the package version 1.17.0; 2.2.0 is the version of the container images and the NuGet packages and the application version of the Helm chart. The [release notes index](/docs/release-notes/) lists every release of every line, and [Security updates](/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it.
+mod_pagespeed 2.2.0 was released on 2026-10-06 as the module and the optimizer worker together, installed as a matching pair. In the signed apt and yum repositories both parts carry the package version 1.17.0; 2.2.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.6). The current release is [2.3.0](/docs/release-notes-2-3/). The [release notes index](/docs/release-notes/) lists every release of every line, and [Security updates](/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it. The entry below is collapsed; open it to read it in place.
 
-<span id="v2-2-0" class="rn-alias" aria-hidden="true"></span>
+## Releases
+
 <span id="v1-17-0" class="rn-alias" aria-hidden="true"></span>
-<div class="rn-entry rn-entry-current">
-
-<p class="rn-summary-line"><span class="rn-ver">mod_pagespeed 2.2.0</span> <span class="rn-date">2026-10-06</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span></p>
+<details id="v2-2-0" class="rn-entry">
+<summary><span class="rn-ver">2.2.0</span> <span class="rn-date">2026-10-06</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span> <span class="rn-lede">Security and reliability update for the module and the optimizer worker, released together. Update recommended.</span></summary>
 
 **mod_pagespeed 2.2.0 is a security and reliability update for the module and the optimizer worker, released together and installed as a matching pair.** In the signed apt and yum repositories both parts carry the package version 1.17.0; 2.2.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.6). It fixes eleven security issues across the nginx and Apache modules, the admin console, the optimizer worker and the Windows NuGet packages, and it updates the bundled curl; see Security below. It stops a server process that dies or starts at the wrong moment from hanging others or itself, and it stops optimized copies from being lost from a shared cache. The nginx module can now use the optimizer worker, and `prioritize_critical_css` loads stylesheets so that content is not shown without its styles. Container images and the Helm chart are published with this release.
 **Update recommended.**
@@ -254,4 +254,4 @@ Note for embedders: building from the source tarball of a final release works ag
 
 Thanks to [@trcyberoptic](https://github.com/trcyberoptic), who contributed the HTTPS fetch, shared-memory and source-build fixes in this release.
 
-</div>
+</details>

@@ -13,5 +13,8 @@
   },
   "/docs/release-notes-2-1/": {
     "term-drift-daemon": "\"daemon paths\" refers to the DaemonSocketPath/DaemonVolumePath directive names"
+  },
+  "/docs/release-notes-2-3/": {
+    "term-drift-daemon": "the release note for the packaged unit description names the compatibility names that keep the word daemon (pagespeed_daemon.conf, command-line flags, API paths, metric names)"
   }
 }

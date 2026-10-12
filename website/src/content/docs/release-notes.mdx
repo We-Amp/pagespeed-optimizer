@@ -3,10 +3,10 @@ title: 'Release notes'
 description: 'mod_pagespeed 2.1 release notes: the current release, the notes of every line, every release in one list, security updates and what changed since upstream.'
 order: 70
 group: 'Reference'
-lastUpdated: 2026-10-07
+lastUpdated: 2026-10-12
 ---
 
-mod_pagespeed 2.1 is released as two parts: the module, which runs inside Apache or nginx and applies the classic rewriting filters in the request itself, and the optimizer worker, a separate process introduced by the 2.0 re-architecture that does the heavy optimization work off the request path. Since 2.1.0 the two are released together; the native packages of the current release carry the package version 1.17.0, the product as a whole is 2.2.0, and that is the version the container images, the NuGet packages and the Helm chart's application version carry. This page lists the current release, the release notes of each line, and every release in one list, newest first, followed by the [security updates](#security-updates) we have published and [what has changed since the last upstream release](#115-history). We recommend running the latest release: it always carries the most recent performance and security work.
+mod_pagespeed 2.1 is released as two parts: the module, which runs inside Apache or nginx and applies the classic rewriting filters in the request itself, and the optimizer worker, a separate process introduced by the 2.0 re-architecture that does the heavy optimization work off the request path. Since 2.1.0 the two are released together; the native packages of the current release carry the package version 1.18.0, the product as a whole is 2.3.0, and that is the version the container images, the NuGet packages and the Helm chart's application version carry. This page lists the current release, the release notes of each line, and every release in one list, newest first, followed by the [security updates](#security-updates) we have published and [what has changed since the last upstream release](#115-history). We recommend running the latest release: it always carries the most recent performance and security work.
 
 <span id="whats-in-modpagespeed-20" class="rn-alias" aria-hidden="true"></span>
 <span id="optimization-pipeline" class="rn-alias" aria-hidden="true"></span>
@@ -17,16 +17,16 @@ mod_pagespeed 2.1 is released as two parts: the module, which runs inside Apache
 <span id="the-module-and-the-optimizer-worker" class="rn-alias" aria-hidden="true"></span>
 ## The current release {#current-release}
 
-<span id="v2-2-0" class="rn-alias" aria-hidden="true"></span>
-<span id="v1-17-0" class="rn-alias" aria-hidden="true"></span>
+<span id="v2-3-0" class="rn-alias" aria-hidden="true"></span>
+<span id="v1-18-0" class="rn-alias" aria-hidden="true"></span>
 <div class="rn-entry rn-entry-current">
 
-<p class="rn-summary-line"><span class="rn-ver">mod_pagespeed 2.2.0</span> <span class="rn-date">2026-10-06</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span></p>
+<p class="rn-summary-line"><span class="rn-ver">mod_pagespeed 2.3.0</span> <span class="rn-date">2026-10-12</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span></p>
 
-**mod_pagespeed 2.2.0 is a security and reliability update for the module and the optimizer worker, released together and installed as a matching pair.** In the signed apt and yum repositories both parts carry the package version 1.17.0; 2.2.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.6). It fixes eleven security issues across the nginx and Apache modules, the admin console, the optimizer worker and the Windows NuGet packages, and it updates the bundled curl; see Security below. It stops a server process that dies or starts at the wrong moment from hanging others or itself, and it stops optimized copies from being lost from a shared cache. The nginx module can now use the optimizer worker, and `prioritize_critical_css` loads stylesheets so that content is not shown without its styles. Container images and the Helm chart are published with this release.
+**mod_pagespeed 2.3.0 adds rule packs and is a security and reliability update for the module and the optimizer worker, released together and installed as a matching pair.** In the signed apt and yum repositories both parts carry the package version 1.18.0; 2.3.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.7). Rule packs let the module add or correct the canonical link, title, meta description, hreflang cluster and JSON-LD of your pages from a JSON file, in report mode first. The release stops some animated images from tying up a server worker, updates Envoy for the Envoy filter, and fixes stale copies of changed CSS, JavaScript and image files in the optimizer worker. On Apache, nginx and IIS the optimizer worker no longer serves HTML; see "Before you upgrade" in the full notes.
 **Update recommended.**
 
-[Read the full 2.2.0 release notes](/docs/release-notes-2-2/#v2-2-0): the security fixes, the behavior changes, what to do before you upgrade and the notes for embedders.
+[Read the full 2.3.0 release notes](/docs/release-notes-2-3/#v2-3-0): the security fixes, rule packs, what to do before you upgrade and the fixes on each server.
 
 </div>
 
@@ -34,7 +34,8 @@ mod_pagespeed 2.1 is released as two parts: the module, which runs inside Apache
 
 Each line has its own page with the full entry for every release, collapsed and newest first.
 
-- [mod_pagespeed 2.2](/docs/release-notes-2-2/) — 2.2.0, 2026-10-06 (packages 1.17.0). The current release: the module and the optimizer worker together.
+- [mod_pagespeed 2.3](/docs/release-notes-2-3/) — 2.3.0, 2026-10-12 (packages 1.18.0). The current release: the module and the optimizer worker together, with rule packs.
+- [mod_pagespeed 2.2](/docs/release-notes-2-2/) — 2.2.0, 2026-10-06 (packages 1.17.0). The module and the optimizer worker together.
 - [mod_pagespeed 2.1](/docs/release-notes-2-1/) — 2.1.0, 2026-09-17 (packages 1.16.0). The first release of the two parts as one product.
 - [The 2.0 optimizer worker](/docs/release-notes-2-0/) — 2.0.0-beta.1 to 2.0.42 (2026-08-10). The out-of-process optimizer before the converged line.
 - [The 1.15 module](/docs/release-notes-1-15/) — 1.15.0 (2026-06-01) to 1.15.0+r22 (2026-08-08). The module after the renumber.
@@ -48,9 +49,14 @@ Every release, grouped into four periods and newest first inside each. Each line
 
 ### The converged line — September to October 2026 {#era-converged}
 
-mod_pagespeed 2.1.0 and 2.2.0 are the module and the optimizer worker released together. 2.1.0 carries package version 1.16.0 in the apt and yum repositories and 2.1.0 on the NuGet package; no container images or Helm chart were published for it. 2.2.0 carries package version 1.17.0, and 2.2.0 on the container images, the NuGet packages and as the Helm chart's application version. See [the current release](#current-release) above and the [2.2](/docs/release-notes-2-2/) and [2.1](/docs/release-notes-2-1/) pages for the full entries.
+mod_pagespeed 2.1.0, 2.2.0 and 2.3.0 are the module and the optimizer worker released together. 2.1.0 carries package version 1.16.0 in the apt and yum repositories and 2.1.0 on the NuGet package; no container images or Helm chart were published for it. 2.2.0 carries package version 1.17.0, and 2.2.0 on the container images, the NuGet packages and as the Helm chart's application version. 2.3.0 carries package version 1.18.0, and 2.3.0 on the container images, the NuGet packages and as the Helm chart's application version. See [the current release](#current-release) above and the [2.3](/docs/release-notes-2-3/), [2.2](/docs/release-notes-2-2/) and [2.1](/docs/release-notes-2-1/) pages for the full entries.
 
 <div class="rn-entry">
+<p class="rn-summary-line"><span class="rn-ver"><a href="/docs/release-notes-2-3/#v2-3-0">2.3.0</a></span> <span class="rn-date">2026-10-12</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span> <span class="rn-lede">Rule packs, plus a security and reliability update for the module and the optimizer worker, released together. Update recommended.</span></p>
+</div>
+
+<span id="v1-17-0" class="rn-alias" aria-hidden="true"></span>
+<div class="rn-entry" id="v2-2-0">
 <p class="rn-summary-line"><span class="rn-ver"><a href="/docs/release-notes-2-2/#v2-2-0">2.2.0</a></span> <span class="rn-date">2026-10-06</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span> <span class="rn-lede">Security and reliability update for the module and the optimizer worker, released together. Update recommended.</span></p>
 </div>
 
@@ -310,68 +316,71 @@ the release entry says so.
 
 | # | Advisory | Impact | Affected | Fixed in | Update |
 | --- | --- | --- | --- | --- | --- |
-| 1 | — | denial of service — nginx module | the nginx module, all releases up to and including 1.16.0 | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
-| 2 | — | denial of service — Apache module | the Apache module, all releases up to and including 1.16.0 | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
-| 3 | — | denial of service — HTML rewriter | releases 1.15.0+r20 through 1.16.0 | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
-| 4 | — | access-restriction bypass — nginx admin, statistics, console and message pages | the nginx module, all releases up to and including 1.16.0, where access to these pages is restricted in the nginx configuration | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended; then replace the access rules for these pages with the updated example in every `server` block |
-| 5 | — | information disclosure — per-host admin console | module 1.16.0 with the optimizer worker in use | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
-| 6 | — | cache integrity — nginx in-place optimization | the nginx module, all releases up to and including 1.16.0, with in-place optimization enabled (the default) | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
-| 7 | — | information disclosure — nginx in-place optimization | the nginx module, all releases up to and including 1.16.0, with in-place optimization enabled (the default) | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended; flush the PageSpeed cache once after updating |
-| 8 | — | request forgery — admin console | all releases up to and including 1.16.0, where the admin console is reachable beyond loopback | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended; scripted purges and some monitoring probes need a change |
-| 9 | — | denial of service — optimizer management API | optimizer worker 2.0.0 through 2.1.0 and optimizer packages through 1.16.0, with the management API enabled | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
-| 10 | — | information disclosure — optimizer management API with `--api-read-open` | optimizer worker 2.0.0 through 2.1.0 and optimizer packages through 1.16.0, started with `--api-read-open` | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended; read-only clients that relied on it beyond the documented read endpoints need the API token |
-| 11 | — | local privilege escalation — Windows | `WeAmp.PageSpeed.AspNetCore` and `WeAmp.PageSpeed.NativeAssets.Windows` 2.0.0 through 2.1.0, and the Windows optimizer worker built from them | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
-| 12 | CVE-2026-19931, CVE-2026-18924, CVE-2026-82209, CVE-2026-80229, CVE-2026-80230, CVE-2026-80231, CVE-2026-80255, CVE-2026-82208, CVE-2026-13608 | dependency update — bundled HTTPS fetch library (curl 8.22.0) | module releases 1.1.0-beta.2 through 1.16.0 | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
-| 13 | CVE-2026-32327, CVE-2026-34191, CVE-2025-49506, CVE-2026-34501, CVE-2026-34502 | dependency update — bundled apr-util | apr-util 1.6.3 and earlier in the bundle; the affected components are not built into or called by any mod_pagespeed release | [module 1.16.0](/docs/release-notes-2-1/#v1-16-0) | Recommended (no earlier release believed exposed) |
-| 14 | GHSA-29g2-3rmr-qm68 | dependency update — web console | ASP.NET Core packages before 2.0.42; container and Helm deployments before 2.2.0 | [optimizer worker 2.0.42](/docs/release-notes-2-0/#v2-0-42) · [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
-| 15 | — | denial of service — image decoding | optimizer worker before 2.1.0 | [mod_pagespeed 2.1.0](/docs/release-notes-2-1/#v2-1-0) | Recommended |
-| 16 | — | hardening — privilege separation for the optimizer worker | — | [mod_pagespeed 2.1.0](/docs/release-notes-2-1/#v2-1-0) | Recommended (new default in 2.1) |
-| 17 | — | hardening — management API authentication | — | [mod_pagespeed 2.1.0](/docs/release-notes-2-1/#v2-1-0) | Recommended (new default in 2.1) |
-| 18 | — | hardening — browser-analysis sandbox | — | [mod_pagespeed 2.1.0](/docs/release-notes-2-1/#v2-1-0) | Recommended (new default in 2.1) |
-| 19 | — | hardening — system-call allow-list enforcement | — | [mod_pagespeed 2.1.0](/docs/release-notes-2-1/#v2-1-0) | Recommended (new default in 2.1) |
-| 20 | — | hardening — container and Helm defaults | — | [mod_pagespeed 2.1.0](/docs/release-notes-2-1/#v2-1-0) | Recommended (new default in 2.1) |
-| 21 | — | dependency update — base image | worker and nginx images before 2.0.41 | [optimizer worker 2.0.41](/docs/release-notes-2-0/#v2-0-41) | Recommended |
-| 22 | — | cache disclosure — authenticated responses | optimizer worker before 2.0.40 | [optimizer worker 2.0.40](/docs/release-notes-2-0/#v2-0-40) | Recommended |
-| 23 | — | cache disclosure — responses the origin later marks non-shareable | optimizer worker before 2.0.40 | [optimizer worker 2.0.40](/docs/release-notes-2-0/#v2-0-40) | Recommended |
-| 24 | CVE-2026-42533 | memory safety — bundled nginx | the sidecar package, the container images and the worker and nginx images, before module 1.15.0+r20 / worker 2.0.39 (bundled nginx before 1.30.4) | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) · [optimizer worker 2.0.39](/docs/release-notes-2-0/#v2-0-39) | Recommended |
-| 25 | — | cross-site scripting — CSS inlining | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 26 | — | cross-site scripting — local-storage cache inlining | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 27 | — | cross-site scripting — inline-image deduplication | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 28 | — | cross-site scripting — inline image preview | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 29 | — | denial of service — image resolution limit | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 30 | — | denial of service — image spriting | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 31 | — | denial of service — JavaScript minifier | all 1.15 releases up to and including r19 | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 32 | — | denial of service — HTML parser | all 1.15 releases up to and including r19 | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 33 | — | content integrity — CSS dependency parsing | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 34 | — | content integrity — HTML character references | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 35 | — | thread safety — HTML parsing (startup race) | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
-| 36 | CVE-2026-50812, CVE-2026-50813 | memory safety — bundled SQLite | worker and nginx images before 2.0.39 | [optimizer worker 2.0.39](/docs/release-notes-2-0/#v2-0-39) | Recommended |
-| 37 | — | denial of service — image dimension reading | optimizer worker before 2.0.39 | [optimizer worker 2.0.39](/docs/release-notes-2-0/#v2-0-39) | Recommended |
-| 38 | — | dependency update — runtime images | 2.0.x container images before 2.0.37 | [optimizer worker 2.0.37](/docs/release-notes-2-0/#v2-0-37) | Recommended |
-| 39 | — | hardening — admin console | — | [optimizer worker 2.0.37](/docs/release-notes-2-0/#v2-0-37) | Recommended |
-| 40 | — | dependency update — bundled HTTPS fetch library | all releases up to and including 1.15.0+r17 | [module 1.15.0+r18](/docs/release-notes-1-15/#v1-15-0-r18) | Recommended |
-| 41 | — | hardening — input validation and output escaping | all releases up to and including 1.15.0+r17; the underlying gaps date back to 1.14.36.1 and earlier | [module 1.15.0+r18](/docs/release-notes-1-15/#v1-15-0-r18) | Recommended |
-| 42 | CVE-2026-42055, CVE-2026-48142 | dependency update — bundled nginx | the ASP.NET Core sidecar, all 1.15 releases up to and including r16 (bundled nginx before 1.30.3) | [module 1.15.0+r17](/docs/release-notes-1-15/#v1-15-0-r17) | Recommended |
-| 43 | — | memory safety — nginx request handling | all releases up to and including 1.15.0+r16; a defect inherited from the open-source line | [module 1.15.0+r17](/docs/release-notes-1-15/#v1-15-0-r17) | Recommended |
-| 44 | — | dependency update — runtime image | 2.0.x container images before 2.0.33 | [optimizer worker 2.0.33](/docs/release-notes-2-0/#v2-0-33) | Recommended |
-| 45 | — | hardening — bundled third-party code (defense in depth) | — | [module 1.15.0+r16](/docs/release-notes-1-15/#v1-15-0-r16) | Recommended |
-| 46 | — | dependency update — bundled image codecs | optimizer worker before 2.0.32 | [optimizer worker 2.0.32](/docs/release-notes-2-0/#v2-0-32) | Recommended |
-| 47 | — | hardening — binary hardening of the shipped native library | — | [optimizer worker 2.0.32](/docs/release-notes-2-0/#v2-0-32) | Recommended |
-| 48 | — | hardening — binary hardening and reduced attack surface | — | [module 1.15.0+r15](/docs/release-notes-1-15/#v1-15-0-r15) | Recommended |
-| 49 | — | hardening — parser bounds and IIS sub-resource TLS | all releases up to and including 1.15.0+r10 | [module 1.15.0+r11–r14](/docs/release-notes-1-15/#v1-15-0-r11-r14) | Recommended; particularly for IIS deployments |
-| 50 | — | dependency update — admin console | all 1.15 releases up to and including r10 | [module 1.15.0+r11–r14](/docs/release-notes-1-15/#v1-15-0-r11-r14) | Recommended |
-| 51 | — | content integrity — agent-optimized markdown output | optimizer worker before 2.0.30 | [optimizer worker 2.0.30](/docs/release-notes-2-0/#v2-0-30) | Recommended |
-| 52 | — | dependency update — container images | 2.0.x container images before 2.0.22 | [optimizer worker 2.0.22](/docs/release-notes-2-0/#v2-0-22) | Recommended |
-| 53 | — | memory safety — IIS module unload | IIS deployments, all releases up to and including 1.15.0+r8 | [module 1.15.0+r9](/docs/release-notes-1-15/#v1-15-0-r9) | Recommended for IIS deployments |
-| 54 | — | availability — prebuilt nginx module | prebuilt Ubuntu nginx module packages, 1.15.0+r3–r6 | [module 1.15.0+r7–r8](/docs/release-notes-1-15/#v1-15-0-r7-r8) | Recommended |
-| 55 | — | denial of service — nginx request handling | all 1.1.0 releases up to and including r21; a defect inherited from the open-source line | [module 1.1.0+r22](/docs/release-notes-1-1/#v1-1-0-r22) | Recommended |
-| 56 | — | hardening — admin-surface access control and sidecar defaults | — | [module 1.1.0+r22](/docs/release-notes-1-1/#v1-1-0-r22) | Recommended |
-| 57 | — | dependency update — admin console (13 published advisories) | all 1.1.0 releases up to and including r17 | [module 1.1.0+r18–r21](/docs/release-notes-1-1/#v1-1-0-r18-r21) | Recommended |
-| 58 | CVE-2023-4863 | memory safety — bundled libwebp | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](/docs/release-notes-1-1/#v1-1-0) | Recommended |
-| 59 | — | memory safety — image processing | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](/docs/release-notes-1-1/#v1-1-0) | Recommended |
-| 60 | — | denial of service — untrusted input handling | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](/docs/release-notes-1-1/#v1-1-0) | Recommended |
-| 61 | — | dependency update — bundled image codecs and HTTPS fetch library | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](/docs/release-notes-1-1/#v1-1-0) | Recommended |
-| 62 | — | hardening — admin surface | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](/docs/release-notes-1-1/#v1-1-0) | Recommended |
+| 1 | — | resource exhaustion — image optimization | releases up to and including 1.17.0 with image conversion enabled | [mod_pagespeed 2.3.0](/docs/release-notes-2-3/#v2-3-0) | Recommended; animations above the new frame limit (default 200) are no longer converted |
+| 2 | — | dependency update — Envoy filter (Envoy 1.37.6, advisories of 2026-08-26) | the Envoy filter in releases up to and including 1.17.0, built against Envoy 1.37.5 or older | [mod_pagespeed 2.3.0](/docs/release-notes-2-3/#v2-3-0) | Recommended |
+| 3 | CVE-2026-90439 | dependency update — bundled nginx (1.30.5) | the NuGet sidecar package; not affected, because its bundled nginx is not built with HTTP/3 | [mod_pagespeed 2.3.0](/docs/release-notes-2-3/#v2-3-0) | Not required (keeps vulnerability scans clean) |
+| 4 | — | denial of service — nginx module | the nginx module, all releases up to and including 1.16.0 | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
+| 5 | — | denial of service — Apache module | the Apache module, all releases up to and including 1.16.0 | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
+| 6 | — | denial of service — HTML rewriter | releases 1.15.0+r20 through 1.16.0 | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
+| 7 | — | access-restriction bypass — nginx admin, statistics, console and message pages | the nginx module, all releases up to and including 1.16.0, where access to these pages is restricted in the nginx configuration | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended; then replace the access rules for these pages with the updated example in every `server` block |
+| 8 | — | information disclosure — per-host admin console | module 1.16.0 with the optimizer worker in use | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
+| 9 | — | cache integrity — nginx in-place optimization | the nginx module, all releases up to and including 1.16.0, with in-place optimization enabled (the default) | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
+| 10 | — | information disclosure — nginx in-place optimization | the nginx module, all releases up to and including 1.16.0, with in-place optimization enabled (the default) | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended; flush the PageSpeed cache once after updating |
+| 11 | — | request forgery — admin console | all releases up to and including 1.16.0, where the admin console is reachable beyond loopback | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended; scripted purges and some monitoring probes need a change |
+| 12 | — | denial of service — optimizer management API | optimizer worker 2.0.0 through 2.1.0 and optimizer packages through 1.16.0, with the management API enabled | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
+| 13 | — | information disclosure — optimizer management API with `--api-read-open` | optimizer worker 2.0.0 through 2.1.0 and optimizer packages through 1.16.0, started with `--api-read-open` | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended; read-only clients that relied on it beyond the documented read endpoints need the API token |
+| 14 | — | local privilege escalation — Windows | `WeAmp.PageSpeed.AspNetCore` and `WeAmp.PageSpeed.NativeAssets.Windows` 2.0.0 through 2.1.0, and the Windows optimizer worker built from them | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
+| 15 | CVE-2026-19931, CVE-2026-18924, CVE-2026-82209, CVE-2026-80229, CVE-2026-80230, CVE-2026-80231, CVE-2026-80255, CVE-2026-82208, CVE-2026-13608 | dependency update — bundled HTTPS fetch library (curl 8.22.0) | module releases 1.1.0-beta.2 through 1.16.0 | [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
+| 16 | CVE-2026-32327, CVE-2026-34191, CVE-2025-49506, CVE-2026-34501, CVE-2026-34502 | dependency update — bundled apr-util | apr-util 1.6.3 and earlier in the bundle; the affected components are not built into or called by any mod_pagespeed release | [module 1.16.0](/docs/release-notes-2-1/#v1-16-0) | Recommended (no earlier release believed exposed) |
+| 17 | GHSA-29g2-3rmr-qm68 | dependency update — web console | ASP.NET Core packages before 2.0.42; container and Helm deployments before 2.2.0 | [optimizer worker 2.0.42](/docs/release-notes-2-0/#v2-0-42) · [mod_pagespeed 2.2.0](/docs/release-notes-2-2/#v2-2-0) | Recommended |
+| 18 | — | denial of service — image decoding | optimizer worker before 2.1.0 | [mod_pagespeed 2.1.0](/docs/release-notes-2-1/#v2-1-0) | Recommended |
+| 19 | — | hardening — privilege separation for the optimizer worker | — | [mod_pagespeed 2.1.0](/docs/release-notes-2-1/#v2-1-0) | Recommended (new default in 2.1) |
+| 20 | — | hardening — management API authentication | — | [mod_pagespeed 2.1.0](/docs/release-notes-2-1/#v2-1-0) | Recommended (new default in 2.1) |
+| 21 | — | hardening — browser-analysis sandbox | — | [mod_pagespeed 2.1.0](/docs/release-notes-2-1/#v2-1-0) | Recommended (new default in 2.1) |
+| 22 | — | hardening — system-call allow-list enforcement | — | [mod_pagespeed 2.1.0](/docs/release-notes-2-1/#v2-1-0) | Recommended (new default in 2.1) |
+| 23 | — | hardening — container and Helm defaults | — | [mod_pagespeed 2.1.0](/docs/release-notes-2-1/#v2-1-0) | Recommended (new default in 2.1) |
+| 24 | — | dependency update — base image | worker and nginx images before 2.0.41 | [optimizer worker 2.0.41](/docs/release-notes-2-0/#v2-0-41) | Recommended |
+| 25 | — | cache disclosure — authenticated responses | optimizer worker before 2.0.40 | [optimizer worker 2.0.40](/docs/release-notes-2-0/#v2-0-40) | Recommended |
+| 26 | — | cache disclosure — responses the origin later marks non-shareable | optimizer worker before 2.0.40 | [optimizer worker 2.0.40](/docs/release-notes-2-0/#v2-0-40) | Recommended |
+| 27 | CVE-2026-42533 | memory safety — bundled nginx | the sidecar package, the container images and the worker and nginx images, before module 1.15.0+r20 / worker 2.0.39 (bundled nginx before 1.30.4) | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) · [optimizer worker 2.0.39](/docs/release-notes-2-0/#v2-0-39) | Recommended |
+| 28 | — | cross-site scripting — CSS inlining | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 29 | — | cross-site scripting — local-storage cache inlining | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 30 | — | cross-site scripting — inline-image deduplication | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 31 | — | cross-site scripting — inline image preview | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 32 | — | denial of service — image resolution limit | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 33 | — | denial of service — image spriting | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 34 | — | denial of service — JavaScript minifier | all 1.15 releases up to and including r19 | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 35 | — | denial of service — HTML parser | all 1.15 releases up to and including r19 | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 36 | — | content integrity — CSS dependency parsing | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 37 | — | content integrity — HTML character references | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 38 | — | thread safety — HTML parsing (startup race) | all releases up to and including 1.15.0+r19; long-standing defects inherited from the open-source line | [module 1.15.0+r20](/docs/release-notes-1-15/#v1-15-0-r20) | Recommended |
+| 39 | CVE-2026-50812, CVE-2026-50813 | memory safety — bundled SQLite | worker and nginx images before 2.0.39 | [optimizer worker 2.0.39](/docs/release-notes-2-0/#v2-0-39) | Recommended |
+| 40 | — | denial of service — image dimension reading | optimizer worker before 2.0.39 | [optimizer worker 2.0.39](/docs/release-notes-2-0/#v2-0-39) | Recommended |
+| 41 | — | dependency update — runtime images | 2.0.x container images before 2.0.37 | [optimizer worker 2.0.37](/docs/release-notes-2-0/#v2-0-37) | Recommended |
+| 42 | — | hardening — admin console | — | [optimizer worker 2.0.37](/docs/release-notes-2-0/#v2-0-37) | Recommended |
+| 43 | — | dependency update — bundled HTTPS fetch library | all releases up to and including 1.15.0+r17 | [module 1.15.0+r18](/docs/release-notes-1-15/#v1-15-0-r18) | Recommended |
+| 44 | — | hardening — input validation and output escaping | all releases up to and including 1.15.0+r17; the underlying gaps date back to 1.14.36.1 and earlier | [module 1.15.0+r18](/docs/release-notes-1-15/#v1-15-0-r18) | Recommended |
+| 45 | CVE-2026-42055, CVE-2026-48142 | dependency update — bundled nginx | the ASP.NET Core sidecar, all 1.15 releases up to and including r16 (bundled nginx before 1.30.3) | [module 1.15.0+r17](/docs/release-notes-1-15/#v1-15-0-r17) | Recommended |
+| 46 | — | memory safety — nginx request handling | all releases up to and including 1.15.0+r16; a defect inherited from the open-source line | [module 1.15.0+r17](/docs/release-notes-1-15/#v1-15-0-r17) | Recommended |
+| 47 | — | dependency update — runtime image | 2.0.x container images before 2.0.33 | [optimizer worker 2.0.33](/docs/release-notes-2-0/#v2-0-33) | Recommended |
+| 48 | — | hardening — bundled third-party code (defense in depth) | — | [module 1.15.0+r16](/docs/release-notes-1-15/#v1-15-0-r16) | Recommended |
+| 49 | — | dependency update — bundled image codecs | optimizer worker before 2.0.32 | [optimizer worker 2.0.32](/docs/release-notes-2-0/#v2-0-32) | Recommended |
+| 50 | — | hardening — binary hardening of the shipped native library | — | [optimizer worker 2.0.32](/docs/release-notes-2-0/#v2-0-32) | Recommended |
+| 51 | — | hardening — binary hardening and reduced attack surface | — | [module 1.15.0+r15](/docs/release-notes-1-15/#v1-15-0-r15) | Recommended |
+| 52 | — | hardening — parser bounds and IIS sub-resource TLS | all releases up to and including 1.15.0+r10 | [module 1.15.0+r11–r14](/docs/release-notes-1-15/#v1-15-0-r11-r14) | Recommended; particularly for IIS deployments |
+| 53 | — | dependency update — admin console | all 1.15 releases up to and including r10 | [module 1.15.0+r11–r14](/docs/release-notes-1-15/#v1-15-0-r11-r14) | Recommended |
+| 54 | — | content integrity — agent-optimized markdown output | optimizer worker before 2.0.30 | [optimizer worker 2.0.30](/docs/release-notes-2-0/#v2-0-30) | Recommended |
+| 55 | — | dependency update — container images | 2.0.x container images before 2.0.22 | [optimizer worker 2.0.22](/docs/release-notes-2-0/#v2-0-22) | Recommended |
+| 56 | — | memory safety — IIS module unload | IIS deployments, all releases up to and including 1.15.0+r8 | [module 1.15.0+r9](/docs/release-notes-1-15/#v1-15-0-r9) | Recommended for IIS deployments |
+| 57 | — | availability — prebuilt nginx module | prebuilt Ubuntu nginx module packages, 1.15.0+r3–r6 | [module 1.15.0+r7–r8](/docs/release-notes-1-15/#v1-15-0-r7-r8) | Recommended |
+| 58 | — | denial of service — nginx request handling | all 1.1.0 releases up to and including r21; a defect inherited from the open-source line | [module 1.1.0+r22](/docs/release-notes-1-1/#v1-1-0-r22) | Recommended |
+| 59 | — | hardening — admin-surface access control and sidecar defaults | — | [module 1.1.0+r22](/docs/release-notes-1-1/#v1-1-0-r22) | Recommended |
+| 60 | — | dependency update — admin console (13 published advisories) | all 1.1.0 releases up to and including r17 | [module 1.1.0+r18–r21](/docs/release-notes-1-1/#v1-1-0-r18-r21) | Recommended |
+| 61 | CVE-2023-4863 | memory safety — bundled libwebp | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](/docs/release-notes-1-1/#v1-1-0) | Recommended |
+| 62 | — | memory safety — image processing | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](/docs/release-notes-1-1/#v1-1-0) | Recommended |
+| 63 | — | denial of service — untrusted input handling | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](/docs/release-notes-1-1/#v1-1-0) | Recommended |
+| 64 | — | dependency update — bundled image codecs and HTTPS fetch library | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](/docs/release-notes-1-1/#v1-1-0) | Recommended |
+| 65 | — | hardening — admin surface | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](/docs/release-notes-1-1/#v1-1-0) | Recommended |
 
 No container images or Helm chart were published for 2.1.0; for those deployments, the fixes listed as fixed in 2.1.0 arrive with 2.2.0.
 
