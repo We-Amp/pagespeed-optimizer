@@ -4,20 +4,11 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
-Fixed: with `gzip_level` or `brotli_level` set to 0, the optimizer never
-learned whether a CSS, JavaScript or unsupported-image file had really
-changed. After the origin changed, each re-record of the file made it purge
-and rebuild its stored copies, at most once per URL every 10 seconds, and
-clients received unoptimized bytes until the rebuild finished. The optimizer
-now tracks the file whenever the encodings that are turned on have been
-stored, so a file whose bytes did not change is simply refreshed instead of
-rebuilt.
-
-Fixed: JS minifier: a comment between a generator's `*` and the method name no longer leaves the script unminified or changes the output between passes.
-
-Fixed: the Debian package no longer aborts configuration when
-`systemctl daemon-reload` fails during install or upgrade; the RPM scriptlet
-is guarded the same way for consistency.
+This release fixes stale copies of CSS, JavaScript and image files after
+they changed on the origin; updating is recommended for every installation.
+Also new: a free edge-SEO rule pack template for the `rule_packs` filter of
+mod_pagespeed 1.18.0. With module 1.18.0 on Apache, nginx and IIS the
+optimizer no longer serves HTML; see Changed below.
 
 Fixed: after a file changed on the origin, mod_pagespeed could keep sending
 the previous version of a CSS, JavaScript or image file until the old copy's
@@ -29,16 +20,48 @@ optimizer now replaces its stored copies as soon as the web server has
 recorded the new version. If you have been resetting the optimizer's cache
 after each deploy to work around this, that is no longer needed.
 
+Fixed: with `gzip_level` or `brotli_level` set to 0, the optimizer never
+learned whether a CSS, JavaScript or unsupported-image file had really
+changed. After the origin changed, each re-record of the file made it purge
+and rebuild its stored copies, at most once per URL every 10 seconds, and
+clients received unoptimized bytes until the rebuild finished. The optimizer
+now tracks the file whenever the encodings that are turned on have been
+stored, so a file whose bytes did not change is simply refreshed instead of
+rebuilt.
+
+Fixed: the JavaScript minifier now handles a comment between the `*` of an
+object or class generator method and its name. Such scripts were previously
+left unminified when the method was named `await` or `yield`; they are now
+minified like the same code without the comment, and the output no longer
+differs between passes.
+
+Fixed: the Debian package no longer aborts configuration when
+`systemctl daemon-reload` fails during install or upgrade; the RPM scriptlet
+is guarded the same way for consistency.
+
+Added: a free edge-SEO rule pack template, `packs/edge-seo/pack.example.json`,
+with a README, for the `rule_packs` filter of mod_pagespeed 1.18.0 and later.
+It lists one placeholder host in report mode and one rule per kind
+(canonical, title, description, hreflang, JSON-LD); replace the example
+values with your own. It is not signed.
+
 Added: the worker's `--help` output now lists `--agent-render-allow-hosts`
-with its default and semantics, so the generated configuration reference on
-the website documents it. The flag itself is unchanged; only the usage text
-was missing.
+with its default and meaning. The flag itself is unchanged.
+
+Changed: with mod_pagespeed 1.18.0 on Apache, nginx and IIS the optimizer no
+longer serves HTML. Those modules rewrite every HTML response themselves, so
+the optimizer's own HTML improvements (such as critical CSS and LCP hints)
+are not applied there. CSS, JavaScript and images are served by the
+optimizer as before.
+
+Changed: the bundled crossbeam-epoch library is updated to 0.9.20
+(RUSTSEC-2026-0204), so dependency scanners no longer report it.
 
 Changed: the packaged systemd unit describes the service as the "PageSpeed
 Optimizer Worker" (what `systemctl status` shows) and the README calls the
-optimizer process the worker throughout. Names that carry the word daemon
-for compatibility — the `pagespeed_daemon.conf` file, CLI flags, API paths
-and metric names — are unchanged.
+optimizer process the worker throughout. Names that keep the word daemon for
+compatibility (the `pagespeed_daemon.conf` file, CLI flags, API paths and
+metric names) are unchanged.
 
 ## 2.2.0 — 2026-10-06
 
