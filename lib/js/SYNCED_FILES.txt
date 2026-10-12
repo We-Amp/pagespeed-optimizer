@@ -25,6 +25,8 @@ lib/js/corpus/findings/repros/n4-u2029-in-string.js
 lib/js/corpus/findings/repros/n4-yield-brace-linebreak-decline.js
 lib/js/corpus/findings/repros/n4-yield-object-literal.js
 lib/js/corpus/findings/repros/n5-class-await-name.js
+lib/js/corpus/findings/repros/n5-generator-comment-await.js
+lib/js/corpus/findings/repros/n5-generator-comment-idempotence.js
 lib/js/corpus/findings/repros/n5-shebang.js
 lib/js/corpus/findings/repros/n6-arrow-for-in.js
 lib/js/corpus/findings/repros/n6-arrow-try-catch.js
