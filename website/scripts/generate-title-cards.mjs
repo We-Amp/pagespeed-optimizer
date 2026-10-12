@@ -98,7 +98,7 @@ const colors = {
 const PAGE_CARDS = [
   {
     slug: 'platform',
-    eyebrow: 'early access · transform packs',
+    eyebrow: 'transform packs',
     title: 'One interceptor, many packs',
   },
   {
@@ -108,7 +108,7 @@ const PAGE_CARDS = [
   },
   {
     slug: 'platform-edge-seo',
-    eyebrow: 'early access · edge SEO at the origin',
+    eyebrow: 'edge SEO at the origin',
     title: 'Technical SEO fixes at serve time, for sites that are not on a CDN',
   },
 ];
