@@ -289,9 +289,9 @@ class JsTokenizer {
 
   // Returns true if the next non-whitespace, non-comment character of the
   // remaining input is an ASCII identifier-start character.  A lookahead miss
-  // (a non-ASCII byte, an unterminated comment, EOF) answers false, which every caller treats as "keep
-  // the old path" -- the same degrade-to-previous-behavior rule the `let`
-  // binding lookahead uses.
+  // (a non-ASCII byte, an unterminated comment, EOF) answers false, which
+  // every caller treats as "keep the old path" -- the same
+  // degrade-to-previous-behavior rule the `let` binding lookahead uses.
   bool NextCharStartsIdentifier() const;
 
   const JsTokenizerPatterns* patterns_;

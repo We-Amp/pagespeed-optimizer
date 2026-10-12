@@ -16,5 +16,5 @@
 # the floor at the last MERGED pin — the unmerged SHA is orphaned by the
 # 1.15 squash-merge and must never become the floor; move the floor at
 # reconciliation. See lib/js/CLAUDE.md.
-c068ab75e6aed097a453750716f73d21ab714e6d  mod_pagespeed 1.15: generator-method lookahead skips comments
-floor c068ab75e6aed097a453750716f73d21ab714e6d
+749ea70af9e654378a518ac0ed9f7c2c9eed3315  mod_pagespeed 1.15: corpus repro for the generator-comment finding, one comment-skip helper, more lookahead tests
+floor 749ea70af9e654378a518ac0ed9f7c2c9eed3315
