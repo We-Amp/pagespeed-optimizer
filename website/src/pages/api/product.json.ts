@@ -14,7 +14,8 @@ import {
   PRODUCT_NAME,
   CURRENT_LINE,
   SUPPORT_TIERS,
-  PRICING_ON_REQUEST,
+  PRICING_LINE,
+  RESPONSE_TARGETS_LINE,
   COMMERCIAL_EMAIL,
   ARTIFACT_ACCESS,
   SUPPORT_URL,
@@ -49,8 +50,9 @@ const productData = {
     license: SOURCE_PUBLICATION.licenseId,
   },
   // What is for sale is support; Priority and Enterprise add a private package repository
-  // (being set up). Prices are
-  // placeholders (null) until published.
+  // (being set up). Prices are in euro, per year, excl. VAT; Enterprise is a
+  // "from" price (annual_from).
+
   support: {
     url: SUPPORT_URL,
     terms: LICENSING_TERMS_URL,
@@ -61,11 +63,13 @@ const productData = {
       servers: t.servers,
       hardened_builds: t.hardened,
       includes: t.includes,
-      annual_usd: t.prices.annualUsd,
-      monthly_usd: t.prices.monthlyUsd,
+      annual_eur: t.prices.annualEur,
+      annual_from: t.prices.from,
+      buy_url: t.cta.href.startsWith('/') ? `${WEBSITE}${t.cta.href}` : t.cta.href,
       note: t.note,
     })),
-    pricing_status: PRICING_ON_REQUEST,
+    pricing_status: PRICING_LINE,
+    response_targets: RESPONSE_TARGETS_LINE,
     contact: COMMERCIAL_EMAIL,
   },
   // Artifact access, expressed additively (new key, existing keys unchanged):

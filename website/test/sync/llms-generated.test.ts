@@ -460,11 +460,11 @@ describe('ai-plugin.json manifest drift guard', () => {
 });
 
 describe('product-facts consumers reflect the single source', () => {
-  it('support tiers are placeholder-priced and price-free in their ladder prose', () => {
-    for (const t of SUPPORT_TIERS) {
-      expect(t.prices.annualUsd).toBeNull();
-      expect(t.prices.monthlyUsd).toBeNull();
-    }
+  it('support tiers carry euro prices, annual billing only, and no dollar amounts', () => {
+    expect(SUPPORT_TIERS.map((t) => t.prices.annualEur)).toEqual([490, 1900, 7500]);
+    for (const t of SUPPORT_TIERS) expect(t.prices.monthlyEur).toBeNull();
+    expect(SUPPORT_LADDER_MD).toContain('\u20ac490 a year');
+    expect(SUPPORT_LADDER_LINE).toContain('from \u20ac7,500 a year');
     expect(SUPPORT_LADDER_MD).not.toMatch(/\$\d/);
     expect(SUPPORT_LADDER_LINE).not.toMatch(/\$\d/);
   });
@@ -489,16 +489,23 @@ describe('product-facts consumers reflect the single source', () => {
     // The license/publication record is pinned in full by
     // source-publication-sync.test.ts; no evaluation story exists.
     expect(data).not.toHaveProperty('evaluation');
-    // Support block mirrors SUPPORT_TIERS (placeholder prices stay null).
+    // Support block mirrors SUPPORT_TIERS (euro prices, annual billing only).
     expect(data.support.terms).toBe(LICENSING_TERMS_URL);
     expect(data.support.tiers).toHaveLength(SUPPORT_TIERS.length);
     expect(data.support.tiers.map((t: { id: string }) => t.id)).toEqual(
       SUPPORT_TIERS.map((t) => t.id),
     );
     for (const t of data.support.tiers) {
-      expect(t.annual_usd).toBeNull();
-      expect(t.monthly_usd).toBeNull();
+      expect(t).not.toHaveProperty('annual_usd');
     }
+    expect(data.support.tiers.map((t: { annual_eur: number }) => t.annual_eur)).toEqual([
+      490, 1900, 7500,
+    ]);
+    expect(data.support.tiers.map((t: { annual_from: boolean }) => t.annual_from)).toEqual([
+      false,
+      false,
+      true,
+    ]);
     // No retired commercial blocks.
     expect(data.pricing).toBeUndefined();
     expect(data.promotion).toBeUndefined();

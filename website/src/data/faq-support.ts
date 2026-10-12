@@ -5,8 +5,7 @@
 // artifacts are verified. Rendered visibly on the page and emitted as FAQPage JSON-LD from the
 // same entries, so the structured data never says more than the page does.
 // Answers may contain HTML; JSON-LD callers pipe them through stripHtml().
-// No price amounts and no per-tier response-time targets (the quote states
-// them).
+// Prices and first-response targets live in product-facts.mjs and on /pricing/.
 
 import type { FaqEntry } from './faq-shared';
 import { COMMERCIAL_EMAIL, SOURCE_PUBLICATION } from './product-facts.mjs';
@@ -25,23 +24,23 @@ export const faqSupport: FaqEntry[] = [
   },
   {
     q: 'When do you answer?',
-    a: 'On CET business days. There is no 24x7 desk. Response targets by severity, including any out-of-hours terms for Enterprise, are stated in your quote.',
+    a: 'On CET business days. There is no 24x7 desk. First-response targets are per tier: Standard within 2 business days, Priority next business day, and severity 1 (production down) within 8 business hours on Priority and 4 business hours on Enterprise.',
   },
   {
     q: 'How do security updates reach me?',
-    a: `Everyone gets security fixes as regular releases through the channel they installed from, listed under Security in the ${link('/docs/release-notes/', 'release notes')}. Subscribers get advance notice, with a delivery window stated in their quote. A private package repository for Priority and Enterprise subscribers, with security fixes delivered before the public release, is being set up; until then, subscribers can request the release SBOM and VEX.`,
+    a: `Everyone gets security fixes as regular releases through the channel they installed from, listed under Security in the ${link('/docs/release-notes/', 'release notes')}. Subscribers get advance notice, and Priority and Enterprise get vulnerability notifications timed to the EU Cyber Resilience Act reporting windows. A private package repository for Priority and Enterprise subscribers, with security fixes delivered before the public release, is being set up; until then, Priority and Enterprise subscribers can request the release SBOM and VEX.`,
   },
   {
     q: 'What counts as a production server?',
-    a: 'A server that serves production traffic with the module or the optimizer worker. You declare the band (up to 5, up to 25, or more) when you ask for a quote; there is no metering and the software never reports a count.',
+    a: 'A server that serves production traffic with the module or the optimizer worker. You choose the band (up to 5, up to 25, or more) when you subscribe; there is no metering and the software never reports a count.',
   },
   {
     q: 'What is the private package repository?',
-    a: 'A private package repository for Priority and Enterprise subscribers, with security fixes delivered before the public release, is being set up. Until then, subscribers receive the release SBOM and VEX on request and advance notice of security releases. Packages in it will carry the same license as the standard packages.',
+    a: 'A private package repository for Priority and Enterprise subscribers, with security fixes delivered before the public release, is being set up. Until then, Priority and Enterprise subscribers receive the release SBOM and VEX on request, and all subscribers get advance notice of security releases. Packages in it will carry the same license as the standard packages.',
   },
   {
     q: 'What is signed today?',
-    a: `The apt and yum repositories are GPG-signed, release packages carry .asc signatures, and the Windows installer is Authenticode-signed. The container images are cosign-signed and carry an SBOM attestation and build provenance. Release SBOM and VEX documents are available to subscribers (any tier) on request. Everything is the same software under the ${SOURCE_PUBLICATION.license}. See ${link('#hardened-builds', 'signed packages and images')}.`,
+    a: `The apt and yum repositories are GPG-signed, release packages carry .asc signatures, and the Windows installer is Authenticode-signed. The container images are cosign-signed and carry an SBOM attestation and build provenance. Release SBOM and VEX documents are available to Priority and Enterprise subscribers on request. Everything is the same software under the ${SOURCE_PUBLICATION.license}. See ${link('#hardened-builds', 'signed packages and images')}.`,
   },
   {
     q: 'Can I verify the standard packages without a subscription?',

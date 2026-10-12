@@ -9,15 +9,21 @@
 // dropping offers would invalidate the Product markup on every importing page,
 // and a $0 Offer is accurate (the standard packages cost nothing) and
 // rich-result-valid. (The pre-GA AggregateOffer spanned the paid per-site
-// license rungs; the license ladder is retired.) When support prices
-// are published, graduate to an AggregateOffer with lowPrice 0 — never emit a
+// license rungs; the license ladder is retired.) The three support tiers are
+// separate priced Offer nodes (supportTierOffersJsonLd) — never emit a
 // price-less Offer.
 //
 // Centralizes `priceValidUntil` (recommended by Google for offer eligibility)
 // so it doesn't drift across pages, and keeps the description derived from
 // product-facts.mjs — no price, license or support literals in this file.
 
-import { LICENSE_CLAUSE_CAP, SUPPORT_URL, PRICE_VALID_UNTIL } from './product-facts.mjs';
+import {
+  LICENSE_CLAUSE_CAP,
+  SUPPORT_URL,
+  PRICE_VALID_UNTIL,
+  SUPPORT_TIERS,
+  formatEur,
+} from './product-facts.mjs';
 
 // Re-exported from product-facts.mjs. Google treats a stale priceValidUntil as
 // expired, so the canonical value is bumped ~yearly in product-facts.mjs.
@@ -61,4 +67,25 @@ export function offerJsonLd(opts: OfferOptions = {}) {
     url: opts.url ?? 'https://modpagespeed.com/pricing/',
     description: opts.description ?? DEFAULT_OFFER_DESCRIPTION,
   };
+}
+
+/**
+ * One priced Offer per support tier (euro, per year, excl. VAT), built from
+ * SUPPORT_TIERS so the markup never states a price the page does not.
+ * Enterprise is a "from" price, said in its description.
+ */
+export function supportTierOffersJsonLd(opts: { url?: string } = {}) {
+  const pageUrl = opts.url ?? 'https://modpagespeed.com/pricing/';
+  return SUPPORT_TIERS.map((t) => ({
+    '@type': 'Offer',
+    name: t.name,
+    availability: 'https://schema.org/InStock',
+    price: t.prices.annualEur,
+    priceCurrency: 'EUR',
+    priceValidUntil: PRICE_VALID_UNTIL,
+    url: t.cta.external ? t.cta.href : `${pageUrl}#tiers`,
+    description:
+      `${t.name}, ${t.servers}: ${t.prices.from ? 'from ' : ''}${formatEur(t.prices.annualEur)} ` +
+      'per year, billed annually, excl. VAT.',
+  }));
 }

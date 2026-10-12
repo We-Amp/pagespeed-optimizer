@@ -35,7 +35,9 @@ test.describe('Support page', () => {
       await expect(page.locator(`#${id}`), `#${id}`).toBeVisible();
     }
     await expect(page.locator('#tiers [data-tier]')).toHaveCount(3);
-    await expect(page.locator('#tiers [data-pricing-status]')).toContainText('Pricing on request');
+    await expect(page.locator('#tiers [data-pricing-status]')).toContainText(
+      'Prices are per year, billed annually, excl. VAT.',
+    );
   });
 
   test('what a subscription buys names channel, response, updates and scope', async ({ page }) => {
@@ -46,11 +48,23 @@ test.describe('Support page', () => {
     await expect(readout).toContainText('CET business days');
   });
 
-  test('custom builds are a quoted Enterprise option, never included', async ({ page }) => {
-    const option = page.locator('[data-enterprise-option]');
-    await expect(option).toContainText('available on request and quoted per project');
-    await expect(page.locator('#tiers [data-tier="enterprise"]')).not.toContainText(
-      'build targets',
+  test('tiers carry their price, first-response target and own button', async ({ page }) => {
+    const tiers = page.locator('#tiers');
+    await expect(tiers.locator('[data-tier="standard"]')).toContainText('€490');
+    await expect(tiers.locator('[data-tier="priority"]')).toContainText('€1,900');
+    await expect(tiers.locator('[data-tier="enterprise"]')).toContainText('From');
+    await expect(tiers.locator('[data-tier="enterprise"]')).toContainText('€7,500');
+    await expect(tiers.locator('[data-tier="standard"]')).toContainText(
+      'First response within 2 business days',
+    );
+    await expect(tiers.locator('[data-tier="enterprise"]')).toContainText('Custom build targets');
+    await expect(tiers.locator('[data-tier="standard"] a')).toHaveAttribute(
+      'href',
+      'https://mpspro.onfastspring.com/support-standard-annual',
+    );
+    await expect(tiers.locator('[data-tier="enterprise"] a')).toHaveAttribute(
+      'href',
+      '/contact/?topic=enterprise',
     );
   });
 
@@ -76,11 +90,10 @@ test.describe('Support page', () => {
     expect(recipe).toContain('sha256sum --check');
   });
 
-  test('no price amount and no response-hour target', async ({ page }) => {
+  test('no USD price and no per-month rate', async ({ page }) => {
     const text = await page.locator('main').innerText();
-    expect(text).not.toMatch(/[€$£]\s?\d/);
-    expect(text).not.toMatch(/\d[\d.,]*\s*\/\s*(?:yr|year|mo|month)\b/i);
-    expect(text).not.toMatch(/\d+\s*(?:business )?hours?\b/i);
+    expect(text).not.toMatch(/\$\s?\d/);
+    expect(text).not.toMatch(/\d[\d.,]*\s*\/\s*(?:mo|month)\b/i);
   });
 
   test('commercial and security addresses are separate', async ({ page }) => {
@@ -120,12 +133,29 @@ test.describe('Support page', () => {
     for (let i = 0; i < count; i++) {
       const cta = ctas.nth(i);
       const offer = await cta.getAttribute('data-umami-event-offer');
-      expect(['support', 'hardened', 'hosting', 'consulting', 'agentic']).toContain(offer);
+      expect([
+        'support',
+        'buy-standard',
+        'buy-priority',
+        'enterprise',
+        'hardened',
+        'hosting',
+        'consulting',
+        'agentic',
+      ]).toContain(offer);
       offers.add(offer!);
       await expect(cta).toHaveAttribute('data-umami-event-surface', 'support');
       await expect(cta).toHaveAttribute('data-umami-event-position', /\S/);
     }
-    expect([...offers].sort()).toEqual(['consulting', 'hardened', 'hosting', 'support']);
+    expect([...offers].sort()).toEqual([
+      'buy-priority',
+      'buy-standard',
+      'consulting',
+      'enterprise',
+      'hardened',
+      'hosting',
+      'support',
+    ]);
   });
 
   test('consulting hands off to we-amp.com', async ({ page }) => {

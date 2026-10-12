@@ -9,8 +9,8 @@
 //
 // Facts: tiers from SUPPORT_TIERS, the pricing status and commercial address
 // from product-facts.mjs, the signing-key URL from the 2.1 release manifest.
-// No price amounts and no per-tier response targets (owner ruling): response
-// targets by severity are stated in the quote. Signed artifacts are described
+// Prices, the checkout links and the first-response targets come with the tier
+// rows; /pricing/ is the buying page. Signed artifacts are described
 // only by what ships today; the private package repository is stated as being set up, and nothing
 // here claims a per-release SBOM/VEX on release assets or provenance on
 // packages.
@@ -28,7 +28,7 @@ import {
   COMMERCIAL_EMAIL,
   LICENSE_CLAUSE,
   LICENSING_TERMS_URL,
-  PRICING_ON_REQUEST,
+  PRICING_LINE,
   RESPONSE_TARGETS_LINE,
   SOURCE_PUBLICATION,
 } from '../data/product-facts.mjs';
@@ -55,7 +55,7 @@ const jsonLd = [
     '@type': 'WebPage',
     name: `Support for ${PRODUCT}`,
     url: 'https://modpagespeed.com/support/',
-    description: `Support subscriptions for ${PRODUCT} from We-Amp B.V.: a direct channel to the engineers who build it, response targets by severity agreed in the quote, and a private package repository (being set up) for Priority and Enterprise.`,
+    description: `Support subscriptions for ${PRODUCT} from We-Amp B.V.: a direct channel to the engineers who build it, first-response targets per tier, and a private package repository (being set up) for Priority and Enterprise.`,
     publisher: { '@type': 'Organization', name: 'We-Amp B.V.', url: 'https://we-amp.com/' },
   },
   {
@@ -79,7 +79,8 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
   {
     key: 'response',
     value: 'by severity',
-    detail: 'Agreed response times on CET business days, per severity level, stated in your quote.',
+    detail:
+      'First-response targets per tier, on CET business days. Severity 1 (production down) is answered within hours on Priority and Enterprise.',
   },
   {
     key: 'security updates',
@@ -115,14 +116,14 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
     </SectionHeader>
     <div class="mt-8 flex flex-wrap gap-3">
       <a
-        href="/pricing/#quote"
+        href="/pricing/#tiers"
         class="btn-primary"
         data-umami-event="cta_commercial"
         data-umami-event-offer="support"
         data-umami-event-surface="support"
-        data-umami-event-position="hero_quote"
+        data-umami-event-position="hero_pricing"
       >
-        Ask for a quote &rarr;
+        See prices &rarr;
       </a>
       <a
         href="/contact/?topic=support"
@@ -174,13 +175,10 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
       the same in all three.
     </p>
     <div class="mt-10">
-      <SupportTiers surface="support" ctaHref="/pricing/#quote" ctaLabel="Ask for a quote" />
+      <SupportTiers surface="support" />
     </div>
-    <p class="mt-6 text-sm text-text-muted" data-enterprise-option>
-      Enterprise: builds for additional platforms are available on request and quoted per project.
-    </p>
-    <p class="mt-2 text-sm text-text-muted" data-pricing-status>
-      {PRICING_ON_REQUEST}
+    <p class="mt-6 text-sm text-text-muted" data-pricing-status>
+      {PRICING_LINE}
       {RESPONSE_TARGETS_LINE}
     </p>
   </section>
@@ -259,8 +257,8 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
             <li class="flex gap-2">
               <Icon name="shield-check" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
               <span>
-                Until then, subscribers receive the release SBOM and VEX on request and advance
-                notice of security releases.
+                Until then, Priority and Enterprise subscribers receive the release SBOM and VEX on
+                request, and all subscribers get advance notice of security releases.
               </span>
             </li>
           </ul>
@@ -363,7 +361,8 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
             contact form
           </a>{' '}
           with the topic “IISpeed license transfer” and include the order number or the email
-          address the license was bought under.
+          address the license was bought under. Existing customers keep their current rate when they
+          move to a support subscription.
         </p>
       </div>
       <div id="reach-us" class="rounded-lg border border-border bg-bg-secondary p-6">

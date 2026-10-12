@@ -2081,12 +2081,12 @@ describe('canary fixtures: the scan path (walker, filter, splitter) still works'
 // ---------------------------------------------------------------------------
 // Commercial copy rules (owner rulings, support-as-the-product).
 //
-// (1) No price amounts and no per-tier response-hour targets on /pricing/ and
-//     /support/ — including everything those pages render from (the tier
-//     cards, the FAQ data, the tier rows in product-facts.mjs). Prices and
-//     targets are stated in quotes until the owner publishes them; a number
-//     slipping into one of these sources would publish it. Scanned RAW, as
-//     the denylist is: a price in a comment drifts into copy next.
+// (1) Price amounts on /pricing/ and /support/ (and everything those pages
+//     render from) are exactly the published euro amounts: 490, 1,900, 7,500
+//     and 950. Any other currency amount, any dollar amount, any per-month
+//     rate and any hour target other than the published 8 and 4 business
+//     hours would publish a number nobody approved. Scanned RAW, as the
+//     denylist is: a price in a comment drifts into copy next.
 // (2) One commercial address (COMMERCIAL_EMAIL) everywhere commercial,
 //     security@modpagespeed.com for disclosure only; the retired sales
 //     address and the support alias stay off the site. Both literals are
@@ -2108,6 +2108,11 @@ const COMMERCIAL_PAGE_SOURCES = [
 // state ("up to 25 production servers", "within 3 business days").
 const PRICE_AMOUNT =
   /[€$£]\s?\d|\b\d[\d.,]*\s?(?:EUR|USD|GBP|euros?|dollars?)\b|\d[\d.,]*\s*\/\s*(?:yr|year|mo|month)\b|\bper (?:year|month)\b|\b\d+\s*(?:business\s+)?hours?\b/i;
+// The published amounts and targets, as they appear in the sources: euro
+// amounts (490, 1,900, 7,500, 950) and the 8 and 4 business-hour targets.
+const APPROVED_AMOUNT = /(?:€\s?(?:490|1,900|7,500|950)\b)|\b(?:8|4) business hours\b/;
+const DISALLOWED_AMOUNT =
+  /\$\s?\d|£\s?\d|\b\d[\d.,]*\s?(?:USD|GBP|dollars?)\b|\d[\d.,]*\s*\/\s*(?:mo|month)\b|\bper month\b/i;
 
 function priceAmountHits(files: string[]): string[] {
   const hits: string[] = [];
@@ -2115,14 +2120,17 @@ function priceAmountHits(files: string[]): string[] {
     readFileSync(file, 'utf8')
       .split('\n')
       .forEach((line, i) => {
-        const m = line.match(PRICE_AMOUNT);
+        const bad = line.match(DISALLOWED_AMOUNT);
+        if (bad) hits.push(`${path.relative(WEBSITE_ROOT, file)}:${i + 1}: ${bad[0]}`);
+        // Any other amount or hour target must be one of the published ones.
+        const m = line.replace(new RegExp(APPROVED_AMOUNT, 'g'), '').match(PRICE_AMOUNT);
         if (m) hits.push(`${path.relative(WEBSITE_ROOT, file)}:${i + 1}: ${m[0]}`);
       });
   }
   return hits;
 }
 
-describe('commercial copy: no price amounts, one commercial address', () => {
+describe('commercial copy: only published amounts, one commercial address', () => {
   it('the price matcher flags amounts, rates and hour targets', () => {
     for (const bad of [
       'Standard support €123/yr',
@@ -2150,18 +2158,17 @@ describe('commercial copy: no price amounts, one commercial address', () => {
     for (const file of COMMERCIAL_PAGE_SOURCES) expect(existsSync(file), file).toBe(true);
   });
 
-  it('no price amount or hour target on /pricing/ and /support/ sources', () => {
+  it('only the published amounts and hour targets on /pricing/ and /support/ sources', () => {
     const hits = priceAmountHits(COMMERCIAL_PAGE_SOURCES);
     expect(hits, hits.length ? `\n${hits.join('\n')}\n` : undefined).toEqual([]);
   });
 
-  it('no price amount or hour target in the support tier rows', () => {
-    const rows = JSON.stringify(facts.SUPPORT_TIERS) + facts.PRICING_ON_REQUEST;
-    expect(rows).not.toMatch(PRICE_AMOUNT);
-    for (const tier of facts.SUPPORT_TIERS) {
-      expect(tier.prices.annualUsd).toBeNull();
-      expect(tier.prices.monthlyUsd).toBeNull();
-    }
+  it('the support tier rows carry only the published euro prices and targets', () => {
+    const rows = JSON.stringify(facts.SUPPORT_TIERS) + facts.PRICING_LINE;
+    expect(rows).not.toMatch(DISALLOWED_AMOUNT);
+    expect(facts.SUPPORT_TIERS.map((t) => t.prices.annualEur)).toEqual([490, 1900, 7500]);
+    for (const tier of facts.SUPPORT_TIERS) expect(tier.prices.monthlyEur).toBeNull();
+    expect(facts.AUDIT_PRICE_EUR).toBe(950);
   });
 
   it('no retired sales address anywhere on the scan surface', () => {

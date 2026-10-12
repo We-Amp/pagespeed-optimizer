@@ -39,7 +39,8 @@ What it does:
 {{PRODUCT_NAME}} {{CURRENT_LINE}} is {{LICENSE_CLAUSE}}: free to install and run, in development and in production, with free standard signed packages. What We-Amp sells is support, in three tiers; Priority and Enterprise add a private package repository (being set up):
 
 {{SUPPORT_LADDER_MD}}
-- {{PRICING_ON_REQUEST}} {{RESPONSE_TARGETS_LINE}}
+- {{PRICING_LINE}} {{RESPONSE_TARGETS_LINE}}
+- Standard and Priority are bought at checkout; Enterprise runs on a master agreement. A fixed-price agent-readiness audit is also available: one site, one written report, one review call, €950 per site excl. VAT.
 - No bandwidth fees, no per-request charges, no feature gates; the software itself costs nothing. Support terms: {{LICENSING_TERMS_URL}}
 
 Every documentation page below is also served as Markdown at its URL with a \`.md\` suffix (for example https://modpagespeed.com/docs/getting-started.md), and https://modpagespeed.com/llms-full.txt carries this index followed by the full text of every page.
@@ -137,7 +138,7 @@ export const SURFACES = [
         path: '/pricing/',
         title: 'Pricing',
         description:
-          'What We-Amp sells: {{SUPPORT_LADDER_LINE}}. The software is free to run. Pricing on request, with a quote form.',
+          'What We-Amp sells: {{SUPPORT_LADDER_LINE}}. The software is free to run. Yearly prices per tier, Buy buttons for Standard and Priority, and a fixed-price agent-readiness audit.',
       },
       {
         path: '/license/',

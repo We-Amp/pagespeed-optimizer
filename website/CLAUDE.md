@@ -211,10 +211,10 @@ These bind every customer-facing string: pages, docs, blog, templates, metadata.
   by Google. Say nothing beyond that about the relationship, and never disparage the
   original authors' work.
 - Support tiers, license and publication claims come from `src/data/product-facts.mjs`
-  (`SUPPORT_TIERS`, `PRICING_ON_REQUEST`, `COMMERCIAL_EMAIL`, `LICENSE_CLAUSE`,
-  `SOURCE_PUBLICATION`), never from a literal. No price amounts and no per-tier
-  response-time targets until the owner publishes them; no "free trial" and no license
-  keys anywhere on the site. Commercial mail goes to `COMMERCIAL_EMAIL`;
+  (`SUPPORT_TIERS`, `PRICING_LINE`, `COMMERCIAL_EMAIL`, `LICENSE_CLAUSE`,
+  `SOURCE_PUBLICATION`), never from a literal. Support prices (euro, per year, excl. VAT),
+  first-response targets and the checkout links live in `SUPPORT_TIERS`; the hosting-partner
+  rate stays unpublished. No "free trial" and no license keys anywhere on the site. Commercial mail goes to `COMMERCIAL_EMAIL`;
   `security@modpagespeed.com` is for vulnerability reports only.
 - Dark mode: the site runs behind its own critical-CSS inlining, which extracts without
   the `.dark` class. Every `dark:` utility on an above-the-fold element needs a matching

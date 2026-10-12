@@ -7,9 +7,11 @@ import { stubUmami, trackedEvents } from './helpers/umami';
 const TOPICS = [
   'setup',
   'support',
+  'enterprise',
   'hardened',
   'hosting',
   'consulting',
+  'audit',
   'iispeed-transfer',
   'agents',
   'other',
@@ -22,7 +24,6 @@ test.describe('Contact page', () => {
       .locator('#contact-topic option')
       .evaluateAll((opts) => opts.map((o) => (o as HTMLOptionElement).value));
     expect(values).toEqual(TOPICS);
-    await expect(page.locator('#contact-topic option[value="enterprise"]')).toHaveCount(0);
   });
 
   test('title and description are sentence case and in range', async ({ page }) => {
@@ -37,7 +38,8 @@ test.describe('Contact page', () => {
   // ?topic= keeps working for every link already in the wild.
   const prefill: Array<[string, string]> = [
     ['support', 'support'],
-    ['enterprise', 'support'],
+    ['enterprise', 'enterprise'],
+    ['audit', 'audit'],
     ['hosting', 'hosting'],
     ['hardened', 'hardened'],
     ['consulting', 'consulting'],
@@ -58,7 +60,15 @@ test.describe('Contact page', () => {
     await page.goto('/contact/');
     const qualifiers = page.locator('#contact-qualifiers');
     await expect(qualifiers).toBeHidden();
-    for (const topic of ['support', 'hardened', 'hosting', 'consulting', 'iispeed-transfer']) {
+    for (const topic of [
+      'support',
+      'enterprise',
+      'hardened',
+      'hosting',
+      'consulting',
+      'audit',
+      'iispeed-transfer',
+    ]) {
       await page.selectOption('#contact-topic', topic);
       await expect(qualifiers, topic).toBeVisible();
       await expect(page.locator('#contact-org')).toBeVisible();

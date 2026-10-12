@@ -7,12 +7,12 @@
 //   1. website/src/pages/terms.astro          — "Version YYYY-MM" (source of truth,
 //                                                the version shown to and accepted by users)
 //   2. website/src/pages/pricing.astro         — TERMS_VERSION_WEB (the terms
-//                                                version the quote form names)
+//                                                version the pricing page names)
 //
 // The checkout placeholder at /buy/ carried the second stamp until it retired
-// (it now redirects to /pricing/). The quote form states the terms version a
-// request is made under, so the stamp moved there. This file-reading guard is
-// the enforcement: if either stamp drifts, a quote would name the wrong
+// (it now redirects to /pricing/). The pricing page states the terms version a
+// subscription is made under, so the stamp moved there. This file-reading guard is
+// the enforcement: if either stamp drifts, a subscription would name the wrong
 // version.
 //
 // The admin console used to carry a third stamp (TERMS_VERSION in the
@@ -51,7 +51,7 @@ describe('terms-of-service version is in lockstep across all stamp sites', () =>
     'TERMS_VERSION_WEB',
   );
 
-  it('terms.astro version matches the /pricing/ quote-form stamp', () => {
+  it('terms.astro version matches the /pricing/ stamp', () => {
     expect(quoteVersion).toBe(termsVersion);
   });
 });
