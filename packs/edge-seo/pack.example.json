@@ -2,7 +2,7 @@
   "pack": {
     "id": "edge-seo",
     "version": "1.0.0",
-    "publisher": "We-Amp",
+    "publisher": "we-amp",
     "engine_min": "1.18.0",
     "description": "Template: canonical, title, description, hreflang and JSON-LD rules; replace every example.com value with your own"
   },
