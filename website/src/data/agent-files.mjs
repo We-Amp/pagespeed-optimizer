@@ -40,7 +40,7 @@ What it does:
 
 {{SUPPORT_LADDER_MD}}
 - {{PRICING_LINE}} {{RESPONSE_TARGETS_LINE}}
-- Standard and Priority are bought at checkout; Enterprise runs on a master agreement. A fixed-price agent-readiness audit is also available: one site, one written report, one review call, €950 per site excl. VAT.
+- Standard and Priority are bought at checkout; Enterprise runs on a master agreement. A fixed-price agent-readiness audit is also available: one site, one written report, one review call, {{AUDIT_PRICE}} per site excl. VAT.
 - No bandwidth fees, no per-request charges, no feature gates; the software itself costs nothing. Support terms: {{LICENSING_TERMS_URL}}
 
 Every documentation page below is also served as Markdown at its URL with a \`.md\` suffix (for example https://modpagespeed.com/docs/getting-started.md), and https://modpagespeed.com/llms-full.txt carries this index followed by the full text of every page.

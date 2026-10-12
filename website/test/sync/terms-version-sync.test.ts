@@ -45,13 +45,13 @@ describe('terms-of-service version is in lockstep across all stamp sites', () =>
     /Version\s+(\d{4}-\d{2})\b/,
     'the "Version YYYY-MM" line',
   );
-  const quoteVersion = extract(
+  const pricingVersion = extract(
     '../../src/pages/pricing.astro',
     /TERMS_VERSION_WEB\s*=\s*'([^']+)'/,
     'TERMS_VERSION_WEB',
   );
 
   it('terms.astro version matches the /pricing/ stamp', () => {
-    expect(quoteVersion).toBe(termsVersion);
+    expect(pricingVersion).toBe(termsVersion);
   });
 });

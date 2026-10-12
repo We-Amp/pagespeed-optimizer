@@ -161,12 +161,17 @@ test.describe('Pricing page', () => {
       visible.map((v) => v.trim()),
     );
     const app = graph.find((n: { '@type': string }) => n['@type'] === 'SoftwareApplication');
-    const offers: Array<{ price: number; priceCurrency: string; priceValidUntil: string }> =
-      app.offers;
+    const offers: Array<{
+      price?: number;
+      priceCurrency?: string;
+      priceValidUntil: string;
+      priceSpecification?: { minPrice: number; priceCurrency: string };
+    }> = app.offers;
     expect(offers[0].price).toBe(0);
     const paid = offers.slice(1);
-    expect(paid.map((o) => o.price)).toEqual([490, 1900, 7500]);
-    for (const o of paid) {
+    expect(paid.map((o) => o.price)).toEqual([490, 1900, undefined]);
+    expect(paid[2].priceSpecification).toMatchObject({ minPrice: 7500, priceCurrency: 'EUR' });
+    for (const o of paid.slice(0, 2)) {
       expect(o.priceCurrency).toBe('EUR');
       expect(o.priceValidUntil).toBe(offers[0].priceValidUntil);
     }

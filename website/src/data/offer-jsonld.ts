@@ -80,8 +80,16 @@ export function supportTierOffersJsonLd(opts: { url?: string } = {}) {
     '@type': 'Offer',
     name: t.name,
     availability: 'https://schema.org/InStock',
-    price: t.prices.annualEur,
-    priceCurrency: 'EUR',
+    // A "from" price is a minimum, never a flat price.
+    ...(t.prices.from
+      ? {
+          priceSpecification: {
+            '@type': 'PriceSpecification',
+            minPrice: t.prices.annualEur,
+            priceCurrency: 'EUR',
+          },
+        }
+      : { price: t.prices.annualEur, priceCurrency: 'EUR' }),
     priceValidUntil: PRICE_VALID_UNTIL,
     url: t.cta.external ? t.cta.href : `${pageUrl}#tiers`,
     description:

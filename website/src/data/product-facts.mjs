@@ -65,7 +65,7 @@ export const COMMERCIAL_EMAIL = 'info@we-amp.com';
 // What is for sale is support, in three tiers. The software is free and identical under every tier. These
 // rows are what /support/ and /pricing/ present and what the agent files and
 // /api/product.json describe. Prices are in euro, per year, excl. VAT
-// (FastSpring localizes the currency at checkout); the first-response target
+// (prices are listed in EUR; checkout runs on FastSpring); the first-response target
 // of each tier is the last entry of its `includes`.
 //   servers     the production-server band the tier covers (one organization's
 //               production deployment)
@@ -179,8 +179,11 @@ export const ARTIFACT_ACCESS = {
 // The support ladder as markdown bullets and one line, with each tier's yearly
 // price (pure helpers — see the purity rule below).
 const tierPrice = (t) => `${t.prices.from ? 'from ' : ''}${formatEur(t.prices.annualEur)} a year`;
-const ladderMd = (rows) => rows.map((t) => `- ${t.name} — ${t.note}; ${tierPrice(t)}`).join('\n');
-const ladderLine = (rows) => rows.map((t) => `${t.name} (${t.note}; ${tierPrice(t)})`).join('; ');
+const tierTarget = (t) => t.includes[t.includes.length - 1];
+const ladderMd = (rows) =>
+  rows.map((t) => `- ${t.name} — ${t.note}; ${tierPrice(t)}; ${tierTarget(t)}`).join('\n');
+const ladderLine = (rows) =>
+  rows.map((t) => `${t.name} (${t.note}; ${tierPrice(t)}; ${tierTarget(t)})`).join('; ');
 export const SUPPORT_LADDER_MD = /* @__PURE__ */ ladderMd(SUPPORT_TIERS);
 export const SUPPORT_LADDER_LINE = /* @__PURE__ */ ladderLine(SUPPORT_TIERS);
 
@@ -194,7 +197,7 @@ export const SUPPORT_LADDER_LINE = /* @__PURE__ */ ladderLine(SUPPORT_TIERS);
 //   wrap the derivation in a helper and call it through the annotation.
 
 // Google-recommended Offer freshness date; bump ~yearly (see offer-jsonld.ts).
-export const PRICE_VALID_UNTIL = '2026-12-31';
+export const PRICE_VALID_UNTIL = '2027-12-31';
 
 // --- Heritage (BuiltWith) ---------------------------------------------------
 // Display strings (locale-independent) — these are facts as published, not
@@ -478,6 +481,7 @@ const llmsTokens = () => ({
   COMMERCIAL_EMAIL,
   PRICING_LINE,
   RESPONSE_TARGETS_LINE,
+  AUDIT_PRICE: formatEur(AUDIT_PRICE_EUR),
   MAX_VARIANTS: String(MAX_VARIANTS),
   RASTER_VARIANTS: String(RASTER_VARIANTS),
   SIDECAR_VERSION,

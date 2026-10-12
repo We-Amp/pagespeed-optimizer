@@ -24,7 +24,7 @@ export const faqSupport: FaqEntry[] = [
   },
   {
     q: 'When do you answer?',
-    a: 'On CET business days. There is no 24x7 desk. First-response targets are per tier: Standard within 2 business days, Priority next business day, and severity 1 (production down) within 8 business hours on Priority and 4 business hours on Enterprise.',
+    a: 'On CET business days. There is no 24x7 desk. First-response targets are per tier: Standard within 2 business days, Priority next business day, and severity 1 (production down) within 8 business hours on Priority and 4 business hours on Enterprise, with other Enterprise severities per agreement.',
   },
   {
     q: 'How do security updates reach me?',
