@@ -842,7 +842,7 @@ TEST(PackLoaderErrorTest, RelativeUrlInHreflangTable) {
   ExpectMutationError([](Json& j) { j["tables"]["hreflang"] = {{{"en", 5}}}; },
                       "tables.hreflang[0].en: must be a string");
   ExpectMutationError(
-      [](Json& j) { j["tables"]["hreflang"] = {Json::object()}; },
+      [](Json& j) { j["tables"]["hreflang"] = Json::array({Json::object()}); },
       "tables.hreflang[0]: cluster must not be empty");
 }
 
