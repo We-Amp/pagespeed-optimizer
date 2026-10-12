@@ -89,7 +89,7 @@ services:
     restart: unless-stopped
 
   worker:
-    image: ghcr.io/we-amp/pagespeed-worker:${PAGESPEED_VERSION:-2.2.0}
+    image: ghcr.io/we-amp/pagespeed-worker:${PAGESPEED_VERSION:-2.3.0}
     pid: 'service:pidns'
     depends_on:
       pidns:
@@ -116,7 +116,7 @@ services:
         max-file: '3'
 
   nginx:
-    image: ghcr.io/we-amp/pagespeed-nginx:${PAGESPEED_VERSION:-2.2.0}
+    image: ghcr.io/we-amp/pagespeed-nginx:${PAGESPEED_VERSION:-2.3.0}
     pid: 'service:pidns'
     ports:
       - '${NGINX_PORT:-80}:80'
@@ -252,7 +252,7 @@ spec:
   shareProcessNamespace: true
   containers:
     - name: nginx
-      image: ghcr.io/we-amp/pagespeed-nginx:2.2.0
+      image: ghcr.io/we-amp/pagespeed-nginx:2.3.0
       ports:
         - containerPort: 8080
       volumeMounts:
@@ -260,7 +260,7 @@ spec:
           mountPath: /shared
 
     - name: worker
-      image: ghcr.io/we-amp/pagespeed-worker:2.2.0
+      image: ghcr.io/we-amp/pagespeed-worker:2.3.0
       command: ['/entrypoint-worker.sh']
       env:
         # Acknowledges the Terms of Service: https://modpagespeed.com/terms/

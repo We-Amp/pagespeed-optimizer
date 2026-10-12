@@ -82,7 +82,7 @@ services:
 
   # Factory Worker — optimizes cached content
   worker:
-    image: ghcr.io/we-amp/pagespeed-worker:2.2.0
+    image: ghcr.io/we-amp/pagespeed-worker:2.3.0
     pid: 'service:pidns'
     entrypoint: /entrypoint-worker.sh
     environment:
@@ -97,7 +97,7 @@ services:
 
   # Nginx with PageSpeed module
   nginx:
-    image: ghcr.io/we-amp/pagespeed-nginx:2.2.0
+    image: ghcr.io/we-amp/pagespeed-nginx:2.3.0
     pid: 'service:pidns'
     ports:
       - '8080:8080'
