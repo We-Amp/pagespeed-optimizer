@@ -4,6 +4,8 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Fixed: JS minifier: a comment between a generator's `*` and the method name no longer leaves the script unminified or changes the output between passes.
+
 Fixed: the Debian package no longer aborts configuration when
 `systemctl daemon-reload` fails during install or upgrade; the RPM scriptlet
 is guarded the same way for consistency.

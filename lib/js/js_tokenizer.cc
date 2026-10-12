@@ -2732,10 +2732,47 @@ bool JsTokenizer::AtMemberNameAfterModifier() const {
 bool JsTokenizer::NextCharStartsIdentifier() const {
   const int size = input_.size();
   int i = 0;
-  while (i < size &&
-         (input_[i] == ' ' || input_[i] == '\t' || input_[i] == '\f' ||
-          input_[i] == '\v' || input_[i] == '\n' || input_[i] == '\r')) {
-    ++i;
+  // Skip whitespace AND comments: a comment between a generator `*` and the
+  // method name (`{ */**/m(){} }`) is grammatically inert, so it must not
+  // change how the `*` is classified.  Before this, the comment hid the name
+  // from the lookahead, the `*` took the binary-operator path, and the
+  // tokenizer's state (hence the minifier's linebreak decisions after the
+  // name) differed from the same input with the comment removed -- so
+  // minifying the comment-free output was not a fixed point.  The comment
+  // openers match the `let` lookahead's skipper; an unterminated block
+  // comment stops the scan and answers false (the tokenizer errors on it
+  // downstream).  ASCII line terminators only, as there.
+  bool at_line_start = false;
+  while (i < size) {
+    const StringPiece rest = input_.substr(i);
+    const char ch = rest[0];
+    if (ch == ' ' || ch == '\t' || ch == '\f' || ch == '\v' || ch == '\n' ||
+        ch == '\r') {
+      if (ch == '\n' || ch == '\r') {
+        at_line_start = true;
+      }
+      ++i;
+    } else if (strings::StartsWith(rest, "//") ||
+               strings::StartsWith(rest, "<!--") ||
+               (at_line_start && strings::StartsWith(rest, "-->"))) {
+      while (i < size && input_[i] != '\n' && input_[i] != '\r') {
+        ++i;
+      }
+    } else if (strings::StartsWith(rest, "/*")) {
+      const size_t end = input_.find("*/", i + 2);
+      if (end == StringPiece::npos) {
+        return false;
+      }
+      const int comment_end = static_cast<int>(end) + 2;
+      const StringPiece comment = input_.substr(i, comment_end - i);
+      if (CommentHasLineTerminator(comment) &&
+          !IsConditionalCompilationComment(comment)) {
+        at_line_start = true;
+      }
+      i = comment_end;
+    } else {
+      break;
+    }
   }
   if (i >= size) {
     return false;
