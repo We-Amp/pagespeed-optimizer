@@ -4,6 +4,15 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Fixed: with `gzip_level` or `brotli_level` set to 0, the optimizer never
+learned whether a CSS, JavaScript or unsupported-image file had really
+changed. After the origin changed, each re-record of the file made it purge
+and rebuild its stored copies, at most once per URL every 10 seconds, and
+clients received unoptimized bytes until the rebuild finished. The optimizer
+now tracks the file whenever the encodings that are turned on have been
+stored, so an unchanged file is simply refreshed and a changed one is
+replaced without a purge.
+
 Fixed: JS minifier: a comment between a generator's `*` and the method name no longer leaves the script unminified or changes the output between passes.
 
 Fixed: the Debian package no longer aborts configuration when
