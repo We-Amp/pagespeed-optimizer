@@ -220,7 +220,7 @@ TEST(PackLoaderExampleTest, ExampleLoadsClean) {
   ASSERT_TRUE(p.ok()) << p.status();
   EXPECT_EQ(p->info.id, "edge-seo");
   EXPECT_EQ(p->info.version, "1.0.0");
-  EXPECT_EQ(p->info.publisher, "We-Amp");
+  EXPECT_EQ(p->info.publisher, "we-amp");
   EXPECT_EQ(p->info.engine_min, "1.18.0");
   ASSERT_EQ(p->sites.size(), 1u);
   EXPECT_EQ(p->sites[0].host, "www.example.com");
