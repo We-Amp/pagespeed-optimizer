@@ -1,1 +1,0 @@
-{"host":"fixture.test","path":"/c/invalid/x","rule":"canonical-invalid","kind":"canonical","mode":"enforce","action":"none","reason":"invalid_value","defect":"","before":"","after":""}
