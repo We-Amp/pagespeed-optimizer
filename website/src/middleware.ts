@@ -81,7 +81,7 @@ export const onRequest: MiddlewareHandler = async (context, next) => {
   // today and routes to 1.1 / 2.0 / NuGet. A middleware redirect here would
   // shadow that page during prerender. The deep Doxygen leaf URLs
   // (/psol/hierarchy.html, /psol/dir_*.html, …) are 301'd to /psol/ by nginx
-  // in prod (corp deploy/nginx.conf), not here.
+  // in prod (the production nginx configuration), not here.
 
   // 4. Extensionless /1.0/ redirect — legacy docs use extensionless hrefs
   // (e.g. href="configuration") but files have .html extensions.

@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
-// Typed accessors for the release manifests synced from corp/releases/*.yaml
-// into src/content/releases-{1.1,2.0,2.1}/release.yaml by the corp workflow
-// `.github/workflows/sync-manifests-to-mps2.yml` (§7). The 2.1
+// Typed accessors for the release manifests synced from the release manifests
+// maintained outside this repository into
+// src/content/releases-{1.1,2.0,2.1}/release.yaml (§7). The 2.1
 // manifest (the converged line, ) ships seeded in-tree until the sync
 // workflow gains the 2.1 copy step.
 //

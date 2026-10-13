@@ -122,10 +122,10 @@ const howItWorks = defineCollection({
   }),
 });
 
-// Release manifest collections, synced from corp/releases/{1.1,2.0}.yaml by
-// corp's sync-manifests-to-mps2 workflow (§7). The 2.1 manifest (the
+// Release manifest collections, synced from the release manifests maintained
+// outside this repository (§7). The 2.1 manifest (the
 // converged line, ) is seeded in-tree — the sync workflow does not yet
-// copy it. The schema mirrors corp/scripts/release/manifest-schema.mjs but is
+// copy it. The schema mirrors the release manifest schema but is
 // intentionally loose on nested compat/artifacts (we render via the helper in
 // src/lib/release.ts).
 const releaseSchema = z.object({

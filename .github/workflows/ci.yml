@@ -184,6 +184,8 @@ jobs:
       # must agree with the SBOM the step above just verified.
       - name: THIRD-PARTY-NOTICES drift — versions vs SBOM
         run: python3 tools/sbom/check-third-party-notices.py
+      - name: Example rule pack parses as JSON
+        run: python3 -c "import json; json.load(open('packs/edge-seo/pack.example.json'))"
 
   public-hygiene:
     name: Public-tree hygiene gate
