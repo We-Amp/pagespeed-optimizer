@@ -160,11 +160,43 @@ describe('analyzeFiles goldens', () => {
   it('gives up on a file whose first 200 lines are mostly junk', async () => {
     const junk = Array.from({ length: 300 }, (_, i) => `junk line ${i}`).join('\n') + '\n';
     const reports: string[] = [];
-    const a = await analyzeFiles([src('junk.txt', junk)], { onFile: (r) => reports.push(r.name) });
+    const seen: Array<[number, number]> = [];
+    const a = await analyzeFiles([src('junk.txt', junk)], {
+      onFile: (r) => reports.push(r.name),
+      onProgress: (r, t) => seen.push([r, t]),
+    });
     expect(a.files[0]).toMatchObject({ format: 'unknown', givenUp: true, lines: 0 });
     expect(a.unparsed).toBe(GIVE_UP_WINDOW);
     expect(a.unparsedSamples[0]).toBe('junk line 0');
     expect(reports).toEqual(['junk.txt']);
+    const last = seen[seen.length - 1];
+    expect(last[0]).toBe(last[1]);
+  });
+  it('does not give up a file with 150 junk lines', async () => {
+    const junk = Array.from({ length: 150 }, (_, i) => `junk line ${i}`).join('\n') + '\n';
+    const a = await analyzeFiles([src('junk.txt', junk)]);
+    expect(a.files[0]).toMatchObject({ format: 'unknown', givenUp: false, lines: 0 });
+    expect(a.unparsed).toBe(150);
+  });
+  it('counts only parsed and unparsed lines toward the window, not blanks or directives', async () => {
+    const build = (good: number, bad: number) => {
+      const out = ['#Fields: date time cs-method cs-uri-stem cs(User-Agent) sc-status sc-bytes'];
+      const body = [
+        ...Array.from({ length: good }, () => '2026-10-10 14:00:00 GET /a Mozilla/5.0 200 10'),
+        ...Array.from({ length: bad }, (_, i) => `junk ${i}`),
+      ];
+      body.forEach((l, i) => {
+        out.push(l);
+        if (i % 10 === 0) out.push('', '#Software: x');
+      });
+      return out.join('\n') + '\n';
+    };
+    const at200 = await analyzeFiles([src('a.log', build(99, 101))]);
+    expect(at200.files[0]).toMatchObject({ format: 'iis', givenUp: true, lines: 99 });
+    expect(at200.unparsed).toBe(101);
+    const at199 = await analyzeFiles([src('b.log', build(99, 100))]);
+    expect(at199.files[0]).toMatchObject({ givenUp: false, lines: 99 });
+    expect(at199.unparsed).toBe(100);
   });
   it('an Apache common log and an IIS log without a user agent column are reported as format common', async () => {
     const common = '203.0.113.6 - - [10/Oct/2026:13:56:01 +0000] "GET /guide/ HTTP/1.1" 200 5120\n';

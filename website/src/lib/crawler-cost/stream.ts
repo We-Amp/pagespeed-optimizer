@@ -39,6 +39,21 @@ export async function* readLines(
   let gunzip: Gunzip | null = null;
   let first = true;
   const inflated: Uint8Array[] = [];
+  let finished = false;
+  // Truncation check without fflate internals: the last 4 input bytes of a
+  // complete gzip member are its ISIZE trailer (output length mod 2^32), so
+  // after the final push they must equal the inflated byte count of the last
+  // member. fflate throws on most cuts but not on a cut at a flush boundary or
+  // inside the trailer; the count catches those.
+  let memberOut = 0;
+  const tail4 = new Uint8Array(4);
+  let tailLen = 0;
+  function remember(bytes: Uint8Array): void {
+    const n = Math.min(4, bytes.length);
+    tail4.copyWithin(0, n, 4);
+    tail4.set(bytes.subarray(bytes.length - n), 4 - n);
+    tailLen = Math.min(4, tailLen + n);
+  }
 
   function* feed(text: string): Generator<LineChunk> {
     let start = 0;
@@ -71,7 +86,11 @@ export async function* readLines(
   function* handle(bytes: Uint8Array): Generator<LineChunk> {
     produced += bytes.length;
     if (produced > maxOut)
-      throw new StreamError('more than 20 GB after decompression; stopped here');
+      throw new StreamError(
+        gunzip
+          ? `more than ${Math.round(maxOut / 1e9)} GB after decompression; stopped here`
+          : `this file is larger than ${Math.round(maxOut / 1e9)} GB; stopped here`,
+      );
     yield* feed(decoder.decode(bytes, { stream: true }));
   }
 
@@ -86,11 +105,16 @@ export async function* readLines(
         if (isGzip(value)) {
           opts.onGzip?.();
           gunzip = new Gunzip((chunk) => {
+            memberOut += chunk.length;
             inflated.push(chunk);
           });
+          gunzip.onmember = () => {
+            memberOut = 0;
+          };
         }
       }
       if (gunzip) {
+        remember(value);
         try {
           gunzip.push(value);
         } catch {
@@ -108,17 +132,17 @@ export async function* readLines(
         throw new StreamError(GZIP_DAMAGED);
       }
       while (inflated.length) yield* handle(inflated.shift() as Uint8Array);
-      // fflate does not throw on a truncated member. Its internal state keeps the
-      // final-block flag set when the deflate data stops short, and clears it
-      // after a complete member, so a set flag here means the file was cut.
-      if ((gunzip as unknown as { s?: { f?: unknown } }).s?.f) throw new StreamError(GZIP_DAMAGED);
+      const isize = (tail4[0] | (tail4[1] << 8) | (tail4[2] << 16) | (tail4[3] << 24)) >>> 0;
+      if (tailLen < 4 || isize !== memberOut >>> 0) throw new StreamError(GZIP_DAMAGED);
     }
     const tail = decoder.decode();
     if (tail) yield* feed(tail);
     if (cutting) yield { text: pending.slice(0, 200), cut: true };
     else if (pending !== '')
       yield { text: pending.endsWith('\r') ? pending.slice(0, -1) : pending, cut: false };
+    finished = true;
   } finally {
+    if (!finished) await reader.cancel().catch(() => {});
     reader.releaseLock();
   }
 }
