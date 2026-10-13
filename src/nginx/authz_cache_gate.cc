@@ -35,4 +35,15 @@ bool AuthzCacheGateAllowsStale(bool request_has_authorization,
   return (origin_cc_flags & AlternateMetadata::kCCOriginPublic) != 0;
 }
 
+bool StaleServePermitted(bool request_has_authorization,
+                         uint16_t origin_cc_flags) {
+  // nginx is always a shared cache, so both directives forbid a stale serve.
+  constexpr uint16_t kForbid = AlternateMetadata::kCCOriginMustRevalidate |
+                               AlternateMetadata::kCCOriginProxyRevalidate;
+  if ((origin_cc_flags & kForbid) != 0) {
+    return false;
+  }
+  return AuthzCacheGateAllowsStale(request_has_authorization, origin_cc_flags);
+}
+
 }  // namespace pagespeed

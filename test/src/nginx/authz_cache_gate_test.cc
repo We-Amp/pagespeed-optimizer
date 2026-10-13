@@ -186,5 +186,31 @@ TEST(AuthzCacheGateStaleTest, CombinedRevalidatePermitsWithoutPublicRefused) {
                 Meta::kCCOriginSMaxagePresent));
 }
 
+TEST(StaleServePermittedTest, AnonymousMustRevalidateRefused) {
+  EXPECT_FALSE(StaleServePermitted(
+      false, Meta::kCCOriginHeaderPresent | Meta::kCCOriginMustRevalidate));
+}
+
+TEST(StaleServePermittedTest, AnonymousProxyRevalidateRefused) {
+  EXPECT_FALSE(StaleServePermitted(
+      false, Meta::kCCOriginHeaderPresent | Meta::kCCOriginProxyRevalidate));
+}
+
+TEST(StaleServePermittedTest, AnonymousPublicAllowed) {
+  EXPECT_TRUE(StaleServePermitted(
+      false, Meta::kCCOriginHeaderPresent | Meta::kCCOriginPublic));
+}
+
+TEST(StaleServePermittedTest, AuthorizedPublicAllowed) {
+  EXPECT_TRUE(StaleServePermitted(
+      true, Meta::kCCOriginHeaderPresent | Meta::kCCOriginPublic));
+}
+
+TEST(StaleServePermittedTest, AuthorizedPublicMustRevalidateRefused) {
+  EXPECT_FALSE(StaleServePermitted(true, Meta::kCCOriginHeaderPresent |
+                                             Meta::kCCOriginPublic |
+                                             Meta::kCCOriginMustRevalidate));
+}
+
 }  // namespace
 }  // namespace pagespeed
