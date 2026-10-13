@@ -5,6 +5,9 @@ description: Install mod_pagespeed 2.1 on the web server a project uses (nginx, 
 
 # Install mod_pagespeed
 
+If mod_pagespeed is already installed and the question is whether it works, go
+straight to section 4; sections 1-3 are for installing.
+
 The recipes are at `https://modpagespeed.com/recipes/<surface>.md`; the index
 is `https://modpagespeed.com/recipes/README.md`. In a checkout of the
 pagespeed-optimizer repository the same files are under
@@ -87,7 +90,7 @@ operator's own server and loopback.
 ## 5. On failure
 
 Follow the troubleshooting link in the recipe once. If that does not resolve
-it, run the recipe's rollback section and report what was tried, the server's
+it, run the recipe's rollback section (install recipes only) and report what was tried, the server's
 error-log lines and the exact command that failed. Roll back only what this
 run created; leave anything that existed before untouched. Never send logs or
 configuration anywhere; the recipes make no calls beyond the documented install

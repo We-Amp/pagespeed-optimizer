@@ -64,10 +64,12 @@ the table above names:
 curl -s -o /dev/null -D - '<site-url>/?mps-verify=agent' | grep -i -E '^(x-mod-pagespeed|x-page-speed|x-pagespeed):'
 ```
 
-PowerShell (IIS):
+PowerShell (IIS, ASP.NET Core on Windows):
 
 ```powershell
-(Invoke-WebRequest '<site-url>/?mps-verify=agent' -UseBasicParsing).Headers['X-Page-Speed']
+(Invoke-WebRequest '<site-url>/?mps-verify=agent' -UseBasicParsing).Headers['X-Page-Speed']   # IIS
+# ASP.NET Core (Windows)
+curl.exe -s -o NUL -D - 'http://localhost:<port>/<html-route>?mps-verify=agent' | Select-String '^x-pagespeed:'
 ```
 
 Retry at most 3 times a few seconds apart. Use a URL that returns an HTML page
@@ -90,11 +92,12 @@ curl -s '<site-url>/?PageSpeed=off&mps-verify=agent' | wc -c   # bytes as the or
 ```
 
 The same size on both says the module rewrote nothing on that page; the header
-still proves it handled the response. On the Docker proxy, compare an image
+still proves it handled the response. The comparison holds only for a page that
+is the same on every request. On the Docker proxy, compare an image
 with the `Accept` header instead:
 
 ```bash
-curl -s -o /dev/null -D - '<site-url>/<image-path>.jpg?mps-verify=agent' -H 'Accept: image/webp' | grep -i '^content-type:'   # image/webp once the worker has processed it
+curl -s -o /dev/null -D - '<site-url>/<image-path>.jpg' -H 'Accept: image/webp' | grep -i '^content-type:'   # image/webp once the worker has processed it; image/jpeg before
 ```
 
 ## 3. Is the worker healthy
@@ -118,7 +121,7 @@ server keeps serving originals meanwhile. Keep `-u` and `-T 4`.
 The HTTP API is off until a transport is enabled. Find which one is on:
 
 ```bash
-grep OPTIMIZER_OPTS /etc/default/pagespeed-optimizer   # --api-socket or --api-port
+grep -o -E -- '--api-(socket|port|read-open)' /etc/default/pagespeed-optimizer   # which transport and mode are enabled
 test -S /run/pagespeed-optimizer/api.sock && echo 'unix socket'
 curl -s http://localhost:9880/v1/health                # TCP on the default port
 ```
@@ -218,8 +221,9 @@ A 403 or 404 means the pages are restricted, on another path or not set. On
 IIS, `InfoUrlsLocalOnly` (on by default) admits only the local machine; on
 Apache and nginx, `AdminDomains` and the `location` blocks decide. Stop and
 ask. Never widen `AdminDomains`, `InfoUrlsLocalOnly` or the `location` blocks to
-reach the pages. If `grep` finds no counter names in the page, read the page in
-a browser on the server.
+reach the pages. If the grep prints nothing, do not read that as zero: the page
+may only render in a browser. Open `$A/statistics` in a browser on the server,
+read the counters there, or write "not readable with curl" in the report.
 
 Read the counters:
 
@@ -289,14 +293,16 @@ Lines that name a cause:
 | Health socket silent, or `/v1/health` reports `ready: false`     | the worker is down or saturated                                    |
 | `errors.total` rising                                            | processing failures; read the worker log                           |
 | `connections.active` near `connections.max`                      | change notifications from the web server are being dropped         |
-| `X-PageSpeed: MISS` on every request                             | module and worker on different cache formats                       |
+| `X-PageSpeed: MISS` on every request                             | can mean module and worker on different cache formats              |
 | Container exit status 78                                         | the worker image refused to start on a configuration or volume fault |
 | `systemctl status` shows `code=dumped, status=31/SYS`            | the system-call filter stopped the worker                          |
 
 ## 6. Report
 
 Fill this template and give it to the operator. Never send logs or
-configuration anywhere.
+configuration anywhere. Do not paste a `RequestOptionOverride` token that
+`/config` may print, or any other value that looks like a token, into the
+report.
 
 ```text
 Surface:            <nginx | Apache | cPanel | IIS | ASP.NET Core | Docker | Helm>
@@ -306,7 +312,7 @@ Header check:       <exact header line, or "none after 3 tries">
 PageSpeed=off size: <bytes with module> / <bytes without>
 Worker health:      <health socket line or /v1/health status and ready>
 Stats:              notifications.received=<n> variants.written=<n> errors.total=<n> cache.entries=<n> cache_read_failures=<n>
-Module counters:    <counters read in section 4>
+Module counters:    <counters read in section 4, or "not readable with curl">
 Log lines:          <up to 5 relevant lines>
 Conclusion:         <working | module answers but worker unreachable | no header | cache never hits | rule pack not loaded | unknown>
 ```

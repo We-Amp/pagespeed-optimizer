@@ -10,8 +10,9 @@ datePublished: 2026-10-10
 A coding agent can install mod_pagespeed 2.1 from a recipe: one Markdown file
 per server, written for an agent to run. Each install recipe has the same five
 sections: prerequisites check, install, minimal configuration, verification and
-rollback; the diagnose recipe is read-only and ends in a report instead. The commands are fenced, the values to fill in are placeholders in
-angle brackets, and there is no prose beyond what a command needs.
+rollback; the diagnose recipe is read-only and ends in a report instead. The
+commands are fenced, the values to fill in are placeholders in angle brackets,
+and there is no prose beyond what a command needs.
 
 The recipes derive from these docs. Every command in a recipe comes from the
 docs pages it names at the top; when a command changes, the docs change first
