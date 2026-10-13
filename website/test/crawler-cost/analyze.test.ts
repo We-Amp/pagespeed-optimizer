@@ -67,6 +67,7 @@ describe('analyzeFiles goldens', () => {
         gzip: false,
         lines: 8,
         givenUp: false,
+        sample: 'this is not a log line',
         error: null,
       },
     ]);
@@ -168,6 +169,7 @@ describe('analyzeFiles goldens', () => {
     expect(a.files[0]).toMatchObject({ format: 'unknown', givenUp: true, lines: 0 });
     expect(a.unparsed).toBe(GIVE_UP_WINDOW);
     expect(a.unparsedSamples[0]).toBe('junk line 0');
+    expect(a.files[0].sample).toBe('junk line 0');
     expect(reports).toEqual(['junk.txt']);
     const last = seen[seen.length - 1];
     expect(last[0]).toBe(last[1]);

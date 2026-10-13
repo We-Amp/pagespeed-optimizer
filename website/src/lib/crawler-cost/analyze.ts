@@ -34,9 +34,15 @@ export async function analyzeFiles(
       gzip: false,
       lines: 0,
       givenUp: false,
+      sample: null,
       error: null,
     };
     let unparsed = 0;
+    const noteUnparsed = (text: string): void => {
+      agg.addUnparsed(text);
+      unparsed += 1;
+      report.sample ??= text.slice(0, 200);
+    };
     let fileRead = 0;
     let iis: IisParser | null = null;
     let detected = false;
@@ -53,8 +59,7 @@ export async function analyzeFiles(
       });
       for await (const chunk of lines) {
         if (chunk.cut) {
-          agg.addUnparsed(chunk.text);
-          unparsed += 1;
+          noteUnparsed(chunk.text);
         } else {
           const text = chunk.text;
           if (text.trim() === '') continue;
@@ -71,8 +76,7 @@ export async function analyzeFiles(
               continue;
             }
             if (r === null) {
-              agg.addUnparsed(text);
-              unparsed += 1;
+              noteUnparsed(text);
             } else {
               agg.add(r);
               report.lines += 1;
@@ -80,8 +84,7 @@ export async function analyzeFiles(
           } else {
             const r = parseCombinedLine(text);
             if (r === null) {
-              agg.addUnparsed(text);
-              unparsed += 1;
+              noteUnparsed(text);
             } else {
               agg.add(r);
               report.lines += 1;

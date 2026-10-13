@@ -17,11 +17,15 @@ scope.onmessage = async (event) => {
   if (!msg || msg.type !== 'analyze') return;
   try {
     const result = await analyzeFiles(msg.files, {
-      onProgress: (bytesRead, bytesTotal) => scope.postMessage({ type: 'progress', bytesRead, bytesTotal }),
+      onProgress: (bytesRead, bytesTotal) =>
+        scope.postMessage({ type: 'progress', bytesRead, bytesTotal }),
       onFile: (report) => scope.postMessage({ type: 'file', report }),
     });
     scope.postMessage({ type: 'result', result });
   } catch (e) {
-    scope.postMessage({ type: 'error', message: e instanceof Error ? e.message : 'the analysis failed' });
+    scope.postMessage({
+      type: 'error',
+      message: e instanceof Error ? e.message : 'the analysis failed',
+    });
   }
 };

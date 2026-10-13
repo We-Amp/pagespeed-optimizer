@@ -14,60 +14,133 @@ const description =
 // Tightens the site policy for this page alone: the page can talk to its own
 // origin (site search) and to the analytics host, post nothing, and set no base.
 const csp = "connect-src 'self' https://umami.we-amp.com; form-action 'none'; base-uri 'none'";
-const sourceUrl = 'https://github.com/We-Amp/pagespeed-optimizer/tree/main/website/src/lib/crawler-cost';
+const sourceUrl =
+  'https://github.com/We-Amp/pagespeed-optimizer/tree/main/website/src/lib/crawler-cost';
 const recipesUrl = 'https://github.com/ai-robots-txt/ai.robots.txt';
 const field =
   'mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 focus:border-interactive focus:ring-2 focus:ring-interactive';
 const next = [
-  { target: 'recipes', href: recipesUrl, external: true, heading: 'Block AI crawlers in nginx, Apache or robots.txt', body: 'The ai.robots.txt project maintains a robots.txt, an nginx config and an .htaccess that block the crawlers in this list; the list on this page is seeded from it.', label: 'Get the block files' },
-  { target: 'markdown', href: '/blog/serve-markdown-to-ai-agents/', external: false, heading: 'Serve agents a clean copy instead', body: 'A page that answers Accept: text/markdown with Markdown costs a fraction of the HTML and renders for agents that run no JavaScript.', label: 'How to serve Markdown to agents' },
-  { target: 'signed-agents', href: '/blog/verify-ai-crawlers-web-bot-auth/', external: false, heading: 'Know which crawler is really knocking', body: 'Web Bot Auth lets a crawler sign its requests. The mod_pagespeed module on nginx and the optimizer worker include an experimental, observe-only verifier, off by default.', label: 'Verify AI crawlers with Web Bot Auth' },
-  { target: 'pay-per-crawl', href: '/blog/pay-per-crawl-at-the-origin/', external: false, heading: 'Put a price on crawling at the origin', body: 'The post explains how a crawl price at the origin works, what it needs from the crawler, and where that stands.', label: 'Pay-per-crawl at the origin' },
-  { target: 'consulting', href: '/contact/?topic=consulting&wedge=crawler-cost', external: false, heading: 'Publishers and hosters with a large number', body: 'If AI crawlers are a line item for you, talk to us about measuring and shaping that traffic at the origin.', label: 'Talk to us' },
+  {
+    target: 'recipes',
+    href: recipesUrl,
+    heading: 'Block AI crawlers in nginx, Apache or robots.txt',
+    body: 'The ai.robots.txt project maintains a robots.txt, an nginx config and an .htaccess that block the crawlers in this list; the list on this page is seeded from it.',
+    label: 'Get the block files',
+  },
+  {
+    target: 'markdown',
+    href: '/blog/serve-markdown-to-ai-agents/',
+    heading: 'Serve agents a clean copy instead',
+    body: 'A page that answers Accept: text/markdown with Markdown costs a fraction of the HTML and renders for agents that run no JavaScript.',
+    label: 'How to serve Markdown to agents',
+  },
+  {
+    target: 'signed-agents',
+    href: '/blog/verify-ai-crawlers-web-bot-auth/',
+    heading: 'Know which crawler is really knocking',
+    body: 'Web Bot Auth lets a crawler sign its requests. The mod_pagespeed module on nginx and the optimizer worker include an experimental, observe-only verifier, off by default.',
+    label: 'Verify AI crawlers with Web Bot Auth',
+  },
+  {
+    target: 'pay-per-crawl',
+    href: '/blog/pay-per-crawl-at-the-origin/',
+    heading: 'Put a price on crawling at the origin',
+    body: 'The post explains how a crawl price at the origin works, what it needs from the crawler, and where that stands.',
+    label: 'Pay-per-crawl at the origin',
+  },
+  {
+    target: 'consulting',
+    href: '/contact/?topic=consulting&wedge=crawler-cost',
+    heading: 'Publishers and hosters with a large number',
+    body: 'If AI crawlers are a line item for you, talk to us about measuring and shaping that traffic at the origin.',
+    label: 'Talk to us',
+  },
 ];
 ---
 
 <BaseLayout title={title} description={description} csp={csp}>
   <section class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 pt-12 sm:pt-16">
     <p class="text-xs font-semibold uppercase tracking-wider text-text-annotation">Tools</p>
-    <h1 class="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-text-body">AI crawler cost meter</h1>
+    <h1 class="mt-2 text-3xl sm:text-4xl font-bold tracking-tight text-text-body">
+      AI crawler cost meter
+    </h1>
     <p class="mt-4 text-lg text-text-muted">
-      Drop an access log. Nothing leaves your browser. The page reports what each AI crawler asked for, what that
-      cost at the rate you set, and how many visits AI assistants sent back.
+      Drop an access log. Nothing leaves your browser. The page reports what each AI crawler asked
+      for, what that cost at the rate you set, and how many visits AI assistants sent back.
     </p>
 
-    <div id="cc-drop" class="mt-8 rounded-lg border-2 border-dashed border-control-border bg-bg-elevated p-8 text-center transition-colors">
+    <div
+      id="cc-drop"
+      class="mt-8 rounded-lg border-2 border-dashed border-control-border bg-bg-elevated p-8 text-center transition-colors focus-within:border-interactive"
+    >
       <label for="cc-file" class="block cursor-pointer">
-        <span class="block text-base font-semibold text-text-body">Drop one or more access logs here, or choose files</span>
-        <span class="mt-2 block text-sm text-text-muted">nginx or Apache combined, Apache common, IIS W3C extended; plain or gzip; rotated files together</span>
-        <input id="cc-file" type="file" multiple accept=".log,.txt,.gz,text/plain,application/gzip" class="sr-only" />
+        <span class="block text-base font-semibold text-text-body">
+          Drop one or more access logs here, or choose files
+        </span>
+        <span class="mt-2 block text-sm text-text-muted">
+          nginx or Apache combined, Apache common, IIS W3C extended; plain or gzip; rotated files
+          together
+        </span>
+        <input
+          id="cc-file"
+          type="file"
+          multiple
+          accept=".log,.txt,.gz,text/plain,application/gzip"
+          class="sr-only"
+        />
       </label>
     </div>
     <noscript>
-      <p class="mt-4 text-sm text-text-muted">This tool runs in your browser and needs JavaScript. The links further down work without it.</p>
+      <p class="mt-4 text-sm text-text-muted">
+        This tool runs in your browser and needs JavaScript. The links further down work without it.
+      </p>
     </noscript>
     <p id="cc-status" class="mt-3 text-sm text-text-muted" aria-live="polite"></p>
-    <progress id="cc-progress" class="mt-2 w-full" max="100" value="0" hidden></progress>
+    <progress
+      id="cc-progress"
+      class="mt-2 w-full"
+      max="100"
+      value="0"
+      aria-label="Reading progress"
+      hidden
+    ></progress>
 
     <fieldset class="mt-8">
       <legend class="text-sm font-semibold text-text-body">Your rates</legend>
       <div class="mt-3 grid gap-4 sm:grid-cols-3">
-        <label class="text-sm text-text-muted">Per GB<input id="cc-rate-gb" type="text" inputmode="decimal" value="0.09" class={field} /></label>
-        <label class="text-sm text-text-muted">Currency<input id="cc-currency" type="text" value="USD" maxlength="3" autocomplete="off" class={field} /></label>
-        <label class="text-sm text-text-muted">Per million requests<input id="cc-rate-req" type="text" inputmode="decimal" value="0" class={field} /></label>
+        <label class="text-sm text-text-muted">
+          Per GB
+          <input id="cc-rate-gb" type="text" inputmode="decimal" value="0.09" class={field} />
+        </label>
+        <label class="text-sm text-text-muted">
+          Currency
+          <input
+            id="cc-currency"
+            type="text"
+            value="USD"
+            maxlength="3"
+            autocomplete="off"
+            class={field}
+          />
+        </label>
+        <label class="text-sm text-text-muted">
+          Per million requests
+          <input id="cc-rate-req" type="text" inputmode="decimal" value="0" class={field} />
+        </label>
       </div>
       <p class="mt-3 text-xs text-text-annotation">
-        0.09 per GB is the figure BotCost.dev uses for bytes. The per-request rate starts at 0 on purpose: a
-        self-hosted origin pays for bytes, not for requests; BotCost.dev uses 0.40 per million, and a CDN customer
-        can enter their request price. Every cost on this page is an estimate at the rate you set.
+        0.09 per GB is the figure BotCost.dev uses for bytes. The per-request rate starts at 0 on
+        purpose: a self-hosted origin pays for bytes, not for requests; BotCost.dev uses 0.40 per
+        million, and a CDN customer can enter their request price. Every cost on this page is an
+        estimate at the rate you set.
       </p>
     </fieldset>
   </section>
 
-  <section id="cc-results" class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 pt-12" hidden aria-live="polite">
+  <section id="cc-results" class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 pt-12" hidden>
     <h2 class="text-2xl font-bold tracking-tight text-text-body">Result</h2>
     <p id="cc-period" class="mt-1 text-sm text-text-muted"></p>
-    <p id="cc-ratio" class="mt-6 text-xl font-semibold text-text-body"></p>
+    <p id="cc-ratio" aria-live="polite" class="mt-6 text-xl font-semibold text-text-body"></p>
     <p id="cc-ratio-note" class="mt-1 text-sm text-text-muted"></p>
     <dl id="cc-totals" class="mt-6 grid grid-cols-2 gap-4 sm:grid-cols-4"></dl>
     <p id="cc-projection" class="mt-2 text-sm text-text-muted"></p>
@@ -75,27 +148,53 @@ const next = [
     <div class="mt-3 overflow-x-auto">
       <table id="cc-table" class="w-full text-sm">
         <thead class="text-left text-xs uppercase tracking-wider text-text-annotation">
-          <tr><th>Crawler</th><th>Operator</th><th>Kind</th><th class="text-right">Requests</th><th class="text-right">Page requests</th><th class="text-right">Bytes</th><th class="text-right">Share of bytes</th><th class="text-right">Estimated cost</th></tr>
+          <tr>
+            <th>Crawler</th>
+            <th>Operator</th>
+            <th>Kind</th>
+            <th class="text-right">Requests</th>
+            <th class="text-right">Page requests</th>
+            <th class="text-right">Bytes</th>
+            <th class="text-right">Share of bytes</th>
+            <th class="text-right">Estimated cost</th>
+          </tr>
         </thead>
         <tbody class="divide-y divide-border"></tbody>
       </table>
     </div>
     <p id="cc-fetchers" class="mt-3 text-sm text-text-muted"></p>
-    <h3 class="mt-8 text-lg font-semibold text-text-body">Per operator: crawled against sent back</h3>
+    <h3 class="mt-8 text-lg font-semibold text-text-body">
+      Per operator: crawled against sent back
+    </h3>
     <div class="mt-3 overflow-x-auto">
       <table id="cc-ops" class="w-full text-sm">
         <thead class="text-left text-xs uppercase tracking-wider text-text-annotation">
-          <tr><th>Operator</th><th class="text-right">Crawler page requests</th><th class="text-right">Visits sent back</th><th class="text-right">Ratio</th></tr>
+          <tr>
+            <th>Operator</th>
+            <th class="text-right">Crawler page requests</th>
+            <th class="text-right">Visits sent back</th>
+            <th class="text-right">Ratio</th>
+          </tr>
         </thead>
         <tbody class="divide-y divide-border"></tbody>
       </table>
     </div>
     <div id="cc-notes" class="mt-6 space-y-2 text-sm text-text-muted"></div>
     <div class="mt-6 flex flex-wrap items-center gap-3">
-      <button id="cc-copy" type="button" class="inline-flex items-center rounded-md bg-interactive hover:bg-interactive-hover px-4 py-2 text-sm font-semibold text-on-accent transition-colors">Copy summary</button>
+      <button
+        id="cc-copy"
+        type="button"
+        class="inline-flex items-center rounded-md bg-interactive hover:bg-interactive-hover px-4 py-2 text-sm font-semibold text-on-accent transition-colors"
+      >
+        Copy summary
+      </button>
       <span id="cc-copied" class="text-sm text-text-muted"></span>
     </div>
-    <pre id="cc-summary" class="mt-3 whitespace-pre-wrap rounded-md border border-border bg-bg-secondary p-4 text-xs text-text-body" hidden></pre>
+    <pre
+      id="cc-summary"
+      class="mt-3 whitespace-pre-wrap rounded-md border border-border bg-bg-secondary p-4 text-xs text-text-body"
+      hidden
+    ></pre>
   </section>
 
   <section class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 pt-16">
@@ -105,7 +204,13 @@ const next = [
         <div>
           <h3 class="text-lg font-semibold text-text-body">{n.heading}</h3>
           <p class="mt-2 text-text-muted">{n.body}</p>
-          <a href={n.href} data-umami-event={`crawler-cost-next-${n.target}`} rel={n.external ? 'noopener' : undefined} class="mt-2 inline-block text-sm font-medium text-interactive hover:text-interactive-hover">{n.label} &rarr;</a>
+          <a
+            href={n.href}
+            data-umami-event={`crawler-cost-next-${n.target}`}
+            class="mt-2 inline-block text-sm font-medium text-interactive hover:text-interactive-hover"
+          >
+            {n.label} &rarr;
+          </a>
         </div>
       ))}
     </div>
@@ -115,30 +220,69 @@ const next = [
     <h2 class="text-2xl font-bold tracking-tight text-text-body">Check the claim yourself</h2>
     <ol class="mt-4 list-decimal space-y-2 pl-5 text-text-muted">
       <li>Load this page.</li>
-      <li>Switch your network off: airplane mode, or your browser's offline switch in its developer tools.</li>
+      <li>
+        Switch your network off: airplane mode, or your browser's offline switch in its developer
+        tools.
+      </li>
       <li>Drop your log. The result appears anyway.</li>
     </ol>
     <p class="mt-4 text-text-muted">
-      With the network on, this page's own code makes no request after loading. The parts it shares with the rest
-      of the site make two: one analytics beacon to umami.we-amp.com, and, only if you open site search, the search
-      index from this site. Neither carries anything from your log. The parsing code is published at
-      <a href={sourceUrl} rel="noopener" class="text-interactive hover:text-interactive-hover">{sourceUrl}</a>.
-      Browser extensions can read any page, and that is outside what a page can promise.
+      With the network on, the only requests this page makes go to the site's analytics at
+      umami.we-amp.com: a page view, one event when an analysis finishes, and a count when you click
+      one of the links below. Only if you open site search does the page fetch the search index from
+      this site. None of these carries anything from your log: no counts, no hosts, no paths. The
+      parsing code is published at
+      <a href={sourceUrl} class="text-interactive hover:text-interactive-hover">
+        {sourceUrl}
+      </a>
+      . Browser extensions can read any page, and that is outside what a page can promise.
     </p>
   </section>
 
   <section class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 pt-12 pb-16">
     <details class="rounded-lg border border-border bg-bg-secondary p-4">
-      <summary class="cursor-pointer text-sm font-semibold text-text-body">How this page counts</summary>
+      <summary class="cursor-pointer text-sm font-semibold text-text-body">
+        How this page counts
+      </summary>
       <ul class="mt-3 list-disc space-y-2 pl-5 text-sm text-text-muted">
-        <li>Formats: nginx and Apache combined (prefixed variants and fields appended after the user agent included), Apache common (no user agent, so nothing can be classified), IIS W3C extended by its Fields line (a new Fields line mid-file applies from there). Gzip is recognised by its magic bytes, every member of a concatenated archive is read, and lines over 64 KB are skipped and counted.</li>
-        <li>Bytes are the response body bytes your server logged; headers are not in these formats. Gigabytes are decimal (1 GB = 1,000,000,000 bytes).</li>
-        <li>A crawler is recognised by the user agent it claims. Spoofing cuts both ways: an impersonator claiming a crawler's agent is counted as that crawler, and a crawler sending a browser agent is missed. Every per-crawler number is an estimate in both directions.</li>
-        <li>A page request is a request whose path has no static asset extension (.html counts as a page). Crawler page requests count any status; visits sent back count only 200 and 304.</li>
-        <li>A visit sent back is a page request from a browser whose Referer names an AI assistant, or whose query carries a known marker such as utm_source=chatgpt.com. Referrer policies strip many referers, so this is a floor. Answers inside Google or Bing search arrive as ordinary search referrers and are not counted.</li>
-        <li>Fetches made on a person's behalf (kind "fetcher", for example ChatGPT-User) are listed apart and left out of the headline ratio.</li>
-        <li>The headline ratio divides crawler page requests by visits sent back, so pages stand on both sides. All crawler requests, assets included, are in the totals.</li>
-        <li>A log without user agents cannot show crawlers; the page says so instead of reporting zero.</li>
+        <li>
+          Formats: nginx and Apache combined (prefixed variants and fields appended after the user
+          agent included), Apache common (no user agent, so nothing can be classified), IIS W3C
+          extended by its Fields line (a new Fields line mid-file applies from there). Gzip is
+          recognised by its magic bytes, every member of a concatenated archive is read, and lines
+          over 64 KB are skipped and counted.
+        </li>
+        <li>
+          Bytes are the response body bytes your server logged; headers are not in these formats.
+          Gigabytes are decimal (1 GB = 1,000,000,000 bytes).
+        </li>
+        <li>
+          A crawler is recognised by the user agent it claims. Spoofing cuts both ways: an
+          impersonator claiming a crawler's agent is counted as that crawler, and a crawler sending
+          a browser agent is missed. Every per-crawler number is an estimate in both directions.
+        </li>
+        <li>
+          A page request is a request whose path has no static asset extension (.html counts as a
+          page). Crawler page requests count any status; visits sent back count only 200 and 304.
+        </li>
+        <li>
+          A visit sent back is a page request from a browser whose Referer names an AI assistant, or
+          whose query carries a known marker such as utm_source=chatgpt.com. Referrer policies strip
+          many referers, so this is a floor. Answers inside Google or Bing search arrive as ordinary
+          search referrers and are not counted.
+        </li>
+        <li>
+          Fetches made on a person's behalf (kind "fetcher", for example ChatGPT-User) are listed
+          apart and left out of the headline ratio.
+        </li>
+        <li>
+          The headline ratio divides crawler page requests by visits sent back, so pages stand on
+          both sides. All crawler requests, assets included, are in the totals.
+        </li>
+        <li>
+          A log without user agents cannot show crawlers; the page says so instead of reporting
+          zero.
+        </li>
       </ul>
     </details>
     <div class="mt-8">
