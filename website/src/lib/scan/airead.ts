@@ -117,7 +117,7 @@ export function alsoFoundSentences(r: Report): AireadModel['alsoFound'] {
     if (markdownOriginCtaApplies(as)) {
       out.push({
         wedge: 'markdown-origin',
-        text: 'This page did not return Markdown when asked for it (Accept: text/markdown). The mod_pagespeed 2.1 optimizer worker can serve a rendered Markdown copy at the same URL, on your own server, off by default. The module on its own adds Vary: Accept and does not render.',
+        text: 'This page did not return Markdown when asked for it (Accept: text/markdown). The mod_pagespeed 2.1 optimizer worker can serve a rendered Markdown copy at the same URL, on your own server. It is experimental and off by default. The module alone never renders Markdown; with AgentOptimize on it only adds Vary: Accept.',
         link: { label: 'How it works', href: '/docs/agent-optimize/' },
       });
     } else if (as.markdown.negotiated === true) {

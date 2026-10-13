@@ -170,7 +170,7 @@ describe('chipsFor', () => {
     const audit = chipsFor(full, 'poor').find((c) => c.id === 'audit')!;
     expect(audit.selected).toBe(false);
     expect(audit.gated).toBe(false);
-    expect(audit.label).toBe('Agent-readiness audit (\u20ac950 per site)');
+    expect(audit.label).toBe('Agent-readiness audit (\u20ac950 per site, excl. VAT)');
   });
 
   describe('markdown-origin chip', () => {
