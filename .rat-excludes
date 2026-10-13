@@ -121,8 +121,8 @@ modpagespeed-com
 # website/test/fixtures/crawler-cost: synthetic access-log fixtures (nginx and
 # Apache combined, IIS W3C, hostile and stripped lines) whose test IS their
 # exact byte content; the parsers are golden-tested on them, and a header
-# line would itself be an unparsed log line.
-.*\.log
+# line would itself be an unparsed log line. The fixtures carry the cc- prefix.
+cc-.*\.log
 
 # --- Third-party test inputs ---------------------------------------------------
 # tools/async-css-probe/fixtures/bootstrap-5.3.3 and .../tailwind-v3: stock

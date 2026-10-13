@@ -72,13 +72,15 @@ export async function analyzeFiles(
           if (iis) {
             const r = iis.parseLine(text);
             if (r === 'directive') {
-              if (!iis.hasUserAgent && iis.fields) report.format = 'common';
+              if (iis.fields) report.format = iis.hasUserAgent ? 'iis' : 'common';
               continue;
             }
             if (r === null) {
               noteUnparsed(text);
             } else {
-              agg.add(r);
+              // Files without a user-agent column are counted but kept out of
+              // the totals so they cannot dilute shares for combined logs.
+              if (report.format !== 'common') agg.add(r);
               report.lines += 1;
             }
           } else {
@@ -86,7 +88,9 @@ export async function analyzeFiles(
             if (r === null) {
               noteUnparsed(text);
             } else {
-              agg.add(r);
+              // Files without a user-agent column are counted but kept out of
+              // the totals so they cannot dilute shares for combined logs.
+              if (report.format !== 'common') agg.add(r);
               report.lines += 1;
             }
           }

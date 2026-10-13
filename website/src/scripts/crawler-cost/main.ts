@@ -39,15 +39,22 @@ function trackAnalysis(): void {
 
 export function initCrawlerCostMeter(): void {
   if (!document.getElementById('cc-file')) return;
-  // Created at page load, not on first use, so the page keeps working with the
-  // network off once it has loaded.
-  const worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
-
   const input = el<HTMLInputElement>('cc-file');
   const drop = el<HTMLElement>('cc-drop');
   const status = el<HTMLElement>('cc-status');
   const progress = el<HTMLProgressElement>('cc-progress');
   const results = el<HTMLElement>('cc-results');
+  // Created at page load, not on first use, so the page keeps working with the
+  // network off once it has loaded.
+  let worker: Worker | null = null;
+  try {
+    worker = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+  } catch {
+    status.textContent =
+      'This tool could not start in this browser. Reload the page and try again.';
+    return;
+  }
+  const w: Worker = worker;
   let last: Aggregate | null = null;
   let busy = false;
   let failed = false;
@@ -231,7 +238,7 @@ export function initCrawlerCostMeter(): void {
     results.hidden = false;
   }
 
-  worker.onmessage = (event: MessageEvent<Outbound>) => {
+  w.onmessage = (event: MessageEvent<Outbound>) => {
     const msg = event.data;
     if (msg.type === 'ready') {
       drop.dataset.ready = '1';
@@ -259,7 +266,7 @@ export function initCrawlerCostMeter(): void {
       status.textContent = `Could not analyse these files: ${msg.message}`;
     }
   };
-  worker.onerror = () => {
+  w.onerror = () => {
     failed = true;
     busy = false;
     progress.hidden = true;
@@ -285,7 +292,7 @@ export function initCrawlerCostMeter(): void {
     progress.hidden = false;
     progress.value = 0;
     status.textContent = `Reading ${files.length} ${files.length === 1 ? 'file' : 'files'} in your browser`;
-    worker.postMessage({ type: 'analyze', files });
+    w.postMessage({ type: 'analyze', files });
   }
 
   input.addEventListener('change', () => start(Array.from(input.files ?? [])));

@@ -33,7 +33,7 @@ test.describe('AI crawler cost meter', () => {
 
   test('the nginx fixture gives the golden numbers', async ({ page }) => {
     await page.goto('/ai-crawler-cost/');
-    await page.setInputFiles('#cc-file', fixture('nginx-combined.log'));
+    await page.setInputFiles('#cc-file', fixture('cc-nginx-combined.log'));
     await expect(page.locator('#cc-ratio')).toHaveText(
       '1.5 crawler page requests per visit an AI assistant sent back',
     );
@@ -59,7 +59,7 @@ test.describe('AI crawler cost meter', () => {
   }) => {
     await page.goto('/ai-crawler-cost/');
     await expect.poll(() => page.workers().length).toBe(1);
-    await page.setInputFiles('#cc-file', fixture('nginx-combined.log'));
+    await page.setInputFiles('#cc-file', fixture('cc-nginx-combined.log'));
     await expect(page.locator('#cc-results')).toBeVisible();
     expect(page.workers().length).toBe(1);
   });
@@ -77,7 +77,7 @@ test.describe('AI crawler cost meter', () => {
         /\/api\/send/.test(r.url()) &&
         (r.postData() ?? '').includes('"name":"crawler-cost"'),
     );
-    await page.setInputFiles('#cc-file', fixture('hostile.log'));
+    await page.setInputFiles('#cc-file', fixture('cc-hostile.log'));
     await expect(page.locator('#cc-results')).toBeVisible();
     await sendPost;
     const own = new URL(baseURL ?? 'http://localhost').hostname;
@@ -99,7 +99,7 @@ test.describe('AI crawler cost meter', () => {
     await page.setInputFiles('#cc-file', {
       name: 'hostile.log',
       mimeType: 'text/plain',
-      buffer: Buffer.concat([Buffer.from(junk), readFileSync(fixture('hostile.log'))]),
+      buffer: Buffer.concat([Buffer.from(junk), readFileSync(fixture('cc-hostile.log'))]),
     });
     await expect(page.locator('#cc-results')).toBeVisible();
     expect(
@@ -119,14 +119,14 @@ test.describe('AI crawler cost meter', () => {
     const before = await storageSnapshot(page);
     expect(before.local).toEqual([]);
     expect(before.session).toEqual([]);
-    await page.setInputFiles('#cc-file', fixture('nginx-combined.log'));
+    await page.setInputFiles('#cc-file', fixture('cc-nginx-combined.log'));
     await expect(page.locator('#cc-results')).toBeVisible();
     expect(await storageSnapshot(page)).toEqual(before);
   });
 
   test('a gzip file parses to the same numbers', async ({ page }) => {
     await page.goto('/ai-crawler-cost/');
-    const buffer = gzipSync(readFileSync(fixture('nginx-combined.log')));
+    const buffer = gzipSync(readFileSync(fixture('cc-nginx-combined.log')));
     await page.setInputFiles('#cc-file', {
       name: 'access.log.gz',
       mimeType: 'application/gzip',
@@ -143,7 +143,7 @@ test.describe('AI crawler cost meter', () => {
     // analysis has run online first.
     await expect(page.locator('#cc-drop[data-ready="1"]')).toBeAttached();
     await context.setOffline(true);
-    await page.setInputFiles('#cc-file', fixture('apache-combined.log'));
+    await page.setInputFiles('#cc-file', fixture('cc-apache-combined.log'));
     await expect(page.locator('#cc-ratio')).toContainText('1.0 crawler page requests');
     await context.setOffline(false);
   });
@@ -153,7 +153,7 @@ test.describe('AI crawler cost meter', () => {
     await page.goto('/ai-crawler-cost/');
     // The worker is ready once its handler is installed.
     await expect(page.locator('#cc-drop[data-ready="1"]')).toBeAttached();
-    await page.setInputFiles('#cc-file', fixture('nginx-combined.log'));
+    await page.setInputFiles('#cc-file', fixture('cc-nginx-combined.log'));
     await expect(page.locator('#cc-results')).toBeVisible();
     const events = (await trackedEvents(page)).filter((e) => e.name === 'crawler-cost');
     expect(events).toHaveLength(1);
@@ -162,7 +162,7 @@ test.describe('AI crawler cost meter', () => {
 
   test('rates: a comma decimal works and an empty rate asks for one', async ({ page }) => {
     await page.goto('/ai-crawler-cost/');
-    await page.setInputFiles('#cc-file', fixture('nginx-combined.log'));
+    await page.setInputFiles('#cc-file', fixture('cc-nginx-combined.log'));
     await expect(page.locator('#cc-results')).toBeVisible();
     await page.fill('#cc-rate-gb', '0,09');
     await expect(page.locator('#cc-totals')).toContainText('less than 0.01 USD');
@@ -177,7 +177,7 @@ test.describe('AI crawler cost meter', () => {
     for (const t of ['recipes', 'markdown', 'signed-agents', 'pay-per-crawl', 'consulting']) {
       await expect(page.locator(`a[data-umami-event="crawler-cost-next-${t}"]`)).toHaveCount(1);
     }
-    await page.setInputFiles('#cc-file', fixture('nginx-combined.log'));
+    await page.setInputFiles('#cc-file', fixture('cc-nginx-combined.log'));
     await expect(page.locator('#cc-results')).toBeVisible();
     await page.click('#cc-copy');
     await expect(page.locator('#cc-summary')).toContainText(
@@ -191,7 +191,7 @@ test.describe('AI crawler cost meter', () => {
     page,
   }) => {
     await page.goto('/ai-crawler-cost/');
-    await page.setInputFiles('#cc-file', fixture('iis-w3c.log'));
+    await page.setInputFiles('#cc-file', fixture('cc-iis-w3c.log'));
     await expect(page.locator('#cc-results')).toBeVisible();
     await expect(page.locator('#cc-totals')).toContainText('(partial)');
     await expect(page.locator('#cc-notes')).toContainText('2 lines carry no bytes field');

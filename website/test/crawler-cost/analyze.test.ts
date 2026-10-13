@@ -17,7 +17,7 @@ const T = (h: number, m: number, s: number) => Date.UTC(2026, 9, 10, h, m, s);
 
 describe('analyzeFiles goldens', () => {
   it('nginx combined', async () => {
-    const a = await analyzeFiles([src('access.log', fixture('nginx-combined.log'))]);
+    const a = await analyzeFiles([src('access.log', fixture('cc-nginx-combined.log'))]);
     expect(a).toMatchObject({
       requests: 8,
       bytes: 45310,
@@ -73,7 +73,7 @@ describe('analyzeFiles goldens', () => {
     ]);
   });
   it('apache combined with a vhost prefix and dash bytes', async () => {
-    const a = await analyzeFiles([src('access_log', fixture('apache-combined.log'))]);
+    const a = await analyzeFiles([src('access_log', fixture('cc-apache-combined.log'))]);
     expect(a).toMatchObject({
       requests: 4,
       bytes: 8120,
@@ -88,7 +88,7 @@ describe('analyzeFiles goldens', () => {
     expect(a.files[0].format).toBe('combined');
   });
   it('IIS W3C with a second Fields directive mid-file', async () => {
-    const a = await analyzeFiles([src('u_ex261010.log', fixture('iis-w3c.log'))]);
+    const a = await analyzeFiles([src('u_ex261010.log', fixture('cc-iis-w3c.log'))]);
     expect(a).toMatchObject({
       requests: 4,
       bytes: 8120,
@@ -104,7 +104,7 @@ describe('analyzeFiles goldens', () => {
     expect(a.files[0]).toMatchObject({ format: 'iis', lines: 4, givenUp: false });
   });
   it('CRLF line endings give the same numbers', async () => {
-    const crlf = fixture('nginx-combined.log').toString('utf8').replace(/\n/g, '\r\n');
+    const crlf = fixture('cc-nginx-combined.log').toString('utf8').replace(/\n/g, '\r\n');
     const a = await analyzeFiles([src('access.log', crlf)]);
     expect(a).toMatchObject({ requests: 8, bytes: 45310, unparsed: 1 });
   });
@@ -116,7 +116,7 @@ describe('analyzeFiles goldens', () => {
     expect(a.unparsed).toBe(0);
   });
   it('a gzip file under a .log name and a concatenated two-member archive both match the plain result', async () => {
-    const text = fixture('nginx-combined.log').toString('utf8');
+    const text = fixture('cc-nginx-combined.log').toString('utf8');
     const lines = text.split('\n');
     const part1 = lines.slice(0, 4).join('\n') + '\n';
     const part2 = lines.slice(4).join('\n');
@@ -136,12 +136,12 @@ describe('analyzeFiles goldens', () => {
   });
   it('a truncated gzip file reports an error on the file and keeps going with the next file', async () => {
     const whole = new Uint8Array(
-      gzipSync(fixture('nginx-combined.log').toString('utf8').repeat(500)),
+      gzipSync(fixture('cc-nginx-combined.log').toString('utf8').repeat(500)),
     );
     const cut = whole.subarray(0, whole.length - 12);
     const a = await analyzeFiles([
       src('broken.log.gz', cut),
-      src('ok.log', fixture('apache-combined.log')),
+      src('ok.log', fixture('cc-apache-combined.log')),
     ]);
     expect(a.files[0].error).toMatch(/gzip/);
     expect(a.files[1]).toMatchObject({ format: 'combined', lines: 4, error: null });
@@ -149,7 +149,10 @@ describe('analyzeFiles goldens', () => {
   it('several files are summed and progress reaches the total', async () => {
     const seen: Array<[number, number]> = [];
     const a = await analyzeFiles(
-      [src('a.log', fixture('nginx-combined.log')), src('b.log', fixture('apache-combined.log'))],
+      [
+        src('a.log', fixture('cc-nginx-combined.log')),
+        src('b.log', fixture('cc-apache-combined.log')),
+      ],
       {
         onProgress: (read, total) => seen.push([read, total]),
       },
@@ -224,12 +227,37 @@ describe('analyzeFiles goldens', () => {
       '#Fields: date time cs-method cs-uri-stem sc-status\n2026-10-10 14:00:00 GET /pricing/ 200\n';
     const a = await analyzeFiles([src('c.log', common), src('i.log', iis)]);
     expect(a.files.map((f) => f.format)).toEqual(['common', 'common']);
-    expect(a.requests).toBe(2);
-    expect(a.agentlessLines).toBe(2);
+    expect(a.files.map((f) => f.lines)).toEqual([1, 1]);
+    expect(a.requests).toBe(0);
+    expect(a.agentlessLines).toBe(0);
     expect(a.crawlers).toEqual([]);
   });
+  it('a common log dropped with a combined log does not enter the totals', async () => {
+    const common =
+      [1, 2, 3]
+        .map(
+          (i) => `203.0.113.${i} - - [10/Oct/2026:13:56:01 +0000] "GET /g/${i} HTTP/1.1" 200 5120`,
+        )
+        .join('\n') + '\n';
+    const a = await analyzeFiles([
+      src('c.log', common),
+      src('n.log', fixture('cc-nginx-combined.log')),
+    ]);
+    expect(a.requests).toBe(8);
+    expect(a.files[0]).toMatchObject({ format: 'common', lines: 3 });
+  });
+  it('an IIS file whose later #Fields line adds the user agent column counts only that block', async () => {
+    const iis =
+      '#Fields: date time cs-method cs-uri-stem sc-status\n' +
+      '2026-10-10 14:00:00 GET /a/ 200\n' +
+      '#Fields: date time cs-method cs-uri-stem sc-status cs(User-Agent)\n' +
+      '2026-10-10 14:00:01 GET /b/ 200 Mozilla/5.0\n';
+    const a = await analyzeFiles([src('i.log', iis)]);
+    expect(a.files[0]).toMatchObject({ format: 'iis', lines: 2 });
+    expect(a.requests).toBe(1);
+  });
   it('a privacy-stripped log yields no crawlers, counts the referral, and flags agentless lines', async () => {
-    const a = await analyzeFiles([src('access.log', fixture('stripped.log'))]);
+    const a = await analyzeFiles([src('access.log', fixture('cc-stripped.log'))]);
     expect(a).toMatchObject({
       requests: 3,
       agentlessLines: 3,
@@ -242,7 +270,7 @@ describe('analyzeFiles goldens', () => {
     const extra = 'A'.repeat(1_000_000) + '\n';
     const bad = new Uint8Array([0x61, 0xff, 0x20, 0x2d, 0x20, 0x2d, 0x0a]);
     const a = await analyzeFiles([
-      src('h.log', fixture('hostile.log')),
+      src('h.log', fixture('cc-hostile.log')),
       src('big.log', extra),
       src('bad.log', bad),
     ]);
