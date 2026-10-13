@@ -75,6 +75,10 @@ struct SidecarServePlan {
   // The block carried X-Content-Type-Options: the SVG hardening does not add
   // a second one.
   bool carried_nosniff = false;
+  // kMissing because the block names a field the serve path builds itself
+  // (it did not come from the gate: a damaged or foreign cache file).  The
+  // caller logs it; the request is a MISS in every build.
+  bool foreign_field = false;
 };
 
 // Plan the serve of one entry.  `payload` is the URL's stored block, or
@@ -112,6 +116,13 @@ bool ConditionalRevalidationAllowed(uint8_t entry_flags, bool expired_by_age);
 // names before it replays the stored ones, so the error page's policy is
 // never mixed into the cached representation's.
 bool IsSidecarCarriedName(std::string_view name);
+
+// Does the stale-if-error serve of this stash drop the error page's lines of
+// the carried names?  For every classified entry — including one with nothing
+// to carry, whose origin sent none of those names, so the error page's must
+// not appear either.  Entries recorded before the gate keep the previous
+// behaviour.
+bool StaleErrorDropsCarriedNames(uint8_t entry_flags);
 
 // May a stashed stale entry be served in place of an upstream error, as far
 // as its stored headers go?  An entry that requires a block may only be

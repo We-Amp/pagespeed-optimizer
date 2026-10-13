@@ -68,11 +68,17 @@ stale `goto serve_hit`); `headers_sidecar_replayed` counts responses that
 sent ≥ 1 line. Vary: the origin's line first, then the computed line without
 Accept when the block carried a Vary (the MISS shape). SVG: the module's
 `X-Content-Type-Options` is skipped when the block carried one (its CSP is
-still added). Stale-if-error drops the error page's allowlisted lines and
-replays the stored ones; a required stash without its block passes the error
-through. Legacy (unclassified) entries: no read, no replay, and at their next
-genuine expiry they take one full re-fetch instead of a conditional request
-(`ConditionalRevalidationAllowed`) so the re-record classifies them.
+still added). Stale-if-error drops the error page's allowlisted lines for
+every classified stash (with or without a block) and replays any stored ones;
+a required stash without its block passes the error through. A block naming a
+field the serve path builds (damaged cache file) is a logged MISS in every
+build, never an abort. Legacy (unclassified) entries: no read, no replay, and
+at their next genuine expiry they take one full re-fetch instead of a
+conditional request (`ConditionalRevalidationAllowed`) so the re-record
+classifies them. There is no limiter across URLs for this migration: a cache
+warmed in one burst (e.g. after a purge) re-records in one burst at its
+expiry, a full fetch plus a worker rebuild per URL; the per-URL refresh slot
+and each entry's own expiry are the only mitigations.
 
 **Content-Type**: Uses `AlternateMetadata.origin_content_type` (preserves charset).
 Transcoded images use format-specific MIME. Falls back to `MimeFromUrl`.

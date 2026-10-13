@@ -186,8 +186,8 @@ TEST(HeadersSidecarReplayTest, UnclassifiedAndNothingToCarryEntriesUntouched) {
 }
 
 // The gate never stores a name the serve path builds; a block that does
-// was not written by it.  Debug builds stop; release builds refuse it (miss,
-// and the record arm rewrites the block).
+// was not written by it.  Every build refuses it (miss, logged by the caller,
+// and the record arm rewrites the block) — never an abort.
 TEST(HeadersSidecarReplayTest, ServePathNamesNeverComeFromTheBlock) {
   for (std::string_view name :
        {"Cache-Control", "etag", "Last-Modified", "Expires", "Content-Type",
@@ -207,16 +207,16 @@ TEST(HeadersSidecarReplayTest, ServePathNamesNeverComeFromTheBlock) {
   }
 }
 
-TEST(HeadersSidecarReplayDeathTest, ForeignBlockWithServePathName) {
+TEST(HeadersSidecarReplayTest, ForeignBlockWithServePathNameIsAMiss) {
   const std::string foreign = EncodeUnchecked(
       {{"Referrer-Policy", "no-referrer"}, {"Cache-Control", "max-age=1"}});
-  EXPECT_DEBUG_DEATH(
-      {
-        auto plan = PlanSidecarServe(kBoth, false, foreign);
-        EXPECT_EQ(plan.outcome, SidecarServeOutcome::kMissing);
-        EXPECT_TRUE(plan.fields.empty());
-      },
-      "serve-path field");
+  auto plan = PlanSidecarServe(kBoth, false, foreign);
+  EXPECT_EQ(plan.outcome, SidecarServeOutcome::kMissing);
+  EXPECT_TRUE(plan.foreign_field);
+  EXPECT_TRUE(plan.fields.empty());
+  EXPECT_FALSE(plan.carried_vary);
+  // An ordinary missing block is not flagged foreign.
+  EXPECT_FALSE(PlanSidecarServe(kBoth, false, std::nullopt).foreign_field);
 }
 
 // --- Vary precedence -----------------------------------------------------
@@ -254,6 +254,16 @@ TEST(HeadersSidecarReplayTest, StaleErrorServeNeedsTheBlockWhenRequired) {
   // Entries that carry no block serve stale as before.
   EXPECT_TRUE(StaleErrorServeHasHeaders(0, false));
   EXPECT_TRUE(StaleErrorServeHasHeaders(kClassified, false));
+}
+
+TEST(HeadersSidecarReplayTest, StaleErrorDropsErrorPageLinesForClassified) {
+  // Classified with or without a block: the error page's CSP/ACAO/Vary never
+  // reach the client with the cached body.
+  EXPECT_TRUE(StaleErrorDropsCarriedNames(kClassified));
+  EXPECT_TRUE(StaleErrorDropsCarriedNames(kBoth | kOther));
+  // Recorded before the gate: unchanged.
+  EXPECT_FALSE(StaleErrorDropsCarriedNames(0));
+  EXPECT_FALSE(StaleErrorDropsCarriedNames(kOther));
 }
 
 TEST(HeadersSidecarReplayTest, CarriedNamesAreTheAllowlist) {

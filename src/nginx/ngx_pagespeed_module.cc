@@ -2830,6 +2830,13 @@ static bool ngx_http_pagespeed_load_sidecar(
   }
   const pagespeed::SidecarServePlan plan =
       pagespeed::PlanSidecarServe(entry_flags, agent_markdown, payload);
+  if (plan.foreign_field) {
+    ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                  "pagespeed: stored headers for %V name a field the cache "
+                  "builds itself (damaged cache file?) — treating as miss; "
+                  "the response is recorded again",
+                  &r->uri);
+  }
   if (plan.outcome != pagespeed::SidecarServeOutcome::kReplay) {
     return plan.outcome == pagespeed::SidecarServeOutcome::kNotRequired;
   }
@@ -3571,12 +3578,14 @@ static ngx_int_t ngx_http_pagespeed_serve_stale_on_error(
     }
   }
 
-  // Response-header sidecar (issue #208): the error page's own lines of the
-  // names the stored block carries (CSP, ACAO, Vary, ...) are dropped, and
-  // the stored lines of the cached representation are replayed in their
-  // place, so the error page's policy is never mixed into the stale serve's.
-  // Other error-page lines are left as they were.
-  if (ctx->sidecar_fields != nullptr) {
+  // Response-header sidecar (issue #208): for every classified stash the
+  // error page's own lines of the names the stored block carries (CSP, ACAO,
+  // Vary, ...) are dropped — also when there is nothing to carry, since the
+  // origin sent none of them — and any stored lines of the cached
+  // representation are replayed in their place, so the error page's policy is
+  // never mixed into the stale serve's.  Other error-page lines are left as
+  // they were.
+  if (pagespeed::StaleErrorDropsCarriedNames(smeta.flags)) {
     for (ngx_list_part_t* part = &r->headers_out.headers.part; part != nullptr;
          part = part->next) {
       auto* h = static_cast<ngx_table_elt_t*>(part->elts);

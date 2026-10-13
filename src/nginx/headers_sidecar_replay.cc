@@ -3,7 +3,6 @@
 
 #include "src/nginx/headers_sidecar_replay.h"
 
-#include <cassert>
 #include <cstdint>
 #include <optional>
 #include <span>
@@ -63,15 +62,16 @@ SidecarServePlan PlanSidecarServe(uint8_t entry_flags, bool agent_markdown,
     // (Cache-Control, validators, Expires, Content-*, Date, Age, ...): the
     // builder owns those and the block owns the rest, so the two cannot
     // produce conflicting lines.  A block that breaks this did not come from
-    // the gate.  Debug builds stop here; release builds refuse to serve with
-    // it, and the record arm rewrites it from the origin.
-    const bool collides = SidecarFieldCollidesWithServePath(field.name);
-    assert(!collides && "headers sidecar carries a serve-path field");
-    if (collides) {
+    // the gate (a damaged or foreign cache file).  Every build refuses to
+    // serve with it — the request becomes a MISS, the caller logs it, and the
+    // record arm rewrites the block from the origin.  Deliberately not an
+    // assert: a damaged file on disk must not take a debug server down.
+    if (SidecarFieldCollidesWithServePath(field.name)) {
       plan.outcome = SidecarServeOutcome::kMissing;
       plan.fields.clear();
       plan.carried_vary = false;
       plan.carried_nosniff = false;
+      plan.foreign_field = true;
       return plan;
     }
     if (HeaderNameEquals(field.name, "vary")) {
@@ -98,6 +98,10 @@ bool ConditionalRevalidationAllowed(uint8_t entry_flags, bool expired_by_age) {
 
 bool IsSidecarCarriedName(std::string_view name) {
   return NameIn(HeadersSidecarAllowlist(), name);
+}
+
+bool StaleErrorDropsCarriedNames(uint8_t entry_flags) {
+  return (entry_flags & AlternateMetadata::kFlagHeadersClassified) != 0;
 }
 
 bool StaleErrorServeHasHeaders(uint8_t entry_flags, bool have_block) {
