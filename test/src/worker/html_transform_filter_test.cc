@@ -17,6 +17,7 @@
 #include "gtest/gtest.h"
 #include "lib/base/string_writer.h"
 #include "lib/cache/cache.h"
+#include "lib/cache/headers_sidecar.h"
 #include "lib/classify/alternate_id.h"
 #include "lib/classify/alternate_metadata.h"
 #include "lib/classify/capability_mask.h"
@@ -4157,6 +4158,141 @@ TEST(HtmlTransformFilterTest, MultipleMetaCspsCombineRestrictively) {
       "</head><body></body></html>",
       "http://example.com/", config, "body { color: red; }");
 
+  EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos);
+}
+
+// ========== Header-CSP gating (headers sidecar) ==========
+
+// Runs the filter with the origin's header CSPs preset, as the worker does
+// after reading the URL's headers sidecar.
+std::string TransformWithHeaderCsps(std::string_view html,
+                                    std::vector<std::string> header_csps,
+                                    std::string_view critical_css) {
+  net_instaweb::HtmlKeywords::Init();
+  net_instaweb::NullMessageHandler message_handler;
+  net_instaweb::HtmlParse parser(&message_handler);
+
+  HtmlTransformConfig config;
+  config.enable_critical_css = true;
+  config.enable_lazy_load = false;
+  config.enable_image_dimensions = false;
+  HtmlTransformFilter transform(&parser, config, critical_css, nullptr, "",
+                                "https");
+  transform.set_header_csps(std::move(header_csps));
+  parser.AddFilter(&transform);
+
+  std::string output;
+  net_instaweb::StringWriter writer(&output);
+  net_instaweb::HtmlWriterFilter writer_filter(&parser);
+  writer_filter.set_writer(&writer);
+  parser.AddFilter(&writer_filter);
+
+  if (!parser.StartParse("http://example.com/")) return "";
+  parser.ParseText(html);
+  parser.FinishParse();
+  return output;
+}
+
+constexpr std::string_view kPlainHead =
+    "<html><head><title>T</title></head><body></body></html>";
+constexpr std::string_view kMetaStyleSelf =
+    "<html><head><meta http-equiv=\"Content-Security-Policy\" "
+    "content=\"style-src 'self'\"></head><body></body></html>";
+constexpr std::string_view kMetaStyleInline =
+    "<html><head><meta http-equiv=\"Content-Security-Policy\" "
+    "content=\"style-src 'self' 'unsafe-inline'\"></head><body></body></html>";
+
+TEST(HtmlTransformFilterTest, HeaderCspOnlyRestrictiveBlocksCriticalCss) {
+  std::string result = TransformWithHeaderCsps(kPlainHead, {"style-src 'self'"},
+                                               "body { color: red; }");
+  EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos);
+}
+
+TEST(HtmlTransformFilterTest, HeaderCspOnlyPermissiveAllowsCriticalCss) {
+  std::string result = TransformWithHeaderCsps(
+      kPlainHead, {"style-src 'self' 'unsafe-inline'"}, "body { color: red; }");
+  EXPECT_NE(result.find("data-pagespeed-critical"), std::string::npos);
+}
+
+TEST(HtmlTransformFilterTest, NoHeaderCspBehavesAsBefore) {
+  std::string result =
+      TransformWithHeaderCsps(kPlainHead, {}, "body { color: red; }");
+  EXPECT_NE(result.find("data-pagespeed-critical"), std::string::npos);
+}
+
+TEST(HtmlTransformFilterTest, MetaCspOnlyStillGatesWithoutHeaderCsp) {
+  EXPECT_EQ(TransformWithHeaderCsps(kMetaStyleSelf, {}, "a{b:c}")
+                .find("data-pagespeed-critical"),
+            std::string::npos);
+  EXPECT_NE(TransformWithHeaderCsps(kMetaStyleInline, {}, "a{b:c}")
+                .find("data-pagespeed-critical"),
+            std::string::npos);
+}
+
+TEST(HtmlTransformFilterTest, HeaderAndMetaCspBothMustAllowInline) {
+  const std::string permissive = "style-src 'self' 'unsafe-inline'";
+  // Header permissive + meta restrictive -> blocked.
+  EXPECT_EQ(TransformWithHeaderCsps(kMetaStyleSelf, {permissive}, "a{b:c}")
+                .find("data-pagespeed-critical"),
+            std::string::npos);
+  // Header restrictive + meta permissive -> blocked.
+  EXPECT_EQ(
+      TransformWithHeaderCsps(kMetaStyleInline, {"style-src 'self'"}, "a{b:c}")
+          .find("data-pagespeed-critical"),
+      std::string::npos);
+  // Both permissive -> injected.
+  EXPECT_NE(TransformWithHeaderCsps(kMetaStyleInline, {permissive}, "a{b:c}")
+                .find("data-pagespeed-critical"),
+            std::string::npos);
+}
+
+TEST(HtmlTransformFilterTest, MultipleHeaderCspsCombineRestrictively) {
+  std::string result = TransformWithHeaderCsps(
+      kPlainHead, {"style-src 'unsafe-inline'", "style-src 'self'"}, "a{b:c}");
+  EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos);
+}
+
+TEST(HtmlTransformFilterTest, NonceBearingHeaderCspBlocksInjection) {
+  // A nonce makes the browser ignore 'unsafe-inline'; our inline block has no
+  // nonce, so it would be dropped. (The sidecar never stores such a CSP, but
+  // the filter must still refuse if it is ever handed one.)
+  std::string result = TransformWithHeaderCsps(
+      kPlainHead, {"style-src 'unsafe-inline' 'nonce-abc123'"}, "a{b:c}");
+  EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos);
+}
+
+TEST(HtmlTransformFilterTest, HeaderCspIsReadFromTheSidecarAndGatesInjection) {
+  CacheHelper cache_helper;
+  ASSERT_TRUE(cache_helper.valid()) << "Cache creation failed";
+  const std::string_view url = "https://example.com/page.html";
+
+  // No sidecar for this URL (an entry recorded before the sidecar): no CSP.
+  EXPECT_TRUE(HtmlTransformFilter::ReadHeaderCsps(cache_helper.cache(), url,
+                                                  "example.com", "https")
+                  .empty());
+  // No cache at all: same.
+  EXPECT_TRUE(
+      HtmlTransformFilter::ReadHeaderCsps(nullptr, url, "example.com", "https")
+          .empty());
+
+  const HeaderField headers[] = {
+      {"Access-Control-Allow-Origin", "*"},
+      {"Content-Security-Policy", "style-src 'self'"},
+      {"content-security-policy", "script-src 'self'"},
+      {"X-Content-Type-Options", "nosniff"},
+  };
+  auto write = cache_helper.cache()->WriteHeadersSidecar(url, "example.com",
+                                                         "https", headers);
+  ASSERT_TRUE(write.has_value());
+
+  std::vector<std::string> csps = HtmlTransformFilter::ReadHeaderCsps(
+      cache_helper.cache(), url, "example.com", "https");
+  ASSERT_EQ(csps.size(), 2u);
+  EXPECT_EQ(csps[0], "style-src 'self'");
+  EXPECT_EQ(csps[1], "script-src 'self'");
+
+  std::string result =
+      TransformWithHeaderCsps(kPlainHead, std::move(csps), "a{b:c}");
   EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos);
 }
 

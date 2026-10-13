@@ -13,6 +13,7 @@
 
 #include "lib/base/string_util.h"
 #include "lib/cache/cache.h"
+#include "lib/cache/headers_sidecar.h"
 #include "lib/classify/capability_mask.h"
 #include "lib/html/csp_inline_policy.h"
 #include "lib/html/html_element.h"
@@ -1138,7 +1139,31 @@ void HtmlTransformFilter::CollectMetaCsp(net_instaweb::HtmlElement* element) {
   meta_csps_.emplace_back(content);
 }
 
+// static
+std::vector<std::string> HtmlTransformFilter::ReadHeaderCsps(
+    PageSpeedCache* cache, std::string_view url, std::string_view hostname,
+    std::string_view scheme) {
+  std::vector<std::string> out;
+  if (cache == nullptr) return out;
+  auto read = cache->ReadHeadersSidecar(url, hostname, scheme);
+  if (!read.has_value()) return out;
+  auto fields =
+      ParseHeadersSidecar(PageSpeedCache::HeadersSidecarPayload(*read));
+  if (!fields.has_value()) return out;
+  for (const HeaderField& field : *fields) {
+    // Enforcing policy only; Report-Only is not an exact match and is not
+    // in the sidecar allowlist anyway.
+    if (net_instaweb::StringCaseEqual(field.name, "Content-Security-Policy")) {
+      out.emplace_back(field.value);
+    }
+  }
+  return out;
+}
+
 bool HtmlTransformFilter::MetaCspAllowsInlineStyle() const {
+  for (const std::string& csp : header_csps_) {
+    if (!net_instaweb::InlineStyleAllowed(csp)) return false;
+  }
   for (const std::string& csp : meta_csps_) {
     if (!net_instaweb::InlineStyleAllowed(csp)) return false;
   }
@@ -1146,6 +1171,9 @@ bool HtmlTransformFilter::MetaCspAllowsInlineStyle() const {
 }
 
 bool HtmlTransformFilter::MetaCspAllowsInlineScript() const {
+  for (const std::string& csp : header_csps_) {
+    if (!net_instaweb::InlineScriptAllowed(csp)) return false;
+  }
   for (const std::string& csp : meta_csps_) {
     if (!net_instaweb::InlineScriptAllowed(csp)) return false;
   }
