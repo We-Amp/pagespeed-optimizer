@@ -471,7 +471,7 @@
   {
     "token": "ExaBot",
     "operator": "Unknown",
-    "kind": "other",
+    "kind": "search",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
