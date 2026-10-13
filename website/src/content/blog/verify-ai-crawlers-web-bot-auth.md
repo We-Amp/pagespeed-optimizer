@@ -6,6 +6,7 @@ author: 'Otto van der Schaaf'
 tags: ['ai-agents', 'security', 'nginx']
 draft: false
 lastUpdated: 2026-10-22
+tool: crawler-cost
 ---
 
 > **Status: experimental (preview).** The Web Bot Auth verifier ships in mod_pagespeed 1.15 and, as of 2.0.34, in ModPageSpeed 2.0 — off by default and observe-only in both. The 2.0 configuration is documented at [Verify AI crawlers with Web Bot Auth](/docs/web-bot-auth/); the 1.15 directives below are still a preview.

@@ -6,6 +6,7 @@ author: 'Otto van der Schaaf'
 tags: ['ai-agents', 'strategy', 'architecture', 'web-bot-auth']
 draft: false
 lastUpdated: 2026-10-22
+tool: crawler-cost
 ---
 
 ## The agentic web changed your traffic

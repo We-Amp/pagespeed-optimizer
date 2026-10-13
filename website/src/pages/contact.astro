@@ -358,6 +358,11 @@ const nextSteps = [
       // ?distros=) the partner page sends, folded into the message.
       const params = new URLSearchParams(window.location.search);
       const rawTopic = (params.get('topic') ?? '').trim().toLowerCase();
+      // ?wedge= names the tool a visitor came from (the crawler cost meter);
+      // only listed values are forwarded into the lead_submit event.
+      const KNOWN_WEDGES = new Set(['crawler-cost']);
+      const rawWedge = (params.get('wedge') ?? '').trim().toLowerCase();
+      const wedgeFromQuery = KNOWN_WEDGES.has(rawWedge) ? rawWedge : '';
       const wanted = config.aliases?.[rawTopic] ?? rawTopic;
       if (topicEl && wanted && Array.from(topicEl.options).some((o) => o.value === wanted)) {
         topicEl.value = wanted;
@@ -520,12 +525,12 @@ const nextSteps = [
           // lead_submit — one event per successful form submit, alongside the
           // form's own event. Properties: channel (contact | quote | quick | newsletter |
           // hosting; a contact-form submit on the hosting topic reports hosting), topic
-          // (the topic posted to the capture endpoint), wedge (the scanner wedge, empty
-          // when none) and source_path (the page path, never the query string).
+          // (the topic posted to the capture endpoint), wedge (a known wedge id from ?wedge=, empty
+          // otherwise) and source_path (the page path, never the query string).
           umami?.track('lead_submit', {
             channel: topic === 'hosting' ? 'hosting' : 'contact',
             topic,
-            wedge: '',
+            wedge: wedgeFromQuery,
             source_path: window.location.pathname,
           });
           setStatus(
