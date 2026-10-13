@@ -10,7 +10,7 @@ const fixture = (name: string) =>
   readFileSync(new URL(`../fixtures/crawler-cost/${name}`, import.meta.url));
 const enc = new TextEncoder();
 function src(name: string, data: Uint8Array | string): LineSource {
-  const blob = new Blob([typeof data === 'string' ? enc.encode(data) : data]);
+  const blob = new Blob([(typeof data === 'string' ? enc.encode(data) : data) as BlobPart]);
   return { name, size: blob.size, stream: () => blob.stream() };
 }
 const T = (h: number, m: number, s: number) => Date.UTC(2026, 9, 10, h, m, s);
