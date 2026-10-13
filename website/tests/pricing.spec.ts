@@ -63,7 +63,7 @@ test.describe('Pricing page', () => {
       'Severity 1 (production down) within 4 business hours; other severities per agreement',
     );
     await expect(tiers.locator('[data-pricing-status]')).toContainText(
-      'The price you sign at holds for three years',
+      'The price you sign at holds for one year',
     );
     await expect(page.locator('[data-audit-price]')).toContainText('€950 per site, excl. VAT.');
   });

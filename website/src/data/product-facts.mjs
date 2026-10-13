@@ -153,7 +153,7 @@ export const SUPPORT_TIERS = [
 // The pricing terms, said the same way everywhere they are said.
 export const PRICING_TERMS_LINE = 'Prices are per year, billed annually, excl. VAT.';
 export const PRICE_HOLD_LINE =
-  'The price you sign at holds for three years. Existing customers keep their current rate; nobody is repriced mid-term.';
+  'The price you sign at holds for one year. Existing customers keep their current rate; nobody is repriced mid-term.';
 export const PRICING_LINE = `${PRICING_TERMS_LINE} ${PRICE_HOLD_LINE}`;
 export const RESPONSE_TARGETS_LINE =
   'Response targets are first-response times. Support runs on CET business days, and business hours are CET.';
