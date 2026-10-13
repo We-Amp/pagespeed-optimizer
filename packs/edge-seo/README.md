@@ -191,5 +191,4 @@ published with the release that ships rule packs. It describes every field, the
 limits, the decision log format, the statistics, signed packs and
 troubleshooting.
 
-The pack is free to use and to change. The test fixtures under `fixtures/` are
-the cases the rules are checked against.
+The pack is free to use and to change.
