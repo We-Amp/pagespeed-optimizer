@@ -40,6 +40,8 @@ interface ChipDef {
   id: string;
   label: string;
   fires: (r: Report) => boolean;
+  /** False: offered when the gate fires, but never pre-selected. */
+  preselect?: boolean;
 }
 
 // Display order follows the panels: AI readability, Risk & SEO, then Speed.
@@ -53,11 +55,6 @@ const GATED: ChipDef[] = [
     id: 'agentpass',
     label: 'Signed-agent verification (prove which agent is which)',
     fires: (r) => agentPassCtaApplies(r.signedAgentVerification),
-  },
-  {
-    id: 'markdown-origin',
-    label: 'Serving AI agents a Markdown copy at the origin',
-    fires: (r) => markdownOriginCtaApplies(r.agentSignals),
   },
   {
     id: 'compliancefix',
@@ -89,6 +86,12 @@ const GATED: ChipDef[] = [
     label: 'Leaked errors and outdated software',
     fires: (r) => responseFirewallCtaApplies(r.responseExposure),
   },
+  {
+    id: 'markdown-origin',
+    label: 'Serving AI agents a Markdown copy at the origin',
+    fires: (r) => markdownOriginCtaApplies(r.agentSignals),
+    preselect: false,
+  },
 ];
 
 export const CONSULTING = { id: 'consulting', label: 'Help applying the speed fixes' };
@@ -119,7 +122,13 @@ export function chipsFor(
   if (report) {
     for (const def of GATED) {
       if (def.fires(report)) {
-        chips.push({ id: def.id, label: def.label, wedge: def.id, gated: true, selected: true });
+        chips.push({
+          id: def.id,
+          label: def.label,
+          wedge: def.id,
+          gated: true,
+          selected: def.preselect !== false,
+        });
       }
     }
   }

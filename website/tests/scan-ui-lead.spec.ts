@@ -81,13 +81,13 @@ const checkedIds = (page: Page) =>
 const ALL = [
   'tollbooth',
   'agentpass',
-  'markdown-origin',
   'compliancefix',
   'consent-enforcement',
   'page-integrity',
   'third-party-freeze',
   'edge-seo',
   'response-firewall',
+  'markdown-origin',
   'consulting',
   'agents',
   'audit',
@@ -103,6 +103,7 @@ test.describe('the one lead form', () => {
     await expect(form(page).locator('fieldset legend')).toHaveText('Topics');
     expect(await chipIds(page)).toEqual(ALL);
     expect(await checkedIds(page)).toEqual(ALL.slice(0, 4));
+    await expect(chip(page, 'markdown-origin')).not.toBeChecked();
     await expect(form(page).locator('input[type="checkbox"]')).toHaveCount(12);
     await expect(page.locator('[data-scan-live]')).toHaveCount(1);
     await expect(
@@ -115,6 +116,28 @@ test.describe('the one lead form', () => {
     await scanV2(page);
     expect(await chipIds(page)).toEqual(['consulting', 'agents', 'audit']);
     expect(await checkedIds(page)).toEqual([]);
+  });
+
+  test('keeps the audit line hidden while a scan runs and again on a rescan', async ({ page }) => {
+    await mock(page);
+    let release!: () => void;
+    const gate = new Promise<void>((r) => (release = r));
+    await page.route('**/ai-readability/api/scan**', async (route) => {
+      await gate;
+      await route.fulfill({ status: 200, contentType: 'application/json', body: fixture('full') });
+    });
+    await stubUmami(page);
+    await page.goto('/ai-readability/?ui=v2');
+    await page.waitForLoadState('networkidle');
+    await page.fill('#scan-url', 'shop.example.com');
+    await page.click('#scan-submit');
+    await expect(form(page)).toBeVisible({ timeout: 15000 });
+    await expect(page.locator('[data-scan-audit]')).toBeHidden();
+    release();
+    await expect(page.locator('[data-scan-audit]')).toBeVisible({ timeout: 15000 });
+    await page.fill('#scan-url', 'other.example.com');
+    await page.click('#scan-submit');
+    await expect(page.locator('[data-scan-audit]')).toBeHidden();
   });
 
   test('says which sentence applies: pre-selected topics, or the neutral question', async ({
@@ -185,6 +208,7 @@ test.describe('the one lead form', () => {
     await scanV2(page);
     await expect(form(page)).toBeVisible();
     expect(await chipIds(page)).toEqual(['consulting', 'agents', 'audit']);
+    await expect(page.locator('[data-scan-audit]')).toBeHidden();
   });
 
   test('asks for a topic, and for at most four', async ({ page }) => {
@@ -227,7 +251,9 @@ test.describe('the one lead form', () => {
     await scanV2(page);
     await chip(page, 'tollbooth').uncheck();
     await chip(page, 'compliancefix').uncheck();
+    await chip(page, 'consent-enforcement').uncheck();
     await chip(page, 'edge-seo').check();
+    await chip(page, 'markdown-origin').check();
     await chip(page, 'consulting').check();
     await page.fill('input[name="email"]', 'ops@example.com');
     await page.getByLabel('Sites you run (optional)').fill('12');
@@ -244,20 +270,24 @@ test.describe('the one lead form', () => {
     await expect(form(page)).toBeHidden();
     expect(posted.map((p) => p.topic)).toEqual([
       'agentpass',
-      'markdown-origin',
       'edge-seo',
+      'markdown-origin',
       'consulting',
     ]);
-    expect(posted.map((p) => p.wedge)).toEqual(['agentpass', 'markdown-origin', 'edge-seo', '']);
-    expect(posted[1].lensSignal).toBe(
-      'no Markdown on Accept: text/markdown (got text/html; charset=utf-8, HTTP 200); Vary: Accept absent',
-    );
+    expect(posted.map((p) => p.wedge)).toEqual(['agentpass', 'edge-seo', 'markdown-origin', '']);
+    expect(posted[2].lensSignal).toEqual({
+      verdict: 'attention',
+      negotiated: false,
+      httpStatus: 200,
+      contentType: 'text/html; charset=utf-8',
+      varyAccept: false,
+    });
+    expect(String(posted[1].message)).toContain(
     for (const p of posted) expect(typeof p.t).toBe('number');
-    expect(String(posted[2].message)).toContain(
       'Operator note / crawl volume: sites: 12; WordPress',
     );
     expect(String(posted[0].message)).toContain('Operator note / crawl volume: WordPress');
-    expect(String(posted[1].message)).toContain('[markdown-origin] lead from RenderPeek result');
+    expect(String(posted[2].message)).toContain('[markdown-origin] lead from RenderPeek result');
     expect(String(posted[0].message)).not.toContain('sites: 12');
     expect(posted[3]).toMatchObject({
       topic: 'consulting',
@@ -271,7 +301,7 @@ test.describe('the one lead form', () => {
     const events = await trackedEvents(page);
     const leads = events.filter((e) => e.name === 'lead_submit');
     expect(leads.map((e) => e.data)).toEqual(
-      ['agentpass', 'markdown-origin', 'edge-seo', 'consulting'].map((t) => ({
+      ['agentpass', 'edge-seo', 'markdown-origin', 'consulting'].map((t) => ({
         channel: 'scan',
         topic: t,
         wedge: t === 'consulting' ? '' : t,
@@ -281,8 +311,8 @@ test.describe('the one lead form', () => {
     const next = events.filter((e) => e.name.startsWith('airead-next-')).map((e) => e.name);
     expect(next).toEqual([
       'airead-next-agentpass',
-      'airead-next-markdown-origin',
       'airead-next-edge-seo',
+      'airead-next-markdown-origin',
     ]);
   });
 
@@ -292,15 +322,15 @@ test.describe('the one lead form', () => {
     await page.fill('input[name="email"]', 'ops@example.com');
     await page.getByRole('button', { name: 'Talk to us' }).click();
     await expect(page.locator('[data-scan-lead-msg]')).toHaveText(
-      'Sent: Origin controls (who reads / verifies), Serving AI agents a Markdown copy at the origin, Accessibility remediation. We could not send: Signed-agent verification (prove which agent is which). Try again.',
+      'Sent: Origin controls (who reads / verifies), Accessibility remediation, Consent enforcement. We could not send: Signed-agent verification (prove which agent is which). Try again.',
     );
     await expect(form(page)).toBeVisible();
     expect(await checkedIds(page)).toEqual(['agentpass']);
     expect(mocked.posted.map((p) => p.topic)).toEqual([
       'tollbooth',
       'agentpass',
-      'markdown-origin',
       'compliancefix',
+      'consent-enforcement',
     ]);
 
     mocked.failTopics.length = 0;
@@ -409,6 +439,7 @@ test.describe('next steps and share', () => {
     await expect(auditLink).toHaveAttribute('href', '/contact/?topic=audit');
     await expect(auditLink).toHaveAttribute('data-umami-event-offer', 'audit');
     await expect(auditLink).toHaveAttribute('data-umami-event-surface', 'analyze');
+    await expect(page.locator('[data-scan-audit]')).toBeVisible();
   });
 });
 

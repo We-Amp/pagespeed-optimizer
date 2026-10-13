@@ -28,13 +28,13 @@ const clean = fixture('clean');
 const GATED_ORDER = [
   'tollbooth',
   'agentpass',
-  'markdown-origin',
   'compliancefix',
   'consent-enforcement',
   'page-integrity',
   'third-party-freeze',
   'edge-seo',
   'response-firewall',
+  'markdown-origin',
 ];
 
 // Break exactly one gate in the full report.
@@ -190,16 +190,17 @@ describe('chipsFor', () => {
       unknown.agentSignals.markdown.negotiated = null;
       expect(ids(unknown)).not.toContain('markdown-origin');
     });
-    it('sits after agentpass and before compliancefix, labelled for the wedge', () => {
+    it('is the last gated chip, labelled for the wedge, offered but never pre-selected', () => {
       const chips = chipsFor(full, null);
       const at = chips.map((c) => c.id);
-      expect(at.indexOf('markdown-origin')).toBe(at.indexOf('agentpass') + 1);
-      expect(at.indexOf('compliancefix')).toBe(at.indexOf('markdown-origin') + 1);
-      expect(chips[at.indexOf('markdown-origin')].label).toBe(
-        'Serving AI agents a Markdown copy at the origin',
-      );
+      expect(at.indexOf('markdown-origin')).toBe(at.indexOf('response-firewall') + 1);
+      const chip = chips[at.indexOf('markdown-origin')];
+      expect(chip.label).toBe('Serving AI agents a Markdown copy at the origin');
+      expect(chip.gated).toBe(true);
+      expect(chip.selected).toBe(false);
+      expect(chips.filter((c) => c.selected).map((c) => c.id)).toEqual(GATED_ORDER.slice(0, 4));
     });
-    it('posts a short verdict string with no page text', () => {
+    it('posts the scanner’s object shape with no page text', () => {
       const p = buildLeadPayload({
         wedge: 'markdown-origin',
         email: 'a@b.example',
@@ -207,9 +208,13 @@ describe('chipsFor', () => {
         note: '',
         report: full,
       });
-      expect(p.lensSignal).toBe(
-        'no Markdown on Accept: text/markdown (got text/html; charset=utf-8, HTTP 200); Vary: Accept absent',
-      );
+      expect(p.lensSignal).toEqual({
+        verdict: 'attention',
+        negotiated: false,
+        httpStatus: 200,
+        contentType: 'text/html; charset=utf-8',
+        varyAccept: false,
+      });
       expect(p.topic).toBe('markdown-origin');
       expect(p.wedge).toBe('markdown-origin');
     });

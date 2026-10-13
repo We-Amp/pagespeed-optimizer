@@ -131,6 +131,9 @@ describe('formatAiread extras', () => {
     const failed = fixture('full');
     failed.agentSignals.status = 'error';
     expect(formatAiread(failed).alsoFound.map((f) => f.wedge)).not.toContain('markdown-origin');
+    const unknown = fixture('full');
+    unknown.agentSignals.markdown.negotiated = null;
+    expect(formatAiread(unknown).alsoFound.map((f) => f.wedge)).not.toContain('markdown-origin');
   });
   it('pluralises the AI crawler count from the number', () => {
     const full = fixture('full');
