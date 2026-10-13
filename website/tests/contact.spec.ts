@@ -159,6 +159,28 @@ test.describe('Contact page', () => {
     });
   });
 
+  test('forwards a known wedge from the query into lead_submit and drops an unknown one', async ({
+    page,
+  }) => {
+    await page.route('**/ai-readability/api/contact', async (route) => {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: '{"ok":true}' });
+    });
+    for (const [wedge, expected] of [
+      ['crawler-cost', 'crawler-cost'],
+      ['unknown-thing', ''],
+    ] as const) {
+      await stubUmami(page);
+      await page.goto(`/contact/?topic=consulting&wedge=${wedge}`);
+      await page.fill('#contact-name', 'Margaret');
+      await page.fill('#contact-email', 'margaret@example.com');
+      await page.fill('#contact-message', 'Crawler load on a shared origin.');
+      await page.locator('#contact-submit').click();
+      await expect(page.locator('#contact-status')).toContainText('Thanks');
+      const lead = (await trackedEvents(page)).find((e) => e.name === 'lead_submit');
+      expect(lead?.data).toMatchObject({ topic: 'consulting', wedge: expected });
+    }
+  });
+
   test('a non-commercial topic posts no qualifier lines', async ({ page }) => {
     let posted: Record<string, unknown> | null = null;
     await page.route('**/ai-readability/api/contact', async (route) => {
