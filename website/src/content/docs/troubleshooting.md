@@ -3,7 +3,7 @@ title: 'Troubleshoot common issues'
 description: 'Fix common mod_pagespeed 2.1 issues: cache misses, images not converting to WebP or AVIF, the optimizer worker not processing, and socket diagnostics.'
 order: 58
 group: 'Operate'
-lastUpdated: 2026-09-25
+lastUpdated: 2026-10-13
 ---
 
 Most mod_pagespeed 2.1 problems surface in one place: the `X-PageSpeed`
@@ -245,9 +245,9 @@ JPEG or PNG.
 Enable debug-level logging to see detailed processing information:
 
 ```bash
-# systemd: edit the service file
-sudo systemctl edit pagespeed-optimizer --full
-# Change --log-level info to --log-level debug
+# systemd: set LOG_LEVEL=debug in /etc/default/pagespeed-optimizer, then restart
+sudoedit /etc/default/pagespeed-optimizer
+sudo systemctl restart pagespeed-optimizer
 
 # Docker: set environment variable or modify command
 docker compose exec worker factory_worker --log-level debug ...
@@ -283,6 +283,8 @@ The management socket provides real-time insight into the worker's state.
 ```bash
 echo "STATS" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
 ```
+
+In the container images the socket is `/data/pagespeed.sock.mgmt`. On the packages, run these commands as root or as a member of group `pagespeed`.
 
 Look for:
 

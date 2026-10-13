@@ -13712,7 +13712,7 @@ A rule pack is a JSON file of rules for the head of your HTML pages. The `rule_p
 
 > **Availability**
 >
-> The `rule_packs` filter and the free edge-SEO pack are available since the 2.3.0 release. The filter is off by default and is in no rewrite level. See [Rule packs](https://modpagespeed.com/packs/) for the packs themselves.
+> The `rule_packs` filter and the free edge-SEO pack are available from mod_pagespeed 2.3.0 (packages 1.18.0). The filter is off by default and is in no rewrite level. See [Rule packs](https://modpagespeed.com/packs/) for the packs themselves.
 
 The filter does nothing without a pack file, and a pack starts in report mode: it records what it would change and changes nothing.
 
@@ -16589,9 +16589,9 @@ JPEG or PNG.
 Enable debug-level logging to see detailed processing information:
 
 ```bash
-# systemd: edit the service file
-sudo systemctl edit pagespeed-optimizer --full
-# Change --log-level info to --log-level debug
+# systemd: set LOG_LEVEL=debug in /etc/default/pagespeed-optimizer, then restart
+sudoedit /etc/default/pagespeed-optimizer
+sudo systemctl restart pagespeed-optimizer
 
 # Docker: set environment variable or modify command
 docker compose exec worker factory_worker --log-level debug ...
@@ -16627,6 +16627,8 @@ The management socket provides real-time insight into the worker's state.
 ```bash
 echo "STATS" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
 ```
+
+In the container images the socket is `/data/pagespeed.sock.mgmt`. On the packages, run these commands as root or as a member of group `pagespeed`.
 
 Look for:
 
@@ -18584,9 +18586,10 @@ every notification that carries one — that check is what catches two
 implementations of the format drifting apart. A context that passes is accepted
 whatever it names, and the work is processed and stored under the **default
 context**: optimized output is a function of the resource, of the request
-(client capabilities and content type, plus whether it was an agent request the
-operator has enabled — the request's own declared intent, gated by the
-`agent_optimize` setting the optimizer itself publishes), and of the optimizer's own configuration, so two
+(client capabilities and content type, plus whether it was an agent request:
+the request declares its own intent, and it counts only when the operator has
+turned on the `agent_optimize` setting the optimizer itself publishes), and of
+the optimizer's own configuration, so two
 requests that resolved to two different configurations cannot produce two
 different optimized artifacts. Keep supplying the context you resolve — it is
 what the drift check runs on.

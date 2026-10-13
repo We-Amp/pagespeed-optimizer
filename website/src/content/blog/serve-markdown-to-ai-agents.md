@@ -33,7 +33,7 @@ The generation runs at your origin. There is no external service rendering your 
 
 Be clear on availability, because this one has real conditions.
 
-`agent_optimize` runs in the optimizer worker; the module alone does not produce it. It ships **off by default** and is experimental, so evaluate it in staging before you enable it in production. There is no token and no separate build: the operator's flag alone turns it on. On the module the request is recognized and the response carries `Vary: Accept`, but no markdown is ever rendered or served; the render depends on a headless browser only the optimizer worker runs. Turning it on takes two things:
+`agent_optimize` runs in the optimizer worker; the module alone does not produce it. It ships **off by default** and is experimental, so evaluate it in staging before you enable it in production. There is no token and no separate build: operator flags turn it on. On the module alone, with `AgentOptimize on`, the request is recognized and HTML responses carry `Vary: Accept`, but no markdown is ever rendered or served; the render depends on a headless browser only the optimizer worker runs. Turning it on takes two things:
 
 1. **Enable browser analysis.** `agent_optimize` requires `--enable-browser-analysis`, because the markdown variant comes from a headless render.
 2. **Set the flag.** `--agent-optimize` (or `PAGESPEED_AGENT_OPTIMIZE=true`). Default: `false`.
@@ -63,7 +63,7 @@ Because everything is cached, the usual escape hatches apply. If a generated var
 
 Do not take the behavior on faith. Test it on staging.
 
-1. Enable `--enable-browser-analysis` and `--agent-optimize`, 
+1. Enable `--enable-browser-analysis` and `--agent-optimize`.
 2. Request an HTML URL with the header `Accept: text/markdown`. Confirm the response comes back as `Content-Type: text/markdown` with the page's main content rendered as markdown.
 3. Enable `--agent-optimize-llms-txt` and `GET /llms.txt`. You should see the synthesized index built from your sitemap.
 4. Check the worker stats endpoint, which exposes build and serve counters for the feature, so you can confirm it is generating and serving rather than silently no-opping.

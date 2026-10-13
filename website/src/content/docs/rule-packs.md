@@ -8,7 +8,7 @@ group: 'Filters'
 A rule pack is a JSON file of rules for the head of your HTML pages. The `rule_packs` filter reads it and, where a rule says so, adds a missing canonical link, title, meta description, hreflang cluster or JSON-LD block, and removes duplicates of them. It runs in the same rewriting chain as the other filters, on Apache, nginx and IIS.
 
 :::note[Availability]
-The `rule_packs` filter and the free edge-SEO pack are available since the 2.3.0 release. The filter is off by default and is in no rewrite level. See [Rule packs](/packs/) for the packs themselves.
+The `rule_packs` filter and the free edge-SEO pack are available from mod_pagespeed 2.3.0 (packages 1.18.0). The filter is off by default and is in no rewrite level. See [Rule packs](/packs/) for the packs themselves.
 :::
 
 The filter does nothing without a pack file, and a pack starts in report mode: it records what it would change and changes nothing.

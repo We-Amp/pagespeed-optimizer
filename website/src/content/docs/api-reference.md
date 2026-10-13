@@ -3,7 +3,7 @@ title: 'API reference: IPC, sockets, and C API'
 description: 'mod_pagespeed 2.1 internal interfaces: the module-to-worker IPC wire format, the health and management sockets, the capability mask and the ps_ C API.'
 order: 65
 group: 'Reference'
-lastUpdated: 2026-09-19
+lastUpdated: 2026-10-13
 ---
 
 This page documents the internal protocols and interfaces of mod_pagespeed 2.1:
@@ -1005,9 +1005,10 @@ every notification that carries one — that check is what catches two
 implementations of the format drifting apart. A context that passes is accepted
 whatever it names, and the work is processed and stored under the **default
 context**: optimized output is a function of the resource, of the request
-(client capabilities and content type, plus whether it was an agent request the
-operator has enabled — the request's own declared intent, gated by the
-`agent_optimize` setting the optimizer itself publishes), and of the optimizer's own configuration, so two
+(client capabilities and content type, plus whether it was an agent request:
+the request declares its own intent, and it counts only when the operator has
+turned on the `agent_optimize` setting the optimizer itself publishes), and of
+the optimizer's own configuration, so two
 requests that resolved to two different configurations cannot produce two
 different optimized artifacts. Keep supplying the context you resolve — it is
 what the drift check runs on.
