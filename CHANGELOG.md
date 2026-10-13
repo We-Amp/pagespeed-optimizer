@@ -2,6 +2,14 @@
 
 All notable changes to mod_pagespeed 2.1 are documented in this file.
 
+## Unreleased
+
+Fixed: nginx no longer serves a stale cached response whose origin sent
+`must-revalidate`, `proxy-revalidate` or `s-maxage` while a refresh is in
+flight or when the origin returns an error; those requests go to the origin
+instead (RFC 9111 section 5.2.2). Sites that relied on stale serves of such
+responses will see a few more origin fetches around expiry.
+
 ## 2.3.0 — 2026-10-12
 
 This release fixes stale copies of CSS, JavaScript and image files after
