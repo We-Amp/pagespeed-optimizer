@@ -61,18 +61,23 @@ export const LICENSING_TERMS_URL = 'https://we-amp.com/licensing/';
 // (security@modpagespeed.com) and is never routed here.
 export const COMMERCIAL_EMAIL = 'info@we-amp.com';
 
-// --- Offerings (converged line — no published prices) ------------------------
+// --- Offerings (converged line) -----------------------------------------------
 // What is for sale is support, in three tiers. The software is free and identical under every tier. These
 // rows are what /support/ and /pricing/ present and what the agent files and
-// /api/product.json describe. Prices are NULL until published — no surface may
-// render a price or a per-tier response-time target (response targets by
-// severity are stated in each quote).
+// /api/product.json describe. Prices are in euro, per year, excl. VAT
+// (prices are listed in EUR; checkout runs on FastSpring); the first-response target
+// of each tier is the last entry of its `includes`.
 //   servers     the production-server band the tier covers (one organization's
-//               production deployment; the bands the quote form asks for)
+//               production deployment)
+//   prices      annualEur is the yearly price; from marks "from" pricing;
+//               monthlyEur stays null (annual billing only)
 //   includes    what the tier adds, in display order; the first entry of a
 //               higher tier names the tier it builds on
 //   hardened    whether the private package repository is live; false until
 //               it exists (it is being set up)
+//   cta         where the tier's button goes: a hosted checkout page for
+//               Standard and Priority, the contact form for Enterprise;
+//               offer is the umami cta_commercial offer value
 export const SUPPORT_TIERS = [
   {
     id: 'standard',
@@ -80,13 +85,20 @@ export const SUPPORT_TIERS = [
     kind: 'support',
     hardened: false,
     servers: 'up to 5 production servers',
-    prices: { annualUsd: null, monthlyUsd: null },
+    prices: { annualEur: 490, from: false, monthlyEur: null },
+    cta: {
+      href: 'https://mpspro.onfastspring.com/support-standard-annual',
+      label: 'Buy Standard',
+      offer: 'buy-standard',
+      external: true,
+    },
     note: 'a direct channel to the engineers who build the product, for up to 5 production servers',
     includes: [
       'Ticket and email channel to the engineers who build the product',
       'Configuration, upgrade and incident help',
       'Advance notice of security updates',
       'One onboarding configuration review',
+      'First response within 2 business days',
     ],
   },
   {
@@ -95,13 +107,22 @@ export const SUPPORT_TIERS = [
     kind: 'support',
     hardened: false,
     servers: 'up to 25 production servers',
-    prices: { annualUsd: null, monthlyUsd: null },
+    prices: { annualEur: 1900, from: false, monthlyEur: null },
+    cta: {
+      href: 'https://mpspro.onfastspring.com/support-priority-annual',
+      label: 'Buy Priority',
+      offer: 'buy-priority',
+      external: true,
+    },
     note: 'everything in Standard plus a private package repository (being set up), for up to 25 production servers',
     includes: [
       'Everything in Standard',
       'Private package repository (being set up)',
+      'Signed packages and container images; the images carry an SBOM attestation and build provenance; the release SBOM and VEX on request',
+      'Vulnerability notifications timed to the EU Cyber Resilience Act reporting windows',
       'Upgrade rehearsal on request',
       'Quarterly review call',
+      'First response next business day; severity 1 (production down) within 8 business hours',
     ],
   },
   {
@@ -110,21 +131,36 @@ export const SUPPORT_TIERS = [
     kind: 'support',
     hardened: false,
     servers: 'unlimited servers and sites, one organization',
-    prices: { annualUsd: null, monthlyUsd: null },
-    note: 'everything in Priority plus a named engineer; builds for additional platforms available on request, quoted separately',
+    prices: { annualEur: 7500, from: true, monthlyEur: null },
+    cta: {
+      href: '/contact/?topic=enterprise',
+      label: 'Talk to us about Enterprise',
+      offer: 'enterprise',
+      external: false,
+    },
+    note: 'everything in Priority plus a named engineer, custom build targets and backports, for unlimited servers and sites in one organization',
     includes: [
       'Everything in Priority',
       'A named engineer',
-      'Backport commitments and pre-notification of security advisories',
+      'Custom build targets (distributions, nginx versions)',
+      'Backports',
       'Master agreement, purchase order and invoice',
       'Roadmap input and consulting days',
+      'Severity 1 (production down) within 4 business hours; other severities per agreement',
     ],
   },
 ];
-// The pricing status, said the same way everywhere it is said.
-export const PRICING_ON_REQUEST =
-  'Pricing on request: published once agreements with current customers close; early subscribers keep their quoted rate for three years.';
-export const RESPONSE_TARGETS_LINE = 'Response targets by severity are stated in your quote.';
+// The pricing terms, said the same way everywhere they are said.
+export const PRICING_TERMS_LINE = 'Prices are per year, billed annually, excl. VAT.';
+export const PRICE_HOLD_LINE =
+  'The price you sign at holds for one year. Existing customers keep their current rate; nobody is repriced mid-term.';
+export const PRICING_LINE = `${PRICING_TERMS_LINE} ${PRICE_HOLD_LINE}`;
+export const RESPONSE_TARGETS_LINE =
+  'Response targets are first-response times. Support runs on CET business days, and business hours are CET.';
+// The fixed-price agent-readiness audit (one site, one report, one review call).
+export const AUDIT_PRICE_EUR = 950;
+// Euro amounts as displayed on the site: a symbol and thousands separators.
+export const formatEur = (n) => `\u20ac${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 // The artifact axis: the standard signed packages are free for everyone.
 // What ships today for everyone:
 // GPG-signed apt/yum repositories, .asc signatures on release packages, the
@@ -140,10 +176,14 @@ export const ARTIFACT_ACCESS = {
   hardenedPricing: 'not-offered',
   privateRepository: 'being-set-up',
 };
-// The support ladder as markdown bullets and one line, price-free by design
-// (pure helpers — see the purity rule below).
-const ladderMd = (rows) => rows.map((t) => `- ${t.name} — ${t.note}`).join('\n');
-const ladderLine = (rows) => rows.map((t) => `${t.name} (${t.note})`).join('; ');
+// The support ladder as markdown bullets and one line, with each tier's yearly
+// price (pure helpers — see the purity rule below).
+const tierPrice = (t) => `${t.prices.from ? 'from ' : ''}${formatEur(t.prices.annualEur)} a year`;
+const tierTarget = (t) => t.includes[t.includes.length - 1];
+const ladderMd = (rows) =>
+  rows.map((t) => `- ${t.name} — ${t.note}; ${tierPrice(t)}; ${tierTarget(t)}`).join('\n');
+const ladderLine = (rows) =>
+  rows.map((t) => `${t.name} (${t.note}; ${tierPrice(t)}; ${tierTarget(t)})`).join('; ');
 export const SUPPORT_LADDER_MD = /* @__PURE__ */ ladderMd(SUPPORT_TIERS);
 export const SUPPORT_LADDER_LINE = /* @__PURE__ */ ladderLine(SUPPORT_TIERS);
 
@@ -157,7 +197,7 @@ export const SUPPORT_LADDER_LINE = /* @__PURE__ */ ladderLine(SUPPORT_TIERS);
 //   wrap the derivation in a helper and call it through the annotation.
 
 // Google-recommended Offer freshness date; bump ~yearly (see offer-jsonld.ts).
-export const PRICE_VALID_UNTIL = '2026-12-31';
+export const PRICE_VALID_UNTIL = '2027-12-31';
 
 // --- Heritage (BuiltWith) ---------------------------------------------------
 // Display strings (locale-independent) — these are facts as published, not
@@ -439,8 +479,9 @@ const llmsTokens = () => ({
   SUPPORT_URL,
   LICENSING_TERMS_URL,
   COMMERCIAL_EMAIL,
-  PRICING_ON_REQUEST,
+  PRICING_LINE,
   RESPONSE_TARGETS_LINE,
+  AUDIT_PRICE: formatEur(AUDIT_PRICE_EUR),
   MAX_VARIANTS: String(MAX_VARIANTS),
   RASTER_VARIANTS: String(RASTER_VARIANTS),
   SIDECAR_VERSION,

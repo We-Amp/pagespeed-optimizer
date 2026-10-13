@@ -3,47 +3,49 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
 // /pricing/ — the software is free; what is sold is support in three tiers,
-// in three tiers, with a private package repository (being set up) for Priority up. Owner ruling: no price
-// amounts and no per-tier response-time targets on the site. The page shows
-// what each tier includes, states the pricing status once (PRICING_ON_REQUEST),
-// and collects a quote request whose qualifiers are folded into the message
-// posted to the contact capture endpoint (topic "quote").
+// with published yearly prices (euro, excl. VAT). Standard and Priority go
+// straight to the hosted checkout, Enterprise and the audit to the contact
+// form. The page also carries the fixed-price agent-readiness audit, the
+// hosting-partner strip (partner terms are agreed per fleet and not published)
+// and the buying FAQ. Tier rows, prices, the checkout links and the
+// pricing lines come from product-facts.mjs.
 
 import BaseLayout from '../layouts/BaseLayout.astro';
 import SupportTiers from '../components/SupportTiers.astro';
-import Icon from '../components/Icon.astro';
 import { faqPricing } from '../data/faq-pricing';
 import { stripHtml } from '../data/faq-shared';
-import { offerJsonLd } from '../data/offer-jsonld';
+import { offerJsonLd, supportTierOffersJsonLd } from '../data/offer-jsonld';
 import {
-  BUILTWITH_SITES,
-  BUILTWITH_AS_OF,
+  AUDIT_PRICE_EUR,
   COMMERCIAL_EMAIL,
   CURRENT_LINE,
   LICENSE_CLAUSE,
   LICENSE_CLAUSE_CAP,
   LICENSING_TERMS_URL,
-  PRICING_ON_REQUEST,
+  PRICE_HOLD_LINE,
+  PRICING_TERMS_LINE,
   PRODUCT_NAME,
   RESPONSE_TARGETS_LINE,
-  SOURCE_IS_PUBLISHED,
-  SOURCE_PUBLICATION,
+  SUPPORT_TIERS,
+  formatEur,
 } from '../data/product-facts.mjs';
 import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../data/software-jsonld';
+import Icon from '../components/Icon.astro';
 
 const softwareVersion = await productSoftwareVersion();
 
 const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
 
-// Terms version the quote request is made under. MUST stay in lockstep with
+// Terms version subscriptions are made under. MUST stay in lockstep with
 // the "Version YYYY-MM" stamp in src/pages/terms.astro —
 // test/sync/terms-version-sync.test.ts guards it.
 const TERMS_VERSION_WEB = '2026-10';
 
-// The Offer node describes the software, which costs nothing (a zero-price Offer is
-// accurate and keeps the SoftwareApplication markup valid). Support is priced
-// on request, so it gets no Offer node at all rather than a fake price.
+// The software itself costs nothing (a zero-price Offer is accurate and keeps
+// the SoftwareApplication markup valid); each support tier is its own priced
+// Offer node.
 const offer = offerJsonLd({ url: 'https://modpagespeed.com/pricing/' });
+const tierOffers = supportTierOffersJsonLd({ url: 'https://modpagespeed.com/pricing/' });
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -54,8 +56,8 @@ const jsonLd = {
       applicationCategory: 'WebApplication',
       operatingSystem: PRODUCT_OPERATING_SYSTEMS,
       softwareVersion,
-      description: `Self-hosted web performance optimization: a native module for Apache and nginx with a separate optimizer worker. ${LICENSE_CLAUSE_CAP}; support subscriptions are sold separately, pricing on request.`,
-      offers: offer,
+      description: `Self-hosted web performance optimization: a native module for Apache and nginx with a separate optimizer worker. ${LICENSE_CLAUSE_CAP}; support subscriptions are sold separately, from ${formatEur(SUPPORT_TIERS[0].prices.annualEur)} a year, excl. VAT.`,
+      offers: [offer, ...tierOffers],
     },
     {
       '@type': 'FAQPage',
@@ -68,65 +70,43 @@ const jsonLd = {
   ],
 };
 
-const serverBands = [
-  { value: 'up-to-5', label: 'Up to 5' },
-  { value: 'up-to-25', label: 'Up to 25' },
-  { value: 'more', label: 'More than 25' },
+const auditPoints = [
+  'What a crawler that does not run JavaScript sees, compared with what a browser renders',
+  'Whether your pages can be served as Markdown to agents that ask for it',
+  'Page-speed findings, with the configuration change for each one',
+  'A written report, then one review call',
 ];
-const platforms = ['Apache', 'nginx', 'IIS', 'Docker or Kubernetes', 'ASP.NET Core', 'cPanel/EA4'];
-const trafficBands = [
-  'Under 1 million pageviews a month',
-  '1 to 10 million pageviews a month',
-  '10 to 100 million pageviews a month',
-  'Over 100 million pageviews a month',
-  'Not sure',
-];
-const deadlines = ['This month', 'This quarter', 'Later this year', 'No deadline, exploring'];
-
-const nextSteps = [
-  {
-    when: 'within 1 business day',
-    what: 'A reply from an engineer, with any questions about your setup.',
-  },
-  {
-    when: 'within 3 business days',
-    what: 'A written quote: tier, server band, response targets by severity.',
-  },
-  {
-    when: 'within 5 business days of signing',
-    what: 'The onboarding call, and your ticket channel opens.',
-  },
-];
-
-const inputClass =
-  'mt-1 block w-full rounded-md border border-control-border bg-bg-elevated text-text-body px-3 py-2 focus:border-interactive focus:ring-2 focus:ring-interactive';
 ---
 
 <BaseLayout
   title="Pricing: free software, paid support — mod_pagespeed 2.1"
-  description="mod_pagespeed 2.1 is free under Apache-2.0. Support in three tiers, plus a private package repository (being set up). Pricing on request; ask for a quote."
+  description="mod_pagespeed 2.1 is free under the Apache License 2.0. Support costs €490, €1,900 or from €7,500 a year, excl. VAT. Fixed-price agent-readiness audit."
   jsonLd={jsonLd}
 >
   <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pt-16 pb-8">
     <div class="text-center">
-      <h1 class="h1-hero text-text-body">The software is free. We sell support.</h1>
+      <h1 class="h1-hero text-text-body">Run it on any number of servers. Pay us for support.</h1>
       <p class="lede mt-6 max-w-3xl mx-auto">
-        {PRODUCT} is {LICENSE_CLAUSE}: free to install and run, in development and in production, on
-        any number of servers. Support comes in three tiers; Priority and Enterprise add a private
-        package repository (being set up). None of them changes what the software does.
+        {PRODUCT} is {LICENSE_CLAUSE}. Install it and run it, in development and in production, on
+        any number of servers. No registration.
+      </p>
+      <p class="mt-4 text-text-muted max-w-3xl mx-auto">
+        What we sell is support: a direct line to the people who build the software, security notice
+        ahead of public releases, and from Priority up, the release SBOM and VEX on request. None of
+        the tiers changes what the software does.
+      </p>
+      <p class="mt-4 text-sm text-text-annotation" data-pricing-terms>
+        {PRICING_TERMS_LINE}
       </p>
     </div>
   </section>
 
-  <section id="plans" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pb-8">
-    <SupportTiers surface="pricing" ctaHref="#quote" ctaLabel="Ask for a quote" />
+  <section id="tiers" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pb-8 scroll-mt-20">
+    <SupportTiers surface="pricing" />
     <div class="mt-6 rounded-lg border border-border bg-bg-secondary p-5 text-sm text-text-muted">
-      <p class="text-text-body font-medium" data-pricing-status>
-        {PRICING_ON_REQUEST}
-      </p>
-      <p class="mt-1">
-        {RESPONSE_TARGETS_LINE} Support runs on CET business days. What each tier covers in detail,
-        and how the signed packages are verified, is on the{' '}
+      <p data-response-targets>
+        {RESPONSE_TARGETS_LINE} What each tier covers in detail, and how releases are signed and
+        verified, is on the{' '}
         <a
           href="/support/"
           class="text-interactive hover:text-interactive-hover underline"
@@ -139,21 +119,81 @@ const inputClass =
         </a>
         .
       </p>
+      <p class="mt-2 text-text-body font-medium" data-pricing-status>
+        {PRICE_HOLD_LINE}
+      </p>
     </div>
   </section>
 
-  {/* Hosting partner strip + consulting line */}
+  {/* Agent-readiness audit */}
+  <section id="audit" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-12 scroll-mt-20">
+    <div class="card">
+      <h2 class="h2-section text-text-body">
+        Want someone to look at your site rather than the software?
+      </h2>
+      <p class="mt-3 text-text-muted max-w-3xl">
+        The agent-readiness audit checks one site the way AI crawlers and agents read it, and the
+        way browsers load it. You get a written report and a call to walk through it.
+      </p>
+      <ul class="mt-5 space-y-2 text-sm text-text-muted">
+        {auditPoints.map((item) => (
+          <li class="flex gap-2">
+            <Icon name="check" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
+      <p class="mt-5 text-text-body" data-audit-price>
+        <span class="font-semibold">{formatEur(AUDIT_PRICE_EUR)} per site, excl. VAT.</span>
+        One site, one written report, one review call. It does not require mod_pagespeed, and the
+        fixed price does not include implementation work.
+      </p>
+      <a
+        href="/contact/?topic=audit"
+        class="btn-secondary mt-6 self-start"
+        data-umami-event="cta_commercial"
+        data-umami-event-offer="audit"
+        data-umami-event-surface="pricing"
+        data-umami-event-position="audit"
+      >
+        Ask for an audit &rarr;
+      </a>
+      <p class="mt-6 text-sm text-text-muted">
+        Want the quick version first? The{' '}
+        <a href="/ai-readability/" class="text-interactive hover:text-interactive-hover underline">
+          AI readability check
+        </a>{' '}
+        is free and takes one URL.
+      </p>
+      <p class="mt-2 text-sm text-text-muted">
+        Longer engagements on caching and reverse-proxy infrastructure run through{' '}
+        <a
+          href="https://we-amp.com/consulting/"
+          class="text-interactive hover:text-interactive-hover underline"
+          data-umami-event="cta_commercial"
+          data-umami-event-offer="consulting"
+          data-umami-event-surface="pricing"
+          data-umami-event-position="consulting_line"
+        >
+          We-Amp consulting
+        </a>
+        .
+      </p>
+    </div>
+  </section>
+
+  {/* Hosting providers */}
   <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-8">
     <div
       id="hosting-strip"
       class="readout-plate flex flex-col gap-4 px-5 py-5 md:flex-row md:items-center md:justify-between"
     >
       <div>
-        <p class="font-semibold text-text-body">Hosting provider?</p>
+        <h2 class="font-semibold text-text-body">Hosting provider?</h2>
         <p class="mt-1 text-sm text-text-muted max-w-3xl">
           The hosting partner program covers multi-tenant fleets: Priority-level support for your
           second- and third-line team, plus cPanel/EA4 and distribution-channel upkeep. Unlimited
-          hosted domains.
+          hosted domains. Partner terms are agreed per fleet.
         </p>
       </div>
       <a
@@ -167,284 +207,6 @@ const inputClass =
         Partner program &rarr;
       </a>
     </div>
-    <p class="mt-4 text-sm text-text-muted">
-      Want someone to look at your site rather than the software? We-Amp's consulting practice runs
-      a fixed-price performance and configuration audit:{' '}
-      <a
-        href="https://we-amp.com/consulting/"
-        class="text-interactive hover:text-interactive-hover underline"
-        data-umami-event="cta_commercial"
-        data-umami-event-offer="consulting"
-        data-umami-event-surface="pricing"
-        data-umami-event-position="consulting_line"
-      >
-        consulting at we-amp.com
-      </a>
-      .
-    </p>
-  </section>
-
-  {/* Quote form */}
-  <section id="quote" class="border-t border-border bg-bg-secondary py-16 scroll-mt-20">
-    <div class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 lg:grid lg:grid-cols-[1fr_20rem] lg:gap-12">
-      <div>
-        <h2 class="h2-section text-text-body">Ask for a quote</h2>
-        <p class="mt-3 text-text-muted max-w-2xl">
-          Six questions about your fleet, then whatever else we should know. Only name and email are
-          required.
-        </p>
-
-        <form
-          id="quote-form"
-          action={`mailto:${COMMERCIAL_EMAIL}`}
-          method="post"
-          enctype="text/plain"
-          data-fallback-email={COMMERCIAL_EMAIL}
-          class="mt-8 rounded-lg border border-border bg-bg-elevated p-6 sm:p-8 space-y-5"
-        >
-          <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <div>
-              <label for="quote-name" class="eyebrow">
-                Name
-              </label>
-              <input
-                id="quote-name"
-                name="name"
-                type="text"
-                required
-                aria-required="true"
-                autocomplete="name"
-                class={inputClass}
-              />
-            </div>
-            <div>
-              <label for="quote-email" class="eyebrow">
-                Email
-              </label>
-              <input
-                id="quote-email"
-                name="email"
-                type="email"
-                required
-                aria-required="true"
-                autocomplete="email"
-                class={inputClass}
-              />
-            </div>
-          </div>
-
-          <div>
-            <label for="quote-org" class="eyebrow">
-              Company <span class="font-normal text-text-annotation">(optional)</span>
-            </label>
-            <input
-              id="quote-org"
-              name="org"
-              type="text"
-              autocomplete="organization"
-              class={inputClass}
-            />
-          </div>
-
-          <fieldset>
-            <legend class="eyebrow">
-              Production servers <span class="font-normal text-text-annotation">(optional)</span>
-            </legend>
-            <div class="mt-2 flex flex-wrap gap-x-6 gap-y-2">
-              {serverBands.map((band) => (
-                <label class="inline-flex items-center gap-2 text-sm text-text-muted">
-                  <input
-                    type="radio"
-                    name="servers"
-                    value={band.label}
-                    data-band={band.value}
-                    class="accent-interactive"
-                  />
-                  {band.label}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          <fieldset>
-            <legend class="eyebrow">
-              Platforms <span class="font-normal text-text-annotation">(optional, pick any)</span>
-            </legend>
-            <div class="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-3">
-              {platforms.map((p) => (
-                <label class="inline-flex items-center gap-2 text-sm text-text-muted">
-                  <input type="checkbox" name="platforms" value={p} class="accent-interactive" />
-                  {p}
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          <div class="grid grid-cols-1 gap-5 sm:grid-cols-2">
-            <div>
-              <label for="quote-traffic" class="eyebrow">
-                Monthly traffic <span class="font-normal text-text-annotation">(optional)</span>
-              </label>
-              <select id="quote-traffic" name="traffic" class={inputClass}>
-                <option value="">Choose one</option>
-                {trafficBands.map((t) => (
-                  <option value={t}>{t}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label for="quote-deadline" class="eyebrow">
-                When do you need it?{' '}
-                <span class="font-normal text-text-annotation">(optional)</span>
-              </label>
-              <select id="quote-deadline" name="deadline" class={inputClass}>
-                <option value="">Choose one</option>
-                {deadlines.map((d) => (
-                  <option value={d}>{d}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <label class="flex items-start gap-3 text-sm text-text-muted">
-            <input
-              id="quote-early"
-              type="checkbox"
-              name="early"
-              value="yes"
-              class="mt-1 accent-interactive"
-            />
-            <span>
-              I'd like the early-subscriber rate: the quoted rate holds for three years if I
-              subscribe before prices are published.
-            </span>
-          </label>
-
-          <div>
-            <label for="quote-message" class="eyebrow">
-              Anything else <span class="font-normal text-text-annotation">(optional)</span>
-            </label>
-            <textarea
-              id="quote-message"
-              name="message"
-              rows="4"
-              aria-describedby="quote-message-hint"
-              class={inputClass}
-            ></textarea>
-            <p id="quote-message-hint" class="mt-1 text-sm text-text-annotation">
-              Distributions, nginx or Apache versions, how you deploy, what worries you.
-            </p>
-          </div>
-
-          <p class="text-xs text-text-annotation" data-terms-version={TERMS_VERSION_WEB}>
-            We use what you send only to reply and prepare the quote; see the{' '}
-            <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline">
-              privacy policy
-            </a>
-            . Subscriptions are governed by the{' '}
-            <a href="/terms/" class="text-interactive hover:text-interactive-hover underline">
-              terms of service
-            </a>{' '}
-            (version {TERMS_VERSION_WEB}) and the{' '}
-            <a
-              href={LICENSING_TERMS_URL}
-              class="text-interactive hover:text-interactive-hover underline"
-            >
-              support terms
-            </a>
-            .
-          </p>
-
-          <div class="flex flex-col gap-2">
-            <button
-              id="quote-submit"
-              type="submit"
-              class="btn-primary self-start"
-              data-umami-event="cta_commercial"
-              data-umami-event-offer="support"
-              data-umami-event-surface="pricing"
-              data-umami-event-position="quote_submit"
-            >
-              Send quote request
-            </button>
-            <p id="quote-status" role="status" aria-live="polite" class="hidden text-sm"></p>
-          </div>
-        </form>
-      </div>
-
-      <aside class="mt-10 lg:mt-24" aria-labelledby="quote-next-heading">
-        <h3 id="quote-next-heading" class="font-semibold text-text-body">
-          What happens next
-        </h3>
-        <ol class="mt-4 space-y-4">
-          {nextSteps.map((step, i) => (
-            <li class="readout-plate px-4 py-3">
-              <p class="font-mono text-xs text-interactive">
-                {String(i + 1).padStart(2, '0')} · {step.when}
-              </p>
-              <p class="mt-1 text-sm text-text-muted">{step.what}</p>
-            </li>
-          ))}
-        </ol>
-        <p class="mt-4 text-xs text-text-annotation">
-          Prefer email?{' '}
-          <a
-            href={`mailto:${COMMERCIAL_EMAIL}`}
-            class="text-interactive hover:text-interactive-hover underline"
-          >
-            {COMMERCIAL_EMAIL}
-          </a>
-        </p>
-      </aside>
-    </div>
-  </section>
-
-  {/* Reassurance */}
-  <section class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 py-16">
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-      <div class="card">
-        <Icon name="check" class="h-5 w-5 text-interactive" />
-        <h3 class="mt-4 font-semibold text-text-body">What if I never subscribe?</h3>
-        <p class="mt-2 text-sm text-text-muted">
-          Then you run the same software everyone else runs, free under the{' '}
-          {SOURCE_PUBLICATION.license}, from the same{' '}
-          <a
-            href="/download/apt-yum/"
-            class="text-interactive hover:text-interactive-hover underline"
-          >
-            signed repositories
-          </a>
-          . Running without a subscription is a first-class choice.
-        </p>
-      </div>
-      <div class="card">
-        <Icon name="shield-check" class="h-5 w-5 text-interactive" />
-        <h3 class="mt-4 font-semibold text-text-body">Will it break my site?</h3>
-        <p class="mt-2 text-sm text-text-muted">
-          Transforms are deliberately conservative, and the design falls back to your original
-          content when an optimization step fails. Test on staging, then disable any path, URL
-          pattern, or transform type with one line of config.
-        </p>
-      </div>
-      <div class="card">
-        <Icon name="server" class="h-5 w-5 text-interactive" />
-        <h3 class="mt-4 font-semibold text-text-body">One small company: what's the risk?</h3>
-        <p class="mt-2 text-sm text-text-muted">
-          Smaller than it used to be: {PRODUCT} is{' '}
-          <a href="/license/" class="text-interactive hover:text-interactive-hover underline">
-            {LICENSE_CLAUSE}
-          </a>
-          , and there is no kill switch in the request path. If We-Amp disappeared tomorrow, your
-          deployment keeps running
-          {SOURCE_IS_PUBLISHED ? ' and the code stays yours to build, patch, and fork.' : '.'}
-        </p>
-      </div>
-    </div>
-    <p class="mt-10 text-center text-sm text-text-annotation max-w-2xl mx-auto">
-      The optimization core behind{' '}
-      <span class="font-semibold text-text-body">{BUILTWITH_SITES} live sites</span> (per BuiltWith,{' '}
-      {BUILTWITH_AS_OF}), maintained by the team that helped build ngx_pagespeed.
-    </p>
   </section>
 
   {/* FAQ */}
@@ -468,109 +230,57 @@ const inputClass =
     </div>
   </section>
 
-  <script>
-    // Quote form: fold the qualifiers into the message and POST to the same
-    // capture endpoint the contact form uses (topic "quote"). The endpoint
-    // treats a `company` key as a bot honeypot, so the company name travels
-    // inside the message, never as its own field. If the POST fails, open the
-    // mail client with the same text so the request is never lost; with JS off
-    // the form's own mailto action applies.
-    const form = document.getElementById('quote-form') as HTMLFormElement | null;
-    const submitBtn = document.getElementById('quote-submit') as HTMLButtonElement | null;
-    const statusEl = document.getElementById('quote-status');
-    const emailInput = document.getElementById('quote-email') as HTMLInputElement | null;
-    const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-    function setStatus(kind: 'success' | 'error', msg: string) {
-      if (!statusEl) return;
-      statusEl.textContent = msg;
-      statusEl.classList.remove('hidden', 'text-interactive', 'text-accent');
-      statusEl.classList.add(kind === 'success' ? 'text-interactive' : 'text-accent');
-    }
-
-    function composeMessage(data: FormData): string {
-      const val = (k: string) => String(data.get(k) ?? '').trim();
-      const lines = [
-        `Company: ${val('org') || '(not given)'}`,
-        `Production servers: ${val('servers') || '(not given)'}`,
-        `Platforms: ${data.getAll('platforms').map(String).join(', ') || '(not given)'}`,
-        `Monthly traffic: ${val('traffic') || '(not given)'}`,
-        `Deadline: ${val('deadline') || '(not given)'}`,
-        `Early-subscriber rate: ${data.get('early') ? 'yes' : 'no'}`,
-      ];
-      const note = val('message');
-      return `${lines.join('\n')}\n\n${note || '(no message)'}`;
-    }
-
-    form?.addEventListener('submit', async (event) => {
-      event.preventDefault();
-      if (!form.checkValidity()) {
-        form.reportValidity();
-        setStatus('error', 'Name and email are required.');
-        return;
-      }
-      const data = new FormData(form);
-      const name = String(data.get('name') ?? '').trim();
-      const email = String(data.get('email') ?? '').trim();
-      if (!EMAIL_RE.test(email)) {
-        setStatus('error', 'That email address does not look right. Check it and try again.');
-        emailInput?.setAttribute('aria-invalid', 'true');
-        emailInput?.setAttribute('aria-errormessage', 'quote-status');
-        emailInput?.focus();
-        return;
-      }
-      emailInput?.setAttribute('aria-invalid', 'false');
-      emailInput?.removeAttribute('aria-errormessage');
-
-      const message = composeMessage(data);
-      const fallback = form.dataset.fallbackEmail ?? '';
-      const mailtoHref =
-        `mailto:${fallback}?subject=${encodeURIComponent(`[Quote] ${name || email}`)}` +
-        `&body=${encodeURIComponent(`From: ${name} <${email}>\n\n${message}\n`)}`;
-
-      if (submitBtn) {
-        submitBtn.disabled = true;
-        submitBtn.setAttribute('aria-busy', 'true');
-      }
-      setStatus('success', 'Sending…');
-      try {
-        const res = await fetch('/ai-readability/api/contact', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ email, name, topic: 'quote', message }),
-        });
-        if (!res.ok) throw new Error(`status ${res.status}`);
-        form.reset();
-        // Fire on a successful POST only, never on click.
-        // lead_submit — one event per successful form submit, alongside the
-        // form's own event. Properties: channel (contact | quote | quick | newsletter |
-        // hosting; a contact-form submit on the hosting topic reports hosting), topic
-        // (the topic posted to the capture endpoint), wedge (the scanner wedge, empty
-        // when none) and source_path (the page path, never the query string).
-        (window as any).umami?.track('lead_submit', {
-          channel: 'quote',
-          topic: 'quote',
-          wedge: '',
-          source_path: window.location.pathname,
-        });
-        setStatus(
-          'success',
-          'Thanks, your request is in. An engineer replies within one business day (CET); the written quote follows within three.',
-        );
-      } catch {
-        setStatus(
-          'success',
-          `Opening your mail client, addressed to ${fallback}. If nothing happens, email ${fallback} directly.`,
-        );
-        window.location.href = mailtoHref;
-      } finally {
-        window.setTimeout(() => {
-          if (submitBtn) {
-            submitBtn.disabled = false;
-            submitBtn.removeAttribute('aria-busy');
-          }
-        }, 2000);
-      }
-    });
-  </script>
+  {/* Closing CTA */}
+  <section id="start" class="border-t border-border bg-bg-secondary py-16 scroll-mt-20">
+    <div class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 text-center">
+      <h2 class="h2-section text-text-body">Pick a tier, or ask a question first</h2>
+      <div class="mt-8 flex flex-wrap justify-center gap-3" data-closing-cta>
+        {SUPPORT_TIERS.map((tier) => (
+          <a
+            href={tier.cta.href}
+            rel={tier.cta.external ? 'noopener' : undefined}
+            class={tier.id === 'priority' ? 'btn-primary' : 'btn-secondary'}
+            data-umami-event="cta_commercial"
+            data-umami-event-offer={tier.cta.offer}
+            data-umami-event-surface="pricing"
+            data-umami-event-position={`closing_${tier.id}`}
+          >
+            {tier.cta.label} &rarr;
+          </a>
+        ))}
+      </div>
+      <p class="mt-6 text-sm text-text-muted">
+        Questions before you buy?{' '}
+        <a
+          href={`mailto:${COMMERCIAL_EMAIL}`}
+          class="text-interactive hover:text-interactive-hover underline"
+        >
+          {COMMERCIAL_EMAIL}
+        </a>
+        , or the{' '}
+        <a href="/contact/" class="text-interactive hover:text-interactive-hover underline">
+          contact form
+        </a>
+        . An engineer replies within one business day.
+      </p>
+      <p class="mt-4 text-xs text-text-annotation" data-terms-version={TERMS_VERSION_WEB}>
+        Subscriptions are governed by the{' '}
+        <a
+          href={LICENSING_TERMS_URL}
+          class="text-interactive hover:text-interactive-hover underline"
+        >
+          support terms
+        </a>{' '}
+        and the{' '}
+        <a href="/terms/" class="text-interactive hover:text-interactive-hover underline">
+          terms of service
+        </a>{' '}
+        (version {TERMS_VERSION_WEB}). We use what you send only to reply; see the{' '}
+        <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline">
+          privacy policy
+        </a>
+        .
+      </p>
+    </div>
+  </section>
 </BaseLayout>

@@ -3,7 +3,7 @@
 
 import { test, expect } from '@playwright/test';
 
-// /buy/ retired with the support tiers: support is quoted on /pricing/, so the
+// /buy/ retired with the support tiers: support is bought on /pricing/, so the
 // checkout placeholder is gone and its URL is a 301 to /pricing/. Production
 // serves the redirect from the nginx map; astro.config.mjs `redirects` keeps
 // dev and preview in step. Receipts and old portal mails link here with a
@@ -18,7 +18,7 @@ test.describe('/buy/ — retired, redirects to /pricing/', () => {
   test('/buy/ lands on the pricing page in a browser', async ({ page }) => {
     await page.goto('/buy/');
     expect(new URL(page.url()).pathname).toBe('/pricing/');
-    await expect(page.locator('h1').first()).toContainText('The software is free.');
+    await expect(page.locator('h1').first()).toContainText('Run it on any number of servers.');
   });
 
   test('legacy SKU deep-links land on /pricing/ as well', async ({ page }) => {

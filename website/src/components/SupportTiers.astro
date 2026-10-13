@@ -5,25 +5,24 @@
 // The three support tiers as cards, rendered from SUPPORT_TIERS in
 // product-facts.mjs (the one source the agent files and /api/product.json also
 // read). Used on /support/ and /pricing/. Priority is the emphasized tier.
-// No price and no per-tier response-time target is rendered: the cards say
-// what is included, the caller states the pricing status once below them.
+// Each card shows the yearly price, what is included (the last entry is the
+// tier's first-response target) and its own button: Standard and Priority go
+// straight to the hosted checkout page, Enterprise to the contact form.
 //
 // Every card CTA is a paid CTA and carries the cta_commercial event with the
-// offer, the page it sits on (surface) and the tier as its position.
+// tier's offer (buy-standard, buy-priority, enterprise), the page it sits on
+// (surface) and the tier as its position.
 
 import Icon from './Icon.astro';
 import Chip from './instrument/Chip.astro';
-import { SUPPORT_TIERS } from '../data/product-facts.mjs';
+import { SUPPORT_TIERS, formatEur } from '../data/product-facts.mjs';
 
 interface Props {
   /** Page slug for the umami `surface` property (e.g. "pricing"). */
   surface: string;
-  /** Where the card buttons go. */
-  ctaHref: string;
-  ctaLabel: string;
 }
 
-const { surface, ctaHref, ctaLabel } = Astro.props;
+const { surface } = Astro.props;
 const EMPHASIZED = 'priority';
 ---
 
@@ -44,7 +43,12 @@ const EMPHASIZED = 'priority';
           <h3 class="text-lg font-semibold text-text-body">{tier.name}</h3>
           {featured && <Chip tone="interactive" label="Recommended" />}
         </div>
-        <p class="mt-1 font-mono text-xs uppercase tracking-wider text-text-annotation">
+        <p class="mt-3 text-text-body" data-tier-price>
+          {tier.prices.from && <span class="text-sm text-text-muted">From </span>}
+          <span class="text-3xl font-semibold">{formatEur(tier.prices.annualEur)}</span>
+          <span class="text-sm text-text-muted"> / year</span>
+        </p>
+        <p class="mt-2 font-mono text-xs uppercase tracking-wider text-text-annotation">
           {tier.servers}
         </p>
         <ul class="mt-5 flex-1 space-y-2 text-sm text-text-muted">
@@ -56,15 +60,15 @@ const EMPHASIZED = 'priority';
           ))}
         </ul>
         <a
-          href={ctaHref}
+          href={tier.cta.href}
+          rel={tier.cta.external ? 'noopener' : undefined}
           class:list={['mt-6', featured ? 'btn-primary' : 'btn-secondary']}
           data-umami-event="cta_commercial"
-          data-umami-event-offer="support"
+          data-umami-event-offer={tier.cta.offer}
           data-umami-event-surface={surface}
           data-umami-event-position={`tier_${tier.id}`}
-          aria-label={`${ctaLabel}: ${tier.name}`}
         >
-          {ctaLabel} &rarr;
+          {tier.cta.label} &rarr;
         </a>
       </div>
     );

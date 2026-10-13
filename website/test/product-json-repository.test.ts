@@ -22,7 +22,6 @@ describe('/api/product.json private repository status', () => {
     const priority = data.support.tiers.find((t: { id: string }) => t.id === 'priority');
     expect(priority.note).toContain('private package repository (being set up)');
     const ent = data.support.tiers.find((t: { id: string }) => t.id === 'enterprise');
-    expect(ent.includes.join(' ')).not.toMatch(/build targets/i);
-    expect(ent.note).toContain('available on request, quoted separately');
+    expect(ent.includes.join(' ')).toContain('Custom build targets');
   });
 });
