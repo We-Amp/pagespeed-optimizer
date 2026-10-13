@@ -149,6 +149,7 @@ export function initLeadForm(state: ScanState) {
 
   function onTopicsChange() {
     const picked = selected();
+    fallbackEl.hidden = picked.length > 0;
     const wantsSites = picked.some((c) => SITES_WEDGES.includes(c.wedge));
     sitesEl.hidden = !wantsSites;
     sitesLabel.hidden = !wantsSites;
@@ -233,7 +234,7 @@ export function initLeadForm(state: ScanState) {
       chips = chipsFor(scan.report, speed, surface);
       chips.forEach(addChip);
       syncPreselectedNote();
-      auditEl.classList.remove('invisible');
+      auditEl.classList.toggle('invisible', !scan.report);
       form.hidden = false;
       submitBtn.disabled = false;
       onTopicsChange();
