@@ -43,10 +43,14 @@
 
 2. Install the systemd unit:
    ```bash
-   sudo cp deploy/pagespeed-worker.service /etc/systemd/system/
+   sudo cp deploy/pagespeed-optimizer.service /etc/systemd/system/
    sudo systemctl daemon-reload
-   sudo systemctl enable --now pagespeed-worker
+   sudo systemctl enable --now pagespeed-optimizer
    ```
+   The unit starts `/usr/bin/pagespeed-optimizer` and runs as the `pagespeed`
+   user and group (the packages create it from
+   `deploy/pagespeed-optimizer.sysusers.conf`); adjust `ExecStart` to where
+   step 1 installed the binary and create that user and group first.
 
 3. Install the nginx module and configure nginx:
    ```bash
