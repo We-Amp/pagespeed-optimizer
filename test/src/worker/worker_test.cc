@@ -15782,7 +15782,7 @@ TEST_F(WorkerTest, CapturePurgeGenReflectsPerUrlPurges) {
   EXPECT_TRUE(worker.WasPurgedSinceDispatch(url, hostname, gen));
 }
 
-// ---- Headers sidecar step W1: the worker carries the two reserved header
+// ---- Headers sidecar: the worker carries the two reserved header
 // bits (kFlagHeadersClassified, kFlagHeadersSidecarRequired) from the entry
 // it optimizes into every variant it builds, and keeps the URL's headers
 // sidecar when it keeps the identity on an origin refresh.
@@ -15808,10 +15808,10 @@ TEST_F(WorkerTest, CssVariantsCarryTheHeadersSidecarFlagBits) {
   // Both bits, only the classified bit, and neither (an entry recorded
   // before the bits existed): each must come out exactly as it went in.
   const std::vector<std::pair<std::string, uint8_t>> cases = {
-      {"http://example.com/w1-both.css", kHeaderBits},
-      {"http://example.com/w1-classified.css",
+      {"http://example.com/sidecar-both.css", kHeaderBits},
+      {"http://example.com/sidecar-classified.css",
        AlternateMetadata::kFlagHeadersClassified},
-      {"http://example.com/w1-none.css", 0}};
+      {"http://example.com/sidecar-none.css", 0}};
   for (const auto& c : cases) {
     CacheOriginal(worker.cache(), c.first, css, "", c.second);
   }
@@ -15866,8 +15866,8 @@ TEST_F(WorkerTest, HtmlVariantCarriesTheHeadersSidecarFlagBits) {
       "<html><head><style>body { margin: 0; } "
       "h1 { color: red; }</style></head>"
       "<body><h1>Hello World</h1></body></html>";
-  const std::string with_bits = "/w1-bits.html";
-  const std::string without_bits = "/w1-nobits.html";
+  const std::string with_bits = "/sidecar-bits.html";
+  const std::string without_bits = "/sidecar-nobits.html";
   CacheOriginal(worker.cache(), with_bits, html, "", kHeaderBits);
   CacheOriginal(worker.cache(), without_bits, html);
 
@@ -15914,8 +15914,8 @@ TEST_F(WorkerTest, ImageVariantsCarryTheHeadersSidecarFlagBits) {
 
   std::string jpeg = ReadTestFile("jpeg/quality100.jpg");
   ASSERT_FALSE(jpeg.empty()) << "Test JPEG not found";
-  const std::string flagged = "/w1-flagged.jpg";
-  const std::string plain = "/w1-plain.jpg";
+  const std::string flagged = "/sidecar-flagged.jpg";
+  const std::string plain = "/sidecar-plain.jpg";
   CacheOriginal(worker.cache(), flagged, jpeg, "", kHeaderBits);
   CacheOriginal(worker.cache(), plain, jpeg);
 
@@ -15976,8 +15976,8 @@ TEST_F(WorkerTest, OriginRefreshPurgeKeepsTheHeadersSidecarWithTheIdentity) {
   Worker worker(config, &handler);
   ASSERT_TRUE(worker.Initialize());
 
-  const std::string url = "http://example.com/w1-keep-sidecar.css";
-  const std::string path = "/w1-keep-sidecar.css";
+  const std::string url = "http://example.com/sidecar-keep-sidecar.css";
+  const std::string path = "/sidecar-keep-sidecar.css";
   CacheOriginal(worker.cache(), url, "body { margin: 0; } h1 { color: blue; }",
                 "", kHeaderBits);
   const std::vector<HeaderField> fields = {
@@ -16030,8 +16030,8 @@ TEST_F(WorkerTest, OriginRefreshPurgeRemovesTheHeadersSidecarWithTheIdentity) {
   Worker worker(config, &handler);
   ASSERT_TRUE(worker.Initialize());
 
-  const std::string url = "http://example.com/w1-drop-sidecar.css";
-  const std::string path = "/w1-drop-sidecar.css";
+  const std::string url = "http://example.com/sidecar-drop-sidecar.css";
+  const std::string path = "/sidecar-drop-sidecar.css";
   CacheOriginal(worker.cache(), url, "body { margin: 0; } h1 { color: blue; }",
                 "", kHeaderBits);
 
