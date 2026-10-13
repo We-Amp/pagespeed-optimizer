@@ -37,12 +37,14 @@ export async function analyzeFiles(
       error: null,
     };
     let unparsed = 0;
+    let fileRead = 0;
     let iis: IisParser | null = null;
     let detected = false;
     try {
       const lines = readLines(file.stream(), {
         onBytes: (n) => {
           read += n;
+          fileRead += n;
           hooks.onProgress?.(read, total);
         },
         onGzip: () => {
@@ -96,6 +98,10 @@ export async function analyzeFiles(
         e instanceof StreamError
           ? e.message
           : `could not read this file: ${e instanceof Error ? e.message : String(e)}`;
+    }
+    if (fileRead < file.size) {
+      read += file.size - fileRead;
+      hooks.onProgress?.(read, total);
     }
     agg.addFile(report);
     hooks.onFile?.(report);

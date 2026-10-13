@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
-import { gzipSync } from 'node:zlib';
+import { constants, createGzip, gzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { StreamError, isGzip, readLines } from '../../src/lib/crawler-cost/stream';
 
@@ -79,6 +79,65 @@ describe('readLines', () => {
     const gz = new Uint8Array(gzipSync('x'.repeat(10_000)));
     await expect(collect(streamOf(gz), { maxDecompressedBytes: 5_000 })).rejects.toBeInstanceOf(
       StreamError,
+    );
+  });
+  it('throws on a cut at a full-flush block boundary and yields the lines before it', async () => {
+    const first = Array.from({ length: 500 }, (_, i) => `first ${i}`).join('\n') + '\n';
+    const second = Array.from({ length: 500 }, (_, i) => `second ${i}`).join('\n') + '\n';
+    const gz = createGzip();
+    const parts: Buffer[] = [];
+    gz.on('data', (b: Buffer) => parts.push(b));
+    gz.write(first);
+    let flushedAt = 0;
+    await new Promise<void>((resolve) =>
+      gz.flush(constants.Z_FULL_FLUSH, () => {
+        flushedAt = Buffer.concat(parts).length;
+        resolve();
+      }),
+    );
+    gz.write(second);
+    await new Promise<void>((resolve) => {
+      gz.on('end', () => resolve());
+      gz.end();
+    });
+    const all = new Uint8Array(Buffer.concat(parts));
+    expect(flushedAt).toBeGreaterThan(0);
+    expect(flushedAt).toBeLessThan(all.length);
+    const seen: string[] = [];
+    let error: unknown;
+    try {
+      for await (const c of readLines(streamOf(all.subarray(0, flushedAt)))) seen.push(c.text);
+    } catch (e) {
+      error = e;
+    }
+    expect(error).toBeInstanceOf(StreamError);
+    expect(seen).toHaveLength(500);
+    expect(seen[499]).toBe('first 499');
+  });
+  it('throws when only the gzip trailer is cut, after yielding every line', async () => {
+    const text = Array.from({ length: 1000 }, (_, i) => `row ${i}`).join('\n') + '\n';
+    const whole = new Uint8Array(gzipSync(text));
+    for (const drop of [4, 8]) {
+      const seen: string[] = [];
+      let error: unknown;
+      try {
+        for await (const c of readLines(streamOf(whole.subarray(0, whole.length - drop)))) {
+          seen.push(c.text);
+        }
+      } catch (e) {
+        error = e;
+      }
+      expect(error).toBeInstanceOf(StreamError);
+      expect(seen).toHaveLength(1000);
+    }
+  });
+  it('names the configured limit in the guard message', async () => {
+    const gz = new Uint8Array(gzipSync('x'.repeat(10_000)));
+    await expect(collect(streamOf(gz), { maxDecompressedBytes: 5_000 })).rejects.toThrow(
+      /after decompression/,
+    );
+    await expect(collect(streamOf('x'.repeat(100)), { maxDecompressedBytes: 50 })).rejects.toThrow(
+      /larger than/,
     );
   });
 });
