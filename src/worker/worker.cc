@@ -253,13 +253,28 @@ CapabilityMask NormalizeMaskForDedup(uint32_t encoded_mask) {
 }
 
 // Detect gzip-compressed content by checking the magic bytes (RFC 1952).
+// The flag bits a variant inherits from the entry it is derived from.  A hit
+// reads the selected variant, never the identity, so the headers-sidecar
+// state recorded on the source entry (kFlagHeadersClassified,
+// kFlagHeadersSidecarRequired) has to ride every variant the worker builds.
+// Every variant-metadata site goes through here so a future inherited bit is
+// added in one place.  Agent markdown is built from fresh metadata and does
+// not inherit them.
+constexpr uint8_t kVariantInheritedFlags =
+    AlternateMetadata::kFlagHeadersClassified |
+    AlternateMetadata::kFlagHeadersSidecarRequired;
+
+uint8_t InheritedVariantFlags(const AlternateMetadata& source) {
+  return source.flags & kVariantInheritedFlags;
+}
+
 // Build variant metadata from the original read result's metadata.
 AlternateMetadata CreateWorkerMetadata(const AlternateMetadata& base,
                                        ContentType type, uint8_t flags,
                                        size_t origin_content_length) {
   AlternateMetadata m = base;
   m.content_type = type;
-  m.flags = flags;
+  m.flags = flags | InheritedVariantFlags(base);
   m.origin_content_length = static_cast<uint32_t>(
       std::min(origin_content_length, size_t{UINT32_MAX}));
   return m;
@@ -3073,7 +3088,8 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
   // Build the base variant metadata from the original image's metadata.
   AlternateMetadata img_variant_meta = base_meta;
   img_variant_meta.content_type = ContentType::kImage;
-  img_variant_meta.flags = AlternateMetadata::kFlagWorkerProcessed;
+  img_variant_meta.flags = AlternateMetadata::kFlagWorkerProcessed |
+                           InheritedVariantFlags(img_variant_meta);
   img_variant_meta.origin_content_length =
       static_cast<uint32_t>(std::min(image_data.size(), size_t{UINT32_MAX}));
   // origin_content_type inherited from base_meta
@@ -5540,7 +5556,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
         }
         img_read_result->release();
         svg_origin_meta.content_type = ContentType::kImage;
-        svg_origin_meta.flags = AlternateMetadata::kFlagWorkerProcessed;
+        svg_origin_meta.flags = AlternateMetadata::kFlagWorkerProcessed |
+                                InheritedVariantFlags(svg_origin_meta);
         svg_origin_meta.origin_content_length = static_cast<uint32_t>(
             std::min(svg_data.size(), size_t{UINT32_MAX}));
         // origin_content_type inherited from img_read_result->metadata
@@ -5612,7 +5629,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
         }
         img_read_result->release();
         meta.content_type = ContentType::kImage;
-        meta.flags = AlternateMetadata::kFlagWorkerProcessed;
+        meta.flags = AlternateMetadata::kFlagWorkerProcessed |
+                     InheritedVariantFlags(meta);
         meta.origin_content_length =
             static_cast<uint32_t>(std::min(data.size(), size_t{UINT32_MAX}));
         WriteCompressedVariants(cache_.get(), notification.url,
@@ -6046,7 +6064,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
                                   CapabilityMask::TransferEncoding::kIdentity);
           AlternateMetadata svg_vec_meta = origin_meta;
           svg_vec_meta.content_type = ContentType::kImage;
-          svg_vec_meta.flags = AlternateMetadata::kFlagWorkerProcessed;
+          svg_vec_meta.flags = AlternateMetadata::kFlagWorkerProcessed |
+                               InheritedVariantFlags(svg_vec_meta);
           svg_vec_meta.origin_content_length = static_cast<uint32_t>(
               std::min(image_data.size(), size_t{UINT32_MAX}));
           svg_vec_meta.origin_content_type = "image/svg+xml";
@@ -7152,6 +7171,14 @@ void Worker::HandleOriginRefreshed(const CacheNotification& notification) {
     if (keep_markdown) {
       preserve.push_back(static_cast<AlternateId>(SentinelId::kAgentMarkdown));
     }
+    // The URL's headers sidecar (0x6C) lives and dies with the identity: the
+    // refreshing record wrote the sidecar and the flagged identity just before
+    // sending this sentinel, so a preserved identity needs its record kept.
+    // When the identity is not preserved (the worker's own output sits there)
+    // the sidecar goes with the rest of the family.
+    if (!identity_was_worker_processed) {
+      preserve.push_back(static_cast<AlternateId>(SentinelId::kHeadersSidecar));
+    }
     purged = cache_->RemoveAlternatesExcept(
         notification.url, notification.hostname, notification.scheme, preserve);
     if (!purged.has_value()) {
@@ -7435,7 +7462,8 @@ void Worker::HandleWarmupRequest(const CacheNotification& notification,
       // Build warmup variant metadata from the original image's metadata.
       AlternateMetadata warmup_img_meta = origin_meta;
       warmup_img_meta.content_type = ContentType::kImage;
-      warmup_img_meta.flags = AlternateMetadata::kFlagWorkerProcessed;
+      warmup_img_meta.flags = AlternateMetadata::kFlagWorkerProcessed |
+                              InheritedVariantFlags(warmup_img_meta);
       warmup_img_meta.origin_content_length = static_cast<uint32_t>(
           std::min(image_data.size(), size_t{UINT32_MAX}));
       // origin_content_type inherited from img_read->metadata

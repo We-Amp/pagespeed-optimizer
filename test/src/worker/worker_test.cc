@@ -447,7 +447,7 @@ class WorkerTest : public ::testing::Test {
   // URL is normalized to path-only (matching worker's NormalizeCacheUrl).
   void CacheOriginal(PageSpeedCache* cache, const std::string& url,
                      const std::string& content,
-                     const std::string& hostname = "") {
+                     const std::string& hostname = "", uint8_t flags = 0) {
     std::string effective_url = StripSchemeAuthority(url);
     CapabilityMask default_mask;  // Desktop/Identity = 0x08
     AlternateId id =
@@ -455,6 +455,7 @@ class WorkerTest : public ::testing::Test {
     AlternateMetadata meta;
     meta.full_mask = default_mask.Encode();
     meta.content_type = ContentType::kOther;
+    meta.flags = flags;
     auto wh = cache->WriteAlternate(effective_url, hostname, "https", id,
                                     content.size(), meta);
     ASSERT_TRUE(wh.has_value()) << "Failed to open write handle";
@@ -15779,6 +15780,307 @@ TEST_F(WorkerTest, CapturePurgeGenReflectsPerUrlPurges) {
   // A purge after capture flags it.
   worker.InvalidateUrl(url, hostname);
   EXPECT_TRUE(worker.WasPurgedSinceDispatch(url, hostname, gen));
+}
+
+// ---- Headers sidecar step W1: the worker carries the two reserved header
+// bits (kFlagHeadersClassified, kFlagHeadersSidecarRequired) from the entry
+// it optimizes into every variant it builds, and keeps the URL's headers
+// sidecar when it keeps the identity on an origin refresh.
+
+namespace {
+constexpr uint8_t kHeaderBits = AlternateMetadata::kFlagHeadersClassified |
+                                AlternateMetadata::kFlagHeadersSidecarRequired;
+}  // namespace
+
+TEST_F(WorkerTest, CssVariantsCarryTheHeadersSidecarFlagBits) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string css =
+      "body  {  margin:  0;  padding:  0;  }\n"
+      "h1  {  color:  red;  font-size:  24px;  }\n";
+  // Both bits, only the classified bit, and neither (an entry recorded
+  // before the bits existed): each must come out exactly as it went in.
+  const std::vector<std::pair<std::string, uint8_t>> cases = {
+      {"http://example.com/w1-both.css", kHeaderBits},
+      {"http://example.com/w1-classified.css",
+       AlternateMetadata::kFlagHeadersClassified},
+      {"http://example.com/w1-none.css", 0}};
+  for (const auto& c : cases) {
+    CacheOriginal(worker.cache(), c.first, css, "", c.second);
+  }
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CapabilityMask gz_mask;
+  gz_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kGzip);
+  CapabilityMask br_mask;
+  br_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kBrotli);
+
+  uint64_t expected_processed = 0;
+  for (const auto& c : cases) {
+    SCOPED_TRACE(c.first);
+    CacheNotification notification;
+    notification.url = c.first;
+    notification.scheme = "https";
+    notification.content_type = ContentType::kCss;
+    notification.capability_mask = CapabilityMask().Encode();
+    SendNotification(notification);
+    ++expected_processed;
+    for (int i = 0; i < 80 * kSanitizerBudgetScale &&
+                    worker.stats().css_processed.load() < expected_processed;
+         ++i) {
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    ASSERT_GE(worker.stats().css_processed.load(), expected_processed);
+    WaitForWorkerIdle(worker);
+
+    for (const CapabilityMask& mask : {CapabilityMask(), gz_mask, br_mask}) {
+      auto v = ReadVariantWithMeta(worker.cache(), c.first, mask);
+      ASSERT_TRUE(v.has_value()) << "variant missing";
+      EXPECT_NE(v->metadata.flags & AlternateMetadata::kFlagWorkerProcessed, 0);
+      EXPECT_EQ(v->metadata.flags & kHeaderBits, c.second);
+    }
+  }
+}
+
+TEST_F(WorkerTest, HtmlVariantCarriesTheHeadersSidecarFlagBits) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string html =
+      "<html><head><style>body { margin: 0; } "
+      "h1 { color: red; }</style></head>"
+      "<body><h1>Hello World</h1></body></html>";
+  const std::string with_bits = "/w1-bits.html";
+  const std::string without_bits = "/w1-nobits.html";
+  CacheOriginal(worker.cache(), with_bits, html, "", kHeaderBits);
+  CacheOriginal(worker.cache(), without_bits, html);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  for (const auto& path : {with_bits, without_bits}) {
+    SCOPED_TRACE(path);
+    CacheNotification notification;
+    notification.url = "http://example.com" + path;
+    notification.scheme = "https";
+    notification.content_type = ContentType::kHtml;
+    notification.capability_mask = 0x00000001;
+    SendNotification(notification);
+    WaitForWorkerIdle(worker);
+
+    CapabilityMask mask = CapabilityMask::Decode(0x00000001);
+    mask.set_image_format(CapabilityMask::ImageFormat::kOriginal);
+    std::optional<VariantWithMeta> v;
+    for (int i = 0; i < 40 * kSanitizerBudgetScale; ++i) {
+      v = ReadVariantWithMeta(worker.cache(), path, mask);
+      if (v.has_value()) break;
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    ASSERT_TRUE(v.has_value()) << "HTML variant not written";
+    EXPECT_NE(v->content.find("data-pagespeed-critical"), std::string::npos);
+    EXPECT_EQ(v->metadata.flags & kHeaderBits,
+              path == with_bits ? kHeaderBits : 0);
+  }
+}
+
+TEST_F(WorkerTest, ImageVariantsCarryTheHeadersSidecarFlagBits) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+  config.proactive_image_variants = true;
+  config.proactive_viewport_variants = true;
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  std::string jpeg = ReadTestFile("jpeg/quality100.jpg");
+  ASSERT_FALSE(jpeg.empty()) << "Test JPEG not found";
+  const std::string flagged = "/w1-flagged.jpg";
+  const std::string plain = "/w1-plain.jpg";
+  CacheOriginal(worker.cache(), flagged, jpeg, "", kHeaderBits);
+  CacheOriginal(worker.cache(), plain, jpeg);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CapabilityMask mobile_webp(
+      CapabilityMask::ImageFormat::kWebP, CapabilityMask::Viewport::kMobile,
+      CapabilityMask::PixelDensity::k1x, CapabilityMask::SaveData::kOff,
+      CapabilityMask::TransferEncoding::kIdentity);
+  for (const auto& path : {flagged, plain}) {
+    SCOPED_TRACE(path);
+    CacheNotification notification;
+    notification.url = "http://example.com" + path;
+    notification.scheme = "https";
+    notification.content_type = ContentType::kImage;
+    notification.capability_mask = mobile_webp.Encode();
+    SendNotification(notification);
+    std::optional<VariantWithMeta> v;
+    for (int i = 0; i < kViewportSiblingPollIterations; ++i) {
+      v = ReadVariantWithMeta(worker.cache(), path, mobile_webp);
+      if (v.has_value()) break;
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    ASSERT_TRUE(v.has_value()) << "Mobile/WebP variant not written";
+    WaitForWorkerIdle(worker);
+
+    // Every worker-written alternate of the URL (device, format and density
+    // variants), not just the one that was asked for.
+    auto listed = worker.cache()->ListAlternates(path, "", "https");
+    ASSERT_TRUE(listed.has_value());
+    int checked = 0;
+    for (const auto& alt : *listed) {
+      auto id = static_cast<AlternateId>(alt.id);
+      if (IsSentinel(id)) continue;
+      auto r = worker.cache()->ReadAlternate(path, "", "https", id);
+      if (!r.has_value() ||
+          (r->metadata.flags & AlternateMetadata::kFlagWorkerProcessed) == 0) {
+        continue;
+      }
+      ++checked;
+      EXPECT_EQ(r->metadata.flags & kHeaderBits,
+                path == flagged ? kHeaderBits : 0)
+          << "alternate id " << static_cast<int>(id);
+    }
+    EXPECT_GE(checked, 2) << "expected several worker-written variants";
+  }
+}
+
+TEST_F(WorkerTest, OriginRefreshPurgeKeepsTheHeadersSidecarWithTheIdentity) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string url = "http://example.com/w1-keep-sidecar.css";
+  const std::string path = "/w1-keep-sidecar.css";
+  CacheOriginal(worker.cache(), url, "body { margin: 0; } h1 { color: blue; }",
+                "", kHeaderBits);
+  const std::vector<HeaderField> fields = {
+      {"X-Content-Type-Options", "nosniff"},
+      {"Referrer-Policy", "no-referrer"}};
+  auto written = worker.cache()->WriteHeadersSidecar(path, "", "https", fields);
+  ASSERT_TRUE(written.has_value());
+  ASSERT_TRUE(written->stored);
+  ASSERT_TRUE(
+      worker.cache()->ReadHeadersSidecar(path, "", "https").has_value());
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification refresh;
+  refresh.url = url;
+  refresh.scheme = "https";
+  refresh.content_type = ContentType::kCss;
+  refresh.capability_mask = kOriginRefreshedSentinel;
+  SendNotification(refresh);
+  bool purged = false;
+  for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (worker.stats().origin_refresh_purges.load() >= 1) {
+      purged = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(purged) << "the sentinel should have triggered a purge";
+  WaitForWorkerIdle(worker);
+
+  EXPECT_TRUE(worker.cache()->ReadHeadersSidecar(path, "", "https").has_value())
+      << "the purge must keep the headers record while it keeps the identity";
+  // The rebuilt variants still carry the bits.
+  auto rebuilt = ReadVariantWithMeta(worker.cache(), url, CapabilityMask());
+  ASSERT_TRUE(rebuilt.has_value());
+  EXPECT_EQ(rebuilt->metadata.flags & kHeaderBits, kHeaderBits);
+}
+
+TEST_F(WorkerTest, OriginRefreshPurgeRemovesTheHeadersSidecarWithTheIdentity) {
+  // The identity slot holds the worker's own (stale) variant, so the purge
+  // does not preserve it; the headers record goes with the rest of the family.
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string url = "http://example.com/w1-drop-sidecar.css";
+  const std::string path = "/w1-drop-sidecar.css";
+  CacheOriginal(worker.cache(), url, "body { margin: 0; } h1 { color: blue; }",
+                "", kHeaderBits);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification notification;
+  notification.url = url;
+  notification.scheme = "https";
+  notification.content_type = ContentType::kCss;
+  notification.capability_mask = CapabilityMask().Encode();
+  SendNotification(notification);
+  for (int i = 0; i < 80 * kSanitizerBudgetScale &&
+                  worker.stats().css_processed.load() < 1;
+       ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+  }
+  ASSERT_GE(worker.stats().css_processed.load(), 1u);
+  WaitForWorkerIdle(worker);
+  auto processed = ReadVariantWithMeta(worker.cache(), url, CapabilityMask());
+  ASSERT_TRUE(processed.has_value());
+  ASSERT_NE(processed->metadata.flags & AlternateMetadata::kFlagWorkerProcessed,
+            0)
+      << "the worker-processed variant must sit at the identity slot";
+
+  const std::vector<HeaderField> fields = {
+      {"X-Content-Type-Options", "nosniff"}};
+  auto written = worker.cache()->WriteHeadersSidecar(path, "", "https", fields);
+  ASSERT_TRUE(written.has_value());
+  ASSERT_TRUE(written->stored);
+
+  CacheNotification refresh = notification;
+  refresh.capability_mask = kOriginRefreshedSentinel;
+  SendNotification(refresh);
+  bool refused = false;
+  for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (worker.stats().origin_refresh_rebuild_refused.load() >= 1) {
+      refused = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(refused);
+  WaitForWorkerIdle(worker);
+  EXPECT_TRUE(ReadVariant(worker.cache(), url, CapabilityMask()).empty());
+  EXPECT_FALSE(
+      worker.cache()->ReadHeadersSidecar(path, "", "https").has_value())
+      << "an identity that is not preserved takes the headers record with it";
 }
 
 TEST_F(WorkerTest, OriginRefreshedSentinelPreservesIdentityAndRebuilds) {
