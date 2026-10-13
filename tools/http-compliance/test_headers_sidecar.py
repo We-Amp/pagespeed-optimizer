@@ -28,6 +28,7 @@ inside the nginx container.
 """
 
 import os
+import socket
 import struct
 import subprocess
 import threading
@@ -164,6 +165,32 @@ def remove_stored_headers(path: str):
         check=False,
     )
     assert out.returncode == 0, out.stderr.decode(errors="replace")[:400]
+
+
+def raw_get(path: str, extra=None):
+    """GET on a raw socket: (status line, header lines, body).  The status
+    line is asserted verbatim, so a stale line paired with a rewritten code
+    cannot hide behind the parsed status."""
+    host, _, port = NGINX_HOST.partition(":")
+    lines = [f"GET {path} HTTP/1.1", f"Host: {NGINX_HOST}", "Connection: close"]
+    lines.append("Accept-Encoding: identity")
+    lines += [f"{k}: {v}" for k, v in (extra or {}).items()]
+    with socket.create_connection((host, int(port)), timeout=15) as sock:
+        sock.sendall(("\r\n".join(lines) + "\r\n\r\n").encode())
+        data = b""
+        while True:
+            chunk = sock.recv(65536)
+            if not chunk:
+                break
+            data += chunk
+    head, _, body = data.partition(b"\r\n\r\n")
+    status_line, *header_lines = head.decode("latin-1").split("\r\n")
+    return status_line, header_lines, body
+
+
+def raw_header(header_lines, name: str):
+    prefix = name.lower() + ":"
+    return [l.split(":", 1)[1].strip() for l in header_lines if l.lower().startswith(prefix)]
 
 
 def x_pagespeed(response) -> str:
@@ -376,9 +403,8 @@ class TestHeadersSidecarReplay:
             assert x_pagespeed(stale) == "STALE", stale.headers
             assert stale.headers.get("X-PageSpeed-Stale") == "if-error"
             assert stale.content == hit.content
-            # The status line is not asserted: the stale-if-error serve keeps
-            # the upstream's status line today (the same cause as the
-            # bodyless-304 defect, #216).
+            assert stale.status_code == 200
+            assert stale.raw.reason == "OK", stale.raw.reason
             assert carried(stale) == expected
             assert "https://error.example" not in stale.raw.headers.getlist(
                 "access-control-allow-origin"
@@ -401,9 +427,8 @@ class TestHeadersSidecarReplay:
             wait_for_optimized_hit(client, path, miss)
 
             time.sleep(2.5)  # past max-age=1, ages are whole seconds
-            # The status is not asserted: a client that sent no conditional
-            # request can receive the 304 status line today (#216).
             revalidated = client.get(path, headers=IDENTITY)
+            assert revalidated.status_code == 200
             assert x_pagespeed(revalidated) == "REVALIDATED", revalidated.headers
             assert carried(revalidated) == expected
             hit = client.poll_for_hit(path, headers=IDENTITY)
@@ -422,6 +447,73 @@ class TestHeadersSidecarReplay:
             assert carried(hit) == want
         finally:
             serve_control(origin_client, rp="no-referrer")
+
+
+class TestRevalidatedStatusLine:
+    """The status line follows the status code on the two serve paths that
+    rewrite the origin's answer (issue #216)."""
+
+    def test_stale_if_error_status_line_is_200(self, client, origin_client):
+        path = "/sidecar/flaky.css"
+        client.get(path, headers=IDENTITY)
+        hit = client.poll_for_hit(path, headers=IDENTITY)
+        client.assert_hit(hit)
+        try:
+            serve_control(origin_client, fail="on")
+            time.sleep(2.5)
+            status_line, header_lines, body = raw_get(path)
+            assert status_line == "HTTP/1.1 200 OK", status_line
+            assert raw_header(header_lines, "X-PageSpeed-Stale") == ["if-error"]
+            assert body == hit.content
+        finally:
+            serve_control(origin_client, fail="off")
+
+    def test_revalidated_non_conditional_client_gets_200_and_body(
+        self, client, origin_client
+    ):
+        """The conditional request was the module's own: a client that sent
+        none gets the stored 200 with its body and the 304's headers
+        (RFC 9111 section 4.3.4), never a bare 304."""
+        path = "/sidecar/reval.css"
+        try:
+            serve_control(origin_client, rp="no-referrer")
+            client.get(path, headers=IDENTITY)
+            hit = client.poll_for_hit(path, headers=IDENTITY)
+            client.assert_hit(hit)
+            serve_control(origin_client, rp="same-origin")
+            time.sleep(2.5)
+            status_line, header_lines, body = raw_get(path)
+            assert status_line == "HTTP/1.1 200 OK", status_line
+            assert raw_header(header_lines, "X-PageSpeed") == ["REVALIDATED"]
+            assert raw_header(header_lines, "Referrer-Policy") == ["same-origin"]
+            assert body == hit.content
+            assert int(raw_header(header_lines, "Content-Length")[0]) == len(body)
+        finally:
+            serve_control(origin_client, rp="no-referrer")
+
+    def test_revalidated_matching_conditional_client_gets_304(
+        self, client, origin_client
+    ):
+        """A client whose own If-None-Match matches still gets a real 304,
+        with no body."""
+        path = "/sidecar/reval.css"
+        serve_control(origin_client, rp="no-referrer")
+        client.get(path, headers=IDENTITY)
+        hit = client.poll_for_hit(path, headers=IDENTITY)
+        client.assert_hit(hit)
+        time.sleep(2.5)
+        # The validator the client holds is the one the revalidated response
+        # carried.
+        first = client.get(path, headers=IDENTITY)
+        assert first.status_code == 200
+        assert x_pagespeed(first) == "REVALIDATED", first.headers
+        etag = first.headers.get("ETag")
+        assert etag, first.headers
+        time.sleep(2.5)
+        status_line, header_lines, body = raw_get(path, {"If-None-Match": etag})
+        assert status_line == "HTTP/1.1 304 Not Modified", status_line
+        assert raw_header(header_lines, "X-PageSpeed") == ["REVALIDATED"]
+        assert body == b""
 
 
 def requests_get(client, path: str):
