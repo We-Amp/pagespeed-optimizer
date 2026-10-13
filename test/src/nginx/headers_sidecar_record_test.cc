@@ -137,7 +137,7 @@ TEST(HeadersSidecarGateTest, HeaderNameEqualsIsCaseInsensitive) {
   EXPECT_FALSE(HeaderNameEquals("Vary", "Vari"));
 }
 
-// --- Record against a real cache -------------------------------------------------
+// --- Record against a real cache ---------------------------------------------
 
 class HeadersSidecarRecordTest : public ::testing::Test {
  protected:
@@ -446,7 +446,7 @@ TEST_F(HeadersSidecarRecordTest,
   EXPECT_EQ(Flags(kIdentityMask), std::optional<uint8_t>(kClassified));
 }
 
-// --- Refusal eviction ---------------------------------------------------------
+// --- Refusal eviction --------------------------------------------------------
 
 TEST_F(HeadersSidecarRecordTest, RefusalEvictsTheWholeUrl) {
   ASSERT_EQ(Record(SecurityHeaders()).outcome, SidecarRecordOutcome::kWritten);

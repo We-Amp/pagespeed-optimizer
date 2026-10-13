@@ -1075,7 +1075,7 @@ TEST_F(ServeStatsTest, LegacyV7FileIsRejectedAndRecreatedWithWarning) {
   const std::vector<std::string> warnings = handler.warnings();
   ASSERT_EQ(warnings.size(), 1u) << "expected exactly one skew warning";
   EXPECT_NE(warnings[0].find("version 7"), std::string::npos) << warnings[0];
-  EXPECT_NE(warnings[0].find("version 10"), std::string::npos) << warnings[0];
+  EXPECT_NE(warnings[0].find("version 11"), std::string::npos) << warnings[0];
 
   ServeStats* reopened = OpenServeStats(path_);
   ASSERT_NE(reopened, nullptr);
@@ -1655,7 +1655,7 @@ TEST_F(ServeStatsTest, LegacyV9FileIsRejectedAndRecreatedZeroedWithWarning) {
   const std::vector<std::string> warnings = handler.warnings();
   ASSERT_EQ(warnings.size(), 1u);
   EXPECT_NE(warnings[0].find("version 9"), std::string::npos) << warnings[0];
-  EXPECT_NE(warnings[0].find("version 10"), std::string::npos) << warnings[0];
+  EXPECT_NE(warnings[0].find("version 11"), std::string::npos) << warnings[0];
 
   ServeStats* reopened = OpenServeStats(path_);
   ASSERT_NE(reopened, nullptr);
