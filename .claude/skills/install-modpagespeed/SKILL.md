@@ -90,8 +90,8 @@ operator's own server and loopback.
 ## 5. On failure
 
 Follow the troubleshooting link in the recipe once. If that does not resolve
-it, run the recipe's rollback section (install recipes only) and report what was tried, the server's
-error-log lines and the exact command that failed. Roll back only what this
-run created; leave anything that existed before untouched. Never send logs or
-configuration anywhere; the recipes make no calls beyond the documented install
-channels.
+it, run the rollback section of an install recipe and report what was tried,
+the server's error-log lines and the exact command that failed. Roll back only
+what this run created; leave anything that existed before untouched. Never
+send logs or configuration anywhere; the recipes make no calls beyond the
+documented install channels.

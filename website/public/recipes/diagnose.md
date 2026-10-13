@@ -121,7 +121,7 @@ server keeps serving originals meanwhile. Keep `-u` and `-T 4`.
 The HTTP API is off until a transport is enabled. Find which one is on:
 
 ```bash
-grep -o -E -- '--api-(socket|port|read-open)' /etc/default/pagespeed-optimizer   # which transport and mode are enabled
+grep -h -o -E -- '--api-(socket|port|read-open)' /etc/default/pagespeed-optimizer /etc/pagespeed-optimizer/daemon.env 2>/dev/null   # which transport and mode are enabled; the unit reads both files
 test -S /run/pagespeed-optimizer/api.sock && echo 'unix socket'
 curl -s http://localhost:9880/v1/health                # TCP on the default port
 ```
@@ -207,7 +207,7 @@ curl -s -o /dev/null -w '%{http_code}\n' "$A/"   # 200: reachable
 curl -s "$A/statistics" | grep -E 'ipro_daemon_served|ipro_daemon_fallthrough|resource_url_domain_rejections|rule_pack_load'
 curl -s "$A/config"            # active filters and directive values
 curl -s "$A/cache"             # cache status; never use its purge
-curl -s "$A/message_history"   # recent messages; needs MessageBufferSize above 0 (default 0)
+curl -s "$A/message_history"   # recent messages; needs a non-zero MessageBufferSize
 ```
 
 PowerShell (IIS):
@@ -229,8 +229,9 @@ Read the counters:
 
 - `ipro_daemon_served` rising: in-place requests are answered from the worker's
   cache, so the pairing optimizes.
-- Only `ipro_daemon_fallthrough` rising: the ordinary path answers; the worker
-  is not serving.
+- `ipro_daemon_fallthrough` rising while `ipro_daemon_served` stays flat on
+  CSS, JavaScript and image requests: the ordinary path answers and the worker
+  is not serving. Since 2.3.0, HTML requests always count as fallthrough.
 - `resource_url_domain_rejections` rising: images keep their original bytes
   because of a `Disallow` or a domain mismatch.
 - `rule_pack_load_errors` above 0: a rule pack did not load.
