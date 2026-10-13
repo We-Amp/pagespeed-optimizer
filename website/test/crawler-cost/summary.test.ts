@@ -3,6 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import { emptyAggregate } from '../../src/lib/crawler-cost/aggregate';
 import {
+  bytesState,
   estimateCost,
   formatBytes,
   formatMoney,
@@ -89,9 +90,36 @@ describe('ratios and period', () => {
   });
   it('builds per-operator ratios without the fetcher kind', () => {
     expect(operatorRatios(sample())).toEqual([
-      { operator: 'Anthropic', crawlerPageRequests: 1, referred: 0, ratio: null },
-      { operator: 'OpenAI', crawlerPageRequests: 2, referred: 2, ratio: 1 },
+      {
+        operator: 'Anthropic',
+        requests: 1,
+        bytes: 3000,
+        crawlerPageRequests: 1,
+        referred: 0,
+        ratio: null,
+      },
+      {
+        operator: 'OpenAI',
+        requests: 4,
+        bytes: 30870,
+        crawlerPageRequests: 2,
+        referred: 2,
+        ratio: 1,
+      },
     ]);
+  });
+  it('leaves Unknown operator rows out of the operator table', () => {
+    const a = sample();
+    a.crawlers.push({
+      token: 'MysteryBot',
+      operator: 'Unknown',
+      kind: 'other',
+      requests: 2,
+      bytes: 10,
+      pageRequests: 2,
+    });
+    a.referredByOperator = { OpenAI: 2, Unknown: 1 };
+    expect(operatorRatios(a).map((o) => o.operator)).toEqual(['Anthropic', 'OpenAI']);
   });
   it('measures the period in days and projects to 30 days only from a full day on', () => {
     expect(periodDays(sample())).toBe(10);
@@ -136,5 +164,43 @@ describe('formatting', () => {
     const text = formatSummary(sample(), null, 'https://modpagespeed.com/ai-crawler-cost/');
     expect(text).toContain('estimated cost not set (enter a rate)');
     expect(text).not.toContain('per GB');
+  });
+});
+
+describe('bytes not in the log', () => {
+  const URL = 'https://modpagespeed.com/ai-crawler-cost/';
+  it('classifies known, partial and missing', () => {
+    const a = sample();
+    expect(bytesState(a)).toBe('known');
+    a.bytesMissing = 3;
+    expect(bytesState(a)).toBe('partial');
+    a.bytesMissing = a.requests;
+    expect(bytesState(a)).toBe('missing');
+    expect(bytesState(emptyAggregate())).toBe('known');
+  });
+  it('says bytes and cost are not in the log, with no per-crawler bytes', () => {
+    const a = sample();
+    a.bytesMissing = a.requests;
+    const text = formatSummary(a, RATES, URL);
+    expect(text).toContain(
+      'AI crawlers: 5 requests, bytes not in this log, estimated cost not in this log',
+    );
+    expect(text).toContain('- GPTBot (OpenAI): 3 requests');
+    expect(text).not.toMatch(/KB|per GB/);
+  });
+  it('prices requests only when a per-million rate is set', () => {
+    const a = sample();
+    a.bytesMissing = a.requests;
+    const text = formatSummary(a, { ...RATES, perMillionRequests: 0.4 }, URL);
+    expect(text).toContain(
+      'AI crawlers: 5 requests, bytes not in this log, estimated cost less than 0.01 USD from requests only at 0.4 USD per million requests',
+    );
+  });
+  it('marks a partial total and keeps the cost', () => {
+    const a = sample();
+    a.bytesMissing = 2;
+    expect(formatSummary(a, RATES, URL)).toContain(
+      'AI crawlers: 5 requests, 33.9 KB (partial: 2 lines carry no bytes field), estimated cost',
+    );
   });
 });

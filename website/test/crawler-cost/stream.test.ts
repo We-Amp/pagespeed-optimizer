@@ -77,6 +77,22 @@ describe('readLines', () => {
     expect(error).toBeInstanceOf(StreamError);
     expect(seen.length).toBeGreaterThan(0);
   });
+  it('yields the lines of a complete member before the error for trailing garbage in one chunk', async () => {
+    const good = new Uint8Array(gzipSync('one\ntwo\n'));
+    const garbage = new Uint8Array(12).fill(0x1f);
+    const joined = new Uint8Array(good.length + garbage.length);
+    joined.set(good);
+    joined.set(garbage, good.length);
+    const seen: string[] = [];
+    let error: unknown;
+    try {
+      for await (const c of readLines(streamOf(joined))) seen.push(c.text);
+    } catch (e) {
+      error = e;
+    }
+    expect(seen).toEqual(['one', 'two']);
+    expect(error).toBeInstanceOf(StreamError);
+  });
   it('stops with a StreamError past the decompressed-bytes guard', async () => {
     const gz = new Uint8Array(gzipSync('x'.repeat(10_000)));
     await expect(collect(streamOf(gz), { maxDecompressedBytes: 5_000 })).rejects.toBeInstanceOf(

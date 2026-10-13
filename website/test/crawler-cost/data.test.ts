@@ -83,4 +83,12 @@ describe('answer-engine-referrers.json', () => {
       operator: 'OpenAI',
     });
   });
+  it('spells an operator identically in the crawler and referrer files', () => {
+    const names = new Set(crawlers.map((c) => c.operator));
+    for (const r of referrers.hosts) {
+      for (const name of names) {
+        if (name.toLowerCase() === r.operator.toLowerCase()) expect(name).toBe(r.operator);
+      }
+    }
+  });
 });

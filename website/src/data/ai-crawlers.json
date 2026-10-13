@@ -841,7 +841,7 @@
   },
   {
     "token": "PhindBot",
-    "operator": "phind",
+    "operator": "Phind",
     "kind": "fetcher",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"

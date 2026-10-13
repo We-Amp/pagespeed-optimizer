@@ -16,22 +16,37 @@ export function estimateCost(bytes: number, requests: number, rates: Rates): num
   return (bytes / 1e9) * rates.perGb + (requests / 1e6) * rates.perMillionRequests;
 }
 
+export type BytesState = 'known' | 'partial' | 'missing';
+
+export function bytesState(a: Aggregate): BytesState {
+  if (a.requests > 0 && a.bytesMissing === a.requests) return 'missing';
+  if (a.bytesMissing > 0 && a.bytesMissing < a.requests) return 'partial';
+  return 'known';
+}
+
 export function headlineRatio(a: Aggregate): number | null {
   return a.referredPageRequests === 0 ? null : a.crawlerPageRequests / a.referredPageRequests;
 }
 
 export function operatorRatios(a: Aggregate) {
   const pages = new Map<string, number>();
+  const requests = new Map<string, number>();
+  const bytes = new Map<string, number>();
   for (const row of a.crawlers) {
+    requests.set(row.operator, (requests.get(row.operator) ?? 0) + row.requests);
+    bytes.set(row.operator, (bytes.get(row.operator) ?? 0) + row.bytes);
     if (row.kind !== 'fetcher' && row.pageRequests > 0)
       pages.set(row.operator, (pages.get(row.operator) ?? 0) + row.pageRequests);
   }
   const operators = new Set([...pages.keys(), ...Object.keys(a.referredByOperator)]);
+  operators.delete('Unknown');
   return [...operators].sort().map((operator) => {
     const crawlerPageRequests = pages.get(operator) ?? 0;
     const referred = a.referredByOperator[operator] ?? 0;
     return {
       operator,
+      requests: requests.get(operator) ?? 0,
+      bytes: bytes.get(operator) ?? 0,
       crawlerPageRequests,
       referred,
       ratio: referred === 0 ? null : crawlerPageRequests / referred,
@@ -86,18 +101,38 @@ export function formatSummary(a: Aggregate, rates: Rates | null, pageUrl: string
       ? `No visits from AI assistants in this log (${a.crawlerPageRequests} crawler page requests).`
       : `${formatRatio(ratio)} crawler page requests per visit an AI assistant sent back (${a.crawlerPageRequests} crawler page requests, ${a.referredPageRequests} visits)`,
   );
-  const cost = rates ? estimateCost(a.crawlerBytes, a.crawlerRequests, rates) : null;
+  const state = bytesState(a);
   const perReq =
     rates && rates.perMillionRequests > 0
       ? ` and ${rates.perMillionRequests} ${rates.currency} per million requests`
       : '';
-  const head = `AI crawlers: ${a.crawlerRequests} requests, ${formatBytes(a.crawlerBytes)}, estimated cost`;
-  out.push(
-    rates && cost !== null
-      ? `${head} ${formatMoney(cost, rates.currency)} at ${rates.perGb} ${rates.currency} per GB${perReq}`
-      : `${head} not set (enter a rate)`,
-  );
+  if (state === 'missing') {
+    const reqCost =
+      rates && rates.perMillionRequests > 0 ? estimateCost(0, a.crawlerRequests, rates) : null;
+    out.push(
+      `AI crawlers: ${a.crawlerRequests} requests, bytes not in this log` +
+        (rates && reqCost !== null
+          ? `, estimated cost ${formatMoney(reqCost, rates.currency)} from requests only at ${rates.perMillionRequests} ${rates.currency} per million requests`
+          : ', estimated cost not in this log'),
+    );
+  } else {
+    const cost = rates ? estimateCost(a.crawlerBytes, a.crawlerRequests, rates) : null;
+    const partial =
+      state === 'partial'
+        ? ` (partial: ${a.bytesMissing} ${a.bytesMissing === 1 ? 'line carries' : 'lines carry'} no bytes field)`
+        : '';
+    const head = `AI crawlers: ${a.crawlerRequests} requests, ${formatBytes(a.crawlerBytes)}${partial}, estimated cost`;
+    out.push(
+      rates && cost !== null
+        ? `${head} ${formatMoney(cost, rates.currency)} at ${rates.perGb} ${rates.currency} per GB${perReq}`
+        : `${head} not set (enter a rate)`,
+    );
+  }
   for (const row of a.crawlers.slice(0, 5)) {
+    if (state === 'missing') {
+      out.push(`- ${row.token} (${row.operator}): ${row.requests} requests`);
+      continue;
+    }
     const c = rates ? estimateCost(row.bytes, row.requests, rates) : null;
     out.push(
       `- ${row.token} (${row.operator}): ${row.requests} requests, ${formatBytes(row.bytes)}${rates && c !== null ? `, ${formatMoney(c, rates.currency)}` : ''}`,

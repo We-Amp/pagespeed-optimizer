@@ -47,6 +47,10 @@ test.describe('Navigation', () => {
       'data-umami-event',
       'nav-analyze',
     );
+    await expect(panel.locator('a[href="/ai-crawler-cost/"]')).toHaveAttribute(
+      'data-umami-event',
+      'nav-crawler-cost',
+    );
     for (const href of ['/demo/', '/examples/', '/calculator/']) {
       await expect(panel.locator(`a[href="${href}"]`)).toBeVisible();
     }

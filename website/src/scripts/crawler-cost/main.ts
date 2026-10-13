@@ -5,6 +5,7 @@
 // this file only forwards files, renders results and reads the rate fields.
 // Log-derived values are written with textContent, never as markup.
 import {
+  bytesState,
   estimateCost,
   formatBytes,
   formatMoney,
@@ -19,6 +20,7 @@ import {
 import type { Aggregate, FileReport, Rates } from '../../lib/crawler-cost/types';
 
 type Outbound =
+  | { type: 'ready' }
   | { type: 'progress'; bytesRead: number; bytesTotal: number }
   | { type: 'file'; report: FileReport }
   | { type: 'result'; result: Aggregate }
@@ -48,6 +50,8 @@ export function initCrawlerCostMeter(): void {
   const results = el<HTMLElement>('cc-results');
   let last: Aggregate | null = null;
   let busy = false;
+  let failed = false;
+  let lastDecile = -1;
 
   function rates(): Rates | null {
     const perGb = parseRate(el<HTMLInputElement>('cc-rate-gb').value);
@@ -71,7 +75,11 @@ export function initCrawlerCostMeter(): void {
 
   function render(a: Aggregate): void {
     const r = rates();
+    const state = bytesState(a);
+    const missing = state === 'missing';
+    const NOT_IN_LOG = 'not in this log';
     const money = (bytes: number, requests: number) => {
+      if (missing) return NOT_IN_LOG;
       if (!r) return 'enter a rate';
       const c = estimateCost(bytes, requests, r);
       return c === null ? 'enter a rate' : formatMoney(c, r.currency);
@@ -97,6 +105,14 @@ export function initCrawlerCostMeter(): void {
         : `${a.crawlerPageRequests.toLocaleString('en-US')} crawler page requests, ${a.referredPageRequests.toLocaleString('en-US')} visits sent back (landing requests). Fetches made on a person's behalf are listed apart below.`,
     );
 
+    let totalCost = money(a.crawlerBytes, a.crawlerRequests);
+    if (missing) {
+      const reqCost = r && r.perMillionRequests > 0 ? estimateCost(0, a.crawlerRequests, r) : null;
+      totalCost =
+        r && reqCost !== null
+          ? `${formatMoney(reqCost, r.currency)} (from requests only)`
+          : NOT_IN_LOG;
+    }
     const totals = el<HTMLElement>('cc-totals');
     totals.replaceChildren();
     const share = (part: number, whole: number) =>
@@ -108,9 +124,11 @@ export function initCrawlerCostMeter(): void {
       ],
       [
         'AI crawler bytes',
-        `${formatBytes(a.crawlerBytes)} (${share(a.crawlerBytes, a.bytes)} of all bytes)`,
+        missing
+          ? NOT_IN_LOG
+          : `${formatBytes(a.crawlerBytes)} (${share(a.crawlerBytes, a.bytes)} of all bytes)${state === 'partial' ? ' (partial)' : ''}`,
       ],
-      ['Estimated cost', money(a.crawlerBytes, a.crawlerRequests)],
+      ['Estimated cost', totalCost],
       [
         'Estimated at',
         r
@@ -128,7 +146,7 @@ export function initCrawlerCostMeter(): void {
       wrap.append(dt, dd);
       totals.appendChild(wrap);
     }
-    const cost = r ? estimateCost(a.crawlerBytes, a.crawlerRequests, r) : null;
+    const cost = r && !missing ? estimateCost(a.crawlerBytes, a.crawlerRequests, r) : null;
     const projected = cost === null ? null : projectTo30Days(cost, days);
     text(
       'cc-projection',
@@ -147,9 +165,10 @@ export function initCrawlerCostMeter(): void {
       cell(tr, row.operator);
       cell(tr, row.kind);
       cell(tr, row.requests.toLocaleString('en-US'), true);
+      cell(tr, share(row.requests, a.requests), true);
       cell(tr, row.pageRequests.toLocaleString('en-US'), true);
-      cell(tr, formatBytes(row.bytes), true);
-      cell(tr, share(row.bytes, a.bytes), true);
+      cell(tr, missing ? NOT_IN_LOG : formatBytes(row.bytes), true);
+      cell(tr, missing ? NOT_IN_LOG : share(row.bytes, a.bytes), true);
       cell(tr, money(row.bytes, row.requests), true);
       tbody.appendChild(tr);
     }
@@ -167,6 +186,8 @@ export function initCrawlerCostMeter(): void {
     for (const o of operatorRatios(a)) {
       const tr = document.createElement('tr');
       cell(tr, o.operator);
+      cell(tr, o.requests.toLocaleString('en-US'), true);
+      cell(tr, missing ? NOT_IN_LOG : formatBytes(o.bytes), true);
       cell(tr, o.crawlerPageRequests.toLocaleString('en-US'), true);
       cell(tr, o.referred.toLocaleString('en-US'), true);
       cell(tr, o.ratio === null ? 'no visits' : formatRatio(o.ratio), true);
@@ -180,11 +201,16 @@ export function initCrawlerCostMeter(): void {
       );
     if (a.bytesMissing > 0)
       notes.push(
-        `${a.bytesMissing.toLocaleString('en-US')} lines carry no bytes field. In IIS Manager, open Logging, Select Fields, and tick Bytes Sent (sc-bytes) to log them.`,
+        `${a.bytesMissing.toLocaleString('en-US')} ${a.bytesMissing === 1 ? 'line carries' : 'lines carry'} no bytes field. In IIS Manager, open Logging, Select Fields, and tick Bytes Sent (sc-bytes) to log them.`,
       );
     if (a.agentlessLines === a.requests && a.requests > 0)
       notes.push('This log carries no user agents, so no crawler can be recognised in it.');
     for (const f of a.files) {
+      notes.push(
+        `${f.name}: ${f.format === 'unknown' ? 'format not recognised' : f.format}${f.gzip ? ', gzip' : ''}, ${f.lines.toLocaleString('en-US')} ${f.lines === 1 ? 'line' : 'lines'}.`,
+      );
+      if (f.lines === 0 && f.sample === null && !f.error)
+        notes.push(`No log lines found in ${f.name}.`);
       if (f.format === 'common')
         notes.push(
           `${f.name}: no user agent field in this log, so nothing in it can be classified.`,
@@ -207,11 +233,17 @@ export function initCrawlerCostMeter(): void {
 
   worker.onmessage = (event: MessageEvent<Outbound>) => {
     const msg = event.data;
-    if (msg.type === 'progress') {
+    if (msg.type === 'ready') {
+      drop.dataset.ready = '1';
+    } else if (msg.type === 'progress') {
       progress.hidden = false;
-      progress.value =
-        msg.bytesTotal === 0 ? 0 : Math.round((msg.bytesRead / msg.bytesTotal) * 100);
-      status.textContent = `Reading: ${formatBytes(msg.bytesRead)} of ${formatBytes(msg.bytesTotal)}`;
+      const pct = msg.bytesTotal === 0 ? 0 : Math.round((msg.bytesRead / msg.bytesTotal) * 100);
+      progress.value = pct;
+      const decile = Math.floor(pct / 10);
+      if (decile !== lastDecile) {
+        lastDecile = decile;
+        status.textContent = `Reading: ${formatBytes(msg.bytesRead)} of ${formatBytes(msg.bytesTotal)}`;
+      }
     } else if (msg.type === 'file') {
       status.textContent = `${msg.report.name}: ${msg.report.format === 'unknown' ? 'format not recognised' : msg.report.format}${msg.report.gzip ? ', gzip' : ''}`;
     } else if (msg.type === 'result') {
@@ -220,7 +252,7 @@ export function initCrawlerCostMeter(): void {
       progress.hidden = true;
       status.textContent = 'Done. Nothing from the log left your browser.';
       render(last);
-      trackAnalysis();
+      if (msg.result.requests > 0) trackAnalysis();
     } else if (msg.type === 'error') {
       busy = false;
       progress.hidden = true;
@@ -228,6 +260,7 @@ export function initCrawlerCostMeter(): void {
     }
   };
   worker.onerror = () => {
+    failed = true;
     busy = false;
     progress.hidden = true;
     status.textContent = 'The analysis stopped unexpectedly. Reload the page and try again.';
@@ -235,12 +268,19 @@ export function initCrawlerCostMeter(): void {
 
   function start(files: File[]): void {
     if (files.length === 0) return;
+    if (failed) {
+      status.textContent =
+        'This tool could not start in this browser. Reload the page and try again.';
+      return;
+    }
     if (busy) {
       status.textContent = 'Still reading the previous files. Drop again when it is done.';
       return;
     }
     busy = true;
+    lastDecile = -1;
     results.hidden = true;
+    el<HTMLElement>('cc-summary').hidden = true;
     text('cc-copied', '');
     progress.hidden = false;
     progress.value = 0;
@@ -268,6 +308,8 @@ export function initCrawlerCostMeter(): void {
   });
   for (const id of ['cc-rate-gb', 'cc-currency', 'cc-rate-req'])
     el(id).addEventListener('input', () => {
+      el<HTMLElement>('cc-summary').hidden = true;
+      text('cc-copied', '');
       if (last) render(last);
     });
 
