@@ -31,6 +31,21 @@ cc_library(
     ],
 )
 
+# Store-side half of the response-header sidecar (issue #208):
+# the record arm's classification, sidecar-first record, re-record and 304
+# merge decisions - pure C++, testable without nginx headers.
+cc_library(
+    name = "headers_sidecar_record",
+    srcs = ["headers_sidecar_record.cc"],
+    hdrs = ["headers_sidecar_record.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//lib/cache:headers_sidecar",
+        "//lib/classify:alternate_id",
+        "//lib/classify:alternate_metadata",
+    ],
+)
+
 # Cache-directory generation check against the optimizer's published
 # generation - pure C++, testable without nginx headers.  Takes the generation
 # from the optimizer's own constant (kCacheDirGeneration) rather than a copy.
@@ -137,6 +152,7 @@ cc_library(
         ":early_hints",
         ":early_hints_util",
         ":etag_util",
+        ":headers_sidecar_record",
         ":mime_util",
         ":revalidation_storability",
         ":zerocopy_barrier",

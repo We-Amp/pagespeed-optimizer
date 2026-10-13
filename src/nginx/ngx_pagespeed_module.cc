@@ -33,6 +33,7 @@ extern "C" {
 #include <fstream>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <thread>
@@ -43,6 +44,7 @@ extern "C" {
 #include "lib/cache/cache.h"
 #include "lib/cache/cache_control_header.h"
 #include "lib/cache/freshness.h"
+#include "lib/cache/headers_sidecar.h"
 #include "lib/cache/origin_cache_control.h"
 #include "lib/cache/vary_emission.h"
 #include "lib/cache/vary_storability.h"
@@ -60,6 +62,7 @@ extern "C" {
 #include "src/nginx/early_hints.h"
 #include "src/nginx/early_hints_util.h"
 #include "src/nginx/etag_util.h"
+#include "src/nginx/headers_sidecar_record.h"
 #include "src/nginx/mime_util.h"
 #include "src/nginx/revalidation_storability.h"
 #include "src/nginx/zerocopy_barrier.h"
@@ -1247,7 +1250,25 @@ typedef struct {
   // x-verified-bot response header by the header filter; NEVER consulted by
   // any caching / serving / notification decision.
   ngx_str_t webbotauth_verdict;
+  // Response-header sidecar (issue #208).  The ORIGIN's header lines,
+  // snapshotted at the top of the header filter before the module adds any
+  // of its own (X-PageSpeed, Accept-CH, x-verified-bot, its own Vary): an
+  // ngx_array_t of ngx_http_pagespeed_header_pair_t pointing at the
+  // pool-owned list entries.  nullptr when the response was served from
+  // cache or carried no lines.  The classification in the MISS block and
+  // the sidecar write in record_response both read this, never the live
+  // list.
+  ngx_array_t* origin_headers;
+  // Set by the MISS block when the snapshot is swap-eligible: record_response
+  // then records through the sidecar path (block + flag bits).
+  unsigned sidecar_classified : 1;
 } ngx_http_pagespeed_ctx_t;
+
+// One snapshotted origin header line (see ctx->origin_headers).
+typedef struct {
+  ngx_str_t key;
+  ngx_str_t value;
+} ngx_http_pagespeed_header_pair_t;
 
 // Forward declarations - these are nginx callbacks that need C linkage
 extern "C" {
@@ -2578,6 +2599,196 @@ static std::string ngx_http_pagespeed_combined_vary(ngx_http_request_t* r,
   return combined;
 }
 
+// =====================================================================
+// Response-header sidecar, store side (issue #208).  The
+// decisions live in src/nginx/headers_sidecar_record.h; this is the nginx
+// glue: the origin-header snapshot, the MISS-block gate and its log line.
+// =====================================================================
+
+// Rate-limited "not caching: header cannot be reproduced" log: one NOTICE
+// per (server block, first reason) per nginx worker lifetime, capped like
+// the missing-Cache-Control warning.  Keyed on the server block that handled
+// the request (its address in the configuration, which lives as long as the
+// process) rather than on the request's Host header: a client choosing Host
+// values could otherwise use up the cap and silence later notices.  The
+// header names come from the origin, so the key space is bounded by the
+// configuration and the origins behind it.
+static std::unordered_set<std::string> g_sidecar_fall_through_warned;
+
+// Snapshot the ORIGIN's header lines.  Called at the top of the header
+// filter, before the module pushes anything, so position alone separates
+// origin lines from the module's own.  Copies the ngx_str_t pairs (the bytes
+// stay in the pool-owned list entries, which live as long as the request).
+// Deactivated entries (hash == 0) are absent by nginx's convention.
+//
+// Fails closed: if the snapshot cannot be allocated the response is marked
+// uncacheable, because an empty snapshot would classify as "nothing to
+// carry" and an entry recorded from it would drop every header the origin
+// sent.
+static void ngx_http_pagespeed_snapshot_origin_headers(
+    ngx_http_request_t* r, ngx_http_pagespeed_ctx_t* ctx) {
+  ctx->origin_headers = nullptr;
+  ngx_uint_t live = 0;
+  for (ngx_list_part_t* part = &r->headers_out.headers.part; part != nullptr;
+       part = part->next) {
+    const auto* h = static_cast<const ngx_table_elt_t*>(part->elts);
+    for (ngx_uint_t i = 0; i < part->nelts; i++) {
+      if (h[i].hash != 0) live++;
+    }
+  }
+  if (live == 0) {
+    return;
+  }
+  ngx_array_t* pairs =
+      ngx_array_create(r->pool, live, sizeof(ngx_http_pagespeed_header_pair_t));
+  if (pairs == nullptr) {
+    ctx->uncacheable = 1;
+    return;
+  }
+  for (ngx_list_part_t* part = &r->headers_out.headers.part; part != nullptr;
+       part = part->next) {
+    const auto* h = static_cast<const ngx_table_elt_t*>(part->elts);
+    for (ngx_uint_t i = 0; i < part->nelts; i++) {
+      if (h[i].hash == 0) continue;
+      auto* pair =
+          static_cast<ngx_http_pagespeed_header_pair_t*>(ngx_array_push(pairs));
+      if (pair == nullptr) {
+        ctx->uncacheable = 1;
+        return;
+      }
+      pair->key = h[i].key;
+      pair->value = h[i].value;
+    }
+  }
+  ctx->origin_headers = pairs;
+}
+
+// Views over the snapshot, in received order, one per line (repeated names
+// stay separate entries, as the gate requires).
+static std::vector<pagespeed::HeaderField>
+ngx_http_pagespeed_origin_header_views(const ngx_http_pagespeed_ctx_t* ctx) {
+  std::vector<pagespeed::HeaderField> views;
+  if (ctx->origin_headers == nullptr) {
+    return views;
+  }
+  const auto* pairs = static_cast<const ngx_http_pagespeed_header_pair_t*>(
+      ctx->origin_headers->elts);
+  views.reserve(ctx->origin_headers->nelts);
+  for (ngx_uint_t i = 0; i < ctx->origin_headers->nelts; i++) {
+    views.push_back(pagespeed::HeaderField{
+        std::string_view(reinterpret_cast<const char*>(pairs[i].key.data),
+                         pairs[i].key.len),
+        std::string_view(reinterpret_cast<const char*>(pairs[i].value.data),
+                         pairs[i].value.len)});
+  }
+  return views;
+}
+
+// The MISS-block gate and its refusal eviction.  Runs on a 200 the body
+// filter would otherwise record, after every other store gate, so a
+// response already refused for no-store / Set-Cookie / Vary is not counted
+// a second time here.
+//
+//   * swap-eligible  → record through the sidecar path (record_response);
+//   * fall-through   → not cached (served from the origin each time), counted,
+//                      one NOTICE per (server block, header) naming the
+//                      remedy;
+//   * never-optimized (nonce-bearing CSP) → not cached, counted.
+//
+// On a refusal an entry recorded earlier for the URL is removed: the fresh
+// origin response is the evidence that the stored entry can no longer be
+// served with the origin's headers.  This has to happen here because an
+// uncacheable response never reaches record_response.  It is driven by the
+// origin's response, never by a request header.
+static void ngx_http_pagespeed_classify_origin_headers(
+    ngx_http_request_t* r, ngx_http_pagespeed_ctx_t* ctx) {
+  ngx_http_pagespeed_loc_conf_t* conf =
+      static_cast<ngx_http_pagespeed_loc_conf_t*>(
+          ngx_http_get_module_loc_conf(r, ngx_http_pagespeed_module));
+  if (conf->cache_path.len == 0) {
+    return;
+  }
+
+  const std::vector<pagespeed::HeaderField> views =
+      ngx_http_pagespeed_origin_header_views(ctx);
+  const pagespeed::SidecarClassification classification =
+      pagespeed::ClassifyForHeadersSidecar(views);
+  if (classification.swap_eligible()) {
+    ctx->sidecar_classified = 1;
+    return;
+  }
+
+  ctx->uncacheable = 1;
+  if (classification.verdict == pagespeed::SidecarVerdict::kNeverOptimized) {
+    pagespeed::RecordHeadersSidecarNeverOptimized(g_serve_stats);
+  } else {
+    pagespeed::RecordHeadersSidecarFallThrough(g_serve_stats);
+    std::string_view header =
+        pagespeed::FirstUnreproducibleHeader(classification);
+    std::string_view reason =
+        !header.empty()
+            ? header
+            : (classification.reasons.empty()
+                   ? std::string_view("unknown")
+                   : std::string_view(classification.reasons.front()));
+    const auto* cscf = static_cast<const ngx_http_core_srv_conf_t*>(
+        ngx_http_get_module_srv_conf(r, ngx_http_core_module));
+    // The log names the server block's configured name, not the request's
+    // Host, for the same reason the key does.
+    std::string_view host_sv =
+        cscf->server_name.len > 0
+            ? std::string_view(
+                  reinterpret_cast<const char*>(cscf->server_name.data),
+                  cscf->server_name.len)
+            : std::string_view("the default server");
+    std::string warn_key = std::to_string(reinterpret_cast<uintptr_t>(cscf));
+    warn_key.append("|").append(reason);
+    if (g_sidecar_fall_through_warned.size() < kMaxCCWarnings &&
+        g_sidecar_fall_through_warned.insert(warn_key).second) {
+      if (!header.empty()) {
+        ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+                      "pagespeed: not caching responses for %*s: origin "
+                      "header %*s cannot be reproduced on cache hits; hide it "
+                      "with proxy_hide_header or set it with add_header on "
+                      "this server to keep caching",
+                      host_sv.size(), host_sv.data(), header.size(),
+                      header.data());
+      } else {
+        ngx_log_error(NGX_LOG_NOTICE, r->connection->log, 0,
+                      "pagespeed: not caching responses for %*s: origin "
+                      "headers cannot be reproduced on cache hits (%*s)",
+                      host_sv.size(), host_sv.data(), reason.size(),
+                      reason.data());
+      }
+    }
+  }
+
+  std::string_view cache_path_sv(
+      reinterpret_cast<const char*>(conf->cache_path.data),
+      conf->cache_path.len);
+  std::shared_ptr<PageSpeedCache> cache =
+      CheckGenerationAndGetCache(cache_path_sv, r->connection->log);
+  if (!cache) {
+    cache = GetCache(cache_path_sv, r->connection->log);
+  }
+  if (!cache) {
+    return;
+  }
+  std::string url_str = ngx_http_pagespeed_cache_url(r);
+  std::string hostname = ngx_http_pagespeed_cache_hostname(r);
+  CapabilityMask default_mask;
+  const AlternateId identity_id =
+      MaskToAlternateId(static_cast<uint8_t>(default_mask.Encode() & 0xFF));
+  if (pagespeed::EvictOnSidecarRefusal(*cache, url_str, hostname,
+                                       ngx_http_pagespeed_scheme(r, conf),
+                                       identity_id)) {
+    ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+                  "pagespeed: origin response for %V carries headers a cache "
+                  "hit cannot reproduce; removed the stored entries",
+                  &r->uri);
+  }
+}
+
 // Record completed response body to cache and notify worker
 static void ngx_http_pagespeed_record_response(ngx_http_request_t* r,
                                                ngx_http_pagespeed_ctx_t* ctx) {
@@ -2795,10 +3006,12 @@ static void ngx_http_pagespeed_record_response(ngx_http_request_t* r,
   // check it replaces.
   bool stored_exists = false;
   bool stored_marker_disagrees = false;
+  uint8_t stored_flags = 0;
   {
     auto stored = cache->ReadAlternate(url, hostname, scheme, id);
     if (stored.has_value() && stored->is_valid()) {
       stored_exists = true;
+      stored_flags = stored->metadata.flags;
       const bool stored_marked =
           (stored->metadata.flags &
            AlternateMetadata::kFlagOriginVariesAccept) != 0;
@@ -2806,7 +3019,78 @@ static void ngx_http_pagespeed_record_response(ngx_http_request_t* r,
           stored_marked != (ctx->origin_varies_accept != 0);
     }
   }
-  if (!ctx->origin_refreshed && !stored_marker_disagrees && stored_exists) {
+  if (ctx->sidecar_classified) {
+    // Response-header sidecar (issue #208).  The block goes in FIRST and the
+    // entry only after it, flagged so a later serve can tell a missing block
+    // from "nothing to carry"; the "stored exists, skip the write" shortcut
+    // above is additionally bypassed when the stored classification is out
+    // of date (pre-gate entry, missing block, changed block, carry-state
+    // switch).  Decisions and their rationale:
+    // src/nginx/headers_sidecar_record.h.
+    const std::vector<pagespeed::HeaderField> origin_views =
+        ngx_http_pagespeed_origin_header_views(ctx);
+    pagespeed::StoredIdentityState stored_state;
+    stored_state.exists = stored_exists;
+    stored_state.flags = stored_flags;
+    const bool force_rewrite = ctx->origin_refreshed || stored_marker_disagrees;
+    const std::string slot_key =
+        std::string(url) + "|" + hostname + "|" + std::string(scheme);
+    const auto recorded = pagespeed::RecordEntryWithHeadersSidecar(
+        *cache, url, hostname, scheme, id, meta, std::as_bytes(std::span(body)),
+        origin_views, stored_state, force_rewrite, [&slot_key] {
+          // The same per-URL slot the age-expiry refresh coalesces on, with
+          // the full window rather than that path's min(window, max-age):
+          // while a rewrite holds it, a concurrent genuine expiry of the
+          // same URL takes the bounded coalesced stale serve for up to its
+          // own grace.  Bounded and harmless; the next request after the
+          // window refreshes normally.
+          return ngx_http_pagespeed_acquire_refresh_slot(
+              slot_key, ngx_time(), kRefreshGraceWindowSecs);
+        });
+    if (recorded.block_written) {
+      pagespeed::RecordHeadersSidecarStored(g_serve_stats);
+    }
+    switch (recorded.outcome) {
+      case pagespeed::SidecarRecordOutcome::kSkipped:
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "pagespeed: alternate exists, skip write for %V",
+                       &r->uri);
+        break;
+      case pagespeed::SidecarRecordOutcome::kWritten:
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "pagespeed: recorded %uz bytes to cache", body.size());
+        break;
+      case pagespeed::SidecarRecordOutcome::kRemovedAndWritten:
+        ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+                      "pagespeed: origin headers for %V changed what a cache "
+                      "hit has to carry; removed the stored entries and "
+                      "recorded the fresh response",
+                      &r->uri);
+        break;
+      case pagespeed::SidecarRecordOutcome::kNotSlotHolder:
+        // Another request in this process is already rewriting this URL's
+        // stored headers; recording here as well would only widen the
+        // window in which the block is unlinked.
+        return;
+      case pagespeed::SidecarRecordOutcome::kSidecarWriteFailed:
+        pagespeed::RecordHeadersSidecarWriteFailed(g_serve_stats);
+        ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                      "pagespeed: failed to store the origin headers for %V; "
+                      "not caching this response",
+                      &r->uri);
+        return;
+      case pagespeed::SidecarRecordOutcome::kEntryWriteFailed:
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "pagespeed: failed to write original to cache for %V",
+                      &r->uri);
+        return;
+      case pagespeed::SidecarRecordOutcome::kNotEligible:
+        // Cannot happen: the header filter classified the same snapshot as
+        // eligible.  Fail closed regardless.
+        return;
+    }
+  } else if (!ctx->origin_refreshed && !stored_marker_disagrees &&
+             stored_exists) {
     ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                    "pagespeed: alternate exists, skip write for %V", &r->uri);
     // Fall through to notification — worker may still need to process variants.
@@ -3211,6 +3495,14 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
   auto* ctx = static_cast<ngx_http_pagespeed_ctx_t*>(
       ngx_http_get_module_ctx(r, ngx_http_pagespeed_module));
 
+  // Response-header sidecar (issue #208): snapshot the ORIGIN's header lines
+  // before this filter adds any of its own below.  Covers the MISS and the
+  // 304-revalidation branches; a served-from-cache response has no origin
+  // lines to classify.
+  if (ctx != nullptr && !ctx->served_from_cache) {
+    ngx_http_pagespeed_snapshot_origin_headers(r, ctx);
+  }
+
   // Observe-only: surface the Web Bot Auth verdict computed at
   // classify time.  A label in the transport header map only — never part of
   // the cached artifact, never added to Vary, never a serving decision.
@@ -3406,8 +3698,22 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
         ngx_http_pagespeed_authz_gate_has_auth(r);
     storability_in.response_has_set_cookie =
         ngx_http_pagespeed_get_response_header(r, "Set-Cookie").len > 0;
-    const pagespeed::RestampVerdict storability_verdict =
+    pagespeed::RestampVerdict storability_verdict =
         pagespeed::EvaluateRestampStorability(storability_in);
+
+    // Response-header sidecar: for an entry recorded with
+    // the gate, merge the stored block with the 304's lines (RFC 9111
+    // §4.3.4) and re-classify.  Same block → restamp only; same carry state,
+    // different block → rewrite the block FIRST, then restamp; a refusal or
+    // a carry-state switch → drop the URL (the 304 restamps only the stashed
+    // variant, and its siblings would keep the old bits) and serve this
+    // response; the next request re-records.  Entries recorded before the
+    // gate restamp exactly as before.  Plan: headers_sidecar_record.h.
+    // `stored_block` owns the bytes the plan's stored views point into; the
+    // 304 views point into the pool-owned header list.
+    std::string stored_block;
+    std::vector<pagespeed::HeaderField> views_304;
+    pagespeed::RestampSidecarPlan sidecar_plan;
 
     if (cache) {
       std::string url_str = ngx_http_pagespeed_cache_url(r);
@@ -3416,6 +3722,60 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
       std::string_view scheme = ngx_http_pagespeed_scheme(r, conf);
       AlternateId id = MaskToAlternateId(
           static_cast<uint8_t>(updated_meta.full_mask & 0xFF));
+
+      bool sidecar_removed = false;
+      const uint8_t stash_flags = stale->metadata.flags;
+      if ((stash_flags & AlternateMetadata::kFlagHeadersClassified) != 0) {
+        std::optional<std::string_view> stored_payload;
+        if ((stash_flags & AlternateMetadata::kFlagHeadersSidecarRequired) !=
+            0) {
+          auto block = cache->ReadHeadersSidecar(url, hostname, scheme);
+          if (block.has_value() && block->is_valid()) {
+            stored_block =
+                std::string(PageSpeedCache::HeadersSidecarPayload(*block));
+            stored_payload = stored_block;
+          }
+        }
+        views_304 = ngx_http_pagespeed_origin_header_views(ctx);
+        sidecar_plan = pagespeed::PlanRestampSidecar(stash_flags,
+                                                     stored_payload, views_304);
+        switch (sidecar_plan.action) {
+          case pagespeed::RestampSidecarAction::kRemove:
+            // Whole key, like the Accept-transition eviction above.  The
+            // restamp below is skipped: there is nothing left to restamp.
+            (void)cache->Remove(url, hostname, scheme);
+            sidecar_removed = true;
+            ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+                          "pagespeed: 304 for %V changed what a cache hit has "
+                          "to carry (or its stored headers are gone) — "
+                          "dropped the stored entries; the next request "
+                          "re-records",
+                          &r->uri);
+            break;
+          case pagespeed::RestampSidecarAction::kRewriteThenRestamp:
+            if (storability_verdict == pagespeed::RestampVerdict::kRestamp) {
+              auto written = cache->WriteHeadersSidecar(url, hostname, scheme,
+                                                        sidecar_plan.merged);
+              if (written.has_value() && written->stored) {
+                pagespeed::RecordHeadersSidecarStored(g_serve_stats);
+              } else {
+                // Without the new block the restamp would extend an entry
+                // whose stored headers are stale: skip it, the entry simply
+                // revalidates again next time.
+                pagespeed::RecordHeadersSidecarWriteFailed(g_serve_stats);
+                ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                              "pagespeed: failed to store the refreshed "
+                              "origin headers for %V; not restamping",
+                              &r->uri);
+                storability_verdict = pagespeed::RestampVerdict::kSkipRestamp;
+              }
+            }
+            break;
+          case pagespeed::RestampSidecarAction::kLegacy:
+          case pagespeed::RestampSidecarAction::kRestampOnly:
+            break;
+        }
+      }
 
       // Carry out the verdict.  The dispatch itself lives in
       // revalidation_storability.h so it can be exercised against a real
@@ -3450,49 +3810,53 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
       // THAT path is lease-gated.  The unmap inside remove_sync is
       // a no-op under the persistent whole-file mapping this module runs
       // with.
-      const auto action = pagespeed::ApplyRestampVerdict(
-          *cache, storability_verdict, url, hostname, scheme, id, updated_meta,
-          std::as_bytes(std::span(content_copy)));
+      //
+      // A URL the sidecar plan just dropped has nothing left to restamp.
+      if (!sidecar_removed) {
+        const auto action = pagespeed::ApplyRestampVerdict(
+            *cache, storability_verdict, url, hostname, scheme, id,
+            updated_meta, std::as_bytes(std::span(content_copy)));
 
-      switch (action) {
-        case pagespeed::RestampAction::kEvicted:
-          ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                        "pagespeed: 304 for %V is no longer storable in a "
-                        "shared cache (no-store/private) — evicted instead "
-                        "of restamped",
-                        &r->uri);
-          break;
-        case pagespeed::RestampAction::kEvictFailed:
-          // Never discard this silently: with stripe affinity enabled a
-          // NotOwned stripe would turn the eviction into a no-op, and a
-          // security fix that quietly stops firing is worse than one that
-          // fails loudly.
-          ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                        "pagespeed: FAILED to evict non-storable entry for "
-                        "%V after 304 — a response marked no-store/private "
-                        "may remain cached",
-                        &r->uri);
-          break;
-        case pagespeed::RestampAction::kSkipped:
-          // Still storable, but this exchange may not extend its life
-          // (RFC 9111 §3.5 permit withdrawn, or the 304 set a cookie).
-          // Self-correcting: the entry revalidates again next request, and
-          // it cannot be used to flush another client's cached entry.
-          ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
-                        "pagespeed: skipping 304 restamp for %V — refreshed "
-                        "headers do not permit this request to extend the "
-                        "shared entry",
-                        &r->uri);
-          break;
-        case pagespeed::RestampAction::kEntryGone:
-          ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
-                        "pagespeed: skipping 304 restamp for %V — entry "
-                        "purged during revalidation",
-                        &r->uri);
-          break;
-        case pagespeed::RestampAction::kWrittenBack:
-        case pagespeed::RestampAction::kWriteFailed:
-          break;
+        switch (action) {
+          case pagespeed::RestampAction::kEvicted:
+            ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                          "pagespeed: 304 for %V is no longer storable in a "
+                          "shared cache (no-store/private) — evicted instead "
+                          "of restamped",
+                          &r->uri);
+            break;
+          case pagespeed::RestampAction::kEvictFailed:
+            // Never discard this silently: with stripe affinity enabled a
+            // NotOwned stripe would turn the eviction into a no-op, and a
+            // security fix that quietly stops firing is worse than one that
+            // fails loudly.
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                          "pagespeed: FAILED to evict non-storable entry for "
+                          "%V after 304 — a response marked no-store/private "
+                          "may remain cached",
+                          &r->uri);
+            break;
+          case pagespeed::RestampAction::kSkipped:
+            // Still storable, but this exchange may not extend its life
+            // (RFC 9111 §3.5 permit withdrawn, or the 304 set a cookie).
+            // Self-correcting: the entry revalidates again next request, and
+            // it cannot be used to flush another client's cached entry.
+            ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+                          "pagespeed: skipping 304 restamp for %V — refreshed "
+                          "headers do not permit this request to extend the "
+                          "shared entry",
+                          &r->uri);
+            break;
+          case pagespeed::RestampAction::kEntryGone:
+            ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+                          "pagespeed: skipping 304 restamp for %V — entry "
+                          "purged during revalidation",
+                          &r->uri);
+            break;
+          case pagespeed::RestampAction::kWrittenBack:
+          case pagespeed::RestampAction::kWriteFailed:
+            break;
+        }
       }
     }
 
@@ -3596,13 +3960,48 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
       }
     }
 
+    // Response-header sidecar: the 304's own lines are already in
+    // headers_out and stay; the stored lines whose names the 304 did not
+    // carry are added, so this 200 carries the same request-independent
+    // headers as the response the entry was recorded from.  Entries recorded
+    // before the gate have no stored lines and add nothing.
+    bool replayed_vary = false;
+    for (const auto& field : sidecar_plan.stored_not_overridden) {
+      auto* key = static_cast<u_char*>(ngx_pnalloc(r->pool, field.name.size()));
+      auto* value = static_cast<u_char*>(ngx_pnalloc(
+          r->pool, field.value.size() > 0 ? field.value.size() : 1));
+      if (key == nullptr || value == nullptr) {
+        break;
+      }
+      ngx_memcpy(key, field.name.data(), field.name.size());
+      ngx_memcpy(value, field.value.data(), field.value.size());
+      ngx_table_elt_t* h =
+          static_cast<ngx_table_elt_t*>(ngx_list_push(&r->headers_out.headers));
+      if (h == nullptr) {
+        break;
+      }
+      h->hash = 1;
+      h->next = nullptr;
+      h->key.data = key;
+      h->key.len = field.name.size();
+      h->value.data = value;
+      h->value.len = field.value.size();
+      if (pagespeed::HeaderNameEquals(field.name, "vary")) {
+        replayed_vary = true;
+      }
+    }
+
     // Emit Vary so downstream CDNs key on the right dimensions.  This 304 is
     // rewritten as a 200 carrying the cached bytes, so it is a served-from-
     // entry response: updated_meta is a copy of the stored metadata (flags
     // included), which is what carries the origin's Accept negotiation.
+    // When the origin's own Vary line was just added from the stored block,
+    // it already lists Accept, so the computed line does not repeat it (the
+    // MISS shape).
     ngx_http_pagespeed_emit_vary(
         r, updated_meta.content_type,
-        (updated_meta.flags & AlternateMetadata::kFlagOriginVariesAccept) != 0);
+        !replayed_vary && (updated_meta.flags &
+                           AlternateMetadata::kFlagOriginVariesAccept) != 0);
 
     // Add X-PageSpeed: REVALIDATED header.
     {
@@ -3783,6 +4182,15 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
                     "\"\";' to your proxy_pass location to fix this.",
                     &r->headers_out.content_encoding->value);
       ctx->uncacheable = 1;
+    }
+
+    // Response-header sidecar gate (issue #208), last of the store gates:
+    // a response another gate already refused is neither re-classified nor
+    // counted again.  Only a 200 that will actually be recorded (the body
+    // filter records nothing else) is classified.
+    if (!ctx->uncacheable && !ctx->head_request &&
+        r->headers_out.status == NGX_HTTP_OK) {
+      ngx_http_pagespeed_classify_origin_headers(r, ctx);
     }
   }
   return ngx_http_next_header_filter(r);

@@ -1103,6 +1103,35 @@ TEST_F(ApiHandlersIntegrationTest, MetricsExposesZerocopyAndSwrCounters) {
             std::string::npos);
 }
 
+// The v11 response-header sidecar counters are exported on /v1/metrics.
+TEST_F(ApiHandlersIntegrationTest, MetricsExposesHeadersSidecarCounters) {
+  ServeStats ss{};
+  ss.magic = ServeStats::kMagic;
+  ss.version = ServeStats::kVersion;
+  ss.headers_sidecar_fall_through = 7;
+  ss.headers_sidecar_never_optimized = 3;
+  ss.headers_sidecar_replayed = 11;
+  ss.headers_sidecar_missing = 2;
+  ss.headers_sidecar_write_failed = 1;
+  ss.headers_sidecar_stored = 5;
+  ctx_->serve_stats = &ss;
+
+  std::string resp =
+      SendRequest("GET /v1/metrics HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  EXPECT_NE(resp.find("pagespeed_headers_sidecar_fall_through_total 7"),
+            std::string::npos);
+  EXPECT_NE(resp.find("pagespeed_headers_sidecar_never_optimized_total 3"),
+            std::string::npos);
+  EXPECT_NE(resp.find("pagespeed_headers_sidecar_replayed_total 11"),
+            std::string::npos);
+  EXPECT_NE(resp.find("pagespeed_headers_sidecar_missing_total 2"),
+            std::string::npos);
+  EXPECT_NE(resp.find("pagespeed_headers_sidecar_write_failed_total 1"),
+            std::string::npos);
+  EXPECT_NE(resp.find("pagespeed_headers_sidecar_stored_total 5"),
+            std::string::npos);
+}
+
 TEST_F(ApiHandlersIntegrationTest, StatsJsonExposesZerocopyAndSwrCounters) {
   ServeStats ss{};
   ss.magic = ServeStats::kMagic;

@@ -131,6 +131,12 @@ TEST_F(ServeStatsTest, CreateReuseZeroesAllCounters) {
   stats->zerocopy_copy_then_verify_discards = 13;
   stats->swr_coalesced_serves = 14;
   stats->stale_if_error_serves = 15;
+  stats->headers_sidecar_fall_through = 16;
+  stats->headers_sidecar_never_optimized = 17;
+  stats->headers_sidecar_replayed = 18;
+  stats->headers_sidecar_missing = 19;
+  stats->headers_sidecar_write_failed = 20;
+  stats->headers_sidecar_stored = 21;
   CloseServeStats(stats);
 
   ServeStats* reused = CreateServeStats(path_);
@@ -156,7 +162,13 @@ TEST_F(ServeStatsTest, CreateReuseZeroesAllCounters) {
                          reused->zerocopy_proactive_copyouts,
                          reused->zerocopy_copy_then_verify_discards,
                          reused->swr_coalesced_serves,
-                         reused->stale_if_error_serves}) {
+                         reused->stale_if_error_serves,
+                         reused->headers_sidecar_fall_through,
+                         reused->headers_sidecar_never_optimized,
+                         reused->headers_sidecar_replayed,
+                         reused->headers_sidecar_missing,
+                         reused->headers_sidecar_write_failed,
+                         reused->headers_sidecar_stored}) {
     EXPECT_EQ(value, 0u);
   }
   CloseServeStats(reused);
@@ -203,6 +215,50 @@ TEST_F(ServeStatsTest, ZerocopyAndSwrRecordNullSafe) {
   RecordZerocopyCopyThenVerifyDiscard(nullptr);
   RecordSwrCoalescedServe(nullptr);
   RecordStaleIfErrorServe(nullptr);
+}
+
+// v11 response-header sidecar counters: each Record* helper increments its
+// own field, the values persist across a reopen, and nullptr is a no-op.
+TEST_F(ServeStatsTest, HeadersSidecarCountersRecordAndPersist) {
+  ServeStats* stats = CreateServeStats(path_);
+  ASSERT_NE(stats, nullptr);
+  RecordHeadersSidecarFallThrough(stats);
+  RecordHeadersSidecarFallThrough(stats);
+  RecordHeadersSidecarNeverOptimized(stats);
+  RecordHeadersSidecarReplayed(stats);
+  RecordHeadersSidecarReplayed(stats);
+  RecordHeadersSidecarReplayed(stats);
+  RecordHeadersSidecarMissing(stats);
+  RecordHeadersSidecarWriteFailed(stats);
+  RecordHeadersSidecarStored(stats);
+  RecordHeadersSidecarStored(stats);
+  CloseServeStats(stats);
+
+  ServeStats* reopened = OpenServeStats(path_);
+  ASSERT_NE(reopened, nullptr);
+  EXPECT_EQ(reopened->headers_sidecar_fall_through, 2u);
+  EXPECT_EQ(reopened->headers_sidecar_never_optimized, 1u);
+  EXPECT_EQ(reopened->headers_sidecar_replayed, 3u);
+  EXPECT_EQ(reopened->headers_sidecar_missing, 1u);
+  EXPECT_EQ(reopened->headers_sidecar_write_failed, 1u);
+  EXPECT_EQ(reopened->headers_sidecar_stored, 2u);
+  CloseServeStats(reopened);
+
+  RecordHeadersSidecarFallThrough(nullptr);
+  RecordHeadersSidecarNeverOptimized(nullptr);
+  RecordHeadersSidecarReplayed(nullptr);
+  RecordHeadersSidecarMissing(nullptr);
+  RecordHeadersSidecarWriteFailed(nullptr);
+  RecordHeadersSidecarStored(nullptr);
+}
+
+// The v11 block sits after the v10 block and before the identity/epoch pair.
+TEST_F(ServeStatsTest, V11LayoutOrdering) {
+  EXPECT_LT(offsetof(ServeStats, serve_hosts_other_optimized_bytes),
+            offsetof(ServeStats, headers_sidecar_fall_through));
+  EXPECT_LT(offsetof(ServeStats, headers_sidecar_stored),
+            offsetof(ServeStats, counting_since_unix_day));
+  EXPECT_EQ(offsetof(ServeStats, headers_sidecar_fall_through) % 8, 0u);
 }
 
 TEST_F(ServeStatsTest, AtomicIncrement) {
@@ -384,13 +440,14 @@ TEST_F(ServeStatsTest, StructSize) {
   // inside 512.  v8 adds the serve-class + saturation block (88 bytes).  v9
   // adds the by-encoding rows and grows the file to 1024.  v10 adds the 64
   // host slots and the other triple (10,776 bytes) and grows it to 16384.
+  // v11 adds the six response-header sidecar counters (48 bytes).
   EXPECT_EQ(ServeStats::kFileSize, 16384u);
-  EXPECT_EQ(ServeStats::kVersion, 10u);
+  EXPECT_EQ(ServeStats::kVersion, 11u);
   // The exact size is pinned in the header too; asserted here so the failure
   // names the surface rather than a translation unit.
-  EXPECT_EQ(sizeof(ServeStats), 11448u);
+  EXPECT_EQ(sizeof(ServeStats), 11496u);
   EXPECT_EQ(sizeof(ServeStats::HostSlot), 168u);
-  EXPECT_EQ(ServeStats::kFileSize - sizeof(ServeStats), 4936u)
+  EXPECT_EQ(ServeStats::kFileSize - sizeof(ServeStats), 4888u)
       << "headroom shrank: the next append may need a kFileSize bump";
 }
 
@@ -1024,7 +1081,7 @@ TEST_F(ServeStatsTest, LegacyV7FileIsRejectedAndRecreatedWithWarning) {
   const std::vector<std::string> warnings = handler.warnings();
   ASSERT_EQ(warnings.size(), 1u) << "expected exactly one skew warning";
   EXPECT_NE(warnings[0].find("version 7"), std::string::npos) << warnings[0];
-  EXPECT_NE(warnings[0].find("version 10"), std::string::npos) << warnings[0];
+  EXPECT_NE(warnings[0].find("version 11"), std::string::npos) << warnings[0];
 
   ServeStats* reopened = OpenServeStats(path_);
   ASSERT_NE(reopened, nullptr);
@@ -1604,7 +1661,7 @@ TEST_F(ServeStatsTest, LegacyV9FileIsRejectedAndRecreatedZeroedWithWarning) {
   const std::vector<std::string> warnings = handler.warnings();
   ASSERT_EQ(warnings.size(), 1u);
   EXPECT_NE(warnings[0].find("version 9"), std::string::npos) << warnings[0];
-  EXPECT_NE(warnings[0].find("version 10"), std::string::npos) << warnings[0];
+  EXPECT_NE(warnings[0].find("version 11"), std::string::npos) << warnings[0];
 
   ServeStats* reopened = OpenServeStats(path_);
   ASSERT_NE(reopened, nullptr);
