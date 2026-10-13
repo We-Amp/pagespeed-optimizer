@@ -20,7 +20,7 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
     <h1 class="text-3xl sm:text-4xl font-bold tracking-tight text-text-body">Privacy</h1>
     <p class="mt-4 text-sm text-text-annotation">
-      Effective date: October 2026 &middot; Version 2026-10-10
+      Effective date: October 2026 &middot; Version 2026-10-21
     </p>
     <p class="mt-6 text-lg text-text-muted">
       This notice covers how the <strong>modpagespeed.com</strong> website and its services process
@@ -185,13 +185,13 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
             <p class="mt-2 text-text-muted">
               The AI-readability scanner fetches a URL you submit so we can report how it looks to
               automated agents. It makes a few requests to that page: one in a headless browser, and
-              several plain requests (one without JavaScript, and agent requests with valid and
-              deliberately invalid signatures). Rendering runs on Google Cloud Run. As with the
-              PageSpeed Insights proxy, we process the submitted URL for the request, and we log
-              your IP address and rate-limit requests per address to prevent abuse. We keep the
-              result for up to 24 hours behind a shareable link. The link is unguessable, but anyone
-              who has it can view the result during that time. We do not otherwise retain the page
-              content.
+              several plain requests (one without JavaScript, one with Accept: text/markdown, one
+              for robots.txt, and agent requests with valid and deliberately invalid signatures).
+              Rendering runs on Google Cloud Run. As with the PageSpeed Insights proxy, we process
+              the submitted URL for the request, and we log your IP address and rate-limit requests
+              per address to prevent abuse. We keep the result for up to 24 hours behind a shareable
+              link. The link is unguessable, but anyone who has it can view the result during that
+              time. We do not otherwise retain the page content.
             </p>
             <p class="mt-2 text-sm text-text-annotation">
               Lawful basis: legitimate interest (Art. 6(1)(f) GDPR) in offering the tool and
@@ -227,6 +227,11 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
               notification) and logs it so we can follow up. The same applies when the form is sent
               as a plain form post without JavaScript. If a scripted submission fails, the form
               falls back to opening a pre-filled email in your own mail client instead.
+            </p>
+            <p class="mt-2 text-text-muted">
+              If you ask for an audit or send a message from a scan result, we also keep a summary
+              of that result (grade and findings, never page content) with your message, for as long
+              as we keep the message.
             </p>
             <p class="mt-2 text-sm text-text-annotation">
               Lawful basis: legitimate interest (Art. 6(1)(f) GDPR) in responding to your request,

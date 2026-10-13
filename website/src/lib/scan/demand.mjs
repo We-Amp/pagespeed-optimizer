@@ -73,6 +73,15 @@ export function responseFirewallCtaApplies(rx) {
   );
 }
 
+export function markdownOriginCtaApplies(agentSignals) {
+  return !!(
+    agentSignals &&
+    agentSignals.status === 'ok' &&
+    agentSignals.markdown &&
+    agentSignals.markdown.negotiated === false
+  );
+}
+
 export function buildLeadPayload({ wedge, email, name, note, report }) {
   const url = (report && report.url) || '';
   let lensSignal;
@@ -169,6 +178,16 @@ export function buildLeadPayload({ wedge, email, name, note, report }) {
             },
           }
         : null;
+  } else if (wedge === 'markdown-origin') {
+    const as = report.agentSignals || {};
+    const m = as.markdown || {};
+    lensSignal = {
+      verdict: as.verdict,
+      negotiated: m.negotiated,
+      httpStatus: m.httpStatus ?? null,
+      contentType: m.contentType ?? null,
+      varyAccept: !!m.varyAccept,
+    };
   } else {
     lensSignal = null;
   }

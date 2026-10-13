@@ -34,6 +34,7 @@ const GATED_ORDER = [
   'third-party-freeze',
   'edge-seo',
   'response-firewall',
+  'markdown-origin',
 ];
 
 // Break exactly one gate in the full report.
@@ -42,6 +43,8 @@ const without: Record<string, (r: Record<string, unknown>) => void> = {
     ((r.agentVerifiability as { detail: { verifiable: boolean } }).detail.verifiable = true),
   agentpass: (r) =>
     ((r.signedAgentVerification as { classification: string }).classification = 'ignoring'),
+  'markdown-origin': (r) =>
+    ((r.agentSignals as { markdown: { negotiated: boolean } }).markdown.negotiated = true),
   compliancefix: (r) => ((r.accessibility as { available: boolean }).available = false),
   'consent-enforcement': (r) => ((r.preConsentLeak as { verdict: string }).verdict = 'clean'),
   'edge-seo': (r) => ((r.seoDefects as { verdict: string }).verdict = 'clean'),
@@ -51,14 +54,14 @@ const without: Record<string, (r: Record<string, unknown>) => void> = {
 describe('chipsFor', () => {
   it('offers every gated chip in display order, then the ungated ones, on the full report', () => {
     const chips = chipsFor(full, 'good');
-    expect(chips.map((c) => c.id)).toEqual([...GATED_ORDER, 'consulting', 'agents']);
+    expect(chips.map((c) => c.id)).toEqual([...GATED_ORDER, 'consulting', 'agents', 'audit']);
     expect(chips.filter((c) => c.gated).every((c) => c.wedge === c.id)).toBe(true);
     expect(chips.filter((c) => !c.gated).every((c) => c.wedge === '')).toBe(true);
   });
 
   it('offers only the ungated chips on a clean report', () => {
     const chips = chipsFor(clean, 'good');
-    expect(chips.map((c) => c.id)).toEqual(['consulting', 'agents']);
+    expect(chips.map((c) => c.id)).toEqual(['consulting', 'agents', 'audit']);
     expect(chips.some((c) => c.selected)).toBe(false);
   });
 
@@ -92,7 +95,7 @@ describe('chipsFor', () => {
 
   it('gives the speed-help chip pre-selection priority on /analyze/ when Speed is Poor', () => {
     const chips = chipsFor(full, 'poor', 'analyze');
-    expect(chips.map((c) => c.id)).toEqual([...GATED_ORDER, 'consulting', 'agents']);
+    expect(chips.map((c) => c.id)).toEqual([...GATED_ORDER, 'consulting', 'agents', 'audit']);
     expect(chips.filter((c) => c.selected).map((c) => c.id)).toEqual([
       ...GATED_ORDER.slice(0, MAX_TOPICS - 1),
       'consulting',
@@ -106,7 +109,13 @@ describe('chipsFor', () => {
 
   it('pre-selects every gated chip when four or fewer fire', () => {
     const report = structuredClone(full);
-    for (const id of ['tollbooth', 'agentpass', 'compliancefix', 'consent-enforcement']) {
+    for (const id of [
+      'tollbooth',
+      'agentpass',
+      'markdown-origin',
+      'compliancefix',
+      'consent-enforcement',
+    ]) {
       without[id](report);
     }
     report.scriptInventory.verdict = 'clean';
@@ -118,6 +127,7 @@ describe('chipsFor', () => {
       'response-firewall',
       'consulting',
       'agents',
+      'audit',
     ]);
     expect(chips.filter((c) => c.selected).map((c) => c.id)).toEqual([
       'edge-seo',
@@ -134,6 +144,7 @@ describe('chipsFor', () => {
     for (const id of [
       'tollbooth',
       'agentpass',
+      'markdown-origin',
       'compliancefix',
       'consent-enforcement',
       'edge-seo',
@@ -150,9 +161,63 @@ describe('chipsFor', () => {
   });
 
   it('adds the speed-help chip only once Speed has settled; the agents chip is always there', () => {
-    expect(chipsFor(clean, null).map((c) => c.id)).toEqual(['agents']);
-    expect(chipsFor(null, null).map((c) => c.id)).toEqual(['agents']);
-    expect(chipsFor(null, 'poor').map((c) => c.id)).toEqual(['consulting', 'agents']);
+    expect(chipsFor(clean, null).map((c) => c.id)).toEqual(['agents', 'audit']);
+    expect(chipsFor(null, null).map((c) => c.id)).toEqual(['agents', 'audit']);
+    expect(chipsFor(null, 'poor').map((c) => c.id)).toEqual(['consulting', 'agents', 'audit']);
+  });
+
+  it('never pre-selects the audit chip and labels it with the price from the facts', () => {
+    const audit = chipsFor(full, 'poor').find((c) => c.id === 'audit')!;
+    expect(audit.selected).toBe(false);
+    expect(audit.gated).toBe(false);
+    expect(audit.label).toBe('Agent-readiness audit (\u20ac950 per site, excl. VAT)');
+  });
+
+  describe('markdown-origin chip', () => {
+    const ids = (r: Record<string, unknown>) => chipsFor(r, null).map((c) => c.id);
+    it('fires on the full report and not on the clean one', () => {
+      expect(ids(full)).toContain('markdown-origin');
+      expect(ids(clean)).not.toContain('markdown-origin');
+    });
+    it('does not fire when the key is absent or the lens did not run', () => {
+      const absent = structuredClone(full);
+      delete absent.agentSignals;
+      expect(ids(absent)).not.toContain('markdown-origin');
+      const errored = structuredClone(full);
+      errored.agentSignals.status = 'error';
+      expect(ids(errored)).not.toContain('markdown-origin');
+      const unknown = structuredClone(full);
+      unknown.agentSignals.markdown.negotiated = null;
+      expect(ids(unknown)).not.toContain('markdown-origin');
+    });
+    it('is the last gated chip, labelled for the wedge, offered but never pre-selected', () => {
+      const chips = chipsFor(full, null);
+      const at = chips.map((c) => c.id);
+      expect(at.indexOf('markdown-origin')).toBe(at.indexOf('response-firewall') + 1);
+      const chip = chips[at.indexOf('markdown-origin')];
+      expect(chip.label).toBe('Serving AI agents a Markdown copy at the origin');
+      expect(chip.gated).toBe(true);
+      expect(chip.selected).toBe(false);
+      expect(chips.filter((c) => c.selected).map((c) => c.id)).toEqual(GATED_ORDER.slice(0, 4));
+    });
+    it('posts the scanner’s object shape with no page text', () => {
+      const p = buildLeadPayload({
+        wedge: 'markdown-origin',
+        email: 'a@b.example',
+        name: '',
+        note: '',
+        report: full,
+      });
+      expect(p.lensSignal).toEqual({
+        verdict: 'attention',
+        negotiated: false,
+        httpStatus: 200,
+        contentType: 'text/html; charset=utf-8',
+        varyAccept: false,
+      });
+      expect(p.topic).toBe('markdown-origin');
+      expect(p.wedge).toBe('markdown-origin');
+    });
   });
 });
 

@@ -114,6 +114,11 @@ export function renderAireadPanel(panel: HTMLElement, ctx: PanelContext) {
     for (const f of m.alsoFound) {
       const li = el('li', '', f.text);
       li.dataset.wedge = f.wedge;
+      if (f.link) {
+        const a = el('a', 'ml-1 font-medium text-interactive underline', f.link.label);
+        a.href = f.link.href;
+        li.append(a);
+      }
       list.append(li);
     }
     found.append(list);

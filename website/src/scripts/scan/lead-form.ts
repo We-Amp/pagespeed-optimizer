@@ -63,6 +63,8 @@ export function initLeadForm(state: ScanState) {
   const submitBtn = form.querySelector<HTMLButtonElement>('button[type="submit"]')!;
   const msgEl = form.querySelector<HTMLElement>('[data-scan-lead-msg]')!;
   const preselectedEl = form.querySelector<HTMLElement>('[data-scan-preselected]')!;
+  const fallbackEl = form.querySelector<HTMLElement>('[data-scan-fallback]')!;
+  const auditEl = root.querySelector<HTMLElement>('[data-scan-audit]')!;
   const nextRow = root.querySelector<HTMLElement>('[data-scan-next]')!;
   const shareRow = root.querySelector<HTMLElement>('[data-scan-share]')!;
   const linkRow = shareRow.querySelector<HTMLElement>('[data-scan-permalink-row]')!;
@@ -147,6 +149,7 @@ export function initLeadForm(state: ScanState) {
 
   function onTopicsChange() {
     const picked = selected();
+    fallbackEl.hidden = picked.length > 0 || !preselectedEl.hidden;
     const wantsSites = picked.some((c) => SITES_WEDGES.includes(c.wedge));
     sitesEl.hidden = !wantsSites;
     sitesLabel.hidden = !wantsSites;
@@ -156,7 +159,9 @@ export function initLeadForm(state: ScanState) {
 
   // The second lead sentence is true only while a chip is pre-selected.
   function syncPreselectedNote() {
-    preselectedEl.hidden = !chips.some((c) => inputOf(c.id)?.checked);
+    const any = chips.some((c) => inputOf(c.id)?.checked);
+    preselectedEl.hidden = !any;
+    fallbackEl.hidden = any;
   }
 
   function psiNumbers() {
@@ -185,6 +190,8 @@ export function initLeadForm(state: ScanState) {
     touched = false;
     pending = true;
     preselectedEl.hidden = true;
+    fallbackEl.hidden = true;
+    auditEl.classList.add('invisible');
     downloadBtn.hidden = true;
     const bar = document.createElement('span');
     bar.className = 'scan-skeleton';
@@ -227,6 +234,7 @@ export function initLeadForm(state: ScanState) {
       chips = chipsFor(scan.report, speed, surface);
       chips.forEach(addChip);
       syncPreselectedNote();
+      auditEl.classList.toggle('invisible', !scan.report);
       form.hidden = false;
       submitBtn.disabled = false;
       onTopicsChange();
@@ -367,6 +375,9 @@ export function initLeadForm(state: ScanState) {
   // Next steps: the surface decides which event each link carries.
   const download = nextRow.querySelector<HTMLElement>('[data-scan-cta="download"]');
   const support = nextRow.querySelector<HTMLElement>('[data-scan-cta="support"]');
+  root
+    .querySelector<HTMLElement>('[data-scan-cta="audit"]')
+    ?.setAttribute('data-umami-event-surface', surface);
   if (surface === 'airead') {
     download?.setAttribute('data-umami-event', 'airead-cta-optimize');
     support?.setAttribute('data-umami-event', 'airead-cta-buy');

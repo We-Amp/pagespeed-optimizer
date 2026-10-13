@@ -436,6 +436,33 @@
       "renderedCleanTokens": 3300
     },
     "renderError": null,
-    "staticError": null
+    "staticError": null,
+    "agentSignals": {
+      "status": "ok",
+      "rulesVersion": "as-1",
+      "verdict": "ready",
+      "markdown": {
+        "probed": true,
+        "httpStatus": 200,
+        "contentType": "text/markdown; charset=utf-8",
+        "negotiated": true,
+        "vary": "Accept",
+        "varyAccept": true,
+        "xMarkdownTokens": 540
+      },
+      "contentSignals": {
+        "robotsFetched": true,
+        "present": false,
+        "lines": [],
+        "signals": {},
+        "unknown": []
+      },
+      "link": {
+        "present": false,
+        "rels": [],
+        "markdownAlternate": false
+      },
+      "note": null
+    }
   }
 }

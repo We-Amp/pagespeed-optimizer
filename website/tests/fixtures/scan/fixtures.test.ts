@@ -2,7 +2,7 @@
 // Copyright (c) 2024-2026 We-Amp B.V.
 
 // The scan fixtures drive the visual suite. They must stay faithful to what
-// the gate predicates read: the full report fires all eight gates, the clean
+// the gate predicates read: the full report fires all nine gates, the clean
 // one fires none, and the blocked one fires none with its risk lenses marked
 // as not measured.
 
@@ -13,6 +13,7 @@ import {
   complianceFixCtaApplies,
   consentEnforcementCtaApplies,
   edgeSeoCtaApplies,
+  markdownOriginCtaApplies,
   pageIntegrityCtaApplies,
   responseFirewallCtaApplies,
   thirdPartyFreezeCtaApplies,
@@ -32,13 +33,14 @@ function gates(report: Record<string, unknown>) {
     thirdPartyFreeze: thirdPartyFreezeCtaApplies(report.scriptInventory),
     edgeSeo: edgeSeoCtaApplies(report.seoDefects),
     responseFirewall: responseFirewallCtaApplies(report.responseExposure),
+    markdownOrigin: markdownOriginCtaApplies(report.agentSignals),
   };
 }
 
 const RISK_LENSES = ['preConsentLeak', 'scriptInventory', 'seoDefects', 'responseExposure'];
 
 describe('scan fixtures', () => {
-  it('full report: grade C, every risk lens ok, all eight gates fire', () => {
+  it('full report: grade C, every risk lens ok, all nine gates fire', () => {
     const data = load('report-full');
     const r = data.report;
     expect(r.grade).toBe('C');
@@ -49,7 +51,7 @@ describe('scan fixtures', () => {
       /^https:\/\/modpagespeed\.com\/ai-readability\/api\/r\/[0-9a-f]{12}$/,
     );
     expect(Object.values(gates(r)).every((v) => v === true)).toBe(true);
-    expect(Object.keys(gates(r))).toHaveLength(8);
+    expect(Object.keys(gates(r))).toHaveLength(9);
   });
 
   it('clean report: grade A, every risk lens ok and clean, no gate fires', () => {
