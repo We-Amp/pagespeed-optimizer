@@ -5,6 +5,7 @@ date: 2026-10-10
 author: 'Otto van der Schaaf'
 tags: ['data', 'mod_pagespeed', 'ngx_pagespeed', 'security', 'hosting']
 draft: false
+tool: crawler-cost
 ---
 
 <!-- census:begin headline -->

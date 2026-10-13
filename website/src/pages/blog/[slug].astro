@@ -270,6 +270,18 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
       <NewsletterSignup variant="blog" slug={post.id} />
     </div>
 
+    {post.data.tool === 'crawler-cost' && (
+      <aside class="mt-8 rounded-lg border border-border bg-bg-secondary p-4 text-sm text-text-muted">
+        <a
+          href="/ai-crawler-cost/"
+          data-umami-event="blog-tool-crawler-cost"
+          class="font-medium text-interactive hover:text-interactive-hover"
+        >
+          Estimate what AI crawlers cost your server and see what they send back.
+        </a>{' '}
+        Drop an access log; nothing from it leaves your browser.
+      </aside>
+    )}
     {related.length > 0 && (
       <section class="mt-12 border-t border-border pt-8">
         <h2 class="text-sm font-semibold uppercase tracking-wider text-text-annotation">
