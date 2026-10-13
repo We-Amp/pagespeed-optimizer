@@ -119,7 +119,7 @@ describe('formatAiread extras', () => {
   it('words the Markdown row by outcome and tolerates a missing or failed lens', () => {
     const full = formatAiread(fixture('full')).alsoFound.at(-1)!;
     expect(full.text).toBe(
-      'This page did not return Markdown when asked for it (Accept: text/markdown). The mod_pagespeed 2.1 optimizer worker can serve a rendered Markdown copy at the same URL, on your own server, off by default. The module on its own adds Vary: Accept and does not render.',
+      'This page did not return Markdown when asked for it (Accept: text/markdown). The mod_pagespeed 2.1 optimizer worker can serve a rendered Markdown copy at the same URL, on your own server. It is experimental and off by default. The module alone never renders Markdown; with AgentOptimize on it only adds Vary: Accept.',
     );
     expect(full.link).toEqual({ label: 'How it works', href: '/docs/agent-optimize/' });
     const clean = formatAiread(fixture('clean')).alsoFound[0];

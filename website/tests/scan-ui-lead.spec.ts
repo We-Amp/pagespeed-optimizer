@@ -421,7 +421,7 @@ test.describe('next steps and share', () => {
     const audit = page.locator('[data-scan-audit]');
     await expect(audit).toBeVisible();
     await expect(audit).toContainText(
-      'Want this done for your site? Agent-readiness audit, €950 per site, excl. VAT',
+      'Want a full check of this site? Agent-readiness audit, €950 per site, excl. VAT',
     );
     const auditLink = audit.getByRole('link', { name: 'Ask for an audit' });
     await expect(auditLink).toHaveAttribute('href', '/contact/?topic=audit');

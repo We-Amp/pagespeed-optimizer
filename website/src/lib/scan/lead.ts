@@ -98,7 +98,7 @@ export const CONSULTING = { id: 'consulting', label: 'Help applying the speed fi
 export const AGENTS = { id: 'agents', label: 'AI agents and crawlers' };
 export const AUDIT = {
   id: 'audit',
-  label: `Agent-readiness audit (${formatEur(AUDIT_PRICE_EUR)} per site)`,
+  label: `Agent-readiness audit (${formatEur(AUDIT_PRICE_EUR)} per site, excl. VAT)`,
 };
 
 /** Wedges whose lead carries the optional "sites you run" count. */
