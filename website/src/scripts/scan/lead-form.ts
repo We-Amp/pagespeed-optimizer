@@ -149,7 +149,7 @@ export function initLeadForm(state: ScanState) {
 
   function onTopicsChange() {
     const picked = selected();
-    fallbackEl.hidden = picked.length > 0;
+    fallbackEl.hidden = picked.length > 0 || !preselectedEl.hidden;
     const wantsSites = picked.some((c) => SITES_WEDGES.includes(c.wedge));
     sitesEl.hidden = !wantsSites;
     sitesLabel.hidden = !wantsSites;

@@ -121,9 +121,13 @@ test.describe('the one lead form', () => {
   test('keeps the audit line hidden while a scan runs and again on a rescan', async ({ page }) => {
     await mock(page);
     let release!: () => void;
+    let releaseSecond!: () => void;
     const gate = new Promise<void>((r) => (release = r));
+    const gateSecond = new Promise<void>((r) => (releaseSecond = r));
+    let scans = 0;
     await page.route('**/ai-readability/api/scan**', async (route) => {
-      await gate;
+      scans += 1;
+      await (scans === 1 ? gate : gateSecond);
       await route.fulfill({ status: 200, contentType: 'application/json', body: fixture('full') });
     });
     await stubUmami(page);
@@ -138,6 +142,8 @@ test.describe('the one lead form', () => {
     await page.fill('#scan-url', 'other.example.com');
     await page.click('#scan-submit');
     await expect(page.locator('[data-scan-audit]')).toBeHidden();
+    releaseSecond();
+    await expect(page.locator('[data-scan-audit]')).toBeVisible({ timeout: 15000 });
   });
 
   test('says which sentence applies: pre-selected topics, or the neutral question', async ({
@@ -153,6 +159,27 @@ test.describe('the one lead form', () => {
     await expect(page.locator('[data-scan-fallback]')).toHaveText(
       'Questions about how AI agents read your site? Tell us.',
     );
+  });
+
+  test('hides the neutral question as soon as a topic is checked', async ({ page }) => {
+    await mock(page, { report: 'clean' });
+    await scanV2(page);
+    await expect(page.locator('[data-scan-fallback]')).toBeVisible();
+    await chip(page, 'agents').check();
+    await expect(page.locator('[data-scan-fallback]')).toBeHidden();
+  });
+
+  test('shows exactly one intro sentence after every pre-selected topic is unchecked', async ({
+    page,
+  }) => {
+    await mock(page);
+    await scanV2(page);
+    for (const id of await checkedIds(page)) await chip(page, id).uncheck();
+    expect(await checkedIds(page)).toEqual([]);
+    const shown = await Promise.all(
+      ['[data-scan-preselected]', '[data-scan-fallback]'].map((s) => page.locator(s).isVisible()),
+    );
+    expect(shown.filter(Boolean)).toHaveLength(1);
   });
 
   test('pre-selects the speed-help chip only when Speed is Poor', async ({ page }) => {
