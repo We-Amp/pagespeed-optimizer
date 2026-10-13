@@ -10,6 +10,29 @@ flight or when the origin returns an error; those requests go to the origin
 instead (RFC 9111 section 5.2.2). Sites that relied on stale serves of such
 responses will see a few more origin fetches around expiry.
 
+Changed: the nginx module no longer caches a response whose headers a cache
+hit could not reproduce. A response that carries a header outside the set a
+cached copy can carry (for example `X-Powered-By`, `X-Frame-Options` or a
+custom `X-` header) is now passed through from the origin on every request
+instead of being cached without that header. Responses whose
+`Content-Security-Policy` contains a per-response nonce are never cached.
+Responses that carry only `Content-Security-Policy`,
+`Access-Control-Allow-Origin`, `X-Content-Type-Options`, `Referrer-Policy`,
+`Cross-Origin-*`, `Permissions-Policy` and `Vary` beside the usual caching
+headers are cached as before, and the module now stores those header lines
+with the cached copy; sending them on cache hits is a separate change that
+follows. To keep caching a response that carries another header, remove it
+with `proxy_hide_header`, or set it on the nginx server with `add_header`,
+which nginx applies to cache hits as well. Five new counters on
+`/v1/metrics` show the effect: `pagespeed_headers_sidecar_fall_through_total`
+(responses not cached because of such a header),
+`pagespeed_headers_sidecar_never_optimized_total` (nonce-bearing policies),
+`pagespeed_headers_sidecar_write_failed_total`, and two that stay at zero
+until the hit side follows (`pagespeed_headers_sidecar_replayed_total`,
+`pagespeed_headers_sidecar_missing_total`). The serve statistics file is
+recreated once on upgrade, so these and the other serve counters start
+from zero.
+
 ## 2.3.0 — 2026-10-12
 
 This release fixes stale copies of CSS, JavaScript and image files after

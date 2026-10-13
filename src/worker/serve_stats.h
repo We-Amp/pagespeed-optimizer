@@ -63,7 +63,7 @@ class MessageHandler;
 // aarch64) because aligned 64-bit loads/stores are naturally atomic.
 struct ServeStats {
   static constexpr uint32_t kMagic = 0x50533032;  // "PS02"
-  static constexpr uint32_t kVersion = 10;
+  static constexpr uint32_t kVersion = 11;
   // 1024 (was 512 through v8, 256 through v5, 128 through v3): v6 adds the opt-in
   // counter apparatus (per-signer slots, overflow, verify-latency buckets, a
   // boot identity and a counting-since day) — 192 bytes of additions overflow
@@ -83,7 +83,9 @@ struct ServeStats {
   // the same version bump.
   // v10 adds 64 host slots and the other triple (10,776 bytes), past v9's
   // 352-byte headroom, so the file grows to 16384 on the same version bump.
-  // HEADROOM AFTER v10 IS 4936 BYTES.
+  // v11 adds the five response-header sidecar counters (40 bytes), inside
+  // v10's headroom; the version bump forces a fresh file as before.
+  // HEADROOM AFTER v11 IS 4896 BYTES.
   static constexpr size_t kFileSize = 16384;
 
   // Web Bot Auth opt-in counter (experimental): the maximum
@@ -407,6 +409,30 @@ struct ServeStats {
   uint64_t serve_hosts_other_optimized_bytes;
   // ---- end v10 block (10,776 bytes) ----
 
+  // ---- v11: response-header sidecar (issue #208) ----
+  // WRITER: the nginx front stage.  The gate is ClassifyForHeadersSidecar
+  // (lib/cache/headers_sidecar.h), run on the origin's header lines when a
+  // 200 is about to be recorded.
+  //   headers_sidecar_fall_through   — responses not cached because a header
+  //                                    could not be reproduced on a hit;
+  //   headers_sidecar_never_optimized — responses not cached because their
+  //                                    Content-Security-Policy carries a
+  //                                    nonce (disjoint from the above);
+  //   headers_sidecar_replayed       — cache hits that replayed at least one
+  //                                    stored header line;
+  //   headers_sidecar_missing        — cache hits refused (served as a miss)
+  //                                    because the entry requires a stored
+  //                                    header block that could not be read;
+  //   headers_sidecar_write_failed   — records abandoned because the header
+  //                                    block could not be written (the entry
+  //                                    is then not written either).
+  uint64_t headers_sidecar_fall_through;
+  uint64_t headers_sidecar_never_optimized;
+  uint64_t headers_sidecar_replayed;
+  uint64_t headers_sidecar_missing;
+  uint64_t headers_sidecar_write_failed;
+  // ---- end v11 block (40 bytes) ----
+
   // Days since the Unix epoch when this counting file was first created fresh.
   // Day-granular ("since" date).  Minted in the create-fresh path only;
   // PRESERVED across same-version reuse/restart (NOT a counter).
@@ -426,10 +452,10 @@ struct ServeStats {
   uint8_t boot_id[16];
 };
 static_assert(sizeof(ServeStats) <= ServeStats::kFileSize);
-// Pin the EXACT size (v10).  The <= assert above only catches an overflow; it
+// Pin the EXACT size (v11).  The <= assert above only catches an overflow; it
 // would happily accept a field silently dropped or re-typed.  Anything that
 // changes the layout must change this number and the version together.
-static_assert(sizeof(ServeStats) == 11448,
+static_assert(sizeof(ServeStats) == 11488,
               "ServeStats layout changed: bump kVersion and update this pin");
 static_assert(alignof(ServeStats) == 8);
 // The v8 block must stay 8-byte aligned so every u64 in it can be updated with
@@ -639,6 +665,15 @@ void RecordZerocopyCopyThenVerifyDiscard(ServeStats* stats);
 // error.  Same discipline; stats == nullptr is a no-op.
 void RecordSwrCoalescedServe(ServeStats* stats);
 void RecordStaleIfErrorServe(ServeStats* stats);
+
+// Atomically record one response-header sidecar event (v11, issue #208),
+// incremented by the nginx front stage.  Same discipline; stats == nullptr is
+// a no-op.  See the v11 block for what each one counts.
+void RecordHeadersSidecarFallThrough(ServeStats* stats);
+void RecordHeadersSidecarNeverOptimized(ServeStats* stats);
+void RecordHeadersSidecarReplayed(ServeStats* stats);
+void RecordHeadersSidecarMissing(ServeStats* stats);
+void RecordHeadersSidecarWriteFailed(ServeStats* stats);
 
 // Atomically record ONE classified serve: exactly one serve-class counter is
 // incremented, plus notify_suppressed_total when `flags` carries

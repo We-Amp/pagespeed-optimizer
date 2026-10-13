@@ -64,7 +64,11 @@ static void ZeroCounters(ServeStats* s) {
         &s->serve_original_pending_total, &s->serve_original_declined_total,
         &s->serve_original_skew_total, &s->notify_suppressed_total,
         &s->serve_class_unrecognized_total, &s->serve_flags_unrecognized_total,
-        &s->saturation_sample_accum, &s->saturation_sample_count}) {
+        &s->saturation_sample_accum, &s->saturation_sample_count,
+        // v11 response-header sidecar counters.
+        &s->headers_sidecar_fall_through, &s->headers_sidecar_never_optimized,
+        &s->headers_sidecar_replayed, &s->headers_sidecar_missing,
+        &s->headers_sidecar_write_failed}) {
     std::atomic_ref<uint64_t>(*field).store(0, std::memory_order_relaxed);
   }
   // v9 by-transfer-encoding serve counters: zeroed with the counters above,
@@ -731,6 +735,31 @@ void RecordSwrCoalescedServe(ServeStats* stats) {
 void RecordStaleIfErrorServe(ServeStats* stats) {
   if (stats == nullptr) return;
   RelaxedAdd(stats->stale_if_error_serves, 1);
+}
+
+void RecordHeadersSidecarFallThrough(ServeStats* stats) {
+  if (stats == nullptr) return;
+  RelaxedAdd(stats->headers_sidecar_fall_through, 1);
+}
+
+void RecordHeadersSidecarNeverOptimized(ServeStats* stats) {
+  if (stats == nullptr) return;
+  RelaxedAdd(stats->headers_sidecar_never_optimized, 1);
+}
+
+void RecordHeadersSidecarReplayed(ServeStats* stats) {
+  if (stats == nullptr) return;
+  RelaxedAdd(stats->headers_sidecar_replayed, 1);
+}
+
+void RecordHeadersSidecarMissing(ServeStats* stats) {
+  if (stats == nullptr) return;
+  RelaxedAdd(stats->headers_sidecar_missing, 1);
+}
+
+void RecordHeadersSidecarWriteFailed(ServeStats* stats) {
+  if (stats == nullptr) return;
+  RelaxedAdd(stats->headers_sidecar_write_failed, 1);
 }
 
 void RecordServeClass(ServeStats* stats, ServeClass cls, uint32_t flags) {

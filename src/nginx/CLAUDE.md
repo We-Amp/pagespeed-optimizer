@@ -24,9 +24,33 @@ Headers inspected before recording to cache:
 | `Vary: *` or unsupported Vary | NOT cached |
 | `Vary: Accept-Encoding, User-Agent, Accept, Save-Data` | Allowed (handled via capability mask) |
 | HEAD requests | NOT cached |
+| Any origin header a cache hit cannot reproduce (`ClassifyForHeadersSidecar` fall-through, e.g. `X-Powered-By`) | NOT cached, stored entry for the URL removed, `headers_sidecar_fall_through` counted, one NOTICE per (host, header) |
+| `Content-Security-Policy` carrying a nonce | NOT cached, stored entry removed, `headers_sidecar_never_optimized` counted |
+| Only reproducible headers (allowlisted, metadata-reproduced, or stamped per response) | Cached; allowlisted lines stored in the `0x6C` sidecar |
 
 Flags set in header filter, checked in body filter. HIT path unaffected —
 except by the Authorization gate, which also gates the HIT path (see below).
+
+**Response-header sidecar, store side** (issue #208; decisions in
+`src/nginx/headers_sidecar_record.h`). The header filter snapshots the
+ORIGIN's header lines (`ctx->origin_headers`) before the module adds its own
+(X-PageSpeed, Accept-CH, x-verified-bot, Vary), and the gate runs on that
+snapshot last among the MISS-block gates (200, non-HEAD, not already
+uncacheable). `record_response` writes the sidecar FIRST and only then the
+entry, flagged `kFlagHeadersClassified` (+ `kFlagHeadersSidecarRequired` when a
+block was stored); a failed block write stores no entry
+(`headers_sidecar_write_failed`). With nothing to carry the entry is flagged
+classified only and a leftover block is removed. The "stored exists, skip
+write" shortcut is bypassed for a pre-gate entry, a required-but-missing block
+(self-heal), a changed block, or a carry-state switch (which removes the whole
+URL first, because worker variants carry the old bits); the last three are
+single-flighted through the per-URL refresh slot. The 304 path merges the
+stored block with the 304's lines (RFC 9111 §4.3.4): same block → restamp;
+same carry state, new block → rewrite block then restamp (block write failure
+skips the restamp); refusal / carry switch / unreadable required block → remove
+the URL and serve the response. The rewritten 200 adds the stored lines the
+304 did not carry. HITs do not replay the block yet (a follow-up change); entries without the
+classified bit serve exactly as before.
 
 ## HIT Path
 

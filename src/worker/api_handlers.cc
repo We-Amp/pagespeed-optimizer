@@ -1146,6 +1146,26 @@ std::string BuildPrometheusMetricsText(const PrometheusMetricsInputs& in) {
     counter("pagespeed_stale_if_error_serves_total",
             "Stale entries served because the upstream returned >= 500.",
             load(ss->stale_if_error_serves));
+    // Response-header sidecar (nginx shared mmap, v11).
+    counter("pagespeed_headers_sidecar_fall_through_total",
+            "Responses not cached because an origin header cannot be "
+            "reproduced on a cache hit.",
+            load(ss->headers_sidecar_fall_through));
+    counter("pagespeed_headers_sidecar_never_optimized_total",
+            "Responses not cached because their Content-Security-Policy "
+            "carries a nonce.",
+            load(ss->headers_sidecar_never_optimized));
+    counter("pagespeed_headers_sidecar_replayed_total",
+            "Cache hits that replayed stored origin headers.",
+            load(ss->headers_sidecar_replayed));
+    counter("pagespeed_headers_sidecar_missing_total",
+            "Cache hits served as a miss because the stored origin headers "
+            "could not be read.",
+            load(ss->headers_sidecar_missing));
+    counter("pagespeed_headers_sidecar_write_failed_total",
+            "Records abandoned because the origin headers could not be "
+            "stored.",
+            load(ss->headers_sidecar_write_failed));
   }
 
   return m;

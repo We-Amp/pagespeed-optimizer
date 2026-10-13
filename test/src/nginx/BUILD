@@ -54,6 +54,21 @@ gtest_test(
     ],
 )
 
+# Store-side response-header sidecar decisions (issue #208): the
+# gate on origin header sets, the sidecar-first record and re-record rules
+# against a REAL cache on a temp volume, and the 304 merge plan.
+gtest_test(
+    name = "headers_sidecar_record_test",
+    deps = [
+        "//lib/cache:headers_sidecar",
+        "//lib/cache:pagespeed_cache",
+        "//lib/classify:alternate_id",
+        "//lib/classify:alternate_metadata",
+        "//src/nginx:headers_sidecar_record",
+        "//test/test_util:temp_dir",
+    ],
+)
+
 gtest_test(
     name = "etag_util_test",
     deps = [

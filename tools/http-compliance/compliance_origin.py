@@ -35,6 +35,20 @@ TESTDATA_DIR = os.environ.get("COMPLIANCE_TESTDATA", "/var/www")
 # "unchanged", not "cleared" (RFC 9111 Section 4.3.4).
 VARY_FLIP = {"flip": False, "flip-etag": False, "etag-rev": "1"}
 
+# Response-header sidecar control (issue #208): /sidecar/flip.css starts
+# with only reproducible headers and can be switched, at runtime, to also
+# send a header a cache hit cannot reproduce.
+SIDECAR_FLIP = {"custom": False}
+
+# The reproducible security set the sidecar routes send (every name is in
+# the sidecar allowlist).
+SIDECAR_SECURITY_HEADERS = (
+    ("Access-Control-Allow-Origin", "*"),
+    ("Content-Security-Policy", "default-src 'self'"),
+    ("X-Content-Type-Options", "nosniff"),
+    ("Referrer-Policy", "no-referrer"),
+)
+
 # Content type mapping
 MIME_TYPES = {
     ".html": "text/html; charset=utf-8",
@@ -626,6 +640,70 @@ class ComplianceHandler(http.server.BaseHTTPRequestHandler):
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
             self.send_header("Content-Length", str(len(content)))
+            self.end_headers()
+            if send_body:
+                self.wfile.write(content)
+            return True
+
+        # Response-header sidecar routes (issue #208).  Each sends a
+        # cacheable stylesheet/page plus a header set chosen to land in one
+        # verdict of the store-side gate:
+        #   /sidecar/asset.css   only reproducible headers (security set)
+        #   /sidecar/custom.css  + X-Powered-By (cannot be reproduced)
+        #   /sidecar/nonce.html  CSP with a per-response nonce
+        #   /sidecar/vary-origin.css  Vary: Origin (never stored)
+        #   /sidecar/flip.css    short-lived; X-Custom-Foo switched on via
+        #                        /sidecar/control?custom=on
+        if path == "/sidecar/control":
+            query = self.path.split("?", 1)[1] if "?" in self.path else ""
+            params = dict(p.split("=", 1) for p in query.split("&") if "=" in p)
+            if "custom" in params:
+                SIDECAR_FLIP["custom"] = params["custom"] in ("1", "on", "true")
+            body = ("%s\n" % SIDECAR_FLIP).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Date", formatdate(usegmt=True))
+            self.end_headers()
+            if send_body:
+                self.wfile.write(body)
+            return True
+        if path in (
+            "/sidecar/asset.css",
+            "/sidecar/custom.css",
+            "/sidecar/nonce.html",
+            "/sidecar/vary-origin.css",
+            "/sidecar/flip.css",
+        ):
+            is_html = path.endswith(".html")
+            content = (
+                b"<html><body><p>sidecar</p></body></html>"
+                if is_html
+                else ("/* %s */ body { color: green; }" % path).encode()
+            )
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html" if is_html else "text/css")
+            self.send_header("Content-Length", str(len(content)))
+            if path == "/sidecar/flip.css":
+                self.send_header("Cache-Control", "max-age=1")
+            else:
+                self.send_header("Cache-Control", "public, max-age=600")
+                self.send_header("ETag", etag_for(content))
+            if path == "/sidecar/nonce.html":
+                self.send_header(
+                    "Content-Security-Policy", "script-src 'nonce-abc123'"
+                )
+            else:
+                for name, value in SIDECAR_SECURITY_HEADERS:
+                    self.send_header(name, value)
+            if path == "/sidecar/custom.css":
+                self.send_header("X-Powered-By", "PHP/8.3")
+            if path == "/sidecar/vary-origin.css":
+                self.send_header("Vary", "Origin")
+            if path == "/sidecar/flip.css" and SIDECAR_FLIP["custom"]:
+                self.send_header("X-Custom-Foo", "bar")
+            self.send_header("Date", formatdate(usegmt=True))
             self.end_headers()
             if send_body:
                 self.wfile.write(content)
