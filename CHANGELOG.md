@@ -4,14 +4,15 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
-Fixed: a stale cached response that the origin confirms is still current
-(a 304 to the module's own revalidation request) is now served to a client
+Fixed: nginx now serves a stale cached response that the origin confirms is
+still current (a 304 to the module's own revalidation request) to a client
 that sent no conditional request as a normal `200` with the full body, as RFC
 9111 section 4.3.4 requires. Previously such a client could receive a bodyless
 `304 Not Modified` it had not asked for. A client whose own `If-None-Match`
-matches still receives a `304`. Separately, a stale response served because
-the origin returned a 5xx error now carries the status line `HTTP/1.1 200 OK`;
-it used to carry the origin's error status line together with the cached body.
+matches the response's ETag still receives a `304`. Separately, a stale
+response served because the origin returned a 5xx error now carries the
+status line `HTTP/1.1 200 OK`; it used to carry the origin's error status line
+together with the cached body.
 
 Fixed: responses served from the nginx cache now carry the
 `Content-Security-Policy`, `Access-Control-Allow-Origin`,

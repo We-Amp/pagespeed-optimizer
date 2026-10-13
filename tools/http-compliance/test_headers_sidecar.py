@@ -449,15 +449,31 @@ class TestHeadersSidecarReplay:
             serve_control(origin_client, rp="no-referrer")
 
 
+def settled_hit(client, path: str):
+    """A cache HIT whose body has stopped changing: the optimizer's variant
+    can land after the first HIT, and a test that sleeps past max-age must
+    not see the variant arrive during the sleep.  (wait_for_optimized_hit
+    needs a true first MISS; these tests share URLs with earlier ones.)"""
+    deadline = time.time() + 30
+    client.get(path, headers=IDENTITY)
+    last = client.poll_for_hit(path, headers=IDENTITY)
+    client.assert_hit(last)
+    while time.time() < deadline:
+        time.sleep(1.5)
+        again = client.get(path, headers=IDENTITY)
+        if again.content == last.content and x_pagespeed(again) == "HIT":
+            return again
+        last = again
+    raise AssertionError("the cached body never settled")
+
+
 class TestRevalidatedStatusLine:
     """The status line follows the status code on the two serve paths that
     rewrite the origin's answer (issue #216)."""
 
     def test_stale_if_error_status_line_is_200(self, client, origin_client):
         path = "/sidecar/flaky.css"
-        client.get(path, headers=IDENTITY)
-        hit = client.poll_for_hit(path, headers=IDENTITY)
-        client.assert_hit(hit)
+        hit = settled_hit(client, path)
         try:
             serve_control(origin_client, fail="on")
             time.sleep(2.5)
@@ -477,9 +493,7 @@ class TestRevalidatedStatusLine:
         path = "/sidecar/reval.css"
         try:
             serve_control(origin_client, rp="no-referrer")
-            client.get(path, headers=IDENTITY)
-            hit = client.poll_for_hit(path, headers=IDENTITY)
-            client.assert_hit(hit)
+            hit = settled_hit(client, path)
             serve_control(origin_client, rp="same-origin")
             time.sleep(2.5)
             status_line, header_lines, body = raw_get(path)
@@ -498,9 +512,7 @@ class TestRevalidatedStatusLine:
         with no body."""
         path = "/sidecar/reval.css"
         serve_control(origin_client, rp="no-referrer")
-        client.get(path, headers=IDENTITY)
-        hit = client.poll_for_hit(path, headers=IDENTITY)
-        client.assert_hit(hit)
+        hit = settled_hit(client, path)
         time.sleep(2.5)
         # The validator the client holds is the one the revalidated response
         # carried.
@@ -513,7 +525,20 @@ class TestRevalidatedStatusLine:
         status_line, header_lines, body = raw_get(path, {"If-None-Match": etag})
         assert status_line == "HTTP/1.1 304 Not Modified", status_line
         assert raw_header(header_lines, "X-PageSpeed") == ["REVALIDATED"]
+        assert raw_header(header_lines, "ETag") == [etag]
+        assert raw_header(header_lines, "Cache-Control")
+        assert raw_header(header_lines, "Vary")
+        assert raw_header(header_lines, "Referrer-Policy") == ["no-referrer"]
+        assert raw_header(header_lines, "Content-Length") == []
         assert body == b""
+
+        # A validator that does not match gets the full 200.
+        time.sleep(2.5)
+        status_line, header_lines, body = raw_get(
+            path, {"If-None-Match": '"nomatch"'}
+        )
+        assert status_line == "HTTP/1.1 200 OK", status_line
+        assert body == hit.content
 
 
 def requests_get(client, path: str):
