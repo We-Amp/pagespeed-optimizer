@@ -6,7 +6,9 @@ import { StreamError, isGzip, readLines } from '../../src/lib/crawler-cost/strea
 
 const enc = new TextEncoder();
 function streamOf(...parts: Array<Uint8Array | string>): ReadableStream<Uint8Array> {
-  return new Blob(parts.map((p) => (typeof p === 'string' ? enc.encode(p) : p))).stream();
+  return new Blob(
+    parts.map((p) => (typeof p === 'string' ? enc.encode(p) : p) as BlobPart),
+  ).stream();
 }
 async function collect(s: ReadableStream<Uint8Array>, opts = {}) {
   const out: Array<{ text: string; cut: boolean }> = [];
