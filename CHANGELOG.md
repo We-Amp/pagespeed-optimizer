@@ -4,6 +4,27 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Fixed: responses served from the nginx cache now carry the
+`Content-Security-Policy`, `Access-Control-Allow-Origin`,
+`X-Content-Type-Options`, `Referrer-Policy`, `Cross-Origin-*`,
+`Permissions-Policy` and `Vary` headers the origin sent with them. This holds
+for fresh cache hits, for stale copies served while a refresh is in flight
+or while the origin returns an error, and for copies revalidated with the
+origin. Previously these headers were missing on cache hits. Responses
+cached by an earlier release regain the headers as each cached URL next
+expires: at that point the module fetches the URL from the origin in full
+once instead of revalidating it, so expect one full origin fetch per cached
+URL in the first cache lifetime after upgrading. A re-recorded URL gets a
+new validator, so clients miss one conditional request for it (they receive
+the full response once instead of a 304). Responses the origin marks
+`no-cache` keep being revalidated and regain the headers when their content
+changes. To restore the headers on every cached URL at once, purge the cache
+after upgrading. If you added any of these headers on the nginx server with
+`add_header` to work around them missing on cache hits, remove that
+workaround, or clients will receive them twice. When the stored header lines
+of a cached URL cannot be read, the request is fetched from the origin and
+the lines are stored again.
+
 Fixed: nginx no longer serves a stale cached response whose origin sent
 `must-revalidate`, `proxy-revalidate` or `s-maxage` while a refresh is in
 flight or when the origin returns an error; those requests go to the origin
@@ -20,10 +41,7 @@ Responses that carry only `Content-Security-Policy`,
 `Access-Control-Allow-Origin`, `X-Content-Type-Options`, `Referrer-Policy`,
 `Cross-Origin-*`, `Permissions-Policy` and `Vary` beside the usual caching
 headers are cached as before, and the module now stores those header lines
-with the cached copy. Cache hits do not send the stored lines yet, so on a
-hit these headers are still missing, as in earlier releases; a response
-revalidated with the origin (the origin answers 304) can already carry the
-stored lines the 304 did not repeat. To keep caching a
+with the cached copy (see the next entry). To keep caching a
 response that carries another header, remove it with `proxy_hide_header`,
 or set it on the nginx server with `add_header`, which nginx applies to
 cache hits as well. Six new counters on `/v1/metrics` show the effect:
@@ -31,14 +49,16 @@ cache hits as well. Six new counters on `/v1/metrics` show the effect:
 of such a header), `pagespeed_headers_sidecar_never_optimized_total`
 (nonce-bearing policies), `pagespeed_headers_sidecar_stored_total` (header
 blocks stored with a cached copy), `pagespeed_headers_sidecar_write_failed_total`,
-and two that stay at zero for now (`pagespeed_headers_sidecar_replayed_total`,
-`pagespeed_headers_sidecar_missing_total`). The serve statistics file
-changes format and is recreated once on upgrade, so these and the other
-serve counters start from zero. Upgrade the nginx module and the optimizer
-together: an upgraded module does not open the statistics file of an
-optimizer that has not been upgraded yet, and records no serve statistics
-(caching and serving are unaffected) until the optimizer is upgraded too;
-an older module keeps writing to the replaced file until nginx is reloaded.
+`pagespeed_headers_sidecar_replayed_total` (cache hits that sent stored
+header lines) and `pagespeed_headers_sidecar_missing_total` (requests
+fetched from the origin because the stored lines could not be read). The
+serve statistics file changes format and is recreated once on upgrade, so
+these and the other serve counters start from zero. Upgrade the nginx
+module and the optimizer together: an upgraded module does not open the
+statistics file of an optimizer that has not been upgraded yet, and records
+no serve statistics (caching and serving are unaffected) until the optimizer
+is upgraded too; an older module keeps writing to the replaced file until
+nginx is reloaded.
 
 ## 2.3.0 — 2026-10-12
 

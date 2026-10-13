@@ -63,6 +63,7 @@ extern "C" {
 #include "src/nginx/early_hints_util.h"
 #include "src/nginx/etag_util.h"
 #include "src/nginx/headers_sidecar_record.h"
+#include "src/nginx/headers_sidecar_replay.h"
 #include "src/nginx/mime_util.h"
 #include "src/nginx/revalidation_storability.h"
 #include "src/nginx/zerocopy_barrier.h"
@@ -1262,6 +1263,17 @@ typedef struct {
   // Set by the MISS block when the snapshot is swap-eligible: record_response
   // then records through the sidecar path (block + flag bits).
   unsigned sidecar_classified : 1;
+  // Response-header sidecar, serve side (issue #208).  The URL's stored
+  // header lines, copied into the request pool by the handler when the
+  // served entry requires them (headers_sidecar_replay.h): an ngx_array_t of
+  // ngx_http_pagespeed_header_pair_t, in stored order.  nullptr when the
+  // entry requires no block.  Read once, before the freshness decision, and
+  // replayed by whichever serving path the request ends up on (fresh hit,
+  // no-cache hit, coalesced stale serve, stale-if-error serve).
+  ngx_array_t* sidecar_fields;
+  // The stored lines include a Vary / an X-Content-Type-Options line.
+  unsigned sidecar_carried_vary : 1;
+  unsigned sidecar_carried_nosniff : 1;
 } ngx_http_pagespeed_ctx_t;
 
 // One snapshotted origin header line (see ctx->origin_headers).
@@ -2789,6 +2801,107 @@ static void ngx_http_pagespeed_classify_origin_headers(
   }
 }
 
+// =====================================================================
+// Response-header sidecar, serve side (issue #208).  The
+// decisions live in src/nginx/headers_sidecar_replay.h; this is the nginx
+// glue: the one block read per flagged hit, its pool copy, and the replay.
+// =====================================================================
+
+// Read the URL's stored header block for an entry that requires one and
+// copy its lines into the request pool (ctx->sidecar_fields).  Returns false
+// when the entry requires a block and none can be served with — the caller
+// then treats the request as a MISS (the record arm rewrites the block).
+// Entries that require no block return true without reading anything.
+static bool ngx_http_pagespeed_load_sidecar(
+    ngx_http_request_t* r, ngx_http_pagespeed_ctx_t* ctx, PageSpeedCache& cache,
+    const cyclone::CacheKey& key, uint8_t entry_flags, bool agent_markdown) {
+  ctx->sidecar_fields = nullptr;
+  ctx->sidecar_carried_vary = 0;
+  ctx->sidecar_carried_nosniff = 0;
+  if (!pagespeed::SidecarReadRequired(entry_flags, agent_markdown)) {
+    return true;
+  }
+  // The block's ReadResult is released when this function returns, so every
+  // byte the response needs is copied into the pool first.
+  auto block = cache.ReadHeadersSidecarByKey(key);
+  std::optional<std::string_view> payload;
+  if (block.has_value() && block->is_valid()) {
+    payload = PageSpeedCache::HeadersSidecarPayload(*block);
+  }
+  const pagespeed::SidecarServePlan plan =
+      pagespeed::PlanSidecarServe(entry_flags, agent_markdown, payload);
+  if (plan.foreign_field) {
+    ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
+                  "pagespeed: stored headers for %V name a field the cache "
+                  "builds itself (damaged cache file?) — treating as miss; "
+                  "the response is recorded again",
+                  &r->uri);
+  }
+  if (plan.outcome != pagespeed::SidecarServeOutcome::kReplay) {
+    return plan.outcome == pagespeed::SidecarServeOutcome::kNotRequired;
+  }
+  ngx_array_t* pairs = ngx_array_create(
+      r->pool, plan.fields.size(), sizeof(ngx_http_pagespeed_header_pair_t));
+  if (pairs == nullptr) {
+    return false;  // fail closed: never a hit without its headers
+  }
+  for (const auto& field : plan.fields) {
+    auto* pair =
+        static_cast<ngx_http_pagespeed_header_pair_t*>(ngx_array_push(pairs));
+    auto* key_buf =
+        static_cast<u_char*>(ngx_pnalloc(r->pool, field.name.size()));
+    auto* value_buf = static_cast<u_char*>(
+        ngx_pnalloc(r->pool, field.value.empty() ? 1 : field.value.size()));
+    if (pair == nullptr || key_buf == nullptr || value_buf == nullptr) {
+      return false;
+    }
+    ngx_memcpy(key_buf, field.name.data(), field.name.size());
+    if (!field.value.empty()) {
+      ngx_memcpy(value_buf, field.value.data(), field.value.size());
+    }
+    pair->key.data = key_buf;
+    pair->key.len = field.name.size();
+    pair->value.data = value_buf;
+    pair->value.len = field.value.size();
+  }
+  ctx->sidecar_fields = pairs;
+  ctx->sidecar_carried_vary = plan.carried_vary ? 1 : 0;
+  ctx->sidecar_carried_nosniff = plan.carried_nosniff ? 1 : 0;
+  return true;
+}
+
+// Push the stored header lines onto the response, verbatim and in stored
+// order.  Called by every path that serves the entry, BEFORE that path emits
+// its own Vary / Cache-Control / Age / ETag (the stored lines never carry
+// those names; see headers_sidecar_replay.h).  Counts one replayed response
+// when at least one line went out.  Lines that cannot be pushed (allocation
+// failure) end the replay; the pool copy is already complete, so this can
+// only fail together with the rest of the response.
+static void ngx_http_pagespeed_replay_sidecar(ngx_http_request_t* r,
+                                              ngx_http_pagespeed_ctx_t* ctx) {
+  if (ctx->sidecar_fields == nullptr || ctx->sidecar_fields->nelts == 0) {
+    return;
+  }
+  const auto* pairs = static_cast<const ngx_http_pagespeed_header_pair_t*>(
+      ctx->sidecar_fields->elts);
+  ngx_uint_t pushed = 0;
+  for (ngx_uint_t i = 0; i < ctx->sidecar_fields->nelts; i++) {
+    ngx_table_elt_t* h =
+        static_cast<ngx_table_elt_t*>(ngx_list_push(&r->headers_out.headers));
+    if (h == nullptr) {
+      break;
+    }
+    h->hash = 1;
+    h->next = nullptr;
+    h->key = pairs[i].key;
+    h->value = pairs[i].value;
+    pushed++;
+  }
+  if (pushed > 0) {
+    pagespeed::RecordHeadersSidecarReplayed(g_serve_stats);
+  }
+}
+
 // Record completed response body to cache and notify worker
 static void ngx_http_pagespeed_record_response(ngx_http_request_t* r,
                                                ngx_http_pagespeed_ctx_t* ctx) {
@@ -3374,12 +3487,21 @@ static bool ngx_http_pagespeed_stale_if_error_allowed(
 // window check alone.  The gate input is re-derived here (header-filter
 // time), not carried from the content handler: the exemption is
 // stateless by design and must reflect live enforcement state.
+//
+// Response-header sidecar (issue #208): a stash that requires stored header
+// lines is served only with them.  The handler never stashes such an entry
+// without its block, so this is a guard; without the block the upstream
+// error passes through (fail closed).
 static bool ngx_http_pagespeed_stale_on_error_permitted(
     ngx_http_request_t* r, ngx_http_pagespeed_loc_conf_t* conf,
     const AlternateMetadata& meta) {
+  const auto* ctx = static_cast<const ngx_http_pagespeed_ctx_t*>(
+      ngx_http_get_module_ctx(r, ngx_http_pagespeed_module));
+  const bool have_block = ctx != nullptr && ctx->sidecar_fields != nullptr;
   return ngx_http_pagespeed_stale_if_error_allowed(conf, meta) &&
          pagespeed::StaleServePermitted(
-             ngx_http_pagespeed_authz_gate_has_auth(r), meta.origin_cc_flags);
+             ngx_http_pagespeed_authz_gate_has_auth(r), meta.origin_cc_flags) &&
+         pagespeed::StaleErrorServeHasHeaders(meta.flags, have_block);
 }
 
 // Serve the stashed stale entry in place of an upstream error response
@@ -3456,11 +3578,36 @@ static ngx_int_t ngx_http_pagespeed_serve_stale_on_error(
     }
   }
 
+  // Response-header sidecar (issue #208): for every classified stash the
+  // error page's own lines of the names the stored block carries (CSP, ACAO,
+  // Vary, ...) are dropped — also when there is nothing to carry, since the
+  // origin sent none of them — and any stored lines of the cached
+  // representation are replayed in their place, so the error page's policy is
+  // never mixed into the stale serve's.  Other error-page lines are left as
+  // they were.
+  if (pagespeed::StaleErrorDropsCarriedNames(smeta.flags)) {
+    for (ngx_list_part_t* part = &r->headers_out.headers.part; part != nullptr;
+         part = part->next) {
+      auto* h = static_cast<ngx_table_elt_t*>(part->elts);
+      for (ngx_uint_t i = 0; i < part->nelts; i++) {
+        if (h[i].hash != 0 &&
+            pagespeed::IsSidecarCarriedName(std::string_view(
+                reinterpret_cast<const char*>(h[i].key.data), h[i].key.len))) {
+          h[i].hash = 0;
+        }
+      }
+    }
+    ngx_http_pagespeed_replay_sidecar(r, ctx);
+  }
+
   // Built from the stashed entry, so its stored Accept-negotiation marker is
-  // the only thing that can put Accept back into Vary here.
+  // the only thing that can put Accept back into Vary here (unless the
+  // replayed origin Vary line already lists it).
   ngx_http_pagespeed_emit_vary(
       r, smeta.content_type,
-      (smeta.flags & AlternateMetadata::kFlagOriginVariesAccept) != 0);
+      pagespeed::ComputedVaryListsAccept(
+          (smeta.flags & AlternateMetadata::kFlagOriginVariesAccept) != 0,
+          ctx->sidecar_carried_vary != 0));
   add_response_header_cstr(r, "X-PageSpeed", "STALE");
   add_response_header_cstr(r, "X-PageSpeed-Stale", "if-error");
 
@@ -5259,7 +5406,34 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
           static_cast<ngx_uint_t>(ctx->mask.Encode() & 0xFF));
     }
   }
+  // Response-header sidecar (issue #208): an entry recorded with stored
+  // header lines must be served WITH them.  Read the URL's block once, here,
+  // after the gates above and before the freshness decision, so every serving
+  // arm below (fresh hit, no-cache hit, coalesced stale serve) and the
+  // stale-if-error serve in the header filter replay the same copy.  A block
+  // that cannot be read makes this request a MISS — not stashed for
+  // conditional revalidation or stale-if-error, not origin-refreshed — and
+  // the record arm rewrites the block from the origin's response.  Entries
+  // that carry no block, entries recorded before the gate, and the agent
+  // markdown variant pay nothing.  Decisions: headers_sidecar_replay.h.
+  bool sidecar_missing = false;
   if (!authz_cache_bypass && !variant_format_mismatch &&
+      read_result.has_value() && read_result->is_valid()) {
+    const bool selected_agent_markdown =
+        (read_result->metadata.full_mask & 0xFF) ==
+        static_cast<uint32_t>(SentinelId::kAgentMarkdown);
+    if (!ngx_http_pagespeed_load_sidecar(r, ctx, *cache, cache_key,
+                                         read_result->metadata.flags,
+                                         selected_agent_markdown)) {
+      sidecar_missing = true;
+      pagespeed::RecordHeadersSidecarMissing(g_serve_stats);
+      ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                     "pagespeed: cached entry for %V requires its stored "
+                     "headers and they cannot be read — treating as miss",
+                     &r->uri);
+    }
+  }
+  if (!authz_cache_bypass && !variant_format_mismatch && !sidecar_missing &&
       read_result.has_value() && read_result->is_valid()) {
     auto content = read_result->content();
     {  // Zero-byte cache entries are valid (is_valid() checked above).
@@ -5468,12 +5642,21 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
         // (The markdown variant reaches neither call site and is excluded
         // here anyway — it sets its own Vary: Accept above, and emitting it
         // twice would be a duplicate list member.)
+        //
+        // The stored origin header lines (issue #208) go out first, from the
+        // same call, for the same reason: only a response actually served
+        // from the entry may carry them.  When they include the origin's own
+        // Vary line, the computed line follows it without repeating Accept —
+        // the shape a MISS sends.
         auto emit_served_vary = [&] {
+          ngx_http_pagespeed_replay_sidecar(r, ctx);
           ngx_http_pagespeed_emit_vary(
               r, meta.content_type,
               !ctx->served_agent_markdown &&
-                  (meta.flags & AlternateMetadata::kFlagOriginVariesAccept) !=
-                      0);
+                  pagespeed::ComputedVaryListsAccept(
+                      (meta.flags &
+                       AlternateMetadata::kFlagOriginVariesAccept) != 0,
+                      ctx->sidecar_carried_vary != 0));
         };
 
         switch (freshness.verdict) {
@@ -5560,7 +5743,15 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
               }
             }
             // Stale + revalidation-required: conditional or full re-fetch.
+            // An entry recorded before the headers-sidecar gate (issue #208)
+            // takes the full re-fetch once, at its genuine expiry, even with
+            // validators: a 304 carries only part of the header set, so a
+            // restamp would keep it unclassified indefinitely.  The re-record
+            // classifies it (headers_sidecar_replay.h,
+            // ConditionalRevalidationAllowed).
             if (conf->conditional_revalidation &&
+                pagespeed::ConditionalRevalidationAllowed(
+                    meta.flags, freshness.expired_by_age) &&
                 (!meta.origin_etag.empty() || meta.origin_last_modified > 0)) {
               ctx->stale_revalidation = 1;
               ctx->stale_read_result = ctx->read_result;
@@ -5732,8 +5923,14 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
           ngx_str_set(&csp->value,
                       "default-src 'none'; style-src 'unsafe-inline'");
         }
-        ngx_table_elt_t* xcto = static_cast<ngx_table_elt_t*>(
-            ngx_list_push(&r->headers_out.headers));
+        // Not a second X-Content-Type-Options when the origin's own line was
+        // replayed from the stored headers (the CSP above is still added:
+        // several policies intersect, so it can only tighten).
+        ngx_table_elt_t* xcto =
+            ctx->sidecar_carried_nosniff
+                ? nullptr
+                : static_cast<ngx_table_elt_t*>(
+                      ngx_list_push(&r->headers_out.headers));
         if (xcto) {
           xcto->hash = 1;
           xcto->next = nullptr;

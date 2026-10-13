@@ -7,13 +7,18 @@
 //   seed_test_cache --cache /tmp/test.vol --url /style.css --host localhost \
 //     --content "h1{color:red}" --content-type css --mask 0x08
 //   seed_test_cache --cache /tmp/test.vol --create_only
+//   seed_test_cache --cache /shared/cache.vol --url /style.css \
+//     --host localhost --scheme http --remove_alternate 0x6c
 //
 // Creates a Cyclone cache volume and writes a single alternate with the given
 // content, content type, and capability mask. Used by t/seed-*.sh scripts
 // before running test-nginx HIT-path tests. --create_only creates the volume
 // and writes nothing: the nginx module opens its cache resolve-only
 // (volume_size = 0) and cannot cold-create a volume, so MISS-path tests run
-// against pre-created empty volumes.
+// against pre-created empty volumes.  --remove_alternate removes ONE
+// alternate of an existing volume (opened resolve-only, at the size it was
+// created with, like the nginx module): the compliance suite uses it to take
+// a URL's stored header block away behind a running server's back.
 
 #include <cerrno>
 #include <cstddef>
@@ -54,6 +59,10 @@ ABSL_FLAG(std::string, origin_etag, "",
           "Origin ETag stored verbatim (v5, e.g. '\"abc\"')");
 ABSL_FLAG(uint32_t, origin_last_modified, 0,
           "Origin Last-Modified as unix timestamp (v5, 0 = absent)");
+ABSL_FLAG(std::string, remove_alternate, "",
+          "Alternate id as hex (e.g. 0x6c): remove that one alternate of "
+          "--url from an EXISTING volume and exit.  The volume is opened at "
+          "the size it was created with; nothing is written.");
 ABSL_FLAG(bool, create_only, false,
           "Create the volume and exit without writing an entry. Used to "
           "pre-create empty volumes for the resolve-only nginx module "
@@ -128,10 +137,45 @@ int main(int argc, char* argv[]) {
     content = absl::GetFlag(FLAGS_content);
   }
 
-  if (!create_only && content.empty()) {
+  if (!create_only && absl::GetFlag(FLAGS_remove_alternate).empty() &&
+      content.empty()) {
     std::cerr
         << "Error: no content specified (use --content or --content-file)\n";
     return 1;
+  }
+
+  const std::string remove_str = absl::GetFlag(FLAGS_remove_alternate);
+  if (!remove_str.empty()) {
+    char* rend = nullptr;
+    errno = 0;
+    unsigned long rid = std::strtoul(remove_str.c_str(), &rend, 0);
+    if (errno == ERANGE || rend == remove_str.c_str() || *rend != '\0' ||
+        rid > 0xFF) {
+      std::cerr << "Error: invalid --remove_alternate value: " << remove_str
+                << "\n";
+      return 1;
+    }
+    pagespeed::PageSpeedCacheConfig existing;
+    existing.volume_path = cache_path;
+    existing.enable_checksum = true;
+    existing.volume_size = 0;  // resolve-only: never re-stripe a live volume
+    auto opened = pagespeed::PageSpeedCache::Create(existing);
+    if (!opened.has_value()) {
+      std::cerr << "Error: failed to open cache at " << cache_path
+                << " err=" << static_cast<int>(opened.error()) << "\n";
+      return 1;
+    }
+    auto removed =
+        (*opened)->RemoveAlternate(url, host, absl::GetFlag(FLAGS_scheme),
+                                   static_cast<pagespeed::AlternateId>(rid));
+    if (!removed.has_value()) {
+      std::cerr << "Error: RemoveAlternate failed err="
+                << static_cast<int>(removed.error()) << "\n";
+      return 1;
+    }
+    std::cout << "Removed alternate 0x" << std::hex << rid << " of " << url
+              << " in " << cache_path << "\n";
+    return 0;
   }
 
   // Create cache. Use default 1GB volume size to match nginx module's default

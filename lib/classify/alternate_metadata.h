@@ -223,7 +223,8 @@ struct AlternateMetadata {
   // STAMPED BY THE WRITER at record time, and PROPAGATED by the worker into
   // every variant it derives from the entry: a hit reads the selected
   // variant rather than the identity, so the fact has to ride each one.
-  // Agent markdown variants do not inherit it.  Nothing sets this bit yet.
+  // Agent markdown variants do not inherit it.  Set by the nginx record
+  // arm (src/nginx/headers_sidecar_record.h).
   //
   // The whole flags byte feeds the weak hit ETag (src/nginx/etag_util.h), so
   // a classified entry does not validate against an otherwise-identical
@@ -234,7 +235,8 @@ struct AlternateMetadata {
   // for this URL, so a serve path must read it and replay it, and must treat
   // an unreadable sidecar as a miss rather than serve without the headers.
   // Only meaningful together with kFlagHeadersClassified; same stamping,
-  // propagation and ETag notes as above.  Nothing sets this bit yet.
+  // propagation and ETag notes as above.  Read by the nginx serve paths
+  // (src/nginx/headers_sidecar_replay.h).
   static constexpr uint8_t kFlagHeadersSidecarRequired = 0x20;
   // The flags byte is OPAQUE on the wire: it is read verbatim and written
   // back verbatim, so a bit set by a peer this build does not know about

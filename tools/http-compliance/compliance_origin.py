@@ -40,6 +40,12 @@ VARY_FLIP = {"flip": False, "flip-etag": False, "etag-rev": "1"}
 # send a header a cache hit cannot reproduce.
 SIDECAR_FLIP = {"custom": False}
 
+# Serve-side sidecar controls (issue #208): a delay on /sidecar/slow.css
+# (holds the refresh in flight so a concurrent request takes the coalesced
+# stale serve), a 500 on /sidecar/flaky.css (stale-if-error), and the
+# Referrer-Policy /sidecar/reval.css sends on its 200 and 304.
+SIDECAR_SERVE = {"delay": 0.0, "fail": False, "rp": "no-referrer"}
+
 # The reproducible security set the sidecar routes send (every name is in
 # the sidecar allowlist).
 SIDECAR_SECURITY_HEADERS = (
@@ -654,6 +660,111 @@ class ComplianceHandler(http.server.BaseHTTPRequestHandler):
         #   /sidecar/vary-origin.css  Vary: Origin (never stored)
         #   /sidecar/flip.css    short-lived; X-Custom-Foo switched on via
         #                        /sidecar/control?custom=on
+        # Serve-side sidecar routes (issue #208).  Every one sends the
+        # security set plus `Vary: Accept-Encoding`, so a cache hit has
+        # stored lines to replay:
+        #   /sidecar/parity.css, /sidecar/page.html  long-lived, ETag
+        #   /sidecar/heal.css    long-lived; the test removes its stored block
+        #   /sidecar/slow.css    max-age=2, waits SIDECAR_SERVE["delay"]
+        #   /sidecar/flaky.css   max-age=1, a 500 with its own policy headers
+        #                        while SIDECAR_SERVE["fail"] is set
+        #   /sidecar/reval.css   max-age=1 + ETag: revalidated with a 304
+        #                        that carries the current Referrer-Policy
+        # Controlled through /sidecar/serve-control?delay=&fail=&rp=.
+        if path == "/sidecar/serve-control":
+            query = self.path.split("?", 1)[1] if "?" in self.path else ""
+            params = dict(p.split("=", 1) for p in query.split("&") if "=" in p)
+            if "delay" in params:
+                SIDECAR_SERVE["delay"] = float(params["delay"])
+            if "fail" in params:
+                SIDECAR_SERVE["fail"] = params["fail"] in ("1", "on", "true")
+            if "rp" in params:
+                SIDECAR_SERVE["rp"] = params["rp"]
+            body = f"{SIDECAR_SERVE}\n".encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "text/plain")
+            self.send_header("Content-Length", str(len(body)))
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Date", formatdate(usegmt=True))
+            self.end_headers()
+            if send_body:
+                self.wfile.write(body)
+            return True
+        if path in (
+            "/sidecar/parity.css",
+            "/sidecar/page.html",
+            "/sidecar/heal.css",
+            "/sidecar/slow.css",
+            "/sidecar/flaky.css",
+            "/sidecar/reval.css",
+        ):
+            is_html = path.endswith(".html")
+            if is_html:
+                content = (
+                    b"<!DOCTYPE html>\n<html>\n  <head>\n"
+                    b"    <title>sidecar page</title>\n"
+                    b"    <!-- a comment the optimizer removes -->\n"
+                    b"    <style>\n      body   {   color :  green ;  }\n"
+                    b"      p      {   margin : 0px ;  }\n    </style>\n"
+                    b"  </head>\n  <body>\n"
+                    + b"    <p>  headers sidecar   parity   </p>\n" * 12
+                    + b'    <img src="/1x1.jpg" alt="" width="640" height="480">\n' * 3
+                    + b"  </body>\n</html>\n"
+                )
+            else:
+                content = (
+                    f"/* {path}: a stylesheet with room to minify */\n"
+                    + "body   {   color :  green ;   margin : 0px ;  }\n" * 12
+                ).encode()
+            if path == "/sidecar/slow.css" and SIDECAR_SERVE["delay"] > 0:
+                time.sleep(SIDECAR_SERVE["delay"])
+            if path == "/sidecar/flaky.css" and SIDECAR_SERVE["fail"]:
+                err = b"origin down"
+                self.send_response(500)
+                self.send_header("Content-Type", "text/plain")
+                self.send_header("Content-Length", str(len(err)))
+                self.send_header("Content-Security-Policy", "default-src 'none'")
+                self.send_header("Access-Control-Allow-Origin", "https://error.example")
+                self.send_header("Referrer-Policy", "unsafe-url")
+                self.send_header("Date", formatdate(usegmt=True))
+                self.end_headers()
+                if send_body:
+                    self.wfile.write(err)
+                return True
+            rp = SIDECAR_SERVE["rp"] if path == "/sidecar/reval.css" else None
+            tag = etag_for(content)
+            if path == "/sidecar/reval.css":
+                inm = self.headers.get("If-None-Match")
+                if inm and tag in inm:
+                    self.send_response(304)
+                    self.send_header("ETag", tag)
+                    self.send_header("Cache-Control", "public, max-age=1")
+                    self.send_header("Referrer-Policy", rp)
+                    self.send_header("Date", formatdate(usegmt=True))
+                    self.end_headers()
+                    return True
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html" if is_html else "text/css")
+            self.send_header("Content-Length", str(len(content)))
+            if path in ("/sidecar/flaky.css", "/sidecar/reval.css"):
+                self.send_header("Cache-Control", "public, max-age=1")
+            elif path == "/sidecar/slow.css":
+                self.send_header("Cache-Control", "public, max-age=2")
+            else:
+                self.send_header("Cache-Control", "public, max-age=600")
+            if path not in ("/sidecar/slow.css", "/sidecar/flaky.css"):
+                self.send_header("ETag", tag)
+            for name, value in SIDECAR_SECURITY_HEADERS:
+                if name == "Referrer-Policy" and rp is not None:
+                    value = rp
+                self.send_header(name, value)
+            self.send_header("Vary", "Accept-Encoding")
+            self.send_header("Date", formatdate(usegmt=True))
+            self.end_headers()
+            if send_body:
+                self.wfile.write(content)
+            return True
+
         if path == "/sidecar/control":
             query = self.path.split("?", 1)[1] if "?" in self.path else ""
             params = dict(p.split("=", 1) for p in query.split("&") if "=" in p)

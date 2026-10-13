@@ -1,10 +1,10 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
 
-"""Response-header sidecar, store side (issue #208).
+"""Response-header sidecar (issue #208).
 
-The nginx front stage classifies the origin's response headers before it
-records a response:
+Store side: the nginx front stage classifies the origin's response headers
+before it records a response:
 
 * only reproducible headers (the security set: ACAO, CSP, nosniff,
   Referrer-Policy) -> recorded, with the headers stored beside the entry
@@ -15,7 +15,11 @@ records a response:
 * a Content-Security-Policy carrying a nonce -> never cached;
 * Vary: Origin -> never cached (the existing Vary gate).
 
-HITs do not send the stored lines yet and are not asserted on here.
+Serve side: every response served from the cache — a fresh HIT, the
+bounded stale serve while a refresh is in flight, the stale-if-error serve,
+and a 304-revalidated serve — carries the same stored lines the MISS
+relayed; a cached entry whose stored lines have gone is a MISS (and is
+recorded again), never a hit without them.
 
 The counters live in the shared serve-statistics file the front stage writes
 and the optimizer exports on /v1/metrics.  The compliance stack does not
@@ -26,6 +30,7 @@ inside the nginx container.
 import os
 import struct
 import subprocess
+import threading
 import time
 
 import pytest
@@ -79,6 +84,86 @@ def read_sidecar_counters() -> dict[str, int]:
         "<%dQ" % len(SIDECAR_COUNTER_NAMES), out.stdout, SIDECAR_COUNTERS_OFFSET
     )
     return dict(zip(SIDECAR_COUNTER_NAMES, values))
+
+
+# The names a cached copy carries in its stored header block (the sidecar
+# allowlist), lowercased.
+CARRIED_NAMES = (
+    "content-security-policy",
+    "access-control-allow-origin",
+    "x-content-type-options",
+    "referrer-policy",
+    "cross-origin-opener-policy",
+    "cross-origin-embedder-policy",
+    "cross-origin-resource-policy",
+    "permissions-policy",
+    "vary",
+)
+
+IDENTITY = {"Accept-Encoding": "identity"}
+NGINX_HOST = f"localhost:{os.environ.get('COMPLIANCE_NGINX_PORT', '8180')}"
+
+
+def carried(response, names=CARRIED_NAMES) -> dict[str, list[str]]:
+    """The response's lines of the carried names, one entry per received
+    line (repeated lines stay separate), as a per-name multiset."""
+    out = {}
+    for name in names:
+        values = response.raw.headers.getlist(name)
+        if values:
+            out[name] = sorted(values)
+    return out
+
+
+def without_vary(lines: dict[str, list[str]]) -> dict[str, list[str]]:
+    return {k: v for k, v in lines.items() if k != "vary"}
+
+
+def wait_for_optimized_hit(client, path: str, miss):
+    """Poll until the optimizer's (smaller) variant is served from cache, so
+    the entry later requests see is the one whose age the test controls."""
+    hit = client.poll_for_hit(
+        path, headers=IDENTITY, timeout=20, expect_smaller_than=len(miss.content)
+    )
+    client.assert_hit(hit)
+    assert len(hit.content) < len(miss.content), "no optimized variant"
+    return hit
+
+
+def serve_control(origin_client, **params):
+    query = "&".join(f"{k}={v}" for k, v in params.items())
+    r = origin_client.get("/sidecar/serve-control?" + query)
+    assert r.status_code == 200, r.status_code
+
+
+def remove_stored_headers(path: str):
+    """Remove the URL's stored header block (sentinel 0x6C) behind the
+    running server's back, leaving its cached entries in place."""
+    out = subprocess.run(
+        [
+            "docker",
+            "compose",
+            "-f",
+            COMPOSE_FILE,
+            "exec",
+            "-T",
+            "nginx",
+            "seed_test_cache",
+            "--cache",
+            "/shared/cache.vol",
+            "--url",
+            path,
+            "--host",
+            NGINX_HOST,
+            "--scheme",
+            "http",
+            "--remove_alternate",
+            "0x6c",
+        ],
+        capture_output=True,
+        check=False,
+    )
+    assert out.returncode == 0, out.stderr.decode(errors="replace")[:400]
 
 
 def x_pagespeed(response) -> str:
@@ -171,3 +256,177 @@ class TestHeadersSidecarRecord:
             assert after["fall_through"] > before["fall_through"]
         finally:
             origin_client.get("/sidecar/control?custom=off")
+
+
+class TestHeadersSidecarReplay:
+    def test_hit_carries_the_miss_headers(self, client):
+        """ACAO + CSP + nosniff + Referrer-Policy + the origin's Vary: the HIT
+        sends the same lines as the MISS, and the replayed counter moves."""
+        path = "/sidecar/parity.css"
+        miss = client.get(path, headers=IDENTITY)
+        assert miss.status_code == 200
+        assert x_pagespeed(miss) == "MISS"
+        expected = carried(miss)
+        assert "Accept-Encoding" in expected.get("vary", []), expected
+        before = read_sidecar_counters()
+        hit = client.poll_for_hit(path, headers=IDENTITY)
+        client.assert_hit(hit)
+        assert carried(hit) == expected
+        after = read_sidecar_counters()
+        assert after["replayed"] > before["replayed"], (before, after)
+        assert after["missing"] == before["missing"], (before, after)
+
+    def test_gzip_hit_carries_the_miss_headers(self, client):
+        """The same on a HIT for a gzip-accepting client.  Vary is compared
+        by the origin's line only: nginx's own gzip filter adds a Vary line
+        to a response it compresses itself, which a pre-compressed cached
+        variant is not."""
+        path = "/sidecar/parity.css"
+        miss = client.get(path, headers=IDENTITY)
+        expected = carried(miss)
+        client.poll_for_hit(path, headers=IDENTITY)
+        hit = client.poll_for_hit(path, headers={"Accept-Encoding": "gzip"})
+        client.assert_hit(hit)
+        assert without_vary(carried(hit)) == without_vary(expected)
+        assert "Accept-Encoding" in hit.raw.headers.getlist("vary")
+
+    def test_optimized_html_hit_carries_the_miss_headers(self, client):
+        """Once the optimizer's variant of the page is served, the HIT still
+        sends the origin's lines."""
+        path = "/sidecar/page.html"
+        miss = client.get(path, headers=IDENTITY)
+        assert miss.status_code == 200
+        expected = carried(miss)
+        assert "default-src 'self'" in expected.get("content-security-policy", [])
+        deadline = time.time() + 30
+        hit = None
+        while time.time() < deadline:
+            r = client.get(path, headers=IDENTITY)
+            if x_pagespeed(r) == "HIT" and r.content != miss.content:
+                hit = r
+                break
+            time.sleep(0.5)
+        assert hit is not None, "the optimized page was never served from cache"
+        assert carried(hit) == expected
+
+    def test_missing_stored_headers_is_a_miss_then_rerecorded(self, client):
+        """A cached URL whose stored lines are removed behind the server's
+        back is served from the origin (counted as missing), not as a hit
+        without them, and the next requests are HITs with the lines again."""
+        path = "/sidecar/heal.css"
+        miss = client.get(path, headers=IDENTITY)
+        expected = carried(miss)
+        hit = client.poll_for_hit(path, headers=IDENTITY)
+        client.assert_hit(hit)
+
+        remove_stored_headers(path)
+        before = read_sidecar_counters()
+        refused = client.get(path, headers=IDENTITY)
+        assert refused.status_code == 200
+        assert x_pagespeed(refused) == "MISS"
+        assert carried(refused) == expected
+        after = read_sidecar_counters()
+        assert after["missing"] > before["missing"], (before, after)
+
+        healed = client.poll_for_hit(path, headers=IDENTITY)
+        client.assert_hit(healed)
+        assert carried(healed) == expected
+
+    def test_coalesced_stale_serve_carries_the_headers(self, client, origin_client):
+        """While one request re-fetches an expired URL from a slow origin, a
+        concurrent request is served the stale cached copy — with the lines."""
+        path = "/sidecar/slow.css"
+        miss = client.get(path, headers=IDENTITY)
+        expected = carried(miss)
+        wait_for_optimized_hit(client, path, miss)
+        try:
+            serve_control(origin_client, delay="2.5")
+            # Past max-age=2 with a margin: ages are whole seconds.
+            time.sleep(3.5)
+            refresh = {}
+
+            def refetch():
+                refresh["r"] = requests_get(client, path)
+
+            t = threading.Thread(target=refetch)
+            t.start()
+            time.sleep(0.5)
+            stale = client.get(path, headers=IDENTITY)
+            t.join(timeout=15)
+            assert x_pagespeed(stale) == "HIT", stale.headers
+            assert int(stale.headers.get("Age", "0")) >= 2, stale.headers
+            assert carried(stale) == expected
+            assert "r" in refresh and refresh["r"].status_code == 200
+        finally:
+            serve_control(origin_client, delay="0")
+
+    def test_stale_if_error_serve_carries_the_stored_headers(
+        self, client, origin_client
+    ):
+        """An expired URL whose origin now answers 500 is served stale with
+        the cached copy's lines, and none of the error page's."""
+        path = "/sidecar/flaky.css"
+        miss = client.get(path, headers=IDENTITY)
+        expected = carried(miss)
+        hit = wait_for_optimized_hit(client, path, miss)
+        try:
+            serve_control(origin_client, fail="on")
+            time.sleep(2.5)  # past max-age=1, ages are whole seconds
+            stale = client.get(path, headers=IDENTITY)
+            assert x_pagespeed(stale) == "STALE", stale.headers
+            assert stale.headers.get("X-PageSpeed-Stale") == "if-error"
+            assert stale.content == hit.content
+            # The status line is not asserted: the stale-if-error serve keeps
+            # the upstream's status line today (the same cause as the
+            # bodyless-304 defect, #216).
+            assert carried(stale) == expected
+            assert "https://error.example" not in stale.raw.headers.getlist(
+                "access-control-allow-origin"
+            )
+            assert "default-src 'none'" not in stale.raw.headers.getlist(
+                "content-security-policy"
+            )
+        finally:
+            serve_control(origin_client, fail="off")
+
+    def test_revalidated_serve_carries_the_headers(self, client, origin_client):
+        """An expired URL revalidated with a 304 carries the stored lines the
+        304 did not repeat plus the 304's own; when the 304 changes
+        Referrer-Policy, later HITs send the new value."""
+        path = "/sidecar/reval.css"
+        try:
+            serve_control(origin_client, rp="no-referrer")
+            miss = client.get(path, headers=IDENTITY)
+            expected = carried(miss)
+            wait_for_optimized_hit(client, path, miss)
+
+            time.sleep(2.5)  # past max-age=1, ages are whole seconds
+            # The status is not asserted: a client that sent no conditional
+            # request can receive the 304 status line today (#216).
+            revalidated = client.get(path, headers=IDENTITY)
+            assert x_pagespeed(revalidated) == "REVALIDATED", revalidated.headers
+            assert carried(revalidated) == expected
+            hit = client.poll_for_hit(path, headers=IDENTITY)
+            client.assert_hit(hit)
+            assert carried(hit) == expected
+
+            serve_control(origin_client, rp="same-origin")
+            time.sleep(2.5)
+            changed = client.get(path, headers=IDENTITY)
+            assert x_pagespeed(changed) == "REVALIDATED", changed.headers
+            assert changed.raw.headers.getlist("referrer-policy") == ["same-origin"]
+            hit = client.poll_for_hit(path, headers=IDENTITY)
+            client.assert_hit(hit)
+            want = dict(expected)
+            want["referrer-policy"] = ["same-origin"]
+            assert carried(hit) == want
+        finally:
+            serve_control(origin_client, rp="no-referrer")
+
+
+def requests_get(client, path: str):
+    """A GET on its own connection (the client's session is not shared
+    across threads)."""
+    import requests
+
+    return requests.get(client.base_url + path, headers=IDENTITY, timeout=15)
