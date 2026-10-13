@@ -48,9 +48,13 @@
    sudo systemctl enable --now pagespeed-optimizer
    ```
    The unit starts `/usr/bin/pagespeed-optimizer` and runs as the `pagespeed`
-   user and group (the packages create it from
-   `deploy/pagespeed-optimizer.sysusers.conf`); adjust `ExecStart` to where
-   step 1 installed the binary and create that user and group first.
+   user and group, with its cache under `/var/cache/pagespeed-optimizer` (the
+   packages create both from `deploy/pagespeed-optimizer.sysusers.conf` and
+   `deploy/pagespeed-optimizer.tmpfiles.conf`). Before the `enable --now` step,
+   adjust `ExecStart` to where step 1 installed the binary, create that user and
+   group, and create the cache directory, for example with
+   `sudo systemd-sysusers deploy/pagespeed-optimizer.sysusers.conf` and
+   `sudo systemd-tmpfiles --create deploy/pagespeed-optimizer.tmpfiles.conf`.
 
 3. Install the nginx module and configure nginx:
    ```bash
