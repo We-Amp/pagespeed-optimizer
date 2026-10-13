@@ -1748,6 +1748,22 @@ TEST_F(PageSpeedCacheTest, ListAlternatesNonExistentUrl) {
   EXPECT_FALSE(alts.has_value());
 }
 
+TEST_F(PageSpeedCacheTest, HeadersSidecarPlainMissLogsNothing) {
+  TestCacheHandler handler;
+  PageSpeedCacheConfig config;
+  config.volume_path = cache_path_;
+  config.volume_size = static_cast<uint64_t>(10 * 1024 * 1024);
+  config.handler = &handler;
+  auto result = PageSpeedCache::Create(config);
+  ASSERT_TRUE(result.has_value());
+
+  const int before = handler.count();
+  auto read = (*result)->ReadHeadersSidecar("https://example.com/none.html",
+                                            "example.com", "https");
+  EXPECT_FALSE(read.has_value());
+  EXPECT_EQ(handler.count(), before) << handler.last_message();
+}
+
 TEST_F(PageSpeedCacheTest, HandlerLogsReadMiss) {
   // Set up cache with a handler to exercise the handler logging code paths.
   TestCacheHandler handler;

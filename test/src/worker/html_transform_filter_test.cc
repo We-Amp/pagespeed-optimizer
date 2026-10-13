@@ -4261,6 +4261,38 @@ TEST(HtmlTransformFilterTest, NonceBearingHeaderCspBlocksInjection) {
   EXPECT_EQ(result.find("data-pagespeed-critical"), std::string::npos);
 }
 
+TEST(HtmlTransformFilterTest, HeaderCspBlocksInlineScriptInjection) {
+  auto run = [](std::vector<std::string> csps) {
+    net_instaweb::HtmlKeywords::Init();
+    net_instaweb::NullMessageHandler message_handler;
+    net_instaweb::HtmlParse parser(&message_handler);
+    HtmlTransformConfig config;
+    config.enable_critical_css = false;
+    config.enable_lazy_load = false;
+    config.enable_image_dimensions = false;
+    config.enable_speculation_rules = true;
+    std::vector<std::string> spec_urls = {"https://example.com/page1"};
+    HtmlTransformFilter transform(&parser, config, "", nullptr, "", "https", {},
+                                  {}, spec_urls);
+    transform.set_header_csps(std::move(csps));
+    parser.AddFilter(&transform);
+    std::string output;
+    net_instaweb::StringWriter writer(&output);
+    net_instaweb::HtmlWriterFilter writer_filter(&parser);
+    writer_filter.set_writer(&writer);
+    parser.AddFilter(&writer_filter);
+    parser.StartParse("http://example.com/");
+    parser.ParseText("<html><head></head><body><p>x</p></body></html>");
+    parser.FinishParse();
+    return output;
+  };
+  EXPECT_EQ(run({"script-src 'self'"}).find("speculationrules"),
+            std::string::npos);
+  EXPECT_NE(run({"script-src 'self' 'unsafe-inline'"}).find("speculationrules"),
+            std::string::npos);
+  EXPECT_NE(run({}).find("speculationrules"), std::string::npos);
+}
+
 TEST(HtmlTransformFilterTest, HeaderCspIsReadFromTheSidecarAndGatesInjection) {
   CacheHelper cache_helper;
   ASSERT_TRUE(cache_helper.valid()) << "Cache creation failed";
