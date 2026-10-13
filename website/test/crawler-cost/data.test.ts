@@ -1,4 +1,3 @@
-// website/test/crawler-cost/data.test.ts
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 import { readFileSync } from 'node:fs';
@@ -37,6 +36,16 @@ describe('ai-crawlers.json', () => {
     expect(byToken.get('Bytespider')).toMatchObject({ operator: 'ByteDance', kind: 'training' });
     expect(byToken.get('CCBot')).toMatchObject({ operator: 'Common Crawl' });
     expect(byToken.get('Meta-ExternalAgent')).toMatchObject({ operator: 'Meta', kind: 'training' });
+  });
+  it('lists a token that contains another listed token before it', () => {
+    const tokens = crawlers.map((c) => c.token.toLowerCase());
+    tokens.forEach((t, i) => {
+      for (const earlier of tokens.slice(0, i))
+        expect(t.includes(earlier), `${earlier} shadows ${t}`).toBe(false);
+    });
+    const byToken = new Map(crawlers.map((c) => [c.token, c]));
+    expect(byToken.get('Diffbot-User')).toMatchObject({ operator: 'Diffbot', kind: 'fetcher' });
+    expect(byToken.get('AI2Bot-DeepResearchEval')).toMatchObject({ kind: 'fetcher' });
   });
   it('holds no robots.txt-only control token', () => {
     const lower = new Set(crawlers.map((c) => c.token.toLowerCase()));
