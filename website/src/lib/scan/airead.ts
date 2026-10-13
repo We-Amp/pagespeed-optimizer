@@ -6,7 +6,12 @@
 // line, the raw-HTML Markdown and the "Also found" sentences. No DOM here.
 
 import { plural } from './plural';
-import { agentPassCtaApplies, complianceFixCtaApplies, tollboothCtaApplies } from './demand.mjs';
+import {
+  agentPassCtaApplies,
+  complianceFixCtaApplies,
+  markdownOriginCtaApplies,
+  tollboothCtaApplies,
+} from './demand.mjs';
 
 interface Category {
   score: number;
@@ -27,6 +32,7 @@ interface Report {
   agentVerifiability?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   signedAgentVerification?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
   accessibility?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
+  agentSignals?: any; // eslint-disable-line @typescript-eslint/no-explicit-any
 }
 
 export interface CategoryRow {
@@ -49,7 +55,11 @@ export interface AireadModel {
   categories: CategoryRow[];
   tokenLine: string;
   rawMarkdown: string;
-  alsoFound: { wedge: 'tollbooth' | 'agentpass' | 'compliancefix'; text: string }[];
+  alsoFound: {
+    wedge: 'tollbooth' | 'agentpass' | 'compliancefix' | 'markdown-origin';
+    text: string;
+    link?: { label: string; href: string };
+  }[];
 }
 
 const WORDS: Record<string, string> = {
@@ -101,6 +111,18 @@ export function alsoFoundSentences(r: Report): AireadModel['alsoFound'] {
         (ax.detail.fixableInline === 1 ? '1 looks' : ax.detail.fixableInline + ' look') +
         ' like the kind a self-hosted optimizer can fix on your own servers, with no app changes. We don’t issue compliance certificates.',
     });
+  }
+  const as = r.agentSignals;
+  if (as && as.status === 'ok' && as.markdown) {
+    if (markdownOriginCtaApplies(as)) {
+      out.push({
+        wedge: 'markdown-origin',
+        text: 'This page did not return Markdown when asked for it (Accept: text/markdown). The mod_pagespeed 2.1 optimizer worker can serve a rendered Markdown copy at the same URL, on your own server, off by default. The module on its own adds Vary: Accept and does not render.',
+        link: { label: 'How it works', href: '/docs/agent-optimize/' },
+      });
+    } else if (as.markdown.negotiated === true) {
+      out.push({ wedge: 'markdown-origin', text: 'This page returns Markdown on request.' });
+    }
   }
   return out;
 }

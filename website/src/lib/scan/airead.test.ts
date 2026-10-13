@@ -105,13 +105,32 @@ describe('formatAiread extras', () => {
     );
     expect(formatAiread(fixture('clean')).categories.every((c) => c.flag === '')).toBe(true);
   });
-  it('fires the three gate sentences on the full report only', () => {
+  it('fires the gate sentences on the full report only', () => {
     expect(formatAiread(fixture('full')).alsoFound.map((f) => f.wedge)).toEqual([
       'tollbooth',
       'agentpass',
       'compliancefix',
+      'markdown-origin',
     ]);
-    expect(formatAiread(fixture('clean')).alsoFound).toEqual([]);
+    expect(formatAiread(fixture('clean')).alsoFound.map((f) => f.wedge)).toEqual([
+      'markdown-origin',
+    ]);
+  });
+  it('words the Markdown row by outcome and tolerates a missing or failed lens', () => {
+    const full = formatAiread(fixture('full')).alsoFound.at(-1)!;
+    expect(full.text).toBe(
+      'This page did not return Markdown when asked for it (Accept: text/markdown). The mod_pagespeed 2.1 optimizer worker can serve a rendered Markdown copy at the same URL, on your own server, off by default. The module on its own adds Vary: Accept and does not render.',
+    );
+    expect(full.link).toEqual({ label: 'How it works', href: '/docs/agent-optimize/' });
+    const clean = formatAiread(fixture('clean')).alsoFound[0];
+    expect(clean.text).toBe('This page returns Markdown on request.');
+    expect(clean.link).toBeUndefined();
+    const absent = fixture('clean');
+    delete absent.agentSignals;
+    expect(formatAiread(absent).alsoFound).toEqual([]);
+    const failed = fixture('full');
+    failed.agentSignals.status = 'error';
+    expect(formatAiread(failed).alsoFound.map((f) => f.wedge)).not.toContain('markdown-origin');
   });
   it('pluralises the AI crawler count from the number', () => {
     const full = fixture('full');
