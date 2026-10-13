@@ -45,7 +45,10 @@ extern "C" {
  * publishes PS_FLAG_ORIGIN_HEADERS_NOT_REPRODUCIBLE. 1.9 adds
  * ps_html_config_init_sized and ps_critical_css_config_init_sized. 1.10
  * adds ps_read_shared_config_generation. 1.11 adds
- * ps_serve_stats_record_hit_host.
+ * ps_serve_stats_record_hit_host. 1.12 adds the HTML cacheability policy:
+ * ps_html_store_classify, ps_html_serve_classify, ps_html_decision_format,
+ * ps_html_store_reason_name, ps_html_serve_reason_name and
+ * ps_serve_stats_record_html_cache.
  *
  * A published constant is ABI surface too (see ABI.md), so a minor that adds
  * only one still moves the number: it is what a consumer compiles against to
@@ -59,7 +62,7 @@ extern "C" {
  * checked-in record of the current surface and is what the gate compares
  * against. */
 #define PS_API_VERSION_MAJOR 1
-#define PS_API_VERSION_MINOR 11
+#define PS_API_VERSION_MINOR 12
 #define PS_API_VERSION_PATCH 0
 
 PS_EXPORT int ps_version_major(void);
@@ -588,6 +591,31 @@ PS_EXPORT void ps_serve_stats_record_serve_class(ps_serve_stats_t* h,
                                                  ps_serve_class_t cls,
                                                  uint32_t flags);
 
+/* Kinds of HTML cache event ps_serve_stats_record_html_cache counts. */
+#define PS_HTML_CACHE_RECORD_STORE 0
+#define PS_HTML_CACHE_RECORD_SERVE 1
+#define PS_HTML_CACHE_RECORD_INVALIDATED 2
+
+/* Record ONE HTML cache decision in the serve-stats counters. Available from
+ * PS_API 1.12. No-op if h==NULL.
+ *
+ * `kind` is PS_HTML_CACHE_RECORD_STORE (the `action` and `reason` are the
+ * values ps_html_store_classify returned and wrote), PS_HTML_CACHE_RECORD_SERVE
+ * (the values ps_html_serve_classify returned and wrote), or
+ * PS_HTML_CACHE_RECORD_INVALIDATED (a stored HTML entry was dropped by a purge
+ * or a refresh; `action`, `reason` and `enforce` are ignored). `enforce` is
+ * nonzero when the front end acted on the verdict, zero when it only observed
+ * it (the verdict's own `enforce` for a serve; the front end's mode for a
+ * store, which is not enforcing while the policy is only being measured).
+ *
+ * An unrecognised `kind`, or an `action` or `reason` outside the enumerated
+ * set, records nothing: the call is dropped whole rather than attributed to
+ * some other counter. The counters read zero until a front end records
+ * decisions with this call. */
+PS_EXPORT void ps_serve_stats_record_html_cache(ps_serve_stats_t* h, int kind,
+                                                int action, int reason,
+                                                int enforce);
+
 /* Snapshot of the serve-class + saturation block, by value.
  *
  * Versioned with the struct_size convention used by ps_write_params_t: set
@@ -1010,6 +1038,164 @@ PS_EXPORT PS_NODISCARD ps_error_t ps_cache_write_headers_sidecar(
     ps_cache_t* cache, const char* url, const char* hostname,
     const char* scheme, const char* const* names, const char* const* values,
     size_t count, int* out_verdict, int* out_stored);
+
+/* ---------- HTML cacheability policy ---------- */
+
+/* What the front end is configured to do with cached HTML. Only the numeric
+ * values cross the boundary; they are the `mode` ps_html_serve_classify takes.
+ * Any other value is a malformed call. */
+typedef enum ps_html_cache_mode_t {
+  PS_HTML_CACHE_OFF = 0,         /* never serve HTML from the cache */
+  PS_HTML_CACHE_REPORT_ONLY = 1, /* decide, report, never act */
+  PS_HTML_CACHE_SERVE_VARIANTS =
+      2, /* serve Markdown copies, HTML from origin */
+  PS_HTML_CACHE_SERVE_CACHED_HTML = 3, /* also serve fresh cached HTML */
+  /* Pins the enum to int width, like every other published enum here.
+     Published C API identifier: the double underscore is regrettable,
+     but it matches ps_error_t / ps_content_type_t above.
+     NOLINTNEXTLINE(bugprone-reserved-identifier) */
+  PS_HTML_CACHE__FORCE_INT = 0x7FFFFFFF
+} ps_html_cache_mode_t;
+
+/* Flag bits ps_html_store_classify writes to `*out_flags`. */
+#define PS_HTML_STORE_FLAG_LIFETIME_EXPLICIT 1u
+#define PS_HTML_STORE_FLAG_NEEDS_VALIDATION 2u
+#define PS_HTML_STORE_FLAG_HAS_VALIDATORS 4u
+#define PS_HTML_STORE_FLAG_EXPLICIT_SHARED 8u
+
+/* Bits of the `stored_flags` argument of ps_html_serve_classify. */
+#define PS_HTML_STORED_PRESENT 1u
+#define PS_HTML_STORED_NEEDS_VALIDATION 2u
+#define PS_HTML_STORED_EXPLICIT_SHARED 4u
+#define PS_HTML_STORED_HEADERS_NOT_REPRODUCIBLE 8u
+#define PS_HTML_STORED_SIDECAR_REQUIRED 16u
+#define PS_HTML_STORED_SIDECAR_PRESENT 32u
+#define PS_HTML_STORED_PURGED 64u
+#define PS_HTML_STORED_VALIDATED_THIS_REQUEST 128u
+#define PS_HTML_STORED_VARIANT_PRESENT 256u
+#define PS_HTML_STORED_BINDING_LIVE 512u
+
+/* Bits of the `request_flags` argument of ps_html_serve_classify. */
+#define PS_HTML_REQUEST_WANTS_MARKDOWN 1u
+#define PS_HTML_REQUEST_HAS_AUTHORIZATION 2u
+#define PS_HTML_REQUEST_AUTHENTICATED_USER 4u
+#define PS_HTML_REQUEST_HAS_COOKIE 8u
+#define PS_HTML_REQUEST_HAS_CACHE_CONTROL 16u
+#define PS_HTML_REQUEST_CACHE_CONTROL_NO_CACHE 32u
+#define PS_HTML_REQUEST_PRAGMA_NO_CACHE 64u
+
+/* Decide whether a text/html response may be stored. Available from
+ * PS_API 1.12. A pure function of its arguments: no cache handle, no I/O, no
+ * clock read (the caller passes `now_seconds`, the receipt time), no global
+ * state. It does NOT touch the last-error message, for the reason
+ * ps_headers_sidecar_classify does not.
+ *
+ * `method` and `url_path` are NUL-terminated. `names[i]` / `values[i]` are the
+ * origin's response header lines AS RECEIVED, one entry per line, before any
+ * header your server adds, in the form ps_headers_sidecar_classify takes (the
+ * header set is run through that gate). `body_prefix` is the first
+ * `body_prefix_len` bytes of the body (at most 65536 are examined; NULL with
+ * length 0 means none), which is scanned for markers of a per-client page.
+ * `max_body_bytes` is the operator's size cap, clamped to a 16 MiB ceiling.
+ *
+ * Returns the action: 0 refuse, 1 store, 2 store without notifying the
+ * optimizer (the response said no-transform). Returns -1 for a malformed call
+ * (a NULL `method`, `url_path` or out-parameter other than the detail buffer;
+ * NULL arrays or elements with `count` > 0; a NULL `body_prefix` with a
+ * non-zero length; a NULL `detail_buf` with a non-zero capacity); no
+ * out-parameter is written then.
+ *
+ * `*out_reason` receives the reason as an integer; ps_html_store_reason_name
+ * turns it into the closed set of names (none, method, status, incomplete,
+ * auth_request, cookie_request, set_cookie, private, no_store, no_lifetime,
+ * vary, headers, nonce_csp, content_type, encoding, size, url,
+ * personalisation_signal, no_transform). The detail (the header name for
+ * `headers`, the Vary token for `vary`, the signal name for
+ * `personalisation_signal`) is copied into `detail_buf`, NUL-terminated and
+ * truncated to `detail_capacity`; `*out_detail_len` is the untruncated length
+ * (the detail is printable ASCII, at most 128 bytes). `detail_buf` may be NULL
+ * with `detail_capacity` 0. `*out_lifetime_s` is the explicit freshness
+ * lifetime (0 when none), `*out_flags` carries the PS_HTML_STORE_FLAG_* bits,
+ * `*out_cc_flags` the parsed Cache-Control bits (PS_CC_ORIGIN_*), and
+ * `*out_sidecar` the header-set verdict as ps_headers_sidecar_classify
+ * reports it (meaningful once the response got as far as the header check;
+ * an earlier refusal leaves it 0).
+ *
+ * The policy is strict on purpose: a response is stored only when it states
+ * its own lifetime or carries a validator, never on a guessed one; the request
+ * and the response must show no sign of being personalised; and the only Vary
+ * it admits is Accept-Encoding. Those rules are not configurable. */
+PS_EXPORT int ps_html_store_classify(
+    const char* method, const char* url_path, int has_authorization,
+    int authenticated_user, int has_cookie, int status,
+    const char* const* names, const char* const* values, size_t count,
+    uint64_t body_bytes, int body_complete, const char* body_prefix,
+    size_t body_prefix_len, uint64_t max_body_bytes, uint32_t now_seconds,
+    int* out_reason, uint32_t* out_lifetime_s, uint32_t* out_flags,
+    uint16_t* out_cc_flags, int* out_sidecar, char* detail_buf,
+    size_t detail_capacity, size_t* out_detail_len);
+
+/* Decide whether a stored HTML entry may be served. Available from
+ * PS_API 1.12. Pure, like ps_html_store_classify, and with the same
+ * last-error behaviour.
+ *
+ * `mode` is a ps_html_cache_mode_t value. `request_flags` carries the
+ * PS_HTML_REQUEST_* bits; `max_age` and `min_fresh` are the request's
+ * Cache-Control values, -1 when absent. `stored_flags` carries the
+ * PS_HTML_STORED_* bits describing the entry, `stored_at` (seconds) when it
+ * was recorded, `age_at_store` the origin's Age at that time, `lifetime_s` its
+ * freshness lifetime, `cc_flags` its Cache-Control bits and `render_ttl_s` the
+ * lifetime bound of its Markdown copy. Unknown flag bits are ignored.
+ *
+ * Returns the action: 0 fall through to the origin, 1 serve the stored HTML,
+ * 2 serve the Markdown copy, 3 validate the entry with the origin first.
+ * Returns -1 for a malformed call (a `mode` outside the enumerated set, or a
+ * NULL out-parameter); no out-parameter is written then.
+ *
+ * `*out_reason` receives the reason (ps_html_serve_reason_name: fresh, mode,
+ * auth_request, cookie_request, client_no_cache, needs_validation, stale,
+ * headers_not_reproducible, sidecar_missing, purged, absent, binding_stale,
+ * parent_stale). `*out_enforce` is 0 in the off and report-only modes, where
+ * the action is what WOULD happen and the front end must not act on it, and 1
+ * otherwise. `*out_age_s` is the entry's current age. A stale entry is never
+ * served in any mode. */
+PS_EXPORT int ps_html_serve_classify(int mode, uint32_t request_flags,
+                                     int64_t max_age, int64_t min_fresh,
+                                     uint32_t now_seconds,
+                                     uint32_t stored_flags, uint32_t stored_at,
+                                     uint32_t age_at_store, uint32_t lifetime_s,
+                                     uint16_t cc_flags, uint32_t render_ttl_s,
+                                     int* out_reason, int* out_enforce,
+                                     uint32_t* out_age_s);
+
+/* Format one HTML cache decision as a single JSON line. Available from
+ * PS_API 1.12. `keys[i]` / `values[i]` are parallel arrays of NUL-terminated
+ * strings. The key set is closed (ts_ms, host, path, mode, action, reason,
+ * status, size, lifetime_s, validators, cc, vary, sidecar, request,
+ * personalisation, before, variant, binding, age_s) and has no key for a body,
+ * a header value, a cookie, a client address or a user agent; the keys come out
+ * in that order whatever order they are given in.
+ *
+ * The line (no trailing newline) is written to `buf` NUL-terminated, and
+ * `*out_len` receives its length. Returns 0 on success; -1 for a malformed
+ * call (NULL arrays or elements with `count` > 0, a NULL `out_len`, a NULL
+ * `buf` with a non-zero capacity); -2 when the formatter refused the fields (an
+ * unknown or duplicate key, a value containing CR, LF or NUL, a `path` over
+ * 300 bytes, an empty `host`), with `*out_len` 0; -3 when `buf` is too small,
+ * with `*out_len` the length needed excluding the NUL and `buf` left holding an
+ * empty string. A capacity of 0 may pass a NULL `buf` to ask only for the
+ * length. Pure: it opens nothing and does not touch the last-error message. */
+PS_EXPORT int ps_html_decision_format(const char* const* keys,
+                                      const char* const* values, size_t count,
+                                      char* buf, size_t capacity,
+                                      size_t* out_len);
+
+/* The closed-set name for a reason value ps_html_store_classify or
+ * ps_html_serve_classify wrote, for callers that log or count by name.
+ * Available from PS_API 1.12. Returns a static NUL-terminated string that must
+ * not be freed, or NULL for a value outside the enumerated set. */
+PS_EXPORT const char* ps_html_store_reason_name(int reason);
+PS_EXPORT const char* ps_html_serve_reason_name(int reason);
 
 PS_EXPORT PS_NODISCARD ps_error_t ps_write_data(ps_write_handle_t* handle,
                                                 const void* data,

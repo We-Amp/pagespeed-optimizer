@@ -4,6 +4,23 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Added: the C API (PS_API 1.12) gains the HTML cacheability policy entry
+points: `ps_html_store_classify` decides whether a `text/html` response may
+be stored, `ps_html_serve_classify` decides whether a stored page may be
+served, `ps_html_decision_format` writes one decision as a single JSON line,
+and `ps_html_store_reason_name`, `ps_html_serve_reason_name` and
+`ps_serve_stats_record_html_cache` support logging and counting. The policy
+stores a page only when the origin stated its lifetime or sent a validator,
+never on a guessed lifetime; it refuses pages that look personalised (a
+request with credentials or a cookie, a response that sets a cookie, `private`
+or `no-store`, a `Vary` beyond `Accept-Encoding`, a CSRF token or a login or
+checkout form in the body); and it never serves a stale page. `/v1/metrics`
+gains the `pagespeed_html_cache_*_total` counters, which read zero until a
+front end records decisions. No behaviour changes in this release: nothing in
+the nginx module, the worker or the ASP.NET middleware calls the new entry
+points yet. The counters live in the serve statistics file, whose format
+change is covered by the entry below: the file is recreated once on upgrade.
+
 Fixed: nginx now serves a stale cached response that the origin confirms is
 still current (a 304 to the module's own revalidation request) to a client
 that sent no conditional request as a normal `200` with the full body, as RFC

@@ -17,6 +17,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <utility>
 
 #ifndef _WIN32
 #include <sys/stat.h>
@@ -1130,6 +1131,100 @@ TEST_F(ApiHandlersIntegrationTest, MetricsExposesHeadersSidecarCounters) {
             std::string::npos);
   EXPECT_NE(resp.find("pagespeed_headers_sidecar_stored_total 5"),
             std::string::npos);
+}
+
+// The v12 HTML cache policy counters are exported on /v1/metrics, one counter
+// per field, named pagespeed_html_cache_<field>_total.
+TEST_F(ApiHandlersIntegrationTest, MetricsExposesHtmlCacheCounters) {
+  ServeStats ss{};
+  ss.magic = ServeStats::kMagic;
+  ss.version = ServeStats::kVersion;
+  ss.html_cache_would_store = 1;
+  ss.html_cache_stored = 2;
+  ss.html_cache_refused = 3;
+  ss.html_cache_refused_method = 4;
+  ss.html_cache_refused_vary = 5;
+  ss.html_cache_refused_personalisation = 6;
+  ss.html_cache_store_no_notify = 7;
+  ss.html_cache_would_serve = 8;
+  ss.html_cache_served_html = 9;
+  ss.html_cache_served_markdown = 10;
+  ss.html_cache_fall_through_mode = 11;
+  ss.html_cache_fall_through_stale = 12;
+  ss.html_cache_fall_through_parent_stale = 13;
+  ss.html_cache_validate = 14;
+  ss.html_cache_invalidated = 15;
+  ctx_->serve_stats = &ss;
+
+  std::string resp =
+      SendRequest("GET /v1/metrics HTTP/1.1\r\nHost: localhost\r\n\r\n");
+  const std::pair<const char*, int> kExpected[] = {
+      {"would_store", 1},
+      {"stored", 2},
+      {"refused", 3},
+      {"refused_method", 4},
+      {"refused_vary", 5},
+      {"refused_personalisation", 6},
+      {"store_no_notify", 7},
+      {"would_serve", 8},
+      {"served_html", 9},
+      {"served_markdown", 10},
+      {"fall_through_mode", 11},
+      {"fall_through_stale", 12},
+      {"fall_through_parent_stale", 13},
+      {"validate", 14},
+      {"invalidated", 15},
+  };
+  for (const auto& [field, value] : kExpected) {
+    const std::string line = std::string("pagespeed_html_cache_") + field +
+                             "_total " + std::to_string(value) + "\n";
+    EXPECT_NE(resp.find(line), std::string::npos) << line;
+  }
+  // Every field is exported, each with HELP and TYPE, zero included.
+  for (const char* field : {"would_store",
+                            "stored",
+                            "refused",
+                            "refused_method",
+                            "refused_status",
+                            "refused_incomplete",
+                            "refused_auth_request",
+                            "refused_cookie_request",
+                            "refused_set_cookie",
+                            "refused_private",
+                            "refused_no_store",
+                            "refused_no_lifetime",
+                            "refused_vary",
+                            "refused_headers",
+                            "refused_nonce_csp",
+                            "refused_content_type",
+                            "refused_encoding",
+                            "refused_size",
+                            "refused_url",
+                            "refused_personalisation",
+                            "store_no_notify",
+                            "would_serve",
+                            "served_html",
+                            "served_markdown",
+                            "fall_through_mode",
+                            "fall_through_auth_request",
+                            "fall_through_cookie_request",
+                            "fall_through_client_no_cache",
+                            "fall_through_needs_validation",
+                            "fall_through_stale",
+                            "fall_through_headers_not_reproducible",
+                            "fall_through_sidecar_missing",
+                            "fall_through_purged",
+                            "fall_through_absent",
+                            "fall_through_binding_stale",
+                            "fall_through_parent_stale",
+                            "validate",
+                            "invalidated"}) {
+    const std::string name =
+        std::string("pagespeed_html_cache_") + field + "_total";
+    EXPECT_NE(resp.find("# HELP " + name + " "), std::string::npos) << name;
+    EXPECT_NE(resp.find("# TYPE " + name + " counter\n"), std::string::npos)
+        << name;
+  }
 }
 
 TEST_F(ApiHandlersIntegrationTest, StatsJsonExposesZerocopyAndSwrCounters) {

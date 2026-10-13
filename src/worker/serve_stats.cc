@@ -68,7 +68,33 @@ static void ZeroCounters(ServeStats* s) {
         // v11 response-header sidecar counters.
         &s->headers_sidecar_fall_through, &s->headers_sidecar_never_optimized,
         &s->headers_sidecar_replayed, &s->headers_sidecar_missing,
-        &s->headers_sidecar_write_failed, &s->headers_sidecar_stored}) {
+        &s->headers_sidecar_write_failed, &s->headers_sidecar_stored,
+        // v12 HTML cache policy counters.
+        &s->html_cache_would_store, &s->html_cache_stored,
+        &s->html_cache_refused, &s->html_cache_refused_method,
+        &s->html_cache_refused_status, &s->html_cache_refused_incomplete,
+        &s->html_cache_refused_auth_request,
+        &s->html_cache_refused_cookie_request,
+        &s->html_cache_refused_set_cookie, &s->html_cache_refused_private,
+        &s->html_cache_refused_no_store, &s->html_cache_refused_no_lifetime,
+        &s->html_cache_refused_vary, &s->html_cache_refused_headers,
+        &s->html_cache_refused_nonce_csp, &s->html_cache_refused_content_type,
+        &s->html_cache_refused_encoding, &s->html_cache_refused_size,
+        &s->html_cache_refused_url, &s->html_cache_refused_personalisation,
+        &s->html_cache_store_no_notify, &s->html_cache_would_serve,
+        &s->html_cache_served_html, &s->html_cache_served_markdown,
+        &s->html_cache_fall_through_mode,
+        &s->html_cache_fall_through_auth_request,
+        &s->html_cache_fall_through_cookie_request,
+        &s->html_cache_fall_through_client_no_cache,
+        &s->html_cache_fall_through_needs_validation,
+        &s->html_cache_fall_through_stale,
+        &s->html_cache_fall_through_headers_not_reproducible,
+        &s->html_cache_fall_through_sidecar_missing,
+        &s->html_cache_fall_through_purged, &s->html_cache_fall_through_absent,
+        &s->html_cache_fall_through_binding_stale,
+        &s->html_cache_fall_through_parent_stale, &s->html_cache_validate,
+        &s->html_cache_invalidated}) {
     std::atomic_ref<uint64_t>(*field).store(0, std::memory_order_relaxed);
   }
   // v9 by-transfer-encoding serve counters: zeroed with the counters above,
@@ -765,6 +791,161 @@ void RecordHeadersSidecarWriteFailed(ServeStats* stats) {
 void RecordHeadersSidecarStored(ServeStats* stats) {
   if (stats == nullptr) return;
   RelaxedAdd(stats->headers_sidecar_stored, 1);
+}
+
+void RecordHtmlCacheStore(ServeStats* stats, HtmlStoreAction action,
+                          HtmlStoreReason reason, bool enforce) {
+  if (stats == nullptr) return;
+  switch (action) {
+    case HtmlStoreAction::kStore:
+      RelaxedAdd(
+          enforce ? stats->html_cache_stored : stats->html_cache_would_store,
+          1);
+      return;
+    case HtmlStoreAction::kStoreNoNotify:
+      RelaxedAdd(
+          enforce ? stats->html_cache_stored : stats->html_cache_would_store,
+          1);
+      RelaxedAdd(stats->html_cache_store_no_notify, 1);
+      return;
+    case HtmlStoreAction::kRefuse:
+      break;
+  }
+  uint64_t* field = nullptr;
+  switch (reason) {
+    case HtmlStoreReason::kMethod:
+      field = &stats->html_cache_refused_method;
+      break;
+    case HtmlStoreReason::kStatus:
+      field = &stats->html_cache_refused_status;
+      break;
+    case HtmlStoreReason::kIncomplete:
+      field = &stats->html_cache_refused_incomplete;
+      break;
+    case HtmlStoreReason::kAuthRequest:
+      field = &stats->html_cache_refused_auth_request;
+      break;
+    case HtmlStoreReason::kCookieRequest:
+      field = &stats->html_cache_refused_cookie_request;
+      break;
+    case HtmlStoreReason::kSetCookie:
+      field = &stats->html_cache_refused_set_cookie;
+      break;
+    case HtmlStoreReason::kPrivate:
+      field = &stats->html_cache_refused_private;
+      break;
+    case HtmlStoreReason::kNoStore:
+      field = &stats->html_cache_refused_no_store;
+      break;
+    case HtmlStoreReason::kNoLifetime:
+      field = &stats->html_cache_refused_no_lifetime;
+      break;
+    case HtmlStoreReason::kVary:
+      field = &stats->html_cache_refused_vary;
+      break;
+    case HtmlStoreReason::kHeaders:
+      field = &stats->html_cache_refused_headers;
+      break;
+    case HtmlStoreReason::kNonceCsp:
+      field = &stats->html_cache_refused_nonce_csp;
+      break;
+    case HtmlStoreReason::kContentType:
+      field = &stats->html_cache_refused_content_type;
+      break;
+    case HtmlStoreReason::kEncoding:
+      field = &stats->html_cache_refused_encoding;
+      break;
+    case HtmlStoreReason::kSize:
+      field = &stats->html_cache_refused_size;
+      break;
+    case HtmlStoreReason::kUrl:
+      field = &stats->html_cache_refused_url;
+      break;
+    case HtmlStoreReason::kPersonalisationSignal:
+      field = &stats->html_cache_refused_personalisation;
+      break;
+    case HtmlStoreReason::kNone:
+    case HtmlStoreReason::kNoTransform:
+      break;
+  }
+  // A refusal with no refusal reason is not one of the closed set: drop it
+  // whole rather than count a refusal nothing can be attributed to.
+  if (field == nullptr) return;
+  RelaxedAdd(stats->html_cache_refused, 1);
+  RelaxedAdd(*field, 1);
+}
+
+void RecordHtmlCacheServe(ServeStats* stats, HtmlServeAction action,
+                          HtmlServeReason reason, bool enforce) {
+  if (stats == nullptr) return;
+  switch (action) {
+    case HtmlServeAction::kServeHtml:
+      RelaxedAdd(enforce ? stats->html_cache_served_html
+                         : stats->html_cache_would_serve,
+                 1);
+      return;
+    case HtmlServeAction::kServeMarkdown:
+      RelaxedAdd(enforce ? stats->html_cache_served_markdown
+                         : stats->html_cache_would_serve,
+                 1);
+      return;
+    case HtmlServeAction::kValidate:
+      if (enforce) {
+        RelaxedAdd(stats->html_cache_validate, 1);
+        return;
+      }
+      break;
+    case HtmlServeAction::kFallThrough:
+      break;
+  }
+  uint64_t* field = nullptr;
+  switch (reason) {
+    case HtmlServeReason::kMode:
+      field = &stats->html_cache_fall_through_mode;
+      break;
+    case HtmlServeReason::kAuthRequest:
+      field = &stats->html_cache_fall_through_auth_request;
+      break;
+    case HtmlServeReason::kCookieRequest:
+      field = &stats->html_cache_fall_through_cookie_request;
+      break;
+    case HtmlServeReason::kClientNoCache:
+      field = &stats->html_cache_fall_through_client_no_cache;
+      break;
+    case HtmlServeReason::kNeedsValidation:
+      field = &stats->html_cache_fall_through_needs_validation;
+      break;
+    case HtmlServeReason::kStale:
+      field = &stats->html_cache_fall_through_stale;
+      break;
+    case HtmlServeReason::kHeadersNotReproducible:
+      field = &stats->html_cache_fall_through_headers_not_reproducible;
+      break;
+    case HtmlServeReason::kSidecarMissing:
+      field = &stats->html_cache_fall_through_sidecar_missing;
+      break;
+    case HtmlServeReason::kPurged:
+      field = &stats->html_cache_fall_through_purged;
+      break;
+    case HtmlServeReason::kAbsent:
+      field = &stats->html_cache_fall_through_absent;
+      break;
+    case HtmlServeReason::kBindingStale:
+      field = &stats->html_cache_fall_through_binding_stale;
+      break;
+    case HtmlServeReason::kParentStale:
+      field = &stats->html_cache_fall_through_parent_stale;
+      break;
+    case HtmlServeReason::kFresh:
+      break;
+  }
+  if (field == nullptr) return;
+  RelaxedAdd(*field, 1);
+}
+
+void RecordHtmlCacheInvalidated(ServeStats* stats) {
+  if (stats == nullptr) return;
+  RelaxedAdd(stats->html_cache_invalidated, 1);
 }
 
 void RecordServeClass(ServeStats* stats, ServeClass cls, uint32_t flags) {

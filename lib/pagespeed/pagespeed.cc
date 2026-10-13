@@ -25,6 +25,8 @@
 #include "lib/cache/cache_control_header.h"
 #include "lib/cache/freshness.h"
 #include "lib/cache/headers_sidecar.h"
+#include "lib/cache/html_cache_decision.h"
+#include "lib/cache/html_cache_policy.h"
 #include "lib/cache/origin_cache_control.h"
 #include "lib/cache/vary_storability.h"
 #include "lib/classify/alternate_id.h"
@@ -787,6 +789,40 @@ extern "C" void ps_serve_stats_record_hit_host(ps_serve_stats_t* h,
                             original_bytes, optimized_bytes, mask, host_view);
 }
 
+extern "C" void ps_serve_stats_record_html_cache(ps_serve_stats_t* h, int kind,
+                                                 int action, int reason,
+                                                 int enforce) {
+  if (h == nullptr) return;
+  switch (kind) {
+    case PS_HTML_CACHE_RECORD_STORE:
+      if (action < 0 ||
+          action >
+              static_cast<int>(pagespeed::HtmlStoreAction::kStoreNoNotify) ||
+          reason < 0 || reason >= pagespeed::kHtmlStoreReasonCount) {
+        return;
+      }
+      pagespeed::RecordHtmlCacheStore(
+          h->stats, static_cast<pagespeed::HtmlStoreAction>(action),
+          static_cast<pagespeed::HtmlStoreReason>(reason), enforce != 0);
+      return;
+    case PS_HTML_CACHE_RECORD_SERVE:
+      if (action < 0 ||
+          action > static_cast<int>(pagespeed::HtmlServeAction::kValidate) ||
+          reason < 0 || reason >= pagespeed::kHtmlServeReasonCount) {
+        return;
+      }
+      pagespeed::RecordHtmlCacheServe(
+          h->stats, static_cast<pagespeed::HtmlServeAction>(action),
+          static_cast<pagespeed::HtmlServeReason>(reason), enforce != 0);
+      return;
+    case PS_HTML_CACHE_RECORD_INVALIDATED:
+      pagespeed::RecordHtmlCacheInvalidated(h->stats);
+      return;
+    default:
+      return;
+  }
+}
+
 extern "C" void ps_serve_stats_record_serve_class(ps_serve_stats_t* h,
                                                   ps_serve_class_t cls,
                                                   uint32_t flags) {
@@ -1130,6 +1166,198 @@ extern "C" int ps_headers_sidecar_classify(const char* const* names,
   std::vector<HeaderField> fields;
   if (!CollectHeaderFields(names, values, count, &fields)) return -1;
   return static_cast<int>(pagespeed::ClassifyForHeadersSidecar(fields).verdict);
+}
+
+// ---- HTML cacheability policy (PS_API 1.12) ----
+//
+// Thin adapters: the scalar and array arguments become the C++ request,
+// response and policy structs, and the verdict comes back through the
+// out-parameters.  Nothing here holds state, so nothing here touches the
+// last-error message.
+
+extern "C" int ps_html_store_classify(
+    const char* method, const char* url_path, int has_authorization,
+    int authenticated_user, int has_cookie, int status,
+    const char* const* names, const char* const* values, size_t count,
+    uint64_t body_bytes, int body_complete, const char* body_prefix,
+    size_t body_prefix_len, uint64_t max_body_bytes, uint32_t now_seconds,
+    int* out_reason, uint32_t* out_lifetime_s, uint32_t* out_flags,
+    uint16_t* out_cc_flags, int* out_sidecar, char* detail_buf,
+    size_t detail_capacity, size_t* out_detail_len) {
+  try {
+    if (method == nullptr || url_path == nullptr || out_reason == nullptr ||
+        out_lifetime_s == nullptr || out_flags == nullptr ||
+        out_cc_flags == nullptr || out_sidecar == nullptr ||
+        out_detail_len == nullptr) {
+      return -1;
+    }
+    if (body_prefix == nullptr && body_prefix_len != 0) return -1;
+    if (detail_buf == nullptr && detail_capacity != 0) return -1;
+    std::vector<HeaderField> fields;
+    if (!CollectHeaderFields(names, values, count, &fields)) return -1;
+
+    pagespeed::HtmlStoreRequest request;
+    request.method = method;
+    request.url_path = url_path;
+    request.has_authorization = has_authorization != 0;
+    request.authenticated_user = authenticated_user != 0;
+    request.has_cookie = has_cookie != 0;
+    pagespeed::HtmlStoreResponse response;
+    response.status = status;
+    response.headers = fields;
+    response.body_bytes = body_bytes;
+    response.body_complete = body_complete != 0;
+    if (body_prefix != nullptr) {
+      response.body_prefix = std::string_view(body_prefix, body_prefix_len);
+    }
+    pagespeed::HtmlStorePolicy policy;
+    policy.max_body_bytes = max_body_bytes;
+    policy.now_seconds = now_seconds;
+
+    const pagespeed::HtmlStoreVerdict v =
+        pagespeed::ClassifyHtmlForStore(request, response, policy);
+
+    *out_reason = static_cast<int>(v.reason);
+    *out_lifetime_s = v.lifetime_s;
+    uint32_t flags = 0;
+    if (v.lifetime_explicit) flags |= PS_HTML_STORE_FLAG_LIFETIME_EXPLICIT;
+    if (v.needs_validation) flags |= PS_HTML_STORE_FLAG_NEEDS_VALIDATION;
+    if (v.has_validators) flags |= PS_HTML_STORE_FLAG_HAS_VALIDATORS;
+    if (v.explicit_shared) flags |= PS_HTML_STORE_FLAG_EXPLICIT_SHARED;
+    *out_flags = flags;
+    *out_cc_flags = v.cc_flags;
+    *out_sidecar =
+        v.sidecar_evaluated ? static_cast<int>(v.sidecar.verdict) : 0;
+    *out_detail_len = v.detail.size();
+    if (detail_capacity != 0) {
+      const size_t n = std::min(v.detail.size(), detail_capacity - 1);
+      std::memcpy(detail_buf, v.detail.data(), n);
+      detail_buf[n] = '\0';
+    }
+    return static_cast<int>(v.action);
+  } catch (...) {
+    return -1;
+  }
+}
+
+extern "C" int ps_html_serve_classify(int mode, uint32_t request_flags,
+                                      int64_t max_age, int64_t min_fresh,
+                                      uint32_t now_seconds,
+                                      uint32_t stored_flags, uint32_t stored_at,
+                                      uint32_t age_at_store,
+                                      uint32_t lifetime_s, uint16_t cc_flags,
+                                      uint32_t render_ttl_s, int* out_reason,
+                                      int* out_enforce, uint32_t* out_age_s) {
+  try {
+    if (out_reason == nullptr || out_enforce == nullptr ||
+        out_age_s == nullptr) {
+      return -1;
+    }
+    if (mode < PS_HTML_CACHE_OFF || mode > PS_HTML_CACHE_SERVE_CACHED_HTML) {
+      return -1;
+    }
+    pagespeed::HtmlServeRequest request;
+    request.mode = static_cast<pagespeed::HtmlCacheMode>(mode);
+    request.wants_markdown =
+        (request_flags & PS_HTML_REQUEST_WANTS_MARKDOWN) != 0;
+    request.has_authorization =
+        (request_flags & PS_HTML_REQUEST_HAS_AUTHORIZATION) != 0;
+    request.authenticated_user =
+        (request_flags & PS_HTML_REQUEST_AUTHENTICATED_USER) != 0;
+    request.has_cookie = (request_flags & PS_HTML_REQUEST_HAS_COOKIE) != 0;
+    request.has_cache_control =
+        (request_flags & PS_HTML_REQUEST_HAS_CACHE_CONTROL) != 0;
+    request.cache_control_no_cache =
+        (request_flags & PS_HTML_REQUEST_CACHE_CONTROL_NO_CACHE) != 0;
+    request.pragma_no_cache =
+        (request_flags & PS_HTML_REQUEST_PRAGMA_NO_CACHE) != 0;
+    request.max_age = max_age;
+    request.min_fresh = min_fresh;
+    request.now_seconds = now_seconds;
+
+    pagespeed::StoredHtmlFacts stored;
+    stored.present = (stored_flags & PS_HTML_STORED_PRESENT) != 0;
+    stored.stored_at = stored_at;
+    stored.age_at_store = age_at_store;
+    stored.lifetime_s = lifetime_s;
+    stored.needs_validation =
+        (stored_flags & PS_HTML_STORED_NEEDS_VALIDATION) != 0;
+    stored.cc_flags = cc_flags;
+    stored.explicit_shared =
+        (stored_flags & PS_HTML_STORED_EXPLICIT_SHARED) != 0;
+    stored.headers_not_reproducible =
+        (stored_flags & PS_HTML_STORED_HEADERS_NOT_REPRODUCIBLE) != 0;
+    stored.sidecar_required =
+        (stored_flags & PS_HTML_STORED_SIDECAR_REQUIRED) != 0;
+    stored.sidecar_present =
+        (stored_flags & PS_HTML_STORED_SIDECAR_PRESENT) != 0;
+    stored.purged = (stored_flags & PS_HTML_STORED_PURGED) != 0;
+    stored.validated_this_request =
+        (stored_flags & PS_HTML_STORED_VALIDATED_THIS_REQUEST) != 0;
+    stored.variant_present =
+        (stored_flags & PS_HTML_STORED_VARIANT_PRESENT) != 0;
+    stored.binding_live = (stored_flags & PS_HTML_STORED_BINDING_LIVE) != 0;
+    stored.render_ttl_s = render_ttl_s;
+
+    const pagespeed::HtmlServeVerdict v =
+        pagespeed::ClassifyHtmlForServe(request, stored);
+    *out_reason = static_cast<int>(v.reason);
+    *out_enforce = v.enforce ? 1 : 0;
+    *out_age_s = v.age_s;
+    return static_cast<int>(v.action);
+  } catch (...) {
+    return -1;
+  }
+}
+
+extern "C" int ps_html_decision_format(const char* const* keys,
+                                       const char* const* values, size_t count,
+                                       char* buf, size_t capacity,
+                                       size_t* out_len) {
+  try {
+    if (out_len == nullptr) return -1;
+    if (buf == nullptr && capacity != 0) return -1;
+    std::vector<pagespeed::HtmlCacheDecisionField> fields;
+    if (count != 0) {
+      if (keys == nullptr || values == nullptr) return -1;
+      fields.reserve(count);
+      for (size_t i = 0; i < count; ++i) {
+        if (keys[i] == nullptr || values[i] == nullptr) return -1;
+        fields.push_back(
+            {std::string_view(keys[i]), std::string_view(values[i])});
+      }
+    }
+    *out_len = 0;
+    const std::optional<std::string> line =
+        pagespeed::FormatHtmlCacheDecisionLine(fields);
+    if (!line.has_value()) return -2;
+    *out_len = line->size();
+    if (line->size() + 1 > capacity) {
+      if (capacity != 0) buf[0] = '\0';
+      return -3;
+    }
+    std::memcpy(buf, line->data(), line->size());
+    buf[line->size()] = '\0';
+    return 0;
+  } catch (...) {
+    return -1;
+  }
+}
+
+// The names are string literals held in static tables, so the view's data
+// pointer is NUL-terminated and outlives the call.
+extern "C" const char* ps_html_store_reason_name(int reason) {
+  if (reason < 0 || reason >= pagespeed::kHtmlStoreReasonCount) return nullptr;
+  return pagespeed::HtmlStoreReasonName(
+             static_cast<pagespeed::HtmlStoreReason>(reason))
+      .data();
+}
+
+extern "C" const char* ps_html_serve_reason_name(int reason) {
+  if (reason < 0 || reason >= pagespeed::kHtmlServeReasonCount) return nullptr;
+  return pagespeed::HtmlServeReasonName(
+             static_cast<pagespeed::HtmlServeReason>(reason))
+      .data();
 }
 
 extern "C" ps_error_t ps_cache_write_headers_sidecar(

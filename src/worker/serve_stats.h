@@ -10,6 +10,7 @@
 #include <string_view>
 #include <vector>
 
+#include "lib/cache/html_cache_policy.h"
 #include "lib/classify/content_type.h"
 
 namespace pagespeed {
@@ -63,7 +64,7 @@ class MessageHandler;
 // aarch64) because aligned 64-bit loads/stores are naturally atomic.
 struct ServeStats {
   static constexpr uint32_t kMagic = 0x50533032;  // "PS02"
-  static constexpr uint32_t kVersion = 11;
+  static constexpr uint32_t kVersion = 12;
   // 1024 (was 512 through v8, 256 through v5, 128 through v3): v6 adds the opt-in
   // counter apparatus (per-signer slots, overflow, verify-latency buckets, a
   // boot identity and a counting-since day) — 192 bytes of additions overflow
@@ -85,7 +86,9 @@ struct ServeStats {
   // 352-byte headroom, so the file grows to 16384 on the same version bump.
   // v11 adds the six response-header sidecar counters (48 bytes), inside
   // v10's headroom; the version bump forces a fresh file as before.
-  // HEADROOM AFTER v11 IS 4888 BYTES.
+  // v12 adds the 38 HTML cache policy counters (304 bytes), inside v11's
+  // headroom; the version bump forces a fresh file as before.
+  // HEADROOM AFTER v12 IS 4584 BYTES.
   static constexpr size_t kFileSize = 16384;
 
   // Web Bot Auth opt-in counter (experimental): the maximum
@@ -436,6 +439,64 @@ struct ServeStats {
   uint64_t headers_sidecar_stored;
   // ---- end v11 block (48 bytes) ----
 
+  // ---- v12: HTML cache policy ----
+  // WRITER: a front end that has asked the policy (lib/cache/html_cache_policy.h)
+  // about an HTML response or a stored HTML entry, through
+  // RecordHtmlCacheStore / RecordHtmlCacheServe / RecordHtmlCacheInvalidated
+  // or the C API.  Nothing in the tree records these yet, so they read 0.
+  //
+  // Store side.  Every verdict lands in exactly one of: would_store (the
+  // policy would store the response and the front end is only measuring),
+  // stored (it did), refused.  A store without notification (no-transform)
+  // counts in stored (or would_store) AND in store_no_notify, which is a
+  // subset.  A refusal counts in refused AND in exactly one refused_<reason>.
+  uint64_t html_cache_would_store;
+  uint64_t html_cache_stored;
+  uint64_t html_cache_refused;
+  uint64_t html_cache_refused_method;
+  uint64_t html_cache_refused_status;
+  uint64_t html_cache_refused_incomplete;
+  uint64_t html_cache_refused_auth_request;
+  uint64_t html_cache_refused_cookie_request;
+  uint64_t html_cache_refused_set_cookie;
+  uint64_t html_cache_refused_private;
+  uint64_t html_cache_refused_no_store;
+  uint64_t html_cache_refused_no_lifetime;
+  uint64_t html_cache_refused_vary;
+  uint64_t html_cache_refused_headers;
+  uint64_t html_cache_refused_nonce_csp;
+  uint64_t html_cache_refused_content_type;
+  uint64_t html_cache_refused_encoding;
+  uint64_t html_cache_refused_size;
+  uint64_t html_cache_refused_url;
+  uint64_t html_cache_refused_personalisation;
+  uint64_t html_cache_store_no_notify;
+  // Serve side.  would_serve counts a serve verdict (HTML or Markdown) the
+  // front end did not act on; served_html / served_markdown count one it did.
+  // validate counts an enforced validate-with-origin verdict.  Every fall
+  // through counts in the fall_through_<reason> for its reason, enforced or
+  // not; a validate verdict that was not enforced counts as the
+  // fall_through_<reason> of why the entry was not fresh.
+  uint64_t html_cache_would_serve;
+  uint64_t html_cache_served_html;
+  uint64_t html_cache_served_markdown;
+  uint64_t html_cache_fall_through_mode;
+  uint64_t html_cache_fall_through_auth_request;
+  uint64_t html_cache_fall_through_cookie_request;
+  uint64_t html_cache_fall_through_client_no_cache;
+  uint64_t html_cache_fall_through_needs_validation;
+  uint64_t html_cache_fall_through_stale;
+  uint64_t html_cache_fall_through_headers_not_reproducible;
+  uint64_t html_cache_fall_through_sidecar_missing;
+  uint64_t html_cache_fall_through_purged;
+  uint64_t html_cache_fall_through_absent;
+  uint64_t html_cache_fall_through_binding_stale;
+  uint64_t html_cache_fall_through_parent_stale;
+  uint64_t html_cache_validate;
+  // Stored HTML entries dropped by a purge or a refresh.
+  uint64_t html_cache_invalidated;
+  // ---- end v12 block (304 bytes) ----
+
   // Days since the Unix epoch when this counting file was first created fresh.
   // Day-granular ("since" date).  Minted in the create-fresh path only;
   // PRESERVED across same-version reuse/restart (NOT a counter).
@@ -455,10 +516,10 @@ struct ServeStats {
   uint8_t boot_id[16];
 };
 static_assert(sizeof(ServeStats) <= ServeStats::kFileSize);
-// Pin the EXACT size (v11).  The <= assert above only catches an overflow; it
+// Pin the EXACT size (v12).  The <= assert above only catches an overflow; it
 // would happily accept a field silently dropped or re-typed.  Anything that
 // changes the layout must change this number and the version together.
-static_assert(sizeof(ServeStats) == 11496,
+static_assert(sizeof(ServeStats) == 11800,
               "ServeStats layout changed: bump kVersion and update this pin");
 static_assert(alignof(ServeStats) == 8);
 // The v8 block must stay 8-byte aligned so every u64 in it can be updated with
@@ -475,6 +536,11 @@ static_assert(offsetof(ServeStats, counting_since_unix_day) <
 static_assert(offsetof(ServeStats, serve_hits_by_encoding) % 8 == 0);
 static_assert(offsetof(ServeStats, serve_bytes_by_encoding) % 8 == 0);
 static_assert(offsetof(ServeStats, serve_bytes_by_encoding) <
+              offsetof(ServeStats, counting_since_unix_day));
+static_assert(offsetof(ServeStats, html_cache_would_store) % 8 == 0);
+static_assert(offsetof(ServeStats, html_cache_invalidated) ==
+              offsetof(ServeStats, html_cache_would_store) + 37 * 8);
+static_assert(offsetof(ServeStats, html_cache_invalidated) <
               offsetof(ServeStats, counting_since_unix_day));
 static_assert(sizeof(ServeStats::HostSlot) == 168);
 static_assert(offsetof(ServeStats, serve_hosts) % 8 == 0);
@@ -678,6 +744,18 @@ void RecordHeadersSidecarReplayed(ServeStats* stats);
 void RecordHeadersSidecarMissing(ServeStats* stats);
 void RecordHeadersSidecarWriteFailed(ServeStats* stats);
 void RecordHeadersSidecarStored(ServeStats* stats);
+
+// Atomically record one HTML cache policy decision (v12), incremented by a
+// front end.  Same discipline; stats == nullptr is a no-op.  `enforce` is true
+// when the front end acted on the verdict and false when it only observed it;
+// see the v12 block for exactly which counters each combination moves.  A
+// reason outside the enumerated set moves nothing, so a corrupt value cannot
+// be attributed to a neighbouring counter.
+void RecordHtmlCacheStore(ServeStats* stats, HtmlStoreAction action,
+                          HtmlStoreReason reason, bool enforce);
+void RecordHtmlCacheServe(ServeStats* stats, HtmlServeAction action,
+                          HtmlServeReason reason, bool enforce);
+void RecordHtmlCacheInvalidated(ServeStats* stats);
 
 // Atomically record ONE classified serve: exactly one serve-class counter is
 // incremented, plus notify_suppressed_total when `flags` carries

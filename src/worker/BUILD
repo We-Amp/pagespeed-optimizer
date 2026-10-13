@@ -526,6 +526,7 @@ cc_library(
     deps = [
         ":posix_compat",
         "//lib/base:message_handler",
+        "//lib/cache:html_cache_policy",
         "//lib/classify:capability_mask",
         "//lib/classify:content_type",
     ],

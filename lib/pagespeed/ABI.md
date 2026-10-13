@@ -155,6 +155,46 @@ that reads it the documented way. It costs the class one spare version value
 (2); a class that needs a third takes a new id, which is cheaper than the
 alternative.
 
+The HTML cacheability policy entry points (`ps_html_store_classify`,
+`ps_html_serve_classify`, `ps_html_decision_format`,
+`ps_html_store_reason_name`, `ps_html_serve_reason_name`, PS_API 1.12) are pure
+functions of their arguments, and that is part of the contract: they take no
+cache handle, perform no I/O, read no clock (the caller passes the time), keep
+no state, and never touch the last-error message. No struct crosses the
+boundary, so there is no layout to pin: inputs are scalars and the same
+parallel `names`/`values` arrays the sidecar takes, outputs are out-parameters
+and caller buffers.
+
+**The numeric values are the contract.** The action returned (0 refuse or fall
+through, 1 store or serve HTML, 2 store without notify or serve Markdown, 3
+validate), the reason integers (the closed name sets returned by
+`ps_html_store_reason_name` and `ps_html_serve_reason_name`), the flag bits on
+both sides, and the mode values 0 to 3 are all part of the ABI: a caller
+compiled against them reads them forever. A new reason is appended at the end
+of its set and is a MINOR change; a caller must treat a reason it does not know
+as "refused" or "fell through", which is how the library itself treats an
+out-of-range value it is handed (`NULL` from the name functions, and a dropped
+write from `ps_serve_stats_record_html_cache`). Reordering or renumbering is a
+MAJOR change.
+
+**The policy's strictness is the library's, not the caller's.** A page is stored
+only on an explicit lifetime or a validator, never on a heuristic one; a
+request with credentials or a cookie, a response that sets a cookie, `private`
+or `no-store`, a `Vary` beyond `Accept-Encoding` and a body carrying a
+per-client marker are never stored; a stale entry is never served. None of that
+is configurable per call, for the reason the sidecar's allowlist is not: what
+makes a page personal is not safe to re-decide per consumer. Narrowing it later
+is observable and is treated as a contract change. `enforce` in the serve
+verdict is likewise the library's statement of whether a caller is meant to act
+on the verdict at all: it is 0 in the off and report-only modes, where the
+action is only what would happen.
+
+`ps_serve_stats_record_html_cache` writes the serve-statistics counters the
+metrics export reports. The statistics file is versioned, and the version that
+added these counters is recreated once on upgrade (an older file is rejected
+and replaced, not read), which is already the contract of that file and not a
+change to it.
+
 ## The gate
 
 `tools/ci/check_abi.py`, run by the `abi-compat` CI job. It is checkout-only:

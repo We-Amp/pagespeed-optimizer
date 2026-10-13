@@ -24,6 +24,18 @@ Key methods:
   -- the response-header sidecar (`0x6C`): one entry per URL holding the curated,
   verbatim block of request-independent response headers. The write entry point
   IS the admission gate (`headers_sidecar.h`), read by EXACT ID, never selectable
+- `html_cache_policy.{h,cc}` -- the HTML cacheability policy: `ClassifyHtmlForStore`
+  (may a `text/html` response be stored: thirteen ordered rules, the first failing
+  rule is the reason) and `ClassifyHtmlForServe` (may a stored entry be served: ten
+  ordered rules, `enforce` false in off and report-only). Pure functions, no I/O or
+  clock; composes `AccumulateOriginCacheControl` and `ClassifyForHeadersSidecar`
+  rather than re-implementing either. The normative rule list, with RFC 9111 and
+  RFC 9110 section references, is the comment at the top of the header. Exposed on
+  the C API as `ps_html_store_classify` / `ps_html_serve_classify` (PS_API 1.12);
+  nothing in the tree calls it yet
+- `html_cache_decision.{h,cc}` -- the one-line JSON decision record for that policy.
+  A formatter only: the key set is closed and has no key for a body, header value,
+  cookie, client address or user agent, so privacy is a property of the key set
 - `RemoveAlternatesExcept(url, hostname, scheme, preserve)` -- the origin-refresh
   purge: bounded passes over (capped) listings; escalates to a whole-key drop
   only for a chain the storage layer cannot unlink from -- a cyclic chain,
@@ -73,6 +85,19 @@ bazel test //test/lib/cache/...
   is why the class has one writer and why the generic sentinel surface refuses
   `0x6C`. A `'nonce-'`-bearing CSP is refused outright — never "store the rest
   and drop that one".
+- The HTML policy is deliberately narrower than RFC 9111. There is NO heuristic
+  lifetime (section 4.2.2 is not applied: a response with no `max-age`, `s-maxage`
+  or `Expires` is stored only if it has a validator, and is then always
+  revalidated), a stale entry is NEVER served (`stale-while-revalidate`,
+  `stale-if-error`, `max-stale` and `must-revalidate` are not consulted), and
+  `Accept-Encoding` is the ONLY admitted `Vary` token (not the four axes
+  `VaryUncacheable` admits). Do not call `EvaluateFreshness` or
+  `VaryUncacheable` from it: their per-class defaults and wider Vary gate are
+  exactly what the policy forbids. In report-only mode the serve verdict is the
+  one `kServeCachedHtml` would give, with `enforce` false, so a counter of what
+  the strongest mode would do is honest. Fuzz it with
+  `bazel run -c opt --config=asan //lib/cache:html_cache_policy_fuzz`; the seeds
+  run in CI as `//test/lib/cache:html_cache_policy_fuzz_seeds_test`
 - "One entry per URL" used to hold only for a SINGLE writer. Unlink-then-write
   is not one operation, so two writers for the same URL could interleave into a
   chain of two — a fixed point, since unlink-one/write-one kept it there — and
