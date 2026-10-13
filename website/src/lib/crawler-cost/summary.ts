@@ -73,7 +73,7 @@ function isoDay(ms: number): string {
   return new Date(ms).toISOString().slice(0, 10);
 }
 
-export function formatSummary(a: Aggregate, rates: Rates, pageUrl: string): string {
+export function formatSummary(a: Aggregate, rates: Rates | null, pageUrl: string): string {
   const out: string[] = [];
   const period =
     a.firstTime !== null && a.lastTime !== null
@@ -86,18 +86,21 @@ export function formatSummary(a: Aggregate, rates: Rates, pageUrl: string): stri
       ? `No visits from AI assistants in this log (${a.crawlerPageRequests} crawler page requests).`
       : `${formatRatio(ratio)} crawler page requests per visit an AI assistant sent back (${a.crawlerPageRequests} crawler page requests, ${a.referredPageRequests} visits)`,
   );
-  const cost = estimateCost(a.crawlerBytes, a.crawlerRequests, rates);
+  const cost = rates ? estimateCost(a.crawlerBytes, a.crawlerRequests, rates) : null;
   const perReq =
-    rates.perMillionRequests > 0
+    rates && rates.perMillionRequests > 0
       ? ` and ${rates.perMillionRequests} ${rates.currency} per million requests`
       : '';
+  const head = `AI crawlers: ${a.crawlerRequests} requests, ${formatBytes(a.crawlerBytes)}, estimated cost`;
   out.push(
-    `AI crawlers: ${a.crawlerRequests} requests, ${formatBytes(a.crawlerBytes)}, estimated cost ${cost === null ? 'not set' : formatMoney(cost, rates.currency)} at ${rates.perGb} ${rates.currency} per GB${perReq}`,
+    rates && cost !== null
+      ? `${head} ${formatMoney(cost, rates.currency)} at ${rates.perGb} ${rates.currency} per GB${perReq}`
+      : `${head} not set (enter a rate)`,
   );
   for (const row of a.crawlers.slice(0, 5)) {
-    const c = estimateCost(row.bytes, row.requests, rates);
+    const c = rates ? estimateCost(row.bytes, row.requests, rates) : null;
     out.push(
-      `- ${row.token} (${row.operator}): ${row.requests} requests, ${formatBytes(row.bytes)}${c === null ? '' : `, ${formatMoney(c, rates.currency)}`}`,
+      `- ${row.token} (${row.operator}): ${row.requests} requests, ${formatBytes(row.bytes)}${rates && c !== null ? `, ${formatMoney(c, rates.currency)}` : ''}`,
     );
   }
   out.push(`Measured in the browser with ${pageUrl}; nothing from the log was uploaded.`);

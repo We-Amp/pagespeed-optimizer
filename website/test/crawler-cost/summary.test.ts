@@ -132,4 +132,9 @@ describe('formatting', () => {
       'No visits from AI assistants in this log (3 crawler page requests).',
     );
   });
+  it('writes a cost line without a rate clause when the rates are not set', () => {
+    const text = formatSummary(sample(), null, 'https://modpagespeed.com/ai-crawler-cost/');
+    expect(text).toContain('estimated cost not set (enter a rate)');
+    expect(text).not.toContain('per GB');
+  });
 });
