@@ -139,7 +139,11 @@ const auditPoints = [
       <p class="mt-5 text-text-body" data-audit-price>
         <span class="font-semibold">{formatEur(AUDIT_PRICE_EUR)} per site, excl. VAT.</span>
         One site, one written report, one review call. It does not require mod_pagespeed, and the
-        fixed price does not include implementation work.
+        fixed price does not include implementation work. The audit measures technical readiness and
+        ends with the configuration change for each finding, so you can verify it with a rescan. It
+        does not measure visibility in AI answers. For serving Markdown to agents, the fix is the
+        mod_pagespeed 2.1 optimizer worker; the module on its own adds Vary: Accept and does not
+        render.
       </p>
       <a
         href="/contact/?topic=audit"
