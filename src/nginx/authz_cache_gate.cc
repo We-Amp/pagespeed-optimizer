@@ -3,6 +3,7 @@
 
 #include "src/nginx/authz_cache_gate.h"
 
+#include "lib/cache/cache_control_header.h"
 #include "lib/classify/alternate_metadata.h"
 
 namespace pagespeed {
@@ -37,10 +38,12 @@ bool AuthzCacheGateAllowsStale(bool request_has_authorization,
 
 bool StaleServePermitted(bool request_has_authorization,
                          uint16_t origin_cc_flags) {
-  // nginx is always a shared cache, so both directives forbid a stale serve.
-  constexpr uint16_t kForbid = AlternateMetadata::kCCOriginMustRevalidate |
-                               AlternateMetadata::kCCOriginProxyRevalidate;
-  if ((origin_cc_flags & kForbid) != 0) {
+  // nginx is always a shared cache: must-revalidate, proxy-revalidate and
+  // s-maxage (RFC 9111 §5.2.2.2, §5.2.2.8, §5.2.2.10) all forbid a stale
+  // serve without validation.  Same predicate the freshness and
+  // stale-if-error paths use.
+  if (ComputeSharedRevalidationRequired(origin_cc_flags,
+                                        /*is_shared_cache=*/true)) {
     return false;
   }
   return AuthzCacheGateAllowsStale(request_has_authorization, origin_cc_flags);

@@ -85,7 +85,7 @@ bool AuthzCacheGateAllowsStale(bool request_has_authorization,
 // Full permission for ANY stale reuse of a stored entry.  RFC 9111
 // §5.2.2.2 / §5.2.2.8: a cache MUST NOT use a stale response whose
 // Cache-Control carried must-revalidate (or, for a shared cache,
-// proxy-revalidate) without successful validation, so such an entry is
+// proxy-revalidate / s-maxage) without successful validation, so such an entry is
 // refused for every request, anonymous or not.  Otherwise defers to
 // AuthzCacheGateAllowsStale.
 bool StaleServePermitted(bool request_has_authorization,

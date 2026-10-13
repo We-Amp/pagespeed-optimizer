@@ -5119,8 +5119,8 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
               if (!ngx_http_pagespeed_acquire_refresh_slot(slot_key, ngx_time(),
                                                            grace)) {
                 // RFC 9111 §5.2.2.2 / §5.2.2.8: a stale entry whose origin
-                // Cache-Control carried must-revalidate or proxy-revalidate
-                // is never served without revalidation, for any request.
+                // Cache-Control carried must-revalidate, proxy-revalidate or
+                // s-maxage (§5.2.2.10) is never served without revalidation, for any request.
                 // RFC 9111 §4.2.4 / §5.2.2.10: once stale, must-revalidate
                 // and s-maxage require revalidation before reuse — the very
                 // premise under which §3.5 permits them — so an
@@ -5132,7 +5132,8 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
                   ngx_log_debug1(
                       NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
                       "pagespeed: refresh in flight but stale entry requires "
-                      "revalidation (must-revalidate/proxy-revalidate, or "
+                      "revalidation "
+                      "(must-revalidate/proxy-revalidate/s-maxage, or "
                       "Authorization without public) — "
                       "bypassing coalesced stale serve for %V",
                       &r->uri);
@@ -5234,8 +5235,9 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
             // ComputeSharedRevalidationRequired, matching freshness.cc.
             cci.is_shared_cache = true;
             cci.content_type = meta.content_type;
-            // The coalesced bounded-SWR serve reaches here with a stale
-            // entry; relay the origin's no-cache like the 304 path does.
+            // Guard only: the coalesced bounded-SWR serve requires
+            // expired_by_age, which is never set for a no-cache entry, so
+            // this does not fire today; it keeps no-cache if that changes.
             cci.relay_origin_no_cache =
                 (freshness.verdict == FreshnessVerdict::kRevalidate);
 

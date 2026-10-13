@@ -117,6 +117,18 @@ TEST_F(CacheFreshnessTest, NoCacheAlwaysRevalidates) {
 
 // --- no-store / private / defensive ---
 
+TEST_F(CacheFreshnessTest, NoCacheMaxAgeExpiredIsNotExpiredByAge) {
+  // `no-cache, max-age=N` past N: revalidates, but expired_by_age stays
+  // false, so the coalesced stale serve (which requires it) never applies.
+  auto input = MakeInput();
+  input.cache_inserted_at = kTestNow - 7200;
+  input.origin_max_age = 3600;
+  input.origin_cc_flags = AM::kCCOriginHeaderPresent | AM::kCCOriginNoCache;
+  auto result = EvaluateFreshness(input, config_);
+  EXPECT_EQ(result.verdict, FreshnessVerdict::kRevalidate);
+  EXPECT_FALSE(result.expired_by_age);
+}
+
 TEST_F(CacheFreshnessTest, NoStoreServedAsNoCache) {
   auto input = MakeInput();
   input.origin_cc_flags = AM::kCCOriginHeaderPresent | AM::kCCOriginNoStore;

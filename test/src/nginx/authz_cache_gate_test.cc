@@ -191,6 +191,11 @@ TEST(StaleServePermittedTest, AnonymousMustRevalidateRefused) {
       false, Meta::kCCOriginHeaderPresent | Meta::kCCOriginMustRevalidate));
 }
 
+TEST(StaleServePermittedTest, AnonymousSMaxageRefused) {
+  EXPECT_FALSE(StaleServePermitted(
+      false, Meta::kCCOriginHeaderPresent | Meta::kCCOriginSMaxagePresent));
+}
+
 TEST(StaleServePermittedTest, AnonymousProxyRevalidateRefused) {
   EXPECT_FALSE(StaleServePermitted(
       false, Meta::kCCOriginHeaderPresent | Meta::kCCOriginProxyRevalidate));

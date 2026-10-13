@@ -10,7 +10,10 @@ cc_library(
     srcs = ["authz_cache_gate.cc"],
     hdrs = ["authz_cache_gate.h"],
     visibility = ["//visibility:public"],
-    deps = ["//lib/classify:alternate_metadata"],
+    deps = [
+        "//lib/cache:cache_control_header",
+        "//lib/classify:alternate_metadata",
+    ],
 )
 
 # 304-restamp storability re-evaluation (issue #1016) - pure C++, testable

@@ -63,9 +63,11 @@ struct CacheControlInput {
   // same predicate and must not share a flag.)
   //
   // Off by default so pre-existing callers stay byte-identical.  On the
-  // HIT path the kServeNoCache branch emits `no-cache` itself; the
-  // coalesced-SWR bounded stale serve reaches this builder and sets the
-  // flag so concurrent requests keep `no-cache`.
+  // HIT path the kServeNoCache branch emits `no-cache` itself without
+  // reaching this builder.  The coalesced-SWR serve does reach the builder
+  // and sets this flag as a guard, but it requires expired_by_age, which
+  // freshness.cc never sets for a no-cache entry, so no-cache entries
+  // cannot take that serve today.
   bool relay_origin_no_cache = false;
 
   // Forward the origin's STORAGE-restricting directives (`no-store`, bare
