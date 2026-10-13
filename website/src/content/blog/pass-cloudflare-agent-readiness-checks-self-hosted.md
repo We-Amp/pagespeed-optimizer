@@ -84,7 +84,7 @@ Checking incoming signatures is the useful half for a site that receives bot tra
 
 ## The lines a content site will not pass
 
-MCP Server Card, Agent Skills, API Catalog, OAuth discovery, Auth.md and ARD are well-known files or JSON documents describing an API, a tool server or a sign-in flow; WebMCP is a browser-side API, and the commerce lines are payment and checkout flows, x402 reviving HTTP 402 Payment Required, as the announcement puts it. If you have those, publish them; if you do not, a file advertising a missing API is worse than a fail. Radar found MCP Server Cards and API Catalogs together on fewer than 15 of 200,000 sites.
+MCP Server Card, Agent Skills, API Catalog, OAuth discovery, Auth.md and ARD are well-known files or JSON documents describing an API, a tool server or a sign-in flow; WebMCP is a browser-side API, and the commerce lines are payment and checkout flows, x402 reviving HTTP 402 Payment Required, as the announcement puts it. If you have those, publish them; if you do not, a file advertising a missing API is worse than a fail. Radar found MCP Server Cards and API Catalogs together on fewer than 15 sites in the entire dataset.
 
 ## Check what an agent reads
 

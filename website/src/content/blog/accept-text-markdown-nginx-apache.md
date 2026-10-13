@@ -68,7 +68,7 @@ The rule fires on directory-style URLs ending in a slash, and the second `Rewrit
 
 We ran both configs in throwaway containers (`nginx:alpine`, nginx 1.31.4; `httpd:2.4-alpine`, Apache 2.4.69) on 2026-10-13. With the header, both answered `Content-Type: text/markdown; charset=utf-8` and `Vary: Accept`. Without it, both served the HTML with `Vary: Accept`. A directory with no `.md` served HTML either way, and Apache's 404 carried `Vary: Accept`.
 
-The match is a substring test that ignores quality values: in the same nginx container, a request with `Accept: text/markdown;q=0, text/html` got `Content-Type: text/markdown`.
+The match is a substring test that ignores quality values; tested on nginx, a request with `Accept: text/markdown;q=0, text/html` got `Content-Type: text/markdown`.
 
 Two costs. The Markdown is a second copy of every page, and copies drift unless the build writes both from one source. The server never runs JavaScript, so a page whose content appears only in the browser has nothing to export unless the build renders it. In [our scan of the top 1,000 sites](/blog/can-ai-read-your-website/) (2026-05-28), 403 of the 711 we could read, 57%, showed a non-rendering agent a nearly empty page.
 
