@@ -437,7 +437,7 @@ TEST(AlternateMetadataV8Test, OriginVariesAcceptBitDoesNotCollide) {
   EXPECT_EQ(AlternateMetadata::kFlagOriginVariesAccept &
                 AlternateMetadata::kFlagWorkerProcessed,
             0);
-  EXPECT_EQ(AlternateMetadata::kFlagsAssignedMask, 0x0F);
+  EXPECT_EQ(AlternateMetadata::kFlagsAssignedMask, 0x3F);
 }
 
 TEST(AlternateMetadataV8Test, OriginHeadersNotReproducibleBitDoesNotCollide) {
@@ -452,6 +452,43 @@ TEST(AlternateMetadataV8Test, OriginHeadersNotReproducibleBitDoesNotCollide) {
   EXPECT_NE(AlternateMetadata::kFlagsAssignedMask &
                 AlternateMetadata::kFlagOriginHeadersNotReproducible,
             0);
+}
+
+TEST(AlternateMetadataV8Test, HeadersSidecarBitsAreDistinctAndAssigned) {
+  EXPECT_EQ(AlternateMetadata::kFlagHeadersClassified, 0x10);
+  EXPECT_EQ(AlternateMetadata::kFlagHeadersSidecarRequired, 0x20);
+  EXPECT_EQ(AlternateMetadata::kFlagsAssignedMask, 0x3F);
+  EXPECT_NE(AlternateMetadata::kFlagsAssignedMask &
+                AlternateMetadata::kFlagHeadersClassified,
+            0);
+  EXPECT_NE(AlternateMetadata::kFlagsAssignedMask &
+                AlternateMetadata::kFlagHeadersSidecarRequired,
+            0);
+}
+
+TEST(AlternateMetadataV8Test, HeadersSidecarBitsSetClearAndRoundTrip) {
+  const uint8_t both = AlternateMetadata::kFlagHeadersClassified |
+                       AlternateMetadata::kFlagHeadersSidecarRequired;
+  for (const uint8_t bits : {AlternateMetadata::kFlagHeadersClassified,
+                             static_cast<uint8_t>(both)}) {
+    AlternateMetadata meta;
+    meta.flags = AlternateMetadata::kFlagWorkerProcessed | bits;
+    auto result = AlternateMetadata::Deserialize(meta.Serialize());
+    ASSERT_TRUE(result.has_value());
+    EXPECT_EQ(result->flags, meta.flags);
+
+    // Clear on the read copy, rewrite: the other bits survive, these go.
+    result->flags &= static_cast<uint8_t>(~both);
+    auto cleared = AlternateMetadata::Deserialize(result->Serialize());
+    ASSERT_TRUE(cleared.has_value());
+    EXPECT_EQ(cleared->flags, AlternateMetadata::kFlagWorkerProcessed);
+  }
+  // Required alone is representable too (the byte is opaque).
+  AlternateMetadata only;
+  only.flags = AlternateMetadata::kFlagHeadersSidecarRequired;
+  auto solo = AlternateMetadata::Deserialize(only.Serialize());
+  ASSERT_TRUE(solo.has_value());
+  EXPECT_EQ(solo->flags, AlternateMetadata::kFlagHeadersSidecarRequired);
 }
 
 TEST(AlternateMetadataV8Test, EveryFlagsByteValueRoundTrips) {
@@ -469,7 +506,7 @@ TEST(AlternateMetadataV8Test, UnknownFlagBitsSurviveReadAndRewrite) {
   // other side.  Clearing it is indistinguishable, downstream, from never
   // having been told — and this is the contract v7 already had.
   const uint8_t unknown = static_cast<uint8_t>(
-      ~AlternateMetadata::kFlagsAssignedMask & 0xFF);  // 0xF0
+      ~AlternateMetadata::kFlagsAssignedMask & 0xFF);  // 0xC0
   AlternateMetadata meta;
   meta.flags =
       static_cast<uint8_t>(AlternateMetadata::kFlagWorkerProcessed | unknown);

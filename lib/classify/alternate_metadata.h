@@ -213,14 +213,38 @@ struct AlternateMetadata {
   // An entry written before this bit existed reads back unmarked, the same
   // legacy answer kFlagOriginVariesAccept gives, and for the same reason.
   static constexpr uint8_t kFlagOriginHeadersNotReproducible = 0x08;
+  // kFlagHeadersClassified: this entry was recorded by a build that ran the
+  // headers-sidecar gate (ClassifyForHeadersSidecar) on the origin response.
+  // Together with kFlagHeadersSidecarRequired it tells a serve path which of
+  // three states an entry is in: unmarked (recorded before the gate existed,
+  // so serve as before), classified only (headers were checked and there is
+  // nothing to carry), and classified plus required (see below).
+  //
+  // STAMPED BY THE WRITER at record time, and PROPAGATED by the worker into
+  // every variant it derives from the entry: a hit reads the selected
+  // variant rather than the identity, so the fact has to ride each one.
+  // Agent markdown variants do not inherit it.  Nothing sets this bit yet.
+  //
+  // The whole flags byte feeds the weak hit ETag (src/nginx/etag_util.h), so
+  // a classified entry does not validate against an otherwise-identical
+  // unmarked one.  An entry written before this bit existed reads back
+  // unmarked, the correct legacy answer.
+  static constexpr uint8_t kFlagHeadersClassified = 0x10;
+  // kFlagHeadersSidecarRequired: the gate stored a non-empty headers sidecar
+  // for this URL, so a serve path must read it and replay it, and must treat
+  // an unreadable sidecar as a miss rather than serve without the headers.
+  // Only meaningful together with kFlagHeadersClassified; same stamping,
+  // propagation and ETag notes as above.  Nothing sets this bit yet.
+  static constexpr uint8_t kFlagHeadersSidecarRequired = 0x20;
   // The flags byte is OPAQUE on the wire: it is read verbatim and written
   // back verbatim, so a bit set by a peer this build does not know about
   // survives a read/rewrite cycle rather than being cleared.  Do not add a
   // mask that filters unknown bits — losing a flag is indistinguishable from
-  // never having been told about it.  Bits 0x10..0x80 are free.
+  // never having been told about it.  Bits 0x40..0x80 are free.
   static constexpr uint8_t kFlagsAssignedMask =
       kFlagNeedsRevalidation | kFlagWorkerProcessed | kFlagOriginVariesAccept |
-      kFlagOriginHeadersNotReproducible;
+      kFlagOriginHeadersNotReproducible | kFlagHeadersClassified |
+      kFlagHeadersSidecarRequired;
 
   // Origin Cache-Control flag bits (origin_cc_flags).
   static constexpr uint16_t kCCOriginNoCache = 1 << 0;
@@ -455,7 +479,18 @@ static_assert((AlternateMetadata::kFlagOriginHeadersNotReproducible &
                (AlternateMetadata::kFlagNeedsRevalidation |
                 AlternateMetadata::kFlagWorkerProcessed |
                 AlternateMetadata::kFlagOriginVariesAccept)) == 0);
-static_assert(AlternateMetadata::kFlagsAssignedMask == 0x0F);
+static_assert((AlternateMetadata::kFlagHeadersClassified &
+               (AlternateMetadata::kFlagNeedsRevalidation |
+                AlternateMetadata::kFlagWorkerProcessed |
+                AlternateMetadata::kFlagOriginVariesAccept |
+                AlternateMetadata::kFlagOriginHeadersNotReproducible)) == 0);
+static_assert((AlternateMetadata::kFlagHeadersSidecarRequired &
+               (AlternateMetadata::kFlagNeedsRevalidation |
+                AlternateMetadata::kFlagWorkerProcessed |
+                AlternateMetadata::kFlagOriginVariesAccept |
+                AlternateMetadata::kFlagOriginHeadersNotReproducible |
+                AlternateMetadata::kFlagHeadersClassified)) == 0);
+static_assert(AlternateMetadata::kFlagsAssignedMask == 0x3F);
 
 }  // namespace pagespeed
 
