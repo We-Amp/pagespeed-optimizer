@@ -5346,6 +5346,11 @@ void Worker::HandleNotification(const CacheNotification& notification,
           notification.hostname, notification.scheme, scan_result.lcp_candidate,
           scan_result.third_party_origins, speculation_urls, defer_scripts);
       transform_filter.set_cascade_layer_order(combined.layer_order);
+      // The origin's header CSP (headers sidecar) gates inline injections
+      // like a <meta> CSP does. No sidecar (older entries) -> no change.
+      transform_filter.set_header_csps(HtmlTransformFilter::ReadHeaderCsps(
+          cache_.get(), notification.url, notification.hostname,
+          notification.scheme));
       transform_parser.AddFilter(&transform_filter);
 
       std::string output_html;
