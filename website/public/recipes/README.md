@@ -5,6 +5,8 @@ install, minimal configuration, verification, rollback. Every command comes
 from the documentation linked at the top of the recipe; the documentation stays
 the source of truth and the recipe links to it instead of repeating it. Fenced
 commands, placeholders in angle brackets, no prose beyond what a command needs.
+The diagnose recipe is the exception: it installs nothing, so its sections
+check, report and say that there is nothing to roll back.
 
 | Server                    | Recipe                                                            | Header the verification checks |
 | ------------------------- | ----------------------------------------------------------------- | ------------------------------ |
@@ -15,6 +17,11 @@ commands, placeholders in angle brackets, no prose beyond what a command needs.
 | ASP.NET Core (middleware) | [aspnet-core.md](https://modpagespeed.com/recipes/aspnet-core.md) | `X-PageSpeed`                  |
 | Docker (reverse proxy)    | [docker.md](https://modpagespeed.com/recipes/docker.md)           | `X-PageSpeed`                  |
 | Kubernetes (Helm chart)   | [helm.md](https://modpagespeed.com/recipes/helm.md)               | `X-PageSpeed`                  |
+
+To check a server where mod_pagespeed 2.1 is already installed, use
+[diagnose.md](https://modpagespeed.com/recipes/diagnose.md): read-only checks of
+the response header, the worker's health and API, the admin pages and the logs,
+ending in a report for the operator.
 
 In a checkout of the repository the files are under `website/public/recipes/`.
 The `install-modpagespeed` skill picks the recipe for the detected server and
@@ -44,11 +51,13 @@ The human-readable overview is https://modpagespeed.com/docs/agent-install/.
 - Linux commands run as a user with `sudo`; the IIS recipe runs in an elevated
   PowerShell.
 - Stop at the first failed prerequisite and report it; do not work around it.
-- A recipe is complete only when its verification step passes.
+- A recipe is complete only when its verification step passes. The diagnose
+  recipe has no verification step; it is complete when its report is filled.
 - Nothing in a recipe reports anywhere. The recipes themselves call only the
   documented install channels: the package repository, GHCR, the Helm
   repository, nuget.org and the download page. apt, dnf, Docker and Helm then
-  pull dependencies from the sources they are configured with.
+  pull dependencies from the sources they are configured with. The diagnose
+  recipe contacts only the server it checks and loopback.
 
 ## The verification marker
 

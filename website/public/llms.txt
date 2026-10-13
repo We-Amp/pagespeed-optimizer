@@ -187,6 +187,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [Recipe: ASP.NET Core middleware](https://modpagespeed.com/recipes/aspnet-core.md): The WeAmp.PageSpeed.AspNetCore NuGet package, Program.cs and appsettings.json; checks X-PageSpeed.
 - [Recipe: Docker](https://modpagespeed.com/recipes/docker.md): The nginx reverse proxy and the optimizer worker in containers in front of an origin; checks X-PageSpeed.
 - [Recipe: Helm](https://modpagespeed.com/recipes/helm.md): The pagespeed Helm chart in front of an origin Service; checks X-PageSpeed.
+- [Recipe: diagnose an installed module or worker](https://modpagespeed.com/recipes/diagnose.md): Read-only checks of an installed module or optimizer worker: the response header, the health socket, API reads, admin pages and logs.
 
 ## Distribution
 

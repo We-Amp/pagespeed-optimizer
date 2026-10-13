@@ -3,14 +3,14 @@ title: 'Install with a coding agent'
 description: 'Machine-readable install recipes for coding agents, one per server: prerequisites, install, configure, verify and roll back, plus an install skill.'
 order: 9.5
 group: 'Install'
-lastUpdated: 2026-10-10
+lastUpdated: 2026-10-13
 datePublished: 2026-10-10
 ---
 
 A coding agent can install mod_pagespeed 2.1 from a recipe: one Markdown file
-per server, written for an agent to run. Each recipe has the same five
+per server, written for an agent to run. Each install recipe has the same five
 sections: prerequisites check, install, minimal configuration, verification and
-rollback. The commands are fenced, the values to fill in are placeholders in
+rollback; the diagnose recipe is read-only and ends in a report instead. The commands are fenced, the values to fill in are placeholders in
 angle brackets, and there is no prose beyond what a command needs.
 
 The recipes derive from these docs. Every command in a recipe comes from the
@@ -29,6 +29,16 @@ and the recipe follows.
 | ASP.NET Core (middleware) | [aspnet-core.md](https://modpagespeed.com/recipes/aspnet-core.md) | [Install ASP.NET Core middleware](/docs/aspnet-getting-started/)     |
 | Docker (reverse proxy)    | [docker.md](https://modpagespeed.com/recipes/docker.md)           | [Install with Docker](/docs/installation-docker/)                    |
 | Kubernetes (Helm chart)   | [helm.md](https://modpagespeed.com/recipes/helm.md)               | [Deploy with Helm](/docs/helm-deployment/)                           |
+| Diagnose (any server)     | [diagnose.md](https://modpagespeed.com/recipes/diagnose.md)       | [Monitoring](/docs/monitoring/)                                      |
+
+## Diagnose an installed server
+
+When mod_pagespeed 2.1 is already installed and the operator says it is not
+working, or asks whether it works, an agent uses the diagnose recipe instead of
+an install recipe. It reads what the server already exposes: the response
+header, the worker's health socket and API, the admin pages, the counters and
+the logs. It changes nothing (no purge, no restart, no configuration edit) and
+ends in a short report for the operator.
 
 ## How an agent uses a recipe
 
