@@ -252,6 +252,12 @@ export const SURFACES = [
         title: 'Recipe: Helm',
         description: 'The pagespeed Helm chart in front of an origin Service; checks X-PageSpeed.',
       },
+      {
+        path: '/recipes/diagnose.md',
+        title: 'Recipe: diagnose an installed module or worker',
+        description:
+          'Read-only checks of an installed module or optimizer worker: the response header, the health socket, API reads, admin pages and logs.',
+      },
     ],
   },
 ];
