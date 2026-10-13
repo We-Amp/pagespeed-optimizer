@@ -1,8 +1,8 @@
 # Release-aware components
 
 These components render release-version content from the manifest at
-`src/content/releases-{1.1,2.0,2.1}/release.yaml` (synced from `corp/releases/*.yaml`
-by the corp `sync-manifests-to-mps2` workflow —).
+`src/content/releases-{1.1,2.0,2.1}/release.yaml` (synced from the release manifests
+maintained outside this repository).
 
 **Authoring rule:** every version-coupled string on the website must flow
 through `getRelease()` (typed access) or one of these components. The

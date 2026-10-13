@@ -186,9 +186,8 @@ the file alone keeps the last loaded pack in use.
 
 ## The full reference
 
-The operator guide, `docs/rule-packs.md` in the mod_pagespeed repository, is
-published with the release that ships rule packs. It describes every field, the
-limits, the decision log format, the statistics, signed packs and
-troubleshooting.
+The operator guide is published at <https://modpagespeed.com/docs/rule-packs/>.
+It describes every field, the limits, the decision log format, the statistics,
+signed packs and troubleshooting.
 
 The pack is free to use and to change.
