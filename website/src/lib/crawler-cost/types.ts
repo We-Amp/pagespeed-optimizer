@@ -45,6 +45,7 @@ export interface FileReport {
   gzip: boolean;
   lines: number; // parsed lines
   givenUp: boolean; // more than half of the first 200 non-directive lines unparsed
+  sample: string | null; // the file's own first unparsed line, cut to 200 characters, null when every line parsed
   error: string | null; // decompression or read error, in words
 }
 
