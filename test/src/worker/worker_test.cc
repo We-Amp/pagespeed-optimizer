@@ -16012,9 +16012,14 @@ TEST_F(WorkerTest, OriginRefreshPurgeKeepsTheHeadersSidecarWithTheIdentity) {
 
   EXPECT_TRUE(worker.cache()->ReadHeadersSidecar(path, "", "https").has_value())
       << "the purge must keep the headers record while it keeps the identity";
-  // The rebuilt variants still carry the bits.
-  auto rebuilt = ReadVariantWithMeta(worker.cache(), url, CapabilityMask());
-  ASSERT_TRUE(rebuilt.has_value());
+  // The rebuilt variants still carry the bits: read a copy the worker wrote
+  // (the gzip slot), not the identity slot the test seeded itself.
+  CapabilityMask gz_mask;
+  gz_mask.set_transfer_encoding(CapabilityMask::TransferEncoding::kGzip);
+  auto rebuilt = ReadVariantWithMeta(worker.cache(), url, gz_mask);
+  ASSERT_TRUE(rebuilt.has_value()) << "gzip copy not rebuilt";
+  EXPECT_NE(rebuilt->metadata.flags & AlternateMetadata::kFlagWorkerProcessed,
+            0);
   EXPECT_EQ(rebuilt->metadata.flags & kHeaderBits, kHeaderBits);
 }
 
@@ -16715,6 +16720,82 @@ TEST_F(WorkerTest, OriginRefreshedUnchangedImageRestampsWithoutPurge) {
   EXPECT_EQ(after->content, before->content);
   EXPECT_EQ(after->metadata.cache_inserted_at, fresh_meta.cache_inserted_at)
       << "variant freshness restamped from the re-fetched origin";
+}
+
+TEST_F(WorkerTest, UnchangedRefreshRestampCarriesTheHeadersSidecarFlagBits) {
+  // Variants built before the bits existed are restamped (not rebuilt) when
+  // the origin is unchanged across a freshness boundary; the restamp must
+  // adopt the bits from the freshly re-recorded reference, or the variant set
+  // would stay unflagged until a purge.
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  std::string url = "http://example.com/sidecar-restamp.jpg";
+  std::string jpeg = ReadTestFile("jpeg/quality100.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  CacheOriginal(worker.cache(), url, jpeg);  // unflagged source
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  WorkerStopper stopper(worker, worker_thread);
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  CacheNotification notification;
+  notification.url = url;
+  notification.scheme = "https";
+  notification.content_type = ContentType::kImage;
+  notification.capability_mask = CapabilityMask().Encode();
+  SendNotification(notification);
+  ASSERT_NO_FATAL_FAILURE(WaitForNotificationRetiredWithVariant(worker));
+
+  CapabilityMask webp_mask(
+      CapabilityMask::ImageFormat::kWebP, CapabilityMask::Viewport::kDesktop,
+      CapabilityMask::PixelDensity::k1x, CapabilityMask::SaveData::kOff,
+      CapabilityMask::TransferEncoding::kIdentity);
+  auto before = ReadVariantWithMeta(worker.cache(), url, webp_mask);
+  ASSERT_TRUE(before.has_value()) << "webp variant from the first pass";
+  ASSERT_EQ(before->metadata.flags & kHeaderBits, 0)
+      << "the old variant must start unflagged";
+
+  // The same bytes, re-recorded by a gate-aware front end: both bits set.
+  AlternateMetadata fresh_meta;
+  fresh_meta.content_type = ContentType::kImage;
+  fresh_meta.origin_content_type = "image/jpeg";
+  fresh_meta.cache_inserted_at = static_cast<uint32_t>(
+      std::chrono::duration_cast<std::chrono::seconds>(
+          std::chrono::system_clock::now().time_since_epoch())
+          .count());
+  fresh_meta.origin_max_age = 300;
+  fresh_meta.origin_cc_flags = AlternateMetadata::kCCOriginHeaderPresent |
+                               AlternateMetadata::kCCOriginPublic;
+  fresh_meta.flags = kHeaderBits;
+  CacheOriginalWithMeta(worker.cache(), url, jpeg, fresh_meta);
+
+  CacheNotification refresh = notification;
+  refresh.capability_mask = kOriginRefreshedSentinel;
+  SendNotification(refresh);
+  bool unchanged_seen = false;
+  for (int i = 0; i < 80 * kSanitizerBudgetScale; ++i) {
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    if (worker.stats().origin_refresh_unchanged.load() >= 1) {
+      unchanged_seen = true;
+      break;
+    }
+  }
+  ASSERT_TRUE(unchanged_seen) << "the test must take the restamp path";
+  WaitForWorkerIdle(worker);
+  EXPECT_EQ(worker.stats().origin_refresh_purges.load(), 0u);
+
+  auto after = ReadVariantWithMeta(worker.cache(), url, webp_mask);
+  ASSERT_TRUE(after.has_value()) << "variant set must survive (no purge)";
+  EXPECT_EQ(after->content, before->content);
+  EXPECT_EQ(after->metadata.flags & kHeaderBits, kHeaderBits)
+      << "the restamp must adopt the bits from the re-recorded reference";
 }
 
 TEST_F(WorkerTest, OriginRefreshedAgeBackdatedReferenceRestampsWithoutDefer) {

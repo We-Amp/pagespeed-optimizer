@@ -252,7 +252,6 @@ CapabilityMask NormalizeMaskForDedup(uint32_t encoded_mask) {
   return m;
 }
 
-// Detect gzip-compressed content by checking the magic bytes (RFC 1952).
 // The flag bits a variant inherits from the entry it is derived from.  A hit
 // reads the selected variant, never the identity, so the headers-sidecar
 // state recorded on the source entry (kFlagHeadersClassified,
@@ -280,6 +279,7 @@ AlternateMetadata CreateWorkerMetadata(const AlternateMetadata& base,
   return m;
 }
 
+// Detect gzip-compressed content by checking the magic bytes (RFC 1952).
 bool IsGzipCompressed(std::string_view content) {
   return content.size() >= 2 && static_cast<uint8_t>(content[0]) == 0x1f &&
          static_cast<uint8_t>(content[1]) == 0x8b;
@@ -884,6 +884,14 @@ size_t RestampVariantSetFreshness(PageSpeedCache* cache, std::string_view url,
     meta.origin_cc_flags = fresh_origin_meta.origin_cc_flags;
     meta.origin_etag = fresh_origin_meta.origin_etag;
     meta.origin_last_modified = fresh_origin_meta.origin_last_modified;
+    // The re-recorded reference is the current word on the headers-sidecar
+    // state, and a variant built before the bits existed (or before the
+    // reference was classified) would otherwise be restamped unflagged on
+    // every refresh.  Agent markdown never inherits them.
+    if (pid != markdown_id) {
+      meta.flags = (meta.flags & ~kVariantInheritedFlags) |
+                   InheritedVariantFlags(fresh_origin_meta);
+    }
     auto wh = pid == markdown_id
                   ? cache->WriteAgentAlternate(url, hostname, scheme,
                                                bytes.size(), meta)
