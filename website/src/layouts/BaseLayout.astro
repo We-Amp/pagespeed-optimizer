@@ -226,6 +226,12 @@ const navLinks: Array<{
         umamiEvent: 'nav-analyze',
       },
       {
+        href: '/ai-crawler-cost/',
+        label: 'AI crawler cost',
+        subtitle: 'What AI crawlers cost your server, and what they send back',
+        umamiEvent: 'nav-crawler-cost',
+      },
+      {
         href: '/examples/',
         label: 'Filter examples',
         subtitle: 'Each filter, before and after',
@@ -574,10 +580,12 @@ const searchExcluded =
   /^\/(404|500)\/?$/.test(rawPath);
 
 // Telemetry strip exclusion: the archived product sections, utility and error
-// routes, and any noindex page that is not kept in site search.
+// routes, any noindex page that is not kept in site search, and the crawler
+// cost meter, whose own code must make no request after load (the strip issues
+// a HEAD).
 const telemetryExcluded =
   (noindex && !searchable) ||
-  /^\/(1\.1|1\.0|api|go|error)(\/|$)/.test(rawPath) ||
+  /^\/(1\.1|1\.0|api|go|error|ai-crawler-cost)(\/|$)/.test(rawPath) ||
   /^\/(404|500)(\/|$)/.test(rawPath);
 const sectionNames: Record<string, string> = {
   docs: 'Docs',
