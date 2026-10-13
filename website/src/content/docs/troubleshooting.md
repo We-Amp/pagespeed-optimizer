@@ -64,7 +64,7 @@ been requested before.
    in-memory directories. Restart both to re-sync:
 
    ```bash
-   sudo systemctl restart pagespeed-worker
+   sudo systemctl restart pagespeed-optimizer
    sudo systemctl reload nginx
    ```
 
@@ -91,7 +91,7 @@ been requested before.
    socket:
 
    ```bash
-   echo "STATS" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
+   echo "STATS" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
    ```
 
    Look at `cache.size` relative to your `--cache-size` setting. If they are
@@ -129,7 +129,7 @@ are not transcoded, CSS/JS are not minified, and no optimized variants appear.
 
    ```bash
    # systemd
-   sudo systemctl status pagespeed-worker
+   sudo systemctl status pagespeed-optimizer
 
    # Docker
    docker compose ps worker
@@ -160,7 +160,7 @@ are not transcoded, CSS/JS are not minified, and no optimized variants appear.
    limits. Check worker logs for "too large" warnings:
 
    ```bash
-   sudo journalctl -u pagespeed-worker | grep "too large"
+   sudo journalctl -u pagespeed-optimizer | grep "too large"
    ```
 
    Increase limits with `--max-html-size`, `--max-css-size`, `--max-js-size`,
@@ -218,7 +218,7 @@ JPEG or PNG.
    are skipped. Check worker logs:
 
    ```bash
-   sudo journalctl -u pagespeed-worker | grep "Image too large"
+   sudo journalctl -u pagespeed-optimizer | grep "Image too large"
    ```
 
 3. **Image transcoding disabled.** Verify `--disable-image` is not set.
@@ -227,7 +227,7 @@ JPEG or PNG.
    very large dimensions) may fail to transcode. Check for error messages:
 
    ```bash
-   sudo journalctl -u pagespeed-worker | grep -i "transcode\|failed\|error"
+   sudo journalctl -u pagespeed-optimizer | grep -i "transcode\|failed\|error"
    ```
 
 5. **Decoded pixel buffer too large.** The worker enforces a 50 MB limit on
@@ -246,7 +246,7 @@ Enable debug-level logging to see detailed processing information:
 
 ```bash
 # systemd: edit the service file
-sudo systemctl edit pagespeed-worker --full
+sudo systemctl edit pagespeed-optimizer --full
 # Change --log-level info to --log-level debug
 
 # Docker: set environment variable or modify command
@@ -271,7 +271,7 @@ factory_worker --log-format json --log-level debug
 Parse JSON logs with `jq`:
 
 ```bash
-sudo journalctl -u pagespeed-worker -o cat | jq 'select(.level == "ERROR")'
+sudo journalctl -u pagespeed-optimizer -o cat | jq 'select(.level == "ERROR")'
 ```
 
 ## Management socket diagnostics
@@ -281,7 +281,7 @@ The management socket provides real-time insight into the worker's state.
 ### Check overall health
 
 ```bash
-echo "STATS" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
+echo "STATS" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
 ```
 
 Look for:
@@ -300,7 +300,7 @@ To force the worker to re-process a URL:
 
 ```bash
 # Purge all variants
-echo "PURGE localhost /images/photo.jpg" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
+echo "PURGE localhost /images/photo.jpg" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
 
 # Request the URL again (triggers a cache miss and new notification)
 curl -H "Accept: image/webp,*/*" http://localhost/images/photo.jpg -o /dev/null -w "%{size_download}\n"
@@ -319,13 +319,13 @@ If `socat` or Python fails to connect to the management socket:
 
 ```bash
 # Verify the socket file exists
-ls -la /var/lib/pagespeed/pagespeed.sock.mgmt
+ls -la /run/pagespeed-optimizer/notify.sock.mgmt
 
 # Verify the worker is running
-sudo systemctl status pagespeed-worker
+sudo systemctl status pagespeed-optimizer
 
 # Check socket permissions
-stat /var/lib/pagespeed/pagespeed.sock.mgmt
+stat /run/pagespeed-optimizer/notify.sock.mgmt
 ```
 
 The management socket is created when the worker starts and removed when it
@@ -413,7 +413,7 @@ analysis. Browser profiles are not generated.
    delay. Check logs for the crash reason:
 
    ```bash
-   sudo journalctl -u pagespeed-worker | grep -i "chrome\|crash\|exit"
+   sudo journalctl -u pagespeed-optimizer | grep -i "chrome\|crash\|exit"
    ```
 
 2. **Memory limit exceeded.** If Chrome's RSS exceeds `--chrome-max-memory`
@@ -443,7 +443,7 @@ inlined CSS volume. Check the page's stylesheet count and total CSS size.
 
 ```bash
 # Check browser analysis status via management socket
-echo "BROWSER-STATUS" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
+echo "BROWSER-STATUS" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
 ```
 
 The response includes `analysis_errors`, `chrome_crashes`, and `queue_depth`

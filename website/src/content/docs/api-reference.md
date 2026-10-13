@@ -1005,9 +1005,9 @@ every notification that carries one — that check is what catches two
 implementations of the format drifting apart. A context that passes is accepted
 whatever it names, and the work is processed and stored under the **default
 context**: optimized output is a function of the resource, of the request
-(client capabilities and content type, plus whether it was an *entitled* agent
-request — the request's own declared intent, gated by an entitlement the
-optimizer itself publishes), and of the optimizer's own configuration, so two
+(client capabilities and content type, plus whether it was an agent request the
+operator has enabled — the request's own declared intent, gated by the
+`agent_optimize` setting the optimizer itself publishes), and of the optimizer's own configuration, so two
 requests that resolved to two different configurations cannot produce two
 different optimized artifacts. Keep supplying the context you resolve — it is
 what the drift check runs on.
