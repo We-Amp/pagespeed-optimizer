@@ -62,6 +62,7 @@ test.describe('Navigation', () => {
     expect(labels).toEqual([
       'AI readability check',
       'PageSpeed analyzer',
+      'AI crawler cost',
       'Filter examples',
       'Live admin console',
       'Savings calculator',
