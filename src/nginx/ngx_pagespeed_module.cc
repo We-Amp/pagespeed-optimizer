@@ -3518,6 +3518,9 @@ static ngx_int_t ngx_http_pagespeed_serve_stale_on_error(
   const auto& smeta = stale->metadata;
 
   r->headers_out.status = NGX_HTTP_OK;
+  // The upstream error response set its own status line; nginx sends a set
+  // status_line verbatim, so clear it or the client sees "500" with a 200.
+  ngx_str_null(&r->headers_out.status_line);
   r->headers_out.content_length_n = static_cast<off_t>(content.size());
 
   if (!smeta.origin_content_type.empty()) {
@@ -4014,6 +4017,15 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
 
     // Rewrite response as 200 with cached content.
     r->headers_out.status = NGX_HTTP_OK;
+    // Same as the stale-if-error rewrite: the 304 set "304 Not Modified" as
+    // the status line, which nginx would send verbatim over the 200 (and
+    // then treat as bodyless).  Clear it so the line follows the code and
+    // the not-modified filter answers a matching conditional client.
+    ngx_str_null(&r->headers_out.status_line);
+    // The upstream module turns the not-modified filter off for responses it
+    // does not cache itself.  This one is served from our own entry, so a
+    // client whose If-None-Match matches the ETag below must get its 304.
+    r->disable_not_modified = 0;
     r->headers_out.content_length_n = stale_content_length;
 
     // Reuse cached content-type from metadata.
