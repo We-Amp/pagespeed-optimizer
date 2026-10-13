@@ -177,18 +177,24 @@ test.describe('AI readability panel', () => {
     await scanV2(page);
     await openAiread(page);
     const found = panel(page).locator('[data-scan-also-found] li');
-    await expect(found).toHaveCount(3);
+    await expect(found).toHaveCount(4);
     await expect(found.nth(0)).toContainText('can’t tell a real signed agent from an impostor');
     await expect(found.nth(1)).toContainText('signed-agent requests differently');
     await expect(found.nth(2)).toContainText('self-hosted optimizer can fix on your own servers');
+    await expect(found.nth(3)).toContainText(
+      'This page did not return Markdown when asked for it (Accept: text/markdown).',
+    );
+    const more = found.nth(3).getByRole('link', { name: 'How it works' });
+    await expect(more).toHaveAttribute('href', '/docs/agent-optimize/');
   });
 
-  test('no "Also found" block on a clean report', async ({ page }) => {
+  test('a clean report has only the Markdown row in "Also found"', async ({ page }) => {
     await mock(page, { report: 'clean' });
     await scanV2(page);
     await openAiread(page);
-    await expect(panel(page).locator('[data-scan-also-found]')).toHaveCount(0);
-    await expect(panel(page)).not.toContainText('Also found');
+    const found = panel(page).locator('[data-scan-also-found] li');
+    await expect(found).toHaveCount(1);
+    await expect(found).toHaveText('This page returns Markdown on request.');
     await expect(page.locator('[data-scan-tile="airead"] [data-scan-value]')).toHaveText(
       'Grade A · 100/100',
     );
