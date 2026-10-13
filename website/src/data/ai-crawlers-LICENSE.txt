@@ -1,4 +1,5 @@
 Seed list: the ai.robots.txt project (https://github.com/ai-robots-txt/ai.robots.txt), MIT License.
+Deliberately absent from ai-crawlers.json (robots.txt control tokens, never user agents): Google-Extended, Applebot-Extended.
 
 MIT License
 
