@@ -30,7 +30,7 @@ cache hits as well. Six new counters on `/v1/metrics` show the effect:
 `pagespeed_headers_sidecar_fall_through_total` (responses not cached because
 of such a header), `pagespeed_headers_sidecar_never_optimized_total`
 (nonce-bearing policies), `pagespeed_headers_sidecar_stored_total` (header
-lines stored with a cached copy), `pagespeed_headers_sidecar_write_failed_total`,
+blocks stored with a cached copy), `pagespeed_headers_sidecar_write_failed_total`,
 and two that stay at zero for now (`pagespeed_headers_sidecar_replayed_total`,
 `pagespeed_headers_sidecar_missing_total`). The serve statistics file
 changes format and is recreated once on upgrade, so these and the other

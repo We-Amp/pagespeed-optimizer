@@ -2691,7 +2691,8 @@ ngx_http_pagespeed_origin_header_views(const ngx_http_pagespeed_ctx_t* ctx) {
 //
 //   * swap-eligible  → record through the sidecar path (record_response);
 //   * fall-through   → not cached (served from the origin each time), counted,
-//                      one NOTICE per (host, header) naming the remedy;
+//                      one NOTICE per (server block, header) naming the
+//                      remedy;
 //   * never-optimized (nonce-bearing CSP) → not cached, counted.
 //
 // On a refusal an entry recorded earlier for the URL is removed: the fresh

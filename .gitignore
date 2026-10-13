@@ -19,6 +19,7 @@ MODULE.bazel.lock
 
 # OS
 .DS_Store
+._*
 Thumbs.db
 
 # Test outputs
