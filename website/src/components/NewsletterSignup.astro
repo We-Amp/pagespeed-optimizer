@@ -136,7 +136,7 @@ const statusId = `${uid}-status`;
   //      (connect-src 'self' https://umami.we-amp.com). To keep the swap a
   //      single line, keep this SAME-ORIGIN and have the render service forward
   //      to Buttondown; otherwise also add the Buttondown origin to connect-src
-  //      in corp/deploy/nginx.conf.
+  //      in the production nginx configuration.
   //   2. NEWSLETTER_MODE -> 'buttondown' (posts form-encoded `email`, what the
   //      embed expects) instead of 'capture' (posts the JSON the contact render
   //      service expects). Everything else is identical across both modes.

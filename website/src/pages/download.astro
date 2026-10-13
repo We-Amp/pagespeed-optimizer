@@ -9,9 +9,9 @@ import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../data/softw
 
 const softwareVersion = await productSoftwareVersion();
 
-// Single source of truth: corp/releases/1.1.yaml synced into
-// src/content/releases-1.1/release.yaml by corp's sync-manifests-to-mps2
-// workflow (§7). Edit the corp manifest, not this file.
+// Single source of truth: the 1.1 release manifest, synced into
+// src/content/releases-1.1/release.yaml (§7). Edit the manifest at its
+// source, not this file.
 const rel11 = await getRelease('1.1');
 const rel21 = await getRelease('2.1');
 
