@@ -81,6 +81,7 @@ describe('Aggregator', () => {
       gzip: false,
       lines: 1,
       givenUp: false,
+      sample: null,
       error: null,
     });
     const a = ag.result();
