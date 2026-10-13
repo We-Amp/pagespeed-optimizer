@@ -25,6 +25,12 @@ async function storageSnapshot(page: import('@playwright/test').Page) {
 }
 
 test.describe('AI crawler cost meter', () => {
+  // The real tracker still loads and posts, but the endpoint is answered
+  // locally so no test traffic reaches production analytics.
+  test.beforeEach(async ({ page }) => {
+    await page.route('**/api/send', (route) => route.fulfill({ status: 200, body: '{}' }));
+  });
+
   test('the nginx fixture gives the golden numbers', async ({ page }) => {
     await page.goto('/ai-crawler-cost/');
     await page.setInputFiles('#cc-file', fixture('nginx-combined.log'));
@@ -65,8 +71,16 @@ test.describe('AI crawler cost meter', () => {
     await page.goto('/ai-crawler-cost/');
     const seen: Array<{ url: string; body: string | null }> = [];
     page.on('request', (r) => seen.push({ url: r.url(), body: r.postData() }));
+    const sendPost = page.waitForRequest(
+      (r) => /\/api\/send/.test(r.url()) && r.method() === 'POST',
+    );
     await page.setInputFiles('#cc-file', fixture('hostile.log'));
     await expect(page.locator('#cc-results')).toBeVisible();
+    await sendPost;
+    expect(
+      seen.some((r) => /\/api\/send/.test(r.url)),
+      'the event POST was recorded',
+    ).toBe(true);
     const own = new URL(baseURL ?? 'http://localhost').hostname;
     for (const r of seen) {
       expect(r.url).not.toContain(SENTINEL);
@@ -95,7 +109,9 @@ test.describe('AI crawler cost meter', () => {
     expect(await page.title()).toBe(title);
     await expect(page.locator('#cc-notes')).toContainText('<img src=x onerror=window.__pwned=1>');
     await expect(
-      page.locator('#cc-table img, #cc-table svg, #cc-table script, #cc-notes img, #cc-notes svg'),
+      page.locator(
+        '#cc-table img, #cc-table svg, #cc-table script, #cc-notes img, #cc-notes svg, #cc-notes script',
+      ),
     ).toHaveCount(0);
   });
 
@@ -122,8 +138,9 @@ test.describe('AI crawler cost meter', () => {
   test('works with the network off once loaded', async ({ page, context }) => {
     await page.goto('/ai-crawler-cost/');
     await expect.poll(() => page.workers().length).toBe(1);
-    // Warm-up run while online: under the dev server the worker's module graph
-    // loads lazily, so prove it is fully loaded before cutting the network.
+    // Warm-up run while online. The cold case (going offline before any
+    // analysis) is not covered until the worker signals readiness; a later
+    // change adds that signal and this test then drops the warm-up.
     await page.setInputFiles('#cc-file', fixture('nginx-combined.log'));
     await expect(page.locator('#cc-ratio')).toContainText('1.5 crawler page requests');
     await context.setOffline(true);
