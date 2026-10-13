@@ -115,11 +115,15 @@ export async function* readLines(
       }
       if (gunzip) {
         remember(value);
+        let damaged = false;
         try {
           gunzip.push(value);
         } catch {
-          throw new StreamError(GZIP_DAMAGED);
+          damaged = true;
         }
+        // Lines inflated before the damage are still good: yield them first.
+        while (inflated.length) yield* handle(inflated.shift() as Uint8Array);
+        if (damaged) throw new StreamError(GZIP_DAMAGED);
         while (inflated.length) yield* handle(inflated.shift() as Uint8Array);
       } else {
         yield* handle(value);

@@ -129,10 +129,11 @@ const next = [
         </label>
       </div>
       <p class="mt-3 text-xs text-text-annotation">
-        0.09 per GB is the figure BotCost.dev uses for bytes. The per-request rate starts at 0 on
-        purpose: a self-hosted origin pays for bytes, not for requests; BotCost.dev uses 0.40 per
-        million, and a CDN customer can enter their request price. Every cost on this page is an
-        estimate at the rate you set.
+        0.09 per GB is the figure BotCost.dev uses for bytes. For comparison, Hetzner lists 1 EUR
+        per TB for traffic beyond the included amount (read 2026-10-14). The per-request rate starts
+        at 0 on purpose: a self-hosted origin pays for bytes, not for requests; BotCost.dev uses
+        0.40 per million, and a CDN customer can enter their request price. Every cost on this page
+        is an estimate at the rate you set.
       </p>
     </fieldset>
   </section>
@@ -153,6 +154,7 @@ const next = [
             <th>Operator</th>
             <th>Kind</th>
             <th class="text-right">Requests</th>
+            <th class="text-right">Share of requests</th>
             <th class="text-right">Page requests</th>
             <th class="text-right">Bytes</th>
             <th class="text-right">Share of bytes</th>
@@ -171,6 +173,8 @@ const next = [
         <thead class="text-left text-xs uppercase tracking-wider text-text-annotation">
           <tr>
             <th>Operator</th>
+            <th class="text-right">Requests</th>
+            <th class="text-right">Bytes</th>
             <th class="text-right">Crawler page requests</th>
             <th class="text-right">Visits sent back</th>
             <th class="text-right">Ratio</th>
@@ -227,11 +231,12 @@ const next = [
       <li>Drop your log. The result appears anyway.</li>
     </ol>
     <p class="mt-4 text-text-muted">
-      With the network on, the only requests this page makes go to the site's analytics at
-      umami.we-amp.com: a page view, one event when an analysis finishes, and a count when you click
-      one of the links below. Only if you open site search does the page fetch the search index from
-      this site. None of these carries anything from your log: no counts, no hosts, no paths. The
-      parsing code is published at
+      Once the page has loaded, the only requests it makes are for the site's analytics and for this
+      site's own files (a font, or the search index if you open site search). The analytics script
+      loads from umami.we-amp.com, and its events are posted to this site's own /api/send, which
+      forwards them: a page view, one event when an analysis finishes, and a count when you click a
+      link or a share button on this page. None of these carries anything from your log: no counts,
+      no hosts, no paths. The parsing code is published at
       <a href={sourceUrl} class="text-interactive hover:text-interactive-hover">
         {sourceUrl}
       </a>

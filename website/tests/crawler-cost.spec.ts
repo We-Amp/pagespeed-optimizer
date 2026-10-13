@@ -72,15 +72,14 @@ test.describe('AI crawler cost meter', () => {
     const seen: Array<{ url: string; body: string | null }> = [];
     page.on('request', (r) => seen.push({ url: r.url(), body: r.postData() }));
     const sendPost = page.waitForRequest(
-      (r) => /\/api\/send/.test(r.url()) && r.method() === 'POST',
+      (r) =>
+        r.method() === 'POST' &&
+        /\/api\/send/.test(r.url()) &&
+        (r.postData() ?? '').includes('"name":"crawler-cost"'),
     );
     await page.setInputFiles('#cc-file', fixture('hostile.log'));
     await expect(page.locator('#cc-results')).toBeVisible();
     await sendPost;
-    expect(
-      seen.some((r) => /\/api\/send/.test(r.url)),
-      'the event POST was recorded',
-    ).toBe(true);
     const own = new URL(baseURL ?? 'http://localhost').hostname;
     for (const r of seen) {
       expect(r.url).not.toContain(SENTINEL);
@@ -118,6 +117,8 @@ test.describe('AI crawler cost meter', () => {
   test('an analysis writes nothing to browser storage', async ({ page }) => {
     await page.goto('/ai-crawler-cost/');
     const before = await storageSnapshot(page);
+    expect(before.local).toEqual([]);
+    expect(before.session).toEqual([]);
     await page.setInputFiles('#cc-file', fixture('nginx-combined.log'));
     await expect(page.locator('#cc-results')).toBeVisible();
     expect(await storageSnapshot(page)).toEqual(before);
@@ -137,12 +138,10 @@ test.describe('AI crawler cost meter', () => {
 
   test('works with the network off once loaded', async ({ page, context }) => {
     await page.goto('/ai-crawler-cost/');
-    await expect.poll(() => page.workers().length).toBe(1);
-    // Warm-up run while online. The cold case (going offline before any
-    // analysis) is not covered until the worker signals readiness; a later
-    // change adds that signal and this test then drops the warm-up.
-    await page.setInputFiles('#cc-file', fixture('nginx-combined.log'));
-    await expect(page.locator('#cc-ratio')).toContainText('1.5 crawler page requests');
+    // The worker posts "ready" once its handler is installed; the page marks
+    // the drop zone then. Going offline after that point is a cold start: no
+    // analysis has run online first.
+    await expect(page.locator('#cc-drop[data-ready="1"]')).toBeAttached();
     await context.setOffline(true);
     await page.setInputFiles('#cc-file', fixture('apache-combined.log'));
     await expect(page.locator('#cc-ratio')).toContainText('1.0 crawler page requests');
@@ -152,8 +151,8 @@ test.describe('AI crawler cost meter', () => {
   test('fires the crawler-cost event once per analysis, with no properties', async ({ page }) => {
     await stubUmami(page);
     await page.goto('/ai-crawler-cost/');
-    // The worker exists once the page script has attached its handlers.
-    await expect.poll(() => page.workers().length).toBe(1);
+    // The worker is ready once its handler is installed.
+    await expect(page.locator('#cc-drop[data-ready="1"]')).toBeAttached();
     await page.setInputFiles('#cc-file', fixture('nginx-combined.log'));
     await expect(page.locator('#cc-results')).toBeVisible();
     const events = (await trackedEvents(page)).filter((e) => e.name === 'crawler-cost');
@@ -185,6 +184,35 @@ test.describe('AI crawler cost meter', () => {
       '1.5 crawler page requests per visit an AI assistant sent back (3 crawler page requests, 2 visits)',
     );
     await expect(page.locator('#cc-summary')).not.toContainText('203.0.113');
+    await expect(page.locator('#cc-summary')).not.toContainText('/guide');
+  });
+
+  test('an IIS log with some lines lacking sc-bytes shows a partial total and the notes', async ({
+    page,
+  }) => {
+    await page.goto('/ai-crawler-cost/');
+    await page.setInputFiles('#cc-file', fixture('iis-w3c.log'));
+    await expect(page.locator('#cc-results')).toBeVisible();
+    await expect(page.locator('#cc-totals')).toContainText('(partial)');
+    await expect(page.locator('#cc-notes')).toContainText('2 lines carry no bytes field');
+    await expect(page.locator('#cc-table tbody tr')).toHaveCount(2);
+    await expect(page.locator('#cc-ratio')).toContainText('1.0 crawler page requests');
+  });
+
+  test('a one-line JSON file is reported as not an access log and fires no event', async ({
+    page,
+  }) => {
+    await stubUmami(page);
+    await page.goto('/ai-crawler-cost/');
+    await expect(page.locator('#cc-drop[data-ready="1"]')).toBeAttached();
+    await page.setInputFiles('#cc-file', {
+      name: 'data.json',
+      mimeType: 'application/json',
+      buffer: Buffer.from('{"a":1}'),
+    });
+    await expect(page.locator('#cc-results')).toBeVisible();
+    await expect(page.locator('#cc-notes')).toContainText('not a recognised access log');
+    expect((await trackedEvents(page)).filter((e) => e.name === 'crawler-cost')).toHaveLength(0);
   });
 
   test('without JavaScript the page explains itself and keeps its links', async ({ browser }) => {

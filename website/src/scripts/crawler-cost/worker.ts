@@ -29,3 +29,6 @@ scope.onmessage = async (event) => {
     });
   }
 };
+
+// Tells the page the worker's handler is installed and files can be posted.
+scope.postMessage({ type: 'ready' });

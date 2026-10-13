@@ -102,6 +102,13 @@ export async function analyzeFiles(
           ? e.message
           : `could not read this file: ${e instanceof Error ? e.message : String(e)}`;
     }
+    if (
+      !report.givenUp &&
+      report.lines + unparsed < GIVE_UP_WINDOW &&
+      unparsed > report.lines &&
+      unparsed > 0
+    )
+      report.givenUp = true;
     if (fileRead < file.size) {
       read += file.size - fileRead;
       hooks.onProgress?.(read, total);

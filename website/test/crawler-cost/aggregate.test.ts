@@ -99,4 +99,13 @@ describe('Aggregator', () => {
     ag.add(line({ userAgent: GPT }));
     expect(ag.result().crawlers.map((r) => r.token)).toEqual(['GPTBot', 'Bytespider', 'ClaudeBot']);
   });
+  it('counts a crawler line without a bytes field as a request with 0 bytes', () => {
+    const ag = new Aggregator();
+    ag.add(line({ userAgent: GPT, bytes: null }));
+    const a = ag.result();
+    expect(a.crawlerRequests).toBe(1);
+    expect(a.crawlerBytes).toBe(0);
+    expect(a.crawlers[0]).toMatchObject({ token: 'GPTBot', requests: 1, bytes: 0 });
+    expect(a.bytesMissing).toBe(1);
+  });
 });
