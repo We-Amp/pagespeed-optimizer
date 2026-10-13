@@ -171,7 +171,8 @@ constexpr std::string_view kReproducedByEntryMetadata[] = {
 // Stamped per response by whatever is serving, on every path, so they are
 // never reproduced from a cache entry and never a reason to refuse one.
 constexpr std::string_view kStampedPerResponse[] = {
-    "date", "server", "connection", "keep-alive", "transfer-encoding",
+    "date", "server",        "connection", "keep-alive", "transfer-encoding",
+    "age",  "accept-ranges",
 };
 
 }  // namespace

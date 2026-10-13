@@ -222,7 +222,6 @@ TEST(HeadersSidecarTest, RequestDependentHeadersAreNeverCarried) {
            "Authorization",
            "Content-Language",
            "Content-Location",
-           "Age",
            "X-Request-Id",
            "Content-Security-Policy-Report-Only",
            "Access-Control-Allow-Credentials",
@@ -284,6 +283,40 @@ TEST(HeadersSidecarTest, HeadersTheEntryMetadataAlreadyHoldsAreNotCarried) {
   EXPECT_EQ(result.verdict, SidecarVerdict::kSwapEligible);
   EXPECT_TRUE(result.payload.empty());
   EXPECT_EQ(result.fields, 0u);
+}
+
+TEST(HeadersSidecarTest, AgeAndAcceptRangesAreStampedNotFallThrough) {
+  // Both are stamped by the serving stack on every response, so a CDN-fronted
+  // origin (Age) or a static origin (Accept-Ranges) stays swap-eligible with
+  // nothing to carry.
+  const Fields fields = {
+      {"Age", "37"},
+      {"Accept-Ranges", "bytes"},
+  };
+  const auto result = Classify(fields);
+  EXPECT_EQ(result.verdict, SidecarVerdict::kSwapEligible);
+  EXPECT_TRUE(result.payload.empty());
+  EXPECT_EQ(result.fields, 0u);
+  EXPECT_TRUE(result.reasons.empty());
+
+  bool age = false, ranges = false;
+  for (std::string_view n : HeadersStampedPerResponse()) {
+    age |= (n == "age");
+    ranges |= (n == "accept-ranges");
+  }
+  EXPECT_TRUE(age);
+  EXPECT_TRUE(ranges);
+}
+
+TEST(HeadersSidecarTest, AgeDoesNotDisturbCarriedHeaders) {
+  const Fields fields = {
+      {"Age", "5"},
+      {"Access-Control-Allow-Origin", "*"},
+      {"Accept-Ranges", "bytes"},
+  };
+  const auto result = Classify(fields);
+  EXPECT_EQ(result.verdict, SidecarVerdict::kSwapEligible);
+  EXPECT_EQ(result.fields, 1u);
 }
 
 // -------------------------------------------------------------- Vary, F4
