@@ -92,6 +92,22 @@ describe('parseCombinedLine', () => {
   });
 });
 
+describe('parseCombinedLine hostile input', () => {
+  it('stays linear on a flood of opening brackets', () => {
+    const t0 = performance.now();
+    expect(parseCombinedLine('['.repeat(65_536))).toBeNull();
+    const ms = performance.now() - t0;
+    expect(ms).toBeLessThan(50);
+  });
+  it('stays linear on an escaped-quote line followed by a bracket flood', () => {
+    const line = 'x - - [' + '['.repeat(8_000) + '] "GET /a\\" HTTP/1.1" 200 1';
+    const t0 = performance.now();
+    expect(parseCombinedLine(line)).toBeNull();
+    const ms = performance.now() - t0;
+    expect(ms).toBeLessThan(50);
+  });
+});
+
 describe('detectFormat', () => {
   it('detects IIS by its directives, combined and common by the core, unknown otherwise', () => {
     expect(detectFormat('#Software: Microsoft Internet Information Services 10.0')).toBe('iis');
@@ -164,5 +180,20 @@ describe('IisParser', () => {
     expect(p.hasUserAgent).toBe(false);
     const line = p.parseLine('2026-10-10 2026-10-11 GET /a 200 zzz');
     expect(line).toMatchObject({ path: '/a', status: 200, userAgent: null, time: null });
+  });
+  it('rejects an empty status token', () => {
+    const p = new IisParser();
+    p.parseLine(HEADER);
+    expect(
+      p.parseLine('2026-10-10 13:55:36 10.0.0.1 GET /guide/ - 443 - 203.0.113.5 UA -  0 0 12'),
+    ).toBeNull();
+  });
+  it('maps a non-numeric sc-bytes to null', () => {
+    const p = new IisParser();
+    p.parseLine('#Fields: date time cs-method cs-uri-stem sc-status sc-bytes');
+    expect(p.parseLine('2026-10-10 14:00:00 GET /a 200 abc')).toMatchObject({
+      status: 200,
+      bytes: null,
+    });
   });
 });

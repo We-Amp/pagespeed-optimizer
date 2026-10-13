@@ -4,9 +4,11 @@
 // The three accepted access-log formats. The combined parser finds the core
 // `[time] "request" status bytes "referer" "user-agent"` anywhere in the line,
 // so prefixed variants (Apache vhost_combined) and nginx formats that append
-// fields after the user agent parse too. The regular expression uses only
-// negated character classes with no nested quantifiers, so it runs in linear
-// time over the (already length-capped) line.
+// fields after the user agent parse too. The regular expression is unanchored,
+// has no nested quantifiers, and every character class excludes the character
+// that opens the next retry (the time class excludes `[`), so a retry never
+// rescans text a previous attempt consumed and the total work is linear in the
+// line length.
 import type { Format, ParsedLine } from './types';
 
 const MONTHS: Record<string, number> = {
@@ -50,7 +52,7 @@ export function splitRequest(request: string): { method: string; path: string; q
     : { method, path: target.slice(0, q), query: target.slice(q + 1) };
 }
 
-const CORE = /\[([^\]]*)\] "([^"]*)" (\d{3}) (-|\d+)(?: "([^"]*)" "([^"]*)")?/;
+const CORE = /\[([^\[\]]*)\] "([^"]*)" (\d{3}) (-|\d+)(?: "([^"]*)" "([^"]*)")?/;
 
 function dashNull(s: string | undefined): string | null {
   return s === undefined || s === '' || s === '-' ? null : s;
@@ -81,7 +83,7 @@ export function detectFormat(firstLine: string): Format {
 
 export class IisParser {
   fields: string[] | null = null;
-  private index: Record<string, number> = {};
+  private index = Object.create(null) as Record<string, number>;
 
   get hasBytes(): boolean {
     return 'sc-bytes' in this.index;
@@ -99,7 +101,7 @@ export class IisParser {
     if (line.startsWith('#')) {
       if (line.startsWith('#Fields:')) {
         this.fields = line.slice('#Fields:'.length).trim().split(/\s+/);
-        this.index = {};
+        this.index = Object.create(null) as Record<string, number>;
         this.fields.forEach((f, i) => {
           if (!(f in this.index)) this.index[f] = i;
         });
@@ -109,7 +111,9 @@ export class IisParser {
     if (!this.fields) return null;
     const row = line.split(' ');
     if (row.length < Math.min(this.fields.length, 4)) return null;
-    const status = Number(this.col(row, 'sc-status'));
+    const statusRaw = this.col(row, 'sc-status');
+    if (statusRaw === undefined || !/^\d{3}$/.test(statusRaw)) return null;
+    const status = Number(statusRaw);
     const stem = this.col(row, 'cs-uri-stem');
     if (!Number.isInteger(status) || stem === undefined) return null;
     const date = this.col(row, 'date');
@@ -124,7 +128,14 @@ export class IisParser {
       path: stem,
       query: query === undefined || query === '-' ? '' : query,
       status,
-      bytes: bytesRaw === undefined ? null : bytesRaw === '-' ? 0 : Number(bytesRaw),
+      bytes:
+        bytesRaw === undefined
+          ? null
+          : bytesRaw === '-'
+            ? 0
+            : /^\d+$/.test(bytesRaw)
+              ? Number(bytesRaw)
+              : null,
       referer: decode(dashNull(this.col(row, 'cs(Referer)'))),
       userAgent: decode(dashNull(this.col(row, 'cs(User-Agent)'))),
     };
