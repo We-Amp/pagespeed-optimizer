@@ -124,7 +124,7 @@ const howItWorks = defineCollection({
 
 // Release manifest collections, synced from the release manifests maintained
 // outside this repository (§7). The 2.1 manifest (the
-// converged line, ) is seeded in-tree — the sync workflow does not yet
+// converged line) is seeded in-tree — the sync workflow does not yet
 // copy it. The schema mirrors the release manifest schema but is
 // intentionally loose on nested compat/artifacts (we render via the helper in
 // src/lib/release.ts).
@@ -178,7 +178,7 @@ const releases11 = defineCollection({
 // shipped a header version the docs didn't install (F59/F133) can't recur — a
 // bump tool that touches release.semver without re-deriving display.* now fails
 // the build instead of silently disagreeing with itself. The 2.1 line (the
-// converged line, ) carries the same invariant.
+// converged line) carries the same invariant.
 const displayMatchesSemver = (line: string) =>
   releaseSchema.superRefine((data, ctx) => {
     const { semver } = data.release;
