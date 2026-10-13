@@ -105,6 +105,9 @@ enum class SidecarRecordOutcome : uint8_t {
 struct SidecarRecordResult {
   SidecarRecordOutcome outcome = SidecarRecordOutcome::kSkipped;
   SidecarRecordReason reason = SidecarRecordReason::kCurrent;
+  // A header block was stored for the URL (set even when the entry write
+  // that follows it fails).
+  bool block_written = false;
 };
 
 // Record the identity entry for a classified response.  The rules:
@@ -200,6 +203,7 @@ SidecarRecordResult RecordEntryWithHeadersSidecar(
       result.outcome = SidecarRecordOutcome::kSidecarWriteFailed;
       return result;
     }
+    result.block_written = true;
     meta.flags |= kHeadersSidecarBits;
   } else {
     meta.flags |= AlternateMetadata::kFlagHeadersClassified;

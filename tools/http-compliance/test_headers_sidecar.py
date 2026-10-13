@@ -7,15 +7,15 @@ The nginx front stage classifies the origin's response headers before it
 records a response:
 
 * only reproducible headers (the security set: ACAO, CSP, nosniff,
-  Referrer-Policy) -> recorded, with the headers stored beside the entry;
+  Referrer-Policy) -> recorded, with the headers stored beside the entry
+  (the stored-block counter moves);
 * any header a cache hit cannot reproduce (X-Powered-By, a custom header)
   -> never cached, served from the origin each time, and an entry recorded
   earlier under different headers is removed;
 * a Content-Security-Policy carrying a nonce -> never cached;
 * Vary: Origin -> never cached (the existing Vary gate).
 
-Replaying the stored headers on a HIT is the next step and is NOT asserted
-here: a HIT still serves exactly as before this change.
+HITs do not send the stored lines yet and are not asserted on here.
 
 The counters live in the shared serve-statistics file the front stage writes
 and the optimizer exports on /v1/metrics.  The compliance stack does not
@@ -34,20 +34,21 @@ COMPOSE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docker-
 
 SERVE_STATS_PATH = "/shared/.pagespeed-serve-stats"
 SERVE_STATS_VERSION = 11
-# v11 layout (src/worker/serve_stats.h, sizeof == 11488): the five sidecar
+# v11 layout (src/worker/serve_stats.h, sizeof == 11496): the six sidecar
 # counters sit just before counting_since_unix_day (8 bytes) and boot_id (16).
-SIDECAR_COUNTERS_OFFSET = 11488 - 16 - 8 - 5 * 8
 SIDECAR_COUNTER_NAMES = (
     "fall_through",
     "never_optimized",
     "replayed",
     "missing",
     "write_failed",
+    "stored",
 )
+SIDECAR_COUNTERS_OFFSET = 11496 - 16 - 8 - len(SIDECAR_COUNTER_NAMES) * 8
 
 
 def read_sidecar_counters() -> dict[str, int]:
-    """Read the five v11 sidecar counters from the shared stats file."""
+    """Read the six v11 sidecar counters from the shared stats file."""
     out = subprocess.run(
         [
             "docker",
@@ -63,7 +64,8 @@ def read_sidecar_counters() -> dict[str, int]:
         capture_output=True,
         check=False,
     )
-    if out.returncode != 0 or len(out.stdout) < SIDECAR_COUNTERS_OFFSET + 40:
+    size = len(SIDECAR_COUNTER_NAMES) * 8
+    if out.returncode != 0 or len(out.stdout) < SIDECAR_COUNTERS_OFFSET + size:
         pytest.skip(
             "serve statistics file not readable from the nginx container: "
             + out.stderr.decode(errors="replace")[:200]
@@ -73,7 +75,9 @@ def read_sidecar_counters() -> dict[str, int]:
         f"serve statistics file is version {version}, expected "
         f"{SERVE_STATS_VERSION}: the layout offsets here are stale"
     )
-    values = struct.unpack_from("<5Q", out.stdout, SIDECAR_COUNTERS_OFFSET)
+    values = struct.unpack_from(
+        "<%dQ" % len(SIDECAR_COUNTER_NAMES), out.stdout, SIDECAR_COUNTERS_OFFSET
+    )
     return dict(zip(SIDECAR_COUNTER_NAMES, values))
 
 
@@ -94,7 +98,9 @@ def requests_never_hit(client, path: str, n: int = 6, pause: float = 0.3):
 
 class TestHeadersSidecarRecord:
     def test_reproducible_security_headers_are_cached(self, client):
-        """ACAO + CSP + nosniff + Referrer-Policy: recorded, then a HIT."""
+        """ACAO + CSP + nosniff + Referrer-Policy: recorded WITH a stored
+        header block (the stored counter moves; a build that does not store
+        the block leaves it alone), then a HIT; no refusal is counted."""
         before = read_sidecar_counters()
         first = client.get("/sidecar/asset.css")
         assert first.status_code == 200
@@ -104,6 +110,7 @@ class TestHeadersSidecarRecord:
         hit = client.poll_for_hit("/sidecar/asset.css")
         client.assert_hit(hit)
         after = read_sidecar_counters()
+        assert after["stored"] > before["stored"], (before, after)
         assert after["fall_through"] == before["fall_through"]
         assert after["never_optimized"] == before["never_optimized"]
         assert after["write_failed"] == before["write_failed"]

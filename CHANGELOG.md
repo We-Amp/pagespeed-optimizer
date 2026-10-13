@@ -20,18 +20,25 @@ Responses that carry only `Content-Security-Policy`,
 `Access-Control-Allow-Origin`, `X-Content-Type-Options`, `Referrer-Policy`,
 `Cross-Origin-*`, `Permissions-Policy` and `Vary` beside the usual caching
 headers are cached as before, and the module now stores those header lines
-with the cached copy; sending them on cache hits is a separate change that
-follows. To keep caching a response that carries another header, remove it
-with `proxy_hide_header`, or set it on the nginx server with `add_header`,
-which nginx applies to cache hits as well. Five new counters on
-`/v1/metrics` show the effect: `pagespeed_headers_sidecar_fall_through_total`
-(responses not cached because of such a header),
-`pagespeed_headers_sidecar_never_optimized_total` (nonce-bearing policies),
-`pagespeed_headers_sidecar_write_failed_total`, and two that stay at zero
-until the hit side follows (`pagespeed_headers_sidecar_replayed_total`,
-`pagespeed_headers_sidecar_missing_total`). The serve statistics file is
-recreated once on upgrade, so these and the other serve counters start
-from zero.
+with the cached copy. Cache hits do not send the stored lines yet, so on a
+hit these headers are still missing, as in earlier releases; a response
+revalidated with the origin (the origin answers 304) can already carry the
+stored lines the 304 did not repeat. To keep caching a
+response that carries another header, remove it with `proxy_hide_header`,
+or set it on the nginx server with `add_header`, which nginx applies to
+cache hits as well. Six new counters on `/v1/metrics` show the effect:
+`pagespeed_headers_sidecar_fall_through_total` (responses not cached because
+of such a header), `pagespeed_headers_sidecar_never_optimized_total`
+(nonce-bearing policies), `pagespeed_headers_sidecar_stored_total` (header
+lines stored with a cached copy), `pagespeed_headers_sidecar_write_failed_total`,
+and two that stay at zero for now (`pagespeed_headers_sidecar_replayed_total`,
+`pagespeed_headers_sidecar_missing_total`). The serve statistics file
+changes format and is recreated once on upgrade, so these and the other
+serve counters start from zero. Upgrade the nginx module and the optimizer
+together: an upgraded module does not open the statistics file of an
+optimizer that has not been upgraded yet, and records no serve statistics
+(caching and serving are unaffected) until the optimizer is upgraded too;
+an older module keeps writing to the replaced file until nginx is reloaded.
 
 ## 2.3.0 — 2026-10-12
 

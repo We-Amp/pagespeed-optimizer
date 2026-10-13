@@ -239,6 +239,7 @@ TEST_F(HeadersSidecarRecordTest, FreshRecordWritesBlockThenFlaggedEntry) {
   auto r = Record(SecurityHeaders());
   EXPECT_EQ(r.outcome, SidecarRecordOutcome::kWritten);
   EXPECT_EQ(r.reason, SidecarRecordReason::kFresh);
+  EXPECT_TRUE(r.block_written);
   EXPECT_EQ(Flags(kIdentityMask),
             std::optional<uint8_t>(kClassified | kRequired));
   EXPECT_EQ(Block(), std::optional<std::string>(PayloadOf(SecurityHeaders())));
@@ -247,6 +248,7 @@ TEST_F(HeadersSidecarRecordTest, FreshRecordWritesBlockThenFlaggedEntry) {
 TEST_F(HeadersSidecarRecordTest, NothingToCarryFlagsClassifiedOnly) {
   auto r = Record(NothingToCarry());
   EXPECT_EQ(r.outcome, SidecarRecordOutcome::kWritten);
+  EXPECT_FALSE(r.block_written);
   EXPECT_EQ(Flags(kIdentityMask), std::optional<uint8_t>(kClassified));
   EXPECT_FALSE(Block().has_value());
 }
@@ -434,6 +436,7 @@ TEST_F(HeadersSidecarRecordTest, FailedBlockWriteStoresNoEntry) {
   FailingSidecarCache failing{cache_.get()};
   auto r = Record(SecurityHeaders(), false, true, nullptr, &failing);
   EXPECT_EQ(r.outcome, SidecarRecordOutcome::kSidecarWriteFailed);
+  EXPECT_FALSE(r.block_written);
   EXPECT_FALSE(Exists(kIdentityMask))
       << "an entry was stored without the block it requires";
 }

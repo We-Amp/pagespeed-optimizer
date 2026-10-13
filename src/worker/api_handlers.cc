@@ -1166,6 +1166,9 @@ std::string BuildPrometheusMetricsText(const PrometheusMetricsInputs& in) {
             "Records abandoned because the origin headers could not be "
             "stored.",
             load(ss->headers_sidecar_write_failed));
+    counter("pagespeed_headers_sidecar_stored_total",
+            "Origin header blocks stored with a cache entry.",
+            load(ss->headers_sidecar_stored));
   }
 
   return m;

@@ -83,9 +83,9 @@ struct ServeStats {
   // the same version bump.
   // v10 adds 64 host slots and the other triple (10,776 bytes), past v9's
   // 352-byte headroom, so the file grows to 16384 on the same version bump.
-  // v11 adds the five response-header sidecar counters (40 bytes), inside
+  // v11 adds the six response-header sidecar counters (48 bytes), inside
   // v10's headroom; the version bump forces a fresh file as before.
-  // HEADROOM AFTER v11 IS 4896 BYTES.
+  // HEADROOM AFTER v11 IS 4888 BYTES.
   static constexpr size_t kFileSize = 16384;
 
   // Web Bot Auth opt-in counter (experimental): the maximum
@@ -425,13 +425,16 @@ struct ServeStats {
   //                                    header block that could not be read;
   //   headers_sidecar_write_failed   — records abandoned because the header
   //                                    block could not be written (the entry
-  //                                    is then not written either).
+  //                                    is then not written either);
+  //   headers_sidecar_stored         — header blocks stored with an entry
+  //                                    (records and 304 revalidations).
   uint64_t headers_sidecar_fall_through;
   uint64_t headers_sidecar_never_optimized;
   uint64_t headers_sidecar_replayed;
   uint64_t headers_sidecar_missing;
   uint64_t headers_sidecar_write_failed;
-  // ---- end v11 block (40 bytes) ----
+  uint64_t headers_sidecar_stored;
+  // ---- end v11 block (48 bytes) ----
 
   // Days since the Unix epoch when this counting file was first created fresh.
   // Day-granular ("since" date).  Minted in the create-fresh path only;
@@ -455,7 +458,7 @@ static_assert(sizeof(ServeStats) <= ServeStats::kFileSize);
 // Pin the EXACT size (v11).  The <= assert above only catches an overflow; it
 // would happily accept a field silently dropped or re-typed.  Anything that
 // changes the layout must change this number and the version together.
-static_assert(sizeof(ServeStats) == 11488,
+static_assert(sizeof(ServeStats) == 11496,
               "ServeStats layout changed: bump kVersion and update this pin");
 static_assert(alignof(ServeStats) == 8);
 // The v8 block must stay 8-byte aligned so every u64 in it can be updated with
@@ -674,6 +677,7 @@ void RecordHeadersSidecarNeverOptimized(ServeStats* stats);
 void RecordHeadersSidecarReplayed(ServeStats* stats);
 void RecordHeadersSidecarMissing(ServeStats* stats);
 void RecordHeadersSidecarWriteFailed(ServeStats* stats);
+void RecordHeadersSidecarStored(ServeStats* stats);
 
 // Atomically record ONE classified serve: exactly one serve-class counter is
 // incremented, plus notify_suppressed_total when `flags` carries

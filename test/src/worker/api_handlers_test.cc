@@ -1113,6 +1113,7 @@ TEST_F(ApiHandlersIntegrationTest, MetricsExposesHeadersSidecarCounters) {
   ss.headers_sidecar_replayed = 11;
   ss.headers_sidecar_missing = 2;
   ss.headers_sidecar_write_failed = 1;
+  ss.headers_sidecar_stored = 5;
   ctx_->serve_stats = &ss;
 
   std::string resp =
@@ -1126,6 +1127,8 @@ TEST_F(ApiHandlersIntegrationTest, MetricsExposesHeadersSidecarCounters) {
   EXPECT_NE(resp.find("pagespeed_headers_sidecar_missing_total 2"),
             std::string::npos);
   EXPECT_NE(resp.find("pagespeed_headers_sidecar_write_failed_total 1"),
+            std::string::npos);
+  EXPECT_NE(resp.find("pagespeed_headers_sidecar_stored_total 5"),
             std::string::npos);
 }
 

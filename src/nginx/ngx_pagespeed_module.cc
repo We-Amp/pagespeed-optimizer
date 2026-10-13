@@ -2606,8 +2606,13 @@ static std::string ngx_http_pagespeed_combined_vary(ngx_http_request_t* r,
 // =====================================================================
 
 // Rate-limited "not caching: header cannot be reproduced" log: one NOTICE
-// per (hostname, first reason) per nginx worker lifetime, capped like the
-// missing-Cache-Control warning.
+// per (server block, first reason) per nginx worker lifetime, capped like
+// the missing-Cache-Control warning.  Keyed on the server block that handled
+// the request (its address in the configuration, which lives as long as the
+// process) rather than on the request's Host header: a client choosing Host
+// values could otherwise use up the cap and silence later notices.  The
+// header names come from the origin, so the key space is bounded by the
+// configuration and the origins behind it.
 static std::unordered_set<std::string> g_sidecar_fall_through_warned;
 
 // Snapshot the ORIGIN's header lines.  Called at the top of the header
@@ -2717,7 +2722,6 @@ static void ngx_http_pagespeed_classify_origin_headers(
     pagespeed::RecordHeadersSidecarNeverOptimized(g_serve_stats);
   } else {
     pagespeed::RecordHeadersSidecarFallThrough(g_serve_stats);
-    std::string_view host_sv = ngx_http_pagespeed_hostname(r);
     std::string_view header =
         pagespeed::FirstUnreproducibleHeader(classification);
     std::string_view reason =
@@ -2726,9 +2730,18 @@ static void ngx_http_pagespeed_classify_origin_headers(
             : (classification.reasons.empty()
                    ? std::string_view("unknown")
                    : std::string_view(classification.reasons.front()));
-    std::string warn_key;
-    warn_key.reserve(host_sv.size() + 1 + reason.size());
-    warn_key.append(host_sv).append("|").append(reason);
+    const auto* cscf = static_cast<const ngx_http_core_srv_conf_t*>(
+        ngx_http_get_module_srv_conf(r, ngx_http_core_module));
+    // The log names the server block's configured name, not the request's
+    // Host, for the same reason the key does.
+    std::string_view host_sv =
+        cscf->server_name.len > 0
+            ? std::string_view(
+                  reinterpret_cast<const char*>(cscf->server_name.data),
+                  cscf->server_name.len)
+            : std::string_view("the default server");
+    std::string warn_key = std::to_string(reinterpret_cast<uintptr_t>(cscf));
+    warn_key.append("|").append(reason);
     if (g_sidecar_fall_through_warned.size() < kMaxCCWarnings &&
         g_sidecar_fall_through_warned.insert(warn_key).second) {
       if (!header.empty()) {
@@ -3024,9 +3037,18 @@ static void ngx_http_pagespeed_record_response(ngx_http_request_t* r,
     const auto recorded = pagespeed::RecordEntryWithHeadersSidecar(
         *cache, url, hostname, scheme, id, meta, std::as_bytes(std::span(body)),
         origin_views, stored_state, force_rewrite, [&slot_key] {
+          // The same per-URL slot the age-expiry refresh coalesces on, with
+          // the full window rather than that path's min(window, max-age):
+          // while a rewrite holds it, a concurrent genuine expiry of the
+          // same URL takes the bounded coalesced stale serve for up to its
+          // own grace.  Bounded and harmless; the next request after the
+          // window refreshes normally.
           return ngx_http_pagespeed_acquire_refresh_slot(
               slot_key, ngx_time(), kRefreshGraceWindowSecs);
         });
+    if (recorded.block_written) {
+      pagespeed::RecordHeadersSidecarStored(g_serve_stats);
+    }
     switch (recorded.outcome) {
       case pagespeed::SidecarRecordOutcome::kSkipped:
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
@@ -3733,7 +3755,9 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
             if (storability_verdict == pagespeed::RestampVerdict::kRestamp) {
               auto written = cache->WriteHeadersSidecar(url, hostname, scheme,
                                                         sidecar_plan.merged);
-              if (!written.has_value() || !written->stored) {
+              if (written.has_value() && written->stored) {
+                pagespeed::RecordHeadersSidecarStored(g_serve_stats);
+              } else {
                 // Without the new block the restamp would extend an entry
                 // whose stored headers are stale: skip it, the entry simply
                 // revalidates again next time.

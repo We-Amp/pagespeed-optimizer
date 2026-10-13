@@ -68,7 +68,7 @@ static void ZeroCounters(ServeStats* s) {
         // v11 response-header sidecar counters.
         &s->headers_sidecar_fall_through, &s->headers_sidecar_never_optimized,
         &s->headers_sidecar_replayed, &s->headers_sidecar_missing,
-        &s->headers_sidecar_write_failed}) {
+        &s->headers_sidecar_write_failed, &s->headers_sidecar_stored}) {
     std::atomic_ref<uint64_t>(*field).store(0, std::memory_order_relaxed);
   }
   // v9 by-transfer-encoding serve counters: zeroed with the counters above,
@@ -760,6 +760,11 @@ void RecordHeadersSidecarMissing(ServeStats* stats) {
 void RecordHeadersSidecarWriteFailed(ServeStats* stats) {
   if (stats == nullptr) return;
   RelaxedAdd(stats->headers_sidecar_write_failed, 1);
+}
+
+void RecordHeadersSidecarStored(ServeStats* stats) {
+  if (stats == nullptr) return;
+  RelaxedAdd(stats->headers_sidecar_stored, 1);
 }
 
 void RecordServeClass(ServeStats* stats, ServeClass cls, uint32_t flags) {

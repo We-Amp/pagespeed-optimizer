@@ -136,6 +136,7 @@ TEST_F(ServeStatsTest, CreateReuseZeroesAllCounters) {
   stats->headers_sidecar_replayed = 18;
   stats->headers_sidecar_missing = 19;
   stats->headers_sidecar_write_failed = 20;
+  stats->headers_sidecar_stored = 21;
   CloseServeStats(stats);
 
   ServeStats* reused = CreateServeStats(path_);
@@ -166,7 +167,8 @@ TEST_F(ServeStatsTest, CreateReuseZeroesAllCounters) {
                          reused->headers_sidecar_never_optimized,
                          reused->headers_sidecar_replayed,
                          reused->headers_sidecar_missing,
-                         reused->headers_sidecar_write_failed}) {
+                         reused->headers_sidecar_write_failed,
+                         reused->headers_sidecar_stored}) {
     EXPECT_EQ(value, 0u);
   }
   CloseServeStats(reused);
@@ -228,6 +230,8 @@ TEST_F(ServeStatsTest, HeadersSidecarCountersRecordAndPersist) {
   RecordHeadersSidecarReplayed(stats);
   RecordHeadersSidecarMissing(stats);
   RecordHeadersSidecarWriteFailed(stats);
+  RecordHeadersSidecarStored(stats);
+  RecordHeadersSidecarStored(stats);
   CloseServeStats(stats);
 
   ServeStats* reopened = OpenServeStats(path_);
@@ -237,6 +241,7 @@ TEST_F(ServeStatsTest, HeadersSidecarCountersRecordAndPersist) {
   EXPECT_EQ(reopened->headers_sidecar_replayed, 3u);
   EXPECT_EQ(reopened->headers_sidecar_missing, 1u);
   EXPECT_EQ(reopened->headers_sidecar_write_failed, 1u);
+  EXPECT_EQ(reopened->headers_sidecar_stored, 2u);
   CloseServeStats(reopened);
 
   RecordHeadersSidecarFallThrough(nullptr);
@@ -244,13 +249,14 @@ TEST_F(ServeStatsTest, HeadersSidecarCountersRecordAndPersist) {
   RecordHeadersSidecarReplayed(nullptr);
   RecordHeadersSidecarMissing(nullptr);
   RecordHeadersSidecarWriteFailed(nullptr);
+  RecordHeadersSidecarStored(nullptr);
 }
 
 // The v11 block sits after the v10 block and before the identity/epoch pair.
 TEST_F(ServeStatsTest, V11LayoutOrdering) {
   EXPECT_LT(offsetof(ServeStats, serve_hosts_other_optimized_bytes),
             offsetof(ServeStats, headers_sidecar_fall_through));
-  EXPECT_LT(offsetof(ServeStats, headers_sidecar_write_failed),
+  EXPECT_LT(offsetof(ServeStats, headers_sidecar_stored),
             offsetof(ServeStats, counting_since_unix_day));
   EXPECT_EQ(offsetof(ServeStats, headers_sidecar_fall_through) % 8, 0u);
 }
@@ -434,14 +440,14 @@ TEST_F(ServeStatsTest, StructSize) {
   // inside 512.  v8 adds the serve-class + saturation block (88 bytes).  v9
   // adds the by-encoding rows and grows the file to 1024.  v10 adds the 64
   // host slots and the other triple (10,776 bytes) and grows it to 16384.
-  // v11 adds the five response-header sidecar counters (40 bytes).
+  // v11 adds the six response-header sidecar counters (48 bytes).
   EXPECT_EQ(ServeStats::kFileSize, 16384u);
   EXPECT_EQ(ServeStats::kVersion, 11u);
   // The exact size is pinned in the header too; asserted here so the failure
   // names the surface rather than a translation unit.
-  EXPECT_EQ(sizeof(ServeStats), 11488u);
+  EXPECT_EQ(sizeof(ServeStats), 11496u);
   EXPECT_EQ(sizeof(ServeStats::HostSlot), 168u);
-  EXPECT_EQ(ServeStats::kFileSize - sizeof(ServeStats), 4896u)
+  EXPECT_EQ(ServeStats::kFileSize - sizeof(ServeStats), 4888u)
       << "headroom shrank: the next append may need a kFileSize bump";
 }
 
