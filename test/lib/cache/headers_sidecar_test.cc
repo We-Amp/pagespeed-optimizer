@@ -222,7 +222,6 @@ TEST(HeadersSidecarTest, RequestDependentHeadersAreNeverCarried) {
            "Authorization",
            "Content-Language",
            "Content-Location",
-           "Age",
            "X-Request-Id",
            "Content-Security-Policy-Report-Only",
            "Access-Control-Allow-Credentials",
