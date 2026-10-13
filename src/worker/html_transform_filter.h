@@ -93,6 +93,25 @@ class HtmlTransformFilter : public net_instaweb::EmptyHtmlFilter {
     layer_order_ = std::move(order);
   }
 
+  // The origin's response-header Content-Security-Policy field values (one
+  // per received line, enforcing policies only), as recorded in the URL's
+  // headers sidecar. They gate inline injections exactly like <meta> CSPs:
+  // an inline element must be allowed by EVERY policy present (the header
+  // ones and any <meta> ones). Unlike meta_csps_ these are known before the
+  // first byte is parsed and survive StartDocument.
+  void set_header_csps(std::vector<std::string> csps) {
+    header_csps_ = std::move(csps);
+  }
+
+  // Reads the URL's headers sidecar (sentinel 0x6C) and returns every
+  // Content-Security-Policy field value in stored order. Empty when `cache`
+  // is null, no sidecar exists for the URL (every entry recorded before the
+  // sidecar), or the stored block does not parse.
+  static std::vector<std::string> ReadHeaderCsps(PageSpeedCache* cache,
+                                                 std::string_view url,
+                                                 std::string_view hostname,
+                                                 std::string_view scheme);
+
   // Returns true if any transformation was applied.
   bool modified() const { return modified_; }
 
@@ -272,9 +291,11 @@ class HtmlTransformFilter : public net_instaweb::EmptyHtmlFilter {
   // Enforcing CSPs seen via <meta http-equiv="Content-Security-Policy">, in
   // document order. Multiple metas combine restrictively at gate time. Meta
   // always precedes </head>/</body>, so it is collected before the inject
-  // sites are reached. Header-delivered CSP is NOT visible here — see the
-  // TODO(2.S9-phase2) note in lib/html/csp_inline_policy.h.
+  // sites are reached. Header-delivered CSP lives in header_csps_.
   std::vector<std::string> meta_csps_;
+  // Enforcing CSPs from the origin's response headers (headers sidecar); see
+  // set_header_csps(). Evaluated together with meta_csps_.
+  std::vector<std::string> header_csps_;
 };
 
 }  // namespace pagespeed

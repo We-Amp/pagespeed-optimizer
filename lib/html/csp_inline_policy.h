@@ -1,15 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 
-// TODO(2.S9-phase2): This helper only evaluates CSP delivered via a
-// <meta http-equiv="Content-Security-Policy"> tag that the worker can see
-// inline in the HTML it is transforming. CSP delivered via the
-// Content-Security-Policy *response header* is NOT visible here — plumbing it
-// in requires passing the header value across the nginx<->worker boundary
-// (IPC / wire-format version bump), which is deliberately out of scope for the
-// Phase-1 fix. Until then, a page that gates inline style/script via a response
-// header alone will still receive our inline injections. Also deferred:
-// gating InjectAsyncCssLoader's external <script> on script-src.
+// This helper evaluates a CSP string; it does not care where the string came
+// from. The worker feeds it both <meta http-equiv> policies and the origin's
+// response-header policies (read from the URL's headers sidecar). Also
+// deferred: gating InjectAsyncCssLoader's external <script> on script-src.
 
 // PageSpeed 2.0 - CSP inline-injection policy helper
 //
