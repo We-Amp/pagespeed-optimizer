@@ -947,8 +947,11 @@ PageSpeedCache::ReadHeadersSidecar(std::string_view url,
                                    std::string_view scheme) {
   auto key = ComposeKey(url, hostname, scheme);
   auto result = ReadHeadersSidecarByKey(key);
-  if (!result && handler_ != nullptr) {
-    handler_->Info("Headers sidecar miss for %.*s: %s",
+  // A plain miss is the normal case (every entry recorded without a sidecar)
+  // and stays silent; only a real read error is worth a log line.
+  if (!result && result.error() != cyclone::CacheError::NotFound &&
+      handler_ != nullptr) {
+    handler_->Info("Headers sidecar read failed for %.*s: %s",
                    static_cast<int>(url.size()), url.data(),
                    make_error_code(result.error()).message().c_str());
   }
