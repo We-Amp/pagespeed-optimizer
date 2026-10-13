@@ -74,7 +74,8 @@ RUN --mount=type=ssh \
     && bazel build --jobs=$(($(nproc) * 2)) --local_resources=memory=HOST_RAM*4 \
        --config=docker --config=opt \
        //src/nginx:ngx_pagespeed_module.so \
-       //src/worker:factory_worker
+       //src/worker:factory_worker \
+       //tools:seed_test_cache
 
 # ---- Runtime image ----
 # nginx is provided by pagespeed2-base-runtime (installed from nginx.org so
@@ -96,6 +97,10 @@ COPY --from=builder /workspace/bazel-bin/src/worker/factory_worker \
      /usr/local/bin/factory_worker
 COPY --from=builder /workspace/bazel-bin/src/nginx/ngx_pagespeed_module.so \
      /usr/lib/nginx/modules/ngx_pagespeed_module.so
+# Test-only cache tool: the compliance suite uses it to remove one stored
+# alternate behind the running server's back (test_headers_sidecar.py).
+COPY --from=builder /workspace/bazel-bin/tools/seed_test_cache \
+     /usr/local/bin/seed_test_cache
 COPY --from=builder /tmp/ngx_http_brotli_filter_module.so \
      /usr/lib/nginx/modules/ngx_http_brotli_filter_module.so
 

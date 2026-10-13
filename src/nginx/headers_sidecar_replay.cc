@@ -1,0 +1,108 @@
+// SPDX-License-Identifier: Apache-2.0
+// Copyright (c) 2024-2026 We-Amp B.V.
+
+#include "src/nginx/headers_sidecar_replay.h"
+
+#include <cassert>
+#include <cstdint>
+#include <optional>
+#include <span>
+#include <string_view>
+#include <vector>
+
+#include "lib/cache/headers_sidecar.h"
+#include "lib/classify/alternate_metadata.h"
+#include "src/nginx/headers_sidecar_record.h"
+
+namespace pagespeed {
+
+namespace {
+
+bool NameIn(std::span<const std::string_view> names, std::string_view name) {
+  for (std::string_view candidate : names) {
+    if (HeaderNameEquals(candidate, name)) return true;
+  }
+  return false;
+}
+
+constexpr uint8_t kClassifiedAndRequired =
+    AlternateMetadata::kFlagHeadersClassified |
+    AlternateMetadata::kFlagHeadersSidecarRequired;
+
+}  // namespace
+
+bool SidecarReadRequired(uint8_t entry_flags, bool agent_markdown) {
+  return !agent_markdown &&
+         (entry_flags & kClassifiedAndRequired) == kClassifiedAndRequired;
+}
+
+bool SidecarFieldCollidesWithServePath(std::string_view name) {
+  return NameIn(HeadersReproducedByEntryMetadata(), name) ||
+         NameIn(HeadersStampedPerResponse(), name);
+}
+
+SidecarServePlan PlanSidecarServe(uint8_t entry_flags, bool agent_markdown,
+                                  std::optional<std::string_view> payload) {
+  SidecarServePlan plan;
+  if (!SidecarReadRequired(entry_flags, agent_markdown)) {
+    plan.outcome = SidecarServeOutcome::kNotRequired;
+    return plan;
+  }
+  std::optional<std::vector<HeaderField>> parsed;
+  if (payload.has_value()) {
+    parsed = ParseHeadersSidecar(*payload);
+  }
+  if (!parsed.has_value() || parsed->empty()) {
+    // The gate never stores an empty block, so an empty parse is not "nothing
+    // to carry": it is a block this entry cannot be served with.
+    plan.outcome = SidecarServeOutcome::kMissing;
+    return plan;
+  }
+  for (const HeaderField& field : *parsed) {
+    // By construction the gate never stores a name the serve path builds
+    // (Cache-Control, validators, Expires, Content-*, Date, Age, ...): the
+    // builder owns those and the block owns the rest, so the two cannot
+    // produce conflicting lines.  A block that breaks this did not come from
+    // the gate.  Debug builds stop here; release builds refuse to serve with
+    // it, and the record arm rewrites it from the origin.
+    const bool collides = SidecarFieldCollidesWithServePath(field.name);
+    assert(!collides && "headers sidecar carries a serve-path field");
+    if (collides) {
+      plan.outcome = SidecarServeOutcome::kMissing;
+      plan.fields.clear();
+      plan.carried_vary = false;
+      plan.carried_nosniff = false;
+      return plan;
+    }
+    if (HeaderNameEquals(field.name, "vary")) {
+      plan.carried_vary = true;
+    } else if (HeaderNameEquals(field.name, "x-content-type-options")) {
+      plan.carried_nosniff = true;
+    }
+  }
+  plan.fields = std::move(*parsed);
+  plan.outcome = SidecarServeOutcome::kReplay;
+  return plan;
+}
+
+bool ComputedVaryListsAccept(bool entry_varies_accept,
+                             bool sidecar_carried_vary) {
+  return entry_varies_accept && !sidecar_carried_vary;
+}
+
+bool ConditionalRevalidationAllowed(uint8_t entry_flags, bool expired_by_age) {
+  const bool classified =
+      (entry_flags & AlternateMetadata::kFlagHeadersClassified) != 0;
+  return classified || !expired_by_age;
+}
+
+bool IsSidecarCarriedName(std::string_view name) {
+  return NameIn(HeadersSidecarAllowlist(), name);
+}
+
+bool StaleErrorServeHasHeaders(uint8_t entry_flags, bool have_block) {
+  return have_block || !SidecarReadRequired(entry_flags,
+                                            /*agent_markdown=*/false);
+}
+
+}  // namespace pagespeed

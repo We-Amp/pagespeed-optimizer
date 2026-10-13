@@ -49,10 +49,30 @@ stored block with the 304's lines (RFC 9111 §4.3.4): same block → restamp;
 same carry state, new block → rewrite block then restamp (block write failure
 skips the restamp); refusal / carry switch / unreadable required block → remove
 the URL and serve the response. The rewritten 200 adds the stored lines the
-304 did not carry. HITs do not replay the block yet (a follow-up change); entries without the
-classified bit serve exactly as before.
+304 did not carry. Hits replay the block (serve side, below); entries without
+the classified bit serve exactly as before.
 
 ## HIT Path
+
+**Response-header sidecar, serve side** (issue #208; decisions in
+`src/nginx/headers_sidecar_replay.h`). For an entry flagged
+`kFlagHeadersClassified | kFlagHeadersSidecarRequired` (and not the agent
+markdown variant), the handler reads the URL's `0x6C` block by exact id once,
+after the §3.5 / variant-format gates and before the freshness switch, and
+copies its lines into the pool (`ctx->sidecar_fields`). An unreadable block
+makes the request a MISS (`headers_sidecar_missing`), never stashed for
+revalidation or stale-if-error, and the record arm self-heals the block.
+Every serving arm replays the lines verbatim, in stored order, BEFORE its own
+Vary / Cache-Control / Age / ETag (`emit_served_vary`, also on the coalesced
+stale `goto serve_hit`); `headers_sidecar_replayed` counts responses that
+sent ≥ 1 line. Vary: the origin's line first, then the computed line without
+Accept when the block carried a Vary (the MISS shape). SVG: the module's
+`X-Content-Type-Options` is skipped when the block carried one (its CSP is
+still added). Stale-if-error drops the error page's allowlisted lines and
+replays the stored ones; a required stash without its block passes the error
+through. Legacy (unclassified) entries: no read, no replay, and at their next
+genuine expiry they take one full re-fetch instead of a conditional request
+(`ConditionalRevalidationAllowed`) so the re-record classifies them.
 
 **Content-Type**: Uses `AlternateMetadata.origin_content_type` (preserves charset).
 Transcoded images use format-specific MIME. Falls back to `MimeFromUrl`.

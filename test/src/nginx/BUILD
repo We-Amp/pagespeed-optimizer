@@ -69,6 +69,23 @@ gtest_test(
     ],
 )
 
+# Serve-side response-header sidecar decisions (issue #208): which hits
+# read the stored block, replay order and Vary precedence, missing block ->
+# miss, the legacy-entry migration rule, and a record -> serve round trip
+# against a REAL cache on a temp volume.
+gtest_test(
+    name = "headers_sidecar_replay_test",
+    deps = [
+        "//lib/cache:headers_sidecar",
+        "//lib/cache:pagespeed_cache",
+        "//lib/classify:alternate_id",
+        "//lib/classify:alternate_metadata",
+        "//src/nginx:headers_sidecar_record",
+        "//src/nginx:headers_sidecar_replay",
+        "//test/test_util:temp_dir",
+    ],
+)
+
 gtest_test(
     name = "etag_util_test",
     deps = [

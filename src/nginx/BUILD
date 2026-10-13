@@ -46,6 +46,21 @@ cc_library(
     ],
 )
 
+# Serve-side half of the response-header sidecar (issue #208): which hits
+# read the stored header block, the replay plan and its precedence rules, the
+# legacy-entry migration rule - pure C++, testable without nginx headers.
+cc_library(
+    name = "headers_sidecar_replay",
+    srcs = ["headers_sidecar_replay.cc"],
+    hdrs = ["headers_sidecar_replay.h"],
+    visibility = ["//visibility:public"],
+    deps = [
+        ":headers_sidecar_record",
+        "//lib/cache:headers_sidecar",
+        "//lib/classify:alternate_metadata",
+    ],
+)
+
 # Cache-directory generation check against the optimizer's published
 # generation - pure C++, testable without nginx headers.  Takes the generation
 # from the optimizer's own constant (kCacheDirGeneration) rather than a copy.
@@ -153,6 +168,7 @@ cc_library(
         ":early_hints_util",
         ":etag_util",
         ":headers_sidecar_record",
+        ":headers_sidecar_replay",
         ":mime_util",
         ":revalidation_storability",
         ":zerocopy_barrier",

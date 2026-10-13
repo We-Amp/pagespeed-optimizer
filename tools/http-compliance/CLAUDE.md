@@ -58,7 +58,7 @@ Set `COMPLIANCE_NO_LIFECYCLE=1` to skip Docker build/up/down (for CI or external
 | `test_transfer_encoding.py` | Transfer-Encoding correctness |
 | `test_host_forwarding.py` | Host header forwarding to origin |
 | `test_pagespeed_specific.py` | PageSpeed-specific behaviors (X-PageSpeed header, etc.) |
-| `test_headers_sidecar.py` | Response-header sidecar store side: unreproducible origin headers / nonce CSP / Vary: Origin never cached, counters in the shared serve-stats file |
+| `test_headers_sidecar.py` | Response-header sidecar: unreproducible origin headers / nonce CSP / Vary: Origin never cached; HIT, coalesced stale, stale-if-error and 304-revalidated serves carry the MISS's security headers; a removed stored block (`seed_test_cache --remove_alternate 0x6c` in the nginx container) is a MISS then re-recorded; counters in the shared serve-stats file |
 
 ## Adding New Tests
 

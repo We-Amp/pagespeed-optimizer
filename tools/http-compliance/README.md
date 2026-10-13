@@ -28,7 +28,7 @@ interact with body modification.
 | `test_encoding.py` | Accept-Encoding, Content-Encoding | 10 |
 | `test_method_handling.py` | POST/PUT/DELETE bypass | 8 |
 | `test_pagespeed_specific.py` | X-PageSpeed, body integrity, magic bytes | 20 |
-| `test_headers_sidecar.py` | Origin headers a cache hit cannot reproduce are not cached | 5 |
+| `test_headers_sidecar.py` | Origin headers a cache hit cannot reproduce are not cached; cache hits carry the origin's security headers | 12 |
 
 ### 2. Hurl (declarative)
 
