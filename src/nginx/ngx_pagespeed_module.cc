@@ -3094,7 +3094,7 @@ static bool ngx_http_pagespeed_stale_on_error_permitted(
     ngx_http_request_t* r, ngx_http_pagespeed_loc_conf_t* conf,
     const AlternateMetadata& meta) {
   return ngx_http_pagespeed_stale_if_error_allowed(conf, meta) &&
-         pagespeed::AuthzCacheGateAllowsStale(
+         pagespeed::StaleServePermitted(
              ngx_http_pagespeed_authz_gate_has_auth(r), meta.origin_cc_flags);
 }
 
@@ -5118,19 +5118,23 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
                   .append(scheme);
               if (!ngx_http_pagespeed_acquire_refresh_slot(slot_key, ngx_time(),
                                                            grace)) {
+                // RFC 9111 §5.2.2.2 / §5.2.2.8: a stale entry whose origin
+                // Cache-Control carried must-revalidate, proxy-revalidate or
+                // s-maxage (§5.2.2.10) is never served without revalidation, for any request.
                 // RFC 9111 §4.2.4 / §5.2.2.10: once stale, must-revalidate
                 // and s-maxage require revalidation before reuse — the very
                 // premise under which §3.5 permits them — so an
                 // Authorization-bearing request may take the bounded
                 // coalesced stale serve only when the entry carries
-                // `public`.  Refused → treat as a MISS to origin (anonymous
-                // requests keep the pre-existing bounded-stale behavior).
-                if (!pagespeed::AuthzCacheGateAllowsStale(
-                        request_has_authorization, cc_flags)) {
+                // `public`.  Refused → treat as a MISS to origin.
+                if (!pagespeed::StaleServePermitted(request_has_authorization,
+                                                    cc_flags)) {
                   ngx_log_debug1(
                       NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                      "pagespeed: refresh in flight but request carries "
-                      "Authorization and stale entry lacks public — "
+                      "pagespeed: refresh in flight but stale entry requires "
+                      "revalidation "
+                      "(must-revalidate/proxy-revalidate/s-maxage, or "
+                      "Authorization without public) — "
                       "bypassing coalesced stale serve for %V",
                       &r->uri);
                   delete ctx->read_result;
@@ -5231,6 +5235,11 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
             // ComputeSharedRevalidationRequired, matching freshness.cc.
             cci.is_shared_cache = true;
             cci.content_type = meta.content_type;
+            // Guard only: the coalesced bounded-SWR serve requires
+            // expired_by_age, which is never set for a no-cache entry, so
+            // this does not fire today; it keeps no-cache if that changes.
+            cci.relay_origin_no_cache =
+                (freshness.verdict == FreshnessVerdict::kRevalidate);
 
             static constexpr size_t kCCBufSize = 256;
             u_char* cc_buf =
