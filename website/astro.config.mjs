@@ -158,7 +158,8 @@ export default defineConfig({
   // which collides words wherever an inline tag sits on its own line
   // ("contributor to" + <a>link</a> renders as "contributor tolink"). This
   // site is served through ModPageSpeed, which optimizes HTML at the edge,
-  // so build-time compression is redundant here. See #1026 and corp PR #782.
+  // so build-time compression is redundant here. Keep this off unless the
+  // whitespace handling is fixed upstream and the rendered text is rechecked.
   compressHTML: false,
   adapter: node({ mode: 'standalone' }),
   site: 'https://modpagespeed.com',
