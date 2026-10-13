@@ -1,4 +1,3 @@
-// website/test/crawler-cost/classify.test.ts
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 import { describe, expect, it } from 'vitest';

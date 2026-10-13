@@ -133,10 +133,24 @@
     "added": "2026-10-14"
   },
   {
+    "token": "AI2Bot-DeepResearchEval",
+    "operator": "Ai2",
+    "kind": "fetcher",
+    "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
+    "added": "2026-10-14"
+  },
+  {
     "token": "AI2Bot",
     "operator": "Ai2",
     "kind": "training",
     "docs": "https://allenai.org/crawler",
+    "added": "2026-10-14"
+  },
+  {
+    "token": "Diffbot-User",
+    "operator": "Diffbot",
+    "kind": "fetcher",
+    "docs": "https://www.diffbot.com/",
     "added": "2026-10-14"
   },
   {
@@ -205,7 +219,7 @@
   {
     "token": "AmazonBuyForMe",
     "operator": "Amazon",
-    "kind": "other",
+    "kind": "fetcher",
     "docs": "https://amazon.com",
     "added": "2026-10-14"
   },
@@ -275,7 +289,7 @@
   {
     "token": "Awario",
     "operator": "Awario",
-    "kind": "other",
+    "kind": "training",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
@@ -317,7 +331,7 @@
   {
     "token": "Brightbot",
     "operator": "Unknown",
-    "kind": "other",
+    "kind": "training",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
@@ -338,14 +352,14 @@
   {
     "token": "ChatGLM-Spider",
     "operator": "Unknown",
-    "kind": "other",
+    "kind": "training",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
   {
     "token": "ChatGPT Agent",
     "operator": "OpenAI",
-    "kind": "other",
+    "kind": "fetcher",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
@@ -373,14 +387,14 @@
   {
     "token": "CloudVertexBot",
     "operator": "Google",
-    "kind": "other",
+    "kind": "training",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
   {
     "token": "cohere-training-data-crawler",
     "operator": "Cohere",
-    "kind": "other",
+    "kind": "training",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
@@ -415,7 +429,7 @@
   {
     "token": "Datenbank Crawler",
     "operator": "Datenbank",
-    "kind": "other",
+    "kind": "training",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
@@ -436,7 +450,7 @@
   {
     "token": "Echobot Bot",
     "operator": "Echobox",
-    "kind": "other",
+    "kind": "training",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
@@ -472,13 +486,6 @@
     "token": "FacebookBot",
     "operator": "Meta",
     "kind": "training",
-    "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
-    "added": "2026-10-14"
-  },
-  {
-    "token": "facebookexternalhit",
-    "operator": "Meta",
-    "kind": "other",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
@@ -520,7 +527,7 @@
   {
     "token": "Google-Agent",
     "operator": "Google",
-    "kind": "other",
+    "kind": "fetcher",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
@@ -548,7 +555,7 @@
   {
     "token": "GoogleAgent-Mariner",
     "operator": "Google",
-    "kind": "other",
+    "kind": "fetcher",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
@@ -581,6 +588,13 @@
     "added": "2026-10-14"
   },
   {
+    "token": "iaskspider/2.0",
+    "operator": "iAsk",
+    "kind": "fetcher",
+    "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
+    "added": "2026-10-14"
+  },
+  {
     "token": "iaskspider",
     "operator": "Unknown",
     "kind": "other",
@@ -604,7 +618,7 @@
   {
     "token": "imageSpider",
     "operator": "Unknown",
-    "kind": "other",
+    "kind": "training",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
@@ -632,7 +646,7 @@
   {
     "token": "Kangaroo Bot",
     "operator": "Unknown",
-    "kind": "other",
+    "kind": "training",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
@@ -646,7 +660,7 @@
   {
     "token": "Kimi-Agent",
     "operator": "Moonshot AI",
-    "kind": "other",
+    "kind": "fetcher",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
@@ -667,7 +681,7 @@
   {
     "token": "KimiBot",
     "operator": "Moonshot AI",
-    "kind": "other",
+    "kind": "training",
     "docs": "https://www.moonshot.ai",
     "added": "2026-10-14"
   },
@@ -688,7 +702,7 @@
   {
     "token": "laion-huggingface-processor",
     "operator": "Unknown",
-    "kind": "other",
+    "kind": "training",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
@@ -697,13 +711,6 @@
     "operator": "LAION",
     "kind": "training",
     "docs": "https://laion.ai/",
-    "added": "2026-10-14"
-  },
-  {
-    "token": "Lightpanda",
-    "operator": "Unknown",
-    "kind": "other",
-    "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
   {
@@ -730,7 +737,7 @@
   {
     "token": "Manus-User",
     "operator": "Butterfly Effect",
-    "kind": "other",
+    "kind": "fetcher",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
@@ -751,7 +758,7 @@
   {
     "token": "MistralAI-Training",
     "operator": "Mistral AI",
-    "kind": "other",
+    "kind": "training",
     "docs": "https://mistral.ai",
     "added": "2026-10-14"
   },
@@ -779,7 +786,7 @@
   {
     "token": "netEstate Imprint Crawler",
     "operator": "netEstate",
-    "kind": "other",
+    "kind": "training",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
@@ -793,7 +800,7 @@
   {
     "token": "NovaAct",
     "operator": "Unknown",
-    "kind": "other",
+    "kind": "fetcher",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
@@ -814,7 +821,7 @@
   {
     "token": "PanguBot",
     "operator": "Huawei",
-    "kind": "other",
+    "kind": "training",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
@@ -996,7 +1003,7 @@
   {
     "token": "TwinAgent",
     "operator": "Twin",
-    "kind": "other",
+    "kind": "fetcher",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
@@ -1010,7 +1017,7 @@
   {
     "token": "WARDBot",
     "operator": "WEBSPARK",
-    "kind": "other",
+    "kind": "training",
     "docs": "https://github.com/ai-robots-txt/ai.robots.txt/blob/main/table-of-bot-metrics.md",
     "added": "2026-10-14"
   },
