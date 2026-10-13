@@ -6,6 +6,7 @@
 
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 #include "lib/cache/html_cache_policy.h"
@@ -25,6 +26,11 @@ void HtmlCachePolicyFuzzOne(std::string_view blob);
 // What the store policy decides for a blob, for tests that check what the
 // seeds cover.
 HtmlStoreVerdict ClassifyHtmlCachePolicyFuzzBlob(std::string_view blob);
+
+// The response header lines a blob carries, as the harness parses them, for a
+// test that asks the existing gates about the same headers.
+std::vector<std::pair<std::string, std::string>> HtmlCachePolicyFuzzBlobHeaders(
+    std::string_view blob);
 
 // The embedded seed set: valid inputs that between them reach every store
 // refusal reason, a storable response, every personalisation signal, and an

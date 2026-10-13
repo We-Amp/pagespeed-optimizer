@@ -47,8 +47,7 @@ extern "C" {
  * adds ps_read_shared_config_generation. 1.11 adds
  * ps_serve_stats_record_hit_host. 1.12 adds the HTML cacheability policy:
  * ps_html_store_classify, ps_html_serve_classify, ps_html_decision_format,
- * ps_html_store_reason_name, ps_html_serve_reason_name and
- * ps_serve_stats_record_html_cache.
+ * ps_html_store_reason_name and ps_html_serve_reason_name.
  *
  * A published constant is ABI surface too (see ABI.md), so a minor that adds
  * only one still moves the number: it is what a consumer compiles against to
@@ -590,31 +589,6 @@ typedef enum {
 PS_EXPORT void ps_serve_stats_record_serve_class(ps_serve_stats_t* h,
                                                  ps_serve_class_t cls,
                                                  uint32_t flags);
-
-/* Kinds of HTML cache event ps_serve_stats_record_html_cache counts. */
-#define PS_HTML_CACHE_RECORD_STORE 0
-#define PS_HTML_CACHE_RECORD_SERVE 1
-#define PS_HTML_CACHE_RECORD_INVALIDATED 2
-
-/* Record ONE HTML cache decision in the serve-stats counters. Available from
- * PS_API 1.12. No-op if h==NULL.
- *
- * `kind` is PS_HTML_CACHE_RECORD_STORE (the `action` and `reason` are the
- * values ps_html_store_classify returned and wrote), PS_HTML_CACHE_RECORD_SERVE
- * (the values ps_html_serve_classify returned and wrote), or
- * PS_HTML_CACHE_RECORD_INVALIDATED (a stored HTML entry was dropped by a purge
- * or a refresh; `action`, `reason` and `enforce` are ignored). `enforce` is
- * nonzero when the front end acted on the verdict, zero when it only observed
- * it (the verdict's own `enforce` for a serve; the front end's mode for a
- * store, which is not enforcing while the policy is only being measured).
- *
- * An unrecognised `kind`, or an `action` or `reason` outside the enumerated
- * set, records nothing: the call is dropped whole rather than attributed to
- * some other counter. The counters read zero until a front end records
- * decisions with this call. */
-PS_EXPORT void ps_serve_stats_record_html_cache(ps_serve_stats_t* h, int kind,
-                                                int action, int reason,
-                                                int enforce);
 
 /* Snapshot of the serve-class + saturation block, by value.
  *
@@ -1158,8 +1132,12 @@ PS_EXPORT int ps_html_store_classify(
  * to it). `stored_flags` carries the
  * PS_HTML_STORED_* bits describing the entry, `stored_at` (seconds) when it
  * was recorded, `age_at_store` the origin's Age at that time, `lifetime_s` its
- * freshness lifetime, `cc_flags` its Cache-Control bits and `render_ttl_s` the
- * lifetime bound of its Markdown copy. Unknown flag bits are ignored.
+ * freshness lifetime and `render_ttl_s` the lifetime bound of its Markdown
+ * copy. Unknown flag bits are ignored. The entry's Cache-Control bits are not
+ * an input: a stale entry is never served, so no directive is consulted.
+ * PS_HTML_STORED_VALIDATED_THIS_REQUEST (the origin answered 304 just now)
+ * counts in the serve-cached-html and report-only modes only; serve-variants
+ * has no validation step and ignores it.
  *
  * Returns the action: 0 fall through to the origin, 1 serve the stored HTML,
  * 2 serve the Markdown copy, 3 validate the entry with the origin first.
@@ -1169,7 +1147,10 @@ PS_EXPORT int ps_html_store_classify(
  * `*out_reason` receives the reason (ps_html_serve_reason_name: fresh, mode,
  * auth_request, cookie_request, client_no_cache, needs_validation, stale,
  * headers_not_reproducible, sidecar_missing, purged, absent, binding_stale,
- * parent_stale). `*out_enforce` is 0 in the off and report-only modes, where
+ * parent_stale). A request for the Markdown copy whose stored page is not
+ * fresh is reported as parent_stale (action 3 in the serve-cached-html and
+ * report-only modes, 0 in serve-variants), never as stale or
+ * needs_validation. `*out_enforce` is 0 in the off and report-only modes, where
  * the action is what WOULD happen and the front end must not act on it, and 1
  * otherwise. `*out_age_s` is the entry's current age. A stale entry is never
  * served in any mode. */
@@ -1178,9 +1159,8 @@ PS_EXPORT int ps_html_serve_classify(int mode, uint32_t request_flags,
                                      uint32_t now_seconds,
                                      uint32_t stored_flags, uint32_t stored_at,
                                      uint32_t age_at_store, uint32_t lifetime_s,
-                                     uint16_t cc_flags, uint32_t render_ttl_s,
-                                     int* out_reason, int* out_enforce,
-                                     uint32_t* out_age_s);
+                                     uint32_t render_ttl_s, int* out_reason,
+                                     int* out_enforce, uint32_t* out_age_s);
 
 /* Format one HTML cache decision as a single JSON line. Available from
  * PS_API 1.12. `keys[i]` / `values[i]` are parallel arrays of NUL-terminated
@@ -1190,12 +1170,36 @@ PS_EXPORT int ps_html_serve_classify(int mode, uint32_t request_flags,
  * a header value, a cookie, a client address or a user agent; the keys come out
  * in that order whatever order they are given in.
  *
+ * Every value is checked against its key's grammar, which admits fixed codes
+ * and counts only: ts_ms, status, size, lifetime_s and age_s take a canonical
+ * decimal integer (written as a number); mode takes off, report-only,
+ * serve-variants or serve-cached-html; action takes would_store, stored,
+ * skipped, would_serve, served_html, served_markdown, validated, purged,
+ * invalidated or a verdict name (refuse, store, store_no_notify, fall_through,
+ * serve_html, serve_markdown, validate); reason takes a name from
+ * ps_html_store_reason_name or ps_html_serve_reason_name, validated,
+ * validation_failed, sidecar_write_failed, invalidated, or `headers:<name>` /
+ * `vary:<token>` with an RFC 9110 token of at most 128 bytes; validators takes
+ * none or an ordered subset of etag, last_modified; request takes none or an
+ * ordered subset of authorization, cookie, no_cache, accept_markdown; cc takes
+ * response directive names, each at most once, with `=<integer>` only on
+ * max-age, s-maxage, stale-while-revalidate and stale-if-error; vary takes a
+ * comma-separated list of tokens; sidecar takes eligible_block,
+ * eligible_empty, fall_through, fall_through:<header-name> or
+ * never:nonce_csp; personalisation takes a signal name; before takes a hash
+ * in decimal or lowercase hex digits; variant takes 0x7C or markdown; binding
+ * takes live or stale; host takes hostname characters (at most 255 bytes);
+ * path takes the path the cache key was built from (at most 300 bytes, never
+ * `?` or `#`). A value is never empty: a fact that is absent is a key that is
+ * left out.
+ *
  * The line (no trailing newline) is written to `buf` NUL-terminated, and
  * `*out_len` receives its length. Returns 0 on success; -1 for a malformed
  * call (NULL arrays or elements with `count` > 0, a NULL `out_len`, a NULL
  * `buf` with a non-zero capacity); -2 when the formatter refused the fields (an
- * unknown or duplicate key, a value containing CR, LF or NUL, a `path` over
- * 300 bytes, an empty `host`), with `*out_len` 0; -3 when `buf` is too small,
+ * unknown or duplicate key, or a value outside its key's grammar, which
+ * includes any control byte, an empty value, a `path` over 300 bytes or with a
+ * query, an empty `host`), with `*out_len` 0; -3 when `buf` is too small,
  * with `*out_len` the length needed excluding the NUL and `buf` left holding an
  * empty string. A capacity of 0 may pass a NULL `buf` to ask only for the
  * length. Pure: it opens nothing and does not touch the last-error message. */

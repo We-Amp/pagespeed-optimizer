@@ -23,6 +23,9 @@ namespace {
 
 using Meta = AlternateMetadata;
 
+// The optimizer's own rewritten URLs carry this marker in the file name.
+constexpr std::string_view kRewrittenUrlMarker = ".pagespeed.";
+
 // ASCII-only folds, so nothing here changes meaning with the process locale.
 char AsciiLowerChar(char c) {
   const auto u = static_cast<unsigned char>(c);
@@ -237,6 +240,17 @@ bool IsTagNamed(std::string_view tag, std::string_view name_with_bracket) {
   return IsAsciiSpace(next) || next == '/' || next == '>';
 }
 
+constexpr std::array<std::string_view, 9> kSignalNames = {
+    "meta_csrf_token",
+    "meta_csrf_param",
+    "hidden_token",
+    "hidden_csrf",
+    "hidden_authenticity",
+    "hidden_request_verification",
+    "hidden_csrfmiddlewaretoken",
+    "post_form_login",
+    "post_form_checkout"};
+
 std::optional<std::string_view> SignalForTag(std::string_view tag) {
   if (IsTagNamed(tag, "<meta")) {
     const auto name = FindAttribute(tag, 5, "name");
@@ -355,6 +369,10 @@ std::string_view HtmlServeReasonName(HtmlServeReason reason) {
   return index < kNames.size() ? kNames[index] : "unknown";
 }
 
+std::span<const std::string_view> HtmlPersonalisationSignalNames() {
+  return kSignalNames;
+}
+
 std::string_view HtmlCacheModeName(HtmlCacheMode mode) {
   switch (mode) {
     case HtmlCacheMode::kOff:
@@ -386,41 +404,126 @@ std::string HtmlServeVerdict::reason_code() const {
 
 // ---- date ----------------------------------------------------------------
 
-std::optional<int64_t> ParseHttpDateSeconds(std::string_view value) {
-  // "Sun, 06 Nov 1994 08:49:37 GMT": exactly 29 bytes once the optional
-  // whitespace around a field value is trimmed (RFC 9110 section 5.5).
-  value = TrimOws(value);
-  if (value.size() != 29) return std::nullopt;
-  if (value[3] != ',' || value[4] != ' ' || value[7] != ' ' ||
-      value[11] != ' ' || value[16] != ' ' || value[19] != ':' ||
-      value[22] != ':' || value[25] != ' ' || value.substr(26) != "GMT") {
-    return std::nullopt;
+namespace {
+
+constexpr std::string_view kShortDays[] = {"Sun", "Mon", "Tue", "Wed",
+                                           "Thu", "Fri", "Sat"};
+constexpr std::string_view kLongDays[] = {"Sunday",    "Monday",   "Tuesday",
+                                          "Wednesday", "Thursday", "Friday",
+                                          "Saturday"};
+constexpr std::string_view kMonths[] = {"Jan", "Feb", "Mar", "Apr",
+                                        "May", "Jun", "Jul", "Aug",
+                                        "Sep", "Oct", "Nov", "Dec"};
+
+// Index of `s` in `names`, or -1.  Case-sensitive: these are fixed tokens.
+int IndexIn(std::string_view s, std::span<const std::string_view> names) {
+  for (size_t i = 0; i < names.size(); ++i) {
+    if (names[i] == s) return static_cast<int>(i);
   }
-  static constexpr std::string_view kDays[] = {"Sun", "Mon", "Tue", "Wed",
-                                               "Thu", "Fri", "Sat"};
-  static constexpr std::string_view kMonths[] = {"Jan", "Feb", "Mar", "Apr",
-                                                 "May", "Jun", "Jul", "Aug",
-                                                 "Sep", "Oct", "Nov", "Dec"};
+  return -1;
+}
+
+// Year of the civil date `days` after 1970-01-01 (proleptic Gregorian).
+int64_t YearFromDays(int64_t days) {
+  days += 719468;
+  const int64_t era = (days >= 0 ? days : days - 146096) / 146097;
+  const auto doe = static_cast<unsigned>(days - era * 146097);
+  const unsigned yoe = (doe - doe / 1460 + doe / 36524 - doe / 146096) / 365;
+  const unsigned doy = doe - (365 * yoe + yoe / 4 - yoe / 100);
+  const unsigned mp = (5 * doy + 2) / 153;
+  const unsigned month = mp < 10 ? mp + 3 : mp - 9;
+  return static_cast<int64_t>(yoe) + era * 400 + (month <= 2 ? 1 : 0);
+}
+
+// RFC 9110 section 5.6.7: a two-digit year is read as the year with those
+// last two digits that lies within 50 years of the receipt time; one that
+// would be more than 50 years in the future is the most recent past year
+// with the same digits.
+int64_t ResolveTwoDigitYear(unsigned yy, uint32_t now_seconds) {
+  const int64_t now_year =
+      YearFromDays(static_cast<int64_t>(now_seconds) / 86400);
+  int64_t year = now_year - (now_year % 100) + static_cast<int64_t>(yy);
+  if (year > now_year + 50) {
+    year -= 100;
+  } else if (year + 100 <= now_year + 50) {
+    year += 100;
+  }
+  return year;
+}
+
+}  // namespace
+
+std::optional<int64_t> ParseHttpDateSeconds(std::string_view value,
+                                            uint32_t now_seconds) {
+  // Optional whitespace around a field value is not part of it (RFC 9110
+  // section 5.5).  Each form is then a fixed shape.
+  value = TrimOws(value);
   int weekday = -1;
-  for (int i = 0; i < 7; ++i) {
-    if (value.substr(0, 3) == kDays[i]) weekday = i;
+  std::string_view day_text;
+  std::string_view month_text;
+  std::string_view time_text;
+  int64_t year = 0;
+  unsigned four_digit_year = 0;
+  if (value.size() == 29 && value[3] == ',') {
+    // IMF-fixdate: "Sun, 06 Nov 1994 08:49:37 GMT".
+    if (value[4] != ' ' || value[7] != ' ' || value[11] != ' ' ||
+        value[16] != ' ' || value[25] != ' ' || value.substr(26) != "GMT") {
+      return std::nullopt;
+    }
+    weekday = IndexIn(value.substr(0, 3), kShortDays);
+    day_text = value.substr(5, 2);
+    month_text = value.substr(8, 3);
+    if (!ParseDigits(value.substr(12, 4), &four_digit_year)) {
+      return std::nullopt;
+    }
+    year = four_digit_year;
+    time_text = value.substr(17, 8);
+  } else if (value.size() == 24 && value[3] == ' ') {
+    // asctime-date: "Sun Nov  6 08:49:37 1994"; a day below 10 is padded
+    // with a space (2DIGIT / (SP 1DIGIT)).
+    if (value[7] != ' ' || value[10] != ' ' || value[19] != ' ') {
+      return std::nullopt;
+    }
+    weekday = IndexIn(value.substr(0, 3), kShortDays);
+    month_text = value.substr(4, 3);
+    day_text = value.substr(8, 2);
+    if (day_text.front() == ' ') day_text.remove_prefix(1);
+    time_text = value.substr(11, 8);
+    if (!ParseDigits(value.substr(20, 4), &four_digit_year)) {
+      return std::nullopt;
+    }
+    year = four_digit_year;
+  } else {
+    // rfc850-date: "Sunday, 06-Nov-94 08:49:37 GMT".
+    const size_t comma = value.find(',');
+    if (comma == std::string_view::npos) return std::nullopt;
+    weekday = IndexIn(value.substr(0, comma), kLongDays);
+    const std::string_view rest = value.substr(comma + 1);
+    if (rest.size() != 23 || rest[0] != ' ' || rest[3] != '-' ||
+        rest[7] != '-' || rest[10] != ' ' || rest[19] != ' ' ||
+        rest.substr(20) != "GMT") {
+      return std::nullopt;
+    }
+    day_text = rest.substr(1, 2);
+    month_text = rest.substr(4, 3);
+    unsigned two_digit_year = 0;
+    if (!ParseDigits(rest.substr(8, 2), &two_digit_year)) return std::nullopt;
+    year = ResolveTwoDigitYear(two_digit_year, now_seconds);
+    time_text = rest.substr(11, 8);
   }
   if (weekday < 0) return std::nullopt;
-  unsigned month = 0;
-  for (unsigned i = 0; i < 12; ++i) {
-    if (value.substr(8, 3) == kMonths[i]) month = i + 1;
-  }
-  if (month == 0) return std::nullopt;
+  const int month_index = IndexIn(month_text, kMonths);
+  if (month_index < 0) return std::nullopt;
+  const auto month = static_cast<unsigned>(month_index) + 1;
   unsigned day = 0;
-  unsigned year = 0;
   unsigned hour = 0;
   unsigned minute = 0;
   unsigned second = 0;
-  if (!ParseDigits(value.substr(5, 2), &day) ||
-      !ParseDigits(value.substr(12, 4), &year) ||
-      !ParseDigits(value.substr(17, 2), &hour) ||
-      !ParseDigits(value.substr(20, 2), &minute) ||
-      !ParseDigits(value.substr(23, 2), &second)) {
+  if (day_text.empty() || time_text[2] != ':' || time_text[5] != ':' ||
+      !ParseDigits(day_text, &day) ||
+      !ParseDigits(time_text.substr(0, 2), &hour) ||
+      !ParseDigits(time_text.substr(3, 2), &minute) ||
+      !ParseDigits(time_text.substr(6, 2), &second)) {
     return std::nullopt;
   }
   if (day < 1 || day > DaysInMonth(year, month)) return std::nullopt;
@@ -477,9 +580,12 @@ HtmlStoreVerdict ClassifyHtmlForStore(const HtmlStoreRequest& request,
     return Refuse(std::move(v), HtmlStoreReason::kIncomplete);
   }
 
-  // 2. Key-safe path.
+  // 2. Key-safe path, and not a URL the optimizer itself produced.  The
+  // marker is matched anywhere in the path (it sits mid-name in a rewritten
+  // filename); refusing a path that merely looks rewritten costs one entry.
   if (request.url_path.empty() || request.url_path.front() != '/' ||
-      request.url_path.find_first_of("?%#") != std::string_view::npos) {
+      request.url_path.find_first_of("?%#") != std::string_view::npos ||
+      request.url_path.find(kRewrittenUrlMarker) != std::string_view::npos) {
     return Refuse(std::move(v), HtmlStoreReason::kUrl);
   }
 
@@ -592,11 +698,13 @@ HtmlStoreVerdict ClassifyHtmlForStore(const HtmlStoreRequest& request,
       v.lifetime_explicit = true;
       int64_t date = policy.now_seconds;
       if (const HeaderField* date_header = FindHeader(headers, "date")) {
-        if (auto parsed = ParseHttpDateSeconds(date_header->value)) {
+        if (auto parsed =
+                ParseHttpDateSeconds(date_header->value, policy.now_seconds)) {
           date = *parsed;
         }
       }
-      if (auto parsed = ParseHttpDateSeconds(expires->value)) {
+      if (auto parsed =
+              ParseHttpDateSeconds(expires->value, policy.now_seconds)) {
         v.lifetime_s = SaturateU32(*parsed - date);
       }
     }
@@ -696,20 +804,29 @@ HtmlServeVerdict ClassifyHtmlForServe(const HtmlServeRequest& request,
 
   // 8. Freshness.  Stale entries are never served.
   const bool must_validate = stored.needs_validation || stored.lifetime_s == 0;
-  bool fresh = !must_validate && age < static_cast<int64_t>(stored.lifetime_s);
+  const int64_t lifetime = static_cast<int64_t>(stored.lifetime_s);
+  bool fresh = !must_validate && age < lifetime;
   if (request.max_age >= 0 && age > request.max_age) fresh = false;
   if (request.min_fresh >= 0) {
-    // age + min_fresh >= lifetime, written without a sum that can overflow.
-    const int64_t lifetime = static_cast<int64_t>(stored.lifetime_s);
-    if (request.min_fresh >= lifetime || age >= lifetime - request.min_fresh) {
+    // RFC 9111 section 5.2.1.3: the entry must still be fresh min_fresh
+    // seconds from now, i.e. age + min_fresh <= lifetime, written without a
+    // sum that can overflow.
+    if (request.min_fresh > lifetime || age > lifetime - request.min_fresh) {
       fresh = false;
     }
   }
-  const bool parent_ok = fresh || stored.validated_this_request;
-  if (!parent_ok) {
-    return done(cached_html ? HtmlServeAction::kValidate : kFall,
-                must_validate ? HtmlServeReason::kNeedsValidation
-                              : HtmlServeReason::kStale);
+  // A 304 the origin answered just now counts only on the arms that have a
+  // validation step (kServeCachedHtml, and kReportOnly which mirrors it);
+  // kServeVariants has none, so the flag is not consulted there.
+  const bool validated = cached_html && stored.validated_this_request;
+  if (!fresh && !validated) {
+    const HtmlServeAction action =
+        cached_html ? HtmlServeAction::kValidate : kFall;
+    if (request.wants_markdown) {
+      return done(action, HtmlServeReason::kParentStale);
+    }
+    return done(action, must_validate ? HtmlServeReason::kNeedsValidation
+                                      : HtmlServeReason::kStale);
   }
 
   // 9. Markdown.  The copy is served only while age < min(lifetime,
@@ -720,10 +837,9 @@ HtmlServeVerdict ClassifyHtmlForServe(const HtmlServeRequest& request,
     if (!stored.variant_present) return done(kFall, HtmlServeReason::kAbsent);
     if (!stored.binding_live)
       return done(kFall, HtmlServeReason::kBindingStale);
-    const bool validated = stored.validated_this_request;
     const int64_t bound =
         validated ? static_cast<int64_t>(stored.render_ttl_s)
-                  : std::min<int64_t>(stored.lifetime_s, stored.render_ttl_s);
+                  : std::min<int64_t>(lifetime, stored.render_ttl_s);
     if (age >= bound) return done(kFall, HtmlServeReason::kParentStale);
     return done(HtmlServeAction::kServeMarkdown, HtmlServeReason::kFresh);
   }

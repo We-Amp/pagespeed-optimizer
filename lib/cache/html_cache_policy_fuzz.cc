@@ -36,18 +36,26 @@
 // WHAT RUNS.  (1) ClassifyHtmlForStore over the parsed request, headers and
 // body prefix.  (2) FormatHtmlCacheDecisionLine over the header lines taken
 // as key/value pairs (unknown keys are expected to be refused, not to crash)
-// and then over a canonical field set built from the store verdict.  (3)
-// ParseHttpDateSeconds over every header value.  (4) ClassifyHtmlForServe,
-// in every mode, over facts derived from the store verdict.
+// and then over a canonical field set built from the store verdict the way a
+// front end would build it.  (3) ParseHttpDateSeconds over every header
+// value.  (4) ClassifyHtmlForServe, in every mode, over facts derived from
+// the store verdict.
 //
 // ORACLES.  Crash-free, with the sanitizer as the memory-safety backstop, and
 // these invariants, each of which aborts on violation:
 //   * a verdict that stores has an explicit lifetime or a validator, no
 //     private/no-store flag, and only Accept-Encoding in its Vary tokens;
+//   * THE DIFFERENTIAL ORACLE: whatever this policy stores, the gates that
+//     already guard the shared cache accept too (VaryUncacheable is false,
+//     ClassifyForHeadersSidecar is not a fall-through, no Set-Cookie, no
+//     no-store or private directive).  The policy may be stricter than the
+//     existing gates, never looser;
 //   * a verdict's reason and detail are in the closed, printable set;
 //   * no formatted line contains a line break, and a canonical field set
-//     always formats;
-//   * a stale entry is never served, in any mode, and report-only never
+//     always formats (a fact the grammar cannot carry is left out, never
+//     bent to fit);
+//   * a stale entry is never served, in any mode, an entry that cannot meet
+//     the request's min-fresh is never served, and report-only never
 //     enforces.
 
 #include "lib/cache/html_cache_policy_fuzz.h"
@@ -69,10 +77,57 @@
 #include "lib/cache/headers_sidecar.h"
 #include "lib/cache/html_cache_decision.h"
 #include "lib/cache/html_cache_policy.h"
+#include "lib/cache/origin_cache_control.h"
+#include "lib/cache/vary_storability.h"
 #include "lib/classify/alternate_metadata.h"
 
 namespace pagespeed::fuzz {
 namespace {
+
+// ASCII case-insensitive header-name match.
+bool NameIs(std::string_view name, std::string_view lower) {
+  if (name.size() != lower.size()) return false;
+  for (size_t i = 0; i < name.size(); ++i) {
+    const auto u = static_cast<unsigned char>(name[i]);
+    const char c =
+        (u >= 'A' && u <= 'Z') ? static_cast<char>(u | 0x20) : name[i];
+    if (c != lower[i]) return false;
+  }
+  return true;
+}
+
+// RFC 9110 token: what the decision line admits for a header name or a Vary
+// token.
+bool IsToken(std::string_view s) {
+  if (s.empty()) return false;
+  for (char c : s) {
+    const auto u = static_cast<unsigned char>(c);
+    const bool alnum = (u >= '0' && u <= '9') || (u >= 'a' && u <= 'z') ||
+                       (u >= 'A' && u <= 'Z');
+    if (alnum) continue;
+    switch (c) {
+      case '!':
+      case '#':
+      case '$':
+      case '%':
+      case '&':
+      case '\'':
+      case '*':
+      case '+':
+      case '-':
+      case '.':
+      case '^':
+      case '_':
+      case '`':
+      case '|':
+      case '~':
+        continue;
+      default:
+        return false;
+    }
+  }
+  return true;
+}
 
 [[noreturn]] void Violation(const char* what) {
   std::fprintf(stderr, "html cache policy fuzz oracle violation: %s\n", what);
@@ -162,12 +217,17 @@ ParsedBlob ParseBlob(std::string_view blob) {
   return parsed;
 }
 
-HtmlStoreVerdict Classify(const ParsedBlob& parsed) {
+std::vector<HeaderField> Fields(const ParsedBlob& parsed) {
   std::vector<HeaderField> fields;
   fields.reserve(parsed.headers.size());
   for (const auto& [name, value] : parsed.headers) {
     fields.push_back({name, value});
   }
+  return fields;
+}
+
+HtmlStoreVerdict Classify(const ParsedBlob& parsed) {
+  const std::vector<HeaderField> fields = Fields(parsed);
   HtmlStoreRequest request;
   request.method = parsed.method;
   request.url_path = parsed.path;
@@ -186,7 +246,7 @@ HtmlStoreVerdict Classify(const ParsedBlob& parsed) {
   return ClassifyHtmlForStore(request, response, policy);
 }
 
-void CheckStoreVerdict(const HtmlStoreVerdict& v) {
+void CheckStoreVerdict(const ParsedBlob& parsed, const HtmlStoreVerdict& v) {
   if (static_cast<uint8_t>(v.reason) >= kHtmlStoreReasonCount) {
     Violation("store reason out of range");
   }
@@ -210,6 +270,34 @@ void CheckStoreVerdict(const HtmlStoreVerdict& v) {
       if (token != "accept-encoding") Violation("stored a varying response");
     }
     if (!v.sidecar.swap_eligible()) Violation("stored a non-reproducible set");
+
+    // The differential oracle: the existing gates, asked independently over
+    // the same headers, must accept everything this policy stores.
+    std::string combined_vary;
+    bool sets_cookie = false;
+    OriginCacheControl cc;
+    for (const auto& [name, value] : parsed.headers) {
+      if (NameIs(name, "vary")) {
+        if (!combined_vary.empty()) combined_vary.push_back(',');
+        combined_vary.append(value);
+      } else if (NameIs(name, "set-cookie") || NameIs(name, "set-cookie2")) {
+        sets_cookie = true;
+      } else if (NameIs(name, "cache-control")) {
+        AccumulateOriginCacheControl(value, &cc);
+      }
+    }
+    if (VaryUncacheable(combined_vary)) {
+      Violation("stored a response the Vary gate refuses");
+    }
+    if (ClassifyForHeadersSidecar(Fields(parsed)).verdict !=
+        SidecarVerdict::kSwapEligible) {
+      Violation("stored a response the sidecar gate refuses");
+    }
+    if (sets_cookie) Violation("stored a response that sets a cookie");
+    if ((cc.cc_flags & (AlternateMetadata::kCCOriginPrivate |
+                        AlternateMetadata::kCCOriginNoStore)) != 0) {
+      Violation("stored a response the directive gate refuses");
+    }
   }
 }
 
@@ -221,7 +309,6 @@ void CheckServe(const ParsedBlob& parsed, const HtmlStoreVerdict& v) {
   facts.lifetime_s = v.lifetime_s;
   facts.needs_validation = v.needs_validation;
   facts.explicit_shared = v.explicit_shared;
-  facts.cc_flags = v.cc_flags;
   facts.variant_present = true;
   facts.binding_live = true;
   for (HtmlCacheMode mode :
@@ -249,13 +336,13 @@ void CheckServe(const ParsedBlob& parsed, const HtmlStoreVerdict& v) {
           Violation("a non-enforcing mode enforced");
         }
       }
-      // A request that wants at least as much freshness as the entry has
-      // left is never served from it, whatever the request values are.
+      // A request that wants more freshness than the entry has at all is
+      // never served from it, whatever the other request values are (RFC
+      // 9111 section 5.2.1.3: age + min_fresh must not exceed the lifetime).
       request.now_seconds = facts.stored_at;
       request.max_age = parsed.req_max_age;
       request.min_fresh = parsed.req_min_fresh;
-      if (parsed.req_min_fresh >= 0 &&
-          parsed.req_min_fresh >= static_cast<int64_t>(v.lifetime_s)) {
+      if (parsed.req_min_fresh > static_cast<int64_t>(v.lifetime_s)) {
         const HtmlServeVerdict wanted = ClassifyHtmlForServe(request, facts);
         if (wanted.action == HtmlServeAction::kServeHtml ||
             wanted.action == HtmlServeAction::kServeMarkdown) {
@@ -284,60 +371,137 @@ void CheckLine(const std::optional<std::string>& line) {
   }
 }
 
+// The directive names a verdict's Cache-Control bits stand for, as the
+// decision line's `cc` grammar takes them.
+std::string CacheControlNames(uint16_t flags) {
+  struct Bit {
+    uint16_t bit;
+    std::string_view name;
+  };
+  static constexpr Bit kBits[] = {
+      {AlternateMetadata::kCCOriginImmutable, "immutable"},
+      {AlternateMetadata::kCCOriginMustRevalidate, "must-revalidate"},
+      {AlternateMetadata::kCCOriginNoCache, "no-cache"},
+      {AlternateMetadata::kCCOriginNoStore, "no-store"},
+      {AlternateMetadata::kCCOriginNoTransform, "no-transform"},
+      {AlternateMetadata::kCCOriginPrivate, "private"},
+      {AlternateMetadata::kCCOriginProxyRevalidate, "proxy-revalidate"},
+      {AlternateMetadata::kCCOriginPublic, "public"},
+      {AlternateMetadata::kCCOriginSMaxagePresent, "s-maxage"},
+  };
+  std::string out;
+  for (const Bit& b : kBits) {
+    if ((flags & b.bit) == 0) continue;
+    if (!out.empty()) out.push_back(',');
+    out.append(b.name);
+  }
+  return out;
+}
+
 void FormatOne(const ParsedBlob& parsed, const HtmlStoreVerdict& v) {
-  // The header lines as key/value pairs: mostly unknown keys, which must be
-  // refused cleanly.
+  // The header lines as key/value pairs: mostly unknown keys, and values
+  // outside every grammar, which must be refused cleanly.
   std::vector<HtmlCacheDecisionField> raw;
   for (const auto& [name, value] : parsed.headers) raw.push_back({name, value});
   CheckLine(FormatHtmlCacheDecisionLine(raw));
   (void)HtmlCacheDecisionDedupKey(raw);
 
-  // The canonical field set for this verdict: must always format.
+  // The canonical field set for this verdict, each value built the way a
+  // front end builds it.  A fact the grammar cannot carry (a path with a
+  // query, a Vary token that is not a token, a header name that is not one)
+  // is left out, or reduced to its bare code, rather than bent to fit: an
+  // absent key is how the line says "null".  What is given must format.
   const std::string status = std::to_string(parsed.status);
   const std::string size = std::to_string(parsed.body_bytes);
   const std::string lifetime = std::to_string(v.lifetime_s);
-  const std::string reason = v.reason_code();
   const std::string before = std::to_string(HtmlCacheFnv1a64(parsed.body));
-  const std::string cc = std::to_string(v.cc_flags);
+  const std::string cc = CacheControlNames(v.cc_flags);
+  std::string reason = v.reason_code();
+  if (const size_t colon = reason.find(':');
+      colon != std::string::npos &&
+      !IsToken(std::string_view(reason).substr(colon + 1))) {
+    reason.resize(colon);
+  }
   std::string vary;
+  bool vary_fits = !v.vary_tokens.empty();
   for (const std::string& token : v.vary_tokens) {
+    if (!IsToken(token)) {
+      vary_fits = false;
+      break;
+    }
     if (!vary.empty()) vary.push_back(',');
-    // Vary tokens are origin-controlled and may carry any byte but LF; a
-    // caller that logs them replaces the ones the formatter refuses.
-    for (char c : token) {
-      const auto u = static_cast<unsigned char>(c);
-      vary.push_back(u <= 0x1F || u == 0x7F ? '?' : c);
+    vary.append(token);
+  }
+  std::string validators;
+  bool etag = false;
+  bool last_modified = false;
+  for (const auto& [name, value] : parsed.headers) {
+    if (NameIs(name, "etag")) etag = true;
+    if (NameIs(name, "last-modified")) last_modified = true;
+  }
+  if (etag) validators = "etag";
+  if (last_modified)
+    validators += validators.empty() ? "last_modified" : ",last_modified";
+  if (validators.empty()) validators = "none";
+  std::string request_facts;
+  if (parsed.authorization) request_facts = "authorization";
+  if (parsed.cookie)
+    request_facts += request_facts.empty() ? "cookie" : ",cookie";
+  if (request_facts.empty()) request_facts = "none";
+  std::string sidecar;
+  if (v.sidecar_evaluated) {
+    switch (v.sidecar.verdict) {
+      case SidecarVerdict::kSwapEligible:
+        sidecar =
+            v.sidecar.payload.empty() ? "eligible_empty" : "eligible_block";
+        break;
+      case SidecarVerdict::kFallThrough:
+        sidecar = "fall_through";
+        if (v.reason == HtmlStoreReason::kHeaders && IsToken(v.detail)) {
+          sidecar.push_back(':');
+          sidecar.append(v.detail);
+        }
+        break;
+      case SidecarVerdict::kNeverOptimized:
+        sidecar = "never:nonce_csp";
+        break;
     }
   }
-  const std::vector<HtmlCacheDecisionField> canonical = {
+  const std::string_view path = std::string_view(parsed.path).substr(0, 300);
+  bool path_fits = !path.empty();
+  for (char c : path) {
+    const auto u = static_cast<unsigned char>(c);
+    if (u <= 0x1F || u == 0x7F || c == '?' || c == '#') path_fits = false;
+  }
+
+  std::vector<HtmlCacheDecisionField> canonical = {
       {"ts_ms", "1700000000000"},
       {"host", "fuzz.example"},
-      {"path", std::string_view(parsed.path).substr(0, 300)},
       {"mode", HtmlCacheModeName(HtmlCacheMode::kReportOnly)},
       {"action", HtmlStoreActionName(v.action)},
       {"reason", reason},
       {"status", status},
       {"size", size},
       {"lifetime_s", lifetime},
-      {"cc", cc},
-      {"vary", vary},
-      {"personalisation", v.reason == HtmlStoreReason::kPersonalisationSignal
-                              ? std::string_view(v.detail)
-                              : std::string_view()},
+      {"validators", validators},
+      {"request", request_facts},
       {"before", before},
   };
+  if (path_fits) canonical.push_back({"path", path});
+  if (!cc.empty()) canonical.push_back({"cc", cc});
+  if (vary_fits) canonical.push_back({"vary", vary});
+  if (!sidecar.empty()) canonical.push_back({"sidecar", sidecar});
+  if (v.reason == HtmlStoreReason::kPersonalisationSignal) {
+    canonical.push_back({"personalisation", v.detail});
+  }
+  for (const HtmlCacheDecisionField& field : canonical) {
+    if (!HtmlCacheDecisionValueFits(field.key, field.value)) {
+      Violation("a canonical decision value is outside its grammar");
+    }
+  }
   const std::optional<std::string> line =
       FormatHtmlCacheDecisionLine(canonical);
-  // A path with a control byte is the one thing a canonical set can carry that
-  // the formatter refuses; everything else must format.
-  bool path_ok = true;
-  for (char c : std::string_view(parsed.path).substr(0, 300)) {
-    const auto u = static_cast<unsigned char>(c);
-    if (u <= 0x1F || u == 0x7F) path_ok = false;
-  }
-  if (path_ok && !line.has_value()) {
-    Violation("canonical decision fields were refused");
-  }
+  if (!line.has_value()) Violation("canonical decision fields were refused");
   CheckLine(line);
   (void)HtmlCacheDecisionDedupKey(canonical);
 }
@@ -374,6 +538,8 @@ std::vector<std::string> BuildSeeds() {
   seeds.push_back(Blob({":incomplete: 1", kType, kAge}));
   seeds.push_back(Blob({kType, kAge, "Content-Range: bytes 0-9/100"}));
   seeds.push_back(Blob({":path: /search?q=1", kType, kAge}));
+  seeds.push_back(
+      Blob({":path: /img/a.jpg.pagespeed.ce.HASH.jpg", kType, kAge}));
   seeds.push_back(Blob({"Content-Type: application/xhtml+xml", kAge}));
   seeds.push_back(Blob({kType, kAge, "Content-Encoding: gzip"}));
   seeds.push_back(Blob({":authorization: 1", kType, kAge}));
@@ -397,6 +563,12 @@ std::vector<std::string> BuildSeeds() {
       {kType, "Expires: 0", "Last-Modified: Sun, 06 Nov 1994 08:49:37 GMT"}));
   seeds.push_back(
       Blob({kType, "Cache-Control: s-maxage=60, max-age=0", "ETag: W/\"x\""}));
+  seeds.push_back(Blob({kType, "Date: Sunday, 06-Nov-94 08:49:37 GMT",
+                        "Expires: Sun Nov  6 08:50:37 1994"}));
+  seeds.push_back(Blob({kType, kAge, "Vary: ,", "Vary: Accept-Encoding , "}));
+  seeds.push_back(Blob({kType,
+                        "Cache-Control: max-age=60, "
+                        "stale-while-revalidate=600, stale-if-error=86400"}));
   seeds.push_back(Blob({kType, "Cache-Control: max-age=60, no-transform"}));
   // One per personalisation signal.
   for (std::string_view body : {
@@ -434,18 +606,21 @@ HtmlStoreVerdict ClassifyHtmlCachePolicyFuzzBlob(std::string_view blob) {
 void HtmlCachePolicyFuzzOne(std::string_view blob) {
   const ParsedBlob parsed = ParseBlob(blob);
   const HtmlStoreVerdict verdict = Classify(parsed);
-  CheckStoreVerdict(verdict);
+  CheckStoreVerdict(parsed, verdict);
   if (parsed.no_store && verdict.stores()) {
     Violation("stored a response to a no-store request");
   }
   CheckServe(parsed, verdict);
   FormatOne(parsed, verdict);
   for (const auto& [name, value] : parsed.headers) {
-    (void)ParseHttpDateSeconds(value);
+    (void)ParseHttpDateSeconds(value, parsed.now);
   }
-  if (!parsed.headers.empty())
-    (void)ParseHttpDateSeconds(parsed.headers[0].second);
   (void)FindPersonalisationSignal(parsed.body);
+}
+
+std::vector<std::pair<std::string, std::string>> HtmlCachePolicyFuzzBlobHeaders(
+    std::string_view blob) {
+  return ParseBlob(blob).headers;
 }
 
 const std::vector<std::string>& HtmlCachePolicyFuzzSeeds() {

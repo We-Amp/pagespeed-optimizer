@@ -111,7 +111,6 @@
     "ps_serve_stats_open": "PAGESPEED_1.0",
     "ps_serve_stats_record_hit": "PAGESPEED_1.0",
     "ps_serve_stats_record_hit_host": "PAGESPEED_1.11",
-    "ps_serve_stats_record_html_cache": "PAGESPEED_1.12",
     "ps_serve_stats_record_serve_class": "PAGESPEED_1.0",
     "ps_serve_stats_snapshot": "PAGESPEED_1.0",
     "ps_strerror": "PAGESPEED_1.0",

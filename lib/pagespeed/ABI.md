@@ -173,9 +173,8 @@ both sides, and the mode values 0 to 3 are all part of the ABI: a caller
 compiled against them reads them forever. A new reason is appended at the end
 of its set and is a MINOR change; a caller must treat a reason it does not know
 as "refused" or "fell through", which is how the library itself treats an
-out-of-range value it is handed (`NULL` from the name functions, and a dropped
-write from `ps_serve_stats_record_html_cache`). Reordering or renumbering is a
-MAJOR change.
+out-of-range value it is handed (`NULL` from the name functions). Reordering or
+renumbering is a MAJOR change.
 
 **The policy's strictness is the library's, not the caller's.** A page is stored
 only on an explicit lifetime or a validator, never on a heuristic one; a
@@ -195,11 +194,13 @@ verdict is likewise the library's statement of whether a caller is meant to act
 on the verdict at all: it is 0 in the off and report-only modes, where the
 action is only what would happen.
 
-`ps_serve_stats_record_html_cache` writes the serve-statistics counters the
-metrics export reports. The statistics file is versioned, and the version that
-added these counters is recreated once on upgrade (an older file is rejected
-and replaced, not read), which is already the contract of that file and not a
-change to it.
+**The decision line's grammar is the contract too.** `ps_html_decision_format`
+takes a closed key set and, per key, a closed value grammar (names, counts,
+RFC 9110 tokens for a header name or Vary token; the header documents the
+table) and refuses anything else with -2, so a caller can rely on the line
+never carrying a header value or a cookie whatever it was handed. Widening a
+grammar (a new action or reason name) is a MINOR change; narrowing one is
+observable and is treated as a contract change.
 
 ## The gate
 

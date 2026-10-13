@@ -39,10 +39,9 @@ import pytest
 COMPOSE_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "docker-compose.yml")
 
 SERVE_STATS_PATH = "/shared/.pagespeed-serve-stats"
-SERVE_STATS_VERSION = 12
-# v12 layout (src/worker/serve_stats.h, sizeof == 11800): the six sidecar
-# counters sit before the 38 HTML cache counters (304 bytes), then
-# counting_since_unix_day (8 bytes) and boot_id (16).
+SERVE_STATS_VERSION = 11
+# v11 layout (src/worker/serve_stats.h, sizeof == 11496): the six sidecar
+# counters sit just before counting_since_unix_day (8 bytes) and boot_id (16).
 SIDECAR_COUNTER_NAMES = (
     "fall_through",
     "never_optimized",
@@ -51,7 +50,7 @@ SIDECAR_COUNTER_NAMES = (
     "write_failed",
     "stored",
 )
-SIDECAR_COUNTERS_OFFSET = 11800 - 16 - 8 - 304 - len(SIDECAR_COUNTER_NAMES) * 8
+SIDECAR_COUNTERS_OFFSET = 11496 - 16 - 8 - len(SIDECAR_COUNTER_NAMES) * 8
 
 
 def read_sidecar_counters() -> dict[str, int]:

@@ -6,7 +6,6 @@
 #include "src/worker/serve_stats.h"
 
 #include <algorithm>
-#include <array>
 #include <atomic>
 #include <cstdarg>
 #include <cstddef>
@@ -17,7 +16,6 @@
 #include <set>
 #include <string>
 #include <thread>
-#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -263,247 +261,6 @@ TEST_F(ServeStatsTest, V11LayoutOrdering) {
   EXPECT_EQ(offsetof(ServeStats, headers_sidecar_fall_through) % 8, 0u);
 }
 
-// The v12 block sits after the v11 block and before the identity/epoch pair.
-TEST_F(ServeStatsTest, V12LayoutOrdering) {
-  EXPECT_LT(offsetof(ServeStats, headers_sidecar_stored),
-            offsetof(ServeStats, html_cache_would_store));
-  EXPECT_LT(offsetof(ServeStats, html_cache_invalidated),
-            offsetof(ServeStats, counting_since_unix_day));
-  EXPECT_EQ(offsetof(ServeStats, html_cache_would_store) % 8, 0u);
-  // Thirty-eight contiguous u64 fields, 304 bytes, in the documented order.
-  EXPECT_EQ(offsetof(ServeStats, html_cache_invalidated) -
-                offsetof(ServeStats, html_cache_would_store),
-            37u * sizeof(uint64_t));
-  EXPECT_EQ(offsetof(ServeStats, counting_since_unix_day) -
-                offsetof(ServeStats, html_cache_would_store),
-            38u * sizeof(uint64_t));
-  EXPECT_EQ(offsetof(ServeStats, html_cache_store_no_notify) -
-                offsetof(ServeStats, html_cache_would_store),
-            20u * sizeof(uint64_t));
-  EXPECT_EQ(offsetof(ServeStats, html_cache_validate) -
-                offsetof(ServeStats, html_cache_would_store),
-            36u * sizeof(uint64_t));
-}
-
-namespace {
-
-// Every v12 field, in layout order.
-std::array<uint64_t*, 38> HtmlCacheFields(ServeStats* s) {
-  return {&s->html_cache_would_store,
-          &s->html_cache_stored,
-          &s->html_cache_refused,
-          &s->html_cache_refused_method,
-          &s->html_cache_refused_status,
-          &s->html_cache_refused_incomplete,
-          &s->html_cache_refused_auth_request,
-          &s->html_cache_refused_cookie_request,
-          &s->html_cache_refused_set_cookie,
-          &s->html_cache_refused_private,
-          &s->html_cache_refused_no_store,
-          &s->html_cache_refused_no_lifetime,
-          &s->html_cache_refused_vary,
-          &s->html_cache_refused_headers,
-          &s->html_cache_refused_nonce_csp,
-          &s->html_cache_refused_content_type,
-          &s->html_cache_refused_encoding,
-          &s->html_cache_refused_size,
-          &s->html_cache_refused_url,
-          &s->html_cache_refused_personalisation,
-          &s->html_cache_store_no_notify,
-          &s->html_cache_would_serve,
-          &s->html_cache_served_html,
-          &s->html_cache_served_markdown,
-          &s->html_cache_fall_through_mode,
-          &s->html_cache_fall_through_auth_request,
-          &s->html_cache_fall_through_cookie_request,
-          &s->html_cache_fall_through_client_no_cache,
-          &s->html_cache_fall_through_needs_validation,
-          &s->html_cache_fall_through_stale,
-          &s->html_cache_fall_through_headers_not_reproducible,
-          &s->html_cache_fall_through_sidecar_missing,
-          &s->html_cache_fall_through_purged,
-          &s->html_cache_fall_through_absent,
-          &s->html_cache_fall_through_binding_stale,
-          &s->html_cache_fall_through_parent_stale,
-          &s->html_cache_validate,
-          &s->html_cache_invalidated};
-}
-
-}  // namespace
-
-TEST_F(ServeStatsTest, HtmlCacheCountersStartAtZeroAndZeroOnReuse) {
-  ServeStats* stats = CreateServeStats(path_);
-  ASSERT_NE(stats, nullptr);
-  uint64_t value = 1;
-  for (uint64_t* field : HtmlCacheFields(stats)) {
-    EXPECT_EQ(*field, 0u);
-    *field = value++;
-  }
-  CloseServeStats(stats);
-
-  ServeStats* reused = CreateServeStats(path_);
-  ASSERT_NE(reused, nullptr);
-  for (uint64_t* field : HtmlCacheFields(reused)) EXPECT_EQ(*field, 0u);
-  CloseServeStats(reused);
-}
-
-TEST_F(ServeStatsTest, RecordHtmlCacheStore) {
-  ServeStats* stats = CreateServeStats(path_);
-  ASSERT_NE(stats, nullptr);
-
-  // Enforced: stored.  Measuring: would_store.  no-transform adds the
-  // no-notify subset on top.
-  RecordHtmlCacheStore(stats, HtmlStoreAction::kStore, HtmlStoreReason::kNone,
-                       true);
-  RecordHtmlCacheStore(stats, HtmlStoreAction::kStore, HtmlStoreReason::kNone,
-                       false);
-  RecordHtmlCacheStore(stats, HtmlStoreAction::kStoreNoNotify,
-                       HtmlStoreReason::kNoTransform, true);
-  RecordHtmlCacheStore(stats, HtmlStoreAction::kStoreNoNotify,
-                       HtmlStoreReason::kNoTransform, false);
-  EXPECT_EQ(stats->html_cache_stored, 2u);
-  EXPECT_EQ(stats->html_cache_would_store, 2u);
-  EXPECT_EQ(stats->html_cache_store_no_notify, 2u);
-  EXPECT_EQ(stats->html_cache_refused, 0u);
-
-  // Every refusal reason moves `refused` and exactly its own field,
-  // enforced or not.
-  const std::pair<HtmlStoreReason, uint64_t*> kRefusals[] = {
-      {HtmlStoreReason::kMethod, &stats->html_cache_refused_method},
-      {HtmlStoreReason::kStatus, &stats->html_cache_refused_status},
-      {HtmlStoreReason::kIncomplete, &stats->html_cache_refused_incomplete},
-      {HtmlStoreReason::kAuthRequest, &stats->html_cache_refused_auth_request},
-      {HtmlStoreReason::kCookieRequest,
-       &stats->html_cache_refused_cookie_request},
-      {HtmlStoreReason::kSetCookie, &stats->html_cache_refused_set_cookie},
-      {HtmlStoreReason::kPrivate, &stats->html_cache_refused_private},
-      {HtmlStoreReason::kNoStore, &stats->html_cache_refused_no_store},
-      {HtmlStoreReason::kNoLifetime, &stats->html_cache_refused_no_lifetime},
-      {HtmlStoreReason::kVary, &stats->html_cache_refused_vary},
-      {HtmlStoreReason::kHeaders, &stats->html_cache_refused_headers},
-      {HtmlStoreReason::kNonceCsp, &stats->html_cache_refused_nonce_csp},
-      {HtmlStoreReason::kContentType, &stats->html_cache_refused_content_type},
-      {HtmlStoreReason::kEncoding, &stats->html_cache_refused_encoding},
-      {HtmlStoreReason::kSize, &stats->html_cache_refused_size},
-      {HtmlStoreReason::kUrl, &stats->html_cache_refused_url},
-      {HtmlStoreReason::kPersonalisationSignal,
-       &stats->html_cache_refused_personalisation},
-  };
-  uint64_t expected_refused = 0;
-  for (const auto& [reason, field] : kRefusals) {
-    RecordHtmlCacheStore(stats, HtmlStoreAction::kRefuse, reason, true);
-    ++expected_refused;
-    EXPECT_EQ(*field, 1u) << HtmlStoreReasonName(reason);
-    RecordHtmlCacheStore(stats, HtmlStoreAction::kRefuse, reason, false);
-    ++expected_refused;
-    EXPECT_EQ(*field, 2u) << HtmlStoreReasonName(reason);
-    EXPECT_EQ(stats->html_cache_refused, expected_refused);
-  }
-
-  // A refusal with no refusal reason is dropped whole.
-  RecordHtmlCacheStore(stats, HtmlStoreAction::kRefuse, HtmlStoreReason::kNone,
-                       true);
-  RecordHtmlCacheStore(stats, HtmlStoreAction::kRefuse,
-                       HtmlStoreReason::kNoTransform, true);
-  RecordHtmlCacheStore(stats, HtmlStoreAction::kRefuse,
-                       static_cast<HtmlStoreReason>(200), true);
-  EXPECT_EQ(stats->html_cache_refused, expected_refused);
-  // The serve side and the rest are untouched.
-  EXPECT_EQ(stats->html_cache_would_serve, 0u);
-  EXPECT_EQ(stats->html_cache_invalidated, 0u);
-  CloseServeStats(stats);
-}
-
-TEST_F(ServeStatsTest, RecordHtmlCacheServe) {
-  ServeStats* stats = CreateServeStats(path_);
-  ASSERT_NE(stats, nullptr);
-
-  RecordHtmlCacheServe(stats, HtmlServeAction::kServeHtml,
-                       HtmlServeReason::kFresh, true);
-  RecordHtmlCacheServe(stats, HtmlServeAction::kServeMarkdown,
-                       HtmlServeReason::kFresh, true);
-  RecordHtmlCacheServe(stats, HtmlServeAction::kServeHtml,
-                       HtmlServeReason::kFresh, false);
-  RecordHtmlCacheServe(stats, HtmlServeAction::kServeMarkdown,
-                       HtmlServeReason::kFresh, false);
-  EXPECT_EQ(stats->html_cache_served_html, 1u);
-  EXPECT_EQ(stats->html_cache_served_markdown, 1u);
-  EXPECT_EQ(stats->html_cache_would_serve, 2u);
-
-  // An enforced validate counts as validate; one that was only observed is a
-  // fall-through for the reason the entry was not fresh.
-  RecordHtmlCacheServe(stats, HtmlServeAction::kValidate,
-                       HtmlServeReason::kStale, true);
-  EXPECT_EQ(stats->html_cache_validate, 1u);
-  EXPECT_EQ(stats->html_cache_fall_through_stale, 0u);
-  RecordHtmlCacheServe(stats, HtmlServeAction::kValidate,
-                       HtmlServeReason::kStale, false);
-  RecordHtmlCacheServe(stats, HtmlServeAction::kValidate,
-                       HtmlServeReason::kNeedsValidation, false);
-  EXPECT_EQ(stats->html_cache_validate, 1u);
-  EXPECT_EQ(stats->html_cache_fall_through_stale, 1u);
-  EXPECT_EQ(stats->html_cache_fall_through_needs_validation, 1u);
-
-  const std::pair<HtmlServeReason, uint64_t*> kFallThroughs[] = {
-      {HtmlServeReason::kMode, &stats->html_cache_fall_through_mode},
-      {HtmlServeReason::kAuthRequest,
-       &stats->html_cache_fall_through_auth_request},
-      {HtmlServeReason::kCookieRequest,
-       &stats->html_cache_fall_through_cookie_request},
-      {HtmlServeReason::kClientNoCache,
-       &stats->html_cache_fall_through_client_no_cache},
-      {HtmlServeReason::kHeadersNotReproducible,
-       &stats->html_cache_fall_through_headers_not_reproducible},
-      {HtmlServeReason::kSidecarMissing,
-       &stats->html_cache_fall_through_sidecar_missing},
-      {HtmlServeReason::kPurged, &stats->html_cache_fall_through_purged},
-      {HtmlServeReason::kAbsent, &stats->html_cache_fall_through_absent},
-      {HtmlServeReason::kBindingStale,
-       &stats->html_cache_fall_through_binding_stale},
-      {HtmlServeReason::kParentStale,
-       &stats->html_cache_fall_through_parent_stale},
-  };
-  for (const auto& [reason, field] : kFallThroughs) {
-    RecordHtmlCacheServe(stats, HtmlServeAction::kFallThrough, reason, true);
-    RecordHtmlCacheServe(stats, HtmlServeAction::kFallThrough, reason, false);
-    EXPECT_EQ(*field, 2u) << HtmlServeReasonName(reason);
-  }
-
-  // A fall-through that claims to be fresh, or an unknown reason, is dropped.
-  const uint64_t before = stats->html_cache_fall_through_mode;
-  RecordHtmlCacheServe(stats, HtmlServeAction::kFallThrough,
-                       HtmlServeReason::kFresh, true);
-  RecordHtmlCacheServe(stats, HtmlServeAction::kFallThrough,
-                       static_cast<HtmlServeReason>(200), true);
-  EXPECT_EQ(stats->html_cache_fall_through_mode, before);
-  EXPECT_EQ(stats->html_cache_served_html, 1u);
-  CloseServeStats(stats);
-}
-
-TEST_F(ServeStatsTest, RecordHtmlCacheInvalidatedAndNullSafety) {
-  ServeStats* stats = CreateServeStats(path_);
-  ASSERT_NE(stats, nullptr);
-  RecordHtmlCacheInvalidated(stats);
-  RecordHtmlCacheInvalidated(stats);
-  EXPECT_EQ(stats->html_cache_invalidated, 2u);
-  CloseServeStats(stats);
-
-  ServeStats* reopened = OpenServeStats(path_);
-  ASSERT_NE(reopened, nullptr);
-  EXPECT_EQ(reopened->html_cache_invalidated, 2u);
-  CloseServeStats(reopened);
-
-  RecordHtmlCacheStore(nullptr, HtmlStoreAction::kStore, HtmlStoreReason::kNone,
-                       true);
-  RecordHtmlCacheStore(nullptr, HtmlStoreAction::kRefuse,
-                       HtmlStoreReason::kMethod, true);
-  RecordHtmlCacheServe(nullptr, HtmlServeAction::kServeHtml,
-                       HtmlServeReason::kFresh, true);
-  RecordHtmlCacheServe(nullptr, HtmlServeAction::kFallThrough,
-                       HtmlServeReason::kMode, false);
-  RecordHtmlCacheInvalidated(nullptr);
-}
-
 TEST_F(ServeStatsTest, AtomicIncrement) {
   ServeStats* stats = CreateServeStats(path_);
   ASSERT_NE(stats, nullptr);
@@ -683,15 +440,14 @@ TEST_F(ServeStatsTest, StructSize) {
   // inside 512.  v8 adds the serve-class + saturation block (88 bytes).  v9
   // adds the by-encoding rows and grows the file to 1024.  v10 adds the 64
   // host slots and the other triple (10,776 bytes) and grows it to 16384.
-  // v11 adds the six response-header sidecar counters (48 bytes).  v12 adds
-  // the 38 HTML cache policy counters (304 bytes).
+  // v11 adds the six response-header sidecar counters (48 bytes).
   EXPECT_EQ(ServeStats::kFileSize, 16384u);
-  EXPECT_EQ(ServeStats::kVersion, 12u);
+  EXPECT_EQ(ServeStats::kVersion, 11u);
   // The exact size is pinned in the header too; asserted here so the failure
   // names the surface rather than a translation unit.
-  EXPECT_EQ(sizeof(ServeStats), 11800u);
+  EXPECT_EQ(sizeof(ServeStats), 11496u);
   EXPECT_EQ(sizeof(ServeStats::HostSlot), 168u);
-  EXPECT_EQ(ServeStats::kFileSize - sizeof(ServeStats), 4584u)
+  EXPECT_EQ(ServeStats::kFileSize - sizeof(ServeStats), 4888u)
       << "headroom shrank: the next append may need a kFileSize bump";
 }
 
@@ -1325,7 +1081,7 @@ TEST_F(ServeStatsTest, LegacyV7FileIsRejectedAndRecreatedWithWarning) {
   const std::vector<std::string> warnings = handler.warnings();
   ASSERT_EQ(warnings.size(), 1u) << "expected exactly one skew warning";
   EXPECT_NE(warnings[0].find("version 7"), std::string::npos) << warnings[0];
-  EXPECT_NE(warnings[0].find("version 12"), std::string::npos) << warnings[0];
+  EXPECT_NE(warnings[0].find("version 11"), std::string::npos) << warnings[0];
 
   ServeStats* reopened = OpenServeStats(path_);
   ASSERT_NE(reopened, nullptr);
@@ -1905,7 +1661,7 @@ TEST_F(ServeStatsTest, LegacyV9FileIsRejectedAndRecreatedZeroedWithWarning) {
   const std::vector<std::string> warnings = handler.warnings();
   ASSERT_EQ(warnings.size(), 1u);
   EXPECT_NE(warnings[0].find("version 9"), std::string::npos) << warnings[0];
-  EXPECT_NE(warnings[0].find("version 12"), std::string::npos) << warnings[0];
+  EXPECT_NE(warnings[0].find("version 11"), std::string::npos) << warnings[0];
 
   ServeStats* reopened = OpenServeStats(path_);
   ASSERT_NE(reopened, nullptr);

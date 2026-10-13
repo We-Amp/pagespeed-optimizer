@@ -164,5 +164,4 @@ PAGESPEED_1.12 {
     ps_html_decision_format;
     ps_html_store_reason_name;
     ps_html_serve_reason_name;
-    ps_serve_stats_record_html_cache;
 } PAGESPEED_1.11;

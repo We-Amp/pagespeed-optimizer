@@ -4401,6 +4401,34 @@ TEST(PageSpeedCApi, HtmlStoreClassifyRequestFlags) {
   const StoreResult cookie_public =
       ClassifyStore(shared, "GET", "/", PS_HTML_STORE_REQUEST_HAS_COOKIE);
   EXPECT_EQ(cookie_public.action, 1);
+  // The bits are what a front end derives from the request headers:
+  // Proxy-Authorization is the authorization bit, Cookie2 the cookie bit.
+  auto flags_for = [](const std::vector<const char*>& request_headers) {
+    uint32_t flags = 0;
+    for (const char* name : request_headers) {
+      const std::string lower = [&] {
+        std::string s(name);
+        for (char& c : s) c = static_cast<char>(std::tolower(c));
+        return s;
+      }();
+      if (lower == "authorization" || lower == "proxy-authorization") {
+        flags |= PS_HTML_STORE_REQUEST_HAS_AUTHORIZATION;
+      }
+      if (lower == "cookie" || lower == "cookie2") {
+        flags |= PS_HTML_STORE_REQUEST_HAS_COOKIE;
+      }
+    }
+    return flags;
+  };
+  const StoreResult proxy_auth =
+      ClassifyStore(shared, "GET", "/", flags_for({"Proxy-Authorization"}));
+  EXPECT_EQ(proxy_auth.action, 0);
+  EXPECT_STREQ(ps_html_store_reason_name(proxy_auth.reason), "auth_request");
+  const StoreResult cookie2 =
+      ClassifyStore(plain, "GET", "/", flags_for({"Cookie2"}));
+  EXPECT_EQ(cookie2.action, 0);
+  EXPECT_STREQ(ps_html_store_reason_name(cookie2.reason), "cookie_request");
+  EXPECT_EQ(ClassifyStore(plain, "GET", "/", flags_for({"Accept"})).action, 1);
   const StoreResult no_store =
       ClassifyStore(shared, "GET", "/", PS_HTML_STORE_REQUEST_NO_STORE);
   EXPECT_EQ(no_store.action, 0);
@@ -4546,7 +4574,7 @@ TEST(PageSpeedCApi, HtmlServeClassifyRoundTrip) {
     return ps_html_serve_classify(
         mode, request_flags, -1, -1, now, stored_flags, /*stored_at=*/1000,
         /*age_at_store=*/0, /*lifetime_s=*/100,
-        /*cc_flags=*/0, /*render_ttl_s=*/86400, &reason, &enforce, &age);
+        /*render_ttl_s=*/86400, &reason, &enforce, &age);
   };
 
   EXPECT_EQ(serve(PS_HTML_CACHE_SERVE_CACHED_HTML, 0, present_fresh, 1010), 1);
@@ -4571,6 +4599,24 @@ TEST(PageSpeedCApi, HtmlServeClassifyRoundTrip) {
   EXPECT_EQ(serve(PS_HTML_CACHE_SERVE_CACHED_HTML, 0, present_fresh, 1100), 3);
   EXPECT_STREQ(ps_html_serve_reason_name(reason), "stale");
   EXPECT_EQ(age, 100u);
+  // A Markdown request on that stale page is its own outcome.
+  EXPECT_EQ(serve(PS_HTML_CACHE_SERVE_CACHED_HTML,
+                  PS_HTML_REQUEST_WANTS_MARKDOWN, present_fresh, 1100),
+            3);
+  EXPECT_STREQ(ps_html_serve_reason_name(reason), "parent_stale");
+  EXPECT_EQ(serve(PS_HTML_CACHE_SERVE_VARIANTS, PS_HTML_REQUEST_WANTS_MARKDOWN,
+                  present_fresh, 1100),
+            0);
+  EXPECT_STREQ(ps_html_serve_reason_name(reason), "parent_stale");
+  // The 304-just-now bit counts in serve-cached-html, not in serve-variants.
+  EXPECT_EQ(
+      serve(PS_HTML_CACHE_SERVE_CACHED_HTML, PS_HTML_REQUEST_WANTS_MARKDOWN,
+            present_fresh | PS_HTML_STORED_VALIDATED_THIS_REQUEST, 1100),
+      2);
+  EXPECT_EQ(serve(PS_HTML_CACHE_SERVE_VARIANTS, PS_HTML_REQUEST_WANTS_MARKDOWN,
+                  present_fresh | PS_HTML_STORED_VALIDATED_THIS_REQUEST, 1100),
+            0);
+  EXPECT_STREQ(ps_html_serve_reason_name(reason), "parent_stale");
 
   EXPECT_EQ(serve(PS_HTML_CACHE_SERVE_CACHED_HTML, PS_HTML_REQUEST_HAS_COOKIE,
                   present_fresh, 1010),
@@ -4595,13 +4641,13 @@ TEST(PageSpeedCApi, HtmlServeClassifyHugeRequestValuesDoNotOverflow) {
   const uint32_t stored = PS_HTML_STORED_PRESENT;
   // min-fresh INT64_MAX: the entry cannot meet it, so it is validated.
   EXPECT_EQ(ps_html_serve_classify(PS_HTML_CACHE_SERVE_CACHED_HTML, 0, -1,
-                                   INT64_MAX, 1010, stored, 1000, 0, 100, 0,
-                                   86400, &reason, &enforce, &age),
+                                   INT64_MAX, 1010, stored, 1000, 0, 100, 86400,
+                                   &reason, &enforce, &age),
             3);
   EXPECT_STREQ(ps_html_serve_reason_name(reason), "stale");
   // max-age INT64_MAX is simply satisfied.
   EXPECT_EQ(ps_html_serve_classify(PS_HTML_CACHE_SERVE_CACHED_HTML, 0,
-                                   INT64_MAX, -1, 1010, stored, 1000, 0, 100, 0,
+                                   INT64_MAX, -1, 1010, stored, 1000, 0, 100,
                                    86400, &reason, &enforce, &age),
             1);
 }
@@ -4609,19 +4655,19 @@ TEST(PageSpeedCApi, HtmlServeClassifyHugeRequestValuesDoNotOverflow) {
 TEST(PageSpeedCApi, HtmlServeClassifyRejectsMalformedCalls) {
   int reason = 7, enforce = 7;
   uint32_t age = 7;
-  EXPECT_EQ(ps_html_serve_classify(-1, 0, -1, -1, 0, 0, 0, 0, 0, 0, 0, &reason,
+  EXPECT_EQ(ps_html_serve_classify(-1, 0, -1, -1, 0, 0, 0, 0, 0, 0, &reason,
                                    &enforce, &age),
             -1);
-  EXPECT_EQ(ps_html_serve_classify(4, 0, -1, -1, 0, 0, 0, 0, 0, 0, 0, &reason,
+  EXPECT_EQ(ps_html_serve_classify(4, 0, -1, -1, 0, 0, 0, 0, 0, 0, &reason,
                                    &enforce, &age),
             -1);
-  EXPECT_EQ(ps_html_serve_classify(1, 0, -1, -1, 0, 0, 0, 0, 0, 0, 0, nullptr,
+  EXPECT_EQ(ps_html_serve_classify(1, 0, -1, -1, 0, 0, 0, 0, 0, 0, nullptr,
                                    &enforce, &age),
             -1);
-  EXPECT_EQ(ps_html_serve_classify(1, 0, -1, -1, 0, 0, 0, 0, 0, 0, 0, &reason,
+  EXPECT_EQ(ps_html_serve_classify(1, 0, -1, -1, 0, 0, 0, 0, 0, 0, &reason,
                                    nullptr, &age),
             -1);
-  EXPECT_EQ(ps_html_serve_classify(1, 0, -1, -1, 0, 0, 0, 0, 0, 0, 0, &reason,
+  EXPECT_EQ(ps_html_serve_classify(1, 0, -1, -1, 0, 0, 0, 0, 0, 0, &reason,
                                    &enforce, nullptr),
             -1);
   EXPECT_EQ(reason, 7);
@@ -4691,6 +4737,23 @@ TEST(PageSpeedCApi, HtmlDecisionFormatErrorDirections) {
   const char* dup_keys[] = {"host", "host"};
   EXPECT_EQ(
       ps_html_decision_format(dup_keys, values, 2, buf, sizeof(buf), &len), -2);
+  // A legitimate key with a value outside its grammar: free text in `cc`, a
+  // query in `path`, a non-count in `size`.
+  const char* cc_keys[] = {"host", "cc"};
+  const char* cc_values[] = {"a.example", "max-age=60, x-session=abc"};
+  EXPECT_EQ(
+      ps_html_decision_format(cc_keys, cc_values, 2, buf, sizeof(buf), &len),
+      -2);
+  const char* query_values[] = {"a.example", "/p?token=1"};
+  EXPECT_EQ(
+      ps_html_decision_format(keys, query_values, 2, buf, sizeof(buf), &len),
+      -2);
+  const char* size_keys[] = {"host", "size"};
+  const char* size_values[] = {"a.example", "12 KiB"};
+  EXPECT_EQ(ps_html_decision_format(size_keys, size_values, 2, buf, sizeof(buf),
+                                    &len),
+            -2);
+  EXPECT_EQ(len, 0u);
 
   // count == 0: well formed, and the formatter's own rules decide (an empty
   // object is a valid line).
@@ -7556,78 +7619,4 @@ TEST(PageSpeedCApi, CacheConfigInitLegacyPinsStructSizeToV1_8) {
   ps_cache_config_t config;
   ps_cache_config_init(&config);
   EXPECT_EQ(config.struct_size, 48u);  // kCacheConfigSizeV1_8
-}
-
-// ps_serve_stats_record_html_cache (PS_API 1.12): the HTML cache policy
-// counters over the C ABI.
-
-TEST_F(PageSpeedServeStatsApiTest, RecordHtmlCacheStore) {
-  const int kStore = PS_HTML_CACHE_RECORD_STORE;
-  // store (0 refuse, 1 store, 2 store no notify); reasons: 0 none, 1 method,
-  // 17 personalisation_signal, 18 no_transform.
-  ps_serve_stats_record_html_cache(handle_, kStore, 1, 0, 1);
-  ps_serve_stats_record_html_cache(handle_, kStore, 1, 0, 0);
-  ps_serve_stats_record_html_cache(handle_, kStore, 2, 18, 1);
-  ps_serve_stats_record_html_cache(handle_, kStore, 0, 1, 1);
-  ps_serve_stats_record_html_cache(handle_, kStore, 0, 17, 0);
-  EXPECT_EQ(stats_->html_cache_stored, 2u);
-  EXPECT_EQ(stats_->html_cache_would_store, 1u);
-  EXPECT_EQ(stats_->html_cache_store_no_notify, 1u);
-  EXPECT_EQ(stats_->html_cache_refused, 2u);
-  EXPECT_EQ(stats_->html_cache_refused_method, 1u);
-  EXPECT_EQ(stats_->html_cache_refused_personalisation, 1u);
-}
-
-TEST_F(PageSpeedServeStatsApiTest, RecordHtmlCacheServe) {
-  const int kServe = PS_HTML_CACHE_RECORD_SERVE;
-  // serve (0 fall through, 1 html, 2 markdown, 3 validate); reasons: 0 fresh,
-  // 1 mode, 6 stale, 10 absent.
-  ps_serve_stats_record_html_cache(handle_, kServe, 1, 0, 1);
-  ps_serve_stats_record_html_cache(handle_, kServe, 2, 0, 1);
-  ps_serve_stats_record_html_cache(handle_, kServe, 1, 0, 0);
-  ps_serve_stats_record_html_cache(handle_, kServe, 3, 6, 1);
-  ps_serve_stats_record_html_cache(handle_, kServe, 3, 6, 0);
-  ps_serve_stats_record_html_cache(handle_, kServe, 0, 1, 1);
-  ps_serve_stats_record_html_cache(handle_, kServe, 0, 10, 0);
-  EXPECT_EQ(stats_->html_cache_served_html, 1u);
-  EXPECT_EQ(stats_->html_cache_served_markdown, 1u);
-  EXPECT_EQ(stats_->html_cache_would_serve, 1u);
-  EXPECT_EQ(stats_->html_cache_validate, 1u);
-  EXPECT_EQ(stats_->html_cache_fall_through_stale, 1u);
-  EXPECT_EQ(stats_->html_cache_fall_through_mode, 1u);
-  EXPECT_EQ(stats_->html_cache_fall_through_absent, 1u);
-}
-
-TEST_F(PageSpeedServeStatsApiTest, RecordHtmlCacheInvalidatedAndDroppedWrites) {
-  ps_serve_stats_record_html_cache(handle_, PS_HTML_CACHE_RECORD_INVALIDATED,
-                                   99, 99, 1);
-  EXPECT_EQ(stats_->html_cache_invalidated, 1u);
-
-  // Out-of-range kinds, actions and reasons record nothing at all.
-  ps_serve_stats_record_html_cache(handle_, 3, 0, 0, 1);
-  ps_serve_stats_record_html_cache(handle_, -1, 0, 0, 1);
-  ps_serve_stats_record_html_cache(handle_, PS_HTML_CACHE_RECORD_STORE, 3, 0,
-                                   1);
-  ps_serve_stats_record_html_cache(handle_, PS_HTML_CACHE_RECORD_STORE, 0, 19,
-                                   1);
-  ps_serve_stats_record_html_cache(handle_, PS_HTML_CACHE_RECORD_STORE, 0, -1,
-                                   1);
-  ps_serve_stats_record_html_cache(handle_, PS_HTML_CACHE_RECORD_STORE, -1, 0,
-                                   1);
-  ps_serve_stats_record_html_cache(handle_, PS_HTML_CACHE_RECORD_SERVE, 4, 0,
-                                   1);
-  ps_serve_stats_record_html_cache(handle_, PS_HTML_CACHE_RECORD_SERVE, 0, 13,
-                                   1);
-  // A refusal with the reason "none" is not a refusal of any kind.
-  ps_serve_stats_record_html_cache(handle_, PS_HTML_CACHE_RECORD_STORE, 0, 0,
-                                   1);
-  EXPECT_EQ(stats_->html_cache_refused, 0u);
-  EXPECT_EQ(stats_->html_cache_stored, 0u);
-  EXPECT_EQ(stats_->html_cache_would_serve, 0u);
-  EXPECT_EQ(stats_->html_cache_invalidated, 1u);
-
-  // A NULL handle is a no-op.
-  ps_serve_stats_record_html_cache(nullptr, PS_HTML_CACHE_RECORD_INVALIDATED, 0,
-                                   0, 1);
-  EXPECT_EQ(stats_->html_cache_invalidated, 1u);
 }

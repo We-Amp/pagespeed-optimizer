@@ -25,7 +25,7 @@ Key methods:
   verbatim block of request-independent response headers. The write entry point
   IS the admission gate (`headers_sidecar.h`), read by EXACT ID, never selectable
 - `html_cache_policy.{h,cc}` -- the HTML cacheability policy: `ClassifyHtmlForStore`
-  (may a `text/html` response be stored: thirteen ordered rules, the first failing
+  (may a `text/html` response be stored: fourteen ordered rules, the first failing
   rule is the reason) and `ClassifyHtmlForServe` (may a stored entry be served: ten
   ordered rules, `enforce` false in off and report-only). Pure functions, no I/O or
   clock; composes `AccumulateOriginCacheControl` and `ClassifyForHeadersSidecar`
@@ -34,8 +34,13 @@ Key methods:
   the C API as `ps_html_store_classify` / `ps_html_serve_classify` (PS_API 1.12);
   nothing in the tree calls it yet
 - `html_cache_decision.{h,cc}` -- the one-line JSON decision record for that policy.
-  A formatter only: the key set is closed and has no key for a body, header value,
-  cookie, client address or user agent, so privacy is a property of the key set
+  A formatter only. Privacy is a property of the key set AND of the value grammar:
+  the key set is closed and has no key for a body, header value, cookie, client
+  address or user agent, and every value is checked against its key's grammar
+  (closed name sets, canonical integers, directive names with numbers only, RFC
+  9110 tokens for a header name or Vary token, hostname characters, a bounded path
+  with no query), so a header value or a cookie cannot pass even under a
+  legitimate key. The grammar table is the comment at the top of the header
 - `RemoveAlternatesExcept(url, hostname, scheme, preserve)` -- the origin-refresh
   purge: bounded passes over (capped) listings; escalates to a whole-key drop
   only for a chain the storage layer cannot unlink from -- a cyclic chain,
@@ -97,7 +102,11 @@ bazel test //test/lib/cache/...
   one `kServeCachedHtml` would give, with `enforce` false, so a counter of what
   the strongest mode would do is honest. Fuzz it with
   `bazel run -c opt --config=asan //lib/cache:html_cache_policy_fuzz`; the seeds
-  run in CI as `//test/lib/cache:html_cache_policy_fuzz_seeds_test`
+  run in CI as `//test/lib/cache:html_cache_policy_fuzz_seeds_test`. Both carry
+  the DIFFERENTIAL ORACLE: whatever the policy stores, `VaryUncacheable`,
+  `ClassifyForHeadersSidecar`, the `Set-Cookie` rule and the `private`/`no-store`
+  bits accept too. The policy may be stricter than the existing gates, never
+  looser; a change that makes it looser is a red seed test, not a silent widening
 - "One entry per URL" used to hold only for a SINGLE writer. Unlink-then-write
   is not one operation, so two writers for the same URL could interleave into a
   chain of two — a fixed point, since unlink-one/write-one kept it there — and

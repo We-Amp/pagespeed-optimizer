@@ -21,8 +21,12 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "lib/cache/headers_sidecar.h"
 #include "lib/cache/html_cache_policy.h"
 #include "lib/cache/html_cache_policy_fuzz.h"
+#include "lib/cache/origin_cache_control.h"
+#include "lib/cache/vary_storability.h"
+#include "lib/classify/alternate_metadata.h"
 #include "test/test_util/temp_dir.h"
 
 namespace pagespeed {
@@ -32,6 +36,23 @@ std::string ReadFile(const std::filesystem::path& path) {
   std::ifstream in(path, std::ios::binary);
   return std::string(std::istreambuf_iterator<char>(in),
                      std::istreambuf_iterator<char>());
+}
+
+std::string LowerAscii(std::string_view s) {
+  std::string out(s);
+  for (char& c : out) {
+    if (c >= 'A' && c <= 'Z') c = static_cast<char>(c | 0x20);
+  }
+  return out;
+}
+
+// A one-line view of a seed for a failure message: the header block only.
+std::string Describe(const std::string& seed) {
+  std::string out = seed.substr(0, seed.find("\n\n"));
+  for (char& c : out) {
+    if (c == '\n') c = '|';
+  }
+  return out.substr(0, 200);
 }
 
 TEST(HtmlCachePolicyFuzzSeedsTest, DumpedCorpusRoundTripsAndReplaysClean) {
@@ -77,14 +98,78 @@ TEST(HtmlCachePolicyFuzzSeedsTest, SeedsCoverEveryStoreReasonAndSignal) {
         << HtmlStoreReasonName(static_cast<HtmlStoreReason>(i));
   }
   EXPECT_GE(storable, 2u);  // a plain store and a no-transform store
-  for (std::string_view signal :
-       {"meta_csrf_token", "meta_csrf_param", "hidden_token", "hidden_csrf",
-        "hidden_authenticity", "hidden_request_verification",
-        "hidden_csrfmiddlewaretoken", "post_form_login",
-        "post_form_checkout"}) {
+  ASSERT_EQ(HtmlPersonalisationSignalNames().size(), 9u);
+  for (std::string_view signal : HtmlPersonalisationSignalNames()) {
     EXPECT_TRUE(signals.count(std::string(signal)) != 0)
         << "no seed reaches " << signal;
   }
+}
+
+// The differential property, stated independently of the harness's own
+// oracle: whatever the policy stores, the gates that already guard the
+// shared cache accept too.  The policy may be stricter than them, never
+// looser.  A seed that stops holding this is a red test with its header
+// block in the message, not an abort.
+TEST(HtmlCachePolicyFuzzSeedsTest, WhatThePolicyStoresTheExistingGatesAccept) {
+  size_t stored = 0;
+  for (const std::string& seed : fuzz::HtmlCachePolicyFuzzSeeds()) {
+    const HtmlStoreVerdict v = fuzz::ClassifyHtmlCachePolicyFuzzBlob(seed);
+    if (!v.stores()) continue;
+    ++stored;
+    const auto headers = fuzz::HtmlCachePolicyFuzzBlobHeaders(seed);
+    std::vector<HeaderField> fields;
+    std::string combined_vary;
+    bool sets_cookie = false;
+    OriginCacheControl cc;
+    for (const auto& [name, value] : headers) {
+      fields.push_back({name, value});
+      const std::string lower = LowerAscii(name);
+      if (lower == "vary") {
+        if (!combined_vary.empty()) combined_vary.push_back(',');
+        combined_vary.append(value);
+      } else if (lower == "set-cookie" || lower == "set-cookie2") {
+        sets_cookie = true;
+      } else if (lower == "cache-control") {
+        AccumulateOriginCacheControl(value, &cc);
+      }
+    }
+    EXPECT_FALSE(VaryUncacheable(combined_vary)) << Describe(seed);
+    EXPECT_TRUE(ClassifyForHeadersSidecar(fields).swap_eligible())
+        << Describe(seed);
+    EXPECT_FALSE(sets_cookie) << Describe(seed);
+    EXPECT_EQ(cc.cc_flags & (AlternateMetadata::kCCOriginPrivate |
+                             AlternateMetadata::kCCOriginNoStore),
+              0)
+        << Describe(seed);
+    // And the policy's own statement of the same facts agrees.
+    EXPECT_EQ(v.cc_flags & (AlternateMetadata::kCCOriginPrivate |
+                            AlternateMetadata::kCCOriginNoStore),
+              0)
+        << Describe(seed);
+    EXPECT_TRUE(v.sidecar_evaluated && v.sidecar.swap_eligible())
+        << Describe(seed);
+  }
+  EXPECT_GE(stored, 4u);
+}
+
+TEST(HtmlCachePolicyFuzzSeedsTest, SeedsReachTheRewrittenShapeAndDateForms) {
+  bool rewritten = false;
+  bool obsolete_dates = false;
+  for (const std::string& seed : fuzz::HtmlCachePolicyFuzzSeeds()) {
+    if (seed.find(".pagespeed.") != std::string::npos) {
+      rewritten = true;
+      EXPECT_EQ(fuzz::ClassifyHtmlCachePolicyFuzzBlob(seed).reason,
+                HtmlStoreReason::kUrl);
+    }
+    if (seed.find("06-Nov-94") != std::string::npos) {
+      obsolete_dates = true;
+      const HtmlStoreVerdict v = fuzz::ClassifyHtmlCachePolicyFuzzBlob(seed);
+      EXPECT_TRUE(v.stores()) << v.reason_code();
+      EXPECT_EQ(v.lifetime_s, 60u);
+    }
+  }
+  EXPECT_TRUE(rewritten);
+  EXPECT_TRUE(obsolete_dates);
 }
 
 TEST(HtmlCachePolicyFuzzSeedsTest, SeedsIncludeAnOversizedHeaderValue) {

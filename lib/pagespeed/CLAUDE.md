@@ -35,7 +35,7 @@ cross-language integration. Primary consumer: ASP.NET Core middleware in
 | **Hostname normalization** | `ps_normalize_hostname` | Normalize hostnames for cache keys |
 | **Memory** | `ps_free` | Free allocations returned by the API |
 | **Worker notification** | `ps_notify_worker`, `ps_notify_worker_ex`, `ps_notify_params_init_sized` | Send optimization requests to worker via Unix socket; the `_ex` form also carries the agent-request bit and the per-request options context |
-| **HTML cacheability policy** | `ps_html_store_classify`, `ps_html_serve_classify`, `ps_html_decision_format`, `ps_html_store_reason_name`, `ps_html_serve_reason_name`, `ps_serve_stats_record_html_cache` | Pure store/serve verdicts for `text/html` (PS_API 1.12), the one-line decision record, and the matching serve-stats counters. Scalars and parallel `names`/`values` arrays only, so no struct crosses the ABI |
+| **HTML cacheability policy** | `ps_html_store_classify`, `ps_html_serve_classify`, `ps_html_decision_format`, `ps_html_store_reason_name`, `ps_html_serve_reason_name` | Pure store/serve verdicts for `text/html` (PS_API 1.12) and the one-line decision record with a closed key set and a per-key value grammar. Scalars and parallel `names`/`values` arrays only, so no struct crosses the ABI |
 | **Options context** | `ps_option_context_signature` | Signature over a canonical options-context payload. One implementation, exported, because every consumer must produce identical signatures for identical payloads forever |
 
 ## Lifetime Management

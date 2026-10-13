@@ -122,4 +122,3 @@ EXPORTS
     ps_html_decision_format
     ps_html_store_reason_name
     ps_html_serve_reason_name
-    ps_serve_stats_record_html_cache

@@ -52,11 +52,14 @@ namespace pagespeed {
 //      concern partial and 206 content, which this policy does not assemble).
 //      A Content-Range header marks a partial body and is refused as
 //      incomplete.
-//   2. Key-safe path.  The path must be non-empty, begin with `/`, and carry
-//      no `?`, `%` or `#`.  The cache key is built from the path as given, so
-//      a path that two spellings could reach (percent-encoding, a query that
-//      selects a different representation) is never stored.  RFC 9111 §2
-//      leaves the choice of cache key to the cache.
+//   2. Key-safe path.  The path must be non-empty, begin with `/`, carry no
+//      `?`, `%` or `#`, and not be in the rewritten-URL shape (the
+//      `.pagespeed.` marker anywhere in it).  The cache key is built from the
+//      path as given, so a path that two spellings could reach
+//      (percent-encoding, a query that selects a different representation) is
+//      never stored, and a URL the optimizer itself produced is never recorded
+//      as an origin page.  RFC 9111 §2 leaves the choice of cache key to the
+//      cache.
 //   3. Type and encoding.  Content-Type must be text/html (any parameters),
 //      exactly once.  Content-Encoding must be absent or `identity`: the
 //      stored bytes are served to clients that did not ask for a coding
@@ -112,7 +115,9 @@ namespace pagespeed {
 //      markers a page carries when it was rendered for one client: CSRF
 //      meta tags, hidden CSRF fields, and a POST form aimed at a login,
 //      sign-in, checkout or cart action.  The scan is a bounded, ASCII
-//      case-insensitive tag walk, not an HTML parser.
+//      case-insensitive tag walk, not an HTML parser.  The verdict's detail
+//      is the signal name, so a caller that is only measuring can log the
+//      match as what it would have stored, with the signal.
 //  14. no-transform (RFC 9111 §5.2.2.6).  A response that forbids
 //      transformation is stored but the caller is told not to notify the
 //      optimizer about it (`kStoreNoNotify`).
@@ -141,20 +146,28 @@ namespace pagespeed {
 //      age (§4.2.3); the library adds resident time only.  An entry is fresh when it
 //      needs no validation and its age is below its lifetime.  A request
 //      `max-age` below the age (§5.2.1.1) or a `min-fresh` the entry cannot
-//      meet (§5.2.1.3) makes it not fresh for that request.  STALE ENTRIES
-//      ARE NEVER SERVED: `must-revalidate`, `proxy-revalidate`, `s-maxage`,
-//      `stale-while-revalidate` and `stale-if-error` are not consulted, and
-//      the request's `max-stale` (§5.2.1.2) is ignored.  A not-fresh entry is
-//      validated with the origin in `kServeCachedHtml` and falls through in
-//      every other mode.  An entry the origin just confirmed with a 304
-//      (§4.3.4) counts as fresh.
+//      meet (§5.2.1.3: the entry must stay fresh for at least that long, so
+//      age plus `min-fresh` may not exceed the lifetime) makes it not fresh
+//      for that request.  STALE ENTRIES ARE NEVER SERVED: `must-revalidate`,
+//      `proxy-revalidate`, `s-maxage`, `stale-while-revalidate` and
+//      `stale-if-error` are not consulted, and the request's `max-stale`
+//      (§5.2.1.2) is ignored.  A not-fresh entry is validated with the origin
+//      in `kServeCachedHtml` and falls through in every other mode.  An entry
+//      the origin just confirmed with a 304 (§4.3.4) counts as fresh in
+//      `kServeCachedHtml` (and in `kReportOnly`, which mirrors it);
+//      `kServeVariants` has no validation step, so there the flag is not
+//      consulted and the entry is as fresh as its stored lifetime says.
 //   9. Markdown.  A request for the Markdown copy is served it only while the
 //      HTML parent is fresh, the copy exists, its recorded parent hash still
 //      matches the live content, and the copy is within its own lifetime
 //      (age below the smaller of the parent's lifetime and the copy's
 //      render lifetime; for a parent the origin confirmed this request, only
-//      the render lifetime bounds it).  A Markdown fall-through never degrades to serving HTML here: the
-//      caller serves the origin path.
+//      the render lifetime bounds it).  A Markdown request on a parent that
+//      is not fresh is its own outcome, `kParentStale` (validated first in
+//      `kServeCachedHtml`, a fall-through in `kServeVariants`), not the HTML
+//      request's stale or needs-validation reason, so the Markdown path is
+//      countable on its own.  A Markdown fall-through never degrades to
+//      serving HTML here: the caller serves the origin path.
 //  10. HTML.  In `kServeCachedHtml` a fresh entry is served.  In
 //      `kServeVariants` the HTML still comes from the origin.
 
@@ -325,17 +338,18 @@ struct StoredHtmlFacts {
   uint32_t age_at_store = 0;  // the origin's Age at record time
   uint32_t lifetime_s = 0;
   bool needs_validation = false;
-  // must-revalidate, proxy-revalidate, s-maxage present, public, no-cache.
-  // Carried for the caller's records; no serve rule consults it, because
-  // stale entries are never served at all.
-  uint16_t cc_flags = 0;
+  // The entry's Cache-Control bits are deliberately NOT an input: no serve
+  // rule consults must-revalidate, proxy-revalidate or s-maxage, because a
+  // stale entry is never served at all.
   bool explicit_shared = false;
   bool headers_not_reproducible = false;  // carries the not-reproducible bit
   bool sidecar_required = false;          // a header block must be replayed
   bool sidecar_present = false;           // the block was read and parsed
   bool purged = false;  // the caller's purge state covers this entry
-  bool validated_this_request = false;  // the origin answered 304 just now
-  bool variant_present = false;         // a Markdown copy exists
+  // The origin answered 304 just now.  Consulted in kServeCachedHtml and
+  // kReportOnly only (rule 8).
+  bool validated_this_request = false;
+  bool variant_present = false;   // a Markdown copy exists
   bool binding_live = false;      // the copy's parent hash equals live content
   uint32_t render_ttl_s = 86400;  // the copy's own lifetime bound
 };
@@ -364,10 +378,20 @@ std::string_view HtmlServeReasonName(HtmlServeReason reason);
 // off, report-only, serve-variants, serve-cached-html
 std::string_view HtmlCacheModeName(HtmlCacheMode mode);
 
-// Parse an IMF-fixdate (RFC 9110 §5.6.7), `Sun, 06 Nov 1994 08:49:37 GMT`,
-// to seconds since the Unix epoch.  The two obsolete forms and anything else
-// are invalid (nullopt), as is a weekday that does not match the date.
-std::optional<int64_t> ParseHttpDateSeconds(std::string_view value);
+// Parse an HTTP-date (RFC 9110 §5.6.7) to seconds since the Unix epoch: the
+// IMF-fixdate form `Sun, 06 Nov 1994 08:49:37 GMT` and the two obsolete forms
+// a recipient must accept, rfc850-date `Sunday, 06-Nov-94 08:49:37 GMT` and
+// asctime-date `Sun Nov  6 08:49:37 1994`.  The rfc850 two-digit year is
+// resolved against `now_seconds` (the receipt time) as the section says: a
+// year that would be more than 50 years in the future is the most recent
+// past year with those digits.  Anything else is invalid (nullopt), as is a
+// weekday that does not match the date.
+std::optional<int64_t> ParseHttpDateSeconds(std::string_view value,
+                                            uint32_t now_seconds);
+
+// The closed set of names FindPersonalisationSignal can return, for callers
+// that validate or enumerate them.
+std::span<const std::string_view> HtmlPersonalisationSignalNames();
 
 }  // namespace pagespeed
 

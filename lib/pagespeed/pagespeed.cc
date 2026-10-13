@@ -790,40 +790,6 @@ extern "C" void ps_serve_stats_record_hit_host(ps_serve_stats_t* h,
                             original_bytes, optimized_bytes, mask, host_view);
 }
 
-extern "C" void ps_serve_stats_record_html_cache(ps_serve_stats_t* h, int kind,
-                                                 int action, int reason,
-                                                 int enforce) {
-  if (h == nullptr) return;
-  switch (kind) {
-    case PS_HTML_CACHE_RECORD_STORE:
-      if (action < 0 ||
-          action >
-              static_cast<int>(pagespeed::HtmlStoreAction::kStoreNoNotify) ||
-          reason < 0 || reason >= pagespeed::kHtmlStoreReasonCount) {
-        return;
-      }
-      pagespeed::RecordHtmlCacheStore(
-          h->stats, static_cast<pagespeed::HtmlStoreAction>(action),
-          static_cast<pagespeed::HtmlStoreReason>(reason), enforce != 0);
-      return;
-    case PS_HTML_CACHE_RECORD_SERVE:
-      if (action < 0 ||
-          action > static_cast<int>(pagespeed::HtmlServeAction::kValidate) ||
-          reason < 0 || reason >= pagespeed::kHtmlServeReasonCount) {
-        return;
-      }
-      pagespeed::RecordHtmlCacheServe(
-          h->stats, static_cast<pagespeed::HtmlServeAction>(action),
-          static_cast<pagespeed::HtmlServeReason>(reason), enforce != 0);
-      return;
-    case PS_HTML_CACHE_RECORD_INVALIDATED:
-      pagespeed::RecordHtmlCacheInvalidated(h->stats);
-      return;
-    default:
-      return;
-  }
-}
-
 extern "C" void ps_serve_stats_record_serve_class(ps_serve_stats_t* h,
                                                   ps_serve_class_t cls,
                                                   uint32_t flags) {
@@ -1245,14 +1211,11 @@ extern "C" int ps_html_store_classify(
   }
 }
 
-extern "C" int ps_html_serve_classify(int mode, uint32_t request_flags,
-                                      int64_t max_age, int64_t min_fresh,
-                                      uint32_t now_seconds,
-                                      uint32_t stored_flags, uint32_t stored_at,
-                                      uint32_t age_at_store,
-                                      uint32_t lifetime_s, uint16_t cc_flags,
-                                      uint32_t render_ttl_s, int* out_reason,
-                                      int* out_enforce, uint32_t* out_age_s) {
+extern "C" int ps_html_serve_classify(
+    int mode, uint32_t request_flags, int64_t max_age, int64_t min_fresh,
+    uint32_t now_seconds, uint32_t stored_flags, uint32_t stored_at,
+    uint32_t age_at_store, uint32_t lifetime_s, uint32_t render_ttl_s,
+    int* out_reason, int* out_enforce, uint32_t* out_age_s) {
   try {
     if (out_reason == nullptr || out_enforce == nullptr ||
         out_age_s == nullptr) {
@@ -1288,7 +1251,6 @@ extern "C" int ps_html_serve_classify(int mode, uint32_t request_flags,
     stored.lifetime_s = lifetime_s;
     stored.needs_validation =
         (stored_flags & PS_HTML_STORED_NEEDS_VALIDATION) != 0;
-    stored.cc_flags = cc_flags;
     stored.explicit_shared =
         (stored_flags & PS_HTML_STORED_EXPLICIT_SHARED) != 0;
     stored.headers_not_reproducible =

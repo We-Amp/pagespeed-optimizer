@@ -124,6 +124,8 @@ cc_binary(
         ":headers_sidecar",
         ":html_cache_decision",
         ":html_cache_policy",
+        ":origin_cache_control",
+        ":vary_storability",
         "//lib/classify:alternate_metadata",
     ],
 )
@@ -141,6 +143,8 @@ cc_library(
         ":headers_sidecar",
         ":html_cache_decision",
         ":html_cache_policy",
+        ":origin_cache_control",
+        ":vary_storability",
         "//lib/classify:alternate_metadata",
     ],
 )

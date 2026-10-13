@@ -21,13 +21,61 @@ namespace pagespeed {
 // line goes and how often.  `HtmlCacheDecisionDedupKey` is the key a caller
 // can use to avoid writing the same decision twice.
 //
-// PRIVACY IS A PROPERTY OF THE KEY SET.  The closed list of keys below has no
-// key for a request or response body, a header value, a cookie, a client
-// address or a user agent, and the formatter refuses any key outside the list.
-// A caller therefore cannot add one by accident, and a reviewer can check the
-// whole surface by reading HtmlCacheDecisionKeys().  `path` is the path the
-// cache key was built from (key-safe paths carry no query string), and the
-// formatter bounds it.
+// PRIVACY IS A PROPERTY OF THE KEY SET AND OF THE VALUE GRAMMAR.  The closed
+// list of keys below has no key for a request or response body, a header
+// value, a cookie, a client address or a user agent, and the formatter
+// refuses any key outside the list.  Every value is then checked against its
+// key's grammar, which admits fixed codes and counts only:
+//
+//   ts_ms, status, size, lifetime_s, age_s   a canonical decimal integer
+//   host                                     hostname characters (letters,
+//                                            digits, `.` `-` `_` `:` `[` `]`),
+//                                            at most 255 bytes
+//   path                                     the path the cache key was built
+//                                            from: at most 300 bytes, never a
+//                                            `?` or `#`
+//   mode                                     off, report-only, serve-variants,
+//                                            serve-cached-html
+//   action                                   would_store, stored, skipped,
+//                                            would_serve, served_html,
+//                                            served_markdown, validated,
+//                                            purged, invalidated, or a policy
+//                                            verdict name (refuse, store,
+//                                            store_no_notify, fall_through,
+//                                            serve_html, serve_markdown,
+//                                            validate)
+//   reason                                   a store or serve reason name,
+//                                            validated, validation_failed,
+//                                            sidecar_write_failed,
+//                                            invalidated, or `headers:<name>`
+//                                            / `vary:<token>` with an RFC 9110
+//                                            token of at most 128 bytes
+//   validators                               none, or an ordered subset of
+//                                            etag, last_modified
+//   request                                  none, or an ordered subset of
+//                                            authorization, cookie, no_cache,
+//                                            accept_markdown
+//   cc                                       known response directive names,
+//                                            each at most once, `=<integer>`
+//                                            only on max-age, s-maxage,
+//                                            stale-while-revalidate,
+//                                            stale-if-error
+//   vary                                     a comma-separated list of tokens
+//   sidecar                                  eligible_block, eligible_empty,
+//                                            fall_through,
+//                                            fall_through:<header-name>,
+//                                            never:nonce_csp
+//   personalisation                          a signal name
+//                                            (HtmlPersonalisationSignalNames)
+//   before                                   a hash, decimal or lowercase hex
+//   variant                                  0x7C or markdown
+//   binding                                  live or stale
+//
+// Every value is non-empty (a fact that is absent is an absent key, which is
+// how the line says "null") and carries no control byte.  A caller therefore
+// cannot log a header value or a cookie by accident even under a legitimate
+// key, and a reviewer can check the whole surface by reading
+// HtmlCacheDecisionKeys() and the grammar table in the source.
 
 struct HtmlCacheDecisionField {
   std::string_view key;
@@ -44,16 +92,22 @@ std::span<const std::string_view> HtmlCacheDecisionKeys();
 inline constexpr size_t kMaxHtmlCacheDecisionPathBytes = 300;
 
 // One JSON object on one line, keys in canonical order, only the keys given,
-// values escaped (quote and backslash with a backslash, bytes 0x80 and above as \u00XX).  The keys ts_ms, status, size,
-// lifetime_s and age_s are emitted as numbers when the value is a canonical
-// decimal integer (digits only, no leading zero, at most 20 digits), else as
-// strings.
+// values escaped (quote and backslash with a backslash, bytes 0x80 and above
+// as \u00XX).  The keys ts_ms, status, size, lifetime_s and age_s are emitted
+// as numbers (their grammar is a canonical decimal integer: digits only, no
+// leading zero, at most 20 digits); every other value is a string.
 //
-// Returns nullopt for: an unknown key; a duplicate key; a value containing
-// any C0 control byte (0x00 to 0x1F) or DEL (0x7F); a `path` longer than kMaxHtmlCacheDecisionPathBytes; or a
-// `host` that is empty.
+// Returns nullopt for: an unknown key; a duplicate key; a value outside its
+// key's grammar (see the table above), which includes an empty value, any C0
+// control byte (0x00 to 0x1F) or DEL (0x7F), a `path` longer than
+// kMaxHtmlCacheDecisionPathBytes or carrying `?` or `#`, and an empty `host`.
 std::optional<std::string> FormatHtmlCacheDecisionLine(
     std::span<const HtmlCacheDecisionField> fields);
+
+// Whether `value` is in the grammar of `key` (false for an unknown key): the
+// same check the formatter applies, for a caller that wants to know which
+// field it must leave out before it formats.
+bool HtmlCacheDecisionValueFits(std::string_view key, std::string_view value);
 
 // FNV-1a, 64 bit, over `bytes`: the `before` hash of stored bytes.  Not a
 // security hash; it exists so a log line can say "the stored bytes changed"
