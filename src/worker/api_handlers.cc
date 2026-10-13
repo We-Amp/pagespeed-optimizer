@@ -1253,44 +1253,53 @@ std::string BuildPrometheusMetricsText(const PrometheusMetricsInputs& in) {
          "Requests answered with a stored Markdown copy."},
         {&ServeStats::html_cache_fall_through_mode,
          "pagespeed_html_cache_fall_through_mode_total",
-         "HTML requests sent to the origin: the mode does not serve from the "
+         "HTML requests that would go to the origin: the mode does not serve "
+         "from the "
          "cache."},
         {&ServeStats::html_cache_fall_through_auth_request,
          "pagespeed_html_cache_fall_through_auth_request_total",
-         "HTML requests sent to the origin: the request carried credentials."},
+         "HTML requests that would go to the origin: the request carried "
+         "credentials."},
         {&ServeStats::html_cache_fall_through_cookie_request,
          "pagespeed_html_cache_fall_through_cookie_request_total",
-         "HTML requests sent to the origin: the request carried a cookie."},
+         "HTML requests that would go to the origin: the request carried a "
+         "cookie."},
         {&ServeStats::html_cache_fall_through_client_no_cache,
          "pagespeed_html_cache_fall_through_client_no_cache_total",
-         "HTML requests sent to the origin: the client sent no-cache."},
+         "HTML requests that would go to the origin: the client sent "
+         "no-cache."},
         {&ServeStats::html_cache_fall_through_needs_validation,
          "pagespeed_html_cache_fall_through_needs_validation_total",
-         "HTML requests sent to the origin: the entry must be revalidated."},
+         "HTML requests that would go to the origin: the entry must be "
+         "revalidated."},
         {&ServeStats::html_cache_fall_through_stale,
          "pagespeed_html_cache_fall_through_stale_total",
-         "HTML requests sent to the origin: the entry was stale."},
+         "HTML requests that would go to the origin: the entry was stale."},
         {&ServeStats::html_cache_fall_through_headers_not_reproducible,
          "pagespeed_html_cache_fall_through_headers_not_reproducible_total",
-         "HTML requests sent to the origin: the entry's headers cannot be "
+         "HTML requests that would go to the origin: the entry's headers "
+         "cannot be "
          "reproduced."},
         {&ServeStats::html_cache_fall_through_sidecar_missing,
          "pagespeed_html_cache_fall_through_sidecar_missing_total",
-         "HTML requests sent to the origin: the stored header block could not "
+         "HTML requests that would go to the origin: the stored header block "
+         "could not "
          "be read."},
         {&ServeStats::html_cache_fall_through_purged,
          "pagespeed_html_cache_fall_through_purged_total",
-         "HTML requests sent to the origin: the entry was purged."},
+         "HTML requests that would go to the origin: the entry was purged."},
         {&ServeStats::html_cache_fall_through_absent,
          "pagespeed_html_cache_fall_through_absent_total",
-         "HTML requests sent to the origin: no stored entry or copy."},
+         "HTML requests that would go to the origin: no stored entry or copy."},
         {&ServeStats::html_cache_fall_through_binding_stale,
          "pagespeed_html_cache_fall_through_binding_stale_total",
-         "HTML requests sent to the origin: the Markdown copy no longer "
+         "HTML requests that would go to the origin: the Markdown copy no "
+         "longer "
          "matches the page."},
         {&ServeStats::html_cache_fall_through_parent_stale,
          "pagespeed_html_cache_fall_through_parent_stale_total",
-         "HTML requests sent to the origin: the Markdown copy outlived its "
+         "HTML requests that would go to the origin: the Markdown copy "
+         "outlived its "
          "page or its own lifetime."},
         {&ServeStats::html_cache_validate,
          "pagespeed_html_cache_validate_total",

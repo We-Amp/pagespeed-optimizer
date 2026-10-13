@@ -12,9 +12,12 @@ and `ps_html_store_reason_name`, `ps_html_serve_reason_name` and
 `ps_serve_stats_record_html_cache` support logging and counting. The policy
 stores a page only when the origin stated its lifetime or sent a validator,
 never on a guessed lifetime; it refuses pages that look personalised (a
-request with credentials or a cookie, a response that sets a cookie, `private`
-or `no-store`, a `Vary` beyond `Accept-Encoding`, a CSRF token or a login or
-checkout form in the body); and it never serves a stale page. `/v1/metrics`
+request with credentials, or `Cache-Control: no-store`, or a cookie unless the
+response is explicitly `public` or carries `s-maxage`; a response that sets a
+cookie, `private` or `no-store`, a `Vary` beyond `Accept-Encoding`, a CSRF
+token or a login or checkout form in the body); it treats conflicting
+`max-age` or `s-maxage` directives as a lifetime of zero; and it never serves
+a stale page. `/v1/metrics`
 gains the `pagespeed_html_cache_*_total` counters, which read zero until a
 front end records decisions. No behaviour changes in this release: nothing in
 the nginx module, the worker or the ASP.NET middleware calls the new entry

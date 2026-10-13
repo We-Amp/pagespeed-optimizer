@@ -28,9 +28,10 @@
 // is lines of `name: value` (a trailing CR is dropped; a line without a colon
 // or with an empty name is dropped).  A line whose name starts with `:` is a
 // harness control line, never a response header: `:method`, `:path`,
-// `:status`, `:authorization`, `:authenticated`, `:cookie`, `:incomplete`,
-// `:body-bytes` and `:now` set the request, status, body facts and receipt
-// time that a header block cannot carry.
+// `:status`, `:authorization`, `:authenticated`, `:cookie`, `:no-store`,
+// `:req-max-age`, `:req-min-fresh`, `:incomplete`, `:body-bytes` and `:now`
+// set the request, status, body facts and receipt time that a header block
+// cannot carry.
 //
 // WHAT RUNS.  (1) ClassifyHtmlForStore over the parsed request, headers and
 // body prefix.  (2) FormatHtmlCacheDecisionLine over the header lines taken
@@ -87,6 +88,9 @@ struct ParsedBlob {
   bool authorization = false;
   bool authenticated = false;
   bool cookie = false;
+  bool no_store = false;
+  int64_t req_max_age = -1;
+  int64_t req_min_fresh = -1;
   bool incomplete = false;
   uint64_t body_bytes = 1000;
   uint32_t now = 784111777;
@@ -141,6 +145,12 @@ ParsedBlob ParseBlob(std::string_view blob) {
       parsed.authenticated = true;
     } else if (name == ":cookie") {
       parsed.cookie = true;
+    } else if (name == ":no-store") {
+      parsed.no_store = true;
+    } else if (name == ":req-max-age") {
+      parsed.req_max_age = static_cast<int64_t>(ParseUnsigned(value));
+    } else if (name == ":req-min-fresh") {
+      parsed.req_min_fresh = static_cast<int64_t>(ParseUnsigned(value));
     } else if (name == ":incomplete") {
       parsed.incomplete = true;
     } else if (name == ":body-bytes") {
@@ -164,6 +174,7 @@ HtmlStoreVerdict Classify(const ParsedBlob& parsed) {
   request.has_authorization = parsed.authorization;
   request.authenticated_user = parsed.authenticated;
   request.has_cookie = parsed.cookie;
+  request.request_no_store = parsed.no_store;
   HtmlStoreResponse response;
   response.status = parsed.status;
   response.headers = fields;
@@ -203,7 +214,7 @@ void CheckStoreVerdict(const HtmlStoreVerdict& v) {
 }
 
 // A stored-entry view of a store verdict, aged past its lifetime.
-void CheckServe(const HtmlStoreVerdict& v) {
+void CheckServe(const ParsedBlob& parsed, const HtmlStoreVerdict& v) {
   StoredHtmlFacts facts;
   facts.present = true;
   facts.stored_at = 1000;
@@ -220,18 +231,37 @@ void CheckServe(const HtmlStoreVerdict& v) {
       HtmlServeRequest request;
       request.mode = mode;
       request.wants_markdown = markdown;
-      // One second past expiry (or simply later, for lifetime 0).
-      request.now_seconds = facts.stored_at + v.lifetime_s + 1;
-      const HtmlServeVerdict stale = ClassifyHtmlForServe(request, facts);
-      if (stale.action == HtmlServeAction::kServeHtml ||
-          stale.action == HtmlServeAction::kServeMarkdown) {
-        Violation("served a stale entry");
+      // One second past expiry (or simply later, for lifetime 0).  Computed
+      // in 64 bits; a lifetime that saturates has no representable "later",
+      // so the staleness check is skipped for it.
+      const uint64_t later =
+          uint64_t{facts.stored_at} + uint64_t{v.lifetime_s} + 1;
+      if (later <= UINT32_MAX) {
+        request.now_seconds = static_cast<uint32_t>(later);
+        const HtmlServeVerdict stale = ClassifyHtmlForServe(request, facts);
+        if (stale.action == HtmlServeAction::kServeHtml ||
+            stale.action == HtmlServeAction::kServeMarkdown) {
+          Violation("served a stale entry");
+        }
+        if ((mode == HtmlCacheMode::kOff ||
+             mode == HtmlCacheMode::kReportOnly) &&
+            stale.enforce) {
+          Violation("a non-enforcing mode enforced");
+        }
       }
-      if ((mode == HtmlCacheMode::kOff || mode == HtmlCacheMode::kReportOnly) &&
-          stale.enforce) {
-        Violation("a non-enforcing mode enforced");
-      }
+      // A request that wants at least as much freshness as the entry has
+      // left is never served from it, whatever the request values are.
       request.now_seconds = facts.stored_at;
+      request.max_age = parsed.req_max_age;
+      request.min_fresh = parsed.req_min_fresh;
+      if (parsed.req_min_fresh >= 0 &&
+          parsed.req_min_fresh >= static_cast<int64_t>(v.lifetime_s)) {
+        const HtmlServeVerdict wanted = ClassifyHtmlForServe(request, facts);
+        if (wanted.action == HtmlServeAction::kServeHtml ||
+            wanted.action == HtmlServeAction::kServeMarkdown) {
+          Violation("served an entry that cannot meet min-fresh");
+        }
+      }
       const HtmlServeVerdict fresh = ClassifyHtmlForServe(request, facts);
       if (static_cast<uint8_t>(fresh.reason) >= kHtmlServeReasonCount) {
         Violation("serve reason out of range");
@@ -275,7 +305,8 @@ void FormatOne(const ParsedBlob& parsed, const HtmlStoreVerdict& v) {
     // Vary tokens are origin-controlled and may carry any byte but LF; a
     // caller that logs them replaces the ones the formatter refuses.
     for (char c : token) {
-      vary.push_back(c == '\r' || c == '\n' || c == '\0' ? '?' : c);
+      const auto u = static_cast<unsigned char>(c);
+      vary.push_back(u <= 0x1F || u == 0x7F ? '?' : c);
     }
   }
   const std::vector<HtmlCacheDecisionField> canonical = {
@@ -297,10 +328,13 @@ void FormatOne(const ParsedBlob& parsed, const HtmlStoreVerdict& v) {
   };
   const std::optional<std::string> line =
       FormatHtmlCacheDecisionLine(canonical);
-  // A path with a line break is the one thing a canonical set can carry that
+  // A path with a control byte is the one thing a canonical set can carry that
   // the formatter refuses; everything else must format.
-  const bool path_ok = parsed.path.find_first_of(
-                           std::string_view("\r\n\0", 3)) == std::string::npos;
+  bool path_ok = true;
+  for (char c : std::string_view(parsed.path).substr(0, 300)) {
+    const auto u = static_cast<unsigned char>(c);
+    if (u <= 0x1F || u == 0x7F) path_ok = false;
+  }
   if (path_ok && !line.has_value()) {
     Violation("canonical decision fields were refused");
   }
@@ -326,6 +360,14 @@ std::vector<std::string> BuildSeeds() {
   std::vector<std::string> seeds;
   // A storable response.
   seeds.push_back(Blob({kType, kAge, "ETag: \"v1\""}));
+  // Request-side facts.
+  seeds.push_back(Blob({":no-store: 1", kType, kAge}));
+  seeds.push_back(Blob({":req-min-fresh: 9223372036854775807",
+                        ":req-max-age: 9223372036854775807", kType, kAge}));
+  // Saturating and conflicting lifetimes.
+  seeds.push_back(Blob({kType, "Cache-Control: max-age=99999999999"}));
+  seeds.push_back(Blob({kType, "Cache-Control: max-age=0",
+                        "Cache-Control: max-age=86400", "ETag: \"v1\""}));
   // One per refusal reason, in rule order.
   seeds.push_back(Blob({":method: HEAD", kType, kAge}));
   seeds.push_back(Blob({":status: 404", kType, kAge}));
@@ -393,7 +435,10 @@ void HtmlCachePolicyFuzzOne(std::string_view blob) {
   const ParsedBlob parsed = ParseBlob(blob);
   const HtmlStoreVerdict verdict = Classify(parsed);
   CheckStoreVerdict(verdict);
-  CheckServe(verdict);
+  if (parsed.no_store && verdict.stores()) {
+    Violation("stored a response to a no-store request");
+  }
+  CheckServe(parsed, verdict);
   FormatOne(parsed, verdict);
   for (const auto& [name, value] : parsed.headers) {
     (void)ParseHttpDateSeconds(value);

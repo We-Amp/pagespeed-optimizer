@@ -82,7 +82,6 @@ cc_library(
     visibility = ["//:internal"],
     deps = [
         ":html_cache_policy",
-        "//lib/base:string_util",
     ],
 )
 

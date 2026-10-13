@@ -1063,6 +1063,12 @@ typedef enum ps_html_cache_mode_t {
 #define PS_HTML_STORE_FLAG_HAS_VALIDATORS 4u
 #define PS_HTML_STORE_FLAG_EXPLICIT_SHARED 8u
 
+/* Bits of the `request_flags` argument of ps_html_store_classify. */
+#define PS_HTML_STORE_REQUEST_HAS_AUTHORIZATION 1u
+#define PS_HTML_STORE_REQUEST_AUTHENTICATED_USER 2u
+#define PS_HTML_STORE_REQUEST_HAS_COOKIE 4u
+#define PS_HTML_STORE_REQUEST_NO_STORE 8u
+
 /* Bits of the `stored_flags` argument of ps_html_serve_classify. */
 #define PS_HTML_STORED_PRESENT 1u
 #define PS_HTML_STORED_NEEDS_VALIDATION 2u
@@ -1090,7 +1096,12 @@ typedef enum ps_html_cache_mode_t {
  * state. It does NOT touch the last-error message, for the reason
  * ps_headers_sidecar_classify does not.
  *
- * `method` and `url_path` are NUL-terminated. `names[i]` / `values[i]` are the
+ * `method` and `url_path` are NUL-terminated. `request_flags` carries the
+ * PS_HTML_STORE_REQUEST_* bits: the request carried Authorization or
+ * Proxy-Authorization (1), the server authenticated the request (2), the
+ * request carried a Cookie or Cookie2 header (4), the request's Cache-Control
+ * carried no-store (8, RFC 9111 section 5.2.1.5). Unknown bits are ignored.
+ * `names[i]` / `values[i]` are the
  * origin's response header lines AS RECEIVED, one entry per line, before any
  * header your server adds, in the form ps_headers_sidecar_classify takes (the
  * header set is run through that gate). `body_prefix` is the first
@@ -1110,8 +1121,8 @@ typedef enum ps_html_cache_mode_t {
  * auth_request, cookie_request, set_cookie, private, no_store, no_lifetime,
  * vary, headers, nonce_csp, content_type, encoding, size, url,
  * personalisation_signal, no_transform). The detail (the header name for
- * `headers`, the Vary token for `vary`, the signal name for
- * `personalisation_signal`) is copied into `detail_buf`, NUL-terminated and
+ * `headers`, the Vary token for `vary`, `request` for a no_store caused
+ * by the request, the signal name for `personalisation_signal`) is copied into `detail_buf`, NUL-terminated and
  * truncated to `detail_capacity`; `*out_detail_len` is the untruncated length
  * (the detail is printable ASCII, at most 128 bytes). `detail_buf` may be NULL
  * with `detail_capacity` 0. `*out_lifetime_s` is the explicit freshness
@@ -1122,18 +1133,20 @@ typedef enum ps_html_cache_mode_t {
  * an earlier refusal leaves it 0).
  *
  * The policy is strict on purpose: a response is stored only when it states
- * its own lifetime or carries a validator, never on a guessed one; the request
- * and the response must show no sign of being personalised; and the only Vary
+ * its own lifetime or carries a validator, never on a guessed one (two
+ * max-age or two s-maxage directives conflict and count as lifetime 0); the
+ * request and the response must show no sign of being personalised (a
+ * request with a cookie is stored only when the response is explicitly
+ * public or carries s-maxage); and the only Vary
  * it admits is Accept-Encoding. Those rules are not configurable. */
 PS_EXPORT int ps_html_store_classify(
-    const char* method, const char* url_path, int has_authorization,
-    int authenticated_user, int has_cookie, int status,
-    const char* const* names, const char* const* values, size_t count,
-    uint64_t body_bytes, int body_complete, const char* body_prefix,
-    size_t body_prefix_len, uint64_t max_body_bytes, uint32_t now_seconds,
-    int* out_reason, uint32_t* out_lifetime_s, uint32_t* out_flags,
-    uint16_t* out_cc_flags, int* out_sidecar, char* detail_buf,
-    size_t detail_capacity, size_t* out_detail_len);
+    const char* method, const char* url_path, uint32_t request_flags,
+    int status, const char* const* names, const char* const* values,
+    size_t count, uint64_t body_bytes, int body_complete,
+    const char* body_prefix, size_t body_prefix_len, uint64_t max_body_bytes,
+    uint32_t now_seconds, int* out_reason, uint32_t* out_lifetime_s,
+    uint32_t* out_flags, uint16_t* out_cc_flags, int* out_sidecar,
+    char* detail_buf, size_t detail_capacity, size_t* out_detail_len);
 
 /* Decide whether a stored HTML entry may be served. Available from
  * PS_API 1.12. Pure, like ps_html_store_classify, and with the same
@@ -1141,7 +1154,8 @@ PS_EXPORT int ps_html_store_classify(
  *
  * `mode` is a ps_html_cache_mode_t value. `request_flags` carries the
  * PS_HTML_REQUEST_* bits; `max_age` and `min_fresh` are the request's
- * Cache-Control values, -1 when absent. `stored_flags` carries the
+ * Cache-Control values, -1 when absent (values above UINT32_MAX are clamped
+ * to it). `stored_flags` carries the
  * PS_HTML_STORED_* bits describing the entry, `stored_at` (seconds) when it
  * was recorded, `age_at_store` the origin's Age at that time, `lifetime_s` its
  * freshness lifetime, `cc_flags` its Cache-Control bits and `render_ttl_s` the

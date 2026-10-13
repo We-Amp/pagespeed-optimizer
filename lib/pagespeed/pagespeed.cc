@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstdint>
 #include <cstring>
 #include <ctime>
 #include <memory>
@@ -1176,14 +1177,13 @@ extern "C" int ps_headers_sidecar_classify(const char* const* names,
 // last-error message.
 
 extern "C" int ps_html_store_classify(
-    const char* method, const char* url_path, int has_authorization,
-    int authenticated_user, int has_cookie, int status,
-    const char* const* names, const char* const* values, size_t count,
-    uint64_t body_bytes, int body_complete, const char* body_prefix,
-    size_t body_prefix_len, uint64_t max_body_bytes, uint32_t now_seconds,
-    int* out_reason, uint32_t* out_lifetime_s, uint32_t* out_flags,
-    uint16_t* out_cc_flags, int* out_sidecar, char* detail_buf,
-    size_t detail_capacity, size_t* out_detail_len) {
+    const char* method, const char* url_path, uint32_t request_flags,
+    int status, const char* const* names, const char* const* values,
+    size_t count, uint64_t body_bytes, int body_complete,
+    const char* body_prefix, size_t body_prefix_len, uint64_t max_body_bytes,
+    uint32_t now_seconds, int* out_reason, uint32_t* out_lifetime_s,
+    uint32_t* out_flags, uint16_t* out_cc_flags, int* out_sidecar,
+    char* detail_buf, size_t detail_capacity, size_t* out_detail_len) {
   try {
     if (method == nullptr || url_path == nullptr || out_reason == nullptr ||
         out_lifetime_s == nullptr || out_flags == nullptr ||
@@ -1199,9 +1199,14 @@ extern "C" int ps_html_store_classify(
     pagespeed::HtmlStoreRequest request;
     request.method = method;
     request.url_path = url_path;
-    request.has_authorization = has_authorization != 0;
-    request.authenticated_user = authenticated_user != 0;
-    request.has_cookie = has_cookie != 0;
+    request.has_authorization =
+        (request_flags & PS_HTML_STORE_REQUEST_HAS_AUTHORIZATION) != 0;
+    request.authenticated_user =
+        (request_flags & PS_HTML_STORE_REQUEST_AUTHENTICATED_USER) != 0;
+    request.has_cookie =
+        (request_flags & PS_HTML_STORE_REQUEST_HAS_COOKIE) != 0;
+    request.request_no_store =
+        (request_flags & PS_HTML_STORE_REQUEST_NO_STORE) != 0;
     pagespeed::HtmlStoreResponse response;
     response.status = status;
     response.headers = fields;
@@ -1271,8 +1276,9 @@ extern "C" int ps_html_serve_classify(int mode, uint32_t request_flags,
         (request_flags & PS_HTML_REQUEST_CACHE_CONTROL_NO_CACHE) != 0;
     request.pragma_no_cache =
         (request_flags & PS_HTML_REQUEST_PRAGMA_NO_CACHE) != 0;
-    request.max_age = max_age;
-    request.min_fresh = min_fresh;
+    // Clamped so no arithmetic downstream can overflow.
+    request.max_age = std::min<int64_t>(max_age, UINT32_MAX);
+    request.min_fresh = std::min<int64_t>(min_fresh, UINT32_MAX);
     request.now_seconds = now_seconds;
 
     pagespeed::StoredHtmlFacts stored;

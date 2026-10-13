@@ -179,9 +179,15 @@ MAJOR change.
 
 **The policy's strictness is the library's, not the caller's.** A page is stored
 only on an explicit lifetime or a validator, never on a heuristic one; a
-request with credentials or a cookie, a response that sets a cookie, `private`
-or `no-store`, a `Vary` beyond `Accept-Encoding` and a body carrying a
-per-client marker are never stored; a stale entry is never served. None of that
+request with credentials, or with `Cache-Control: no-store`, is never stored;
+a request with a cookie is stored only when the response is explicitly
+`public` or carries `s-maxage`; a response that sets a cookie, `private` or
+`no-store`, a `Vary` beyond `Accept-Encoding` and a body carrying a
+per-client marker are never stored; two `max-age` (or two `s-maxage`)
+directives count as lifetime 0; a stale entry is never served. The
+`request_flags` word of `ps_html_store_classify` carries the request facts
+(1 has authorization, 2 authenticated user, 4 has cookie, 8 request
+no-store), as the serve side's word does. None of that
 is configurable per call, for the reason the sidecar's allowlist is not: what
 makes a page personal is not safe to re-decide per consumer. Narrowing it later
 is observable and is treated as a contract change. `enforce` in the serve

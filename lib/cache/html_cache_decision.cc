@@ -11,8 +11,6 @@
 #include <string>
 #include <string_view>
 
-#include "lib/base/string_util.h"
-
 namespace pagespeed {
 namespace {
 
@@ -45,9 +43,35 @@ size_t KeyIndex(std::string_view key) {
   return kKeys.size();
 }
 
+// Every C0 control byte (0x00 to 0x1F) and DEL. Refusing them, rather than
+// escaping, keeps the line one line, keeps strict JSON parsers happy, and
+// keeps the dedup separator (0x1F) out of every value.
 bool HasForbiddenByte(std::string_view v) {
-  return v.find_first_of(std::string_view("\r\n\0", 3)) !=
-         std::string_view::npos;
+  for (char c : v) {
+    const auto u = static_cast<unsigned char>(c);
+    if (u <= 0x1F || u == 0x7F) return true;
+  }
+  return false;
+}
+
+// Quote and backslash are escaped; bytes from 0x80 up are written as \u00XX
+// (each byte as its own code point), so the line is pure ASCII and always
+// valid JSON whatever bytes the caller held.
+void AppendEscaped(std::string* out, std::string_view value) {
+  static constexpr char kHex[] = "0123456789abcdef";
+  for (char c : value) {
+    const auto u = static_cast<unsigned char>(c);
+    if (c == '"' || c == '\\') {
+      out->push_back('\\');
+      out->push_back(c);
+    } else if (u >= 0x80) {
+      out->append("\\u00");
+      out->push_back(kHex[u >> 4]);
+      out->push_back(kHex[u & 0xF]);
+    } else {
+      out->push_back(c);
+    }
+  }
 }
 
 }  // namespace
@@ -86,7 +110,7 @@ std::optional<std::string> FormatHtmlCacheDecisionLine(
       line.append(value);
     } else {
       line.push_back('"');
-      line.append(net_instaweb::JsonEscapeMinimal(value));
+      AppendEscaped(&line, value);
       line.push_back('"');
     }
   }

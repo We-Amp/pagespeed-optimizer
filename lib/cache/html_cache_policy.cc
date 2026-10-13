@@ -100,10 +100,13 @@ size_t CountHeader(std::span<const HeaderField> headers,
   return n;
 }
 
-// Does this Cache-Control line carry a `max-age` directive?  The shared
-// parser records the value but not whether the directive was there, and an
-// absent max-age and `max-age=0` must be told apart.
-bool HasMaxAgeDirective(std::string_view line) {
+// How many times does this Cache-Control line carry the directive `name`?
+// The shared parser keeps the last max-age / s-maxage it sees and does not
+// say whether there were several; RFC 9111 section 4.2.1 says a cache that
+// meets conflicting lifetimes uses the first or treats the response as stale.
+// This policy treats it as stale, so it has to count them.
+size_t CountDirective(std::string_view line, std::string_view name) {
+  size_t count = 0;
   while (!line.empty()) {
     const size_t comma = line.find(',');
     std::string_view token = line.substr(0, comma);
@@ -111,9 +114,9 @@ bool HasMaxAgeDirective(std::string_view line) {
                                            : line.substr(comma + 1);
     const size_t eq = token.find('=');
     token = TrimOws(token.substr(0, eq));
-    if (EqualsIgnoreCase(token, "max-age")) return true;
+    if (EqualsIgnoreCase(token, name)) ++count;
   }
-  return false;
+  return count;
 }
 
 HtmlStoreVerdict Refuse(HtmlStoreVerdict v, HtmlStoreReason reason,
@@ -384,7 +387,9 @@ std::string HtmlServeVerdict::reason_code() const {
 // ---- date ----------------------------------------------------------------
 
 std::optional<int64_t> ParseHttpDateSeconds(std::string_view value) {
-  // "Sun, 06 Nov 1994 08:49:37 GMT": exactly 29 bytes.
+  // "Sun, 06 Nov 1994 08:49:37 GMT": exactly 29 bytes once the optional
+  // whitespace around a field value is trimmed (RFC 9110 section 5.5).
+  value = TrimOws(value);
   if (value.size() != 29) return std::nullopt;
   if (value[3] != ',' || value[4] != ' ' || value[7] != ' ' ||
       value[11] != ' ' || value[16] != ' ' || value[19] != ':' ||
@@ -501,19 +506,26 @@ HtmlStoreVerdict ClassifyHtmlForStore(const HtmlStoreRequest& request,
     return Refuse(std::move(v), HtmlStoreReason::kAuthRequest);
   }
 
-  // 5. No Set-Cookie.
+  // 5. Request no-store (RFC 9111 section 5.2.1.5).
+  if (request.request_no_store) {
+    return Refuse(std::move(v), HtmlStoreReason::kNoStore, "request");
+  }
+
+  // 6. No Set-Cookie.
   if (FindHeader(headers, "set-cookie") != nullptr ||
       FindHeader(headers, "set-cookie2") != nullptr) {
     return Refuse(std::move(v), HtmlStoreReason::kSetCookie);
   }
 
-  // 6. Cache-Control.
+  // 7. Cache-Control.
   OriginCacheControl cc;
-  bool max_age_present = false;
+  size_t max_age_count = 0;
+  size_t s_maxage_count = 0;
   for (const HeaderField& h : headers) {
     if (!EqualsIgnoreCase(h.name, "cache-control")) continue;
     AccumulateOriginCacheControl(h.value, &cc);
-    if (HasMaxAgeDirective(h.value)) max_age_present = true;
+    max_age_count += CountDirective(h.value, "max-age");
+    s_maxage_count += CountDirective(h.value, "s-maxage");
   }
   v.cc_flags = cc.cc_flags;
   v.explicit_shared =
@@ -526,12 +538,12 @@ HtmlStoreVerdict ClassifyHtmlForStore(const HtmlStoreRequest& request,
     return Refuse(std::move(v), HtmlStoreReason::kNoStore);
   }
 
-  // 7. Cookie request.
+  // 8. Cookie request.
   if (request.has_cookie && !v.explicit_shared) {
     return Refuse(std::move(v), HtmlStoreReason::kCookieRequest);
   }
 
-  // 8. Vary: only Accept-Encoding is admitted.
+  // 9. Vary: only Accept-Encoding is admitted.
   {
     std::string joined;
     for (const HeaderField& h : headers) {
@@ -555,7 +567,7 @@ HtmlStoreVerdict ClassifyHtmlForStore(const HtmlStoreRequest& request,
     }
   }
 
-  // 9. Header reproducibility.
+  // 10. Header reproducibility.
   v.sidecar = ClassifyForHeadersSidecar(headers);
   v.sidecar_evaluated = true;
   if (v.sidecar.verdict == SidecarVerdict::kNeverOptimized) {
@@ -566,14 +578,14 @@ HtmlStoreVerdict ClassifyHtmlForStore(const HtmlStoreRequest& request,
     return Refuse(std::move(v), HtmlStoreReason::kHeaders, std::move(detail));
   }
 
-  // 10. Explicit freshness, never heuristic.
+  // 11. Explicit freshness, never heuristic.
   {
     const HeaderField* expires = FindHeader(headers, "expires");
     const bool no_cache = (cc.cc_flags & Meta::kCCOriginNoCache) != 0;
     if ((cc.cc_flags & Meta::kCCOriginSMaxagePresent) != 0) {
       v.lifetime_s = cc.s_maxage;
       v.lifetime_explicit = true;
-    } else if (max_age_present) {
+    } else if (max_age_count > 0) {
       v.lifetime_s = cc.max_age;
       v.lifetime_explicit = true;
     } else if (expires != nullptr) {
@@ -588,7 +600,10 @@ HtmlStoreVerdict ClassifyHtmlForStore(const HtmlStoreRequest& request,
         v.lifetime_s = SaturateU32(*parsed - date);
       }
     }
-    v.needs_validation = v.lifetime_s == 0 || no_cache;
+    // Conflicting lifetimes: stale, so validated before every use.
+    const bool conflicting = max_age_count > 1 || s_maxage_count > 1;
+    if (conflicting) v.lifetime_s = 0;
+    v.needs_validation = v.lifetime_s == 0 || no_cache || conflicting;
     for (const HeaderField& h : headers) {
       if ((EqualsIgnoreCase(h.name, "etag") ||
            EqualsIgnoreCase(h.name, "last-modified")) &&
@@ -602,19 +617,19 @@ HtmlStoreVerdict ClassifyHtmlForStore(const HtmlStoreRequest& request,
     }
   }
 
-  // 11. Size.
+  // 12. Size.
   if (response.body_bytes >
       std::min(policy.max_body_bytes, kHtmlStoreHardMaxBodyBytes)) {
     return Refuse(std::move(v), HtmlStoreReason::kSize);
   }
 
-  // 12. Personalisation signals.
+  // 13. Personalisation signals.
   if (auto signal = FindPersonalisationSignal(response.body_prefix)) {
     return Refuse(std::move(v), HtmlStoreReason::kPersonalisationSignal,
                   std::string(*signal));
   }
 
-  // 13. no-transform.
+  // 14. no-transform.
   if ((cc.cc_flags & Meta::kCCOriginNoTransform) != 0) {
     v.action = HtmlStoreAction::kStoreNoNotify;
     v.reason = HtmlStoreReason::kNoTransform;
@@ -683,9 +698,12 @@ HtmlServeVerdict ClassifyHtmlForServe(const HtmlServeRequest& request,
   const bool must_validate = stored.needs_validation || stored.lifetime_s == 0;
   bool fresh = !must_validate && age < static_cast<int64_t>(stored.lifetime_s);
   if (request.max_age >= 0 && age > request.max_age) fresh = false;
-  if (request.min_fresh >= 0 &&
-      age + request.min_fresh >= static_cast<int64_t>(stored.lifetime_s)) {
-    fresh = false;
+  if (request.min_fresh >= 0) {
+    // age + min_fresh >= lifetime, written without a sum that can overflow.
+    const int64_t lifetime = static_cast<int64_t>(stored.lifetime_s);
+    if (request.min_fresh >= lifetime || age >= lifetime - request.min_fresh) {
+      fresh = false;
+    }
   }
   const bool parent_ok = fresh || stored.validated_this_request;
   if (!parent_ok) {
@@ -694,18 +712,19 @@ HtmlServeVerdict ClassifyHtmlForServe(const HtmlServeRequest& request,
                               : HtmlServeReason::kStale);
   }
 
-  // 9. Markdown.  A copy confirmed this request is bounded by its own
-  // lifetime only, counted from confirmation.
+  // 9. Markdown.  The copy is served only while age < min(lifetime,
+  // render_ttl_s).  An entry the origin confirmed this request drops the
+  // parent-lifetime term (the parent was just confirmed) and keeps the
+  // render bound, so a copy older than its own lifetime is still refused.
   if (request.wants_markdown) {
     if (!stored.variant_present) return done(kFall, HtmlServeReason::kAbsent);
     if (!stored.binding_live)
       return done(kFall, HtmlServeReason::kBindingStale);
     const bool validated = stored.validated_this_request;
-    const int64_t copy_age = validated ? 0 : age;
     const int64_t bound =
         validated ? static_cast<int64_t>(stored.render_ttl_s)
                   : std::min<int64_t>(stored.lifetime_s, stored.render_ttl_s);
-    if (copy_age >= bound) return done(kFall, HtmlServeReason::kParentStale);
+    if (age >= bound) return done(kFall, HtmlServeReason::kParentStale);
     return done(HtmlServeAction::kServeMarkdown, HtmlServeReason::kFresh);
   }
 

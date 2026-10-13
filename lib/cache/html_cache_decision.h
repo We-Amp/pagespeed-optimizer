@@ -44,13 +44,13 @@ std::span<const std::string_view> HtmlCacheDecisionKeys();
 inline constexpr size_t kMaxHtmlCacheDecisionPathBytes = 300;
 
 // One JSON object on one line, keys in canonical order, only the keys given,
-// values escaped with JsonEscapeMinimal.  The keys ts_ms, status, size,
+// values escaped (quote and backslash with a backslash, bytes 0x80 and above as \u00XX).  The keys ts_ms, status, size,
 // lifetime_s and age_s are emitted as numbers when the value is a canonical
 // decimal integer (digits only, no leading zero, at most 20 digits), else as
 // strings.
 //
 // Returns nullopt for: an unknown key; a duplicate key; a value containing
-// CR, LF or NUL; a `path` longer than kMaxHtmlCacheDecisionPathBytes; or a
+// any C0 control byte (0x00 to 0x1F) or DEL (0x7F); a `path` longer than kMaxHtmlCacheDecisionPathBytes; or a
 // `host` that is empty.
 std::optional<std::string> FormatHtmlCacheDecisionLine(
     std::span<const HtmlCacheDecisionField> fields);

@@ -509,6 +509,82 @@ TEST(HtmlCachePolicyTest, NoCacheNeedsAValidator) {
   EXPECT_TRUE(q.needs_validation);
 }
 
+TEST(HtmlCachePolicyTest, RequestNoStoreIsNeverStored) {
+  // RFC 9111 section 5.2.1.5: a cache MUST NOT store a response to a request
+  // whose Cache-Control carried no-store.
+  StoreInput in;
+  in.request.request_no_store = true;
+  const HtmlStoreVerdict v = in.Run();
+  EXPECT_EQ(v.action, HtmlStoreAction::kRefuse);
+  EXPECT_EQ(v.reason, HtmlStoreReason::kNoStore);
+  EXPECT_EQ(v.detail, "request");
+  EXPECT_EQ(v.reason_code(), "no_store");
+
+  // No response directive overrides it.
+  StoreInput shared;
+  shared.request.request_no_store = true;
+  shared.SetCacheControl("public, s-maxage=600");
+  ExpectRefused(shared, HtmlStoreReason::kNoStore, "request");
+
+  // The response's own no-store keeps its empty detail.
+  StoreInput own;
+  own.SetCacheControl("no-store");
+  ExpectRefused(own, HtmlStoreReason::kNoStore);
+
+  // Rule order: credentials come first, a Set-Cookie response second.
+  StoreInput auth;
+  auth.request.request_no_store = true;
+  auth.request.has_authorization = true;
+  ExpectRefused(auth, HtmlStoreReason::kAuthRequest);
+  StoreInput cookie;
+  cookie.request.request_no_store = true;
+  cookie.Add("Set-Cookie", "a=b");
+  ExpectRefused(cookie, HtmlStoreReason::kNoStore, "request");
+
+  // And a request without it is unaffected.
+  ExpectStored(StoreInput());
+}
+
+TEST(HtmlCachePolicyTest, ConflictingLifetimeDirectivesCountAsStale) {
+  // max-age=0 then max-age=86400, across two lines and in one line, and the
+  // s-maxage twins: lifetime 0, explicit, always revalidated.
+  StoreInput lines;
+  lines.SetCacheControl("max-age=0");
+  lines.Add("Cache-Control", "max-age=86400");
+  lines.Add("ETag", "\"v1\"");
+  StoreInput one;
+  one.SetCacheControl("max-age=0, max-age=86400");
+  one.Add("ETag", "\"v1\"");
+  StoreInput smax_lines;
+  smax_lines.SetCacheControl("s-maxage=0");
+  smax_lines.Add("Cache-Control", "s-maxage=86400");
+  smax_lines.Add("ETag", "\"v1\"");
+  StoreInput smax_one;
+  smax_one.SetCacheControl("s-maxage=86400, S-Maxage=0");
+  smax_one.Add("ETag", "\"v1\"");
+  for (const StoreInput* in : {&lines, &one, &smax_lines, &smax_one}) {
+    const HtmlStoreVerdict v = in->Run();
+    EXPECT_EQ(v.action, HtmlStoreAction::kStore);
+    EXPECT_EQ(v.lifetime_s, 0u);
+    EXPECT_TRUE(v.lifetime_explicit);
+    EXPECT_TRUE(v.needs_validation);
+    EXPECT_TRUE(v.has_validators);
+  }
+  // Without a validator they are refused.
+  StoreInput bare;
+  bare.SetCacheControl("max-age=0");
+  bare.Add("Cache-Control", "max-age=86400");
+  ExpectRefused(bare, HtmlStoreReason::kNoLifetime);
+  StoreInput same;
+  same.SetCacheControl("s-maxage=86400, s-maxage=86400");
+  ExpectRefused(same, HtmlStoreReason::kNoLifetime);
+
+  // One of each is not a conflict: s-maxage wins as before.
+  StoreInput both;
+  both.SetCacheControl("max-age=100, s-maxage=200");
+  EXPECT_EQ(both.Run().lifetime_s, 200u);
+}
+
 TEST(HtmlCachePolicyTest, NoHeuristicLifetime) {
   // Last-Modified alone would earn a heuristic lifetime under RFC 9111
   // section 4.2.2; here it earns only "store, always revalidate".
@@ -686,6 +762,7 @@ TEST(HtmlCachePolicyTest, FirstFailingRuleIsTheReason) {
   in.request.url_path = "/a?b";
   in.request.has_authorization = true;
   in.request.has_cookie = true;
+  in.request.request_no_store = true;
   in.status = 500;
   in.body_complete = false;
   in.body_bytes = uint64_t{100} * 1024 * 1024;
@@ -713,6 +790,9 @@ TEST(HtmlCachePolicyTest, FirstFailingRuleIsTheReason) {
   in.headers.erase(in.headers.begin() + 1);
   EXPECT_EQ(reason(), HtmlStoreReason::kAuthRequest);
   in.request.has_authorization = false;
+  EXPECT_EQ(reason(), HtmlStoreReason::kNoStore);
+  EXPECT_EQ(in.Run().detail, "request");
+  in.request.request_no_store = false;
   EXPECT_EQ(reason(), HtmlStoreReason::kSetCookie);
   in.headers.erase(in.headers.begin() + 1);
   EXPECT_EQ(reason(), HtmlStoreReason::kPrivate);
@@ -778,27 +858,34 @@ TEST(HtmlCachePolicyTest, HttpDateParsing) {
             int64_t{946684799});
   EXPECT_EQ(ParseHttpDateSeconds("Wed, 31 Dec 1969 23:59:59 GMT"), -1);
 
+  // Optional whitespace around the field value is not part of it.
+  EXPECT_EQ(ParseHttpDateSeconds("  Sun, 06 Nov 1994 08:49:37 GMT\t "),
+            int64_t{kNow});
+  EXPECT_EQ(ParseHttpDateSeconds(" Sun, 06 Nov 1994 08:49:37 GMT"),
+            int64_t{kNow});
+  EXPECT_FALSE(ParseHttpDateSeconds("   ").has_value());
+
   for (std::string_view bad : {
            "",
-           "Sunday, 06-Nov-94 08:49:37 GMT",  // RFC 850
-           "Sun Nov  6 08:49:37 1994",        // asctime
-           "Sun, 06 Nov 1994 08:49:37 UTC",   // zone
-           "Sun, 06 Nov 1994 08:49:37 gmt",   // case
-           "Sun, 06 Nov 1994 08:49:37GMT",    // length
-           "Sun, 06 Nov 1994 08:49:37 GMT ",  // trailing space
-           " Sun, 06 Nov 1994 08:49:37 GMT",  // leading space
-           "Mon, 06 Nov 1994 08:49:37 GMT",   // wrong weekday
-           "Sun, 30 Feb 1994 08:49:37 GMT",   // no such day
-           "Sun, 29 Feb 1995 08:49:37 GMT",   // not a leap year
-           "Sun, 06 Foo 1994 08:49:37 GMT",   // month
-           "Sux, 06 Nov 1994 08:49:37 GMT",   // weekday name
-           "Sun, 06 Nov 1994 24:49:37 GMT",   // hour
-           "Sun, 06 Nov 1994 08:60:37 GMT",   // minute
-           "Sun, 06 Nov 1994 08:49:60 GMT",   // second
-           "Sun, 00 Nov 1994 08:49:37 GMT",   // day zero
-           "Sun, 0x Nov 1994 08:49:37 GMT",   // not digits
-           "Sun, 06 Nov 19a4 08:49:37 GMT",   // not digits
-           "Sun; 06 Nov 1994 08:49:37 GMT",   // separator
+           "Sunday, 06-Nov-94 08:49:37 GMT",   // RFC 850
+           "Sun Nov  6 08:49:37 1994",         // asctime
+           "Sun, 06 Nov 1994 08:49:37 UTC",    // zone
+           "Sun, 06 Nov 1994 08:49:37 gmt",    // case
+           "Sun, 06 Nov 1994 08:49:37GMT",     // length
+           "Sun,  06 Nov 1994 08:49:37 GMT",   // inner space
+           "Sun, 06 Nov 1994 08:49:37 GMT x",  // trailing text
+           "Mon, 06 Nov 1994 08:49:37 GMT",    // wrong weekday
+           "Sun, 30 Feb 1994 08:49:37 GMT",    // no such day
+           "Sun, 29 Feb 1995 08:49:37 GMT",    // not a leap year
+           "Sun, 06 Foo 1994 08:49:37 GMT",    // month
+           "Sux, 06 Nov 1994 08:49:37 GMT",    // weekday name
+           "Sun, 06 Nov 1994 24:49:37 GMT",    // hour
+           "Sun, 06 Nov 1994 08:60:37 GMT",    // minute
+           "Sun, 06 Nov 1994 08:49:60 GMT",    // second
+           "Sun, 00 Nov 1994 08:49:37 GMT",    // day zero
+           "Sun, 0x Nov 1994 08:49:37 GMT",    // not digits
+           "Sun, 06 Nov 19a4 08:49:37 GMT",    // not digits
+           "Sun; 06 Nov 1994 08:49:37 GMT",    // separator
        }) {
     EXPECT_FALSE(ParseHttpDateSeconds(bad).has_value()) << bad;
   }
@@ -1127,6 +1214,34 @@ TEST(HtmlCachePolicyTest, ServeHonoursRequestMaxAgeAndMinFresh) {
   // entry stays expired (see ServeStaleIsValidatedOrFallsThrough).
 }
 
+TEST(HtmlCachePolicyTest, ServeMinFreshCannotOverflow) {
+  // "Fresh for at least forever" must never be served, and the sum age +
+  // min_fresh must not wrap.
+  for (int64_t huge : {INT64_MAX, INT64_MAX - 5, int64_t{1} << 62,
+                       int64_t{UINT32_MAX}, int64_t{UINT32_MAX} + 1}) {
+    HtmlServeRequest r = Req(HtmlCacheMode::kServeCachedHtml, 30);
+    r.min_fresh = huge;
+    ExpectServe(r, Fresh(), HtmlServeAction::kValidate,
+                HtmlServeReason::kStale);
+    r.mode = HtmlCacheMode::kServeVariants;
+    ExpectServe(r, Fresh(), HtmlServeAction::kFallThrough,
+                HtmlServeReason::kStale);
+    // A huge max-age is simply satisfied.
+    HtmlServeRequest m = Req(HtmlCacheMode::kServeCachedHtml, 30);
+    m.max_age = huge;
+    ExpectServe(m, Fresh(), HtmlServeAction::kServeHtml,
+                HtmlServeReason::kFresh);
+  }
+  // Boundary: min_fresh == lifetime - age is not enough, one less is.
+  HtmlServeRequest edge = Req(HtmlCacheMode::kServeCachedHtml, 30);
+  edge.min_fresh = 70;
+  ExpectServe(edge, Fresh(), HtmlServeAction::kValidate,
+              HtmlServeReason::kStale);
+  edge.min_fresh = 69;
+  ExpectServe(edge, Fresh(), HtmlServeAction::kServeHtml,
+              HtmlServeReason::kFresh);
+}
+
 TEST(HtmlCachePolicyTest, ServeAgeArithmetic) {
   StoredHtmlFacts f = Fresh();
   f.age_at_store = 40;
@@ -1205,6 +1320,17 @@ TEST(HtmlCachePolicyTest, ServeMarkdownNeedsAFreshParent) {
   validated.validated_this_request = true;
   ExpectServe(MarkdownReq(HtmlCacheMode::kServeCachedHtml, 9999), validated,
               HtmlServeAction::kServeMarkdown, HtmlServeReason::kFresh);
+  // The render bound still applies after validation: the copy is served
+  // only while age < render_ttl_s.
+  validated.render_ttl_s = 10000;
+  ExpectServe(MarkdownReq(HtmlCacheMode::kServeCachedHtml, 9999), validated,
+              HtmlServeAction::kServeMarkdown, HtmlServeReason::kFresh);
+  validated.render_ttl_s = 9999;  // age == render_ttl_s
+  ExpectServe(MarkdownReq(HtmlCacheMode::kServeCachedHtml, 9999), validated,
+              HtmlServeAction::kFallThrough, HtmlServeReason::kParentStale);
+  validated.render_ttl_s = 100;  // age past render_ttl_s
+  ExpectServe(MarkdownReq(HtmlCacheMode::kServeCachedHtml, 9999), validated,
+              HtmlServeAction::kFallThrough, HtmlServeReason::kParentStale);
   validated.render_ttl_s = 0;
   ExpectServe(MarkdownReq(HtmlCacheMode::kServeCachedHtml, 9999), validated,
               HtmlServeAction::kFallThrough, HtmlServeReason::kParentStale);

@@ -122,12 +122,36 @@ TEST(HtmlCacheDecisionTest, NumbersAreNumbersOnlyWhenCanonicalDigits) {
 
 TEST(HtmlCacheDecisionTest, ValuesAreEscaped) {
   const Fields f = {{"host", "a\"b\\c"},
-                    {"path", "/\x01\t\x1f"},
+                    {"path", "/\x7e"},
                     {"reason", "headers:x\"y"},
                     {"vary", "a</script>b"}};
   EXPECT_EQ(Format(f).value(),
-            "{\"host\":\"a\\\"b\\\\c\",\"path\":\"/\\u0001\\t\\u001f\","
+            "{\"host\":\"a\\\"b\\\\c\",\"path\":\"/~\","
             "\"reason\":\"headers:x\\\"y\",\"vary\":\"a</script>b\"}");
+}
+
+TEST(HtmlCacheDecisionTest, HighBytesAreEscapedAsCodePoints) {
+  // Each byte from 0x80 up is written as \u00XX, so the line is ASCII and
+  // strict JSON whatever bytes the caller held.
+  const Fields f = {{"host", "h"}, {"reason", "caf\xC3\xA9 \xFF"}};
+  const std::string line = Format(f).value();
+  EXPECT_EQ(line, "{\"host\":\"h\",\"reason\":\"caf\\u00c3\\u00a9 \\u00ff\"}");
+  for (char c : line) EXPECT_LT(static_cast<unsigned char>(c), 0x80);
+  // A lone 0xC3 (invalid UTF-8) is escaped too.
+  EXPECT_EQ(Format({{"host", "\xC3"}}).value(), "{\"host\":\"\\u00c3\"}");
+}
+
+TEST(HtmlCacheDecisionTest, EveryControlByteIsRefused) {
+  for (int c = 0; c <= 0x1F; ++c) {
+    const std::string value = std::string("a") + static_cast<char>(c) + "b";
+    EXPECT_FALSE(Format({{"host", "h"}, {"reason", value}}).has_value()) << c;
+    EXPECT_FALSE(Format({{"host", value}}).has_value()) << c;
+  }
+  // The dedup separator in particular, and DEL.
+  EXPECT_FALSE(Format({{"host", "h"}, {"path", "/a\x1f"}}).has_value());
+  EXPECT_FALSE(Format({{"host", "h"}, {"path", "/a\x7f"}}).has_value());
+  // Space and the rest of the printable range are fine.
+  EXPECT_TRUE(Format({{"host", "h"}, {"reason", " ~"}}).has_value());
 }
 
 TEST(HtmlCacheDecisionTest, UnknownAndDuplicateKeysAreRefused) {
@@ -146,8 +170,8 @@ TEST(HtmlCacheDecisionTest, LineBreakingBytesAreRefused) {
                    .has_value());
   EXPECT_FALSE(Format({{"host", "a\nb"}}).has_value());
   EXPECT_FALSE(Format({{"host", "h"}, {"path", "/a\r\n"}}).has_value());
-  // Other control characters are escaped, not refused.
-  EXPECT_TRUE(Format({{"host", "h"}, {"reason", "a\tb"}}).has_value());
+  // A tab is a control byte too.
+  EXPECT_FALSE(Format({{"host", "h"}, {"reason", "a\tb"}}).has_value());
 }
 
 TEST(HtmlCacheDecisionTest, HostMustNotBeEmpty) {
@@ -162,7 +186,7 @@ TEST(HtmlCacheDecisionTest, PathIsBoundedAt300Bytes) {
   EXPECT_TRUE(Format({{"host", "h"}, {"path", ok}}).has_value());
   EXPECT_FALSE(Format({{"host", "h"}, {"path", too_long}}).has_value());
   // The bound is on the raw value, not on the escaped one.
-  const std::string control(300, '\x01');
+  const std::string control(300, '"');
   EXPECT_TRUE(Format({{"host", "h"}, {"path", control}}).has_value());
   // Other keys are not bounded by it.
   EXPECT_TRUE(Format({{"host", "h"}, {"reason", too_long}}).has_value());

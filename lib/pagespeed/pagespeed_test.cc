@@ -4302,7 +4302,8 @@ struct StoreResult {
 StoreResult ClassifyStore(
     const std::vector<std::pair<const char*, const char*>>& headers,
     const char* method = "GET", const char* path = "/index.html",
-    int has_cookie = 0, int status = 200, const char* body = "<p>hi</p>") {
+    uint32_t request_flags = 0, int status = 200,
+    const char* body = "<p>hi</p>") {
   std::vector<const char*> names;
   std::vector<const char*> values;
   for (const auto& [n, v] : headers) {
@@ -4311,8 +4312,8 @@ StoreResult ClassifyStore(
   }
   StoreResult r;
   r.action = ps_html_store_classify(
-      method, path, /*has_authorization=*/0, /*authenticated_user=*/0,
-      has_cookie, status, names.empty() ? nullptr : names.data(),
+      method, path, request_flags, status,
+      names.empty() ? nullptr : names.data(),
       values.empty() ? nullptr : values.data(), names.size(),
       /*body_bytes=*/100,
       /*body_complete=*/1, body, std::strlen(body),
@@ -4357,7 +4358,7 @@ TEST(PageSpeedCApi, HtmlStoreClassifyRoundTrip) {
 
   const StoreResult cookie = ClassifyStore(
       {{"Content-Type", "text/html"}, {"Cache-Control", "max-age=60"}}, "GET",
-      "/", /*has_cookie=*/1);
+      "/", PS_HTML_STORE_REQUEST_HAS_COOKIE);
   EXPECT_EQ(cookie.action, 0);
   EXPECT_STREQ(ps_html_store_reason_name(cookie.reason), "cookie_request");
 
@@ -4383,6 +4384,32 @@ TEST(PageSpeedCApi, HtmlStoreClassifyRoundTrip) {
   EXPECT_EQ(headers.sidecar, PS_SIDECAR_FALL_THROUGH);
 }
 
+TEST(PageSpeedCApi, HtmlStoreClassifyRequestFlags) {
+  const std::vector<std::pair<const char*, const char*>> plain = {
+      {"Content-Type", "text/html"}, {"Cache-Control", "max-age=60"}};
+  const std::vector<std::pair<const char*, const char*>> shared = {
+      {"Content-Type", "text/html"}, {"Cache-Control", "public, max-age=60"}};
+  const StoreResult auth =
+      ClassifyStore(plain, "GET", "/", PS_HTML_STORE_REQUEST_HAS_AUTHORIZATION);
+  EXPECT_STREQ(ps_html_store_reason_name(auth.reason), "auth_request");
+  const StoreResult user = ClassifyStore(
+      plain, "GET", "/", PS_HTML_STORE_REQUEST_AUTHENTICATED_USER);
+  EXPECT_STREQ(ps_html_store_reason_name(user.reason), "auth_request");
+  const StoreResult cookie =
+      ClassifyStore(plain, "GET", "/", PS_HTML_STORE_REQUEST_HAS_COOKIE);
+  EXPECT_STREQ(ps_html_store_reason_name(cookie.reason), "cookie_request");
+  const StoreResult cookie_public =
+      ClassifyStore(shared, "GET", "/", PS_HTML_STORE_REQUEST_HAS_COOKIE);
+  EXPECT_EQ(cookie_public.action, 1);
+  const StoreResult no_store =
+      ClassifyStore(shared, "GET", "/", PS_HTML_STORE_REQUEST_NO_STORE);
+  EXPECT_EQ(no_store.action, 0);
+  EXPECT_STREQ(ps_html_store_reason_name(no_store.reason), "no_store");
+  EXPECT_STREQ(no_store.detail, "request");
+  // Unknown bits are ignored.
+  EXPECT_EQ(ClassifyStore(plain, "GET", "/", 0x80000000u).action, 1);
+}
+
 TEST(PageSpeedCApi, HtmlStoreClassifyDetailBufferTruncates) {
   const char* names[] = {"Content-Type", "Cache-Control", "X-Powered-By"};
   const char* values[] = {"text/html", "max-age=60", "x"};
@@ -4393,22 +4420,22 @@ TEST(PageSpeedCApi, HtmlStoreClassifyDetailBufferTruncates) {
   char small[5];
   std::memset(small, 'z', sizeof(small));
   EXPECT_EQ(
-      ps_html_store_classify("GET", "/", 0, 0, 0, 200, names, values, 3, 10, 1,
-                             "", 0, 1 << 20, 0, &reason, &lifetime, &flags, &cc,
+      ps_html_store_classify("GET", "/", 0, 200, names, values, 3, 10, 1, "", 0,
+                             1 << 20, 0, &reason, &lifetime, &flags, &cc,
                              &sidecar, small, sizeof(small), &detail_len),
       0);
   EXPECT_EQ(detail_len, 12u);  // "x-powered-by", untruncated
   EXPECT_STREQ(small, "x-po");
   // Capacity 1 holds only the terminator; capacity 0 may pass NULL.
   char one[1] = {'z'};
-  EXPECT_EQ(ps_html_store_classify("GET", "/", 0, 0, 0, 200, names, values, 3,
-                                   10, 1, "", 0, 1 << 20, 0, &reason, &lifetime,
+  EXPECT_EQ(ps_html_store_classify("GET", "/", 0, 200, names, values, 3, 10, 1,
+                                   "", 0, 1 << 20, 0, &reason, &lifetime,
                                    &flags, &cc, &sidecar, one, 1, &detail_len),
             0);
   EXPECT_EQ(one[0], '\0');
   EXPECT_EQ(detail_len, 12u);
   EXPECT_EQ(
-      ps_html_store_classify("GET", "/", 0, 0, 0, 200, names, values, 3, 10, 1,
+      ps_html_store_classify("GET", "/", 0, 200, names, values, 3, 10, 1,
                              nullptr, 0, 1 << 20, 0, &reason, &lifetime, &flags,
                              &cc, &sidecar, nullptr, 0, &detail_len),
       0);
@@ -4427,9 +4454,9 @@ TEST(PageSpeedCApi, HtmlStoreClassifyRejectsMalformedCalls) {
                   const char* const* v, size_t count, const char* body,
                   size_t body_len, int* r, uint32_t* l, uint32_t* f,
                   uint16_t* c, int* sc, char* d, size_t dcap, size_t* dl) {
-    return ps_html_store_classify(method, path, 0, 0, 0, 200, n, v, count, 10,
-                                  1, body, body_len, 1 << 20, 0, r, l, f, c, sc,
-                                  d, dcap, dl);
+    return ps_html_store_classify(method, path, 0, 200, n, v, count, 10, 1,
+                                  body, body_len, 1 << 20, 0, r, l, f, c, sc, d,
+                                  dcap, dl);
   };
   // The good call, to prove the harness around the bad ones.
   EXPECT_NE(call("GET", "/", names, values, 1, "", 0, &reason, &lifetime,
@@ -4559,6 +4586,23 @@ TEST(PageSpeedCApi, HtmlServeClassifyRoundTrip) {
   // Unknown flag bits are ignored.
   EXPECT_EQ(serve(PS_HTML_CACHE_SERVE_CACHED_HTML, 0x80000000u,
                   present_fresh | 0x80000000u, 1010),
+            1);
+}
+
+TEST(PageSpeedCApi, HtmlServeClassifyHugeRequestValuesDoNotOverflow) {
+  int reason = -1, enforce = -1;
+  uint32_t age = 0;
+  const uint32_t stored = PS_HTML_STORED_PRESENT;
+  // min-fresh INT64_MAX: the entry cannot meet it, so it is validated.
+  EXPECT_EQ(ps_html_serve_classify(PS_HTML_CACHE_SERVE_CACHED_HTML, 0, -1,
+                                   INT64_MAX, 1010, stored, 1000, 0, 100, 0,
+                                   86400, &reason, &enforce, &age),
+            3);
+  EXPECT_STREQ(ps_html_serve_reason_name(reason), "stale");
+  // max-age INT64_MAX is simply satisfied.
+  EXPECT_EQ(ps_html_serve_classify(PS_HTML_CACHE_SERVE_CACHED_HTML, 0,
+                                   INT64_MAX, -1, 1010, stored, 1000, 0, 100, 0,
+                                   86400, &reason, &enforce, &age),
             1);
 }
 

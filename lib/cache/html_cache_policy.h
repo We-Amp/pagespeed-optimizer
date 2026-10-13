@@ -68,45 +68,52 @@ namespace pagespeed {
 //      `must-revalidate`; this policy never takes that permission, because a
 //      page rendered for a signed-in user is the canonical personalised
 //      response.
-//   5. No Set-Cookie.  A response that sets a cookie is per-client by
+//   5. Request no-store.  A request whose Cache-Control carried `no-store`
+//      (RFC 9111 §5.2.1.5) is never stored: a cache MUST NOT store a response
+//      to it.  The reason is kNoStore with the detail `request`.
+//   6. No Set-Cookie.  A response that sets a cookie is per-client by
 //      construction (RFC 6265 §4.1; RFC 9111 §3 leaves such responses to the
 //      cache's judgement).  Set-Cookie2 is treated the same.
-//   6. Cache-Control (RFC 9111 §5.2.2).  `private` in either form (bare, or
+//   7. Cache-Control (RFC 9111 §5.2.2).  `private` in either form (bare, or
 //      qualified as `private="Set-Cookie"`, §5.2.2.7) is refused: the
 //      qualified form restricts only the named fields, but the cheap error is
 //      the one this leans toward.  `no-store` (§5.2.2.5) is refused.
-//   7. Cookie request.  A request that carried a Cookie header is stored only
+//   8. Cookie request.  A request that carried a Cookie header is stored only
 //      when the response is explicitly shareable: `public` (§5.2.2.9) or
 //      `s-maxage` (§5.2.2.10, which also makes the response shareable).  A
 //      page that varies on the cookie it was fetched with would otherwise be
 //      replayed to clients holding a different cookie.
-//   8. Vary (RFC 9110 §12.5.5).  Every Vary line is joined with `, ` and
+//   9. Vary (RFC 9110 §12.5.5).  Every Vary line is joined with `, ` and
 //      split into lowercase tokens (RFC 9110 §5.3, §5.6.1).  The set must be
 //      a subset of {accept-encoding}.  Any other token, including `*` and
 //      `accept`, is refused: this policy stores exactly one representation
 //      per key and has no way to key on anything else.
-//   9. Header reproducibility.  The header set must pass the sidecar gate
+//  10. Header reproducibility.  The header set must pass the sidecar gate
 //      (headers_sidecar.h).  A nonce-bearing Content-Security-Policy is its
 //      own reason, because it never becomes storable; every other gap is
 //      reported with the offending header name.  Unknown headers fail closed.
-//  10. Explicit freshness (RFC 9111 §4.2.1).  The lifetime is `s-maxage`
+//  11. Explicit freshness (RFC 9111 §4.2.1).  The lifetime is `s-maxage`
 //      (§5.2.2.10), else `max-age` (§5.2.2.1), else Expires minus Date
 //      (§5.3).  When Date is absent or unparseable the caller's receipt time
 //      stands in for it (RFC 9110 §6.6.1).  An Expires value that is invalid
 //      or already past means lifetime 0 (§5.3).  NO HEURISTIC LIFETIME:
 //      §4.2.2 is deliberately not applied, so a response that states no
 //      lifetime is stored only if it has a validator (ETag or Last-Modified)
-//      and is then always revalidated before use.  A lifetime of 0 or
+//      and is then always revalidated before use.  Two or more `max-age`
+//      (or two or more `s-maxage`) directives, in one line or across lines,
+//      conflict; RFC 9111 §4.2.1 allows using the first or treating the
+//      response as stale, and this policy does the latter: lifetime 0,
+//      always revalidated.  A lifetime of 0 or
 //      `no-cache` (§5.2.2.4, either form, treated as the bare directive)
 //      likewise requires a validator.
-//  11. Size.  The body must not exceed the operator's cap, itself bounded by
+//  12. Size.  The body must not exceed the operator's cap, itself bounded by
 //      a hard ceiling of 16 MiB.
-//  12. Personalisation signals.  The first 64 KiB of the body is scanned for
+//  13. Personalisation signals.  The first 64 KiB of the body is scanned for
 //      markers a page carries when it was rendered for one client: CSRF
 //      meta tags, hidden CSRF fields, and a POST form aimed at a login,
 //      sign-in, checkout or cart action.  The scan is a bounded, ASCII
 //      case-insensitive tag walk, not an HTML parser.
-//  13. no-transform (RFC 9111 §5.2.2.6).  A response that forbids
+//  14. no-transform (RFC 9111 §5.2.2.6).  A response that forbids
 //      transformation is stored but the caller is told not to notify the
 //      optimizer about it (`kStoreNoNotify`).
 //
@@ -129,7 +136,9 @@ namespace pagespeed {
 //   7. Header replay.  An entry whose headers cannot be reproduced, or whose
 //      stored header block could not be read, is not served.
 //   8. Freshness (RFC 9111 §4.2, §4.2.3).  The current age is the age at
-//      store plus the time since it was stored.  An entry is fresh when it
+//      store plus the time since it was stored.  The caller supplies an
+//      initial age already corrected for the origin's Age and the apparent
+//      age (§4.2.3); the library adds resident time only.  An entry is fresh when it
 //      needs no validation and its age is below its lifetime.  A request
 //      `max-age` below the age (§5.2.1.1) or a `min-fresh` the entry cannot
 //      meet (§5.2.1.3) makes it not fresh for that request.  STALE ENTRIES
@@ -141,8 +150,10 @@ namespace pagespeed {
 //      (§4.3.4) counts as fresh.
 //   9. Markdown.  A request for the Markdown copy is served it only while the
 //      HTML parent is fresh, the copy exists, its recorded parent hash still
-//      matches the live content, and the copy is within its own lifetime.
-//      A Markdown fall-through never degrades to serving HTML here: the
+//      matches the live content, and the copy is within its own lifetime
+//      (age below the smaller of the parent's lifetime and the copy's
+//      render lifetime; for a parent the origin confirmed this request, only
+//      the render lifetime bounds it).  A Markdown fall-through never degrades to serving HTML here: the
 //      caller serves the origin path.
 //  10. HTML.  In `kServeCachedHtml` a fresh entry is served.  In
 //      `kServeVariants` the HTML still comes from the origin.
@@ -193,6 +204,7 @@ struct HtmlStoreRequest {
   bool has_authorization = false;   // Authorization or Proxy-Authorization
   bool authenticated_user = false;  // the server authenticated the request
   bool has_cookie = false;          // Cookie or Cookie2 present
+  bool request_no_store = false;  // the request carried Cache-Control: no-store
 };
 
 struct HtmlStoreResponse {
