@@ -176,7 +176,7 @@ jobs:
             exit 0
           fi
           TARBALL="${{ steps.tarball.outputs.tarball }}"
-          SSH_OPTS="-o StrictHostKeyChecking=accept-new -o BatchMode=yes"
+          SSH_OPTS="-o StrictHostKeyChecking=accept-new -o LogLevel=ERROR -o BatchMode=yes"
           F="$(basename "$TARBALL")"
           TMP_DEST="${CI_HUB_VENDOR_DIR}/${F}.${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.tmp"
           T="$(basename "$TMP_DEST")"
@@ -564,8 +564,9 @@ jobs:
   # Package-install verification for the unprivileged daemon. Containerized
   # per distro: root inside the container, nothing installed on the runner.
   # Privileged containers with a shared host cgroup tree, so fleet only.
-  # One rig per host at a time: a runner that serves several jobs must not
-  # run two rigs together.
+  # One rig of this run per host at a time: max-parallel 1 serialises the
+  # three distros of a run. Rigs of different runs (a push and a labelled pull
+  # request, say) can still overlap on a host that serves several runners.
   # ---------------------------------------------------------------------
   daemon-privilege-rig:
     name: Daemon Privilege Rig (${{ matrix.distro }})
@@ -575,6 +576,7 @@ jobs:
     timeout-minutes: 30
     strategy:
       fail-fast: false
+      max-parallel: 1
       matrix:
         distro: [debian12, ubuntu2404, alma9]
     steps:
@@ -1064,8 +1066,10 @@ jobs:
 
   # ---------------------------------------------------------------------
   # Windows: a build of the two shipped binaries, then the NuGet package
-  # smoke around them. The full Windows build and unit tests belong to the
-  # PR tier; this build exists to feed the smoke. Everything is optional
+  # smoke around them. This build exists to feed the smoke; it builds only
+  # those two binaries. The full Windows build and the Windows unit suite run
+  # nowhere yet (the PR tier has no Windows job); they are tracked for the step
+  # that adds Windows to the PR tier. Everything is optional
   # runner environment: CI_WIN_VENDOR_DIR (a vendor tarball), and
   # BAZEL_REMOTE_CACHE_URL (a remote cache). Without them Bazel fetches its
   # dependencies and builds cold.
