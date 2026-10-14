@@ -6,6 +6,13 @@ on:
 permissions:
   contents: read
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      css: ${{ steps.diff.outputs.css }}
+    steps:
+      - id: diff
+        run: echo "css=true" >> "$GITHUB_OUTPUT"
   audit:
     runs-on: ubuntu-latest
     steps:
@@ -25,3 +32,9 @@ jobs:
     runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'windows-2022' || 'fleet-windows' }}
     steps:
       - run: echo windows
+  css-smoke:
+    needs: changes
+    if: ${{ (vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && needs.changes.outputs.css == 'true' }}
+    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
+    steps:
+      - run: echo smoke

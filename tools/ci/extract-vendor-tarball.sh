@@ -80,7 +80,7 @@
 #   FETCH_RETRIES       hub fetch attempts (default: 4).
 #   FETCH_BACKOFF       initial backoff seconds, doubled each retry (default: 3).
 #   SSH_OPTS            ssh options (default: StrictHostKeyChecking=accept-new
-#                       + BatchMode=yes).
+#                       + BatchMode=yes + LogLevel=ERROR).
 #
 # Exit codes:
 #   0  workspace extracted and integrity-verified.
@@ -138,7 +138,7 @@ CI_HUB_USER="${CI_HUB_USER:-}"
 CI_HUB_VENDOR_DIR="${CI_HUB_VENDOR_DIR:-}"
 FETCH_RETRIES="${FETCH_RETRIES:-4}"
 FETCH_BACKOFF="${FETCH_BACKOFF:-3}"
-SSH_OPTS="${SSH_OPTS:--o StrictHostKeyChecking=accept-new -o BatchMode=yes}"
+SSH_OPTS="${SSH_OPTS:--o StrictHostKeyChecking=accept-new -o BatchMode=yes -o LogLevel=ERROR}"
 REMOTE_PATH=""
 SSH_TARGET=""
 

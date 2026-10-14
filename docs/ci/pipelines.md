@@ -38,7 +38,7 @@ Rules that follow from the shape:
 
 | Tier | Workflow | Runs on | Holds |
 |---|---|---|---|
-| PR | `pipeline-pr.yml` | every pull request and push to `main` | the hosted checks (daemon build and unit-test slice, Apache RAT, license headers and SBOM drift, the public-tree hygiene gate), and the fleet legs: vendor, Linux build, Linux unit tests, lint. Later changes add the kernel differentials, the Windows build and unit tests, the release compile smoke, the packaging container, the JS unit tests, the dependency scan, the ABI check, the Linux arm64 build and tests, and the path-filtered fuzz smokes and drift checks |
+| PR | `pipeline-pr.yml` | every pull request and push to `main` | the hosted checks (daemon build and unit-test slice, Apache RAT, license headers, SBOM drift, release-note gate and the chart, probe and entrypoint checks, the public-tree hygiene gate, the blocking and the report-only dependency scans, the ABI check, the JS/TS unit tests, the release packaging container), and the fleet legs: vendor, Linux build, Linux unit tests, lint, the JS and HTML kernel differentials, the release-config test compile, the Windows build and unit tests, and the path-filtered CSS and JS fuzz smokes. Later changes add the Linux arm64 build and tests |
 | Full | `pipeline-full.yml` | push to `main`, `workflow_dispatch` with `full: true`, or a pull request labelled `ci:full` | sanitizers (ASan, TSan), package smokes (Linux x64, Linux arm64, Windows), the daemon privilege rigs, HTTP compliance, the async CSS probe markup check, container cache sharing. Placeholder for now |
 | Nightly | `pipeline-nightly.yml` | `nightly.yml`: daily at 03:00 UTC and on dispatch | the macOS build, unit tests and package smoke; the periodic vendor, builds, stress, production, real-world, end-to-end and soak lanes (x64 on the fleet, arm64 hosted); the rendered async CSS probe; CSS fuzzing (nightly and shadow); the frozen-release security scan. Placeholder for now |
 
@@ -94,6 +94,19 @@ set the job runs slower, never fails for that reason. In `pipeline-pr.yml`:
   when `BAZEL_CACHE_HOST` is set (`--config=ci`); otherwise they build with
   `--config=docker` and no cache. The build bundle always goes to
   `actions/upload-artifact` (retention 3 days) and the unit tests download it.
+- **Kernel differentials**, the **release-config test compile** and the
+  **fuzz smokes** follow the same two rules: the remote cache only when
+  `BAZEL_CACHE_HOST` is set, and the dev image built in the job when the
+  runner has none. The differentials' floor ratchet reads the public
+  `We-Amp/mod_pagespeed` repository, and only when a pin floor moves.
+- **Windows Build** and **Windows Unit Tests** take their tools from `PATH`
+  or from `CI_WIN_TOOLS_DIR`. On the hub channel a runner with a vendor
+  tarball (`CI_WIN_VENDOR_DIR`, or a fetch from `CI_HUB_SSH`) extracts it
+  over the checkout; otherwise Bazel fetches the dependencies itself. The
+  remote cache is used only when `BAZEL_REMOTE_CACHE_URL` is set. The build
+  bundle goes to `actions/upload-artifact` (`ci-artifacts-win-x64`). The
+  hosted Windows build time has not been measured; if it proves too slow, the
+  fallback is to run these two jobs on the fleet only.
 - **Lint** keeps its Bazel state in a per-runner cache directory under the
   runner's home, which persists on a fleet runner and is empty on a hosted
   one. No credential enters the lint containers.
@@ -109,6 +122,19 @@ runners instead of skipping it. A job that consumes the output of a pair
 names both in `needs:` and runs when either succeeded. Release lanes pass
 every file between jobs as workflow artifacts; they use no hub.
 
+### Path-filtered jobs
+
+The `changes` job (hosted) diffs a pull request against its base and
+publishes one boolean per filter (`css`, `js`). A fleet job that depends on a
+filter narrows the guard with `&& needs.changes.outputs.<name> == 'true'`:
+
+```yaml
+if: ${{ (vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && needs.changes.outputs.css == 'true' }}
+```
+
+Outside a pull request every filter is false. The workflow-shape gate accepts
+the guard either verbatim or in exactly this narrowed form.
+
 ## Required checks
 
 Until the caller switch, `ci.yml` keeps its four hosted jobs and their check
@@ -116,8 +142,20 @@ names. After the switch (`ci.caller.yml.example` renamed over `ci.yml`), a
 check from a called workflow is named `<caller job> / <job name>`, so the
 required checks become `pr / Build daemon & unit-test slice (ubuntu)`,
 `pr / License audit (Apache RAT)`, `pr / License Headers + SBOM Drift`,
-`pr / Public-tree hygiene gate`, the fleet legs (`pr / Linux Build` and so
-on) once `FLEET_ENABLED` is on, and `CI gate`.
+`pr / Public-tree hygiene gate`, `pr / Blocking Dep Scan (npm + cargo)`,
+`pr / ABI Compatibility (lib/pagespeed C API)`, `pr / JS/TS Unit Tests`,
+`pr / Release Packaging Container`, the fleet legs once `FLEET_ENABLED` is on
+(`pr / Linux Build`, `pr / Linux Unit Tests`, `pr / Lint (clang-tidy +
+clang-format)`, `pr / JS Kernel Differential (vendored goldens)`,
+`pr / HTML Parse Differential (vendored goldens)`, `pr / Release-config test
+compile`, `pr / Windows Build`, `pr / Windows Unit Tests`), and `CI gate`.
+
+Not listed individually: `pr / Dependency Scan (report-only)` (it never
+fails the build) and the two fuzz smokes (`pr / CSS fuzz smoke (deterministic
+oracle replay)`, `pr / JS fuzz smoke (deterministic oracle replay)`), which
+are skipped on a pull request that does not touch their paths. The aggregate
+`CI gate` treats `skipped` as fine and fails on any other non-success
+result, so it covers all three.
 
 ## Trying a pipeline change on the fleet: `ci-dev`
 
@@ -148,7 +186,8 @@ job and fails the build when the shape breaks:
 - **(d)** in a reusable workflow every `runs-on` is a hosted label
   (`ubuntu-latest`, `ubuntu-24.04`, `ubuntu-24.04-arm`, `windows-2022`,
   `macos-15`, `macos-latest`) or exactly the routing expression with a fleet
-  class, and a job routed by the expression carries the fleet guard verbatim;
+  class, and a job routed by the expression carries the fleet guard verbatim
+  (or narrowed by a `changes` path filter, see above);
 - **(e)** `.github/` and `tools/ci/` carry no LAN address literals, no
   `.home` names, no `:9090`, no `self-hosted` and none of the retired runner
   label words.
