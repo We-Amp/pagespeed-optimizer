@@ -30,6 +30,8 @@ cc_library(
         "//lib/html:compat",
         "//lib/cache:cache_control_header",
         "//lib/cache:freshness",
+        "//lib/cache:html_cache_decision",
+        "//lib/cache:html_cache_policy",
         "//lib/cache:origin_cache_control",
         "//lib/cache:pagespeed_cache",
         "//lib/cache:vary_storability",

@@ -23,6 +23,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <utility>
 #include <vector>
 
 #include "gtest/gtest.h"
@@ -4278,6 +4279,501 @@ TEST(PageSpeedCApi, HeadersSidecarClassifyIsTheGateWithoutACache) {
   EXPECT_EQ(ps_headers_sidecar_classify(names, nullptr, 3), -1);
   const char* holed[] = {nullptr};
   EXPECT_EQ(ps_headers_sidecar_classify(holed, cookie_values, 1), -1);
+}
+
+// ================================================================
+// The HTML cacheability policy on the C surface (PS_API 1.12)
+// ================================================================
+
+namespace {
+
+// One ps_html_store_classify call with every out-parameter captured.
+struct StoreResult {
+  int action = -99;
+  int reason = -99;
+  uint32_t lifetime_s = 0;
+  uint32_t flags = 0;
+  uint16_t cc_flags = 0;
+  int sidecar = -99;
+  char detail[64] = {};
+  size_t detail_len = 0;
+};
+
+StoreResult ClassifyStore(
+    const std::vector<std::pair<const char*, const char*>>& headers,
+    const char* method = "GET", const char* path = "/index.html",
+    uint32_t request_flags = 0, int status = 200,
+    const char* body = "<p>hi</p>") {
+  std::vector<const char*> names;
+  std::vector<const char*> values;
+  for (const auto& [n, v] : headers) {
+    names.push_back(n);
+    values.push_back(v);
+  }
+  StoreResult r;
+  r.action = ps_html_store_classify(
+      method, path, request_flags, status,
+      names.empty() ? nullptr : names.data(),
+      values.empty() ? nullptr : values.data(), names.size(),
+      /*body_bytes=*/100,
+      /*body_complete=*/1, body, std::strlen(body),
+      /*max_body_bytes=*/1 << 20, /*now_seconds=*/784111777, &r.reason,
+      &r.lifetime_s, &r.flags, &r.cc_flags, &r.sidecar, r.detail,
+      sizeof(r.detail), &r.detail_len);
+  return r;
+}
+
+const std::vector<std::pair<const char*, const char*>> kStorableHeaders = {
+    {"Content-Type", "text/html; charset=utf-8"},
+    {"Cache-Control", "public, max-age=300"},
+    {"ETag", "\"v1\""}};
+
+}  // namespace
+
+TEST(PageSpeedCApi, HtmlStoreClassifyRoundTrip) {
+  const StoreResult ok = ClassifyStore(kStorableHeaders);
+  EXPECT_EQ(ok.action, 1);
+  EXPECT_STREQ(ps_html_store_reason_name(ok.reason), "none");
+  EXPECT_EQ(ok.lifetime_s, 300u);
+  EXPECT_EQ(ok.flags, PS_HTML_STORE_FLAG_LIFETIME_EXPLICIT |
+                          PS_HTML_STORE_FLAG_HAS_VALIDATORS |
+                          PS_HTML_STORE_FLAG_EXPLICIT_SHARED);
+  EXPECT_NE(ok.cc_flags & PS_CC_ORIGIN_PUBLIC, 0u);
+  EXPECT_EQ(ok.sidecar, PS_SIDECAR_SWAP_ELIGIBLE);
+  EXPECT_EQ(ok.detail_len, 0u);
+  EXPECT_STREQ(ok.detail, "");
+
+  // A refusal names its reason and carries the detail.
+  const StoreResult vary = ClassifyStore({{"Content-Type", "text/html"},
+                                          {"Cache-Control", "max-age=60"},
+                                          {"Vary", "Accept-Encoding, Cookie"}});
+  EXPECT_EQ(vary.action, 0);
+  EXPECT_STREQ(ps_html_store_reason_name(vary.reason), "vary");
+  EXPECT_STREQ(vary.detail, "cookie");
+  EXPECT_EQ(vary.detail_len, 6u);
+
+  const StoreResult method = ClassifyStore(kStorableHeaders, "HEAD");
+  EXPECT_EQ(method.action, 0);
+  EXPECT_STREQ(ps_html_store_reason_name(method.reason), "method");
+
+  const StoreResult cookie = ClassifyStore(
+      {{"Content-Type", "text/html"}, {"Cache-Control", "max-age=60"}}, "GET",
+      "/", PS_HTML_STORE_REQUEST_HAS_COOKIE);
+  EXPECT_EQ(cookie.action, 0);
+  EXPECT_STREQ(ps_html_store_reason_name(cookie.reason), "cookie_request");
+
+  const StoreResult signal =
+      ClassifyStore(kStorableHeaders, "GET", "/", 0, 200,
+                    "<meta name=\"csrf-token\" content=\"x\">");
+  EXPECT_EQ(signal.action, 0);
+  EXPECT_STREQ(ps_html_store_reason_name(signal.reason),
+               "personalisation_signal");
+  EXPECT_STREQ(signal.detail, "meta_csrf_token");
+
+  const StoreResult no_transform =
+      ClassifyStore({{"Content-Type", "text/html"},
+                     {"Cache-Control", "max-age=60, no-transform"}});
+  EXPECT_EQ(no_transform.action, 2);
+  EXPECT_STREQ(ps_html_store_reason_name(no_transform.reason), "no_transform");
+
+  const StoreResult headers = ClassifyStore({{"Content-Type", "text/html"},
+                                             {"Cache-Control", "max-age=60"},
+                                             {"X-Powered-By", "x"}});
+  EXPECT_EQ(headers.action, 0);
+  EXPECT_STREQ(headers.detail, "x-powered-by");
+  EXPECT_EQ(headers.sidecar, PS_SIDECAR_FALL_THROUGH);
+}
+
+TEST(PageSpeedCApi, HtmlStoreClassifyRequestFlags) {
+  const std::vector<std::pair<const char*, const char*>> plain = {
+      {"Content-Type", "text/html"}, {"Cache-Control", "max-age=60"}};
+  const std::vector<std::pair<const char*, const char*>> shared = {
+      {"Content-Type", "text/html"}, {"Cache-Control", "public, max-age=60"}};
+  const StoreResult auth =
+      ClassifyStore(plain, "GET", "/", PS_HTML_STORE_REQUEST_HAS_AUTHORIZATION);
+  EXPECT_STREQ(ps_html_store_reason_name(auth.reason), "auth_request");
+  const StoreResult user = ClassifyStore(
+      plain, "GET", "/", PS_HTML_STORE_REQUEST_AUTHENTICATED_USER);
+  EXPECT_STREQ(ps_html_store_reason_name(user.reason), "auth_request");
+  const StoreResult cookie =
+      ClassifyStore(plain, "GET", "/", PS_HTML_STORE_REQUEST_HAS_COOKIE);
+  EXPECT_STREQ(ps_html_store_reason_name(cookie.reason), "cookie_request");
+  const StoreResult cookie_public =
+      ClassifyStore(shared, "GET", "/", PS_HTML_STORE_REQUEST_HAS_COOKIE);
+  EXPECT_EQ(cookie_public.action, 1);
+  // The bits are what a front end derives from the request headers:
+  // Proxy-Authorization is the authorization bit, Cookie2 the cookie bit.
+  auto flags_for = [](const std::vector<const char*>& request_headers) {
+    uint32_t flags = 0;
+    for (const char* name : request_headers) {
+      const std::string lower = [&] {
+        std::string s(name);
+        for (char& c : s) c = static_cast<char>(std::tolower(c));
+        return s;
+      }();
+      if (lower == "authorization" || lower == "proxy-authorization") {
+        flags |= PS_HTML_STORE_REQUEST_HAS_AUTHORIZATION;
+      }
+      if (lower == "cookie" || lower == "cookie2") {
+        flags |= PS_HTML_STORE_REQUEST_HAS_COOKIE;
+      }
+    }
+    return flags;
+  };
+  const StoreResult proxy_auth =
+      ClassifyStore(shared, "GET", "/", flags_for({"Proxy-Authorization"}));
+  EXPECT_EQ(proxy_auth.action, 0);
+  EXPECT_STREQ(ps_html_store_reason_name(proxy_auth.reason), "auth_request");
+  const StoreResult cookie2 =
+      ClassifyStore(plain, "GET", "/", flags_for({"Cookie2"}));
+  EXPECT_EQ(cookie2.action, 0);
+  EXPECT_STREQ(ps_html_store_reason_name(cookie2.reason), "cookie_request");
+  EXPECT_EQ(ClassifyStore(plain, "GET", "/", flags_for({"Accept"})).action, 1);
+  const StoreResult no_store =
+      ClassifyStore(shared, "GET", "/", PS_HTML_STORE_REQUEST_NO_STORE);
+  EXPECT_EQ(no_store.action, 0);
+  EXPECT_STREQ(ps_html_store_reason_name(no_store.reason), "no_store");
+  EXPECT_STREQ(no_store.detail, "request");
+  // Unknown bits are ignored.
+  EXPECT_EQ(ClassifyStore(plain, "GET", "/", 0x80000000u).action, 1);
+}
+
+TEST(PageSpeedCApi, HtmlStoreClassifyDetailBufferTruncates) {
+  const char* names[] = {"Content-Type", "Cache-Control", "X-Powered-By"};
+  const char* values[] = {"text/html", "max-age=60", "x"};
+  int reason = 0, sidecar = 0;
+  uint32_t lifetime = 0, flags = 0;
+  uint16_t cc = 0;
+  size_t detail_len = 0;
+  char small[5];
+  std::memset(small, 'z', sizeof(small));
+  EXPECT_EQ(
+      ps_html_store_classify("GET", "/", 0, 200, names, values, 3, 10, 1, "", 0,
+                             1 << 20, 0, &reason, &lifetime, &flags, &cc,
+                             &sidecar, small, sizeof(small), &detail_len),
+      0);
+  EXPECT_EQ(detail_len, 12u);  // "x-powered-by", untruncated
+  EXPECT_STREQ(small, "x-po");
+  // Capacity 1 holds only the terminator; capacity 0 may pass NULL.
+  char one[1] = {'z'};
+  EXPECT_EQ(ps_html_store_classify("GET", "/", 0, 200, names, values, 3, 10, 1,
+                                   "", 0, 1 << 20, 0, &reason, &lifetime,
+                                   &flags, &cc, &sidecar, one, 1, &detail_len),
+            0);
+  EXPECT_EQ(one[0], '\0');
+  EXPECT_EQ(detail_len, 12u);
+  EXPECT_EQ(
+      ps_html_store_classify("GET", "/", 0, 200, names, values, 3, 10, 1,
+                             nullptr, 0, 1 << 20, 0, &reason, &lifetime, &flags,
+                             &cc, &sidecar, nullptr, 0, &detail_len),
+      0);
+  EXPECT_EQ(detail_len, 12u);
+}
+
+TEST(PageSpeedCApi, HtmlStoreClassifyRejectsMalformedCalls) {
+  const char* names[] = {"Content-Type"};
+  const char* values[] = {"text/html"};
+  int reason = 7, sidecar = 7;
+  uint32_t lifetime = 7, flags = 7;
+  uint16_t cc = 7;
+  size_t detail_len = 7;
+  char buf[8];
+  auto call = [&](const char* method, const char* path, const char* const* n,
+                  const char* const* v, size_t count, const char* body,
+                  size_t body_len, int* r, uint32_t* l, uint32_t* f,
+                  uint16_t* c, int* sc, char* d, size_t dcap, size_t* dl) {
+    return ps_html_store_classify(method, path, 0, 200, n, v, count, 10, 1,
+                                  body, body_len, 1 << 20, 0, r, l, f, c, sc, d,
+                                  dcap, dl);
+  };
+  // The good call, to prove the harness around the bad ones.
+  EXPECT_NE(call("GET", "/", names, values, 1, "", 0, &reason, &lifetime,
+                 &flags, &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  reason = sidecar = 7;
+  lifetime = flags = 7;
+  cc = 7;
+  detail_len = 7;
+
+  EXPECT_EQ(call(nullptr, "/", names, values, 1, "", 0, &reason, &lifetime,
+                 &flags, &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", nullptr, names, values, 1, "", 0, &reason, &lifetime,
+                 &flags, &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", "/", nullptr, values, 1, "", 0, &reason, &lifetime,
+                 &flags, &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", "/", names, nullptr, 1, "", 0, &reason, &lifetime,
+                 &flags, &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  const char* holed[] = {nullptr};
+  EXPECT_EQ(call("GET", "/", holed, values, 1, "", 0, &reason, &lifetime,
+                 &flags, &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", "/", names, holed, 1, "", 0, &reason, &lifetime, &flags,
+                 &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", "/", names, values, 1, nullptr, 5, &reason, &lifetime,
+                 &flags, &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", "/", names, values, 1, "", 0, nullptr, &lifetime,
+                 &flags, &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", "/", names, values, 1, "", 0, &reason, nullptr, &flags,
+                 &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", "/", names, values, 1, "", 0, &reason, &lifetime,
+                 nullptr, &cc, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", "/", names, values, 1, "", 0, &reason, &lifetime,
+                 &flags, nullptr, &sidecar, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", "/", names, values, 1, "", 0, &reason, &lifetime,
+                 &flags, &cc, nullptr, buf, sizeof(buf), &detail_len),
+            -1);
+  EXPECT_EQ(call("GET", "/", names, values, 1, "", 0, &reason, &lifetime,
+                 &flags, &cc, &sidecar, buf, sizeof(buf), nullptr),
+            -1);
+  EXPECT_EQ(call("GET", "/", names, values, 1, "", 0, &reason, &lifetime,
+                 &flags, &cc, &sidecar, nullptr, 8, &detail_len),
+            -1);
+  // No out-parameter was written by any of them.
+  EXPECT_EQ(reason, 7);
+  EXPECT_EQ(sidecar, 7);
+  EXPECT_EQ(lifetime, 7u);
+  EXPECT_EQ(flags, 7u);
+  EXPECT_EQ(cc, 7u);
+  EXPECT_EQ(detail_len, 7u);
+
+  // count == 0 with NULL arrays is a well-formed question: no Content-Type.
+  const StoreResult none = ClassifyStore({});
+  EXPECT_EQ(none.action, 0);
+  EXPECT_STREQ(ps_html_store_reason_name(none.reason), "content_type");
+}
+
+TEST(PageSpeedCApi, HtmlStoreAndServeReasonNames) {
+  EXPECT_STREQ(ps_html_store_reason_name(0), "none");
+  EXPECT_STREQ(ps_html_store_reason_name(18), "no_transform");
+  EXPECT_EQ(ps_html_store_reason_name(19), nullptr);
+  EXPECT_EQ(ps_html_store_reason_name(-1), nullptr);
+  EXPECT_STREQ(ps_html_serve_reason_name(0), "fresh");
+  EXPECT_STREQ(ps_html_serve_reason_name(12), "parent_stale");
+  EXPECT_EQ(ps_html_serve_reason_name(13), nullptr);
+  EXPECT_EQ(ps_html_serve_reason_name(-1), nullptr);
+}
+
+TEST(PageSpeedCApi, HtmlServeClassifyRoundTrip) {
+  int reason = -1, enforce = -1;
+  uint32_t age = 0;
+  const uint32_t present_fresh = PS_HTML_STORED_PRESENT |
+                                 PS_HTML_STORED_VARIANT_PRESENT |
+                                 PS_HTML_STORED_BINDING_LIVE;
+  auto serve = [&](int mode, uint32_t request_flags, uint32_t stored_flags,
+                   uint32_t now) {
+    return ps_html_serve_classify(
+        mode, request_flags, -1, -1, now, stored_flags, /*stored_at=*/1000,
+        /*age_at_store=*/0, /*lifetime_s=*/100,
+        /*render_ttl_s=*/86400, &reason, &enforce, &age);
+  };
+
+  EXPECT_EQ(serve(PS_HTML_CACHE_SERVE_CACHED_HTML, 0, present_fresh, 1010), 1);
+  EXPECT_STREQ(ps_html_serve_reason_name(reason), "fresh");
+  EXPECT_EQ(enforce, 1);
+  EXPECT_EQ(age, 10u);
+
+  EXPECT_EQ(serve(PS_HTML_CACHE_REPORT_ONLY, 0, present_fresh, 1010), 1);
+  EXPECT_EQ(enforce, 0);
+
+  EXPECT_EQ(serve(PS_HTML_CACHE_OFF, 0, present_fresh, 1010), 0);
+  EXPECT_STREQ(ps_html_serve_reason_name(reason), "mode");
+  EXPECT_EQ(enforce, 0);
+
+  EXPECT_EQ(serve(PS_HTML_CACHE_SERVE_VARIANTS, 0, present_fresh, 1010), 0);
+  EXPECT_EQ(enforce, 1);
+
+  EXPECT_EQ(serve(PS_HTML_CACHE_SERVE_CACHED_HTML,
+                  PS_HTML_REQUEST_WANTS_MARKDOWN, present_fresh, 1010),
+            2);
+
+  EXPECT_EQ(serve(PS_HTML_CACHE_SERVE_CACHED_HTML, 0, present_fresh, 1100), 3);
+  EXPECT_STREQ(ps_html_serve_reason_name(reason), "stale");
+  EXPECT_EQ(age, 100u);
+  // A Markdown request on that stale page is its own outcome.
+  EXPECT_EQ(serve(PS_HTML_CACHE_SERVE_CACHED_HTML,
+                  PS_HTML_REQUEST_WANTS_MARKDOWN, present_fresh, 1100),
+            3);
+  EXPECT_STREQ(ps_html_serve_reason_name(reason), "parent_stale");
+  EXPECT_EQ(serve(PS_HTML_CACHE_SERVE_VARIANTS, PS_HTML_REQUEST_WANTS_MARKDOWN,
+                  present_fresh, 1100),
+            0);
+  EXPECT_STREQ(ps_html_serve_reason_name(reason), "parent_stale");
+  // The 304-just-now bit counts in serve-cached-html, not in serve-variants.
+  EXPECT_EQ(
+      serve(PS_HTML_CACHE_SERVE_CACHED_HTML, PS_HTML_REQUEST_WANTS_MARKDOWN,
+            present_fresh | PS_HTML_STORED_VALIDATED_THIS_REQUEST, 1100),
+      2);
+  EXPECT_EQ(serve(PS_HTML_CACHE_SERVE_VARIANTS, PS_HTML_REQUEST_WANTS_MARKDOWN,
+                  present_fresh | PS_HTML_STORED_VALIDATED_THIS_REQUEST, 1100),
+            0);
+  EXPECT_STREQ(ps_html_serve_reason_name(reason), "parent_stale");
+
+  EXPECT_EQ(serve(PS_HTML_CACHE_SERVE_CACHED_HTML, PS_HTML_REQUEST_HAS_COOKIE,
+                  present_fresh, 1010),
+            0);
+  EXPECT_STREQ(ps_html_serve_reason_name(reason), "cookie_request");
+  EXPECT_EQ(serve(PS_HTML_CACHE_SERVE_CACHED_HTML, PS_HTML_REQUEST_HAS_COOKIE,
+                  present_fresh | PS_HTML_STORED_EXPLICIT_SHARED, 1010),
+            1);
+
+  EXPECT_EQ(serve(PS_HTML_CACHE_SERVE_CACHED_HTML, 0, 0, 1010), 0);
+  EXPECT_STREQ(ps_html_serve_reason_name(reason), "absent");
+
+  // Unknown flag bits are ignored.
+  EXPECT_EQ(serve(PS_HTML_CACHE_SERVE_CACHED_HTML, 0x80000000u,
+                  present_fresh | 0x80000000u, 1010),
+            1);
+}
+
+TEST(PageSpeedCApi, HtmlServeClassifyHugeRequestValuesDoNotOverflow) {
+  int reason = -1, enforce = -1;
+  uint32_t age = 0;
+  const uint32_t stored = PS_HTML_STORED_PRESENT;
+  // min-fresh INT64_MAX: the entry cannot meet it, so it is validated.
+  EXPECT_EQ(ps_html_serve_classify(PS_HTML_CACHE_SERVE_CACHED_HTML, 0, -1,
+                                   INT64_MAX, 1010, stored, 1000, 0, 100, 86400,
+                                   &reason, &enforce, &age),
+            3);
+  EXPECT_STREQ(ps_html_serve_reason_name(reason), "stale");
+  // max-age INT64_MAX is simply satisfied.
+  EXPECT_EQ(ps_html_serve_classify(PS_HTML_CACHE_SERVE_CACHED_HTML, 0,
+                                   INT64_MAX, -1, 1010, stored, 1000, 0, 100,
+                                   86400, &reason, &enforce, &age),
+            1);
+}
+
+TEST(PageSpeedCApi, HtmlServeClassifyRejectsMalformedCalls) {
+  int reason = 7, enforce = 7;
+  uint32_t age = 7;
+  EXPECT_EQ(ps_html_serve_classify(-1, 0, -1, -1, 0, 0, 0, 0, 0, 0, &reason,
+                                   &enforce, &age),
+            -1);
+  EXPECT_EQ(ps_html_serve_classify(4, 0, -1, -1, 0, 0, 0, 0, 0, 0, &reason,
+                                   &enforce, &age),
+            -1);
+  EXPECT_EQ(ps_html_serve_classify(1, 0, -1, -1, 0, 0, 0, 0, 0, 0, nullptr,
+                                   &enforce, &age),
+            -1);
+  EXPECT_EQ(ps_html_serve_classify(1, 0, -1, -1, 0, 0, 0, 0, 0, 0, &reason,
+                                   nullptr, &age),
+            -1);
+  EXPECT_EQ(ps_html_serve_classify(1, 0, -1, -1, 0, 0, 0, 0, 0, 0, &reason,
+                                   &enforce, nullptr),
+            -1);
+  EXPECT_EQ(reason, 7);
+  EXPECT_EQ(enforce, 7);
+  EXPECT_EQ(age, 7u);
+}
+
+TEST(PageSpeedCApi, HtmlDecisionFormatRoundTrip) {
+  const char* keys[] = {"reason", "host", "ts_ms", "action"};
+  const char* values[] = {"vary:accept", "a.example", "1700000000000",
+                          "refuse"};
+  char buf[256];
+  size_t len = 0;
+  EXPECT_EQ(ps_html_decision_format(keys, values, 4, buf, sizeof(buf), &len),
+            0);
+  const std::string expected =
+      "{\"ts_ms\":1700000000000,\"host\":\"a.example\",\"action\":\"refuse\","
+      "\"reason\":\"vary:accept\"}";
+  EXPECT_EQ(std::string(buf), expected);
+  EXPECT_EQ(len, expected.size());
+}
+
+TEST(PageSpeedCApi, HtmlDecisionFormatErrorDirections) {
+  const char* keys[] = {"host", "path"};
+  const char* values[] = {"a.example", "/p"};
+  char buf[256];
+  size_t len = 99;
+
+  // Too small: -3, the needed length, an empty string left behind.
+  char tiny[8];
+  std::memset(tiny, 'z', sizeof(tiny));
+  EXPECT_EQ(ps_html_decision_format(keys, values, 2, tiny, sizeof(tiny), &len),
+            -3);
+  EXPECT_EQ(len, std::strlen("{\"host\":\"a.example\",\"path\":\"/p\"}"));
+  EXPECT_STREQ(tiny, "");
+  // The exact fit (length + NUL) succeeds; one byte less does not.
+  const size_t need = len;
+  std::vector<char> exact(need + 1);
+  EXPECT_EQ(ps_html_decision_format(keys, values, 2, exact.data(), exact.size(),
+                                    &len),
+            0);
+  EXPECT_EQ(len, need);
+  EXPECT_EQ(ps_html_decision_format(keys, values, 2, exact.data(),
+                                    exact.size() - 1, &len),
+            -3);
+  // Capacity 0 with a NULL buffer asks only for the length.
+  EXPECT_EQ(ps_html_decision_format(keys, values, 2, nullptr, 0, &len), -3);
+  EXPECT_EQ(len, need);
+
+  // Refused fields: -2 and a zero length.
+  const char* bad_keys[] = {"host", "body"};
+  const char* bad_values[] = {"a.example", "x"};
+  len = 99;
+  EXPECT_EQ(
+      ps_html_decision_format(bad_keys, bad_values, 2, buf, sizeof(buf), &len),
+      -2);
+  EXPECT_EQ(len, 0u);
+  const char* empty_host[] = {""};
+  const char* host_key[] = {"host"};
+  EXPECT_EQ(
+      ps_html_decision_format(host_key, empty_host, 1, buf, sizeof(buf), &len),
+      -2);
+  const char* nl_values[] = {"a\nb"};
+  EXPECT_EQ(
+      ps_html_decision_format(host_key, nl_values, 1, buf, sizeof(buf), &len),
+      -2);
+  const char* dup_keys[] = {"host", "host"};
+  EXPECT_EQ(
+      ps_html_decision_format(dup_keys, values, 2, buf, sizeof(buf), &len), -2);
+  // A legitimate key with a value outside its grammar: free text in `cc`, a
+  // query in `path`, a non-count in `size`.
+  const char* cc_keys[] = {"host", "cc"};
+  const char* cc_values[] = {"a.example", "max-age=60, x-session=abc"};
+  EXPECT_EQ(
+      ps_html_decision_format(cc_keys, cc_values, 2, buf, sizeof(buf), &len),
+      -2);
+  const char* query_values[] = {"a.example", "/p?token=1"};
+  EXPECT_EQ(
+      ps_html_decision_format(keys, query_values, 2, buf, sizeof(buf), &len),
+      -2);
+  const char* size_keys[] = {"host", "size"};
+  const char* size_values[] = {"a.example", "12 KiB"};
+  EXPECT_EQ(ps_html_decision_format(size_keys, size_values, 2, buf, sizeof(buf),
+                                    &len),
+            -2);
+  EXPECT_EQ(len, 0u);
+
+  // count == 0: well formed, and the formatter's own rules decide (an empty
+  // object is a valid line).
+  EXPECT_EQ(
+      ps_html_decision_format(nullptr, nullptr, 0, buf, sizeof(buf), &len), 0);
+  EXPECT_STREQ(buf, "{}");
+
+  // Malformed calls: -1.
+  EXPECT_EQ(ps_html_decision_format(nullptr, values, 2, buf, sizeof(buf), &len),
+            -1);
+  EXPECT_EQ(ps_html_decision_format(keys, nullptr, 2, buf, sizeof(buf), &len),
+            -1);
+  const char* holed[] = {"host", nullptr};
+  EXPECT_EQ(ps_html_decision_format(keys, holed, 2, buf, sizeof(buf), &len),
+            -1);
+  EXPECT_EQ(ps_html_decision_format(holed, values, 2, buf, sizeof(buf), &len),
+            -1);
+  EXPECT_EQ(ps_html_decision_format(keys, values, 2, buf, sizeof(buf), nullptr),
+            -1);
+  EXPECT_EQ(ps_html_decision_format(keys, values, 2, nullptr, 16, &len), -1);
 }
 
 TEST_F(PageSpeedCacheApiTest, WriteHeadersSidecarStoresAndReadsBackByExactId) {

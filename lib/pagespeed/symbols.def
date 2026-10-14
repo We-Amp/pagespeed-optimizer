@@ -117,3 +117,8 @@ EXPORTS
     ps_critical_css_config_init_sized
     ps_read_shared_config_generation
     ps_serve_stats_record_hit_host
+    ps_html_store_classify
+    ps_html_serve_classify
+    ps_html_decision_format
+    ps_html_store_reason_name
+    ps_html_serve_reason_name

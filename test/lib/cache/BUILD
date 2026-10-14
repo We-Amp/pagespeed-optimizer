@@ -162,3 +162,36 @@ gtest_test(
         "//test/test_util:temp_dir",
     ],
 )
+
+gtest_test(
+    name = "html_cache_policy_test",
+    srcs = ["html_cache_policy_test.cc"],
+    deps = [
+        "//lib/cache:html_cache_policy",
+        "//lib/classify:alternate_metadata",
+    ],
+)
+
+gtest_test(
+    name = "html_cache_decision_test",
+    srcs = ["html_cache_decision_test.cc"],
+    deps = [
+        "//lib/cache:headers_sidecar",
+        "//lib/cache:html_cache_decision",
+        "//lib/cache:html_cache_policy",
+    ],
+)
+
+gtest_test(
+    name = "html_cache_policy_fuzz_seeds_test",
+    srcs = ["html_cache_policy_fuzz_seeds_test.cc"],
+    deps = [
+        "//lib/cache:headers_sidecar",
+        "//lib/cache:html_cache_policy",
+        "//lib/cache:html_cache_policy_fuzz_harness",
+        "//lib/cache:origin_cache_control",
+        "//lib/cache:vary_storability",
+        "//lib/classify:alternate_metadata",
+        "//test/test_util:temp_dir",
+    ],
+)
