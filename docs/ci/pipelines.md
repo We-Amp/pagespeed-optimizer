@@ -175,20 +175,30 @@ that says the lane reached a verdict) and a hosted `report` job with
 Without the marker, or without the artifact, the report job leaves the issue
 alone, so a failure before the lane ran cannot close a live issue. Only a run
 on the default branch changes the issue; a branch dispatch is a dry run.
-The gate enforces the split (rule f): a write permission is allowed only on a
-job with a hosted `runs-on`.
+The gate enforces the split (rule f): every reusable workflow declares a
+top-level `permissions:` block with no write access, and a write permission
+(quoted or not) is allowed only on a job with a hosted `runs-on`. The report
+jobs check out `main` for the tools they run, because they hold a write token.
 
 ## The queued-run sweep
 
-A job whose runner label nothing serves (a fleet class while the fleet is
-off) queues for days instead of failing. `sweep-queued.yml` runs hourly on a
-hosted runner and calls `pipeline-sweep.yml`, which runs
-`tools/ci/sweep-queued-runs.sh`: it lists runs in `queued` or `waiting`
-status older than 30 minutes, keeps any run with a job that has a runner and
-any run of a workflow on the skip list (`Release` by default, because a run
-that waits for a manual approval looks the same), and cancels the rest with
-one log line each. `--dry-run` only logs. The logic is tested against a fake
-`gh` by `tools/ci/test_sweep_queued_runs.sh`, which the sweep job runs first.
+A job whose runner label nothing serves (a retired label, or a fleet class
+whose runners are not registered while `FLEET_ENABLED` is on) queues for days
+instead of failing. With `FLEET_ENABLED` off the fleet guard skips the job, so
+nothing queues. `sweep-queued.yml` runs hourly on a hosted runner and calls
+`pipeline-sweep.yml`, which runs `tools/ci/sweep-queued-runs.sh`: it lists runs
+in `queued` or `waiting` status whose latest attempt started more than 30
+minutes ago (`run_started_at`, so a re-run of an old run is not stale; the
+script falls back to `created_at` only when that field is empty), keeps any
+run with a job that has a runner and any run of a workflow on the skip list
+(`Release` by default, because a run that waits for a manual approval looks the
+same), and cancels the rest with one log line each. `--dry-run` only logs.
+
+The threshold is a repository variable: set `SWEEP_MAX_AGE_MINUTES` (a whole
+number of minutes) to override the 30 minute default. Raise it when a busy
+runner class legitimately keeps whole runs queued for longer, for example
+behind the long nightly stress legs. The logic is tested against a fake `gh` by
+`tools/ci/test_sweep_queued_runs.sh`, which the sweep job runs first.
 
 ## Required checks
 
