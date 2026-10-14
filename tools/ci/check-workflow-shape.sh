@@ -27,7 +27,8 @@
 #       macos-15, macos-latest) or exactly the fork/Dependabot routing
 #       expression with a fleet class (fleet-heavy, fleet-light,
 #       fleet-windows, fleet-iis); a job routed by that expression must
-#       carry the fleet guard (FLEET_ENABLED) verbatim as its if:;
+#       carry the fleet guard (FLEET_ENABLED) verbatim as its if: (optionally
+#       narrowed by `&& needs.changes.outputs.<name> == 'true'`);
 #   (e) topology token scan of .github/ and tools/ci/: no LAN (RFC1918) IP
 #       literals, no ".home" names, no ":9090", no "self-hosted", and none
 #       of the retired runner-label words as standalone tokens.
@@ -60,7 +61,8 @@ FLEET_CLASSES="fleet-heavy fleet-light fleet-windows fleet-iis"
 TAB="$(printf '\t')"
 # The fleet guard of docs/ci/pipelines.md, required verbatim as the if: of
 # every job whose runs-on is the routing expression.
-FLEET_GUARD="\${{ vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}"
+FLEET_GUARD_BODY="vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))"
+FLEET_GUARD="\${{ ${FLEET_GUARD_BODY} }}"
 
 status=0
 err() { echo "::error::$*" >&2; status=1; }
@@ -134,6 +136,21 @@ is_fleet_route() {
   return 1
 }
 
+# The fleet guard exactly, or the guard narrowed by a path filter: the guard
+# in parentheses, then `&& needs.changes.outputs.<name> == 'true'`, where the
+# `changes` job is the hosted job that diffs the pull request's files.
+is_fleet_guard() {
+  local v="$1" prefix="\${{ (${FLEET_GUARD_BODY}) && needs.changes.outputs." name
+  [ "${v}" = "${FLEET_GUARD}" ] && return 0
+  case "${v}" in
+    "${prefix}"*" == 'true' }}")
+      name="$(printf '%s' "${v#"${prefix}"}" | sed "s/ == 'true' }}\$//")"
+      printf '%s' "${name}" | grep -qE '^[a-z][a-z_]*$' && return 0
+      ;;
+  esac
+  return 1
+}
+
 # --- workflow scan ------------------------------------------------------------
 shopt -s nullglob
 WORKFLOWS=( "${WF_DIR}"/*.yml "${WF_DIR}"/*.yaml "${WF_DIR}"/*.yml.example )
@@ -180,7 +197,7 @@ for wf in ${WORKFLOWS[@]+"${WORKFLOWS[@]}"}; do
         # A fleet job carries the fleet guard verbatim as its if: (the
         # FLEET_ENABLED kill switch, docs/ci/pipelines.md).
         if_val="$(printf '%s\n' "${records}" | awk -F"${TAB}" -v j="${job}" '$1=="KEY" && $2==j && $3=="if" {print $5}')"
-        if [ "${if_val}" != "${FLEET_GUARD}" ]; then
+        if ! is_fleet_guard "${if_val}"; then
           err "${wf}:${lineno}: fleet job '${job}' does not carry the fleet guard verbatim as its if: (rule d)"
         fi
       fi
