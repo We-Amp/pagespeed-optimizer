@@ -11,7 +11,11 @@
 #
 # A run is cancelled when ALL of these hold:
 #   * its status is "queued" or "waiting";
-#   * it was created more than MAX_AGE minutes ago (default 30);
+#   * its latest attempt started more than MAX_AGE minutes ago (default 30;
+#     "run_started_at", which a re-run resets, falling back to "created_at",
+#     which a re-run keeps, only when run_started_at is empty). Measuring from
+#     created_at would cancel a legitimate re-run of an old run before any
+#     runner could pick it up;
 #   * none of its jobs has a runner assigned;
 #   * its workflow name is not listed in SWEEP_SKIP_WORKFLOWS (a
 #     space-separated list of names, default "Release"): a run that waits on
@@ -21,6 +25,10 @@
 # Usage: tools/ci/sweep-queued-runs.sh [--dry-run] [--max-age MINUTES]
 #
 # Environment:
+#   SWEEP_MAX_AGE_MINUTES default for --max-age (the workflow passes the
+#                        repository variable of the same name; default 30).
+#                        Raise it when a busy runner class legitimately keeps
+#                        whole runs queued for longer.
 #   GH_TOKEN             token with actions: write (read-only with --dry-run)
 #   GITHUB_REPOSITORY    owner/name (set by Actions)
 #   SWEEP_SKIP_WORKFLOWS see above
@@ -35,7 +43,7 @@
 set -euo pipefail
 
 DRY_RUN=0
-MAX_AGE=30
+MAX_AGE="${SWEEP_MAX_AGE_MINUTES:-30}"
 while [ $# -gt 0 ]; do
   case "$1" in
     --dry-run) DRY_RUN=1 ;;
@@ -44,7 +52,7 @@ while [ $# -gt 0 ]; do
       MAX_AGE="${1:-}"
       ;;
     -h|--help)
-      sed -n '5,32p' "$0" | sed 's/^# \{0,1\}//'
+      sed -n '5,42p' "$0" | sed 's/^# \{0,1\}//'
       exit 0
       ;;
     *)
@@ -56,7 +64,7 @@ while [ $# -gt 0 ]; do
 done
 
 case "$MAX_AGE" in
-  ''|*[!0-9]*) echo "::error::--max-age needs a whole number of minutes" >&2; exit 2 ;;
+  ''|*[!0-9]*) echo "::error::the max age (--max-age or SWEEP_MAX_AGE_MINUTES) needs a whole number of minutes" >&2; exit 2 ;;
 esac
 REPO="${GITHUB_REPOSITORY:?GITHUB_REPOSITORY must be set}"
 SKIP="${SWEEP_SKIP_WORKFLOWS-Release}"
@@ -70,7 +78,7 @@ for status in queued waiting; do
   # id, workflow name, age in minutes, one per line, oldest first.
   rows="$(printf '%s' "$runs" | jq -r --argjson now "$NOW" --argjson max "$MAX_AGE" '
     [.workflow_runs[]?
-      | {id, name, age: (($now - (.created_at | fromdateiso8601)) / 60 | floor)}
+      | {id, name, age: (($now - ((if (.run_started_at // "") != "" then .run_started_at else .created_at end) | fromdateiso8601)) / 60 | floor)}
       | select(.age > $max)]
     | sort_by(-.age)[]
     | [.id, .age, .name] | @tsv')"
