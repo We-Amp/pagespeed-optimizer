@@ -162,7 +162,8 @@ jobs:
     # grype downloads its vulnerability database on a cold runner.
     timeout-minutes: 15
     # pull-requests: read lets the release-note gate list the pull request's
-    # changed files and commits.
+    # changed files and commits. The calling job must grant it too: a called
+    # workflow cannot raise the caller's token permissions.
     permissions:
       contents: read
       pull-requests: read
@@ -272,6 +273,14 @@ jobs:
           bash tools/ci/validate-local-bundle_test.sh
           bash tools/ci/test_stage_artifacts.sh
 
+      # Self-tests for the dev-image helper and the vendor-tarball publisher
+      # that the fleet jobs rely on. Hermetic: shims and temp dirs only.
+      - name: Dev-image helper - self-test
+        run: bash tools/ci/test_ensure_dev_image.sh
+
+      - name: Vendor-tarball publisher - self-test
+        run: bash tools/ci/test_publish_vendor_tarball.sh
+
       - name: License headers (Apache-2.0 / SPDX) -- all tracked source files
         run: tools/check-license-headers.sh --all
 
@@ -365,10 +374,10 @@ jobs:
           if [ "${GITHUB_EVENT_NAME}" = "pull_request" ]; then
             changed="${RUNNER_TEMP}/changed-files.txt"
             git diff --name-only "${BASE}...HEAD" > "${changed}"
-            if grep -qE '^(lib/css/|test/lib/css/|tools/ci/classify-css-fuzz-artifacts\.sh$|tools/ci/shadow-css-oracle\.sh$|tools/sbom/post-findings-issue\.sh$|\.github/workflows/pipeline-pr\.yml$)' "${changed}"; then
+            if grep -qE '^(lib/css/|test/lib/css/|tools/ci/classify-css-fuzz-artifacts\.sh$|tools/ci/shadow-css-oracle\.sh$|tools/sbom/post-findings-issue\.sh$|docker/Dockerfile$|\.github/workflows/pipeline-pr\.yml$)' "${changed}"; then
               css=true
             fi
-            if grep -qE '^(lib/js/|test/lib/js/|tools/ci/build-js-fuzz-direct\.sh$|\.github/workflows/pipeline-pr\.yml$)' "${changed}"; then
+            if grep -qE '^(lib/js/|test/lib/js/|tools/ci/build-js-fuzz-direct\.sh$|MODULE\.bazel$|docker/Dockerfile$|\.github/workflows/pipeline-pr\.yml$)' "${changed}"; then
               js=true
             fi
           fi
@@ -424,15 +433,15 @@ jobs:
   # Report-only live-database sweep of the same lockfiles: surfaces newly
   # disclosed advisories fast and never reddens the build (the blocking,
   # pinned-database gate is blocking-dep-scan above). On the default branch it
-  # files or closes one tracking issue; on a pull request it only prints what
-  # it would do. The scheduled image scan belongs to the nightly tier.
+  # files or closes one tracking issue; on a pull request (the only way this
+  # pipeline is called) it only prints what it would do and needs no issue
+  # write permission. The scheduled image scan belongs to the nightly tier.
   dep-scan:
     name: Dependency Scan (report-only)
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read
-      issues: write
     env:
       SYFT_VERSION: v1.44.0
       GRYPE_VERSION: v0.112.0
@@ -748,7 +757,7 @@ jobs:
             exit 0
           fi
           TARBALL="${{ steps.tarball.outputs.tarball }}"
-          SSH_OPTS="-o StrictHostKeyChecking=accept-new -o BatchMode=yes"
+          SSH_OPTS="-o StrictHostKeyChecking=accept-new -o BatchMode=yes -o LogLevel=ERROR"
           F="$(basename "$TARBALL")"
           TMP_DEST="${CI_HUB_VENDOR_DIR}/${F}.${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.tmp"
           T="$(basename "$TMP_DEST")"
@@ -1332,6 +1341,8 @@ jobs:
   # JS kernel differential: the vendored JS kernel under lib/js/ is checked against the shared goldens
   # manifest by building the probe and running gen_goldens.py --check.
   js-kernel-differential:
+    # TODO(follow-up): compare the kernel pin by content (tree id) against the
+    # public repository instead of by commit id, so a floor move can resolve.
     name: JS Kernel Differential (vendored goldens)
     needs: vendor
     runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -1435,6 +1446,8 @@ jobs:
 
   # HTML parse differential: the vendored HTML kernel is checked against the shared goldens manifest.
   html-kernel-differential:
+    # TODO(follow-up): compare the kernel pin by content (tree id) against the
+    # public repository instead of by commit id, so a floor move can resolve.
     name: HTML Parse Differential (vendored goldens)
     needs: vendor
     runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -1783,10 +1796,15 @@ jobs:
           function Set-JobEnv([string]$Name, [string]$Value) {
             "$Name=$Value" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           }
-          if ($env:CI_WIN_TOOLS_DIR -and (Test-Path -LiteralPath $env:CI_WIN_TOOLS_DIR)) {
-            $env:CI_WIN_TOOLS_DIR | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-            $env:PATH = "$($env:CI_WIN_TOOLS_DIR);$($env:PATH)"
-            Write-Host "using the runner's tools directory"
+          # CI_WIN_TOOLS_DIR is a semicolon-separated list of directories.
+          $toolDirs = @()
+          if ($env:CI_WIN_TOOLS_DIR) {
+            $toolDirs = @($env:CI_WIN_TOOLS_DIR -split ';' | Where-Object { $_ -and (Test-Path -LiteralPath $_) })
+          }
+          if ($toolDirs.Count -gt 0) {
+            $toolDirs | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            $env:PATH = (($toolDirs -join ';') + ';' + $env:PATH)
+            Write-Host "using the runner's tool directories"
           }
           $bazel = @('bazelisk', 'bazel') | Where-Object { Get-Command $_ -ErrorAction SilentlyContinue } | Select-Object -First 1
           if (-not $bazel) {
@@ -1796,7 +1814,7 @@ jobs:
           Set-JobEnv 'BAZEL_CMD' $bazel
           # Bazel's shell: MSYS2 bash first, then Git bash.
           $bashCandidates = @()
-          if ($env:CI_WIN_TOOLS_DIR) { $bashCandidates += (Join-Path $env:CI_WIN_TOOLS_DIR 'bash.exe') }
+          foreach ($d in $toolDirs) { $bashCandidates += (Join-Path $d 'bash.exe') }
           $bashCandidates += (Join-Path $env:SystemDrive 'msys64\usr\bin\bash.exe')
           $bashCandidates += (Join-Path $env:ProgramFiles 'Git\bin\bash.exe')
           $bash = $bashCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
@@ -1841,7 +1859,7 @@ jobs:
             $final = Join-Path $env:WIN_VENDOR_DL_DIR $name
             $tmp = "$final.$($env:GITHUB_RUN_ID)-$($env:GITHUB_RUN_ATTEMPT).tmp"
             Write-Host "fetching $name from the CI hub"
-            scp -o StrictHostKeyChecking=accept-new -o BatchMode=yes "$($env:CI_HUB_SSH):$($env:CI_HUB_VENDOR_DIR)/$name" $tmp
+            scp -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o LogLevel=ERROR "$($env:CI_HUB_SSH):$($env:CI_HUB_VENDOR_DIR)/$name" $tmp
             if ($LASTEXITCODE -ne 0) {
               # A failed scp can leave a partial file that a later job would
               # find and feed to zstd; never leave it behind.
@@ -2024,10 +2042,15 @@ jobs:
           function Set-JobEnv([string]$Name, [string]$Value) {
             "$Name=$Value" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           }
-          if ($env:CI_WIN_TOOLS_DIR -and (Test-Path -LiteralPath $env:CI_WIN_TOOLS_DIR)) {
-            $env:CI_WIN_TOOLS_DIR | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-            $env:PATH = "$($env:CI_WIN_TOOLS_DIR);$($env:PATH)"
-            Write-Host "using the runner's tools directory"
+          # CI_WIN_TOOLS_DIR is a semicolon-separated list of directories.
+          $toolDirs = @()
+          if ($env:CI_WIN_TOOLS_DIR) {
+            $toolDirs = @($env:CI_WIN_TOOLS_DIR -split ';' | Where-Object { $_ -and (Test-Path -LiteralPath $_) })
+          }
+          if ($toolDirs.Count -gt 0) {
+            $toolDirs | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+            $env:PATH = (($toolDirs -join ';') + ';' + $env:PATH)
+            Write-Host "using the runner's tool directories"
           }
           $bazel = @('bazelisk', 'bazel') | Where-Object { Get-Command $_ -ErrorAction SilentlyContinue } | Select-Object -First 1
           if (-not $bazel) {
@@ -2037,7 +2060,7 @@ jobs:
           Set-JobEnv 'BAZEL_CMD' $bazel
           # Bazel's shell: MSYS2 bash first, then Git bash.
           $bashCandidates = @()
-          if ($env:CI_WIN_TOOLS_DIR) { $bashCandidates += (Join-Path $env:CI_WIN_TOOLS_DIR 'bash.exe') }
+          foreach ($d in $toolDirs) { $bashCandidates += (Join-Path $d 'bash.exe') }
           $bashCandidates += (Join-Path $env:SystemDrive 'msys64\usr\bin\bash.exe')
           $bashCandidates += (Join-Path $env:ProgramFiles 'Git\bin\bash.exe')
           $bash = $bashCandidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
@@ -2082,7 +2105,7 @@ jobs:
             $final = Join-Path $env:WIN_VENDOR_DL_DIR $name
             $tmp = "$final.$($env:GITHUB_RUN_ID)-$($env:GITHUB_RUN_ATTEMPT).tmp"
             Write-Host "fetching $name from the CI hub"
-            scp -o StrictHostKeyChecking=accept-new -o BatchMode=yes "$($env:CI_HUB_SSH):$($env:CI_HUB_VENDOR_DIR)/$name" $tmp
+            scp -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o LogLevel=ERROR "$($env:CI_HUB_SSH):$($env:CI_HUB_VENDOR_DIR)/$name" $tmp
             if ($LASTEXITCODE -ne 0) {
               # A failed scp can leave a partial file that a later job would
               # find and feed to zstd; never leave it behind.
