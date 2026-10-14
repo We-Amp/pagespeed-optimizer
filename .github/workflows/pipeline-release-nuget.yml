@@ -726,6 +726,7 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.ref-guard.outputs.sha }}
+          persist-credentials: false
           sparse-checkout: tools/ci
           sparse-checkout-cone-mode: false
 
@@ -1014,6 +1015,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.ref-guard.outputs.sha }}
+          persist-credentials: false
 
       - name: Ensure .NET 10 SDK
         run: |
@@ -1228,9 +1230,13 @@ jobs:
           RUN_ID: ${{ github.run_id }}
         run: |
           set -euo pipefail
-          if [ -z "$TARGET_REPO" ] || [ -z "$GH_TOKEN" ]; then
-            echo "::notice::RELEASE_BUMP_REPO or CORP_DISPATCH_TOKEN not set: no release-bump dispatch"
+          if [ -z "$TARGET_REPO" ]; then
+            echo "::notice::RELEASE_BUMP_REPO not set: no release-bump dispatch"
             exit 0
+          fi
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::RELEASE_BUMP_REPO is set but CORP_DISPATCH_TOKEN is empty: the release-bump dispatch cannot be sent"
+            exit 1
           fi
           PAYLOAD=$(jq -n \
             --arg line "2.0" \
@@ -1256,9 +1262,13 @@ jobs:
           REPOSITORY: ${{ github.repository }}
         run: |
           set -euo pipefail
-          if [ -z "$TARGET_REPO" ] || [ -z "$GH_TOKEN" ]; then
-            echo "::notice::RELEASE_IMAGES_REPO or CORP_DISPATCH_TOKEN not set: no release-images dispatch"
+          if [ -z "$TARGET_REPO" ]; then
+            echo "::notice::RELEASE_IMAGES_REPO not set: no release-images dispatch"
             exit 0
+          fi
+          if [ -z "$GH_TOKEN" ]; then
+            echo "::error::RELEASE_IMAGES_REPO is set but CORP_DISPATCH_TOKEN is empty: the release-images dispatch cannot be sent"
+            exit 1
           fi
           PAYLOAD=$(jq -n \
             --arg version "$RELEASE_TAG" \

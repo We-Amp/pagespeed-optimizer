@@ -92,3 +92,18 @@ jobs:
       AZURE_TRUSTED_SIGNING_ACCOUNT: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
       AZURE_TRUSTED_SIGNING_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_PROFILE }}
       CORP_DISPATCH_TOKEN: ${{ secrets.CORP_DISPATCH_TOKEN }}
+
+  unsupported-tag:
+    name: Unsupported tag
+    if: >-
+      !((github.event_name == 'push' && (startsWith(github.ref, 'refs/tags/optimizer-v') || startsWith(github.ref, 'refs/tags/v'))) ||
+      (github.event_name == 'workflow_dispatch' && (startsWith(inputs.tag, 'optimizer-v') || startsWith(inputs.tag, 'v'))))
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - name: Refuse
+        env:
+          REF_NAME: ${{ inputs.tag || github.ref_name }}
+        run: |
+          echo "::error::'$REF_NAME' starts with neither optimizer-v nor v: no release lane applies"
+          exit 1

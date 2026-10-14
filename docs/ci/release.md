@@ -38,7 +38,9 @@ environment, so it needs no approval.
 - NuGet lane: every build and test and the five `.nupkg` files (artifact
   `nupkg-<sha>`). The Windows binaries in a dry run are unsigned, because
   signing happens only inside the environment. The tag must exist and be
-  reachable from `main`.
+  reachable from `main`: the ref guard is enforced on NuGet dry runs, so the
+  first dry run needs an existing `v*` tag (pushing one starts a real run,
+  which waits at its first environment job for approval).
 
 **Real run.** Requires the tag to exist (the lanes never create tags) and to
 pass the ref guard, then publishes from jobs inside the `release`
@@ -109,8 +111,9 @@ value.
 
 The optimizer lane needs no secret beyond the job token.
 
-Repository variables read by the NuGet lane (unset means the step is
-skipped with a notice):
+Repository variables read by the NuGet lane (a repository variable that
+is unset skips its dispatch step with a notice; a variable that is set while
+`CORP_DISPATCH_TOKEN` is empty fails the step with an error):
 
 | Variable | Purpose |
 |---|---|
@@ -122,6 +125,23 @@ The `release-images` payload names this run (`artifacts_repository`,
 `run_id`) and the artifacts `docker-artifacts-linux-x64` and
 `docker-artifacts-linux-arm64` (factory_worker, the nginx module and its
 nginx version), kept for 30 days.
+
+The receiving side of `release-images` must download the
+`docker-artifacts-*` artifacts of the run named in the payload
+(`artifacts_repository`, `run_id`) instead of fetching an archive.
+`source_tag` and `source_sha` now equal the release tag and its commit; they
+no longer name a separate source tag.
+
+`sign-windows` asks for its approval as soon as the Windows build finishes,
+before the tests and security gates have a verdict. The approval can
+therefore be given ahead of the test result; check the run before approving.
+
+A release that `promote-release` flips to published with the job token does
+not fire the `release: published` event. After an auto-promote, start the
+smoke lane by hand with a manual dispatch.
+
+A dispatch whose tag starts with neither `optimizer-v` nor `v` fails in the
+`unsupported-tag` job of the caller instead of ending green with no jobs.
 
 ## nuget.org Trusted Publishing (owner steps)
 

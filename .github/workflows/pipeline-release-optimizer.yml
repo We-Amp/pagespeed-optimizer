@@ -84,6 +84,8 @@ jobs:
     name: Ref guard
     runs-on: ubuntu-latest
     timeout-minutes: 5
+    outputs:
+      guard_sha: ${{ steps.guard.outputs.sha }}
     steps:
       - name: Checkout main (guard code)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -112,6 +114,7 @@ jobs:
           echo "real run: $REAL"
 
       - name: Enforce the ref guard (real run)
+        id: guard
         if: ${{ steps.mode.outputs.real == 'true' }}
         uses: ./.github/actions/ref-guard
         with:
@@ -156,6 +159,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ inputs.tag || github.ref_name }}
+          GUARD_SHA: ${{ needs.ref-guard.outputs.guard_sha }}
         run: |
           set -euo pipefail
           # TAG arrives via the environment, never interpolated into the
@@ -192,8 +196,13 @@ jobs:
           # a tag that does not exist yet; then it builds the dispatched ref.
           TAG_SHA=""
           CHECKOUT_REF="${{ github.ref }}"
-          if TAG_SHA="$(gh api "repos/${{ github.repository }}/commits/$TAG" --jq .sha 2>/dev/null)"; then
-            CHECKOUT_REF="$TAG"
+          # Resolve by FULL ref: a branch named like the tag must never win.
+          if TAG_SHA="$(gh api "repos/${{ github.repository }}/commits/refs/tags/$TAG" --jq .sha 2>/dev/null)"; then
+            CHECKOUT_REF="refs/tags/$TAG"
+            if [ -n "$GUARD_SHA" ] && [ "$GUARD_SHA" != "$TAG_SHA" ]; then
+              echo "::error::tag '$TAG' resolves to $TAG_SHA but the ref guard accepted $GUARD_SHA"
+              exit 1
+            fi
           elif [ "$DRY_RUN" = "false" ]; then
             echo "::error::real run but tag '$TAG' does not exist on the remote; push the tag first, the lane never creates it"
             exit 1
@@ -673,7 +682,16 @@ jobs:
       - name: Checkout the tag
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ needs.version.outputs.tag }}
+          ref: refs/tags/${{ needs.version.outputs.tag }}
+          persist-credentials: false
+
+      - name: Verify the checkout is the resolved tag commit
+        env:
+          WANT: ${{ needs.version.outputs.tag_sha }}
+        run: |
+          set -euo pipefail
+          GOT="$(git rev-parse HEAD)"
+          [ -n "$WANT" ] && [ "$WANT" = "$GOT" ] || { echo "::error::tag moved or unresolved: resolved '$WANT', checked out $GOT"; exit 1; }
 
       - name: Download validated dist
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
