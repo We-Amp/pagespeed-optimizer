@@ -103,6 +103,8 @@ test.describe('Contact page', () => {
       'action',
       '/ai-readability/api/contact',
     );
+    // The page script fills the hidden page-load timestamp.
+    await expect(page.locator('#contact-form input[name="t"]')).toHaveValue(/^\d+$/);
     expect(await page.content()).not.toContain(['sales', 'we-amp.com'].join('@'));
   });
 
@@ -174,6 +176,7 @@ test.describe('Contact page', () => {
     await page.locator('#contact-submit').click();
     await expect(page.locator('#contact-status')).toContainText('Thanks');
     expect(posted).toMatchObject({ topic: 'setup', message: 'nginx 1.24 on Ubuntu 24.04.' });
+    expect(typeof (posted as unknown as Record<string, unknown>).t).toBe('number');
   });
 });
 

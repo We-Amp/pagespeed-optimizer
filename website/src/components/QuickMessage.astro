@@ -218,6 +218,7 @@
   const TOPIC = 'quick-message';
   const DRAFT_KEY = 'qm-draft-v1';
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const loadedAt = Date.now();
 
   const root = document.querySelector<HTMLElement>('[data-qm]');
   if (root) {
@@ -425,6 +426,7 @@
             // third-party URL on pages like /analyze. The owner still gets the
             // originating page without leaking what a visitor was inspecting.
             url: window.location.pathname,
+            t: loadedAt,
           }),
         });
         if (!res.ok) throw new Error(`status ${res.status}`);

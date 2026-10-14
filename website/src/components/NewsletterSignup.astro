@@ -149,6 +149,7 @@ const statusId = `${uid}-status`;
   const NEWSLETTER_TOPIC = 'newsletter-signup';
 
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const loadedAt = Date.now();
 
   document.querySelectorAll<HTMLFormElement>('form[data-newsletter]').forEach((form) => {
     const variant = form.dataset.variant ?? 'footer';
@@ -213,6 +214,7 @@ const statusId = `${uid}-status`;
               name: '',
               topic: NEWSLETTER_TOPIC,
               message: `Newsletter signup — explicit consent given. Source: ${source}.`,
+              t: loadedAt,
             }),
           });
         }

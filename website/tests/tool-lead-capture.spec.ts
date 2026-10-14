@@ -508,6 +508,7 @@ test.describe('AI-readability pre-consent leak lens and consent-enforcement card
       name: '',
       url: 'https://example.com/',
       wedge: 'consent-enforcement',
+      t: expect.any(Number),
       lensSignal: {
         verdict: 'leaks',
         trackerCount: 4,
