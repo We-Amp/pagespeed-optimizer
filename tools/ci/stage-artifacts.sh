@@ -114,7 +114,7 @@ if [ "${LOCAL_BUNDLE_OK}" -ne 1 ]; then
   : "${CI_HUB_SSH:?CI_HUB_SSH must be set (runner environment; see docs/ci/runner-environment.md)}"
   : "${CI_HUB_ARTIFACTS_ROOT:?CI_HUB_ARTIFACTS_ROOT must be set (runner environment; see docs/ci/runner-environment.md)}"
   RSYNC_REMOTE="${CI_HUB_SSH}:${CI_HUB_ARTIFACTS_ROOT}/${BUNDLE_SHA}/${CI_ARTIFACTS_PLATFORM:-linux-x64}/"
-  RSYNC_SSH='ssh -o StrictHostKeyChecking=accept-new -o BatchMode=yes -o ConnectTimeout=10'
+  RSYNC_SSH='ssh -o StrictHostKeyChecking=accept-new -o LogLevel=ERROR -o BatchMode=yes -o ConnectTimeout=10'
 
   attempt=1
   max_attempts=3
