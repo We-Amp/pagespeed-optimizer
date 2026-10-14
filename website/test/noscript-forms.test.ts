@@ -85,5 +85,7 @@ describe.skipIf(!BUILT)('no-JavaScript inquiry forms (built output)', () => {
       (n) => attr(n, 'name'),
     );
     for (const n of ['email', 'name', 'topic', 'message', 'company']) expect(names).toContain(n);
+    // The page-load timestamp is filled by script, so it is empty in the HTML.
+    expect(attr(hidden(form, 't')!, 'value')).toBe('');
   });
 });

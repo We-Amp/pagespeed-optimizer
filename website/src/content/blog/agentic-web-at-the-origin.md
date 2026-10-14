@@ -5,7 +5,7 @@ date: 2026-06-22
 author: 'Otto van der Schaaf'
 tags: ['ai-agents', 'strategy', 'architecture', 'web-bot-auth']
 draft: false
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-13
 ---
 
 ## The agentic web changed your traffic
@@ -42,7 +42,7 @@ An AI agent does not want your navigation or your nested `<div>` wrappers. It wa
 
 The fix is to serve agents something they can read: clean markdown, plus an `/llms.txt` index that points them at it. The mod_pagespeed 2.1 optimizer worker's `agent_optimize` does this through content negotiation. When a client signals it wants the agent-friendly variant, the origin serves markdown synthesized from your existing pages. There is no separate content pipeline to maintain.
 
-This is experimental, off by default, and gated behind a license entitlement (contact us to scope it), not a self-serve switch. Turn it on when your content is the product and your agent traffic is real. The generation rules, the negotiation header, and the shape of the synthesized `/llms.txt` are in [Serve clean Markdown to AI agents](/blog/serve-markdown-to-ai-agents/); the configuration lives in the [agent-optimize docs](/docs/agent-optimize/).
+This is experimental and off by default; the operator enables it with a worker flag, and it requires browser analysis. Turn it on when your content is the product and your agent traffic is real. The generation rules, the negotiation header, and the shape of the synthesized `/llms.txt` are in [Serve clean Markdown to AI agents](/blog/serve-markdown-to-ai-agents/); the configuration lives in the [agent-optimize docs](/docs/agent-optimize/).
 
 ### 4. Provenance: image optimization usually destroys it
 
