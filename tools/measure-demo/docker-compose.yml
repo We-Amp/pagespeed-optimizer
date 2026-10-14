@@ -34,12 +34,6 @@ services:
     build:
       context: ../../
       dockerfile: tools/e2e/Dockerfile.e2e
-      # Forward the host SSH agent to Dockerfile.e2e's `RUN --mount=type=ssh`
-      # bazel build (Cyclone git_repository fetch). Without this,
-      # `docker compose build` cannot satisfy the mount and the build fails on
-      # the Cyclone fetch - which is why the demo metrics went stale.
-      ssh:
-        - default
     entrypoint: ["/entrypoint-worker.sh"]
     ports:
       # Worker admin API - measure.py asserts the worker is ready here before measuring.
@@ -55,8 +49,6 @@ services:
     build:
       context: ../../
       dockerfile: tools/e2e/Dockerfile.e2e
-      ssh:
-        - default
     command: ["nginx", "-g", "daemon off;"]
     ports:
       - "127.0.0.1:8080:8080"

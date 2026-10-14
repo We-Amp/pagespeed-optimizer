@@ -28,7 +28,7 @@ export PAGESPEED_API_TOKEN="${PAGESPEED_API_TOKEN:-workbench-demo-token}"
 # usable without a login (the ASP.NET demo makes the same call). Mutating
 # requests still require the token, which the proxy supplies.
 export PAGESPEED_API_READ_OPEN=true
-# This image still runs as root (see issue #1429), where
+# This image still runs as root (a known limitation), where
 # Chrome refuses to sandbox itself, so browser analysis would REFUSE to start
 # under the `require` default. Take the documented opt-out explicitly -- the
 # WARNING banner stays in the log on every Chrome spawn.

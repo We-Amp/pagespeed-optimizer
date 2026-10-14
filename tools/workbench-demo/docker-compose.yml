@@ -17,7 +17,7 @@
 # tools/workbench-demo/run.sh checks and exports it before starting the stack.
 #
 # Prerequisites:
-#   1. Clone Cyclone:  git clone <cyclone-repo> reference/cyclone
+#   1. Clone Cyclone:  git clone https://github.com/We-Amp/cyclone-cache reference/cyclone
 #   2. Build console:  cd tools/workbench && pnpm install && pnpm -C packages/api-client build && pnpm -C packages/web-shell build
 #   3. Build dev image: ./tools/docker-build.sh
 #   4. Optional:       cp "$WEBSITE_DIR/.env.example" "$WEBSITE_DIR/.env"

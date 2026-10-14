@@ -76,22 +76,6 @@ fi
 "$VENV_DIR/bin/pip" install --quiet requests
 echo "  Python venv: OK"
 
-# The e2e image build fetches the Cyclone repo over SSH
-# (Dockerfile.e2e: RUN --mount=type=ssh). docker-compose build.ssh:[default]
-# requires an SSH agent socket - buildkit validates it even when the image is
-# cached. Start an agent + load the default key if the caller hasn't already
-# (build hosts use a passphraseless key); fail with guidance if no key loads.
-if [ -z "${SSH_AUTH_SOCK:-}" ] || ! ssh-add -l >/dev/null 2>&1; then
-    eval "$(ssh-agent -s)" >/dev/null 2>&1 || true
-    ssh-add >/dev/null 2>&1 || ssh-add "$HOME/.ssh/id_ed25519" >/dev/null 2>&1 || true
-fi
-if ! ssh-add -l >/dev/null 2>&1; then
-    echo "Error: no SSH key loaded in an agent. The e2e image build fetches the" >&2
-    echo "Cyclone repo over SSH; run 'ssh-add <your-github-key>' and retry." >&2
-    exit 1
-fi
-echo "  SSH agent: OK"
-
 # Build and start measurement stack
 echo ""
 echo "Starting measurement stack..."

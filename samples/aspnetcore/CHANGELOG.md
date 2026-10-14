@@ -1,5 +1,7 @@
 # Changelog
 
+Entries for 2.0.x predate the relicensing of the product under the Apache License 2.0; their license and trial wording describes the behavior of those releases.
+
 ## 2.0.20
 
 ### Middleware read-back
@@ -81,8 +83,7 @@ Two effects:
 - The **Non deterministic** and **Compiler Flags: Missing** checks on
   [nuget.info](https://nuget.info/packages/WeAmp.PageSpeed.AspNetCore)
   flip green.
-- Absolute source paths from CI workers (`/Users/.../modpagespeed-2/…`)
-  no longer get embedded in shipped PDBs.
+- Absolute build paths no longer get embedded in shipped PDBs.
 
 The third nuget.info health flag, **Source Link: Missing Symbols**,
 remains intentionally red - turning Source Link on would advertise commit SHAs and per-file paths in
@@ -115,7 +116,7 @@ Verified end-to-end against the live license service.
   configured` - the upstream call was never even attempted.
 - The NuGet `factory_worker` correctly stamps `server: "aspnetcore"` on its
   tracking metadata (set by `--copt=-DPAGESPEED_SERVER='"aspnetcore"'` in
-  #377), but the license-service allow-list was not updated alongside, so
+  the build), but the license-service allow-list was not updated alongside, so
   even with the URL wired up upstream returns `400 invalid server:
   aspnetcore`.
 
@@ -279,10 +280,10 @@ NuGet package version from `2.0.0-preview.1` to `2.0.0`.
 
 - Middleware no longer emits `stale-if-error` unconditionally; gated by the
   origin response's revalidation directives (`must-revalidate`, `no-cache`,
-  `proxy-revalidate`, `s-maxage`) per RFC 9111 §4.2.4. (#259)
+  `proxy-revalidate`, `s-maxage`) per RFC 9111 §4.2.4.
 - Worker `SetLicenseStatus` writes are now atomic via a mutex; HTTP readers
   on `/v1/health` and `/api/status` cannot observe torn license state under
-  the new hot-path enforcement. (#167)
+  the new hot-path enforcement.
 
 ## 2.0.0-preview.1
 

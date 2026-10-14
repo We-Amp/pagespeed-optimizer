@@ -15,7 +15,7 @@
 
 ### test_savedata_variants_lower_quality (SKIPPED)
 - **Reason**: No matching normal/save-data WebP desktop pairs with SSIMULACRA2 scores
-- **Root cause**: Cache entries for `localhost` hostname don't have SSIMULACRA2 scores yet (worker still processing inflight items). The older a hosted instance entries do have scores.
+- **Root cause**: Cache entries for `localhost` hostname don't have SSIMULACRA2 scores yet (worker still processing inflight items). Older entries cached through a hosted instance do have scores.
 - **Severity**: Low - not a bug, just timing. The test will pass once the worker finishes processing all variants.
 
 ## Observations
