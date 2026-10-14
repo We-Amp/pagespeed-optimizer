@@ -129,3 +129,7 @@ v1-17-0
 # The paired 2.3.0 release
 v2-3-0
 v1-18-0
+
+# The paired 2.4.0 release
+v2-4-0
+v1-19-0
