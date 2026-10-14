@@ -132,9 +132,12 @@ pagespeed2-dev:latest
 # never bump GATE_HITS in --fail-on mode. Owner decision 2026-06-11 (the CVE
 # ratchet): pagespeed2-dev is the CI toolchain image — never shipped to
 # customers — so its CVE surface is tracked but does not gate publishes.
+# The website surface (website/package-lock.json) is the same class: build
+# tooling for the documentation site, shipped in no package, so it is scanned
+# and reported (and its lockfile coverage is satisfied) without gating.
 is_report_only() {
   case "$1" in
-    pagespeed2-dev*) return 0 ;;
+    pagespeed2-dev*|website) return 0 ;;
   esac
   return 1
 }
@@ -144,8 +147,11 @@ is_report_only() {
 # the single place to register a new JS surface. Both lockfile dialects are
 # handled (pnpm-lock.yaml and package-lock.json).
 #   workbench       - the workbench SPA (tools/workbench)
+#   website         - the documentation site (website/); report-only, see
+#                     is_report_only
 NPM_LOCKFILES="
 workbench       tools/workbench/pnpm-lock.yaml
+website         website/package-lock.json
 "
 
 note() { printf '\033[36m[dep-scan]\033[0m %s\n' "$*" >&2; }
