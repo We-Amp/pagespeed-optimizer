@@ -1007,7 +1007,7 @@ whatever it names, and the work is processed and stored under the **default
 context**: optimized output is a function of the resource, of the request
 (client capabilities and content type, plus whether it was an agent request:
 the request declares its own intent, and it counts only when the operator has
-turned on the `agent_optimize` setting the optimizer itself publishes), and of
+turned on `agent_optimize`, which the optimizer advertises to the module), and of
 the optimizer's own configuration, so two
 requests that resolved to two different configurations cannot produce two
 different optimized artifacts. Keep supplying the context you resolve — it is

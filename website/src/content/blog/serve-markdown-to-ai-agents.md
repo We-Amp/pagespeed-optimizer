@@ -31,9 +31,7 @@ The generation runs at your origin. There is no external service rendering your 
 
 ## It ships off by default, as an experimental feature
 
-Be clear on availability, because this one has real conditions.
-
-`agent_optimize` runs in the optimizer worker; the module alone does not produce it. It ships **off by default** and is experimental, so evaluate it in staging before you enable it in production. There is no token and no separate build: operator flags turn it on. On the module alone, with `AgentOptimize on`, the request is recognized and HTML responses carry `Vary: Accept`, but no markdown is ever rendered or served; the render depends on a headless browser only the optimizer worker runs. Turning it on takes two things:
+`agent_optimize` runs in the optimizer worker; the module alone does not produce it. It ships **off by default** and is experimental, so evaluate it in staging before you enable it in production. Operator flags turn it on. On the module alone, with `AgentOptimize on`, the request is recognized and HTML responses carry `Vary: Accept`, but no markdown is ever rendered or served; the render depends on a headless browser only the optimizer worker runs. Turning it on takes two things:
 
 1. **Enable browser analysis.** `agent_optimize` requires `--enable-browser-analysis`, because the markdown variant comes from a headless render.
 2. **Set the flag.** `--agent-optimize` (or `PAGESPEED_AGENT_OPTIMIZE=true`). Default: `false`.

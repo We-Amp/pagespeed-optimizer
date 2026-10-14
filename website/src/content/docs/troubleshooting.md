@@ -284,7 +284,7 @@ The management socket provides real-time insight into the worker's state.
 echo "STATS" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
 ```
 
-In the container images the socket is `/data/pagespeed.sock.mgmt`. On the packages, run these commands as root or as a member of group `pagespeed`.
+In the container images the management socket is `/data/pagespeed.sock.mgmt`. On the packages, run these commands as root or as a member of group `pagespeed`.
 
 Look for:
 
