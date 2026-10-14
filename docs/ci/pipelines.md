@@ -15,8 +15,8 @@ put its own workflow code on a fleet runner: whatever it changes in
 
 | Kind | Triggers | Holds | Example |
 |---|---|---|---|
-| Caller | `pull_request`, `push`, `schedule`, `workflow_dispatch` | triggers, `concurrency`, `permissions`, jobs that only `uses:` a reusable workflow `@main` or `@ci-dev`, and at most an aggregate gate job on a hosted label | `nightly.yml`, `ci-dev.yml`, `ci.caller.yml.example` |
-| Reusable | `workflow_call` only | every job, with its `runs-on` | `pipeline-pr.yml`, `pipeline-full.yml`, `pipeline-nightly.yml` |
+| Caller | `pull_request`, `push`, `schedule`, `workflow_dispatch` | triggers, `concurrency`, `permissions`, jobs that only `uses:` a reusable workflow `@main` or `@ci-dev`, and at most an aggregate gate job on a hosted label | `nightly.yml`, `sweep-queued.yml`, `ci-dev.yml`, `ci.caller.yml.example` |
+| Reusable | `workflow_call` only | every job, with its `runs-on` | `pipeline-pr.yml`, `pipeline-full.yml`, `pipeline-nightly.yml`, `pipeline-sweep.yml` |
 
 Rules that follow from the shape:
 
@@ -28,7 +28,9 @@ Rules that follow from the shape:
 - Reusable workflows declare `permissions: contents: read`. A job that needs
   more asks for it on the job, and anything that writes to GitHub (issues,
   releases, comments) runs on a hosted runner fed by an artifact, never on a
-  fleet runner.
+  fleet runner (see "Report jobs" below). A called workflow can narrow the
+  permissions its caller grants but never widen them, so a caller whose
+  workflow has a report job grants `issues: write` on the job that calls it.
 - Jobs pass files to each other with `actions/upload-artifact` and
   `actions/download-artifact`, or `actions/cache`, never through a path on a
   particular machine. A runner-local fast path is allowed only through the
@@ -39,8 +41,9 @@ Rules that follow from the shape:
 | Tier | Workflow | Runs on | Holds |
 |---|---|---|---|
 | PR | `pipeline-pr.yml` | every pull request and push to `main` | the hosted checks (daemon build and unit-test slice, Apache RAT, license headers, SBOM drift, release-note gate and the chart, probe and entrypoint checks, the public-tree hygiene gate, the blocking and the report-only dependency scans, the ABI check, the JS/TS unit tests, the release packaging container), and the fleet legs: vendor, Linux build, Linux unit tests, lint, the JS and HTML kernel differentials, the release-config test compile, the Windows build and unit tests, and the path-filtered CSS and JS fuzz smokes. Later changes add the Linux arm64 build and tests |
-| Full | `pipeline-full.yml` | push to `main`, `workflow_dispatch` with `full: true`, or a pull request labelled `ci:full` | sanitizers (ASan, TSan), package smokes (Linux x64, Linux arm64, Windows), the daemon privilege rigs, HTTP compliance, the async CSS probe markup check, container cache sharing. Placeholder for now |
-| Nightly | `pipeline-nightly.yml` | `nightly.yml`: daily at 03:00 UTC and on dispatch | the macOS build, unit tests and package smoke; the periodic vendor, builds, stress, production, real-world, end-to-end and soak lanes (x64 on the fleet, arm64 hosted); the rendered async CSS probe; CSS fuzzing (nightly and shadow); the frozen-release security scan. Placeholder for now |
+| Full | `pipeline-full.yml` | push to `main`, `workflow_dispatch` with `full: true`, or a pull request labelled `ci:full` | its own vendor and Linux x64 build; sanitizers (ASan, TSan); package smokes (Linux x64, Linux arm64, Windows, with a Windows build of the two shipped binaries to feed it); the daemon privilege rigs (three distros on the fleet, one on hosted arm64); HTTP compliance; the async CSS probe markup check; container cache sharing; the Linux arm64 build and unit tests |
+| Nightly | `pipeline-nightly.yml` | `nightly.yml`: daily at 03:00 UTC and on dispatch | the macOS build, unit tests and package smoke; the periodic vendor and optimized builds (x64 on the fleet, arm64 hosted); the stress, production, real-world and end-to-end lanes on both architectures; the x64 privilege-rig soak; the rendered async CSS probe; CSS fuzzing (nightly, and a manual shadow lane); the nightly image leg of the dependency scan |
+| Sweep | `pipeline-sweep.yml` | `sweep-queued.yml`: hourly and on dispatch | cancels runs that wait for a runner nobody serves (see "The queued-run sweep") |
 
 The `ci:full` label is read when a pull request run starts (open, push,
 reopen). After adding the label, push or re-run the workflow to get the
@@ -74,9 +77,26 @@ hosted runners for fork and Dependabot pull requests, which need no fleet.
 Setting it to `true` turns the fleet legs on; clearing it is the kill switch
 that takes every fleet job off the fleet at once, with no workflow change.
 
+Two more guards exist for jobs that cannot fall back to a hosted runner, and
+the gate accepts exactly these three. **Fleet only** is for a job that mounts
+the container socket, runs privileged containers or needs a real Linux
+kernel: a fork or Dependabot pull request skips it.
+
+```yaml
+if: ${{ vars.FLEET_ENABLED == 'true' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
+```
+
+**Dispatch only** is for a manual lane; a dispatch is never a fork pull
+request.
+
+```yaml
+if: ${{ github.event_name == 'workflow_dispatch' && vars.FLEET_ENABLED == 'true' }}
+```
+
 A job that needs more conditions (for example a path filter) appends them in
 a later change together with a matching gate rule; the gate rejects any
-fleet job whose `if:` is not exactly the guard.
+fleet job whose `if:` is not exactly one of the three guards. A job that runs
+on a hosted label only (hosted arm64, macOS, report jobs) carries no guard.
 
 ### Hosted side: degraded mode
 
@@ -135,6 +155,41 @@ if: ${{ (vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' &&
 Outside a pull request every filter is false. The workflow-shape gate accepts
 the guard either verbatim or in exactly this narrowed form.
 
+## Artifacts
+
+Jobs pass files through `actions/upload-artifact` and
+`actions/download-artifact`. Artifact names are unique within a workflow run,
+and the caller runs the PR tier and the full tier in one run, so each tier
+prefixes its names: the PR tier uses none, the full tier `full-`, the nightly
+tier `nightly-`. A build bundle is the directory `.ci-artifacts` (binaries,
+`metadata.json`, `checksums.sha256`); a consumer downloads it to a directory
+and hands the parent to `tools/ci/stage-artifacts.sh`, which validates it.
+Retention is three days for bundles and evidence.
+
+## Report jobs
+
+A job that files or closes an issue never runs on the fleet. The fleet job
+uploads a small artifact (the findings text, plus a `lane-ran` marker file
+that says the lane reached a verdict) and a hosted `report` job with
+`issues: write` downloads it and runs `tools/sbom/post-findings-issue.sh`.
+Without the marker, or without the artifact, the report job leaves the issue
+alone, so a failure before the lane ran cannot close a live issue. Only a run
+on the default branch changes the issue; a branch dispatch is a dry run.
+The gate enforces the split (rule f): a write permission is allowed only on a
+job with a hosted `runs-on`.
+
+## The queued-run sweep
+
+A job whose runner label nothing serves (a fleet class while the fleet is
+off) queues for days instead of failing. `sweep-queued.yml` runs hourly on a
+hosted runner and calls `pipeline-sweep.yml`, which runs
+`tools/ci/sweep-queued-runs.sh`: it lists runs in `queued` or `waiting`
+status older than 30 minutes, keeps any run with a job that has a runner and
+any run of a workflow on the skip list (`Release` by default, because a run
+that waits for a manual approval looks the same), and cancels the rest with
+one log line each. `--dry-run` only logs. The logic is tested against a fake
+`gh` by `tools/ci/test_sweep_queued_runs.sh`, which the sweep job runs first.
+
 ## Required checks
 
 Until the caller switch, `ci.yml` keeps its four hosted jobs and their check
@@ -188,6 +243,11 @@ job and fails the build when the shape breaks:
   `macos-15`, `macos-latest`) or exactly the routing expression with a fleet
   class, and a job routed by the expression carries the fleet guard verbatim
   (or narrowed by a `changes` path filter, see above);
+
+  class, and a job routed by the expression carries one of the three fleet
+  guards verbatim;
+- **(f)** in a reusable workflow a `write` permission (workflow or job level)
+  is allowed only on a job with a hosted `runs-on`;
 - **(e)** `.github/` and `tools/ci/` carry no LAN address literals, no
   `.home` names, no `:9090`, no `self-hosted` and none of the retired runner
   label words.
