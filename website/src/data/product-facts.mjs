@@ -385,7 +385,7 @@ export const PKG_OPTIMIZER = 'pagespeed-optimizer'; // the optimizer worker
 // (X-Mod-Pagespeed on Apache, X-Page-Speed on nginx), which is what the
 // homepage quick-start shows. Bump it when new module packages are published;
 // test/sync/module-package-version.test.ts compares it with the live index.
-export const MODULE_PACKAGE_VERSION = '1.18.0';
+export const MODULE_PACKAGE_VERSION = '1.19.0';
 
 // --- NuGet packages ---------------------------------------------------------
 export const PKG_ASPNETCORE = 'WeAmp.PageSpeed.AspNetCore'; // the ASP.NET Core middleware
