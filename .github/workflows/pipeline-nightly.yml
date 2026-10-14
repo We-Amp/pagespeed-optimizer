@@ -1,0 +1,44 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2024-2026 We-Amp B.V.
+#
+# pipeline-nightly.yml -- the nightly tier, as a reusable workflow, called
+# by nightly.yml (schedule + workflow_dispatch). See docs/ci/pipelines.md.
+#
+# PLACEHOLDER: the jobs below are ported by a later change. Until then the
+# tier holds one hosted job that exits 0 so the caller can already run.
+# Jobs this tier will hold (fleet class or hosted label in brackets):
+#   macOS (daily build):
+#     * macos-build, macos-unit-tests, macos-pkg-smoke      [macos-15]
+#   periodic lanes:
+#     * periodic-vendor, periodic-build-x64                 [fleet-heavy]
+#     * periodic-build-arm64                                [ubuntu-24.04-arm]
+#     * stress, workbench-playwright, production-tests,
+#       realworld-tests, e2e-tests (arm64)                  [ubuntu-24.04-arm]
+#     * stress-x64, production-tests-x64, realworld-tests-x64,
+#       e2e-tests-x64, daemon-rig-soak-x64                  [fleet-heavy]
+#   async CSS probe:
+#     * rendered                                            [fleet-light]
+#   CSS fuzzing:
+#     * nightly, shadow (dispatch only)                     [fleet-heavy]
+#   security scan of the frozen release line:
+#     * frozen-scan (weekly; open question: it needs a public
+#       ref to scan)                                        [fleet-heavy]
+# Anything that files issues or writes to GitHub runs in a hosted report
+# job fed by an artifact, never on a fleet runner.
+
+name: pipeline-nightly
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  placeholder:
+    name: Nightly tier (placeholder)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Nothing to run yet
+        run: echo "The nightly tier is not ported yet; see docs/ci/pipelines.md."
