@@ -548,26 +548,44 @@ class TestRevalidatedUnstorable:
 
     PATH = "/sidecar/reval.css"
 
+    @pytest.mark.parametrize("vary304", ["*", "Cookie"])
     def test_non_conditional_client_gets_200_and_entry_is_dropped(
-        self, client, origin_client
+        self, client, origin_client, vary304
     ):
         path = self.PATH
         try:
             serve_control(origin_client, rp="no-referrer", vary304="")
-            hit = optimized_hit(client, origin_client, path)
-            serve_control(origin_client, vary304="*")
+            # The URL lives one second, so a poll can land on a revalidation
+            # as well as a hit.  Any cached copy will do: the worker records
+            # the optimized variant of a URL once, so a second run of this
+            # test finds the original bytes cached, and the assertion below
+            # is that the stored bytes are what gets served.
+            client.get(path, headers=IDENTITY)
+            hit = None
+            for _ in range(60):
+                r = client.get(path, headers=IDENTITY)
+                if x_pagespeed(r) in ("HIT", "REVALIDATED"):
+                    hit = r
+                    break
+                time.sleep(0.3)
+            assert hit is not None, "no cached copy"
+            # The stored lines say no-referrer; the 304 says same-origin and
+            # must win, while the other stored lines are still replayed.
+            serve_control(origin_client, rp="same-origin", vary304=vary304)
             time.sleep(2.5)
             status_line, header_lines, body = raw_get(path)
             assert status_line == "HTTP/1.1 200 OK", status_line
+            assert raw_header(header_lines, "X-PageSpeed") == ["REVALIDATED"]
+            assert raw_header(header_lines, "Vary")
             assert body == hit.content
             assert int(raw_header(header_lines, "Content-Length")[0]) == len(body)
-            assert raw_header(header_lines, "Referrer-Policy") == ["no-referrer"]
+            assert raw_header(header_lines, "Referrer-Policy") == ["same-origin"]
             # The entry was dropped and not written again: with the origin
             # back to a storable 304, the next request is a miss, not a hit.
             serve_control(origin_client, vary304="")
             again = client.get(path, headers=IDENTITY)
             assert again.status_code == 200
-            assert x_pagespeed(again) != "HIT", again.headers
+            assert x_pagespeed(again) == "MISS", again.headers
         finally:
             serve_control(origin_client, vary304="")
 
@@ -587,8 +605,12 @@ class TestRevalidatedUnstorable:
             assert etag, header_lines
             client.get(path, headers=IDENTITY)  # records the entry again
             time.sleep(2.5)
-            status_line, _, body = raw_get(path, {"If-None-Match": etag[0]})
+            status_line, header_lines, body = raw_get(
+                path, {"If-None-Match": etag[0]}
+            )
             assert status_line == "HTTP/1.1 304 Not Modified", status_line
+            assert raw_header(header_lines, "ETag") == [etag[0]]
+            assert raw_header(header_lines, "X-PageSpeed") == ["REVALIDATED"]
             assert body == b""
         finally:
             serve_control(origin_client, vary304="")
