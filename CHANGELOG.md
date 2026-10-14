@@ -4,6 +4,13 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Fixed: when the origin confirms a stale cached response with a 304 that makes
+it no longer cacheable (for example a `Vary: *` line), nginx now answers a
+client that sent no conditional request with a normal `200` and the full body,
+once, and then drops the cached copy. Previously such a client could receive a
+bodyless `304 Not Modified` it had not asked for. A client whose own
+`If-None-Match` matches still receives a `304`.
+
 Fixed: nginx now serves a stale cached response that the origin confirms is
 still current (a 304 to the module's own revalidation request) to a client
 that sent no conditional request as a normal `200` with the full body, as RFC

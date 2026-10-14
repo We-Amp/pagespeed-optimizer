@@ -541,6 +541,59 @@ class TestRevalidatedStatusLine:
         assert body == hit.content
 
 
+class TestRevalidatedUnstorable:
+    """A 304 to the module's own revalidation that makes the entry no longer
+    storable (here `Vary: *`) must not reach a client that sent no
+    conditional request (issue #220)."""
+
+    PATH = "/sidecar/reval.css"
+
+    def test_non_conditional_client_gets_200_and_entry_is_dropped(
+        self, client, origin_client
+    ):
+        path = self.PATH
+        try:
+            serve_control(origin_client, rp="no-referrer", vary304="")
+            hit = optimized_hit(client, origin_client, path)
+            serve_control(origin_client, vary304="*")
+            time.sleep(2.5)
+            status_line, header_lines, body = raw_get(path)
+            assert status_line == "HTTP/1.1 200 OK", status_line
+            assert body == hit.content
+            assert int(raw_header(header_lines, "Content-Length")[0]) == len(body)
+            assert raw_header(header_lines, "Referrer-Policy") == ["no-referrer"]
+            # The entry was dropped and not written again: with the origin
+            # back to a storable 304, the next request is a miss, not a hit.
+            serve_control(origin_client, vary304="")
+            again = client.get(path, headers=IDENTITY)
+            assert again.status_code == 200
+            assert x_pagespeed(again) != "HIT", again.headers
+        finally:
+            serve_control(origin_client, vary304="")
+
+    def test_matching_conditional_client_still_gets_304(
+        self, client, origin_client
+    ):
+        path = self.PATH
+        try:
+            serve_control(origin_client, rp="no-referrer", vary304="*")
+            client.get(path, headers=IDENTITY)  # records the entry
+            time.sleep(2.5)
+            # The 200 served from the unstorable revalidation: the validator
+            # a client would hold.
+            status_line, header_lines, _ = raw_get(path)
+            assert status_line == "HTTP/1.1 200 OK", status_line
+            etag = raw_header(header_lines, "ETag")
+            assert etag, header_lines
+            client.get(path, headers=IDENTITY)  # records the entry again
+            time.sleep(2.5)
+            status_line, _, body = raw_get(path, {"If-None-Match": etag[0]})
+            assert status_line == "HTTP/1.1 304 Not Modified", status_line
+            assert body == b""
+        finally:
+            serve_control(origin_client, vary304="")
+
+
 def requests_get(client, path: str):
     """A GET on its own connection (the client's session is not shared
     across threads)."""
