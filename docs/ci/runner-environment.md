@@ -23,6 +23,8 @@ are never echoed to the job log, and no value appears in this repository.
 | `CI_WIN_VENDOR_DIR` | Windows | the same, for Windows runners | no local fast path |
 | `BAZEL_CACHE_HOST` | Linux | address of the remote Bazel cache; jobs add `--add-host=bazel-remote-cache:<value>` to their build containers and build with `--config=ci` | builds use `--config=docker` with no remote cache |
 | `BAZEL_REMOTE_CACHE_URL` | Windows, macOS | full remote cache URL, passed as `--remote_cache` | no remote cache |
+| `BAZEL_SH` | Windows | the bash Bazel runs genrules with (release lane Windows jobs) | MSYS2's bash, else Git for Windows' bash |
+| `CI_WIN_BAZEL_OUTPUT_ROOT` | Windows | Bazel `--output_user_root` for the release lane's Windows jobs (a short path on a volume with room) | `C:/b` |
 | `CI_DEV_IMAGE_LOCK_DIR` | Linux | directory for the per-host lock files `tools/ci/ensure-dev-image.sh` takes around image builds (useful when several runner instances share one Docker daemon) | locks go to the temporary directory |
 
 Tools the fleet jobs expect on `PATH`: `docker`, `bash`, `git`, `tar` with
