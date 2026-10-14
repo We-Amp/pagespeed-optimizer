@@ -1,558 +1,94 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
+#
+# Release caller: triggers and concurrency only. Two lanes, each a reusable
+# workflow pinned to main (docs/ci/release.md):
+#   * optimizer-v* tags -> pipeline-release-optimizer.yml (host packages)
+#   * v* tags           -> pipeline-release-nuget.yml (the NuGet packages)
+# `optimizer-v*` never matches `v*`, so a tag selects exactly one lane.
+#
+# Triggers:
+#   * push of a tag                                -> REAL run
+#   * workflow_dispatch { tag, dry_run: true  }    -> build + validate only
+#   * workflow_dispatch { tag, dry_run: false }    -> REAL run
+# A real run publishes from jobs in the protected `release` environment.
 
 name: Release
 
-# Public release lane for the pagespeed-optimizer host packages (public
-# CI policy:
-# GitHub-hosted runners ONLY — a public repo must never address the
-# private build fleet, so this workflow carries no fleet runner labels, no
-# private URLs, and no fleet coordinates).
-#
-# Produces, for a tag `optimizer-v<upstream>` (e.g. optimizer-v1.16.0), a
-# GitHub release with exactly this asset set (the serving-module release
-# lane downloads these by name and verifies them against SHA256SUMS):
-#   pagespeed-optimizer-<upstream>-1.x86_64.rpm
-#   pagespeed-optimizer-<upstream>-1.aarch64.rpm
-#   pagespeed-optimizer_<upstream>_amd64.deb
-#   pagespeed-optimizer_<upstream>_arm64.deb
-#   SHA256SUMS
-# Asset NAMES carry the upstream SemVer spelling (`-rc.N`): GitHub sanitizes
-# asset names, replacing '~' with '.', which would break `sha256sum -c` for
-# every downloader. The package-internal Version keeps the dpkg/rpm tilde
-# pre-release form (`1.16.0~rc.1`, derived here, never hand-typed).
-#
-# Triggers:
-#   * push of a tag matching optimizer-v*          -> REAL run
-#   * workflow_dispatch { tag, dry_run: true  }    -> build + validate only
-#   * workflow_dispatch { tag, dry_run: false }    -> REAL run
-# A dry run builds all four packages, validates the asset set and
-# SHA256SUMS fail-closed, and uploads them as a workflow artifact — it
-# creates NO release and NO tag. A real run REQUIRES the tag to already
-# exist on the remote (it never creates the tag itself; cutting the GA tag
-# is the owner's act) and publishes the release with the five assets.
-#
-# The daemon binary MUST be built in the jammy-based pagespeed2-dev image
-# (docker/Dockerfile), never on the noble runner host: jammy's static
-# libc++ archives keep the binary at a GLIBC_2.34 floor (the RHEL 9 /
-# Debian 12 contract — a noble build advertises GLIBC_2.38 and the
-# resulting packages refuse to install there; observed on the first hosted
-# rehearsal, which derived "glibc floor: 2.38" vs rc.16's 2.34). The build
-# below therefore mirrors the private fleet lane exactly: vendor on the
-# host (so the in-container build needs no network), then bazel inside the
-# content-hashed dev image with --vendor_dir.
-#
-# Other deltas vs the private fleet lane's optimizer release workflow, all
-# forced by the hosted environment:
-#   * runners: private build fleet -> ubuntu-latest (amd64) / ubuntu-24.04-arm
-#     (arm64), so the arm64 leg is still a NATIVE build — the packaging
-#     scripts take --binary/--library and are arch-agnostic, and no cross
-#     toolchain exists for this tree.
-#   * the fleet-only build:remote-cache config (its shared remote cache) is
-#     neutralized by a trailing empty --remote_cache= (later command-line
-#     flags win over the config chain); GitHub actions/cache carries the
-#     repository cache + the in-container bazel output base instead.
-#   * GIT_COMMIT is stamped from the checkout before the build (same
-#     mechanism as docker/build-release.sh) so the packaging scripts'
-#     --expect-version tripwire is deterministic.
-#   * packaging itself is byte-identical to the fleet lane: the same
-#     content-hashed tools/packaging/docker image, the same
-#     build-optimizer-{deb,rpm}.sh invocations.
-#
-# The cyclone pin fetch: MODULE.bazel pins We-Amp/cyclone-cache, public
-# since the GA flip, so Bazel's git fetch is anonymous and needs no
-# credentials.
-
 on:
   push:
-    tags: ['optimizer-v*']
+    tags: ['optimizer-v*', 'v*']
   workflow_dispatch:
     inputs:
       tag:
-        description: 'Optimizer tag to build (e.g. optimizer-v1.16.0)'
+        description: 'Tag to build (optimizer-v1.16.0 for the host packages, v2.4.0 for the NuGet packages)'
         required: true
         type: string
       dry_run:
-        description: 'Build + validate only: upload artifacts, create NO release and NO tag. Default: true.'
+        description: 'Build + validate only: publish nothing and enter no protected environment. Default: true.'
         required: true
         type: boolean
         default: true
+      auto_promote:
+        description: 'NuGet lane: promote the draft GitHub release to published after the nuget.org push. Default: false.'
+        required: false
+        type: boolean
+        default: false
+      grype_severity:
+        description: 'NuGet lane: grype fail-on severity. Default: medium.'
+        required: false
+        type: choice
+        default: 'medium'
+        options: ['negligible', 'low', 'medium', 'high', 'critical']
+      allow_sbom_drift:
+        description: 'NuGet lane: let a cosmetic SBOM --verify mismatch warn instead of fail. grype/VEX/license gates still apply.'
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: read
 
+# Serialize runs per released ref (the dispatched tag, or the pushed tag):
+# two real releases of one tag never race. A release always runs out.
 concurrency:
-  # Serialize runs per tag: two real releases for the same tag can never
-  # race. cancel-in-progress stays false — a release build must run out.
-  group: optimizer-release-${{ inputs.tag || github.ref_name }}
+  group: release-${{ inputs.tag && format('refs/tags/{0}', inputs.tag) || github.ref }}
   cancel-in-progress: false
 
 jobs:
-  version:
-    name: Derive versions from the tag
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      tag: ${{ steps.derive.outputs.tag }}
-      upstream: ${{ steps.derive.outputs.upstream }}
-      pkg_version: ${{ steps.derive.outputs.pkg_version }}
-      prerelease: ${{ steps.derive.outputs.prerelease }}
-      dry_run: ${{ steps.derive.outputs.dry_run }}
-      checkout_ref: ${{ steps.derive.outputs.checkout_ref }}
-      tag_sha: ${{ steps.derive.outputs.tag_sha }}
-    steps:
-      - name: Derive
-        id: derive
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          TAG: ${{ inputs.tag || github.ref_name }}
-        run: |
-          set -euo pipefail
-          # TAG arrives via the environment, never interpolated into the
-          # script text; validate it before any use.
-          case "$TAG" in
-            optimizer-v[0-9]*) ;;
-            *) echo "::error::tag '$TAG' does not match optimizer-v<version>"; exit 1 ;;
-          esac
-          UPSTREAM="${TAG#optimizer-v}"
-          # SemVer base + optional prerelease; no build metadata.
-          if ! printf '%s' "$UPSTREAM" | grep -Eq '^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[0-9A-Za-z.]+)?$'; then
-            echo "::error::upstream version '$UPSTREAM' is not X.Y.Z[-prerelease]"; exit 1
-          fi
-          # A backslash-escaped \~ in the replacement is NOT portable, and a
-          # LITERAL ~ is worse: bash >= 4.4 tilde-expands it in the
-          # replacement of ${var/pat/repl} even inside double quotes. Expand
-          # the tilde from a variable instead — expansion results are never
-          # re-scanned for tilde expansion, in any bash version.
-          TILDE='~'
-          PKG_VERSION="${UPSTREAM/-/$TILDE}"
-          PRERELEASE=false
-          case "$UPSTREAM" in *-*) PRERELEASE=true ;; esac
-          # push of a tag is always a real run; dispatch is real only when
-          # dry_run is explicitly false.
-          DRY_RUN=true
-          if [ "${{ github.event_name }}" = "push" ]; then
-            DRY_RUN=false
-          elif [ "${{ inputs.dry_run }}" = "false" ]; then
-            DRY_RUN=false
-          fi
-          # Resolve the tag on the remote. A REAL run requires it to exist
-          # already — the lane never creates tags (`gh release create
-          # --verify-tag` enforces the same server-side). A dry run may name
-          # a tag that does not exist yet; then it builds the dispatched ref.
-          TAG_SHA=""
-          CHECKOUT_REF="${{ github.ref }}"
-          if TAG_SHA="$(gh api "repos/${{ github.repository }}/commits/$TAG" --jq .sha 2>/dev/null)"; then
-            CHECKOUT_REF="$TAG"
-          elif [ "$DRY_RUN" = "false" ]; then
-            echo "::error::real run but tag '$TAG' does not exist on the remote — push the tag first; the lane never creates it"
-            exit 1
-          else
-            echo "::notice::dry run: tag '$TAG' is not on the remote; building the dispatched ref instead"
-            TAG_SHA=""
-          fi
-          {
-            echo "tag=$TAG"
-            echo "upstream=$UPSTREAM"
-            echo "pkg_version=$PKG_VERSION"
-            echo "prerelease=$PRERELEASE"
-            echo "dry_run=$DRY_RUN"
-            echo "checkout_ref=$CHECKOUT_REF"
-            echo "tag_sha=$TAG_SHA"
-          } >> "$GITHUB_OUTPUT"
-          echo "tag=$TAG upstream=$UPSTREAM pkg=$PKG_VERSION prerelease=$PRERELEASE dry_run=$DRY_RUN checkout=$CHECKOUT_REF"
-
-  build:
-    name: Build + package (linux ${{ matrix.arch }})
-    needs: version
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - arch: amd64
-            runner: ubuntu-latest
-            bazel_config: release
-            timeout: 150
-          - arch: arm64
-            runner: ubuntu-24.04-arm
-            bazel_config: release-linux-arm64
-            timeout: 180
-    runs-on: ${{ matrix.runner }}
-    timeout-minutes: ${{ matrix.timeout }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ needs.version.outputs.checkout_ref }}
-
-      # The version job resolved the tag to a commit; if the tag moved
-      # between resolution and checkout, refuse rather than package the
-      # wrong tree under the tag's name.
-      - name: Verify the checkout is the resolved tag commit
-        if: ${{ needs.version.outputs.tag_sha != '' }}
-        run: |
-          set -euo pipefail
-          WANT="${{ needs.version.outputs.tag_sha }}"
-          GOT="$(git rev-parse HEAD)"
-          [ "$WANT" = "$GOT" ] || { echo "::error::tag moved: resolved $WANT, checked out $GOT"; exit 1; }
-
-      - name: Install bazelisk
-        run: sudo npm install -g @bazel/bazelisk@1.28.1
-
-      # Host repository cache (vendor downloads, incl. the cyclone clone) +
-      # the in-container bazel output base (.ci-cache/bazel-out, bind-mounted
-      # to /tmp/bazel-out). Prefixed per-arch: an output base is
-      # arch-specific and must never be shared between the legs. Bump the
-      # vN salt to invalidate stale toolchains/outputs deliberately.
-      - name: Cache Bazel repository cache + container output base
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.cache/bazel-repo
-            ~/.cache/bazelisk
-            .ci-cache
-          key: ${{ runner.os }}-${{ matrix.arch }}-opt-release-bazel-v3-${{ hashFiles('MODULE.bazel', '.bazelrc', '.bazelversion', 'third_party/cyclone.BUILD', 'docker/Dockerfile', 'docker/nginx-version.txt') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.arch }}-opt-release-bazel-v3-
-
-      # Stamp the source revision into the build, the same mechanism
-      # docker/build-release.sh uses: //src/product_version:build_commit
-      # embeds this file's content, the daemon prints its first 7 chars in
-      # --version, and the packaging scripts' --expect-version tripwire
-      # asserts it. The checked-in file holds the literal "dev".
-      - name: Stamp GIT_COMMIT
-        run: printf '%s' "$(git rev-parse HEAD)" > GIT_COMMIT
-
-      # Same dev image the fleet builds in, content-hashed the same way.
-      # Jammy base on purpose (see the workflow header): it keeps the
-      # binary's glibc floor at 2.34. Built per run — there is no registry
-      # here; the apt/LLVM/nginx fetches dominate (~15 min).
-      - name: Ensure dev image (content-hashed)
-        id: image
-        run: |
-          set -euo pipefail
-          DIR_HASH=$(find docker/ -type f | sort | xargs -I{} sha256sum {} | sha256sum | cut -c1-12)
-          CONTENT_IMAGE="pagespeed2-dev:${{ matrix.arch }}-${DIR_HASH}"
-          docker image inspect "$CONTENT_IMAGE" >/dev/null 2>&1 || \
-            docker build -t "$CONTENT_IMAGE" docker/
-          echo "image=$CONTENT_IMAGE" >> "$GITHUB_OUTPUT"
-
-      # Mirror of the fleet lane: vendor on the host, so the in-container
-      # build needs no network.
-      - name: Vendor dependencies (host)
-        run: >
-          bazel vendor --vendor_dir=vendor
-          "--repository_cache=$HOME/.cache/bazel-repo"
-          //src/worker:factory_worker //lib/pagespeed:libpagespeed.so
-
-      # --config=release / --config=release-linux-arm64 are the private
-      # lane's exact configs (opt + thin_lto + hardening + stamp; thin_lto
-      # links against the image's lld-20 via its ld.lld symlink). Their
-      # chain includes build:remote-cache, the fleet's shared remote cache;
-      # the trailing empty --remote_cache= disables it — a hosted runner has
-      # no such cache to talk to.
-      # HOME=/workspace lets the image's bazelisk find its bazel download.
-      - name: Build the daemon and client library (release config, in-container)
-        run: |
-          set -euo pipefail
-          mkdir -p out .ci-cache/bazel-out
-          docker run --rm --init \
-            --user "$(id -u):$(id -g)" \
-            -e HOME=/workspace \
-            -v "$PWD":/workspace \
-            -v "$PWD/.ci-cache/bazel-out":/tmp/bazel-out \
-            -w /workspace \
-            "${{ steps.image.outputs.image }}" \
-            bash -c 'bazel --output_user_root=/tmp/bazel-out \
-                build --vendor_dir=vendor --config=${{ matrix.bazel_config }} --remote_cache= \
-                //src/worker:factory_worker //lib/pagespeed:libpagespeed.so \
-              && cp -L bazel-bin/src/worker/factory_worker \
-                       bazel-bin/lib/pagespeed/libpagespeed.so /workspace/out/'
-
-      # Same release-time gate the private v* lane runs on its artifacts.
-      - name: Assert binary hardening
-        run: |
-          set -euo pipefail
-          bash tools/assert-binary-hardening.sh out/factory_worker
-          bash tools/assert-binary-hardening.sh out/libpagespeed.so
-
-      - name: Ensure packaging image (content-hashed, digest-pinned base)
-        id: pkgimage
-        run: |
-          set -euo pipefail
-          PKG_HASH=$(find tools/packaging/docker/ -type f | sort | xargs cat | sha256sum | cut -c1-12)
-          PKG_IMAGE="optimizer-packaging:${PKG_HASH}"
-          docker image inspect "$PKG_IMAGE" >/dev/null 2>&1 || \
-            docker build -t "$PKG_IMAGE" tools/packaging/docker/
-          echo "image=$PKG_IMAGE" >> "$GITHUB_OUTPUT"
-
-      # Byte-identical to the private lane: same image, same scripts, same
-      # arguments. The deb/rpm scripts derive the package arch from the
-      # container, so each leg must run on its native runner arch.
-      - name: Package deb + rpm (in packaging container)
-        run: |
-          set -euo pipefail
-          PKG_VERSION="${{ needs.version.outputs.pkg_version }}"
-          EXPECT="$(git rev-parse --short=7 HEAD)"
-          mkdir -p dist
-          docker run --rm \
-            --user "$(id -u):$(id -g)" \
-            -v "$PWD":/w -w /w "${{ steps.pkgimage.outputs.image }}" \
-            bash -c "tools/packaging/build-optimizer-deb.sh --version '$PKG_VERSION' \
-                --binary out/factory_worker --library out/libpagespeed.so \
-                --expect-version '$EXPECT' --out dist/ && \
-              tools/packaging/build-optimizer-rpm.sh --version '$PKG_VERSION' \
-                --binary out/factory_worker --library out/libpagespeed.so \
-                --expect-version '$EXPECT' --out dist/"
-          ls -la dist/
-
-      - name: Upload packages
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: optimizer-linux-${{ matrix.arch }}
-          path: dist/*
-          if-no-files-found: error
-
-  build-windows:
-    name: Build + package (windows x64)
-    needs: version
-    runs-on: windows-2022
-    timeout-minutes: 240
-    env:
-      BAZEL_SH: C:\msys64\usr\bin\bash.exe
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ needs.version.outputs.checkout_ref }}
-
-      - name: Verify the checkout is the resolved tag commit
-        if: ${{ needs.version.outputs.tag_sha != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          WANT="${{ needs.version.outputs.tag_sha }}"
-          GOT="$(git rev-parse HEAD)"
-          [ "$WANT" = "$GOT" ] || { echo "::error::tag moved: resolved $WANT, checked out $GOT"; exit 1; }
-
-      - name: Install bazelisk
-        shell: powershell
-        run: npm install -g @bazel/bazelisk@1.28.1
-
-      - name: Install the build tools the hosted image lacks
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          # gperf generates the HTML name tables; nasm assembles libaom's
-          # x86 kernels. The runner image carries MSYS2 and Chocolatey.
-          & C:\msys64\usr\bin\pacman.exe -S --noconfirm --needed gperf
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          choco install nasm -y --no-progress
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          & C:\msys64\usr\bin\gperf.exe --version | Select-Object -First 1
-          & "C:\Program Files\NASM\nasm.exe" -v
-
-      - name: Cache Bazel repository and disk caches
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            C:\bazel-repo
-            C:\bazel-disk
-          key: ${{ runner.os }}-x64-opt-release-bazel-v1-${{ hashFiles('MODULE.bazel', '.bazelrc', '.bazelversion') }}
-          restore-keys: |
-            ${{ runner.os }}-x64-opt-release-bazel-v1-
-
-      - name: Stamp GIT_COMMIT
-        shell: bash
-        run: printf '%s' "$(git rev-parse HEAD)" > GIT_COMMIT
-
-      - name: Build the daemon and client library (release config)
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          # The build reads PATH, INCLUDE and LIB (.bazelrc action_env), so it
-          # runs inside the MSVC x64 developer environment. The CMake-built
-          # codec also needs the MSYS2 shell tools.
-          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
-          $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat'
-          cmd /c "`"$vcvars`" >nul && set" | ForEach-Object {
-            if ($_ -match '^(PATH|INCLUDE|LIB|LIBPATH|VCToolsInstallDir|WindowsSdkDir|WindowsSDKVersion)=(.*)$') {
-              Set-Item -Path "env:$($Matches[1])" -Value $Matches[2]
-            }
-          }
-          $env:PATH = "C:\msys64\usr\bin;C:\Program Files\NASM;$env:PATH"
-          bazelisk build --config=windows --config=opt `
-            --repository_cache=C:/bazel-repo --disk_cache=C:/bazel-disk `
-            //src/worker:factory_worker //lib/pagespeed:libpagespeed.so
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $bin = (bazelisk info --config=windows --config=opt bazel-bin).Trim()
-          New-Item -ItemType Directory -Force -Path out | Out-Null
-          Copy-Item "$bin\src\worker\factory_worker.exe" out\factory_worker.exe
-          Copy-Item "$bin\lib\pagespeed\libpagespeed.so" out\pagespeed.dll
-
-      - name: The binaries need no Visual C++ runtime
-        shell: powershell
-        run: |
-          & tools\ci\check-no-vc-runtime.ps1 -Binaries out\factory_worker.exe,out\pagespeed.dll
-          exit $LASTEXITCODE
-
-      - name: Package
-        shell: powershell
-        run: |
-          $ErrorActionPreference = 'Stop'
-          # The upstream (SemVer) spelling: asset names never carry the
-          # package tilde, which GitHub would rewrite.
-          $name = "pagespeed-optimizer-${{ needs.version.outputs.upstream }}-win-x64"
-          $stage = "stage\$name"
-          New-Item -ItemType Directory -Force -Path $stage, dist | Out-Null
-          Copy-Item out\factory_worker.exe, out\pagespeed.dll, LICENSE, NOTICE $stage
-          Compress-Archive -Path "$stage\*" -DestinationPath "dist\$name.zip"
-          Get-ChildItem dist | Format-Table Name, Length
-
-      - name: Upload package
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: optimizer-windows-x64
-          path: dist/*
-          if-no-files-found: error
-
-  manifest:
-    name: Validate asset set + SHA256SUMS
-    needs: [version, build, build-windows]
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Download packages
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          path: dist
-          merge-multiple: true
-
-      # Rename the tilde package-version spelling to the upstream SemVer
-      # spelling for the asset names (GitHub would sanitize '~' to '.',
-      # breaking sha256sum -c for downloaders), then sum. Same logic as the
-      # private lane.
-      - name: Manifest
-        run: |
-          set -euo pipefail
-          cd dist
-          UPSTREAM="${{ needs.version.outputs.upstream }}"
-          PKG_VERSION="${{ needs.version.outputs.pkg_version }}"
-          if [ "$UPSTREAM" != "$PKG_VERSION" ]; then
-            for f in ./*"$PKG_VERSION"*; do
-              mv "$f" "${f//$PKG_VERSION/$UPSTREAM}"
-            done
-          fi
-          sha256sum -- * > SHA256SUMS
-          cat SHA256SUMS
-
-      # Fail closed on ANY contract deviation: exactly the five assets, all
-      # present and non-empty, sums verify, and the package-internal
-      # versions carry the tilde package version the serving module's
-      # exact-version dependency will name. The glibc floor line is echoed
-      # for audit: the jammy dev-image build must keep it at 2.34 (the
-      # RHEL 9 / Debian 12 contract); a noble-built binary would say 2.38.
-      - name: Fail-closed asset contract validation
-        run: |
-          set -euo pipefail
-          cd dist
-          UPSTREAM="${{ needs.version.outputs.upstream }}"
-          PKG_VERSION="${{ needs.version.outputs.pkg_version }}"
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq --no-install-recommends rpm >/dev/null
-          EXPECTED=(
-            "pagespeed-optimizer-${UPSTREAM}-1.x86_64.rpm"
-            "pagespeed-optimizer-${UPSTREAM}-1.aarch64.rpm"
-            "pagespeed-optimizer_${UPSTREAM}_amd64.deb"
-            "pagespeed-optimizer_${UPSTREAM}_arm64.deb"
-            "pagespeed-optimizer-${UPSTREAM}-win-x64.zip"
-            "SHA256SUMS"
-          )
-          mapfile -t ACTUAL < <(find . -maxdepth 1 -type f -printf '%f\n' | sort)
-          [ "${#ACTUAL[@]}" -eq 6 ] || { echo "::error::asset count ${#ACTUAL[@]} != 6: ${ACTUAL[*]}"; exit 1; }
-          # The Windows zip: exactly the worker, its client library and the
-          # two licence files.
-          unzip -Z1 "pagespeed-optimizer-${UPSTREAM}-win-x64.zip" | sort | tr '\n' ' ' | grep -qx 'LICENSE NOTICE factory_worker.exe pagespeed.dll ' \
-            || { echo "::error::unexpected Windows zip contents: $(unzip -Z1 "pagespeed-optimizer-${UPSTREAM}-win-x64.zip" | tr '\n' ' ')"; exit 1; }
-          for f in "${EXPECTED[@]}"; do
-            [ -f "$f" ] || { echo "::error::missing asset '$f'"; exit 1; }
-            [ -s "$f" ] || { echo "::error::empty asset '$f'"; exit 1; }
-          done
-          sha256sum -c SHA256SUMS
-          for deb in ./*.deb; do
-            v="$(dpkg-deb -f "$deb" Version)"
-            [ "$v" = "$PKG_VERSION" ] || { echo "::error::$deb Version '$v' != '$PKG_VERSION'"; exit 1; }
-            dep="$(dpkg-deb -f "$deb" Depends)"
-            echo "$deb Depends: $dep"
-            [ "$dep" = "libc6 (>= 2.34)" ] || { echo "::error::$deb Depends '$dep' != 'libc6 (>= 2.34)' — the binary was not built on the jammy dev image"; exit 1; }
-          done
-          for rpmf in ./*.rpm; do
-            v="$(rpm -qp --qf '%{VERSION}-%{RELEASE}' "$rpmf")"
-            [ "$v" = "${PKG_VERSION}-1" ] || { echo "::error::$rpmf version-release '$v' != '${PKG_VERSION}-1'"; exit 1; }
-            rpm -qp --requires "$rpmf" | grep -qx 'glibc >= 2.34' || { echo "::error::$rpmf lacks 'glibc >= 2.34' requires — the binary was not built on the jammy dev image"; exit 1; }
-            if rpm -qp --requires "$rpmf" | grep -qE '^glibc >= 2\.3[5-9]|^glibc >= [3-9]'; then
-              echo "::error::$rpmf requires a glibc above the 2.34 floor"
-              exit 1
-            fi
-          done
-          echo "asset contract: ok"
-          {
-            echo "### Asset contract validated"
-            echo ""
-            echo '```'
-            ls -la
-            echo '```'
-          } >> "$GITHUB_STEP_SUMMARY"
-
-      # Always uploaded (dry-run inspection AND real-run audit trail); the
-      # release job re-downloads this exact set.
-      - name: Upload validated dist
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: optimizer-release-dist
-          path: dist/*
-          if-no-files-found: error
-
-  release:
-    name: Publish GitHub release
-    needs: [version, manifest]
-    if: ${{ needs.version.outputs.dry_run == 'false' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+  optimizer:
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/optimizer-v')) ||
+      (github.event_name == 'workflow_dispatch' && startsWith(inputs.tag, 'optimizer-v'))
     permissions:
       contents: write
-    steps:
-      # gh release create --verify-tag shells out to git, so the job needs
-      # a checkout of the tag — downloading the dist artifact alone leaves
-      # no .git and the publish fails with "not a git repository".
-      - name: Checkout the tag
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          ref: ${{ needs.version.outputs.tag }}
+    uses: We-Amp/pagespeed-optimizer/.github/workflows/pipeline-release-optimizer.yml@main
+    with:
+      tag: ${{ inputs.tag || '' }}
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
 
-      - name: Download validated dist
-        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
-        with:
-          name: optimizer-release-dist
-          path: dist
-
-      - name: Re-verify SHA256SUMS across the job boundary
-        run: |
-          set -euo pipefail
-          cd dist
-          sha256sum -c SHA256SUMS
-
-      - name: Create release
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          TAG="${{ needs.version.outputs.tag }}"
-          PKG_VERSION="${{ needs.version.outputs.pkg_version }}"
-          FLAGS="--verify-tag"
-          [ "${{ needs.version.outputs.prerelease }}" = "true" ] && FLAGS="$FLAGS --prerelease"
-          # shellcheck disable=SC2086
-          gh release create "$TAG" $FLAGS \
-            --title "pagespeed-optimizer $PKG_VERSION" \
-            --notes "The pagespeed-optimizer host packages (optimization daemon + the libpagespeed.so client library serving modules bind), version \`$PKG_VERSION\`, for deb and rpm hosts on amd64 and arm64, and a Windows x64 zip (factory_worker.exe + pagespeed.dll). Install alongside the matching serving-module package, which depends on this package at this exact version. Verify downloads against SHA256SUMS." \
-            ./dist/*
+  nuget:
+    if: >-
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'workflow_dispatch' && startsWith(inputs.tag, 'v'))
+    permissions:
+      contents: write
+      id-token: write
+      pull-requests: read
+    uses: We-Amp/pagespeed-optimizer/.github/workflows/pipeline-release-nuget.yml@main
+    with:
+      tag: ${{ inputs.tag || '' }}
+      dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+      auto_promote: ${{ github.event_name == 'workflow_dispatch' && inputs.auto_promote }}
+      grype_severity: ${{ inputs.grype_severity || 'medium' }}
+      allow_sbom_drift: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_sbom_drift }}
+    # Passed one by one, never `secrets: inherit`. Jobs in the `release`
+    # environment read the environment's value of each.
+    secrets:
+      AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+      AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+      AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+      AZURE_TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+      AZURE_TRUSTED_SIGNING_ACCOUNT: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+      AZURE_TRUSTED_SIGNING_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_PROFILE }}
+      CORP_DISPATCH_TOKEN: ${{ secrets.CORP_DISPATCH_TOKEN }}

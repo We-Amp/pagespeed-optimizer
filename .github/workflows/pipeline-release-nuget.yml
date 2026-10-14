@@ -1,0 +1,1367 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2024-2026 We-Amp B.V.
+#
+# pipeline-release-nuget.yml -- the 2.x NuGet release lane
+# (WeAmp.PageSpeed, WeAmp.PageSpeed.AspNetCore and the three
+# WeAmp.PageSpeed.NativeAssets.* packages), as a reusable workflow. The
+# caller (release.yml) holds the triggers and the concurrency group; this
+# file holds the jobs. See docs/ci/release.md and docs/ci/pipelines.md.
+#
+#   ref-guard (hosted)
+#     -> vendor (fleet, or its hosted twin): source + vendor/ + GIT_COMMIT
+#        as one tarball, passed to every consumer as a workflow artifact
+#     -> security-gates (hosted): license headers, SBOM drift, grype + VEX
+#     -> linux x64 build + tests (fleet, or hosted twins)
+#     -> windows x64 build (fleet, or hosted twin): UNSIGNED binaries
+#        -> sign-windows (hosted, `release` environment): Authenticode via
+#           Trusted Signing, then the signed binaries are verified
+#        -> windows tests (fleet, or hosted twin)
+#     -> macOS arm64 build + tests (hosted)
+#     -> linux arm64 build + tests (hosted)
+#     -> package (hosted, `release` environment): the four native sets
+#        from workflow artifacts, five .nupkg, draft GitHub release, the two
+#        repository_dispatch notifications
+#     -> publish-nuget (hosted, `release` environment): nuget.org Trusted
+#        Publishing (OIDC)
+#     -> promote-release (hosted, `release` environment): draft ->
+#        published, only when dispatched with auto_promote
+#
+# Real run: a push of a v* tag, or a dispatch with dry_run false. Dry run
+# (a dispatch with dry_run true, the default): every build and test, the
+# five packages (with UNSIGNED Windows binaries) uploaded as a workflow
+# artifact, and nothing else; no job enters the `release` environment, so
+# a dry run needs no approval, creates no draft release, pushes nothing to
+# nuget.org and dispatches nothing.
+#
+# Fleet jobs run on the fleet when FLEET_ENABLED is 'true' and on hosted
+# twin jobs with identical steps otherwise, so the kill switch never blocks
+# a release. Fleet jobs carry no secret and write nothing to GitHub.
+# Optional runner-side facilities (remote Bazel cache) come from the runner
+# environment (docs/ci/runner-environment.md); without them a job runs
+# slower, never fails for that reason.
+
+name: pipeline-release-nuget
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Tag to release (v<version>); empty on a tag push.
+        type: string
+        default: ''
+      dry_run:
+        description: Dispatch only. Build, test and pack; publish nothing. Ignored on a tag push.
+        type: boolean
+        default: true
+      grype_severity:
+        description: grype fail-on severity (negligible, low, medium, high, critical).
+        type: string
+        default: medium
+      auto_promote:
+        description: Promote the draft GitHub release after the nuget.org push.
+        type: boolean
+        default: false
+      allow_sbom_drift:
+        description: Let a cosmetic SBOM --verify mismatch warn instead of fail (dispatch only).
+        type: boolean
+        default: false
+    # Declared per secret and passed explicitly by the caller. They are
+    # environment secrets of `release`: a job that runs in that environment
+    # reads the environment's value, which takes precedence over the value
+    # the caller passed. None is required, so a dry run needs none of them.
+    secrets:
+      AZURE_TENANT_ID:
+        required: false
+      AZURE_CLIENT_ID:
+        required: false
+      AZURE_CLIENT_SECRET:
+        required: false
+      AZURE_TRUSTED_SIGNING_ENDPOINT:
+        required: false
+      AZURE_TRUSTED_SIGNING_ACCOUNT:
+        required: false
+      AZURE_TRUSTED_SIGNING_PROFILE:
+        required: false
+      CORP_DISPATCH_TOKEN:
+        required: false
+
+permissions:
+  contents: read
+
+jobs:
+  # Hosted, no secrets, read-only token; every later job chains to it. The
+  # guard code is checked out from main, never from the tree being released.
+  # A dispatch builds the dispatched tag, never the HEAD of the ref it ran
+  # on; `ref`/`sha` are what every job checks out and stamps.
+  ref-guard:
+    name: Ref guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ref: ${{ steps.guard.outputs.ref }}
+      sha: ${{ steps.guard.outputs.sha }}
+      tag: ${{ steps.mode.outputs.tag }}
+      short_sha: ${{ steps.mode.outputs.short_sha }}
+      real: ${{ steps.mode.outputs.real }}
+    steps:
+      - name: Checkout main (guard code)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+          fetch-tags: true
+          filter: blob:none
+
+      - id: guard
+        uses: ./.github/actions/ref-guard
+        with:
+          tag-glob: 'v*'
+          dispatch-tag: ${{ inputs.tag }}
+          events: 'push workflow_dispatch'
+
+      - name: Real run or dry run
+        id: mode
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DRY_RUN_INPUT: ${{ inputs.dry_run }}
+          REF: ${{ steps.guard.outputs.ref }}
+          SHA: ${{ steps.guard.outputs.sha }}
+        run: |
+          set -euo pipefail
+          REAL=false
+          if [ "$EVENT_NAME" = push ] || [ "$DRY_RUN_INPUT" = false ]; then
+            REAL=true
+          fi
+          case "$REF" in
+            refs/tags/v*) ;;
+            *) echo "::error::the NuGet lane releases a v* tag, not '$REF'"; exit 1 ;;
+          esac
+          {
+            echo "real=$REAL"
+            echo "tag=${REF#refs/tags/}"
+            echo "short_sha=${SHA:0:7}"
+          } >> "$GITHUB_OUTPUT"
+          echo "tag=${REF#refs/tags/} sha=$SHA real=$REAL"
+
+  # ---------------------------------------------------------------------
+  # Vendor: one hermetic tree (source, vendor/, GIT_COMMIT) for every
+  # platform, as the `release-source` workflow artifact.
+  # ---------------------------------------------------------------------
+  vendor:
+    name: Vendor Dependencies
+    needs: ref-guard
+    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
+    if: ${{ vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
+    timeout-minutes: 30
+    env:
+      RELEASE_SHA: ${{ needs.ref-guard.outputs.sha }}
+      RELEASE_TAG: ${{ needs.ref-guard.outputs.tag }}
+      SHORT_SHA: ${{ needs.ref-guard.outputs.short_sha }}
+    steps: &vendor-steps
+      - name: Unlock stale vendored files
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.ref-guard.outputs.ref }}
+
+      - name: Verify the checkout is the release commit
+        run: |
+          [ "$(git rev-parse HEAD)" = "$RELEASE_SHA" ] || { echo "::error::checked-out HEAD $(git rev-parse HEAD) != release commit $RELEASE_SHA"; exit 1; }
+
+      # The NuGet package version derives from the tag, the worker's
+      # /v1/health version from VERSION.txt. Fail fast before any heavy build
+      # when they disagree.
+      - name: Verify VERSION.txt matches the release tag
+        run: |
+          set -euo pipefail
+          EXPECTED="${RELEASE_TAG#v}"
+          EXPECTED="${EXPECTED%%+*}"
+          ACTUAL="$(tr -d '[:space:]' < VERSION.txt)"
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::VERSION.txt ($ACTUAL) != release tag ($RELEASE_TAG -> $EXPECTED). Bump VERSION.txt on main and tag the bump commit."
+            exit 1
+          fi
+          echo "VERSION.txt=$ACTUAL matches release tag $RELEASE_TAG"
+
+      - name: Ensure bazel
+        run: |
+          if command -v bazel >/dev/null 2>&1; then bazel --version; exit 0; fi
+          npm install -g @bazel/bazelisk@1.28.1 2>/dev/null || sudo npm install -g @bazel/bazelisk@1.28.1
+          bazel --version
+
+      - name: Cache the Bazel repository cache (hosted)
+        if: ${{ runner.environment == 'github-hosted' }}
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/optimizer-bazel-repo
+          key: optimizer-repo-cache-${{ hashFiles('MODULE.bazel', '.bazelversion', 'bazel/**', 'third_party/**') }}
+          restore-keys: |
+            optimizer-repo-cache-
+
+      - name: Vendor all dependencies
+        run: |
+          bazel vendor --vendor_dir=vendor "--repository_cache=${HOME}/.cache/optimizer-bazel-repo" //...
+          if [ -d vendor/cyclone ]; then
+            echo "Cyclone commit: $(git -C vendor/cyclone rev-parse HEAD 2>/dev/null || echo 'not a git repo')"
+          fi
+
+      - name: Stamp GIT_COMMIT
+        run: echo -n "$RELEASE_SHA" > GIT_COMMIT
+
+      - name: Create the source tarball
+        run: |
+          set -euo pipefail
+          OUT="${RUNNER_TEMP}/release-source"
+          rm -rf "$OUT"
+          mkdir -p "$OUT"
+          TARBALL="${OUT}/pagespeed-optimizer-${SHORT_SHA}.tar.zst"
+          tar --zstd --dereference --mode='u+w' -cf "$TARBALL" \
+            --exclude='.git' \
+            --exclude='bazel-*' \
+            .
+          zstd -t "$TARBALL"
+          echo "Tarball: $(basename "$TARBALL") ($(du -h "$TARBALL" | cut -f1))"
+
+      # Already zstd-compressed: no second compression pass.
+      - name: Upload the source tarball
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-source
+          path: ${{ runner.temp }}/release-source/*.tar.zst
+          compression-level: 0
+          retention-days: 3
+          if-no-files-found: error
+
+  vendor-hosted:
+    name: Vendor Dependencies (hosted)
+    needs: ref-guard
+    if: ${{ vars.FLEET_ENABLED != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      RELEASE_SHA: ${{ needs.ref-guard.outputs.sha }}
+      RELEASE_TAG: ${{ needs.ref-guard.outputs.tag }}
+      SHORT_SHA: ${{ needs.ref-guard.outputs.short_sha }}
+    steps: *vendor-steps
+
+  # ---------------------------------------------------------------------
+  # Release security gates: license headers (a tag can carry direct pushes
+  # that bypassed review), SBOM freshness and SPDX 2.3 validity, grype on
+  # the SBOM with the VEX statements applied. `package` depends on it.
+  # ---------------------------------------------------------------------
+  security-gates:
+    name: Security Gates (SBOM + Grype + VEX)
+    needs: ref-guard
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      GRYPE_FAIL_ON: ${{ inputs.grype_severity || 'medium' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.ref-guard.outputs.sha }}
+
+      # generate-sbom.py needs Python 3.11+ (datetime.UTC).
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+
+      - name: License headers (defense-in-depth)
+        run: tools/check-license-headers.sh --all
+
+      # Operator escape hatch (dispatch only, default off): tolerate a
+      # cosmetic SBOM-reproducibility mismatch. The grype/VEX/license gates
+      # below still apply.
+      - name: Regenerate SBOM (must match committed copy)
+        continue-on-error: ${{ github.event_name == 'workflow_dispatch' && inputs.allow_sbom_drift == true }}
+        run: python3 tools/generate-sbom.py --verify
+
+      - name: SPDX 2.3 structural sanity
+        run: python3 tools/sbom/check-spdx-structure.py sbom/mod_pagespeed-2.1.spdx.json
+
+      - name: VEX statements present + well-formed (OpenVEX)
+        id: vex
+        run: |
+          set -euo pipefail
+          python3 tools/ci/validate-vex.py sbom/
+          shopt -s nullglob
+          vex_files=(sbom/*.vex.json)
+          if [ ${#vex_files[@]} -eq 0 ]; then
+            echo "vex_path=" >> "$GITHUB_OUTPUT"
+          else
+            echo "vex_path=${vex_files[0]}" >> "$GITHUB_OUTPUT"
+          fi
+
+      # grype 0.108.0 or newer is required for VEX on an SBOM source; this
+      # pin bundles 0.118.0.
+      - name: Vulnerability scan (grype on SPDX SBOM)
+        id: grype
+        uses: anchore/scan-action@27805bf3b4e84b4a5c980df22ed233c00390a439 # v7.4.2
+        with:
+          sbom: "sbom/mod_pagespeed-2.1.spdx.json"
+          vex: ${{ steps.vex.outputs.vex_path }}
+          severity-cutoff: ${{ env.GRYPE_FAIL_ON }}
+          fail-build: true
+          output-format: sarif
+
+      - name: Upload SBOM + grype report
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-sbom-and-cve-report-${{ needs.ref-guard.outputs.short_sha }}
+          path: |
+            sbom/mod_pagespeed-2.1.spdx.json
+            sbom/*.vex.json
+            ${{ steps.grype.outputs.sarif }}
+          if-no-files-found: warn
+          retention-days: 90
+
+  # ---------------------------------------------------------------------
+  # Linux builds. One step list for three jobs: x64 on the fleet, its hosted
+  # twin, and arm64 hosted. Each uploads `native-<rid>` (the NuGet payload)
+  # and `docker-artifacts-<rid>` (the container-image build inputs).
+  # ---------------------------------------------------------------------
+  linux-release-build:
+    name: Linux Release Build
+    needs: [ref-guard, vendor]
+    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
+    if: ${{ vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
+    timeout-minutes: 90
+    env: &linux-x64-env
+      RELEASE_SHA: ${{ needs.ref-guard.outputs.sha }}
+      SHORT_SHA: ${{ needs.ref-guard.outputs.short_sha }}
+      RID: linux-x64
+      IMAGE_ARCH: x64
+      BAZEL_RELEASE_CONFIG: release
+    steps: &linux-build-steps
+      - name: Unlock and clear the workspace
+        run: |
+          [ -d "${GITHUB_WORKSPACE}" ] && chmod -R u+w "${GITHUB_WORKSPACE}" 2>/dev/null || true
+          find "${GITHUB_WORKSPACE}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
+      - name: Download the release source
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-source
+          path: ${{ runner.temp }}/release-source
+
+      - name: Extract the release source
+        run: |
+          set -euo pipefail
+          TARBALL="${RUNNER_TEMP}/release-source/pagespeed-optimizer-${SHORT_SHA}.tar.zst"
+          zstd -t "$TARBALL"
+          tar --zstd -xf "$TARBALL" -C "${GITHUB_WORKSPACE}"
+          rm -f "$TARBALL"
+          bash tools/ci/verify-artifacts.sh "$RELEASE_SHA" "stamp:${GITHUB_WORKSPACE}/GIT_COMMIT"
+
+      - name: Docker preflight
+        run: tools/ci/docker-preflight.sh
+
+      - name: Ensure the dev image
+        run: |
+          CONTENT_IMAGE=$(bash tools/ci/ensure-dev-image.sh "$IMAGE_ARCH" docker)
+          echo "DOCKER_IMAGE=${CONTENT_IMAGE}" >> "$GITHUB_ENV"
+
+      # The remote cache is used only when the runner environment names it;
+      # otherwise the trailing empty --remote_cache= disables the cache the
+      # release config chains.
+      - name: Remote cache settings
+        run: |
+          if [ -n "${BAZEL_CACHE_HOST:-}" ]; then
+            echo "DOCKER_CACHE_HOST_ARG=--add-host=bazel-remote-cache:${BAZEL_CACHE_HOST}" >> "$GITHUB_ENV"
+            echo "BAZEL_CACHE_FLAG=" >> "$GITHUB_ENV"
+            echo "using the remote Bazel cache from the runner environment"
+          else
+            echo "DOCKER_CACHE_HOST_ARG=" >> "$GITHUB_ENV"
+            echo "BAZEL_CACHE_FLAG=--remote_cache=" >> "$GITHUB_ENV"
+            echo "::notice::BAZEL_CACHE_HOST not set: building without the remote cache (docs/ci/runner-environment.md)"
+          fi
+
+      # The NuGet flavour: telemetry attribution copts, the same as
+      # build-native.sh. libc++/libc++abi/libunwind are statically linked
+      # into both binaries; there are no separate shared libraries to ship.
+      - name: Build all targets + the NuGet binaries (release)
+        run: |
+          set -euo pipefail
+          mkdir -p "${GITHUB_WORKSPACE}/release-artifacts"
+          docker run --rm --init ${DOCKER_CACHE_HOST_ARG:+"$DOCKER_CACHE_HOST_ARG"} \
+            --memory=55g --memory-swap=55g \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/workspace \
+            -e BAZEL_RELEASE_CONFIG -e BAZEL_CACHE_FLAG \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -w /workspace \
+            "${DOCKER_IMAGE}" \
+            bash -c '
+              set -e
+              OUT=/workspace/release-artifacts
+              WORKER_COPTS=(
+                "--copt=-DPAGESPEED_SERVER=\"aspnetcore\""
+                "--copt=-DPAGESPEED_DISTRIBUTION=\"nuget\""
+              )
+              BAZEL="bazel --output_user_root=/tmp/bazel-out"
+              $BAZEL build --vendor_dir=vendor "--config=${BAZEL_RELEASE_CONFIG}" ${BAZEL_CACHE_FLAG:+"$BAZEL_CACHE_FLAG"} \
+                "${WORKER_COPTS[@]}" //...
+              $BAZEL build --vendor_dir=vendor "--config=${BAZEL_RELEASE_CONFIG}" ${BAZEL_CACHE_FLAG:+"$BAZEL_CACHE_FLAG"} \
+                "${WORKER_COPTS[@]}" \
+                //lib/pagespeed:libpagespeed.so //src/worker:factory_worker
+              bash tools/assert-binary-hardening.sh bazel-bin/lib/pagespeed/libpagespeed.so
+              cp -L bazel-bin/lib/pagespeed/libpagespeed.so "$OUT/"
+              cp -L bazel-bin/src/worker/factory_worker "$OUT/"
+            '
+          ls -lh "${GITHUB_WORKSPACE}/release-artifacts/"
+
+      # Docker flavour for the public container images: the same vendored
+      # release recipe WITHOUT the NuGet copts (the worker reports
+      # server=nginx), plus the nginx module (a manual target) and the nginx
+      # version it links against (the prebuilt image pins runtime nginx to
+      # it).
+      - name: Build the container-image artifacts
+        run: |
+          set -euo pipefail
+          mkdir -p "${GITHUB_WORKSPACE}/docker-artifacts"
+          docker run --rm --init ${DOCKER_CACHE_HOST_ARG:+"$DOCKER_CACHE_HOST_ARG"} \
+            --memory=55g --memory-swap=55g \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/workspace \
+            -e BAZEL_RELEASE_CONFIG -e BAZEL_CACHE_FLAG \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -w /workspace \
+            "${DOCKER_IMAGE}" \
+            bash -c '
+              set -e
+              OUT=/workspace/docker-artifacts
+              bazel --output_user_root=/tmp/bazel-out \
+                build --vendor_dir=vendor "--config=${BAZEL_RELEASE_CONFIG}" ${BAZEL_CACHE_FLAG:+"$BAZEL_CACHE_FLAG"} \
+                //src/worker:factory_worker //src/nginx:ngx_pagespeed_module.so
+              bash tools/assert-binary-hardening.sh bazel-bin/src/nginx/ngx_pagespeed_module.so
+              cp -L bazel-bin/src/worker/factory_worker "$OUT/"
+              cp -L bazel-bin/src/nginx/ngx_pagespeed_module.so "$OUT/"
+              ls -d /nginx-src/nginx-*/ | head -1 | sed "s#.*/nginx-##; s#/##" > "$OUT/nginx-version"
+              echo "Recorded module nginx-version: $(cat "$OUT/nginx-version")"
+            '
+          ls -lh "${GITHUB_WORKSPACE}/docker-artifacts/"
+
+      - name: Upload the NuGet native binaries
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: native-${{ env.RID }}
+          path: release-artifacts/*
+          retention-days: 7
+          if-no-files-found: error
+
+      - name: Upload the container-image artifacts
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: docker-artifacts-${{ env.RID }}
+          path: docker-artifacts/*
+          retention-days: 30
+          if-no-files-found: error
+
+  linux-release-build-hosted:
+    name: Linux Release Build (hosted)
+    needs: [ref-guard, vendor-hosted]
+    if: ${{ vars.FLEET_ENABLED != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    env: *linux-x64-env
+    steps: *linux-build-steps
+
+  linux-arm64-release-build:
+    name: Linux arm64 Release Build
+    needs: [ref-guard, vendor, vendor-hosted]
+    if: >-
+      ${{ !cancelled() && needs.ref-guard.result == 'success'
+      && (needs.vendor.result == 'success' || needs.vendor-hosted.result == 'success') }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 330
+    env: &linux-arm64-env
+      RELEASE_SHA: ${{ needs.ref-guard.outputs.sha }}
+      SHORT_SHA: ${{ needs.ref-guard.outputs.short_sha }}
+      RID: linux-arm64
+      IMAGE_ARCH: arm64
+      BAZEL_RELEASE_CONFIG: release-linux-arm64
+    steps: *linux-build-steps
+
+  # Linux unit tests, same three-way split.
+  linux-release-tests:
+    name: Linux Release Tests
+    needs: [ref-guard, linux-release-build]
+    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
+    if: ${{ vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
+    timeout-minutes: 60
+    env: *linux-x64-env
+    steps: &linux-test-steps
+      - name: Unlock and clear the workspace
+        run: |
+          [ -d "${GITHUB_WORKSPACE}" ] && chmod -R u+w "${GITHUB_WORKSPACE}" 2>/dev/null || true
+          find "${GITHUB_WORKSPACE}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+
+      - name: Download the release source
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-source
+          path: ${{ runner.temp }}/release-source
+
+      - name: Extract the release source
+        run: |
+          set -euo pipefail
+          TARBALL="${RUNNER_TEMP}/release-source/pagespeed-optimizer-${SHORT_SHA}.tar.zst"
+          zstd -t "$TARBALL"
+          tar --zstd -xf "$TARBALL" -C "${GITHUB_WORKSPACE}"
+          rm -f "$TARBALL"
+          bash tools/ci/verify-artifacts.sh "$RELEASE_SHA" "stamp:${GITHUB_WORKSPACE}/GIT_COMMIT"
+
+      - name: Docker preflight
+        run: tools/ci/docker-preflight.sh
+
+      - name: Ensure the dev image
+        run: |
+          CONTENT_IMAGE=$(bash tools/ci/ensure-dev-image.sh "$IMAGE_ARCH" docker)
+          echo "DOCKER_IMAGE=${CONTENT_IMAGE}" >> "$GITHUB_ENV"
+
+      - name: Run unit tests
+        run: |
+          set -euo pipefail
+          EXTRA_DOCKER=()
+          CACHE_FLAG="--remote_cache="
+          if [ -n "${BAZEL_CACHE_HOST:-}" ]; then
+            EXTRA_DOCKER+=(--add-host="bazel-remote-cache:${BAZEL_CACHE_HOST}")
+            CACHE_FLAG=""
+          fi
+          docker run --rm --init ${EXTRA_DOCKER[@]+"${EXTRA_DOCKER[@]}"} \
+            --memory=55g --memory-swap=55g \
+            --user "$(id -u):$(id -g)" \
+            -e HOME=/workspace \
+            -v "${GITHUB_WORKSPACE}:/workspace" \
+            -w /workspace \
+            "${DOCKER_IMAGE}" \
+            bazel --output_user_root=/tmp/bazel-out \
+              test --vendor_dir=vendor "--config=${BAZEL_RELEASE_CONFIG}" ${CACHE_FLAG:+"$CACHE_FLAG"} \
+              //test/... //lib/pagespeed:pagespeed_test \
+              //lib/image/vtracer_ffi:vtracer_ffi_test
+
+  linux-release-tests-hosted:
+    name: Linux Release Tests (hosted)
+    needs: [ref-guard, linux-release-build-hosted]
+    if: ${{ vars.FLEET_ENABLED != 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env: *linux-x64-env
+    steps: *linux-test-steps
+
+  linux-arm64-release-tests:
+    name: Linux arm64 Release Tests
+    needs: [ref-guard, linux-arm64-release-build]
+    if: ${{ !cancelled() && needs.linux-arm64-release-build.result == 'success' }}
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 300
+    env: *linux-arm64-env
+    steps: *linux-test-steps
+
+  # ---------------------------------------------------------------------
+  # Windows. The build produces UNSIGNED binaries (no secret on the fleet);
+  # sign-windows signs them on a hosted runner inside the environment.
+  # ---------------------------------------------------------------------
+  windows-release-build:
+    name: Windows Release Build
+    needs: [ref-guard, vendor]
+    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'windows-2022' || 'fleet-windows' }}
+    if: ${{ vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
+    timeout-minutes: 120
+    env: &windows-env
+      RELEASE_SHA: ${{ needs.ref-guard.outputs.sha }}
+      SHORT_SHA: ${{ needs.ref-guard.outputs.short_sha }}
+    steps: &windows-build-steps
+      - name: Clear the workspace
+        shell: powershell
+        run: |
+          Get-ChildItem -Force "$env:GITHUB_WORKSPACE" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
+      - name: Download the release source
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-source
+          path: ${{ runner.temp }}/release-source
+
+      - name: Extract the release source
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tarball = "$env:RUNNER_TEMP\release-source\pagespeed-optimizer-$env:SHORT_SHA.tar.zst"
+          # Decompress with all cores, then extract with the Windows tar
+          # (MSYS2's GNU tar reads a drive letter as a remote host).
+          & zstd -d -f -T0 $tarball -o "$tarball.tar"
+          if ($LASTEXITCODE -ne 0) { Write-Error "zstd decompression failed (exit $LASTEXITCODE)"; exit 1 }
+          & "$env:SystemRoot\System32\tar.exe" xf "$tarball.tar" -C "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { Write-Error "tar extraction failed (exit $LASTEXITCODE)"; exit 1 }
+          Remove-Item "$tarball", "$tarball.tar" -ErrorAction SilentlyContinue
+          & "$env:GITHUB_WORKSPACE\tools\ci\verify-artifacts.ps1" `
+            -Expected $env:RELEASE_SHA `
+            -Specs "stamp:$env:GITHUB_WORKSPACE\GIT_COMMIT"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      # BAZEL_SH from the runner environment when it names an existing
+      # shell, else MSYS2, else Git for Windows. gperf and nasm are
+      # installed only when missing.
+      - name: Locate and install the build tools
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sh = $env:BAZEL_SH
+          if (-not $sh -or -not (Test-Path $sh)) {
+            $sh = @('C:\msys64\usr\bin\bash.exe', 'C:\Program Files\Git\bin\bash.exe') | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if (-not $sh) { Write-Error 'no bash for Bazel: set BAZEL_SH in the runner environment'; exit 1 }
+          "BAZEL_SH=$sh" >> $env:GITHUB_ENV
+          if (-not (Get-Command bazelisk -ErrorAction SilentlyContinue)) {
+            npm install -g @bazel/bazelisk@1.28.1
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          if (-not (Test-Path C:\msys64\usr\bin\gperf.exe) -and -not (Get-Command gperf -ErrorAction SilentlyContinue)) {
+            & C:\msys64\usr\bin\pacman.exe -S --noconfirm --needed gperf
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          if (-not (Test-Path "C:\Program Files\NASM\nasm.exe") -and -not (Get-Command nasm -ErrorAction SilentlyContinue)) {
+            choco install nasm -y --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Cache the Bazel disk cache (hosted)
+        if: ${{ runner.environment == 'github-hosted' }}
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: C:\bazel-disk
+          key: ${{ runner.os }}-x64-nuget-release-bazel-v1-${{ hashFiles('MODULE.bazel', '.bazelrc', '.bazelversion') }}
+          restore-keys: |
+            ${{ runner.os }}-x64-nuget-release-bazel-v1-
+
+      # The build reads PATH, INCLUDE and LIB (.bazelrc action_env), so it
+      # runs inside the MSVC x64 developer environment. The compiler is
+      # cl.exe: its response-file parser strips unescaped double quotes, so
+      # the string copts escape them as \" to arrive as string literals.
+      - name: Build all targets + the NuGet binaries (release)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat'
+          cmd /c "`"$vcvars`" >nul && set" | ForEach-Object {
+            if ($_ -match '^(PATH|INCLUDE|LIB|LIBPATH|VCToolsInstallDir|WindowsSdkDir|WindowsSDKVersion)=(.*)$') {
+              Set-Item -Path "env:$($Matches[1])" -Value $Matches[2]
+            }
+          }
+          $env:PATH = "C:\msys64\usr\bin;C:\Program Files\NASM;$env:PATH"
+          # A short output root keeps Windows paths under the length limit;
+          # CI_WIN_BAZEL_OUTPUT_ROOT in the runner environment overrides it.
+          $outRoot = if ($env:CI_WIN_BAZEL_OUTPUT_ROOT) { $env:CI_WIN_BAZEL_OUTPUT_ROOT } else { 'C:/b' }
+          $startup = @("--output_user_root=$outRoot")
+          $cacheArgs = @()
+          if ($env:RUNNER_ENVIRONMENT -eq 'github-hosted') { $cacheArgs += '--disk_cache=C:/bazel-disk' }
+          if ($env:BAZEL_REMOTE_CACHE_URL) {
+            Write-Host 'using the remote Bazel cache from the runner environment'
+            $cacheArgs += "--remote_cache=$env:BAZEL_REMOTE_CACHE_URL"
+          }
+          $common = @('--vendor_dir=vendor', '--config=windows', '--config=opt', '--stamp') + $cacheArgs + @(
+            '--copt=-DPAGESPEED_SERVER=\"aspnetcore\"',
+            '--copt=-DPAGESPEED_DISTRIBUTION=\"nuget\"')
+          bazelisk @startup build @common -- //lib/... //src/... //test/...
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          bazelisk @startup build @common //lib/pagespeed:libpagespeed.so //src/worker:factory_worker
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $bin = (bazelisk @startup info @common bazel-bin).Trim()
+          $dll = "$bin\lib\pagespeed\libpagespeed.so"
+          if (-not (Test-Path $dll)) { $dll = "$bin\lib\pagespeed\libpagespeed.dll" }
+          New-Item -ItemType Directory -Force -Path unsigned-output | Out-Null
+          Copy-Item $dll unsigned-output\pagespeed.dll -Force
+          Copy-Item "$bin\src\worker\factory_worker.exe" unsigned-output\factory_worker.exe -Force
+          Get-ChildItem unsigned-output | ForEach-Object { Set-ItemProperty $_.FullName -Name IsReadOnly -Value $false }
+
+      # What ships must start on a stock Windows Server (no Visual C++
+      # runtime).
+      - name: The binaries need no Visual C++ runtime
+        shell: powershell
+        run: |
+          & tools\ci\check-no-vc-runtime.ps1 -Binaries unsigned-output\factory_worker.exe,unsigned-output\pagespeed.dll
+          exit $LASTEXITCODE
+
+      - name: Upload the unsigned Windows binaries
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: native-win-x64-unsigned
+          path: unsigned-output/*
+          retention-days: 7
+          if-no-files-found: error
+
+  windows-release-build-hosted:
+    name: Windows Release Build (hosted)
+    needs: [ref-guard, vendor-hosted]
+    if: ${{ vars.FLEET_ENABLED != 'true' }}
+    runs-on: windows-2022
+    timeout-minutes: 330
+    env: *windows-env
+    steps: *windows-build-steps
+
+  # Authenticode signing with Microsoft Trusted Signing (signtool + the
+  # Trusted Signing dlib). Hosted, real runs only, inside the `release`
+  # environment, which holds the six AZURE_* secrets. The outer .nupkg files
+  # are not signed: nuget.org does not accept Trusted Signing certificates
+  # for package signing; the embedded binaries are what SmartScreen,
+  # antivirus and the Windows loader check.
+  sign-windows:
+    name: Sign Windows binaries
+    needs: [ref-guard, windows-release-build, windows-release-build-hosted]
+    if: >-
+      ${{ !cancelled() && needs.ref-guard.outputs.real == 'true'
+      && (needs.windows-release-build.result == 'success' || needs.windows-release-build-hosted.result == 'success') }}
+    runs-on: windows-2022
+    timeout-minutes: 20
+    environment: release
+    env:
+      RELEASE_SHA: ${{ needs.ref-guard.outputs.sha }}
+    steps:
+      - name: Checkout the verification helpers
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.ref-guard.outputs.sha }}
+          sparse-checkout: tools/ci
+          sparse-checkout-cone-mode: false
+
+      - name: Download the unsigned Windows binaries
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: native-win-x64-unsigned
+          path: signed-output
+
+      - name: Authenticode-sign (Microsoft Trusted Signing)
+        shell: powershell
+        env:
+          AZURE_TENANT_ID: ${{ secrets.AZURE_TENANT_ID }}
+          AZURE_CLIENT_ID: ${{ secrets.AZURE_CLIENT_ID }}
+          AZURE_CLIENT_SECRET: ${{ secrets.AZURE_CLIENT_SECRET }}
+          TRUSTED_SIGNING_ENDPOINT: ${{ secrets.AZURE_TRUSTED_SIGNING_ENDPOINT }}
+          TRUSTED_SIGNING_ACCOUNT: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
+          TRUSTED_SIGNING_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_PROFILE }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($n in @('AZURE_TENANT_ID', 'AZURE_CLIENT_ID', 'AZURE_CLIENT_SECRET', 'TRUSTED_SIGNING_ENDPOINT', 'TRUSTED_SIGNING_ACCOUNT', 'TRUSTED_SIGNING_PROFILE')) {
+            if (-not [Environment]::GetEnvironmentVariable($n)) { Write-Error "secret for $n is not set in the release environment (docs/ci/release.md)"; exit 1 }
+          }
+          $dlibDir = "$env:RUNNER_TEMP\TrustedSigning"
+          New-Item -ItemType Directory -Path $dlibDir -Force | Out-Null
+          $nupkg = "$dlibDir\Microsoft.Trusted.Signing.Client.zip"
+          Invoke-WebRequest -Uri "https://www.nuget.org/api/v2/package/Microsoft.Trusted.Signing.Client/1.0.53" -OutFile $nupkg
+          Expand-Archive -Path $nupkg -DestinationPath $dlibDir -Force
+          $dlib = "$dlibDir\bin\x64\Azure.CodeSigning.Dlib.dll"
+          $metadata = @{
+            Endpoint = $env:TRUSTED_SIGNING_ENDPOINT
+            CodeSigningAccountName = $env:TRUSTED_SIGNING_ACCOUNT
+            CertificateProfileName = $env:TRUSTED_SIGNING_PROFILE
+            CorrelationId = [guid]::NewGuid().ToString()
+          } | ConvertTo-Json
+          $metadataFile = "$env:RUNNER_TEMP\tsmetadata.json"
+          Set-Content -Path $metadataFile -Value $metadata
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1
+          if (-not $signtool) { Write-Error "signtool.exe not found"; exit 1 }
+          Write-Host "Using signtool: $($signtool.FullName)"
+          foreach ($file in @("signed-output\pagespeed.dll", "signed-output\factory_worker.exe")) {
+            Set-ItemProperty $file -Name IsReadOnly -Value $false
+            Write-Host "Signing $file"
+            & $signtool.FullName sign /v /fd SHA256 `
+              /tr "http://timestamp.acs.microsoft.com" /td SHA256 `
+              /dlib $dlib /dmdf $metadataFile `
+              $file
+            if ($LASTEXITCODE -ne 0) { Write-Error "signtool failed on $file with exit $LASTEXITCODE"; exit 1 }
+          }
+
+      # Consume what was signed: a valid signature on both files, and both
+      # still load and report the release commit on a stock hosted Windows
+      # image.
+      - name: Verify the signed binaries
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          foreach ($file in @("signed-output\pagespeed.dll", "signed-output\factory_worker.exe")) {
+            $sig = Get-AuthenticodeSignature $file
+            if ($sig.Status -ne 'Valid') { Write-Error "$file signature status: $($sig.Status)"; exit 1 }
+            Write-Host "$file signed by: $($sig.SignerCertificate.Subject)"
+          }
+          & tools\ci\check-no-vc-runtime.ps1 -Binaries signed-output\factory_worker.exe,signed-output\pagespeed.dll
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          & tools\ci\verify-artifacts.ps1 -Expected $env:RELEASE_SHA `
+            -Specs "binary:signed-output\factory_worker.exe","sharedlib:signed-output\pagespeed.dll"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Upload the signed Windows binaries
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: native-win-x64
+          path: signed-output/*
+          retention-days: 7
+          if-no-files-found: error
+
+  # The Windows unit tests run on the source tree (the same tarball the
+  # build used), so they do not wait for signing.
+  windows-release-tests:
+    name: Windows Release Tests
+    needs: [ref-guard, windows-release-build]
+    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'windows-2022' || 'fleet-windows' }}
+    if: ${{ vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
+    timeout-minutes: 60
+    env: *windows-env
+    steps: &windows-test-steps
+      - name: Clear the workspace
+        shell: powershell
+        run: |
+          Get-ChildItem -Force "$env:GITHUB_WORKSPACE" | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+
+      - name: Download the release source
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-source
+          path: ${{ runner.temp }}/release-source
+
+      - name: Extract the release source
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $tarball = "$env:RUNNER_TEMP\release-source\pagespeed-optimizer-$env:SHORT_SHA.tar.zst"
+          & zstd -d -f -T0 $tarball -o "$tarball.tar"
+          if ($LASTEXITCODE -ne 0) { Write-Error "zstd decompression failed (exit $LASTEXITCODE)"; exit 1 }
+          & "$env:SystemRoot\System32\tar.exe" xf "$tarball.tar" -C "$env:GITHUB_WORKSPACE"
+          if ($LASTEXITCODE -ne 0) { Write-Error "tar extraction failed (exit $LASTEXITCODE)"; exit 1 }
+          Remove-Item "$tarball", "$tarball.tar" -ErrorAction SilentlyContinue
+          & "$env:GITHUB_WORKSPACE\tools\ci\verify-artifacts.ps1" `
+            -Expected $env:RELEASE_SHA `
+            -Specs "stamp:$env:GITHUB_WORKSPACE\GIT_COMMIT"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Locate and install the build tools
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $sh = $env:BAZEL_SH
+          if (-not $sh -or -not (Test-Path $sh)) {
+            $sh = @('C:\msys64\usr\bin\bash.exe', 'C:\Program Files\Git\bin\bash.exe') | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if (-not $sh) { Write-Error 'no bash for Bazel: set BAZEL_SH in the runner environment'; exit 1 }
+          "BAZEL_SH=$sh" >> $env:GITHUB_ENV
+          if (-not (Get-Command bazelisk -ErrorAction SilentlyContinue)) {
+            npm install -g @bazel/bazelisk@1.28.1
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          if (-not (Test-Path C:\msys64\usr\bin\gperf.exe) -and -not (Get-Command gperf -ErrorAction SilentlyContinue)) {
+            & C:\msys64\usr\bin\pacman.exe -S --noconfirm --needed gperf
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+          if (-not (Test-Path "C:\Program Files\NASM\nasm.exe") -and -not (Get-Command nasm -ErrorAction SilentlyContinue)) {
+            choco install nasm -y --no-progress
+            if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          }
+
+      - name: Restore the Bazel disk cache (hosted)
+        if: ${{ runner.environment == 'github-hosted' }}
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: C:\bazel-disk
+          key: ${{ runner.os }}-x64-nuget-release-bazel-v1-${{ hashFiles('MODULE.bazel', '.bazelrc', '.bazelversion') }}
+          restore-keys: |
+            ${{ runner.os }}-x64-nuget-release-bazel-v1-
+
+      - name: Run unit tests
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat'
+          cmd /c "`"$vcvars`" >nul && set" | ForEach-Object {
+            if ($_ -match '^(PATH|INCLUDE|LIB|LIBPATH|VCToolsInstallDir|WindowsSdkDir|WindowsSDKVersion)=(.*)$') {
+              Set-Item -Path "env:$($Matches[1])" -Value $Matches[2]
+            }
+          }
+          $env:PATH = "C:\msys64\usr\bin;C:\Program Files\NASM;$env:PATH"
+          # A short output root keeps Windows paths under the length limit;
+          # CI_WIN_BAZEL_OUTPUT_ROOT in the runner environment overrides it.
+          $outRoot = if ($env:CI_WIN_BAZEL_OUTPUT_ROOT) { $env:CI_WIN_BAZEL_OUTPUT_ROOT } else { 'C:/b' }
+          $startup = @("--output_user_root=$outRoot")
+          $cacheArgs = @()
+          if ($env:RUNNER_ENVIRONMENT -eq 'github-hosted') { $cacheArgs += '--disk_cache=C:/bazel-disk' }
+          if ($env:BAZEL_REMOTE_CACHE_URL) { $cacheArgs += "--remote_cache=$env:BAZEL_REMOTE_CACHE_URL" }
+          bazelisk @startup test --vendor_dir=vendor --config=windows --config=opt --stamp @cacheArgs //test/...
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+  windows-release-tests-hosted:
+    name: Windows Release Tests (hosted)
+    needs: [ref-guard, windows-release-build-hosted]
+    if: ${{ vars.FLEET_ENABLED != 'true' }}
+    runs-on: windows-2022
+    timeout-minutes: 300
+    env: *windows-env
+    steps: *windows-test-steps
+
+  # ---------------------------------------------------------------------
+  # macOS arm64 (hosted).
+  # ---------------------------------------------------------------------
+  macos-release-build:
+    name: macOS Release Build
+    needs: [ref-guard, vendor, vendor-hosted]
+    if: >-
+      ${{ !cancelled() && needs.ref-guard.result == 'success'
+      && (needs.vendor.result == 'success' || needs.vendor-hosted.result == 'success') }}
+    runs-on: macos-15
+    timeout-minutes: 300
+    env: &macos-env
+      RELEASE_SHA: ${{ needs.ref-guard.outputs.sha }}
+      SHORT_SHA: ${{ needs.ref-guard.outputs.short_sha }}
+    steps:
+      - &macos-tools
+        name: Ensure the build tools
+        run: |
+          set -euo pipefail
+          for t in zstd gperf nasm; do
+            command -v "$t" >/dev/null 2>&1 || brew install "$t"
+          done
+          command -v bazel >/dev/null 2>&1 || brew install bazelisk
+          bazel --version
+
+      - &macos-download
+        name: Download the release source
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-source
+          path: ${{ runner.temp }}/release-source
+
+      - &macos-extract
+        name: Extract the release source
+        run: |
+          set -euo pipefail
+          find "${GITHUB_WORKSPACE}" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+          TARBALL="${RUNNER_TEMP}/release-source/pagespeed-optimizer-${SHORT_SHA}.tar.zst"
+          zstd -d -T0 < "$TARBALL" | tar xf - -C "${GITHUB_WORKSPACE}"
+          rm -f "$TARBALL"
+          bash tools/ci/verify-artifacts.sh "$RELEASE_SHA" "stamp:${GITHUB_WORKSPACE}/GIT_COMMIT"
+
+      - name: Build all targets + the NuGet binaries (release)
+        run: |
+          set -euo pipefail
+          CACHE_FLAG="--remote_cache=${BAZEL_REMOTE_CACHE_URL:-}"
+          COMMON=(--vendor_dir=vendor --config=ci-macos --config=opt --stamp "$CACHE_FLAG"
+            '--copt=-DPAGESPEED_SERVER="aspnetcore"'
+            '--copt=-DPAGESPEED_DISTRIBUTION="nuget"')
+          bazel build "${COMMON[@]}" //...
+          bazel build "${COMMON[@]}" //lib/pagespeed:libpagespeed.so //src/worker:factory_worker
+          # The target is named .so; on macOS the output is a dylib.
+          mkdir -p release-artifacts
+          cp -L bazel-bin/lib/pagespeed/libpagespeed.so release-artifacts/libpagespeed.dylib
+          cp -L bazel-bin/src/worker/factory_worker release-artifacts/factory_worker
+          ls -lh release-artifacts/
+
+      - name: Upload the NuGet native binaries
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: native-osx-arm64
+          path: release-artifacts/*
+          retention-days: 7
+          if-no-files-found: error
+
+  macos-release-tests:
+    name: macOS Release Tests
+    needs: [ref-guard, macos-release-build]
+    if: ${{ !cancelled() && needs.macos-release-build.result == 'success' }}
+    runs-on: macos-15
+    timeout-minutes: 300
+    env: *macos-env
+    steps:
+      - *macos-tools
+      - *macos-download
+      - *macos-extract
+      - name: Run unit tests
+        run: |
+          bazel test --vendor_dir=vendor --config=ci-macos --config=opt --stamp \
+            "--remote_cache=${BAZEL_REMOTE_CACHE_URL:-}" //test/...
+
+  # ---------------------------------------------------------------------
+  # Package: the four native sets from workflow artifacts, five .nupkg.
+  # One step list for the real run (inside the `release` environment: draft
+  # release + notifications) and the dry run (no environment, no approval,
+  # unsigned Windows binaries, nothing leaves the workflow).
+  # ---------------------------------------------------------------------
+  package:
+    name: Package & Release
+    needs: [ref-guard, security-gates, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, sign-windows, macos-release-tests, linux-arm64-release-tests]
+    if: >-
+      ${{ !cancelled() && needs.ref-guard.outputs.real == 'true'
+      && needs.security-gates.result == 'success'
+      && (needs.linux-release-tests.result == 'success' || needs.linux-release-tests-hosted.result == 'success')
+      && (needs.windows-release-tests.result == 'success' || needs.windows-release-tests-hosted.result == 'success')
+      && needs.sign-windows.result == 'success'
+      && needs.macos-release-tests.result == 'success'
+      && needs.linux-arm64-release-tests.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: release
+    permissions:
+      contents: write
+      pull-requests: read
+    env: &package-env
+      RELEASE_SHA: ${{ needs.ref-guard.outputs.sha }}
+      SHORT_SHA: ${{ needs.ref-guard.outputs.short_sha }}
+      RELEASE_TAG: ${{ needs.ref-guard.outputs.tag }}
+      REAL_RUN: ${{ needs.ref-guard.outputs.real }}
+    steps: &package-steps
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ needs.ref-guard.outputs.sha }}
+
+      - name: Ensure .NET 10 SDK
+        run: |
+          export PATH="$HOME/.dotnet:$PATH"
+          echo "$HOME/.dotnet" >> "$GITHUB_PATH"
+          if dotnet --list-sdks 2>/dev/null | grep -q '^10\.'; then
+            echo ".NET 10 SDK already installed"
+          else
+            curl -sSL --http1.1 https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0
+          fi
+          dotnet --list-sdks
+
+      - name: Download linux-x64 native binaries
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: native-linux-x64
+          path: ${{ runner.temp }}/native/linux-x64
+      - name: Download linux-arm64 native binaries
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: native-linux-arm64
+          path: ${{ runner.temp }}/native/linux-arm64
+      - name: Download osx-arm64 native binaries
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: native-osx-arm64
+          path: ${{ runner.temp }}/native/osx-arm64
+      # A real run packs the signed Windows binaries; a dry run the unsigned
+      # ones (signing happens only inside the environment).
+      - name: Download win-x64 native binaries
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.ref-guard.outputs.real == 'true' && 'native-win-x64' || 'native-win-x64-unsigned' }}
+          path: ${{ runner.temp }}/native/win-x64
+
+      # Workflow artifacts drop POSIX mode bits, so the executables get +x
+      # back here. BUILD_INFO.json matches build-native.sh:write_build_info.
+      - name: Place the native binaries into the NativeAssets projects
+        run: |
+          set -euo pipefail
+          SRC="${RUNNER_TEMP}/native"
+          ASPNET="${GITHUB_WORKSPACE}/samples/aspnetcore/src"
+          place() { # place <rid> <project> <file>...
+            local rid="$1" proj="$2"; shift 2
+            local dir="${ASPNET}/${proj}/runtimes/${rid}/native" f
+            mkdir -p "$dir"
+            for f in "$@"; do
+              [ -s "${SRC}/${rid}/${f}" ] || { echo "::error::missing native binary ${rid}/${f}"; exit 1; }
+              cp "${SRC}/${rid}/${f}" "${dir}/${f}"
+            done
+            cat > "${dir}/BUILD_INFO.json" <<JSON
+          {
+            "git_sha": "${RELEASE_SHA}",
+            "git_sha_short": "${SHORT_SHA}",
+            "build_timestamp_utc": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "rid": "${rid}"
+          }
+          JSON
+            echo "${rid}:"
+            ls -lh "$dir"
+          }
+          place linux-x64 WeAmp.PageSpeed.NativeAssets.Linux libpagespeed.so factory_worker
+          place linux-arm64 WeAmp.PageSpeed.NativeAssets.Linux libpagespeed.so factory_worker
+          place win-x64 WeAmp.PageSpeed.NativeAssets.Windows pagespeed.dll factory_worker.exe
+          place osx-arm64 WeAmp.PageSpeed.NativeAssets.macOS libpagespeed.dylib factory_worker
+          chmod +x "${ASPNET}"/WeAmp.PageSpeed.NativeAssets.Linux/runtimes/linux-*/native/factory_worker \
+                   "${ASPNET}"/WeAmp.PageSpeed.NativeAssets.macOS/runtimes/osx-arm64/native/factory_worker
+
+      # This job runs on linux-x64, so only those binaries are executed and
+      # loaded here; the other RIDs are stamped at build time and covered by
+      # the matching-RID package smokes.
+      - name: Verify linux-x64 native binaries match the release commit
+        run: |
+          D="${GITHUB_WORKSPACE}/samples/aspnetcore/src/WeAmp.PageSpeed.NativeAssets.Linux/runtimes/linux-x64/native"
+          bash tools/ci/verify-artifacts.sh "$RELEASE_SHA" \
+            "binary:${D}/factory_worker" \
+            "sharedlib:${D}/libpagespeed.so"
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '22'
+
+      # WeAmp.PageSpeed.AspNetCore embeds the /console/ SPA as manifest
+      # resources. Build it out-of-band, then pack with WebShellSkipBuild.
+      # api-client is built first: web-shell consumes it via workspace:*.
+      # pnpm is pinned (pnpm 11 made ignored builds fatal).
+      - name: Build workbench SPA (embedded /console/)
+        run: |
+          set -euo pipefail
+          export NPM_CONFIG_PREFIX="$HOME/.npm-global"
+          mkdir -p "$NPM_CONFIG_PREFIX/bin"
+          echo "$NPM_CONFIG_PREFIX/bin" >> "$GITHUB_PATH"
+          export PATH="$NPM_CONFIG_PREFIX/bin:$PATH"
+          npm install -g pnpm@10.33.4
+          test "$(pnpm --version)" = "10.33.4"
+          cd tools/workbench
+          pnpm install --frozen-lockfile
+          pnpm -C packages/api-client build
+          pnpm -C packages/web-shell build
+          ls -la packages/web-shell/dist/index.html
+
+      # -p:Version overrides Directory.Build.props at pack time so the
+      # packages always carry the tag's version.
+      - name: Pack NuGet packages
+        run: |
+          set -euo pipefail
+          cd samples/aspnetcore
+          rm -rf nupkg
+          VERSION="${RELEASE_TAG#v}"
+          echo "Packing version: $VERSION"
+          dotnet restore --source https://api.nuget.org/v3/index.json
+          for p in Linux Windows macOS; do
+            dotnet pack "src/WeAmp.PageSpeed.NativeAssets.${p}/WeAmp.PageSpeed.NativeAssets.${p}.csproj" \
+              -o nupkg --no-build --no-restore -c Release -p:Version="$VERSION" -p:PackageVersion="$VERSION"
+          done
+          dotnet pack src/WeAmp.PageSpeed/WeAmp.PageSpeed.csproj \
+            -o nupkg --no-restore -c Release -p:Version="$VERSION" -p:PackageVersion="$VERSION"
+          dotnet pack src/WeAmp.PageSpeed.AspNetCore/WeAmp.PageSpeed.AspNetCore.csproj \
+            -o nupkg --no-restore -c Release -p:Version="$VERSION" -p:PackageVersion="$VERSION" \
+            -p:WebShellSkipBuild=true
+          ls -lh nupkg/
+          [ "$(find nupkg -maxdepth 1 -name '*.nupkg' | wc -l)" -eq 5 ] || { echo "::error::expected 5 packages"; exit 1; }
+
+      # The packages carry no source-control metadata: no repository
+      # url/commit/branch attributes and no SourceLink. A bare
+      # `<repository type="git" />` (newer SDKs emit it from a git tree)
+      # carries none and is allowed.
+      - name: Guard against source-control metadata in the .nupkg files
+        run: |
+          set -euo pipefail
+          cd samples/aspnetcore/nupkg
+          leak=0
+          for nupkg in *.nupkg; do
+            nuspec=$(unzip -p "$nupkg" "*.nuspec" 2>/dev/null)
+            if echo "$nuspec" | grep -qiE '<repository[^/]*(url|commit|branch)=|<sourceLink'; then
+              echo "::error::source-control metadata in $nupkg:"
+              echo "$nuspec" | grep -iE '<repository[^/]*(url|commit|branch)=|<sourceLink' || true
+              leak=1
+            fi
+          done
+          [ "$leak" = "0" ] || exit 1
+          echo "OK: no source-control metadata in the packages."
+
+      # A failed SPA build or a drifted EmbedWebShell glob would ship an
+      # empty console and every install would answer 503 for /console/.
+      - name: Guard against shipping an empty /console/ SPA
+        run: |
+          set -euo pipefail
+          cd samples/aspnetcore/nupkg
+          aspnet_nupkg=$(find . -maxdepth 1 -name 'WeAmp.PageSpeed.AspNetCore.*.nupkg' | head -1)
+          STRINGS="${RUNNER_TEMP}/aspnet-dll.strings"
+          unzip -p "$aspnet_nupkg" "lib/net10.0/WeAmp.PageSpeed.AspNetCore.dll" | strings -a > "$STRINGS"
+          if ! grep -aFq 'WeAmp.PageSpeed.AspNetCore.Console/index.html' "$STRINGS"; then
+            echo "::error::Embedded /console/ SPA missing from $aspnet_nupkg"
+            exit 1
+          fi
+          echo "OK: embedded /console/ SPA present ($(grep -acF 'WeAmp.PageSpeed.AspNetCore.Console/' "$STRINGS") manifest entries)."
+
+      # Real runs only. A draft that already exists for the tag is reused
+      # (an operator may have created it by hand); otherwise it is created.
+      # The SBOM and VEX ship next to the packages; SHA256SUMS lists all.
+      - name: Create the draft GitHub release
+        if: ${{ needs.ref-guard.outputs.real == 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG="$RELEASE_TAG"
+          LINE="$(printf '%s' "${TAG#v}" | cut -d. -f1,2)"
+          case "$TAG" in
+            v2.0.*) TITLE="ModPageSpeed 2.0 $TAG" ;;
+            *)      TITLE="mod_pagespeed ${LINE} $TAG" ;;
+          esac
+          VERSION="${TAG#v}"
+          ASSETS="${RUNNER_TEMP}/release-assets"
+          rm -rf "$ASSETS"
+          mkdir -p "$ASSETS"
+          cp samples/aspnetcore/nupkg/*.nupkg "$ASSETS/"
+          cp sbom/mod_pagespeed-2.1.spdx.json "$ASSETS/mod_pagespeed-${VERSION}.spdx.json"
+          cp sbom/mod_pagespeed-2.1.vex.json "$ASSETS/mod_pagespeed-${VERSION}.vex.json"
+          ( cd "$ASSETS" && sha256sum -- *.nupkg mod_pagespeed-"${VERSION}".spdx.json mod_pagespeed-"${VERSION}".vex.json > SHA256SUMS && sha256sum -c SHA256SUMS )
+          if gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null | grep -qx true; then
+            echo "A draft release for $TAG exists; attaching the packages, SBOM, VEX and SHA256SUMS"
+            gh release upload "$TAG" --clobber "$ASSETS"/*
+          else
+            gh release create "$TAG" --draft \
+              --target "$RELEASE_SHA" \
+              --title "$TITLE" \
+              --generate-notes \
+              "$ASSETS"/*
+            echo "Draft release created: $TAG"
+          fi
+
+      - name: Upload the .nupkg artifact (input to publish-nuget)
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: nupkg-${{ needs.ref-guard.outputs.short_sha }}
+          path: samples/aspnetcore/nupkg/*.nupkg
+          retention-days: 7
+          if-no-files-found: error
+
+      # Real tag runs only. The target repositories come from repository
+      # variables (RELEASE_BUMP_REPO, RELEASE_IMAGES_REPO); unset means
+      # skip. Best effort: the release artifacts are the truth, a lagging
+      # downstream is recoverable.
+      - name: Dispatch the release-bump event
+        if: ${{ needs.ref-guard.outputs.real == 'true' && startsWith(github.ref, 'refs/tags/v') }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.CORP_DISPATCH_TOKEN }}
+          TARGET_REPO: ${{ vars.RELEASE_BUMP_REPO }}
+          RUN_ID: ${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TARGET_REPO" ] || [ -z "$GH_TOKEN" ]; then
+            echo "::notice::RELEASE_BUMP_REPO or CORP_DISPATCH_TOKEN not set: no release-bump dispatch"
+            exit 0
+          fi
+          PAYLOAD=$(jq -n \
+            --arg line "2.0" \
+            --arg tag "$RELEASE_TAG" \
+            --arg released_on "$(date -u +%Y-%m-%d)" \
+            --arg run_id "$RUN_ID" \
+            --arg sha "$RELEASE_SHA" \
+            '{event_type: "release-bump", client_payload: {line: $line, tag: $tag, released_on: $released_on, run_id: $run_id, sha: $sha}}')
+          echo "$PAYLOAD" | jq .
+          gh api "repos/${TARGET_REPO}/dispatches" --method POST --input - <<<"$PAYLOAD"
+          echo "Dispatched release-bump for $RELEASE_TAG"
+
+      # The container-image flow fetches docker-artifacts-<rid> from this
+      # run (artifacts_repository + run_id) and builds, smokes and, behind
+      # its own protected environment, publishes the images.
+      - name: Dispatch the release-images event
+        if: ${{ needs.ref-guard.outputs.real == 'true' && startsWith(github.ref, 'refs/tags/v') }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.CORP_DISPATCH_TOKEN }}
+          TARGET_REPO: ${{ vars.RELEASE_IMAGES_REPO }}
+          RUN_ID: ${{ github.run_id }}
+          REPOSITORY: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          if [ -z "$TARGET_REPO" ] || [ -z "$GH_TOKEN" ]; then
+            echo "::notice::RELEASE_IMAGES_REPO or CORP_DISPATCH_TOKEN not set: no release-images dispatch"
+            exit 0
+          fi
+          PAYLOAD=$(jq -n \
+            --arg version "$RELEASE_TAG" \
+            --arg sha "$RELEASE_SHA" \
+            --arg source_tag "$RELEASE_TAG" \
+            --arg source_sha "$RELEASE_SHA" \
+            --arg artifacts_repository "$REPOSITORY" \
+            --arg run_id "$RUN_ID" \
+            '{event_type: "release-images", client_payload: {version: $version, sha: $sha, source_tag: $source_tag, source_sha: $source_sha, artifacts_repository: $artifacts_repository, run_id: $run_id, artifacts: ["docker-artifacts-linux-x64", "docker-artifacts-linux-arm64"]}}')
+          echo "$PAYLOAD" | jq .
+          gh api "repos/${TARGET_REPO}/dispatches" --method POST --input - <<<"$PAYLOAD"
+          echo "Dispatched release-images for $RELEASE_TAG"
+
+  package-dry-run:
+    name: Package (dry run)
+    needs: [ref-guard, security-gates, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, macos-release-tests, linux-arm64-release-tests]
+    if: >-
+      ${{ !cancelled() && needs.ref-guard.outputs.real != 'true'
+      && needs.security-gates.result == 'success'
+      && (needs.linux-release-tests.result == 'success' || needs.linux-release-tests-hosted.result == 'success')
+      && (needs.windows-release-tests.result == 'success' || needs.windows-release-tests-hosted.result == 'success')
+      && needs.macos-release-tests.result == 'success'
+      && needs.linux-arm64-release-tests.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env: *package-env
+    steps: *package-steps
+
+  # nuget.org Trusted Publishing: NuGet/login exchanges this job's OIDC
+  # token for a short-lived API key. The nuget.org policy names this
+  # repository, the workflow file pipeline-release-nuget.yml (the token's
+  # job_workflow_ref) and the environment `release` (docs/ci/release.md).
+  publish-nuget:
+    name: Publish to nuget.org (Trusted Publishing)
+    needs: [ref-guard, package]
+    if: ${{ !cancelled() && needs.package.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - name: Ensure .NET 10 SDK
+        run: |
+          export PATH="$HOME/.dotnet:$PATH"
+          echo "$HOME/.dotnet" >> "$GITHUB_PATH"
+          if dotnet --list-sdks 2>/dev/null | grep -q '^10\.'; then
+            echo ".NET 10 SDK already installed"
+          else
+            curl -sSL --http1.1 https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0
+          fi
+          dotnet --list-sdks
+
+      - name: Download the .nupkg artifact
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: nupkg-${{ needs.ref-guard.outputs.short_sha }}
+          path: nupkg
+
+      - name: List packages
+        run: ls -lh nupkg/
+
+      # `user` is the nuget.org account that owns the reserved WeAmp.*
+      # prefix and the Trusted Publishing policy.
+      - name: Exchange the OIDC token for a nuget.org API key
+        id: nuget-login
+        uses: NuGet/login@8d196754b4036150537f80ac539e15c2f1028841 # v1.2.0
+        with:
+          user: modpagespeed
+
+      # --skip-duplicate: re-running a release for a version already on
+      # nuget.org is idempotent.
+      - name: Push packages to nuget.org
+        env:
+          NUGET_API_KEY: ${{ steps.nuget-login.outputs.NUGET_API_KEY }}
+        run: |
+          set -euo pipefail
+          for pkg in nupkg/*.nupkg; do
+            echo "Pushing $pkg"
+            dotnet nuget push "$pkg" \
+              --api-key "$NUGET_API_KEY" \
+              --source https://api.nuget.org/v3/index.json \
+              --skip-duplicate
+          done
+          echo "All packages pushed to nuget.org."
+
+  # Opt-in: by default the release stays a draft for human review.
+  promote-release:
+    name: Promote draft to published GitHub release
+    needs: [ref-guard, publish-nuget]
+    if: ${{ !cancelled() && needs.publish-nuget.result == 'success' && inputs.auto_promote == true }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: release
+    permissions:
+      contents: write
+    steps:
+      - name: Flip draft to published
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.ref-guard.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false
+          echo "Promoted release $TAG to published."
