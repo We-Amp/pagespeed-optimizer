@@ -178,7 +178,7 @@ if [[ -z "$SRC" && -n "$CANONICAL_URL" ]]; then
   # SSH mechanism the drift workflow's reach ladder uses.
   if [[ -n "$MIRROR_DIR_ARG" ]]; then
     mkdir -p "$(dirname "$MIRROR_DIR_ARG")"
-    # Serialize mirror writers on the runner pool: both drift
+    # Serialize mirror writers on the CI runner fleet: both drift
     # workflows and both required ratchet jobs share this mirror path,
     # and nothing keys them to the same concurrency group — concurrent
     # `fetch --prune` calls contend on ref/FETCH_HEAD locks, and the

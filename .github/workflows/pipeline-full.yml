@@ -1,0 +1,39 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2024-2026 We-Amp B.V.
+#
+# pipeline-full.yml -- the full tier, as a reusable workflow. It runs on a
+# push to main, on a workflow_dispatch with `full: true`, and on a pull
+# request labelled `ci:full` (the caller decides; see docs/ci/pipelines.md).
+#
+# PLACEHOLDER: the jobs below are ported by a later change. Until then the
+# tier holds one hosted job that exits 0 so callers can already wire it.
+# Jobs this tier will hold (fleet class or hosted label in brackets):
+#   * linux-asan                         [fleet-heavy]
+#   * linux-tsan                         [fleet-heavy]
+#   * linux-pkg-smoke                    [fleet-light]
+#   * daemon-privilege-rig, three distros [fleet-heavy, one rig per host]
+#   * daemon-privilege-rig-arm64         [ubuntu-24.04-arm]
+#   * windows-pkg-smoke                  [fleet-windows]
+#   * linux-arm64-pkg-smoke              [ubuntu-24.04-arm]
+#   * http-compliance                    [fleet-light]
+#   * async-css-probe-markup             [fleet-light]
+#   * container-cache-sharing            [fleet-light, real Linux kernel]
+# Fleet jobs copy the routing expression and the fleet guard verbatim
+# (tools/ci/check-workflow-shape.sh enforces both).
+
+name: pipeline-full
+
+on:
+  workflow_call:
+
+permissions:
+  contents: read
+
+jobs:
+  placeholder:
+    name: Full tier (placeholder)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Nothing to run yet
+        run: echo "The full tier is not ported yet; see docs/ci/pipelines.md."

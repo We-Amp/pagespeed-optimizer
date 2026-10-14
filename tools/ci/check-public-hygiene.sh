@@ -5,7 +5,7 @@
 # Public-tree hygiene gate (BLOCKING) -- the "Public-tree hygiene gate" CI
 # job. This repository is public, so the tracked tree must stay free of
 # private-infrastructure and private-process vocabulary: internal
-# decision-record references, the private CI runner-pool label scheme,
+# decision-record references, the former private CI runner label scheme,
 # pre-publication development repository slugs, internal work-item
 # identifiers and private build-fleet topology words. Direct commits to
 # this repository never pass through the private source repos' export-time

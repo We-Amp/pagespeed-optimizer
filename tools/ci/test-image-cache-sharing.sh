@@ -346,8 +346,8 @@ docker rm -f "${RUN_ID}-worker" >/dev/null 2>&1 || true
 # Kernel-dependent: the trap only happens on kernels where crashpad's failed
 # handshake escalates to SIGTRAP (native Linux, WSL2 6.x). On Docker Desktop's
 # linuxkit VM Chrome logs the crashpad error and carries on, so on such a host
-# this control reads "did not trip" on a healthy image. CI pins the job to
-# trapping kernels via the `real-linux` runner label and asserts the Yama proxy
+# this control reads "did not trip" on a healthy image. CI pins the job to a
+# trapping-kernel runner class and asserts the Yama proxy
 # up front; other callers (docker/build-release.sh on a Mac) hit it as a false
 # red -- see the container-cache-sharing job in CI.
 NEG_WRAPPER="$(mktemp)"

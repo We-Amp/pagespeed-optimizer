@@ -8,11 +8,8 @@ name: CI
 # license audit, the license-header / SBOM-drift gates, and the public-tree
 # hygiene gate (tools/ci/check-public-hygiene.sh — keeps
 # private-infrastructure and private-process vocabulary out of the public
-# tree). GitHub-hosted runners ONLY — a public repo must never address the
-# private build fleet, so the exhaustive lanes (sanitizers, TSan, lint,
-# Windows/macOS builds, the full //test/... unit-test matrix,
-# integration/E2E, CVE scanning, packaging and release lanes) stay on the
-# private fleet and are deliberately not part of this workflow.
+# tree). Fleet runners are reached only through the reusable workflows
+# pinned to main (docs/ci/pipelines.md).
 #
 # Scope cuts vs the private lanes, made to fit the hosted-runner budget:
 #   * Test slice: //test/lib/base:all + //test/lib/cache:all + the
@@ -197,3 +194,7 @@ jobs:
         run: tools/ci/check-public-hygiene.sh
       - name: Hygiene gate self-test
         run: tools/ci/test-check-public-hygiene.sh
+      - name: Workflow-shape gate
+        run: tools/ci/check-workflow-shape.sh
+      - name: Workflow-shape gate fixtures
+        run: tools/ci/test_check_workflow_shape.sh

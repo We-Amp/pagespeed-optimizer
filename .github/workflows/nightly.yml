@@ -1,0 +1,24 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2024-2026 We-Amp B.V.
+#
+# Nightly caller: triggers and concurrency only; the jobs live in
+# pipeline-nightly.yml, pinned to main. See docs/ci/pipelines.md.
+
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+
+# One nightly at a time; a running nightly is never cancelled.
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  nightly:
+    uses: We-Amp/pagespeed-optimizer/.github/workflows/pipeline-nightly.yml@main
