@@ -141,7 +141,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ## Release notes by line
 
-- [Release notes: 2.4](https://modpagespeed.com/docs/release-notes-2-4/): mod_pagespeed 2.4.0 release notes: the module and the optimizer worker as one release (packages 1.19.0), with several rule packs.
+- [Release notes: 2.4](https://modpagespeed.com/docs/release-notes-2-4/): mod_pagespeed 2.4.0 release notes: the module and the optimizer worker as one release (packages 1.19.0), with several rule packs and a security fix.
 - [Release notes: 2.3](https://modpagespeed.com/docs/release-notes-2-3/): mod_pagespeed 2.3.0 release notes: the module and the optimizer worker as one release (packages 1.18.0), with rule packs and security fixes.
 - [Release notes: 2.2](https://modpagespeed.com/docs/release-notes-2-2/): mod_pagespeed 2.2.0 release notes: the module and the optimizer worker as one release (packages 1.17.0), its security fixes and what changed.
 - [Release notes: 2.1](https://modpagespeed.com/docs/release-notes-2-1/): mod_pagespeed 2.1.0 release notes: the first release of the module and the optimizer worker as one product (packages 1.16.0), with hardened defaults.
