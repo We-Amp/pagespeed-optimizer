@@ -35,8 +35,8 @@ for attempt in 1 2 3 4 5; do
   [ "$attempt" -lt 5 ] && sleep 3
 done
 
-HOST="$(hostname 2>/dev/null || echo unknown)"
-echo "::error::Docker daemon not reachable on ${HOST}." >&2
+# The runner's host name is deliberately not printed: job logs are public.
+echo "::error::Docker daemon not reachable on this runner." >&2
 echo "::error::On WSL2 runners this usually means Docker Desktop on the Windows host is not running, or the docker.sock is not exposed into the distro." >&2
 
 # Surface diagnostic detail to the job log. `docker version` (unlike
