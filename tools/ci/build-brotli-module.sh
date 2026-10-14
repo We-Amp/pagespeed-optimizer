@@ -12,10 +12,10 @@
 # The brotli module is a pure function of (nginx version, pinned ngx_brotli
 # commit), so the Docker layer cache — keyed on the nginx-version COPY'd first
 # in Dockerfile.brotli — makes this a no-op unless nginx.org ships a new point
-# release. Pre-building it here on a warm-cache producer host (the x64 Linux
-# Build job, which runs on one dedicated machine) and shipping the .so as a CI
-# artifact means the HTTP Compliance job — which runs anywhere in a shared pool
-# — never recompiles brotli on a cold-cache host. See
+# release. Pre-building it here on the warm-cache producer host (the x64 Linux
+# Build job) and shipping the .so as a CI artifact means the HTTP Compliance
+# job, which can land on any light runner, never recompiles brotli on a
+# cold-cache host. See
 # Dockerfile.brotli, Dockerfile.prebuilt, and stage-artifacts.sh.
 set -euo pipefail
 
