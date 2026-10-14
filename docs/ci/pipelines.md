@@ -98,6 +98,17 @@ set the job runs slower, never fails for that reason. In `pipeline-pr.yml`:
   runner's home, which persists on a fleet runner and is empty on a hosted
   one. No credential enters the lint containers.
 
+### Release lanes: hosted twins
+
+A release cannot wait for the fleet. In the release pipelines
+(`pipeline-release-optimizer.yml`, `pipeline-release-nuget.yml`) every
+fleet job has a hosted twin: the same steps (shared through a YAML anchor),
+a hosted label, and `if: ${{ vars.FLEET_ENABLED != 'true' }}`. Exactly one
+of each pair runs, so clearing `FLEET_ENABLED` moves a release to hosted
+runners instead of skipping it. A job that consumes the output of a pair
+names both in `needs:` and runs when either succeeded. Release lanes pass
+every file between jobs as workflow artifacts; they use no hub.
+
 ## Required checks
 
 Until the caller switch, `ci.yml` keeps its four hosted jobs and their check
@@ -145,3 +156,24 @@ job and fails the build when the shape breaks:
 The gate is line-oriented: `runs-on` and the guard must each fit on one
 line. Fixtures live in `tools/ci/testdata/workflow-shape/`; run
 `tools/ci/test_check_workflow_shape.sh` after changing the gate.
+
+## Runner group policy entries
+
+The fleet runner group admits only the workflows listed in its
+"selected workflows" policy; a job from any other workflow file or ref
+queues and never starts. The entries, one per reusable workflow that can
+reach the fleet:
+
+```text
+We-Amp/pagespeed-optimizer/.github/workflows/pipeline-pr.yml@refs/heads/main
+We-Amp/pagespeed-optimizer/.github/workflows/pipeline-full.yml@refs/heads/main
+We-Amp/pagespeed-optimizer/.github/workflows/pipeline-nightly.yml@refs/heads/main
+We-Amp/pagespeed-optimizer/.github/workflows/pipeline-release-optimizer.yml@refs/heads/main
+We-Amp/pagespeed-optimizer/.github/workflows/pipeline-release-nuget.yml@refs/heads/main
+We-Amp/pagespeed-optimizer/.github/workflows/pipeline-pr.yml@refs/heads/ci-dev
+```
+
+`pipeline-release-smoke.yml` runs on hosted runners only and needs no
+entry. Callers (`ci.yml`, `nightly.yml`, `ci-dev.yml`, `release.yml`,
+`release-smoke.yml`) never get one. Add an entry in the same change that
+gives a reusable workflow its first fleet job.
