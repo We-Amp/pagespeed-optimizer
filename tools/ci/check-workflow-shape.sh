@@ -31,9 +31,12 @@
 #       FLEET_ENABLED kill switch in its general, fleet-only or
 #       dispatch-only form) verbatim as its if:, the general form optionally
 #       narrowed by `&& needs.changes.outputs.<name> == 'true'`;
-#   (f) in a workflow_call workflow, write access to GitHub (a `: write`
-#       permission, at workflow or job level) is allowed only on a job that
-#       runs on a hosted label; a fleet-routed job is read-only;
+#   (f) in a workflow_call workflow: a top-level `permissions:` block is
+#       required and must grant no write access; write access to GitHub (a
+#       `: write` permission, plain or quoted, or write-all) is allowed only
+#       at job level on a job that runs on a hosted label; a fleet-routed job
+#       is read-only. The permissions parser is indentation-bound (jobs at two
+#       spaces, job keys at four), like the rest of this gate;
 #   (e) topology token scan of .github/ and tools/ci/: no LAN (RFC1918) IP
 #       literals, no ".home" names, no ":9090", no "self-hosted", and none
 #       of the retired runner-label words as standalone tokens.
@@ -132,29 +135,41 @@ job_records() {
 # Jobs (and the workflow level, reported as job "-") that hold a `: write`
 # permission, one per line: "<job> <tab> <line>". Line-oriented: a permissions
 # block is the 4-space (job) or 0-space (workflow) `permissions:` key and the
-# more deeply indented lines under it; `permissions: write-all` counts.
+# more deeply indented lines under it; `permissions: write-all` counts, and so
+# does a quoted value (double or single quotes around write) or the one-line flow
+# form (`permissions: { issues: write }`). Indentation-bound on purpose: jobs
+# sit at two spaces and job keys at four, the style of this repository.
 write_perm_records() {
   awk -v tab="${TAB}" '
+    function haswrite(line) {
+      sub(/[[:space:]]+#.*$/, "", line)
+      return (line ~ /write-all/ || line ~ /:[[:space:]]*[\047"]?write[\047"]?[[:space:]]*([,}]|$)/)
+    }
     /^[[:space:]]*#/ { next }
     /^jobs:[[:space:]]*$/ { injobs=1; inperm=0; job="-"; next }
     /^permissions:/ {
       inperm=1; indent=0; job="-"
-      if ($0 ~ /write-all/ || $0 ~ /:[[:space:]]*write/) { printf "%s%s%d\n", job, tab, NR }
+      if (haswrite($0) || $0 ~ /^permissions:[[:space:]]*[\047"]?write[\047"]?[[:space:]]*(#.*)?$/) { printf "%s%s%d\n", job, tab, NR }
       next
     }
     injobs && /^[^[:space:]#]/ { injobs=0; inperm=0 }
     injobs && /^  [^[:space:]]/ { job=$1; sub(/:$/, "", job); inperm=0; next }
     injobs && /^    permissions:/ {
       inperm=1; indent=4
-      if ($0 ~ /write-all/ || $0 ~ /:[[:space:]]*write/) { printf "%s%s%d\n", job, tab, NR }
+      if (haswrite($0) || $0 ~ /^    permissions:[[:space:]]*[\047"]?write[\047"]?[[:space:]]*(#.*)?$/) { printf "%s%s%d\n", job, tab, NR }
       next
     }
     inperm {
       match($0, /^[[:space:]]*/); cur=RLENGTH
       if (cur <= indent) { inperm=0; next }
-      if ($0 ~ /:[[:space:]]*write[[:space:]]*$/) { printf "%s%s%d\n", job, tab, NR }
+      if (haswrite($0)) { printf "%s%s%d\n", job, tab, NR }
     }
   ' "$1"
+}
+
+# True when the file has a top-level (zero-indent) `permissions:` key.
+has_toplevel_permissions() {
+  grep -qE '^permissions:' "$1"
 }
 
 is_hosted_label() {
@@ -247,7 +262,12 @@ for wf in ${WORKFLOWS[@]+"${WORKFLOWS[@]}"}; do
 ${records}
 EOF
 
-    # (f) write permissions only on hosted jobs.
+    # (f) a reusable workflow declares a top-level permissions block (a
+    # called job otherwise inherits the caller's whole token), and write
+    # permissions sit only on hosted jobs.
+    if ! has_toplevel_permissions "${wf}"; then
+      err "${wf}: reusable workflow has no top-level permissions: block; declare a read-only one (contents: read) so a job cannot inherit the caller's token (rule f)"
+    fi
     while IFS=$'\t' read -r wjob wline; do
       [ -n "${wjob}" ] || continue
       if [ "${wjob}" = "-" ]; then

@@ -20,18 +20,12 @@ are never echoed to the job log, and no value appears in this repository.
 | `CI_HUB_VENDOR_DIR` | Linux, Windows | directory on the hub for vendor tarballs (needs `CI_HUB_SSH`) | as above |
 | `CI_HUB_ARTIFACTS_ROOT` | Linux | directory on the hub for build bundles, read by `tools/ci/stage-artifacts.sh` when a local bundle is missing (needs `CI_HUB_SSH`) | bundles pass through `actions/upload-artifact` / `download-artifact` only |
 | `CI_VENDOR_DIR` | Linux | runner-local directory for vendor tarballs; consumers on the same host extract from it without a network fetch | no local fast path |
-<<<<<<< HEAD
 | `CI_WIN_VENDOR_DIR` | Windows | the same, for Windows runners: a directory that may hold the vendor tarball the Linux jobs of the same machine published; the Windows jobs read it and never prune it | no local fast path (a hub fetch goes to a per-profile download directory) |
 | `CI_WIN_TOOLS_DIR` | Windows | `;`-separated list of directories added to `PATH` ahead of everything else (for example one for `bazelisk`, one for the CMake `bin`, one for the MSYS2 `usr/bin`); together they may provide `bazelisk` (or `bazel`), `bash.exe`, `cmake`, `ninja` and `zstd`. Visual Studio is found with `vswhere` | tools come from `PATH`, and bash from MSYS2 or Git for Windows in their usual locations |
 | `BAZEL_CACHE_HOST` | Linux | address of the remote Bazel cache; jobs add `--add-host=bazel-remote-cache:<value>` to their build containers and build with `--config=ci` | builds use `--config=docker` with no remote cache |
 | `BAZEL_REMOTE_CACHE_URL` | Windows, macOS | full remote cache URL, passed as `--remote_cache` | no remote cache |
 | `BAZEL_SH` | Windows | the bash Bazel runs genrules with (release lane Windows jobs) | MSYS2's bash, else Git for Windows' bash |
 | `CI_WIN_BAZEL_OUTPUT_ROOT` | Windows | Bazel `--output_user_root` for the release lane's Windows jobs (a short path on a volume with room) | `C:/b` |
-=======
-| `CI_WIN_VENDOR_DIR` | Windows | directory holding a vendor tarball (`pagespeed-optimizer-<sha7>.tar.zst`) that Windows jobs extract over their checkout | Bazel fetches its dependencies |
-| `BAZEL_CACHE_HOST` | Linux | address of the remote Bazel cache; jobs add `--add-host=bazel-remote-cache:<value>` to their build containers and build with `--config=ci` | builds use `--config=docker` with no remote cache |
-| `BAZEL_REMOTE_CACHE_URL` | Windows | full remote cache URL, passed as `--remote_cache` by the Windows jobs | no remote cache |
->>>>>>> 2f171709 (ci: add the nightly tier and hosted report jobs)
 | `CI_DEV_IMAGE_LOCK_DIR` | Linux | directory for the per-host lock files `tools/ci/ensure-dev-image.sh` takes around image builds (useful when several runner instances share one Docker daemon) | locks go to the temporary directory |
 
 Tools the Windows jobs expect (on `PATH` or in `CI_WIN_TOOLS_DIR`): `bazelisk`
