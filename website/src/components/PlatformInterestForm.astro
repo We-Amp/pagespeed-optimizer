@@ -165,6 +165,7 @@ const inputClass =
   const ENDPOINT = '/ai-readability/api/contact';
   const TOPIC = 'platform';
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const loadedAt = Date.now();
 
   for (const form of document.querySelectorAll<HTMLFormElement>('form[data-platform-form]')) {
     const wedge = form.dataset.wedge ?? '';
@@ -238,6 +239,7 @@ const inputClass =
             // widget sends it; the ledger stores it as the lead's page.
             url: window.location.pathname,
             message,
+            t: loadedAt,
           }),
         });
         if (!res.ok) throw new Error(`status ${res.status}`);

@@ -991,6 +991,7 @@ const jsonLd = [webApp, faqPage];
       // The shared scan interface (?ui=v2) drives this page instead.
       if (document.documentElement.dataset.scanUi === 'v2') return;
       const API = new URLSearchParams(location.search).get('api') || '/ai-readability/api';
+      const loadedAt = Date.now();
       const $ = (s) => document.querySelector(s);
       const out = $('#ar-out');
       const esc = (s) =>
@@ -2636,7 +2637,7 @@ const jsonLd = [webApp, faqPage];
               const res = await fetch(API + '/contact', {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
-                body: JSON.stringify(payload),
+                body: JSON.stringify(Object.assign({}, payload, { t: loadedAt })),
               });
               const j = await res.json().catch(() => ({}));
               if (res.ok) {
@@ -2665,7 +2666,7 @@ const jsonLd = [webApp, faqPage];
           const res = await fetch(API + '/contact', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(payload),
+            body: JSON.stringify(Object.assign({}, payload, { t: loadedAt })),
           });
           return res.ok;
         } catch (_) {

@@ -19,9 +19,10 @@
 # operator-curated.
 #
 # Schema: scripts/release/manifest-schema.mjs (2.1 branch pending)
-# Distribution scope: Docker + Helm + native deb/rpm packages. The ASP.NET
-# Core middleware is NOT part of the converged line — it continues on the
-# frozen 2.0 manifest until its support end (2027-02-07).
+# Distribution scope: Docker + Helm + native deb/rpm packages, plus the
+# ASP.NET Core middleware on NuGet, which ships as 2.4.0 with this release.
+# The middleware's artifact block still lives in the 2.0 manifest; where it
+# re-homes is tracked separately.
 
 schema_version: 2
 
@@ -32,10 +33,10 @@ product:
 status: active
 
 release:
-  semver: "2.3.0"
+  semver: "2.4.0"
   revision: null # plain SemVer; +rN not used on the converged line
-  tag: "v2.3.0"
-  released_on: "2026-10-12"
+  tag: "v2.4.0"
+  released_on: "2026-10-14"
 
 artifacts:
   # Docker images published to GHCR (ghcr.io/we-amp) — same channels as the
@@ -69,7 +70,8 @@ urls:
 compat:
   # The 2.1 module continues the 1.15-line module packaging: Apache 2.4+;
   # nginx builds pinned per distro to each distribution's stock nginx (the
-  # signed apt matrix runs Debian 11-13 + Ubuntu 22.04/24.04 on amd64+arm64;
+  # signed apt matrix for this line runs Debian 12/13 + Ubuntu 22.04/24.04 on
+  # amd64+arm64; Debian 11 (bullseye) stays on the final 1.15 packages;
   # see product-facts NGINX_APT_DISTROS).
   apache:
     apache_versions: ["2.4+"]
@@ -84,5 +86,5 @@ compat:
 display:
   # The 2.1 line derives every customer-facing version string from
   # release.semver (same invariant the 2.0 collection enforces).
-  header_version: "2.3.0"
-  badge_version: "v2.3.0"
+  header_version: "2.4.0"
+  badge_version: "v2.4.0"
