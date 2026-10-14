@@ -374,11 +374,25 @@ TEST(HtmlCachePolicyTest, UnreproducibleHeadersAreRefusedByName) {
 }
 
 TEST(HtmlCachePolicyTest, DetailIsSanitisedAndBounded) {
+  // The detail is token characters only: anything else becomes `_`, so the
+  // reason code is always one the decision line's grammar admits.
   StoreInput odd;
   odd.Add("X-Bad\x01Name", "v");
   const HtmlStoreVerdict v = odd.Run();
   EXPECT_EQ(v.reason, HtmlStoreReason::kHeaders);
-  EXPECT_EQ(v.detail, "x-bad?name");
+  EXPECT_EQ(v.detail, "x-bad_name");
+  EXPECT_TRUE(IsHttpToken(v.detail));
+
+  StoreInput quoted;
+  quoted.Add("Vary", "\"x\"");
+  ExpectRefused(quoted, HtmlStoreReason::kVary, "_x_");
+  EXPECT_EQ(quoted.Run().reason_code(), "vary:_x_");
+  StoreInput spaced;
+  spaced.Add("Vary", "a b");
+  ExpectRefused(spaced, HtmlStoreReason::kVary, "a_b");
+  StoreInput high;
+  high.Add("Vary", "caf\xC3\xA9");
+  ExpectRefused(high, HtmlStoreReason::kVary, "caf__");
 
   const std::string long_name(500, 'a');
   StoreInput big;
@@ -981,6 +995,21 @@ TEST(HtmlCachePolicyTest, ExpiresAcceptsTheObsoleteDateForms) {
 }
 
 // ------------------------------------------------------------------ names
+
+TEST(HtmlCachePolicyTest, HttpTokenCharacters) {
+  for (char c : std::string_view("abcXYZ019!#$%&'*+-.^_`|~")) {
+    EXPECT_TRUE(IsHttpTokenChar(c)) << c;
+  }
+  for (char c : std::string_view("\"(),/:;<=>?@[\\]{} \t\x7f\x80\xff")) {
+    EXPECT_FALSE(IsHttpTokenChar(c)) << static_cast<int>(c);
+  }
+  EXPECT_FALSE(IsHttpTokenChar('\0'));
+  EXPECT_TRUE(IsHttpToken("accept-encoding"));
+  EXPECT_TRUE(IsHttpToken("*"));
+  EXPECT_FALSE(IsHttpToken(""));
+  EXPECT_FALSE(IsHttpToken("a b"));
+  EXPECT_FALSE(IsHttpToken("\"x\""));
+}
 
 TEST(HtmlCachePolicyTest, NamesAreAClosedSet) {
   const char* const store_reasons[] = {

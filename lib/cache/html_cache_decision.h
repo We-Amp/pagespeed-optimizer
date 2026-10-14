@@ -56,11 +56,14 @@ namespace pagespeed {
 //                                            authorization, cookie, no_cache,
 //                                            accept_markdown
 //   cc                                       known response directive names,
-//                                            each at most once, `=<integer>`
-//                                            only on max-age, s-maxage,
+//                                            comma-separated, each at most
+//                                            once, `=<integer>` only on
+//                                            max-age, s-maxage,
 //                                            stale-while-revalidate,
 //                                            stale-if-error
 //   vary                                     a comma-separated list of tokens
+//                                            (in cc and vary, spaces around
+//                                            a comma are allowed)
 //   sidecar                                  eligible_block, eligible_empty,
 //                                            fall_through,
 //                                            fall_through:<header-name>,

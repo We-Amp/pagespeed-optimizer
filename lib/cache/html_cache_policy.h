@@ -242,9 +242,10 @@ struct HtmlStoreVerdict {
   HtmlStoreReason reason = HtmlStoreReason::kNone;
   // The lowercased header name for kHeaders, the token for kVary, the matched
   // signal name for kPersonalisationSignal; empty otherwise.  Header names
-  // and Vary tokens are origin-controlled, so the detail is reduced to
-  // printable ASCII (anything else becomes `?`) and capped at
-  // kMaxHtmlStoreDetailBytes: it is safe to put on a log line.
+  // and Vary tokens are origin-controlled, so the detail is reduced to RFC
+  // 9110 token characters (anything else becomes `_`) and capped at
+  // kMaxHtmlStoreDetailBytes: it is safe to put on a log line, and a
+  // reason_code() built from it always fits the decision line's grammar.
   std::string detail;
   // s-maxage, else max-age, else Expires minus Date; 0 when absent or invalid.
   uint32_t lifetime_s = 0;
@@ -369,6 +370,12 @@ struct HtmlServeVerdict {
 // mode would do.
 HtmlServeVerdict ClassifyHtmlForServe(const HtmlServeRequest& request,
                                       const StoredHtmlFacts& stored);
+
+// RFC 9110 §5.6.2 tchar and token: the one implementation, used by the detail
+// sanitiser here, by the decision line's grammar and by the fuzz harness, so
+// what the policy emits and what the formatter admits cannot drift apart.
+bool IsHttpTokenChar(char c);
+bool IsHttpToken(std::string_view s);  // non-empty, every byte a tchar
 
 // Closed-set names.  An out-of-range value yields "unknown".
 std::string_view HtmlStoreActionName(HtmlStoreAction action);

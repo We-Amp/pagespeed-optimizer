@@ -1098,7 +1098,7 @@ typedef enum ps_html_cache_mode_t {
  * `headers`, the Vary token for `vary`, `request` for a no_store caused
  * by the request, the signal name for `personalisation_signal`) is copied into `detail_buf`, NUL-terminated and
  * truncated to `detail_capacity`; `*out_detail_len` is the untruncated length
- * (the detail is printable ASCII, at most 128 bytes). `detail_buf` may be NULL
+ * (the detail is RFC 9110 token characters only, anything else having become `_`, at most 128 bytes, so a reason code built from it always fits the `reason` grammar of ps_html_decision_format). `detail_buf` may be NULL
  * with `detail_capacity` 0. `*out_lifetime_s` is the explicit freshness
  * lifetime (0 when none), `*out_flags` carries the PS_HTML_STORE_FLAG_* bits,
  * `*out_cc_flags` the parsed Cache-Control bits (PS_CC_ORIGIN_*), and
@@ -1184,7 +1184,8 @@ PS_EXPORT int ps_html_serve_classify(int mode, uint32_t request_flags,
  * ordered subset of authorization, cookie, no_cache, accept_markdown; cc takes
  * response directive names, each at most once, with `=<integer>` only on
  * max-age, s-maxage, stale-while-revalidate and stale-if-error; vary takes a
- * comma-separated list of tokens; sidecar takes eligible_block,
+ * comma-separated list of tokens (in cc and vary, spaces around a comma are
+ * allowed); sidecar takes eligible_block,
  * eligible_empty, fall_through, fall_through:<header-name> or
  * never:nonce_csp; personalisation takes a signal name; before takes a hash
  * in decimal or lowercase hex digits; variant takes 0x7C or markdown; binding

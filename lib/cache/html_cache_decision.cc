@@ -69,37 +69,13 @@ bool IsAlnum(char c) {
          (u >= 'A' && u <= 'Z');
 }
 
-// RFC 9110 section 5.6.2 tchar.
-bool IsTchar(char c) {
-  if (IsAlnum(c)) return true;
-  switch (c) {
-    case '!':
-    case '#':
-    case '$':
-    case '%':
-    case '&':
-    case '\'':
-    case '*':
-    case '+':
-    case '-':
-    case '.':
-    case '^':
-    case '_':
-    case '`':
-    case '|':
-    case '~':
-      return true;
-    default:
-      return false;
-  }
-}
-
-bool IsToken(std::string_view v) {
-  if (v.empty()) return false;
-  for (char c : v) {
-    if (!IsTchar(c)) return false;
-  }
-  return true;
+// RFC 9110 section 5.6.3 optional whitespace around a list member.  OWS is
+// SP or HTAB, but a tab never reaches a grammar here: every control byte is
+// refused before the key's grammar is consulted, so only SP is trimmed.
+std::string_view TrimSpaces(std::string_view s) {
+  while (!s.empty() && s.front() == ' ') s.remove_prefix(1);
+  while (!s.empty() && s.back() == ' ') s.remove_suffix(1);
+  return s;
 }
 
 bool IsMember(std::string_view v, std::span<const std::string_view> set) {
@@ -177,7 +153,7 @@ bool IsReason(std::string_view v) {
   const std::string_view bare = v.substr(0, colon);
   const std::string_view detail = v.substr(colon + 1);
   if (bare != "headers" && bare != "vary") return false;
-  return detail.size() <= kMaxHtmlStoreDetailBytes && IsToken(detail);
+  return detail.size() <= kMaxHtmlStoreDetailBytes && IsHttpToken(detail);
 }
 
 // `eligible_block`, `eligible_empty`, `fall_through`,
@@ -190,7 +166,7 @@ bool IsSidecar(std::string_view v) {
   constexpr std::string_view kPrefix = "fall_through:";
   if (v.substr(0, kPrefix.size()) != kPrefix) return false;
   const std::string_view name = v.substr(kPrefix.size());
-  return name.size() <= kMaxHtmlStoreDetailBytes && IsToken(name);
+  return name.size() <= kMaxHtmlStoreDetailBytes && IsHttpToken(name);
 }
 
 // `none`, or a comma-separated subset of `names` in their order, each at
@@ -228,14 +204,15 @@ constexpr std::array<std::string_view, 4> kNumericDirectives = {
     "max-age", "s-maxage", "stale-if-error", "stale-while-revalidate"};
 
 // A comma-separated list of known directive names, each at most once, with
-// `=<integer>` allowed only on the numeric ones.  Never a value a directive
+// `=<integer>` allowed only on the numeric ones, and optional whitespace
+// around each member (RFC 9110 section 5.6.1).  Never a value a directive
 // could carry as text.
 bool IsCacheControl(std::string_view v) {
   if (v.empty()) return false;
   std::array<bool, kDirectives.size()> seen{};
   while (true) {
     const size_t comma = v.find(',');
-    const std::string_view item = v.substr(0, comma);
+    const std::string_view item = TrimSpaces(v.substr(0, comma));
     const size_t eq = item.find('=');
     const std::string_view name = item.substr(0, eq);
     size_t index = kDirectives.size();
@@ -254,12 +231,12 @@ bool IsCacheControl(std::string_view v) {
   }
 }
 
-// A comma-separated list of tokens.
+// A comma-separated list of tokens, optional whitespace around each.
 bool IsVaryList(std::string_view v) {
   if (v.empty()) return false;
   while (true) {
     const size_t comma = v.find(',');
-    if (!IsToken(v.substr(0, comma))) return false;
+    if (!IsHttpToken(TrimSpaces(v.substr(0, comma)))) return false;
     if (comma == std::string_view::npos) return true;
     v = v.substr(comma + 1);
   }

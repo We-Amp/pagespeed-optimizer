@@ -24,6 +24,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "lib/cache/headers_sidecar.h"
 #include "lib/cache/html_cache_policy.h"
 
 namespace pagespeed {
@@ -246,6 +247,8 @@ TEST(HtmlCacheDecisionTest, CacheControlIsDirectiveNamesAndNumbersOnly) {
   for (std::string_view good :
        {"public", "max-age=300", "max-age=0,public", "s-maxage=60,max-age=0",
         "max-age", "s-maxage,public",
+        // Spaces around a comma are optional (RFC 9110 section 5.6.1).
+        "max-age=300, public", "max-age=300 ,public", " public", "public ",
         "no-cache,no-store,no-transform,must-revalidate,proxy-revalidate",
         "immutable,stale-while-revalidate=600,stale-if-error=86400",
         "private"}) {
@@ -254,8 +257,10 @@ TEST(HtmlCacheDecisionTest, CacheControlIsDirectiveNamesAndNumbersOnly) {
   for (std::string_view bad :
        {"", "42", "max-age=", "max-age=abc", "max-age=0300", "public=1",
         "no-cache=\"Set-Cookie\"", "private=\"Set-Cookie\"",
-        "max-age=300, public", "max-age=300,max-age=60", "x-session=abc",
-        "public,", ",public", "Public", "max-age=300;public"}) {
+        "max-age=300,max-age=60", "x-session=abc", "public,", ",public",
+        "public, ,private", "max-age = 300", "max-age= 300", "Public",
+        // A tab is a control byte: refused before the grammar is consulted.
+        "max-age=300\t,\tpublic", "max-age=300;public"}) {
     EXPECT_FALSE(Format({{"host", "h"}, {"cc", bad}}).has_value()) << bad;
   }
   // A directive's text value never passes: `max-age` takes a number, the
@@ -267,12 +272,14 @@ TEST(HtmlCacheDecisionTest, CacheControlIsDirectiveNamesAndNumbersOnly) {
 TEST(HtmlCacheDecisionTest, VaryIsAListOfTokens) {
   for (std::string_view good :
        {"accept-encoding", "Accept-Encoding", "*", "accept-encoding,cookie",
+        "accept-encoding, cookie", "accept-encoding ,cookie", " cookie ",
         "a!#$%&'*+-.^_`|~z"}) {
     EXPECT_TRUE(Format({{"host", "h"}, {"vary", good}}).has_value()) << good;
   }
   for (std::string_view bad :
-       {"", ",", "accept-encoding,", ",cookie", "accept-encoding, cookie",
-        "a b", "a\"b", "a(b)", "a/b", "a;b", "a=b", "a:b", "caf\xC3\xA9"}) {
+       {"", ",", " ", "accept-encoding,", ",cookie", "accept-encoding, ,cookie",
+        "accept-encoding\t,\tcookie", "a b", "a\"b", "a(b)", "a/b", "a;b",
+        "a=b", "a:b", "caf\xC3\xA9"}) {
     EXPECT_FALSE(Format({{"host", "h"}, {"vary", bad}}).has_value()) << bad;
   }
 }
@@ -311,6 +318,58 @@ TEST(HtmlCacheDecisionTest, BeforeIsAHashInDigits) {
   for (std::string_view bad :
        {"", "CBF29CE484222325", "0x1", "-1", "123456789012345678901", "g"}) {
     EXPECT_FALSE(Format({{"host", "h"}, {"before", bad}}).has_value()) << bad;
+  }
+}
+
+TEST(HtmlCacheDecisionTest, PolicyReasonCodesAlwaysFit) {
+  // Whatever an origin puts in a header name or a Vary token, the reason
+  // code the policy builds from it (and the sidecar code a front end builds
+  // from the same detail) is inside the grammar: no decision line is lost
+  // to a refusal on the policy's own output.
+  const std::string quotes(500, '"');
+  const std::vector<std::vector<HeaderField>> cases = {
+      {{"Content-Type", "text/html"}, {"Cache-Control", "max-age=60"}},
+      {{"Content-Type", "text/html"},
+       {"Cache-Control", "max-age=60"},
+       {"Vary", "\"x\""}},
+      {{"Content-Type", "text/html"},
+       {"Cache-Control", "max-age=60"},
+       {"Vary", "a b, (c)"}},
+      {{"Content-Type", "text/html"},
+       {"Cache-Control", "max-age=60"},
+       {"Vary", "caf\xC3\xA9"}},
+      {{"Content-Type", "text/html"},
+       {"Cache-Control", "max-age=60"},
+       {"X-Bad\x01Name", "v"}},
+      {{"Content-Type", "text/html"},
+       {"Cache-Control", "max-age=60"},
+       {"X-Powered-By", "x"}},
+      {{"Content-Type", "text/html"},
+       {"Cache-Control", "max-age=60"},
+       {quotes, "v"}},
+      {{"Content-Type", "text/html"},
+       {"Cache-Control", "max-age=60"},
+       {"Content-Security-Policy", "script-src 'nonce-abc'"}},
+      {{"Content-Type", "text/html"}},
+      {{"Content-Type", "text/html"}, {"Cache-Control", "private"}},
+  };
+  for (const auto& headers : cases) {
+    HtmlStoreRequest request{.method = "GET", .url_path = "/p"};
+    HtmlStoreResponse response;
+    response.status = 200;
+    response.headers = headers;
+    response.body_bytes = 10;
+    response.body_prefix = "<p>x</p>";
+    const HtmlStoreVerdict v =
+        ClassifyHtmlForStore(request, response, HtmlStorePolicy{});
+    const std::string code = v.reason_code();
+    EXPECT_TRUE(HtmlCacheDecisionValueFits("reason", code)) << code;
+    EXPECT_TRUE(Format({{"host", "h"}, {"reason", code}}).has_value()) << code;
+    if (v.reason == HtmlStoreReason::kHeaders && !v.detail.empty()) {
+      EXPECT_TRUE(
+          HtmlCacheDecisionValueFits("sidecar", "fall_through:" + v.detail))
+          << v.detail;
+    }
   }
 }
 

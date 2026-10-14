@@ -176,6 +176,7 @@ gtest_test(
     name = "html_cache_decision_test",
     srcs = ["html_cache_decision_test.cc"],
     deps = [
+        "//lib/cache:headers_sidecar",
         "//lib/cache:html_cache_decision",
         "//lib/cache:html_cache_policy",
     ],

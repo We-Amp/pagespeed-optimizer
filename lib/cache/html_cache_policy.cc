@@ -74,14 +74,15 @@ std::string_view TrimOws(std::string_view s) {
   return s;
 }
 
-// A detail string safe for a log line: printable ASCII only, bounded.
+// A detail string safe for a log line: token characters only (what a header
+// name or a Vary token is made of), bounded.  Anything else becomes `_`, so
+// the result is always a token the decision line's grammar admits.
 std::string SanitizeDetail(std::string_view s) {
   std::string out;
   out.reserve(std::min(s.size(), kMaxHtmlStoreDetailBytes));
   for (char c : s) {
     if (out.size() >= kMaxHtmlStoreDetailBytes) break;
-    const auto u = static_cast<unsigned char>(c);
-    out.push_back((u >= 0x21 && u <= 0x7E) ? c : '?');
+    out.push_back(IsHttpTokenChar(c) ? c : '_');
   }
   return out;
 }
@@ -314,6 +315,44 @@ std::string SidecarDetail(const SidecarClassification& sidecar) {
 }
 
 }  // namespace
+
+// ---- tokens --------------------------------------------------------------
+
+bool IsHttpTokenChar(char c) {
+  const auto u = static_cast<unsigned char>(c);
+  if ((u >= '0' && u <= '9') || (u >= 'a' && u <= 'z') ||
+      (u >= 'A' && u <= 'Z')) {
+    return true;
+  }
+  switch (c) {
+    case '!':
+    case '#':
+    case '$':
+    case '%':
+    case '&':
+    case '\'':
+    case '*':
+    case '+':
+    case '-':
+    case '.':
+    case '^':
+    case '_':
+    case '`':
+    case '|':
+    case '~':
+      return true;
+    default:
+      return false;
+  }
+}
+
+bool IsHttpToken(std::string_view s) {
+  if (s.empty()) return false;
+  for (char c : s) {
+    if (!IsHttpTokenChar(c)) return false;
+  }
+  return true;
+}
 
 // ---- names ---------------------------------------------------------------
 

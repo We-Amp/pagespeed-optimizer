@@ -50,7 +50,9 @@
 //     ClassifyForHeadersSidecar is not a fall-through, no Set-Cookie, no
 //     no-store or private directive).  The policy may be stricter than the
 //     existing gates, never looser;
-//   * a verdict's reason and detail are in the closed, printable set;
+//   * a verdict's reason is in the closed set, its detail is a bounded token,
+//     and the reason code built from them always fits the decision line's
+//     `reason` grammar (as does the sidecar code built from the detail);
 //   * no formatted line contains a line break, and a canonical field set
 //     always formats (a fact the grammar cannot carry is left out, never
 //     bent to fit);
@@ -92,39 +94,6 @@ bool NameIs(std::string_view name, std::string_view lower) {
     const char c =
         (u >= 'A' && u <= 'Z') ? static_cast<char>(u | 0x20) : name[i];
     if (c != lower[i]) return false;
-  }
-  return true;
-}
-
-// RFC 9110 token: what the decision line admits for a header name or a Vary
-// token.
-bool IsToken(std::string_view s) {
-  if (s.empty()) return false;
-  for (char c : s) {
-    const auto u = static_cast<unsigned char>(c);
-    const bool alnum = (u >= '0' && u <= '9') || (u >= 'a' && u <= 'z') ||
-                       (u >= 'A' && u <= 'Z');
-    if (alnum) continue;
-    switch (c) {
-      case '!':
-      case '#':
-      case '$':
-      case '%':
-      case '&':
-      case '\'':
-      case '*':
-      case '+':
-      case '-':
-      case '.':
-      case '^':
-      case '_':
-      case '`':
-      case '|':
-      case '~':
-        continue;
-      default:
-        return false;
-    }
   }
   return true;
 }
@@ -251,9 +220,16 @@ void CheckStoreVerdict(const ParsedBlob& parsed, const HtmlStoreVerdict& v) {
     Violation("store reason out of range");
   }
   if (v.detail.size() > kMaxHtmlStoreDetailBytes) Violation("detail too long");
-  for (char c : v.detail) {
-    const auto u = static_cast<unsigned char>(c);
-    if (u < 0x21 || u > 0x7E) Violation("detail not printable ASCII");
+  if (!v.detail.empty() && !IsHttpToken(v.detail)) {
+    Violation("detail is not a token");
+  }
+  // What a front end passes straight into the formatter must always fit.
+  if (!HtmlCacheDecisionValueFits("reason", v.reason_code())) {
+    Violation("reason code outside the decision line grammar");
+  }
+  if (v.reason == HtmlStoreReason::kHeaders && !v.detail.empty() &&
+      !HtmlCacheDecisionValueFits("sidecar", "fall_through:" + v.detail)) {
+    Violation("sidecar code outside the decision line grammar");
   }
   if (v.stores()) {
     if (!v.lifetime_explicit && !v.has_validators) {
@@ -408,24 +384,19 @@ void FormatOne(const ParsedBlob& parsed, const HtmlStoreVerdict& v) {
 
   // The canonical field set for this verdict, each value built the way a
   // front end builds it.  A fact the grammar cannot carry (a path with a
-  // query, a Vary token that is not a token, a header name that is not one)
-  // is left out, or reduced to its bare code, rather than bent to fit: an
-  // absent key is how the line says "null".  What is given must format.
+  // query, a raw Vary token that is not a token) is left out rather than
+  // bent to fit: an absent key is how the line says "null".  What is given
+  // must format.
   const std::string status = std::to_string(parsed.status);
   const std::string size = std::to_string(parsed.body_bytes);
   const std::string lifetime = std::to_string(v.lifetime_s);
   const std::string before = std::to_string(HtmlCacheFnv1a64(parsed.body));
   const std::string cc = CacheControlNames(v.cc_flags);
-  std::string reason = v.reason_code();
-  if (const size_t colon = reason.find(':');
-      colon != std::string::npos &&
-      !IsToken(std::string_view(reason).substr(colon + 1))) {
-    reason.resize(colon);
-  }
+  const std::string reason = v.reason_code();
   std::string vary;
   bool vary_fits = !v.vary_tokens.empty();
   for (const std::string& token : v.vary_tokens) {
-    if (!IsToken(token)) {
+    if (!IsHttpToken(token)) {
       vary_fits = false;
       break;
     }
@@ -457,7 +428,7 @@ void FormatOne(const ParsedBlob& parsed, const HtmlStoreVerdict& v) {
         break;
       case SidecarVerdict::kFallThrough:
         sidecar = "fall_through";
-        if (v.reason == HtmlStoreReason::kHeaders && IsToken(v.detail)) {
+        if (v.reason == HtmlStoreReason::kHeaders && !v.detail.empty()) {
           sidecar.push_back(':');
           sidecar.append(v.detail);
         }
@@ -550,6 +521,7 @@ std::vector<std::string> BuildSeeds() {
   seeds.push_back(Blob({":cookie: 1", kType, kAge}));
   seeds.push_back(Blob({kType, kAge, "Vary: *"}));
   seeds.push_back(Blob({kType, kAge, "Vary: Accept-Encoding, Cookie"}));
+  seeds.push_back(Blob({kType, kAge, "Vary: \"x\""}));
   seeds.push_back(Blob({kType, kAge, "X-Powered-By: PHP/8"}));
   seeds.push_back(Blob(
       {kType, kAge, "Content-Security-Policy: script-src 'nonce-r4nd0m'"}));
