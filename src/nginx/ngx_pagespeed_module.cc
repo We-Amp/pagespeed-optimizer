@@ -3802,13 +3802,12 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
       // against the alternative of answering with a 304 the client cannot
       // use.
     }
-    if (!vary_verdict_304.storable) {
-      delete ctx->stale_read_result;
-      ctx->stale_read_result = nullptr;
-      ctx->stale_revalidation = 0;
-      restore_client_conditional_headers(r, ctx);
-      return ngx_http_next_header_filter(r);
-    }
+    // A 304 whose Vary makes the entry unstorable (Vary: *, or a header we
+    // do not key on) must not extend or rewrite it.  The conditional request
+    // was the module's own, though, so a client that sent none must not get
+    // the bare 304: fall through and serve the held bytes once as a 200,
+    // skip every cache write, and drop the entry once the bytes are copied.
+    const bool unstorable_after_304 = !vary_verdict_304.storable;
 
     // Unconditional generation check (not time-gated like the content
     // handler) — writes to a stale cache instance would be silently lost.
@@ -3850,6 +3849,9 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
         ngx_http_pagespeed_get_response_header(r, "Set-Cookie").len > 0;
     pagespeed::RestampVerdict storability_verdict =
         pagespeed::EvaluateRestampStorability(storability_in);
+    if (unstorable_after_304) {
+      storability_verdict = pagespeed::RestampVerdict::kSkipRestamp;
+    }
 
     // Response-header sidecar: for an entry recorded with
     // the gate, merge the stored block with the 304's lines (RFC 9111
@@ -3962,7 +3964,18 @@ static ngx_int_t ngx_http_pagespeed_header_filter(ngx_http_request_t* r) {
       // with.
       //
       // A URL the sidecar plan just dropped has nothing left to restamp.
-      if (!sidecar_removed) {
+      if (unstorable_after_304) {
+        // Drop the entry (no new write); the next request takes the miss
+        // path.  The borrow this request serves from stays valid: removal
+        // clears a directory entry and reclaims nothing.
+        if (!sidecar_removed) {
+          (void)cache->Remove(url, hostname, scheme);
+        }
+        ngx_log_error(NGX_LOG_INFO, r->connection->log, 0,
+                      "pagespeed: 304 for %V is no longer storable (Vary) - "
+                      "served the held bytes once and dropped the entry",
+                      &r->uri);
+      } else if (!sidecar_removed) {
         const auto action = pagespeed::ApplyRestampVerdict(
             *cache, storability_verdict, url, hostname, scheme, id,
             updated_meta, std::as_bytes(std::span(content_copy)));
