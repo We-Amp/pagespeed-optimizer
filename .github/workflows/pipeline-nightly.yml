@@ -17,14 +17,12 @@
 #                 e2e-tests-x64, daemon-rig-soak-x64
 #   fleet-light   async-css-probe-rendered
 #   hosted arm64  periodic-build-arm64 and the arm64 legs: stress,
-#                 production-tests, realworld-tests, e2e-tests
+#                 production-tests, realworld-tests, e2e-tests,
+#                 workbench-playwright
 #   hosted        report jobs (dep-scan-report, async-css-probe-report,
 #                 css-fuzz-report), the only jobs that write to GitHub
 #
 # Left out:
-#   * workbench-playwright: it needs the workbench demo compose files under
-#     tools/workbench-demo/, which are not in this tree yet. TODO: port it
-#     as an arm64 leg when they are.
 #   * frozen-scan (the weekly scan of the frozen 2.0 release line): it scans
 #     a tag of a repository that is not this one. It moves to the repository
 #     that owns that tag.
@@ -396,7 +394,7 @@ jobs:
             exit 0
           fi
           TARBALL="${{ steps.tarball.outputs.tarball }}"
-          SSH_OPTS="-o StrictHostKeyChecking=accept-new -o BatchMode=yes"
+          SSH_OPTS="-o StrictHostKeyChecking=accept-new -o LogLevel=ERROR -o BatchMode=yes"
           F="$(basename "$TARBALL")"
           TMP_DEST="${CI_HUB_VENDOR_DIR}/${F}.${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}.tmp"
           T="$(basename "$TMP_DEST")"
@@ -960,10 +958,151 @@ jobs:
             -f tools/e2e/docker-compose.prebuilt.yml \
             down --remove-orphans -v 2>/dev/null || true
 
-  # TODO workbench-playwright (arm64): port it when tools/workbench-demo/
-  # (the compose files it brings up) is published. It needs the build bundle
-  # (nightly-ci-artifacts-linux-arm64), a console build with pnpm, and the
-  # Playwright image; it is a 30 minute lane.
+  # Workbench console browser tests (Playwright) against the workbench demo
+  # stack: the website origin and demo origin built from this tree
+  # (tools/workbench-demo/ builds website/ with PRICING_ALLOW_STALE, so no
+  # credentials are needed), the worker and nginx from this run's arm64
+  # bundle. Hosted arm64: nothing here needs the container socket.
+  workbench-playwright:
+    name: Workbench Playwright
+    needs: periodic-build-arm64
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Download the build bundle
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: nightly-ci-artifacts-linux-arm64
+          path: ${{ runner.temp }}/bundle/.ci-artifacts
+
+      - name: Stage CI artifacts
+        env:
+          CI_ARTIFACTS_PLATFORM: linux-arm64-periodic
+        run: tools/ci/stage-artifacts.sh "${RUNNER_TEMP}/bundle"
+
+      - name: Build Docker images (prebuilt)
+        run: |
+          docker compose -f tools/workbench-demo/docker-compose.yml \
+            -f tools/workbench-demo/docker-compose.prebuilt.yml build
+
+      - name: Ensure no leftover containers
+        run: |
+          docker compose -f tools/workbench-demo/docker-compose.yml \
+            -f tools/workbench-demo/docker-compose.prebuilt.yml \
+            down --remove-orphans -v 2>/dev/null || true
+
+      # The worker container mounts the built console from the checkout.
+      - name: Build console dist (mounted into the worker container)
+        run: |
+          docker run --rm --user "$(id -u):$(id -g)" \
+            -e HOME=/tmp -e COREPACK_HOME=/tmp/.corepack \
+            -v "$PWD":/repo -w /repo/tools/workbench \
+            node:22-slim \
+            bash -c "mkdir -p /tmp/bin && corepack enable --install-directory /tmp/bin && export PATH=/tmp/bin:\$PATH && pnpm install --frozen-lockfile && pnpm -r build"
+
+      - name: Start services
+        run: |
+          docker compose -f tools/workbench-demo/docker-compose.yml \
+            -f tools/workbench-demo/docker-compose.prebuilt.yml up -d
+
+      - name: Wait for services
+        run: |
+          COMPOSE=(docker compose -f tools/workbench-demo/docker-compose.yml
+                   -f tools/workbench-demo/docker-compose.prebuilt.yml)
+          echo "Waiting for the worker API (port 9880) and nginx (port 8084)..."
+          deadline=$((SECONDS + 120))
+          while [ $SECONDS -lt $deadline ]; do
+            if curl -sf http://localhost:9880/v1/health >/dev/null 2>&1; then
+              echo "Worker API ready after ${SECONDS}s"
+              break
+            fi
+            sleep 2
+          done
+          if ! curl -sf http://localhost:9880/v1/health >/dev/null 2>&1; then
+            echo "::error::worker API not ready after 120s"
+            "${COMPOSE[@]}" ps
+            "${COMPOSE[@]}" logs --tail=50
+            exit 1
+          fi
+          deadline=$((SECONDS + 30))
+          HTTP_CODE=000
+          while [ $SECONDS -lt $deadline ]; do
+            HTTP_CODE=$(curl -so /dev/null -w "%{http_code}" http://localhost:8084/ 2>/dev/null || echo "000")
+            if [ "$HTTP_CODE" != "000" ]; then
+              echo "Nginx ready (HTTP $HTTP_CODE)"
+              break
+            fi
+            sleep 2
+          done
+          # nginx failing to start is a loud failure: a module/runtime ABI
+          # skew kills nginx at startup while the worker stays healthy.
+          if [ "$HTTP_CODE" = "000" ]; then
+            echo "::error::nginx did not become ready within 30s; dumping its logs"
+            "${COMPOSE[@]}" ps
+            NGINX_LOG="$("${COMPOSE[@]}" logs --no-color --tail=200 nginx 2>&1)"
+            echo "$NGINX_LOG"
+            if echo "$NGINX_LOG" | grep -q 'module.*version'; then
+              echo "::error::nginx ABI skew detected: $(echo "$NGINX_LOG" | grep -m1 'module.*version')"
+            fi
+            exit 1
+          fi
+          deadline=$((SECONDS + 30))
+          WORKER_READY=False
+          while [ $SECONDS -lt $deadline ]; do
+            WORKER_READY=$(curl -sf http://localhost:9880/v1/health 2>/dev/null \
+              | python3 -c "import sys,json; d=json.load(sys.stdin); print(bool(d.get('ready', True)))" 2>/dev/null || echo "False")
+            if [ "$WORKER_READY" = "True" ]; then
+              echo "Worker ready"
+              break
+            fi
+            sleep 1
+          done
+          if [ "$WORKER_READY" != "True" ]; then
+            echo "::warning::worker not ready after 30s; some workbench tests may fail"
+          fi
+
+      - name: Resolve compose network name
+        id: net
+        run: |
+          NET=$(docker network ls --filter name=workbench-demo_default --format '{{.Name}}' | head -1)
+          echo "name=$NET" >> "$GITHUB_OUTPUT"
+          echo "Compose network: $NET"
+
+      - name: Run Playwright tests
+        env:
+          NET_NAME: ${{ steps.net.outputs.name }}
+        run: |
+          docker run --rm --network="${NET_NAME}" \
+            --user "$(id -u):$(id -g)" -e HOME=/tmp -e COREPACK_HOME=/tmp/.corepack \
+            -v "$PWD":/repo -w /repo/tools/workbench \
+            -e CI=true \
+            -e PLAYWRIGHT_BASE_URL=http://nginx:8080 \
+            -e PROXY_BASE=http://nginx:8080 \
+            -e ORIGIN_BASE=http://origin:8081 \
+            -e PLAYWRIGHT_BROWSERS_PATH=0 \
+            mcr.microsoft.com/playwright:v1.58.2-noble \
+            bash -c "mkdir -p /tmp/bin && corepack enable --install-directory /tmp/bin && export PATH=/tmp/bin:\$PATH && pnpm install --frozen-lockfile && pnpm -r build && cd packages/web-shell && pnpm exec playwright install chromium && pnpm exec playwright test"
+
+      - name: Upload Playwright forensics
+        if: failure()
+        continue-on-error: true
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: nightly-workbench-playwright-forensics
+          path: |
+            tools/workbench/packages/web-shell/test-results/**
+            tools/workbench/packages/web-shell/playwright-report/**
+          retention-days: 3
+          if-no-files-found: ignore
+
+      - name: Teardown
+        if: always()
+        run: |
+          docker compose -f tools/workbench-demo/docker-compose.yml \
+            -f tools/workbench-demo/docker-compose.prebuilt.yml \
+            down --remove-orphans -v 2>/dev/null || true
 
   # ---------------------------------------------------------------------
   # x64 legs (fleet only: they mount the container socket or run privileged
@@ -1574,6 +1713,10 @@ jobs:
       issues: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The tools run below hold a write token: take them from main, never
+          # from a dispatched branch.
+          ref: main
 
       - name: Download the evidence
         id: evidence
@@ -1627,6 +1770,19 @@ jobs:
     env:
       FUZZ_SECONDS: ${{ inputs.fuzz_seconds || '600' }}
     steps:
+      # libFuzzer reads a non-numeric budget as "no limit" and a budget past
+      # the job timeout loses the lane-ran marker and the corpus save, so
+      # bound it before anything else runs.
+      - name: Validate the fuzz budget
+        run: |
+          case "${FUZZ_SECONDS}" in
+            ''|*[!0-9]*) echo "::error::fuzz_seconds must be a whole number of seconds (1..2400)"; exit 1 ;;
+          esac
+          if [ "${FUZZ_SECONDS}" -lt 1 ] || [ "${FUZZ_SECONDS}" -gt 2400 ]; then
+            echo "::error::fuzz_seconds must be between 1 and 2400 (got ${FUZZ_SECONDS})"
+            exit 1
+          fi
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Ensure clang++-20
@@ -1789,6 +1945,10 @@ jobs:
       issues: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The tools run below hold a write token: take them from main, never
+          # from a dispatched branch.
+          ref: main
 
       - name: Download the findings
         id: findings
@@ -1831,7 +1991,10 @@ jobs:
   # lane HARD-fails on any disagreement. The pin tracks the last ratified
   # comparator revision: bump it in the same change as any intentional
   # comparator evolution, or the lane fails on every intended divergence.
-  # Dispatching the nightly caller runs the whole nightly beside this lane.
+  # The pin is 335c9f2d, the first commit of this repository's history that
+  # carries the comparator: its css_token_stream.h and css_phases.h are
+  # byte-identical to the previously ratified revision (the files that define
+  # the verdicts), and it is an ancestor of main. Dispatching the nightly caller runs the whole nightly beside this lane.
   css-fuzz-shadow:
     name: CSS oracle shadow (baseline vs current agreement)
     runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-heavy' }}
@@ -1902,7 +2065,7 @@ jobs:
           set -euo pipefail
           export ASAN_OPTIONS="handle_abort=1:allow_addr2line=true:detect_odr_violation=1"
           export UBSAN_OPTIONS="halt_on_error=true:print_stacktrace=1"
-          bash tools/ci/shadow-css-oracle.sh . e9e08bd5 \
+          bash tools/ci/shadow-css-oracle.sh . 335c9f2d \
             "${RUNNER_TEMP}/css-shadow-seeds" \
             "${RUNNER_TEMP}/css-shadow-evidence" | tee -a "$GITHUB_STEP_SUMMARY"
 
@@ -1936,7 +2099,20 @@ jobs:
           name: nightly-ci-artifacts-linux-x64
           path: ${{ runner.temp }}/bundle/.ci-artifacts
 
-      # Also builds pagespeed2-base-runtime, which the product images are FROM.
+      # The product images are FROM pagespeed2-base-runtime. A persistent host
+      # keeps that image between jobs and stage-artifacts.sh reuses it while
+      # the Dockerfile hash matches, so build it here from scratch (fresh base
+      # layers, no layer cache) with the label the staging script checks; the
+      # scan then covers what the Dockerfile produces today, not a host cache.
+      - name: Rebuild the base image from scratch
+        run: |
+          set -euo pipefail
+          HASH="$(sha256sum docker/Dockerfile.base-runtime | awk '{print $1}')"
+          docker build --pull --no-cache -t pagespeed2-base-runtime \
+            --build-arg APT_REFRESH="$(date -u +%F)" \
+            --label "weamp.base-runtime.dockerfile_sha256=${HASH}" \
+            -f docker/Dockerfile.base-runtime .
+
       - name: Stage CI artifacts
         env:
           CI_ARTIFACTS_PLATFORM: linux-x64-periodic
@@ -2037,6 +2213,10 @@ jobs:
       issues: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # The tools run below hold a write token: take them from main, never
+          # from a dispatched branch.
+          ref: main
 
       - name: Download the findings
         id: findings
