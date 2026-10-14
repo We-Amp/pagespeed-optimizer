@@ -5,7 +5,7 @@ tree root passed to `tools/ci/check-workflow-shape.sh`:
 
 - `good/` must pass (exit 0). It exercises a thin caller with an aggregate
   gate job, a `ci-dev` caller, a reusable workflow with every
-  routing-expression variant, and the allowlist path (`legacy.yml` is listed
+  routing-expression variant, the three fleet guards, a hosted report job with a write permission, and the allowlist path (`legacy.yml` is listed
   in `good/tools/ci/workflow-shape-allowlist.txt`).
 - `bad-*/` must each fail (exit 1) and name the rule in the message.
 

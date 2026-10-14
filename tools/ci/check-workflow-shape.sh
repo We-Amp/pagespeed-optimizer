@@ -27,8 +27,13 @@
 #       macos-15, macos-latest) or exactly the fork/Dependabot routing
 #       expression with a fleet class (fleet-heavy, fleet-light,
 #       fleet-windows, fleet-iis); a job routed by that expression must
-#       carry the fleet guard (FLEET_ENABLED) verbatim as its if: (optionally
-#       narrowed by `&& needs.changes.outputs.<name> == 'true'`);
+#       carry one of the three fleet guards of docs/ci/pipelines.md (the
+#       FLEET_ENABLED kill switch in its general, fleet-only or
+#       dispatch-only form) verbatim as its if:, the general form optionally
+#       narrowed by `&& needs.changes.outputs.<name> == 'true'`;
+#   (f) in a workflow_call workflow, write access to GitHub (a `: write`
+#       permission, at workflow or job level) is allowed only on a job that
+#       runs on a hosted label; a fleet-routed job is read-only;
 #   (e) topology token scan of .github/ and tools/ci/: no LAN (RFC1918) IP
 #       literals, no ".home" names, no ":9090", no "self-hosted", and none
 #       of the retired runner-label words as standalone tokens.
@@ -63,6 +68,13 @@ TAB="$(printf '\t')"
 # every job whose runs-on is the routing expression.
 FLEET_GUARD_BODY="vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))"
 FLEET_GUARD="\${{ ${FLEET_GUARD_BODY} }}"
+# Fleet-only jobs (privileged containers, a mounted container socket, a real
+# kernel): the same switch, but a fork or Dependabot pull request skips them
+# instead of falling back to a hosted runner.
+FLEET_ONLY_GUARD="\${{ vars.FLEET_ENABLED == 'true' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}"
+# Dispatch-only fleet jobs (manual lanes): a workflow_dispatch is never a
+# fork pull request.
+FLEET_DISPATCH_GUARD="\${{ github.event_name == 'workflow_dispatch' && vars.FLEET_ENABLED == 'true' }}"
 
 status=0
 err() { echo "::error::$*" >&2; status=1; }
@@ -113,6 +125,34 @@ job_records() {
       key=$1; sub(/:$/, "", key)
       sub(/^[[:space:]]*[^:]+:[[:space:]]*/, "", line)
       printf "KEY%s%s%s%s%s%d%s%s\n", tab, job, tab, key, tab, NR, tab, line
+    }
+  ' "$1"
+}
+
+# Jobs (and the workflow level, reported as job "-") that hold a `: write`
+# permission, one per line: "<job> <tab> <line>". Line-oriented: a permissions
+# block is the 4-space (job) or 0-space (workflow) `permissions:` key and the
+# more deeply indented lines under it; `permissions: write-all` counts.
+write_perm_records() {
+  awk -v tab="${TAB}" '
+    /^[[:space:]]*#/ { next }
+    /^jobs:[[:space:]]*$/ { injobs=1; inperm=0; job="-"; next }
+    /^permissions:/ {
+      inperm=1; indent=0; job="-"
+      if ($0 ~ /write-all/ || $0 ~ /:[[:space:]]*write/) { printf "%s%s%d\n", job, tab, NR }
+      next
+    }
+    injobs && /^[^[:space:]#]/ { injobs=0; inperm=0 }
+    injobs && /^  [^[:space:]]/ { job=$1; sub(/:$/, "", job); inperm=0; next }
+    injobs && /^    permissions:/ {
+      inperm=1; indent=4
+      if ($0 ~ /write-all/ || $0 ~ /:[[:space:]]*write/) { printf "%s%s%d\n", job, tab, NR }
+      next
+    }
+    inperm {
+      match($0, /^[[:space:]]*/); cur=RLENGTH
+      if (cur <= indent) { inperm=0; next }
+      if ($0 ~ /:[[:space:]]*write[[:space:]]*$/) { printf "%s%s%d\n", job, tab, NR }
     }
   ' "$1"
 }
@@ -197,12 +237,29 @@ for wf in ${WORKFLOWS[@]+"${WORKFLOWS[@]}"}; do
         # A fleet job carries the fleet guard verbatim as its if: (the
         # FLEET_ENABLED kill switch, docs/ci/pipelines.md).
         if_val="$(printf '%s\n' "${records}" | awk -F"${TAB}" -v j="${job}" '$1=="KEY" && $2==j && $3=="if" {print $5}')"
-        if ! is_fleet_guard "${if_val}"; then
-          err "${wf}:${lineno}: fleet job '${job}' does not carry the fleet guard verbatim as its if: (rule d)"
+        if ! is_fleet_guard "${if_val}" \
+           && [ "${if_val}" != "${FLEET_ONLY_GUARD}" ] \
+           && [ "${if_val}" != "${FLEET_DISPATCH_GUARD}" ]; then
+          err "${wf}:${lineno}: fleet job '${job}' does not carry a fleet guard verbatim as its if: (rule d)"
         fi
       fi
     done <<EOF
 ${records}
+EOF
+
+    # (f) write permissions only on hosted jobs.
+    while IFS=$'\t' read -r wjob wline; do
+      [ -n "${wjob}" ] || continue
+      if [ "${wjob}" = "-" ]; then
+        err "${wf}:${wline}: workflow-level write permission in a reusable workflow; keep it read-only and raise write on a hosted job (rule f)"
+        continue
+      fi
+      wruns="$(printf '%s\n' "${records}" | awk -F"${TAB}" -v j="${wjob}" '$1=="KEY" && $2==j && $3=="runs-on" {print $5}')"
+      if ! is_hosted_label "${wruns}"; then
+        err "${wf}:${wline}: job '${wjob}' holds a write permission but does not run on a hosted label (rule f)"
+      fi
+    done <<EOF
+$(write_perm_records "${wf}")
 EOF
   fi
 
