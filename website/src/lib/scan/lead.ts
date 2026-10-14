@@ -137,6 +137,8 @@ export interface LeadForm {
   /** Speed scores for the speed-help lead, when measured. */
   mobile?: number | null;
   desktop?: number | null;
+  /** The page-load time (ms since the epoch), so the handler can judge a too-fast submit. */
+  t?: number;
 }
 
 export interface Outcome {
@@ -159,6 +161,11 @@ export function noteFor(wedge: string, form: Pick<LeadForm, 'sites' | 'note'>): 
 
 /** The POST body for one chip. Gated chips use the shared builder unchanged. */
 export function payloadFor(chip: Chip, form: LeadForm, report: Report | null): LeadPayload {
+  const payload = basePayloadFor(chip, form, report);
+  return form.t === undefined ? payload : { ...payload, t: form.t };
+}
+
+function basePayloadFor(chip: Chip, form: LeadForm, report: Report | null): LeadPayload {
   const note = noteFor(chip.wedge, form);
   if (chip.gated) {
     return buildLeadPayload({
