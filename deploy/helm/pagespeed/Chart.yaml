@@ -5,8 +5,8 @@ type: application
 # 0.3.0: collapse worker.image.tag + nginx.image.tag into one lockstep tag that
 # defaults to appVersion. Removing the two per-image tag keys is a
 # values-API change, hence the minor bump.
-version: 0.3.7
-appVersion: "2.3.0"
+version: 0.3.8
+appVersion: "2.4.0"
 keywords:
   - pagespeed
   - nginx

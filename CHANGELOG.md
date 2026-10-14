@@ -2,7 +2,16 @@
 
 All notable changes to mod_pagespeed 2.1 are documented in this file.
 
-## Unreleased
+## 2.4.0 — 2026-10-14
+
+This release is a security and reliability update for the nginx module in
+the container images and Helm chart: cache hits now carry the origin's
+security and CORS headers, including `Content-Security-Policy`. That module
+also stops stale serves of responses the origin marked `must-revalidate`,
+`proxy-revalidate` or `s-maxage`, and serves the full stored response, not a
+bare `304`, to a client that sent no conditional request after the origin
+confirms a stale copy. Update recommended; see Changed below before
+upgrading.
 
 Fixed: when the origin confirms a stale cached response with a 304 that makes
 it no longer cacheable (for example a `Vary: *` line), nginx now answers a
@@ -76,6 +85,22 @@ statistics file of an optimizer that has not been upgraded yet, and records
 no serve statistics (caching and serving are unaffected) until the optimizer
 is upgraded too; an older module keeps writing to the replaced file until
 nginx is reloaded.
+
+Fixed: when the optimizer worker improves HTML served through the nginx
+module in the container images and Helm chart, it now also honours a
+`Content-Security-Policy` the origin sent as a response header, not only one
+in a `<meta>` tag. An inline element is added only when every policy present
+allows it. Pages recorded without stored header lines behave as before.
+
+Fixed: the optimizer worker's deb and rpm packages no longer repeat the
+cache notices on every configure once they no longer apply. The notice about
+the old `v1` cache path now appears only while a loaded web-server
+configuration file still names that path, and the notice about a
+cold-started cache only while the worker has not yet written a `v2` cache or
+the configuration still names a path from before 2.1. Each notice is one
+line, so apt and dnf no longer cut it off, and it names the directive to
+check: `pagespeed DaemonVolumePath` on nginx, `ModPagespeedDaemonVolumePath`
+on Apache.
 
 ## 2.3.0 — 2026-10-12
 
