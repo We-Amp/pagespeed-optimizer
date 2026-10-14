@@ -2,6 +2,8 @@
 
 All notable changes to mod_pagespeed 2.1 are documented in this file.
 
+## Unreleased
+
 ## 2.4.0 — 2026-10-14
 
 This release is a security and reliability update for the nginx module in
