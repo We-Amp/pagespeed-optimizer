@@ -38,6 +38,37 @@ zstd support, `rsync` and `ssh` (hub only), and `bazel` or `npm` (the vendor
 job installs bazelisk through npm when `bazel` is missing). Hosted runners
 provide all of them.
 
+## Windows runner: git and PATH requirements
+
+On a self-hosted Windows runner the jobs assume the following.
+
+1. **Git configuration.** The git the runner service uses (the first `git.exe`
+   on the machine `PATH`, as seen by the service account) has
+   `core.autocrlf=false` and `core.longPaths=true` in its own system
+   configuration. Release jobs check out a tag's tree as it was at the time, so
+   repository attributes added later do not apply; the gperf generator input
+   and the bash scripts must be LF, and the vendored tree nests deeply enough
+   to need long paths. Set both with the full path to that binary:
+
+       "C:\Program Files\Git\cmd\git.exe" config --system core.autocrlf false
+       "C:\Program Files\Git\cmd\git.exe" config --system core.longPaths true
+
+   Plain `git config --system` from an interactive shell may configure a
+   different install than the one the service uses. Adjust the path to the
+   install the service resolves.
+2. **Machine `PATH`.** The tools are on the machine `PATH`, not a user's
+   `PATH`: Git for Windows `cmd` and `bin` (so `shell: bash` resolves to Git
+   bash or MSYS2 bash, never the WSL launcher in System32), MSYS2 `usr\bin`
+   before System32 when MSYS2 provides bash, and the bazelisk, nasm and CMake
+   directories. Alternatively list those tool directories in `CI_WIN_TOOLS_DIR`;
+   only the Bazel build steps honour it. Bash steps and the release jobs' tool
+   checks read `PATH` alone.
+3. **No user-profile path on `PATH`.** No entry of the form
+   `C:\Users\<name>\...` may appear on the machine `PATH`. Job logs print
+   `PATH`, and a public log must not carry a user name.
+4. **Bazel output root.** Set `CI_WIN_BAZEL_OUTPUT_ROOT` (see the table above)
+   to a short path on a volume with room.
+
 ## Adding a variable
 
 1. Give it a neutral name that says what it is, not where it lives.
