@@ -552,11 +552,10 @@ TEST_F(DurableOriginalsTest, TheOriginalCannotBePreservedAcrossARefresh) {
 
 namespace {
 CapabilityMask GzipMask() {
-  return CapabilityMask(CapabilityMask::ImageFormat::kOriginal,
-                        CapabilityMask::Viewport::kDesktop,
-                        CapabilityMask::PixelDensity::k1x,
-                        CapabilityMask::SaveData::kOff,
-                        CapabilityMask::TransferEncoding::kGzip);
+  return CapabilityMask(
+      CapabilityMask::ImageFormat::kOriginal,
+      CapabilityMask::Viewport::kDesktop, CapabilityMask::PixelDensity::k1x,
+      CapabilityMask::SaveData::kOff, CapabilityMask::TransferEncoding::kGzip);
 }
 constexpr AlternateId kSentinelHash =
     static_cast<AlternateId>(SentinelId::kContentHash);
@@ -599,12 +598,11 @@ TEST_F(DurableOriginalsTest, DerivedPurgeKeepsTheOriginalAndRemovesTheRest) {
     ASSERT_TRUE(md->close_sync().has_value());
   }
   // Warm this process's RAM tier so a stale RAM copy would show.
-  ASSERT_TRUE(
-      cache_->ReadAlternate("/logo.svg", "example.com", "https", gzip)
-          .has_value());
+  ASSERT_TRUE(cache_->ReadAlternate("/logo.svg", "example.com", "https", gzip)
+                  .has_value());
 
-  auto removed = cache_->RemoveDerivedAlternates("/logo.svg", "example.com",
-                                                 "https");
+  auto removed =
+      cache_->RemoveDerivedAlternates("/logo.svg", "example.com", "https");
   ASSERT_TRUE(removed.has_value());
   // gzip copy, worker identity, content-hash oracle, tombstone, markdown
   EXPECT_EQ(*removed, 5u);
@@ -622,9 +620,8 @@ TEST_F(DurableOriginalsTest, DerivedPurgeKeepsTheOriginalAndRemovesTheRest) {
       "/logo.svg", "example.com", "https",
       static_cast<AlternateId>(SentinelId::kAgentMarkdown)));
   // The RAM copy went with the disk entry.
-  EXPECT_FALSE(
-      cache_->ReadAlternate("/logo.svg", "example.com", "https", gzip)
-          .has_value());
+  EXPECT_FALSE(cache_->ReadAlternate("/logo.svg", "example.com", "https", gzip)
+                   .has_value());
   auto original =
       cache_->ReadOriginalAlternate("/logo.svg", "example.com", "https");
   ASSERT_TRUE(original.has_value());
@@ -643,9 +640,9 @@ TEST_F(DurableOriginalsTest, DerivedPurgeKeepsAGenuineIdentityAndTheSidecar) {
   WriteVariant("/site.css", GzipMask(), "gzip-of-old");
   const std::vector<HeaderField> headers = {
       {"X-Content-Type-Options", "nosniff"}};
-  ASSERT_TRUE(cache_->WriteHeadersSidecar("/site.css", "example.com", "https",
-                                          headers)
-                  .has_value());
+  ASSERT_TRUE(
+      cache_->WriteHeadersSidecar("/site.css", "example.com", "https", headers)
+          .has_value());
 
   auto removed =
       cache_->RemoveDerivedAlternates("/site.css", "example.com", "https");
@@ -672,9 +669,8 @@ TEST_F(DurableOriginalsTest, DerivedPurgeReadsTheIdentityFlagFromDisk) {
   ASSERT_TRUE(WriteOriginalTo("/a.svg", "O", OriginalMetadata()));
   WriteVariant("/a.svg", CapabilityMask(), "derived",
                AlternateMetadata::kFlagWorkerProcessed);
-  ASSERT_TRUE(
-      cache_->ReadAlternate("/a.svg", "example.com", "https", identity)
-          .has_value());  // RAM now holds the worker-processed entry
+  ASSERT_TRUE(cache_->ReadAlternate("/a.svg", "example.com", "https", identity)
+                  .has_value());  // RAM now holds the worker-processed entry
 
   // A peer handle re-records a genuine identity over it.
   PageSpeedCacheConfig config;
@@ -690,13 +686,13 @@ TEST_F(DurableOriginalsTest, DerivedPurgeReadsTheIdentityFlagFromDisk) {
     auto wh = (*peer)->WriteAlternate("/a.svg", "example.com", "https",
                                       identity, 7, meta);
     ASSERT_TRUE(wh.has_value());
-    ASSERT_TRUE(wh->write_sync(std::as_bytes(std::span("genuine", 7)))
-                    .has_value());
+    ASSERT_TRUE(
+        wh->write_sync(std::as_bytes(std::span("genuine", 7))).has_value());
     ASSERT_TRUE(wh->close_sync().has_value());
   }
 
-  auto removed = cache_->RemoveDerivedAlternates("/a.svg", "example.com",
-                                                 "https");
+  auto removed =
+      cache_->RemoveDerivedAlternates("/a.svg", "example.com", "https");
   ASSERT_TRUE(removed.has_value());
   EXPECT_EQ(*removed, 0u);
   EXPECT_TRUE(
