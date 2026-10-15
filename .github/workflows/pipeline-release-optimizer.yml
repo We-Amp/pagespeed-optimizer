@@ -539,10 +539,15 @@ jobs:
             Write-Host 'using the remote Bazel cache from the runner environment'
             $cacheArgs += "--remote_cache=$env:BAZEL_REMOTE_CACHE_URL"
           }
-          bazelisk build --config=windows --config=opt @cacheArgs `
+          # A fixed output user root: the default lives under the service
+          # profile, whose name can carry a dollar sign that the generated
+          # ninja files cannot escape. Same rule as the NuGet lane.
+          $outRoot = $(if ($env:CI_WIN_BAZEL_OUTPUT_ROOT) { $env:CI_WIN_BAZEL_OUTPUT_ROOT } else { Join-Path $env:SystemDrive 'b' }) -replace '\\', '/'
+          $startup = @("--output_user_root=$outRoot")
+          bazelisk @startup build --config=windows --config=opt @cacheArgs `
             //src/worker:factory_worker //lib/pagespeed:libpagespeed.so
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          $bin = (bazelisk info --config=windows --config=opt bazel-bin).Trim()
+          $bin = (bazelisk @startup info --config=windows --config=opt bazel-bin).Trim()
           if (Test-Path out) { Remove-Item -Recurse -Force out }
           New-Item -ItemType Directory -Force -Path out | Out-Null
           Copy-Item "$bin\src\worker\factory_worker.exe" out\factory_worker.exe
