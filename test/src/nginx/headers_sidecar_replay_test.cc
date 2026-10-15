@@ -200,7 +200,10 @@ TEST(HeadersSidecarReplayTest, ServePathNamesNeverComeFromTheBlock) {
     EXPECT_FALSE(SidecarFieldCollidesWithServePath(name)) << name;
   }
   // The gate's own output never collides.
-  auto plan = PlanSidecarServe(kBoth, false, PayloadOf(OriginHeaders()));
+  // The plan's fields are views into the payload, so the payload must outlive
+  // every use of the plan: keep it in a named object, not a temporary.
+  const std::string payload = PayloadOf(OriginHeaders());
+  auto plan = PlanSidecarServe(kBoth, false, payload);
   ASSERT_EQ(plan.outcome, SidecarServeOutcome::kReplay);
   for (const auto& f : plan.fields) {
     EXPECT_FALSE(SidecarFieldCollidesWithServePath(f.name)) << f.name;
