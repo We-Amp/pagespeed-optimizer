@@ -1252,11 +1252,12 @@ jobs:
           # clang-tidy. The dependency repos are public and fetched over
           # https, so no credential of any kind enters the container.
           #
-          # The container runs as the runner user with HOME=/workspace so
-          # nothing root-owned lands in the checkout (a root-owned
-          # compile_commands.json would break the NEXT job's checkout on a
-          # persistent runner). The lint Bazel state lives in a per-runner
-          # cache dir mounted at /workspace/.cache: it persists across jobs
+          # The container runs as the runner user so nothing root-owned
+          # lands in the checkout (a root-owned compile_commands.json would
+          # break the NEXT job's checkout on a persistent runner). HOME and
+          # the lint Bazel state live in a per-runner cache dir mounted at
+          # /cache, outside the checkout, because Bazel refuses a repository
+          # cache inside the main repository. The dir persists across jobs
           # on a fleet runner (a cold full lint is tens of minutes) and is
           # simply empty on a hosted runner. The dir name is suffixed per
           # runner instance because two instances can share one host's home;
@@ -1266,11 +1267,11 @@ jobs:
           mkdir -p "${LINT_OUT}"
           docker run --rm \
             --user "$(id -u):$(id -g)" \
-            -e HOME=/workspace \
+            -e HOME=/cache \
             -e LINT_MODE="${LINT_MODE:-full}" \
-            -e BAZEL_REPO_CACHE=/workspace/.cache/bazel-repo \
+            -e BAZEL_REPO_CACHE=/cache/bazel-repo \
             -v "${GITHUB_WORKSPACE}:/workspace" \
-            -v "${LINT_OUT}:/workspace/.cache" \
+            -v "${LINT_OUT}:/cache" \
             "${LINT_IMAGE}" \
             bash -c '
               set -e
