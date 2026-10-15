@@ -661,7 +661,21 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          # Build Tools installs are products too: without -products * vswhere
+          # reports nothing on a host that has only them, hence the fallback.
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $vs = $null
+          if (Test-Path -LiteralPath $vswhere) {
+            $vs = & $vswhere -latest -products * -property installationPath 2>$null
+          }
+          if (-not $vs -or -not (Test-Path -LiteralPath "$vs\VC\Auxiliary\Build\vcvars64.bat")) {
+            $vs = @(
+              (Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\2022\BuildTools'),
+              (Join-Path $env:ProgramFiles 'Microsoft Visual Studio\2022\Community'),
+              (Join-Path $env:ProgramFiles 'Microsoft Visual Studio\2022\Enterprise')
+            ) | Where-Object { Test-Path -LiteralPath "$_\VC\Auxiliary\Build\vcvars64.bat" } | Select-Object -First 1
+          }
+          if (-not $vs) { Write-Host "::error::no Visual Studio installation found"; exit 1 }
           $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat'
           cmd /c "`"$vcvars`" >nul && set" | ForEach-Object {
             if ($_ -match '^(PATH|INCLUDE|LIB|LIBPATH|VCToolsInstallDir|WindowsSdkDir|WindowsSDKVersion)=(.*)$') {
@@ -890,7 +904,21 @@ jobs:
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
-          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          # Build Tools installs are products too: without -products * vswhere
+          # reports nothing on a host that has only them, hence the fallback.
+          $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer\vswhere.exe'
+          $vs = $null
+          if (Test-Path -LiteralPath $vswhere) {
+            $vs = & $vswhere -latest -products * -property installationPath 2>$null
+          }
+          if (-not $vs -or -not (Test-Path -LiteralPath "$vs\VC\Auxiliary\Build\vcvars64.bat")) {
+            $vs = @(
+              (Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\2022\BuildTools'),
+              (Join-Path $env:ProgramFiles 'Microsoft Visual Studio\2022\Community'),
+              (Join-Path $env:ProgramFiles 'Microsoft Visual Studio\2022\Enterprise')
+            ) | Where-Object { Test-Path -LiteralPath "$_\VC\Auxiliary\Build\vcvars64.bat" } | Select-Object -First 1
+          }
+          if (-not $vs) { Write-Host "::error::no Visual Studio installation found"; exit 1 }
           $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat'
           cmd /c "`"$vcvars`" >nul && set" | ForEach-Object {
             if ($_ -match '^(PATH|INCLUDE|LIB|LIBPATH|VCToolsInstallDir|WindowsSdkDir|WindowsSDKVersion)=(.*)$') {
