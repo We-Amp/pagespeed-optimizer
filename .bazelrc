@@ -60,6 +60,8 @@ build:macos --linkopt=-Wl,-no_warn_duplicate_libraries
 build:macos --features=-layering_check
 build:macos --features=-header_modules
 build:macos --features=-parse_headers
+# Apple clang rejects flags it does not know; keep the next flag harmless there
+build:macos --copt=-Wno-unknown-warning-option
 # Clang 21 warns on char8_t→char32_t in googletest gtest-printers.h
 build:macos --copt=-Wno-character-conversion
 

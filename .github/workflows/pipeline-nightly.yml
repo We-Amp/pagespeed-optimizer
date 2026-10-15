@@ -738,6 +738,10 @@ jobs:
             python:3.12-slim \
             bash -c "export PATH=/tmp/.local/bin:\$PATH && pip install -q -r requirements.txt && python3 -m pytest . -v --tb=short"
 
+      - name: Container logs on failure
+        if: failure()
+        run: docker compose -f tools/stress/docker-compose.yml -f tools/stress/docker-compose.prebuilt.yml logs --no-color --tail=400 worker nginx 2>/dev/null || docker compose -f tools/stress/docker-compose.yml -f tools/stress/docker-compose.prebuilt.yml logs --no-color --tail=400 || true
+
       - name: Teardown
         if: always()
         run: |
@@ -812,6 +816,10 @@ jobs:
             python:3.12-slim \
             bash -c "export PATH=/tmp/.local/bin:\$PATH && pip install -q pytest requests && pytest tests/ -v --tb=short -p no:cacheprovider"
 
+      - name: Container logs on failure
+        if: failure()
+        run: docker compose -f tools/production-tests/docker-compose.yml -f tools/production-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 worker nginx 2>/dev/null || docker compose -f tools/production-tests/docker-compose.yml -f tools/production-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 || true
+
       - name: Teardown
         if: always()
         run: |
@@ -869,11 +877,16 @@ jobs:
       - name: Run real-world proxy tests
         run: |
           docker run --rm --network=host \
+            --user "$(id -u):$(id -g)" \
             -e HOME=/tmp \
             -e PIP_USER=1 -e PIP_BREAK_SYSTEM_PACKAGES=1 \
             -v "$PWD":/repo -w /repo/tools/realworld-tests \
             python:3.12-slim \
             bash -c "export PATH=/tmp/.local/bin:\$PATH && pip install -q pytest requests && pytest -v --tb=short -p no:cacheprovider"
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker compose -f tools/realworld-tests/docker-compose.yml -f tools/realworld-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 worker nginx 2>/dev/null || docker compose -f tools/realworld-tests/docker-compose.yml -f tools/realworld-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 || true
 
       - name: Teardown
         if: always()
@@ -1244,6 +1257,10 @@ jobs:
             python:3.12-slim \
             bash -c "export PATH=/tmp/.local/bin:\$PATH && pip install -q -r requirements.txt && python3 -m pytest . -v --tb=short"
 
+      - name: Container logs on failure
+        if: failure()
+        run: docker compose -f tools/stress/docker-compose.yml -f tools/stress/docker-compose.prebuilt.yml logs --no-color --tail=400 worker nginx 2>/dev/null || docker compose -f tools/stress/docker-compose.yml -f tools/stress/docker-compose.prebuilt.yml logs --no-color --tail=400 || true
+
       - name: Teardown
         if: always()
         run: |
@@ -1319,6 +1336,10 @@ jobs:
             python:3.12-slim \
             bash -c "export PATH=/tmp/.local/bin:\$PATH && pip install -q pytest requests && pytest tests/ -v --tb=short -p no:cacheprovider"
 
+      - name: Container logs on failure
+        if: failure()
+        run: docker compose -f tools/production-tests/docker-compose.yml -f tools/production-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 worker nginx 2>/dev/null || docker compose -f tools/production-tests/docker-compose.yml -f tools/production-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 || true
+
       - name: Teardown
         if: always()
         run: |
@@ -1377,11 +1398,16 @@ jobs:
       - name: Run real-world proxy tests
         run: |
           docker run --rm --network=host \
+            --user "$(id -u):$(id -g)" \
             -e HOME=/tmp \
             -e PIP_USER=1 -e PIP_BREAK_SYSTEM_PACKAGES=1 \
             -v "$PWD":/repo -w /repo/tools/realworld-tests \
             python:3.12-slim \
             bash -c "export PATH=/tmp/.local/bin:\$PATH && pip install -q pytest requests && pytest -v --tb=short -p no:cacheprovider"
+
+      - name: Container logs on failure
+        if: failure()
+        run: docker compose -f tools/realworld-tests/docker-compose.yml -f tools/realworld-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 worker nginx 2>/dev/null || docker compose -f tools/realworld-tests/docker-compose.yml -f tools/realworld-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 || true
 
       - name: Teardown
         if: always()
