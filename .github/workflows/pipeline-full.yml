@@ -56,6 +56,11 @@ jobs:
       short_sha: ${{ steps.stamp.outputs.short_sha }}
       channel: ${{ steps.renv.outputs.channel }}
     steps:
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Detect runner environment
@@ -222,6 +227,11 @@ jobs:
     if: ${{ vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
     timeout-minutes: 90
     steps:
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Restore vendored dependencies (cache channel)
@@ -421,6 +431,11 @@ jobs:
     if: ${{ vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
     timeout-minutes: 120
     steps:
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Restore vendored dependencies (cache channel)
@@ -497,6 +512,11 @@ jobs:
     if: ${{ vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
     timeout-minutes: 180
     steps:
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Restore vendored dependencies (cache channel)
@@ -580,6 +600,11 @@ jobs:
       matrix:
         distro: [debian12, ubuntu2404, alma9]
     steps:
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # Every assertion reads scripts and packaging inputs from this tree,
@@ -654,6 +679,11 @@ jobs:
     if: ${{ vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
     timeout-minutes: 30
     steps:
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Download the build bundle
@@ -751,6 +781,11 @@ jobs:
     if: ${{ vars.FLEET_ENABLED == 'true' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
     timeout-minutes: 20
     steps:
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Docker preflight
@@ -855,6 +890,11 @@ jobs:
     if: ${{ vars.FLEET_ENABLED == 'true' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
     timeout-minutes: 20
     steps:
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Docker preflight
@@ -1016,6 +1056,11 @@ jobs:
             *)       echo "::error::docker run failed before the Yama probe could run: ${out}"; exit 1 ;;
           esac
 
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Docker preflight
@@ -1160,15 +1205,19 @@ jobs:
             echo "::notice::BAZEL_REMOTE_CACHE_URL not set: building without the remote cache (docs/ci/runner-environment.md)"
           fi
           # A short output root keeps Windows path lengths in bounds.
-          "$BAZEL_BIN" --output_user_root=C:/b shutdown || true
-          "$BAZEL_BIN" --output_user_root=C:/b build "${FLAGS[@]}" -- \
+          OUT_ROOT="${CI_WIN_BAZEL_OUTPUT_ROOT:-${SYSTEMDRIVE:-C:}/b}"
+          OUT_ROOT="${OUT_ROOT//\\//}"
+          "$BAZEL_BIN" --output_user_root="$OUT_ROOT" shutdown || true
+          "$BAZEL_BIN" --output_user_root="$OUT_ROOT" build "${FLAGS[@]}" -- \
             //lib/pagespeed:libpagespeed.so //src/worker:factory_worker
 
       - name: Stage the build bundle
         shell: bash
         run: |
           set -euo pipefail
-          BAZEL_BIN_DIR="$("$BAZEL_BIN" --output_user_root=C:/b info bazel-bin 2>/dev/null | tr -d '\r')"
+          OUT_ROOT="${CI_WIN_BAZEL_OUTPUT_ROOT:-${SYSTEMDRIVE:-C:}/b}"
+          OUT_ROOT="${OUT_ROOT//\\//}"
+          BAZEL_BIN_DIR="$("$BAZEL_BIN" --output_user_root="$OUT_ROOT" info bazel-bin 2>/dev/null | tr -d '\r')"
           STAGING=".ci-artifacts"
           rm -rf "$STAGING"; mkdir -p "$STAGING"
           cp "$BAZEL_BIN_DIR/lib/pagespeed/libpagespeed.so" "$STAGING/pagespeed.dll"
@@ -1298,6 +1347,11 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
     steps:
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Stamp GIT_COMMIT
@@ -1380,6 +1434,11 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 120
     steps:
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Restore the Bazel disk cache
@@ -1423,6 +1482,11 @@ jobs:
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 30
     steps:
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Download the build bundle
@@ -1510,6 +1574,11 @@ jobs:
     continue-on-error: true
     timeout-minutes: 30
     steps:
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Confirm the checkout is this run's tree

@@ -104,6 +104,11 @@ jobs:
       short_sha: ${{ steps.mode.outputs.short_sha }}
       real: ${{ steps.mode.outputs.real }}
     steps:
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - name: Checkout main (guard code)
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -162,6 +167,11 @@ jobs:
         run: |
           [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
 
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.ref-guard.outputs.ref }}
@@ -259,6 +269,11 @@ jobs:
     env:
       GRYPE_FAIL_ON: ${{ inputs.grype_severity || 'medium' }}
     steps:
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.ref-guard.outputs.sha }}
@@ -656,7 +671,7 @@ jobs:
           $env:PATH = "C:\msys64\usr\bin;C:\Program Files\NASM;$env:PATH"
           # A short output root keeps Windows paths under the length limit;
           # CI_WIN_BAZEL_OUTPUT_ROOT in the runner environment overrides it.
-          $outRoot = if ($env:CI_WIN_BAZEL_OUTPUT_ROOT) { $env:CI_WIN_BAZEL_OUTPUT_ROOT } else { 'C:/b' }
+          $outRoot = $(if ($env:CI_WIN_BAZEL_OUTPUT_ROOT) { $env:CI_WIN_BAZEL_OUTPUT_ROOT } else { Join-Path $env:SystemDrive 'b' }) -replace '\\', '/'
           $startup = @("--output_user_root=$outRoot")
           $cacheArgs = @()
           if ($env:RUNNER_ENVIRONMENT -eq 'github-hosted') { $cacheArgs += '--disk_cache=C:/bazel-disk' }
@@ -885,7 +900,7 @@ jobs:
           $env:PATH = "C:\msys64\usr\bin;C:\Program Files\NASM;$env:PATH"
           # A short output root keeps Windows paths under the length limit;
           # CI_WIN_BAZEL_OUTPUT_ROOT in the runner environment overrides it.
-          $outRoot = if ($env:CI_WIN_BAZEL_OUTPUT_ROOT) { $env:CI_WIN_BAZEL_OUTPUT_ROOT } else { 'C:/b' }
+          $outRoot = $(if ($env:CI_WIN_BAZEL_OUTPUT_ROOT) { $env:CI_WIN_BAZEL_OUTPUT_ROOT } else { Join-Path $env:SystemDrive 'b' }) -replace '\\', '/'
           $startup = @("--output_user_root=$outRoot")
           $cacheArgs = @()
           if ($env:RUNNER_ENVIRONMENT -eq 'github-hosted') { $cacheArgs += '--disk_cache=C:/bazel-disk' }
@@ -1012,6 +1027,11 @@ jobs:
       RELEASE_TAG: ${{ needs.ref-guard.outputs.tag }}
       REAL_RUN: ${{ needs.ref-guard.outputs.real }}
     steps: &package-steps
+      - name: Unlock a previous run's vendored toolchain files
+        # bazel vendor leaves read-only toolchain directories under vendor/;
+        # checkout's cleanup cannot remove them on a persistent runner.
+        run: |
+          [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ needs.ref-guard.outputs.sha }}
