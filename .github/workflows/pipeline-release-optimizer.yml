@@ -522,7 +522,10 @@ jobs:
           }
           if (-not $vs) { Write-Host "::error::no Visual Studio installation found"; exit 1 }
           $vcvars = Join-Path $vs 'VC\Auxiliary\Build\vcvars64.bat'
-          cmd /c "`"$vcvars`" >nul && set" | ForEach-Object {
+          # Call the command interpreter by its full path: a bare `cmd` can
+          # resolve to another program when a POSIX tools directory precedes
+          # the system directory on PATH.
+          & "$env:ComSpec" /c "`"$vcvars`" >nul && set" | ForEach-Object {
             if ($_ -match '^(PATH|INCLUDE|LIB|LIBPATH|VCToolsInstallDir|WindowsSdkDir|WindowsSDKVersion)=(.*)$') {
               Set-Item -Path "env:$($Matches[1])" -Value $Matches[2]
             }
