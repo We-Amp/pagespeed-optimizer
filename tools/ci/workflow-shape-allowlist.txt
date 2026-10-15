@@ -6,7 +6,6 @@
 # one-line reason after '#'. The exemption covers the caller-shape rule only;
 # every file still passes rules (a), (c) and (e). Remove an entry the moment
 # the file becomes a caller.
-ci.yml                         # hosted-only PR CI, until the cutover (step 2 renames ci.caller.yml.example over it)
 scorecard.yml                  # OpenSSF scorecard: needs branch_protection_rule and inline steps; stays hosted
 website.yml                    # public website lane; stays hosted
 refresh-examples-gallery.yml   # dispatch-only gallery refresh; stays hosted

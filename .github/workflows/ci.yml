@@ -1,202 +1,72 @@
 # SPDX-License-Identifier: Apache-2.0
 # Copyright (c) 2024-2026 We-Amp B.V.
+#
+# The thin CI caller. Step 2 of the cutover renames this file over ci.yml
+# (and drops ci.yml from tools/ci/workflow-shape-allowlist.txt). It holds
+# the triggers and the concurrency group only; every job lives in the
+# reusable workflows, pinned to main. See docs/ci/pipelines.md.
+#
+# Required checks after the switch are named `pr / <job name>` (for
+# example `pr / Linux Build`) plus `CI gate`.
 
 name: CI
 
-# Minimal public CI: one hosted build+test leg (the optimizer
-# daemon plus a meaningful unit-test slice), the whole-tree Apache RAT
-# license audit, the license-header / SBOM-drift gates, and the public-tree
-# hygiene gate (tools/ci/check-public-hygiene.sh — keeps
-# private-infrastructure and private-process vocabulary out of the public
-# tree). Fleet runners are reached only through the reusable workflows
-# pinned to main (docs/ci/pipelines.md).
-#
-# Scope cuts vs the private lanes, made to fit the hosted-runner budget:
-#   * Test slice: //test/lib/base:all + //test/lib/cache:all + the
-#     libaom-free //test/src/worker tests. The remaining worker tests
-#     (image_transcoder_test, worker_test, ...) and the //test/lib/image,
-#     css, html and js suites pull the full codec stack (libaom/libavif/
-#     jpegli via cmake) and stay fleet-side. The slice still exercises the
-#     cyclone-cache integration (//test/lib/cache) and the daemon's config,
-#     HTTP-server, API and syscall-filter surfaces.
-#   * No macOS leg: a second cold Bazel build at the 10x private-repo
-#     minutes multiplier is not cheap; macOS coverage stays fleet-side.
-
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      full:
+        description: Also run the full tier
+        type: boolean
+        default: false
 
+# Cancel superseded pull request runs only; a push to main always finishes.
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: read
 
 jobs:
-  build-and-test:
-    name: Build daemon & unit-test slice (ubuntu)
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+  pr:
+    # The called pipeline requests pull-requests: read for the release-note
+    # gate; a called workflow cannot exceed what its caller grants.
+    permissions:
+      contents: read
+      pull-requests: read
+    uses: We-Amp/pagespeed-optimizer/.github/workflows/pipeline-pr.yml@main
 
-      # The daemon linkopts hard-require clang's libc++ (-nostdlib++ -lc++
-      # -lc++abi -lunwind), matching the private fleet's toolchain choice
-      # (docker/Dockerfile): clang-20 + libc++-20 from apt.llvm.org —
-      # libc++-18 (the ubuntu image default) lacks std::atomic_ref, which
-      # Cyclone requires (added in libc++-19). No unversioned libunwind-dev:
-      # it conflicts with the versioned libunwind-20-dev that
-      # libc++abi-20-dev pulls. The rest mirrors the private image's host
-      # tools: gperf (lib/html genrules), and for the libaom cmake_build
-      # repo rule cmake + make + a `cc` on PATH (build-essential's gcc, as
-      # on the fleet) + perl (RTCD headers) + nasm (x86 SIMD).
-      - name: Install clang-20 + libc++-20 toolchain
+  # The ci:full label is read when the pull request run starts (open, push,
+  # reopen); after adding it, push or re-run to get the full tier.
+  full:
+    if: >-
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'workflow_dispatch' && inputs.full) ||
+      (github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'ci:full'))
+    uses: We-Amp/pagespeed-optimizer/.github/workflows/pipeline-full.yml@main
+
+  # Aggregate gate: the one check branch protection needs besides the
+  # per-job ones. A called workflow cannot read needs.*.result of its
+  # siblings, so this job runs inline, on a hosted label only.
+  gate:
+    name: CI gate
+    needs: [pr, full]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every needed pipeline succeeded or was skipped
+        env:
+          RESULTS: ${{ join(needs.*.result, ' ') }}
         run: |
-          wget -qO- https://apt.llvm.org/llvm-snapshot.gpg.key \
-            | sudo tee /etc/apt/trusted.gpg.d/apt.llvm.org.asc
-          echo "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main" \
-            | sudo tee /etc/apt/sources.list.d/llvm-toolchain-noble-20.list
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            clang-20 libc++-20-dev libc++abi-20-dev \
-            build-essential gperf cmake perl nasm
-
-      - name: Install bazelisk
-        run: sudo npm install -g @bazel/bazelisk@1.28.1
-
-      # Bazel repository cache (dependency downloads, incl. the cyclone
-      # clone) + output base (external repos and build outputs). Same key
-      # per dependency-relevant file set; restore-keys give a warm-ish start
-      # when only the source changes.
-      - name: Cache Bazel repository cache + output base
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: |
-            ~/.cache/bazel
-            ~/.cache/bazel-repo
-          key: ${{ runner.os }}-bazel-${{ hashFiles('MODULE.bazel', '.bazelrc', '.bazelversion', 'third_party/cyclone.BUILD') }}
-          restore-keys: |
-            ${{ runner.os }}-bazel-
-
-      - name: Build the optimizer daemon
-        env:
-          CC: clang-20
-          CXX: clang++-20
-        run: >
-          bazel build --config=libc++
-          "--repository_cache=$HOME/.cache/bazel-repo"
-          //src/worker:factory_worker
-
-      # Slice rationale in the workflow header. --config=libc++ matches the
-      # build leg so the test slice reuses its action cache.
-      # --flaky_test_attempts=2 mirrors the fleet's test:ci config (.bazelrc):
-      # Bazel re-runs ONLY tests that fail, marks them FLAKY when the retry
-      # passes, and STILL fails the leg when a test fails every attempt — it
-      # does not mask deterministic breakage. Needed here because the suite
-      # carries known slowdown-sensitive timing tests: upstream documents
-      # StaticFileRouteTest.SecurityHeadersDisabled flaking on server-restart
-      # timing under TSan's ~10x slowdown ("not a real race"), and the
-      # 4-vCPU hosted runner running 35 test binaries in parallel reproduces
-      # that slowdown class (observed failing exactly there, 34/35 passing,
-      # on the first secret-enabled run).
-      - name: Run unit-test slice
-        env:
-          CC: clang-20
-          CXX: clang++-20
-        run: >
-          bazel test --config=libc++
-          --flaky_test_attempts=2
-          "--repository_cache=$HOME/.cache/bazel-repo"
-          //test/lib/base:all
-          //test/lib/cache:all
-          //test/src/worker:serve_stats_test
-          //test/src/worker:config_file_test
-          //test/src/worker:shared_config_test
-          //test/src/worker:cache_dir_test
-          //test/src/worker:http_server_test
-          //test/src/worker:api_handlers_test
-          //test/src/worker:worker_api_test
-          //test/src/worker:url_registry_test
-          //test/src/worker:text_compressor_test
-          //test/src/worker:static_file_handler_test
-          //test/src/worker:syscall_filter_test
-          //test/src/worker:host_aliases_test
-          //test/src/worker:llms_txt_builder_test
-          //test/src/worker:html_scanner_test
-          //test/src/worker:websocket_test
-          //test/src/worker:json_output_test
-          //test/src/worker:cache_handlers_test
-          //test/src/worker:capture_handlers_test
-
-  rat:
-    name: License audit (Apache RAT)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6 # v6
-        with:
-          distribution: temurin
-          java-version: "21"
-      # Cache the RAT jar across runs, keyed on the version pinned in
-      # tools/ci/rat.sh (update both together). rat.sh still verifies the
-      # jar's pinned SHA-1 before use, so a corrupted or stale cache entry
-      # fails closed and is re-downloaded.
-      - name: Cache Apache RAT jar
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
-        with:
-          path: ~/.cache/apache-rat
-          key: apache-rat-0.16.1
-      # tools/ci/rat.sh fetches the SHA-1-pinned RAT jar itself (fail
-      # closed); the report is kept outside the checkout so RAT never
-      # audits its own output.
-      - name: Run Apache RAT
-        run: tools/ci/rat.sh "${RUNNER_TEMP}/rat-report.txt"
-      - name: Upload RAT report
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
-        with:
-          name: rat-report
-          path: ${{ runner.temp }}/rat-report.txt
-          if-no-files-found: warn
-
-  license-and-sbom:
-    name: License Headers + SBOM Drift
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      # generate-sbom.py needs Python 3.11+ (datetime.UTC).
-      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
-        with:
-          python-version: "3.12"
-      - name: License headers (Apache-2.0 / SPDX) — all tracked source files
-        run: tools/check-license-headers.sh --all
-      - name: SBOM drift — generate-sbom.py --verify
-        run: python3 tools/generate-sbom.py --verify
-      # THIRD-PARTY-NOTICES ships in every package, so its entry versions
-      # must agree with the SBOM the step above just verified.
-      - name: THIRD-PARTY-NOTICES drift — versions vs SBOM
-        run: python3 tools/sbom/check-third-party-notices.py
-      - name: Example rule pack parses as JSON
-        run: python3 -c "import json; json.load(open('packs/edge-seo/pack.example.json'))"
-
-  public-hygiene:
-    name: Public-tree hygiene gate
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - name: Scan the tracked tree for non-public vocabulary
-        run: tools/ci/check-public-hygiene.sh
-      - name: Hygiene gate self-test
-        run: tools/ci/test-check-public-hygiene.sh
-      - name: Workflow-shape gate
-        run: tools/ci/check-workflow-shape.sh
-      - name: Workflow-shape gate fixtures
-        run: tools/ci/test_check_workflow_shape.sh
-      - name: Release ref guard self-test
-        run: tools/ci/test_ref_guard.sh
+          echo "pipeline results: ${RESULTS}"
+          for r in ${RESULTS}; do
+            case "${r}" in
+              success|skipped) ;;
+              *) echo "::error::a pipeline finished with '${r}'"; exit 1 ;;
+            esac
+          done
