@@ -1498,7 +1498,7 @@ class Worker {
   void BumpPurgeGenerationLocked(const std::string& gen_key);
 
   // Outcome of RecheckRecordedOriginal.
-  enum class OriginRecheck {
+  enum class OriginRecheck : uint8_t {
     kUnchanged,      // Nothing to do; the caller's dedup skip stands.
     kRestamped,      // Same bytes re-recorded: freshness adopted, no rebuild.
     kPurgedRebuild,  // New bytes: derived copies purged; caller rebuilds.

@@ -18243,7 +18243,7 @@ class WorkerPeerRewriteTest : public WorkerTest {
       return;
     }
     // Give an asynchronous rebuild time to land before judging.
-    const std::string want_gz = v2;
+    const std::string& want_gz = v2;
     for (int i = 0; i < 20 * kSanitizerBudgetScale; ++i) {
       if (GzipDecompress(ReadVariant(reader->get(), url, gz_mask)) == want_gz &&
           BrotliDecompress(ReadVariant(reader->get(), url, br_mask)) == v2) {

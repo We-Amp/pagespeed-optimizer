@@ -37,6 +37,11 @@
 
 set -euo pipefail
 
+# The lint container runs as the host uid, which has no passwd entry in the
+# image. Bazel refuses to start without a resolvable user name, so give it
+# one: it only shapes the default output user root under $HOME.
+export USER="${USER:-ci}"
+
 BAZEL_REPO_CACHE="${BAZEL_REPO_CACHE:-/root/bazel-repo-cache}"
 VENDOR_DIR="${VENDOR_DIR:-vendor}"
 WORKSPACE="${BUILD_WORKSPACE_DIRECTORY:-/workspace}"
