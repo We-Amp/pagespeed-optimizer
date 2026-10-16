@@ -29,7 +29,7 @@ for (const [route, topic] of [
         ? page.locator('#contact-form')
         : page.locator('form[data-ui="noscript-lead"]');
     await expect(form).toBeVisible();
-    await form.getByLabel('Email').fill('visitor@example.com');
+    await form.getByLabel('Email', { exact: true }).fill('visitor@example.com');
     await form.getByLabel('Name').fill('A visitor');
     await form.getByLabel('Message').fill('Hello from a browser without scripts.');
     if (route === '/contact/') {
@@ -40,7 +40,7 @@ for (const [route, topic] of [
     // Submit with Enter in a field: with scripts disabled Playwright's click
     // never sees the button settle, but Enter is the same native form submit.
     await expect(form.getByRole('button', { name: 'Send message' })).toBeVisible();
-    await form.getByLabel('Email').press('Enter');
+    await form.getByLabel('Email', { exact: true }).press('Enter');
     await expect(page).toHaveURL(/\/contact\/thanks\/$/);
     expect(posts).toHaveLength(1);
     expect(posts[0].type).toContain('application/x-www-form-urlencoded');
