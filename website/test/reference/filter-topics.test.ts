@@ -306,6 +306,16 @@ describe('filter topic Markdown twins (source)', () => {
     }
   });
 
+  it('absolutizes relative links in FAQ answers', () => {
+    const t = {
+      ...byName.get('rewrite_images')!,
+      faq: [{ q: 'Where next?', a: 'See [the docs](/docs/filters/) and [below](#risks).' }],
+    };
+    const body = renderTopicMarkdown(t, topics);
+    expect(body).toContain('See [the docs](https://modpagespeed.com/docs/filters/) and [below](');
+    expect(body).not.toMatch(/\]\((\/|#)/);
+  });
+
   it('the topic page spells the same non-affiliation sentence as the twin', () => {
     const page = readFileSync(resolve(WEBSITE_ROOT, 'src/pages/docs/filters/[name].astro'), 'utf8');
     expect(page.replace(/\s+/g, ' ')).toContain(GOOGLE_PRODUCTS_LINE);

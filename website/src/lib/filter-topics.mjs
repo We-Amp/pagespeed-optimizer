@@ -1159,7 +1159,7 @@ export function renderTopicMarkdown(t, topics) {
 
   if (t.faq.length) {
     out.push('## Frequently asked questions', '');
-    for (const { q, a } of t.faq) out.push(`**${q}**`, '', a, '');
+    for (const { q, a } of t.faq) out.push(`**${q}**`, '', abs(a), '');
   }
 
   const related = relatedTopics(t, topics);
