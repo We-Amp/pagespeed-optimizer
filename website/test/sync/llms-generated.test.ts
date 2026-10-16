@@ -25,6 +25,9 @@
 //      2.0" as the current product, anywhere outside the archival release-notes
 //      entries.
 //   8. THE MARKDOWN ROUTE — /docs/<slug>.md serves the same body for every page.
+//   9. THE FILTER TWINS — the filters hub and every indexable filter topic are
+//      in llms-full.txt, once and in index order, and /docs/filters.md and
+//      /docs/filters/<name>.md serve the same body.
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -45,11 +48,21 @@ import {
   docUrl,
   SITE,
 } from '../../src/lib/docs-markdown.mjs';
+import {
+  renderTopicMarkdown,
+  renderFiltersHubMarkdown,
+  topicPath,
+} from '../../src/lib/filter-topics.mjs';
 import { GET as productJsonGet } from '../../src/pages/api/product.json.ts';
 import {
   GET as markdownGet,
   getStaticPaths as markdownPaths,
 } from '../../src/pages/docs/[slug].md.ts';
+import {
+  GET as topicMarkdownGet,
+  getStaticPaths as topicMarkdownPaths,
+} from '../../src/pages/docs/filters/[name].md.ts';
+import { GET as hubMarkdownGet } from '../../src/pages/docs/filters.md.ts';
 import {
   SUPPORT_TIERS,
   SUPPORT_LADDER_MD,
@@ -425,6 +438,101 @@ describe('/docs/<slug>.md serves the same Markdown', () => {
     expect(full).toContain(body.trimEnd());
     expect(body.startsWith('# Getting started\n')).toBe(true);
     expect(body).toContain(`Canonical URL: ${SITE}/docs/getting-started/`);
+  });
+});
+
+describe('filter reference pages have Markdown twins', () => {
+  const indexable = ctx.topics;
+  const bodyOf = (t: (typeof indexable)[number]) => renderTopicMarkdown(t, ctx.allTopics);
+  const hub = renderFiltersHubMarkdown(ctx.allTopics);
+  const canonical = (path: string) => `\nCanonical URL: ${SITE}${path}\n`;
+
+  it('the paths are exactly the indexable topics', () => {
+    const paths = (topicMarkdownPaths as () => Array<{ params: { name: string } }>)();
+    expect(paths.map((p) => p.params.name).sort()).toEqual(indexable.map((t) => t.name).sort());
+    expect(indexable.length).toBeGreaterThan(30);
+    expect(indexable.length).toBeLessThan(ctx.allTopics.length);
+  });
+
+  it('llms.txt lists every indexable topic and the hub, as before', () => {
+    for (const t of indexable) expect(index).toContain(`](${SITE}${topicPath(t.name)}): `);
+    expect(index).toContain(`](${SITE}/docs/filters/): `);
+  });
+
+  it('llms-full.txt carries the hub once, then each topic once, in index order', () => {
+    expect(full).toContain(hub.trimEnd());
+    expect(full.split(canonical('/docs/filters/')).length - 1).toBe(1);
+    const positions = indexable.map((t) => {
+      const md = bodyOf(t).trimEnd();
+      expect(full.split(md).length - 1, t.name).toBe(1);
+      expect(full.split(canonical(t.path)).length - 1, t.name).toBe(1);
+      return full.indexOf(md);
+    });
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    expect(full.indexOf(hub.trimEnd())).toBeGreaterThan(
+      full.indexOf(canonical(`/docs/${ctx.docs.at(-1)!.slug}/`)),
+    );
+    expect(full.indexOf(hub.trimEnd())).toBeLessThan(positions[0]);
+  });
+
+  it('the thin topics get no body', () => {
+    for (const t of ctx.allTopics.filter((x) => !x.indexable)) {
+      expect(full, t.name).not.toContain(canonical(t.path));
+    }
+  });
+
+  const bodies = [
+    ...indexable.map((t) => ({ id: t.name, md: bodyOf(t), title: `# ${t.human} (${t.name})` })),
+    { id: 'hub', md: hub, title: '# PageSpeed filters' },
+  ];
+  it('every body has one H1, absolute links only and no HTML outside code', () => {
+    for (const { id, md, title } of bodies) {
+      let fenced = false;
+      const h1s: string[] = [];
+      for (const line of md.split('\n')) {
+        if (/^(```|~~~)/.test(line)) {
+          fenced = !fenced;
+          continue;
+        }
+        if (fenced) continue;
+        if (/^# /.test(line)) h1s.push(line);
+        const prose = line.replace(/`[^`]*`/g, '');
+        expect(prose, `${id}: ${line}`).not.toMatch(/\]\((?:\/|#)/);
+        expect(prose, `${id}: ${line}`).not.toMatch(/<\/?[A-Za-z][^>]*>/);
+      }
+      expect(h1s, id).toEqual([title]);
+      expect(md.endsWith('\n') && !md.endsWith('\n\n'), id).toBe(true);
+    }
+  });
+
+  it('every body says worker, never daemon', () => {
+    for (const { id, md } of bodies) expect(md, id).not.toMatch(/\bdaemons?\b/i);
+  });
+
+  it('/docs/filters/<name>.md serves the body llms-full.txt carries', async () => {
+    const topic = indexable.find((t) => t.name === 'lazyload_images')!;
+    const res = (topicMarkdownGet as (c: unknown) => Response)({
+      props: { topic, topics: ctx.allTopics },
+      params: { name: topic.name },
+    });
+    expect(res.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8');
+    const body = await res.text();
+    expect(body).toBe(bodyOf(topic));
+    expect(body.startsWith('# Lazy-load images (lazyload_images)\n')).toBe(true);
+    expect(body).toContain(`Canonical URL: ${SITE}/docs/filters/lazyload_images/`);
+    expect(full).toContain(body.trimEnd());
+  });
+
+  it('/docs/filters.md serves the hub', async () => {
+    const res = (hubMarkdownGet as (c: unknown) => Response)({});
+    expect(res.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8');
+    expect(await res.text()).toBe(hub);
+  });
+
+  it('the hub lists every filter and compound name once', () => {
+    for (const t of ctx.allTopics) {
+      expect(hub.split(`[\`${t.name}\`](`).length - 1, t.name).toBe(1);
+    }
   });
 });
 
