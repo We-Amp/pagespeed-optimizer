@@ -14,7 +14,8 @@
 //                              groups them, the tools, the download/pricing/
 //                              support pages and the distribution channels
 //     => public/llms-full.txt  the same index followed by the Markdown of
-//                              every docs page (the text /docs/<slug>.md serves)
+//                              every docs page (the text /docs/<slug>.md serves),
+//                              the filters hub and the indexable filter topics
 //
 //   ai-plugin.json.tmpl (scripts/llms-templates/) + LLMS_TOKENS
 //     => public/.well-known/ai-plugin.json
@@ -67,7 +68,11 @@ import {
   substituteRelease,
   docUrl,
 } from '../src/lib/docs-markdown.mjs';
-import { loadFilterTopics } from '../src/lib/filter-topics.mjs';
+import {
+  loadFilterTopics,
+  renderTopicMarkdown,
+  renderFiltersHubMarkdown,
+} from '../src/lib/filter-topics.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const WEBSITE_ROOT = resolve(__dirname, '..');
@@ -120,6 +125,7 @@ export function render(template, name) {
  *   groups: import('../src/lib/docs-markdown.mjs').DocGroup[],
  *   manifests: import('../src/lib/docs-markdown.mjs').Manifests,
  *   topics: import('../src/lib/filter-topics.mjs').Topic[],
+ *   allTopics: import('../src/lib/filter-topics.mjs').Topic[],
  * }} Context
  */
 
@@ -132,8 +138,9 @@ export function loadContext(root = WEBSITE_ROOT) {
   const docs = loadDocs(root);
   // Only the indexable filter topic pages are listed; the thin ones are noindex
   // until their group-page section is enriched (src/lib/filter-topics.mjs).
-  const topics = loadFilterTopics(root).filter((t) => t.indexable);
-  return { docs, groups: groupDocs(docs), manifests: loadManifests(root), topics };
+  const allTopics = loadFilterTopics(root);
+  const topics = allTopics.filter((t) => t.indexable);
+  return { docs, groups: groupDocs(docs), manifests: loadManifests(root), topics, allTopics };
 }
 
 /**
@@ -223,7 +230,9 @@ export function buildIndex(ctx) {
 }
 
 /**
- * The index followed by every page's Markdown, in sidebar order.
+ * The index followed by every page's Markdown, in sidebar order, then the
+ * filters hub and the indexable filter topics in index order (the text
+ * /docs/filters.md and /docs/filters/<name>.md serve).
  * @param {Context} ctx
  * @returns {string}
  */
@@ -231,6 +240,10 @@ export function buildFull(ctx) {
   const parts = [buildIndex(ctx).trimEnd(), ''];
   for (const doc of ctx.docs) {
     parts.push('---', '', renderDocMarkdown(doc, ctx.manifests).trimEnd(), '');
+  }
+  parts.push('---', '', renderFiltersHubMarkdown(ctx.allTopics).trimEnd(), '');
+  for (const t of ctx.topics) {
+    parts.push('---', '', renderTopicMarkdown(t, ctx.allTopics).trimEnd(), '');
   }
   return parts.join('\n');
 }
