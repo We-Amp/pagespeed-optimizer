@@ -8,11 +8,12 @@ Changed: the nginx module now also caches responses that carry static policy
 and resource headers, and replays them on cache hits: HTTP Strict Transport
 Security, the frame and XSS protection headers, the reporting policy headers,
 `Link`, static CORS headers, `Content-Language`, `Content-Disposition`,
-`Alt-Svc`, `Allow`, `X-Powered-By` and `X-Robots-Tag`. A `Link` header that carries a nonce is never cached. A
-header whose value changes per request, such as a request id or `Set-Cookie`,
-still passes the response through uncached, and the error-log notice still
-names the header. A `Link` preload the origin sent is emitted once on a cache
-hit, even when the module adds its own preload hints.
+`Alt-Svc`, `Allow`, `X-Powered-By` and `X-Robots-Tag`. A `Link` header that
+carries a nonce is never cached. A header whose value changes per request, such
+as a request id or `Set-Cookie`, still passes the response through uncached,
+and the error-log notice still names the header. A `Link` preload the origin
+sent is emitted once on a cache hit, even when the module adds its own preload
+hints.
 
 ## 2.4.0 — 2026-10-14
 

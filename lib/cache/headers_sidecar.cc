@@ -215,19 +215,29 @@ bool CspCarriesNonce(std::string_view csp_value) {
 bool LinkCarriesNonce(std::string_view link_value) {
   constexpr std::string_view kNeedle = "nonce";
   bool in_target = false;
+  bool in_quotes = false;
   for (size_t i = 0; i < link_value.size(); ++i) {
     const char c = link_value[i];
     if (in_target) {
       in_target = c != '>';
+    } else if (in_quotes) {
+      if (c == '\\' && i + 1 < link_value.size()) {
+        ++i;
+      } else if (c == '"') {
+        in_quotes = false;
+      }
+    } else if (c == '"') {
+      in_quotes = true;
     } else if (c == '<') {
       in_target = true;
-    } else if (i + kNeedle.size() <= link_value.size() &&
-               AsciiEqualsIgnoreCase(link_value.substr(i, kNeedle.size()),
-                                     kNeedle)) {
+    }
+    if (!in_target && i + kNeedle.size() <= link_value.size() &&
+        AsciiEqualsIgnoreCase(link_value.substr(i, kNeedle.size()), kNeedle)) {
       return true;
     }
   }
-  return false;
+  // An unclosed target is malformed: never carry it.
+  return in_target;
 }
 
 std::span<const std::string_view> HeadersSidecarAllowlist() {

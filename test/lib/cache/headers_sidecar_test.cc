@@ -270,6 +270,9 @@ TEST(HeadersSidecarTest, LinkNonceInAnySpellingIsNeverStored) {
            "</a.js>; rel=preload; as=script; nonce = \"x\"",
            "</a.js>; rel=preload; as=script; nonce*=UTF-8''x",
            "</a.js>; rel=preload; as=script; NONCE=x",
+           "</a.js>; rel=preload; title=\"<\"; nonce=abc",
+           "<x>; rel=preload; anchor=\"<y\"; nonce=z",
+           "</a.js; nonce=abc",
        }) {
     const Fields fields = {{"Cache-Control", "max-age=600"}, {"Link", value}};
     const auto result = Classify(fields);
