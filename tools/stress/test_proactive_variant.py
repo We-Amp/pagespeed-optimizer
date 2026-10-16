@@ -159,14 +159,15 @@ class TestProactiveVariantGeneration:
         number of images and generated variants across multiple formats.
         """
         # Wait for any in-progress work to finish, then check totals
-        deadline = time.time() + 30
+        deadline = time.time() + PROACTIVE_DEADLINE_SECONDS
         stats = None
         while time.time() < deadline:
             stats = _poll_stats_safe()
             if stats is not None:
                 images = stats.get("by_type", {}).get("images", {})
                 images_n = images.get("n", 0) if isinstance(images, dict) else 0
-                if images_n >= 3:
+                written = stats.get("variants", {}).get("written", 0)
+                if images_n >= 3 and written >= 10:
                     break
             time.sleep(2)
 

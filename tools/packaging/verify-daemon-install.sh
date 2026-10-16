@@ -326,7 +326,7 @@ if [[ "$SCENARIO" == legacy ]]; then
   printf '# operator edit\nLOG_LEVEL=debug\n' >> "$DEFAULTS"
   chmod 0644 "$DEFAULTS"
   chown root:root "$DEFAULTS"
-  # Operator repoints the live configuration; the stale operator backup
+  # Operator repoints the live configuration to v2; the stale operator backup
   # stays behind in conf-available/.  The reinstall's notice must keep the
   # cold-start facts but DROP the ACTION REQUIRED half: a file the web
   # server does not load may never earn the repoint warning (a real
