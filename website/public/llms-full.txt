@@ -1786,8 +1786,8 @@ Machine-readable recipe for coding agents: [modpagespeed.com/recipes/iis.md](htt
 
 ## Install the module
 
-1. Download the [IIS MSI installer](https://modpagespeed.com/download/#direct-downloads). Each binary has a `.asc`
-   signature next to it.
+1. Download the [IIS MSI installer](https://modpagespeed.com/download/#direct-downloads) from the Download
+   page's Windows installer link.
 2. Run it on the Windows Server host. The installer registers the module in
    IIS as a native HTTP module and creates the default cache directory at
    `%ProgramData%\We-Amp\PageSpeed\Cache`.
@@ -2990,7 +2990,7 @@ repository and set two directives; see
 
 | Directives and filters                                                                                                                                                                                                                             | Status in mod_pagespeed 2.1                                                                                                   |
 | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `pagespeed on/off`, `RewriteLevel`, `EnableFilters`, `DisableFilters`, `ForbidFilters`, `Domain`, `MapOriginDomain`, `MapRewriteDomain`, `MapProxyDomain`, `LoadFromFile`, the admin and statistics paths, `FetchHttps`, `UseNativeFetcher` and the rest of the [directive index](https://modpagespeed.com/docs/directive-index/) | Carry over unchanged                                                                                                          |
+| `pagespeed on/off`, `RewriteLevel`, `EnableFilters`, `DisableFilters`, `ForbidFilters`, `Domain`, `MapOriginDomain`, `MapRewriteDomain`, `MapProxyDomain`, `LoadFromFile`, the admin and statistics paths, `FetchHttps`, `UseNativeFetcher` and the rest of the [directive index](https://modpagespeed.com/docs/configuration/) | Carry over unchanged                                                                                                          |
 | `FileCachePath`                                                                                                                                                                                                                                    | Accepted; the module keeps its Cyclone volume under it                                                                        |
 | `ShardDomain`                                                                                                                                                                                                                                      | Works, logs a deprecation warning: sharding hurts with HTTP/2 and HTTP/3. Remove it                                           |
 | `UseExperimentalJsMinifier`                                                                                                                                                                                                                        | Accepted and ignored; the tokenizer-based minifier is the only one, the legacy minifier was removed                           |
