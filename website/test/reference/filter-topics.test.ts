@@ -28,6 +28,11 @@ import {
   HUMAN_NAMES,
   PAGE_BY_CATEGORY,
   RELATED,
+  topicFacts,
+  GOOGLE_PRODUCTS_LINE,
+  relatedTopics,
+  renderTopicMarkdown,
+  renderFiltersHubMarkdown,
 } from '../../src/lib/filter-topics.mjs';
 import { EXAMPLES } from '../../src/data/examples';
 import { topicForExample } from '../../src/data/filters';
@@ -236,5 +241,91 @@ describe.skipIf(!BUILT)('filter topics (built html)', () => {
       expect(href, ex.slug).toMatch(/^\/docs\/filters\/[a-z0-9_]+\/$/);
       expect(byName.has(href!.split('/')[3]), ex.slug).toBe(true);
     }
+  });
+});
+
+describe('filter topic Markdown twins (source)', () => {
+  const md = (name: string) => renderTopicMarkdown(byName.get(name)!, topics);
+
+  it('follows the page order', () => {
+    const body = md('rewrite_images');
+    const order = [
+      '# Optimize images (rewrite_images)\n',
+      '\nCanonical URL: https://modpagespeed.com/docs/filters/rewrite_images/\n',
+      '\n## What it switches on\n',
+      '\n## How it works\n',
+      '\n## When to use it\n',
+      '\n## Risks\n',
+      '\n## Configuration\n',
+      '\n## Live example\n',
+      '\n## Frequently asked questions\n',
+      '\n## Related filters\n',
+    ];
+    const at = order.map((h) => body.indexOf(h));
+    expect(at.every((n) => n >= 0)).toBe(true);
+    expect(at).toEqual([...at].sort((a, b) => a - b));
+  });
+
+  it('leaves out the chrome, the call to action and the impact tiles', () => {
+    expect(md('rewrite_images')).not.toMatch(
+      /Download (&|&amp;) run|Breadcrumb|Measured on the demo/,
+    );
+  });
+
+  it('shares its facts and its related list with the page', () => {
+    for (const t of topics.filter((x) => x.indexable)) {
+      const body = renderTopicMarkdown(t, topics);
+      for (const fact of topicFacts(t)) {
+        const absolute = fact.replace(/\]\((\/[^)\s]*)\)/g, '](https://modpagespeed.com$1)');
+        expect(body, t.name).toContain(`- ${absolute}`);
+      }
+      const related = relatedTopics(t, topics);
+      expect(related.length, t.name).toBeLessThanOrEqual(8);
+      expect(
+        related.map((r) => r.name),
+        t.name,
+      ).not.toContain(t.name);
+      for (const r of related) {
+        expect(body, t.name).toContain(`(https://modpagespeed.com${r.path})`);
+      }
+    }
+  });
+
+  it('every live example link points at a gallery page', () => {
+    const slugs = new Set(EXAMPLES.map((e) => e.slug));
+    for (const t of topics.filter((x) => x.indexable && x.example)) {
+      expect(slugs.has(t.example!.split('/')[2]), t.name).toBe(true);
+    }
+  });
+
+  it('the hub links indexable topics to their page and thin ones to the group page', () => {
+    const hub = renderFiltersHubMarkdown(topics);
+    for (const t of topics) {
+      const href = t.indexable ? t.path : t.groupPath;
+      expect(hub, t.name).toContain(`[\`${t.name}\`](https://modpagespeed.com${href})`);
+    }
+  });
+
+  it('escapes backslashes before pipes in hub table cells', () => {
+    const t = { ...byName.get('rewrite_images')!, summary: 'a\\|b | c\\' };
+    const hub = renderFiltersHubMarkdown([t]);
+    expect(hub).toContain('a\\\\\\|b \\| c\\\\ |');
+  });
+
+  it('absolutizes relative links in FAQ answers', () => {
+    const t = {
+      ...byName.get('rewrite_images')!,
+      faq: [{ q: 'Where next?', a: 'See [the docs](/docs/filters/) and [below](#risks).' }],
+    };
+    const body = renderTopicMarkdown(t, topics);
+    expect(body).toContain('See [the docs](https://modpagespeed.com/docs/filters/) and [below](');
+    expect(body).not.toMatch(/\]\((\/|#)/);
+  });
+
+  it('the topic page spells the same non-affiliation sentence as the twin', () => {
+    const page = readFileSync(resolve(WEBSITE_ROOT, 'src/pages/docs/filters/[name].astro'), 'utf8');
+    expect(page.replace(/\s+/g, ' ')).toContain(GOOGLE_PRODUCTS_LINE);
+    const t = byName.get('insert_ga')!;
+    expect(renderTopicMarkdown(t, topics)).toContain(`\n${GOOGLE_PRODUCTS_LINE}\n`);
   });
 });
