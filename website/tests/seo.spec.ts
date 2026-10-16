@@ -186,6 +186,21 @@ test.describe('SEO', () => {
     expect(await titles.count()).toBe(1);
   });
 
+  test('blog posts declare og:type article with publish time', async ({ page }) => {
+    await page.goto('/blog/memory-mapped-cache-zero-copy-serving/');
+    await expect(page.locator('meta[property="og:type"]')).toHaveAttribute('content', 'article');
+    const published = await page
+      .locator('meta[property="article:published_time"]')
+      .getAttribute('content');
+    expect(Number.isNaN(Date.parse(published!))).toBe(false);
+  });
+
+  test('non-article pages keep og:type website', async ({ page }) => {
+    await page.goto('/');
+    await expect(page.locator('meta[property="og:type"]')).toHaveAttribute('content', 'website');
+    expect(await page.locator('meta[property="article:published_time"]').count()).toBe(0);
+  });
+
   test('favicon link is present', async ({ page }) => {
     await page.goto('/');
     const favicon = page.locator('link[rel="icon"]');
