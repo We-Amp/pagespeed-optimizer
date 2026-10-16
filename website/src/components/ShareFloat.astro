@@ -104,8 +104,8 @@ const targets = buildShareTargets(shareUrl, title);
           href={target.href}
           target={target.name === 'Email' ? undefined : '_blank'}
           rel={target.name === 'Email' ? undefined : 'noopener noreferrer'}
-          aria-label={`Share on ${target.name}`}
-          title={`Share on ${target.name}`}
+          aria-label={target.name === 'Email' ? 'Share by email' : `Share on ${target.name}`}
+          title={target.name === 'Email' ? 'Share by email' : `Share on ${target.name}`}
           data-umami-event="share"
           data-umami-event-network={target.slug}
           data-umami-event-surface="float"
