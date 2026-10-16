@@ -143,15 +143,22 @@ describe('llms*.txt drift guard', () => {
       const allowed = new Set(
         Object.values(ctx.manifests).map((rel) => rel.release.released_on as string),
       );
-      const dates = index.match(/\b\d{4}-\d{2}-\d{2}\b/g) ?? [];
+      const blogStart = index.indexOf('\n## Blog\n');
+      const blogEnd = index.indexOf('\n## ', blogStart + 1);
+      const posted = new Set(ctx.posts.map((p) => p.date));
       // The release-notes descriptions cite a renumber date; that is content,
       // not a build timestamp.
       const content = ctx.docs.flatMap(
         (d) => d.data.description.match(/\b\d{4}-\d{2}-\d{2}\b/g) ?? [],
       );
-      const posted = ctx.posts.map((p) => p.date);
-      for (const d of dates) {
-        expect(allowed.has(d) || content.includes(d) || posted.includes(d), d).toBe(true);
+      let offset = 0;
+      for (const line of index.split('\n')) {
+        const inBlog = offset > blogStart && offset < blogEnd;
+        offset += line.length + 1;
+        for (const d of line.match(/\b\d{4}-\d{2}-\d{2}\b/g) ?? []) {
+          // A post date is allowed only on a line inside the Blog section.
+          expect(allowed.has(d) || content.includes(d) || (inBlog && posted.has(d)), d).toBe(true);
+        }
       }
     });
   });
@@ -399,13 +406,14 @@ describe('agent files carry no retired product framing', () => {
   const RETIRED_2_0_AS_CURRENT =
     /\bModPageSpeed 2\.0\s+(?:is|are|runs?|ships?|optimi[sz]es?|supports?|serves?|deploys?|handles?|uses?|generates?)\b|\b(?:[Rr]un|[Ii]nstall|[Dd]eploy|[Tt]ry|[Gg]et|[Uu]pgrade to|[Ss]witch to|[Mm]igrate to|[Cc]hoose)\s+ModPageSpeed 2\.0\b|^#{1,6} (?!.*\bfrom ModPageSpeed 2\.0\b).*ModPageSpeed 2\.0|\bModPageSpeed 2\.1\b|\bMPS ?2\.0\b/m;
 
-  // The release-notes entries and the Blog section are archival: a published
-  // post is frozen and keeps the product framing of its day.
+  // The release-notes entries are archival, and so is one Blog entry:
+  // `run-with-docker-compose` is a dated post whose title names the 2.0 era;
+  // dated posts are frozen. Every other Blog entry stays under the scan.
   const indexWithoutReleaseNotes = index
     .split('\n')
     .filter(
       (l) =>
-        !/\]\(https:\/\/modpagespeed\.com\/(?:docs\/release-notes(?:-\d+-\d+)?|blog\/[^)]+)\/\): /.test(
+        !/\]\(https:\/\/modpagespeed\.com\/(?:docs\/release-notes(?:-\d+-\d+)?|blog\/run-with-docker-compose)\/\): /.test(
           l,
         ),
     )
@@ -693,18 +701,25 @@ describe('blog posts have Markdown twins', () => {
         md.startsWith(`# ${p.data.title}\n\n${p.data.description}\n\nPublished: ${p.date}\n`),
       ).toBe(true);
       expect(md).toContain(`\nCanonical URL: ${postUrl(p.slug)}\n`);
-      let fenced = false;
+      // Fences as the renderer reads them: a closing fence is the same marker
+      // character, at least as long, followed by whitespace only.
+      let fence: string | null = null;
       let h1s = 0;
       for (const line of md.split('\n')) {
-        if (/^\s*(```|~~~)/.test(line)) {
-          fenced = !fenced;
+        const f = line.match(/^\s*(`{3,}|~{3,})(.*)$/);
+        if (fence) {
+          if (f && f[1][0] === fence[0] && f[1].length >= fence.length && f[2].trim() === '')
+            fence = null;
           continue;
         }
-        if (fenced) continue;
+        if (f) {
+          fence = f[1];
+          continue;
+        }
         if (/^# /.test(line)) h1s++;
         const prose = line.replace(/`[^`]*`/g, '');
         expect(prose, `${p.slug}: ${line}`).not.toMatch(/\]\((?:\/|#)/);
-        expect(prose, `${p.slug}: ${line}`).not.toMatch(/<(?:svg|figure)\b|<!--/);
+        expect(prose, `${p.slug}: ${line}`).not.toMatch(/^\s*<[A-Za-z!]/);
       }
       expect(h1s, p.slug).toBe(1);
     }
@@ -717,11 +732,11 @@ describe('blog posts have Markdown twins', () => {
     expect(md).toContain("import { onCLS } from 'https://unpkg.com/web-vitals?module';");
   });
 
-  it('reduces a figure to its caption or aria-label', () => {
+  it('reduces a figure to its svg title, caption or aria-label', () => {
     const census = renderPostMarkdown(
       posts.find((p) => p.slug === 'pagespeed-installed-base-2026')!,
     );
-    expect(census).toContain('Figure: Chart: origins per crawl by build era');
+    expect(census).toContain('Figure: PageSpeed-serving origins per monthly crawl, by build era');
     const cyclone = renderPostMarkdown(
       posts.find((p) => p.slug === 'cyclone-cache-vs-file-cache-benchmark')!,
     );
