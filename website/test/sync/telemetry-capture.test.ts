@@ -3,14 +3,18 @@
 //
 // telemetry-capture.test.ts — schema gate for src/data/telemetry-capture.json,
 // the dated capture behind the telemetry strip's server-rendered fallback.
-// Validates structure only: a stale capture must NOT fail the build (the strip
-// always renders its capture date), so there is deliberately no time-based
-// check. Freshness is a workflow rule (`npm run capture:telemetry` before each
-// deploy), not a test.
+// Validates structure, plus one drift check: the root capture's
+// x-mod-pagespeed must equal MODULE_PACKAGE_VERSION, so a capture left over
+// from the previous release fails the build instead of publishing that
+// release's version (the capture feeds the homepage quick-start and the
+// X-Mod-Pagespeed examples). Age in time is deliberately not checked (the
+// strip always renders its capture date); recapture is a workflow rule
+// (`npm run capture:telemetry` before each deploy), not a test.
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
+import { MODULE_PACKAGE_VERSION } from '../../src/data/product-facts.mjs';
 
 const CAPTURE_FILE = resolve(__dirname, '../../src/data/telemetry-capture.json');
 
@@ -50,6 +54,12 @@ describe('telemetry-capture.json schema', () => {
 
   it('captures at least the site root (the strip falls back to it)', () => {
     expect(Object.keys(capture.paths)).toContain('/');
+  });
+
+  it("the root capture's x-mod-pagespeed equals MODULE_PACKAGE_VERSION", () => {
+    // A capture from the previous release would show that release's version
+    // on the homepage and in the header examples; recapture before shipping.
+    expect(capture.paths['/'].headers['x-mod-pagespeed']).toBe(MODULE_PACKAGE_VERSION);
   });
 
   it('every path entry carries status, byte counts and the header set', () => {
