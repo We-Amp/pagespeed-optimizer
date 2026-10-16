@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { offerJsonLd } from '../../data/offer-jsonld';
 import { FREE_TO_RUN_LINE, SIDECAR_NGINX_VERSION } from '../../data/product-facts.mjs';
 
 const faq = [
@@ -40,6 +41,7 @@ const jsonLd = [
       name: 'We-Amp B.V.',
       url: 'https://we-amp.com/',
     },
+    offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
   },
   {
     '@context': 'https://schema.org',
@@ -58,6 +60,7 @@ const jsonLd = [
       name: 'We-Amp B.V.',
       url: 'https://we-amp.com/',
     },
+    offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
   },
   {
     '@context': 'https://schema.org',
