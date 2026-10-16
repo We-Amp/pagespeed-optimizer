@@ -28,6 +28,9 @@
 //   9. THE FILTER TWINS: the filters hub and every indexable filter topic are
 //      in llms-full.txt, once and in index order, and /docs/filters.md and
 //      /docs/filters/<name>.md serve the same body.
+//  10. THE BLOG TWINS: every post is listed in llms.txt once, with its date,
+//      newest first, and is left out of llms-full.txt; /blog/<slug>.md serves
+//      the rendered body.
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -53,6 +56,12 @@ import {
   renderFiltersHubMarkdown,
   topicPath,
 } from '../../src/lib/filter-topics.mjs';
+import { loadPosts, renderPostMarkdown, postUrl } from '../../src/lib/blog-markdown.mjs';
+import { readdirSync } from 'node:fs';
+import {
+  GET as blogMarkdownGet,
+  getStaticPaths as blogMarkdownPaths,
+} from '../../src/pages/blog/[slug].md.ts';
 import { GET as productJsonGet } from '../../src/pages/api/product.json.ts';
 import {
   GET as markdownGet,
@@ -140,7 +149,10 @@ describe('llms*.txt drift guard', () => {
       const content = ctx.docs.flatMap(
         (d) => d.data.description.match(/\b\d{4}-\d{2}-\d{2}\b/g) ?? [],
       );
-      for (const d of dates) expect(allowed.has(d) || content.includes(d), d).toBe(true);
+      const posted = ctx.posts.map((p) => p.date);
+      for (const d of dates) {
+        expect(allowed.has(d) || content.includes(d) || posted.includes(d), d).toBe(true);
+      }
     });
   });
 
@@ -288,6 +300,7 @@ describe('agent files cover the docs collection', () => {
       'Tools',
       'Download, pricing and support',
       'Machine-readable',
+      'Blog',
       'Distribution',
     ]);
     // Inside a group, the pages come in sidebar order.
@@ -386,10 +399,15 @@ describe('agent files carry no retired product framing', () => {
   const RETIRED_2_0_AS_CURRENT =
     /\bModPageSpeed 2\.0\s+(?:is|are|runs?|ships?|optimi[sz]es?|supports?|serves?|deploys?|handles?|uses?|generates?)\b|\b(?:[Rr]un|[Ii]nstall|[Dd]eploy|[Tt]ry|[Gg]et|[Uu]pgrade to|[Ss]witch to|[Mm]igrate to|[Cc]hoose)\s+ModPageSpeed 2\.0\b|^#{1,6} (?!.*\bfrom ModPageSpeed 2\.0\b).*ModPageSpeed 2\.0|\bModPageSpeed 2\.1\b|\bMPS ?2\.0\b/m;
 
+  // The release-notes entries and the Blog section are archival: a published
+  // post is frozen and keeps the product framing of its day.
   const indexWithoutReleaseNotes = index
     .split('\n')
     .filter(
-      (l) => !/\]\(https:\/\/modpagespeed\.com\/docs\/release-notes(?:-\d+-\d+)?\/\): /.test(l),
+      (l) =>
+        !/\]\(https:\/\/modpagespeed\.com\/(?:docs\/release-notes(?:-\d+-\d+)?|blog\/[^)]+)\/\): /.test(
+          l,
+        ),
     )
     .join('\n');
 
@@ -634,5 +652,89 @@ describe('product-facts consumers reflect the single source', () => {
     expect(data.related_products[1].product).toBe(`ModPageSpeed ${V2_LINE}`);
     expect(data.related_products[1]).not.toHaveProperty('status');
     expect(data.related_products[1]).not.toHaveProperty('support_until');
+  });
+});
+
+describe('blog posts have Markdown twins', () => {
+  const posts = ctx.posts;
+  const blogDir = resolve(PUBLIC_DIR, '../src/content/blog');
+  const ids = readdirSync(blogDir)
+    .filter((f) => f.endsWith('.md'))
+    .map((f) => f.replace(/\.md$/, ''));
+
+  it('the paths are exactly the collection ids', () => {
+    const paths = (blogMarkdownPaths as () => Array<{ params: { slug: string } }>)();
+    expect(paths.map((p) => p.params.slug).sort()).toEqual([...ids].sort());
+    expect(posts.length).toBeGreaterThan(50);
+  });
+
+  it('llms.txt lists each post once, with its date, newest first', () => {
+    const section = index.slice(index.indexOf('\n## Blog\n'), index.indexOf('\n## Distribution\n'));
+    const positions = posts.map((p) => {
+      const line = `- [${p.data.title}](${postUrl(p.slug)}): ${p.date}. ${p.data.description}`;
+      expect(section.split(line).length - 1, p.slug).toBe(1);
+      return section.indexOf(line);
+    });
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    const dates = posts.map((p) => p.date);
+    expect(dates).toEqual([...dates].sort().reverse());
+  });
+
+  it('llms-full.txt does not carry the posts, and says so', () => {
+    for (const p of posts)
+      expect(full, p.slug).not.toContain(`\nCanonical URL: ${postUrl(p.slug)}\n`);
+    expect(index).toContain('its text is not in llms-full.txt');
+  });
+
+  it('every body has the right header, one H1, absolute links only and no HTML blocks', () => {
+    for (const p of posts) {
+      const md = renderPostMarkdown(p);
+      expect(
+        md.startsWith(`# ${p.data.title}\n\n${p.data.description}\n\nPublished: ${p.date}\n`),
+      ).toBe(true);
+      expect(md).toContain(`\nCanonical URL: ${postUrl(p.slug)}\n`);
+      let fenced = false;
+      let h1s = 0;
+      for (const line of md.split('\n')) {
+        if (/^\s*(```|~~~)/.test(line)) {
+          fenced = !fenced;
+          continue;
+        }
+        if (fenced) continue;
+        if (/^# /.test(line)) h1s++;
+        const prose = line.replace(/`[^`]*`/g, '');
+        expect(prose, `${p.slug}: ${line}`).not.toMatch(/\]\((?:\/|#)/);
+        expect(prose, `${p.slug}: ${line}`).not.toMatch(/<(?:svg|figure)\b|<!--/);
+      }
+      expect(h1s, p.slug).toBe(1);
+    }
+  });
+
+  it('keeps the code in a fence byte for byte', () => {
+    const post = posts.find((p) => p.slug === 'fix-cls-aspnet-core-2026')!;
+    const md = renderPostMarkdown(post);
+    expect(md).toContain('<div class="related-products-skeleton" style="min-height: 320px;">');
+    expect(md).toContain("import { onCLS } from 'https://unpkg.com/web-vitals?module';");
+  });
+
+  it('reduces a figure to its caption or aria-label', () => {
+    const census = renderPostMarkdown(
+      posts.find((p) => p.slug === 'pagespeed-installed-base-2026')!,
+    );
+    expect(census).toContain('Figure: Chart: origins per crawl by build era');
+    const cyclone = renderPostMarkdown(
+      posts.find((p) => p.slug === 'cyclone-cache-vs-file-cache-benchmark')!,
+    );
+    expect(cyclone).toContain('Figure: Read throughput across four memory regimes');
+  });
+
+  it('/blog/<slug>.md responds with text/markdown and the rendered body', async () => {
+    const post = posts.find((p) => p.slug === 'pagespeed-installed-base-2026')!;
+    const res = (blogMarkdownGet as (c: unknown) => Response)({
+      props: { post },
+      params: { slug: post.slug },
+    });
+    expect(res.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8');
+    expect(await res.text()).toBe(renderPostMarkdown(post));
   });
 });
