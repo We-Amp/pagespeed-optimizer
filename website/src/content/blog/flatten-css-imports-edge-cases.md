@@ -47,7 +47,7 @@ The same caution applies to parse errors. If any file in the chain will not pars
 
 ## The size cap: `CssFlattenMaxBytes`
 
-Flattening trades requests for bytes. One request is better than five, but not if the single sheet balloons to something enormous that delays first paint more than the round trips it removed. `CssFlattenMaxBytes` (default `1024000`, one megabyte) caps the flattened result. If the combined CSS would exceed it, the filter declines to flatten. Lower it if your import graph pulls in vendor frameworks you would rather keep as separately cacheable files. Both the parameter and the per-engine syntax are listed in the [CSS filters tuning table](/docs/css-filters/#flatten_css_imports), and `flatten_css_imports` is summarized in the [filter reference](/docs/filter-reference/).
+Flattening trades requests for bytes. One request is better than five, but not if the single sheet balloons to something enormous that delays first paint more than the round trips it removed. `CssFlattenMaxBytes` (default `1024000`, one megabyte) caps the flattened result. If the combined CSS would exceed it, the filter declines to flatten. Lower it if your import graph pulls in vendor frameworks you would rather keep as separately cacheable files. Both the parameter and the per-engine syntax are listed in the [CSS filters tuning table](/docs/css-filters/#flatten_css_imports), and `flatten_css_imports` is summarized in the [filters reference](/docs/filters/).
 
 ## In the module versus the optimizer worker {#in-115-versus-20}
 

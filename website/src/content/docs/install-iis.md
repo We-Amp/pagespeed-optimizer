@@ -29,8 +29,8 @@ Machine-readable recipe for coding agents: [modpagespeed.com/recipes/iis.md](htt
 
 ## Install the module {#install-the-module}
 
-1. Download the [IIS MSI installer](/download/#direct-downloads). Each binary has a `.asc`
-   signature next to it.
+1. Download the [IIS MSI installer](/download/#direct-downloads) from the Download
+   page's Windows installer link.
 2. Run it on the Windows Server host. The installer registers the module in
    IIS as a native HTTP module and creates the default cache directory at
    `%ProgramData%\We-Amp\PageSpeed\Cache`.

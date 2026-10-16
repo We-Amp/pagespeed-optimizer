@@ -245,7 +245,7 @@ server, the modern equivalents:
 - **IIS:** the [download page](/download/) ships an MSI installer. The IIS package
   ships from the 1.15 packaging channel.
 - **ASP.NET Core:** the [WeAmp.PageSpeed.AspNetCore NuGet
-  middleware](/go/nuget?from=blog-google-dl-ssl)
+  middleware](/go/nuget/?from=blog-google-dl-ssl)
   registers the mod_pagespeed 2.1 optimization core as ASP.NET Core middleware.
 
 ## What to do with the existing install

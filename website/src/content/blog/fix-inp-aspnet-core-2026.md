@@ -163,7 +163,7 @@ ASP.NET Core's INP story is almost entirely about what frontend you ship. mod_pa
 - [How to fix Cumulative Layout Shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
 - [How to fix INP on nginx (generic)](/blog/fix-inp-nginx-2026/)
 - [ModPageSpeed 2.0 as ASP.NET Core middleware](/blog/aspnet-core-middleware/)
-- [mod_pagespeed filter reference](/docs/filter-reference/)
+- [mod_pagespeed filters reference](/docs/filters/)
 - [The full INP guide](/core-web-vitals/inp/)
 - [Test your page in the analyzer](/analyze/)
 

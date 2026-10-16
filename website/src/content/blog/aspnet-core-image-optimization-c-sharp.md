@@ -12,7 +12,7 @@ product: '2.0'
 The standard ASP.NET Core image story is: build-time transcode with
 ImageSharp, hand-write the `<picture>` tags, hope your build pipeline keeps
 up with new content. The
-[WeAmp.PageSpeed.AspNetCore](/go/nuget?from=blog-aspnet-image-lead)
+[WeAmp.PageSpeed.AspNetCore](/go/nuget/?from=blog-aspnet-image-lead)
 middleware takes a different approach: runtime content negotiation against
 the client's `Accept` header, with the transcoded variants generated
 asynchronously by a background service and cached in a memory-mapped Cyclone
@@ -227,7 +227,7 @@ Everything is hot-reloadable via `IOptionsMonitor<PageSpeedOptions>`:
 For the full options reference and how the cache volume sizing maps to
 expected variants, see [ASP.NET Core
 Configuration](/docs/aspnet-configuration/) or the
-[NuGet package README](/go/nuget?from=blog-aspnet-image-closer).
+[NuGet package README](/go/nuget/?from=blog-aspnet-image-closer).
 
 ## Related
 
