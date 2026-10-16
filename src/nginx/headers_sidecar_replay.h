@@ -117,6 +117,16 @@ bool ConditionalRevalidationAllowed(uint8_t entry_flags, bool expired_by_age);
 // never mixed into the cached representation's.
 bool IsSidecarCarriedName(std::string_view name);
 
+// Does any carried `link` field (name compared case-insensitively) already
+// send this hint?  A comma-separated link-value matches when its `<target>`
+// equals `url` byte for byte, its `rel` parameter (quotes stripped, split on
+// spaces, compared case-insensitively) contains `rel`, and it has a
+// `crossorigin` parameter exactly when `crossorigin` is true.  The HTML hit
+// path adds its own hint lines; it skips one the origin's Link already sent.
+bool SidecarLinkCarriesHint(std::span<const HeaderField> fields,
+                            std::string_view url, std::string_view rel,
+                            bool crossorigin);
+
 // Does the stale-if-error serve of this stash drop the error page's lines of
 // the carried names?  For every classified entry — including one with nothing
 // to carry, whose origin sent none of those names, so the error page's must

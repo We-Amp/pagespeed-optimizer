@@ -24,8 +24,9 @@ Headers inspected before recording to cache:
 | `Vary: *` or unsupported Vary | NOT cached |
 | `Vary: Accept-Encoding, User-Agent, Accept, Save-Data` | Allowed (handled via capability mask) |
 | HEAD requests | NOT cached |
-| Any origin header a cache hit cannot reproduce (`ClassifyForHeadersSidecar` fall-through, e.g. `X-Powered-By`) | NOT cached, stored entry for the URL removed, `headers_sidecar_fall_through` counted, one NOTICE per (host, header) |
+| Any origin header a cache hit cannot reproduce (`ClassifyForHeadersSidecar` fall-through, e.g. `X-Request-Id`) | NOT cached, stored entry for the URL removed, `headers_sidecar_fall_through` counted, one NOTICE per (host, header) |
 | `Content-Security-Policy` carrying a nonce | NOT cached, stored entry removed, `headers_sidecar_never_optimized` counted |
+| `Link` carrying a nonce (any spelling of the parameter, outside the `<...>` targets) | NOT cached, stored entry removed, `headers_sidecar_never_optimized` counted (reason `nonce-link`) |
 | Only reproducible headers (allowlisted, metadata-reproduced, or stamped per response) | Cached; allowlisted lines stored in the `0x6C` sidecar |
 
 Flags set in header filter, checked in body filter. HIT path unaffected —
