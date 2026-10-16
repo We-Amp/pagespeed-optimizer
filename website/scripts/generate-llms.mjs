@@ -12,10 +12,12 @@
 //     => public/llms.txt       the llms.txt convention: H1, summary, about,
 //                              then every docs page grouped as the sidebar
 //                              groups them, the tools, the download/pricing/
-//                              support pages and the distribution channels
+//                              support pages, the blog posts (newest first) and
+//                              the distribution channels
 //     => public/llms-full.txt  the same index followed by the Markdown of
 //                              every docs page (the text /docs/<slug>.md serves),
 //                              the filters hub and the indexable filter topics
+//                              (the blog posts are listed in the index only)
 //
 //   ai-plugin.json.tmpl (scripts/llms-templates/) + LLMS_TOKENS
 //     => public/.well-known/ai-plugin.json
@@ -73,6 +75,7 @@ import {
   renderTopicMarkdown,
   renderFiltersHubMarkdown,
 } from '../src/lib/filter-topics.mjs';
+import { loadPosts, postUrl } from '../src/lib/blog-markdown.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const WEBSITE_ROOT = resolve(__dirname, '..');
@@ -126,6 +129,7 @@ export function render(template, name) {
  *   manifests: import('../src/lib/docs-markdown.mjs').Manifests,
  *   topics: import('../src/lib/filter-topics.mjs').Topic[],
  *   allTopics: import('../src/lib/filter-topics.mjs').Topic[],
+ *   posts: import('../src/lib/blog-markdown.mjs').Post[],
  * }} Context
  */
 
@@ -140,7 +144,14 @@ export function loadContext(root = WEBSITE_ROOT) {
   // until their group-page section is enriched (src/lib/filter-topics.mjs).
   const allTopics = loadFilterTopics(root);
   const topics = allTopics.filter((t) => t.indexable);
-  return { docs, groups: groupDocs(docs), manifests: loadManifests(root), topics, allTopics };
+  return {
+    docs,
+    groups: groupDocs(docs),
+    manifests: loadManifests(root),
+    topics,
+    allTopics,
+    posts: loadPosts(root),
+  };
 }
 
 /**
@@ -225,6 +236,13 @@ export function buildIndex(ctx) {
     }
     lines.push('');
   }
+  lines.push('## Blog', '');
+  for (const post of ctx.posts) {
+    lines.push(
+      entry(post.data.title, postUrl(post.slug), `${post.date}. ${post.data.description}`),
+    );
+  }
+  lines.push('');
   lines.push('## Distribution', '', ...distributionLines(ctx), '');
   return lines.join('\n');
 }

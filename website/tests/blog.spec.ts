@@ -123,3 +123,30 @@ test.describe('Blog', () => {
     });
   });
 });
+
+test.describe('Blog Markdown twins', () => {
+  const post = 'pagespeed-installed-base-2026';
+
+  test('a post advertises its Markdown twin and the server serves it', async ({
+    page,
+    request,
+  }) => {
+    await page.goto(`/blog/${post}/`);
+    const alternate = page.locator('head link[rel="alternate"][type="text/markdown"]');
+    await expect(alternate).toHaveCount(1);
+    await expect(alternate).toHaveAttribute('href', `/blog/${post}.md`);
+
+    const res = await request.get(`/blog/${post}.md`);
+    expect(res.status()).toBe(200);
+    expect(res.headers()['content-type']).toMatch(/^text\/markdown/);
+    const body = await res.text();
+    expect(body).toMatch(/^# The state of the PageSpeed installed base, 2026\n/);
+    expect(body).toContain(`Canonical URL: https://modpagespeed.com/blog/${post}/`);
+    expect(body).not.toContain('<svg');
+  });
+
+  test('an unknown post has no Markdown twin', async ({ request }) => {
+    const res = await request.get('/blog/no-such-post.md');
+    expect(res.status()).toBe(404);
+  });
+});
