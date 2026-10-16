@@ -2,7 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Icon from '../components/Icon.astro';
 import TermPanel from '../components/instrument/TermPanel.astro';
-import { getRelease, artifactUrl, archiveUrl, dockerTag } from '../lib/release';
+import { getRelease, artifactUrl, dockerTag } from '../lib/release';
 import { offerJsonLd } from '../data/offer-jsonld';
 import { LICENSE_CLAUSE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
 import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../data/software-jsonld';
@@ -219,198 +219,38 @@ const jsonLd = {
 
     <!-- Direct downloads -->
     <div id="direct-downloads" class="mt-10 rounded-2xl border border-border bg-bg-secondary p-6">
-      <div class="flex items-baseline justify-between gap-3 flex-wrap">
-        <h3 class="text-base font-semibold text-text-body">Direct downloads</h3>
-        <span class="inline-flex items-center rounded-md border border-border-strong bg-bg-elevated px-2 py-0.5 font-mono text-xs text-text-body">
-          {rel11.release.tag}
-        </span>
-      </div>
+      <h3 class="text-base font-semibold text-text-body">Direct downloads</h3>
       <p class="mt-2 text-sm text-text-muted">
-        Mirrored from our archive — no GitHub account needed. Verify with the published{' '}
-        <a href={archiveUrl(rel11, 'SHA256SUMS')} class="text-interactive underline">
-          SHA256SUMS
+        The supported way to install is the{' '}
+        <a href="/download/apt-yum/" class="text-interactive underline">
+          signed package repositories
+        </a>
+        ; for IIS, download the{' '}
+        <a href={artifactUrl(rel11, 'msi', 'win_x64')} class="text-interactive underline">
+          Windows installer
         </a>{' '}
-        or the{' '}
+        and follow the{' '}
+        <a href="/docs/install-iis/" class="text-interactive underline">
+          install guide
+        </a>
+        . The worker packages (deb, rpm and Windows zip, with a checksum list) of every release are
+        on the project's{' '}
+        <a
+          href="https://github.com/We-Amp/pagespeed-optimizer/releases/latest"
+          class="text-interactive underline"
+        >
+          release listing
+        </a>
+        . The signing key for the repositories is documented on the{' '}
+        <a href="/download/apt-yum/" class="text-interactive underline">
+          apt/yum page
+        </a>
+        , and the public key is available as the{' '}
         <a href={rel11.urls.gpg_key} class="text-interactive underline">
           GPG signing key
         </a>
-        . Came from the old <code>dl-ssl.google.com</code>
-        <code class="text-xs">.deb</code>?{' '}
-        <a href="/blog/google-dl-ssl-mod-pagespeed-download/" class="text-interactive underline">
-          That build froze at 1.13.35.2 (2018)
-        </a>{' '}
-        — these are the maintained packages.
+        .
       </p>
-
-      <div class="mt-5 grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 text-sm">
-        <div>
-          <p class="eyebrow">Apache</p>
-          <ul class="mt-2 space-y-1.5">
-            <li>
-              <a
-                href={artifactUrl(rel11, 'deb', 'amd64')}
-                data-umami-event="cta_download_apache_deb_amd64"
-                class="text-interactive hover:underline"
-              >
-                Debian/Ubuntu (amd64) <code class="text-xs">.deb</code>
-              </a>
-            </li>
-            <li>
-              <a
-                href={artifactUrl(rel11, 'deb', 'arm64')}
-                data-umami-event="cta_download_apache_deb_arm64"
-                class="text-interactive hover:underline"
-              >
-                Debian/Ubuntu (arm64) <code class="text-xs">.deb</code>
-              </a>
-            </li>
-            <li>
-              <a
-                href={artifactUrl(rel11, 'rpm', 'x86_64')}
-                data-umami-event="cta_download_apache_rpm_x64"
-                class="text-interactive hover:underline"
-              >
-                RHEL family (x86_64) <code class="text-xs">.rpm</code>
-              </a>
-            </li>
-            <li>
-              <a
-                href={artifactUrl(rel11, 'rpm', 'aarch64')}
-                data-umami-event="cta_download_apache_rpm_aarch64"
-                class="text-interactive hover:underline"
-              >
-                RHEL family (aarch64) <code class="text-xs">.rpm</code>
-              </a>
-            </li>
-            <li>
-              <a
-                href={archiveUrl(rel11, 'libmod_pagespeed-linux-x86_64.so')}
-                data-umami-event="cta_download_apache_so_x64"
-                class="text-interactive hover:underline"
-              >
-                Module only (x86_64) <code class="text-xs">.so</code>
-              </a>
-            </li>
-            <li>
-              <a
-                href={archiveUrl(rel11, 'libmod_pagespeed-linux-aarch64.so')}
-                data-umami-event="cta_download_apache_so_aarch64"
-                class="text-interactive hover:underline"
-              >
-                Module only (aarch64) <code class="text-xs">.so</code>
-              </a>
-            </li>
-          </ul>
-          <p class="mt-3 text-xs text-text-annotation" id="download-module-only-lead">
-            Module-only <code class="text-xs">.so</code> download: drop it in and restart —
-          </p>
-          <TermPanel
-            labelledby="download-module-only-lead"
-            lines={[
-              {
-                text: `sudo cp libmod_pagespeed-linux-x86_64.so /usr/lib/apache2/modules/mod_pagespeed.so
-sudo cp libmod_pagespeed-linux-aarch64.so /usr/lib/apache2/modules/mod_pagespeed.so
-sudo systemctl restart apache2`,
-                tone: 'strong',
-              },
-            ]}
-          />
-          <p class="mt-3 text-xs text-text-annotation">
-            Prefer a managed repo? Use the{' '}
-            <a
-              href="/download/apt-yum/"
-              data-umami-event="cta_download_apt_yum"
-              class="text-interactive underline"
-            >
-              signed apt / yum repository
-            </a>{' '}
-            for one-line install and automatic updates. On cPanel, see the{' '}
-            <a
-              href="/docs/cpanel/"
-              data-umami-event="cta_download_cpanel"
-              class="text-interactive underline"
-            >
-              cPanel / EasyApache 4 guide
-            </a>
-            .
-          </p>
-          <p class="mt-3 text-xs text-text-annotation" id="download-direct-pkg-lead">
-            Downloaded the <code class="text-xs">.deb</code> or <code class="text-xs">.rpm</code>{' '}
-            directly instead of using a repo?
-          </p>
-          <TermPanel
-            labelledby="download-direct-pkg-lead"
-            lines={[
-              {
-                text: `sudo dpkg -i ${artifactUrl(rel11, 'deb', 'amd64').split('/').pop()}
-sudo dpkg -i ${artifactUrl(rel11, 'deb', 'arm64').split('/').pop()}
-sudo dnf install -y ${artifactUrl(rel11, 'rpm', 'x86_64')}
-sudo dnf install -y ${artifactUrl(rel11, 'rpm', 'aarch64')}`,
-                tone: 'strong',
-              },
-            ]}
-          />
-        </div>
-
-        <div>
-          <p class="eyebrow">IIS (Windows)</p>
-          <ul class="mt-2 space-y-1.5">
-            <li>
-              <a
-                href={artifactUrl(rel11, 'msi', 'win_x64')}
-                data-umami-event="cta_download_iis_msi"
-                class="text-interactive hover:underline"
-              >
-                Windows Server 2019/2022/2025 (x64) <code class="text-xs">.msi</code>
-              </a>
-            </li>
-          </ul>
-          <p class="mt-3 text-xs text-text-annotation">
-            Each binary is GPG-signed; <code>.asc</code> next to every file (e.g.{' '}
-            <code>…msi.asc</code>). nginx is GA &mdash; install it from the{' '}
-            <a href="/download/apt-yum/" class="text-interactive underline">
-              signed apt / yum repository
-            </a>
-            . Need debug symbols?{' '}
-            <a href="/contact/" class="text-interactive underline">
-              Contact us
-            </a>
-            .
-          </p>
-        </div>
-      </div>
-
-      <div class="mt-5 rounded-lg border border-border bg-bg-elevated p-4">
-        <p class="eyebrow" id="download-verify-lead">
-          Verify a download
-        </p>
-        <p class="mt-2 text-sm text-text-muted">
-          Installs through <code class="text-xs">packages.modpagespeed.com</code> verify signatures
-          automatically against the repository signing key (RSA 4096, fingerprint{' '}
-          <code class="text-xs">DF00E296BE9141CEA5411346F50D6054F10712A0</code>).
-        </p>
-        <p class="mt-2 text-sm text-text-muted">
-          For direct downloads, each artifact is GPG-signed and listed in{' '}
-          <a href={archiveUrl(rel11, 'SHA256SUMS')} class="text-interactive underline">
-            SHA256SUMS
-          </a>
-          :
-        </p>
-        <TermPanel
-          labelledby="download-verify-lead"
-          lines={[
-            {
-              text: `curl -O ${archiveUrl(rel11, 'SHA256SUMS')}
-sha256sum --check --ignore-missing SHA256SUMS
-# Or with the GPG signing key:
-curl -O ${rel11.urls.gpg_key}
-gpg --import weamp-pkg-public.asc
-gpg --verify ${artifactUrl(rel11, 'deb', 'amd64').split('/').pop()}.asc`,
-              tone: 'strong',
-            },
-          ]}
-        />
-      </div>
     </div>
   </section>
 

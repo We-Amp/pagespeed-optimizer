@@ -338,13 +338,14 @@ describe('agent files cover the docs collection', () => {
       `\`${PKG_SIDECAR}\``,
       `\`${PKG_SIDECAR_NATIVE}\``,
       `${PRODUCT_NAME} ${rel21.release.semver} (${rel21.release.released_on})`,
-      rel11.release.tag,
+      'https://github.com/We-Amp/pagespeed-optimizer/releases/latest',
       ...ASPNETCORE_TFMS,
       ...ASPNETCORE_RIDS,
       ...SIDECAR_RIDS,
     ]) {
       expect(section, needle).toContain(needle);
     }
+    expect(section).not.toContain(rel11.release.tag);
     // Versions come from the manifests, never typed: the docker tag the
     // section carries is the manifest's, and a second pagespeed-* tag is not.
     const tags = [...section.matchAll(/ghcr\.io\/we-amp\/pagespeed-\w+:(\S+?)[`\s)]/g)].map(
