@@ -86,8 +86,10 @@ Reload, then verify the module is actually live by checking the response header 
 ```sh
 sudo nginx -t && sudo systemctl reload nginx
 curl -sI https://your-site.example/ | grep -i x-page-speed
-# X-Page-Speed: 1.17.0
+# X-Page-Speed: <version>
 ```
+
+The header carries the version of the package you installed.
 
 If that header is present, the module loaded and is rewriting responses on the request path, with no compile step on your end.
 
