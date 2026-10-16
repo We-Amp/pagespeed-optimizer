@@ -367,14 +367,14 @@ const CALLOUT_TITLES = {
 
 /**
  * Rewrite the Markdown links of one prose line to absolute URLs: a
- * root-relative target to the site, a fragment to this page.
+ * root-relative target to the site, a fragment to the page at `pageUrl`.
  * @param {string} line
- * @param {string} slug
+ * @param {string} pageUrl  absolute URL of the page the line belongs to
  */
-function absolutizeLinks(line, slug) {
+export function absolutizeLinks(line, pageUrl) {
   return line
     .replace(/\]\((\/[^)\s]*)\)/g, `](${SITE}$1)`)
-    .replace(/\]\((#[^)\s]*)\)/g, `](${docUrl(slug)}$1)`);
+    .replace(/\]\((#[^)\s]*)\)/g, `](${pageUrl}$1)`);
 }
 
 /**
@@ -408,7 +408,7 @@ export function renderDocMarkdown(doc, m) {
   const imageMarkdown = (tag) => {
     const src = tag.match(/\bsrc="([^"]*)"/)?.[1] ?? '';
     const alt = tag.match(/\balt="([^"]*)"/)?.[1] ?? '';
-    return absolutizeLinks(`![${alt}](${src})`, slug);
+    return absolutizeLinks(`![${alt}](${src})`, docUrl(slug));
   };
 
   /**
@@ -504,12 +504,12 @@ export function renderDocMarkdown(doc, m) {
     if (/^<\/?(?:div|details)\b[^>]*>\s*$/.test(text)) continue;
     const summary = text.match(/^<summary>([\s\S]*)<\/summary>\s*$/);
     if (summary) {
-      push(absolutizeLinks(`### ${summaryText(summary[1])}`, slug));
+      push(absolutizeLinks(`### ${summaryText(summary[1])}`, docUrl(slug)));
       continue;
     }
     const summaryLine = text.match(/^<p class="rn-summary-line">([\s\S]*)<\/p>\s*$/);
     if (summaryLine) {
-      push(absolutizeLinks(summaryText(summaryLine[1]), slug));
+      push(absolutizeLinks(summaryText(summaryLine[1]), docUrl(slug)));
       continue;
     }
 
@@ -518,7 +518,7 @@ export function renderDocMarkdown(doc, m) {
     const heading = text.match(/^(#{1,6})(\s.*?)\s*(?:\{#[^}]+\})?\s*$/);
     if (heading) text = `${heading[1] === '#' ? '##' : heading[1]}${heading[2]}`;
 
-    push(absolutizeLinks(text, slug));
+    push(absolutizeLinks(text, docUrl(slug)));
   }
 
   while (out.length && !out[out.length - 1]) out.pop();
@@ -527,7 +527,8 @@ export function renderDocMarkdown(doc, m) {
   parts.push(...out);
   if (data.faq?.length) {
     parts.push('', '## Frequently asked questions', '');
-    for (const { q, a } of data.faq) parts.push(`**${q}**`, '', absolutizeLinks(a, slug), '');
+    for (const { q, a } of data.faq)
+      parts.push(`**${q}**`, '', absolutizeLinks(a, docUrl(slug)), '');
   }
   // No trailing blank lines, one final newline (blank runs inside the body were
   // already collapsed by push(), fenced code excepted).

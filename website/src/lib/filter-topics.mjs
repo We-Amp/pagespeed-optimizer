@@ -27,6 +27,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { FILTERS_PAGE } from '../data/agent-files.mjs';
+import { SITE, absolutizeLinks } from './docs-markdown.mjs';
 
 /** Fewer words of section prose than this and the topic page is noindex. */
 export const THIN_WORDS = 120;
@@ -856,4 +858,369 @@ export function indexableTopicNames(root = websiteRoot()) {
       .filter((t) => t.indexable)
       .map((t) => t.name),
   );
+}
+
+// --- Shared by the topic page and its Markdown twin --------------------------
+//
+// src/pages/docs/filters/[name].astro renders these fragments to HTML with its
+// Markdown processor; renderTopicMarkdown() below prints the same fragments as
+// text. One source, so the page and the twin cannot disagree.
+
+/**
+ * "When to use it": the facts the data states, one Markdown line each.
+ * @param {Topic} t
+ * @returns {string[]}
+ */
+export function topicFacts(t) {
+  const link = (/** @type {string} */ n) => `[\`${n}\`](${topicPath(n)})`;
+  /** @type {string[]} */
+  const facts = [];
+  if (t.alternateSpellingOf) {
+    facts.push(
+      `An alternate spelling of ${link(t.alternateSpellingOf)}: the module accepts both names for the same filter.`,
+    );
+  }
+  if (t.deprecated) {
+    facts.push(
+      'Deprecated: the module accepts the name so that an existing configuration loads, and does nothing with it.',
+    );
+  } else if (t.dangerous) {
+    facts.push(
+      'In the dangerous set: no RewriteLevel enables it, not even `AllFilters`. It exists for testing and measurement, not for production traffic.',
+    );
+  } else if (t.core === true) {
+    facts.push('In CoreFilters, the default RewriteLevel: it runs unless you disable it.');
+  } else if (t.core === 'partial') {
+    facts.push(
+      'Partly in CoreFilters, the default RewriteLevel: some of the filters it enables run by default, the others only when named.',
+    );
+  } else {
+    facts.push('Not in CoreFilters: it runs only when you enable it by name.');
+  }
+  if (!t.deprecated && !t.dangerous) {
+    if (t.optimizeForBandwidth === true)
+      facts.push(
+        'Part of OptimizeForBandwidth, the level that optimizes resources without changing their URLs.',
+      );
+    else if (t.optimizeForBandwidth === 'partial')
+      facts.push('Some of the filters it enables are part of OptimizeForBandwidth.');
+  }
+  if (t.memberOf.length) {
+    const links = t.memberOf.map(link);
+    facts.push(
+      `Also switched on by ${links.length > 1 ? `${links.slice(0, -1).join(', ')} and ${links.at(-1)}` : links[0]}.`,
+    );
+  }
+  if (t.risk) facts.push(`Risk rating on these docs: **${t.risk}**.`);
+  if (t.note) facts.push(t.note);
+  return facts;
+}
+
+/**
+ * The related filters shown at the foot of a topic: the curated ones, then the
+ * filters documented on the same section, then the rest of the category;
+ * alternate spellings and deprecated names are skipped unless curated.
+ * @param {Topic} t
+ * @param {Topic[]} topics
+ * @returns {Topic[]}
+ */
+export function relatedTopics(t, topics) {
+  const byName = new Map(topics.map((x) => [x.name, x]));
+  const curated = RELATED[t.name] ?? [];
+  return [
+    ...curated,
+    ...t.section.siblings,
+    ...topics.filter((x) => x.category === t.category).map((x) => x.name),
+  ]
+    .filter((n, i, all) => all.indexOf(n) === i && n !== t.name)
+    .map((n) => /** @type {Topic} */ (byName.get(n)))
+    .filter((x) => x && (curated.includes(x.name) || (!x.alternateSpellingOf && !x.deprecated)))
+    .sort(
+      (a, b) =>
+        // Filters meant for production first; the dangerous set last.
+        Number(!curated.includes(a.name)) - Number(!curated.includes(b.name)) ||
+        Number(a.dangerous) - Number(b.dangerous),
+    )
+    .slice(0, 8);
+}
+
+/**
+ * The configuration a topic shows: the enable line for each server, the
+ * disable line for a CoreFilter, then the section's own configuration in page
+ * order. A section code block that only repeats the enable line is left out.
+ * @param {Topic} t
+ * @returns {{
+ *   servers: Array<{ label: string, lang: string, code: string }>,
+ *   disable: string,
+ *   section: Section['config'],
+ * }}
+ */
+export function topicConfig(t) {
+  const enableOnly = (/** @type {string} */ code) => {
+    const lines = code
+      .split('\n')
+      .map((l) => l.trim())
+      .filter((l) => l && !l.startsWith('#'));
+    return (
+      !!t.enable &&
+      lines.length > 0 &&
+      lines.every((l) => l === t.enable?.apache || l === t.enable?.nginx || l === t.enable?.iis)
+    );
+  };
+  return {
+    servers: t.enable
+      ? [
+          { label: 'Apache', lang: 'apache', code: t.enable.apache },
+          { label: 'nginx', lang: 'nginx', code: t.enable.nginx },
+          { label: 'IIS (pagespeed.config)', lang: 'text', code: t.enable.iis },
+        ]
+      : [],
+    disable:
+      t.disable && t.core === true
+        ? [
+            `${t.disable.apache}   # Apache`,
+            `${t.disable.nginx}   # nginx`,
+            `${t.disable.iis}   # IIS`,
+          ].join('\n')
+        : '',
+    section: t.section.config.filter((c) => !('code' in c) || !enableOnly(c.code)),
+  };
+}
+
+/** Pages that name a Google product carry this non-affiliation line. */
+export const GOOGLE_PRODUCTS_LINE =
+  "Google Analytics, AdSense, Fonts and Hosted Libraries are Google products. We-Amp isn't affiliated with or endorsed by Google.";
+
+/** @param {Topic} t */
+export function namesGoogleProduct(t) {
+  const text = [t.section.lede, ...t.section.body.map((g) => g.md), t.note ?? ''].join(' ');
+  return /google|adsense/i.test(`${t.human} ${text}`);
+}
+
+/** The group page that documents a topic, as the topic page names it. */
+export const GROUP_TITLES = {
+  'image-filters': 'Image filters',
+  'css-filters': 'CSS filters',
+  'javascript-filters': 'JavaScript filters',
+  'html-filters': 'HTML filters',
+  'cache-control': 'Cache control',
+};
+
+// --- Markdown twins -----------------------------------------------------------
+
+/**
+ * Where a topic's twin is served; the page's alternate link uses this form,
+ * like the docs pages do.
+ * @param {string} name
+ */
+export function topicMarkdownUrl(name) {
+  return `/docs/filters/${name}.md`;
+}
+
+/**
+ * Absolutize the links of a Markdown fragment, leaving fenced code alone.
+ * @param {string} md
+ * @param {string} pageUrl
+ */
+function absolutizeFragment(md, pageUrl) {
+  let fence = '';
+  return md
+    .split('\n')
+    .map((line) => {
+      const m = line.match(/^\s*(`{3,}|~{3,})/);
+      if (m) {
+        if (!fence) fence = m[1][0];
+        else if (m[1][0] === fence) fence = '';
+        return line;
+      }
+      return fence ? line : absolutizeLinks(line, pageUrl);
+    })
+    .join('\n');
+}
+
+/**
+ * One topic as Markdown, in page order: title, description, canonical URL,
+ * the facts, the opening, what a compound switches on, how it works, when to
+ * use it, risks, configuration, the live example, the FAQ and the related
+ * filters. Leaves out the navigation, the call to action and the impact tiles.
+ * Pure: the same inputs always give the same text.
+ * @param {Topic} t
+ * @param {Topic[]} topics  every topic, for the related list and the members
+ * @returns {string}
+ */
+export function renderTopicMarkdown(t, topics) {
+  const url = `${SITE}${t.path}`;
+  const abs = (/** @type {string} */ md) => absolutizeFragment(md, url);
+  const byName = new Map(topics.map((x) => [x.name, x]));
+  const yesNo = (/** @type {boolean | 'partial'} */ v) =>
+    v === true ? 'Yes' : v === 'partial' ? 'Partly' : 'No';
+  const groupName =
+    /** @type {Record<string, string>} */ (GROUP_TITLES)[t.section.page] ?? t.section.page;
+  const groupUrl = `${SITE}${t.groupPath}`;
+  /** @type {string[]} */
+  const out = [
+    `# ${t.human} (${t.name})`,
+    '',
+    t.description,
+    '',
+    `Canonical URL: ${url}`,
+    '',
+    `- Category: ${t.category}`,
+    `- CoreFilters: ${yesNo(t.core)}`,
+    `- OptimizeForBandwidth: ${yesNo(t.optimizeForBandwidth)}`,
+    `- Risk: ${t.dangerous ? 'Dangerous set' : t.deprecated ? 'Deprecated' : (t.risk ?? 'Not rated')}`,
+    '',
+  ];
+  if (t.section.lede) out.push(abs(t.section.lede), '');
+
+  const members = t.members.map((n) => byName.get(n)).filter((m) => !!m);
+  if (t.alias && members.length) {
+    out.push(
+      '## What it switches on',
+      '',
+      `\`${t.name}\` is a compound name. Enabling it enables these ${members.length} filters; each can be disabled on its own.`,
+      '',
+      ...members.map((m) => `- [\`${m?.name}\`](${SITE}${m?.path}): ${m?.human}`),
+      '',
+    );
+  }
+
+  if (t.section.body.length) {
+    out.push('## How it works', '');
+    for (const g of t.section.body) {
+      if (g.heading) out.push(`### ${abs(g.heading)}`, '');
+      out.push(abs(g.md), '');
+    }
+  }
+
+  out.push('## When to use it', '', ...topicFacts(t).map((f) => `- ${abs(f)}`), '');
+
+  out.push('## Risks', '');
+  if (t.section.risks.length) out.push(abs(t.section.risks.join('\n\n')), '');
+  else {
+    out.push(
+      `The [${groupName}](${groupUrl}) page lists no specific risks for this filter.` +
+        (t.disable
+          ? ` If a page misbehaves with it, \`DisableFilters ${t.name}\` turns it off for the scope you set it in.`
+          : ''),
+      '',
+    );
+  }
+
+  const config = topicConfig(t);
+  if (config.servers.length || config.section.length || t.worker) {
+    out.push('## Configuration', '');
+    if (config.servers.length) {
+      out.push(
+        'Enable it in the module configuration, at server, virtual-host or location scope:',
+        '',
+      );
+      for (const b of config.servers)
+        out.push(`**${b.label}**`, '', '```' + b.lang, b.code, '```', '');
+    }
+    if (config.disable) {
+      out.push(
+        'It is on by default under CoreFilters; to turn it off:',
+        '',
+        '```text',
+        config.disable,
+        '```',
+        '',
+      );
+    }
+    for (const c of config.section) {
+      out.push(...('code' in c ? ['```' + c.lang, c.code, '```'] : [abs(c.md)]), '');
+    }
+    if (t.worker) {
+      out.push(
+        '### On the worker',
+        '',
+        `The worker runs its own pipeline, configured by flags. Its equivalent of this filter is the [${t.worker.title.toLowerCase()}](${SITE}/docs/worker-configuration/#${t.worker.id}) transform.${t.worker.control ? ` ${abs(t.worker.control)}` : ''}`,
+        '',
+      );
+    }
+    out.push(
+      `Scoping, \`ForbidFilters\` and the thresholds filters read: [Choosing filters](${SITE}/docs/filter-selection/).`,
+      '',
+    );
+  }
+
+  if (t.example) {
+    out.push(
+      '## Live example',
+      '',
+      `See the before and after, with the source diff: [${t.name} example](${SITE}${t.example}).`,
+      '',
+    );
+  }
+
+  if (t.faq.length) {
+    out.push('## Frequently asked questions', '');
+    for (const { q, a } of t.faq) out.push(`**${q}**`, '', a, '');
+  }
+
+  const related = relatedTopics(t, topics);
+  out.push('## Related filters', '');
+  if (related.length) {
+    out.push(...related.map((r) => `- [\`${r.name}\`](${SITE}${r.path}): ${r.human}`), '');
+  }
+  out.push(
+    `This page is drawn from the [${t.name} entry on ${groupName}](${groupUrl}). Every filter in one table: [PageSpeed filters](${SITE}${FILTERS_PAGE.path}).`,
+  );
+  if (namesGoogleProduct(t)) out.push('', GOOGLE_PRODUCTS_LINE);
+
+  return out.join('\n').replace(/\s+$/, '').concat('\n');
+}
+
+const CATEGORY_TITLES = {
+  Image: 'Image filters',
+  CSS: 'CSS filters',
+  JavaScript: 'JavaScript filters',
+  HTML: 'HTML filters',
+  Caching: 'Caching and URL filters',
+};
+
+/**
+ * The /docs/filters/ hub as Markdown: one table per category, every filter and
+ * compound name, each linked to its topic page when that is indexable and to
+ * its entry on the group page otherwise.
+ * @param {Topic[]} topics
+ * @returns {string}
+ */
+export function renderFiltersHubMarkdown(topics) {
+  const shipped = topics.filter((t) => !t.alias && !t.alternateSpellingOf).length;
+  const aliases = topics.filter((t) => t.alias).length;
+  const mark = (/** @type {boolean | 'partial'} */ v) =>
+    v === true ? 'Yes' : v === 'partial' ? 'Part' : '-';
+  const cell = (/** @type {string} */ s) => s.replace(/\|/g, '\\|');
+  /** @type {string[]} */
+  const out = [
+    '# PageSpeed filters',
+    '',
+    FILTERS_PAGE.description,
+    '',
+    `Canonical URL: ${SITE}${FILTERS_PAGE.path}`,
+    '',
+    `A PageSpeed filter is one named optimization that mod_pagespeed, the in-process module for Apache, nginx and IIS, applies to a page or a resource as the server serves it. The tables list every filter mod_pagespeed 2.1 accepts: ${shipped} filters and ${aliases} compound names that expand to several. Core means the filter is in CoreFilters, the default RewriteLevel. OFB means it is in OptimizeForBandwidth. Each name links to the entry that explains what the filter changes, when to use it and what can go wrong.`,
+    '',
+  ];
+  for (const [category, title] of Object.entries(CATEGORY_TITLES)) {
+    const rows = topics.filter((t) => t.category === category);
+    if (!rows.length) continue;
+    out.push(
+      `## ${title}`,
+      '',
+      '| Filter | Core | OFB | Risk | What it does |',
+      '| --- | --- | --- | --- | --- |',
+    );
+    for (const t of rows) {
+      const href = t.indexable ? t.path : t.groupPath;
+      const risk = t.dangerous ? 'Dangerous' : t.deprecated ? 'Deprecated' : (t.risk ?? '-');
+      out.push(
+        `| [\`${t.name}\`](${SITE}${href}) | ${mark(t.core)} | ${mark(t.optimizeForBandwidth)} | ${cell(risk)} | ${cell(t.summary.replace(/<[^>]+>/g, '`$&`'))} |`,
+      );
+    }
+    out.push('');
+  }
+  return out.join('\n').replace(/\s+$/, '').concat('\n');
 }
