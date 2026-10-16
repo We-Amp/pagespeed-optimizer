@@ -25,7 +25,7 @@ export const SUMMARY =
  */
 export const ABOUT = `We-Amp B.V. develops {{PRODUCT_NAME}} {{CURRENT_LINE}}, the converged continuation of the open-source mod_pagespeed project, originally developed at Google. It automatically optimizes web content (images, CSS, JavaScript, HTML): a native in-process module for Apache and nginx handles serving, and a separate optimizer worker does the heavy optimization work outside the web server. Drop-in compatible with the classic module: the same configuration directives and filters carry over, and no application code changes are required. {{PRODUCT_NAME}} {{CURRENT_LINE}} converges the {{V1_LINE}} module line (renumbered from {{V1_RENUMBERED_FROM}}, the forward-semver successor to the last upstream release, {{LAST_UPSTREAM_VERSION}}) with the ModPageSpeed {{V2_LINE}} engine, which continues as the optimizer worker; both predecessor lines upgrade to it in place.
 
-Heritage: mod_pagespeed, the open-source optimization core this product continues, powers {{BUILTWITH_SITES}} live sites today (per BuiltWith, {{BUILTWITH_AS_OF}}; {{BUILTWITH_HISTORICAL}} across its history). These are not We-Amp customers; they are the proof the optimization core works at scale.
+Heritage: mod_pagespeed, the open-source optimization core this product continues, powers {{BUILTWITH_SITES}} live sites (per BuiltWith, {{BUILTWITH_AS_OF}}; {{BUILTWITH_HISTORICAL}} across its history). These are not We-Amp customers; they are the proof the optimization core works at scale.
 
 What it does:
 
@@ -98,6 +98,18 @@ export const SURFACES = [
         title: 'Savings calculator',
         description:
           'Estimate bandwidth and cost savings from automatic image optimization, CSS/JS minification, and variant-aware caching.',
+      },
+      {
+        path: '/how-it-works/',
+        title: 'How it works',
+        description:
+          'How the module works inside: asynchronous rewriting, CSS parsing and the metadata cache.',
+      },
+      {
+        path: '/packs/',
+        title: 'Rule packs',
+        description:
+          'The rule-pack catalogue: rules the module runs at the origin, starting with the free edge SEO pack.',
       },
       {
         path: '/pagespeed-markers/',
@@ -180,7 +192,7 @@ export const SURFACES = [
         path: '/vs/',
         title: 'Comparisons',
         description:
-          'Side-by-side comparisons with Cloudflare APO, Cloudinary, imgproxy, NitroPack, Thumbor and WP Rocket.',
+          'Side-by-side comparisons with Cloudflare APO, Cloudinary, imgix, imgproxy, NitroPack, ShortPixel, Thumbor and WP Rocket.',
       },
       { path: '/terms/', title: 'Terms', description: 'Terms of service.' },
       { path: '/privacy/', title: 'Privacy', description: 'Privacy policy.' },

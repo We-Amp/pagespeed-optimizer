@@ -347,7 +347,7 @@ enabled, returns `{"enabled":false}`.
 | `reanalyses_scheduled`                                 | Pages queued for re-analysis (e.g., after CSS changes) |
 | `scripts_analyzed` / `scripts_deferrable`              | Script deferral analysis counters                      |
 
-#### Unknown Commands
+#### Unknown commands
 
 Any command other than `AUTH`, `STATS`, `PURGE`, `METRICS`, or `BROWSER-STATUS` returns:
 
