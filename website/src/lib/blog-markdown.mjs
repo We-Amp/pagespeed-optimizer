@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
-// blog-markdown.mjs — the blog collection as Markdown, for agents.
+// blog-markdown.mjs: the blog collection as Markdown, for agents.
 //
 // The posts are already Markdown, so the twin is the source with three
 // changes: the frontmatter becomes a header (the title as the one H1, the

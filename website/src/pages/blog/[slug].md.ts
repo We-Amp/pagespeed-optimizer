@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
-// /blog/<slug>.md — every blog post as Markdown, for agents and for anyone who
+// /blog/<slug>.md: every blog post as Markdown, for agents and for anyone who
 // wants the text without the chrome. The body is the one
 // src/lib/blog-markdown.mjs renders; the posts are not part of
 // public/llms-full.txt (they are dated commentary, each with its own twin), and
