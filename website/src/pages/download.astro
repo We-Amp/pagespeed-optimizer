@@ -163,7 +163,10 @@ const jsonLd = {
       <span class="inline-flex items-center rounded-md border border-border-strong bg-bg-secondary px-2 py-0.5 font-mono text-xs text-text-body">
         {rel21.display.badge_version}
       </span>
-      <a href="/docs/release-notes/" class="text-interactive hover:text-interactive-hover underline">
+      <a
+        href="/docs/release-notes/"
+        class="text-interactive hover:text-interactive-hover underline"
+      >
         see release notes
       </a>
     </p>
@@ -199,7 +202,15 @@ const jsonLd = {
       ))}
     </div>
     <p class="mt-6 text-sm text-text-muted">
-      Also available: the <a href="/docs/install-envoy/" class="text-interactive underline">Envoy HTTP filter</a> (experimental, built from source) and the <a href="/wordpress/" class="text-interactive underline">WordPress plugin</a>.
+      Also available: the{' '}
+      <a href="/docs/install-envoy/" class="text-interactive underline">
+        Envoy HTTP filter
+      </a>{' '}
+      (experimental, built from source) and the{' '}
+      <a href="/wordpress/" class="text-interactive underline">
+        WordPress plugin
+      </a>
+      .
     </p>
     <p class="mt-6 text-xs text-text-annotation">
       The Apache and nginx packages keep their existing 1.15-line names — your apt/dnf upgrades them
