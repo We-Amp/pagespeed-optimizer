@@ -655,7 +655,7 @@ class ComplianceHandler(http.server.BaseHTTPRequestHandler):
         # cacheable stylesheet/page plus a header set chosen to land in one
         # verdict of the store-side gate:
         #   /sidecar/asset.css   only reproducible headers (security set)
-        #   /sidecar/custom.css  + X-Powered-By (cannot be reproduced)
+        #   /sidecar/custom.css  + X-Request-Id (cannot be reproduced)
         #   /sidecar/nonce.html  CSP with a per-response nonce
         #   /sidecar/vary-origin.css  Vary: Origin (never stored)
         #   /sidecar/flip.css    short-lived; X-Custom-Foo switched on via
@@ -814,7 +814,7 @@ class ComplianceHandler(http.server.BaseHTTPRequestHandler):
                 for name, value in SIDECAR_SECURITY_HEADERS:
                     self.send_header(name, value)
             if path == "/sidecar/custom.css":
-                self.send_header("X-Powered-By", "PHP/8.3")
+                self.send_header("X-Request-Id", "req-8f3a")
             if path == "/sidecar/vary-origin.css":
                 self.send_header("Vary", "Origin")
             if path == "/sidecar/flip.css" and SIDECAR_FLIP["custom"]:
