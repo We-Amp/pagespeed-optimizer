@@ -136,7 +136,7 @@ ModPagespeedEnableFilters prioritize_critical_css
 - [How to fix INP on Magento](/blog/fix-inp-magento-2026/)
 - [How to fix CLS on nginx](/blog/fix-cls-nginx-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)
-- [mod_pagespeed filter reference](/docs/filter-reference/)
+- [mod_pagespeed filters reference](/docs/filters/)
 - [The full CLS guide](/core-web-vitals/cls/)
 - [Test your page in the analyzer](/analyze/)
 
