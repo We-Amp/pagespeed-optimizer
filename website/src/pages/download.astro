@@ -2,7 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Icon from '../components/Icon.astro';
 import TermPanel from '../components/instrument/TermPanel.astro';
-import { getRelease, dockerTag } from '../lib/release';
+import { getRelease, artifactUrl, dockerTag } from '../lib/release';
 import { offerJsonLd } from '../data/offer-jsonld';
 import { LICENSE_CLAUSE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
 import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../data/software-jsonld';
@@ -225,12 +225,16 @@ const jsonLd = {
         <a href="/download/apt-yum/" class="text-interactive underline">
           signed package repositories
         </a>
-        ; for IIS, use the installer from the{' '}
+        ; for IIS, download the{' '}
+        <a href={artifactUrl(rel11, 'msi', 'win_x64')} class="text-interactive underline">
+          Windows installer
+        </a>{' '}
+        and follow the{' '}
         <a href="/docs/install-iis/" class="text-interactive underline">
           install guide
         </a>
-        . The worker packages (deb, rpm and Windows zip, with SHA256SUMS) of every release are on
-        the project's{' '}
+        . The worker packages (deb, rpm and Windows zip, with a checksum list) of every release are
+        on the project's{' '}
         <a
           href="https://github.com/We-Amp/pagespeed-optimizer/releases/latest"
           class="text-interactive underline"
