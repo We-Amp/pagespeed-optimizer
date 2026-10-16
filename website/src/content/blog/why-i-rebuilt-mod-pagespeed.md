@@ -35,7 +35,7 @@ The low-level [PSOL (PageSpeed Optimization Libraries)](/psol/) components that 
 
 - **Image optimization** — libjpeg-turbo for JPEG, libpng for PNG, libwebp for WebP encoding/decoding, giflib for GIF (including animated), and optipng for lossless PNG reduction. These libraries are mature and well-understood.
 - **CSS minification** — Whitespace removal, comment stripping, trailing semicolon removal, and decimal optimization. Straightforward transforms that don't change semantics.
-- **JavaScript minification** — Conservative minification that removes whitespace and comments without renaming variables. Safe by construction.
+- **JavaScript minification** — Conservative minification that removes whitespace and comments without renaming variables. Deliberately conservative.
 - **HTML whitespace handling** — The HTML parser that correctly handles `<pre>`, `<script>`, `<style>`, and CDATA sections.
 
 These components do one thing each and do it well. The question was whether they could be coordinated differently — outside the request path instead of inside it.
