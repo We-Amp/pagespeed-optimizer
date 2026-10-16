@@ -34,7 +34,7 @@
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import {
   generateContent,
@@ -109,6 +109,14 @@ import {
   ASPNETCORE_TFMS,
 } from '../../src/data/product-facts.mjs';
 import { offerJsonLd } from '../../src/data/offer-jsonld.ts';
+
+// product.json.ts reads the release manifest through astro:content, which only
+// exists inside an Astro build; stand in a manifest with the fields it reads.
+vi.mock('../../src/lib/release', () => ({
+  getRelease: async () => ({
+    release: { semver: '2.4.0', tag: 'v2.4.0', released_on: '2026-10-14' },
+  }),
+}));
 
 const generated = generateContent();
 const ctx = loadContext();
