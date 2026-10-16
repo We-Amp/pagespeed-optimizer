@@ -18317,17 +18317,19 @@ admission gate. The headers it keeps are the security policy headers
 (`Content-Security-Policy`, `Strict-Transport-Security`,
 `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, the frame
 and XSS protection headers and the `Cross-Origin-*` family), the reporting
-headers, `Link`, the static CORS headers, the resource description headers
-(such as `Content-Language`, `Content-Disposition` and `Allow`) and the
-origin's own `Vary` string. The list is closed and not configurable — a header whose value depends
-on the request must never be replayed to the next client.
+headers, `Link`, the static CORS headers (`Access-Control-Allow-Origin` among
+them), the resource description headers (such as `Content-Language`,
+`Content-Disposition` and `Allow`) and the origin's own `Vary` string. The list
+is closed and not configurable — a header whose value depends on the request
+must never be replayed to the next client.
 
 A refusal is **not** an error. The call returns `PS_OK` with `*out_stored` 0 and
 one of three verdicts: `PS_SIDECAR_SWAP_ELIGIBLE` (nothing outside the reproducible
 set — it may have stored a block, or had nothing to store),
 `PS_SIDECAR_FALL_THROUGH` (something cannot be reproduced; serve the response
-plain), or `PS_SIDECAR_NEVER_OPTIMIZED` (a `Content-Security-Policy` carrying a
-nonce, which is never stored because replaying a nonce defeats the policy).
+plain), or `PS_SIDECAR_NEVER_OPTIMIZED` (a `Content-Security-Policy` or `Link`
+carrying a nonce, which is never stored because replaying a nonce defeats the
+policy).
 `ps_headers_sidecar_classify()` answers the same question with no cache
 involved.
 

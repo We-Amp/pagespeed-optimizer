@@ -469,7 +469,7 @@ TEST_F(HeadersSidecarRecordTest, RefusalWithNothingStoredRemovesNothing) {
 // --- 304 merge plan -----------------------------------------------------
 
 TEST(RestampSidecarPlanTest, LegacyStashRestampsAsBefore) {
-  std::vector<HeaderField> r304 = {{"X-Powered-By", "PHP"}};
+  std::vector<HeaderField> r304 = {{"X-Request-Id", "abc"}};
   auto plan = PlanRestampSidecar(/*stored_flags=*/0, std::nullopt, r304);
   EXPECT_EQ(plan.action, RestampSidecarAction::kLegacy);
   EXPECT_TRUE(plan.stored_not_overridden.empty());

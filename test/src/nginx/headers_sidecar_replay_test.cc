@@ -277,35 +277,54 @@ TEST(HeadersSidecarReplayTest, CarriedNamesAreTheAllowlist) {
         "Link", "Strict-Transport-Security"}) {
     EXPECT_TRUE(IsSidecarCarriedName(name)) << name;
   }
-  for (std::string_view name : {"Cache-Control", "Server", "X-Request-Id", "Set-Cookie",
-                                "Content-Security-Policy-Report-Only"}) {
+  for (std::string_view name :
+       {"Cache-Control", "Server", "X-Request-Id", "Set-Cookie",
+        "Content-Security-Policy-Report-Only"}) {
     EXPECT_FALSE(IsSidecarCarriedName(name)) << name;
   }
 }
 
-TEST(HeadersSidecarReplayTest, LinkTargetCarriedByTheOriginsLink) {
+TEST(HeadersSidecarReplayTest, LinkHintCarriedByTheOriginsLink) {
   const std::vector<HeaderField> fields = {
-      {"Vary", "Accept"},
-      {"Link", "</style.css>; rel=preload; as=style"}};
-  EXPECT_TRUE(SidecarLinkCarriesTarget(fields, "/style.css"));
-  EXPECT_FALSE(SidecarLinkCarriesTarget(fields, "/other.css"));
-  EXPECT_FALSE(SidecarLinkCarriesTarget(fields, "/style.cs"));
+      {"Vary", "Accept"}, {"Link", "</style.css>; rel=preload; as=style"}};
+  EXPECT_TRUE(SidecarLinkCarriesHint(fields, "/style.css", "preload", false));
+  EXPECT_FALSE(SidecarLinkCarriesHint(fields, "/other.css", "preload", false));
+  EXPECT_FALSE(SidecarLinkCarriesHint(fields, "/style.cs", "preload", false));
 }
 
-TEST(HeadersSidecarReplayTest, LinkTargetIgnoresOtherFieldsAndMatchesAnyValue) {
-  const std::vector<HeaderField> other = {
-      {"X-Pingback", "</style.css>"}, {"Vary", "</style.css>"}};
-  EXPECT_FALSE(SidecarLinkCarriesTarget(other, "/style.css"));
+TEST(HeadersSidecarReplayTest, LinkHintIgnoresOtherFieldsAndMatchesAnyValue) {
+  const std::vector<HeaderField> other = {{"X-Pingback", "</style.css>"},
+                                          {"Vary", "</style.css>"}};
+  EXPECT_FALSE(SidecarLinkCarriesHint(other, "/style.css", "preload", false));
   const std::vector<HeaderField> many = {
-      {"link", "</a.css>; rel=preload; as=style, </b.js>; rel=preload, "
-               "<https://x.example/c?a=1,2>; rel=preconnect"},
-      {"LINK", "</d.css>; rel=preload"}};
-  EXPECT_TRUE(SidecarLinkCarriesTarget(many, "/a.css"));
-  EXPECT_TRUE(SidecarLinkCarriesTarget(many, "/b.js"));
-  EXPECT_TRUE(SidecarLinkCarriesTarget(many, "https://x.example/c?a=1,2"));
-  EXPECT_TRUE(SidecarLinkCarriesTarget(many, "/d.css"));
-  EXPECT_FALSE(SidecarLinkCarriesTarget(many, "/e.css"));
-  EXPECT_FALSE(SidecarLinkCarriesTarget({}, "/a.css"));
+      {"link",
+       "</a.css>; rel=preload; as=style, </b.js>; rel=preload, "
+       "<https://x.example/c?a=1,2>; rel=\"preconnect\""},
+      {"LINK", "</d.css>; REL=Preload"}};
+  EXPECT_TRUE(SidecarLinkCarriesHint(many, "/a.css", "preload", false));
+  EXPECT_TRUE(SidecarLinkCarriesHint(many, "/b.js", "preload", false));
+  EXPECT_TRUE(SidecarLinkCarriesHint(many, "https://x.example/c?a=1,2",
+                                     "preconnect", false));
+  EXPECT_TRUE(SidecarLinkCarriesHint(many, "/d.css", "preload", false));
+  EXPECT_FALSE(SidecarLinkCarriesHint(many, "/e.css", "preload", false));
+  EXPECT_FALSE(SidecarLinkCarriesHint({}, "/a.css", "preload", false));
+}
+
+TEST(HeadersSidecarReplayTest, LinkHintNeedsTheSameRelAndCrossorigin) {
+  const std::vector<HeaderField> fields = {
+      {"Link", "<https://fonts.gstatic.com>; rel=preconnect"},
+      {"Link", "</f.woff2>; rel=\"preload prefetch\"; as=font; crossorigin"}};
+  EXPECT_TRUE(SidecarLinkCarriesHint(fields, "https://fonts.gstatic.com",
+                                     "preconnect", false));
+  // Same target, different rel.
+  EXPECT_FALSE(SidecarLinkCarriesHint(fields, "https://fonts.gstatic.com",
+                                      "preload", false));
+  // Same target and rel, crossorigin mismatch (both directions).
+  EXPECT_FALSE(SidecarLinkCarriesHint(fields, "https://fonts.gstatic.com",
+                                      "preconnect", true));
+  EXPECT_TRUE(SidecarLinkCarriesHint(fields, "/f.woff2", "preload", true));
+  EXPECT_TRUE(SidecarLinkCarriesHint(fields, "/f.woff2", "prefetch", true));
+  EXPECT_FALSE(SidecarLinkCarriesHint(fields, "/f.woff2", "preload", false));
 }
 
 // --- Record → serve against a real cache -----------------------------------

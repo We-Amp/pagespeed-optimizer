@@ -655,7 +655,7 @@ class ComplianceHandler(http.server.BaseHTTPRequestHandler):
         # cacheable stylesheet/page plus a header set chosen to land in one
         # verdict of the store-side gate:
         #   /sidecar/asset.css   only reproducible headers (security set)
-        #   /sidecar/custom.css  + X-Powered-By (cannot be reproduced)
+        #   /sidecar/custom.css  + X-Request-Id (cannot be reproduced)
         #   /sidecar/nonce.html  CSP with a per-response nonce
         #   /sidecar/vary-origin.css  Vary: Origin (never stored)
         #   /sidecar/flip.css    short-lived; X-Custom-Foo switched on via

@@ -5972,6 +5972,23 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
         if (hints_read.has_value()) {
           auto hints_content = hints_read->content();
           if (!hints_content.empty()) {
+            // The carried header lines, viewed once for the Link dedupe.
+            std::vector<pagespeed::HeaderField> carried_fields;
+            if (ctx->sidecar_fields != nullptr) {
+              const auto* carried =
+                  static_cast<const ngx_http_pagespeed_header_pair_t*>(
+                      ctx->sidecar_fields->elts);
+              carried_fields.reserve(ctx->sidecar_fields->nelts);
+              for (ngx_uint_t ci = 0; ci < ctx->sidecar_fields->nelts; ci++) {
+                carried_fields.push_back(
+                    {std::string_view(
+                         reinterpret_cast<const char*>(carried[ci].key.data),
+                         carried[ci].key.len),
+                     std::string_view(
+                         reinterpret_cast<const char*>(carried[ci].value.data),
+                         carried[ci].value.len)});
+              }
+            }
             std::string_view hints_sv(
                 reinterpret_cast<const char*>(hints_content.data()),
                 hints_content.size());
@@ -5989,28 +6006,12 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
                 auto res = pagespeed::ParseHintLine(line);
                 std::string safe_url = pagespeed::SanitizeLinkUrl(res.url);
                 // The origin's own Link (carried in the stored block) may
-                // already preload this target: emit it once.
-                bool origin_has_link = false;
-                if (!safe_url.empty() && ctx->sidecar_fields != nullptr) {
-                  const auto* carried =
-                      static_cast<const ngx_http_pagespeed_header_pair_t*>(
-                          ctx->sidecar_fields->elts);
-                  std::vector<pagespeed::HeaderField> carried_fields;
-                  carried_fields.reserve(ctx->sidecar_fields->nelts);
-                  for (ngx_uint_t ci = 0; ci < ctx->sidecar_fields->nelts;
-                       ci++) {
-                    carried_fields.push_back(
-                        {std::string_view(
-                             reinterpret_cast<const char*>(carried[ci].key.data),
-                             carried[ci].key.len),
-                         std::string_view(
-                             reinterpret_cast<const char*>(
-                                 carried[ci].value.data),
-                             carried[ci].value.len)});
-                  }
-                  origin_has_link = pagespeed::SidecarLinkCarriesTarget(
-                      carried_fields, safe_url);
-                }
+                // already send this hint: emit it once.
+                const bool origin_has_link =
+                    !safe_url.empty() &&
+                    pagespeed::SidecarLinkCarriesHint(
+                        carried_fields, safe_url, res.rel,
+                        res.extra.find("crossorigin") != std::string::npos);
                 if (!safe_url.empty() && !origin_has_link) {
                   // Build Link header value: <url>; rel=X[; as=Y][; extra]
                   std::string link_val = "<";

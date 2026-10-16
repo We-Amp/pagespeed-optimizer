@@ -24,6 +24,16 @@ bool NameIn(std::span<const std::string_view> names, std::string_view name) {
   return false;
 }
 
+std::string_view TrimSpaces(std::string_view s) {
+  while (!s.empty() && (s.front() == ' ' || s.front() == '\t')) {
+    s.remove_prefix(1);
+  }
+  while (!s.empty() && (s.back() == ' ' || s.back() == '\t')) {
+    s.remove_suffix(1);
+  }
+  return s;
+}
+
 constexpr uint8_t kClassifiedAndRequired =
     AlternateMetadata::kFlagHeadersClassified |
     AlternateMetadata::kFlagHeadersSidecarRequired;
@@ -100,22 +110,60 @@ bool IsSidecarCarriedName(std::string_view name) {
   return NameIn(HeadersSidecarAllowlist(), name);
 }
 
-bool SidecarLinkCarriesTarget(std::span<const HeaderField> fields,
-                              std::string_view url) {
+bool SidecarLinkCarriesHint(std::span<const HeaderField> fields,
+                            std::string_view url, std::string_view rel,
+                            bool crossorigin) {
   for (const HeaderField& field : fields) {
     if (!HeaderNameEquals(field.name, "link")) continue;
     std::string_view rest = field.value;
-    while (!rest.empty()) {
-      // A link-value starts with `<target>`; skip to the next link-value
-      // after it (the next comma outside the angle brackets).
-      size_t open = rest.find('<');
+    while (true) {
+      const size_t open = rest.find('<');
       if (open == std::string_view::npos) break;
-      size_t close = rest.find('>', open + 1);
+      const size_t close = rest.find('>', open + 1);
       if (close == std::string_view::npos) break;
-      if (rest.substr(open + 1, close - open - 1) == url) return true;
-      size_t comma = rest.find(',', close + 1);
-      if (comma == std::string_view::npos) break;
-      rest.remove_prefix(comma + 1);
+      const std::string_view target = rest.substr(open + 1, close - open - 1);
+      rest.remove_prefix(close + 1);
+
+      // The parameters run to the next comma outside a quoted string.
+      size_t end = 0;
+      bool quoted = false;
+      while (end < rest.size() && (quoted || rest[end] != ',')) {
+        if (rest[end] == '"') quoted = !quoted;
+        ++end;
+      }
+      std::string_view params = rest.substr(0, end);
+      rest.remove_prefix(end);
+
+      if (target != url) continue;
+      bool rel_matches = false;
+      bool has_crossorigin = false;
+      while (!params.empty()) {
+        const size_t semi = params.find(';');
+        std::string_view param = params.substr(0, semi);
+        params = semi == std::string_view::npos ? std::string_view()
+                                                : params.substr(semi + 1);
+        param = TrimSpaces(param);
+        const size_t eq = param.find('=');
+        const std::string_view key = TrimSpaces(param.substr(0, eq));
+        if (HeaderNameEquals(key, "crossorigin")) has_crossorigin = true;
+        if (eq == std::string_view::npos || !HeaderNameEquals(key, "rel")) {
+          continue;
+        }
+        std::string_view value = TrimSpaces(param.substr(eq + 1));
+        if (value.size() >= 2 && value.front() == '"' && value.back() == '"') {
+          value = value.substr(1, value.size() - 2);
+        }
+        while (!value.empty()) {
+          const size_t sp = value.find(' ');
+          const std::string_view token = value.substr(0, sp);
+          if (!token.empty() && HeaderNameEquals(token, rel)) {
+            rel_matches = true;
+          }
+          if (sp == std::string_view::npos) break;
+          value.remove_prefix(sp + 1);
+        }
+      }
+      if (rel_matches && has_crossorigin == crossorigin) return true;
     }
   }
   return false;

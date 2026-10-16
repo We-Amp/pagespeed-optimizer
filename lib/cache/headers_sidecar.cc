@@ -155,35 +155,33 @@ uint16_t ReadBigEndian16(std::string_view s, size_t offset) {
 // byte for byte instead of being re-synthesised from the tokens the cache
 // happened to understand.
 constexpr std::string_view kAllowlist[] = {
-    "content-security-policy",       //
-    "access-control-allow-origin",   //
-    "x-content-type-options",        //
-    "referrer-policy",               //
-    "cross-origin-opener-policy",    //
-    "cross-origin-embedder-policy",  //
-    "cross-origin-resource-policy",  //
-    "permissions-policy",            //
-    "vary",                          //
-    "link",                          //
-    "strict-transport-security",     //
-    "x-frame-options",               //
-    "x-xss-protection",              //
-    "x-permitted-cross-domain-policies",//
-    "origin-agent-cluster",          //
-    "x-dns-prefetch-control",        //
-    "timing-allow-origin",           //
-    "access-control-allow-credentials",//
-    "access-control-expose-headers", //
-    "report-to",                     //
-    "reporting-endpoints",           //
-    "nel",                           //
-    "x-powered-by",                  //
-    "x-pingback",                    //
-    "x-robots-tag",                  //
-    "content-language",              //
-    "content-disposition",           //
-    "alt-svc",                       //
-    "allow",                         //
+    "content-security-policy",            //
+    "access-control-allow-origin",        //
+    "x-content-type-options",             //
+    "referrer-policy",                    //
+    "cross-origin-opener-policy",         //
+    "cross-origin-embedder-policy",       //
+    "cross-origin-resource-policy",       //
+    "permissions-policy",                 //
+    "vary",                               //
+    "link",                               //
+    "strict-transport-security",          //
+    "x-frame-options",                    //
+    "x-xss-protection",                   //
+    "x-permitted-cross-domain-policies",  //
+    "origin-agent-cluster",               //
+    "x-dns-prefetch-control",             //
+    "timing-allow-origin",                //
+    "access-control-expose-headers",      //
+    "reporting-endpoints",                //
+    "nel",                                //
+    "x-powered-by",                       //
+    "x-pingback",                         //
+    "x-robots-tag",                       //
+    "content-language",                   //
+    "content-disposition",                //
+    "alt-svc",                            //
+    "allow",                              //
 };
 
 // Reproduced by the entry metadata itself, so the sidecar does not carry them
@@ -215,11 +213,17 @@ bool CspCarriesNonce(std::string_view csp_value) {
 }
 
 bool LinkCarriesNonce(std::string_view link_value) {
-  constexpr std::string_view kNeedle = "nonce=";
-  if (link_value.size() < kNeedle.size()) return false;
-  const size_t last = link_value.size() - kNeedle.size();
-  for (size_t i = 0; i <= last; ++i) {
-    if (AsciiEqualsIgnoreCase(link_value.substr(i, kNeedle.size()), kNeedle)) {
+  constexpr std::string_view kNeedle = "nonce";
+  bool in_target = false;
+  for (size_t i = 0; i < link_value.size(); ++i) {
+    const char c = link_value[i];
+    if (in_target) {
+      in_target = c != '>';
+    } else if (c == '<') {
+      in_target = true;
+    } else if (i + kNeedle.size() <= link_value.size() &&
+               AsciiEqualsIgnoreCase(link_value.substr(i, kNeedle.size()),
+                                     kNeedle)) {
       return true;
     }
   }

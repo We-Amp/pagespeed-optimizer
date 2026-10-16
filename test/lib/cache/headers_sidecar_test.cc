@@ -223,6 +223,7 @@ TEST(HeadersSidecarTest, RequestDependentHeadersAreNeverCarried) {
            "Content-Location",
            "X-Request-Id",
            "Content-Security-Policy-Report-Only",
+           "Access-Control-Allow-Credentials",
            "CF-Ray",
        }) {
     const Fields fields = {{"Cache-Control", "max-age=600"},
@@ -264,6 +265,38 @@ TEST(HeadersSidecarTest, LinkCarryingANonceIsNeverStored) {
   EXPECT_EQ(result.reasons[0], "nonce-link");
 }
 
+TEST(HeadersSidecarTest, LinkNonceInAnySpellingIsNeverStored) {
+  for (std::string_view value : {
+           "</a.js>; rel=preload; as=script; nonce = \"x\"",
+           "</a.js>; rel=preload; as=script; nonce*=UTF-8''x",
+           "</a.js>; rel=preload; as=script; NONCE=x",
+       }) {
+    const Fields fields = {{"Cache-Control", "max-age=600"}, {"Link", value}};
+    const auto result = Classify(fields);
+    EXPECT_EQ(result.verdict, SidecarVerdict::kNeverOptimized) << value;
+    ASSERT_EQ(result.reasons.size(), 1u) << value;
+    EXPECT_EQ(result.reasons[0], "nonce-link") << value;
+  }
+}
+
+TEST(HeadersSidecarTest, ALinkTargetContainingTheWordNonceIsCarried) {
+  const Fields fields = {
+      {"Cache-Control", "max-age=600"},
+      {"Link", "</nonce-helper.js>; rel=preload; as=script"}};
+  const auto result = Classify(fields);
+  EXPECT_EQ(result.verdict, SidecarVerdict::kSwapEligible);
+  EXPECT_EQ(result.fields, 1u);
+}
+
+TEST(HeadersSidecarTest, ReportToIsRefused) {
+  const Fields fields = {{"Cache-Control", "max-age=600"},
+                         {"Report-To", "{\"group\":\"cf-nel\"}"}};
+  const auto result = Classify(fields);
+  EXPECT_EQ(result.verdict, SidecarVerdict::kFallThrough);
+  ASSERT_EQ(result.reasons.size(), 1u);
+  EXPECT_EQ(result.reasons[0], "unreconstructible-header:report-to");
+}
+
 TEST(HeadersSidecarTest, ACdnRequestIdIsRefused) {
   const Fields fields = {{"Cache-Control", "max-age=600"},
                          {"CF-Ray", "8a1b2c3d4e5f-AMS"}};
@@ -294,9 +327,7 @@ TEST(HeadersSidecarTest, TheAllowlistIsExactlyTheEnumeratedSet) {
       "origin-agent-cluster",
       "x-dns-prefetch-control",
       "timing-allow-origin",
-      "access-control-allow-credentials",
       "access-control-expose-headers",
-      "report-to",
       "reporting-endpoints",
       "nel",
       "x-powered-by",
