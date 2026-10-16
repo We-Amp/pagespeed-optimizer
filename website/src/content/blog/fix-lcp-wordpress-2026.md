@@ -150,7 +150,7 @@ ModPagespeedEnableFilters hint_preload_subresources
 ModPagespeedImageRecompressionQuality 82
 ```
 
-The full directive reference lives in the [filters reference](/docs/filters/).
+The full directive reference lives in the [configuration reference](/docs/configuration/).
 
 ## When this doesn't work
 

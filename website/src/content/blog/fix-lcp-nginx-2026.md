@@ -140,7 +140,7 @@ server {
 }
 ```
 
-The full directive reference lives in the [filters reference](/docs/filters/). For the install steps on nginx (Debian, Ubuntu, RHEL/AlmaLinux), see [installation as an nginx module](/docs/installation-module/).
+The full directive reference lives in the [configuration reference](/docs/configuration/). For the install steps on nginx (Debian, Ubuntu, RHEL/AlmaLinux), see [installation as an nginx module](/docs/installation-module/).
 
 ## When this doesn't work
 

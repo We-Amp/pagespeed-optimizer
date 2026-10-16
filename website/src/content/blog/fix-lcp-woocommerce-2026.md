@@ -146,7 +146,7 @@ ModPagespeedEnableFilters inline_preview_images
 ModPagespeedImageRecompressionQuality 78
 ```
 
-The full directive reference lives in the [filters reference](/docs/filters/).
+The full directive reference lives in the [configuration reference](/docs/configuration/).
 
 ## When this doesn't work
 

@@ -123,7 +123,7 @@ pagespeed EnableFilters hint_preload_subresources;
 pagespeed ImageRecompressionQuality 80;
 ```
 
-The full directive reference lives in the [filters reference](/docs/filters/).
+The full directive reference lives in the [configuration reference](/docs/configuration/).
 
 ## Where this approach falls short
 
