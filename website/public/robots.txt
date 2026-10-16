@@ -1,7 +1,7 @@
 User-agent: *
 Allow: /
 
-# AI crawlers — explicitly allowed
+# AI crawlers: explicitly allowed
 User-agent: GPTBot
 Allow: /
 
@@ -45,6 +45,18 @@ User-agent: Meta-ExternalAgent
 Allow: /
 
 User-agent: cohere-ai
+Allow: /
+
+User-agent: Claude-User
+Allow: /
+
+User-agent: Claude-SearchBot
+Allow: /
+
+User-agent: OAI-SearchBot
+Allow: /
+
+User-agent: Perplexity-User
 Allow: /
 
 Sitemap: https://modpagespeed.com/sitemap-index.xml
