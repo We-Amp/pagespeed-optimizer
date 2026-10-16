@@ -143,6 +143,11 @@ uint16_t ReadBigEndian16(std::string_view s, size_t offset) {
 
 // The sidecar's closed set of carried field names.
 //
+// A name is listed when its value describes the resource or the server's
+// policy and is the same for every request.  Names whose value is stamped per
+// request, connection or trace (a CDN request id, Set-Cookie, Server-Timing)
+// are never listed.
+//
 // `vary` is carried, and its ADMISSION is decided by the store-side Vary
 // predicate rather than by membership here: a response whose Vary the cache
 // key cannot honour is not storable at all, so there is nothing to carry.
@@ -159,6 +164,26 @@ constexpr std::string_view kAllowlist[] = {
     "cross-origin-resource-policy",  //
     "permissions-policy",            //
     "vary",                          //
+    "link",                          //
+    "strict-transport-security",     //
+    "x-frame-options",               //
+    "x-xss-protection",              //
+    "x-permitted-cross-domain-policies",//
+    "origin-agent-cluster",          //
+    "x-dns-prefetch-control",        //
+    "timing-allow-origin",           //
+    "access-control-allow-credentials",//
+    "access-control-expose-headers", //
+    "report-to",                     //
+    "reporting-endpoints",           //
+    "nel",                           //
+    "x-powered-by",                  //
+    "x-pingback",                    //
+    "x-robots-tag",                  //
+    "content-language",              //
+    "content-disposition",           //
+    "alt-svc",                       //
+    "allow",                         //
 };
 
 // Reproduced by the entry metadata itself, so the sidecar does not carry them
@@ -183,6 +208,18 @@ bool CspCarriesNonce(std::string_view csp_value) {
   const size_t last = csp_value.size() - kNeedle.size();
   for (size_t i = 0; i <= last; ++i) {
     if (AsciiEqualsIgnoreCase(csp_value.substr(i, kNeedle.size()), kNeedle)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+bool LinkCarriesNonce(std::string_view link_value) {
+  constexpr std::string_view kNeedle = "nonce=";
+  if (link_value.size() < kNeedle.size()) return false;
+  const size_t last = link_value.size() - kNeedle.size();
+  for (size_t i = 0; i <= last; ++i) {
+    if (AsciiEqualsIgnoreCase(link_value.substr(i, kNeedle.size()), kNeedle)) {
       return true;
     }
   }
@@ -229,6 +266,14 @@ SidecarClassification ClassifyForHeadersSidecar(
       // reasons stay complete.
       never_optimized = true;
       add_reason("nonce-csp");
+      continue;
+    }
+
+    // A per-response nonce in a preload hint must never be replayed.
+    if (AsciiEqualsIgnoreCase(field.name, "link") &&
+        LinkCarriesNonce(field.value)) {
+      never_optimized = true;
+      add_reason("nonce-link");
       continue;
     }
 

@@ -136,6 +136,10 @@ SidecarClassification ClassifyForHeadersSidecar(
 // policy.  The gate takes the cheap error.
 bool CspCarriesNonce(std::string_view csp_value);
 
+// The same rule for a Link value: any ASCII-case-insensitive `nonce=` counts.
+// A per-response nonce in a preload hint must never be replayed.
+bool LinkCarriesNonce(std::string_view link_value);
+
 // Field names the sidecar carries, lowercased, as one closed set.  Exposed so
 // a caller can state the boundary rather than infer it from behaviour; the
 // gate is the only thing that applies it.

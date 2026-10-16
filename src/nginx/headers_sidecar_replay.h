@@ -117,6 +117,13 @@ bool ConditionalRevalidationAllowed(uint8_t entry_flags, bool expired_by_age);
 // never mixed into the cached representation's.
 bool IsSidecarCarriedName(std::string_view name);
 
+// Does any carried `link` field (name compared case-insensitively) list `url`
+// as a link-target, i.e. the `<...>` part of one of its comma-separated
+// link-values, byte for byte?  The HTML hit path adds its own preload lines;
+// it skips one the origin's carried Link already sent.
+bool SidecarLinkCarriesTarget(std::span<const HeaderField> fields,
+                              std::string_view url);
+
 // Does the stale-if-error serve of this stash drop the error page's lines of
 // the carried names?  For every classified entry — including one with nothing
 // to carry, whose origin sent none of those names, so the error page's must

@@ -814,7 +814,7 @@ class ComplianceHandler(http.server.BaseHTTPRequestHandler):
                 for name, value in SIDECAR_SECURITY_HEADERS:
                     self.send_header(name, value)
             if path == "/sidecar/custom.css":
-                self.send_header("X-Powered-By", "PHP/8.3")
+                self.send_header("X-Request-Id", "req-8f3a")
             if path == "/sidecar/vary-origin.css":
                 self.send_header("Vary", "Origin")
             if path == "/sidecar/flip.css" and SIDECAR_FLIP["custom"]:

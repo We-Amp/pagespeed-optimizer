@@ -273,13 +273,39 @@ TEST(HeadersSidecarReplayTest, CarriedNamesAreTheAllowlist) {
   for (std::string_view name :
        {"Content-Security-Policy", "access-control-allow-origin",
         "X-Content-Type-Options", "Referrer-Policy", "Vary",
-        "Cross-Origin-Resource-Policy", "Permissions-Policy"}) {
+        "Cross-Origin-Resource-Policy", "Permissions-Policy", "X-Powered-By",
+        "Link", "Strict-Transport-Security"}) {
     EXPECT_TRUE(IsSidecarCarriedName(name)) << name;
   }
-  for (std::string_view name : {"Cache-Control", "X-Powered-By", "Server",
+  for (std::string_view name : {"Cache-Control", "Server", "X-Request-Id", "Set-Cookie",
                                 "Content-Security-Policy-Report-Only"}) {
     EXPECT_FALSE(IsSidecarCarriedName(name)) << name;
   }
+}
+
+TEST(HeadersSidecarReplayTest, LinkTargetCarriedByTheOriginsLink) {
+  const std::vector<HeaderField> fields = {
+      {"Vary", "Accept"},
+      {"Link", "</style.css>; rel=preload; as=style"}};
+  EXPECT_TRUE(SidecarLinkCarriesTarget(fields, "/style.css"));
+  EXPECT_FALSE(SidecarLinkCarriesTarget(fields, "/other.css"));
+  EXPECT_FALSE(SidecarLinkCarriesTarget(fields, "/style.cs"));
+}
+
+TEST(HeadersSidecarReplayTest, LinkTargetIgnoresOtherFieldsAndMatchesAnyValue) {
+  const std::vector<HeaderField> other = {
+      {"X-Pingback", "</style.css>"}, {"Vary", "</style.css>"}};
+  EXPECT_FALSE(SidecarLinkCarriesTarget(other, "/style.css"));
+  const std::vector<HeaderField> many = {
+      {"link", "</a.css>; rel=preload; as=style, </b.js>; rel=preload, "
+               "<https://x.example/c?a=1,2>; rel=preconnect"},
+      {"LINK", "</d.css>; rel=preload"}};
+  EXPECT_TRUE(SidecarLinkCarriesTarget(many, "/a.css"));
+  EXPECT_TRUE(SidecarLinkCarriesTarget(many, "/b.js"));
+  EXPECT_TRUE(SidecarLinkCarriesTarget(many, "https://x.example/c?a=1,2"));
+  EXPECT_TRUE(SidecarLinkCarriesTarget(many, "/d.css"));
+  EXPECT_FALSE(SidecarLinkCarriesTarget(many, "/e.css"));
+  EXPECT_FALSE(SidecarLinkCarriesTarget({}, "/a.css"));
 }
 
 // --- Record → serve against a real cache -----------------------------------

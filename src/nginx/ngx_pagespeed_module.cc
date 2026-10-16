@@ -5988,7 +5988,30 @@ static ngx_int_t ngx_http_pagespeed_handler(ngx_http_request_t* r) {
               if (!line.empty()) {
                 auto res = pagespeed::ParseHintLine(line);
                 std::string safe_url = pagespeed::SanitizeLinkUrl(res.url);
-                if (!safe_url.empty()) {
+                // The origin's own Link (carried in the stored block) may
+                // already preload this target: emit it once.
+                bool origin_has_link = false;
+                if (!safe_url.empty() && ctx->sidecar_fields != nullptr) {
+                  const auto* carried =
+                      static_cast<const ngx_http_pagespeed_header_pair_t*>(
+                          ctx->sidecar_fields->elts);
+                  std::vector<pagespeed::HeaderField> carried_fields;
+                  carried_fields.reserve(ctx->sidecar_fields->nelts);
+                  for (ngx_uint_t ci = 0; ci < ctx->sidecar_fields->nelts;
+                       ci++) {
+                    carried_fields.push_back(
+                        {std::string_view(
+                             reinterpret_cast<const char*>(carried[ci].key.data),
+                             carried[ci].key.len),
+                         std::string_view(
+                             reinterpret_cast<const char*>(
+                                 carried[ci].value.data),
+                             carried[ci].value.len)});
+                  }
+                  origin_has_link = pagespeed::SidecarLinkCarriesTarget(
+                      carried_fields, safe_url);
+                }
+                if (!safe_url.empty() && !origin_has_link) {
                   // Build Link header value: <url>; rel=X[; as=Y][; extra]
                   std::string link_val = "<";
                   link_val += safe_url;

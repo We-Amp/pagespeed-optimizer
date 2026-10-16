@@ -98,12 +98,12 @@ TEST(HeadersSidecarGateTest, CustomHeaderFallsThroughAndIsNamed) {
   EXPECT_EQ(FirstUnreproducibleHeader(c), "x-custom-foo");
 }
 
-TEST(HeadersSidecarGateTest, PoweredByFallsThrough) {
+TEST(HeadersSidecarGateTest, RequestIdFallsThrough) {
   std::vector<HeaderField> h = {{"Cache-Control", "max-age=60"},
-                                {"X-Powered-By", "PHP/8.3"}};
+                                {"X-Request-Id", "abc123"}};
   auto c = ClassifyForHeadersSidecar(h);
   EXPECT_EQ(c.verdict, SidecarVerdict::kFallThrough);
-  EXPECT_EQ(FirstUnreproducibleHeader(c), "x-powered-by");
+  EXPECT_EQ(FirstUnreproducibleHeader(c), "x-request-id");
 }
 
 TEST(HeadersSidecarGateTest, NonceCspIsNeverOptimized) {
@@ -540,7 +540,7 @@ TEST(RestampSidecarPlanTest, UnparseableBlockRemoves) {
 
 TEST(RestampSidecarPlanTest, UnreproducibleHeaderOn304Removes) {
   const std::string stored = PayloadOf(SecurityHeaders());
-  std::vector<HeaderField> r304 = {{"X-Powered-By", "PHP/8.3"}};
+  std::vector<HeaderField> r304 = {{"X-Request-Id", "abc123"}};
   auto plan = PlanRestampSidecar(kClassified | kRequired, stored, r304);
   EXPECT_EQ(plan.action, RestampSidecarAction::kRemove);
   // The current response is still served with the stored lines it did not

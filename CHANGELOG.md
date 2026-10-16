@@ -4,6 +4,17 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Changed: the nginx module now also caches responses that carry static policy
+and resource headers, and replays them on cache hits: HTTP Strict Transport
+Security, the frame and XSS protection headers, the reporting policy headers,
+`Link`, static CORS headers such as `Access-Control-Allow-Credentials`,
+`Content-Language`, `Content-Disposition`, `Alt-Svc`, `Allow`, `X-Powered-By`
+and `X-Robots-Tag`. A `Link` header that carries a nonce is never cached. A
+header whose value changes per request, such as a request id or `Set-Cookie`,
+still passes the response through uncached, and the error-log notice still
+names the header. A `Link` preload the origin sent is emitted once on a cache
+hit, even when the module adds its own preload hints.
+
 ## 2.4.0 — 2026-10-14
 
 This release is a security and reliability update for the nginx module in

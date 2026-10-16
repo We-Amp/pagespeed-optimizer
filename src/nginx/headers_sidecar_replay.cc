@@ -100,6 +100,27 @@ bool IsSidecarCarriedName(std::string_view name) {
   return NameIn(HeadersSidecarAllowlist(), name);
 }
 
+bool SidecarLinkCarriesTarget(std::span<const HeaderField> fields,
+                              std::string_view url) {
+  for (const HeaderField& field : fields) {
+    if (!HeaderNameEquals(field.name, "link")) continue;
+    std::string_view rest = field.value;
+    while (!rest.empty()) {
+      // A link-value starts with `<target>`; skip to the next link-value
+      // after it (the next comma outside the angle brackets).
+      size_t open = rest.find('<');
+      if (open == std::string_view::npos) break;
+      size_t close = rest.find('>', open + 1);
+      if (close == std::string_view::npos) break;
+      if (rest.substr(open + 1, close - open - 1) == url) return true;
+      size_t comma = rest.find(',', close + 1);
+      if (comma == std::string_view::npos) break;
+      rest.remove_prefix(comma + 1);
+    }
+  }
+  return false;
+}
+
 bool StaleErrorDropsCarriedNames(uint8_t entry_flags) {
   return (entry_flags & AlternateMetadata::kFlagHeadersClassified) != 0;
 }

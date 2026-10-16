@@ -9,7 +9,7 @@ before it records a response:
 * only reproducible headers (the security set: ACAO, CSP, nosniff,
   Referrer-Policy) -> recorded, with the headers stored beside the entry
   (the stored-block counter moves);
-* any header a cache hit cannot reproduce (X-Powered-By, a custom header)
+* any header a cache hit cannot reproduce (X-Request-Id, a custom header)
   -> never cached, served from the origin each time, and an entry recorded
   earlier under different headers is removed;
 * a Content-Security-Policy carrying a nonce -> never cached;
@@ -99,6 +99,26 @@ CARRIED_NAMES = (
     "cross-origin-resource-policy",
     "permissions-policy",
     "vary",
+    "link",
+    "strict-transport-security",
+    "x-frame-options",
+    "x-xss-protection",
+    "x-permitted-cross-domain-policies",
+    "origin-agent-cluster",
+    "x-dns-prefetch-control",
+    "timing-allow-origin",
+    "access-control-allow-credentials",
+    "access-control-expose-headers",
+    "report-to",
+    "reporting-endpoints",
+    "nel",
+    "x-powered-by",
+    "x-pingback",
+    "x-robots-tag",
+    "content-language",
+    "content-disposition",
+    "alt-svc",
+    "allow",
 )
 
 IDENTITY = {"Accept-Encoding": "identity"}
@@ -228,14 +248,14 @@ class TestHeadersSidecarRecord:
         assert after["write_failed"] == before["write_failed"]
 
     def test_unreproducible_header_is_never_cached(self, client):
-        """X-Powered-By cannot be reproduced on a hit: never a HIT."""
+        """X-Request-Id cannot be reproduced on a hit: never a HIT."""
         before = read_sidecar_counters()
         seen = requests_never_hit(client, "/sidecar/custom.css")
         assert "HIT" not in seen, seen
         assert all(v == "MISS" for v in seen), seen
         # The origin's header reaches the client on every (origin) response.
         r = client.get("/sidecar/custom.css")
-        assert r.headers.get("X-Powered-By") == "PHP/8.3"
+        assert r.headers.get("X-Request-Id") == "req-8f3a"
         after = read_sidecar_counters()
         assert after["fall_through"] >= before["fall_through"] + len(seen), (
             before,

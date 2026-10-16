@@ -220,12 +220,10 @@ TEST(HeadersSidecarTest, RequestDependentHeadersAreNeverCarried) {
            "WWW-Authenticate",
            "Proxy-Authenticate",
            "Authorization",
-           "Content-Language",
            "Content-Location",
            "X-Request-Id",
            "Content-Security-Policy-Report-Only",
-           "Access-Control-Allow-Credentials",
-           "Timing-Allow-Origin",
+           "CF-Ray",
        }) {
     const Fields fields = {{"Cache-Control", "max-age=600"},
                            {"Content-Type", "text/css"},
@@ -244,6 +242,37 @@ TEST(HeadersSidecarTest, AllowlistIsAClosedSetNotADefaultAllow) {
   EXPECT_EQ(result.reasons[0], "unreconstructible-header:x-anything-at-all");
 }
 
+TEST(HeadersSidecarTest, LinkAndStrictTransportSecurityAreCarried) {
+  const Fields fields = {{"Cache-Control", "max-age=600"},
+                         {"Content-Type", "text/css"},
+                         {"Link", "</style.css>; rel=preload; as=style"},
+                         {"Strict-Transport-Security", "max-age=63072000"}};
+  const auto result = Classify(fields);
+  EXPECT_EQ(result.verdict, SidecarVerdict::kSwapEligible);
+  EXPECT_EQ(result.fields, 2u);
+  EXPECT_TRUE(result.reasons.empty());
+}
+
+TEST(HeadersSidecarTest, LinkCarryingANonceIsNeverStored) {
+  const Fields fields = {
+      {"Cache-Control", "max-age=600"},
+      {"Link", "</a.js>; rel=preload; as=script; Nonce=abc"}};
+  const auto result = Classify(fields);
+  EXPECT_EQ(result.verdict, SidecarVerdict::kNeverOptimized);
+  EXPECT_TRUE(result.payload.empty());
+  ASSERT_EQ(result.reasons.size(), 1u);
+  EXPECT_EQ(result.reasons[0], "nonce-link");
+}
+
+TEST(HeadersSidecarTest, ACdnRequestIdIsRefused) {
+  const Fields fields = {{"Cache-Control", "max-age=600"},
+                         {"CF-Ray", "8a1b2c3d4e5f-AMS"}};
+  const auto result = Classify(fields);
+  EXPECT_EQ(result.verdict, SidecarVerdict::kFallThrough);
+  ASSERT_EQ(result.reasons.size(), 1u);
+  EXPECT_EQ(result.reasons[0], "unreconstructible-header:cf-ray");
+}
+
 TEST(HeadersSidecarTest, TheAllowlistIsExactlyTheEnumeratedSet) {
   // The list is normative; a change here is a change to what may be stored,
   // and should be as loud as changing an entry format.
@@ -257,6 +286,26 @@ TEST(HeadersSidecarTest, TheAllowlistIsExactlyTheEnumeratedSet) {
       "cross-origin-resource-policy",
       "permissions-policy",
       "vary",
+      "link",
+      "strict-transport-security",
+      "x-frame-options",
+      "x-xss-protection",
+      "x-permitted-cross-domain-policies",
+      "origin-agent-cluster",
+      "x-dns-prefetch-control",
+      "timing-allow-origin",
+      "access-control-allow-credentials",
+      "access-control-expose-headers",
+      "report-to",
+      "reporting-endpoints",
+      "nel",
+      "x-powered-by",
+      "x-pingback",
+      "x-robots-tag",
+      "content-language",
+      "content-disposition",
+      "alt-svc",
+      "allow",
   };
   const auto actual = HeadersSidecarAllowlist();
   ASSERT_EQ(actual.size(), expected.size());

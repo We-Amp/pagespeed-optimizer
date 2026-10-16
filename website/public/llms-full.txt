@@ -18313,10 +18313,13 @@ ps_cache_read_alternate(cache, url, hostname, scheme,
 ```
 
 Pass the response's **complete** header set, not a curated one: this call is the
-admission gate. The headers it keeps are `Content-Security-Policy`,
-`Access-Control-Allow-Origin`, `X-Content-Type-Options`, `Referrer-Policy`, the
-`Cross-Origin-*` family, `Permissions-Policy` and the origin's own `Vary`
-string. The list is closed and not configurable — a header whose value depends
+admission gate. The headers it keeps are the security policy headers
+(`Content-Security-Policy`, `Strict-Transport-Security`,
+`X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, the frame
+and XSS protection headers and the `Cross-Origin-*` family), the reporting
+headers, `Link`, the static CORS headers, the resource description headers
+(such as `Content-Language`, `Content-Disposition` and `Allow`) and the
+origin's own `Vary` string. The list is closed and not configurable — a header whose value depends
 on the request must never be replayed to the next client.
 
 A refusal is **not** an error. The call returns `PS_OK` with `*out_stored` 0 and
