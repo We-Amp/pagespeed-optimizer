@@ -41,7 +41,7 @@ check() { # label expected actual
 }
 
 OLD_PATH='ModPagespeedDaemonVolumePath /var/lib/pagespeed-optimizer/cache'
-NEW_PATH='ModPagespeedDaemonVolumePath /var/cache/pagespeed-optimizer/v1/cache'
+NEW_PATH='ModPagespeedDaemonVolumePath /var/cache/pagespeed-optimizer/v2/cache'
 
 # ------------------------------------------- extract what the packages ship --
 # The deb postinst is a quoted heredoc in build-optimizer-deb.sh; the rpm
