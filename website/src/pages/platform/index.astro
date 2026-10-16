@@ -21,6 +21,7 @@ const packs: Array<{
   title: string;
   body: string;
   more?: { href: string; label: string };
+  docs?: { href: string; label: string };
 }> = [
   {
     wedge: 'page-integrity',
@@ -47,6 +48,7 @@ const packs: Array<{
     title: 'Edge SEO at the origin',
     body: 'Canonicals, hreflang, titles and structured data set at serve time, with no CMS change and no CDN. The pack applies the rules you write to the HTML stream in the interceptor, so once enforced a fix reaches every page the rule matches.',
     more: { href: '/platform/edge-seo/', label: 'What it fixes and who it is for' },
+    docs: { href: '/docs/rule-packs/', label: 'Rule packs reference' },
   },
   {
     wedge: 'response-firewall',
@@ -118,6 +120,16 @@ const jsonLd = {
                 class="text-interactive hover:text-interactive-hover underline"
               >
                 {pack.more.label}
+              </a>
+            </p>
+          )}
+          {pack.docs && (
+            <p class="mt-2 text-sm">
+              <a
+                href={pack.docs.href}
+                class="text-interactive hover:text-interactive-hover underline"
+              >
+                {pack.docs.label}
               </a>
             </p>
           )}
