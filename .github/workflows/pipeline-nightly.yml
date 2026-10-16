@@ -740,7 +740,10 @@ jobs:
 
       - name: Container logs on failure
         if: failure()
-        run: docker compose -f tools/stress/docker-compose.yml -f tools/stress/docker-compose.prebuilt.yml logs --no-color --tail=400 worker nginx 2>/dev/null || docker compose -f tools/stress/docker-compose.yml -f tools/stress/docker-compose.prebuilt.yml logs --no-color --tail=400 || true
+        run: |
+          docker compose -f tools/stress/docker-compose.yml -f tools/stress/docker-compose.prebuilt.yml logs --no-color --tail=400 worker nginx 2>/dev/null || docker compose -f tools/stress/docker-compose.yml -f tools/stress/docker-compose.prebuilt.yml logs --no-color --tail=400 || true
+          # The nginx error log is written to a file inside the container, not to stderr.
+          docker compose -f tools/stress/docker-compose.yml -f tools/stress/docker-compose.prebuilt.yml exec -T nginx sh -c 'tail -n 200 /var/log/nginx/error.log' || true
 
       - name: Teardown
         if: always()
@@ -818,7 +821,10 @@ jobs:
 
       - name: Container logs on failure
         if: failure()
-        run: docker compose -f tools/production-tests/docker-compose.yml -f tools/production-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 worker nginx 2>/dev/null || docker compose -f tools/production-tests/docker-compose.yml -f tools/production-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 || true
+        run: |
+          docker compose -f tools/production-tests/docker-compose.yml -f tools/production-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 worker nginx 2>/dev/null || docker compose -f tools/production-tests/docker-compose.yml -f tools/production-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 || true
+          # The nginx error log is written to a file inside the container, not to stderr.
+          docker compose -f tools/production-tests/docker-compose.yml -f tools/production-tests/docker-compose.prebuilt.yml exec -T nginx sh -c 'tail -n 200 /var/log/nginx/error.log' || true
 
       - name: Teardown
         if: always()
@@ -886,7 +892,10 @@ jobs:
 
       - name: Container logs on failure
         if: failure()
-        run: docker compose -f tools/realworld-tests/docker-compose.yml -f tools/realworld-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 worker nginx 2>/dev/null || docker compose -f tools/realworld-tests/docker-compose.yml -f tools/realworld-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 || true
+        run: |
+          docker compose -f tools/realworld-tests/docker-compose.yml -f tools/realworld-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 worker nginx 2>/dev/null || docker compose -f tools/realworld-tests/docker-compose.yml -f tools/realworld-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 || true
+          # The nginx error log is written to a file inside the container, not to stderr.
+          docker compose -f tools/realworld-tests/docker-compose.yml -f tools/realworld-tests/docker-compose.prebuilt.yml exec -T nginx sh -c 'tail -n 200 /var/log/nginx/error.log' || true
 
       - name: Teardown
         if: always()
@@ -1259,7 +1268,10 @@ jobs:
 
       - name: Container logs on failure
         if: failure()
-        run: docker compose -f tools/stress/docker-compose.yml -f tools/stress/docker-compose.prebuilt.yml logs --no-color --tail=400 worker nginx 2>/dev/null || docker compose -f tools/stress/docker-compose.yml -f tools/stress/docker-compose.prebuilt.yml logs --no-color --tail=400 || true
+        run: |
+          docker compose -f tools/stress/docker-compose.yml -f tools/stress/docker-compose.prebuilt.yml logs --no-color --tail=400 worker nginx 2>/dev/null || docker compose -f tools/stress/docker-compose.yml -f tools/stress/docker-compose.prebuilt.yml logs --no-color --tail=400 || true
+          # The nginx error log is written to a file inside the container, not to stderr.
+          docker compose -f tools/stress/docker-compose.yml -f tools/stress/docker-compose.prebuilt.yml exec -T nginx sh -c 'tail -n 200 /var/log/nginx/error.log' || true
 
       - name: Teardown
         if: always()
@@ -1338,7 +1350,10 @@ jobs:
 
       - name: Container logs on failure
         if: failure()
-        run: docker compose -f tools/production-tests/docker-compose.yml -f tools/production-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 worker nginx 2>/dev/null || docker compose -f tools/production-tests/docker-compose.yml -f tools/production-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 || true
+        run: |
+          docker compose -f tools/production-tests/docker-compose.yml -f tools/production-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 worker nginx 2>/dev/null || docker compose -f tools/production-tests/docker-compose.yml -f tools/production-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 || true
+          # The nginx error log is written to a file inside the container, not to stderr.
+          docker compose -f tools/production-tests/docker-compose.yml -f tools/production-tests/docker-compose.prebuilt.yml exec -T nginx sh -c 'tail -n 200 /var/log/nginx/error.log' || true
 
       - name: Teardown
         if: always()
@@ -1407,7 +1422,10 @@ jobs:
 
       - name: Container logs on failure
         if: failure()
-        run: docker compose -f tools/realworld-tests/docker-compose.yml -f tools/realworld-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 worker nginx 2>/dev/null || docker compose -f tools/realworld-tests/docker-compose.yml -f tools/realworld-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 || true
+        run: |
+          docker compose -f tools/realworld-tests/docker-compose.yml -f tools/realworld-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 worker nginx 2>/dev/null || docker compose -f tools/realworld-tests/docker-compose.yml -f tools/realworld-tests/docker-compose.prebuilt.yml logs --no-color --tail=400 || true
+          # The nginx error log is written to a file inside the container, not to stderr.
+          docker compose -f tools/realworld-tests/docker-compose.yml -f tools/realworld-tests/docker-compose.prebuilt.yml exec -T nginx sh -c 'tail -n 200 /var/log/nginx/error.log' || true
 
       - name: Teardown
         if: always()
