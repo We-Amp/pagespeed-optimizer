@@ -88,7 +88,7 @@ const integrations = [
       'MSI installer for Windows Server. Enable in IIS Manager, iisreset, and the optimization pipeline is live.',
     note: 'Running IISpeed? Uninstall it first — both modules cannot coexist on the same host.',
     requirements: `${rel11.compat.iis.os[0]} or later, IIS ${rel11.compat.iis.iis_versions.join('/')}, x64`,
-    href: '/docs/iis-configuration/',
+    href: '/docs/install-iis/',
     cta: 'Install guide',
     umamiEvent: 'cta_download_iis',
   },
@@ -163,7 +163,10 @@ const jsonLd = {
       <span class="inline-flex items-center rounded-md border border-border-strong bg-bg-secondary px-2 py-0.5 font-mono text-xs text-text-body">
         {rel21.display.badge_version}
       </span>
-      <a href="/blog/" class="text-interactive hover:text-interactive-hover underline">
+      <a
+        href="/docs/release-notes/"
+        class="text-interactive hover:text-interactive-hover underline"
+      >
         see release notes
       </a>
     </p>
@@ -198,13 +201,24 @@ const jsonLd = {
         </a>
       ))}
     </div>
+    <p class="mt-6 text-sm text-text-muted">
+      Also available: the{' '}
+      <a href="/docs/install-envoy/" class="text-interactive underline">
+        Envoy HTTP filter
+      </a>{' '}
+      (experimental, built from source) and the{' '}
+      <a href="/wordpress/" class="text-interactive underline">
+        WordPress plugin
+      </a>
+      .
+    </p>
     <p class="mt-6 text-xs text-text-annotation">
       The Apache and nginx packages keep their existing 1.15-line names — your apt/dnf upgrades them
       in place, no rename needed.
     </p>
 
     <!-- Direct downloads -->
-    <div class="mt-10 rounded-2xl border border-border bg-bg-secondary p-6">
+    <div id="direct-downloads" class="mt-10 rounded-2xl border border-border bg-bg-secondary p-6">
       <div class="flex items-baseline justify-between gap-3 flex-wrap">
         <h3 class="text-base font-semibold text-text-body">Direct downloads</h3>
         <span class="inline-flex items-center rounded-md border border-border-strong bg-bg-elevated px-2 py-0.5 font-mono text-xs text-text-body">

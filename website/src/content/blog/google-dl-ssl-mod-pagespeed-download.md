@@ -197,8 +197,10 @@ $ httpd -M 2>&1 | grep pagespeed
  pagespeed_module (shared)
 
 $ curl -sI http://localhost/ | grep -i pagespeed
-X-Mod-Pagespeed: 1.17.0
+X-Mod-Pagespeed: <version>
 ```
+
+The header carries the version of the package you installed.
 
 ```bash
 # nginx
@@ -208,8 +210,10 @@ pagespeed on;
 ...
 
 $ curl -sI http://localhost/ | grep -iE 'page-?speed'
-X-Page-Speed: 1.17.0
+X-Page-Speed: <version>
 ```
+
+The header carries the version of the package you installed.
 
 ### Path 2: the optimizer worker, from the 2.0 re-architecture {#path-2-modpagespeed-20-the-rewrite}
 
