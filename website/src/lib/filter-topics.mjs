@@ -1195,7 +1195,7 @@ export function renderFiltersHubMarkdown(topics) {
   const aliases = topics.filter((t) => t.alias).length;
   const mark = (/** @type {boolean | 'partial'} */ v) =>
     v === true ? 'Yes' : v === 'partial' ? 'Part' : '-';
-  const cell = (/** @type {string} */ s) => s.replace(/\|/g, '\\|');
+  const cell = (/** @type {string} */ s) => s.replace(/\\/g, '\\\\').replace(/\|/g, '\\|');
   /** @type {string[]} */
   const out = [
     '# PageSpeed filters',

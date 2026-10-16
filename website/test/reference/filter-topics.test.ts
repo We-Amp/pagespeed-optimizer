@@ -306,6 +306,12 @@ describe('filter topic Markdown twins (source)', () => {
     }
   });
 
+  it('escapes backslashes before pipes in hub table cells', () => {
+    const t = { ...byName.get('rewrite_images')!, summary: 'a\\|b | c\\' };
+    const hub = renderFiltersHubMarkdown([t]);
+    expect(hub).toContain('a\\\\\\|b \\| c\\\\ |');
+  });
+
   it('absolutizes relative links in FAQ answers', () => {
     const t = {
       ...byName.get('rewrite_images')!,
