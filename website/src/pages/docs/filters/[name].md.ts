@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 //
-// /docs/filters/<name>.md — the Markdown twin of each indexable filter topic
+// /docs/filters/<name>.md: the Markdown twin of each indexable filter topic
 // page (/docs/filters/<name>/), for agents and for anyone who wants the text
 // without the chrome. The body is the one src/lib/filter-topics.mjs renders
 // for public/llms-full.txt, so the two never disagree. The thin topics are

@@ -11,7 +11,6 @@ import {
   relatedTopics,
   namesGoogleProduct,
   topicMarkdownUrl,
-  GOOGLE_PRODUCTS_LINE,
   GROUP_TITLES,
   type Topic,
 } from '../../../lib/filter-topics.mjs';
@@ -441,7 +440,10 @@ const yesNo = (v: boolean | 'partial') => (v === true ? 'Yes' : v === 'partial' 
         .
       </p>
       {namesGoogle && (
-        <p class="mt-3 text-xs text-text-annotation" set:html={GOOGLE_PRODUCTS_LINE} />
+        <p class="mt-3 text-xs text-text-annotation">
+          Google Analytics, AdSense, Fonts and Hosted Libraries are Google products. We-Amp isn't
+          affiliated with or endorsed by Google.
+        </p>
       )}
     </div>
 

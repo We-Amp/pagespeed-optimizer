@@ -29,6 +29,7 @@ import {
   PAGE_BY_CATEGORY,
   RELATED,
   topicFacts,
+  GOOGLE_PRODUCTS_LINE,
   relatedTopics,
   renderTopicMarkdown,
   renderFiltersHubMarkdown,
@@ -303,5 +304,12 @@ describe('filter topic Markdown twins (source)', () => {
       const href = t.indexable ? t.path : t.groupPath;
       expect(hub, t.name).toContain(`[\`${t.name}\`](https://modpagespeed.com${href})`);
     }
+  });
+
+  it('the topic page spells the same non-affiliation sentence as the twin', () => {
+    const page = readFileSync(resolve(WEBSITE_ROOT, 'src/pages/docs/filters/[name].astro'), 'utf8');
+    expect(page.replace(/\s+/g, ' ')).toContain(GOOGLE_PRODUCTS_LINE);
+    const t = byName.get('insert_ga')!;
+    expect(renderTopicMarkdown(t, topics)).toContain(`\n${GOOGLE_PRODUCTS_LINE}\n`);
   });
 });

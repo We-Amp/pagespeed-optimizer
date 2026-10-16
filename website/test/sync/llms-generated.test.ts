@@ -25,7 +25,7 @@
 //      2.0" as the current product, anywhere outside the archival release-notes
 //      entries.
 //   8. THE MARKDOWN ROUTE — /docs/<slug>.md serves the same body for every page.
-//   9. THE FILTER TWINS — the filters hub and every indexable filter topic are
+//   9. THE FILTER TWINS: the filters hub and every indexable filter topic are
 //      in llms-full.txt, once and in index order, and /docs/filters.md and
 //      /docs/filters/<name>.md serve the same body.
 

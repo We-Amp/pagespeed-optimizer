@@ -987,7 +987,10 @@ export function topicConfig(t) {
   };
 }
 
-/** Pages that name a Google product carry this non-affiliation line. */
+/**
+ * Pages that name a Google product carry this non-affiliation line. The topic
+ * page spells the same sentence in its markup (a test keeps the two equal).
+ */
 export const GOOGLE_PRODUCTS_LINE =
   "Google Analytics, AdSense, Fonts and Hosted Libraries are Google products. We-Amp isn't affiliated with or endorsed by Google.";
 
