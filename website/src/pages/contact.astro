@@ -306,6 +306,7 @@ const nextSteps = [
             id="contact-copy-email"
             data-copy={COMMERCIAL_EMAIL}
             class="ml-1 text-interactive hover:text-interactive-hover underline"
+            aria-label="Copy email address"
           >
             (copy)
           </button>
@@ -389,8 +390,10 @@ const nextSteps = [
             await navigator.clipboard.writeText(addr);
             const prev = copyBtn.textContent;
             copyBtn.textContent = '(copied)';
+            copyBtn.setAttribute('aria-label', 'Email address copied');
             window.setTimeout(() => {
               copyBtn.textContent = prev;
+              copyBtn.setAttribute('aria-label', 'Copy email address');
             }, 1500);
           } catch {
             // Clipboard API unavailable (e.g. non-secure context) — the address
