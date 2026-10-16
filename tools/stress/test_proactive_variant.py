@@ -24,6 +24,9 @@ import requests
 import os as _os
 PURGE_HOSTNAME = f"localhost:{_os.environ.get('STRESS_NGINX_PORT', '8190')}"
 
+# Upper bound for waiting on variant generation. Small runners need longer.
+PROACTIVE_DEADLINE_SECONDS = int(_os.environ.get("STRESS_PROACTIVE_DEADLINE", "90"))
+
 
 def _poll_stats_safe():
     """Query STATS, returning None on timeout/failure instead of raising."""
@@ -79,7 +82,7 @@ class TestProactiveVariantGeneration:
                     pass
 
         # Wait for proactive generation (multiple formats x viewports)
-        deadline = time.time() + 90
+        deadline = time.time() + PROACTIVE_DEADLINE_SECONDS
         target_variants = before_written + 5  # At least 1 variant per image
         current_written = before_written
 
@@ -126,7 +129,7 @@ class TestProactiveVariantGeneration:
                 pass
 
         # Large images take longer to process (AVIF encoding ~30s for 5MB)
-        deadline = time.time() + 90
+        deadline = time.time() + PROACTIVE_DEADLINE_SECONDS
         target = before_written + 1
         current = before_written
 

@@ -729,6 +729,7 @@ jobs:
             -e HOME=/tmp \
             -e PIP_USER=1 -e PIP_BREAK_SYSTEM_PACKAGES=1 \
             -e STRESS_COMPOSE_FILE="/repo/tools/stress/docker-compose.yml:/repo/tools/stress/docker-compose.prebuilt.yml" \
+            -e STRESS_PROACTIVE_DEADLINE=240 \
             -e "STRESS_NGINX_PORT=${STRESS_NGINX_PORT:-8190}" \
             -e "STRESS_ORIGIN_PORT=${STRESS_ORIGIN_PORT:-8191}" \
             -v "$PWD":/repo -w /repo/tools/stress \

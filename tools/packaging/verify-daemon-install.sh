@@ -331,7 +331,7 @@ if [[ "$SCENARIO" == legacy ]]; then
   # cold-start facts but DROP the ACTION REQUIRED half: a file the web
   # server does not load may never earn the repoint warning (a real
   # upgrade warned on exactly such a backup).
-  printf 'ModPagespeedDaemonVolumePath /var/cache/pagespeed-optimizer/v1/cache\n' \
+  printf 'ModPagespeedDaemonVolumePath /var/cache/pagespeed-optimizer/v2/cache\n' \
     > /etc/apache2/conf-available/pagespeed-daemon.conf
   UPGRADE_LOG="$WORK/upgrade-${SCENARIO}.log"
   set +e
