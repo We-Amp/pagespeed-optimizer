@@ -98,16 +98,19 @@ function htmlText(html) {
 }
 
 /**
- * What an HTML block says in words: its figcaption, else the aria-label of the
- * element that carries one, else nothing.
+ * What an HTML block says in words: the svg's title, else its figcaption, else
+ * the first aria-label (minus the interface clause "; scrolls horizontally"),
+ * else nothing.
  * @param {string} html
  * @returns {string}
  */
 function blockText(html) {
+  const title = html.match(/<svg\b[\s\S]*?<title\b[^>]*>([\s\S]*?)<\/title>/);
+  if (title && htmlText(title[1])) return htmlText(title[1]);
   const caption = html.match(/<figcaption\b[^>]*>([\s\S]*?)<\/figcaption>/);
   if (caption) return htmlText(caption[1]);
   const label = html.match(/\baria-label="([^"]*)"/);
-  return label ? htmlText(label[1]) : '';
+  return label ? htmlText(label[1].replace(/;\s*scrolls[\s\S]*$/, '')) : '';
 }
 
 const BLOCK_OPEN = /^<(figure|svg|div)\b/;
@@ -146,11 +149,19 @@ export function renderPostMarkdown(post) {
     const raw = lines[i];
     if (fence) {
       push(raw);
+      // CommonMark: a closing fence is the marker (at least as long, same
+      // character) followed by whitespace only; "```js" opens, it never closes.
       const f = raw.match(FENCE);
-      if (f && f[2][0] === fence.marker[0] && f[2].length >= fence.marker.length) fence = null;
+      if (
+        f &&
+        f[2][0] === fence.marker[0] &&
+        f[2].length >= fence.marker.length &&
+        raw.slice(f[0].length).trim() === ''
+      )
+        fence = null;
       continue;
     }
-    const line = raw.replace(/\s+$/, '');
+    let line = raw.replace(/\s+$/, '');
     const f = line.match(FENCE);
     if (f) {
       fence = { marker: f[2] };
@@ -158,9 +169,22 @@ export function renderPostMarkdown(post) {
       continue;
     }
     if (/^<!--/.test(line)) {
-      // A comment (the census markers): skip to the line that closes it.
-      while (i < lines.length && !lines[i].includes('-->')) i++;
-      continue;
+      // A comment (the census markers) goes; text after its "-->" on the
+      // closing line stays. An unclosed comment ends at the end of its block
+      // (the next blank line), not at the end of the file.
+      let j = i;
+      let close = line.indexOf('-->', 4);
+      while (close < 0 && j + 1 < lines.length && lines[j + 1].trim() !== '') {
+        j++;
+        close = lines[j].indexOf('-->');
+      }
+      if (close < 0) {
+        i = j;
+        continue;
+      }
+      line = lines[j].slice(close + 3).trim();
+      i = j;
+      if (!line) continue;
     }
     const open = line.match(BLOCK_OPEN);
     if (open) {
@@ -168,11 +192,15 @@ export function renderPostMarkdown(post) {
       const tag = open[1];
       const opens = new RegExp(`<${tag}\\b`, 'g');
       const closes = new RegExp(`</${tag}>`, 'g');
-      const block = [lines[i]];
+      const selfClosed = new RegExp(`<${tag}\\b[^<>]*/>`, 'g');
+      const block = [line];
       let depth = 0;
       for (;;) {
         const text = block[block.length - 1];
-        depth += (text.match(opens)?.length ?? 0) - (text.match(closes)?.length ?? 0);
+        depth +=
+          (text.match(opens)?.length ?? 0) -
+          (text.match(selfClosed)?.length ?? 0) -
+          (text.match(closes)?.length ?? 0);
         if (depth <= 0 || i + 1 >= lines.length) break;
         block.push(lines[++i]);
       }
