@@ -4,7 +4,7 @@
 
 We-Amp B.V. develops mod_pagespeed 2.1, the converged continuation of the open-source mod_pagespeed project, originally developed at Google. It automatically optimizes web content (images, CSS, JavaScript, HTML): a native in-process module for Apache and nginx handles serving, and a separate optimizer worker does the heavy optimization work outside the web server. Drop-in compatible with the classic module: the same configuration directives and filters carry over, and no application code changes are required. mod_pagespeed 2.1 converges the 1.15 module line (renumbered from 1.1, the forward-semver successor to the last upstream release, 1.14.36.1) with the ModPageSpeed 2.0 engine, which continues as the optimizer worker; both predecessor lines upgrade to it in place.
 
-Heritage: mod_pagespeed, the open-source optimization core this product continues, powers 231,341 live sites today (per BuiltWith, May 2026; 1.9 million+ across its history). These are not We-Amp customers; they are the proof the optimization core works at scale.
+Heritage: mod_pagespeed, the open-source optimization core this product continues, powers 231,341 live sites (per BuiltWith, May 2026; 1.9 million+ across its history). These are not We-Amp customers; they are the proof the optimization core works at scale.
 
 What it does:
 
@@ -156,6 +156,8 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [Analyze a page](https://modpagespeed.com/analyze/): Score any URL with PageSpeed Insights and see which findings the product addresses.
 - [RenderPeek, the free AI-readability checker](https://modpagespeed.com/ai-readability/): Paste a URL and see what an AI agent reads on your page: the readable content with and without JavaScript, markup bloat, and how well the page is described for machines. No signup.
 - [Savings calculator](https://modpagespeed.com/calculator/): Estimate bandwidth and cost savings from automatic image optimization, CSS/JS minification, and variant-aware caching.
+- [How it works](https://modpagespeed.com/how-it-works/): How the module works inside: asynchronous rewriting, CSS parsing and the metadata cache.
+- [Rule packs](https://modpagespeed.com/packs/): The rule-pack catalogue: rules the module runs at the origin, starting with the free edge SEO pack.
 - [PageSpeed markers](https://modpagespeed.com/pagespeed-markers/): The response headers and URL markers that show the product is active on a page.
 
 ## Download, pricing and support
@@ -171,7 +173,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [Is mod_pagespeed still maintained?](https://modpagespeed.com/mod-pagespeed-still-maintained/): Yes: who maintains it, what shipped, and how the archived open-source module and ngx_pagespeed move to the current product.
 - [Blog](https://modpagespeed.com/blog/): Engineering posts and Core Web Vitals fix guides; each post keeps the version strings of its day.
 - [Alternatives](https://modpagespeed.com/alternatives/): Structured comparisons for readers coming from mod_pagespeed, ngx_pagespeed, the Google PageSpeed module and IISpeed.
-- [Comparisons](https://modpagespeed.com/vs/): Side-by-side comparisons with Cloudflare APO, Cloudinary, imgproxy, NitroPack, Thumbor and WP Rocket.
+- [Comparisons](https://modpagespeed.com/vs/): Side-by-side comparisons with Cloudflare APO, Cloudinary, imgix, imgproxy, NitroPack, ShortPixel, Thumbor and WP Rocket.
 - [Terms](https://modpagespeed.com/terms/): Terms of service.
 - [Privacy](https://modpagespeed.com/privacy/): Privacy policy.
 
@@ -194,11 +196,11 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 - Signed apt and yum repository at https://packages.modpagespeed.com/ (GPG key https://packages.modpagespeed.com/pubkey.gpg; one-time setup `curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh`): `mod-pagespeed` (the Apache module), `nginx-module-pagespeed` (the nginx module, prebuilt and pinned to each distribution's stock nginx: Debian 12 bookworm (nginx 1.22.1), Debian 13 trixie (nginx 1.26.3), Ubuntu 22.04 jammy (nginx 1.18.0), Ubuntu 24.04 noble (nginx 1.24.0), amd64 + arm64; AlmaLinux 9 via yum against stock nginx 1.20.1) and `pagespeed-optimizer` (the optimizer worker). Current release: mod_pagespeed 2.4.0 (2026-10-14). See [the apt/yum repository](https://modpagespeed.com/download/apt-yum/) and [Install the module on Apache and nginx](https://modpagespeed.com/docs/installation-module/).
 - Container images on GHCR: `ghcr.io/we-amp/pagespeed-nginx:2.4.0` (nginx with the module) and `ghcr.io/we-amp/pagespeed-worker:2.4.0` (the optimizer worker), on ubuntu:24.04. See [Install with Docker](https://modpagespeed.com/docs/installation-docker/).
-- Helm chart `pagespeed` from https://modpagespeed.com/charts (application version 2.4.0; Kubernetes 1.28+, 1.29+, 1.30+; Helm 3.12+). See [Deploy with Helm](https://modpagespeed.com/docs/helm-deployment/).
+- Helm chart `pagespeed` from the repository `https://modpagespeed.com/charts` (`helm repo add pagespeed https://modpagespeed.com/charts`; index at https://modpagespeed.com/charts/index.yaml; application version 2.4.0; Kubernetes 1.28+, 1.29+, 1.30+; Helm 3.12+). See [Deploy with Helm](https://modpagespeed.com/docs/helm-deployment/).
 - IIS: the signed Windows installer from the 1.15 module channel, https://modpagespeed.com/releases/v1.15.0/pagespeed-iis-1.15.0-win-x64.msi (Windows Server 2019, Windows Server 2022, Windows Server 2025; IIS 10+; x64). See [Install on IIS](https://modpagespeed.com/docs/install-iis/).
 - NuGet `WeAmp.PageSpeed.AspNetCore` 2.4.0, the ASP.NET Core middleware (net8.0, net10.0; linux-x64, linux-arm64, osx-arm64, win-x64): `dotnet add package WeAmp.PageSpeed.AspNetCore`. See [Install ASP.NET Core middleware](https://modpagespeed.com/docs/aspnet-getting-started/).
 - NuGet `WeAmp.PageSpeed.Sidecar` with `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`, 1.17.0, the module as an ASP.NET Core sidecar (linux-x64, linux-arm64; bundles nginx 1.30.4): `dotnet add package WeAmp.PageSpeed.Sidecar`.
-- Direct downloads of the 1.15 module line (deb, rpm and MSI, with SHA256SUMS and GPG signatures) at https://modpagespeed.com/releases/v1.15.0/: v1.15.0+r22 (2026-08-08). See [Download](https://modpagespeed.com/download/).
+- Direct downloads of the 1.15 module line, v1.15.0+r22 (2026-08-08): deb, rpm and MSI, each with a GPG signature, listed on [Download](https://modpagespeed.com/download/); checksum list at https://modpagespeed.com/releases/v1.15.0/SHA256SUMS.
 
 ---
 
@@ -17941,7 +17943,7 @@ enabled, returns `{"enabled":false}`.
 | `reanalyses_scheduled`                                 | Pages queued for re-analysis (e.g., after CSS changes) |
 | `scripts_analyzed` / `scripts_deferrable`              | Script deferral analysis counters                      |
 
-#### Unknown Commands
+#### Unknown commands
 
 Any command other than `AUTH`, `STATS`, `PURGE`, `METRICS`, or `BROWSER-STATUS` returns:
 
