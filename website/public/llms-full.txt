@@ -200,7 +200,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - IIS: the signed Windows installer from the 1.15 module channel, https://modpagespeed.com/releases/v1.15.0/pagespeed-iis-1.15.0-win-x64.msi (Windows Server 2019, Windows Server 2022, Windows Server 2025; IIS 10+; x64). See [Install on IIS](https://modpagespeed.com/docs/install-iis/).
 - NuGet `WeAmp.PageSpeed.AspNetCore` 2.4.0, the ASP.NET Core middleware (net8.0, net10.0; linux-x64, linux-arm64, osx-arm64, win-x64): `dotnet add package WeAmp.PageSpeed.AspNetCore`. See [Install ASP.NET Core middleware](https://modpagespeed.com/docs/aspnet-getting-started/).
 - NuGet `WeAmp.PageSpeed.Sidecar` with `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`, 1.17.0, the module as an ASP.NET Core sidecar (linux-x64, linux-arm64; bundles nginx 1.30.4): `dotnet add package WeAmp.PageSpeed.Sidecar`.
-- Direct downloads of the 1.15 module line, v1.15.0+r22 (2026-08-08): deb, rpm and MSI, each with a GPG signature, listed on [Download](https://modpagespeed.com/download/); checksum list at https://modpagespeed.com/releases/v1.15.0/SHA256SUMS.
+- Worker packages (deb, rpm and Windows zip, with SHA256SUMS) of every release: the [release listing](https://github.com/We-Amp/pagespeed-optimizer/releases/latest). The module packages install from the signed repositories above; see [Download](https://modpagespeed.com/download/).
 
 ---
 

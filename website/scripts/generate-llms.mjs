@@ -167,7 +167,7 @@ export function distributionLines(ctx) {
     `- IIS: the signed Windows installer from the ${V1_LINE} module channel, ${artifactUrl(rel11, 'msi', 'win_x64')} (${rel11.compat.iis.os.join(', ')}; IIS ${rel11.compat.iis.iis_versions.join(', ')}; x64). See [Install on IIS](${docUrl('install-iis')}).`,
     `- NuGet \`${aspnetPkg}\` ${rel21.release.semver}, the ASP.NET Core middleware (${ASPNETCORE_TFMS.join(', ')}; ${ASPNETCORE_RIDS.join(', ')}): \`dotnet add package ${aspnetPkg}\`. See [Install ASP.NET Core middleware](${docUrl('aspnet-getting-started')}).`,
     `- NuGet \`${PKG_SIDECAR}\` with \`${PKG_SIDECAR_NATIVE}\`, ${SIDECAR_VERSION}, the module as an ASP.NET Core sidecar (${SIDECAR_RIDS.join(', ')}; bundles nginx ${SIDECAR_NGINX_VERSION}): \`dotnet add package ${PKG_SIDECAR}\`.`,
-    `- Direct downloads of the ${V1_LINE} module line, ${rel11.release.tag} (${rel11.release.released_on}): deb, rpm and MSI, each with a GPG signature, listed on [Download](${SITE}/download/); checksum list at ${rel11.urls.archive_base}SHA256SUMS.`,
+    `- Worker packages (deb, rpm and Windows zip, with SHA256SUMS) of every release: the [release listing](https://github.com/We-Amp/pagespeed-optimizer/releases/latest). The module packages install from the signed repositories above; see [Download](${SITE}/download/).`,
   ];
 }
 

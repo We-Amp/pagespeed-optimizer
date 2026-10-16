@@ -338,7 +338,7 @@ describe('agent files cover the docs collection', () => {
       `\`${PKG_SIDECAR}\``,
       `\`${PKG_SIDECAR_NATIVE}\``,
       `${PRODUCT_NAME} ${rel21.release.semver} (${rel21.release.released_on})`,
-      rel11.release.tag,
+      'https://github.com/We-Amp/pagespeed-optimizer/releases/latest',
       ...ASPNETCORE_TFMS,
       ...ASPNETCORE_RIDS,
       ...SIDECAR_RIDS,
