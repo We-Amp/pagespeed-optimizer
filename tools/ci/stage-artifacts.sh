@@ -6,8 +6,9 @@
 #
 # Usage: tools/ci/stage-artifacts.sh <source-dir>
 #
-# Copies factory_worker, ngx_pagespeed_module.so, the brotli module, and
-# libc++ runtime libs from <source-dir>/.ci-artifacts/ to .ci-artifacts/ in
+# Copies factory_worker, ngx_pagespeed_module.so, the brotli module, the
+# seed_test_cache test tool, and libc++ runtime libs from
+# <source-dir>/.ci-artifacts/ to .ci-artifacts/ in
 # the current directory (which should be the repo checkout root).
 set -euo pipefail
 
@@ -214,6 +215,19 @@ if [ -f "${BUNDLE_DIR}/ngx_http_brotli_filter_module.so" ]; then
 else
   echo "::warning::brotli module absent from ${BUNDLE_DIR}/ -- building it (no prebuilt artifact: arm64 periodic or old bundle)."
   "${SCRIPT_DIR}/build-brotli-module.sh" "$(pwd)"
+fi
+
+# Test-only cache tool: Dockerfile.prebuilt COPYs it so the HTTP-compliance
+# sidecar tests can exec it in the nginx container (the source-built e2e image
+# ships it from bazel-bin; prebuilt consumers get it from the bundle). There
+# is no local-build fallback -- it is a plain cc_binary the producers already
+# build -- so a bundle without it fails HERE with the remedy, not later as an
+# opaque image-COPY error or a 127 inside a test.
+if [ -f "${BUNDLE_DIR}/seed_test_cache" ]; then
+  install -m 755 "${BUNDLE_DIR}/seed_test_cache" .ci-artifacts/
+else
+  echo "::error::seed_test_cache absent from ${BUNDLE_DIR}/ -- Dockerfile.prebuilt cannot be built (the producing Build job must ship //tools:seed_test_cache in the bundle)." >&2
+  exit 1
 fi
 
 echo "Staged CI artifacts from ${SRC}:"

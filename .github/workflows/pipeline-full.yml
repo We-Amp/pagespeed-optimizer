@@ -352,10 +352,14 @@ jobs:
               SO=$(find "$ROOT" -path "*/bin/lib/pagespeed/libpagespeed.so" -type f | head -1)
               FW=$(find "$ROOT" -path "*/bin/src/worker/factory_worker" -not -path "*.runfiles*" -type f | head -1)
               NGX=$(find "$ROOT" -path "*/bin/src/nginx/ngx_pagespeed_module.so" -type f | head -1)
+              STC=$(find "$ROOT" -path "*/bin/tools/seed_test_cache" -not -path "*.runfiles*" -type f | head -1)
               OUT=/workspace/.ci-artifacts
               cp "$SO" "$OUT/libpagespeed.so"
               cp "$FW" "$OUT/factory_worker"
               cp "$NGX" "$OUT/ngx_pagespeed_module.so"
+              # Already built by //... above; the prebuilt test image runs it
+              # in the nginx container for the HTTP-compliance sidecar tests.
+              cp "$STC" "$OUT/seed_test_cache"
               # Record the nginx version this module was built against (the
               # build image sources nginx into /nginx-src) so
               # Dockerfile.prebuilt can pin its runtime nginx + brotli to
