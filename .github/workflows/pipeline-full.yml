@@ -1071,7 +1071,7 @@ jobs:
   container-cache-sharing:
     name: Container Cache Sharing
     needs: linux-build
-    runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) && 'ubuntu-latest' || 'fleet-light' }}
+    runs-on: ubuntu-latest  # needs a Yama-enabled kernel for the section 4b control; the fleet's Docker hosts have none
     if: ${{ vars.FLEET_ENABLED == 'true' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
     timeout-minutes: 30
     steps:
