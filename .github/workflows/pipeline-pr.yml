@@ -1963,6 +1963,9 @@ jobs:
           # Bazel disk cache and the vendor download directory live under the
           # profile: they persist on a fleet runner and are empty on a hosted one.
           Set-JobEnv 'WIN_CACHE_DIR' (Join-Path $env:USERPROFILE '.cache\optimizer-bazel-disk')
+          # The cache is bounded by the runner's cap when it names one (sized
+          # together with the host's other caches), else by a modest default.
+          Set-JobEnv 'WIN_CACHE_MAX_SIZE' $(if ($env:CI_WIN_CACHE_MAX_SIZE) { $env:CI_WIN_CACHE_MAX_SIZE } else { '30G' })
           Set-JobEnv 'WIN_VENDOR_DL_DIR' (Join-Path $env:USERPROFILE '.cache\optimizer-vendor')
           Write-Host "build tool: $bazel"
 
@@ -2090,7 +2093,7 @@ jobs:
           # Forward slashes for every Bazel path (a Windows Bazel requirement).
           $diskCache = $env:WIN_CACHE_DIR -replace '\\', '/'
           $common = @('--config=windows', '--jobs=HOST_CPUS*.75', '--nostamp',
-                      "--disk_cache=$diskCache", '--experimental_disk_cache_gc_max_size=100G')
+                      "--disk_cache=$diskCache", "--experimental_disk_cache_gc_max_size=$($env:WIN_CACHE_MAX_SIZE)")
           if (Test-Path -LiteralPath 'vendor') { $common += '--vendor_dir=vendor' }
           if ($env:BAZEL_REMOTE_CACHE_URL) {
             $common += "--remote_cache=$($env:BAZEL_REMOTE_CACHE_URL)"
@@ -2234,6 +2237,9 @@ jobs:
           # Bazel disk cache and the vendor download directory live under the
           # profile: they persist on a fleet runner and are empty on a hosted one.
           Set-JobEnv 'WIN_CACHE_DIR' (Join-Path $env:USERPROFILE '.cache\optimizer-bazel-disk')
+          # The cache is bounded by the runner's cap when it names one (sized
+          # together with the host's other caches), else by a modest default.
+          Set-JobEnv 'WIN_CACHE_MAX_SIZE' $(if ($env:CI_WIN_CACHE_MAX_SIZE) { $env:CI_WIN_CACHE_MAX_SIZE } else { '30G' })
           Set-JobEnv 'WIN_VENDOR_DL_DIR' (Join-Path $env:USERPROFILE '.cache\optimizer-vendor')
           Write-Host "build tool: $bazel"
 
@@ -2361,7 +2367,7 @@ jobs:
           # Forward slashes for every Bazel path (a Windows Bazel requirement).
           $diskCache = $env:WIN_CACHE_DIR -replace '\\', '/'
           $common = @('--config=windows', '--jobs=HOST_CPUS*.75', '--nostamp',
-                      "--disk_cache=$diskCache", '--experimental_disk_cache_gc_max_size=100G')
+                      "--disk_cache=$diskCache", "--experimental_disk_cache_gc_max_size=$($env:WIN_CACHE_MAX_SIZE)")
           if (Test-Path -LiteralPath 'vendor') { $common += '--vendor_dir=vendor' }
           if ($env:BAZEL_REMOTE_CACHE_URL) {
             $common += "--remote_cache=$($env:BAZEL_REMOTE_CACHE_URL)"
