@@ -1676,6 +1676,26 @@ jobs:
             "binary:${GITHUB_WORKSPACE}/.rig-artifacts/factory_worker" \
             "sharedlib:${GITHUB_WORKSPACE}/.rig-artifacts/libpagespeed.so"
 
+      # Hosted Ubuntu 24.04 VMs set kernel.apparmor_restrict_unprivileged_userns=1.
+      # Under it unshare(CLONE_NEWUSER) still succeeds, so the daemon's probe
+      # reports the sandbox available, but an unconfined process gets no
+      # capabilities inside the new namespace, so Chrome's namespace sandbox
+      # cannot start and Chrome exits on every spawn. The setting is host-wide
+      # and the rig container shares this kernel. It is the host setting the
+      # package documents for Ubuntu 24.04 hosts running browser analysis; the
+      # fleet rig hosts do not set it. The unit and its filters are
+      # unchanged.
+      - name: Admit unprivileged user namespaces on the hosted VM
+        run: |
+          set -euo pipefail
+          f=/proc/sys/kernel/apparmor_restrict_unprivileged_userns
+          if [ -e "$f" ]; then
+            echo "kernel.apparmor_restrict_unprivileged_userns was $(cat "$f")"
+            sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          else
+            echo "this kernel has no AppArmor user-namespace restriction"
+          fi
+
       - name: Package-install verification (debian12, aarch64)
         run: |
           bash tools/packaging/daemon-install-rig.sh \
