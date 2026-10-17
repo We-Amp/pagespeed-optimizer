@@ -19,7 +19,7 @@ services:
     volumes:
       - ./testdata:/var/www
     ports:
-      - "8082:8081"
+      - "${E2E_ORIGIN_PORT:-8082}:8081"
 
   # Compressed origin: nginx with gzip enabled, used to test the
   # Content-Encoding guard (Phase 1.1).  No port exposure needed
@@ -38,7 +38,7 @@ services:
       dockerfile: tools/e2e/Dockerfile.e2e
     entrypoint: ["/entrypoint-worker.sh"]
     ports:
-      - "9881:9881"
+      - "${E2E_WORKER_PORT:-9881}:9881"
     volumes:
       - shared:/shared
       - ./entrypoint-worker.sh:/entrypoint-worker.sh:ro

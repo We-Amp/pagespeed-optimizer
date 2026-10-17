@@ -17,7 +17,7 @@ import time
 
 import pytest
 import requests
-from conftest import PageSpeedClient, compose_run, docker_exec
+from conftest import WORKER_API_URL, PageSpeedClient, compose_run, docker_exec
 
 # -- User Story 1: Module loads into nginx --
 
@@ -474,7 +474,7 @@ class TestGracefulDegradation:
             deadline = time.time() + 30
             while time.time() < deadline:
                 try:
-                    r = requests.get("http://localhost:9881/v1/health", timeout=2)
+                    r = requests.get(f"{WORKER_API_URL}/v1/health", timeout=2)
                     if r.status_code == 200:
                         break
                 except requests.RequestException:
