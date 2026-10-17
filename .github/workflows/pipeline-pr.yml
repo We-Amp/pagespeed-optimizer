@@ -1902,6 +1902,18 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Provision the toolchain (hosted runner)
+        if: runner.environment == 'github-hosted'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # NASM is pinned to 2.16.03: the AV1 codec dependency rejects 3.x.
+          choco install nasm --version=2.16.03 -y --no-progress
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::nasm install failed"; exit 1 }
+          (Join-Path $env:ProgramFiles 'NASM') | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          # gperf for the Bazel genrules, from the MSYS2 that ships with the image.
+          & (Join-Path $env:SystemDrive 'msys64\usr\bin\pacman.exe') -Sy --noconfirm --needed gperf
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::gperf install failed"; exit 1 }
+
       # Tool locations come from PATH, or from CI_WIN_TOOLS_DIR when the runner
       # provides it (docs/ci/runner-environment.md). Nothing here names a
       # drive, a user profile or an installation directory.
@@ -2046,7 +2058,9 @@ jobs:
           $vcvars = "$vsDir\VC\Auxiliary\Build\vcvars64.bat"
           # Full path: an MSYS2 cmd on PATH would shadow System32\cmd.exe.
           & "$($env:SystemRoot)\System32\cmd.exe" /c "`"$vcvars`" >nul 2>&1 && set" | ForEach-Object {
-            if ($_ -match '^(INCLUDE|LIB|PATH)=(.*)$') {
+            if ($_ -match '^PATH=(.*)$') {
+              $vcPath = $Matches[1]
+            } elseif ($_ -match '^(INCLUDE|LIB)=(.*)$') {
               "$($Matches[1])=$($Matches[2])" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
             }
           }
@@ -2054,7 +2068,10 @@ jobs:
           $extra = Join-Path $env:SystemDrive 'msys64\usr\bin'
           $ninja = Get-Command ninja -ErrorAction SilentlyContinue
           if ($ninja) { $extra = "$extra;" + (Split-Path $ninja.Source) }
-          "PATH=$extra;$($env:PATH)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          # One PATH line: the vcvars PATH (MSVC and Windows Kits tools, plus the
+          # original PATH) behind MSYS2 and Ninja. A later line would override it.
+          if (-not $vcPath) { $vcPath = $env:PATH }
+          "PATH=$extra;$vcPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Build all targets
         run: |
@@ -2148,6 +2165,18 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Provision the toolchain (hosted runner)
+        if: runner.environment == 'github-hosted'
+        run: |
+          $ErrorActionPreference = 'Stop'
+          # NASM is pinned to 2.16.03: the AV1 codec dependency rejects 3.x.
+          choco install nasm --version=2.16.03 -y --no-progress
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::nasm install failed"; exit 1 }
+          (Join-Path $env:ProgramFiles 'NASM') | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          # gperf for the Bazel genrules, from the MSYS2 that ships with the image.
+          & (Join-Path $env:SystemDrive 'msys64\usr\bin\pacman.exe') -Sy --noconfirm --needed gperf
+          if ($LASTEXITCODE -ne 0) { Write-Host "::error::gperf install failed"; exit 1 }
+
       # Tool locations come from PATH, or from CI_WIN_TOOLS_DIR when the runner
       # provides it (docs/ci/runner-environment.md). Nothing here names a
       # drive, a user profile or an installation directory.
@@ -2292,7 +2321,9 @@ jobs:
           $vcvars = "$vsDir\VC\Auxiliary\Build\vcvars64.bat"
           # Full path: an MSYS2 cmd on PATH would shadow System32\cmd.exe.
           & "$($env:SystemRoot)\System32\cmd.exe" /c "`"$vcvars`" >nul 2>&1 && set" | ForEach-Object {
-            if ($_ -match '^(INCLUDE|LIB|PATH)=(.*)$') {
+            if ($_ -match '^PATH=(.*)$') {
+              $vcPath = $Matches[1]
+            } elseif ($_ -match '^(INCLUDE|LIB)=(.*)$') {
               "$($Matches[1])=$($Matches[2])" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
             }
           }
@@ -2300,7 +2331,10 @@ jobs:
           $extra = Join-Path $env:SystemDrive 'msys64\usr\bin'
           $ninja = Get-Command ninja -ErrorAction SilentlyContinue
           if ($ninja) { $extra = "$extra;" + (Split-Path $ninja.Source) }
-          "PATH=$extra;$($env:PATH)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          # One PATH line: the vcvars PATH (MSVC and Windows Kits tools, plus the
+          # original PATH) behind MSYS2 and Ninja. A later line would override it.
+          if (-not $vcPath) { $vcPath = $env:PATH }
+          "PATH=$extra;$vcPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Run unit tests
         run: |

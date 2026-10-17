@@ -32,6 +32,8 @@ Tools the Windows jobs expect (on `PATH` or in `CI_WIN_TOOLS_DIR`): `bazelisk`
 or `bazel`, `zstd` (hub channel only), `scp` (hub fetch only), Visual Studio
 2022 with the C++ workload, and MSYS2 or Git for Windows for Bazel's shell.
 Hosted `windows-2022` runners provide all of them except the hub tools.
+The hosted Windows jobs add NASM 2.16.03 and gperf (installed with `pacman` into
+the image's MSYS2) before the build.
 
 Tools the Linux fleet jobs expect on `PATH`: `docker`, `bash`, `git`, `tar` with
 zstd support, `rsync` and `ssh` (hub only), and `bazel` or `npm` (the vendor
