@@ -5,6 +5,7 @@
 // repository for Priority and Enterprise is being set up, and there is no
 // hardened-builds offer.
 
+import { readFileSync } from 'node:fs';
 import { describe, expect, it, vi } from 'vitest';
 import { MODULE_PACKAGE_VERSION } from '../src/data/product-facts.mjs';
 import { GET as productJsonGet } from '../src/pages/api/product.json.ts';
@@ -44,5 +45,17 @@ describe('/api/product.json private repository status', () => {
       released_on: releaseManifest.release.released_on,
       module_package_version: MODULE_PACKAGE_VERSION,
     });
+  });
+});
+
+describe('release manifest matches the published release notes', () => {
+  it('names the manifest version and release date in the release notes page', () => {
+    const [major, minor] = releaseManifest.release.semver.split('.');
+    const notes = readFileSync(
+      new URL(`../src/content/docs/release-notes-${major}-${minor}.mdx`, import.meta.url),
+      'utf8',
+    );
+    expect(notes).toContain(`mod_pagespeed ${releaseManifest.release.semver}`);
+    expect(notes).toContain(String(releaseManifest.release.released_on));
   });
 });
