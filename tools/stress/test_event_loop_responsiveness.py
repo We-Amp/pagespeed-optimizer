@@ -11,13 +11,21 @@ Fix: Offloaded HandleNotification() to libuv thread pool via uv_queue_work.
 
 These tests verify that mgmt/health sockets remain responsive even while
 the worker is processing large images.
+
+STRESS_LATENCY_FACTOR (float, default 1.0) scales the STATS latency bound for
+hosts shared with other CI jobs; the default keeps the real requirement.
 """
 
+import os
 import time
 
 import metrics_helpers
 import pytest
 import requests
+
+
+STATS_BOUND_S = 3.0 * float(os.environ.get("STRESS_LATENCY_FACTOR", "1.0"))
+LATENCY_FACTOR = STATS_BOUND_S / 3.0
 
 
 class TestEventLoopResponsiveness:
@@ -26,7 +34,8 @@ class TestEventLoopResponsiveness:
     def test_stats_responds_during_image_processing(self, stress_services):
         """Request 3 large images to trigger processing, then query STATS.
 
-        STATS must respond within 3s for each of 10 queries at 200ms intervals.
+        STATS must respond within 3s (scaled by STRESS_LATENCY_FACTOR) for each
+        of 10 queries at 200ms intervals.
         """
         base_url = stress_services.nginx_url
 
@@ -45,12 +54,15 @@ class TestEventLoopResponsiveness:
         for i in range(10):
             start = time.monotonic()
             try:
-                raw = metrics_helpers.get_stats_via_docker(timeout=3)
+                raw = metrics_helpers.get_stats_via_docker(timeout=STATS_BOUND_S)
                 elapsed = time.monotonic() - start
                 stats = metrics_helpers.parse_stats(raw)
                 assert "status" in stats, f"Unexpected STATS format: {raw[:100]}"
-                if elapsed > 3.0:
-                    failures.append(f"Query {i}: {elapsed:.1f}s (>3s)")
+                if elapsed > STATS_BOUND_S:
+                    failures.append(
+                        f"Query {i}: {elapsed:.1f}s "
+                        f"(>{STATS_BOUND_S:.1f}s, factor {LATENCY_FACTOR:.1f})"
+                    )
             except Exception as e:
                 failures.append(f"Query {i}: {e}")
             time.sleep(0.2)
