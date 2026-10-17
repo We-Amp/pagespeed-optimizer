@@ -66,7 +66,7 @@ echo "=== Waiting for services ==="
 nginx_ready=false
 deadline=$((SECONDS + 30))
 while [ $SECONDS -lt $deadline ]; do
-    if curl -sf http://localhost:8083/health >/dev/null 2>&1; then
+    if curl -sf http://localhost:${REALWORLD_NGINX_PORT:-8083}/health >/dev/null 2>&1; then
         echo "Nginx is ready."
         nginx_ready=true
         break
@@ -82,7 +82,7 @@ fi
 worker_ready=false
 deadline=$((SECONDS + 30))
 while [ $SECONDS -lt $deadline ]; do
-    if curl -sf http://localhost:9882/v1/health >/dev/null 2>&1; then
+    if curl -sf http://localhost:${REALWORLD_WORKER_PORT:-9882}/v1/health >/dev/null 2>&1; then
         echo "Worker API is ready."
         worker_ready=true
         break

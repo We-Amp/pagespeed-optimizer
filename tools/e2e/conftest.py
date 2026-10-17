@@ -22,8 +22,8 @@ from common.worker_health import wait_worker_http
 E2E_DIR = os.path.dirname(os.path.abspath(__file__))
 COMPOSE_FILE = os.path.join(E2E_DIR, "docker-compose.yml")
 NGINX_URL = os.environ.get("NGINX_URL", "http://localhost:8083")
-ORIGIN_URL = "http://localhost:8082"
-WORKER_API_URL = "http://localhost:9881"
+ORIGIN_URL = os.environ.get("ORIGIN_URL", "http://localhost:8082")
+WORKER_API_URL = os.environ.get("WORKER_API_URL", "http://localhost:9881")
 # The management API requires a bearer token. Kept in lockstep
 # with tools/e2e/entrypoint-worker.sh.
 WORKER_API_TOKEN = os.environ.get("PAGESPEED_API_TOKEN", "e2e-harness-test-token")

@@ -28,6 +28,19 @@ are never echoed to the job log, and no value appears in this repository.
 | `CI_WIN_BAZEL_OUTPUT_ROOT` | Windows | Bazel `--output_user_root` for every Windows job (a short path on a volume with room) | `C:/b` |
 | `CI_DEV_IMAGE_LOCK_DIR` | Linux | directory for the per-host lock files `tools/ci/ensure-dev-image.sh` takes around image builds (useful when several runner instances share one Docker daemon) | locks go to the temporary directory |
 
+## Host ports per runner slot
+
+Several runner slots can share one host, and the compose stacks the pipelines
+bring up (`tools/e2e`, `tools/realworld-tests`, `tools/stress`,
+`tools/production-tests`, `tools/http-compliance`, `tools/async-css-probe`,
+`tools/workbench-demo`) publish host ports. The first step of each such job
+sources `tools/ci/runner-ports.sh`, which reads the trailing digits of
+`RUNNER_NAME` (`fleet-heavy-07` gives 7), multiplies them by 100 and exports
+every published port as its default plus that offset (`E2E_NGINX_PORT`,
+`STRESS_NGINX_PORT` and so on; the script lists them all). A name without
+trailing digits, an unset name, and any run by hand get the defaults, so a
+developer running a stack locally sees the ports the stack's README names.
+
 Tools the Windows jobs expect (on `PATH` or in `CI_WIN_TOOLS_DIR`): `bazelisk`
 or `bazel`, `zstd` (hub channel only), `scp` (hub fetch only), Visual Studio
 2022 with the C++ workload, and MSYS2 or Git for Windows for Bazel's shell.
