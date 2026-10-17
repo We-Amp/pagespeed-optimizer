@@ -138,6 +138,10 @@ def without_vary(lines: dict[str, list[str]]) -> dict[str, list[str]]:
     return {k: v for k, v in lines.items() if k != "vary"}
 
 
+def without_link(lines: dict[str, list[str]]) -> dict[str, list[str]]:
+    return {k: v for k, v in lines.items() if k != "link"}
+
+
 def wait_for_optimized_hit(client, path: str, miss):
     """Poll until the optimizer's (smaller) variant is served from cache, so
     the entry later requests see is the one whose age the test controls."""
@@ -352,7 +356,21 @@ class TestHeadersSidecarReplay:
                 break
             time.sleep(0.5)
         assert hit is not None, "the optimized page was never served from cache"
-        assert carried(hit) == expected
+        # An HTML hit also carries the module's own preload hints (the Link
+        # lines built from the page's Early Hints record, e.g. the hero image
+        # preload), which the origin MISS cannot have.  The origin's lines
+        # must all be replayed; Link is compared as "the origin's lines plus
+        # exactly the page's known hints" (the page references only
+        # /1x1.jpg).
+        hit_lines = carried(hit)
+        assert without_link(hit_lines) == without_link(expected)
+        hit_links = list(hit_lines.get("link", []))
+        for line in expected.get("link", []):
+            assert line in hit_links, (line, hit_links)
+            hit_links.remove(line)
+        assert sorted(hit_links) == [
+            "</1x1.jpg>; rel=preload; as=image; fetchpriority=high"
+        ], hit_links
 
     def test_missing_stored_headers_is_a_miss_then_rerecorded(self, client):
         """A cached URL whose stored lines are removed behind the server's
