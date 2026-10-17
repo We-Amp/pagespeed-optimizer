@@ -26,7 +26,7 @@ services:
       - ./entrypoint-worker-realworld.sh:/entrypoint-worker-realworld.sh:ro
       - ../../tools/workbench/packages/web-shell/dist:/opt/console:ro
     ports:
-      - "127.0.0.1:9882:9882"
+      - "127.0.0.1:${REALWORLD_WORKER_PORT:-9882}:9882"
 
   # Nginx with pagespeed module: reverse proxy to real internet sites,
   # serves from cache on hit.
@@ -36,7 +36,7 @@ services:
       dockerfile: tools/e2e/Dockerfile.e2e
     command: ["nginx", "-g", "daemon off;"]
     ports:
-      - "127.0.0.1:8083:8083"
+      - "127.0.0.1:${REALWORLD_NGINX_PORT:-8083}:8083"
     volumes:
       - shared:/shared
       - ./nginx-realworld.conf:/etc/nginx/nginx.conf:ro
