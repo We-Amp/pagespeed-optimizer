@@ -20,12 +20,14 @@ high coverage count.
   category. The list was extracted from the GoogleChrome/lighthouse
   repository against the tip of `main` (audit IDs are stable; the set
   evolves slowly).
-- **Filter inventory:** `website/src/content/docs/filter-reference.md`.
+- **Filter inventory:** the filters index, `/docs/filters/`
+  (`website/src/pages/docs/filters.astro`, rendered from
+  `website/src/data/filters.ts`).
   The 1.15 filter set is the canonical superset; the optimizer worker
   implements a subset implicitly (no `EnableFilters` directive — the worker runs image
   transcoding, CSS/JS minification, and critical CSS inlining whenever
   `pagespeed on` is set).
-- **Filter behavior + caveats:** the `Safe` column in `filter-reference.md`
+- **Filter behavior + caveats:** the `Risk` column of the filters index (`/docs/filters/`)
   ("Generally safe" / "Test first" / "Experimental") drives the
   `confidence` field.
 
@@ -109,7 +111,7 @@ fields hold edition-specific config syntax.
 
 - **1.15** exposes a hand-curated list of ~80 named filters that operators
   enable individually via `pagespeed EnableFilters foo,bar;`. The filter
-  inventory is documented in `docs/filter-reference.md`.
+  inventory is documented on the filters index, `/docs/filters/`.
 - **2.0** has no named filter list at all. The nginx module surface is two
   required directives (`pagespeed on;` + `pagespeed_cache_path …;`) and a
   handful of optional knobs (`pagespeed_cache_mode`, `pagespeed_disallow`,
@@ -199,7 +201,7 @@ Two diagnostics show edition-specific behaviour even though both editions
 - **Annual review (Q1):** diff against
   `core/config/default-config.js` on the Lighthouse `main` branch. New
   audit IDs get added; deprecated IDs stay in the table with a comment.
-- **On filter changes:** if `filter-reference.md` changes (renames, new
+- **On filter changes:** if the filters index (`/docs/filters/`) changes (renames, new
   filters, deprecations), update the `filters` array in any affected
   entries.
 - **On customer regressions:** if a filter consistently makes a specific

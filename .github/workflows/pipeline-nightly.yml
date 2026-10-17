@@ -689,6 +689,13 @@ jobs:
           [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Several runner slots share one host and every stack publishes fixed
+      # host ports; move this job's ports by a per-runner offset.
+      - name: Per-runner host ports
+        run: |
+          . tools/ci/runner-ports.sh
+          for v in $RUNNER_PORT_VARS; do eval "p=\${$v}"; echo "$v=$p"; done >> "$GITHUB_ENV"
+
       - name: Download the build bundle
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -785,6 +792,13 @@ jobs:
           [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Several runner slots share one host and every stack publishes fixed
+      # host ports; move this job's ports by a per-runner offset.
+      - name: Per-runner host ports
+        run: |
+          . tools/ci/runner-ports.sh
+          for v in $RUNNER_PORT_VARS; do eval "p=\${$v}"; echo "$v=$p"; done >> "$GITHUB_ENV"
+
       - name: Download the build bundle
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -831,6 +845,8 @@ jobs:
             --user "$(id -u):$(id -g)" --group-add "$DOCKER_GID" --group-add 0 \
             -e HOME=/tmp \
             -e PIP_USER=1 -e PIP_BREAK_SYSTEM_PACKAGES=1 \
+            -e "PRODTEST_NGINX_PORT=${PRODTEST_NGINX_PORT:-8200}" \
+            -e "PRODTEST_ORIGIN_PORT=${PRODTEST_ORIGIN_PORT:-8201}" \
             -v "$PWD":/repo -w /repo/tools/production-tests \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$DOCKER_BIN":/usr/bin/docker:ro \
@@ -865,6 +881,13 @@ jobs:
           [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Several runner slots share one host and every stack publishes fixed
+      # host ports; move this job's ports by a per-runner offset.
+      - name: Per-runner host ports
+        run: |
+          . tools/ci/runner-ports.sh
+          for v in $RUNNER_PORT_VARS; do eval "p=\${$v}"; echo "$v=$p"; done >> "$GITHUB_ENV"
+
       - name: Download the build bundle
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -887,7 +910,7 @@ jobs:
             -f tools/realworld-tests/docker-compose.prebuilt.yml up -d --no-build
           # Wait for nginx (local /health, no upstream dependency).
           for _ in $(seq 1 30); do
-            curl -sf http://localhost:8083/health >/dev/null 2>&1 && break
+            curl -sf "http://localhost:${REALWORLD_NGINX_PORT:-8083}/health" >/dev/null 2>&1 && break
             sleep 2
           done
           # Wait for go-httpbin to be reachable THROUGH nginx. The go-httpbin
@@ -895,7 +918,7 @@ jobs:
           # healthcheck for depends_on: service_healthy; gate readiness here
           # instead so tests don't start before the upstream is serving.
           for _ in $(seq 1 30); do
-            curl -sf http://localhost:8083/httpbin/status/200 >/dev/null 2>&1 && break
+            curl -sf "http://localhost:${REALWORLD_NGINX_PORT:-8083}/httpbin/status/200" >/dev/null 2>&1 && break
             sleep 2
           done
 
@@ -905,6 +928,8 @@ jobs:
             --user "$(id -u):$(id -g)" \
             -e HOME=/tmp \
             -e PIP_USER=1 -e PIP_BREAK_SYSTEM_PACKAGES=1 \
+            -e "NGINX_URL=http://localhost:${REALWORLD_NGINX_PORT:-8083}" \
+            -e "WORKER_API_URL=http://localhost:${REALWORLD_WORKER_PORT:-9882}" \
             -v "$PWD":/repo -w /repo/tools/realworld-tests \
             python:3.12-slim \
             bash -c "export PATH=/tmp/.local/bin:\$PATH && pip install -q pytest requests && pytest -v --tb=short -p no:cacheprovider"
@@ -935,6 +960,13 @@ jobs:
         run: |
           [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Several runner slots share one host and every stack publishes fixed
+      # host ports; move this job's ports by a per-runner offset.
+      - name: Per-runner host ports
+        run: |
+          . tools/ci/runner-ports.sh
+          for v in $RUNNER_PORT_VARS; do eval "p=\${$v}"; echo "$v=$p"; done >> "$GITHUB_ENV"
 
       - name: Download the build bundle
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -998,7 +1030,7 @@ jobs:
           deadline=$((SECONDS + 60))
           WORKER_READY=False
           while [ $SECONDS -lt $deadline ]; do
-            WORKER_READY=$(curl -sf http://localhost:9881/v1/health 2>/dev/null \
+            WORKER_READY=$(curl -sf "http://localhost:${E2E_WORKER_PORT:-9881}/v1/health" 2>/dev/null \
               | python3 -c "import sys,json; d=json.load(sys.stdin); print(bool(d.get('ready', True)))" 2>/dev/null || echo "False")
             if [ "$WORKER_READY" = "True" ]; then
               echo "Worker ready"
@@ -1009,7 +1041,7 @@ jobs:
           if [ "$WORKER_READY" != "True" ]; then
             echo "WARNING: Worker not ready after 60s - E2E HIT tests may fail"
             echo "--- Worker health endpoint (full response) ---"
-            curl -sf http://localhost:9881/v1/health 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "(no response)"
+            curl -sf "http://localhost:${E2E_WORKER_PORT:-9881}/v1/health" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "(no response)"
             echo "--- Container status ---"
             docker compose -f tools/e2e/docker-compose.yml \
               -f tools/e2e/docker-compose.prebuilt.yml ps
@@ -1037,6 +1069,8 @@ jobs:
             -v "$COMPOSE_PLUGIN":/usr/local/lib/docker/cli-plugins/docker-compose:ro \
             -e E2E_NO_LIFECYCLE=1 \
             -e "NGINX_URL=http://localhost:${E2E_NGINX_PORT:-8083}" \
+            -e "ORIGIN_URL=http://localhost:${E2E_ORIGIN_PORT:-8082}" \
+            -e "WORKER_API_URL=http://localhost:${E2E_WORKER_PORT:-9881}" \
             python:3.12-slim \
             bash -c "export PATH=/tmp/.local/bin:\$PATH && pip install -q -r requirements.txt && \
               pytest test_user_stories.py test_configuration.py \
@@ -1066,6 +1100,13 @@ jobs:
         run: |
           [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Several runner slots share one host and every stack publishes fixed
+      # host ports; move this job's ports by a per-runner offset.
+      - name: Per-runner host ports
+        run: |
+          . tools/ci/runner-ports.sh
+          for v in $RUNNER_PORT_VARS; do eval "p=\${$v}"; echo "$v=$p"; done >> "$GITHUB_ENV"
 
       - name: Download the build bundle
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -1107,16 +1148,16 @@ jobs:
         run: |
           COMPOSE=(docker compose -f tools/workbench-demo/docker-compose.yml
                    -f tools/workbench-demo/docker-compose.prebuilt.yml)
-          echo "Waiting for the worker API (port 9880) and nginx (port 8084)..."
+          echo "Waiting for the worker API (port ${WORKBENCH_API_PORT:-9880}) and nginx (port ${WORKBENCH_NGINX_PORT:-8084})..."
           deadline=$((SECONDS + 120))
           while [ $SECONDS -lt $deadline ]; do
-            if curl -sf http://localhost:9880/v1/health >/dev/null 2>&1; then
+            if curl -sf "http://localhost:${WORKBENCH_API_PORT:-9880}/v1/health" >/dev/null 2>&1; then
               echo "Worker API ready after ${SECONDS}s"
               break
             fi
             sleep 2
           done
-          if ! curl -sf http://localhost:9880/v1/health >/dev/null 2>&1; then
+          if ! curl -sf "http://localhost:${WORKBENCH_API_PORT:-9880}/v1/health" >/dev/null 2>&1; then
             echo "::error::worker API not ready after 120s"
             "${COMPOSE[@]}" ps
             "${COMPOSE[@]}" logs --tail=50
@@ -1125,7 +1166,7 @@ jobs:
           deadline=$((SECONDS + 30))
           HTTP_CODE=000
           while [ $SECONDS -lt $deadline ]; do
-            HTTP_CODE=$(curl -so /dev/null -w "%{http_code}" http://localhost:8084/ 2>/dev/null || echo "000")
+            HTTP_CODE=$(curl -so /dev/null -w "%{http_code}" "http://localhost:${WORKBENCH_NGINX_PORT:-8084}/" 2>/dev/null || echo "000")
             if [ "$HTTP_CODE" != "000" ]; then
               echo "Nginx ready (HTTP $HTTP_CODE)"
               break
@@ -1147,7 +1188,7 @@ jobs:
           deadline=$((SECONDS + 30))
           WORKER_READY=False
           while [ $SECONDS -lt $deadline ]; do
-            WORKER_READY=$(curl -sf http://localhost:9880/v1/health 2>/dev/null \
+            WORKER_READY=$(curl -sf "http://localhost:${WORKBENCH_API_PORT:-9880}/v1/health" 2>/dev/null \
               | python3 -c "import sys,json; d=json.load(sys.stdin); print(bool(d.get('ready', True)))" 2>/dev/null || echo "False")
             if [ "$WORKER_READY" = "True" ]; then
               echo "Worker ready"
@@ -1217,6 +1258,13 @@ jobs:
         run: |
           [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Several runner slots share one host and every stack publishes fixed
+      # host ports; move this job's ports by a per-runner offset.
+      - name: Per-runner host ports
+        run: |
+          . tools/ci/runner-ports.sh
+          for v in $RUNNER_PORT_VARS; do eval "p=\${$v}"; echo "$v=$p"; done >> "$GITHUB_ENV"
 
       - name: Download the build bundle
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -1314,6 +1362,13 @@ jobs:
           [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Several runner slots share one host and every stack publishes fixed
+      # host ports; move this job's ports by a per-runner offset.
+      - name: Per-runner host ports
+        run: |
+          . tools/ci/runner-ports.sh
+          for v in $RUNNER_PORT_VARS; do eval "p=\${$v}"; echo "$v=$p"; done >> "$GITHUB_ENV"
+
       - name: Download the build bundle
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -1360,6 +1415,8 @@ jobs:
             --user "$(id -u):$(id -g)" --group-add "$DOCKER_GID" --group-add 0 \
             -e HOME=/tmp \
             -e PIP_USER=1 -e PIP_BREAK_SYSTEM_PACKAGES=1 \
+            -e "PRODTEST_NGINX_PORT=${PRODTEST_NGINX_PORT:-8200}" \
+            -e "PRODTEST_ORIGIN_PORT=${PRODTEST_ORIGIN_PORT:-8201}" \
             -v "$PWD":/repo -w /repo/tools/production-tests \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v "$DOCKER_BIN":/usr/bin/docker:ro \
@@ -1395,6 +1452,13 @@ jobs:
           [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Several runner slots share one host and every stack publishes fixed
+      # host ports; move this job's ports by a per-runner offset.
+      - name: Per-runner host ports
+        run: |
+          . tools/ci/runner-ports.sh
+          for v in $RUNNER_PORT_VARS; do eval "p=\${$v}"; echo "$v=$p"; done >> "$GITHUB_ENV"
+
       - name: Download the build bundle
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
@@ -1417,7 +1481,7 @@ jobs:
             -f tools/realworld-tests/docker-compose.prebuilt.yml up -d --no-build
           # Wait for nginx (local /health, no upstream dependency).
           for _ in $(seq 1 30); do
-            curl -sf http://localhost:8083/health >/dev/null 2>&1 && break
+            curl -sf "http://localhost:${REALWORLD_NGINX_PORT:-8083}/health" >/dev/null 2>&1 && break
             sleep 2
           done
           # Wait for go-httpbin to be reachable THROUGH nginx. The go-httpbin
@@ -1425,7 +1489,7 @@ jobs:
           # healthcheck for depends_on: service_healthy; gate readiness here
           # instead so tests don't start before the upstream is serving.
           for _ in $(seq 1 30); do
-            curl -sf http://localhost:8083/httpbin/status/200 >/dev/null 2>&1 && break
+            curl -sf "http://localhost:${REALWORLD_NGINX_PORT:-8083}/httpbin/status/200" >/dev/null 2>&1 && break
             sleep 2
           done
 
@@ -1435,6 +1499,8 @@ jobs:
             --user "$(id -u):$(id -g)" \
             -e HOME=/tmp \
             -e PIP_USER=1 -e PIP_BREAK_SYSTEM_PACKAGES=1 \
+            -e "NGINX_URL=http://localhost:${REALWORLD_NGINX_PORT:-8083}" \
+            -e "WORKER_API_URL=http://localhost:${REALWORLD_WORKER_PORT:-9882}" \
             -v "$PWD":/repo -w /repo/tools/realworld-tests \
             python:3.12-slim \
             bash -c "export PATH=/tmp/.local/bin:\$PATH && pip install -q pytest requests && pytest -v --tb=short -p no:cacheprovider"
@@ -1466,6 +1532,13 @@ jobs:
         run: |
           [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Several runner slots share one host and every stack publishes fixed
+      # host ports; move this job's ports by a per-runner offset.
+      - name: Per-runner host ports
+        run: |
+          . tools/ci/runner-ports.sh
+          for v in $RUNNER_PORT_VARS; do eval "p=\${$v}"; echo "$v=$p"; done >> "$GITHUB_ENV"
 
       - name: Download the build bundle
         uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
@@ -1529,7 +1602,7 @@ jobs:
           deadline=$((SECONDS + 60))
           WORKER_READY=False
           while [ $SECONDS -lt $deadline ]; do
-            WORKER_READY=$(curl -sf http://localhost:9881/v1/health 2>/dev/null \
+            WORKER_READY=$(curl -sf "http://localhost:${E2E_WORKER_PORT:-9881}/v1/health" 2>/dev/null \
               | python3 -c "import sys,json; d=json.load(sys.stdin); print(bool(d.get('ready', True)))" 2>/dev/null || echo "False")
             if [ "$WORKER_READY" = "True" ]; then
               echo "Worker ready"
@@ -1540,7 +1613,7 @@ jobs:
           if [ "$WORKER_READY" != "True" ]; then
             echo "WARNING: Worker not ready after 60s - E2E HIT tests may fail"
             echo "--- Worker health endpoint (full response) ---"
-            curl -sf http://localhost:9881/v1/health 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "(no response)"
+            curl -sf "http://localhost:${E2E_WORKER_PORT:-9881}/v1/health" 2>/dev/null | python3 -m json.tool 2>/dev/null || echo "(no response)"
             echo "--- Container status ---"
             docker compose -f tools/e2e/docker-compose.yml \
               -f tools/e2e/docker-compose.prebuilt.yml ps
@@ -1568,6 +1641,8 @@ jobs:
             -v "$COMPOSE_PLUGIN":/usr/local/lib/docker/cli-plugins/docker-compose:ro \
             -e E2E_NO_LIFECYCLE=1 \
             -e "NGINX_URL=http://localhost:${E2E_NGINX_PORT:-8083}" \
+            -e "ORIGIN_URL=http://localhost:${E2E_ORIGIN_PORT:-8082}" \
+            -e "WORKER_API_URL=http://localhost:${E2E_WORKER_PORT:-9881}" \
             python:3.12-slim \
             bash -c "export PATH=/tmp/.local/bin:\$PATH && pip install -q -r requirements.txt && \
               pytest test_user_stories.py test_configuration.py \
@@ -1688,6 +1763,13 @@ jobs:
         run: |
           [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Several runner slots share one host and every stack publishes fixed
+      # host ports; move this job's ports by a per-runner offset.
+      - name: Per-runner host ports
+        run: |
+          . tools/ci/runner-ports.sh
+          for v in $RUNNER_PORT_VARS; do eval "p=\${$v}"; echo "$v=$p"; done >> "$GITHUB_ENV"
 
       - name: Docker preflight
         run: tools/ci/docker-preflight.sh
