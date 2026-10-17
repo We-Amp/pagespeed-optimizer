@@ -20,7 +20,7 @@ The console heads the optimizer worker's card on its Overview page "Optimizer da
 
 <img
   src="/images/console-1.1-admin.png"
-  alt="mod_pagespeed 1.15 admin console showing live statistics with per-variable deltas and trend sparklines"
+  alt="mod_pagespeed admin console Statistics table listing cache counters with a value column and a delta-since-open column"
   width="1440"
   height="900"
   loading="lazy"
