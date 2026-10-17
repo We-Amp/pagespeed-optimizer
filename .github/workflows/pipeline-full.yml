@@ -804,6 +804,13 @@ jobs:
           [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      # Several runner slots share one host and every stack publishes fixed
+      # host ports; move this job's ports by a per-runner offset.
+      - name: Per-runner host ports
+        run: |
+          . tools/ci/runner-ports.sh
+          for v in $RUNNER_PORT_VARS; do eval "p=\${$v}"; echo "$v=$p"; done >> "$GITHUB_ENV"
+
       - name: Docker preflight
         run: tools/ci/docker-preflight.sh
 
@@ -852,7 +859,7 @@ jobs:
               $COMPOSE logs --tail=100
               exit 1
             fi
-            HTTP_CODE=$(curl -so /dev/null -w "%{http_code}" http://localhost:8180/small.html 2>/dev/null || true)
+            HTTP_CODE=$(curl -so /dev/null -w "%{http_code}" "http://localhost:${COMPLIANCE_NGINX_PORT:-8180}/small.html" 2>/dev/null || true)
             case "$HTTP_CODE" in
               [1-5][0-9][0-9])
                 echo "Services ready after $((SECONDS))s (HTTP $HTTP_CODE)"
@@ -882,9 +889,9 @@ jobs:
             -v "$DOCKER_BIN":/usr/bin/docker:ro \
             -v "$COMPOSE_PLUGIN":/usr/local/lib/docker/cli-plugins/docker-compose:ro \
             -e COMPLIANCE_NO_LIFECYCLE=1 \
-            -e COMPLIANCE_NGINX_PORT=8180 \
-            -e COMPLIANCE_AGGRESSIVE_PORT=8183 \
-            -e COMPLIANCE_ORIGIN_PORT=8181 \
+            -e "COMPLIANCE_NGINX_PORT=${COMPLIANCE_NGINX_PORT:-8180}" \
+            -e "COMPLIANCE_AGGRESSIVE_PORT=${COMPLIANCE_AGGRESSIVE_PORT:-8183}" \
+            -e "COMPLIANCE_ORIGIN_PORT=${COMPLIANCE_ORIGIN_PORT:-8181}" \
             python:3.12-slim \
             bash -c "export PATH=/tmp/.local/bin:\$PATH && pip install -q -r requirements.txt && pytest -v --tb=short --junitxml=results.xml"
 
@@ -912,6 +919,13 @@ jobs:
         run: |
           [ -d "${GITHUB_WORKSPACE}/vendor" ] && chmod -R u+w "${GITHUB_WORKSPACE}/vendor" 2>/dev/null || true
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      # Several runner slots share one host and every stack publishes fixed
+      # host ports; move this job's ports by a per-runner offset.
+      - name: Per-runner host ports
+        run: |
+          . tools/ci/runner-ports.sh
+          for v in $RUNNER_PORT_VARS; do eval "p=\${$v}"; echo "$v=$p"; done >> "$GITHUB_ENV"
 
       - name: Docker preflight
         run: tools/ci/docker-preflight.sh
@@ -1141,6 +1155,14 @@ jobs:
     if: ${{ vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
     timeout-minutes: 90
     steps:
+      # The fleet runners carry the same setting; byte-compared fixtures need LF.
+      - name: Check out with LF line endings (hosted runner)
+        if: runner.environment == 'github-hosted'
+        shell: powershell
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Stamp GIT_COMMIT
@@ -1274,6 +1296,14 @@ jobs:
     if: ${{ vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
     timeout-minutes: 30
     steps:
+      # The fleet runners carry the same setting; byte-compared fixtures need LF.
+      - name: Check out with LF line endings (hosted runner)
+        if: runner.environment == 'github-hosted'
+        shell: powershell
+        run: |
+          git config --global core.autocrlf false
+          git config --global core.eol lf
+
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Download the build bundle

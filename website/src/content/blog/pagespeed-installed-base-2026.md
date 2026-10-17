@@ -10,7 +10,6 @@ draft: false
 <!-- census:begin headline -->
 
 In the September 2026 crawl, HTTP Archive saw PageSpeed answering on **39,564 origins**. 20,625 of them report a version; 18,939 send the header with the version hidden. PageSpeed-serving origins are 0.245% of the root pages in the crawl, down from 0.935% in December 2020, the first crawl in this census.
-
 <!-- census:end headline -->
 
 ## What this census is
@@ -64,7 +63,6 @@ The count moves with the crawl as well as with the web.
 <!-- census:begin crawl-size-note -->
 
 HTTP Archive's crawl grew from 8,388,540 root pages in June 2022 to 15,586,166 in August 2022; the jump in the chart that year follows it.
-
 <!-- census:end crawl-size-note -->
 
 Counts across crawls are not directly comparable because the crawl grew, so the share of root pages is the trend to read. The split between versioned and hidden origins also shifts between some crawls, so read the buckets as trends. Since early 2023 the count has fallen in most crawls.
@@ -120,7 +118,6 @@ The module's header name tells the engines apart. `X-Mod-Pagespeed` comes from t
 <!-- census:begin servers-numbers -->
 
 On the desktop crawl, 21,662 origins send `X-Mod-Pagespeed`, the Apache module's header, and 13,849 send `X-Page-Speed`, the nginx module's header. The Apache module answers behind an nginx front on 6,549 origins and behind Cloudflare on 2,774.
-
 <!-- census:end servers-numbers -->
 
 So a Server header of nginx or Cloudflare does not mean the nginx module. Read the Server family in the table below as context, not as the engine.
@@ -245,7 +242,6 @@ The shares are of header-bearing desktop root pages with an IP address the routi
 <!-- census:begin security-numbers -->
 
 99.9% of the origins that report a version run a build that no longer receives fixes: 79.6% a Google-era build last updated in 2018, 20.3% an incubator-era build last updated in 2020. 22 origins report the current line. Update recommended.
-
 <!-- census:end security-numbers -->
 
 The buckets follow the release history. Google-era builds run up to `1.13.35.2-stable`, released on 5 February 2018, the last Google-era release. Incubator-era builds are the 1.14 line, last published as `1.14.36.1` in July 2020 from the [Apache Incubator repository](https://github.com/apache/incubator-pagespeed-mod), which was archived in 2023, plus unreleased trunk builds from that repository. The current line starts at `1.15.0`, released by We-Amp in June 2026. Origins that hide their version are not counted as out of date, so the true share across all PageSpeed origins is unknown in either direction.
@@ -265,7 +261,6 @@ Then install the module for your server; the [download page](/download/) has the
 <!-- census:begin license-line -->
 
 Open source under the Apache License 2.0.
-
 <!-- census:end license-line -->
 
 If you run PageSpeed for customers, the [hosting partner program](/hosting-partners/) adds fleet support and a direct channel. If you want a support agreement for your own sites, the [pricing page](/pricing/) lists the support tiers.
@@ -275,7 +270,6 @@ If you run PageSpeed for customers, the [hosting partner program](/hosting-partn
 <!-- census:begin detection-numbers -->
 
 In the September 2026 desktop crawl, 35,511 root pages send a PageSpeed header. Technology detection flags 28,743 pages, one of them without the header.
-
 <!-- census:end detection-numbers -->
 
 <!-- census:begin detection-table -->

@@ -7,8 +7,8 @@
  * Two edition surfaces are modelled:
  *
  *   - **1.1** — Named filters on every server (nginx, Apache, IIS, Envoy).
- *     Config form: `pagespeed EnableFilters foo,bar;`. Filter inventory in
- *     `website/src/content/docs/filter-reference.md`.
+ *     Config form: `pagespeed EnableFilters foo,bar;`. Filter inventory on the
+ *     filters index, `/docs/filters/` (`website/src/data/filters.ts`).
  *
  *   - **2.0** — No `EnableFilters` directive. The nginx module exposes a
  *     master switch (`pagespeed on;`) plus a Cyclone cache directive

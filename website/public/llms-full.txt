@@ -14918,7 +14918,7 @@ Two endpoints are exposed: `/pagespeed_admin` is the per-vhost admin handler, an
 
 The console heads the optimizer worker's card on its Overview page "Optimizer daemon"; its sidebar groups the worker's pages under "Optimizer". This page keeps those labels where it names the UI and says "worker" everywhere else; the two words mean the same process.
 
-![mod_pagespeed 1.15 admin console showing live statistics with per-variable deltas and trend sparklines](https://modpagespeed.com/images/console-1.1-admin.png)
+![mod_pagespeed admin console Statistics table listing cache counters with a value column and a delta-since-open column](https://modpagespeed.com/images/console-1.1-admin.png)
 
 > **See it live**
 >

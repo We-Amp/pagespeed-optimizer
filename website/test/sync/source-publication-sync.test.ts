@@ -51,12 +51,11 @@ import { GET as productJsonGet } from '../../src/pages/api/product.json.ts';
 import { SOURCE_PUBLICATION } from '../../src/data/product-facts.mjs';
 
 // product.json.ts reads the release manifest through astro:content, which only
-// exists inside an Astro build; stand in a manifest with the fields it reads.
-vi.mock('../../src/lib/release', () => ({
-  getRelease: async () => ({
-    release: { semver: '2.4.0', tag: 'v2.4.0', released_on: '2026-10-14' },
-  }),
-}));
+// exists inside an Astro build; stand in the real manifest, read from disk.
+vi.mock('../../src/lib/release', async () => {
+  const { releaseManifest } = await import('../lib/release-manifest');
+  return { getRelease: async () => releaseManifest };
+});
 
 const ROOT = resolve(__dirname, '../..');
 // 3b is about the page body: a future SPDX header line legitimately carries the
