@@ -1,3 +1,6 @@
+# Text files check out with LF everywhere, so byte-compared fixtures match on
+# Windows checkouts whose git defaults to CRLF.
+* text=auto eol=lf
 # Mark generated demo images as binary (prevent git diff on JPEGs)
 website/public/demos/*/images/*.jpg binary
 GIT_COMMIT text eol=lf
