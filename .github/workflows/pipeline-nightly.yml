@@ -542,15 +542,20 @@ jobs:
               bazel --output_user_root=/tmp/bazel-out \
                 build --vendor_dir=vendor ${BAZEL_CONFIG} \
                 //lib/pagespeed:libpagespeed.so //src/worker:factory_worker \
-                //src/nginx:ngx_pagespeed_module.so
+                //src/nginx:ngx_pagespeed_module.so //tools:seed_test_cache
               ROOT=/tmp/bazel-out
               SO=$(find "$ROOT" -path "*/bin/lib/pagespeed/libpagespeed.so" -type f | head -1)
               FW=$(find "$ROOT" -path "*/bin/src/worker/factory_worker" -not -path "*.runfiles*" -type f | head -1)
               NGX=$(find "$ROOT" -path "*/bin/src/nginx/ngx_pagespeed_module.so" -type f | head -1)
+              STC=$(find "$ROOT" -path "*/bin/tools/seed_test_cache" -not -path "*.runfiles*" -type f | head -1)
               OUT=/workspace/.ci-artifacts
               cp "$SO" "$OUT/libpagespeed.so"
               cp "$FW" "$OUT/factory_worker"
               cp "$NGX" "$OUT/ngx_pagespeed_module.so"
+              # The prebuilt test image runs it in the nginx container for the
+              # HTTP-compliance sidecar tests; deps are shared with
+              # factory_worker so this is one small link on a warm cache.
+              cp "$STC" "$OUT/seed_test_cache"
               # Record the exact nginx version this module was built against
               # so stage-artifacts.sh and the prebuilt runtime image pin their
               # nginx to it (a module refuses to load into another version).
@@ -633,15 +638,20 @@ jobs:
               # shellcheck disable=SC2086
               bazel --output_user_root=/tmp/bazel-out build $FLAGS \
                 //lib/pagespeed:libpagespeed.so //src/worker:factory_worker \
-                //src/nginx:ngx_pagespeed_module.so
+                //src/nginx:ngx_pagespeed_module.so //tools:seed_test_cache
               ROOT=/tmp/bazel-out
               SO=$(find "$ROOT" -path "*/bin/lib/pagespeed/libpagespeed.so" -type f | head -1)
               FW=$(find "$ROOT" -path "*/bin/src/worker/factory_worker" -not -path "*.runfiles*" -type f | head -1)
               NGX=$(find "$ROOT" -path "*/bin/src/nginx/ngx_pagespeed_module.so" -type f | head -1)
+              STC=$(find "$ROOT" -path "*/bin/tools/seed_test_cache" -not -path "*.runfiles*" -type f | head -1)
               OUT=/workspace/.ci-artifacts
               cp "$SO" "$OUT/libpagespeed.so"
               cp "$FW" "$OUT/factory_worker"
               cp "$NGX" "$OUT/ngx_pagespeed_module.so"
+              # The prebuilt test image runs it in the nginx container for the
+              # HTTP-compliance sidecar tests; deps are shared with
+              # factory_worker so this is one small link on a warm cache.
+              cp "$STC" "$OUT/seed_test_cache"
               ls -d /nginx-src/nginx-*/ | head -1 | sed "s#.*/nginx-##; s#/##" > "$OUT/nginx-version"
               echo "Recorded module nginx-version: $(cat "$OUT/nginx-version")"
             '
