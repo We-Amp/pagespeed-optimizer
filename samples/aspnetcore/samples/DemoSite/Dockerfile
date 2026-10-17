@@ -20,7 +20,7 @@
 
 # ── Stage 1: Build native binaries ───────────────────────────────────────────
 
-FROM ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 AS build-native
+FROM ubuntu:25.10@sha256:7cc5e35f6567ee8c66d2abb4aab0fd866669e6207c237c3a8f0947a5c7f17092 AS build-native
 
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -132,7 +132,7 @@ RUN pnpm -C packages/web-shell build
 
 # ── Stage 3b: Worker runtime ────────────────────────────────────────────────
 
-FROM ubuntu:24.04@sha256:534baea6a22c03a63003dbc8dbe78fe34bc0d7e595d9a9dc9834884ff530eb55 AS worker-runtime
+FROM ubuntu:25.10@sha256:7cc5e35f6567ee8c66d2abb4aab0fd866669e6207c237c3a8f0947a5c7f17092 AS worker-runtime
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ca-certificates \
