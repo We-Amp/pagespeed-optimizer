@@ -2058,7 +2058,9 @@ jobs:
           $vcvars = "$vsDir\VC\Auxiliary\Build\vcvars64.bat"
           # Full path: an MSYS2 cmd on PATH would shadow System32\cmd.exe.
           & "$($env:SystemRoot)\System32\cmd.exe" /c "`"$vcvars`" >nul 2>&1 && set" | ForEach-Object {
-            if ($_ -match '^(INCLUDE|LIB|PATH)=(.*)$') {
+            if ($_ -match '^PATH=(.*)$') {
+              $vcPath = $Matches[1]
+            } elseif ($_ -match '^(INCLUDE|LIB)=(.*)$') {
               "$($Matches[1])=$($Matches[2])" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
             }
           }
@@ -2066,7 +2068,10 @@ jobs:
           $extra = Join-Path $env:SystemDrive 'msys64\usr\bin'
           $ninja = Get-Command ninja -ErrorAction SilentlyContinue
           if ($ninja) { $extra = "$extra;" + (Split-Path $ninja.Source) }
-          "PATH=$extra;$($env:PATH)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          # One PATH line: the vcvars PATH (MSVC and Windows Kits tools, plus the
+          # original PATH) behind MSYS2 and Ninja. A later line would override it.
+          if (-not $vcPath) { $vcPath = $env:PATH }
+          "PATH=$extra;$vcPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Build all targets
         run: |
@@ -2316,7 +2321,9 @@ jobs:
           $vcvars = "$vsDir\VC\Auxiliary\Build\vcvars64.bat"
           # Full path: an MSYS2 cmd on PATH would shadow System32\cmd.exe.
           & "$($env:SystemRoot)\System32\cmd.exe" /c "`"$vcvars`" >nul 2>&1 && set" | ForEach-Object {
-            if ($_ -match '^(INCLUDE|LIB|PATH)=(.*)$') {
+            if ($_ -match '^PATH=(.*)$') {
+              $vcPath = $Matches[1]
+            } elseif ($_ -match '^(INCLUDE|LIB)=(.*)$') {
               "$($Matches[1])=$($Matches[2])" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
             }
           }
@@ -2324,7 +2331,10 @@ jobs:
           $extra = Join-Path $env:SystemDrive 'msys64\usr\bin'
           $ninja = Get-Command ninja -ErrorAction SilentlyContinue
           if ($ninja) { $extra = "$extra;" + (Split-Path $ninja.Source) }
-          "PATH=$extra;$($env:PATH)" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+          # One PATH line: the vcvars PATH (MSVC and Windows Kits tools, plus the
+          # original PATH) behind MSYS2 and Ninja. A later line would override it.
+          if (-not $vcPath) { $vcPath = $env:PATH }
+          "PATH=$extra;$vcPath" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
       - name: Run unit tests
         run: |
