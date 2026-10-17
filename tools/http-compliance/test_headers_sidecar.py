@@ -360,15 +360,17 @@ class TestHeadersSidecarReplay:
         # lines built from the page's Early Hints record, e.g. the hero image
         # preload), which the origin MISS cannot have.  The origin's lines
         # must all be replayed; Link is compared as "the origin's lines plus
-        # only module-built preload or preconnect hints".
+        # exactly the page's known hints" (the page references only
+        # /1x1.jpg).
         hit_lines = carried(hit)
         assert without_link(hit_lines) == without_link(expected)
         hit_links = list(hit_lines.get("link", []))
         for line in expected.get("link", []):
             assert line in hit_links, (line, hit_links)
             hit_links.remove(line)
-        for line in hit_links:
-            assert "rel=preload" in line or "rel=preconnect" in line, line
+        assert sorted(hit_links) == [
+            "</1x1.jpg>; rel=preload; as=image; fetchpriority=high"
+        ], hit_links
 
     def test_missing_stored_headers_is_a_miss_then_rerecorded(self, client):
         """A cached URL whose stored lines are removed behind the server's
