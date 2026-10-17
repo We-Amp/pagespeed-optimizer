@@ -29,7 +29,7 @@
 #      pin, not once per run.
 #
 #   2. Retry with backoff. When a cache miss does force a download, the
-#      `curl … | sh` installer is wrapped in a retry loop (default 4 attempts,
+#      download-then-run installer is wrapped in a retry loop (default 4 attempts,
 #      exponential backoff) mirroring the house idiom in
 #      tools/ci/stage-artifacts.sh and tools/ci/extract-vendor-tarball.sh, so a
 #      single transient blip no longer fails the job.
@@ -74,14 +74,15 @@ have() {
 install_tool() {
   local tool="$1" version="$2"
   local url="https://raw.githubusercontent.com/anchore/${tool}/${version}/install.sh"
-  local attempt backoff rc
+  local attempt backoff rc installer
   backoff="$DL_BACKOFF"
   for attempt in $(seq 1 "$DL_RETRIES"); do
     rc=0
     # Installer fetched from the PINNED release tag (not main), then run pinned
-    # to the same version. `set -o pipefail` (inherited) makes a failed curl
-    # propagate through the pipe.
-    curl -sSfL "$url" | sh -s -- -b "$BIN_DIR" "$version" || rc=$?
+    # to the same version. A failed download short-circuits the install.
+    installer="$(mktemp)"
+    curl -sSfL "$url" -o "$installer" && sh "$installer" -b "$BIN_DIR" "$version" || rc=$?
+    rm -f "$installer"
     if [ "$rc" -eq 0 ] && [ "$(have "$tool")" = "$version" ]; then
       return 0
     fi

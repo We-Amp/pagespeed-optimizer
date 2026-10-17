@@ -736,7 +736,8 @@ jobs:
             echo ".NET 10 SDK already installed"
           else
             echo "Installing .NET 10 SDK..."
-            curl -sSL --http1.1 https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0
+            curl -sSL --http1.1 -o "${RUNNER_TEMP}/dotnet-install.sh" https://dot.net/v1/dotnet-install.sh
+            bash "${RUNNER_TEMP}/dotnet-install.sh" --channel 10.0
           fi
           dotnet --list-sdks
 
@@ -1566,7 +1567,8 @@ jobs:
             echo ".NET 10 SDK already installed"
           else
             echo "Installing .NET 10 SDK..."
-            curl -sSL --http1.1 https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0
+            curl -sSL --http1.1 -o "${RUNNER_TEMP}/dotnet-install.sh" https://dot.net/v1/dotnet-install.sh
+            bash "${RUNNER_TEMP}/dotnet-install.sh" --channel 10.0
           fi
           dotnet --list-sdks
 
