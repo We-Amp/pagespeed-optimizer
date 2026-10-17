@@ -40,6 +40,7 @@ echo hubworker > "$ROOT/hub/$SHA/linux-x64/factory_worker"
 echo hubmod > "$ROOT/hub/$SHA/linux-x64/ngx_pagespeed_module.so"
 echo 1.2.3 > "$ROOT/hub/$SHA/linux-x64/nginx-version"
 echo brotli > "$ROOT/hub/$SHA/linux-x64/ngx_http_brotli_filter_module.so"
+printf '#!/bin/sh\n' > "$ROOT/hub/$SHA/linux-x64/seed_test_cache"
 
 # Shared runner dir holds a PARTIAL bundle (a Release-shaped set / a Build in progress).
 echo partial > "$ROOT/src/.ci-artifacts/factory_worker"
@@ -53,6 +54,7 @@ mkdir -p "$ROOT/co"
 
 [ "$(cat "$ROOT/co/.ci-artifacts/factory_worker")" = hubworker ] || fail "1: installed worker is not the hub copy"
 [ -f "$ROOT/co/.ci-artifacts/ngx_pagespeed_module.so" ] || fail "1: module not installed"
+[ -x "$ROOT/co/.ci-artifacts/seed_test_cache" ] || fail "1: seed_test_cache not installed executable"
 pass "1: partial local bundle replaced by a complete hub bundle"
 [ -f "$ROOT/src/.ci-artifacts/build-all.log" ] && [ "$(cat "$ROOT/src/.ci-artifacts/factory_worker")" = partial ] \
   || fail "2: shared runner dir was modified"
@@ -69,4 +71,19 @@ set -e
 [ "$rc" -ne 0 ] || fail "3: partial hub bundle was accepted"
 grep -q "incomplete" "$ROOT/out2.log" || fail "3: no incomplete-bundle error"
 pass "3: partial hub bundle fails with a clear error"
+
+# A bundle from a producer that does not ship the cache-seeding tool: the
+# prebuilt image COPYs it, so staging must fail loudly instead of letting the
+# image build fail with an opaque COPY error.
+echo mod > "$ROOT/hub/$SHA/linux-x64/ngx_pagespeed_module.so"
+rm -f "$ROOT/hub/$SHA/linux-x64/seed_test_cache"; rm -rf "$ROOT/co/.ci-artifacts"
+set +e
+(cd "$ROOT/co" && PATH="$ROOT/bin:$PATH" FAKE_ROOT="$ROOT" RUNNER_TEMP="$ROOT/run/tmp" GITHUB_SHA="$SHA" \
+  CI_HUB_SSH=hub CI_HUB_ARTIFACTS_ROOT="$ROOT/hub" CI_ARTIFACTS_PLATFORM=linux-x64 \
+  bash "$ROOT/tools/ci/stage-artifacts.sh" "$ROOT/src" >"$ROOT/out3.log" 2>&1)
+rc=$?
+set -e
+[ "$rc" -ne 0 ] || fail "4: bundle without seed_test_cache was accepted"
+grep -q "seed_test_cache absent" "$ROOT/out3.log" || fail "4: no seed_test_cache error"
+pass "4: bundle without seed_test_cache fails with a clear error"
 echo "ALL PASS"
