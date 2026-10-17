@@ -1670,7 +1670,7 @@ jobs:
       # cannot start and Chrome exits on every spawn. The setting is host-wide
       # and the rig container shares this kernel. It is the host setting the
       # package documents for Ubuntu 24.04 hosts running browser analysis; the
-      # self-hosted rig hosts do not set it. The unit and its filters are
+      # fleet rig hosts do not set it. The unit and its filters are
       # unchanged.
       - name: Admit unprivileged user namespaces on the hosted VM
         run: |
