@@ -96,4 +96,6 @@ fi
 
 echo "=== Running tests ==="
 cd "$SCRIPT_DIR"
+export NGINX_URL="${NGINX_URL:-http://localhost:${REALWORLD_NGINX_PORT:-8083}}"
+export WORKER_API_URL="${WORKER_API_URL:-http://localhost:${REALWORLD_WORKER_PORT:-9882}}"
 pytest -v --tb=short "$@"

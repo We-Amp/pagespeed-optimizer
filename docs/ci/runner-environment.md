@@ -35,11 +35,14 @@ bring up (`tools/e2e`, `tools/realworld-tests`, `tools/stress`,
 `tools/production-tests`, `tools/http-compliance`, `tools/async-css-probe`,
 `tools/workbench-demo`) publish host ports. The first step of each such job
 sources `tools/ci/runner-ports.sh`, which reads the trailing digits of
-`RUNNER_NAME` (`fleet-heavy-07` gives 7), multiplies them by 1000 and exports
-every published port as its default plus that offset (`E2E_NGINX_PORT`,
-`STRESS_NGINX_PORT` and so on; the script lists them all). A name without
-trailing digits, an unset name, and any run by hand get the defaults, so a
-developer running a stack locally sees the ports the stack's README names.
+`RUNNER_NAME` (`fleet-heavy-07` gives 7; only the last two digits count, taken
+modulo 20), multiplies them by 1000 and exports every published port as its
+default plus that offset (`E2E_NGINX_PORT`, `STRESS_NGINX_PORT` and so on; the
+script lists them all). The highest port is 19 * 1000 + 9882 = 28882, below
+the Linux ephemeral range. A name without trailing digits, an unset name, a
+GitHub-hosted runner (`RUNNER_ENVIRONMENT=github-hosted`), and any run by hand
+get the defaults, so a developer running a stack locally sees the ports the
+stack's README names.
 
 Tools the Windows jobs expect (on `PATH` or in `CI_WIN_TOOLS_DIR`): `bazelisk`
 or `bazel`, `zstd` (hub channel only), `scp` (hub fetch only), Visual Studio

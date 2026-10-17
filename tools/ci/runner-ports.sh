@@ -8,13 +8,16 @@
 # (do not execute it) and every published host port moves by a per-runner
 # offset:
 #
-#   offset = (trailing digits of RUNNER_NAME, as a decimal number) * 1000
+#   offset = (last two trailing digits of RUNNER_NAME, modulo 20) * 1000
 #
-# "fleet-heavy-07" gives 700; a name without trailing digits, or an unset
-# RUNNER_NAME, gives 0, which leaves every port at its default. The digits are
-# taken modulo 50 so the highest port stays below 65535. A step of 1000 keeps
-# every stack clear of every other stack's defaults on any slot (the defaults
-# span less than 1000 ports within each group).
+# "fleet-heavy-07" gives 7000; a name without trailing digits, an unset
+# RUNNER_NAME, or RUNNER_ENVIRONMENT=github-hosted gives 0, which leaves every
+# port at its default. Only the last two digits are read, so a long digit run
+# cannot overflow the arithmetic. The slot number is taken modulo 20, so the
+# highest port is 19 * 1000 + 9882 = 28882, below the Linux ephemeral range
+# (32768 and up). A step of 1000 keeps every stack clear of every other
+# stack's defaults on any slot (the defaults span less than 1000 ports within
+# each group).
 #
 # Exported: one variable per published host port (default + offset), plus
 # RUNNER_PORT_VARS, the space-separated list of those names. A workflow step
@@ -25,11 +28,11 @@
 #
 # POSIX sh; ASCII only.
 
-_rp_digits=$(printf '%s' "${RUNNER_NAME:-}" | sed 's/.*[^0-9]//' | sed 's/[^0-9]//g; s/^0*//')
-if [ -z "$_rp_digits" ]; then
+_rp_digits=$(printf '%s' "${RUNNER_NAME:-}" | sed 's/.*[^0-9]//; s/.*\(..\)$/\1/; s/^0*//')
+if [ -z "$_rp_digits" ] || [ "${RUNNER_ENVIRONMENT:-}" = "github-hosted" ]; then
   _rp_n=0
 else
-  _rp_n=$((_rp_digits % 50))
+  _rp_n=$((_rp_digits % 20))
 fi
 RUNNER_PORT_OFFSET=$((_rp_n * 1000))
 export RUNNER_PORT_OFFSET
