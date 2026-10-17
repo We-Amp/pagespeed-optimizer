@@ -86,7 +86,7 @@ RUN mkdir /staging && \
 
 # ── Stage 2: Build .NET app ────────────────────────────────────────────────
 
-FROM mcr.microsoft.com/dotnet/sdk:9.0-noble@sha256:64c94a5a8fac55f965e0fb74b0e6a46b73b7323257c492170befbe5537dfafef AS build-dotnet
+FROM mcr.microsoft.com/dotnet/sdk:9.0-noble@sha256:95f436a35242b0c595ed3c9379ba1a358be9aa52cf33749a780f0393c6c851d6 AS build-dotnet
 
 WORKDIR /src
 
