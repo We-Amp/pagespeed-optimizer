@@ -367,10 +367,11 @@ jobs:
           LOCAL_DIR="${CI_VENDOR_DIR:-${RUNNER_TEMP}}"
           mkdir -p "${LOCAL_DIR}"
           TARBALL="${LOCAL_DIR}/pagespeed-optimizer-${SHORT_SHA}.tar.zst"
-          # Short-circuit re-runs: a readable tarball for this SHA was
-          # written atomically (tmp + rename) by a prior run. Re-stamp it so
-          # the age-based prunes count from now.
-          if [ -r "$TARBALL" ]; then
+          # Short-circuit re-runs: a complete tarball for this SHA was
+          # published atomically by a prior run. A readable file that fails
+          # `zstd -t` is not trusted and is tarred again. Re-stamp it so the
+          # age-based prunes count from now.
+          if [ -r "$TARBALL" ] && zstd -t -q "$TARBALL" >/dev/null 2>&1; then
             echo "Tarball for ${SHORT_SHA} present and readable; skipping re-tar"
             touch "$TARBALL"
           else
