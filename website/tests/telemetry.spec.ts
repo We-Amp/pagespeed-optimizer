@@ -84,9 +84,10 @@ test.describe('Telemetry strip', () => {
       const href = new URL(location.pathname + location.search, location.href).href;
       const entry = (performance.getEntriesByName(href, 'resource') as PerformanceResourceTiming[])
         .filter((e) => e.initiatorType === 'fetch')
-        .reduce<
-          PerformanceResourceTiming | undefined
-        >((latest, e) => (latest === undefined || e.startTime >= latest.startTime ? e : latest), undefined);
+        .reduce<PerformanceResourceTiming | undefined>(
+          (latest, e) => (latest === undefined || e.startTime >= latest.startTime ? e : latest),
+          undefined,
+        );
       return entry && entry.requestStart > 0
         ? Math.round(entry.responseStart - entry.requestStart)
         : null;
