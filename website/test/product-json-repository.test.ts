@@ -8,14 +8,14 @@
 import { describe, expect, it, vi } from 'vitest';
 import { MODULE_PACKAGE_VERSION } from '../src/data/product-facts.mjs';
 import { GET as productJsonGet } from '../src/pages/api/product.json.ts';
+import { releaseManifest } from './lib/release-manifest';
 
 // product.json.ts reads the release manifest through astro:content, which only
-// exists inside an Astro build; stand in a manifest with the fields it reads.
-vi.mock('../src/lib/release', () => ({
-  getRelease: async () => ({
-    release: { semver: '2.4.0', tag: 'v2.4.0', released_on: '2026-10-14' },
-  }),
-}));
+// exists inside an Astro build; stand in the real manifest, read from disk.
+vi.mock('../src/lib/release', async () => {
+  const { releaseManifest } = await import('./lib/release-manifest');
+  return { getRelease: async () => releaseManifest };
+});
 
 describe('/api/product.json private repository status', () => {
   it('states the repository as being set up and offers no hardened builds', async () => {
@@ -39,9 +39,9 @@ describe('/api/product.json private repository status', () => {
     const data = JSON.parse(await res.text());
     expect(data.release).toEqual({
       line: '2.1',
-      version: '2.4.0',
-      tag: 'v2.4.0',
-      released_on: '2026-10-14',
+      version: releaseManifest.release.semver,
+      tag: releaseManifest.release.tag,
+      released_on: releaseManifest.release.released_on,
       module_package_version: MODULE_PACKAGE_VERSION,
     });
   });
