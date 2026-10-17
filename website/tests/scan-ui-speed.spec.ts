@@ -42,8 +42,7 @@ async function mock(page: Page, mocks: Mocks, scanDelayMs = 0): Promise<Calls> {
   const calls: Calls = { mobile: 0, desktop: 0, scan: 0 };
   await page.route('**/psi/v5/runPagespeed**', async (route) => {
     const strategy = new URL(route.request().url()).searchParams.get('strategy') as
-      | 'mobile'
-      | 'desktop';
+      'mobile' | 'desktop';
     calls[strategy] += 1;
     const reply = mocks[strategy];
     if (reply === 'abort') return route.abort();

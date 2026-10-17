@@ -334,8 +334,7 @@ const fields = [
         });
       };
       const nav = performance.getEntriesByType('navigation')[0] as
-        | PerformanceNavigationTiming
-        | undefined;
+        PerformanceNavigationTiming | undefined;
       if (nav && nav.encodedBodySize > 0) {
         set(
           'wire',
@@ -361,9 +360,10 @@ const fields = [
       for (let i = 0; i < 10 && !entry; i++) {
         entry = (performance.getEntriesByName(entryHref, 'resource') as PerformanceResourceTiming[])
           .filter((e) => e.initiatorType === 'fetch')
-          .reduce<
-            PerformanceResourceTiming | undefined
-          >((latest, e) => (latest === undefined || e.startTime >= latest.startTime ? e : latest), undefined);
+          .reduce<PerformanceResourceTiming | undefined>(
+            (latest, e) => (latest === undefined || e.startTime >= latest.startTime ? e : latest),
+            undefined,
+          );
         if (!entry) await new Promise((r) => setTimeout(r, 25));
       }
       const ttfb = Math.round(
