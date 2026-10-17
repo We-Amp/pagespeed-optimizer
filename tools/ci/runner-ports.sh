@@ -8,11 +8,13 @@
 # (do not execute it) and every published host port moves by a per-runner
 # offset:
 #
-#   offset = (trailing digits of RUNNER_NAME, as a decimal number) * 100
+#   offset = (trailing digits of RUNNER_NAME, as a decimal number) * 1000
 #
 # "fleet-heavy-07" gives 700; a name without trailing digits, or an unset
 # RUNNER_NAME, gives 0, which leaves every port at its default. The digits are
-# taken modulo 500 so the highest port stays below 65535.
+# taken modulo 50 so the highest port stays below 65535. A step of 1000 keeps
+# every stack clear of every other stack's defaults on any slot (the defaults
+# span less than 1000 ports within each group).
 #
 # Exported: one variable per published host port (default + offset), plus
 # RUNNER_PORT_VARS, the space-separated list of those names. A workflow step
@@ -27,9 +29,9 @@ _rp_digits=$(printf '%s' "${RUNNER_NAME:-}" | sed 's/.*[^0-9]//' | sed 's/[^0-9]
 if [ -z "$_rp_digits" ]; then
   _rp_n=0
 else
-  _rp_n=$((_rp_digits % 500))
+  _rp_n=$((_rp_digits % 50))
 fi
-RUNNER_PORT_OFFSET=$((_rp_n * 100))
+RUNNER_PORT_OFFSET=$((_rp_n * 1000))
 export RUNNER_PORT_OFFSET
 
 RUNNER_PORT_VARS=""

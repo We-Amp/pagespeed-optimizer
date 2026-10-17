@@ -35,7 +35,7 @@ bring up (`tools/e2e`, `tools/realworld-tests`, `tools/stress`,
 `tools/production-tests`, `tools/http-compliance`, `tools/async-css-probe`,
 `tools/workbench-demo`) publish host ports. The first step of each such job
 sources `tools/ci/runner-ports.sh`, which reads the trailing digits of
-`RUNNER_NAME` (`fleet-heavy-07` gives 7), multiplies them by 100 and exports
+`RUNNER_NAME` (`fleet-heavy-07` gives 7), multiplies them by 1000 and exports
 every published port as its default plus that offset (`E2E_NGINX_PORT`,
 `STRESS_NGINX_PORT` and so on; the script lists them all). A name without
 trailing digits, an unset name, and any run by hand get the defaults, so a
