@@ -120,7 +120,7 @@ ENTRYPOINT ["dotnet", "DemoSite.dll"]
 
 # ── Stage 2b: Build web console (SvelteKit static) ──────────────────────────
 
-FROM node:22-slim@sha256:c3de60bf2f9dd0ac6370e6117950ff62d6e339527e7472301c9c78a017978392 AS build-console
+FROM node:23-slim@sha256:86191b94d2a163be41f3dc7fe5e5fcaca8ba2f1be7275d98a06343483c17414a AS build-console
 
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
