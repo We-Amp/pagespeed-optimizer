@@ -16,6 +16,12 @@ updates:
       - /website
     schedule:
       interval: weekly
+    ignore:
+      # Base images move between long-term-support releases on purpose.
+      - dependency-name: ubuntu
+        update-types: ["version-update:semver-major"]
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
   - package-ecosystem: npm
     directory: /website
     schedule:
