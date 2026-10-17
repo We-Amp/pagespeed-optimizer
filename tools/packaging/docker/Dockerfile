@@ -24,7 +24,7 @@
 # emits, so take the macros from the package that defines them rather than
 # reimplementing them. Two files, both self-contained: the macro definitions
 # and the bash generator they shell out to.
-FROM almalinux:9@sha256:d2515c769e7b73f95c4fde38c0a505336ff38f14990c0b7253b77060a049a743 AS elmacros
+FROM almalinux:10@sha256:838c2fafefb1a8a0d7f8cdbc3b0551c2a2b1eb0cd87aad6d62aecadb18311f1b AS elmacros
 RUN dnf -y install --setopt=install_weak_deps=False systemd-rpm-macros \
     && dnf clean all
 
