@@ -9,6 +9,7 @@
 #   .ci-artifacts/ngx_pagespeed_module.so
 #   .ci-artifacts/ngx_http_brotli_filter_module.so
 #   .ci-artifacts/nginx-version
+#   .ci-artifacts/seed_test_cache
 # (libc++/libc++abi/libunwind are statically linked into factory_worker and
 # ngx_pagespeed_module.so since v2.0.2 — no separate shared libs needed.)
 #
@@ -47,7 +48,12 @@ RUN /tmp/install-chromium.sh --with-fonts && rm /tmp/install-chromium.sh
 
 # Copy pre-built binaries from CI artifacts
 COPY .ci-artifacts/factory_worker /usr/local/bin/factory_worker
-RUN chmod +x /usr/local/bin/factory_worker
+# Test-only cache tool: the compliance suite runs it inside the nginx
+# container to remove one stored alternate behind the running server's back
+# (test_headers_sidecar.py). The source-built e2e image ships it from
+# bazel-bin; here it rides the CI artifact bundle instead.
+COPY .ci-artifacts/seed_test_cache /usr/local/bin/seed_test_cache
+RUN chmod +x /usr/local/bin/factory_worker /usr/local/bin/seed_test_cache
 COPY .ci-artifacts/ngx_pagespeed_module.so /usr/lib/nginx/modules/ngx_pagespeed_module.so
 
 # Copy pre-built brotli module (staged by stage-artifacts.sh; see Dockerfile.brotli)
