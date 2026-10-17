@@ -79,9 +79,10 @@ install_tool() {
   for attempt in $(seq 1 "$DL_RETRIES"); do
     rc=0
     # Installer fetched from the PINNED release tag (not main), then run pinned
-    # to the same version. `set -o pipefail` (inherited) makes a failed curl
-    # propagate through the pipe.
-    curl -sSfL "$url" | sh -s -- -b "$BIN_DIR" "$version" || rc=$?
+    # to the same version. A failed download short-circuits the install.
+    installer="$(mktemp)"
+    curl -sSfL "$url" -o "$installer" && sh "$installer" -b "$BIN_DIR" "$version" || rc=$?
+    rm -f "$installer"
     if [ "$rc" -eq 0 ] && [ "$(have "$tool")" = "$version" ]; then
       return 0
     fi

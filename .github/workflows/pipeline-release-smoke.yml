@@ -112,7 +112,8 @@ jobs:
           if dotnet --list-sdks 2>/dev/null | grep -q '^10\.'; then
             echo ".NET 10 SDK already installed"
           else
-            curl -sSL --http1.1 https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0
+            curl -sSL --http1.1 -o "${RUNNER_TEMP}/dotnet-install.sh" https://dot.net/v1/dotnet-install.sh
+            bash "${RUNNER_TEMP}/dotnet-install.sh" --channel 10.0
           fi
           # Ensure mac dotnet location is on PATH for later steps
           if [ "${{ matrix.os }}" = "macos" ]; then
