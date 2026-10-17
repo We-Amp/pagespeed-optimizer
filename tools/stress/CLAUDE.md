@@ -28,3 +28,4 @@ cd tools/stress && pytest -v
 - Socket timeout is 60s in `metrics_helpers.py` to tolerate slow AVIF encodes.
 - Origin must be nginx (not Python http.server) for concurrency.
 - Port 8190 = nginx (STRESS_NGINX_PORT), 8191 = origin (STRESS_ORIGIN_PORT). Configurable via env vars.
+- `STRESS_LATENCY_FACTOR` (float, default 1.0) scales the STATS latency bound in `test_event_loop_responsiveness.py`; the self-hosted nightly leg sets 2.0 for shared hosts.
