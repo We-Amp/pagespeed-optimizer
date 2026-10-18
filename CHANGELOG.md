@@ -4,6 +4,16 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Security: disk cache: damaged or stale cache contents could be served, and a
+damaged cache file could terminate the process. Affected: optimizer worker up to
+and including 2.4.0. Update recommended.
+
+Changed: the disk cache moves to on-disk format v9 (Cyclone 22f6553). The cache
+starts cold on the first start after the upgrade: it opens a new file and the
+previous file stays on disk until you delete it. During a rolling restart the old
+and new versions use separate files, so disk use temporarily doubles and the hit
+rate stays low until every process runs the new version.
+
 Security: the ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`) serves its
 web console at `/console/` and proxies the worker API (`/v1/health`, `/v1/ws`,
 `/v1/cache`, `/v1/stats`, `/v1/capture`, `/v1/config`) from your site's root, in

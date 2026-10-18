@@ -19,7 +19,6 @@ cc_library(
         "src/core/mmap_directory.cpp",
         "src/core/volume.cpp",
         "src/core/write_buffer.cpp",
-        "src/io/executor.cpp",
         "src/io/mapped_file.cpp",
         "src/optimization/adaptive_pool.cpp",
         "src/optimization/load_monitor.cpp",

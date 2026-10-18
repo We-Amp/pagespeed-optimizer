@@ -130,6 +130,12 @@ class DurableOriginalsTest : public ::testing::Test {
   void SelfLinkChainHead(uint64_t head, uint64_t tail) {
     constexpr uint32_t kDocumentMagic = 0x5F129B14;
     constexpr std::streamoff kNextAlternateOffsetPos = 112;
+    // Format v9: the link packs the successor's stripe-relative offset in the
+    // low 48 bits and the successor's fill serial in the top 16; the document's
+    // own fill serial sits at byte 88.
+    constexpr std::streamoff kFillSerialPos = 88;
+    constexpr unsigned kLinkSerialShift = 48;
+    constexpr uint64_t kLinkOffsetMask = (uint64_t{1} << kLinkSerialShift) - 1;
     auto magic_at = [](std::fstream& f, uint64_t offset) {
       uint32_t magic = 0;
       f.clear();
@@ -155,15 +161,23 @@ class DurableOriginalsTest : public ::testing::Test {
     std::fstream volume(volume_file,
                         std::ios::in | std::ios::out | std::ios::binary);
     ASSERT_TRUE(volume.is_open());
-    uint64_t tail_relative = 0;
+    uint64_t link = 0;
     volume.seekg(static_cast<std::streamoff>(head) + kNextAlternateOffsetPos);
-    volume.read(reinterpret_cast<char*>(&tail_relative), sizeof(tail_relative));
+    volume.read(reinterpret_cast<char*>(&link), sizeof(link));
+    ASSERT_TRUE(volume.good());
+    const uint64_t tail_relative = link & kLinkOffsetMask;
+    uint32_t head_fill_serial = 0;
+    volume.seekg(static_cast<std::streamoff>(head) + kFillSerialPos);
+    volume.read(reinterpret_cast<char*>(&head_fill_serial),
+                sizeof(head_fill_serial));
     ASSERT_TRUE(volume.good());
     ASSERT_NE(tail_relative, 0u);
     ASSERT_LE(tail_relative, tail) << "the successor field is stripe-relative";
     const uint64_t stripe_base = tail - tail_relative;
     ASSERT_LT(stripe_base, head);
-    const uint64_t head_relative = head - stripe_base;
+    const uint64_t head_relative =
+        (head - stripe_base) |
+        (uint64_t{static_cast<uint16_t>(head_fill_serial)} << kLinkSerialShift);
     volume.clear();
     volume.seekp(static_cast<std::streamoff>(head) + kNextAlternateOffsetPos);
     volume.write(reinterpret_cast<const char*>(&head_relative),
