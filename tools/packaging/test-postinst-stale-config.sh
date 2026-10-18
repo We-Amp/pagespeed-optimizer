@@ -196,6 +196,12 @@ check "configured v3 path does not match the v2 needle" "clean" "$(needle "$fx")
 printf '%s\n' "pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v2/cache;" \
   > "$fx/etc/nginx/nginx.conf"
 check "configured v2 path matches the v2 needle" "stale" "$(needle "$fx")"
+needle_v1() { sh -c '. "$1"; if ps_stale_web_config "$2" /var/cache/pagespeed-optimizer/v1; then echo stale; else echo clean; fi' _ "$tmp/helper.sh" "$1"; }
+check "configured v2 path does not match the v1 needle" "clean" "$(needle_v1 "$fx")"
+printf '%s\n' "pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v1/cache;" \
+  > "$fx/etc/nginx/nginx.conf"
+check "configured v1 path matches the v1 needle" "stale" "$(needle_v1 "$fx")"
+check "configured v1 path does not match the v2 needle" "clean" "$(needle "$fx")"
 
 # A host with no web-server configuration at all: nothing to warn about.
 fx="$tmp/no-webserver"
