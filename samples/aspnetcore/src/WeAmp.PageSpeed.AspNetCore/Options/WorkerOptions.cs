@@ -114,8 +114,13 @@ public sealed class WorkerOptions
     }
 
     /// <summary>
-    /// Port for the worker's HTTP management API.
-    /// 0 disables the API. Default: 0.
+    /// Loopback port for the worker's HTTP management API. Default: 0.
+    /// 0 does not disable the API: the host picks a free loopback port.
+    /// The worker is always started with <c>--api-no-auth</c>, so its API
+    /// has no authentication on either port, and the middleware's console
+    /// proxy (<see cref="ConsoleOptions"/>) serves its <c>/v1/*</c> paths
+    /// from the app's own port. Never publish this port; turn the console
+    /// off or gate it to keep the API private.
     /// </summary>
     public int ApiPort { get; set; }
 
@@ -128,7 +133,9 @@ public sealed class WorkerOptions
     /// <summary>
     /// Path to the web console SPA directory. When null (default) and AutoStart
     /// is true, auto-discovers a 'console' directory next to factory_worker.
-    /// Set to empty string to explicitly disable the console.
+    /// Set to empty string to stop the worker serving its own loopback copy
+    /// of the console. This does not affect the middleware's /console/; use
+    /// <see cref="ConsoleOptions.Enabled"/> for that.
     /// </summary>
     public string? ConsoleDir { get; set; }
 
