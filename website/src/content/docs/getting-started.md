@@ -115,11 +115,14 @@ worker and nginx as separate services from the
 ## Quickstart: IIS
 
 Download the signed MSI from the [download page](/download/), run it on the
-Windows Server host, then `iisreset`. The installer registers the module as a
-native HTTP module and creates the default cache directory. Then
+Windows Server host, then `iisreset`. Running the MSI takes every IIS site on
+the server down for the duration; plan a maintenance window (details on
+[Install on IIS](/docs/install-iis/#install-the-module)). The installer
+registers the module as a native HTTP module and creates the default cache
+directory. Then
 [verify](#verify-it-works). Running IISpeed on that host? Uninstall it first;
 the two register the same handler. The [IIS install guide](/docs/install-iis/)
-has the requirements, IIS Express and the optional optimizer service. The IIS
+has the requirements, IIS Express and the upcoming optimizer service. The IIS
 package ships from the 1.15 packaging channel.
 
 ## Quickstart: ASP.NET Core

@@ -3,7 +3,7 @@ title: 'Release notes: 2.2'
 description: 'mod_pagespeed 2.2.0 release notes: the module and the optimizer worker as one release (packages 1.17.0), its security fixes and what changed.'
 order: 80
 group: 'Release notes by line'
-lastUpdated: 2026-10-17
+lastUpdated: 2026-10-18
 ---
 
 import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
@@ -151,7 +151,7 @@ Fixed: when the web server starts with in-place optimization off because it cann
 
 **IIS and Windows**
 
-Added (IIS): the installer also installs the optimizer worker, as the Windows service `WeAmpPageSpeedOptimizer`, disabled, under its own virtual account. Turned on and pointed at with the `DaemonSocketPath` and `DaemonVolumePath` directives, it takes over in-place optimization: the module records each eligible resource, the optimizer builds optimized variants, and the module serves the variant that fits each client. An upgrade or repair with the Windows installer keeps an optimizer you turned on running and keeps the cache size you chose (`OPTIMIZERCACHESIZE`, 1 GiB by default). Installs that do not turn it on behave as before.
+Added (IIS): the installer also installs the optimizer worker, as the Windows service `WeAmpPageSpeedOptimizer`, disabled, under its own virtual account. Turned on and pointed at with the `DaemonSocketPath` and `DaemonVolumePath` directives, it takes over in-place optimization: the module records each eligible resource, the optimizer builds optimized variants, and the module serves the variant that fits each client. An upgrade or repair with the Windows installer keeps an optimizer you turned on running and keeps the cache size you chose (`OPTIMIZERCACHESIZE`, 1 GiB by default). Installs that do not turn it on behave as before. The Windows installer that carries this has not been published yet: the MSI on the download page does not include the service.
 
 Added: the Windows optimizer worker runs as a Windows service. Register it with `--service` on its command line; the Service Control Manager starts it, sees it as running once it is ready, and stops it gracefully on a service stop or at system shutdown. `--log-file PATH`, valid only with `--service`, appends the log to a file.
 

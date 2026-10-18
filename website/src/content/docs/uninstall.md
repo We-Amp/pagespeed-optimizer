@@ -79,6 +79,15 @@ HPA, ConfigMap). The `emptyDir` cache goes with the pods.
 
 ## IIS
 
+:::warning[Maintenance window]
+Running the MSI — to install, upgrade, repair or uninstall the module — takes
+every IIS site on the server down for the duration, not only the sites it
+optimizes. The installer stops the Windows Process Activation Service (WAS)
+and the World Wide Web Publishing Service (W3SVC), force-kills any `w3wp.exe`
+worker process still running, and starts IIS again when it is done. In-flight
+requests are dropped. Plan a maintenance window.
+:::
+
 1. Remove the `pagespeed` directives you no longer want, or leave the
    `pagespeed.config` files in place for a later reinstall.
 2. _Apps & features_ (or _Programs and Features_) → uninstall the mod_pagespeed
@@ -128,7 +137,9 @@ run `docker compose up -d`; both images move together.
 **Helm.** `helm history pagespeed` lists the revisions, and
 `helm rollback pagespeed <revision>` returns to one.
 
-**IIS.** Uninstall the current module, run the previous MSI, `iisreset`.
+**IIS.** Uninstall the current module, run the previous MSI, `iisreset`. Each
+MSI run takes every IIS site on the server down for the duration (see
+[IIS](#iis) above).
 
 **ASP.NET Core.** Pin the previous package version in the project file
 (`<PackageReference Include="WeAmp.PageSpeed.AspNetCore" Version="<version>" />`)

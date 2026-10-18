@@ -3,14 +3,14 @@ title: 'IIS configuration'
 description: 'mod_pagespeed on IIS via pagespeed.config, the native IIS module and successor to IISpeed: directive syntax, path matching, server and site-level config.'
 order: 26
 group: 'Configure'
-lastUpdated: 2026-07-12
+lastUpdated: 2026-10-18
 ---
 
 mod_pagespeed runs on IIS as a native, in-process module — the successor to IISpeed. This page documents the `pagespeed.config` file format it reads. For the directives that apply across every platform (Apache, nginx, IIS), see [Configuration](/docs/configuration/); to install the module first, see [Install on IIS](/docs/install-iis/).
 
 ## Install the module {#install-the-module}
 
-<a id="requirements"></a><a id="migrating-from-iispeed"></a><a id="iis-express"></a><a id="verify-it-works"></a>Installation moved to [Install on IIS](/docs/install-iis/): requirements, the signed MSI, IIS Express and the optional optimizer service. Coming from IISpeed, read [Migrate from IISpeed](/docs/migrate-from-iispeed/) first.
+<a id="requirements"></a><a id="migrating-from-iispeed"></a><a id="iis-express"></a><a id="verify-it-works"></a>Installation moved to [Install on IIS](/docs/install-iis/): requirements, the signed MSI, IIS Express and the upcoming optimizer service. Coming from IISpeed, read [Migrate from IISpeed](/docs/migrate-from-iispeed/) first.
 
 ### Disable optimization
 
@@ -130,13 +130,15 @@ Path separators: backslashes (`\`) are converted to forward slashes internally. 
 
 Use match rules to apply different settings based on the request hostname or URL path. Match rules use [RE2 regular expressions](https://github.com/google/re2/wiki/Syntax).
 
+Write a rule as `hostname:` or `path:` followed directly by the regex, with no space after the colon: everything after the colon up to the end of the line, spaces included, is the regex. The regex must match the whole value (an RE2 full match), so `path:^/blog/` matches only the exact path `/blog/`; end a prefix rule with `.*` to match everything under it. `hostname` is matched against the request's host name and `path` against the URL path without the query string.
+
 ### hostname
 
 Match by hostname:
 
 ```text
 # Only optimize requests for this domain
-hostname: ^www\.example\.com$
+hostname:^www\.example\.com$
 
 pagespeed on
 pagespeed EnableFilters rewrite_images,rewrite_css
@@ -148,12 +150,12 @@ Match by URL path:
 
 ```text
 # Aggressive optimization for the blog
-path: ^/blog/
+path:^/blog/.*
 
 pagespeed EnableFilters prioritize_critical_css,defer_javascript
 
 # Conservative optimization for the checkout
-path: ^/checkout/
+path:^/checkout/.*
 
 pagespeed RewriteLevel OptimizeForBandwidth
 ```
@@ -168,15 +170,15 @@ pagespeed on
 pagespeed RewriteLevel CoreFilters
 
 # Site A: full optimization
-hostname: ^site-a\.example\.com$
+hostname:^site-a\.example\.com$
 pagespeed EnableFilters collapse_whitespace,remove_comments
 
 # Site B: bandwidth-only optimization
-hostname: ^site-b\.example\.com$
+hostname:^site-b\.example\.com$
 pagespeed RewriteLevel OptimizeForBandwidth
 
 # Blog section on any site: add critical CSS
-path: ^/blog/
+path:^/blog/.*
 pagespeed EnableFilters prioritize_critical_css
 ```
 
@@ -185,7 +187,7 @@ pagespeed EnableFilters prioritize_critical_css
 Use `clear` to reset accumulated options before applying new ones:
 
 ```text
-hostname: ^special\.example\.com$
+hostname:^special\.example\.com$
 clear
 pagespeed on
 pagespeed RewriteLevel PassThrough
@@ -249,16 +251,16 @@ pagespeed FileCachePath %ProgramData%\We-Amp\PageSpeed\Cache
 pagespeed RewriteLevel CoreFilters
 
 # Marketing site: aggressive optimization
-hostname: ^www\.example\.com$
+hostname:^www\.example\.com$
 pagespeed EnableFilters prioritize_critical_css,defer_javascript
 pagespeed EnableFilters lazyload_images,collapse_whitespace
 
 # API: no HTML optimization, bandwidth only
-hostname: ^api\.example\.com$
+hostname:^api\.example\.com$
 pagespeed RewriteLevel OptimizeForBandwidth
 
 # Admin portal: disable optimization
-hostname: ^admin\.example\.com$
+hostname:^admin\.example\.com$
 pagespeed off
 ```
 
