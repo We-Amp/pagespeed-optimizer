@@ -377,13 +377,15 @@ PSENVHDR
   # Generation notice: the cache-directory generation moved from v2 to v3
   # (cache format change).  The daemon never reads v2/ again and nothing
   # deletes it.  It is raised only while a loaded web-server file still
-  # names the v2 path (the configured volume path is what decides, not
+  # names the v1 or v2 path (the configured volume path is what decides, not
   # whether the old directory is still on disk), as one line.  It repeats on
   # every configure until the configuration is fixed (intended; do not turn
   # it into a once-only notice).
-  if ps_stale_web_config / /var/cache/pagespeed-optimizer/v2; then
-    echo "pagespeed-optimizer: ACTION REQUIRED: your web-server configuration still names the cache path /var/cache/pagespeed-optimizer/v2 (the cache format changed and the directory moved to v3); set 'pagespeed DaemonVolumePath' (nginx) or ModPagespeedDaemonVolumePath (Apache) to /var/cache/pagespeed-optimizer/v3/cache and restart the web server; the cache starts empty and refills as traffic arrives, and the v2 directory is left in place until you delete it."
-  fi
+  for ps_old in v1 v2; do
+    if ps_stale_web_config / /var/cache/pagespeed-optimizer/$ps_old; then
+      echo "pagespeed-optimizer: ACTION REQUIRED: your web-server configuration still names the cache path /var/cache/pagespeed-optimizer/$ps_old (the cache format changed and the directory moved to v3); set 'pagespeed DaemonVolumePath' (nginx) or ModPagespeedDaemonVolumePath (Apache) to /var/cache/pagespeed-optimizer/v3/cache and restart the web server; the cache starts empty and refills as traffic arrives, and the $ps_old directory is left in place until you delete it."
+    fi
+  done
 fi
 if [ -d /run/systemd/system ]; then
   systemctl daemon-reload || true
@@ -710,10 +712,12 @@ print(1 if need <= a and not leak else 0)')"
     "$(grep -c 'pagespeed_cache_path' "$ctrl/postinst" || true)"
   check "postinst names the native nginx directive" "2" \
     "$(grep -c "'pagespeed DaemonVolumePath'" "$ctrl/postinst")"
-  check "v2 notice is gated on the configured path, not the directory" "1" \
-    "$(grep -c 'if ps_stale_web_config / /var/cache/pagespeed-optimizer/v2; then' "$ctrl/postinst")"
-  check "v2 notice has no directory-presence clause" "0" \
-    "$(grep -c -- '-d /var/cache/pagespeed-optimizer/v2' "$ctrl/postinst" || true)"
+  check "stale-path notice loops over v1 and v2" "1" \
+    "$(grep -c 'for ps_old in v1 v2; do' "$ctrl/postinst")"
+  check "stale-path notice is gated on the configured path, not the directory" "1" \
+    "$(grep -c -F 'if ps_stale_web_config / /var/cache/pagespeed-optimizer/$ps_old; then' "$ctrl/postinst")"
+  check "stale-path notice has no directory-presence clause" "0" \
+    "$(grep -c -F -- '-d /var/cache/pagespeed-optimizer/' "$ctrl/postinst" || true)"
   check "cold-start notice stays silent for another configured volume path" "1" \
     "$(grep -c 'ps_stale_web_config / DaemonVolumePath && ! ps_stale_web_config / /var/cache/pagespeed-optimizer/v3' "$ctrl/postinst")"
   check "postinst has no redundant ps_stale" "0" \

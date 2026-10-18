@@ -22,10 +22,10 @@ and be writable by the worker's user (the packaged unit uses a systemd
 ## --cache-dir
 
 ```bash
-factory_worker --cache-dir /var/cache/pagespeed-optimizer/v2
+factory_worker --cache-dir /var/cache/pagespeed-optimizer/v3
 ```
 
-The `v2` in the default is the compiled-in cache-directory generation. The
+The `v3` in the default is the compiled-in cache-directory generation. The
 directory must exist, be writable by the worker, and contain only files owned by
 the worker's user; otherwise the worker refuses to start and names the cause.
 The packaged tmpfiles.d drop-in creates the default as 3770
@@ -35,7 +35,7 @@ member cannot remove another's files).
 ## --cache-path
 
 ```bash
-factory_worker --cache-path /var/cache/pagespeed-optimizer/v2/cache
+factory_worker --cache-path /var/cache/pagespeed-optimizer/v3/cache
 ```
 
 Must match the nginx [`pagespeed_cache_path`](#pagespeed_cache_path) directive.
