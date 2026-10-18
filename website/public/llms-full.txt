@@ -3438,7 +3438,7 @@ for d in /usr/lib/nginx/modules /usr/lib64/nginx/modules; do
   fi
 done && [ "$restored" = yes ] &&
 # put back the load_module line the migration removed from nginx.conf
-line="$(sed -n 's|^/etc/nginx/nginx\.conf:[0-9]*:||p' ~/ngx_pagespeed-load_module.txt | head -n 1)" &&
+line="$(sed -n 's|^/etc/nginx/nginx\.conf:[0-9]*:[[:space:]]*||p' ~/ngx_pagespeed-load_module.txt | head -n 1)" &&
 if [ -n "$line" ] && ! sudo grep -qxF "$line" /etc/nginx/nginx.conf; then
   sudo sed -i "1i $line" /etc/nginx/nginx.conf
 fi &&
