@@ -16294,6 +16294,12 @@ static bool SelfLinkChainHeadInClosedVolume(const std::string& dir,
                                             uint64_t head, uint64_t tail) {
   constexpr uint32_t kDocumentMagic = 0x5F129B14;
   constexpr std::streamoff kNextAlternateOffsetPos = 112;
+  // Format v9: the link packs the successor's stripe-relative offset in the
+  // low 48 bits and the successor's fill serial in the top 16; a document's
+  // own fill serial sits at byte 88.
+  constexpr std::streamoff kFillSerialPos = 88;
+  constexpr unsigned kLinkSerialShift = 48;
+  constexpr uint64_t kLinkOffsetMask = (uint64_t{1} << kLinkSerialShift) - 1;
   auto magic_at = [](std::fstream& f, uint64_t offset) {
     uint32_t magic = 0;
     f.clear();
@@ -16319,11 +16325,26 @@ static bool SelfLinkChainHeadInClosedVolume(const std::string& dir,
     ADD_FAILURE() << "cannot open the volume file for patching";
     return false;
   }
-  uint64_t tail_relative = 0;
+  uint64_t link = 0;
   volume.seekg(static_cast<std::streamoff>(head) + kNextAlternateOffsetPos);
-  volume.read(reinterpret_cast<char*>(&tail_relative), sizeof(tail_relative));
+  volume.read(reinterpret_cast<char*>(&link), sizeof(link));
+  const uint64_t tail_relative = link & kLinkOffsetMask;
   if (!volume.good() || tail_relative == 0 || tail_relative > tail) {
     ADD_FAILURE() << "the head's successor field did not read as expected";
+    return false;
+  }
+  uint32_t tail_fill_serial = 0;
+  volume.seekg(static_cast<std::streamoff>(tail) + kFillSerialPos);
+  volume.read(reinterpret_cast<char*>(&tail_fill_serial),
+              sizeof(tail_fill_serial));
+  uint32_t head_fill_serial = 0;
+  volume.seekg(static_cast<std::streamoff>(head) + kFillSerialPos);
+  volume.read(reinterpret_cast<char*>(&head_fill_serial),
+              sizeof(head_fill_serial));
+  if (!volume.good() ||
+      (link >> kLinkSerialShift) !=
+          static_cast<uint64_t>(static_cast<uint16_t>(tail_fill_serial))) {
+    ADD_FAILURE() << "the link's serial is not the tail's fill serial";
     return false;
   }
   const uint64_t stripe_base = tail - tail_relative;
@@ -16331,7 +16352,9 @@ static bool SelfLinkChainHeadInClosedVolume(const std::string& dir,
     ADD_FAILURE() << "the derived stripe base is not below the head";
     return false;
   }
-  const uint64_t head_relative = head - stripe_base;
+  const uint64_t head_relative =
+      (head - stripe_base) |
+      (uint64_t{static_cast<uint16_t>(head_fill_serial)} << kLinkSerialShift);
   volume.clear();
   volume.seekp(static_cast<std::streamoff>(head) + kNextAlternateOffsetPos);
   volume.write(reinterpret_cast<const char*>(&head_relative),

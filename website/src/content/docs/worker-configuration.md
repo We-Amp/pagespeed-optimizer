@@ -430,7 +430,7 @@ Cache directory; the volume, shared config and serve-stats live inside it (defau
 factory_worker --cache-dir /var/cache/pagespeed-optimizer/v3
 ```
 
-The `v2` in the default is the compiled-in cache-directory generation. The
+The `v3` in the default is the compiled-in cache-directory generation. The
 directory must exist, be writable by the worker, and contain only files owned by
 the worker's user; otherwise the worker refuses to start and names the cause.
 The packaged tmpfiles.d drop-in creates the default as 3770
