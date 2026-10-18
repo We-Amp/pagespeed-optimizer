@@ -126,9 +126,10 @@ sudo apt-get install nginx-module-pagespeed    # dnf on Enterprise Linux
 sudo nginx -t && sudo systemctl restart nginx
 ```
 
-Make sure one `load_module` line names
-`/usr/lib/nginx/modules/ngx_pagespeed_module.so`, the file the package
-installs. If you compiled ngx_pagespeed into nginx, you are also moving to the
+The package loads `ngx_pagespeed_module.so` itself; remove any `load_module`
+line you added for the old module, so that
+`sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules`
+shows exactly one line, the package's. If you compiled ngx_pagespeed into nginx, you are also moving to the
 distribution's nginx package; see
 [Migrate from ngx_pagespeed](/docs/migrate-from-ngx-pagespeed/) for the
 version pinning that matters there.

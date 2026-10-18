@@ -247,13 +247,12 @@ const jsonLd = [
         config. The IIS package ships from the 1.15 packaging channel.
       </p>
 
-      <pre><code>{`# nginx
-load_module modules/ngx_pagespeed.so;
+      <pre><code>{`# nginx (the package loads ngx_pagespeed_module.so itself)
 pagespeed on;
 pagespeed FileCachePath /var/cache/ngx_pagespeed;`}</code></pre>
 
-      <pre><code>{`# Apache
-LoadModule pagespeed_module modules/mod_pagespeed.so
+      <pre><code>{`# Apache (the package enables the module; on Debian/Ubuntu run
+# sudo a2enmod pagespeed if it was disabled)
 ModPagespeed on
 ModPagespeedFileCachePath /var/cache/mod_pagespeed`}</code></pre>
 

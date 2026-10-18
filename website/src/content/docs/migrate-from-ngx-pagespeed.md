@@ -3,7 +3,7 @@ title: 'Migrate from ngx_pagespeed'
 description: 'Replace an open-source ngx_pagespeed build, compiled in or from a third-party package, with the signed mod_pagespeed 2.1 nginx module: what carries over.'
 order: 13
 group: 'Upgrade and migrate'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-18
 datePublished: 2026-10-08
 faq:
   - q: 'Do my pagespeed directives carry over from ngx_pagespeed?'
@@ -16,9 +16,9 @@ mod_pagespeed 2.1 continues the nginx port. If you run the open-source
 [`ngx_pagespeed`](https://ngxpagespeed.com/install/) today, whether you compiled it into nginx yourself or
 installed a third-party package build of it such as the GetPageSpeed packages,
 the move is a package swap: remove the old module, install the signed
-`nginx-module-pagespeed`, keep your `pagespeed` directives. One `load_module`
-line and a restart later, the same configuration runs on a module built
-against current nginx and kept security-patched.
+`nginx-module-pagespeed`, keep your `pagespeed` directives. The package loads
+the module itself, so after a restart the same configuration runs on a module
+built against current nginx and kept security-patched.
 
 ## Before you start
 
@@ -55,9 +55,11 @@ decide whether to move nginx back to the distribution package too; otherwise
    sudo dnf install nginx-module-pagespeed        # AlmaLinux / RHEL / Rocky
    ```
 
-3. **Point `load_module` at the new file.** Exactly one `load_module` line for
-   pagespeed, naming `/usr/lib/nginx/modules/ngx_pagespeed_module.so`, the
-   file the package installs; remove any line that named the old build.
+3. **Remove the old `load_module` line.** The package loads
+   `ngx_pagespeed_module.so` itself; remove any `load_module` line that named
+   the old build, so that
+   `sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules`
+   shows exactly one line, the package's.
 4. **Test and restart:** `sudo nginx -t && sudo systemctl restart nginx`.
 5. **Verify:** `curl -I http://localhost/ | grep X-Page-Speed`. The header
    carries the new module version. [Is it working?](/docs/is-it-working/) has

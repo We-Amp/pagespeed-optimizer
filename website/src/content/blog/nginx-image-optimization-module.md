@@ -2,7 +2,7 @@
 title: 'nginx image optimization module: automatic WebP, opt-in AVIF'
 description: 'A native nginx module that transcodes images to WebP and AVIF on serve, negotiates on Accept and caches the variant. Signed apt/yum packages, no compiling.'
 date: 2026-06-06
-lastUpdated: 2026-07-19
+lastUpdated: 2026-10-18
 author: 'Otto van der Schaaf'
 tags: ['nginx', 'image-optimization', 'webp', 'avif']
 product: '1.1'
@@ -73,11 +73,12 @@ EOF
 sudo dnf install nginx-module-pagespeed
 ```
 
-Load the module and turn it on in `nginx.conf`:
+The package loads the module itself
+(`sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules`
+shows its line), so there is no `load_module` line to add. Turn it on in
+`nginx.conf`:
 
 ```nginx
-load_module modules/ngx_pagespeed.so;
-
 pagespeed on;
 pagespeed FileCachePath /var/cache/pagespeed;
 ```

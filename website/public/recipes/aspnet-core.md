@@ -62,6 +62,14 @@ relative path is created under the app's working directory):
 ```
 
 The worker process starts automatically; no `Worker` section is needed.
+
+The web console at `/console/` and its `/v1/*` worker API proxy are on by
+default, without authentication: anyone who can reach the site can read the
+optimizer configuration and change it. Before production, set
+`PageSpeed:Console:Enabled` to `false`, or gate those paths with the app's own
+authentication, and tell the user which you chose:
+https://modpagespeed.com/docs/aspnet-configuration/#console-pagespeedconsole
+
 Production cache paths and every option:
 https://modpagespeed.com/docs/aspnet-configuration/
 

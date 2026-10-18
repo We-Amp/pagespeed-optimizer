@@ -3,13 +3,13 @@ title: 'ASP.NET Core settings'
 description: 'Configuration reference for the mod_pagespeed 2.1 ASP.NET Core middleware: appsettings.json PageSpeed options, cache and worker settings, and hot reload.'
 order: 27
 group: 'Configure'
-lastUpdated: 2026-09-19
+lastUpdated: 2026-10-18
 ---
 
 The mod_pagespeed 2.1 ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`) is
 configured from the standard ASP.NET Core sources: appsettings.json, environment
 variables, or any `IConfiguration` provider. It binds its options to the
-`PageSpeed` section via `IServiceCollection.AddPageSpeed(IConfiguration)`.
+`PageSpeed` section via `IServiceCollection.AddPageSpeed()`.
 
 ## Basic configuration
 
@@ -33,6 +33,9 @@ Add a `PageSpeed` section to your appsettings.json:
       "AutoStart": true
       // "ApiPort": 9191  // Worker management API, loopback only. The middleware
       // starts the worker with --api-no-auth, so never publish this port.
+    },
+    "Console": {
+      "Enabled": false // The console is public by default; see Console below.
     }
   }
 }
@@ -40,8 +43,8 @@ Add a `PageSpeed` section to your appsettings.json:
 
 ## Options
 
-The middleware binds to a `PageSpeedOptions` instance with three nested sections:
-`Cache`, `Html`, and `Worker`. All options support hot reload via
+The middleware binds to a `PageSpeedOptions` instance with four nested sections:
+`Cache`, `Html`, `Worker`, and `Console`. All options support hot reload via
 `IOptionsMonitor<PageSpeedOptions>`.
 
 ### Top-level (`PageSpeed`)
@@ -105,13 +108,186 @@ diagnostic console.
 | ------------ | ------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `AutoStart`  | bool    | `true`  | Resolve the `factory_worker` binary from the NuGet package and launch it as a child process on startup. Set `false` to launch no worker process at all.                                                                                                                                                                                                                |
 | `SocketPath` | string? | unset   | Worker-coordination socket. **Leave it unset** (the default) and the middleware auto-resolves a per-process socket with coordination on — no configuration needed. Set it to a concrete path to share one socket with an out-of-process worker (split-process deployments). Setting it to `null` or `""` disables worker coordination and logs a loud startup warning. |
-| `ApiPort`    | int     | `0`     | TCP port for the worker's HTTP management API. `0` disables the API. **Do not expose this port to the public internet — there is no authentication on this endpoint.**                                                                                                                                                                                                 |
+| `ApiPort`    | int     | `0`     | Loopback TCP port for the worker's HTTP management API. `0` does not disable the API: the middleware picks a free loopback port. Either way the worker runs with API authentication off, and the console proxies its `/v1/*` paths from your site (see [Console](#console-pagespeedconsole)). **Never publish this port.**                                               |
 | `LogLevel`   | string? | `null`  | Worker log level: `debug`, `info`, `warning`, or `error`. `null` keeps the worker's default (`info`).                                                                                                                                                                                                                                                                  |
-| `ConsoleDir` | string? | `null`  | Filesystem path to the diagnostic-console SPA assets. When `null` and `AutoStart` is true, the middleware auto-discovers a `console` directory next to `factory_worker`. Set to `""` to disable.                                                                                                                                                                       |
+| `ConsoleDir` | string? | `null`  | Filesystem path to the diagnostic-console SPA assets. When `null` and `AutoStart` is true, the middleware auto-discovers a `console` directory next to `factory_worker`. Set to `""` to disable. This only stops the worker's own loopback copy of the console, not the middleware's `/console/`; use [`Console.Enabled`](#console-pagespeedconsole) for that.                                    |
 
-The worker process exposes its diagnostic console out-of-process. Set
-`Worker.ApiPort` to a port reachable from your ops team — but never from the
-public internet — to enable it. The console SPA is served from `Worker.ConsoleDir`.
+The worker's management API always runs, bound to loopback, with
+authentication off. You do not need to set `Worker.ApiPort` to use the
+console: the middleware serves it on your app's own port and proxies its API
+calls to the worker. That proxy is what the [Console](#console-pagespeedconsole)
+section is about.
+
+### Console (`PageSpeed:Console`)
+
+The middleware serves the web console at `MountPath` on your app's own port
+and proxies the console's worker API calls, `/v1/health`, `/v1/ws`,
+`/v1/cache`, `/v1/stats`, `/v1/capture` and `/v1/config`, to the worker.
+The `/v1/*` paths are fixed; `MountPath` does not move them.
+
+| Option         | Type   | Default    | Description                                                                                                                                                         |
+| -------------- | ------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Enabled`      | bool   | `true`     | Serve the console and proxy its `/v1/*` paths. When `false`, those requests fall through to your app. The top-level `Enabled` switch does not turn the console off. |
+| `MountPath`    | string | `/console` | Path the console is served at, for example `/_pagespeed/console`. Must start with `/` and must not be `/`; an invalid value disables the console with a warning.    |
+| `RequireHttps` | bool   | `false`    | Return `403` for console and `/v1/*` requests that do not arrive over HTTPS. This protects the traffic, not the access: it is not authentication.                   |
+
+:::warning[No authentication by default]
+With the defaults, the console and its `/v1/*` paths answer anyone who can
+reach your site, in every environment. They can read the stats and the
+optimizer configuration, change the live configuration with
+`PATCH /v1/config`, and purge the cache. The worker's own API token does not
+apply here, and the only check on a change is an `X-Requested-With` header
+that any client can send.
+:::
+
+Recommended for production: `Enabled: false`, for example in
+`appsettings.Production.json` or as `PageSpeed__Console__Enabled=false`. On
+IIS, you can set the variable in the site's `web.config`: add only this
+`<environmentVariables>` block inside the `<aspNetCore>` element it already
+has, and leave that element's other attributes as they are:
+
+```xml
+<environmentVariables>
+  <environmentVariable name="PageSpeed__Console__Enabled" value="false" />
+</environmentVariables>
+```
+
+`dotnet publish` regenerates `web.config` unless the project has its own, so
+add the file to the project or repeat the edit after each publish.
+
+`Enabled` follows [hot reload](#hot-reload), so you can switch the console on
+for a support session and off again without a restart. A switch through hot
+reload can take a few seconds to apply.
+
+#### Gate the console with your own authentication
+
+If you need the console in production, put your own authentication in front of
+`MountPath` and the six `/v1/*` paths instead. Register the gate immediately
+before `UsePageSpeed()`, after `UseAuthentication()` and after any
+`UseRewriter()` or `UsePathBase()`, so it sees the same path the console does.
+This example requires a signed-in user in the `Admin` role and uses whatever
+authentication scheme your app already registers. At the top of `Program.cs`:
+
+```csharp
+using Microsoft.AspNetCore.Authentication;
+```
+
+In the pipeline, in place of the plain `app.UsePageSpeed();`:
+
+```csharp
+app.UseAuthentication();
+
+string[] pageSpeedConsolePaths =
+{
+    "/console", // PageSpeed:Console:MountPath; change it here if you re-mount the console
+    "/v1/health", "/v1/ws", "/v1/cache", "/v1/stats", "/v1/capture", "/v1/config",
+};
+
+app.UseWhen(
+    ctx => pageSpeedConsolePaths.Any(p => ctx.Request.Path.StartsWithSegments(p)),
+    branch => branch.Use(async (ctx, next) =>
+    {
+        if (ctx.User.Identity?.IsAuthenticated != true)
+        {
+            await ctx.ChallengeAsync(); // 401, or your scheme's sign-in redirect
+            return;
+        }
+        if (!ctx.User.IsInRole("Admin"))
+        {
+            await ctx.ForbidAsync(); // 403, or your scheme's access-denied redirect
+            return;
+        }
+        await next();
+    }));
+
+app.UsePageSpeed();
+```
+
+The gate needs an authentication scheme with a default challenge:
+
+- With no authentication services at all, the app fails at startup:
+  `Unable to resolve service for type
+  'Microsoft.AspNetCore.Authentication.IAuthenticationSchemeProvider'`.
+- With authentication services but no default scheme (`AddAuthentication()`
+  alone, or only what `AddRazorPages()` registers), every gated request fails
+  with a `500`: `No authenticationScheme was specified, and there was no
+  DefaultChallengeScheme found`.
+
+An app without authentication can register cookie authentication before
+`builder.Build()`, with `using Microsoft.AspNetCore.Authentication.Cookies;` at
+the top of `Program.cs`:
+
+```csharp
+builder.Services
+    .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie();
+```
+
+A signed-out request is then redirected to the sign-in path (`/Account/Login`
+by default), which your app provides; the admin's sign-in must carry the
+`Admin` role.
+
+Windows authentication fits an intranet or IIS site; check a Windows group in
+place of `Admin`. On IIS, enable Windows authentication in IIS and register
+its scheme, with `using Microsoft.AspNetCore.Server.IISIntegration;`:
+
+```csharp
+builder.Services.AddAuthentication(IISDefaults.AuthenticationScheme);
+```
+
+On Kestrel, add the `Microsoft.AspNetCore.Authentication.Negotiate` package;
+it is not part of the shared framework. Match its major version to your target
+framework, for example on .NET 8:
+
+```bash
+dotnet add package Microsoft.AspNetCore.Authentication.Negotiate --version 8.0.*
+```
+
+Then, with `using Microsoft.AspNetCore.Authentication.Negotiate;`:
+
+```csharp
+builder.Services
+    .AddAuthentication(NegotiateDefaults.AuthenticationScheme)
+    .AddNegotiate();
+```
+
+The `/v1/*` paths are fixed: re-mounting the console with `MountPath` does not
+move them. Gate exactly these six rather than all of `/v1`, so your own `/v1`
+routes keep their own rules.
+
+#### Check an existing deployment
+
+Every release since 2.0.13 serves the console and all six `/v1/*` paths this
+way, with no fix release yet; 2.0.4 through 2.0.12 served the console and a
+smaller set of proxied paths, also without authentication. From outside your
+network:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://<your-domain>/v1/config
+```
+
+`404` means the console is off, and `401`, `403` or a `302` to your sign-in
+page means it is gated. A `200` needs a look at the body: with the console off,
+your own app can answer `/v1/config` (its own route, or a catch-all or SPA
+fallback). The console's answer is JSON with keys such as `webp_quality`; if
+that is what you get, anyone can read and change the optimizer configuration.
+
+A configuration changed through the console is saved by the worker to
+`pagespeed.json`, in the directory of `Cache.VolumePath`. It survives a restart
+and stays in force after you turn the console off. Optimized variants built
+under the changed settings stay in the cache volume as well. To recover, whether
+the console is now off or gated:
+
+1. Stop the app; the worker stops with it.
+2. In the directory of `Cache.VolumePath`, delete `pagespeed.json` and the
+   cache volume files: every file whose name starts with the volume file's base
+   name, for the default `volume.dat` that is `volume-8-<hash>.dat` and, if
+   present, `volume.dat.gen` (`volume*`).
+3. Start the app. The worker runs on its startup configuration (environment
+   variables and flags still apply) and rebuilds the cache.
+
+To check the result, compare `GET /v1/config`, with the console gated, against
+the answer of a fresh install.
 
 ### Worker coordination and `SocketPath`
 
@@ -191,6 +367,7 @@ PageSpeed__Cache__VolumeSizeBytes=2147483648
 PageSpeed__Html__EnableCriticalCss=true
 PageSpeed__Html__EnableSpeculationRules=false
 PageSpeed__Worker__ApiPort=0
+PageSpeed__Console__Enabled=false
 ```
 
 Environment variables take precedence over appsettings.json, following ASP.NET
