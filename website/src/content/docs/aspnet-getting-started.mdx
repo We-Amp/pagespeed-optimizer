@@ -3,7 +3,7 @@ title: 'Install ASP.NET Core middleware'
 description: 'Install the mod_pagespeed 2.1 ASP.NET Core middleware via NuGet — the same optimization pipeline (image transcoding, critical CSS) inside your .NET app.'
 order: 9
 group: 'Install'
-lastUpdated: 2026-09-19
+lastUpdated: 2026-10-18
 ---
 
 import NugetCmd from '../../components/release/NugetCmd.astro';
@@ -71,6 +71,71 @@ process starts automatically and coordinates over an auto-resolved per-process
 socket, so HTML and image optimization are on out of the box. You only add a
 `PageSpeed:Worker` section when you want to change that behavior; see the
 [configuration reference](/docs/aspnet-configuration/#worker-pagespeedworker).
+
+:::warning[The console is public until you lock it down]
+The setup above also serves the web console at `/console/` and proxies its
+worker API (`/v1/health`, `/v1/ws`, `/v1/cache`, `/v1/stats`, `/v1/capture`
+and `/v1/config`) from your site's root, in every environment, with no
+authentication. Anyone who can reach your site can read the stats and the
+optimizer configuration, change the live configuration with
+`PATCH /v1/config`, and purge the cache. Before you go to production, turn the
+console off or put your own authentication in front of it.
+:::
+
+To turn the console off, set `PageSpeed:Console:Enabled` to `false`. The
+console paths then fall through to your app, and optimization is unaffected.
+The top-level `PageSpeed:Enabled` switch does not turn the console off.
+
+```json
+{
+  "PageSpeed": {
+    "Console": {
+      "Enabled": false
+    }
+  }
+}
+```
+
+To keep the console, gate its mount path and the six proxied `/v1/*` paths
+before `UsePageSpeed()`. This example requires a signed-in user in the `Admin`
+role and uses whatever authentication scheme your app already registers:
+
+```csharp
+using Microsoft.AspNetCore.Authentication;
+
+app.UseAuthentication();
+
+string[] pageSpeedConsolePaths =
+{
+    "/console", // PageSpeed:Console:MountPath; change it here if you re-mount the console
+    "/v1/health", "/v1/ws", "/v1/cache", "/v1/stats", "/v1/capture", "/v1/config",
+};
+
+app.UseWhen(
+    ctx => pageSpeedConsolePaths.Any(p => ctx.Request.Path.StartsWithSegments(p)),
+    branch => branch.Use(async (ctx, next) =>
+    {
+        if (ctx.User.Identity?.IsAuthenticated != true)
+        {
+            await ctx.ChallengeAsync(); // 401, or your scheme's sign-in redirect
+            return;
+        }
+        if (!ctx.User.IsInRole("Admin"))
+        {
+            await ctx.ForbidAsync(); // 403
+            return;
+        }
+        await next();
+    }));
+
+app.UsePageSpeed();
+```
+
+The `/v1/*` paths are fixed: re-mounting the console with
+`PageSpeed:Console:MountPath` does not move them. Gate exactly these six
+rather than all of `/v1`, so your own `/v1` routes keep their own rules. See
+[Console](/docs/aspnet-configuration/#console-pagespeedconsole) in the
+configuration reference.
 
 ## Configure via appsettings.json
 

@@ -3,7 +3,7 @@ title: 'ASP.NET Core settings'
 description: 'Configuration reference for the mod_pagespeed 2.1 ASP.NET Core middleware: appsettings.json PageSpeed options, cache and worker settings, and hot reload.'
 order: 27
 group: 'Configure'
-lastUpdated: 2026-09-19
+lastUpdated: 2026-10-18
 ---
 
 The mod_pagespeed 2.1 ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`) is
@@ -33,6 +33,9 @@ Add a `PageSpeed` section to your appsettings.json:
       "AutoStart": true
       // "ApiPort": 9191  // Worker management API, loopback only. The middleware
       // starts the worker with --api-no-auth, so never publish this port.
+    },
+    "Console": {
+      "Enabled": false // The console is public by default; see Console below.
     }
   }
 }
@@ -40,8 +43,8 @@ Add a `PageSpeed` section to your appsettings.json:
 
 ## Options
 
-The middleware binds to a `PageSpeedOptions` instance with three nested sections:
-`Cache`, `Html`, and `Worker`. All options support hot reload via
+The middleware binds to a `PageSpeedOptions` instance with four nested sections:
+`Cache`, `Html`, `Worker`, and `Console`. All options support hot reload via
 `IOptionsMonitor<PageSpeedOptions>`.
 
 ### Top-level (`PageSpeed`)
@@ -105,13 +108,47 @@ diagnostic console.
 | ------------ | ------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `AutoStart`  | bool    | `true`  | Resolve the `factory_worker` binary from the NuGet package and launch it as a child process on startup. Set `false` to launch no worker process at all.                                                                                                                                                                                                                |
 | `SocketPath` | string? | unset   | Worker-coordination socket. **Leave it unset** (the default) and the middleware auto-resolves a per-process socket with coordination on — no configuration needed. Set it to a concrete path to share one socket with an out-of-process worker (split-process deployments). Setting it to `null` or `""` disables worker coordination and logs a loud startup warning. |
-| `ApiPort`    | int     | `0`     | TCP port for the worker's HTTP management API. `0` disables the API. **Do not expose this port to the public internet — there is no authentication on this endpoint.**                                                                                                                                                                                                 |
+| `ApiPort`    | int     | `0`     | Loopback TCP port for the worker's HTTP management API. `0` does not disable the API: the middleware picks a free loopback port. Either way the worker runs with API authentication off, and the console proxies its `/v1/*` paths from your site (see [Console](#console-pagespeedconsole)). **Never publish this port.**                                               |
 | `LogLevel`   | string? | `null`  | Worker log level: `debug`, `info`, `warning`, or `error`. `null` keeps the worker's default (`info`).                                                                                                                                                                                                                                                                  |
 | `ConsoleDir` | string? | `null`  | Filesystem path to the diagnostic-console SPA assets. When `null` and `AutoStart` is true, the middleware auto-discovers a `console` directory next to `factory_worker`. Set to `""` to disable.                                                                                                                                                                       |
 
-The worker process exposes its diagnostic console out-of-process. Set
-`Worker.ApiPort` to a port reachable from your ops team — but never from the
-public internet — to enable it. The console SPA is served from `Worker.ConsoleDir`.
+The worker's management API always runs, bound to loopback, with
+authentication off. You do not need to set `Worker.ApiPort` to use the
+console: the middleware serves it on your app's own port and proxies its API
+calls to the worker. That proxy is what the [Console](#console-pagespeedconsole)
+section is about.
+
+### Console (`PageSpeed:Console`)
+
+The middleware serves the web console at `MountPath` on your app's own port
+and proxies the console's worker API calls, `/v1/health`, `/v1/ws`,
+`/v1/cache`, `/v1/stats`, `/v1/capture` and `/v1/config`, to the worker.
+The `/v1/*` paths are fixed; `MountPath` does not move them.
+
+| Option         | Type   | Default    | Description                                                                                                                                                         |
+| -------------- | ------ | ---------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Enabled`      | bool   | `true`     | Serve the console and proxy its `/v1/*` paths. When `false`, those requests fall through to your app. The top-level `Enabled` switch does not turn the console off. |
+| `MountPath`    | string | `/console` | Path the console is served at, for example `/_pagespeed/console`. Must start with `/` and must not be `/`; an invalid value disables the console with a warning.    |
+| `RequireHttps` | bool   | `false`    | Return `403` for console and `/v1/*` requests that do not arrive over HTTPS. This protects the traffic, not the access: it is not authentication.                   |
+
+:::warning[No authentication by default]
+With the defaults, the console and its `/v1/*` paths answer anyone who can
+reach your site, in every environment. They can read the stats and the
+optimizer configuration, change the live configuration with
+`PATCH /v1/config`, and purge the cache. The worker's own API token does not
+apply here, and the only check on a change is an `X-Requested-With` header
+that any client can send.
+:::
+
+For production, do one of two things:
+
+- Set `Enabled` to `false` (shown in [Basic configuration](#basic-configuration)).
+- Put your own authentication in front of `MountPath` and the six `/v1/*`
+  paths, registered before `UsePageSpeed()`. The
+  [install guide](/docs/aspnet-getting-started/) has a working example.
+
+`Enabled` follows [hot reload](#hot-reload), so you can switch the console on
+for a support session and off again without a restart.
 
 ### Worker coordination and `SocketPath`
 
@@ -191,6 +228,7 @@ PageSpeed__Cache__VolumeSizeBytes=2147483648
 PageSpeed__Html__EnableCriticalCss=true
 PageSpeed__Html__EnableSpeculationRules=false
 PageSpeed__Worker__ApiPort=0
+PageSpeed__Console__Enabled=false
 ```
 
 Environment variables take precedence over appsettings.json, following ASP.NET

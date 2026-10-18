@@ -3,7 +3,7 @@ title: 'ASP.NET Core in production'
 description: 'Production deployment of the mod_pagespeed 2.1 ASP.NET Core middleware: configuration, health probes, multi-instance scale and zero-downtime restarts.'
 order: 51
 group: 'Operate'
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-18
 faq:
   - q: 'Does scaling the ASP.NET Core middleware across multiple instances add per-server cost?'
     a: 'No. mod_pagespeed 2.1 is licensed under Apache-2.0 and free to run in development and in production, so scaling out adds no software cost — size replica counts for traffic and availability.'
@@ -124,7 +124,11 @@ middleware starts the worker with `--api-no-auth` on a loopback-only management
 port (`PageSpeed.Worker.ApiPort`; an ephemeral port when left at `0`), so the
 API answers anything on the host and is never reachable off-host — the worker
 refuses a non-loopback bind without a token. Reach it from the host or through
-an SSH tunnel rather than by publishing the port.
+an SSH tunnel rather than by publishing the port. The middleware's own console
+proxy is the exception: by default it serves `/console/` and the worker's
+`/v1/*` API calls from your site's root, without authentication. Turn it off
+or gate it before going live; see
+[Console](/docs/aspnet-configuration/#console-pagespeedconsole).
 
 ## Scale across multiple instances
 
