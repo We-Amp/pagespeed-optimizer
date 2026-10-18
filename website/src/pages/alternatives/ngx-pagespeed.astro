@@ -120,16 +120,18 @@ dnf install nginx-module-pagespeed`}</code></pre>
 
       <h2>mod_pagespeed 2.1 &mdash; the maintained nginx module</h2>
       <p>
-        The module loads into your nginx binary the way ngx_pagespeed did. It is still named{' '}
-        <code>ngx_pagespeed_module.so</code> because it is the nginx port &mdash; the one you came
-        here for. Install the signed package, which loads the module for you, and keep the{' '}
-        <code>pagespeed</code> directives, filter selectors, and URL-based variant fan-out you
-        already wrote.
+        The module loads into your nginx binary the way ngx_pagespeed did. The module file is{' '}
+        <code>ngx_pagespeed_module.so</code>, the nginx port you came here for. Install the signed
+        package, which loads the module for you, and keep the <code>pagespeed</code> directives,
+        filter selectors, and URL-based variant fan-out you already wrote.
       </p>
 
       <pre><code>{`# nginx.conf — the native mod_pagespeed 2.1 module
-# The package loads the module (nginx -T | grep -i pagespeed shows it).
-# Only a module installed by hand needs: load_module modules/ngx_pagespeed_module.so;
+# The package loads the module; check with:
+#   sudo grep -Rn 'load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules
+# Only a module installed by hand needs, at the top of nginx.conf:
+# load_module modules/ngx_pagespeed_module.so;                    # Debian / Ubuntu
+# load_module /usr/lib64/nginx/modules/ngx_pagespeed_module.so;   # Enterprise Linux
 
 pagespeed on;
 pagespeed FileCachePath /var/cache/ngx_pagespeed;

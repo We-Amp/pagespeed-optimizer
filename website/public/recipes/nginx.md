@@ -45,8 +45,10 @@ The package drops a `load_module` snippet into the modules directory nginx
 includes. Confirm it:
 
 ```bash
-sudo nginx -T 2>/dev/null | grep -q 'ngx_pagespeed_module.so' && echo 'module loaded' || echo 'missing: add the load_module line'
+sudo grep -Rn 'load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules && echo 'module loaded' || echo 'missing: add the load_module line'
 ```
+
+It should print exactly one line, the package's.
 
 Only if it is missing, add the line for the distribution at the top of
 `/etc/nginx/nginx.conf`:

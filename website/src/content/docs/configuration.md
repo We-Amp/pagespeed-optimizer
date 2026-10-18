@@ -79,9 +79,11 @@ format.
 <div data-platform="nginx" data-platform-label="nginx">
 
 ```nginx
-# The package loads the module; check with: nginx -T 2>/dev/null | grep -i pagespeed
+# The package loads the module; check with:
+#   sudo grep -Rn 'load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules
 # Only a module installed by hand needs this line at the top of nginx.conf:
-# load_module modules/ngx_pagespeed_module.so;
+# load_module modules/ngx_pagespeed_module.so;                    # Debian / Ubuntu
+# load_module /usr/lib64/nginx/modules/ngx_pagespeed_module.so;   # Enterprise Linux
 
 http {
     server {

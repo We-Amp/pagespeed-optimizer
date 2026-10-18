@@ -17,8 +17,8 @@ mod_pagespeed 2.1 continues the nginx port. If you run the open-source
 installed a third-party package build of it such as the GetPageSpeed packages,
 the move is a package swap: remove the old module, install the signed
 `nginx-module-pagespeed`, keep your `pagespeed` directives. The package loads
-the module itself; a restart later, the same configuration runs on a module built
-against current nginx and kept security-patched.
+the module itself, so after a restart the same configuration runs on a module
+built against current nginx and kept security-patched.
 
 ## Before you start
 
@@ -57,8 +57,9 @@ decide whether to move nginx back to the distribution package too; otherwise
 
 3. **Remove the old `load_module` line.** The package loads
    `ngx_pagespeed_module.so` itself; remove any `load_module` line that named
-   the old build, so that `sudo nginx -T 2>/dev/null | grep -i pagespeed` shows
-   exactly one.
+   the old build, so that
+   `sudo grep -Rn 'load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules`
+   shows exactly one line, the package's.
 4. **Test and restart:** `sudo nginx -t && sudo systemctl restart nginx`.
 5. **Verify:** `curl -I http://localhost/ | grep X-Page-Speed`. The header
    carries the new module version. [Is it working?](/docs/is-it-working/) has

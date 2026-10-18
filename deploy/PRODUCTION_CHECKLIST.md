@@ -33,7 +33,7 @@ Pre-flight checks before deploying mod_pagespeed 2.1 in production.
 
 ## Nginx Module
 
-- [ ] Module loaded: `load_module /path/to/ngx_pagespeed_module.so;`
+- [ ] Module loaded: the package's snippet (`sudo grep -Rn 'load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules` shows exactly one line); add `load_module` by hand only for a self-built module.
 - [ ] `pagespeed on;` in server block
 - [ ] `proxy_set_header Accept-Encoding "";` to origin (PageSpeed caches raw bytes)
 - [ ] Exclusion rules set for API/admin paths (`pagespeed off;` in location blocks)

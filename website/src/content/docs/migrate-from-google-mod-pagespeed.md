@@ -46,8 +46,9 @@ On Apache, remove the archived `mod-pagespeed-stable` or `mod-pagespeed-beta`
 package first if you installed one: both want the same module file. On nginx,
 the package loads `ngx_pagespeed_module.so` itself; remove any `load_module`
 line you added for the old module, so that
-`sudo nginx -T 2>/dev/null | grep -i pagespeed` shows exactly one. If you compiled ngx_pagespeed into nginx, you are also moving to the
-distribution's nginx package; see
+`sudo grep -Rn 'load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules`
+shows exactly one line, the package's. If you compiled ngx_pagespeed into
+nginx, you are also moving to the distribution's nginx package; see
 [Migrate from ngx_pagespeed](/docs/migrate-from-ngx-pagespeed/) for the
 version pinning that matters there.
 
