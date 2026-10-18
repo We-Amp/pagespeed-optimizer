@@ -239,12 +239,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.derive.outputs.tag }}
           TAG_SHA: ${{ steps.derive.outputs.tag_sha }}
-          DRY_RUN: ${{ steps.derive.outputs.dry_run }}
         run: |
           set -euo pipefail
           gh api -H "Accept: application/vnd.github.raw" \
             "repos/${GITHUB_REPOSITORY}/contents/VERSION.txt?ref=${TAG_SHA:-$GITHUB_SHA}" > "$RUNNER_TEMP/VERSION.txt"
-          if [ "$DRY_RUN" = true ]; then set -- --dry-run; else set --; fi
+          # Only a dry run of a tag that does not exist yet may warn instead of fail.
+          if [ -z "$TAG_SHA" ]; then set -- --dry-run; else set --; fi
           bash tools/ci/check_optimizer_tag_version.sh "$TAG" "$RUNNER_TEMP/VERSION.txt" "$@"
 
   # ---------------------------------------------------------------------

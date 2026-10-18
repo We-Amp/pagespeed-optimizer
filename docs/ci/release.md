@@ -63,6 +63,30 @@ released. It refuses:
 It also resolves what every later job checks out: a dispatch builds the
 dispatched tag, never the head of the branch it ran on.
 
+## The version guards
+
+Both lanes hold the tag to `VERSION.txt` of the commit they build, the
+number the worker reports:
+
+- NuGet lane: `v<X>` must equal `VERSION.txt` (inline step in the `vendor`
+  job).
+- Optimizer lane: from 2.5.0 on, `optimizer-v<X>` must equal `VERSION.txt`
+  (`tools/ci/check_optimizer_tag_version.sh`, in the `version` job, run from
+  `main`; self-test in `pipeline-pr.yml`). The host packages up to
+  `optimizer-v1.19.0` were numbered on the module's 1.x line (built from
+  `VERSION.txt` 2.4.0); those tags are below 2.5.0 and pass with a notice. A
+  release candidate may match on its `X.Y.Z` core, and so may a pushed
+  `-pre` tag, which runs as a real run like any other tag. Only a dry run of
+  a tag that does not exist yet turns a mismatch into a warning (an
+  annotation and a line in the job summary) and skips `-pre` tags; once the
+  tag exists, a mismatch fails the dry run too.
+
+From 2.5.0 the module release pairs with `optimizer-v` plus the same version,
+so the cut runs in this order: bump `VERSION.txt` to the release version on
+`main`, tag `optimizer-v<X>` on that commit, record the pin in the module
+repository (`install/debian/optimizer-pin.json`), then tag `module-v<X>`
+there (its `docs/ci/release.md` has the module side).
+
 ## The `release` environment
 
 | Setting | Value |
