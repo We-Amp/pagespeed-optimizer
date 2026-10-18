@@ -10,17 +10,18 @@ its web console at `/console/` and proxies the worker API (`/v1/health`,
 site's root, in every environment, with no authentication. Anyone who can
 reach the site can read the stats and the optimizer configuration, change the
 live configuration with `PATCH /v1/config`, and purge the cache. Affected:
-2.0.13 through 2.4.0; 2.0.4 through 2.0.12 served the console and a smaller
-set of proxied paths, also without authentication. The package README and the
+2.0.13 and later; 2.0.4 through 2.0.12 served the console and a smaller set of
+proxied paths, also without authentication. The package README and the
 install, configuration and production docs now say so. Fix: set
 `PageSpeed:Console:Enabled` to `false` in production (recommended), or put
 your own authentication in front of the console path and those six `/v1/*`
 paths, immediately before `UsePageSpeed()`. Check from outside your network:
-`curl -s -o /dev/null -w '%{http_code}\n' https://<your-domain>/v1/config`
-must not return `200`. A configuration changed through the open console is
-saved to `pagespeed.json` in the directory of `Cache.VolumePath` and stays in
-force after either fix; review it, or stop the app, delete the file and start
-it again. `Worker.ApiPort` `0` does not disable the worker API: it picks a
+`curl -s https://<your-domain>/v1/config` must not return the optimizer's
+configuration (JSON with keys such as `webp_quality`); a `200` from your own
+app's route is not a finding. A configuration changed through the open console
+is saved to `pagespeed.json` in the directory of `Cache.VolumePath` and stays
+in force after either fix: stop the app, delete the file and start it again,
+then purge the cache through the gated console. `Worker.ApiPort` `0` does not disable the worker API: it picks a
 free loopback port, and the console proxy reaches it either way. No code
 change.
 

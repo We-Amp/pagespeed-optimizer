@@ -232,14 +232,24 @@ Recommended for production: `Enabled: false`, for example in
 `appsettings.Production.json` (or `PageSpeed__Console__Enabled=false`). The
 console paths then fall through to your app. The top-level `Enabled` switch
 does not turn the console off, and a switch through hot reload can take a few
-seconds to apply.
+seconds to apply. On IIS, you can set the variable in the site's
+`web.config`:
 
-If you need the console in production, gate the console mount path and the six
-`/v1/*` paths with your own authentication instead. Register the gate
-immediately before `UsePageSpeed()`, after `UseAuthentication()` and after any
-`UseRewriter()` or `UsePathBase()`, so it sees the same path the console does.
-This example requires a signed-in user in the `Admin` role and uses whatever
-authentication scheme your app already registers. At the top of `Program.cs`:
+```xml
+<aspNetCore processPath="dotnet" arguments=".\YourApp.dll" hostingModel="inprocess">
+  <environmentVariables>
+    <environmentVariable name="PageSpeed__Console__Enabled" value="false" />
+  </environmentVariables>
+</aspNetCore>
+```
+
+**Gate the console with your own authentication.** If you need the console in
+production, put your own authentication in front of `Console.MountPath` and the
+six `/v1/*` paths instead. Register the gate immediately before
+`UsePageSpeed()`, after `UseAuthentication()` and after any `UseRewriter()` or
+`UsePathBase()`, so it sees the same path the console does. This example
+requires a signed-in user in the `Admin` role and uses whatever authentication
+scheme your app already registers. At the top of `Program.cs`:
 
 ```csharp
 using Microsoft.AspNetCore.Authentication;
@@ -276,12 +286,19 @@ app.UseWhen(
 app.UsePageSpeed();
 ```
 
-The gate needs an authentication scheme. With none registered, every gated
-request fails with a `500` (`No authenticationScheme was specified, and there
-was no DefaultChallengeScheme found`). An app without authentication can
-register cookie authentication before `builder.Build()`, with
-`using Microsoft.AspNetCore.Authentication.Cookies;` at the top of
-`Program.cs`:
+The gate needs an authentication scheme with a default challenge:
+
+- With no authentication services at all, the app fails at startup:
+  `Unable to resolve service for type
+  'Microsoft.AspNetCore.Authentication.IAuthenticationSchemeProvider'`.
+- With authentication services but no default scheme (`AddAuthentication()`
+  alone, or only what `AddRazorPages()` registers), every gated request fails
+  with a `500`: `No authenticationScheme was specified, and there was no
+  DefaultChallengeScheme found`.
+
+An app without authentication can register cookie authentication before
+`builder.Build()`, with `using Microsoft.AspNetCore.Authentication.Cookies;` at
+the top of `Program.cs`:
 
 ```csharp
 builder.Services
@@ -291,23 +308,56 @@ builder.Services
 
 A signed-out request is then redirected to the sign-in path (`/Account/Login`
 by default), which your app provides; the admin's sign-in must carry the
-`Admin` role. On IIS, Windows authentication fits better: enable it in IIS and
-register `AddAuthentication(IISDefaults.AuthenticationScheme)`, or on Kestrel
-use `AddNegotiate()` from the `Microsoft.AspNetCore.Authentication.Negotiate`
-package, and check a Windows group in place of `Admin`.
+`Admin` role.
 
-**Check an existing deployment.** Every release from 2.0.13 through 2.4.0
-serves the console and all six `/v1/*` paths this way; 2.0.4 through 2.0.12
-served the console and a smaller set of proxied paths, also without
-authentication. From outside your network,
-`curl -s -o /dev/null -w '%{http_code}\n' https://<your-domain>/v1/config`
-must return `404` (console off) or `401`, `403` or a `302` to your sign-in
-page (gated), never `200`. A configuration changed through an open console is
-saved by the worker to `pagespeed.json` in the directory of
-`Cache.VolumePath`; it survives a restart and stays in force after you turn
-the console off. To recover, review `GET /v1/config` while the console is
-gated, or stop the app (which stops the worker), delete `pagespeed.json` and
-start the app again.
+Windows authentication fits an intranet or IIS site; check a Windows group in
+place of `Admin`. On IIS, enable Windows authentication in IIS and register
+its scheme, with `using Microsoft.AspNetCore.Server.IISIntegration;`:
+
+```csharp
+builder.Services.AddAuthentication(IISDefaults.AuthenticationScheme);
+```
+
+On Kestrel, add the `Microsoft.AspNetCore.Authentication.Negotiate` package
+(`dotnet add package Microsoft.AspNetCore.Authentication.Negotiate`; it is not
+part of the shared framework) and, with
+`using Microsoft.AspNetCore.Authentication.Negotiate;`:
+
+```csharp
+builder.Services
+    .AddAuthentication(NegotiateDefaults.AuthenticationScheme)
+    .AddNegotiate();
+```
+
+The `/v1/*` paths are fixed: re-mounting the console with `MountPath` does not
+move them. Gate exactly these six rather than all of `/v1`, so your own `/v1`
+routes keep their own rules.
+
+**Check an existing deployment.** Every release since 2.0.13 serves the console and all six `/v1/*` paths this
+way, with no fix release yet; 2.0.4 through 2.0.12 served the console and a
+smaller set of proxied paths, also without authentication. From outside your
+network:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://<your-domain>/v1/config
+```
+
+`404` means the console is off, and `401`, `403` or a `302` to your sign-in
+page means it is gated. A `200` needs a look at the body: with the console off,
+your own app can answer `/v1/config` (its own route, or a catch-all or SPA
+fallback). The console's answer is JSON with keys such as `webp_quality`; if
+that is what you get, anyone can read and change the optimizer configuration.
+
+A configuration changed through the console is saved by the worker to
+`pagespeed.json`, in the directory of `Cache.VolumePath`. It survives a restart
+and stays in force after you turn the console off. To recover, stop the app
+(which stops the worker), delete `pagespeed.json` and start the app again; the
+worker then runs on its defaults. Or, with the console gated, compare
+`GET /v1/config` with the answer of a fresh install, which shows the defaults.
+Variants built under changed settings stay in the cache volume; purge it
+through the gated console: its Purge action, or `POST /v1/cache/purge` with
+`{"scope": "all", "confirm": "purge-all"}` (see
+[the HTTP API reference](https://modpagespeed.com/docs/http-api/#post-v1cachepurge)).
 
 `Console.MountPath` and `Console.RequireHttps` are not access control:
 re-mounting does not move the `/v1/*` paths, and HTTPS does not authenticate

@@ -43,8 +43,8 @@ in-process ASP.NET Core middleware
 ([`WeAmp.PageSpeed.AspNetCore`](/docs/aspnet-getting-started/)), the console is
 served on **your app's own port** (the port your ASP.NET Core app listens on,
 e.g. `http://localhost:5123/console/`), not on `:9880`. There is no separate
-`--api-port` to set — open `/console/` on your app's origin. There is no authentication there by
-default and the worker API token does not apply; see
+`--api-port` to set — open `/console/` on your app's origin. There is no
+authentication there by default and the worker API token does not apply; see
 [Console](/docs/aspnet-configuration/#console-pagespeedconsole) to turn it off
 or gate it.
 :::

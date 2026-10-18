@@ -8,7 +8,7 @@ faq:
   - q: 'Does scaling the ASP.NET Core middleware across multiple instances add per-server cost?'
     a: 'No. mod_pagespeed 2.1 is licensed under Apache-2.0 and free to run in development and in production, so scaling out adds no software cost — size replica counts for traffic and availability.'
   - q: 'What does the /healthz check report?'
-    a: '`Healthy`, with the cache entry count and the middleware version, while the cache is operational; `Unhealthy` when the cache cannot be opened — wire monitoring to alert on `Unhealthy`.'
+    a: 'The plain-text status: `Healthy` while the cache is operational, `Unhealthy` when the cache cannot be opened — wire monitoring to alert on `Unhealthy`.'
 ---
 
 import NugetCmd from '../../components/release/NugetCmd.astro';
@@ -122,21 +122,25 @@ After deploy, confirm the middleware is active:
     <XPageSpeedExample line="2.1" surface="middleware" />
     {`
 
-curl -s https://<your-domain>/healthz | jq .
-# "status": "Healthy"
-# entries, version
+curl -s https://<your-domain>/healthz
+# Healthy
 
 curl -s -o /dev/null -w '%{http_code}\n' https://<your-domain>/v1/config
-# 404 with the console off; 401, 403 or 302 when gated; never 200`}
+# 404 with the console off; 401, 403 or 302 when gated`}
   </code>
 </pre>
 
-The `/healthz` endpoint reports `Healthy`, with the cache entry count and the
-middleware version, while the cache is operational, and `Unhealthy` when the
-cache cannot be opened — wire your monitoring to alert on `Unhealthy`.
+The `/healthz` endpoint answers with the plain-text status: `Healthy` while the
+cache is operational, `Unhealthy` when the cache cannot be opened — wire
+monitoring to alert on `Unhealthy`. The check also records the cache entry
+count and the middleware version as health-check data; the default
+`MapHealthChecks` response shows only the status, so add a JSON
+`ResponseWriter` to see them.
 
-The `/v1/config` check must not return `200`: that would mean anyone can read
-and change the optimizer configuration through the console proxy.
+The `/v1/config` check must not return the optimizer's configuration, JSON with
+keys such as `webp_quality`: that would mean anyone can read and change it
+through the console proxy. A `200` from your own app (its own `/v1/config`
+route, or a catch-all or SPA fallback) is not the console.
 
 The middleware starts the worker with `--api-no-auth` on a loopback-only
 management port (`PageSpeed.Worker.ApiPort`; an ephemeral port when left at
