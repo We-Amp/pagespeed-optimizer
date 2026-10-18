@@ -239,12 +239,20 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ steps.derive.outputs.tag }}
           TAG_SHA: ${{ steps.derive.outputs.tag_sha }}
+          DRY_RUN: ${{ steps.derive.outputs.dry_run }}
         run: |
           set -euo pipefail
           gh api -H "Accept: application/vnd.github.raw" \
             "repos/${GITHUB_REPOSITORY}/contents/VERSION.txt?ref=${TAG_SHA:-$GITHUB_SHA}" > "$RUNNER_TEMP/VERSION.txt"
           # Only a dry run of a tag that does not exist yet may warn instead of fail.
-          if [ -z "$TAG_SHA" ]; then set -- --dry-run; else set --; fi
+          if [ -z "$TAG_SHA" ]; then
+            set -- --dry-run
+          else
+            set --
+            if [ "$DRY_RUN" = true ]; then
+              echo "::notice::dry run of an existing tag: $TAG is on the remote, so a VERSION.txt mismatch fails here as in a real run. To rehearse an unfinished release, dispatch a dry run of a tag that does not exist yet (optimizer-v2.5.0-pre.N) instead."
+            fi
+          fi
           bash tools/ci/check_optimizer_tag_version.sh "$TAG" "$RUNNER_TEMP/VERSION.txt" "$@"
 
   # ---------------------------------------------------------------------

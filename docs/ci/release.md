@@ -79,7 +79,9 @@ number the worker reports:
   `-pre` tag, which runs as a real run like any other tag. Only a dry run of
   a tag that does not exist yet turns a mismatch into a warning (an
   annotation and a line in the job summary) and skips `-pre` tags; once the
-  tag exists, a mismatch fails the dry run too.
+  tag exists, a mismatch fails the dry run too, and such a dry run says so
+  in a `::notice::` that names the way to rehearse an unfinished release: a
+  dry-run dispatch of a tag not yet on the remote (`optimizer-v2.5.0-pre.N`).
 
 From 2.5.0 the module release pairs with `optimizer-v` plus the same version,
 so the cut runs in this order: bump `VERSION.txt` to the release version on
