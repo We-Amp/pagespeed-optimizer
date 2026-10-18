@@ -10,7 +10,7 @@ faq:
   - q: 'How do I disable PageSpeed for specific URLs?'
     a: 'Use `pagespeed off` inside a `location` block to disable the module for that path, or `pagespeed_disallow` to skip individual URL patterns (prefix, suffix, or substring) while keeping the module active elsewhere.'
   - q: 'How do I share the cache file between nginx and the worker?'
-    a: 'Point `pagespeed_cache_path` (nginx) and the worker cache at the same file (the packaged optimizer worker defaults to `--cache-dir /var/cache/pagespeed-optimizer/v2`). The optimizer worker owns the directory and every file in it (0660 `pagespeed:pagespeed`); the nginx worker user reaches them through membership in group `pagespeed`. Memory-mapped directory sharing is enabled automatically.'
+    a: 'Point `pagespeed_cache_path` (nginx) and the worker cache at the same file (the packaged optimizer worker defaults to `--cache-dir /var/cache/pagespeed-optimizer/v3`). The optimizer worker owns the directory and every file in it (0660 `pagespeed:pagespeed`); the nginx worker user reaches them through membership in group `pagespeed`. Memory-mapped directory sharing is enabled automatically.'
   - q: 'What does the capability mask do?'
     a: 'The 32-bit mask encodes the client image format, viewport, pixel density, Save-Data, and transfer encoding into the cache key, so different optimized variants are served to different clients. Nginx derives the mask from request headers and client hints.'
   - q: 'How large should the Cyclone cache be?'
@@ -422,12 +422,12 @@ and be writable by the worker's user (the packaged unit uses a systemd
 #### --cache-dir {#--cache-dir}
 
 - **Syntax:** `--cache-dir DIR`
-- **Default:** `/var/cache/pagespeed-optimizer/v2`
+- **Default:** `/var/cache/pagespeed-optimizer/v3`
 
-Cache directory; the volume, shared config and serve-stats live inside it (default: /var/cache/pagespeed-optimizer/v2)
+Cache directory; the volume, shared config and serve-stats live inside it (default: /var/cache/pagespeed-optimizer/v3)
 
 ```bash
-factory_worker --cache-dir /var/cache/pagespeed-optimizer/v2
+factory_worker --cache-dir /var/cache/pagespeed-optimizer/v3
 ```
 
 The `v2` in the default is the compiled-in cache-directory generation. The
@@ -445,7 +445,7 @@ member cannot remove another's files).
 Expert override: full cache volume file STEM (deliberately extensionless); wins over --cache-dir
 
 ```bash
-factory_worker --cache-path /var/cache/pagespeed-optimizer/v2/cache
+factory_worker --cache-path /var/cache/pagespeed-optimizer/v3/cache
 ```
 
 Must match the nginx [`pagespeed_cache_path`](#pagespeed_cache_path) directive.
@@ -2067,13 +2067,13 @@ entire reason to prefer the socket over `127.0.0.1` plus a token.
 
 ```bash
 # Local: no port, no credential to distribute.
-factory_worker --cache-dir /var/cache/pagespeed-optimizer/v2 \
+factory_worker --cache-dir /var/cache/pagespeed-optimizer/v3 \
   --api-socket \
   --console-dir /opt/pagespeed/console
 
 # Remote, deliberately: both flags AND a token, or it will not start.
 PAGESPEED_API_TOKEN="$(cat /run/secrets/api-token)" \
-factory_worker --cache-dir /var/cache/pagespeed-optimizer/v2 \
+factory_worker --cache-dir /var/cache/pagespeed-optimizer/v3 \
   --api-port 9880 --api-bind 0.0.0.0 --api-allow-remote \
   --console-dir /opt/pagespeed/console
 ```
@@ -2423,7 +2423,7 @@ After=network.target
 Type=simple
 ExecStart=/usr/local/bin/factory_worker \
   --socket /run/pagespeed-optimizer/notify.sock \
-  --cache-dir /var/cache/pagespeed-optimizer/v2 \
+  --cache-dir /var/cache/pagespeed-optimizer/v3 \
   --cache-size 536870912 \
   --log-format json \
   --log-level info

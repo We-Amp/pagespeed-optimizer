@@ -57,7 +57,7 @@ the NuGet package ship the binary as `factory_worker`. The deb and rpm packages
 install it as `/usr/bin/pagespeed-optimizer`, with the
 `pagespeed-optimizer.service` unit, host overrides in
 `/etc/default/pagespeed-optimizer` and its cache under
-`/var/cache/pagespeed-optimizer/v2`. A page that says `factory_worker` and a log
+`/var/cache/pagespeed-optimizer/v3`. A page that says `factory_worker` and a log
 line that says `pagespeed-optimizer` describe the same process.
 :::
 
