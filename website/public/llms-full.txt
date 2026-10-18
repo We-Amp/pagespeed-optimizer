@@ -367,12 +367,14 @@ optimization to the worker.
 
 ```bash
 docker run --rm -p 80:80 \
+  --add-host=host.docker.internal:host-gateway \
   -e BACKEND_HOST=host.docker.internal -e BACKEND_PORT=8081 \
   -e ACCEPT_EULA=Y \
   ghcr.io/we-amp/pagespeed-combined:latest
 ```
 
-Point `BACKEND_HOST` and `BACKEND_PORT` at your origin; `ACCEPT_EULA=Y`
+Point `BACKEND_HOST` and `BACKEND_PORT` at your origin (`host.docker.internal`
+is the Docker host; the `--add-host` line defines it on Linux); `ACCEPT_EULA=Y`
 acknowledges the [Terms of Service](https://modpagespeed.com/terms/). The combined image runs nginx with
 the module and the worker in one container, for evaluation and small single-host
 deployments. Then [verify](https://modpagespeed.com/docs/getting-started/#verify-it-works) on port 80. For production, run the
@@ -408,12 +410,15 @@ Set `PageSpeed:Enabled` to `true` in `appsettings.json`, run the app and
 
 ## Verify it works
 
-Request any HTML page twice:
+Request any HTML page twice with GET:
 
 ```bash
-curl -I http://localhost/
-curl -I http://localhost/
+curl -s -o /dev/null -D - http://localhost/
+curl -s -o /dev/null -D - http://localhost/
 ```
+
+Use GET, not `curl -I`: the Docker reverse proxy does not cache HEAD requests,
+so a HEAD never turns into a HIT there.
 
 - **Apache module:** `X-Mod-Pagespeed: <version>` on both responses. nginx and
   IIS module: `X-Page-Speed: <version>`. The header's presence means the module
@@ -482,7 +487,7 @@ The native module when you run Apache or nginx on Debian, Ubuntu or Enterprise L
 
 **How do I verify mod_pagespeed is working?**
 
-Request a page twice with `curl -I`. The native module adds `X-Mod-Pagespeed` (Apache) or `X-Page-Speed` (nginx and IIS) to the responses it handles. The Docker reverse proxy and the ASP.NET Core middleware answer `X-PageSpeed: MISS` first and `X-PageSpeed: HIT` once the worker has written the optimized variant.
+Request a page twice with GET (`curl -s -o /dev/null -D -`). The native module adds `X-Mod-Pagespeed` (Apache) or `X-Page-Speed` (nginx and IIS) to the responses it handles. The Docker reverse proxy and the ASP.NET Core middleware answer `X-PageSpeed: MISS` first and `X-PageSpeed: HIT` once the worker has written the optimized variant.
 
 **Does the native nginx module need the optimizer worker?**
 
@@ -504,13 +509,16 @@ Confirm mod_pagespeed 2.1 is active: the response header per server, MISS then H
 
 Canonical URL: https://modpagespeed.com/docs/is-it-working/
 
-Request any HTML page twice with `curl -I` and read one header. Which header
-you look for depends on how you run mod_pagespeed 2.1.
+Request any HTML page twice with GET and read one header. Which header you
+look for depends on how you run mod_pagespeed 2.1.
 
 ```bash
-curl -I http://localhost/
-curl -I http://localhost/
+curl -s -o /dev/null -D - http://localhost/
+curl -s -o /dev/null -D - http://localhost/
 ```
+
+Use GET, not `curl -I`: the Docker reverse proxy does not cache HEAD requests,
+so repeating a HEAD there never turns into a HIT.
 
 ## The header, per integration
 
@@ -910,12 +918,15 @@ at your origin and publish port 80:
 
 ```bash
 docker run --rm -p 80:80 \
+  --add-host=host.docker.internal:host-gateway \
   -e BACKEND_HOST=host.docker.internal -e BACKEND_PORT=8081 \
   -e ACCEPT_EULA=Y \
   ghcr.io/we-amp/pagespeed-combined:latest
 ```
 
-Replace `BACKEND_HOST`/`BACKEND_PORT` with your origin. The combined image suits
+Replace `BACKEND_HOST`/`BACKEND_PORT` with your origin. `host.docker.internal`
+is the Docker host; Docker Desktop defines it, and on Linux the `--add-host`
+line does. The combined image suits
 evaluation and small single-host deployments; for production, run the worker and
 nginx as separate services (below) so you can scale and update them
 independently — see [Run in production](https://modpagespeed.com/docs/deployment/) for the hardened
@@ -941,8 +952,7 @@ Create a project directory with the following layout:
 ```text
 modpagespeed/
 ├── docker-compose.yml
-├── nginx.conf
-└── entrypoint-worker.sh
+└── nginx.conf
 ```
 
 ## Docker Compose configuration
@@ -973,13 +983,14 @@ services:
   worker:
     image: ghcr.io/we-amp/pagespeed-worker:2.4.0
     pid: 'service:pidns'
-    entrypoint: /entrypoint-worker.sh
     environment:
       # Acknowledges the Terms of Service: https://modpagespeed.com/terms/
       ACCEPT_EULA: 'Y'
+      # The image's entrypoint prepares this directory, then starts the
+      # optimizer unprivileged (default /data)
+      DATA_DIR: /shared
     volumes:
       - shared:/shared
-      - ./entrypoint-worker.sh:/entrypoint-worker.sh:ro
     depends_on:
       - pidns
       - origin
@@ -1055,6 +1066,9 @@ http {
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
+            # The module caches only uncompressed responses (it compresses at
+            # serve time); a gzipping origin would otherwise MISS forever.
+            proxy_set_header Accept-Encoding "";
         }
     }
 }
@@ -1069,21 +1083,9 @@ The worker socket path and other shared settings are read
 automatically from `pagespeed-shared.conf`, which the worker writes next to
 the cache file.
 
-## Worker entrypoint
-
-Create `entrypoint-worker.sh` and make it executable (`chmod +x`). Delegate to
-the image's own entrypoint rather than starting `factory_worker` yourself — it
-is what establishes the shared-group ownership described below:
-
-```bash
-#!/bin/bash
-set -e
-
-# Point the packaged entrypoint at this stack's shared directory; it prepares
-# ownership and permissions, then starts the optimizer unprivileged.
-export DATA_DIR=/shared
-exec /docker/entrypoint-worker.sh
-```
+Keep the image's own entrypoint rather than starting `factory_worker`
+yourself: it is what establishes the shared-group ownership described below.
+`DATA_DIR` points it at the stack's shared directory.
 
 ## How the cache volume is shared
 
@@ -1186,11 +1188,12 @@ You should see `origin`, `worker`, and `nginx` all in a running state.
 
 ## Verify it works
 
-Test with a simple request:
+Request a page twice with GET. Do not use `curl -I`: the module does not
+cache HEAD requests, so a HEAD never turns into a HIT.
 
 ```bash
 # First request — cache miss, proxied to origin
-curl -I http://localhost:8080/
+curl -s -o /dev/null -D - http://localhost:8080/
 ```
 
 Look for the `X-PageSpeed: MISS` header. This means the module is active and the
@@ -1198,7 +1201,7 @@ response was proxied to your origin and cached.
 
 ```bash
 # Second request — cache hit, served from cache
-curl -I http://localhost:8080/
+curl -s -o /dev/null -D - http://localhost:8080/
 ```
 
 You should now see `X-PageSpeed: HIT`.
@@ -1245,7 +1248,7 @@ production are covered under [Monitoring](https://modpagespeed.com/docs/monitori
 
 ## Cache size
 
-The default cache size is 1 GB. Set `CACHE_SIZE` (in bytes) in the worker
+The images default to a 512 MB cache. Set `CACHE_SIZE` (in bytes) in the worker
 container's environment, as the production Compose file does; the image's
 entrypoint passes it to the worker. Sizing guidance is under
 [Run in production](https://modpagespeed.com/docs/deployment/#cache-sizing-recommendations).
@@ -1604,8 +1607,9 @@ Port-forward to test locally:
 
 ```bash
 kubectl port-forward svc/pagespeed 8080:80
-curl -I http://localhost:8080/
-# Look for: X-PageSpeed: MISS (first request)
+# GET twice (the module does not cache HEAD, so curl -I never shows a HIT)
+curl -s -o /dev/null -D - http://localhost:8080/
+# Look for: X-PageSpeed: MISS (first request), then HIT
 ```
 
 ## Next steps
@@ -14413,11 +14417,13 @@ cp deploy/.env.example deploy/.env
 Edit `deploy/.env`:
 
 ```bash
-# Image version tag
-PAGESPEED_VERSION=latest
+# Image version tag (the worker and nginx images publish version tags only;
+# there is no latest tag for them)
+PAGESPEED_VERSION=2.4.0
 
-# Your origin server
-BACKEND_HOST=127.0.0.1
+# Your origin server, as nginx inside its container reaches it:
+# host.docker.internal is the Docker host, or use a hostname or IP
+BACKEND_HOST=host.docker.internal
 BACKEND_PORT=8081
 
 # Cache size in bytes (512 MB)
@@ -14454,12 +14460,10 @@ services:
     environment:
       - CACHE_SIZE=${CACHE_SIZE:-536870912}
     restart: unless-stopped
+    # The image ships socat, not python3. The probe only reads the one status
+    # line the worker writes on connect; -T 4 bounds the wait inside timeout.
     healthcheck:
-      test:
-        [
-          'CMD-SHELL',
-          'python3 -c "import socket; s=socket.socket(socket.AF_UNIX); s.connect(''/data/pagespeed.sock.health''); d=s.recv(256); s.close(); exit(0 if d.startswith(b''OK'') else 1)"',
-        ]
+      test: ['CMD-SHELL', "socat -u -T 4 UNIX-CONNECT:/data/pagespeed.sock.health - | grep -q '^OK'"]
       interval: 10s
       timeout: 5s
       retries: 3
@@ -14479,8 +14483,10 @@ services:
     volumes:
       - pagespeed-data:/data
     environment:
-      - BACKEND_HOST=${BACKEND_HOST:-127.0.0.1}
+      - BACKEND_HOST=${BACKEND_HOST:-host.docker.internal}
       - BACKEND_PORT=${BACKEND_PORT:-8081}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
     depends_on:
       pidns:
         condition: service_started
@@ -14601,30 +14607,52 @@ metadata:
   name: pagespeed
 spec:
   shareProcessNamespace: true
+  securityContext:
+    fsGroup: 918 # the volume arrives group-owned by group pagespeed
   containers:
-    - name: nginx
-      image: ghcr.io/we-amp/pagespeed-nginx:2.4.0
-      ports:
-        - containerPort: 8080
-      volumeMounts:
-        - name: shared
-          mountPath: /shared
-
     - name: worker
       image: ghcr.io/we-amp/pagespeed-worker:2.4.0
-      command: ['/entrypoint-worker.sh']
       env:
         # Acknowledges the Terms of Service: https://modpagespeed.com/terms/
         - name: ACCEPT_EULA
           value: 'Y'
+        - name: CACHE_SIZE
+          value: '536870912' # 512 MB; keep it inside the emptyDir sizeLimit
       volumeMounts:
-        - name: shared
-          mountPath: /shared
+        - name: data
+          mountPath: /data
+      readinessProbe:
+        exec:
+          command:
+            - sh
+            - -c
+            - "socat -u -T 4 UNIX-CONNECT:/data/pagespeed.sock.health - | grep -q '^OK'"
+        periodSeconds: 5
+        timeoutSeconds: 5
+
+    - name: nginx
+      image: ghcr.io/we-amp/pagespeed-nginx:2.4.0
+      env:
+        # Your origin; the image renders its nginx config from these two
+        - name: BACKEND_HOST
+          value: <your-origin>.default.svc.cluster.local
+        - name: BACKEND_PORT
+          value: '8080'
+      ports:
+        - containerPort: 80
+      volumeMounts:
+        - name: data
+          mountPath: /data
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: 80
+        periodSeconds: 5
 
   volumes:
-    - name: shared
+    - name: data
       emptyDir:
-        sizeLimit: 512Mi
+        sizeLimit: 1Gi
 ```
 
 Both containers share the network namespace and, with
@@ -14633,8 +14661,9 @@ then PID 1; each container's main process still receives its own stop signal.
 Both containers can see each other's processes, the worker's command line
 included, so keep secrets in environment variables, not arguments. Do not
 split nginx and the worker into separate pods that mount the same volume:
-separate pods usually do not share a node, and never a PID namespace. Set
-`securityContext.fsGroup: 918` so the mounted volume arrives group-owned by
+separate pods usually do not share a node, and never a PID namespace. Both
+images expect the volume at `/data`, nginx listens on port 80, and
+`securityContext.fsGroup: 918` makes the mounted volume arrive group-owned by
 the `pagespeed` group.
 
 ## Verify the images
@@ -17851,7 +17880,7 @@ releases after 2.0.35.
 ```yaml
 services:
   worker:
-    image: ghcr.io/we-amp/pagespeed-worker:latest
+    image: ghcr.io/we-amp/pagespeed-worker:2.4.0
     environment:
       - PAGESPEED_RSL_CAP_ENFORCEMENT=true
       # Comma-separated HTTPS JWKS key-directory URLs for the token issuers (no spaces).

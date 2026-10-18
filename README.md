@@ -106,9 +106,12 @@ See [Install with a coding agent](https://modpagespeed.com/docs/agent-install/).
 
 ### Build
 
+Needs clang-20 with libc++-20 (see [Prerequisites](#prerequisites)); a plain
+`bazel build //...` with the distribution compiler fails.
+
 ```bash
 # Build all (excludes nginx module)
-bazel build //...
+CC=clang-20 CXX=clang++-20 bazel build --config=libc++ //...
 
 # Run all tests
 bazel test //...
@@ -120,10 +123,11 @@ NGINX_PATH=/path/to/nginx bazel build //src/nginx:ngx_pagespeed_module.so
 ### Deploy
 
 ```bash
-# Docker Compose (see deploy/ directory)
+# Docker Compose: pulls the published worker and nginx images (see deploy/README.md)
 cd deploy
-cp nginx.conf.example nginx.conf
-# Edit nginx.conf for your upstream
+cp .env.example .env
+# Edit .env: set BACKEND_HOST and BACKEND_PORT to your origin
+# (default host.docker.internal:8081, a server on the Docker host)
 docker compose up -d
 
 # Or systemd (see deploy/pagespeed-optimizer.service)
@@ -133,13 +137,16 @@ sudo systemctl enable --now pagespeed-optimizer
 
 ### Verify
 
+Use GET, not `curl -I`: the module does not cache HEAD requests, so a HEAD
+never turns into a HIT.
+
 ```bash
 # First request — cache miss, proxied to origin
-curl -I http://localhost/style.css
+curl -s -o /dev/null -D - http://localhost/style.css | grep -i x-pagespeed
 # X-PageSpeed: MISS
 
 # Subsequent request — served from cache
-curl -I http://localhost/style.css
+curl -s -o /dev/null -D - http://localhost/style.css | grep -i x-pagespeed
 # X-PageSpeed: HIT
 ```
 

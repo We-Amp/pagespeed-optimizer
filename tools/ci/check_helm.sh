@@ -15,6 +15,24 @@ if [ ! -d "$CHART_DIR" ]; then
   exit 1
 fi
 
+# The Compose recipe pins the same images as the chart. Its default tag must
+# be the chart's appVersion: the worker and nginx images publish version tags
+# only, so a default of `latest` (or a stale version) fails to pull. Needs no
+# helm, so it runs before the helm check below.
+echo "=== Compose default image tag tracks appVersion ==="
+app_version=$(grep -E '^appVersion:' "$CHART_DIR/Chart.yaml" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+compose_tags=$(grep -Eo 'pagespeed-(worker|nginx):\$\{PAGESPEED_VERSION:-[^}]*\}' deploy/docker-compose.yml \
+  | sed -E 's/.*:-([^}]*)\}/\1/' | sort -u)
+env_tag=$(grep -E '^#?[[:space:]]*PAGESPEED_VERSION=' deploy/.env.example | head -1 | sed -E 's/.*=//')
+echo "  appVersion=$app_version compose=$(echo $compose_tags) .env.example=$env_tag"
+if [ "$(grep -c 'pagespeed-\(worker\|nginx\):' deploy/docker-compose.yml)" != 2 ] \
+  || [ "$compose_tags" != "$app_version" ] || [ "$env_tag" != "$app_version" ]; then
+  echo "ERROR: deploy/docker-compose.yml and deploy/.env.example must default both images to appVersion ($app_version)"
+  exit 1
+fi
+echo "OK: Compose defaults to $app_version (= appVersion)"
+echo ""
+
 if ! command -v helm &>/dev/null; then
   # Locally a missing helm is a skip; in CI (CHECK_HELM_REQUIRED=1) it is a
   # failure, so the gate cannot pass without having run.

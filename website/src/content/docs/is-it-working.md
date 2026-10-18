@@ -3,7 +3,7 @@ title: 'Is it working?'
 description: 'Confirm mod_pagespeed 2.1 is active: the response header per server, MISS then HIT, ?PageSpeed=off, the admin console and the worker health endpoint.'
 order: 2
 group: 'Start here'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-18
 datePublished: 2026-10-08
 faq:
   - q: 'Which response header tells me mod_pagespeed is active?'
@@ -14,13 +14,16 @@ faq:
     a: 'On the Apache, nginx and IIS modules, append `?PageSpeed=off` to the URL; `?ModPagespeed=off` is the older spelling and is accepted on every platform too. The values `on`, `off`, `unplugged` and `noscript` need no token. The Docker reverse proxy does not read these parameters.'
 ---
 
-Request any HTML page twice with `curl -I` and read one header. Which header
-you look for depends on how you run mod_pagespeed 2.1.
+Request any HTML page twice with GET and read one header. Which header you
+look for depends on how you run mod_pagespeed 2.1.
 
 ```bash
-curl -I http://localhost/
-curl -I http://localhost/
+curl -s -o /dev/null -D - http://localhost/
+curl -s -o /dev/null -D - http://localhost/
 ```
+
+Use GET, not `curl -I`: the Docker reverse proxy does not cache HEAD requests,
+so repeating a HEAD there never turns into a HIT.
 
 ## The header, per integration
 

@@ -3,7 +3,7 @@ title: 'Deploy with Helm'
 description: 'Install mod_pagespeed 2.1 on Kubernetes with the official Helm chart: a two-container pod (module + optimizer worker), values, autoscaling and upgrades.'
 order: 5
 group: 'Install'
-lastUpdated: 2026-09-19
+lastUpdated: 2026-10-18
 ---
 
 import ImageTag from '../../components/release/ImageTag.astro';
@@ -289,8 +289,9 @@ Port-forward to test locally:
 
 ```bash
 kubectl port-forward svc/pagespeed 8080:80
-curl -I http://localhost:8080/
-# Look for: X-PageSpeed: MISS (first request)
+# GET twice (the module does not cache HEAD, so curl -I never shows a HIT)
+curl -s -o /dev/null -D - http://localhost:8080/
+# Look for: X-PageSpeed: MISS (first request), then HIT
 ```
 
 ## Next steps
