@@ -44,6 +44,22 @@ automatically and coordinates over an auto-resolved per-process socket. Add a
 `Worker` section only to change that — see [Configuration](#configuration).
 Optimization is on by default.
 
+> **Before production: lock down the console.** This setup also serves the web
+> console at `/console/` and proxies its worker API (`/v1/health`, `/v1/ws`,
+> `/v1/cache`, `/v1/stats`, `/v1/capture`, `/v1/config`) from your site's root,
+> in every environment, with no authentication. Anyone who can reach your site
+> can read the stats and configuration, change the live optimizer configuration
+> with `PATCH /v1/config`, and purge the cache. Turn the console off, or put your
+> own authentication in front of it — see [Security](#security).
+>
+> ```json
+> {
+>   "PageSpeed": {
+>     "Console": { "Enabled": false }
+>   }
+> }
+> ```
+
 **3. How do I know it's working?**
 
 Three checks, from quickest to most thorough. These examples assume your app
@@ -178,14 +194,15 @@ containers without that path, point it somewhere writable (for example
 | ------------------- | ------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Worker.AutoStart`  | `true`                    | Launch and manage the worker process on startup. Set `false` to run no worker.                                                                                                                                                                                                      |
 | `Worker.SocketPath` | unset                     | Worker-coordination socket. **Leave it unset** (the default) for an auto-resolved per-process socket with coordination on. Set to a concrete path to share one socket with an out-of-process worker. Setting it to `null` or `""` disables coordination and logs a startup warning. |
-| `Worker.ApiPort`    | `0` (auto, loopback only) | Override to expose the worker HTTP API on a fixed port                                                                                                                                                                                                                              |
+| `Worker.ApiPort`    | `0` (auto, loopback only) | Loopback port for the worker HTTP API. `0` picks a free loopback port; it does not disable the API. The API runs without authentication either way and is reachable through the console proxy.                                                                                    |
 
 **`Console` section:**
 
-| Setting                | Default    | Description                                                         |
-| ---------------------- | ---------- | ------------------------------------------------------------------- |
-| `Console.MountPath`    | `/console` | URL prefix for the in-app console                                   |
-| `Console.RequireHttps` | `false`    | Reject non-HTTPS requests to the console (set `true` in production) |
+| Setting                | Default    | Description                                                                                                         |
+| ---------------------- | ---------- | ------------------------------------------------------------------------------------------------------------------- |
+| `Console.Enabled`      | `true`     | Serve the console and proxy its `/v1/*` paths. `false` lets those requests fall through to your app.                |
+| `Console.MountPath`    | `/console` | URL prefix for the in-app console. The proxied `/v1/*` paths do not move with it.                                   |
+| `Console.RequireHttps` | `false`    | Return `403` for console and `/v1/*` requests that are not HTTPS. Protects the traffic; it is not authentication. |
 
 Options support hot-reload via `IOptionsMonitor<PageSpeedOptions>`.
 
@@ -199,22 +216,59 @@ is not exposed externally unless you set `Worker.ApiPort` explicitly.
 
 ## Security
 
-The `/console/` admin console and its `/v1/*` worker-API proxy are served on
-the same origin as your app. The worker requires
-`X-Requested-With: XMLHttpRequest` on state-changing (POST/PATCH) requests,
-which blocks cross-origin form posts. It does not protect against same-origin
-scripts: a third-party script loaded into your app (via XSS or a supply-chain
-dependency) can drive the console API — for example purge the cache or change
-the worker configuration — because the in-process worker API is reachable
-through the proxy without a credential.
+The `/console/` admin console and its `/v1/*` worker-API proxy (`/v1/health`,
+`/v1/ws`, `/v1/cache`, `/v1/stats`, `/v1/capture`, `/v1/config`) are on by
+default and served on the same origin as your app, in every environment,
+**without authentication**. Anyone who can reach your site can read the stats
+and configuration, change the live optimizer configuration and purge the
+cache. The worker requires `X-Requested-With: XMLHttpRequest` on
+state-changing (POST/PATCH) requests; that blocks cross-origin form posts, but
+any client that is not a browser can send the header.
 
-Treat `/console/` as an admin surface:
+For production, do one of two things:
 
-- Set `Console.RequireHttps = true` in production.
-- Don't expose `/console/` to untrusted networks. Gate it at your reverse
-  proxy, or use `Console.MountPath` to move the path off a guessable location.
-- Avoid loading untrusted third-party scripts into apps with this middleware
-  enabled.
+- Turn the console off: set `PageSpeed:Console:Enabled` to `false` (or
+  `PageSpeed__Console__Enabled=false`). The top-level `Enabled` switch does
+  not turn it off.
+- Gate the console mount path and the six `/v1/*` paths with your own
+  authentication, registered before `UsePageSpeed()`:
+
+```csharp
+using Microsoft.AspNetCore.Authentication;
+
+app.UseAuthentication();
+
+string[] pageSpeedConsolePaths =
+{
+    "/console", // Console.MountPath; change it here if you re-mount the console
+    "/v1/health", "/v1/ws", "/v1/cache", "/v1/stats", "/v1/capture", "/v1/config",
+};
+
+app.UseWhen(
+    ctx => pageSpeedConsolePaths.Any(p => ctx.Request.Path.StartsWithSegments(p)),
+    branch => branch.Use(async (ctx, next) =>
+    {
+        if (ctx.User.Identity?.IsAuthenticated != true)
+        {
+            await ctx.ChallengeAsync(); // 401, or your scheme's sign-in redirect
+            return;
+        }
+        if (!ctx.User.IsInRole("Admin"))
+        {
+            await ctx.ForbidAsync(); // 403
+            return;
+        }
+        await next();
+    }));
+
+app.UsePageSpeed();
+```
+
+`Console.MountPath` and `Console.RequireHttps` are not access control:
+re-mounting does not move the `/v1/*` paths, and HTTPS does not authenticate
+anyone. With the console gated, also avoid loading untrusted third-party
+scripts into pages an authenticated admin visits, since a same-origin script
+can drive the console API with that admin's session.
 
 ## License
 
