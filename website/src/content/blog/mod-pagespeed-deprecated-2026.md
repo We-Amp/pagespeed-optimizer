@@ -5,7 +5,7 @@ date: 2026-05-20
 author: 'Otto van der Schaaf'
 tags: ['deprecation', 'migration', 'security']
 draft: false
-lastUpdated: 2026-09-18
+lastUpdated: 2026-10-18
 ---
 
 _Disclosure: I founded We-Amp, which develops mod_pagespeed 2.1._
@@ -50,8 +50,7 @@ sudo apt install nginx-module-pagespeed   # or: sudo dnf install nginx-module-pa
 ```
 
 ```nginx
-# nginx (2.1, drop-in for ngx_pagespeed)
-load_module modules/ngx_pagespeed.so;
+# nginx (2.1, drop-in for ngx_pagespeed; the package loads the module itself)
 pagespeed on;
 pagespeed FileCachePath /var/cache/ngx_pagespeed;
 ```

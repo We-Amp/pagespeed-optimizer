@@ -2,7 +2,7 @@
 title: 'Server-side critical CSS for nginx, any backend'
 description: 'Extract and inline critical CSS at the nginx layer for any backend: PHP, Rails, Django, ASP.NET, Go. No WordPress plugin, headless browser or Node build.'
 date: 2026-05-20
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-18
 author: 'Otto van der Schaaf'
 tags: ['critical-css', 'nginx', 'core-web-vitals', 'lcp']
 draft: false
@@ -101,8 +101,7 @@ For **the module** (the lineage continuation, drop-in for the
 archived Google module with the same syntax):
 
 ```nginx
-load_module modules/ngx_pagespeed.so;
-
+# The package loads ngx_pagespeed_module.so itself; no load_module line needed.
 http {
     pagespeed on;
     pagespeed FileCachePath /var/cache/ngx_pagespeed;
