@@ -51,7 +51,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [Migrate from mod_pagespeed 1.15](https://modpagespeed.com/docs/migrate-from-1-15/): Move a 1.15 install to mod_pagespeed 2.1 in place: one package upgrade brings the optimizer worker, configuration carries over, the old cache stays.
 - [Migrate from ngx_pagespeed](https://modpagespeed.com/docs/migrate-from-ngx-pagespeed/): Replace an open-source ngx_pagespeed build, compiled in or from a third-party package, with the signed mod_pagespeed 2.1 nginx module: what carries over.
 - [Migrate from IISpeed](https://modpagespeed.com/docs/migrate-from-iispeed/): Move an IISpeed install to the mod_pagespeed IIS module: save the configuration, uninstall IISpeed, run the MSI, keep the cache, verify, roll back.
-- [Migrate from the archived Google module](https://modpagespeed.com/docs/migrate-from-google-mod-pagespeed/): Move from the archived open-source mod_pagespeed or ngx_pagespeed binaries to mod_pagespeed 2.1 in three commands: what maps to what, cache, rollback.
+- [Migrate from the archived Google module](https://modpagespeed.com/docs/migrate-from-google-mod-pagespeed/): Move from the archived mod_pagespeed or ngx_pagespeed binaries to the maintained mod_pagespeed: package swap, what maps to what, cache, rollback.
 
 ## Configure
 
@@ -3175,129 +3175,133 @@ No. The module reads your `iiswebspeed.config` files where no `pagespeed.config`
 
 # Migrate from the archived Google module
 
-Move from the archived open-source mod_pagespeed or ngx_pagespeed binaries to mod_pagespeed 2.1 in three commands: what maps to what, cache, rollback.
+Move from the archived mod_pagespeed or ngx_pagespeed binaries to the maintained mod_pagespeed: package swap, what maps to what, cache, rollback.
 
 Canonical URL: https://modpagespeed.com/docs/migrate-from-google-mod-pagespeed/
 
 mod_pagespeed is an open-source project originally developed at Google. It was
 donated to the Apache Software Foundation in 2017, the Incubator podling
 retired in 2023, and the repositories became read-only in 2025; the 1.13.35.2
-binaries still install but have had no security fixes since. mod_pagespeed
-2.1, developed by We-Amp B.V. and not affiliated with or endorsed by Google,
-continues that codebase: same directives, same filter names, built against
-current Apache and nginx, with ongoing security fixes. The move is three
-commands.
-
-## The three commands
-
-```bash
-# 1. Add the signed repository; the script detects apt or dnf
-curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
-# 2. Install the module for your server
-sudo apt-get install mod-pagespeed mod-pagespeed-stable-   # Apache (dnf on Enterprise Linux: see below)
-sudo apt-get install nginx-module-pagespeed                # nginx
-# 3. Check the configuration, then restart the web server
-sudo apache2ctl configtest && sudo systemctl restart apache2   # or: sudo nginx -t && sudo systemctl restart nginx
-```
-
-The web server keeps serving with the module it has loaded until the
-restart in step 3, so the restart is the only interruption. Each step is
-spelled out below for Apache on Debian and Ubuntu, Apache on Enterprise
-Linux, and nginx.
+binaries still install but have had no security fixes since. The current
+mod_pagespeed release (packages 1.19.0), developed by We-Amp B.V. and not
+affiliated with or endorsed by Google, continues that codebase: same
+directives, same filter names, built against current Apache and nginx, with
+ongoing security fixes. The move is a package swap and a restart.
 
 ## Before you start
 
 Record the version you have, and keep a copy of your configuration and of the
-archived package for a rollback:
+archived package for a rollback. If you run the archived beta, write
+`mod-pagespeed-beta` wherever this page says `mod-pagespeed-stable`, in the
+file names below too.
 
 ```bash
 curl -sI http://localhost/ | grep -E 'X-Mod-Pagespeed|X-Page-Speed'
 # Apache on Debian or Ubuntu
 sudo cp -a /etc/apache2/mods-available/pagespeed.conf ~/pagespeed.conf.google
-curl -fsSLO https://dl.google.com/linux/direct/mod-pagespeed-stable_current_amd64.deb
+curl -fsSL -o ~/mod-pagespeed-stable_current_amd64.deb https://dl.google.com/linux/direct/mod-pagespeed-stable_current_amd64.deb
 # Apache on Enterprise Linux
 sudo cp -a /etc/httpd/conf.d/pagespeed.conf ~/pagespeed.conf.google
-curl -fsSLO https://dl.google.com/linux/direct/mod-pagespeed-stable_current_x86_64.rpm
-# nginx, dynamic module
-sudo cp /usr/lib/nginx/modules/ngx_pagespeed_module.so{,.bak}
+curl -fsSL -o ~/mod-pagespeed-stable_current_x86_64.rpm https://dl.google.com/linux/direct/mod-pagespeed-stable_current_x86_64.rpm
+# nginx: the module file (Debian and Ubuntu path; /usr/lib64/nginx/modules on
+# Enterprise Linux) and the load_module line that loads it
+sudo cp /usr/lib/nginx/modules/ngx_pagespeed_module.so /usr/lib/nginx/modules/ngx_pagespeed_module.so.bak
+sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx | tee ~/ngx_pagespeed-load_module.txt
 ```
-
-If you run the archived beta, write `mod-pagespeed-beta` wherever this page
-says `mod-pagespeed-stable`, here and below.
 
 ## Apache on Debian and Ubuntu
 
 ```bash
+# 1. Disable the archived package's apt source (skip if the file is gone)
+sudo mv /etc/apt/sources.list.d/mod-pagespeed.list /etc/apt/sources.list.d/mod-pagespeed.list.disabled
+sudo truncate -s 0 /etc/default/mod-pagespeed
+# 2. Add the signed repository
 curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+# 3. Swap the packages in one run
 sudo apt-get install mod-pagespeed mod-pagespeed-stable-
+# 4. Check the configuration, then restart
 sudo apache2ctl configtest && sudo systemctl restart apache2
+# 5. Remove what the archived package left behind
 sudo apt-get purge mod-pagespeed-stable
 ```
 
-- **The archived apt source.** The archived package added its own source,
-  `/etc/apt/sources.list.d/mod-pagespeed.list`. Its signing key no longer
-  verifies, so while it is enabled every `apt-get update` fails with
-  `NO_PUBKEY 78BD65473CB3BD13` and "is not signed". The install script
-  renames the file to `mod-pagespeed.list.disabled`, which apt ignores; to do
-  it by hand, run
-  `sudo mv /etc/apt/sources.list.d/mod-pagespeed.list{,.disabled}`.
-- **One step, no gap.** The trailing `-` on `mod-pagespeed-stable-` removes
-  the archived package in the same run that installs the new one. Both ship
-  the same files, so installing the new package while the archived one is
-  still there fails with "trying to overwrite". Do not remove the archived
-  package on its own first: that disables the module before the new one is in
-  place.
-- **If you edited `pagespeed.conf`,** dpkg stops and asks:
+- **Step 1, the archived apt source.** The archived package added its own
+  source, `/etc/apt/sources.list.d/mod-pagespeed.list`. Its signing key no
+  longer verifies, so while it is enabled every `apt-get update` fails with
+  `NO_PUBKEY 78BD65473CB3BD13` and "is not signed", and the install script in
+  step 2 stops there. The archived package's daily cron job puts the source
+  back while `/etc/default/mod-pagespeed` asks it to; an empty file turns that
+  off. Newer versions of the install script do both for you.
+- **Step 3, the swap.** The trailing `-` on `mod-pagespeed-stable-` removes
+  the archived package explicitly, in the same run that installs the new one,
+  so Apache never has its module configuration removed without a replacement.
+  Do not remove the archived package on its own first. Apache keeps serving
+  on the module it has loaded until the restart in step 4.
+- **If you edited `pagespeed.conf`,** dpkg stops in step 3 and asks:
   `*** pagespeed.conf (Y/I/N/O/D/Z) [default=N] ?`. Answer `N` to keep your
-  file. Its directives carry over unchanged, and the module itself is loaded
-  from `pagespeed.load`, which the package replaces. The new defaults are
-  saved beside it as `pagespeed.conf.dpkg-dist`; compare them with
-  `diff /etc/apache2/mods-available/pagespeed.conf{,.dpkg-dist}`. A run
-  without a terminal cannot answer and stops with "end of file on stdin at
-  conffile prompt"; for an unattended run, keep your file with
+  file. Its directives carry over unchanged; kept directives the new module
+  no longer needs, such as `ModPagespeedFileCacheInodeLimit`, log a
+  deprecation warning and still work. The new defaults are saved beside it as
+  `/etc/apache2/mods-available/pagespeed.conf.dpkg-dist`; compare them with
+  `diff /etc/apache2/mods-available/pagespeed.conf /etc/apache2/mods-available/pagespeed.conf.dpkg-dist`.
+- **Unattended runs.** Without a terminal dpkg cannot answer the prompt, so
+  keep your file with
   `sudo apt-get install -y -o Dpkg::Options::=--force-confold mod-pagespeed mod-pagespeed-stable-`.
-- **Purge, do not just remove.** After the swap the archived package is left
-  in the "config files" state, with its daily cron job and
-  `/etc/default/mod-pagespeed`. `apt-get purge mod-pagespeed-stable` deletes
-  those; it leaves `pagespeed.conf` alone, which now belongs to the new
-  package.
+  A run without a terminal and without the option stops with "end of file on
+  stdin at conffile prompt" and exits 100, leaving `mod-pagespeed`
+  unconfigured (`iU` in `dpkg -l`) and no PageSpeed module enabled in Apache.
+  Apache keeps serving the archived module only until its next reload (the
+  nightly log rotation does one), then serves without PageSpeed. To recover,
+  run the unattended command above again, or
+  `sudo dpkg --configure -a --force-confold`, then restart Apache.
+- **Step 5, purge rather than remove.** After the swap the archived package is
+  left in the "config files" state, with its daily cron job and
+  `/etc/default/mod-pagespeed`. The purge deletes them and leaves
+  `pagespeed.conf` alone, which now belongs to the new package.
 
 ## Apache on Enterprise Linux
+
+Do the swap right after the repository is configured:
 
 ```bash
 curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo dnf swap mod-pagespeed-stable mod-pagespeed
+sudo sed -i 's/mod_pagespeed_ap24\.so/mod_pagespeed.so/' /etc/httpd/conf.d/pagespeed.conf
 sudo apachectl configtest && sudo systemctl restart httpd
 ```
 
 `dnf swap` removes the archived package and installs the new one in one
 transaction. If you edited `/etc/httpd/conf.d/pagespeed.conf`, rpm keeps your
-file and writes the new one as `pagespeed.conf.rpmnew`. On Enterprise Linux
-the `LoadModule` line lives in that file, and yours names
-`mod_pagespeed_ap24.so`, which the new package does not ship, so
-`configtest` fails until you take the new file and carry your edits over:
+file and writes the new one beside it as `pagespeed.conf.rpmnew`. On
+Enterprise Linux the `LoadModule` line lives in that file, and yours names
+`mod_pagespeed_ap24.so`, which the current package does not ship: the `sed`
+line points it at `mod_pagespeed.so`, without which `configtest` fails. From
+the release that ships `mod_pagespeed_ap24.so` as a link to the module, the
+`sed` line is unnecessary and stays harmless. Compare your file with the new
+defaults, then remove the `.rpmnew` file:
 
 ```bash
-sudo mv /etc/httpd/conf.d/pagespeed.conf.rpmnew /etc/httpd/conf.d/pagespeed.conf
-diff ~/pagespeed.conf.google /etc/httpd/conf.d/pagespeed.conf
+diff /etc/httpd/conf.d/pagespeed.conf /etc/httpd/conf.d/pagespeed.conf.rpmnew
+sudo rm /etc/httpd/conf.d/pagespeed.conf.rpmnew
 ```
 
-Because `configtest` runs first, Apache keeps serving on the old module until
-the configuration is valid.
+Kept directives the new module no longer needs log a deprecation warning and
+still work. Because `configtest` runs first, Apache keeps serving on the old
+module until the configuration is valid.
 
 ## nginx
 
 ```bash
 curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo apt-get install nginx-module-pagespeed    # dnf on Enterprise Linux
+sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules
 sudo nginx -t && sudo systemctl restart nginx
 ```
 
 The package loads `ngx_pagespeed_module.so` itself; remove any `load_module`
-line you added for the old module, so that
-`sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules`
-shows exactly one line, the package's. If you compiled ngx_pagespeed into nginx, you are also moving to the
-distribution's nginx package; see
+line you added for the old module, so that the `grep` shows exactly one line,
+the package's. If you compiled ngx_pagespeed into nginx, you are also moving
+to the distribution's nginx package; see
 [Migrate from ngx_pagespeed](https://modpagespeed.com/docs/migrate-from-ngx-pagespeed/) for the
 version pinning that matters there.
 
@@ -3330,67 +3334,76 @@ For cache sizing and storage options, see
 ## Verify
 
 ```bash
-curl -I http://localhost/ | grep -E 'X-Mod-Pagespeed|X-Page-Speed'
+curl -sI http://localhost/ | grep -E 'X-Mod-Pagespeed|X-Page-Speed'
 ```
 
-The header value is the new module version. Open `/pagespeed_global_admin` on
-the server to see the configuration and statistics;
-[Is it working?](https://modpagespeed.com/docs/is-it-working/) has the rest.
+With the current packages, Apache answers `X-Mod-Pagespeed: 1.19.0`. Open
+`/pagespeed_global_admin` on the server to see the configuration and
+statistics; [Is it working?](https://modpagespeed.com/docs/is-it-working/) has the rest.
 
 ## Roll back
 
-Rolling back reinstalls the archived package you saved under
-[Before you start](https://modpagespeed.com/docs/migrate-from-google-mod-pagespeed/#before-you-start) and puts your configuration back. If
-you no longer have the file, the same URL still serves 1.13.35.2.
+Roll back after the restart if the site misbehaves on the new module. A
+`configtest` failure does not need a rollback: the old module keeps serving
+until the restart, so fix the configuration instead. Rolling back reinstalls
+the archived package you saved under [Before you start](https://modpagespeed.com/docs/migrate-from-google-mod-pagespeed/#before-you-start) and
+puts your configuration back; if you no longer have the package, the same URL
+still serves 1.13.35.2.
 
 ### Apache on Debian and Ubuntu
 
 ```bash
 sudo apt-get purge mod-pagespeed pagespeed-optimizer
-sudo touch /etc/default/mod-pagespeed
-sudo apt-get install ./mod-pagespeed-stable_current_amd64.deb
+sudo truncate -s 0 /etc/default/mod-pagespeed
+sudo apt-get install ~/mod-pagespeed-stable_current_amd64.deb
 sudo cp ~/pagespeed.conf.google /etc/apache2/mods-available/pagespeed.conf
 sudo apache2ctl configtest && sudo systemctl restart apache2
 ```
 
-The purge removes the new module, the worker and their configuration; your
-own configuration comes back from the copy. The empty
-`/etc/default/mod-pagespeed` stops the archived package from adding its apt
-source again, which would break `apt-get update` once more. Apache serves on
-the module it has loaded until the restart.
+The purge removes the new module, the worker and their configuration, and
+deletes the worker's cache directory; your own configuration comes back from
+the copy. The empty `/etc/default/mod-pagespeed` stops the archived package
+from adding its apt source again, which would break `apt-get update` once
+more. Apache serves on the module it has loaded until the restart.
 
 ### Apache on Enterprise Linux
 
 ```bash
-sudo mv /etc/yum.repos.d/modpagespeed.repo{,.disabled}
-sudo dnf swap mod-pagespeed ./mod-pagespeed-stable_current_x86_64.rpm
+sudo dnf swap mod-pagespeed ~/mod-pagespeed-stable_current_x86_64.rpm
+sudo truncate -s 0 /etc/default/mod-pagespeed
 sudo cp ~/pagespeed.conf.google /etc/httpd/conf.d/pagespeed.conf
+sudo rm -f /etc/httpd/conf.d/pagespeed.conf.rpmnew
 sudo apachectl configtest && sudo systemctl restart httpd
 ```
 
-The new package declares that it replaces the archived one, so disable the
-repository first, or a later `dnf upgrade` swaps it back. `dnf swap` also
-removes the worker, which nothing needs any more.
+`dnf swap` also removes the worker, which nothing needs any more, and rpm
+saves the archived package's default configuration as `pagespeed.conf.rpmnew`,
+which your restored copy replaces. The
+repository can stay configured on either system: neither apt nor dnf installs
+`mod-pagespeed` again unless you ask for it.
 
 ### nginx
 
 ```bash
 sudo apt-get remove nginx-module-pagespeed     # dnf on Enterprise Linux
 sudo cp /usr/lib/nginx/modules/ngx_pagespeed_module.so.bak /usr/lib/nginx/modules/ngx_pagespeed_module.so
+cat ~/ngx_pagespeed-load_module.txt            # put this load_module line back where it was
 sudo nginx -t && sudo systemctl restart nginx
 ```
 
-Remove the package before you restore the file: the package owns that path,
-and removing it afterwards would delete the module you restored.
+On Enterprise Linux the module directory is `/usr/lib64/nginx/modules`. Remove
+the package before you restore the file: the package owns that path, and
+removing it afterwards would delete the module you restored. Then put back the
+`load_module` line you removed during the migration, before `nginx -t`.
 
-After a rollback the header reads `X-Mod-Pagespeed: 1.13.35.2-0` again. The
+After a rollback Apache answers `X-Mod-Pagespeed: 1.13.35.2-0` again. The
 archived 1.0 documentation stays available at [/1.0/](https://modpagespeed.com/1.0/), and
 [Is mod_pagespeed still maintained?](https://modpagespeed.com/mod-pagespeed-still-maintained/) covers
 what changed and what did not.
 
 ## Frequently asked questions
 
-**Is mod_pagespeed 2.1 a drop-in replacement for the archived module?**
+**Is the maintained mod_pagespeed a drop-in replacement for the archived module?**
 
 Yes. It continues the same codebase, keeps the `pagespeed` and `ModPagespeed` directive surface and the classic filter names, and loads in process on Apache and nginx. Your configuration, `.htaccess` directives included, carries over.
 
