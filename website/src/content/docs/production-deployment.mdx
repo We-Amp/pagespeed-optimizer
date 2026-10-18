@@ -67,7 +67,8 @@ any middleware that writes to the response body:
 using WeAmp.PageSpeed.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddPageSpeed(builder.Configuration);
+builder.Services.AddRazorPages();
+builder.Services.AddPageSpeed(); // binds the "PageSpeed" configuration section
 
 var app = builder.Build();
 app.UsePageSpeed();
@@ -79,6 +80,18 @@ app.Run();
 Bind a `PageSpeed` section in your configuration. For the full set of
 `PageSpeedOptions` properties and hot-reload semantics, see the
 [ASP.NET Core configuration reference](/docs/aspnet-configuration/).
+
+Turn the web console off in production. By default the middleware serves it at
+`/console/`, with its worker API proxy under `/v1/*`, from your site's root
+without authentication. Set it in the production environment, as an
+environment variable or in `appsettings.Production.json`:
+
+```bash
+PageSpeed__Console__Enabled=false
+```
+
+If you need the console in production, gate it with your own authentication
+instead; see [Console](/docs/aspnet-configuration/#console-pagespeedconsole).
 
 ## Cache backing
 
@@ -111,7 +124,10 @@ After deploy, confirm the middleware is active:
 
 curl -s https://<your-domain>/healthz | jq .
 # "status": "Healthy"
-# entries, version`}
+# entries, version
+
+curl -s -o /dev/null -w '%{http_code}\n' https://<your-domain>/v1/config
+# 404 with the console off; 401, 403 or 302 when gated; never 200`}
   </code>
 </pre>
 
@@ -119,16 +135,15 @@ The `/healthz` endpoint reports `Healthy`, with the cache entry count and the
 middleware version, while the cache is operational, and `Unhealthy` when the
 cache cannot be opened — wire your monitoring to alert on `Unhealthy`.
 
-The worker process exposes its own diagnostic console SPA out-of-process. The
-middleware starts the worker with `--api-no-auth` on a loopback-only management
-port (`PageSpeed.Worker.ApiPort`; an ephemeral port when left at `0`), so the
-API answers anything on the host and is never reachable off-host — the worker
-refuses a non-loopback bind without a token. Reach it from the host or through
-an SSH tunnel rather than by publishing the port. The middleware's own console
-proxy is the exception: by default it serves `/console/` and the worker's
-`/v1/*` API calls from your site's root, without authentication. Turn it off
-or gate it before going live; see
-[Console](/docs/aspnet-configuration/#console-pagespeedconsole).
+The `/v1/config` check must not return `200`: that would mean anyone can read
+and change the optimizer configuration through the console proxy.
+
+The middleware starts the worker with `--api-no-auth` on a loopback-only
+management port (`PageSpeed.Worker.ApiPort`; an ephemeral port when left at
+`0`). The worker refuses a non-loopback bind without a token, so the port
+itself is not reachable off-host; never publish it. The worker API is still
+reachable off-host through the middleware's console proxy unless you turn the
+console off or gate it, as above.
 
 ## Scale across multiple instances
 

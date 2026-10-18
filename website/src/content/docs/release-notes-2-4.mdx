@@ -3,7 +3,7 @@ title: 'Release notes: 2.4'
 description: 'mod_pagespeed 2.4.0 release notes: the module and the optimizer worker as one release (packages 1.19.0), with several rule packs and a security fix.'
 order: 78
 group: 'Release notes by line'
-lastUpdated: 2026-10-14
+lastUpdated: 2026-10-18
 ---
 
 import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
@@ -100,5 +100,7 @@ Fixed: the ETag the ASP.NET Core middleware sends on a cache hit now includes th
 Fixed: a request that carries both `If-None-Match` and `If-Modified-Since` is now judged on `If-None-Match` alone, as RFC 9110 section 13.1.3 requires. Before, a client whose `If-None-Match` did not match could still get a `304` through `If-Modified-Since`.
 
 Known issue: the ASP.NET Core middleware still omits some of the origin's response headers on cache hits; a fix is tracked.
+
+Known issue (security): the ASP.NET Core middleware serves its web console at `/console/` and proxies the worker API (`/v1/health`, `/v1/ws`, `/v1/cache`, `/v1/stats`, `/v1/capture` and `/v1/config`) from your site's root without authentication, so anyone who can reach the site can read the optimizer configuration, change it and purge the cache. Affected: `WeAmp.PageSpeed.AspNetCore` 2.0.13 through 2.4.0; 2.0.4 through 2.0.12 served the console and a smaller set of proxied paths, also without authentication. Fix: set `PageSpeed:Console:Enabled` to `false` in production, or gate the console and those six paths with your own authentication. A configuration changed through the open console stays in force after either fix, because the worker saves it to `pagespeed.json` next to the cache volume; review it. Check from outside your network: `curl -s -o /dev/null -w '%{http_code}\n' https://<your-domain>/v1/config` must not return `200`. See [Console](/docs/aspnet-configuration/#console-pagespeedconsole).
 
 </div>

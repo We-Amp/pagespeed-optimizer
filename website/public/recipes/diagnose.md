@@ -186,6 +186,12 @@ curl.exe -s http://localhost:<port>/v1/health
 curl.exe -s http://localhost:<port>/v1/stats
 ```
 
+With `PageSpeed:Console:Enabled` set to `false` these paths fall through to the
+app (typically `404`), so there is no API to read; that is the recommended
+production setting, not a fault. When the app gates the console with its own
+authentication, these reads return `401`, `403` or a sign-in redirect without
+the admin's login; ask the user rather than working around it.
+
 ## 4. What the module reports
 
 Apache, nginx and IIS serve admin pages at `/pagespeed_admin/` (one virtual

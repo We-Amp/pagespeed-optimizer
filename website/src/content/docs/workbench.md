@@ -3,7 +3,7 @@ title: 'Use the web console'
 description: 'Inspect cache contents, monitor live throughput and bandwidth savings, and hot-reload configuration from the mod_pagespeed 2.1 web console at /console/.'
 order: 53
 group: 'Operate'
-lastUpdated: 2026-09-19
+lastUpdated: 2026-10-18
 ---
 
 The web console is a SvelteKit application served directly by the worker
@@ -43,7 +43,10 @@ in-process ASP.NET Core middleware
 ([`WeAmp.PageSpeed.AspNetCore`](/docs/aspnet-getting-started/)), the console is
 served on **your app's own port** (the port your ASP.NET Core app listens on,
 e.g. `http://localhost:5123/console/`), not on `:9880`. There is no separate
-`--api-port` to set — open `/console/` on your app's origin.
+`--api-port` to set — open `/console/` on your app's origin. There is no authentication there by
+default and the worker API token does not apply; see
+[Console](/docs/aspnet-configuration/#console-pagespeedconsole) to turn it off
+or gate it.
 :::
 
 If you configured an API token (`--api-token` or `PAGESPEED_API_TOKEN` env var),

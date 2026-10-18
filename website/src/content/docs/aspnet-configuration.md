@@ -9,7 +9,7 @@ lastUpdated: 2026-10-18
 The mod_pagespeed 2.1 ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`) is
 configured from the standard ASP.NET Core sources: appsettings.json, environment
 variables, or any `IConfiguration` provider. It binds its options to the
-`PageSpeed` section via `IServiceCollection.AddPageSpeed(IConfiguration)`.
+`PageSpeed` section via `IServiceCollection.AddPageSpeed()`.
 
 ## Basic configuration
 
@@ -110,7 +110,7 @@ diagnostic console.
 | `SocketPath` | string? | unset   | Worker-coordination socket. **Leave it unset** (the default) and the middleware auto-resolves a per-process socket with coordination on — no configuration needed. Set it to a concrete path to share one socket with an out-of-process worker (split-process deployments). Setting it to `null` or `""` disables worker coordination and logs a loud startup warning. |
 | `ApiPort`    | int     | `0`     | Loopback TCP port for the worker's HTTP management API. `0` does not disable the API: the middleware picks a free loopback port. Either way the worker runs with API authentication off, and the console proxies its `/v1/*` paths from your site (see [Console](#console-pagespeedconsole)). **Never publish this port.**                                               |
 | `LogLevel`   | string? | `null`  | Worker log level: `debug`, `info`, `warning`, or `error`. `null` keeps the worker's default (`info`).                                                                                                                                                                                                                                                                  |
-| `ConsoleDir` | string? | `null`  | Filesystem path to the diagnostic-console SPA assets. When `null` and `AutoStart` is true, the middleware auto-discovers a `console` directory next to `factory_worker`. Set to `""` to disable.                                                                                                                                                                       |
+| `ConsoleDir` | string? | `null`  | Filesystem path to the diagnostic-console SPA assets. When `null` and `AutoStart` is true, the middleware auto-discovers a `console` directory next to `factory_worker`. Set to `""` to disable. This only stops the worker's own loopback copy of the console, not the middleware's `/console/`; use [`Console.Enabled`](#console-pagespeedconsole) for that.                                    |
 
 The worker's management API always runs, bound to loopback, with
 authentication off. You do not need to set `Worker.ApiPort` to use the
@@ -140,15 +140,37 @@ apply here, and the only check on a change is an `X-Requested-With` header
 that any client can send.
 :::
 
-For production, do one of two things:
-
-- Set `Enabled` to `false` (shown in [Basic configuration](#basic-configuration)).
-- Put your own authentication in front of `MountPath` and the six `/v1/*`
-  paths, registered before `UsePageSpeed()`. The
-  [install guide](/docs/aspnet-getting-started/) has a working example.
+Recommended for production: `Enabled: false`, for example in
+`appsettings.Production.json` or as `PageSpeed__Console__Enabled=false`. If you
+need the console in production, put your own authentication in front of
+`MountPath` and the six `/v1/*` paths instead, registered immediately before
+`UsePageSpeed()`; the [install guide](/docs/aspnet-getting-started/) has a
+working example and the authentication scheme it needs.
 
 `Enabled` follows [hot reload](#hot-reload), so you can switch the console on
-for a support session and off again without a restart.
+for a support session and off again without a restart. A switch through hot
+reload can take a few seconds to apply.
+
+#### Check an existing deployment
+
+Every `WeAmp.PageSpeed.AspNetCore` release from 2.0.13 through 2.4.0 serves
+the console and all six `/v1/*` paths this way; 2.0.4 through 2.0.12 served
+the console and a smaller set of proxied paths, also without authentication.
+From outside your network:
+
+```bash
+curl -s -o /dev/null -w '%{http_code}\n' https://<your-domain>/v1/config
+```
+
+`404` means the console is off, and `401`, `403` or a `302` to your sign-in
+page means it is gated. `200` means anyone can read and change the optimizer
+configuration.
+
+A configuration changed through the console is saved by the worker to
+`pagespeed.json`, in the directory of `Cache.VolumePath`. It survives a restart
+and stays in force after you turn the console off. To recover, review
+`GET /v1/config` while the console is gated, or stop the app (which stops the
+worker), delete `pagespeed.json` and start the app again.
 
 ### Worker coordination and `SocketPath`
 

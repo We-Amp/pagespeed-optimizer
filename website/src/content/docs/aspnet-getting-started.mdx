@@ -47,6 +47,8 @@ using WeAmp.PageSpeed.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddRazorPages();
+
 // Register PageSpeed services — auto-binds the "PageSpeed" section from
 // IConfiguration (appsettings.json, env vars, user secrets, …).
 builder.Services.AddPageSpeed();
@@ -57,7 +59,7 @@ var app = builder.Build();
 // anything that writes the response body.
 app.UsePageSpeed();
 
-app.MapStaticAssets();
+app.UseStaticFiles();
 app.MapRazorPages();
 
 app.Run();
@@ -82,9 +84,9 @@ optimizer configuration, change the live configuration with
 console off or put your own authentication in front of it.
 :::
 
-To turn the console off, set `PageSpeed:Console:Enabled` to `false`. The
-console paths then fall through to your app, and optimization is unaffected.
-The top-level `PageSpeed:Enabled` switch does not turn the console off.
+Recommended for production: `Enabled: false`, for example in
+`appsettings.Production.json`, so the console stays available in development
+only:
 
 ```json
 {
@@ -96,13 +98,25 @@ The top-level `PageSpeed:Enabled` switch does not turn the console off.
 }
 ```
 
-To keep the console, gate its mount path and the six proxied `/v1/*` paths
-before `UsePageSpeed()`. This example requires a signed-in user in the `Admin`
-role and uses whatever authentication scheme your app already registers:
+The console paths then fall through to your app, and optimization is
+unaffected. The top-level `PageSpeed:Enabled` switch does not turn the console
+off. Switched off through hot reload, the change can take a few seconds to
+apply.
+
+If you need the console in production, gate it with your own authentication
+instead. Register the gate immediately before `UsePageSpeed()`, after
+`UseAuthentication()` and after any `UseRewriter()` or `UsePathBase()`, so it
+sees the same path the console does. This example requires a signed-in user in
+the `Admin` role and uses whatever authentication scheme your app already
+registers. At the top of `Program.cs`:
 
 ```csharp
 using Microsoft.AspNetCore.Authentication;
+```
 
+In the pipeline, in place of the plain `app.UsePageSpeed();`:
+
+```csharp
 app.UseAuthentication();
 
 string[] pageSpeedConsolePaths =
@@ -122,7 +136,7 @@ app.UseWhen(
         }
         if (!ctx.User.IsInRole("Admin"))
         {
-            await ctx.ForbidAsync(); // 403
+            await ctx.ForbidAsync(); // 403, or your scheme's access-denied redirect
             return;
         }
         await next();
@@ -131,11 +145,31 @@ app.UseWhen(
 app.UsePageSpeed();
 ```
 
+The gate needs an authentication scheme. With none registered, every gated
+request fails with a `500` (`No authenticationScheme was specified, and there
+was no DefaultChallengeScheme found`). An app without authentication can
+register cookie authentication before `builder.Build()`, with
+`using Microsoft.AspNetCore.Authentication.Cookies;` at the top of
+`Program.cs`:
+
+```csharp
+builder.Services
+    .AddAuthentication(CookieAuthenticationDefaults.AuthenticationScheme)
+    .AddCookie();
+```
+
+A signed-out request is then redirected to the sign-in path (`/Account/Login`
+by default), which your app provides; the admin's sign-in must carry the
+`Admin` role. On IIS, Windows authentication fits better: enable it in IIS and
+register `AddAuthentication(IISDefaults.AuthenticationScheme)`, or on Kestrel
+use `AddNegotiate()` from the `Microsoft.AspNetCore.Authentication.Negotiate`
+package, and check a Windows group in place of `Admin`.
+
 The `/v1/*` paths are fixed: re-mounting the console with
 `PageSpeed:Console:MountPath` does not move them. Gate exactly these six
 rather than all of `/v1`, so your own `/v1` routes keep their own rules. See
 [Console](/docs/aspnet-configuration/#console-pagespeedconsole) in the
-configuration reference.
+configuration reference, which also covers checking an existing deployment.
 
 ## Configure via appsettings.json
 
@@ -230,6 +264,9 @@ Open `http://localhost:<port>/console/`. After a few requests, the
 Dashboard and Metrics show non-zero request and optimization counts. If they
 read zero, jump to
 [My dashboard shows zeros](#my-dashboard-shows-zeros-and-nothing-is-moving).
+With `PageSpeed:Console:Enabled` set to `false`, `/console/` and `/v1/*` fall
+through to your app (typically a `404`); with the console gated, sign in as an
+admin first.
 
 ### 3. Content negotiation serves smaller images
 
