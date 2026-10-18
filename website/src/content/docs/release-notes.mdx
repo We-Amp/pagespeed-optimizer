@@ -3,7 +3,7 @@ title: 'Release notes'
 description: 'mod_pagespeed 2.1 release notes: the current release, the notes of every line, every release in one list, security updates and what changed since upstream.'
 order: 70
 group: 'Reference'
-lastUpdated: 2026-10-14
+lastUpdated: 2026-10-18
 ---
 
 mod_pagespeed 2.1 is released as two parts: the module, which runs inside Apache or nginx and applies the classic rewriting filters in the request itself, and the optimizer worker, a separate process introduced by the 2.0 re-architecture that does the heavy optimization work off the request path. Since 2.1.0 the two are released together; the native packages of the current release carry the package version 1.19.0, the product as a whole is 2.4.0, and that is the version the container images, the NuGet packages and the Helm chart's application version carry. This page lists the current release, the release notes of each line, and every release in one list, newest first, followed by the [security updates](#security-updates) we have published and [what has changed since the last upstream release](#115-history). We recommend running the latest release: it always carries the most recent performance and security work.
@@ -388,6 +388,10 @@ the release entry says so.
 | 64 | — | denial of service — untrusted input handling | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](/docs/release-notes-1-1/#v1-1-0) | Recommended |
 | 65 | — | dependency update — bundled image codecs and HTTPS fetch library | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](/docs/release-notes-1-1/#v1-1-0) | Recommended |
 | 66 | — | hardening — admin surface | the open-source line, 1.14.36.1 and earlier | [module 1.1.0](/docs/release-notes-1-1/#v1-1-0) | Recommended |
+
+Known issue without a fix release: ASP.NET Core console exposure; see the
+[2.4 release notes](/docs/release-notes-2-4/#v2-4-0) and
+[Console](/docs/aspnet-configuration/#console-pagespeedconsole).
 
 No container images or Helm chart were published for 2.1.0; for those deployments, the fixes listed as fixed in 2.1.0 arrive with 2.2.0.
 
