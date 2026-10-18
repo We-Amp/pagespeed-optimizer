@@ -1093,11 +1093,16 @@ yourself: it is what establishes the shared-group ownership described below.
 > over `/entrypoint-worker.sh`. In the current images that path is a symlink to
 > the script the file called, so the mount replaced the script with itself and
 > the worker re-ran it forever: `/shared` stayed empty and every response was a
-> `MISS`. To move over: remove the `entrypoint:` line and the
-> `./entrypoint-worker.sh` mount from the `worker` service, add `DATA_DIR: /shared`
-> to its environment as above, delete the file, and run `docker compose up -d`.
-> Only the worker container is recreated; the `shared` volume and the cache in
-> it are kept.
+> `MISS`. Its `nginx.conf` also lacked the `Accept-Encoding` line, which keeps a
+> gzipping origin at `MISS` even once the worker runs. Two steps to move over.
+> First, in `docker-compose.yml`, remove the `entrypoint:` line and the
+> `./entrypoint-worker.sh` mount from the `worker` service, add
+> `DATA_DIR: /shared` to its environment as above, and delete the file;
+> `docker compose up -d` then recreates the worker (nginx and the origin are
+> left running), and the `shared` volume and the cache in it are kept. Second,
+> in `nginx.conf`, add `proxy_set_header Accept-Encoding "";` to the
+> `location /` block as above and run `docker compose restart nginx`: the file
+> is a read-only bind mount, which `up -d` does not reload.
 
 ## How the cache volume is shared
 
@@ -1625,7 +1630,7 @@ curl -s -o /dev/null -D - http://localhost:8080/ | grep -i x-pagespeed
 # X-PageSpeed: MISS
 curl -s -o /dev/null -D - http://localhost:8080/ | grep -i x-pagespeed
 # X-PageSpeed: HIT
-kill %1
+kill %%
 ```
 
 ## Next steps
@@ -14453,7 +14458,7 @@ NGINX_SSL_PORT=443
 ### Docker Compose file
 
 The production `deploy/docker-compose.yml` runs the worker and nginx (shown
-without its comments):
+with abridged comments):
 
 ```yaml
 services:
@@ -14539,12 +14544,17 @@ docker compose -f deploy/docker-compose.yml up -d
 docker compose -f deploy/docker-compose.yml ps
 ```
 
-Optional: to run images you built yourself instead, build them first (a long
-build; the script tags the result under the published image names) and start
-the stack as above:
+Optional: to run images you built yourself instead. `docker/build-release.sh`
+(a long build) tags its output `modpagespeed/worker:<version>` and
+`modpagespeed/nginx:<version>`, not the published names the compose file
+pulls, so retag them to those names, set `PAGESPEED_VERSION` to the same
+version in `deploy/.env`, and start the stack as above:
 
 ```bash
-docker/build-release.sh 2.4.0
+V=2.4.0
+docker/build-release.sh "$V"
+docker tag "modpagespeed/worker:$V" "ghcr.io/we-amp/pagespeed-worker:$V"
+docker tag "modpagespeed/nginx:$V" "ghcr.io/we-amp/pagespeed-nginx:$V"
 ```
 
 ### SSL configuration

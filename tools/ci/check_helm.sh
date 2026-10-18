@@ -32,7 +32,7 @@ compose_tags=$(grep -Eo 'pagespeed-(worker|nginx):\$\{PAGESPEED_VERSION:-[^}]*\}
   | sed -E 's/.*:-([^}]*)\}/\1/' | sort -u)
 env_tag=$(grep -E '^#?[[:space:]]*PAGESPEED_VERSION=' deploy/.env.example | head -1 | sed -E 's/.*=//')
 echo "  appVersion=$app_version compose=$(echo $compose_tags) .env.example=$env_tag"
-if [ "$(grep -c 'pagespeed-\(worker\|nginx\):' deploy/docker-compose.yml)" != 2 ] \
+if [ "$(grep -c '^[[:space:]]*image: ghcr.io/we-amp/pagespeed-\(worker\|nginx\):' deploy/docker-compose.yml)" != 2 ] \
   || [ "$compose_tags" != "$app_version" ] || [ "$env_tag" != "$app_version" ]; then
   echo "ERROR: deploy/docker-compose.yml and deploy/.env.example must default both images to appVersion ($app_version)"
   exit 1

@@ -82,7 +82,7 @@ NGINX_SSL_PORT=443`}
 ### Docker Compose file
 
 The production `deploy/docker-compose.yml` runs the worker and nginx (shown
-without its comments):
+with abridged comments):
 
 ```yaml
 services:
@@ -168,14 +168,20 @@ docker compose -f deploy/docker-compose.yml up -d
 docker compose -f deploy/docker-compose.yml ps
 ```
 
-Optional: to run images you built yourself instead, build them first (a long
-build; the script tags the result under the published image names) and start
-the stack as above:
+Optional: to run images you built yourself instead. `docker/build-release.sh`
+(a long build) tags its output `modpagespeed/worker:<version>` and
+`modpagespeed/nginx:<version>`, not the published names the compose file
+pulls, so retag them to those names, set `PAGESPEED_VERSION` to the same
+version in `deploy/.env`, and start the stack as above:
 
 <pre>
   <code class="language-bash">
-    {`docker/build-release.sh `}
+    {`V=`}
     <ImageTag line="2.1" />
+    {`
+docker/build-release.sh "$V"
+docker tag "modpagespeed/worker:$V" "ghcr.io/we-amp/pagespeed-worker:$V"
+docker tag "modpagespeed/nginx:$V" "ghcr.io/we-amp/pagespeed-nginx:$V"`}
   </code>
 </pre>
 

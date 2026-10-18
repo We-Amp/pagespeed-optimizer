@@ -195,11 +195,16 @@ That version had you write an `entrypoint-worker.sh` of your own and mount it
 over `/entrypoint-worker.sh`. In the current images that path is a symlink to
 the script the file called, so the mount replaced the script with itself and
 the worker re-ran it forever: `/shared` stayed empty and every response was a
-`MISS`. To move over: remove the `entrypoint:` line and the
-`./entrypoint-worker.sh` mount from the `worker` service, add `DATA_DIR: /shared`
-to its environment as above, delete the file, and run `docker compose up -d`.
-Only the worker container is recreated; the `shared` volume and the cache in
-it are kept.
+`MISS`. Its `nginx.conf` also lacked the `Accept-Encoding` line, which keeps a
+gzipping origin at `MISS` even once the worker runs. Two steps to move over.
+First, in `docker-compose.yml`, remove the `entrypoint:` line and the
+`./entrypoint-worker.sh` mount from the `worker` service, add
+`DATA_DIR: /shared` to its environment as above, and delete the file;
+`docker compose up -d` then recreates the worker (nginx and the origin are
+left running), and the `shared` volume and the cache in it are kept. Second,
+in `nginx.conf`, add `proxy_set_header Accept-Encoding "";` to the
+`location /` block as above and run `docker compose restart nginx`: the file
+is a read-only bind mount, which `up -d` does not reload.
 :::
 
 ## How the cache volume is shared

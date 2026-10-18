@@ -4,7 +4,11 @@
 #   docker compose -f deploy/docker-compose.yml up -d
 #
 # Pulls the published images from ghcr.io/we-amp. To run images you built
-# yourself (docker/build-release.sh [VERSION]), set PAGESPEED_VERSION to their tag.
+# yourself: docker/build-release.sh VERSION tags them modpagespeed/worker:VERSION
+# and modpagespeed/nginx:VERSION, not the names on the image: lines below, so
+# retag them first and set PAGESPEED_VERSION=VERSION:
+#   docker tag modpagespeed/worker:VERSION ghcr.io/we-amp/pagespeed-worker:VERSION
+#   docker tag modpagespeed/nginx:VERSION  ghcr.io/we-amp/pagespeed-nginx:VERSION
 #
 # Environment variables:
 #   PAGESPEED_VERSION - Image tag (default: the current release, kept equal to

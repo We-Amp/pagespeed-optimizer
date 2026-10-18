@@ -106,9 +106,9 @@ See [Install with a coding agent](https://modpagespeed.com/docs/agent-install/).
 
 ### Build
 
-Needs clang-20 with libc++-20 (see [Prerequisites](#prerequisites)); the
-distribution compiler fails. Every Bazel command takes the same compiler and
-`--config=libc++`:
+Needs clang-20 with libc++-20 (see [Prerequisites](#prerequisites)); a build
+with the distribution compiler fails. Every Bazel command takes the same
+compiler and `--config=libc++`:
 
 ```bash
 export CC=clang-20 CXX=clang++-20
