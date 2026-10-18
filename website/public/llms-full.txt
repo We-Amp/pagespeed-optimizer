@@ -9077,7 +9077,9 @@ factory_worker --cache-path /data/cache.vol \
 
 The worker exposes a management socket at `{socket_path}.mgmt` (e.g.,
 `/var/lib/pagespeed/pagespeed.sock.mgmt`). This socket accepts newline-terminated
-text commands and returns a response before closing the connection.
+text commands and returns a response before closing the connection; the one
+exception is a successful `AUTH`, which keeps the connection open for the
+`PURGE` that follows.
 
 ### Connecting to the management socket
 
@@ -9124,15 +9126,22 @@ the count (`n`) to get the average processing time per item.
 
 ### `PURGE` command
 
-Invalidates all cached variants for a URL. The command format is `PURGE`
-followed by the hostname and URL:
+Invalidates all cached variants for a URL. `PURGE` is refused unless the
+connection was authenticated first: send `AUTH <token>` and then `PURGE`
+followed by the hostname and URL, on the same connection. The token is the
+worker's `PAGESPEED_PURGE_TOKEN` (the packages generate it into
+`/etc/pagespeed-optimizer/daemon.env`; the container images generate one per
+start and print it once in the container log unless you set it):
 
 ```bash
-echo "PURGE example.com /images/photo.jpg" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
+printf 'AUTH %s\nPURGE example.com /images/photo.jpg\n' "$PAGESPEED_PURGE_TOKEN" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
 ```
 
-**Response:** `OK N entries deleted\n` where N is the number of cache entries
-removed. The PURGE command iterates all possible capability mask combinations
+**Response:** `OK\n` to the `AUTH`, then `OK N entries deleted\n` where N is
+the number of cache entries removed. A `PURGE` without `AUTH` answers
+`ERR authentication required\n` (`ERR no purge token configured\n` when the
+worker has no token), and a wrong token answers `ERR invalid token\n`. The
+PURGE command iterates all possible capability mask combinations
 for the URL and deletes every matching entry, including sentinel entries used
 for Early Hints and warmup.
 
@@ -9152,12 +9161,13 @@ use cases:
 - **Selective cache clearing:** Unlike restarting the worker or deleting the
   cache file (which loses everything), PURGE targets individual URLs.
 
-For bulk invalidation, send multiple PURGE commands. Each command opens a
-new connection to the management socket:
+For bulk invalidation, send multiple PURGE commands. Each iteration opens a
+new connection to the management socket, and authentication is per
+connection, so each one sends `AUTH` again:
 
 ```bash
 for url in /style.css /app.js /hero.jpg; do
-  echo "PURGE example.com $url" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
+  printf 'AUTH %s\nPURGE example.com %s\n' "$PAGESPEED_PURGE_TOKEN" "$url" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
 done
 ```
 
@@ -16992,8 +17002,10 @@ Look for:
 To force the worker to re-process a URL:
 
 ```bash
-# Purge all variants
-echo "PURGE localhost /images/photo.jpg" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
+# Purge all variants. PURGE needs AUTH first, on the same connection; the token
+# is the worker's PAGESPEED_PURGE_TOKEN (in /etc/pagespeed-optimizer/daemon.env
+# on the packages; printed once at container start when you did not set it)
+printf 'AUTH %s\nPURGE localhost /images/photo.jpg\n' "$PAGESPEED_PURGE_TOKEN" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
 
 # Request the URL again (triggers a cache miss and new notification)
 curl -H "Accept: image/webp,*/*" http://localhost/images/photo.jpg -o /dev/null -w "%{size_download}\n"
@@ -18129,11 +18141,16 @@ Returns a JSON object with worker statistics: connections, notifications, varian
 
 #### `PURGE <hostname> <url>`
 
-Deletes all cached variants for the specified URL and hostname.
+Deletes all cached variants for the specified URL and hostname. The command is
+refused unless the connection was authenticated with `AUTH` (below) first;
+send both commands on the same connection.
 
-**Request:** `PURGE example.com /images/photo.jpg\n`
+**Request:** `AUTH <your-token>\n` followed by `PURGE example.com /images/photo.jpg\n`
 
-**Response:** `OK N entries deleted\n`
+**Response:** `OK\n` to the `AUTH`, then `OK N entries deleted\n` to the
+`PURGE`. A `PURGE` without a preceding `AUTH` answers
+`ERR authentication required\n`, or `ERR no purge token configured\n` when the
+worker has no purge token.
 
 The PURGE command iterates all possible capability mask combinations (image
 formats, viewports, pixel densities, Save-Data states, transfer encodings) and
@@ -18145,20 +18162,30 @@ x 2 densities x 2 Save-Data x 4 encodings) plus 2 sentinel entries = 194.
 
 #### `AUTH <token>`
 
-Authenticates the connection for PURGE commands. Required when the
-`PAGESPEED_PURGE_TOKEN` environment variable is set on the worker.
+Authenticates the connection for `PURGE` commands. Every `PURGE` requires it:
+the worker refuses a `PURGE` on a connection that has not sent a valid `AUTH`,
+and there is no unauthenticated mode. The token is the worker's
+`PAGESPEED_PURGE_TOKEN` environment variable. The packages generate one into
+`/etc/pagespeed-optimizer/daemon.env`; the container images generate one per
+container start and print it once in the container log when you did not set
+it.
 
 **Request:** `AUTH <your-token>\n`
 
-**Response:** `OK\n` on success, or `ERR invalid token\n` on failure.
+**Response:** `OK\n` on success, `ERR invalid token\n` on a wrong token, or
+`ERR no token configured\n` when the worker has no purge token.
 
-Send `AUTH` as the first command on each connection before issuing `PURGE`.
-The token is compared using constant-time comparison to prevent timing attacks.
-STATS and METRICS commands work without authentication regardless of whether
-the env var is set.
+A successful `AUTH` keeps the connection open; every other command closes it
+after its response. Authentication is per connection, so send `AUTH` as the
+first command on each connection and the `PURGE` on that same connection: a
+`PURGE` on a new connection is refused even right after a successful `AUTH` on
+another, which is why a one-shot `echo "PURGE …" | socat` cannot purge. The
+token is compared using constant-time comparison to prevent timing attacks.
+STATS, METRICS and BROWSER-STATUS work without authentication.
 
-When `PAGESPEED_PURGE_TOKEN` is not set, PURGE works without authentication
-(backward compatible).
+When `PAGESPEED_PURGE_TOKEN` is not set, `PURGE` is unavailable: the worker
+answers `ERR no purge token configured\n`, and `AUTH` answers
+`ERR no token configured\n`.
 
 #### `METRICS`
 
@@ -21766,8 +21793,10 @@ of pixels and runs in the isolated worker process, not in the web server.
 Re-optimizing a JPEG could also encode it at a higher quality than the
 original was saved at, producing a larger file with no visible improvement; a
 JPEG re-encode is now capped at the quality detected in the source.
-`--no-quality-cap` turns the cap off and now takes effect;
-`--quality-cap-margin` is still accepted but no longer raises the cap.
+The `no_quality_cap` setting turns the cap off and now takes effect;
+`quality_cap_margin` is still accepted but no longer raises the cap. Both are
+configuration-file settings (`pagespeed.json` next to the cache volume, or
+`PATCH /v1/config`), not command-line flags.
 
 Fixed: a stylesheet with an invalid value in a complete longhand
 family no longer loses the whole family through minification. A browser drops

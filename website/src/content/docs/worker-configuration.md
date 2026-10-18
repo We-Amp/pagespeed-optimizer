@@ -3,7 +3,7 @@ title: 'Worker and reverse-proxy configuration'
 description: 'Every optimizer worker flag and thin nginx module directive of mod_pagespeed 2.1 (the Docker and reverse-proxy shape), generated from the source.'
 order: 21
 group: 'Configure'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-18
 faq:
   - q: 'What is the difference between safe and aggressive cache modes?'
     a: 'Safe mode adds `must-revalidate` to non-HTML responses, suppresses stale-while-revalidate synthesis, and strips `immutable`. Aggressive mode adds `public` and `stale-if-error=86400` and allows SWR synthesis. HTML always gets `no-cache` in both modes.'
@@ -2217,7 +2217,9 @@ factory_worker --cache-path /data/cache.vol \
 
 The worker exposes a management socket at `{socket_path}.mgmt` (e.g.,
 `/var/lib/pagespeed/pagespeed.sock.mgmt`). This socket accepts newline-terminated
-text commands and returns a response before closing the connection.
+text commands and returns a response before closing the connection; the one
+exception is a successful `AUTH`, which keeps the connection open for the
+`PURGE` that follows.
 
 ### Connecting to the management socket
 
@@ -2264,15 +2266,22 @@ the count (`n`) to get the average processing time per item.
 
 ### `PURGE` command
 
-Invalidates all cached variants for a URL. The command format is `PURGE`
-followed by the hostname and URL:
+Invalidates all cached variants for a URL. `PURGE` is refused unless the
+connection was authenticated first: send `AUTH <token>` and then `PURGE`
+followed by the hostname and URL, on the same connection. The token is the
+worker's `PAGESPEED_PURGE_TOKEN` (the packages generate it into
+`/etc/pagespeed-optimizer/daemon.env`; the container images generate one per
+start and print it once in the container log unless you set it):
 
 ```bash
-echo "PURGE example.com /images/photo.jpg" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
+printf 'AUTH %s\nPURGE example.com /images/photo.jpg\n' "$PAGESPEED_PURGE_TOKEN" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
 ```
 
-**Response:** `OK N entries deleted\n` where N is the number of cache entries
-removed. The PURGE command iterates all possible capability mask combinations
+**Response:** `OK\n` to the `AUTH`, then `OK N entries deleted\n` where N is
+the number of cache entries removed. A `PURGE` without `AUTH` answers
+`ERR authentication required\n` (`ERR no purge token configured\n` when the
+worker has no token), and a wrong token answers `ERR invalid token\n`. The
+PURGE command iterates all possible capability mask combinations
 for the URL and deletes every matching entry, including sentinel entries used
 for Early Hints and warmup.
 
@@ -2292,12 +2301,13 @@ use cases:
 - **Selective cache clearing:** Unlike restarting the worker or deleting the
   cache file (which loses everything), PURGE targets individual URLs.
 
-For bulk invalidation, send multiple PURGE commands. Each command opens a
-new connection to the management socket:
+For bulk invalidation, send multiple PURGE commands. Each iteration opens a
+new connection to the management socket, and authentication is per
+connection, so each one sends `AUTH` again:
 
 ```bash
 for url in /style.css /app.js /hero.jpg; do
-  echo "PURGE example.com $url" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
+  printf 'AUTH %s\nPURGE example.com %s\n' "$PAGESPEED_PURGE_TOKEN" "$url" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
 done
 ```
 

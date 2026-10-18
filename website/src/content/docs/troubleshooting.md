@@ -3,7 +3,7 @@ title: 'Troubleshoot common issues'
 description: 'Fix common mod_pagespeed 2.1 issues: cache misses, images not converting to WebP or AVIF, the optimizer worker not processing, and socket diagnostics.'
 order: 58
 group: 'Operate'
-lastUpdated: 2026-10-13
+lastUpdated: 2026-10-18
 ---
 
 Most mod_pagespeed 2.1 problems surface in one place: the `X-PageSpeed`
@@ -301,8 +301,10 @@ Look for:
 To force the worker to re-process a URL:
 
 ```bash
-# Purge all variants
-echo "PURGE localhost /images/photo.jpg" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
+# Purge all variants. PURGE needs AUTH first, on the same connection; the token
+# is the worker's PAGESPEED_PURGE_TOKEN (in /etc/pagespeed-optimizer/daemon.env
+# on the packages; printed once at container start when you did not set it)
+printf 'AUTH %s\nPURGE localhost /images/photo.jpg\n' "$PAGESPEED_PURGE_TOKEN" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
 
 # Request the URL again (triggers a cache miss and new notification)
 curl -H "Accept: image/webp,*/*" http://localhost/images/photo.jpg -o /dev/null -w "%{size_download}\n"
