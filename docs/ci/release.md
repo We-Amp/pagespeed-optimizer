@@ -85,7 +85,16 @@ From 2.5.0 the module release pairs with `optimizer-v` plus the same version,
 so the cut runs in this order: bump `VERSION.txt` to the release version on
 `main`, tag `optimizer-v<X>` on that commit, record the pin in the module
 repository (`install/debian/optimizer-pin.json`), then tag `module-v<X>`
-there (its `docs/ci/release.md` has the module side).
+there (its `docs/ci/release.md` has the module side). Once the module
+packages are published, `MODULE_PACKAGE_VERSION` in
+`website/src/data/product-facts.mjs` (1.19.0 today) moves to the same
+version: the scan's lifecycle sentence (`website/src/lib/scan/lifecycle.ts`)
+compares a detected `X-Mod-Pagespeed` header against it, so until it moves a
+1.19.0 install is never told that a newer release exists, and
+`module-package-version.test.ts` compares it with the live package index.
+Known stale wording, left for the website copy pass: the 2.0.x sentence
+there says a setup "moves to 2.1 today", which reads wrong once 2.5.0 is the
+current release.
 
 ## The `release` environment
 

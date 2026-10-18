@@ -154,7 +154,9 @@ EOF
   local t rc; t="$(mktemp -d)"
   printf '  2.5.0 \n\n' > "$t/V"
   run optimizer-v2.5.0 "$t/V" >/dev/null 2>&1 || { echo "FAIL: run pass (padded VERSION.txt)"; fail=1; }
-  printf '2.5.0 rc\n' > "$t/Vin"
+  # Inner whitespace is kept and so refused: `2 .5.0` reads 2.5.0 under a
+  # collapsing tr -d, so the case tells trim from collapse.
+  printf '2 .5.0\n' > "$t/Vin"
   if run optimizer-v2.5.0 "$t/Vin" >/dev/null 2>&1; then echo "FAIL: inner whitespace accepted"; fail=1; fi
   run optimizer-v1.19.0 "$t/V" >/dev/null 2>&1 || { echo "FAIL: run skip"; fail=1; }
   if run optimizer-v2.5.1 "$t/V" >/dev/null 2>&1; then echo "FAIL: run mismatch accepted"; fail=1; fi
