@@ -4,26 +4,26 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
-Security: the ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`) serves
-its web console at `/console/` and proxies the worker API (`/v1/health`,
-`/v1/ws`, `/v1/cache`, `/v1/stats`, `/v1/capture`, `/v1/config`) from your
-site's root, in every environment, with no authentication. Anyone who can
-reach the site can read the stats and the optimizer configuration, change the
-live configuration with `PATCH /v1/config`, and purge the cache. Affected:
-2.0.13 and later; 2.0.4 through 2.0.12 served the console and a smaller set of
-proxied paths, also without authentication. The package README and the
-install, configuration and production docs now say so. Fix: set
-`PageSpeed:Console:Enabled` to `false` in production (recommended), or put
-your own authentication in front of the console path and those six `/v1/*`
-paths, immediately before `UsePageSpeed()`. Check from outside your network:
-`curl -s https://<your-domain>/v1/config` must not return the optimizer's
-configuration (JSON with keys such as `webp_quality`); a `200` from your own
-app's route is not a finding. A configuration changed through the open console
-is saved to `pagespeed.json` in the directory of `Cache.VolumePath` and stays
-in force after either fix: stop the app, delete the file and start it again,
-then purge the cache through the gated console. `Worker.ApiPort` `0` does not disable the worker API: it picks a
-free loopback port, and the console proxy reaches it either way. No code
-change.
+Security: the ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`) serves its
+web console at `/console/` and proxies the worker API (`/v1/health`, `/v1/ws`,
+`/v1/cache`, `/v1/stats`, `/v1/capture`, `/v1/config`) from your site's root, in
+every environment, with no authentication. Anyone who can reach the site can
+read the stats and the optimizer configuration, change the live configuration
+with `PATCH /v1/config`, and purge the cache. Affected: 2.0.13 and later; 2.0.4
+through 2.0.12 served the console and a smaller set of proxied paths, also
+without authentication. The package README and the install, configuration and
+production docs now say so. Fix: set `PageSpeed:Console:Enabled` to `false` in
+production (recommended), or put your own authentication in front of the console
+path and those six `/v1/*` paths, immediately before `UsePageSpeed()`. Check
+from outside your network: `curl -s https://<your-domain>/v1/config` must not
+return the optimizer's configuration (JSON with keys such as `webp_quality`); a
+`200` from your own app's route is not a finding. A configuration changed
+through the open console is saved to `pagespeed.json` in the directory of
+`Cache.VolumePath` and stays in force after either fix, as do the variants built
+under it: stop the app, delete `pagespeed.json` and the cache volume files
+(`volume*` for the default `volume.dat`) in that directory, and start it again.
+`Worker.ApiPort` `0` does not disable the worker API: it picks a free loopback
+port, and the console proxy reaches it either way. No code change.
 
 Changed: the nginx module now also caches responses that carry static policy
 and resource headers, and replays them on cache hits: HTTP Strict Transport

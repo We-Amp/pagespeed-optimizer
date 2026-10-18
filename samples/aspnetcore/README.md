@@ -230,18 +230,20 @@ any client that is not a browser can send the header.
 
 Recommended for production: `Enabled: false`, for example in
 `appsettings.Production.json` (or `PageSpeed__Console__Enabled=false`). The
-console paths then fall through to your app. The top-level `Enabled` switch
-does not turn the console off, and a switch through hot reload can take a few
-seconds to apply. On IIS, you can set the variable in the site's
-`web.config`:
+console paths then fall through to your app. The top-level `Enabled` switch does
+not turn the console off, and a switch through hot reload can take a few seconds
+to apply. On IIS, you can set the variable in the site's `web.config`: add only
+this `<environmentVariables>` block inside the `<aspNetCore>` element it already
+has, and leave that element's other attributes as they are:
 
 ```xml
-<aspNetCore processPath="dotnet" arguments=".\YourApp.dll" hostingModel="inprocess">
-  <environmentVariables>
-    <environmentVariable name="PageSpeed__Console__Enabled" value="false" />
-  </environmentVariables>
-</aspNetCore>
+<environmentVariables>
+  <environmentVariable name="PageSpeed__Console__Enabled" value="false" />
+</environmentVariables>
 ```
+
+`dotnet publish` regenerates `web.config` unless the project has its own, so
+add the file to the project or repeat the edit after each publish.
 
 **Gate the console with your own authentication.** If you need the console in
 production, put your own authentication in front of `Console.MountPath` and the
@@ -318,10 +320,15 @@ its scheme, with `using Microsoft.AspNetCore.Server.IISIntegration;`:
 builder.Services.AddAuthentication(IISDefaults.AuthenticationScheme);
 ```
 
-On Kestrel, add the `Microsoft.AspNetCore.Authentication.Negotiate` package
-(`dotnet add package Microsoft.AspNetCore.Authentication.Negotiate`; it is not
-part of the shared framework) and, with
-`using Microsoft.AspNetCore.Authentication.Negotiate;`:
+On Kestrel, add the `Microsoft.AspNetCore.Authentication.Negotiate` package;
+it is not part of the shared framework. Match its major version to your target
+framework, for example on .NET 8:
+
+```bash
+dotnet add package Microsoft.AspNetCore.Authentication.Negotiate --version 8.0.*
+```
+
+Then, with `using Microsoft.AspNetCore.Authentication.Negotiate;`:
 
 ```csharp
 builder.Services
@@ -333,10 +340,10 @@ The `/v1/*` paths are fixed: re-mounting the console with `MountPath` does not
 move them. Gate exactly these six rather than all of `/v1`, so your own `/v1`
 routes keep their own rules.
 
-**Check an existing deployment.** Every release since 2.0.13 serves the console and all six `/v1/*` paths this
-way, with no fix release yet; 2.0.4 through 2.0.12 served the console and a
-smaller set of proxied paths, also without authentication. From outside your
-network:
+**Check an existing deployment.** Every release since 2.0.13 serves the console
+and all six `/v1/*` paths this way, with no fix release yet; 2.0.4 through
+2.0.12 served the console and a smaller set of proxied paths, also without
+authentication. From outside your network:
 
 ```bash
 curl -s -o /dev/null -w '%{http_code}\n' https://<your-domain>/v1/config
@@ -350,14 +357,20 @@ that is what you get, anyone can read and change the optimizer configuration.
 
 A configuration changed through the console is saved by the worker to
 `pagespeed.json`, in the directory of `Cache.VolumePath`. It survives a restart
-and stays in force after you turn the console off. To recover, stop the app
-(which stops the worker), delete `pagespeed.json` and start the app again; the
-worker then runs on its defaults. Or, with the console gated, compare
-`GET /v1/config` with the answer of a fresh install, which shows the defaults.
-Variants built under changed settings stay in the cache volume; purge it
-through the gated console: its Purge action, or `POST /v1/cache/purge` with
-`{"scope": "all", "confirm": "purge-all"}` (see
-[the HTTP API reference](https://modpagespeed.com/docs/http-api/#post-v1cachepurge)).
+and stays in force after you turn the console off. Optimized variants built
+under the changed settings stay in the cache volume as well. To recover, whether
+the console is now off or gated:
+
+1. Stop the app; the worker stops with it.
+2. In the directory of `Cache.VolumePath`, delete `pagespeed.json` and the
+   cache volume files: every file whose name starts with the volume file's base
+   name, for the default `volume.dat` that is `volume-8-<hash>.dat` and, if
+   present, `volume.dat.gen` (`volume*`).
+3. Start the app. The worker runs on its startup configuration (environment
+   variables and flags still apply) and rebuilds the cache.
+
+To check the result, compare `GET /v1/config`, with the console gated, against
+the answer of a fresh install.
 
 `Console.MountPath` and `Console.RequireHttps` are not access control:
 re-mounting does not move the `/v1/*` paths, and HTTPS does not authenticate
