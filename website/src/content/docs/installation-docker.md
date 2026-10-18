@@ -190,6 +190,18 @@ Keep the image's own entrypoint rather than starting `factory_worker`
 yourself: it is what establishes the shared-group ownership described below.
 `DATA_DIR` points it at the stack's shared directory.
 
+:::note[Deployed from an earlier version of this page?]
+That version had you write an `entrypoint-worker.sh` of your own and mount it
+over `/entrypoint-worker.sh`. In the current images that path is a symlink to
+the script the file called, so the mount replaced the script with itself and
+the worker re-ran it forever: `/shared` stayed empty and every response was a
+`MISS`. To move over: remove the `entrypoint:` line and the
+`./entrypoint-worker.sh` mount from the `worker` service, add `DATA_DIR: /shared`
+to its environment as above, delete the file, and run `docker compose up -d`.
+Only the worker container is recreated; the `shared` volume and the cache in
+it are kept.
+:::
+
 ## How the cache volume is shared
 
 The optimizer and nginx reach the same cache file and Unix sockets through a

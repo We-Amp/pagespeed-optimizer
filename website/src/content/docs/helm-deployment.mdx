@@ -288,10 +288,14 @@ pagespeed-6d4b8f9c7-x2k9m   2/2     Running   0          45s
 Port-forward to test locally:
 
 ```bash
-kubectl port-forward svc/pagespeed 8080:80
+kubectl port-forward svc/pagespeed 8080:80 &
+sleep 2
 # GET twice (the module does not cache HEAD, so curl -I never shows a HIT)
-curl -s -o /dev/null -D - http://localhost:8080/
-# Look for: X-PageSpeed: MISS (first request), then HIT
+curl -s -o /dev/null -D - http://localhost:8080/ | grep -i x-pagespeed
+# X-PageSpeed: MISS
+curl -s -o /dev/null -D - http://localhost:8080/ | grep -i x-pagespeed
+# X-PageSpeed: HIT
+kill %1
 ```
 
 ## Next steps

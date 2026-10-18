@@ -106,18 +106,21 @@ See [Install with a coding agent](https://modpagespeed.com/docs/agent-install/).
 
 ### Build
 
-Needs clang-20 with libc++-20 (see [Prerequisites](#prerequisites)); a plain
-`bazel build //...` with the distribution compiler fails.
+Needs clang-20 with libc++-20 (see [Prerequisites](#prerequisites)); the
+distribution compiler fails. Every Bazel command takes the same compiler and
+`--config=libc++`:
 
 ```bash
+export CC=clang-20 CXX=clang++-20
+
 # Build all (excludes nginx module)
-CC=clang-20 CXX=clang++-20 bazel build --config=libc++ //...
+bazel build --config=libc++ //...
 
 # Run all tests
-bazel test //...
+bazel test --config=libc++ //...
 
 # Build nginx module (requires nginx source headers)
-NGINX_PATH=/path/to/nginx bazel build //src/nginx:ngx_pagespeed_module.so
+NGINX_PATH=/path/to/nginx bazel build --config=libc++ //src/nginx:ngx_pagespeed_module.so
 ```
 
 ### Deploy
@@ -129,8 +132,10 @@ cp .env.example .env
 # Edit .env: set BACKEND_HOST and BACKEND_PORT to your origin
 # (default host.docker.internal:8081, a server on the Docker host)
 docker compose up -d
+```
 
-# Or systemd (see deploy/pagespeed-optimizer.service)
+```bash
+# Or systemd, from the repository root (see deploy/pagespeed-optimizer.service)
 sudo cp deploy/pagespeed-optimizer.service /etc/systemd/system/
 sudo systemctl enable --now pagespeed-optimizer
 ```

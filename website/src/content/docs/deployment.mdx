@@ -57,10 +57,13 @@ cp deploy/.env.example deploy/.env
 
 Edit `deploy/.env`:
 
-```bash
-# Image version tag (the worker and nginx images publish version tags only;
+<pre>
+  <code class="language-bash">
+    {`# Image version tag (the worker and nginx images publish version tags only;
 # there is no latest tag for them)
-PAGESPEED_VERSION=2.4.0
+PAGESPEED_VERSION=`}
+    <ImageTag line="2.1" />
+    {`
 
 # Your origin server, as nginx inside its container reaches it:
 # host.docker.internal is the Docker host, or use a hostname or IP
@@ -72,12 +75,14 @@ CACHE_SIZE=536870912
 
 # Exposed ports
 NGINX_PORT=80
-NGINX_SSL_PORT=443
-```
+NGINX_SSL_PORT=443`}
+  </code>
+</pre>
 
 ### Docker Compose file
 
-The production `deploy/docker-compose.yml` runs the worker and nginx:
+The production `deploy/docker-compose.yml` runs the worker and nginx (shown
+without its comments):
 
 ```yaml
 services:
@@ -99,7 +104,7 @@ services:
     volumes:
       - pagespeed-data:/data
     environment:
-      - CACHE_SIZE=${CACHE_SIZE:-536870912}
+      - CACHE_SIZE=${CACHE_SIZE:-1073741824}
     restart: unless-stopped
     # The image ships socat, not python3. The probe only reads the one status
     # line the worker writes on connect; -T 4 bounds the wait inside timeout.
@@ -134,6 +139,12 @@ services:
       worker:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-sf', 'http://localhost/health']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 3s
     logging:
       driver: json-file
       options:
@@ -147,18 +158,24 @@ volumes:
 
 ### Starting the stack
 
-<pre>
-  <code class="language-bash">
-    {`# Build images (if not using pre-built)
-docker/build-release.sh `}
-    <ImageTag line="2.1" />
-    {`
+The compose file pulls the published images; nothing is built locally.
 
+```bash
 # Start in detached mode
 docker compose -f deploy/docker-compose.yml up -d
 
 # Verify both containers are healthy
-docker compose -f deploy/docker-compose.yml ps`}
+docker compose -f deploy/docker-compose.yml ps
+```
+
+Optional: to run images you built yourself instead, build them first (a long
+build; the script tags the result under the published image names) and start
+the stack as above:
+
+<pre>
+  <code class="language-bash">
+    {`docker/build-release.sh `}
+    <ImageTag line="2.1" />
   </code>
 </pre>
 

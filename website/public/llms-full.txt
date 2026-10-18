@@ -1087,6 +1087,18 @@ Keep the image's own entrypoint rather than starting `factory_worker`
 yourself: it is what establishes the shared-group ownership described below.
 `DATA_DIR` points it at the stack's shared directory.
 
+> **Deployed from an earlier version of this page?**
+>
+> That version had you write an `entrypoint-worker.sh` of your own and mount it
+> over `/entrypoint-worker.sh`. In the current images that path is a symlink to
+> the script the file called, so the mount replaced the script with itself and
+> the worker re-ran it forever: `/shared` stayed empty and every response was a
+> `MISS`. To move over: remove the `entrypoint:` line and the
+> `./entrypoint-worker.sh` mount from the `worker` service, add `DATA_DIR: /shared`
+> to its environment as above, delete the file, and run `docker compose up -d`.
+> Only the worker container is recreated; the `shared` volume and the cache in
+> it are kept.
+
 ## How the cache volume is shared
 
 The optimizer and nginx reach the same cache file and Unix sockets through a
@@ -1606,10 +1618,14 @@ pagespeed-6d4b8f9c7-x2k9m   2/2     Running   0          45s
 Port-forward to test locally:
 
 ```bash
-kubectl port-forward svc/pagespeed 8080:80
+kubectl port-forward svc/pagespeed 8080:80 &
+sleep 2
 # GET twice (the module does not cache HEAD, so curl -I never shows a HIT)
-curl -s -o /dev/null -D - http://localhost:8080/
-# Look for: X-PageSpeed: MISS (first request), then HIT
+curl -s -o /dev/null -D - http://localhost:8080/ | grep -i x-pagespeed
+# X-PageSpeed: MISS
+curl -s -o /dev/null -D - http://localhost:8080/ | grep -i x-pagespeed
+# X-PageSpeed: HIT
+kill %1
 ```
 
 ## Next steps
@@ -14436,7 +14452,8 @@ NGINX_SSL_PORT=443
 
 ### Docker Compose file
 
-The production `deploy/docker-compose.yml` runs the worker and nginx:
+The production `deploy/docker-compose.yml` runs the worker and nginx (shown
+without its comments):
 
 ```yaml
 services:
@@ -14458,7 +14475,7 @@ services:
     volumes:
       - pagespeed-data:/data
     environment:
-      - CACHE_SIZE=${CACHE_SIZE:-536870912}
+      - CACHE_SIZE=${CACHE_SIZE:-1073741824}
     restart: unless-stopped
     # The image ships socat, not python3. The probe only reads the one status
     # line the worker writes on connect; -T 4 bounds the wait inside timeout.
@@ -14493,6 +14510,12 @@ services:
       worker:
         condition: service_healthy
     restart: unless-stopped
+    healthcheck:
+      test: ['CMD', 'curl', '-sf', 'http://localhost/health']
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 3s
     logging:
       driver: json-file
       options:
@@ -14506,15 +14529,22 @@ volumes:
 
 ### Starting the stack
 
-```bash
-# Build images (if not using pre-built)
-docker/build-release.sh 2.4.0
+The compose file pulls the published images; nothing is built locally.
 
+```bash
 # Start in detached mode
 docker compose -f deploy/docker-compose.yml up -d
 
 # Verify both containers are healthy
 docker compose -f deploy/docker-compose.yml ps
+```
+
+Optional: to run images you built yourself instead, build them first (a long
+build; the script tags the result under the published image names) and start
+the stack as above:
+
+```bash
+docker/build-release.sh 2.4.0
 ```
 
 ### SSL configuration

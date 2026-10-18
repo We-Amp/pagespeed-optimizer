@@ -146,7 +146,12 @@ The chart source is `deploy/helm/pagespeed/`; the chart repository customers add
 `appVersion` when the product version moved) in `deploy/helm/pagespeed/Chart.yaml`,
 run `deploy/helm/package-chart.sh` (needs the `helm` CLI; `HELM=/path/to/helm`
 overrides), and commit the packaged `pagespeed-<version>.tgz` together with the
-regenerated `website/public/charts/index.yaml` in one pull request. The script
+regenerated `website/public/charts/index.yaml` in one pull request. When
+`appVersion` moves, the Compose defaults move in the same pull request: both
+`${PAGESPEED_VERSION:-X}` image tags in `deploy/docker-compose.yml` and the
+`# PAGESPEED_VERSION=X` line in `deploy/.env.example` (the worker and nginx
+images publish no `latest` tag, so a stale default fails to pull);
+`tools/ci/check_helm.sh` fails CI when they disagree with `appVersion`. The script
 merges into the existing index, so earlier entries keep their timestamps. Merging
 publishes nothing by itself; the chart is live once the site is deployed.
 

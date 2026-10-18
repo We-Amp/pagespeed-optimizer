@@ -19,8 +19,15 @@ fi
 # be the chart's appVersion: the worker and nginx images publish version tags
 # only, so a default of `latest` (or a stale version) fails to pull. Needs no
 # helm, so it runs before the helm check below.
+# appVersion may be bare, single-quoted or double-quoted (all valid YAML).
+app_version=$(grep -E '^appVersion:' "$CHART_DIR/Chart.yaml" | head -1 \
+  | sed -E "s/^appVersion:[[:space:]]*//; s/[[:space:]]+#.*$//; s/[[:space:]]+$//; s/^\"(.*)\"$/\1/; s/^'(.*)'$/\1/")
+if [ -z "$app_version" ]; then
+  echo "ERROR: cannot read appVersion from $CHART_DIR/Chart.yaml"
+  exit 1
+fi
+
 echo "=== Compose default image tag tracks appVersion ==="
-app_version=$(grep -E '^appVersion:' "$CHART_DIR/Chart.yaml" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
 compose_tags=$(grep -Eo 'pagespeed-(worker|nginx):\$\{PAGESPEED_VERSION:-[^}]*\}' deploy/docker-compose.yml \
   | sed -E 's/.*:-([^}]*)\}/\1/' | sort -u)
 env_tag=$(grep -E '^#?[[:space:]]*PAGESPEED_VERSION=' deploy/.env.example | head -1 | sed -E 's/.*=//')
@@ -68,7 +75,6 @@ echo "=== Helm lockstep: worker and nginx share ONE image tag ==="
 rendered=$(helm template pagespeed-test "$CHART_DIR")
 worker_tag=$(echo "$rendered" | grep 'pagespeed-worker:' | head -1 | sed -E 's/.*pagespeed-worker:([^"[:space:]]+).*/\1/')
 nginx_tag=$(echo "$rendered" | grep 'pagespeed-nginx:' | head -1 | sed -E 's/.*pagespeed-nginx:([^"[:space:]]+).*/\1/')
-app_version=$(grep -E '^appVersion:' "$CHART_DIR/Chart.yaml" | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
 echo "  worker=$worker_tag nginx=$nginx_tag appVersion=$app_version"
 if [ -z "$worker_tag" ] || [ "$worker_tag" != "$nginx_tag" ]; then
   echo "ERROR: worker ($worker_tag) and nginx ($nginx_tag) image tags differ — lockstep broken"
