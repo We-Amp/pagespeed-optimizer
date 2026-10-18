@@ -74,7 +74,7 @@ sudo dnf install nginx-module-pagespeed
 ```
 
 The package loads the module itself
-(`sudo grep -Rn 'load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules`
+(`sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules`
 shows its line), so there is no `load_module` line to add. Turn it on in
 `nginx.conf`:
 

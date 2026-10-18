@@ -58,7 +58,7 @@ decide whether to move nginx back to the distribution package too; otherwise
 3. **Remove the old `load_module` line.** The package loads
    `ngx_pagespeed_module.so` itself; remove any `load_module` line that named
    the old build, so that
-   `sudo grep -Rn 'load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules`
+   `sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules`
    shows exactly one line, the package's.
 4. **Test and restart:** `sudo nginx -t && sudo systemctl restart nginx`.
 5. **Verify:** `curl -I http://localhost/ | grep X-Page-Speed`. The header

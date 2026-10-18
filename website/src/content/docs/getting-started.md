@@ -79,7 +79,7 @@ Apache optimizes immediately: the package enables the module, its default
 the package loads the module itself (through `/etc/nginx/modules-enabled/` on
 Debian and Ubuntu, `/usr/share/nginx/modules/` on Enterprise Linux), so do not
 add a `load_module` line: nginx refuses to load the module twice.
-`sudo grep -Rn 'load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules`
+`sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules`
 shows the line the package added. Only a module you built or copied in by hand
 needs `load_module modules/ngx_pagespeed_module.so;` (on Enterprise Linux
 `load_module /usr/lib64/nginx/modules/ngx_pagespeed_module.so;`) at the top of

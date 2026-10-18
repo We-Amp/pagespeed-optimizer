@@ -347,7 +347,7 @@ Apache optimizes immediately: the package enables the module, its default
 the package loads the module itself (through `/etc/nginx/modules-enabled/` on
 Debian and Ubuntu, `/usr/share/nginx/modules/` on Enterprise Linux), so do not
 add a `load_module` line: nginx refuses to load the module twice.
-`sudo grep -Rn 'load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules`
+`sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules`
 shows the line the package added. Only a module you built or copied in by hand
 needs `load_module modules/ngx_pagespeed_module.so;` (on Enterprise Linux
 `load_module /usr/lib64/nginx/modules/ngx_pagespeed_module.so;`) at the top of
@@ -2982,7 +2982,7 @@ decide whether to move nginx back to the distribution package too; otherwise
 3. **Remove the old `load_module` line.** The package loads
    `ngx_pagespeed_module.so` itself; remove any `load_module` line that named
    the old build, so that
-   `sudo grep -Rn 'load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules`
+   `sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules`
    shows exactly one line, the package's.
 4. **Test and restart:** `sudo nginx -t && sudo systemctl restart nginx`.
 5. **Verify:** `curl -I http://localhost/ | grep X-Page-Speed`. The header
@@ -3173,7 +3173,7 @@ On Apache, remove the archived `mod-pagespeed-stable` or `mod-pagespeed-beta`
 package first if you installed one: both want the same module file. On nginx,
 the package loads `ngx_pagespeed_module.so` itself; remove any `load_module`
 line you added for the old module, so that
-`sudo grep -Rn 'load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules`
+`sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules`
 shows exactly one line, the package's. If you compiled ngx_pagespeed into
 nginx, you are also moving to the distribution's nginx package; see
 [Migrate from ngx_pagespeed](https://modpagespeed.com/docs/migrate-from-ngx-pagespeed/) for the
@@ -3311,7 +3311,7 @@ format.
 
 ```nginx
 # The package loads the module; check with:
-#   sudo grep -Rn 'load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules
+#   sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules
 # Only a module installed by hand needs this line at the top of nginx.conf:
 # load_module modules/ngx_pagespeed_module.so;                    # Debian / Ubuntu
 # load_module /usr/lib64/nginx/modules/ngx_pagespeed_module.so;   # Enterprise Linux

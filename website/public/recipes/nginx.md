@@ -45,10 +45,13 @@ The package drops a `load_module` snippet into the modules directory nginx
 includes. Confirm it:
 
 ```bash
-sudo grep -Rn 'load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules && echo 'module loaded' || echo 'missing: add the load_module line'
+sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules
+sudo grep -Rhs '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules | grep -q . && echo 'module loaded' || echo 'missing: add the load_module line'
 ```
 
-It should print exactly one line, the package's.
+The first command should print exactly one line, the package's. If it prints
+two, delete the one in `/etc/nginx/nginx.conf` (the package's line is the one
+to keep).
 
 Only if it is missing, add the line for the distribution at the top of
 `/etc/nginx/nginx.conf`:
