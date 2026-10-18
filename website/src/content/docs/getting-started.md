@@ -5,7 +5,7 @@ seoTitle: 'Install mod_pagespeed 2.1: nginx, Apache, Docker, IIS'
 description: 'Pick an integration and get mod_pagespeed 2.1 serving optimized pages: Apache or nginx module, Docker, IIS or ASP.NET Core, then run the same check.'
 order: 1
 group: 'Start here'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-18
 faq:
   - q: 'Which mod_pagespeed 2.1 integration should I pick?'
     a: 'The native module when you run Apache or nginx on Debian, Ubuntu or Enterprise Linux; the Docker reverse proxy when you are container-native or your origin is something else; the IIS module on Windows Server; the NuGet middleware inside an ASP.NET Core app. All four run the same optimization pipeline.'
@@ -76,9 +76,14 @@ sudo systemctl restart nginx
 
 Apache optimizes immediately: the package enables the module, its default
 `pagespeed.conf`, and the configuration that points it at the worker. On nginx,
-make sure `load_module modules/ngx_pagespeed_module.so;` (on Enterprise Linux
-`load_module /usr/lib64/nginx/modules/ngx_pagespeed_module.so;`) is at the top
-of `nginx.conf`, then turn the module on in a `server` block:
+the package loads the module itself (through `/etc/nginx/modules-enabled/` on
+Debian and Ubuntu, `/usr/share/nginx/modules/` on Enterprise Linux), so do not
+add a `load_module` line: nginx refuses to load the module twice.
+`sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules`
+shows the line the package added. Only a module you built or copied in by hand
+needs `load_module modules/ngx_pagespeed_module.so;` (on Enterprise Linux
+`load_module /usr/lib64/nginx/modules/ngx_pagespeed_module.so;`) at the top of
+`nginx.conf`. Then turn the module on in a `server` block:
 
 ```nginx
 pagespeed on;

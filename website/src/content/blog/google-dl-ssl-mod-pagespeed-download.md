@@ -5,7 +5,7 @@ date: 2026-05-20
 author: 'Otto van der Schaaf'
 tags: ['deprecation', 'history', 'downloads']
 draft: false
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-18
 ---
 
 If you landed here, you probably ran something like this and got a
@@ -205,7 +205,7 @@ The header carries the version of the package you installed.
 ```bash
 # nginx
 $ nginx -T 2>&1 | grep -i pagespeed
-load_module modules/ngx_pagespeed.so;
+load_module modules/ngx_pagespeed_module.so;
 pagespeed on;
 ...
 

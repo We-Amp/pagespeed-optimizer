@@ -3,7 +3,7 @@ title: 'Uninstall and rollback'
 description: 'Remove mod_pagespeed 2.1 per shape (apt, dnf, cPanel, Docker, Helm, IIS, NuGet), what each leaves behind, cache cleanup, and rolling back a release.'
 order: 56
 group: 'Operate'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-18
 datePublished: 2026-10-08
 faq:
   - q: 'Does removing the packages delete the cache?'
@@ -18,7 +18,7 @@ and configuration each shape leaves behind. The last section covers rolling
 back to a previous release instead.
 
 Before you remove the module, remove or comment out the `pagespeed` directives
-and, on nginx, the `load_module` line: a web server that starts with
+and, on nginx, any `load_module` line you added by hand: a web server that starts with
 directives from a module that is gone fails to start.
 
 ## Apache and nginx packages
