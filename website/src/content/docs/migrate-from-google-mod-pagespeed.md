@@ -3,7 +3,7 @@ title: 'Migrate from the archived Google module'
 description: 'Move from the archived open-source mod_pagespeed or ngx_pagespeed binaries to mod_pagespeed 2.1 in three commands: what maps to what, cache, rollback.'
 order: 15
 group: 'Upgrade and migrate'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-18
 datePublished: 2026-10-08
 faq:
   - q: 'Is mod_pagespeed 2.1 a drop-in replacement for the archived module?'
@@ -44,9 +44,9 @@ sudo cp /usr/lib/nginx/modules/ngx_pagespeed_module.so{,.bak}    # nginx, dynami
 
 On Apache, remove the archived `mod-pagespeed-stable` or `mod-pagespeed-beta`
 package first if you installed one: both want the same module file. On nginx,
-make sure one `load_module` line names
-`/usr/lib/nginx/modules/ngx_pagespeed_module.so`, the file the package
-installs. If you compiled ngx_pagespeed into nginx, you are also moving to the
+the package loads `ngx_pagespeed_module.so` itself; remove any `load_module`
+line you added for the old module, so that
+`sudo nginx -T 2>/dev/null | grep -i pagespeed` shows exactly one. If you compiled ngx_pagespeed into nginx, you are also moving to the
 distribution's nginx package; see
 [Migrate from ngx_pagespeed](/docs/migrate-from-ngx-pagespeed/) for the
 version pinning that matters there.

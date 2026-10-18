@@ -247,8 +247,7 @@ const jsonLd = [
         config. The IIS package ships from the 1.15 packaging channel.
       </p>
 
-      <pre><code>{`# nginx
-load_module modules/ngx_pagespeed.so;
+      <pre><code>{`# nginx (the package loads ngx_pagespeed_module.so itself)
 pagespeed on;
 pagespeed FileCachePath /var/cache/ngx_pagespeed;`}</code></pre>
 

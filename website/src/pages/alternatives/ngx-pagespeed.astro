@@ -17,11 +17,11 @@ const nginxImage = rel.artifacts.docker.image;
 const faq = [
   {
     q: 'Is the nginx port still maintained?',
-    a: 'Yes. mod_pagespeed 2.1 is the maintained continuation of the nginx port. It ships a native nginx module — the same ngx_pagespeed.so, the same pagespeed directives — built against current nginx, with current image and TLS dependencies and applied CVE patches. We-Amp helped ship the open-source 1.13.35.2 release and kept the module going.',
+    a: 'Yes. mod_pagespeed 2.1 is the maintained continuation of the nginx port. It ships a native nginx module — the same ngx_pagespeed module, the same pagespeed directives — built against current nginx, with current image and TLS dependencies and applied CVE patches. We-Amp helped ship the open-source 1.13.35.2 release and kept the module going.',
   },
   {
     q: 'Can I keep my existing pagespeed directives?',
-    a: 'Yes. mod_pagespeed 2.1 keeps the pagespeed directive surface and the classic filter names, so the directives and filter selectors you already wrote keep working. Install the signed package, add the load_module line, keep your config.',
+    a: 'Yes. mod_pagespeed 2.1 keeps the pagespeed directive surface and the classic filter names, so the directives and filter selectors you already wrote keep working. Install the signed package (it loads the module itself), keep your config.',
   },
   {
     q: 'What happened to the old ngx_pagespeed repository?',
@@ -29,7 +29,7 @@ const faq = [
   },
   {
     q: 'Native nginx module or Docker reverse proxy — which fits my stack?',
-    a: 'Both are mod_pagespeed 2.1. Install the native nginx module when you run nginx on Debian, Ubuntu, or Enterprise Linux and want the module in-process where ngx_pagespeed sat: one load_module line, your existing directives, no traffic detour. Run the Docker / nginx reverse proxy when you are container-native, when the origin is something other than nginx, or on Kubernetes via the Helm chart. Both are the same product and the same Cyclone cache library. The native nginx module runs on its own; to use the optimizer worker with nginx, run the reverse-proxy deployment.',
+    a: 'Both are mod_pagespeed 2.1. Install the native nginx module when you run nginx on Debian, Ubuntu, or Enterprise Linux and want the module in-process where ngx_pagespeed sat: the package loads it, your existing directives, no traffic detour. Run the Docker / nginx reverse proxy when you are container-native, when the origin is something other than nginx, or on Kubernetes via the Helm chart. Both are the same product and the same Cyclone cache library. The native nginx module runs on its own; to use the optimizer worker with nginx, run the reverse-proxy deployment.',
   },
   {
     q: 'Does the nginx module generate AVIF?',
@@ -50,7 +50,7 @@ const jsonLd = [
     operatingSystem: PRODUCT_OPERATING_SYSTEMS,
     softwareVersion,
     description:
-      'Maintained continuation of the nginx PageSpeed port. Native in-process nginx module (ngx_pagespeed.so) with the same pagespeed directives and filters as open-source mod_pagespeed, built against current nginx with applied CVE patches, variant-aware Cyclone caching and zero-copy mmap serving. Also native on Apache, and available as a Docker / nginx reverse proxy with the optimizer worker.',
+      'Maintained continuation of the nginx PageSpeed port. Native in-process nginx module (ngx_pagespeed_module.so) with the same pagespeed directives and filters as open-source mod_pagespeed, built against current nginx with applied CVE patches, variant-aware Cyclone caching and zero-copy mmap serving. Also native on Apache, and available as a Docker / nginx reverse proxy with the optimizer worker.',
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
     sameAs: ['https://packages.modpagespeed.com/', 'https://ngxpagespeed.com/'],
     publisher: {
@@ -121,21 +121,22 @@ dnf install nginx-module-pagespeed`}</code></pre>
       <h2>mod_pagespeed 2.1 &mdash; the maintained nginx module</h2>
       <p>
         The module loads into your nginx binary the way ngx_pagespeed did. It is still named{' '}
-        <code>ngx_pagespeed.so</code> because it is the nginx port &mdash; the one you came here
-        for. Install the signed package, add one <code>load_module</code> line, and keep the{' '}
+        <code>ngx_pagespeed_module.so</code> because it is the nginx port &mdash; the one you came
+        here for. Install the signed package, which loads the module for you, and keep the{' '}
         <code>pagespeed</code> directives, filter selectors, and URL-based variant fan-out you
         already wrote.
       </p>
 
       <pre><code>{`# nginx.conf — the native mod_pagespeed 2.1 module
-load_module modules/ngx_pagespeed.so;
+# The package loads the module (nginx -T | grep -i pagespeed shows it).
+# Only a module installed by hand needs: load_module modules/ngx_pagespeed_module.so;
 
 pagespeed on;
 pagespeed FileCachePath /var/cache/ngx_pagespeed;
 pagespeed RewriteLevel CoreFilters;`}</code></pre>
 
       <p>
-        It is the same <code>ngx_pagespeed.so</code>: the same directive surface as open-source
+        It is the same ngx_pagespeed module: the same directive surface as open-source
         mod_pagespeed, with a modernized, secured filter stack and new optimizers. What changed: the
         module builds against current nginx, ships current image and TLS dependencies, and takes CVE
         patches again.
