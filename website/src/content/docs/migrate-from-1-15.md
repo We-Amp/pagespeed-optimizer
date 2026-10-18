@@ -9,7 +9,7 @@ faq:
   - q: 'Does my 1.15 configuration carry over?'
     a: 'Yes. mod_pagespeed 2.1 keeps the same directives and the same filter names; 1.14 and 1.15 configurations load unchanged. The Apache packages add one file, `pagespeed_daemon.conf`, which points the module at the optimizer worker.'
   - q: 'Is the cache purged?'
-    a: 'No. The 2.1 optimizer opens its own volume under `/var/cache/pagespeed-optimizer/v2` and never touches the Cyclone volume a 1.15 install kept under its file-cache path. The first requests are cold; the old file stays where it is and makes a rollback warm.'
+    a: 'No. The 2.1 optimizer opens its own volume under `/var/cache/pagespeed-optimizer/v3` and never touches the Cyclone volume a 1.15 install kept under its file-cache path. The first requests are cold; the old file stays where it is and makes a rollback warm.'
 ---
 
 The move from a 1.15 install is a package upgrade in place. mod_pagespeed 2.1
@@ -24,7 +24,7 @@ over; what you gain is the worker.
 | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | The module optimizes in process                   | The module still serves and rewrites in process; the `pagespeed-optimizer` worker builds optimized variants beside it and the module serves them from the shared cache |
 | One package per web server                        | The Apache module package depends on `pagespeed-optimizer` at the same version; one upgrade command moves both                                                   |
-| A Cyclone volume under the module's file-cache path | The module's own cache stays where it was; the worker keeps its volume under `/var/cache/pagespeed-optimizer/v2`                                             |
+| A Cyclone volume under the module's file-cache path | The module's own cache stays where it was; the worker keeps its volume under `/var/cache/pagespeed-optimizer/v3`                                             |
 | `X-Mod-Pagespeed` / `X-Page-Speed` headers        | Unchanged                                                                                                                                                      |
 | Admin console at `/pagespeed_admin`               | Unchanged, plus an Overview page and panels for the worker                                                                                                     |
 
@@ -71,7 +71,7 @@ remove it before upgrading, or install with
 
 Nothing is purged. A 1.15 install stores its cache in a Cyclone volume under
 the module's file-cache path; the 2.1 optimizer opens its own volume under
-`/var/cache/pagespeed-optimizer/v2` and never touches the old file. The first
+`/var/cache/pagespeed-optimizer/v3` and never touches the old file. The first
 requests after the upgrade are misses and the cache refills as traffic
 arrives, so pick a quiet hour if your origin is sensitive to that. Both files
 exist during the upgrade, so the disk needs room for the second volume. The

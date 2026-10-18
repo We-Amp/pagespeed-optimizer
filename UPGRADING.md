@@ -2,6 +2,8 @@
 
 This document covers upgrading to mod_pagespeed 2.1:
 
+- **From 2.4.0 or earlier 2.x:** the cache directory moves from `v2` to `v3` and
+  the cache starts empty — see the first section below.
 - **From 2.1.0:** the cache directory moves from `v1` to `v2` and the cache
   starts empty — see the first section below.
 - **From 1.x (1.15):** an in-place package upgrade — see the second section.
@@ -10,6 +12,36 @@ This document covers upgrading to mod_pagespeed 2.1:
 - The long appendix at the end describes the 1.x → 2.0 architecture change
   for readers of the nginx line. It is background, not a migration guide:
   a 1.x install upgraded to 2.1 through the packages does not go through it.
+
+## Upgrading from 2.4.0
+
+The cache storage library moved to a new on-disk format (major 9: the document
+checksum covers the fixed document header, so a damaged header field reads as
+a miss instead of being served). The optimizer's versioned cache directory
+moves with it: the default is now `/var/cache/pagespeed-optimizer/v3` (2.4.0
+used `.../v2`), and the `cache_dir_generation` the optimizer publishes in
+`pagespeed-shared.conf` is now `3`. This applies to the optimizer worker, the
+nginx module and the `WeAmp.PageSpeed.NativeAssets.*` NuGet packages.
+
+- **The cache starts empty.** The new optimizer opens a new volume in `v3/`
+  and never reads `v2/`. The first requests after the upgrade are misses and
+  the cache refills as traffic arrives -- pick a quiet hour if your origin is
+  sensitive to that.
+- **The old cache is left on disk.** Nothing deletes `v2/` for you. A
+  rollback to 2.4.0 reopens it still warm; once you will not roll back,
+  delete it (`rm -rf /var/cache/pagespeed-optimizer/v2`). The disk needs
+  room for both volumes until you do. The package prints a notice whenever
+  a loaded web-server configuration still names `v2`.
+- **Rolling restarts use separate files.** Old and new versions never share
+  a cache file, so disk use temporarily doubles and the hit rate stays low
+  until every process runs the new version.
+- **Repoint web-server configuration that names `v2`.** A default package
+  install needs nothing. If your configuration names the cache path
+  explicitly (`pagespeed_cache_path` in nginx, `ModPagespeedDaemonVolumePath`
+  in Apache), change `.../v2/cache` to `.../v3/cache` and restart the web
+  server. The nginx module compares the generation published beside the
+  configured path with its own and, on a mismatch, keeps serving with its
+  cache turned off; see the section below for the log line and variables.
 
 ## Upgrading from 2.1.0
 

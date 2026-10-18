@@ -41,7 +41,7 @@ check() { # label expected actual
 }
 
 OLD_PATH='ModPagespeedDaemonVolumePath /var/lib/pagespeed-optimizer/cache'
-NEW_PATH='ModPagespeedDaemonVolumePath /var/cache/pagespeed-optimizer/v2/cache'
+NEW_PATH='ModPagespeedDaemonVolumePath /var/cache/pagespeed-optimizer/v3/cache'
 
 # ------------------------------------------- extract what the packages ship --
 # The deb postinst is a quoted heredoc in build-optimizer-deb.sh; the rpm
@@ -185,17 +185,23 @@ check "httpd rpmnew/rpmsave/orig/editor backups stay silent" "clean" \
 printf '%s\n' "$OLD_PATH" >> "$fx/etc/httpd/conf.d/pagespeed.conf"
 check "live httpd config with old paths warns" "stale" "$(stale "$fx")"
 
-# The optional second argument names the path to look for: the v1
+# The optional second argument names the path to look for: the v2
 # cache-path notice fires only while a loaded file still names it.
-fx="$tmp/v1-needle"
+fx="$tmp/v2-needle"
 mkdir -p "$fx/etc/nginx"
+printf '%s\n' "pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v3/cache;" \
+  > "$fx/etc/nginx/nginx.conf"
+needle() { sh -c '. "$1"; if ps_stale_web_config "$2" /var/cache/pagespeed-optimizer/v2; then echo stale; else echo clean; fi' _ "$tmp/helper.sh" "$1"; }
+check "configured v3 path does not match the v2 needle" "clean" "$(needle "$fx")"
 printf '%s\n' "pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v2/cache;" \
   > "$fx/etc/nginx/nginx.conf"
-needle() { sh -c '. "$1"; if ps_stale_web_config "$2" /var/cache/pagespeed-optimizer/v1; then echo stale; else echo clean; fi' _ "$tmp/helper.sh" "$1"; }
-check "configured v2 path does not match the v1 needle" "clean" "$(needle "$fx")"
+check "configured v2 path matches the v2 needle" "stale" "$(needle "$fx")"
+needle_v1() { sh -c '. "$1"; if ps_stale_web_config "$2" /var/cache/pagespeed-optimizer/v1; then echo stale; else echo clean; fi' _ "$tmp/helper.sh" "$1"; }
+check "configured v2 path does not match the v1 needle" "clean" "$(needle_v1 "$fx")"
 printf '%s\n' "pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v1/cache;" \
   > "$fx/etc/nginx/nginx.conf"
-check "configured v1 path matches the v1 needle" "stale" "$(needle "$fx")"
+check "configured v1 path matches the v1 needle" "stale" "$(needle_v1 "$fx")"
+check "configured v1 path does not match the v2 needle" "clean" "$(needle "$fx")"
 
 # A host with no web-server configuration at all: nothing to warn about.
 fx="$tmp/no-webserver"

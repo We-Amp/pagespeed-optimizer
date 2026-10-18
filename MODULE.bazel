@@ -525,12 +525,44 @@ new_git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl"
 # still equals its srcs list, and src/core/fork_gate.hpp (new in e843631) is
 # picked up by its src/**/*.hpp glob.
 #
+# Bumped to cyclone 22f6553 (We-Amp/cyclone-cache main), the next
+# on-disk format: v9. Three things matter here.
+#
+# 1. ON-DISK FORMAT v9 (was v8). The document checksum now also covers the
+#    fixed document header, so damage to a header field reads as a miss
+#    instead of being served; each document also carries the serial of the
+#    write that filled it. The format major is part of the fingerprinted
+#    volume filename, so this build opens a different file than a v8 build:
+#    the disk cache starts COLD on upgrade, and the superseded v8 file stays
+#    on disk until it is deleted by hand (gc_superseded_on_start is not
+#    enabled here). During a rolling restart the old and new versions use
+#    separate files, so disk use temporarily doubles and the hit rate stays
+#    low until every process runs the new version. Because 2.4.0 shipped
+#    with format v8, the format move also takes kCacheDirGeneration
+#    (src/worker/shared_config.h) from 2 to 3: the packaged default cache
+#    directory becomes /var/cache/pagespeed-optimizer/v3, the worker
+#    publishes cache_dir_generation=3, and the package notice now watches
+#    for configuration that still names v2.
+#
+# 2. FIXES. Damaged or stale cache contents could be served, a damaged cache
+#    file could end the process when the volume could not be mapped as a
+#    whole, entries could be stale after a crash and restart, the CLFUS RAM
+#    cache had a memory-safety fault, and several paths now bound memory and
+#    wait time under load. The C API (not used by this build) maps library
+#    errors to distinct codes.
+#
+# 3. BUILD. //third_party:cyclone.BUILD drops src/io/executor.cpp, which no
+#    longer exists. The new headers (src/c_api/c_error_map.hpp,
+#    src/core/write_commit_observer.hpp) are picked up by its src/**/*.hpp
+#    glob, src/core/crc32c.cpp was already listed, and src/core/thread_util.hpp
+#    is gone. No new defines, copts or link flags are needed.
+#
 # mod_pagespeed 1.1 vendors its own copy of Cyclone and must move to the
 # same commit in lockstep wherever it shares a cache with this build.
 new_git_repository(
     name = "cyclone",
     build_file = "//third_party:cyclone.BUILD",
-    commit = "6e64530dda457d4cbfcac68fee432fc64d16d94c",
+    commit = "22f65531115913ab7ce836639823df6c07281219",
     remote = "https://github.com/We-Amp/cyclone-cache.git",
 )
 

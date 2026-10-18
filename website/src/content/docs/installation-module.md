@@ -126,7 +126,7 @@ optimization works exactly as before.
   group membership takes effect only in a restarted nginx.
 - **Find the two paths.** The packaged optimizer's defaults are
   `/run/pagespeed-optimizer/notify.sock` for the notification socket and
-  `/var/cache/pagespeed-optimizer/v2/cache` for the cache volume. If you
+  `/var/cache/pagespeed-optimizer/v3/cache` for the cache volume. If you
   changed `SOCKET_PATH` or `CACHE_DIR` in `/etc/default/pagespeed-optimizer`,
   use those values instead: the volume path is the cache directory followed by
   `/cache`.
@@ -145,7 +145,7 @@ server {
 
     # The optimizer worker: its notification socket and its cache volume.
     pagespeed DaemonSocketPath /run/pagespeed-optimizer/notify.sock;
-    pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v2/cache;
+    pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v3/cache;
 }
 ```
 

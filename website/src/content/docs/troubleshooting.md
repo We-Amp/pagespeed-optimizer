@@ -25,7 +25,7 @@ been requested before.
    config matches the worker's cache (`--cache-dir` / `--cache-path`).
 
    **After upgrading to 2.1 this is the first thing to check.** The worker's
-   default paths moved to `/var/cache/pagespeed-optimizer/v2/cache` and
+   default paths moved to `/var/cache/pagespeed-optimizer/v3/cache` and
    `/run/pagespeed-optimizer/notify.sock`, but your web-server configuration
    keeps whatever it was set to. A configuration still naming the old
    `/var/lib/pagespeed-optimizer/...` paths makes the module attach to the
@@ -47,7 +47,7 @@ been requested before.
    Check:
 
    ```bash
-   ls -la /var/cache/pagespeed-optimizer/v2/
+   ls -la /var/cache/pagespeed-optimizer/v3/
    id www-data   # (or apache / nginx) — must list "pagespeed"
    ```
 
@@ -79,7 +79,7 @@ been requested before.
 
    ```bash
    grep 'cache-directory generation' /var/log/nginx/error.log | tail -1
-   grep cache_dir_generation /var/cache/pagespeed-optimizer/v2/pagespeed-shared.conf
+   grep cache_dir_generation /var/cache/pagespeed-optimizer/v3/pagespeed-shared.conf
    ```
 
    Or expose `$pagespeed_cache_generation` (`match`, `mismatch`, `unknown`)
@@ -142,7 +142,7 @@ are not transcoded, CSS/JS are not minified, and no optimized variants appear.
 
    ```bash
    # Check the shared config and socket file
-   cat /var/cache/pagespeed-optimizer/v2/pagespeed-shared.conf
+   cat /var/cache/pagespeed-optimizer/v3/pagespeed-shared.conf
    ls -la /run/pagespeed-optimizer/notify.sock
    ```
 
