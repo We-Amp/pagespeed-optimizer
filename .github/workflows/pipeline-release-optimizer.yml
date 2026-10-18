@@ -226,6 +226,27 @@ jobs:
           } >> "$GITHUB_OUTPUT"
           echo "tag=$TAG upstream=$UPSTREAM pkg=$PKG_VERSION prerelease=$PRERELEASE dry_run=$DRY_RUN checkout=$CHECKOUT_REF"
 
+      # From 2.5.0 on the tag must name VERSION.txt of the commit it builds.
+      # The guard comes from main (release.yml calls this lane @main), VERSION.txt
+      # from the build commit, so an older tag without the script still builds.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          sparse-checkout: tools/ci
+          persist-credentials: false
+      - name: Verify VERSION.txt matches the release tag (from 2.5.0 on)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.derive.outputs.tag }}
+          TAG_SHA: ${{ steps.derive.outputs.tag_sha }}
+          DRY_RUN: ${{ steps.derive.outputs.dry_run }}
+        run: |
+          set -euo pipefail
+          gh api -H "Accept: application/vnd.github.raw" \
+            "repos/${GITHUB_REPOSITORY}/contents/VERSION.txt?ref=${TAG_SHA:-$GITHUB_SHA}" > "$RUNNER_TEMP/VERSION.txt"
+          if [ "$DRY_RUN" = true ]; then set -- --dry-run; else set --; fi
+          bash tools/ci/check_optimizer_tag_version.sh "$TAG" "$RUNNER_TEMP/VERSION.txt" "$@"
+
   # ---------------------------------------------------------------------
   # Linux packages. One step list (YAML anchor) for three jobs: amd64 on the
   # fleet, its hosted twin while the fleet is off, and arm64 hosted. The job
