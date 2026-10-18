@@ -123,7 +123,7 @@ class DurableOriginalsTest : public ::testing::Test {
   // file is not portable) and is re-opened by the caller afterwards.
   //
   // The successor is a stripe-relative offset in the document's fixed header,
-  // outside the payload checksum, so a plain file write is what the cache
+  // outside the checksum, so a plain file write is what the cache
   // reads next.  The two constants are the storage layer's on-disk document
   // format; they are verified against the file before anything is written, so
   // a pin that moves them fails here rather than silently patching nothing.
@@ -166,6 +166,16 @@ class DurableOriginalsTest : public ::testing::Test {
     volume.read(reinterpret_cast<char*>(&link), sizeof(link));
     ASSERT_TRUE(volume.good());
     const uint64_t tail_relative = link & kLinkOffsetMask;
+    // The link's top 16 bits must be the successor's own fill serial; this
+    // confirms the v9 layout assumed above before anything is written.
+    uint32_t tail_fill_serial = 0;
+    volume.seekg(static_cast<std::streamoff>(tail) + kFillSerialPos);
+    volume.read(reinterpret_cast<char*>(&tail_fill_serial),
+                sizeof(tail_fill_serial));
+    ASSERT_TRUE(volume.good());
+    ASSERT_EQ(link >> kLinkSerialShift,
+              static_cast<uint64_t>(static_cast<uint16_t>(tail_fill_serial)))
+        << "the link's serial must be the tail's fill serial";
     uint32_t head_fill_serial = 0;
     volume.seekg(static_cast<std::streamoff>(head) + kFillSerialPos);
     volume.read(reinterpret_cast<char*>(&head_fill_serial),
@@ -807,7 +817,7 @@ TEST_F(DurableOriginalsTest, OriginRefreshDropsAKeyWhoseChainCannotBeWalked) {
   const uint64_t tail = (*two)[1].disk_offset;
 
   // The document's fixed header carries its successor as a stripe-relative
-  // offset at a fixed position, outside the payload checksum.  Read the
+  // offset at a fixed position, outside the checksum.  Read the
   // head's successor field (it names the tail), derive the stripe base from
   // it, and re-point the head at itself.
   //

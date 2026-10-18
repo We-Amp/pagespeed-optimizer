@@ -100,7 +100,7 @@ done
 
 PKG=pagespeed-optimizer
 CACHE_ROOT=/var/cache/$PKG
-CACHE_DIR=$CACHE_ROOT/v2
+CACHE_DIR=$CACHE_ROOT/v3
 RUN_DIR=/run/$PKG
 LEGACY=/var/lib/$PKG
 ENVFILE=/etc/$PKG/daemon.env
@@ -180,7 +180,7 @@ if [[ "$SCENARIO" == fresh ]]; then
     "clean host: user+group+versioned cache dir created, no false cold-start notice"
 else
   leg_begin install-over-legacy \
-    "planted root-owned legacy tree: notice fires, legacy untouched, v2 created"
+    "planted root-owned legacy tree: notice fires, legacy untouched, v3 created"
 fi
 
 # ------------------------------------------------------- pre-install state --
@@ -331,7 +331,7 @@ if [[ "$SCENARIO" == legacy ]]; then
   # cold-start facts but DROP the ACTION REQUIRED half: a file the web
   # server does not load may never earn the repoint warning (a real
   # upgrade warned on exactly such a backup).
-  printf 'ModPagespeedDaemonVolumePath /var/cache/pagespeed-optimizer/v2/cache\n' \
+  printf 'ModPagespeedDaemonVolumePath /var/cache/pagespeed-optimizer/v3/cache\n' \
     > /etc/apache2/conf-available/pagespeed-daemon.conf
   UPGRADE_LOG="$WORK/upgrade-${SCENARIO}.log"
   set +e

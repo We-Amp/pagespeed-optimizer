@@ -525,8 +525,6 @@ new_git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl"
 # still equals its srcs list, and src/core/fork_gate.hpp (new in e843631) is
 # picked up by its src/**/*.hpp glob.
 #
-# mod_pagespeed 1.1 vendors its own copy of Cyclone and must move to the
-# same commit in lockstep wherever it shares a cache with this build.
 # Bumped to cyclone 22f6553 (We-Amp/cyclone-cache main), the next
 # on-disk format: v9. Three things matter here.
 #
@@ -539,7 +537,12 @@ new_git_repository = use_repo_rule("@bazel_tools//tools/build_defs/repo:git.bzl"
 #    on disk until it is deleted by hand (gc_superseded_on_start is not
 #    enabled here). During a rolling restart the old and new versions use
 #    separate files, so disk use temporarily doubles and the hit rate stays
-#    low until every process runs the new version.
+#    low until every process runs the new version. Because 2.4.0 shipped
+#    with format v8, the format move also takes kCacheDirGeneration
+#    (src/worker/shared_config.h) from 2 to 3: the packaged default cache
+#    directory becomes /var/cache/pagespeed-optimizer/v3, the worker
+#    publishes cache_dir_generation=3, and the package notice now watches
+#    for configuration that still names v2.
 #
 # 2. FIXES. Damaged or stale cache contents could be served, a damaged cache
 #    file could end the process when the volume could not be mapped as a

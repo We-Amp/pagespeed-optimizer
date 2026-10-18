@@ -5,14 +5,20 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 ## Unreleased
 
 Security: disk cache: damaged or stale cache contents could be served, and a
-damaged cache file could terminate the process. Affected: optimizer worker up to
+damaged cache file could terminate the process. Affected: the optimizer worker,
+the nginx module and the `WeAmp.PageSpeed.NativeAssets.*` NuGet packages, up to
 and including 2.4.0. Update recommended.
 
-Changed: the disk cache moves to on-disk format v9 (Cyclone 22f6553). The cache
-starts cold on the first start after the upgrade: it opens a new file and the
-previous file stays on disk until you delete it. During a rolling restart the old
-and new versions use separate files, so disk use temporarily doubles and the hit
-rate stays low until every process runs the new version.
+Changed: the disk cache moves to on-disk format v9 (Cyclone 22f6553) in the
+optimizer worker, the nginx module and the `WeAmp.PageSpeed.NativeAssets.*`
+NuGet packages. The cache starts cold on the first start after the upgrade: it
+opens a new file and the previous file stays on disk until you delete it. The
+optimizer's cache directory generation moves from 2 to 3: the default cache
+directory is now `/var/cache/pagespeed-optimizer/v3` (2.4.0 used `.../v2`), and
+a web-server configuration that names `.../v2/cache` explicitly must be changed
+to `.../v3/cache`. During a rolling restart the old and new versions use
+separate files, so disk use temporarily doubles and the hit rate stays low
+until every process runs the new version.
 
 Security: the ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`) serves its
 web console at `/console/` and proxies the worker API (`/v1/health`, `/v1/ws`,

@@ -23,7 +23,7 @@ the NuGet package ship the binary as `factory_worker`; the deb and rpm packages
 install it as `/usr/bin/pagespeed-optimizer`, with the
 `pagespeed-optimizer.service` unit, host overrides in
 `/etc/default/pagespeed-optimizer` and its cache under
-`/var/cache/pagespeed-optimizer/v2`. Compose files and container logs say
+`/var/cache/pagespeed-optimizer/v3`. Compose files and container logs say
 `factory_worker`; `systemctl` and `journalctl` say `pagespeed-optimizer`. Same
 process.
 :::
@@ -329,7 +329,7 @@ value has a working default in the unit, so uncomment only what you change:
 
 ```bash
 # /etc/default/pagespeed-optimizer
-# CACHE_DIR=/var/cache/pagespeed-optimizer/v2
+# CACHE_DIR=/var/cache/pagespeed-optimizer/v3
 # SOCKET_PATH=/run/pagespeed-optimizer/notify.sock
 # CACHE_SIZE=536870912
 # LOG_LEVEL=info
@@ -432,7 +432,7 @@ each one explicitly after creating the file.
 
 | Path                                   | Owner:group           | Mode | Reason                                                                                                                                           |
 | -------------------------------------- | --------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `/var/cache/pagespeed-optimizer/v2/`   | `pagespeed:pagespeed` | 3770 | Cache dir (tmpfiles.d) — setgid so the group is inherited by everything created inside, sticky so one group member cannot delete another's files |
+| `/var/cache/pagespeed-optimizer/v3/`   | `pagespeed:pagespeed` | 3770 | Cache dir (tmpfiles.d) — setgid so the group is inherited by everything created inside, sticky so one group member cannot delete another's files |
 | volume files (`cache-*`)               | `pagespeed:pagespeed` | 0660 | Both processes read and write cache entries                                                                                                      |
 | `pagespeed-shared.conf`                | `pagespeed:pagespeed` | 0640 | nginx reads socket path / sizing / toggles                                                                                                       |
 | `.pagespeed-serve-stats`               | `pagespeed:pagespeed` | 0660 | Shared serve-stats mmap                                                                                                                          |
@@ -453,7 +453,7 @@ rather than recreating the modes by hand.
 ### Upgrading from an earlier release
 
 The worker's default cache and socket paths moved to
-`/var/cache/pagespeed-optimizer/v2/cache` and
+`/var/cache/pagespeed-optimizer/v3/cache` and
 `/run/pagespeed-optimizer/notify.sock`; a web-server configuration that still
 names the old paths attaches to an abandoned cache and reports the socket as
 absent. The worker also refuses to start, naming the cause, when its cache
@@ -468,7 +468,7 @@ If you see persistent `MISS` responses or worker processing errors, check
 permissions:
 
 ```bash
-ls -la /var/cache/pagespeed-optimizer/v2/
+ls -la /var/cache/pagespeed-optimizer/v3/
 # Expected:
 # drwxrws---  pagespeed pagespeed  .
 # -rw-rw----  pagespeed pagespeed  cache-1-....dat

@@ -326,7 +326,7 @@ Installing with a coding agent? [Install with a coding agent](https://modpagespe
 > install it as `/usr/bin/pagespeed-optimizer`, with the
 > `pagespeed-optimizer.service` unit, host overrides in
 > `/etc/default/pagespeed-optimizer` and its cache under
-> `/var/cache/pagespeed-optimizer/v2`. A page that says `factory_worker` and a log
+> `/var/cache/pagespeed-optimizer/v3`. A page that says `factory_worker` and a log
 > line that says `pagespeed-optimizer` describe the same process.
 
 ## Quickstart: Apache or nginx module
@@ -762,7 +762,7 @@ optimization works exactly as before.
   group membership takes effect only in a restarted nginx.
 - **Find the two paths.** The packaged optimizer's defaults are
   `/run/pagespeed-optimizer/notify.sock` for the notification socket and
-  `/var/cache/pagespeed-optimizer/v2/cache` for the cache volume. If you
+  `/var/cache/pagespeed-optimizer/v3/cache` for the cache volume. If you
   changed `SOCKET_PATH` or `CACHE_DIR` in `/etc/default/pagespeed-optimizer`,
   use those values instead: the volume path is the cache directory followed by
   `/cache`.
@@ -781,7 +781,7 @@ server {
 
     # The optimizer worker: its notification socket and its cache volume.
     pagespeed DaemonSocketPath /run/pagespeed-optimizer/notify.sock;
-    pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v2/cache;
+    pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v3/cache;
 }
 ```
 
@@ -2614,7 +2614,7 @@ empty `podSecurityContext: {}` will **not** override the chart default.
 2.1 also ships as native web-server packages: the module plus the
 `pagespeed-optimizer` worker, installed and upgraded as a matching pair. On a
 package install the worker keeps its cache in a versioned directory
-(`/var/cache/pagespeed-optimizer/v2`), and a package upgrade starts that
+(`/var/cache/pagespeed-optimizer/v3`), and a package upgrade starts that
 cache cold by design. See [downloads](https://modpagespeed.com/download/) for packages and
 platforms.
 
@@ -2637,7 +2637,7 @@ What to review is operational defaults, not directives:
 | Browser analysis | Sandbox required                                                            | Your runtime's seccomp profile blocks user namespaces: allow them, or opt out deliberately           |
 | Helm pod         | `seccompProfile.type: RuntimeDefault`                                       | A workload needs blocked syscalls: set `seccompProfile: null`                                        |
 | Worker identity  | `pagespeed` (UID/GID 918)                                                   | You set an explicit `user:`, bind-mount the cache, or share it with a third container                |
-| Package paths    | `/var/cache/pagespeed-optimizer/v2`, `/run/pagespeed-optimizer/notify.sock` | Your web-server config points at explicitly configured worker paths: repoint both                    |
+| Package paths    | `/var/cache/pagespeed-optimizer/v3`, `/run/pagespeed-optimizer/notify.sock` | Your web-server config points at explicitly configured worker paths: repoint both                    |
 
 > **Note**
 >
@@ -2877,7 +2877,7 @@ over; what you gain is the worker.
 | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | The module optimizes in process                   | The module still serves and rewrites in process; the `pagespeed-optimizer` worker builds optimized variants beside it and the module serves them from the shared cache |
 | One package per web server                        | The Apache module package depends on `pagespeed-optimizer` at the same version; one upgrade command moves both                                                   |
-| A Cyclone volume under the module's file-cache path | The module's own cache stays where it was; the worker keeps its volume under `/var/cache/pagespeed-optimizer/v2`                                             |
+| A Cyclone volume under the module's file-cache path | The module's own cache stays where it was; the worker keeps its volume under `/var/cache/pagespeed-optimizer/v3`                                             |
 | `X-Mod-Pagespeed` / `X-Page-Speed` headers        | Unchanged                                                                                                                                                      |
 | Admin console at `/pagespeed_admin`               | Unchanged, plus an Overview page and panels for the worker                                                                                                     |
 
@@ -2924,7 +2924,7 @@ remove it before upgrading, or install with
 
 Nothing is purged. A 1.15 install stores its cache in a Cyclone volume under
 the module's file-cache path; the 2.1 optimizer opens its own volume under
-`/var/cache/pagespeed-optimizer/v2` and never touches the old file. The first
+`/var/cache/pagespeed-optimizer/v3` and never touches the old file. The first
 requests after the upgrade are misses and the cache refills as traffic
 arrives, so pick a quiet hour if your origin is sensitive to that. Both files
 exist during the upgrade, so the disk needs room for the second volume. The
@@ -2966,7 +2966,7 @@ Yes. mod_pagespeed 2.1 keeps the same directives and the same filter names; 1.14
 
 **Is the cache purged?**
 
-No. The 2.1 optimizer opens its own volume under `/var/cache/pagespeed-optimizer/v2` and never touches the Cyclone volume a 1.15 install kept under its file-cache path. The first requests are cold; the old file stays where it is and makes a rollback warm.
+No. The 2.1 optimizer opens its own volume under `/var/cache/pagespeed-optimizer/v3` and never touches the Cyclone volume a 1.15 install kept under its file-cache path. The first requests are cold; the old file stays where it is and makes a rollback warm.
 
 ---
 
@@ -7282,12 +7282,12 @@ and be writable by the worker's user (the packaged unit uses a systemd
 #### --cache-dir
 
 - **Syntax:** `--cache-dir DIR`
-- **Default:** `/var/cache/pagespeed-optimizer/v2`
+- **Default:** `/var/cache/pagespeed-optimizer/v3`
 
-Cache directory; the volume, shared config and serve-stats live inside it (default: /var/cache/pagespeed-optimizer/v2)
+Cache directory; the volume, shared config and serve-stats live inside it (default: /var/cache/pagespeed-optimizer/v3)
 
 ```bash
-factory_worker --cache-dir /var/cache/pagespeed-optimizer/v2
+factory_worker --cache-dir /var/cache/pagespeed-optimizer/v3
 ```
 
 The `v2` in the default is the compiled-in cache-directory generation. The
@@ -7305,7 +7305,7 @@ member cannot remove another's files).
 Expert override: full cache volume file STEM (deliberately extensionless); wins over --cache-dir
 
 ```bash
-factory_worker --cache-path /var/cache/pagespeed-optimizer/v2/cache
+factory_worker --cache-path /var/cache/pagespeed-optimizer/v3/cache
 ```
 
 Must match the nginx [`pagespeed_cache_path`](https://modpagespeed.com/docs/worker-configuration/#pagespeed_cache_path) directive.
@@ -8927,13 +8927,13 @@ entire reason to prefer the socket over `127.0.0.1` plus a token.
 
 ```bash
 # Local: no port, no credential to distribute.
-factory_worker --cache-dir /var/cache/pagespeed-optimizer/v2 \
+factory_worker --cache-dir /var/cache/pagespeed-optimizer/v3 \
   --api-socket \
   --console-dir /opt/pagespeed/console
 
 # Remote, deliberately: both flags AND a token, or it will not start.
 PAGESPEED_API_TOKEN="$(cat /run/secrets/api-token)" \
-factory_worker --cache-dir /var/cache/pagespeed-optimizer/v2 \
+factory_worker --cache-dir /var/cache/pagespeed-optimizer/v3 \
   --api-port 9880 --api-bind 0.0.0.0 --api-allow-remote \
   --console-dir /opt/pagespeed/console
 ```
@@ -9283,7 +9283,7 @@ After=network.target
 Type=simple
 ExecStart=/usr/local/bin/factory_worker \
   --socket /run/pagespeed-optimizer/notify.sock \
-  --cache-dir /var/cache/pagespeed-optimizer/v2 \
+  --cache-dir /var/cache/pagespeed-optimizer/v3 \
   --cache-size 536870912 \
   --log-format json \
   --log-level info
@@ -9459,7 +9459,7 @@ Use `pagespeed off` inside a `location` block to disable the module for that pat
 
 **How do I share the cache file between nginx and the worker?**
 
-Point `pagespeed_cache_path` (nginx) and the worker cache at the same file (the packaged optimizer worker defaults to `--cache-dir /var/cache/pagespeed-optimizer/v2`). The optimizer worker owns the directory and every file in it (0660 `pagespeed:pagespeed`); the nginx worker user reaches them through membership in group `pagespeed`. Memory-mapped directory sharing is enabled automatically.
+Point `pagespeed_cache_path` (nginx) and the worker cache at the same file (the packaged optimizer worker defaults to `--cache-dir /var/cache/pagespeed-optimizer/v3`). The optimizer worker owns the directory and every file in it (0660 `pagespeed:pagespeed`); the nginx worker user reaches them through membership in group `pagespeed`. Memory-mapped directory sharing is enabled automatically.
 
 **What does the capability mask do?**
 
@@ -14379,7 +14379,7 @@ where they end.
 > install it as `/usr/bin/pagespeed-optimizer`, with the
 > `pagespeed-optimizer.service` unit, host overrides in
 > `/etc/default/pagespeed-optimizer` and its cache under
-> `/var/cache/pagespeed-optimizer/v2`. Compose files and container logs say
+> `/var/cache/pagespeed-optimizer/v3`. Compose files and container logs say
 > `factory_worker`; `systemctl` and `journalctl` say `pagespeed-optimizer`. Same
 > process.
 
@@ -14678,7 +14678,7 @@ value has a working default in the unit, so uncomment only what you change:
 
 ```bash
 # /etc/default/pagespeed-optimizer
-# CACHE_DIR=/var/cache/pagespeed-optimizer/v2
+# CACHE_DIR=/var/cache/pagespeed-optimizer/v3
 # SOCKET_PATH=/run/pagespeed-optimizer/notify.sock
 # CACHE_SIZE=536870912
 # LOG_LEVEL=info
@@ -14781,7 +14781,7 @@ each one explicitly after creating the file.
 
 | Path                                   | Owner:group           | Mode | Reason                                                                                                                                           |
 | -------------------------------------- | --------------------- | ---- | ------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `/var/cache/pagespeed-optimizer/v2/`   | `pagespeed:pagespeed` | 3770 | Cache dir (tmpfiles.d) — setgid so the group is inherited by everything created inside, sticky so one group member cannot delete another's files |
+| `/var/cache/pagespeed-optimizer/v3/`   | `pagespeed:pagespeed` | 3770 | Cache dir (tmpfiles.d) — setgid so the group is inherited by everything created inside, sticky so one group member cannot delete another's files |
 | volume files (`cache-*`)               | `pagespeed:pagespeed` | 0660 | Both processes read and write cache entries                                                                                                      |
 | `pagespeed-shared.conf`                | `pagespeed:pagespeed` | 0640 | nginx reads socket path / sizing / toggles                                                                                                       |
 | `.pagespeed-serve-stats`               | `pagespeed:pagespeed` | 0660 | Shared serve-stats mmap                                                                                                                          |
@@ -14802,7 +14802,7 @@ rather than recreating the modes by hand.
 ### Upgrading from an earlier release
 
 The worker's default cache and socket paths moved to
-`/var/cache/pagespeed-optimizer/v2/cache` and
+`/var/cache/pagespeed-optimizer/v3/cache` and
 `/run/pagespeed-optimizer/notify.sock`; a web-server configuration that still
 names the old paths attaches to an abandoned cache and reports the socket as
 absent. The worker also refuses to start, naming the cause, when its cache
@@ -14817,7 +14817,7 @@ If you see persistent `MISS` responses or worker processing errors, check
 permissions:
 
 ```bash
-ls -la /var/cache/pagespeed-optimizer/v2/
+ls -la /var/cache/pagespeed-optimizer/v3/
 # Expected:
 # drwxrws---  pagespeed pagespeed  .
 # -rw-rw----  pagespeed pagespeed  cache-1-....dat
@@ -16716,7 +16716,7 @@ been requested before.
    config matches the worker's cache (`--cache-dir` / `--cache-path`).
 
    **After upgrading to 2.1 this is the first thing to check.** The worker's
-   default paths moved to `/var/cache/pagespeed-optimizer/v2/cache` and
+   default paths moved to `/var/cache/pagespeed-optimizer/v3/cache` and
    `/run/pagespeed-optimizer/notify.sock`, but your web-server configuration
    keeps whatever it was set to. A configuration still naming the old
    `/var/lib/pagespeed-optimizer/...` paths makes the module attach to the
@@ -16738,7 +16738,7 @@ been requested before.
    Check:
 
    ```bash
-   ls -la /var/cache/pagespeed-optimizer/v2/
+   ls -la /var/cache/pagespeed-optimizer/v3/
    id www-data   # (or apache / nginx) — must list "pagespeed"
    ```
 
@@ -16770,7 +16770,7 @@ been requested before.
 
    ```bash
    grep 'cache-directory generation' /var/log/nginx/error.log | tail -1
-   grep cache_dir_generation /var/cache/pagespeed-optimizer/v2/pagespeed-shared.conf
+   grep cache_dir_generation /var/cache/pagespeed-optimizer/v3/pagespeed-shared.conf
    ```
 
    Or expose `$pagespeed_cache_generation` (`match`, `mismatch`, `unknown`)
@@ -16833,7 +16833,7 @@ are not transcoded, CSS/JS are not minified, and no optimized variants appear.
 
    ```bash
    # Check the shared config and socket file
-   cat /var/cache/pagespeed-optimizer/v2/pagespeed-shared.conf
+   cat /var/cache/pagespeed-optimizer/v3/pagespeed-shared.conf
    ls -la /run/pagespeed-optimizer/notify.sock
    ```
 
@@ -20973,7 +20973,7 @@ Security: the bundled HTTPS fetch library is updated to curl 8.22.0, which addre
 
 **Before you upgrade**
 
-Changed (plan for this before you upgrade): the disk cache starts empty once. The cache library moves to a new on-disk format. The module's own disk cache (`ModPagespeedFileCachePath`) opens a new file beside the old one. The optimizer worker's default cache directory is now `/var/cache/pagespeed-optimizer/v2` (1.16.0 used `…/v1`), and the packaged `pagespeed_daemon.conf` points `ModPagespeedDaemonVolumePath` at `/var/cache/pagespeed-optimizer/v2/cache`. If you set the cache path yourself (`ModPagespeedDaemonVolumePath`, `pagespeed_cache_path`), change `v1` to `v2`. After the upgrade the cache refills as traffic arrives, so expect a lower hit rate for a while. The old files are left on disk, so a rollback to 1.16.0 starts with a warm cache (on nginx, only until you run the one-time flush below); delete them once you will not roll back. The optimizer packages print a notice when they find the `v1` directory.
+Changed (plan for this before you upgrade): the disk cache starts empty once. The cache library moves to a new on-disk format. The module's own disk cache (`ModPagespeedFileCachePath`) opens a new file beside the old one. The optimizer worker's default cache directory is now `/var/cache/pagespeed-optimizer/v3` (1.16.0 used `…/v1`), and the packaged `pagespeed_daemon.conf` points `ModPagespeedDaemonVolumePath` at `/var/cache/pagespeed-optimizer/v3/cache`. If you set the cache path yourself (`ModPagespeedDaemonVolumePath`, `pagespeed_cache_path`), change `v1` to `v2`. After the upgrade the cache refills as traffic arrives, so expect a lower hit rate for a while. The old files are left on disk, so a rollback to 1.16.0 starts with a warm cache (on nginx, only until you run the one-time flush below); delete them once you will not roll back. The optimizer packages print a notice when they find the `v1` directory.
 
 Changed: upgrade the module and the optimizer worker together, and start the optimizer first. A module and an optimizer on different cache formats do not share a cache. The Apache module refuses to attach to the optimizer's cache and says so. The native nginx module, when it uses the optimizer worker, starts with in-place optimization through the optimizer off and the reason in the error log; right after an update that changes the cache format, a fresh start of nginx in that window can fail instead, again with the reason in the error log. Starting the optimizer and then restarting the web server clears both. The nginx module of the reverse-proxy and container deployments keeps serving, turns its cache off and logs one error until the two agree. The fix for lost optimized copies (below) also needs both on this release. On Linux, upgrading or reinstalling the `pagespeed-optimizer` package (deb or rpm) turns the optimizer service back on and restarts it even if you had turned it off, as 1.16.0 already did.
 
