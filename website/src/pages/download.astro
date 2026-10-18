@@ -86,7 +86,7 @@ const integrations = [
     badge: 'Native module',
     description:
       'MSI installer for Windows Server. Enable in IIS Manager, iisreset, and the optimization pipeline is live.',
-    note: 'Running IISpeed? Uninstall it first — both modules cannot coexist on the same host.',
+    note: 'Running IISpeed? Uninstall it first — both modules cannot coexist on the same host. The installer takes every IIS site on the server down while it runs; see the maintenance-window note in the install guide.',
     requirements: `${rel11.compat.iis.os[0]} or later, IIS ${rel11.compat.iis.iis_versions.join('/')}, x64`,
     href: '/docs/install-iis/',
     cta: 'Install guide',
@@ -233,8 +233,12 @@ const jsonLd = {
         <a href="/docs/install-iis/" class="text-interactive underline">
           install guide
         </a>
-        . The worker packages (deb, rpm and Windows zip, with a checksum list) of every release are
-        on the project's{' '}
+        ; the installer takes every IIS site on the server down while it runs, so read its{' '}
+        <a href="/docs/install-iis/#install-the-module" class="text-interactive underline">
+          maintenance-window note
+        </a>{' '}
+        first. The worker packages (deb, rpm and Windows zip, with a checksum list) of every release
+        are on the project's{' '}
         <a
           href="https://github.com/We-Amp/pagespeed-optimizer/releases/latest"
           class="text-interactive underline"

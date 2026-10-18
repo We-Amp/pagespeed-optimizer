@@ -52,7 +52,7 @@ $msi
 
 Running the MSI takes every IIS site on the server down for the duration — the
 installer stops WAS and W3SVC and force-kills `w3wp.exe` workers, and in-flight
-requests are dropped — for an install, an upgrade and an uninstall alike. Ask
+requests are dropped — for an install, an upgrade, a repair and an uninstall alike. Ask
 the operator for a maintenance window before this step and before an uninstall.
 
 Install silently and fail on any exit code other than 0 or 3010 (3010: installed,

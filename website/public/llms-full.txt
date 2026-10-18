@@ -1800,7 +1800,9 @@ Machine-readable recipe for coding agents: [modpagespeed.com/recipes/iis.md](htt
 > every IIS site on the server down for the duration, not only the sites it
 > optimizes. The installer stops the Windows Process Activation Service (WAS)
 > and the World Wide Web Publishing Service (W3SVC), force-kills any `w3wp.exe`
-> worker process still running, and starts IIS again when it is done. In-flight
+> worker process still running, and starts IIS again when it is done; anything
+> else that depends on WAS, such as the WCF non-HTTP activation services
+> (net.tcp, net.pipe, net.msmq), is stopped with it and not restarted. In-flight
 > requests are dropped. Plan a maintenance window.
 
 1. Download the [IIS MSI installer](https://modpagespeed.com/download/#direct-downloads) from the Download
@@ -1883,7 +1885,7 @@ No. Both register the same handler in IIS and one or both fail at site startup. 
 
 **Does the IIS installer include the optimizer worker?**
 
-Not yet. An upcoming release of the installer adds it as the Windows service `WeAmpPageSpeedOptimizer`, installed disabled; until you turn it on and point the module at it with `DaemonSocketPath` and `DaemonVolumePath`, the module optimizes on its own exactly as it does today. The MSI you can download today does not include the service.
+Not yet. An upcoming release of the installer adds it as the Windows service `WeAmpPageSpeedOptimizer`, installed disabled; until you turn it on and point the module at it with `DaemonSocketPath` and `DaemonVolumePath`, the module optimizes on its own exactly as it does today.
 
 ---
 
@@ -2829,14 +2831,16 @@ The `emptyDir` cache is lost on pod restart and rebuilds as requests arrive.
 > every IIS site on the server down for the duration, not only the sites it
 > optimizes. The installer stops the Windows Process Activation Service (WAS)
 > and the World Wide Web Publishing Service (W3SVC), force-kills any `w3wp.exe`
-> worker process still running, and starts IIS again when it is done. In-flight
+> worker process still running, and starts IIS again when it is done; anything
+> else that depends on WAS, such as the WCF non-HTTP activation services
+> (net.tcp, net.pipe, net.msmq), is stopped with it and not restarted. In-flight
 > requests are dropped. Plan a maintenance window.
 
 Download the current MSI from the [download page](https://modpagespeed.com/download/) and run it over
 the existing install, then `iisreset`. The optimizer service is not in the MSI
-you can download today; once an installer release adds it, an upgrade or repair
-keeps a service you turned on running and keeps the cache size you chose. The
-IIS package ships from the 1.15 packaging channel.
+you can download today; an upcoming installer release adds it, and from then
+on an upgrade or repair keeps a service you turned on running and keeps the
+cache size you chose. The IIS package ships from the 1.15 packaging channel.
 
 ## ASP.NET Core
 
@@ -3140,7 +3144,9 @@ channel.
 > every IIS site on the server down for the duration, not only the sites it
 > optimizes. The installer stops the Windows Process Activation Service (WAS)
 > and the World Wide Web Publishing Service (W3SVC), force-kills any `w3wp.exe`
-> worker process still running, and starts IIS again when it is done. In-flight
+> worker process still running, and starts IIS again when it is done; anything
+> else that depends on WAS, such as the WCF non-HTTP activation services
+> (net.tcp, net.pipe, net.msmq), is stopped with it and not restarted. In-flight
 > requests are dropped. Plan a maintenance window.
 
 1. **Uninstall IISpeed.** _Apps & features_ (or _Programs and Features_) →
@@ -10745,7 +10751,7 @@ Path separators: backslashes (`\`) are converted to forward slashes internally. 
 
 Use match rules to apply different settings based on the request hostname or URL path. Match rules use [RE2 regular expressions](https://github.com/google/re2/wiki/Syntax).
 
-Write a rule as `hostname:` or `path:` followed directly by the regex, with no space after the colon: everything after the colon up to the end of the line, spaces included, is the regex. The regex must match the whole value (an RE2 full match), so `path:^/blog/` matches only the exact path `/blog/`; end a prefix rule with `.*` to match everything under it. `hostname` is matched against the request's host name and `path` against the URL path without the query string.
+Write a rule as `hostname:` or `path:` followed directly by the regex, with no space after the colon: everything after the colon up to the end of the line, spaces included, is the regex. The regex must match the whole value (an RE2 full match), so `path:^/blog/` matches only the exact path `/blog/`; end a prefix rule with `.*` to match everything under it. `hostname` is matched against the request's host name and `path` against the URL path without the query string. Trailing spaces are part of the regex too, so a rule that ends in `$ ` never matches. The host name is lowercased before it is matched, so write a `hostname` pattern in lowercase or prefix it with `(?i)`.
 
 ### hostname
 
@@ -16611,7 +16617,9 @@ HPA, ConfigMap). The `emptyDir` cache goes with the pods.
 > every IIS site on the server down for the duration, not only the sites it
 > optimizes. The installer stops the Windows Process Activation Service (WAS)
 > and the World Wide Web Publishing Service (W3SVC), force-kills any `w3wp.exe`
-> worker process still running, and starts IIS again when it is done. In-flight
+> worker process still running, and starts IIS again when it is done; anything
+> else that depends on WAS, such as the WCF non-HTTP activation services
+> (net.tcp, net.pipe, net.msmq), is stopped with it and not restarted. In-flight
 > requests are dropped. Plan a maintenance window.
 
 1. Remove the `pagespeed` directives you no longer want, or leave the
@@ -21122,7 +21130,9 @@ Fixed: when the web server starts with in-place optimization off because it cann
 
 **IIS and Windows**
 
-Added (IIS): the installer also installs the optimizer worker, as the Windows service `WeAmpPageSpeedOptimizer`, disabled, under its own virtual account. Turned on and pointed at with the `DaemonSocketPath` and `DaemonVolumePath` directives, it takes over in-place optimization: the module records each eligible resource, the optimizer builds optimized variants, and the module serves the variant that fits each client. An upgrade or repair with the Windows installer keeps an optimizer you turned on running and keeps the cache size you chose (`OPTIMIZERCACHESIZE`, 1 GiB by default). Installs that do not turn it on behave as before. The Windows installer that carries this has not been published yet: the MSI on the download page does not include the service.
+*Note (2026-10-18): the Windows installer and IIS module build carrying the IIS changes in this entry have not been published; the MSI on the download page is 1.15.0 and does not include them.*
+
+Added (IIS): the installer also installs the optimizer worker, as the Windows service `WeAmpPageSpeedOptimizer`, disabled, under its own virtual account. Turned on and pointed at with the `DaemonSocketPath` and `DaemonVolumePath` directives, it takes over in-place optimization: the module records each eligible resource, the optimizer builds optimized variants, and the module serves the variant that fits each client. An upgrade or repair with the Windows installer keeps an optimizer you turned on running and keeps the cache size you chose (`OPTIMIZERCACHESIZE`, 1 GiB by default). Installs that do not turn it on behave as before.
 
 Added: the Windows optimizer worker runs as a Windows service. Register it with `--service` on its command line; the Service Control Manager starts it, sees it as running once it is ready, and stops it gracefully on a service stop or at system shutdown. `--log-file PATH`, valid only with `--service`, appends the log to a file.
 

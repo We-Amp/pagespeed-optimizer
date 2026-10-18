@@ -9,7 +9,7 @@ faq:
   - q: 'Can the IIS module and IISpeed run on the same host?'
     a: 'No. Both register the same handler in IIS and one or both fail at site startup. Uninstall IISpeed, run `iisreset`, then run the MSI. Your IISpeed configuration files keep working.'
   - q: 'Does the IIS installer include the optimizer worker?'
-    a: 'Not yet. An upcoming release of the installer adds it as the Windows service `WeAmpPageSpeedOptimizer`, installed disabled; until you turn it on and point the module at it with `DaemonSocketPath` and `DaemonVolumePath`, the module optimizes on its own exactly as it does today. The MSI you can download today does not include the service.'
+    a: 'Not yet. An upcoming release of the installer adds it as the Windows service `WeAmpPageSpeedOptimizer`, installed disabled; until you turn it on and point the module at it with `DaemonSocketPath` and `DaemonVolumePath`, the module optimizes on its own exactly as it does today.'
 ---
 
 mod_pagespeed runs on IIS as a native, in-process module: the successor to
@@ -34,7 +34,9 @@ Running the MSI — to install, upgrade, repair or uninstall the module — take
 every IIS site on the server down for the duration, not only the sites it
 optimizes. The installer stops the Windows Process Activation Service (WAS)
 and the World Wide Web Publishing Service (W3SVC), force-kills any `w3wp.exe`
-worker process still running, and starts IIS again when it is done. In-flight
+worker process still running, and starts IIS again when it is done; anything
+else that depends on WAS, such as the WCF non-HTTP activation services
+(net.tcp, net.pipe, net.msmq), is stopped with it and not restarted. In-flight
 requests are dropped. Plan a maintenance window.
 :::
 

@@ -125,15 +125,17 @@ Running the MSI — to install, upgrade, repair or uninstall the module — take
 every IIS site on the server down for the duration, not only the sites it
 optimizes. The installer stops the Windows Process Activation Service (WAS)
 and the World Wide Web Publishing Service (W3SVC), force-kills any `w3wp.exe`
-worker process still running, and starts IIS again when it is done. In-flight
+worker process still running, and starts IIS again when it is done; anything
+else that depends on WAS, such as the WCF non-HTTP activation services
+(net.tcp, net.pipe, net.msmq), is stopped with it and not restarted. In-flight
 requests are dropped. Plan a maintenance window.
 :::
 
 Download the current MSI from the [download page](/download/) and run it over
 the existing install, then `iisreset`. The optimizer service is not in the MSI
-you can download today; once an installer release adds it, an upgrade or repair
-keeps a service you turned on running and keeps the cache size you chose. The
-IIS package ships from the 1.15 packaging channel.
+you can download today; an upcoming installer release adds it, and from then
+on an upgrade or repair keeps a service you turned on running and keeps the
+cache size you chose. The IIS package ships from the 1.15 packaging channel.
 
 ## ASP.NET Core
 
