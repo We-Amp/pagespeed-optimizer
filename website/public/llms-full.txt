@@ -7290,7 +7290,7 @@ Cache directory; the volume, shared config and serve-stats live inside it (defau
 factory_worker --cache-dir /var/cache/pagespeed-optimizer/v3
 ```
 
-The `v2` in the default is the compiled-in cache-directory generation. The
+The `v3` in the default is the compiled-in cache-directory generation. The
 directory must exist, be writable by the worker, and contain only files owned by
 the worker's user; otherwise the worker refuses to start and names the cause.
 The packaged tmpfiles.d drop-in creates the default as 3770
@@ -20973,7 +20973,7 @@ Security: the bundled HTTPS fetch library is updated to curl 8.22.0, which addre
 
 **Before you upgrade**
 
-Changed (plan for this before you upgrade): the disk cache starts empty once. The cache library moves to a new on-disk format. The module's own disk cache (`ModPagespeedFileCachePath`) opens a new file beside the old one. The optimizer worker's default cache directory is now `/var/cache/pagespeed-optimizer/v3` (1.16.0 used `…/v1`), and the packaged `pagespeed_daemon.conf` points `ModPagespeedDaemonVolumePath` at `/var/cache/pagespeed-optimizer/v3/cache`. If you set the cache path yourself (`ModPagespeedDaemonVolumePath`, `pagespeed_cache_path`), change `v1` to `v2`. After the upgrade the cache refills as traffic arrives, so expect a lower hit rate for a while. The old files are left on disk, so a rollback to 1.16.0 starts with a warm cache (on nginx, only until you run the one-time flush below); delete them once you will not roll back. The optimizer packages print a notice when they find the `v1` directory.
+Changed (plan for this before you upgrade): the disk cache starts empty once. The cache library moves to a new on-disk format. The module's own disk cache (`ModPagespeedFileCachePath`) opens a new file beside the old one. The optimizer worker's default cache directory is now `/var/cache/pagespeed-optimizer/v2` (1.16.0 used `…/v1`), and the packaged `pagespeed_daemon.conf` points `ModPagespeedDaemonVolumePath` at `/var/cache/pagespeed-optimizer/v2/cache`. If you set the cache path yourself (`ModPagespeedDaemonVolumePath`, `pagespeed_cache_path`), change `v1` to `v2`. After the upgrade the cache refills as traffic arrives, so expect a lower hit rate for a while. The old files are left on disk, so a rollback to 1.16.0 starts with a warm cache (on nginx, only until you run the one-time flush below); delete them once you will not roll back. The optimizer packages print a notice when they find the `v1` directory.
 
 Changed: upgrade the module and the optimizer worker together, and start the optimizer first. A module and an optimizer on different cache formats do not share a cache. The Apache module refuses to attach to the optimizer's cache and says so. The native nginx module, when it uses the optimizer worker, starts with in-place optimization through the optimizer off and the reason in the error log; right after an update that changes the cache format, a fresh start of nginx in that window can fail instead, again with the reason in the error log. Starting the optimizer and then restarting the web server clears both. The nginx module of the reverse-proxy and container deployments keeps serving, turns its cache off and logs one error until the two agree. The fix for lost optimized copies (below) also needs both on this release. On Linux, upgrading or reinstalling the `pagespeed-optimizer` package (deb or rpm) turns the optimizer service back on and restarts it even if you had turned it off, as 1.16.0 already did.
 
