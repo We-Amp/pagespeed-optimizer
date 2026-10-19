@@ -2101,9 +2101,15 @@ There is no `auto`. `GET /v1/health` reports the resolved state as
 monitoring check can see an unsandboxed browser without reading logs. The
 setting is also readable from the environment as `PAGESPEED_BROWSER_SANDBOX`.
 
-Container images currently run as root, where Chrome declines to sandbox
-itself; set `PAGESPEED_BROWSER_SANDBOX=off` if you want browser analysis there,
-or run the container as a non-root user.
+The container images start as root for one setup step and then drop the
+worker to the unprivileged `pagespeed` user (UID 918) before it starts, so the
+non-root requirement is met inside them. What remains is the runtime's seccomp
+profile: the default Docker and Kubernetes profiles filter out the namespace
+flags Chrome's sandbox needs, so the probe reports `unavailable` until the
+container gets a profile that allows them (the Helm chart's
+`podSecurityContext` comment has the recipe). Set
+`PAGESPEED_BROWSER_SANDBOX=off` only to accept an unsandboxed browser
+deliberately.
 
 If the sandbox probe is refused by a kernel syscall filter rather than by the
 kernel's user-namespace policy, the message says so, so you can tell "this host
