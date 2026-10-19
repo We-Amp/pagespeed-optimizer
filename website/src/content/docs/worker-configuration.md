@@ -3,7 +3,7 @@ title: 'Worker and reverse-proxy configuration'
 description: 'Every optimizer worker flag and thin nginx module directive of mod_pagespeed 2.1 (the Docker and reverse-proxy shape), generated from the source.'
 order: 21
 group: 'Configure'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-19
 faq:
   - q: 'What is the difference between safe and aggressive cache modes?'
     a: 'Safe mode adds `must-revalidate` to non-HTML responses, suppresses stale-while-revalidate synthesis, and strips `immutable`. Aggressive mode adds `public` and `stale-if-error=86400` and allows SWR synthesis. HTML always gets `no-cache` in both modes.'
@@ -2271,14 +2271,18 @@ connection was authenticated first: send `AUTH <token>` and then `PURGE`
 followed by the hostname and URL, on the same connection. The token is the
 worker's `PAGESPEED_PURGE_TOKEN` (the packages generate it into
 `/etc/pagespeed-optimizer/daemon.env`; the container images generate one per
-start and print it once in the container log unless you set it):
+start and print it once in the container log unless you set it). It is not in
+your shell by itself; [Purge and re-test a specific
+URL](/docs/troubleshooting/#purge-and-re-test-a-specific-url) shows how to
+read it per deployment before running:
 
 ```bash
 printf 'AUTH %s\nPURGE example.com /images/photo.jpg\n' "$PAGESPEED_PURGE_TOKEN" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
 ```
 
 **Response:** `OK\n` to the `AUTH`, then `OK N entries deleted\n` where N is
-the number of cache entries removed. A `PURGE` without `AUTH` answers
+the number of cache entries removed (`OK 0 entries deleted (URL not found — may
+have been evicted or never cached)\n` when nothing matched). A `PURGE` without `AUTH` answers
 `ERR authentication required\n` (`ERR no purge token configured\n` when the
 worker has no token), and a wrong token answers `ERR invalid token\n`. The
 PURGE command iterates all possible capability mask combinations
@@ -2300,6 +2304,10 @@ use cases:
   the worker's processing logs.
 - **Selective cache clearing:** Unlike restarting the worker or deleting the
   cache file (which loses everything), PURGE targets individual URLs.
+
+The HTTP API's [`POST /v1/cache/purge`](/docs/http-api/#post-v1cachepurge)
+does the same without the management socket; its credential is group
+membership over the API's unix socket, or the bearer token over TCP.
 
 For bulk invalidation, send multiple PURGE commands. Each iteration opens a
 new connection to the management socket, and authentication is per

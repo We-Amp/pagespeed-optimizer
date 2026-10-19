@@ -3,7 +3,7 @@ title: 'Troubleshoot common issues'
 description: 'Fix common mod_pagespeed 2.1 issues: cache misses, images not converting to WebP or AVIF, the optimizer worker not processing, and socket diagnostics.'
 order: 58
 group: 'Operate'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-19
 ---
 
 Most mod_pagespeed 2.1 problems surface in one place: the `X-PageSpeed`
@@ -301,9 +301,16 @@ Look for:
 To force the worker to re-process a URL:
 
 ```bash
-# Purge all variants. PURGE needs AUTH first, on the same connection; the token
-# is the worker's PAGESPEED_PURGE_TOKEN (in /etc/pagespeed-optimizer/daemon.env
-# on the packages; printed once at container start when you did not set it)
+# PURGE needs AUTH first, on the same connection. The worker's
+# PAGESPEED_PURGE_TOKEN is not in your shell by itself; read it in first.
+# Packages: the env file is root-only, one KEY=value per line
+PAGESPEED_PURGE_TOKEN=$(sudo sed -n 's/^PAGESPEED_PURGE_TOKEN=//p' /etc/pagespeed-optimizer/daemon.env)
+# Container images and the Helm chart: the worker prints the token once at
+# start when you did not set it -- `docker logs <worker> 2>&1 | grep PAGESPEED_PURGE_TOKEN=`
+# or `kubectl logs <worker pod> | grep PAGESPEED_PURGE_TOKEN=` -- or set it
+# yourself in the compose file's `environment:` and use that value.
+
+# Purge all variants
 printf 'AUTH %s\nPURGE localhost /images/photo.jpg\n' "$PAGESPEED_PURGE_TOKEN" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
 
 # Request the URL again (triggers a cache miss and new notification)
@@ -316,6 +323,13 @@ curl -H "Accept: image/webp,*/*" http://localhost/images/photo.jpg -o /dev/null 
 
 If the second request returns a smaller size, the worker is processing
 correctly for that URL.
+
+A refused purge says why: `ERR authentication required` means this connection
+sent no `AUTH` (an `AUTH` on another connection does not count);
+`ERR invalid token` means the token was wrong, which is also what an empty
+`$PAGESPEED_PURGE_TOKEN` produces; `ERR no purge token configured` means the
+worker started without a token, so no purge is possible until it has one. The
+responses are listed under [`AUTH`](/docs/api-reference/#auth-token).
 
 ### Cannot connect to management socket
 

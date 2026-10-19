@@ -3,7 +3,7 @@ title: 'Release notes: 2.1'
 description: 'mod_pagespeed 2.1.0 release notes: the first release of the module and the optimizer worker as one product (packages 1.16.0), with hardened defaults.'
 order: 81
 group: 'Release notes by line'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-19
 ---
 
 import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
@@ -596,8 +596,8 @@ original was saved at, producing a larger file with no visible improvement; a
 JPEG re-encode is now capped at the quality detected in the source.
 The `no_quality_cap` setting turns the cap off and now takes effect;
 `quality_cap_margin` is still accepted but no longer raises the cap. Both are
-configuration-file settings (`pagespeed.json` next to the cache volume, or
-`PATCH /v1/config`), not command-line flags.
+worker configuration settings — `pagespeed.json` next to the cache volume, or
+`PATCH /v1/config` — not command-line flags.
 
 Fixed: a stylesheet with an invalid value in a complete longhand
 family no longer loses the whole family through minification. A browser drops

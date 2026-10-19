@@ -3,7 +3,7 @@ title: 'API reference: IPC, sockets, and C API'
 description: 'mod_pagespeed 2.1 internal interfaces: the module-to-worker IPC wire format, the health and management sockets, the capability mask and the ps_ C API.'
 order: 65
 group: 'Reference'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-19
 ---
 
 This page documents the internal protocols and interfaces of mod_pagespeed 2.1:
@@ -126,7 +126,8 @@ a connection, writes the response, and closes. No request data is needed.
 
 The worker listens on a Unix socket at `{socket_path}.mgmt` for
 newline-terminated text commands. After processing a command, the worker writes
-a response and closes the connection.
+a response and closes the connection; the one exception is a successful `AUTH`,
+which keeps the connection open for the `PURGE` that follows.
 
 ### Socket path
 
@@ -208,7 +209,8 @@ send both commands on the same connection.
 **Request:** `AUTH <your-token>\n` followed by `PURGE example.com /images/photo.jpg\n`
 
 **Response:** `OK\n` to the `AUTH`, then `OK N entries deleted\n` to the
-`PURGE`. A `PURGE` without a preceding `AUTH` answers
+`PURGE`; when nothing matched, `OK 0 entries deleted (URL not found — may have
+been evicted or never cached)\n`. A `PURGE` without a preceding `AUTH` answers
 `ERR authentication required\n`, or `ERR no purge token configured\n` when the
 worker has no purge token.
 
@@ -219,6 +221,11 @@ for Early Hints (`0x1C`) and warmup (`0x2C`).
 
 The maximum number of entries deleted per URL is 192 (4 formats x 3 viewports
 x 2 densities x 2 Save-Data x 4 encodings) plus 2 sentinel entries = 194.
+
+The HTTP API offers the same operation as
+[`POST /v1/cache/purge`](/docs/http-api/#post-v1cachepurge); there the
+credential is group membership over the API's unix socket, or the bearer token
+over TCP.
 
 #### `AUTH <token>`
 
