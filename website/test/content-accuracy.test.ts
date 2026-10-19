@@ -1232,6 +1232,7 @@ const DENYLIST: DenyRule[] = [
       'src/content/docs/release-notes-2-2.mdx',
       'src/content/docs/release-notes-2-3.mdx',
       'src/content/docs/release-notes-2-4.mdx',
+      'src/content/docs/release-notes-2-5.mdx',
       'src/content/docs/release-notes.mdx',
       // The legal pages, which enumerate the predecessor lines by name because
       // the terms they state apply to each of them.
