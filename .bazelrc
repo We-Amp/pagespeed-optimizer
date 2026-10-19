@@ -145,6 +145,11 @@ build:sanitizer --strip=never
 # sanitizer so the :hardening config can never compose badly with one. -U first
 # avoids a -Wmacro-redefined error under the per-file -Werror.
 build:sanitizer --copt=-U_FORTIFY_SOURCE
+# Instrumented binaries run two to three times slower than plain ones, so a
+# test sized right for a plain build can hit its limit under a sanitizer on a
+# busy host. Scale the short, moderate and long limits by three; eternal stays
+# at an hour, which is the order of the jobs' own wall-clock limits.
+test:sanitizer --test_timeout=180,900,2700,3600
 # Note on libc++: sanitizer builds run inside the pagespeed2-dev container
 # (Ubuntu 22.04). System libstdc++ on jammy is GCC-11 which lacks `<expected>`
 # (C++23); Cyclone uses `<expected>` so the build fails without -stdlib=libc++.
