@@ -7,7 +7,7 @@ commands run in an elevated PowerShell on the Windows Server host.
 
 ## 1. Prerequisites
 
-Windows Server 2019 or later, IIS 10 or later, 64-bit, the Visual C++
+Windows Server 2016 or later, IIS 10, 64-bit, the Visual C++
 Redistributable 2022, and no IISpeed on the host: both register the same
 handler, so uninstall IISpeed first and run `iisreset`.
 

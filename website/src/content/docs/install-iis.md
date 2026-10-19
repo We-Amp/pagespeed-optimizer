@@ -21,7 +21,7 @@ Machine-readable recipe for coding agents: [modpagespeed.com/recipes/iis.md](htt
 
 ## Requirements
 
-- Windows Server 2019 or later (IIS 10 or later)
+- Windows Server 2016 or later, with IIS 10 (the release is tested on Windows Server 2016)
 - 64-bit only
 - Visual C++ Redistributable 2022
 - The IIS worker process identity needs write access to the cache directory;

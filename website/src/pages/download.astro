@@ -92,7 +92,7 @@ const integrations = [
     description:
       'MSI installer for Windows Server. Enable in IIS Manager, iisreset, and the optimization pipeline is live.',
     note: 'Running IISpeed? Uninstall it first — both modules cannot coexist on the same host.',
-    requirements: `${rel21.compat.iis.os[0]} or later, IIS ${rel21.compat.iis.iis_versions.join('/')}, x64`,
+    requirements: `${rel21.compat.iis.os.join(', ')}, IIS ${rel21.compat.iis.iis_versions.join('/')}, x64`,
     href: '/docs/install-iis/',
     cta: 'Install guide',
     umamiEvent: 'cta_download_iis',

@@ -84,8 +84,13 @@ compat:
   apache:
     apache_versions: ["2.4+"]
   iis:
-    os: ["Windows Server 2019", "Windows Server 2022", "Windows Server 2025"]
-    iis_versions: ["10+"]
+    # The 2.5.0 release gate installs the MSI on one guest, Windows Server
+    # 2016 with IIS 10, as an upgrade over an older installed module; the MSI
+    # is built and signed on Windows Server 2022, and the IIS system tests run
+    # on Windows 10/11 with IIS 10. No lane installs on Server 2019 or 2025, so
+    # this states a floor, not a per-version tested list.
+    os: ["Windows Server 2016 or later"]
+    iis_versions: ["10"]
   docker:
     # Release images are ubuntu:24.04-based (digest-pinned); the bundled
     # nginx is version-pinned in docker/nginx-version.txt (1.30.4).

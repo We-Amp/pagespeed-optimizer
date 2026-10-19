@@ -14,7 +14,7 @@ faq:
   - q: 'Does the native nginx module need the optimizer worker?'
     a: 'No. It optimizes on its own. To hand in-place optimization to the worker, install the `pagespeed-optimizer` package of the same release and set `pagespeed DaemonSocketPath` and `pagespeed DaemonVolumePath` in the server block. The Apache packages install that wiring for you.'
   - q: 'What are the prerequisites?'
-    a: 'For the native module: Debian 12 or 13, Ubuntu 22.04 or 24.04, or RHEL, AlmaLinux or Rocky 9 or 10, with Apache 2.4 or newer or the stock nginx of the distribution. For Docker: Docker 24 or newer; nginx ships inside the image. For IIS: Windows Server 2019 or later. For ASP.NET Core: .NET 8 or .NET 10.'
+    a: 'For the native module: Debian 12 or 13, Ubuntu 22.04 or 24.04, or RHEL, AlmaLinux or Rocky 9 or 10, with Apache 2.4 or newer or the stock nginx of the distribution. For Docker: Docker 24 or newer; nginx ships inside the image. For IIS: Windows Server 2016 or later. For ASP.NET Core: .NET 8 or .NET 10.'
   - q: 'What is safe cache mode and why is it the default?'
     a: 'Safe mode caches optimized resources for short periods (5 minutes for CSS/JS, 30 minutes for images) with mandatory revalidation, so misconfigurations self-correct quickly. It is the recommended mode while validating a new setup before switching to aggressive.'
 ---
@@ -47,7 +47,7 @@ Installing with a coding agent? [Install with a coding agent](/docs/agent-instal
   or Rocky 9 or 10, with Apache 2.4 or newer or the distribution's stock nginx.
 - **Docker reverse proxy:** Docker 24 or newer and Docker Compose v2; nginx
   ships inside the image, so you do not install it yourself.
-- **IIS:** Windows Server 2019 or later, 64-bit, with the Visual C++
+- **IIS:** Windows Server 2016 or later, 64-bit, with the Visual C++
   Redistributable 2022.
 - **ASP.NET Core:** .NET 8 or .NET 10.
 
