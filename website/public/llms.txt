@@ -143,6 +143,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 - [Release notes: 2.4](https://modpagespeed.com/docs/release-notes-2-4/): mod_pagespeed 2.4.0 release notes: the module and the optimizer worker as one release (packages 1.19.0), with several rule packs and a security fix.
 - [Release notes: 2.3](https://modpagespeed.com/docs/release-notes-2-3/): mod_pagespeed 2.3.0 release notes: the module and the optimizer worker as one release (packages 1.18.0), with rule packs and security fixes.
+- [Release notes: 2.5](https://modpagespeed.com/docs/release-notes-2-5/): mod_pagespeed 2.5.0 release notes: a security update for the module and the optimizer worker, and one version number from this release on.
 - [Release notes: 2.2](https://modpagespeed.com/docs/release-notes-2-2/): mod_pagespeed 2.2.0 release notes: the module and the optimizer worker as one release (packages 1.17.0), its security fixes and what changed.
 - [Release notes: 2.1](https://modpagespeed.com/docs/release-notes-2-1/): mod_pagespeed 2.1.0 release notes: the first release of the module and the optimizer worker as one product (packages 1.16.0), with hardened defaults.
 - [Release notes: the 2.0 optimizer worker](https://modpagespeed.com/docs/release-notes-2-0/): Release notes for the 2.0 optimizer worker line, 2.0.0-beta.1 to 2.0.42: every release of the out-of-process optimizer before the converged 2.1 line.
