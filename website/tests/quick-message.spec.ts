@@ -110,11 +110,11 @@ test.describe('QuickMessage widget', () => {
     expect(hits).toBe(0);
   });
 
-  test('shows a privacy notice naming Telegram + linking the policy', async ({ page }) => {
+  test('shows a privacy notice naming email delivery + linking the policy', async ({ page }) => {
     await page.goto('/');
     await page.locator('[data-qm-launcher]').click();
     const privacy = page.locator('.qm-privacy');
-    await expect(privacy).toContainText('Telegram');
+    await expect(privacy).toContainText('go to We-Amp by email');
     await expect(privacy.locator('a[href="https://we-amp.com/privacy/"]')).toBeVisible();
   });
 
