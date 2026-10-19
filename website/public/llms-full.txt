@@ -272,11 +272,11 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ## Distribution
 
-- Signed apt and yum repository at https://packages.modpagespeed.com/ (GPG key https://packages.modpagespeed.com/pubkey.gpg; one-time setup `curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh`): `mod-pagespeed` (the Apache module), `nginx-module-pagespeed` (the nginx module, prebuilt and pinned to each distribution's stock nginx: Debian 12 bookworm (nginx 1.22.1), Debian 13 trixie (nginx 1.26.3), Ubuntu 22.04 jammy (nginx 1.18.0), Ubuntu 24.04 noble (nginx 1.24.0), amd64 + arm64; AlmaLinux 9 via yum against stock nginx 1.20.1) and `pagespeed-optimizer` (the optimizer worker). Current release: mod_pagespeed 2.4.0 (2026-10-14). See [the apt/yum repository](https://modpagespeed.com/download/apt-yum/) and [Install the module on Apache and nginx](https://modpagespeed.com/docs/installation-module/).
-- Container images on GHCR: `ghcr.io/we-amp/pagespeed-nginx:2.4.0` (nginx with the module) and `ghcr.io/we-amp/pagespeed-worker:2.4.0` (the optimizer worker), on ubuntu:24.04. See [Install with Docker](https://modpagespeed.com/docs/installation-docker/).
-- Helm chart `pagespeed` from the repository `https://modpagespeed.com/charts` (`helm repo add weamp https://modpagespeed.com/charts`; index at https://modpagespeed.com/charts/index.yaml; application version 2.4.0; Kubernetes 1.28+, 1.29+, 1.30+; Helm 3.12+). See [Deploy with Helm](https://modpagespeed.com/docs/helm-deployment/).
+- Signed apt and yum repository at https://packages.modpagespeed.com/ (GPG key https://packages.modpagespeed.com/pubkey.gpg; one-time setup `curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh`): `mod-pagespeed` (the Apache module), `nginx-module-pagespeed` (the nginx module, prebuilt and pinned to each distribution's stock nginx: Debian 12 bookworm (nginx 1.22.1), Debian 13 trixie (nginx 1.26.3), Ubuntu 22.04 jammy (nginx 1.18.0), Ubuntu 24.04 noble (nginx 1.24.0), amd64 + arm64; AlmaLinux 9 via yum against stock nginx 1.20.1) and `pagespeed-optimizer` (the optimizer worker). Current release: mod_pagespeed 2.5.0 (2026-10-19). See [the apt/yum repository](https://modpagespeed.com/download/apt-yum/) and [Install the module on Apache and nginx](https://modpagespeed.com/docs/installation-module/).
+- Container images on GHCR: `ghcr.io/we-amp/pagespeed-nginx:2.5.0` (nginx with the module) and `ghcr.io/we-amp/pagespeed-worker:2.5.0` (the optimizer worker), on ubuntu:24.04. See [Install with Docker](https://modpagespeed.com/docs/installation-docker/).
+- Helm chart `pagespeed` from the repository `https://modpagespeed.com/charts` (`helm repo add weamp https://modpagespeed.com/charts`; index at https://modpagespeed.com/charts/index.yaml; application version 2.5.0; Kubernetes 1.28+, 1.29+, 1.30+; Helm 3.12+). See [Deploy with Helm](https://modpagespeed.com/docs/helm-deployment/).
 - IIS: the signed Windows installer from the 1.15 module channel, https://modpagespeed.com/releases/v1.15.0/pagespeed-iis-1.15.0-win-x64.msi (Windows Server 2019, Windows Server 2022, Windows Server 2025; IIS 10+; x64). See [Install on IIS](https://modpagespeed.com/docs/install-iis/).
-- NuGet `WeAmp.PageSpeed.AspNetCore` 2.4.0, the ASP.NET Core middleware (net8.0, net10.0; linux-x64, linux-arm64, osx-arm64, win-x64): `dotnet add package WeAmp.PageSpeed.AspNetCore`. See [Install ASP.NET Core middleware](https://modpagespeed.com/docs/aspnet-getting-started/).
+- NuGet `WeAmp.PageSpeed.AspNetCore` 2.5.0, the ASP.NET Core middleware (net8.0, net10.0; linux-x64, linux-arm64, osx-arm64, win-x64): `dotnet add package WeAmp.PageSpeed.AspNetCore`. See [Install ASP.NET Core middleware](https://modpagespeed.com/docs/aspnet-getting-started/).
 - NuGet `WeAmp.PageSpeed.Sidecar` with `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`, 1.17.0, the module as an ASP.NET Core sidecar (linux-x64, linux-arm64; bundles nginx 1.30.4): `dotnet add package WeAmp.PageSpeed.Sidecar`.
 - Worker packages (deb, rpm and Windows zip, with a checksum list) of every release: the [release listing](https://github.com/We-Amp/pagespeed-optimizer/releases/latest). The module packages install from the signed repositories above; see [Download](https://modpagespeed.com/download/).
 
@@ -1589,7 +1589,7 @@ Or update just the image tag. The chart takes one `image.tag` for both images
 and `nginx.image.tag` keys are rejected:
 
 ```bash
-helm upgrade pagespeed weamp/pagespeed --reuse-values --set image.tag=2.4.0
+helm upgrade pagespeed weamp/pagespeed --reuse-values --set image.tag=2.5.0
 ```
 
 The emptyDir cache is lost on pod restart. After an upgrade, the cache rebuilds
@@ -2739,7 +2739,7 @@ Upgrade mod_pagespeed 2.1 per shape: apt or dnf, Docker tag, Helm, the Windows i
 
 Canonical URL: https://modpagespeed.com/docs/upgrade/
 
-The current release is v2.4.0. Upgrading is a
+The current release is v2.5.0. Upgrading is a
 package, image or chart update on whichever shape you run, with one rule across
 all of them: the module and the optimizer worker move together, and the
 optimizer starts first. Read the current release's notes before you start; the
@@ -2802,7 +2802,7 @@ same tag. Set it in `deploy/.env` and recreate the stack:
 
 ```bash
 # deploy/.env
-PAGESPEED_VERSION=2.4.0
+PAGESPEED_VERSION=2.5.0
 
 docker compose -f deploy/docker-compose.yml pull
 docker compose -f deploy/docker-compose.yml up -d
@@ -2828,7 +2828,7 @@ Or move only the image tag. The chart takes one `image.tag` for both images
 and an nginx on different builds break the async-CSS loader:
 
 ```bash
-helm upgrade pagespeed weamp/pagespeed --reuse-values --set image.tag=2.4.0
+helm upgrade pagespeed weamp/pagespeed --reuse-values --set image.tag=2.5.0
 ```
 
 The `emptyDir` cache is lost on pod restart and rebuilds as requests arrive.
@@ -14627,7 +14627,7 @@ Edit `deploy/.env`:
 ```bash
 # Image version tag (the worker and nginx images publish version tags only;
 # there is no latest tag for them)
-PAGESPEED_VERSION=2.4.0
+PAGESPEED_VERSION=2.5.0
 
 # Your origin server, as nginx inside its container reaches it:
 # host.docker.internal is the Docker host, or use a hostname or IP
@@ -14738,7 +14738,7 @@ pulls, so retag them to those names, set `PAGESPEED_VERSION` to the same
 version in `deploy/.env`, and start the stack as above:
 
 ```bash
-V=2.4.0
+V=2.5.0
 docker/build-release.sh "$V"
 docker tag "modpagespeed/worker:$V" "ghcr.io/we-amp/pagespeed-worker:$V"
 docker tag "modpagespeed/nginx:$V" "ghcr.io/we-amp/pagespeed-nginx:$V"
@@ -15243,7 +15243,7 @@ This page is for teams shipping the mod_pagespeed 2.1 ASP.NET Core middleware
 are still evaluating the middleware locally, start with
 [Install ASP.NET Core middleware](https://modpagespeed.com/docs/aspnet-getting-started/) instead.
 
-The current NuGet release is v2.4.0. The middleware runs
+The current NuGet release is v2.5.0. The middleware runs
 in-process in your request pipeline and, by default, launches the `factory_worker`
 binary from the same package as a child process to do the expensive work — image
 transcoding and critical-CSS extraction — out of process. If you need an in-process
@@ -15334,7 +15334,7 @@ After deploy, confirm the middleware is active:
 
 ```bash
 curl -I https://<your-domain>/
-# X-PageSpeed: WeAmp.PageSpeed/2.4.0
+# X-PageSpeed: WeAmp.PageSpeed/2.5.0
 
 curl -s https://<your-domain>/healthz
 # Healthy
@@ -21017,7 +21017,7 @@ mod_pagespeed 2.4.0 release notes: the module and the optimizer worker as one re
 
 Canonical URL: https://modpagespeed.com/docs/release-notes-2-4/
 
-mod_pagespeed 2.4.0 was released on 2026-10-14 as the module and the optimizer worker together, installed as a matching pair. In the signed apt and yum repositories both parts carry the package version 1.19.0; 2.4.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.8). The current release is 2.4.0. The [release notes index](https://modpagespeed.com/docs/release-notes/) lists every release of every line, and [Security updates](https://modpagespeed.com/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it. The entry below is collapsed; open it to read it in place.
+mod_pagespeed 2.4.0 was released on 2026-10-14 as the module and the optimizer worker together, installed as a matching pair. In the signed apt and yum repositories both parts carry the package version 1.19.0; 2.4.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.8). The current release is 2.5.0. The [release notes index](https://modpagespeed.com/docs/release-notes/) lists every release of every line, and [Security updates](https://modpagespeed.com/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it. The entry below is collapsed; open it to read it in place.
 
 ## Releases
 
@@ -21116,7 +21116,7 @@ mod_pagespeed 2.3.0 release notes: the module and the optimizer worker as one re
 
 Canonical URL: https://modpagespeed.com/docs/release-notes-2-3/
 
-mod_pagespeed 2.3.0 was released on 2026-10-12 as the module and the optimizer worker together, installed as a matching pair. In the signed apt and yum repositories both parts carry the package version 1.18.0; 2.3.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.7). The current release is 2.4.0. The [release notes index](https://modpagespeed.com/docs/release-notes/) lists every release of every line, and [Security updates](https://modpagespeed.com/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it. The entry below is collapsed; open it to read it in place.
+mod_pagespeed 2.3.0 was released on 2026-10-12 as the module and the optimizer worker together, installed as a matching pair. In the signed apt and yum repositories both parts carry the package version 1.18.0; 2.3.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.7). The current release is 2.5.0. The [release notes index](https://modpagespeed.com/docs/release-notes/) lists every release of every line, and [Security updates](https://modpagespeed.com/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it. The entry below is collapsed; open it to read it in place.
 
 ## Releases
 
@@ -21246,7 +21246,7 @@ mod_pagespeed 2.2.0 release notes: the module and the optimizer worker as one re
 
 Canonical URL: https://modpagespeed.com/docs/release-notes-2-2/
 
-mod_pagespeed 2.2.0 was released on 2026-10-06 as the module and the optimizer worker together, installed as a matching pair. In the signed apt and yum repositories both parts carry the package version 1.17.0; 2.2.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.6). The current release is 2.4.0. The [release notes index](https://modpagespeed.com/docs/release-notes/) lists every release of every line, and [Security updates](https://modpagespeed.com/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it. The entry below is collapsed; open it to read it in place.
+mod_pagespeed 2.2.0 was released on 2026-10-06 as the module and the optimizer worker together, installed as a matching pair. In the signed apt and yum repositories both parts carry the package version 1.17.0; 2.2.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.6). The current release is 2.5.0. The [release notes index](https://modpagespeed.com/docs/release-notes/) lists every release of every line, and [Security updates](https://modpagespeed.com/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it. The entry below is collapsed; open it to read it in place.
 
 ## Releases
 
