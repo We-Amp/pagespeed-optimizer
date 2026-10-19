@@ -169,8 +169,11 @@ image_codec_test(
         ":test_utils",
         "//lib/base:basictypes",
         "//lib/base:message_handler",
+        "//lib/image:image_util",
         "//lib/image:pixel_format_optimizer",
         "//lib/image:png",
+        "//lib/image:scanline_interface",
+        "//lib/image:scanline_status",
     ],
 )
 

@@ -25,6 +25,16 @@ class MessageHandler;
 
 namespace image_compression {
 
+// Decode-side dimension caps. Scanline readers decode bytes fetched from
+// origin servers, which are not trusted: a tiny stream can declare
+// dimensions implying a giant decode buffer. A stream whose declared
+// dimensions exceed these caps is rejected at Initialize time, before any
+// buffer proportional to width * height is allocated.
+// Per-side pixel cap.
+inline constexpr uint32_t kScanlineMaxDimension = 16384;
+// Total pixel cap.
+inline constexpr uint64_t kScanlineMaxImagePixels = 100ull << 20;
+
 // Return the number of channels, including color channels and alpha channel,
 // for the input pixel format.
 //   GRAY_8:    1
