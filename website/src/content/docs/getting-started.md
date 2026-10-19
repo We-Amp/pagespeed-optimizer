@@ -47,8 +47,7 @@ Installing with a coding agent? [Install with a coding agent](/docs/agent-instal
   or Rocky 9 or 10, with Apache 2.4 or newer or the distribution's stock nginx.
 - **Docker reverse proxy:** Docker 24 or newer and Docker Compose v2; nginx
   ships inside the image, so you do not install it yourself.
-- **IIS:** Windows Server 2016 or later, 64-bit, with the Visual C++
-  Redistributable 2022.
+- **IIS:** Windows Server 2016 or later with IIS 10, 64-bit.
 - **ASP.NET Core:** .NET 8 or .NET 10.
 
 :::note[One worker, two names]

@@ -315,8 +315,7 @@ Installing with a coding agent? [Install with a coding agent](https://modpagespe
   or Rocky 9 or 10, with Apache 2.4 or newer or the distribution's stock nginx.
 - **Docker reverse proxy:** Docker 24 or newer and Docker Compose v2; nginx
   ships inside the image, so you do not install it yourself.
-- **IIS:** Windows Server 2016 or later, 64-bit, with the Visual C++
-  Redistributable 2022.
+- **IIS:** Windows Server 2016 or later with IIS 10, 64-bit.
 - **ASP.NET Core:** .NET 8 or .NET 10.
 
 > **One worker, two names**
@@ -1809,8 +1808,7 @@ Machine-readable recipe for coding agents: [modpagespeed.com/recipes/iis.md](htt
 ## Requirements
 
 - Windows Server 2016 or later, with IIS 10 (the release is tested on Windows Server 2016)
-- 64-bit only
-- Visual C++ Redistributable 2022
+- 64-bit only (the Visual C++ runtime is built in; no redistributable is needed)
 - The IIS worker process identity needs write access to the cache directory;
   the installer grants it for the default directory
 

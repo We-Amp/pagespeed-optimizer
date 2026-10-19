@@ -7,8 +7,8 @@ commands run in an elevated PowerShell on the Windows Server host.
 
 ## 1. Prerequisites
 
-Windows Server 2016 or later, IIS 10, 64-bit, the Visual C++
-Redistributable 2022, and no IISpeed on the host: both register the same
+Windows Server 2016 or later, IIS 10, 64-bit (no Visual C++
+Redistributable needed; the runtime is built in), and no IISpeed on the host: both register the same
 handler, so uninstall IISpeed first and run `iisreset`.
 
 ```powershell
