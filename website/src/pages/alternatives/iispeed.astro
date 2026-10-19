@@ -1,7 +1,8 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
-import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
+import NugetCmd from '../../components/release/NugetCmd.astro';
+import { COMMERCIAL_EMAIL, FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
 
 const faq = [
   {
@@ -10,7 +11,7 @@ const faq = [
   },
   {
     q: 'I hold an IISpeed license. What do I need to do?',
-    a: 'Request the transfer through the license-transfer form at https://modpagespeed.com/contact/?topic=iispeed-transfer, with your order number or the email address the license was bought under. The transfer is at no cost, and no new license is needed: the software is free to install and run. Other questions go to info@we-amp.com.',
+    a: `Request the transfer through the license-transfer form at https://modpagespeed.com/contact/?topic=iispeed-transfer, with your order number or the email address the license was bought under. The transfer is at no cost: paid terms are honored to expiry, and you keep your current rate when you move to a support subscription. No new license is needed; the software is free to install and run. Other questions go to ${COMMERCIAL_EMAIL}.`,
   },
   {
     q: 'What replaces IISpeed for IIS deployments?',
@@ -22,7 +23,7 @@ const faq = [
   },
   {
     q: 'Can I run both mod_pagespeed for IIS and the WeAmp.PageSpeed.AspNetCore package?',
-    a: 'Yes. Mixed environments are supported. The native IIS module and the ASP.NET Core middleware run the same mod_pagespeed optimization library, so they share the same filters.',
+    a: 'Yes. Both can run side by side, each configured its own way: pagespeed.config directives on IIS, appsettings.json settings in ASP.NET Core.',
   },
 ];
 
@@ -74,7 +75,7 @@ const jsonLd = [
 
 <BaseLayout
   title="IISpeed successor: PageSpeed for IIS (2026)"
-  description="IISpeed is deprecated. Its successor is mod_pagespeed for IIS, the native IIS module: free license transfer. On ASP.NET Core, the AspNetCore NuGet package."
+  description="IISpeed is deprecated. Its successor is the mod_pagespeed IIS module, with a free license transfer; ASP.NET Core apps use the AspNetCore NuGet package."
   jsonLd={jsonLd}
 >
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-20">
@@ -200,7 +201,7 @@ var app = builder.Build();
 app.UsePageSpeed();
 app.Run();`}</code></pre>
 
-      <pre><code>dotnet add package WeAmp.PageSpeed.AspNetCore</code></pre>
+      <pre><code><NugetCmd /></code></pre>
 
       <p>
         No IIS module registration, no <code>web.config</code> editing, no <code>gacutil</code>. It
@@ -246,7 +247,10 @@ app.Run();`}</code></pre>
           </tr>
           <tr>
             <td>Mixed environment (some sites on classic IIS, some on .NET Core)</td>
-            <td>Run both &mdash; they share the same optimization library and filters</td>
+            <td>
+              Run both side by side, each configured its own way (pagespeed.config on IIS,
+              appsettings.json in ASP.NET Core)
+            </td>
           </tr>
         </tbody>
       </table>
@@ -255,10 +259,11 @@ app.Run();`}</code></pre>
       <p>
         If you hold an IISpeed license, request the transfer through the
         <a href="/contact/?topic=iispeed-transfer">license-transfer form</a>, with your order number
-        or the email address the license was bought under. The transfer is at no cost, and no new
-        license is needed: the software is free to install and run. Other questions go to{' '}
-        <a href="mailto:info@we-amp.com">info@we-amp.com</a>. The IISpeed transition is documented
-        at
+        or the email address the license was bought under. The transfer is at no cost: paid terms
+        are honored to expiry, and you keep your current rate when you move to a support
+        subscription. No new license is needed; the software is free to install and run. Other
+        questions go to <a href={`mailto:${COMMERCIAL_EMAIL}`}>{COMMERCIAL_EMAIL}</a>. The IISpeed
+        transition is documented at
         <a href="https://iispeed.com/" rel="noopener noreferrer">
           iispeed.com
         </a>
