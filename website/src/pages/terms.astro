@@ -9,6 +9,7 @@ import {
   COMPANY_KVK,
   SOURCE_PUBLICATION,
   LICENSING_TERMS_URL,
+  COMMERCIAL_EMAIL,
 } from '../data/product-facts.mjs';
 
 // The effective date and the "Version YYYY-MM[-DD]" literal in the
@@ -399,19 +400,12 @@ const LICENSE = SOURCE_PUBLICATION.license;
       <div>
         <h2 class="text-2xl font-bold text-text-body">Contact</h2>
         <p class="mt-4 text-text-muted">
-          Questions about these terms go to
+          Questions about these terms or about a subscription go to
           <a
-            href="mailto:info@we-amp.com"
+            href={`mailto:${COMMERCIAL_EMAIL}`}
             class="text-interactive hover:text-interactive-hover underline"
           >
-            info@we-amp.com
-          </a>
-          . Questions about a subscription go to
-          <a
-            href="mailto:license@we-amp.com"
-            class="text-interactive hover:text-interactive-hover underline"
-          >
-            license@we-amp.com
+            {COMMERCIAL_EMAIL}
           </a>
           .
         </p>
