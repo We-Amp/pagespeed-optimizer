@@ -166,7 +166,8 @@ export const AUDIT_PRICE_EUR = 950;
 export const formatEur = (n) => `\u20ac${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 // The artifact axis: the standard signed packages are free for everyone.
 // What ships today for everyone:
-// GPG-signed apt/yum repositories, .asc signatures on release packages, the
+// GPG-signed apt/yum repositories, .asc signatures on the module's release
+// packages (the optimizer's GitHub release assets carry none; SHA256SUMS), the
 // Authenticode-signed Windows installer, cosign-signed container images with
 // an SBOM attestation and build provenance, and the source-tree SPDX SBOM and
 // OpenVEX file. No surface may claim a per-release SBOM/VEX on the release

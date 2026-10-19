@@ -40,7 +40,7 @@ export const faqSupport: FaqEntry[] = [
   },
   {
     q: 'What is signed today?',
-    a: `The apt and yum repositories are GPG-signed, release packages carry .asc signatures, and the Windows installer is Authenticode-signed. The container images are cosign-signed and carry an SBOM attestation and build provenance. Release SBOM and VEX documents are available to Priority and Enterprise subscribers on request. Everything is the same software under the ${SOURCE_PUBLICATION.license}. See ${link('#hardened-builds', 'signed packages and images')}.`,
+    a: `The apt and yum repositories are GPG-signed, the module's release packages carry detached .asc signatures, and the Windows installer is Authenticode-signed. The optimizer worker's release assets on GitHub carry no .asc signature; every one is listed in SHA256SUMS. The container images are cosign-signed and carry an SBOM attestation and build provenance. Release SBOM and VEX documents are available to Priority and Enterprise subscribers on request. Everything is the same software under the ${SOURCE_PUBLICATION.license}. See ${link('#hardened-builds', 'signed packages and images')}.`,
   },
   {
     q: 'Can I verify the standard packages without a subscription?',
