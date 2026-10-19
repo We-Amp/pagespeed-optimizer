@@ -28,7 +28,7 @@ export const faqSupport: FaqEntry[] = [
   },
   {
     q: 'How do security updates reach me?',
-    a: `Everyone gets security fixes as regular releases through the channel they installed from, listed under Security in the ${link('/docs/release-notes/', 'release notes')}. Subscribers get advance notice, and Priority and Enterprise get vulnerability notifications timed to the EU Cyber Resilience Act reporting windows. A private package repository for Priority and Enterprise subscribers, with security fixes delivered before the public release, is being set up; until then, Priority and Enterprise subscribers can request the release SBOM and VEX.`,
+    a: `Everyone gets security fixes as regular releases through the channel they installed from, listed under Security in the ${link('/docs/release-notes/', 'release notes')}. Subscribers get advance notice, and Priority and Enterprise get vulnerability notifications timed to the EU Cyber Resilience Act reporting windows. A private package repository for Priority and Enterprise subscribers, planned to deliver security fixes before the public release, is being set up; until then, Priority and Enterprise subscribers can request the release SBOM and VEX.`,
   },
   {
     q: 'What counts as a production server?',
@@ -36,7 +36,7 @@ export const faqSupport: FaqEntry[] = [
   },
   {
     q: 'What is the private package repository?',
-    a: 'A private package repository for Priority and Enterprise subscribers, with security fixes delivered before the public release, is being set up. Until then, Priority and Enterprise subscribers receive the release SBOM and VEX on request, and all subscribers get advance notice of security releases. Packages in it will carry the same license as the standard packages.',
+    a: 'A private package repository for Priority and Enterprise subscribers, planned to deliver security fixes before the public release, is being set up. Until then, Priority and Enterprise subscribers receive the release SBOM and VEX on request, and all subscribers get advance notice of security releases. Packages in it will carry the same license as the standard packages.',
   },
   {
     q: 'What is signed today?',

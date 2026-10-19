@@ -41,7 +41,7 @@ export const faqPricing: FaqEntry[] = [
   },
   {
     q: 'Do I pay VAT?',
-    a: 'Prices on this page exclude VAT. At checkout, FastSpring charges the VAT that applies to you; a business in the EU can enter its VAT number there. On an invoice from We-Amp B.V. (Enterprise): customers in the Netherlands are charged 21% BTW; for business customers elsewhere in the EU, VAT is reverse charged (BTW verlegd, Art. 6 Wet OB 1968 / Art. 44 Directive 2006/112/EC); customers outside the EU, including the United Kingdom, are outside the scope of Dutch VAT.',
+    a: 'Prices on this page exclude VAT. At checkout, FastSpring charges the VAT that applies to you; a business in the EU can enter its VAT number there. On an invoice from We-Amp B.V. (Enterprise): customers in the Netherlands are charged 21% BTW; for business customers elsewhere in the EU with a valid VAT number, VAT is reverse charged (BTW verlegd, Art. 6 Wet OB 1968 / Art. 44 Directive 2006/112/EC); business customers outside the EU, including the United Kingdom, are outside the scope of Dutch VAT.',
   },
   {
     q: 'What happens after I pay?',
