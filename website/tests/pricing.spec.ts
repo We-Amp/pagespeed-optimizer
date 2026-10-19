@@ -32,8 +32,11 @@ test.describe('Pricing page', () => {
       ).toBeVisible();
     }
     await expect(page.locator('#tiers [data-tier="priority"]')).toHaveClass(/card-featured/);
-    await expect(page.locator('#tiers [data-tier="priority"]')).toContainText(
-      'Private package repository (being set up)',
+    await expect(page.locator('#tiers [data-tier="priority"]')).not.toContainText(
+      'Private package repository',
+    );
+    await expect(page.locator('#tiers [data-private-repo]')).toContainText(
+      'A private package repository for Priority and Enterprise subscribers is being set up.',
     );
     await expect(page.locator('#tiers [data-tier="standard"]')).not.toContainText(
       'Private package repository',

@@ -96,7 +96,7 @@ export const SUPPORT_TIERS = [
     includes: [
       'Ticket and email channel to the engineers who build the product',
       'Configuration, upgrade and incident help',
-      'Advance notice of security updates',
+      'Advance notice of security releases',
       'One onboarding configuration review',
       'First response within 2 business days',
     ],
@@ -117,11 +117,10 @@ export const SUPPORT_TIERS = [
     note: 'everything in Standard plus a private package repository (being set up), for up to 25 production servers',
     includes: [
       'Everything in Standard',
-      'Private package repository (being set up)',
-      'Signed packages and container images; the images carry an SBOM attestation and build provenance; the release SBOM and VEX on request',
       'Vulnerability notifications timed to the EU Cyber Resilience Act reporting windows',
       'Upgrade rehearsal on request',
       'Quarterly review call',
+      'The release SBOM and VEX on request',
       'First response next business day; severity 1 (production down) within 8 business hours',
     ],
   },
@@ -150,6 +149,10 @@ export const SUPPORT_TIERS = [
     ],
   },
 ];
+// The line under the tier cards: the private repository is not a checkmark
+// until it exists, and what is signed and attested is not a tier feature.
+export const PRIVATE_REPO_LINE =
+  'A private package repository for Priority and Enterprise subscribers is being set up. Everything signed and attested is the same for every user, with or without a subscription.';
 // The pricing terms, said the same way everywhere they are said.
 export const PRICING_TERMS_LINE = 'Prices are per year, billed annually, excl. VAT.';
 export const PRICE_HOLD_LINE =
