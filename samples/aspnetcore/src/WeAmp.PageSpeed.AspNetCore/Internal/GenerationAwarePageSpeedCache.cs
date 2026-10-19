@@ -30,7 +30,14 @@ namespace WeAmp.PageSpeed.AspNetCore.Internal;
 /// the old volume completes.</para>
 ///
 /// <para>If the fresh cache cannot be opened, the current one stays in use
-/// and the reopen is retried at the next check.</para>
+/// and the reopen is retried at the next check. Until a retry succeeds the
+/// middleware keeps serving what the previous volume holds, pre-purge entries
+/// included; the nginx module serves uncached in that case instead. The
+/// failure is logged once per counter value.</para>
+///
+/// <para>Closing a native cache takes 100-200 ms, so a retired instance is
+/// disposed on the thread pool, never on the request thread that happened to
+/// release it last and never under the swap lock.</para>
 /// </remarks>
 internal sealed class GenerationAwarePageSpeedCache : IPageSpeedCache
 {
@@ -44,6 +51,10 @@ internal sealed class GenerationAwarePageSpeedCache : IPageSpeedCache
         // One reference is owned by the decorator while this slot is current;
         // each in-flight call holds one more. Zero = disposed, never revived.
         private int _refs = 1;
+        // Set by Retire before the owner reference is dropped; the
+        // Interlocked.Decrement in Release orders the write before any
+        // thread that observes zero.
+        private Action<IPageSpeedCache>? _disposer;
 
         public Slot(IPageSpeedCache cache, ulong generation)
         {
@@ -62,21 +73,45 @@ internal sealed class GenerationAwarePageSpeedCache : IPageSpeedCache
             }
         }
 
+        /// <summary>Drops the owner reference; the last release disposes via
+        /// <paramref name="disposer"/>.</summary>
+        public void Retire(Action<IPageSpeedCache> disposer)
+        {
+            Volatile.Write(ref _disposer, disposer);
+            Release();
+        }
+
         public void Release()
         {
-            if (Interlocked.Decrement(ref _refs) == 0)
-                Cache.Dispose();
+            if (Interlocked.Decrement(ref _refs) != 0) return;
+            var disposer = Volatile.Read(ref _disposer);
+            if (disposer != null) disposer(Cache);
+            else Cache.Dispose();
         }
+    }
+
+    /// <summary>What <see cref="ReadGeneration"/> found.</summary>
+    internal enum GenerationReadStatus
+    {
+        /// <summary>The file was read (or is missing: generation 0).</summary>
+        Ok,
+        /// <summary>The file exists but could not be read; try again later.</summary>
+        Unreadable,
     }
 
     private readonly Func<IPageSpeedCache> _factory;
     private readonly string _generationPath;
     private readonly long _intervalMs;
     private readonly Func<long> _clockMs;
+    private readonly Action<Action> _disposeScheduler;
     private readonly ILogger _logger;
     private readonly object _swapLock = new();
     private Slot? _current; // null once disposed
     private long _nextCheckMs;
+    // Log-once state, touched only under _swapLock or by the single caller
+    // that won the check slot; benign if two checks race on it.
+    private ulong? _reopenFailureLoggedFor;
+    private bool _unreadableLogged;
 
     /// <param name="factory">Opens a cache on the configured volume.</param>
     /// <param name="generationPath">
@@ -87,56 +122,75 @@ internal sealed class GenerationAwarePageSpeedCache : IPageSpeedCache
     /// Minimum time between two reads of the counter file.
     /// </param>
     /// <param name="clockMs">Monotonic milliseconds; tests substitute it.</param>
+    /// <param name="disposeScheduler">
+    /// Runs the disposal of a retired cache. Defaults to the thread pool;
+    /// tests pass an inline runner.
+    /// </param>
     public GenerationAwarePageSpeedCache(
         Func<IPageSpeedCache> factory,
         string generationPath,
         ILogger? logger = null,
         TimeSpan? checkInterval = null,
-        Func<long>? clockMs = null)
+        Func<long>? clockMs = null,
+        Action<Action>? disposeScheduler = null)
     {
         _factory = factory;
         _generationPath = generationPath;
         _logger = logger ?? NullLogger.Instance;
         _intervalMs = (long)(checkInterval ?? DefaultCheckInterval).TotalMilliseconds;
         _clockMs = clockMs ?? (() => Environment.TickCount64);
+        _disposeScheduler = disposeScheduler
+            ?? (work => ThreadPool.UnsafeQueueUserWorkItem(static w => w(), work, preferLocal: false));
 
         // Read the counter BEFORE opening: a reset that lands between the two
         // then shows up as a changed counter at the next check (one extra
         // reopen at worst) instead of being recorded as already seen.
-        ulong generation = ReadGeneration(_generationPath) ?? 0;
+        ReadGeneration(_generationPath, out ulong generation);
         _current = new Slot(_factory(), generation);
         _nextCheckMs = _clockMs() + _intervalMs;
     }
 
     /// <summary>
     /// Reads the counter the way PageSpeedCache::ReadGenerationFile does:
-    /// a missing or unparsable file is generation 0. Returns null when the
-    /// file exists but could not be read right now (try again later).
+    /// a missing or unparsable file is generation 0.
     /// </summary>
-    internal static ulong? ReadGeneration(string path)
+    /// <remarks>
+    /// The file is opened with read, write and delete sharing: the worker
+    /// replaces it with a rename (MoveFileEx with MOVEFILE_REPLACE_EXISTING on
+    /// Windows), which a reader holding it without delete sharing would make
+    /// fail.
+    /// </remarks>
+    internal static GenerationReadStatus ReadGeneration(string path, out ulong generation)
     {
+        generation = 0;
         string text;
         try
         {
-            text = File.ReadAllText(path);
+            using var stream = new FileStream(
+                path, FileMode.Open, FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete,
+                bufferSize: 1, FileOptions.None);
+            using var reader = new StreamReader(stream);
+            text = reader.ReadToEnd();
         }
         catch (FileNotFoundException)
         {
-            return 0;
+            return GenerationReadStatus.Ok;
         }
         catch (DirectoryNotFoundException)
         {
-            return 0;
+            return GenerationReadStatus.Ok;
         }
         catch (IOException)
         {
-            return null;
+            return GenerationReadStatus.Unreadable;
         }
         catch (UnauthorizedAccessException)
         {
-            return null;
+            return GenerationReadStatus.Unreadable;
         }
-        return ulong.TryParse(text.AsSpan().Trim(), out var gen) ? gen : 0;
+        if (ulong.TryParse(text.AsSpan().Trim(), out var parsed)) generation = parsed;
+        return GenerationReadStatus.Ok;
     }
 
     /// <summary>The generation of the cache currently in use (for tests).</summary>
@@ -155,19 +209,40 @@ internal sealed class GenerationAwarePageSpeedCache : IPageSpeedCache
         CheckGenerationNow();
     }
 
+    private bool TryReadGeneration(out ulong generation)
+    {
+        if (ReadGeneration(_generationPath, out generation) == GenerationReadStatus.Ok)
+        {
+            _unreadableLogged = false;
+            return true;
+        }
+        if (!_unreadableLogged)
+        {
+            _unreadableLogged = true;
+            _logger.LogWarning(
+                "PageSpeed cache generation file {Path} exists but cannot be read; "
+                + "a full cache purge is not noticed until it can",
+                _generationPath);
+        }
+        return false;
+    }
+
     /// <summary>
     /// Reads the counter file and, when it moved, swaps to a freshly opened
     /// cache. Not throttled.
     /// </summary>
     internal void CheckGenerationNow()
     {
-        ulong? read = ReadGeneration(_generationPath);
-        if (read is not ulong generation) return;
+        if (!TryReadGeneration(out ulong generation)) return;
         var current = Volatile.Read(ref _current);
         if (current == null || current.Generation == generation) return;
 
+        Slot retired;
         lock (_swapLock)
         {
+            // Re-read under the lock: a caller that waited here behind a swap
+            // acts on the newest counter, not on the one it read before.
+            if (!TryReadGeneration(out generation)) return;
             current = Volatile.Read(ref _current);
             if (current == null || current.Generation == generation) return;
 
@@ -178,23 +253,45 @@ internal sealed class GenerationAwarePageSpeedCache : IPageSpeedCache
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex,
-                    "PageSpeed cache generation changed {Old} -> {New} (volume reset), "
-                    + "but reopening the cache failed; still using the previous "
-                    + "volume, retrying at the next check",
-                    current.Generation, generation);
+                if (_reopenFailureLoggedFor != generation)
+                {
+                    _reopenFailureLoggedFor = generation;
+                    _logger.LogWarning(ex,
+                        "PageSpeed cache generation changed {Old} -> {New} (volume reset), "
+                        + "but reopening the cache failed; still serving the previous "
+                        + "volume, retrying every check",
+                        current.Generation, generation);
+                }
                 return;
             }
 
-            // Publish first, then drop the owner reference: a caller that read
-            // the old slot and fails to acquire it re-reads and finds this one.
+            // Publish first, then drop the owner reference (below, outside the
+            // lock): a caller that read the old slot and fails to acquire it
+            // re-reads and finds this one.
             Volatile.Write(ref _current, new Slot(fresh, generation));
-            current.Release();
-            _logger.LogInformation(
-                "PageSpeed cache generation changed {Old} -> {New} (volume reset), "
-                + "reopened the cache",
-                current.Generation, generation);
+            _reopenFailureLoggedFor = null;
+            retired = current;
         }
+        retired.Retire(DisposeRetired);
+        _logger.LogInformation(
+            "PageSpeed cache generation changed {Old} -> {New} (volume reset), "
+            + "reopened the cache",
+            retired.Generation, generation);
+    }
+
+    private void DisposeRetired(IPageSpeedCache cache)
+    {
+        _disposeScheduler(() =>
+        {
+            try
+            {
+                cache.Dispose();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Disposing a retired PageSpeed cache failed");
+            }
+        });
     }
 
     private Slot Acquire()

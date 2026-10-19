@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2026 We-Amp B.V.
 
+using Microsoft.Extensions.Logging;
 using WeAmp.PageSpeed.AspNetCore.Internal;
 using WeAmp.PageSpeed.Native;
 using Xunit;
@@ -22,6 +23,9 @@ public sealed class GenerationAwarePageSpeedCacheTests : IDisposable
     private int _factoryCalls;
     // Called with the 1-based factory call number.
     private Func<int, FakeCache>? _factoryOverride;
+    private readonly ListLogger _log = new();
+    // Retired caches are disposed through this; null = inline.
+    private Action<Action>? _disposeScheduler;
 
     public GenerationAwarePageSpeedCacheTests()
     {
@@ -48,9 +52,10 @@ public sealed class GenerationAwarePageSpeedCacheTests : IDisposable
                 }
             },
             _genPath,
-            logger: null,
+            logger: _log,
             checkInterval: interval ?? TimeSpan.FromSeconds(1),
-            clockMs: () => Interlocked.Read(ref _nowMs));
+            clockMs: () => Interlocked.Read(ref _nowMs),
+            disposeScheduler: _disposeScheduler ?? (work => work()));
 
     // Written the way the worker writes it: "%llu\n", replaced atomically.
     private void WriteGeneration(ulong gen)
@@ -66,14 +71,52 @@ public sealed class GenerationAwarePageSpeedCacheTests : IDisposable
     private static int Served(GenerationAwarePageSpeedCache c) =>
         c.ReadSharedConfigAgentEntitled();
 
+    private ulong? Read()
+    {
+        var status = GenerationAwarePageSpeedCache.ReadGeneration(_genPath, out var gen);
+        return status == GenerationAwarePageSpeedCache.GenerationReadStatus.Ok ? gen : null;
+    }
+
     [Fact]
     public void ReadGeneration_ParsesWorkerFormat_MissingIsZero()
     {
-        Assert.Equal(0UL, GenerationAwarePageSpeedCache.ReadGeneration(_genPath));
+        Assert.Equal(0UL, Read());
         WriteGeneration(42);
-        Assert.Equal(42UL, GenerationAwarePageSpeedCache.ReadGeneration(_genPath));
+        Assert.Equal(42UL, Read());
         File.WriteAllText(_genPath, "garbage");
-        Assert.Equal(0UL, GenerationAwarePageSpeedCache.ReadGeneration(_genPath));
+        Assert.Equal(0UL, Read());
+    }
+
+    [Fact]
+    public void ReadGeneration_DoesNotBlockTheWorkersReplace()
+    {
+        // The worker replaces the file by rename; a reader must hold it with
+        // delete sharing so that rename can succeed (matters on Windows).
+        WriteGeneration(1);
+        using (var held = new FileStream(_genPath, FileMode.Open, FileAccess.Read,
+                   FileShare.ReadWrite | FileShare.Delete))
+        {
+            WriteGeneration(2);
+        }
+        Assert.Equal(2UL, Read());
+    }
+
+    [Fact]
+    public void UnreadableGenerationFile_SkipsTheCheck_AndLogsOnce()
+    {
+        WriteGeneration(1);
+        using var cache = Create();
+        // A directory where the file should be cannot be read as one.
+        File.Delete(_genPath);
+        Directory.CreateDirectory(_genPath);
+        Assert.Null(Read());
+        for (int i = 0; i < 3; i++)
+        {
+            Advance(1000);
+            Assert.Equal(1, Served(cache));
+        }
+        Assert.Single(_opened);
+        Assert.Equal(1, _log.Count(LogLevel.Warning, "cannot be read"));
     }
 
     [Fact]
@@ -168,7 +211,7 @@ public sealed class GenerationAwarePageSpeedCacheTests : IDisposable
     public void FailedReopen_KeepsTheCurrentCache_AndRetriesAtTheNextCheck()
     {
         WriteGeneration(1);
-        _factoryOverride = id => id == 2
+        _factoryOverride = id => id is 2 or 3
             ? throw new PageSpeedException(PageSpeedError.IoError, "volume busy")
             : new FakeCache(id);
         using var cache = Create();
@@ -180,8 +223,30 @@ public sealed class GenerationAwarePageSpeedCacheTests : IDisposable
         Assert.Equal(0, _opened[0].DisposeCount);
 
         Advance(1000);
-        Assert.Equal(3, Served(cache)); // factory call #3 succeeds
+        Assert.Equal(1, Served(cache)); // factory call #3 fails too
+        Assert.Equal(1, _log.Count(LogLevel.Warning, "reopening the cache failed"));
+
+        Advance(1000);
+        Assert.Equal(4, Served(cache)); // factory call #4 succeeds
         Assert.Equal(2UL, cache.CurrentGeneration);
+        Assert.Equal(1, _opened[0].DisposeCount);
+    }
+
+    [Fact]
+    public void RetiredCache_IsDisposedThroughTheScheduler_NotInline()
+    {
+        var queued = new List<Action>();
+        _disposeScheduler = work => queued.Add(work);
+        WriteGeneration(1);
+        using var cache = Create();
+
+        WriteGeneration(2);
+        Advance(1000);
+        Assert.Equal(2, Served(cache));
+        Assert.Equal(0, _opened[0].DisposeCount);
+        Assert.Single(queued);
+
+        queued[0]();
         Assert.Equal(1, _opened[0].DisposeCount);
     }
 
@@ -240,6 +305,26 @@ public sealed class GenerationAwarePageSpeedCacheTests : IDisposable
             for (int i = 0; i < _opened.Count - 1; i++)
                 Assert.Equal(1, _opened[i].DisposeCount);
             Assert.Equal(0, _opened[^1].DisposeCount);
+        }
+    }
+
+    private sealed class ListLogger : ILogger
+    {
+        private readonly List<(LogLevel Level, string Message)> _entries = new();
+
+        public int Count(LogLevel level, string contains)
+        {
+            lock (_entries)
+                return _entries.Count(e => e.Level == level && e.Message.Contains(contains));
+        }
+
+        public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+        public bool IsEnabled(LogLevel logLevel) => true;
+
+        public void Log<TState>(LogLevel logLevel, EventId eventId, TState state,
+            Exception? exception, Func<TState, Exception?, string> formatter)
+        {
+            lock (_entries) _entries.Add((logLevel, formatter(state, exception)));
         }
     }
 
