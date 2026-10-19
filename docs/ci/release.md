@@ -63,6 +63,41 @@ released. It refuses:
 It also resolves what every later job checks out: a dispatch builds the
 dispatched tag, never the head of the branch it ran on.
 
+## The version guards
+
+Both lanes hold the tag to `VERSION.txt` of the commit they build, the
+number the worker reports:
+
+- NuGet lane: `v<X>` must equal `VERSION.txt` (inline step in the `vendor`
+  job).
+- Optimizer lane: from 2.5.0 on, `optimizer-v<X>` must equal `VERSION.txt`
+  (`tools/ci/check_optimizer_tag_version.sh`, in the `version` job, run from
+  `main`; self-test in `pipeline-pr.yml`). The host packages up to
+  `optimizer-v1.19.0` were numbered on the module's 1.x line (built from
+  `VERSION.txt` 2.4.0); those tags are below 2.5.0 and pass with a notice. A
+  release candidate may match on its `X.Y.Z` core, and so may a pushed
+  `-pre` tag, which runs as a real run like any other tag. Only a dry run of
+  a tag that does not exist yet turns a mismatch into a warning (an
+  annotation and a line in the job summary) and skips `-pre` tags; once the
+  tag exists, a mismatch fails the dry run too, and such a dry run says so
+  in a `::notice::` that names the way to rehearse an unfinished release: a
+  dry-run dispatch of a tag not yet on the remote (`optimizer-v2.5.0-pre.N`).
+
+From 2.5.0 the module release pairs with `optimizer-v` plus the same version,
+so the cut runs in this order: bump `VERSION.txt` to the release version on
+`main`, tag `optimizer-v<X>` on that commit, record the pin in the module
+repository (`install/debian/optimizer-pin.json`), then tag `module-v<X>`
+there (its `docs/ci/release.md` has the module side). Once the module
+packages are published, `MODULE_PACKAGE_VERSION` in
+`website/src/data/product-facts.mjs` (1.19.0 today) moves to the same
+version: the scan's lifecycle sentence (`website/src/lib/scan/lifecycle.ts`)
+compares a detected `X-Mod-Pagespeed` header against it, so until it moves a
+1.19.0 install is never told that a newer release exists, and
+`module-package-version.test.ts` compares it with the live package index.
+Known stale wording, left for the website copy pass: the 2.0.x sentence
+there says a setup "moves to 2.1 today", which reads wrong once 2.5.0 is the
+current release.
+
 ## The `release` environment
 
 | Setting | Value |
