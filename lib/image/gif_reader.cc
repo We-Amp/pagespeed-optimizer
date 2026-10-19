@@ -941,6 +941,22 @@ ScanlineStatus GifFrameReader::GetImageData() {
   ApplyQuirksModeToImage(quirks_mode(), has_loop_count_, frame_spec_,
                          &image_spec_);
 
+  // Chrome quirks mode may have enlarged the screen to the first frame
+  // after the checks above ran on the declared screen, so recheck the
+  // final dimensions before the spec is published: consumers size output
+  // buffers from GetImageSpec() ahead of any per-frame check.
+  if (image_spec_.width > kScanlineMaxDimension ||
+      image_spec_.height > kScanlineMaxDimension ||
+      static_cast<uint64_t>(image_spec_.width) * image_spec_.height >
+          kScanlineMaxImagePixels) {
+    return PS_LOGGED_STATUS(PS_LOG_INFO, message_handler(),
+                            SCANLINE_STATUS_UNSUPPORTED_FORMAT, FRAME_GIFREADER,
+                            "Image dimensions %ux%u exceed the supported "
+                            "maximum.",
+                            static_cast<unsigned>(image_spec_.width),
+                            static_cast<unsigned>(image_spec_.height));
+  }
+
   ExpandColorIndex(gif_file->SColorMap, gif_file->SBackGroundColor,
                    image_spec_.bg_color);
   image_spec_.use_bg_color = false;

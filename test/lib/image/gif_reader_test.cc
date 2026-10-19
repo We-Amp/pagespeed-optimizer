@@ -2466,6 +2466,19 @@ TEST(GifFrameReaderInvalidInput, OversizedFrameRejectedByPrepareNextFrame) {
   EXPECT_EQ(net_instaweb::SCANLINE_STATUS_UNSUPPORTED_FORMAT, status.type());
 }
 
+// In Chrome quirks mode the logical screen is resized to the first frame
+// after the screen caps were checked, so a first frame past the cap would
+// be published through GetImageSpec() uncapped. Initialization must refuse
+// the enlarged dimensions.
+TEST(GifFrameReaderInvalidInput,
+     OversizedFirstFrameInChromeQuirksRejectedByInitialize) {
+  NullMessageHandler handler;
+  std::unique_ptr<MultipleFrameReader> reader(new TestGifFrameReader(&handler));
+  std::string in = MakeGifWithScreenAndFrame(2, 2, 16385, 1, true);
+  ASSERT_TRUE(reader->set_quirks_mode(QUIRKS_CHROME).Success());
+  EXPECT_FALSE(reader->Initialize(in.data(), in.length()).Success());
+}
+
 TEST_F(GifReaderTest, ReadPng_JustHeader) {
   // Only the GIF header, no frames.
   std::string gif = "GIF89a";
