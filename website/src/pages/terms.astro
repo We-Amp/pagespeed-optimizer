@@ -11,7 +11,7 @@ import {
   LICENSING_TERMS_URL,
 } from '../data/product-facts.mjs';
 
-// OWNER: set the effective date at GA. The "Version YYYY-MM[-DD]" literal in the
+// The effective date and the "Version YYYY-MM[-DD]" literal in the
 // markup below must stay in lockstep with TERMS_VERSION_WEB in
 // src/pages/pricing.astro (the pricing page's terms stamp) —
 // test/sync/terms-version-sync.test.ts guards it.
@@ -121,7 +121,7 @@ const LICENSE = SOURCE_PUBLICATION.license;
         <h2 class="text-2xl font-bold text-text-body">Subscriptions</h2>
         <p class="mt-4 text-text-muted">
           We sell support subscriptions, in three tiers: Standard, Priority and Enterprise. Support
-          comes from the people who build the product: a direct channel, agreed response times for
+          comes from the people who build the product: a direct channel, first-response targets for
           configuration, upgrade and incident questions, and advance notice of security releases.
           What each tier includes, its price and its first-response target are published on the
           <a href="/support/" class="text-interactive hover:text-interactive-hover underline">
@@ -164,26 +164,29 @@ const LICENSE = SOURCE_PUBLICATION.license;
             pricing page
           </a>
           . Standard and Priority subscriptions are bought at checkout from FastSpring, the merchant
-          of record; FastSpring processes the payment, and its terms govern the payment. Enterprise
-          subscriptions are invoiced by {VENDOR} directly.
+          of record; FastSpring processes the payment, and its terms govern the payment and refunds.
+          Enterprise subscriptions are invoiced by {VENDOR} directly.
         </p>
         <p class="mt-2 text-text-muted">
           <strong>VAT.</strong> Prices exclude VAT. At checkout, FastSpring charges the VAT that
           applies to you; a business in the EU can enter its VAT number there. On an invoice from
           {VENDOR}: customers in the Netherlands are charged 21% BTW; for business customers
-          elsewhere in the EU, VAT is reverse charged (&ldquo;BTW verlegd&rdquo;, Art. 6 Wet OB 1968
-          / Art. 44 Directive 2006/112/EC); for customers outside the EU, including the United
-          Kingdom, the service is outside the scope of Dutch VAT.
+          elsewhere in the EU with a valid VAT number, VAT is reverse charged (&ldquo;BTW
+          verlegd&rdquo;, Art. 6 Wet OB 1968 / Art. 44 Directive 2006/112/EC); for business
+          customers outside the EU, including the United Kingdom, the service is outside the scope
+          of Dutch VAT.
         </p>
         <p class="mt-2 text-text-muted">
           <strong>Term, renewal and cancellation.</strong> Subscriptions run for one year and renew
           automatically each year unless you cancel before the renewal date. For a subscription
           bought at checkout, FastSpring emails you a reminder one month before the renewal date.
-          You can cancel at any time; cancellation takes effect at the end of the current term. Fees
-          already paid are not refunded, except for the pro-rata refunds described under
-          <em>Circumstances beyond our control</em> and <em>Changes to these terms</em>. Where your
-          order or a subscription agreement states something different from these terms, the order
-          or agreement prevails for that subscription; the
+          You can cancel at any time; cancellation takes effect at the end of the current term (for
+          consumers, see below). Apart from refunds under FastSpring&rsquo;s terms for a checkout
+          purchase and those mandatory law requires, fees already paid are not refunded, except for
+          the pro-rata refunds described under <em>Circumstances beyond our control</em> and
+          <em>Changes to these terms</em>. Where your order or a subscription agreement states
+          something different from these terms, the order or agreement prevails for that
+          subscription; the
           <a
             href={LICENSING_TERMS_URL}
             class="text-interactive hover:text-interactive-hover underline"
@@ -194,11 +197,13 @@ const LICENSE = SOURCE_PUBLICATION.license;
         </p>
         <p class="mt-2 text-text-muted">
           <strong>Consumers (EU/EEA).</strong> If you are a consumer, you have a 14-day right of
-          withdrawal from a subscription under Directive 2011/83/EU. If you ask us to begin
-          performing immediately and acknowledge that you thereby lose that right, it ends when
-          performance begins. Once a subscription has renewed automatically, you may cancel it at
-          any time with one month&rsquo;s notice (Article 6:236(j) of the Dutch Civil Code). Your
-          mandatory statutory rights are unaffected.
+          withdrawal under Directive 2011/83/EU; for a subscription bought at checkout you exercise
+          it with FastSpring, the seller. If you asked for the subscription to start within those 14
+          days and then withdraw, you pay only for the support provided until you withdraw. Once a
+          subscription has renewed automatically, you may cancel it at any time with one
+          month&rsquo;s notice (Article 6:236(j) of the Dutch Civil Code); it then ends one month
+          after your notice, and the fees paid for the period after that date are refunded pro rata.
+          Your mandatory statutory rights are unaffected.
         </p>
         <p class="mt-2 text-text-muted">
           <strong>Ending a subscription.</strong> We may suspend or end a subscription if you
@@ -276,11 +281,12 @@ const LICENSE = SOURCE_PUBLICATION.license;
           so, and these terms add no warranty on top of it.
         </p>
         <p class="mt-2 text-text-muted">
-          <strong>The services.</strong> We perform support with reasonable skill and care, within
-          the response times in your order. We do not warrant that support will resolve every issue,
-          or that any artifact we publish is free of defects or vulnerabilities: signatures,
-          checksums, SBOMs and attestations describe where an artifact came from and what went into
-          it, not that it is defect-free. The free services are provided as-is.
+          <strong>The services.</strong> We perform support with reasonable skill and care, and we
+          aim to respond within your tier&rsquo;s first-response targets. We do not warrant that
+          support will resolve every issue, or that any artifact we publish is free of defects or
+          vulnerabilities: signatures, checksums, SBOMs and attestations describe where an artifact
+          came from and what went into it, not that it is defect-free. The free services are
+          provided as-is.
         </p>
         <p class="mt-2 text-text-muted">
           The rest of this section applies to business customers. If you are a consumer in the
