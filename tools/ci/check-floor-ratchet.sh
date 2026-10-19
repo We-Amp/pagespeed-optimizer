@@ -231,6 +231,38 @@ if [[ -z "$SRC" && -n "$CANONICAL_URL" ]]; then
   fi
 fi
 
+# ---- Canonical re-home: the previous floor has no home any more ----------
+# When the canonical repository moves (the vendored kernels are re-homed to a
+# repository whose history does not contain the previous floor), no ancestry
+# between the two floors can exist. The move is accepted exactly when the
+# fresh one-shot clone of the canonical (never a local checkout or the
+# persistent mirror, which can be stale) knows nothing of the previous floor
+# and the new floor is a merged commit of the canonical default branch: that
+# is the forward-only property restated for the new home. A downgrade within
+# one history never takes this path, because there the previous floor
+# resolves and the ancestry rules below decide; without a fresh clone the
+# check stays closed.
+on_default_branch() {  # $1 = git dir, $2 = sha
+  local ref
+  for ref in refs/remotes/origin/HEAD refs/remotes/origin/master \
+             refs/remotes/origin/main refs/heads/master refs/heads/main HEAD; do
+    if git -C "$1" rev-parse --verify -q "${ref}^{commit}" >/dev/null 2>&1; then
+      git -C "$1" merge-base --is-ancestor "$2" "$ref" 2>/dev/null
+      return $?
+    fi
+  done
+  return 1
+}
+if [[ -z "$SRC" && -n "$CLONE_TMP" && -d "${CLONE_TMP}/canonical" ]]; then
+  fresh="${CLONE_TMP}/canonical"
+  if ! git -C "$fresh" cat-file -e "${MAIN_FLOOR}^{commit}" 2>/dev/null \
+     && git -C "$fresh" cat-file -e "${HEAD_FLOOR}^{commit}" 2>/dev/null \
+     && on_default_branch "$fresh" "$HEAD_FLOOR"; then
+    echo "::notice::floor ratchet: canonical re-homed. The previous floor ${MAIN_FLOOR:0:12} is unknown to the canonical repository and the new floor ${HEAD_FLOOR:0:12} is on its default branch; the move is accepted as the new baseline."
+    exit 0
+  fi
+fi
+
 if [[ -z "$SRC" ]]; then
   if [[ "$MODE" == "drift" && "$EVENT" == "pull_request" ]]; then
     echo "::warning::floor ratchet: floor moved (${MAIN_FLOOR:0:12} -> ${HEAD_FLOOR:0:12}) but no canonical source resolves both commits — ancestry NOT verified; passing only because this is a pull_request drift run. The required differential gate fails closed on this state."

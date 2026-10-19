@@ -41,6 +41,7 @@ PROBE_FILES = {
     "deploy/docker-compose.yml": 1,
     "deploy/helm/pagespeed/templates/deployment.yaml": 3,
     "website/public/docker-compose.yml": 1,
+    "website/src/content/docs/deployment.mdx": 2,
     "website/src/content/blog/run-with-docker-compose.md": 1,
 }
 
