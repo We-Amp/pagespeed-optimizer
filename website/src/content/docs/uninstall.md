@@ -3,7 +3,7 @@ title: 'Uninstall and rollback'
 description: 'Remove mod_pagespeed 2.1 per shape (apt, dnf, cPanel, Docker, Helm, IIS, NuGet), what each leaves behind, cache cleanup, and rolling back a release.'
 order: 56
 group: 'Operate'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-19
 datePublished: 2026-10-08
 faq:
   - q: 'Does removing the packages delete the cache?'
@@ -26,13 +26,23 @@ directives from a module that is gone fails to start.
 ```bash
 # Debian / Ubuntu: keep the configuration files, or purge them
 sudo apt-get remove mod-pagespeed pagespeed-optimizer            # Apache
+sudo apt-mark manual nginx                                       # nginx: keep nginx when the module pulled it in
 sudo apt-get remove nginx-module-pagespeed pagespeed-optimizer   # nginx
 sudo apt-get purge  mod-pagespeed pagespeed-optimizer            # also removes configuration and the default cache
 # AlmaLinux / RHEL / Rocky
 sudo dnf remove mod-pagespeed pagespeed-optimizer
-sudo dnf remove nginx-module-pagespeed pagespeed-optimizer
+sudo dnf remove --noautoremove nginx-module-pagespeed pagespeed-optimizer   # --noautoremove keeps nginx
 sudo systemctl restart apache2   # httpd on Enterprise Linux, or nginx
 ```
+
+:::warning[Removing the nginx module can take nginx with it]
+When `nginx-module-pagespeed` pulled nginx in as a dependency, the package
+manager counts nginx as unused once the module is gone: `dnf remove` without
+`--noautoremove` removes `nginx`, `nginx-core` and `nginx-filesystem` in the
+same transaction, and on Debian and Ubuntu the next `apt-get autoremove`
+removes `nginx` unless `apt-mark manual nginx` ran first (`apt-get purge` on
+its own leaves nginx installed).
+:::
 
 What stays after `remove`:
 
