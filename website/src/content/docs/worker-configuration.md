@@ -2307,7 +2307,8 @@ use cases:
 
 The HTTP API's [`POST /v1/cache/purge`](/docs/http-api/#post-v1cachepurge)
 does the same without the management socket; its credential is group
-membership over the API's unix socket, or the bearer token over TCP.
+membership over the API's unix socket, or the bearer token over TCP where one
+is configured.
 
 For bulk invalidation, send multiple PURGE commands. Each iteration opens a
 new connection to the management socket, and authentication is per

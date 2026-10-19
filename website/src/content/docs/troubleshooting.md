@@ -303,11 +303,11 @@ To force the worker to re-process a URL:
 ```bash
 # PURGE needs AUTH first, on the same connection. The worker's
 # PAGESPEED_PURGE_TOKEN is not in your shell by itself; read it in first.
-# Packages: the env file is root-only, one KEY=value per line
+# Packages: the env file is readable by root and group `pagespeed`, one KEY=value per line
 PAGESPEED_PURGE_TOKEN=$(sudo sed -n 's/^PAGESPEED_PURGE_TOKEN=//p' /etc/pagespeed-optimizer/daemon.env)
 # Container images and the Helm chart: the worker prints the token once at
 # start when you did not set it -- `docker logs <worker> 2>&1 | grep PAGESPEED_PURGE_TOKEN=`
-# or `kubectl logs <worker pod> | grep PAGESPEED_PURGE_TOKEN=` -- or set it
+# or `kubectl logs <pod> -c worker | grep PAGESPEED_PURGE_TOKEN=` -- or set it
 # yourself in the compose file's `environment:` and use that value.
 
 # Purge all variants
@@ -325,7 +325,7 @@ If the second request returns a smaller size, the worker is processing
 correctly for that URL.
 
 A refused purge says why: `ERR authentication required` means this connection
-sent no `AUTH` (an `AUTH` on another connection does not count);
+sent no valid `AUTH` (an `AUTH` on another connection does not count);
 `ERR invalid token` means the token was wrong, which is also what an empty
 `$PAGESPEED_PURGE_TOKEN` produces; `ERR no purge token configured` means the
 worker started without a token, so no purge is possible until it has one. The

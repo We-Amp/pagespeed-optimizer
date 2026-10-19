@@ -225,7 +225,7 @@ x 2 densities x 2 Save-Data x 4 encodings) plus 2 sentinel entries = 194.
 The HTTP API offers the same operation as
 [`POST /v1/cache/purge`](/docs/http-api/#post-v1cachepurge); there the
 credential is group membership over the API's unix socket, or the bearer token
-over TCP.
+over TCP where one is configured.
 
 #### `AUTH <token>`
 
