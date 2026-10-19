@@ -72,6 +72,7 @@ using net_instaweb::SCANLINE_STATUS_INTERNAL_ERROR;
 using net_instaweb::SCANLINE_STATUS_INVOCATION_ERROR;
 using net_instaweb::SCANLINE_STATUS_MEMORY_ERROR;
 using net_instaweb::SCANLINE_STATUS_SUCCESS;
+using net_instaweb::SCANLINE_STATUS_UNSUPPORTED_FORMAT;
 using net_instaweb::ScanlineStatus;
 
 struct PngCompressParams : public ScanlineWriterConfig {

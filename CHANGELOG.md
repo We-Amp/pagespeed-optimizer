@@ -9,6 +9,12 @@ damaged cache file could terminate the process. Affected: the optimizer worker,
 the nginx module and the `WeAmp.PageSpeed.NativeAssets.*` NuGet packages, up to
 and including 2.4.0. Update recommended.
 
+Security: specially crafted GIF, PNG, WebP or JPEG images could make the
+optimizer worker exit or consume unbounded memory. Oversized and malformed
+images are now rejected up front and a failed conversion keeps the original
+image. Affected: the optimizer worker and the `WeAmp.PageSpeed.NativeAssets.*`
+NuGet packages up to and including 2.4.0. Update recommended.
+
 Security: crafted JavaScript or HTML handled by the optimizer worker could end a
 script block early or produce malformed attribute output. The JavaScript and
 HTML parsing kernels are now synced from the module repository and carry its

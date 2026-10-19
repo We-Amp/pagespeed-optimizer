@@ -444,6 +444,24 @@ TEST_F(ImageConverterTest, OptimizePngOrConvertToJpeg_TransparentImage) {
   EXPECT_TRUE(is_out_png);
 }
 
+// libjpeg rejects dimensions above 65500 pixels when compression starts.
+// That error must surface as a failed status from the writer factory
+// rather than a jump into a buffer owned by a returned-from stack frame.
+TEST_F(ImageConverterTest, CreateJpegWriterForOversizedImage) {
+  ScanlineStatus status;
+  std::string out;
+  JpegCompressionOptions options;
+  options.lossy = true;
+  options.lossy_options.quality = 85;
+
+  std::unique_ptr<ScanlineWriterInterface> writer(
+      CreateScanlineWriter(pagespeed::image_compression::IMAGE_JPEG, RGB_888,
+                           70000,  // width, beyond libjpeg's 65500 limit
+                           1, &options, &out, &message_handler_, &status));
+  EXPECT_EQ(nullptr, writer);
+  EXPECT_FALSE(status.Success());
+}
+
 // --- GenerateBlankImage ---
 
 TEST(GenerateBlankImageTest, OpaqueBlankImage) {
