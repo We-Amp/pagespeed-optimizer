@@ -223,9 +223,9 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
               If you email us or use the contact form, we process the message and your contact
               details to reply and keep a record of the correspondence. When you submit the contact
               form, your name, email address, chosen topic and message are posted to a We-Amp
-              contact-handling endpoint, which delivers the message to us (as a Telegram
-              notification) and logs it so we can follow up. The same applies when the form is sent
-              as a plain form post without JavaScript. If a scripted submission fails, the form
+              contact-handling endpoint, which delivers the message to us (as an email through
+              Google Workspace) and logs it so we can follow up. The same applies when the form is
+              sent as a plain form post without JavaScript. If a scripted submission fails, the form
               falls back to opening a pre-filled email in your own mail client instead.
             </p>
             <p class="mt-2 text-sm text-text-annotation">
@@ -338,12 +338,12 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
                 <td class="py-2">N/A (local lookup)</td>
               </tr>
               <tr>
-                <td class="py-2 pr-4">Telegram (Telegram FZ-LLC)</td>
+                <td class="py-2 pr-4">Google Workspace (Google)</td>
                 <td class="py-2 pr-4">
-                  Delivers contact-form and newsletter-signup messages to us as a notification (the
-                  message also resides in our server-side log, which is the durable record)
+                  Delivers contact-form and newsletter-signup messages to us by email (the message
+                  also resides in our server-side log, which is the durable record)
                 </td>
-                <td class="py-2">Outside the EU/EEA</td>
+                <td class="py-2">EU / US (Standard Contractual Clauses, Data Privacy Framework)</td>
               </tr>
             </tbody>
           </table>
@@ -374,9 +374,8 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
         <h2 class="text-2xl font-bold text-text-body">International transfers</h2>
         <p class="mt-4 text-text-muted">
           Some of the third parties we work with are based outside the EU/EEA &mdash; in the United
-          States (FastSpring and Google) and elsewhere (Telegram, which relays contact-form and
-          newsletter-signup notifications). Where personal data is transferred outside the EU/EEA,
-          we rely on appropriate safeguards such as the EU Standard Contractual Clauses and, where
+          States (FastSpring and Google). Where personal data is transferred outside the EU/EEA, we
+          rely on appropriate safeguards such as the EU Standard Contractual Clauses and, where
           applicable, the providers&rsquo; certification under the EU&ndash;U.S. Data Privacy
           Framework.
         </p>
