@@ -61,7 +61,7 @@ export const faqPricing: FaqEntry[] = [
   },
   {
     q: 'I have an IISpeed or mod_pagespeed 1.x license. What now?',
-    a: `Your license moves to mod_pagespeed 2.1 at no cost, and paid terms are honored to expiry. Existing customers keep their current rate when they move to a support subscription. Write to ${link(`mailto:${COMMERCIAL_EMAIL}`, COMMERCIAL_EMAIL)} or use the ${link('/contact/?topic=iispeed-transfer', 'contact form')}.`,
+    a: `Your license moves to mod_pagespeed 2.1 at no cost, and paid terms are honored to expiry. Existing customers keep their current rate when they move to a support subscription. Request the transfer through the ${link('/contact/?topic=iispeed-transfer', 'license-transfer form')}; other questions go to ${link(`mailto:${COMMERCIAL_EMAIL}`, COMMERCIAL_EMAIL)}.`,
   },
   {
     q: 'Where do the support terms live?',

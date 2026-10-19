@@ -1,28 +1,28 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
-import { FREE_TO_RUN_LINE, SIDECAR_NGINX_VERSION } from '../../data/product-facts.mjs';
+import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
 
 const faq = [
   {
     q: 'Is IISpeed still supported?',
-    a: 'Support continues for existing customers, but IISpeed is deprecated and bug fixes and security patches have stopped. New IIS deployments should use mod_pagespeed for IIS, and ASP.NET Core deployments should use the WeAmp.PageSpeed.Sidecar NuGet package.',
+    a: 'Existing IISpeed installations keep working with ongoing support, but IISpeed itself no longer receives updates: its IIS integration lives on in the mod_pagespeed IIS module. New IIS deployments should use mod_pagespeed for IIS, and ASP.NET Core deployments the WeAmp.PageSpeed.AspNetCore NuGet package.',
   },
   {
     q: 'I hold an IISpeed license. What do I need to do?',
-    a: 'Nothing to move to mod_pagespeed 2.1 or the WeAmp.PageSpeed.Sidecar NuGet package — both are free to install and run. Questions about an existing IISpeed subscription go to license@we-amp.com.',
+    a: 'Request the transfer through the license-transfer form at https://modpagespeed.com/contact/?topic=iispeed-transfer, with your order number or the email address the license was bought under. The transfer is at no cost, and no new license is needed: the software is free to install and run. Other questions go to info@we-amp.com.',
   },
   {
     q: 'What replaces IISpeed for IIS deployments?',
     a: 'mod_pagespeed 2.1 ships a native IIS module with the same web.config surface IISpeed offered — a modernized, secured filter stack with new optimizers, same admin console, plus security patches, current toolchain, and Cyclone Cache. The IIS package ships from the 1.15 packaging channel.',
   },
   {
-    q: 'Does WeAmp.PageSpeed.Sidecar work with classic ASP.NET?',
-    a: "WeAmp.PageSpeed.Sidecar is for ASP.NET Core. For classic ASP.NET / WebForms / MVC 5 on IIS, mod_pagespeed for IIS is the right path — it's an IIS module, no application code changes required.",
+    q: 'Does WeAmp.PageSpeed.AspNetCore work with classic ASP.NET?',
+    a: "WeAmp.PageSpeed.AspNetCore is for ASP.NET Core. For classic ASP.NET / WebForms / MVC 5 on IIS, mod_pagespeed for IIS is the right path — it's an IIS module, no application code changes required.",
   },
   {
-    q: 'Can I run both mod_pagespeed for IIS and the WeAmp.PageSpeed.Sidecar package?',
-    a: 'Yes. Mixed environments are supported. Both run the same mod_pagespeed core — the native IIS module and the Sidecar package (bundled nginx + ngx_pagespeed on loopback) — so they share the same filters and admin console.',
+    q: 'Can I run both mod_pagespeed for IIS and the WeAmp.PageSpeed.AspNetCore package?',
+    a: 'Yes. Mixed environments are supported. The native IIS module and the ASP.NET Core middleware run the same mod_pagespeed optimization library, so they share the same filters.',
   },
 ];
 
@@ -46,15 +46,13 @@ const jsonLd = [
   {
     '@context': 'https://schema.org',
     '@type': 'SoftwareApplication',
-    name: 'WeAmp.PageSpeed.Sidecar (ASP.NET Core integration)',
+    name: 'WeAmp.PageSpeed.AspNetCore (ASP.NET Core middleware)',
     applicationCategory: 'DeveloperApplication',
-    operatingSystem: ['Linux'],
-    softwareRequirements: 'ASP.NET Core 6 or newer',
+    operatingSystem: ['Linux', 'macOS', 'Windows'],
+    softwareRequirements: '.NET 8 or .NET 10',
     description:
-      'GA 1.15 ASP.NET Core integration: your Kestrel app is the public front door, and the bundled nginx (' +
-      SIDECAR_NGINX_VERSION +
-      ') runs on loopback behind it as the optimize-proxy. Image optimization, CSS/JS minification, and critical CSS, powered by the mod_pagespeed 1.15 core.',
-    sameAs: 'https://www.nuget.org/packages/WeAmp.PageSpeed.Sidecar',
+      'ASP.NET Core middleware that runs inside your app: image optimization, CSS/JS minification and critical CSS, with no separate reverse proxy.',
+    sameAs: 'https://www.nuget.org/packages/WeAmp.PageSpeed.AspNetCore',
     publisher: {
       '@type': 'Organization',
       name: 'We-Amp B.V.',
@@ -76,7 +74,7 @@ const jsonLd = [
 
 <BaseLayout
   title="IISpeed successor: PageSpeed for IIS (2026)"
-  description="IISpeed is deprecated. Its successor is mod_pagespeed for IIS, the native IIS module: free license transfer, or the Sidecar NuGet package for ASP.NET Core."
+  description="IISpeed is deprecated. Its successor is mod_pagespeed for IIS, the native IIS module: free license transfer, or the AspNetCore NuGet package for ASP.NET Core."
   jsonLd={jsonLd}
 >
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-20">
@@ -104,7 +102,7 @@ const jsonLd = [
           Support plans
         </a>
         <a
-          href="mailto:license@we-amp.com?subject=IISpeed license transfer"
+          href="/contact/?topic=iispeed-transfer"
           class="rounded-md border border-border-strong px-4 py-2 text-sm font-medium text-text-body hover:border-border-strong"
         >
           Transfer my IISpeed license
@@ -116,8 +114,9 @@ const jsonLd = [
     <div class="mt-12 prose prose-stone max-w-none prose-headings:font-semibold prose-a:text-interactive dark:prose-invert">
       <p>
         IISpeed is now deprecated. Existing customers get a free license transfer to either
-        mod_pagespeed 2.1 (native IIS port) or to the WeAmp.PageSpeed.Sidecar NuGet package for
-        ASP.NET Core. Support continues, but bug fixes and security patches have stopped.
+        mod_pagespeed 2.1 (native IIS port) or to the WeAmp.PageSpeed.AspNetCore NuGet package for
+        ASP.NET Core. Existing installations keep working with ongoing support, but IISpeed itself
+        no longer receives updates: its IIS integration lives on in the mod_pagespeed IIS module.
       </p>
       <p>This page explains both forward paths.</p>
 
@@ -146,7 +145,7 @@ const jsonLd = [
         </li>
         <li>
           Customer demand consolidated on either drop-in IIS replacements (where 1.15 fits) or on
-          ASP.NET Core (where the WeAmp.PageSpeed.Sidecar NuGet package fits).
+          ASP.NET Core (where the WeAmp.PageSpeed.AspNetCore NuGet package fits).
         </li>
         <li>
           One IIS code path is better than two. The IIS port now lives inside
@@ -184,16 +183,15 @@ const jsonLd = [
         <a href="/download/">Download the MSI</a>
       </p>
 
-      <h2>Path 2 &mdash; WeAmp.PageSpeed.Sidecar NuGet package for ASP.NET Core</h2>
+      <h2>Path 2 &mdash; WeAmp.PageSpeed.AspNetCore NuGet package for ASP.NET Core</h2>
       <p>
         If your stack is ASP.NET Core, IIS is no longer the natural integration point. The
-        <code>WeAmp.PageSpeed.Sidecar</code> NuGet package is the GA 1.15 ASP.NET Core integration:
-        your Kestrel app stays the public front door, and the package's bundled nginx runs on
-        loopback behind it as the optimize-proxy:
+        <code>WeAmp.PageSpeed.AspNetCore</code> NuGet package is ASP.NET Core middleware: it runs
+        inside your app's request pipeline, with no separate reverse proxy:
       </p>
 
       <pre><code>{`// Program.cs
-using WeAmp.PageSpeed.Sidecar;
+using WeAmp.PageSpeed.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddPageSpeed();
@@ -202,19 +200,16 @@ var app = builder.Build();
 app.UsePageSpeed();
 app.Run();`}</code></pre>
 
-      <pre><code>dotnet add package WeAmp.PageSpeed.Sidecar</code></pre>
+      <pre><code>dotnet add package WeAmp.PageSpeed.AspNetCore</code></pre>
 
       <p>
-        The package bundles the mod_pagespeed core (nginx {SIDECAR_NGINX_VERSION}) and starts it on
-        loopback automatically &mdash; no IIS module registration, no <code>web.config</code>{' '}
-        editing, no
-        <code>gacutil</code>. It is Linux-only (linux-x64 / linux-arm64), for container and Linux
-        deployments of ASP.NET Core.
+        No IIS module registration, no <code>web.config</code> editing, no <code>gacutil</code>. It
+        targets .NET 8 and .NET 10 on Linux (x64, arm64), macOS (Apple Silicon) and Windows (x64).
       </p>
 
       <p>
         <a href="/blog/aspnet-core-middleware/">How the integration works</a> &middot;
-        <a href="/go/nuget/?pkg=sidecar&from=alternatives-iispeed-inline">NuGet package</a>
+        <a href="/go/nuget/?pkg=aspnetcore&from=alternatives-iispeed-inline">NuGet package</a>
       </p>
 
       <h2>Which path fits</h2>
@@ -235,31 +230,35 @@ app.Run();`}</code></pre>
             <td>mod_pagespeed for IIS</td>
           </tr>
           <tr>
-            <td>ASP.NET Core 6+ on Kestrel (Linux)</td>
-            <td>WeAmp.PageSpeed.Sidecar NuGet package</td>
+            <td>ASP.NET Core (.NET 8 or 10) on Kestrel</td>
+            <td>WeAmp.PageSpeed.AspNetCore NuGet package</td>
           </tr>
           <tr>
             <td>Linux container deployment of an ASP.NET Core app</td>
-            <td>WeAmp.PageSpeed.Sidecar NuGet package</td>
+            <td>WeAmp.PageSpeed.AspNetCore NuGet package</td>
           </tr>
           <tr>
             <td>ASP.NET Core hosted on Windows / IIS</td>
-            <td>mod_pagespeed for IIS (the Sidecar is Linux-only)</td>
+            <td>
+              WeAmp.PageSpeed.AspNetCore NuGet package (it runs on Windows x64), or mod_pagespeed
+              for IIS
+            </td>
           </tr>
           <tr>
             <td>Mixed environment (some sites on classic IIS, some on .NET Core)</td>
-            <td>Run both &mdash; they share the same core and admin console</td>
+            <td>Run both &mdash; they share the same optimization library and filters</td>
           </tr>
         </tbody>
       </table>
 
       <h2>License transfer</h2>
       <p>
-        If you hold an IISpeed license, there is nothing to transfer: mod_pagespeed 2.1 and the
-        WeAmp.PageSpeed.Sidecar NuGet package are free to install and run. Questions about an
-        existing IISpeed subscription go to{' '}
-        <a href="mailto:license@we-amp.com">license@we-amp.com</a>; the IISpeed transition window is
-        documented at
+        If you hold an IISpeed license, request the transfer through the
+        <a href="/contact/?topic=iispeed-transfer">license-transfer form</a>, with your order number
+        or the email address the license was bought under. The transfer is at no cost, and no new
+        license is needed: the software is free to install and run. Other questions go to{' '}
+        <a href="mailto:info@we-amp.com">info@we-amp.com</a>. The IISpeed transition is documented
+        at
         <a href="https://iispeed.com/" rel="noopener noreferrer">
           iispeed.com
         </a>
@@ -288,8 +287,10 @@ app.Run();`}</code></pre>
           <a href="/docs/iis-configuration/">IIS docs</a>
         </li>
         <li>
-          <strong>WeAmp.PageSpeed.Sidecar NuGet package</strong> &mdash;
-          <a href="/go/nuget/?pkg=sidecar&from=alternatives-iispeed-tryone">NuGet package</a>{' '}
+          <strong>WeAmp.PageSpeed.AspNetCore NuGet package</strong> &mdash;
+          <a href="/go/nuget/?pkg=aspnetcore&from=alternatives-iispeed-tryone">
+            NuGet package
+          </a>{' '}
           &middot;
           <a href="/docs/aspnet-getting-started/">ASP.NET Core docs</a>
         </li>
