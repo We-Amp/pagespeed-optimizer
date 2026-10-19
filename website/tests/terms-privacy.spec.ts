@@ -100,7 +100,9 @@ test.describe('/privacy/ page', () => {
 
   test('the footer links the notice on we-amp.com', async ({ page }) => {
     await page.goto('/');
-    await expect(page.locator('footer a[href="https://we-amp.com/privacy/"]')).toBeVisible();
+    await expect(
+      page.locator('footer').getByRole('link', { name: 'Privacy', exact: true }),
+    ).toHaveAttribute('href', 'https://we-amp.com/privacy/');
     await expect(page.locator('a[href="/privacy/"]')).toHaveCount(0);
   });
 });
