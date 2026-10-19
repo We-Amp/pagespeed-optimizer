@@ -166,13 +166,17 @@ jobs:
           # in non-frozen content (same scope as the URL guard: blog exempt)
           # must equal the manifest semver. These are copy-paste install
           # commands, and a stale one pulls an old image. .md cannot use the
-          # <ImageTag /> component, so this keeps those literals honest.
+          # <ImageTag /> component, so this keeps those literals honest. The
+          # same holds for a Compose default (`${PAGESPEED_VERSION:-2.X.Y}`) or
+          # an .env value (`PAGESPEED_VERSION=2.X.Y`), and `latest` is never a
+          # valid tag for the worker or nginx image (only the combined image
+          # publishes one), so those fail too.
           esc="${manifest//./\\.}"
           stale=$(find website/src/content website/src/pages website/src/components website/src/layouts \
             -type f \( -name '*.md' -o -name '*.mdx' -o -name '*.astro' \) \
             -not -path '*/content/blog/*' \
-            -exec grep -Eoh 'ghcr\.io/we-amp/pagespeed-[a-z]+:2\.[0-9]+\.[0-9]+' {} + 2>/dev/null \
-            | sort -u | grep -vE ":${esc}\$" || true)
+            -exec grep -Eoh 'ghcr\.io/we-amp/pagespeed-[a-z]+:2\.[0-9]+\.[0-9]+|PAGESPEED_VERSION(:-|=)(2\.[0-9]+\.[0-9]+|latest)|pagespeed-(worker|nginx):(\$\{PAGESPEED_VERSION:-)?latest' {} + 2>/dev/null \
+            | sort -u | grep -vE "(:|:-|=)${esc}\$" || true)
           if [ -n "$stale" ]; then
             echo "::error::stale image tag(s) in non-frozen content (must be :${manifest}):"
             echo "$stale"
