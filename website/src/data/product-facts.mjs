@@ -120,7 +120,7 @@ export const SUPPORT_TIERS = [
       'Vulnerability notifications timed to the EU Cyber Resilience Act reporting windows',
       'Upgrade rehearsal on request',
       'Quarterly review call',
-      'The release SBOM and VEX on request',
+      'Release SBOM and VEX on request',
       'First response next business day; severity 1 (production down) within 8 business hours',
     ],
   },
@@ -152,7 +152,7 @@ export const SUPPORT_TIERS = [
 // The line under the tier cards: the private repository is not a checkmark
 // until it exists, and what is signed and attested is not a tier feature.
 export const PRIVATE_REPO_LINE =
-  'A private package repository for Priority and Enterprise subscribers is being set up. Everything signed and attested is the same for every user, with or without a subscription.';
+  'A private package repository for Priority and Enterprise subscribers is being set up. Every signature and attestation is the same for every user, with or without a subscription.';
 // The pricing terms, said the same way everywhere they are said.
 export const PRICING_TERMS_LINE = 'Prices are per year, billed annually, excl. VAT.';
 export const PRICE_HOLD_LINE =
