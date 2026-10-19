@@ -186,7 +186,7 @@ test.describe('Pricing page', () => {
   test('the page names the terms version and links the support terms', async ({ page }) => {
     await expect(page.locator('[data-terms-version]')).toHaveAttribute(
       'data-terms-version',
-      /^\d{4}-\d{2}$/,
+      /^\d{4}-\d{2}(-\d{2})?$/,
     );
     await expect(page.locator('[data-terms-version] a[href="/terms/"]')).toBeVisible();
     await expect(page.locator('#start a[href="https://we-amp.com/licensing/"]')).toBeVisible();

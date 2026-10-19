@@ -16,11 +16,11 @@ test.describe('/terms/ page', () => {
     await expect(page.locator('main h1')).toHaveText(/Terms of Service/i);
   });
 
-  test('displays version identifier 2026-10', async ({ page }) => {
+  test('displays version identifier 2026-10-19', async ({ page }) => {
     await page.goto('/terms/');
     // Scoped to main: the telemetry strip shows a capture date (2026-10-..)
     // until its live value replaces it, which also matches a bare '2026-10'.
-    await expect(page.locator('main').getByText('Version 2026-10')).toBeVisible();
+    await expect(page.locator('main').getByText('Version 2026-10-19')).toBeVisible();
   });
 
   test('displays effective date October 2026', async ({ page }) => {
@@ -71,7 +71,10 @@ test.describe('/terms/ page', () => {
     await page.goto('/terms/');
     const main = page.locator('main');
     await expect(main).toContainText('Apache License 2.0');
-    await expect(main).toContainText('subscriber repository');
+    await expect(main).toContainText('private package repository');
+    await expect(main).not.toContainText('SLA-backed');
+    await expect(main).not.toContainText('hardened');
+    await expect(main).not.toContainText('when available');
     await expect(main).not.toContainText('X-PageSpeed-Warn');
     await expect(main).not.toContainText('unlicensed');
     await expect(main).not.toContainText('license key');
