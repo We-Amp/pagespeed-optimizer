@@ -9,6 +9,12 @@ damaged cache file could terminate the process. Affected: the optimizer worker,
 the nginx module and the `WeAmp.PageSpeed.NativeAssets.*` NuGet packages, up to
 and including 2.4.0. Update recommended.
 
+Security: crafted JavaScript or HTML handled by the optimizer worker could end a
+script block early or produce malformed attribute output. The JavaScript and
+HTML parsing kernels are now synced from the module repository and carry its
+fixes. Affected: the optimizer worker and the `WeAmp.PageSpeed.NativeAssets.*`
+NuGet packages up to and including 2.4.0. Update recommended.
+
 Changed: the disk cache moves to on-disk format v9 (Cyclone 22f6553) in the
 optimizer worker, the nginx module and the `WeAmp.PageSpeed.NativeAssets.*`
 NuGet packages. The cache starts cold on the first start after the upgrade: it
