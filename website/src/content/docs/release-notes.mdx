@@ -3,10 +3,10 @@ title: 'Release notes'
 description: 'mod_pagespeed 2.1 release notes: the current release, the notes of every line, every release in one list, security updates and what changed since upstream.'
 order: 70
 group: 'Reference'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-19
 ---
 
-mod_pagespeed 2.1 is released as two parts: the module, which runs inside Apache or nginx and applies the classic rewriting filters in the request itself, and the optimizer worker, a separate process introduced by the 2.0 re-architecture that does the heavy optimization work off the request path. Since 2.1.0 the two are released together; the native packages of the current release carry the package version 1.19.0, the product as a whole is 2.4.0, and that is the version the container images, the NuGet packages and the Helm chart's application version carry. This page lists the current release, the release notes of each line, and every release in one list, newest first, followed by the [security updates](#security-updates) we have published and [what has changed since the last upstream release](#115-history). We recommend running the latest release: it always carries the most recent performance and security work.
+mod_pagespeed 2.1 is released as two parts: the module, which runs inside Apache or nginx and applies the classic rewriting filters in the request itself, and the optimizer worker, a separate process introduced by the 2.0 re-architecture that does the heavy optimization work off the request path. Since 2.1.0 the two are released together, and since 2.5.0 one version number covers both: the native packages, the container images, the NuGet packages and the Helm chart's application version of the current release all carry 2.5.0. This page lists the current release, the release notes of each line, and every release in one list, newest first, followed by the [security updates](#security-updates) we have published and [what has changed since the last upstream release](#115-history). We recommend running the latest release: it always carries the most recent performance and security work.
 
 <span id="whats-in-modpagespeed-20" class="rn-alias" aria-hidden="true"></span>
 <span id="optimization-pipeline" class="rn-alias" aria-hidden="true"></span>
@@ -17,16 +17,15 @@ mod_pagespeed 2.1 is released as two parts: the module, which runs inside Apache
 <span id="the-module-and-the-optimizer-worker" class="rn-alias" aria-hidden="true"></span>
 ## The current release {#current-release}
 
-<span id="v2-4-0" class="rn-alias" aria-hidden="true"></span>
-<span id="v1-19-0" class="rn-alias" aria-hidden="true"></span>
+<span id="v2-5-0" class="rn-alias" aria-hidden="true"></span>
 <div class="rn-entry rn-entry-current">
 
-<p class="rn-summary-line"><span class="rn-ver">mod_pagespeed 2.4.0</span> <span class="rn-date">2026-10-14</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span></p>
+<p class="rn-summary-line"><span class="rn-ver">mod_pagespeed 2.5.0</span> <span class="rn-date">2026-10-19</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span></p>
 
-**mod_pagespeed 2.4.0 (packages 1.19.0) lets a server run several rule packs and is a security and reliability update for the module and the optimizer worker, released together and installed as a matching pair.** In the signed apt and yum repositories both parts carry the package version 1.19.0; 2.4.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.8). In the nginx module in the container images and Helm chart, cache hits now carry the origin's security and CORS headers, including `Content-Security-Policy`. That module also stops stale serves of responses the origin marked `must-revalidate`, `proxy-revalidate` or `s-maxage`, and serves the full stored response, not a bare `304`, to a client that sent no conditional request after the origin confirms a stale copy. The ASP.NET Core middleware now builds its ETag from the origin's content. If you use rule packs, run the nginx module from the container images or Helm chart, or use the ASP.NET Core middleware, read "Before you upgrade".
+**mod_pagespeed 2.5.0 is a security update for the module and the optimizer worker, released together and installed as a matching pair.** From this release the packages in the signed apt and yum repositories, the container images, the NuGet packages and the application version of the Helm chart (chart 0.3.9) all carry the version 2.5.0; the packages go from 1.19.0 to 2.5.0, so a pin to `1.*` needs updating. It fixes several classes of security defects in the module and the optimizer worker, among them crafted images, scripts, stylesheets or cache contents that could stop a worker process or read memory out of bounds, and responses that could be cached longer than the origin allowed. The disk cache starts empty once after the upgrade, and the optimizer worker's cache directory moves from `v2` to `v3`: read "Before you upgrade".
 **Update recommended.**
 
-[Read the full 2.4.0 release notes](/docs/release-notes-2-4/#v2-4-0): the security fix, several rule packs per server, what to do before you upgrade and the fixes on each server.
+[Read the full 2.5.0 release notes](/docs/release-notes-2-5/#v2-5-0): the security fixes, one version number from this release on, what to do before you upgrade and the fixes on each server.
 
 </div>
 
@@ -34,7 +33,8 @@ mod_pagespeed 2.1 is released as two parts: the module, which runs inside Apache
 
 Each line has its own page with the full entry for every release, collapsed and newest first.
 
-- [mod_pagespeed 2.4](/docs/release-notes-2-4/) — 2.4.0, 2026-10-14 (packages 1.19.0). The current release: the module and the optimizer worker together, with several rule packs per server.
+- [mod_pagespeed 2.5](/docs/release-notes-2-5/): 2.5.0, 2026-10-19. The current release: the module and the optimizer worker together, a security update, and one version number from this release on.
+- [mod_pagespeed 2.4](/docs/release-notes-2-4/) — 2.4.0, 2026-10-14 (packages 1.19.0). The module and the optimizer worker together, with several rule packs per server.
 - [mod_pagespeed 2.3](/docs/release-notes-2-3/) — 2.3.0, 2026-10-12 (packages 1.18.0). The module and the optimizer worker together, with rule packs.
 - [mod_pagespeed 2.2](/docs/release-notes-2-2/) — 2.2.0, 2026-10-06 (packages 1.17.0). The module and the optimizer worker together.
 - [mod_pagespeed 2.1](/docs/release-notes-2-1/) — 2.1.0, 2026-09-17 (packages 1.16.0). The first release of the two parts as one product.
@@ -50,13 +50,14 @@ Every release, grouped into four periods and newest first inside each. Each line
 
 ### The converged line — September to October 2026 {#era-converged}
 
-mod_pagespeed 2.1.0, 2.2.0, 2.3.0 and 2.4.0 are the module and the optimizer worker released together. 2.1.0 carries package version 1.16.0 in the apt and yum repositories and 2.1.0 on the NuGet package; no container images or Helm chart were published for it. 2.2.0 carries package version 1.17.0, and 2.2.0 on the container images, the NuGet packages and as the Helm chart's application version. 2.3.0 carries package version 1.18.0, and 2.3.0 on the container images, the NuGet packages and as the Helm chart's application version. 2.4.0 carries package version 1.19.0, and 2.4.0 on the container images, the NuGet packages and as the Helm chart's application version. See [the current release](#current-release) above and the [2.4](/docs/release-notes-2-4/), [2.3](/docs/release-notes-2-3/), [2.2](/docs/release-notes-2-2/) and [2.1](/docs/release-notes-2-1/) pages for the full entries.
+mod_pagespeed 2.1.0, 2.2.0, 2.3.0, 2.4.0 and 2.5.0 are the module and the optimizer worker released together. 2.1.0 carries package version 1.16.0 in the apt and yum repositories and 2.1.0 on the NuGet package; no container images or Helm chart were published for it. 2.2.0 carries package version 1.17.0, and 2.2.0 on the container images, the NuGet packages and as the Helm chart's application version. 2.3.0 carries package version 1.18.0, and 2.3.0 on the container images, the NuGet packages and as the Helm chart's application version. 2.4.0 carries package version 1.19.0, and 2.4.0 on the container images, the NuGet packages and as the Helm chart's application version. 2.5.0 carries 2.5.0 everywhere: on the packages in the apt and yum repositories, the container images, the NuGet packages and as the Helm chart's application version. See [the current release](#current-release) above and the [2.5](/docs/release-notes-2-5/), [2.4](/docs/release-notes-2-4/), [2.3](/docs/release-notes-2-3/), [2.2](/docs/release-notes-2-2/) and [2.1](/docs/release-notes-2-1/) pages for the full entries.
 
-<div class="rn-entry" id="v2-5-0">
+<div class="rn-entry">
 <p class="rn-summary-line"><span class="rn-ver"><a href="/docs/release-notes-2-5/#v2-5-0">2.5.0</a></span> <span class="rn-date">2026-10-19</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span> <span class="rn-lede">Security update for the module and the optimizer worker, released together, and one version number from this release on. Update recommended.</span></p>
 </div>
 
-<div class="rn-entry">
+<span id="v1-19-0" class="rn-alias" aria-hidden="true"></span>
+<div class="rn-entry" id="v2-4-0">
 <p class="rn-summary-line"><span class="rn-ver"><a href="/docs/release-notes-2-4/#v2-4-0">2.4.0</a></span> <span class="rn-date">2026-10-14</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span> <span class="rn-lede">Several rule packs per server, plus a security and reliability update for the module and the optimizer worker, released together. Update recommended.</span></p>
 </div>
 
