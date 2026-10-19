@@ -122,7 +122,7 @@ native HTTP module and creates the default cache directory. Then
 [verify](#verify-it-works). Running IISpeed on that host? Uninstall it first;
 the two register the same handler. The [IIS install guide](/docs/install-iis/)
 has the requirements, IIS Express and the optional optimizer service. The IIS
-package ships from the 1.15 packaging channel.
+package ships as a signed installer on the mod_pagespeed GitHub release.
 
 ## Quickstart: ASP.NET Core
 
