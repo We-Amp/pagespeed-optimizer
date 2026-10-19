@@ -102,17 +102,18 @@ bool OptimizeJpegWithOptions(const std::string& original,
                              const JpegCompressionOptions& options,
                              MessageHandler* handler);
 
+// Errors raised by libjpeg are reported through a failed ScanlineStatus
+// from the method that triggered them; each method guards its own libjpeg
+// calls with a jump buffer that lives for the duration of the call. A
+// caller that wants the longjmp to land in its own frame may still install
+// one with SetJmpBufEnv.
+//
 // User of this class must call this functions in the following
 // sequence:
 // func () {
 //   JpegScanlineWriter jpeg_writer;
-//   jmp_buf env;
-//   if (setjmp(env)) {
-//     jpeg_writer.AbortWrite();
-//     return;
-//   }
-//   jpeg_writer.SetJmpBufEnv(&env);
 //   if (jpeg_writer.Init(width, height, format)) {
+
 //     jpeg_writer.SetJpegCompressParams(quality);
 //     jpeg_writer.InitializeWrite(out);
 //     while(has_lines_to_write) {
@@ -126,7 +127,9 @@ class JpegScanlineWriter : public ::net_instaweb::ScanlineWriterInterface {
   explicit JpegScanlineWriter(MessageHandler* handler);
   ~JpegScanlineWriter() override;
 
-  // Set the environment for longjmp calls.
+  // Set the environment for longjmp calls. The buffer must outlive every
+  // call on this writer. If no buffer is installed, each method guards its
+  // own libjpeg calls and reports a failure as a ScanlineStatus.
   void SetJmpBufEnv(jmp_buf* env);
 
   // This function is only called when jpeg library call longjmp for

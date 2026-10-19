@@ -1998,7 +1998,8 @@ size_t FindRegexClosingSlash(StringPiece input) {
 
 }  // namespace
 
-bool SpeculativeRegexCanReassembleComment(StringPiece input) {
+bool SpeculativeRegexCanReassembleComment(StringPiece input,
+                                          const char** no_block_end_from) {
   DCHECK(!input.empty());
   DCHECK_EQ('/', input[0]);
   const size_t close = FindRegexClosingSlash(input);
@@ -2023,6 +2024,11 @@ bool SpeculativeRegexCanReassembleComment(StringPiece input) {
   // escaping.
   bool in_class = false;
   bool escaped = false;
+  // Position of the first "*/" at or after the most recent search start.  The
+  // search start only moves forward, so a cached result stays valid while it
+  // is still ahead of the start, and "not found" stays "not found".
+  size_t block_end = 0;
+  bool block_end_searched = false;
   for (size_t i = 1; i < close; ++i) {
     const char ch = input[i];
     const bool delimiter =
@@ -2042,7 +2048,24 @@ bool SpeculativeRegexCanReassembleComment(StringPiece input) {
         // either it closes inside the verbatim literal, or it never closes
         // at all -- in which case the division reading is not valid
         // JavaScript.
-        const size_t end = input.find("*/", i + 2);
+        if (!block_end_searched ||
+            (block_end != StringPiece::npos && block_end < i + 2)) {
+          // A search from this position or later is already known to find
+          // nothing (the input only moves forward between calls).
+          const char* from = input.data() + i + 2;
+          if (no_block_end_from != nullptr && *no_block_end_from != nullptr &&
+              from >= *no_block_end_from) {
+            block_end = StringPiece::npos;
+          } else {
+            block_end = input.find("*/", i + 2);
+            if (block_end == StringPiece::npos &&
+                no_block_end_from != nullptr) {
+              *no_block_end_from = from;
+            }
+          }
+          block_end_searched = true;
+        }
+        const size_t end = block_end;
         if (end != StringPiece::npos && end + 2 > close) {
           return true;
         }
@@ -2081,7 +2104,8 @@ JsKeywords::Type JsTokenizer::ConsumeRegex(StringPiece* token_out) {
   // reassemble a comment delimiter that was not in the input.  Declining
   // (error) is fail-safe: minification fails and the caller serves the
   // original input unmodified.
-  if (speculative_operator_ && SpeculativeRegexCanReassembleComment(input_)) {
+  if (speculative_operator_ &&
+      SpeculativeRegexCanReassembleComment(input_, &no_block_end_from_)) {
     return Error(token_out);
   }
   PushExpression();
