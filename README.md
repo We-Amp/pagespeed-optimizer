@@ -213,8 +213,8 @@ the worker side and shared with nginx automatically via `pagespeed-shared.conf`
 ### Testing
 
 ```bash
-# Unit tests
-bazel test //...
+# Unit tests (CC=clang-20 CXX=clang++-20 exported, as under Build)
+bazel test --config=libc++ //...
 
 # Sanitizers (ASan + UBSan + LeakSan + TSan)
 ./tools/docker-sanitizers.sh
