@@ -17,31 +17,78 @@ internal sealed class SafeCacheHandle : SafeHandleZeroOrMinusOneIsInvalid
     }
 }
 
-internal sealed class SafeReadResultHandle : SafeHandleZeroOrMinusOneIsInvalid
+/// <summary>
+/// Base for native handles that borrow from an open cache (a read result
+/// points into the cache's mmap; a write handle writes into it). The native
+/// cache (ps_cache_close) does not reference-count its children, so the
+/// managed side does: such a handle owns one SafeHandle reference on the
+/// cache handle and drops it only after its own native object is freed.
+/// Disposing the cache while children are outstanding therefore marks the
+/// cache handle closed (new calls through it fail) but defers
+/// ps_cache_close until the last child is released. This is what makes it
+/// safe to retire a cache instance after a volume reset while in-flight
+/// responses still stream from it.
+/// </summary>
+internal abstract class SafeCacheChildHandle : SafeHandleZeroOrMinusOneIsInvalid
 {
-    public SafeReadResultHandle() : base(ownsHandle: true) { }
-    internal SafeReadResultHandle(IntPtr ptr) : base(ownsHandle: true)
-        => SetHandle(ptr);
-    protected override bool ReleaseHandle()
+    private SafeCacheHandle? _owner;
+
+    protected SafeCacheChildHandle() : base(ownsHandle: true) { }
+
+    /// <param name="ptr">The native child object.</param>
+    /// <param name="owner">
+    /// The cache handle this child borrows from. The caller must already
+    /// hold one DangerousAddRef on it; that reference is transferred to this
+    /// handle and released after the child is freed. Null when the child does
+    /// not borrow from a cache.
+    /// </param>
+    protected SafeCacheChildHandle(IntPtr ptr, SafeCacheHandle? owner)
+        : base(ownsHandle: true)
     {
-        NativePageSpeed.ReadFree(handle);
+        SetHandle(ptr);
+        _owner = owner;
+    }
+
+    protected abstract void FreeNative(IntPtr ptr);
+
+    /// <summary>
+    /// For a child whose native object was already freed by another call
+    /// (ps_write_close frees the write handle): mark this handle invalid so
+    /// ReleaseHandle never runs, and drop the cache reference it held.
+    /// </summary>
+    internal void SetNativeFreed()
+    {
+        SetHandleAsInvalid();
+        Interlocked.Exchange(ref _owner, null)?.DangerousRelease();
+    }
+
+    protected sealed override bool ReleaseHandle()
+    {
+        FreeNative(handle);
+        Interlocked.Exchange(ref _owner, null)?.DangerousRelease();
         return true;
     }
 }
 
-internal sealed class SafeWriteHandle : SafeHandleZeroOrMinusOneIsInvalid
+internal sealed class SafeReadResultHandle : SafeCacheChildHandle
 {
-    public SafeWriteHandle() : base(ownsHandle: true) { }
-    internal SafeWriteHandle(IntPtr ptr) : base(ownsHandle: true)
-        => SetHandle(ptr);
-    protected override bool ReleaseHandle()
-    {
-        // Abort is the safety net: releases the native handle even if
-        // the caller forgot to call Commit(). Normal path calls WriteClose
-        // then SetHandleAsInvalid() to prevent double-close.
-        NativePageSpeed.WriteAbort(handle);
-        return true;
-    }
+    public SafeReadResultHandle() { }
+    internal SafeReadResultHandle(IntPtr ptr, SafeCacheHandle? owner = null)
+        : base(ptr, owner) { }
+    protected override void FreeNative(IntPtr ptr) => NativePageSpeed.ReadFree(ptr);
+}
+
+internal sealed class SafeWriteHandle : SafeCacheChildHandle
+{
+    public SafeWriteHandle() { }
+    internal SafeWriteHandle(IntPtr ptr, SafeCacheHandle? owner = null)
+        : base(ptr, owner) { }
+
+    // Abort is the safety net: releases the native handle even if
+    // the caller forgot to call Commit(). Normal path calls WriteClose
+    // then marks the handle released (see CacheWriter.Commit) so the
+    // native handle is not closed twice.
+    protected override void FreeNative(IntPtr ptr) => NativePageSpeed.WriteAbort(ptr);
 }
 
 internal sealed class SafeHtmlResultHandle : SafeHandleZeroOrMinusOneIsInvalid

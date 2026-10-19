@@ -134,11 +134,18 @@ public sealed class PageSpeedCache : IPageSpeedCache
     public IReadResult? ReadBest(string url, string hostname, string scheme, uint mask)
     {
         ObjectDisposedException.ThrowIf(_disposed != 0, this);
-        int err = NativePageSpeed.CacheReadBest(
-            _handle, url, hostname, scheme, mask, out var raw);
-        if (err == (int)PageSpeedError.NotFound) return null;
-        NativeCheck.ThrowOnError(err);
-        return new ReadResult(new SafeReadResultHandle(raw));
+        bool added = false;
+        _handle.DangerousAddRef(ref added);
+        try
+        {
+            int err = NativePageSpeed.CacheReadBest(
+                _handle, url, hostname, scheme, mask, out var raw);
+            return WrapRead(err, raw, ref added);
+        }
+        finally
+        {
+            if (added) _handle.DangerousRelease();
+        }
     }
 
     /// <summary>
@@ -153,11 +160,18 @@ public sealed class PageSpeedCache : IPageSpeedCache
         string url, string hostname, string scheme, uint mask, int agentEntitled)
     {
         ObjectDisposedException.ThrowIf(_disposed != 0, this);
-        int err = NativePageSpeed.CacheReadBestAgent(
-            _handle, url, hostname, scheme, mask, agentEntitled, out var raw);
-        if (err == (int)PageSpeedError.NotFound) return null;
-        NativeCheck.ThrowOnError(err);
-        return new ReadResult(new SafeReadResultHandle(raw));
+        bool added = false;
+        _handle.DangerousAddRef(ref added);
+        try
+        {
+            int err = NativePageSpeed.CacheReadBestAgent(
+                _handle, url, hostname, scheme, mask, agentEntitled, out var raw);
+            return WrapRead(err, raw, ref added);
+        }
+        finally
+        {
+            if (added) _handle.DangerousRelease();
+        }
     }
 
     /// <summary>
@@ -176,22 +190,62 @@ public sealed class PageSpeedCache : IPageSpeedCache
         string url, string hostname, string scheme, byte alternateId)
     {
         ObjectDisposedException.ThrowIf(_disposed != 0, this);
-        int err = NativePageSpeed.CacheReadAlternate(
-            _handle, url, hostname, scheme, alternateId, out var raw);
-        if (err == (int)PageSpeedError.NotFound) return null;
-        NativeCheck.ThrowOnError(err);
-        return new ReadResult(new SafeReadResultHandle(raw));
+        bool added = false;
+        _handle.DangerousAddRef(ref added);
+        try
+        {
+            int err = NativePageSpeed.CacheReadAlternate(
+                _handle, url, hostname, scheme, alternateId, out var raw);
+            return WrapRead(err, raw, ref added);
+        }
+        finally
+        {
+            if (added) _handle.DangerousRelease();
+        }
     }
 
     /// <summary>Read early hints for a URL. Returns null on miss.</summary>
     public IReadResult? ReadEarlyHints(string url, string hostname, string scheme)
     {
         ObjectDisposedException.ThrowIf(_disposed != 0, this);
-        int err = NativePageSpeed.CacheReadEarlyHints(
-            _handle, url, hostname, scheme, out var raw);
+        bool added = false;
+        _handle.DangerousAddRef(ref added);
+        try
+        {
+            int err = NativePageSpeed.CacheReadEarlyHints(
+                _handle, url, hostname, scheme, out var raw);
+            return WrapRead(err, raw, ref added);
+        }
+        finally
+        {
+            if (added) _handle.DangerousRelease();
+        }
+    }
+
+    /// <summary>
+    /// Wraps a native read result. On success the cache-handle reference the
+    /// caller took (<paramref name="added"/>) moves into the result's handle,
+    /// so the native cache outlives the result even if this instance is
+    /// disposed first (see <see cref="SafeCacheChildHandle"/>).
+    /// </summary>
+    private ReadResult? WrapRead(int err, IntPtr raw, ref bool added)
+    {
         if (err == (int)PageSpeedError.NotFound) return null;
         NativeCheck.ThrowOnError(err);
-        return new ReadResult(new SafeReadResultHandle(raw));
+        var owner = added && raw != IntPtr.Zero ? _handle : null;
+        var result = new ReadResult(new SafeReadResultHandle(raw, owner));
+        if (owner != null) added = false;
+        return result;
+    }
+
+    /// <summary>Same transfer as <see cref="WrapRead"/>, for write handles.</summary>
+    private CacheWriter WrapWrite(int err, IntPtr raw, ref bool added)
+    {
+        NativeCheck.ThrowOnError(err);
+        var owner = added && raw != IntPtr.Zero ? _handle : null;
+        var writer = new CacheWriter(new SafeWriteHandle(raw, owner));
+        if (owner != null) added = false;
+        return writer;
     }
 
     /// <summary>Begin a cache write. Dispose the writer to abort.</summary>
@@ -201,29 +255,36 @@ public sealed class PageSpeedCache : IPageSpeedCache
         ObjectDisposedException.ThrowIf(_disposed != 0, this);
         var native = writeParams.ToNative();
 
-        // Pin OriginContentType as UTF-8 for the duration of ps_cache_write_begin.
-        if (writeParams.OriginContentType != null)
+        bool added = false;
+        _handle.DangerousAddRef(ref added);
+        try
         {
-            var ctBytes = System.Text.Encoding.UTF8.GetBytes(
-                writeParams.OriginContentType + '\0');
-            unsafe
+            // Pin OriginContentType as UTF-8 for the duration of ps_cache_write_begin.
+            if (writeParams.OriginContentType != null)
             {
-                fixed (byte* ctPtr = ctBytes)
+                var ctBytes = System.Text.Encoding.UTF8.GetBytes(
+                    writeParams.OriginContentType + '\0');
+                unsafe
                 {
-                    native.OriginCt = (IntPtr)ctPtr;
-                    int err = NativePageSpeed.CacheWriteBegin(
-                        _handle, url, hostname, scheme, in native, out var raw);
-                    NativeCheck.ThrowOnError(err);
-                    return new CacheWriter(new SafeWriteHandle(raw));
+                    fixed (byte* ctPtr = ctBytes)
+                    {
+                        native.OriginCt = (IntPtr)ctPtr;
+                        int err = NativePageSpeed.CacheWriteBegin(
+                            _handle, url, hostname, scheme, in native, out var raw);
+                        return WrapWrite(err, raw, ref added);
+                    }
                 }
             }
+            else
+            {
+                int err = NativePageSpeed.CacheWriteBegin(
+                    _handle, url, hostname, scheme, in native, out var raw);
+                return WrapWrite(err, raw, ref added);
+            }
         }
-        else
+        finally
         {
-            int err = NativePageSpeed.CacheWriteBegin(
-                _handle, url, hostname, scheme, in native, out var raw);
-            NativeCheck.ThrowOnError(err);
-            return new CacheWriter(new SafeWriteHandle(raw));
+            if (added) _handle.DangerousRelease();
         }
     }
 
@@ -236,11 +297,19 @@ public sealed class PageSpeedCache : IPageSpeedCache
         ulong contentLength)
     {
         ObjectDisposedException.ThrowIf(_disposed != 0, this);
-        int err = NativePageSpeed.CacheWriteSentinel(
-            _handle, url, hostname, scheme, sentinelId, contentLength,
-            out var raw);
-        NativeCheck.ThrowOnError(err);
-        return new CacheWriter(new SafeWriteHandle(raw));
+        bool added = false;
+        _handle.DangerousAddRef(ref added);
+        try
+        {
+            int err = NativePageSpeed.CacheWriteSentinel(
+                _handle, url, hostname, scheme, sentinelId, contentLength,
+                out var raw);
+            return WrapWrite(err, raw, ref added);
+        }
+        finally
+        {
+            if (added) _handle.DangerousRelease();
+        }
     }
 
     /// <summary>Get aggregate cache statistics.</summary>
@@ -285,6 +354,11 @@ public sealed class PageSpeedCache : IPageSpeedCache
         }
     }
 
+    /// <summary>
+    /// Closes this cache instance. Read results and writers obtained from it
+    /// stay valid: each holds a reference on the native cache, which is
+    /// closed only when the last of them is disposed.
+    /// </summary>
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) == 0)

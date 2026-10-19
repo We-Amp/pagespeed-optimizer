@@ -39,11 +39,27 @@ public sealed class HtmlProcessor : IHtmlProcessor
         var opts = _options.CurrentValue.Html;
         var config = BuildNativeConfig(opts);
 
-        int err = NativePageSpeed.HtmlProcess(
-            html, (nuint)html.Length,
-            url, hostname,
-            in config, _cache?.Handle,
-            out var raw);
+        int err;
+        IntPtr raw;
+        try
+        {
+            err = NativePageSpeed.HtmlProcess(
+                html, (nuint)html.Length,
+                url, hostname,
+                in config, _cache?.Handle,
+                out raw);
+        }
+        catch (ObjectDisposedException) when (_cache != null)
+        {
+            // The cache instance was retired by a volume reset between reading
+            // Handle and the call (the call never started); Handle now returns
+            // the replacement.
+            err = NativePageSpeed.HtmlProcess(
+                html, (nuint)html.Length,
+                url, hostname,
+                in config, _cache.Handle,
+                out raw);
+        }
         NativeCheck.ThrowOnError(err);
         return new HtmlResult(new SafeHtmlResultHandle(raw));
     }
