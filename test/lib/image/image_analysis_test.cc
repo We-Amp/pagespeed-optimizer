@@ -30,10 +30,13 @@ namespace {
 using net_instaweb::ScanlineReaderInterface;
 using pagespeed::NullMessageHandler;
 using pagespeed::image_compression::AnalyzeImage;
+using pagespeed::image_compression::CreateScanlineReader;
 using pagespeed::image_compression::GRAY_8;
 using pagespeed::image_compression::Histogram;
+using pagespeed::image_compression::IMAGE_GIF;
 using pagespeed::image_compression::IMAGE_JPEG;
 using pagespeed::image_compression::IMAGE_PNG;
+using pagespeed::image_compression::IMAGE_WEBP;
 using pagespeed::image_compression::ImageFormat;
 using pagespeed::image_compression::kJpegTestDir;
 using pagespeed::image_compression::kNumColorHistogramBins;
@@ -480,6 +483,108 @@ TEST_F(ImageAnalysisTest, AnalyzeImageMinimalOutputParams) {
                            nullptr, nullptr, &message_handler_));
   EXPECT_GT(width, 0);
   EXPECT_GT(height, 0);
+}
+
+// ==========================================================================
+// Dimension probes read the header only and are not subject to the decode
+// caps; anything that needs pixels still is.
+// ==========================================================================
+
+// A header-only PNG declaring width 99999, height 1, with a valid IHDR CRC:
+// the same bytes the worker's dimension-inference boundary test feeds in.
+// clang-format off
+static constexpr uint8_t kBoundaryWidthPng[] = {
+    0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A,  // PNG signature
+    0x00, 0x00, 0x00, 0x0D, 0x49, 0x48, 0x44, 0x52,  // IHDR chunk
+    0x00, 0x01, 0x86, 0x9F, 0x00, 0x00, 0x00, 0x01,  // width=99999, height=1
+    0x08, 0x02, 0x00, 0x00, 0x00, 0x4B, 0xE4, 0x58,  // 8bit RGB, CRC
+    0x37, 0x00, 0x00, 0x00, 0x0C, 0x49, 0x44, 0x41,  // IDAT chunk
+    0x54, 0x08, 0xD7, 0x63, 0xF8, 0xCF, 0xC0, 0x00,  // compressed data
+    0x00, 0x00, 0x04, 0x00, 0x01, 0x3B, 0x7E, 0x03,  // checksum
+    0x8E, 0x00, 0x00, 0x00, 0x00, 0x49, 0x45, 0x4E,  // IEND chunk
+    0x44, 0xAE, 0x42, 0x60, 0x82,                     // IEND CRC
+};
+// clang-format on
+
+// Appends a 32-bit little-endian value to *out.
+void AppendUint32LE(std::string* out, uint32_t value) {
+  char buf[4] = {static_cast<char>(value), static_cast<char>(value >> 8),
+                 static_cast<char>(value >> 16),
+                 static_cast<char>(value >> 24)};
+  out->append(buf, sizeof(buf));
+}
+
+// Builds a WebP stream whose VP8X chunk declares the given canvas size and
+// carries no frame data.
+std::string MakeWebpDeclaringCanvas(int width, int height) {
+  std::string payload;
+  payload.append(1, '\0');  // Flags: no alpha, no animation, no EXIF/XMP.
+  payload.append(3, '\0');  // Reserved.
+  const uint32_t w = width - 1;
+  const uint32_t h = height - 1;
+  const char wbuf[3] = {static_cast<char>(w), static_cast<char>(w >> 8),
+                        static_cast<char>(w >> 16)};
+  const char hbuf[3] = {static_cast<char>(h), static_cast<char>(h >> 8),
+                        static_cast<char>(h >> 16)};
+  payload.append(wbuf, sizeof(wbuf));
+  payload.append(hbuf, sizeof(hbuf));
+
+  std::string body("WEBP");
+  body.append("VP8X", 4);
+  AppendUint32LE(&body, payload.size());
+  body.append(payload);
+
+  std::string webp("RIFF");
+  AppendUint32LE(&webp, body.size());
+  webp.append(body);
+  return webp;
+}
+
+TEST_F(ImageAnalysisTest, HeaderOnlyPngDimensionsAreNotCapped) {
+  // Only width and height requested: the header is read and nothing is
+  // decoded, so the declared width past the per-side decode cap comes back.
+  int width = 0, height = 0;
+  EXPECT_TRUE(AnalyzeImage(
+      IMAGE_PNG, kBoundaryWidthPng, sizeof(kBoundaryWidthPng), &width, &height,
+      nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, &message_handler_));
+  EXPECT_EQ(99999, width);
+  EXPECT_EQ(1, height);
+
+  // A request that needs the pixels goes through the capped reader, which
+  // refuses the same bytes.
+  bool has_transparency = false;
+  EXPECT_FALSE(AnalyzeImage(IMAGE_PNG, kBoundaryWidthPng,
+                            sizeof(kBoundaryWidthPng), &width, &height, nullptr,
+                            nullptr, &has_transparency, nullptr, nullptr,
+                            nullptr, &message_handler_));
+  std::unique_ptr<ScanlineReaderInterface> reader(
+      CreateScanlineReader(IMAGE_PNG, kBoundaryWidthPng,
+                           sizeof(kBoundaryWidthPng), &message_handler_));
+  EXPECT_EQ(nullptr, reader);
+}
+
+TEST_F(ImageAnalysisTest, HeaderOnlyGifAndWebpDimensionsAreNotCapped) {
+  // GIF: the logical screen descriptor alone, 65535x1.
+  const char gif[] = {'G',    'I',    'F',  '8',  '9',  'a',  '\xFF',
+                      '\xFF', '\x01', 0x00, 0x00, 0x00, 0x00, 0x3B};
+  int width = 0, height = 0;
+  EXPECT_TRUE(AnalyzeImage(IMAGE_GIF, gif, sizeof(gif), &width, &height,
+                           nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+                           &message_handler_));
+  EXPECT_EQ(65535, width);
+  EXPECT_EQ(1, height);
+
+  // WebP: the VP8X canvas alone, past both decode caps; the decoder still
+  // refuses it.
+  std::string webp = MakeWebpDeclaringCanvas(60000, 60000);
+  EXPECT_TRUE(AnalyzeImage(IMAGE_WEBP, webp.data(), webp.size(), &width,
+                           &height, nullptr, nullptr, nullptr, nullptr, nullptr,
+                           nullptr, &message_handler_));
+  EXPECT_EQ(60000, width);
+  EXPECT_EQ(60000, height);
+  std::unique_ptr<ScanlineReaderInterface> reader(CreateScanlineReader(
+      IMAGE_WEBP, webp.data(), webp.size(), &message_handler_));
+  EXPECT_EQ(nullptr, reader);
 }
 
 }  // namespace
