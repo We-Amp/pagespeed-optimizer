@@ -22,6 +22,7 @@
 #include "lib/base/message_handler.h"
 #include "lib/image/exif_orientation.h"
 #include "lib/image/jpeg_reader.h"
+#include "lib/image/scanline_utils.h"
 
 extern "C" {
 #include "jpeglib.h"  // NOLINT
@@ -34,6 +35,8 @@ using pagespeed::image_compression::ExifOrientationSwapsDimensions;
 using pagespeed::image_compression::JpegCompressionOptions;
 using pagespeed::image_compression::JpegLossyOptions;
 using pagespeed::image_compression::kExifOrientationApp1Size;
+using pagespeed::image_compression::kScanlineMaxDimension;
+using pagespeed::image_compression::kScanlineMaxImagePixels;
 using pagespeed::image_compression::ReadJpegExifOrientation;
 using pagespeed::image_compression::RETAIN;
 using pagespeed::image_compression::YUV420;
@@ -481,6 +484,21 @@ bool JpegOptimizer::OptimizeLossless(jpeg_decompress_struct* jpeg_decompress,
   if (options.lossy) {
     PS_LOG_DFATAL(message_handler_,
                   "Lossy options are not allowed in lossless compression.");
+    return false;
+  }
+
+  // Unlike the scanline paths, which hold one row at a time,
+  // jpeg_read_coefficients buffers the DCT coefficients of the whole image,
+  // an allocation proportional to the dimensions declared in the header.
+  // Refuse anything beyond the decode caps before that allocation happens.
+  if (jpeg_decompress->image_width > kScanlineMaxDimension ||
+      jpeg_decompress->image_height > kScanlineMaxDimension ||
+      static_cast<uint64_t>(jpeg_decompress->image_width) *
+              jpeg_decompress->image_height >
+          kScanlineMaxImagePixels) {
+    PS_LOG_INFO(message_handler_,
+                "Image dimensions %ux%u exceed the supported maximum.",
+                jpeg_decompress->image_width, jpeg_decompress->image_height);
     return false;
   }
 

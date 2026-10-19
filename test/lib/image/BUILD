@@ -113,11 +113,13 @@ image_codec_test(
         "//lib/image:jpeg",
         "//lib/image:read_image",
         "//lib/image:scanline_interface",
+        "//lib/image:scanline_utils",
     ],
 )
 
 image_codec_test(
     name = "exif_orientation_test",
+
     data_globs = ["testdata/jpeg/*"],
     deps = [
         "//lib/base:message_handler",
@@ -169,8 +171,11 @@ image_codec_test(
         ":test_utils",
         "//lib/base:basictypes",
         "//lib/base:message_handler",
+        "//lib/image:image_util",
         "//lib/image:pixel_format_optimizer",
         "//lib/image:png",
+        "//lib/image:scanline_interface",
+        "//lib/image:scanline_status",
     ],
 )
 

@@ -29,6 +29,7 @@
 #include "lib/base/message_handler.h"
 #include "lib/image/image_frame_interface.h"
 #include "lib/image/image_util.h"
+#include "lib/image/scanline_utils.h"
 
 extern "C" {
 #include "gif_lib.h"
@@ -39,6 +40,8 @@ extern "C" {
 #define DGifCloseFile(a, b) DGifCloseFile(a)
 #endif
 
+using pagespeed::image_compression::kScanlineMaxDimension;
+using pagespeed::image_compression::kScanlineMaxImagePixels;
 using pagespeed::image_compression::PngProtectedCall;
 using pagespeed::image_compression::ScopedPngStruct;
 
@@ -204,6 +207,11 @@ bool ReadExtension(GifFileType* gif_file, png_structp /*png_ptr*/,
   // We only care about one extension type, the graphics extension,
   // which can contain transparency information.
   if (ext_code == GRAPHICS_EXT_FUNC_CODE) {
+    // A zero-length sub-block yields a null extension pointer.
+    if (extension == nullptr) {
+      PS_DLOG_INFO(handler, "Received graphics extension with no data.");
+      return false;
+    }
     // Make sure that the extension has the expected length.
     if (extension[0] < 4) {
       PS_DLOG_INFO(handler,
@@ -324,8 +332,13 @@ bool ExpandColorMap(png_structp paletted_png_ptr, png_infop paletted_info_ptr,
 bool ReadGifToPng(GifFileType* gif_file, png_structp png_ptr,
                   png_infop info_ptr, bool expand_colormap, bool strip_alpha,
                   bool require_opaque, pagespeed::MessageHandler* handler) {
-  if (static_cast<png_size_t>(gif_file->SHeight) >
-      PNG_UINT_32_MAX / sizeof(png_bytep)) {
+  // The rows below are allocated from the logical-screen dimensions before
+  // any frame data is looked at, so refuse a screen beyond the decode caps
+  // up front (this also subsumes the old row-pointer overflow check).
+  if (static_cast<uint32_t>(gif_file->SWidth) > kScanlineMaxDimension ||
+      static_cast<uint32_t>(gif_file->SHeight) > kScanlineMaxDimension ||
+      static_cast<uint64_t>(gif_file->SWidth) * gif_file->SHeight >
+          kScanlineMaxImagePixels) {
     PS_DLOG_INFO(handler, "GIF image is too big to process.");
     return false;
   }
@@ -450,6 +463,7 @@ using net_instaweb::SCANLINE_STATUS_MEMORY_ERROR;
 using net_instaweb::SCANLINE_STATUS_PARSE_ERROR;
 using net_instaweb::SCANLINE_STATUS_SUCCESS;
 using net_instaweb::SCANLINE_STATUS_UNSUPPORTED_FEATURE;
+using net_instaweb::SCANLINE_STATUS_UNSUPPORTED_FORMAT;
 using net_instaweb::ScanlineStatus;
 
 const int GifFrameReader::kNoTransparentIndex = -1;
@@ -690,6 +704,11 @@ ScanlineStatus GifFrameReader::ProcessExtensionAffectingFrame() {
   }
 
   if (ext_code == GRAPHICS_EXT_FUNC_CODE) {
+    if (extension == nullptr) {
+      return PS_LOGGED_STATUS(PS_LOG_INFO, message_handler(),
+                              SCANLINE_STATUS_PARSE_ERROR, FRAME_GIFREADER,
+                              "NULL graphics control extension block.");
+    }
     if (extension[kGifGceSizeIndex] != kGifGceExpectedSize) {
       return PS_LOGGED_STATUS(
           PS_LOG_INFO, message_handler(), SCANLINE_STATUS_PARSE_ERROR,
@@ -774,10 +793,12 @@ ScanlineStatus GifFrameReader::ProcessExtensionAffectingImage(
                                 SCANLINE_STATUS_PARSE_ERROR, FRAME_GIFREADER,
                                 "Missing loop count sub-block");
       }
-      if (((extension[kGifAeLoopCountLengthIndex] !=
-            kGifAeLoopCountExpectedLength) &&
-           (extension[kGifAeLoopCountFixedConstIndex] !=
-            kGifAeLoopCountExpectedFixedConst))) {
+      // Longer sub-blocks occur in practice and still carry the loop count
+      // in their first three bytes.
+      if ((extension[kGifAeLoopCountLengthIndex] <
+           kGifAeLoopCountExpectedLength) ||
+          (extension[kGifAeLoopCountFixedConstIndex] !=
+           kGifAeLoopCountExpectedFixedConst)) {
         return PS_LOGGED_STATUS(PS_LOG_INFO, message_handler(),
                                 SCANLINE_STATUS_PARSE_ERROR, FRAME_GIFREADER,
                                 "animation loop count: wrong size/marker");
@@ -845,6 +866,22 @@ ScanlineStatus GifFrameReader::GetImageData() {
   size_t offset = gif_struct_->offset();
   image_spec_.width = gif_file->SWidth;
   image_spec_.height = gif_file->SHeight;
+
+  // Buffers proportional to the screen area (the whole-image reader's rows,
+  // the interlaced frame index) are driven by these dimensions, not by the
+  // bytes actually present, so refuse a screen beyond the decode caps before
+  // any frame is prepared.
+  if (image_spec_.width > kScanlineMaxDimension ||
+      image_spec_.height > kScanlineMaxDimension ||
+      static_cast<uint64_t>(image_spec_.width) * image_spec_.height >
+          kScanlineMaxImagePixels) {
+    return PS_LOGGED_STATUS(PS_LOG_INFO, message_handler(),
+                            SCANLINE_STATUS_UNSUPPORTED_FORMAT, FRAME_GIFREADER,
+                            "Image dimensions %ux%u exceed the supported "
+                            "maximum.",
+                            static_cast<unsigned>(image_spec_.width),
+                            static_cast<unsigned>(image_spec_.height));
+  }
 
   GifRecordType record_type = UNDEFINED_RECORD_TYPE;
   while (record_type != TERMINATE_RECORD_TYPE) {
@@ -915,6 +952,22 @@ ScanlineStatus GifFrameReader::GetImageData() {
 
   ApplyQuirksModeToImage(quirks_mode(), has_loop_count_, frame_spec_,
                          &image_spec_);
+
+  // Chrome quirks mode may have enlarged the screen to the first frame
+  // after the checks above ran on the declared screen, so recheck the
+  // final dimensions before the spec is published: consumers size output
+  // buffers from GetImageSpec() ahead of any per-frame check.
+  if (image_spec_.width > kScanlineMaxDimension ||
+      image_spec_.height > kScanlineMaxDimension ||
+      static_cast<uint64_t>(image_spec_.width) * image_spec_.height >
+          kScanlineMaxImagePixels) {
+    return PS_LOGGED_STATUS(PS_LOG_INFO, message_handler(),
+                            SCANLINE_STATUS_UNSUPPORTED_FORMAT, FRAME_GIFREADER,
+                            "Image dimensions %ux%u exceed the supported "
+                            "maximum.",
+                            static_cast<unsigned>(image_spec_.width),
+                            static_cast<unsigned>(image_spec_.height));
+  }
 
   ExpandColorIndex(gif_file->SColorMap, gif_file->SBackGroundColor,
                    image_spec_.bg_color);
@@ -1185,6 +1238,22 @@ ScanlineStatus GifFrameReader::PrepareNextFrame() {
   frame_spec_.hint_progressive = (gif_file->Image.Interlace != 0);
   const bool is_originally_rgba = (frame_spec_.pixel_format == RGBA_8888);
   frame_eagerly_read_ = frame_spec_.hint_progressive || !is_originally_rgba;
+
+  // A frame may declare dimensions beyond the logical screen, and the
+  // buffers below are proportional to width * height, so apply the same
+  // decode caps per frame as the image-level check applies to the screen.
+  if (frame_spec_.width > kScanlineMaxDimension ||
+      frame_spec_.height > kScanlineMaxDimension ||
+      static_cast<uint64_t>(frame_spec_.width) * frame_spec_.height >
+          kScanlineMaxImagePixels) {
+    Reset();
+    return PS_LOGGED_STATUS(PS_LOG_INFO, message_handler(),
+                            SCANLINE_STATUS_UNSUPPORTED_FORMAT, FRAME_GIFREADER,
+                            "Frame dimensions %ux%u exceed the supported "
+                            "maximum.",
+                            static_cast<unsigned>(frame_spec_.width),
+                            static_cast<unsigned>(frame_spec_.height));
+  }
 
   // Guard against overflow in frame pixel allocation.
   if (frame_spec_.width > 0 &&
