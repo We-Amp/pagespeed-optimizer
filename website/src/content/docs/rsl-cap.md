@@ -3,7 +3,7 @@ title: 'Validate RSL license capability tokens'
 description: 'Validate Authorization: License capability tokens at your origin and return 401/402/pass — experimental operator access control, off by default.'
 order: 62
 group: 'Agents'
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-18
 faq:
   - q: 'Does it handle payment or billing?'
     a: 'No. The enforcement layer emits HTTP status codes only: it maps a capability-token verdict to allow, 401, or 402. It never settles, meters, escrows, or handles money, and never modifies a response beyond the status code.'
@@ -73,7 +73,7 @@ releases after 2.0.35.
 ```yaml
 services:
   worker:
-    image: ghcr.io/we-amp/pagespeed-worker:latest
+    image: ghcr.io/we-amp/pagespeed-worker:2.5.0
     environment:
       - PAGESPEED_RSL_CAP_ENFORCEMENT=true
       # Comma-separated HTTPS JWKS key-directory URLs for the token issuers (no spaces).

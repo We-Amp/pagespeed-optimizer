@@ -23,6 +23,8 @@
 #include <limits>
 #include <memory>
 #include <string>
+#include <string_view>
+#include <vector>
 
 #include "gtest/gtest.h"
 #include "lib/base/basictypes.h"
@@ -42,6 +44,7 @@ using net_instaweb::ScanlineWriterInterface;
 using pagespeed::NullMessageHandler;
 using pagespeed::image_compression::GetNumChannelsFromPixelFormat;
 using pagespeed::image_compression::GRAY_8;
+using pagespeed::image_compression::kScanlineMaxDimension;
 using pagespeed::image_compression::PixelFormat;
 using pagespeed::image_compression::PngCompressParams;
 using pagespeed::image_compression::PngOptimizer;
@@ -707,6 +710,134 @@ TEST_F(PngScanlineReaderRawTest, ReadAfterReset) {
     uint8_t* buffer_row = nullptr;
     ASSERT_TRUE(reader.ReadNextScanline(reinterpret_cast<void**>(&buffer_row)));
   }
+}
+
+// Appends a 32-bit big-endian value to *out.
+void AppendUint32BE(std::string* out, uint32_t value) {
+  char buf[4] = {static_cast<char>(value >> 24), static_cast<char>(value >> 16),
+                 static_cast<char>(value >> 8), static_cast<char>(value)};
+  out->append(buf, sizeof(buf));
+}
+
+// Appends a PNG chunk with a correct CRC.
+void AppendPngChunk(std::string* out, const char* type, std::string_view data) {
+  AppendUint32BE(out, data.size());
+  out->append(type, 4);
+  out->append(data.data(), data.size());
+  uLong crc = crc32(0, Z_NULL, 0);
+  crc = crc32(crc, reinterpret_cast<const Bytef*>(type), 4);
+  crc = crc32(crc, reinterpret_cast<const Bytef*>(data.data()), data.size());
+  AppendUint32BE(out, static_cast<uint32_t>(crc));
+}
+
+// Appends an IHDR chunk for an 8-bit truecolor RGB, non-interlaced image
+// of the given dimensions.
+void AppendPngIhdrRgb8(std::string* out, uint32_t width, uint32_t height) {
+  char ihdr[13];
+  ihdr[0] = static_cast<char>(width >> 24);
+  ihdr[1] = static_cast<char>(width >> 16);
+  ihdr[2] = static_cast<char>(width >> 8);
+  ihdr[3] = static_cast<char>(width);
+  ihdr[4] = static_cast<char>(height >> 24);
+  ihdr[5] = static_cast<char>(height >> 16);
+  ihdr[6] = static_cast<char>(height >> 8);
+  ihdr[7] = static_cast<char>(height);
+  ihdr[8] = 8;   // Bit depth.
+  ihdr[9] = 2;   // Color type: truecolor RGB.
+  ihdr[10] = 0;  // Compression: deflate.
+  ihdr[11] = 0;  // Filter method.
+  ihdr[12] = 0;  // No interlace.
+  AppendPngChunk(out, "IHDR", std::string_view(ihdr, sizeof(ihdr)));
+}
+
+// Builds a tiny PNG stream whose IHDR declares the given dimensions but
+// which carries no pixel data: enough structure for the reader to reach
+// and act on the header dimensions.
+std::string MakePngDeclaringDimensions(uint32_t width, uint32_t height) {
+  std::string png("\x89PNG\r\n\x1a\n", 8);
+  AppendPngIhdrRgb8(&png, width, height);
+  AppendPngChunk(&png, "IDAT", std::string_view());
+  AppendPngChunk(&png, "IEND", std::string_view());
+  return png;
+}
+
+// Builds a complete, valid PNG declaring the given dimensions: an opaque
+// black image whose IDAT carries real pixel data, so a decoder that accepts
+// the dimensions will happily decode the whole stream.
+std::string MakeValidPngDeclaringDimensions(uint32_t width, uint32_t height) {
+  // Each scanline is a filter byte followed by width * 3 zero bytes.
+  std::string raw;
+  for (uint32_t row = 0; row < height; ++row) {
+    raw.push_back('\0');
+    raw.append(static_cast<size_t>(width) * 3, '\0');
+  }
+  uLongf idat_size = compressBound(raw.size());
+  std::string idat(idat_size, '\0');
+  if (compress2(reinterpret_cast<Bytef*>(&idat[0]), &idat_size,
+                reinterpret_cast<const Bytef*>(raw.data()), raw.size(),
+                9 /* level */) != Z_OK) {
+    return "";
+  }
+  idat.resize(idat_size);
+
+  std::string png("\x89PNG\r\n\x1a\n", 8);
+  AppendPngIhdrRgb8(&png, width, height);
+  AppendPngChunk(&png, "IDAT", idat);
+  AppendPngChunk(&png, "IEND", std::string_view());
+  return png;
+}
+
+// A stream declaring dimensions far beyond any image we can decode must be
+// rejected at Initialize time, before any buffer proportional to
+// width * height is allocated.
+TEST_F(PngScanlineReaderRawTest, OversizedDimensionsRejected) {
+  PngScanlineReaderRaw reader(&message_handler_);
+  std::string bomb = MakePngDeclaringDimensions(60000, 60000);
+  ScanlineStatus status =
+      reader.InitializeWithStatus(bomb.data(), bomb.length());
+  EXPECT_FALSE(status.Success());
+}
+
+// A stream whose area fits the decode budget but whose width exceeds the
+// per-side cap is rejected the same way.
+TEST_F(PngScanlineReaderRawTest, OversizedWidthRejected) {
+  PngScanlineReaderRaw reader(&message_handler_);
+  std::string wide = MakePngDeclaringDimensions(16385, 1);
+  ScanlineStatus status =
+      reader.InitializeWithStatus(wide.data(), wide.length());
+  EXPECT_FALSE(status.Success());
+}
+
+// The whole-image optimizer decodes via png_read_png, which buffers every
+// row from the IHDR before any data is seen. A complete image one pixel
+// wider than the per-side cap must be refused rather than decoded whole.
+TEST_F(PngOptimizerTest, OversizedWholeImageDimensionsRejected) {
+  reader_ = std::make_unique<PngReader>(&message_handler_);
+  std::string in =
+      MakeValidPngDeclaringDimensions(kScanlineMaxDimension + 1, 1);
+  ASSERT_NE(static_cast<size_t>(0), in.length());
+  std::string out;
+  EXPECT_FALSE(PngOptimizer::OptimizePngBestCompression(*reader_, in, &out,
+                                                        &message_handler_));
+  EXPECT_TRUE(out.empty());
+}
+
+// The best-compression pass re-reads the just-written PNG in full via
+// png_read_png, so the writer must apply the same per-side cap on that
+// re-read as the readers apply on the first decode.
+TEST_F(PngScanlineWriterTest, OversizedDimensionsRejectedByBestCompression) {
+  const size_t width = static_cast<size_t>(kScanlineMaxDimension) + 1;
+  PngCompressParams best(true /* best compression */, false /* progressive */);
+  writer_ = std::make_unique<PngScanlineWriter>(&message_handler_);
+  ASSERT_TRUE(writer_->Init(width, height_, pixel_format_));
+  output_.clear();
+  ASSERT_TRUE(writer_->InitializeWrite(&best, &output_));
+  // pixel_format_ is GRAY_8, so each row is one byte per pixel.
+  std::vector<unsigned char> row(width, 0);
+  for (int i = 0; i < height_; ++i) {
+    ASSERT_TRUE(writer_->WriteNextScanline(row.data()));
+  }
+  EXPECT_FALSE(writer_->FinalizeWrite());
 }
 
 TEST_F(PngScanlineReaderRawTest, InvalidPngs) {

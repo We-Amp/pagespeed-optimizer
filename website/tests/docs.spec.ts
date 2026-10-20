@@ -520,9 +520,11 @@ test.describe('Docs structure', () => {
     ]) {
       await expect(main.locator(`[id="${id}"]`), id).toHaveCount(1);
     }
-    // Every quickstart ends in the same verify step.
+    // Every quickstart ends in the same verify step, which uses GET: the
+    // Docker reverse proxy does not cache HEAD, so `curl -I` never shows a HIT.
     expect(await main.locator('a[href="#verify-it-works"]').count()).toBeGreaterThanOrEqual(4);
-    await expect(main).toContainText('curl -I http://localhost/');
+    await expect(main).toContainText('curl -s -o /dev/null -D - http://localhost/');
+    await expect(main).not.toContainText('curl -I http://localhost/');
     await expect(main.locator('a[href="/docs/is-it-working/"]').first()).toBeAttached();
   });
 

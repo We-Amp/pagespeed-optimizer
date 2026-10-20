@@ -125,7 +125,11 @@ export function artifactUrl(rel, channel, arch) {
       `No artifact template for channel=${channel} arch=${arch} in the ${rel.product.line} manifest`,
     );
   }
-  return rel.urls.archive_base + substituteRelease(tmpl, rel);
+  const filename = substituteRelease(tmpl, rel);
+  // An absolute template (the IIS installer on the GitHub release) is
+  // rendered as-is, as in src/lib/release.ts.
+  if (filename.startsWith('https://')) return filename;
+  return rel.urls.archive_base + filename;
 }
 
 /** The `dotnet add package …` line NugetCmd.astro renders. @param {Manifests} m */

@@ -139,6 +139,52 @@ TEST_F(WebpScanlineOptimizerTest, InvalidWebpBody) {
   ASSERT_FALSE(reader_.ReadNextScanline(&scanline_));
 }
 
+// Appends a 32-bit little-endian value to *out.
+void AppendUint32LE(std::string* out, uint32_t value) {
+  char buf[4] = {static_cast<char>(value), static_cast<char>(value >> 8),
+                 static_cast<char>(value >> 16),
+                 static_cast<char>(value >> 24)};
+  out->append(buf, sizeof(buf));
+}
+
+// Builds a tiny WebP stream whose VP8X chunk declares the given canvas
+// size but which carries no frame data: enough structure for the reader
+// to reach and act on the header dimensions.
+std::string MakeWebpDeclaringCanvas(int width, int height) {
+  std::string payload;
+  payload.append(1, '\0');  // Flags: no alpha, no animation, no EXIF/XMP.
+  payload.append(3, '\0');  // Reserved.
+  const uint32_t w = width - 1;
+  const uint32_t h = height - 1;
+  // Canvas size minus one, three bytes each, little-endian.
+  const char wbuf[3] = {static_cast<char>(w), static_cast<char>(w >> 8),
+                        static_cast<char>(w >> 16)};
+  const char hbuf[3] = {static_cast<char>(h), static_cast<char>(h >> 8),
+                        static_cast<char>(h >> 16)};
+  payload.append(wbuf, sizeof(wbuf));
+  payload.append(hbuf, sizeof(hbuf));
+
+  std::string body("WEBP");
+  body.append("VP8X", 4);
+  AppendUint32LE(&body, payload.size());
+  body.append(payload);
+
+  std::string webp("RIFF");
+  AppendUint32LE(&webp, body.size());
+  webp.append(body);
+  return webp;
+}
+
+// A stream declaring a canvas far beyond any image we can decode must be
+// rejected at Initialize time, before any buffer proportional to
+// width * height is allocated.
+TEST_F(WebpScanlineOptimizerTest, OversizedDimensionsRejected) {
+  std::string bomb = MakeWebpDeclaringCanvas(60000, 60000);
+  ScanlineStatus status =
+      reader_.InitializeWithStatus(bomb.data(), bomb.length());
+  EXPECT_FALSE(status.Success());
+}
+
 TEST_F(WebpScanlineOptimizerTest, ReadAllScanlines) {
   ASSERT_TRUE(Initialize("alpha_32x32"));
   size_t rows = 0;

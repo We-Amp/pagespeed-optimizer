@@ -1,14 +1,14 @@
-# IIS: install and verify mod_pagespeed 1.15 (native IIS module)
+# IIS: install and verify mod_pagespeed 2.1 (native IIS module)
 
 Source: https://modpagespeed.com/docs/install-iis/ and
 https://modpagespeed.com/docs/iis-configuration/. Header: `X-Page-Speed`.
-The IIS module ships from the 1.15 packaging channel. All commands run in an
-elevated PowerShell on the Windows Server host.
+The IIS module ships as a signed MSI on the module's GitHub release. All
+commands run in an elevated PowerShell on the Windows Server host.
 
 ## 1. Prerequisites
 
-Windows Server 2019 or later, IIS 10 or later, 64-bit, the Visual C++
-Redistributable 2022, and no IISpeed on the host: both register the same
+Windows Server 2016 or later, IIS 10, 64-bit (no Visual C++
+Redistributable needed; the runtime is built in), and no IISpeed on the host: both register the same
 handler, so uninstall IISpeed first and run `iisreset`.
 
 ```powershell
@@ -27,17 +27,18 @@ site, ask the operator which sites to optimize.
 
 ## 2. Install
 
-Find the current MSI on https://modpagespeed.com/download/ (section "IIS
-(Windows)"), download it and the release's `SHA256SUMS` from the same release
-folder, and stop on a checksum mismatch:
+Find the current MSI on https://modpagespeed.com/download/ (section "Direct
+downloads"; it links the installer on the module's GitHub release), download it
+and the release's `SHA256SUMS` from the same release, and stop on a checksum
+mismatch:
 
 ```powershell
 $ProgressPreference = 'SilentlyContinue'
 $page = (Invoke-WebRequest 'https://modpagespeed.com/download/' -UseBasicParsing).Content
-$rel = [regex]::Match($page, '/releases/v[0-9][^/"]*/pagespeed-iis-[^/"]+-win-x64\.msi').Value
-if (-not $rel) { throw 'IIS MSI link not found on /download/' }
-$base = 'https://modpagespeed.com' + $rel.Substring(0, $rel.LastIndexOf('/') + 1)
-$name = Split-Path $rel -Leaf
+$url = [regex]::Match($page, 'https://github\.com/We-Amp/mod_pagespeed/releases/download/[^/"]+/pagespeed-iis-[^/"]+-win-x64\.msi').Value
+if (-not $url) { throw 'IIS MSI link not found on /download/' }
+$base = $url.Substring(0, $url.LastIndexOf('/') + 1)
+$name = $url.Substring($url.LastIndexOf('/') + 1)
 $dir = Join-Path $env:TEMP 'pagespeed-install'
 New-Item -ItemType Directory -Force -Path $dir | Out-Null
 $msi = Join-Path $dir $name
