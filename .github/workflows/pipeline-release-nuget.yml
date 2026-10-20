@@ -569,8 +569,12 @@ jobs:
 
   linux-arm64-release-tests:
     name: Linux arm64 Release Tests
-    needs: [ref-guard, linux-arm64-release-build]
-    if: ${{ !cancelled() && needs.linux-arm64-release-build.result == 'success' }}
+    # Starts with the build, not after it: the tests only consume
+    # release-source and compile on their own runner.
+    needs: [ref-guard, vendor, vendor-hosted]
+    if: >-
+      ${{ !cancelled() && needs.ref-guard.result == 'success'
+      && (needs.vendor.result == 'success' || needs.vendor-hosted.result == 'success') }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 300
     env: *linux-arm64-env
@@ -1018,8 +1022,12 @@ jobs:
 
   macos-release-tests:
     name: macOS Release Tests
-    needs: [ref-guard, macos-release-build]
-    if: ${{ !cancelled() && needs.macos-release-build.result == 'success' }}
+    # Starts with the build, not after it: the tests only consume
+    # release-source and compile on their own runner.
+    needs: [ref-guard, vendor, vendor-hosted]
+    if: >-
+      ${{ !cancelled() && needs.ref-guard.result == 'success'
+      && (needs.vendor.result == 'success' || needs.vendor-hosted.result == 'success') }}
     runs-on: macos-15
     timeout-minutes: 300
     env: *macos-env
@@ -1040,14 +1048,16 @@ jobs:
   # ---------------------------------------------------------------------
   package:
     name: Package & Release
-    needs: [ref-guard, security-gates, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, sign-windows, macos-release-tests, linux-arm64-release-tests]
+    needs: [ref-guard, security-gates, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, sign-windows, macos-release-build, macos-release-tests, linux-arm64-release-build, linux-arm64-release-tests]
     if: >-
       ${{ !cancelled() && needs.ref-guard.outputs.real == 'true'
       && needs.security-gates.result == 'success'
       && (needs.linux-release-tests.result == 'success' || needs.linux-release-tests-hosted.result == 'success')
       && (needs.windows-release-tests.result == 'success' || needs.windows-release-tests-hosted.result == 'success')
       && needs.sign-windows.result == 'success'
+      && needs.macos-release-build.result == 'success'
       && needs.macos-release-tests.result == 'success'
+      && needs.linux-arm64-release-build.result == 'success'
       && needs.linux-arm64-release-tests.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -1339,13 +1349,15 @@ jobs:
 
   package-dry-run:
     name: Package (dry run)
-    needs: [ref-guard, security-gates, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, macos-release-tests, linux-arm64-release-tests]
+    needs: [ref-guard, security-gates, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, macos-release-build, macos-release-tests, linux-arm64-release-build, linux-arm64-release-tests]
     if: >-
       ${{ !cancelled() && needs.ref-guard.outputs.real != 'true'
       && needs.security-gates.result == 'success'
       && (needs.linux-release-tests.result == 'success' || needs.linux-release-tests-hosted.result == 'success')
       && (needs.windows-release-tests.result == 'success' || needs.windows-release-tests-hosted.result == 'success')
+      && needs.macos-release-build.result == 'success'
       && needs.macos-release-tests.result == 'success'
+      && needs.linux-arm64-release-build.result == 'success'
       && needs.linux-arm64-release-tests.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
