@@ -4,6 +4,19 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Fixed: in the ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`) on Linux
+and macOS, a full cache purge (`POST /v1/cache/purge` with `"scope": "all"`,
+the console's purge everything) now takes effect within about a second. The
+middleware kept using the cache volume the purge had deleted and went on
+answering `X-PageSpeed: HIT` with pre-purge content until the application
+restarted. It now notices the worker's volume reset and reopens the cache, as
+the nginx module does; responses already being sent from the old volume
+complete normally. If the cache cannot be reopened, the middleware logs a
+warning and keeps serving the previous volume, pre-purge entries included,
+retrying every second until the reopen succeeds (the nginx module serves
+uncached instead). On Windows a full purge may still not take effect while the
+application is running.
+
 ## 2.5.0 - 2026-10-19
 
 Changed: one version number. The host packages move from 1.19.0 to 2.5.0

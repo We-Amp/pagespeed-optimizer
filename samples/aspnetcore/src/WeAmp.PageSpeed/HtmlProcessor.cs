@@ -27,11 +27,28 @@ public sealed class HtmlProcessor : IHtmlProcessor
     {
         var config = BuildNativeConfig(_options);
 
-        int err = NativePageSpeed.HtmlProcess(
-            html, (nuint)html.Length,
-            url, hostname,
-            in config, _cache?.Handle,
-            out var raw);
+        int err;
+        IntPtr raw;
+        try
+        {
+            err = NativePageSpeed.HtmlProcess(
+                html, (nuint)html.Length,
+                url, hostname,
+                in config, _cache?.Handle,
+                out raw);
+        }
+        catch (ObjectDisposedException) when (_cache != null)
+        {
+            // A cache that swaps its instance (the ASP.NET Core middleware's,
+            // after a volume reset) can close the handle between reading
+            // Handle and the call (the call never started); Handle now
+            // returns the replacement.
+            err = NativePageSpeed.HtmlProcess(
+                html, (nuint)html.Length,
+                url, hostname,
+                in config, _cache.Handle,
+                out raw);
+        }
         NativeCheck.ThrowOnError(err);
         return new HtmlResult(new SafeHtmlResultHandle(raw));
     }
