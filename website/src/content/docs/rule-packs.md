@@ -3,6 +3,7 @@ title: 'Rule packs'
 description: 'Rule packs for Apache, nginx and IIS: JSON rules for the canonical, title, description, hreflang and JSON-LD of your pages, in report mode first.'
 order: 47
 group: 'Filters'
+lastUpdated: 2026-10-20
 ---
 
 A rule pack is a JSON file of rules for the head of your HTML pages. The `rule_packs` filter reads it and, where a rule says so, adds a missing canonical link, title, meta description, hreflang cluster or JSON-LD block, and removes duplicates of them. It runs in the same rewriting chain as the other filters, on Apache, nginx and IIS.
@@ -17,7 +18,7 @@ The filter does nothing without a pack file, and a pack starts in report mode: i
 
 - It handles five kinds of head element: `canonical`, `title`, `description`, `hreflang` and `jsonld`, and, when a rule asks for it, the `Link` response header for the canonical. It does not edit anything else in the page.
 - Applying a pack fetches nothing over the network. The pack is data, not code.
-- One pack file per server (virtual host or site). The pack id must be `edge-seo`; the loader rejects any other id.
+- Up to eight pack files per server (virtual host or site): repeat `RulePackFile` for each, and a ninth is a configuration error. Packs run in configuration order, and every pack on a server needs its own id (1 to 64 lowercase letters, digits or `-`); a file whose id an earlier file already uses is refused.
 - A host that is not listed in the pack is never touched.
 - It is designed not to fail a response. A pack that does not load, a page it cannot parse or edit safely, or an internal error means the page is served as the origin sent it.
 - It only sees responses the module rewrites: status 200, HTML, not already marked `X-Mod-Pagespeed`.
@@ -26,7 +27,7 @@ Changes are made in the head, with three exceptions: a JSON-LD block the pack ad
 
 ## Enable it {#enable}
 
-`RulePackFile` names the pack file. `RulePackMode` accepts `report` (the default) or `enforce`; any other value is a configuration error.
+`RulePackFile` names a pack file. Repeat it to load more than one pack (at most eight per server or virtual host; two lines naming the same path count once); the packs run in the order of the lines, and the first pack whose rule applies to a kind of element claims it. A virtual host that sets `RulePackFile` uses its own list and ignores the server-wide one; one that sets none inherits it. `RulePackMode` accepts `report` (the default) or `enforce`; any other value is a configuration error.
 
 Both directives are server-scoped. They cannot be set in `.htaccess`, `<Directory>`, an nginx `location` block or an IIS match block. In `.htaccess` Apache answers 500 for that directory; `<Directory>` and nginx `location` fail at configuration load; IIS warns and continues without the setting. `DisableFilters rule_packs` turns the filter off for a directory or location.
 
@@ -90,7 +91,7 @@ A minimal pack:
 
 `pack`, `sites` and `rules` are required; `defaults` and `tables` are optional. Unknown keys, repeated keys and unknown placeholders are load errors, so a typo cannot quietly become a different rule.
 
-- **`pack`**: `id` (must be `edge-seo`) and `version` (`MAJOR.MINOR.PATCH`, or the pack fails to load) are required. Optional: `publisher` (default `local`; also the key id of a [signed pack](#signed-packs)), `description`, and `engine_min`, the module version the pack needs; an older module refuses to load it. The top-level key `signature` is reserved and is a load error.
+- **`pack`**: `id` (1 to 64 lowercase letters, digits or `-`, unique among the server's packs) and `version` (`MAJOR.MINOR.PATCH`, or the pack fails to load) are required. Optional: `publisher` (default `local`; also the key id of a [signed pack](#signed-packs)), `description`, and `engine_min`, the module version the pack needs; an older module refuses to load it. The top-level key `signature` is reserved and is a load error.
 - **`sites`**: a list of `{ "host", "mode" }`. `host` is a lowercase host name or `*.suffix`; `*.example.com` matches subdomains, not `example.com` itself. `mode` is `report` (default) or `enforce`.
 - **`defaults`**: `paths` and `exclude_paths` (glob lists), used by a rule that names none of its own. The fallback is per list: a rule's own `exclude_paths` replaces the defaults. Without `defaults`, paths are `/**`.
 - **`tables`**: named maps of per-URL values for rules to look up, and the `hreflang` table of language clusters.
@@ -283,7 +284,7 @@ ed25519 <key id> <base64 signature>
 
 The key id is lowercase letters, digits and `-` (1 to 64 characters) and must equal the pack's `publisher`.
 
-- `RulePackTrustKey <key id> <base64 public key>` lists a key the server trusts. The key is 44 base64 characters. Repeat the directive for up to 16 keys per server or virtual host. A virtual host adds to the server's keys, and a virtual host key with the same id replaces the server's. There is no built-in key: a server trusts only the keys you list.
+- `RulePackTrustKey <key id> <base64 public key>` lists a key the server trusts. The key is 44 base64 characters. Repeat the directive for up to 16 keys per server or virtual host. A virtual host adds to the server's keys, and a virtual host key with the same id replaces the server's. The We-Amp publisher key (key id `we-amp`) is built in, so packs it signed verify without a `RulePackTrustKey` line; a key you list with the id `we-amp` replaces it.
 - `RulePackRequireSigned on|off` (default `off`) decides what happens to a pack that fails the check.
 
 The server runs these checks in order; the first one that fails names the reason:
@@ -291,7 +292,7 @@ The server runs these checks in order; the first one that fails names the reason
 1. `unsigned`: there is no `.sig` file.
 2. `signature unreadable`: the sidecar cannot be read or is not in the format above.
 3. `publisher mismatch`: the key id in the sidecar is not the pack's `publisher`.
-4. `unknown key`: no `RulePackTrustKey` for that key id.
+4. `unknown key`: no `RulePackTrustKey` (and not the built-in `we-amp` key) for that key id.
 5. `bad signature`: the signature does not match the pack's bytes and that key.
 
 A pack that passes all five is verified. With `RulePackRequireSigned off`, every pack that loads is used: a verified pack logs `rule pack loaded signed`, any other pack logs the `rule pack loaded unsigned` warning, and only when a `.sig` file exists but fails one of the checks 2 to 5 does a second warning give the reason. With `on`, a pack that fails any check is refused: an earlier accepted version of the same file stays in use, otherwise the filter is off for that server or virtual host.

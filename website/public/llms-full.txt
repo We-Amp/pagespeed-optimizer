@@ -1656,7 +1656,7 @@ Canonical URL: https://modpagespeed.com/docs/cpanel/
 
 mod_pagespeed ships as a signed EasyApache 4 RPM, `ea-apache24-mod_pagespeed`, served from `packages.modpagespeed.com`. This is the package name Google's archived [apache/incubator-pagespeed-cpanel](https://github.com/apache/incubator-pagespeed-cpanel) repo used before it went dormant; We-Amp maintains the EA4 build today.
 
-EasyApache 4 ships only on RHEL-family hosts. The EA4 RPM is built for **EL8 (AlmaLinux 8, Rocky 8, CloudLinux 8), EL9 (AlmaLinux 9, Rocky 9, RHEL 9, CloudLinux 9), and EL10, x86_64**. Each EL major has its own RPM (the module is built against that major's glibc); pick the tree matching your host's release. arm64 is not built. The module pairs with the `pagespeed-optimizer` worker on EL9 and EL10; on EL8, the module runs without the optimizer worker.
+EasyApache 4 ships only on RHEL-family hosts. The EA4 RPM is built for **EL8 (AlmaLinux 8, Rocky 8, CloudLinux 8), EL9 (AlmaLinux 9, Rocky 9, RHEL 9, CloudLinux 9), and EL10, x86_64**. Each EL major has its own RPM (the module is built against that major's glibc); pick the tree matching your host's release. arm64 is not built. The EA4 package runs without the `pagespeed-optimizer` worker on every EL major: there is no EA4 optimizer package, so in-place optimization through the worker is not available on cPanel.
 
 On CloudLinux 8/9, mod_pagespeed is an Apache output filter and runs on the standard EA4 Apache (including hosts using `mod_lsapi` as the PHP handler — `mod_lsapi` is an Apache handler, not LiteSpeed Web Server). It does not apply to LiteSpeed Web Server (LSWS), which is a separate, non-Apache server. The EL8 build is validated on AlmaLinux 8 / Rocky 8 stock EA4; if you run CloudLinux's `cl-ea4`-patched Apache and hit anything unexpected, [let us know](https://modpagespeed.com/contact/).
 
@@ -1678,13 +1678,27 @@ EOF
 
 `$releasever` resolves to `8` on EL8 hosts, `9` on EL9, and `10` on EL10, so dnf picks the matching tree automatically — the same `.repo` file works on both. `enabled=0` keeps the EA4 tree out of routine `dnf update` runs; you opt in per command with `--enablerepo=ea4` below. The RPMs and the repository metadata are both signed with key `rsa4096/F50D6054F10712A0` — the same key as the rest of `packages.modpagespeed.com`, which is why both `repo_gpgcheck=1` and `gpgcheck=1` are set.
 
-### 2. Install the module
+### 2. Remove mod_ruid2 if it is installed
+
+mod_pagespeed and `mod_ruid2` cannot run together. Check first:
+
+```bash
+rpm -q ea-apache24-mod_ruid2
+```
+
+If it is installed, the next step fails: the package declares `Conflicts: ea-apache24-mod_ruid2`, so `dnf` stops with a conflict and installs nothing. Remove mod_ruid2 first, either with `sudo dnf remove ea-apache24-mod_ruid2` or by unticking it in WHM → _EasyApache 4_ → _Customize_ → _Apache Modules_ and provisioning.
+
+Why the two do not mix: mod_ruid2 switches each request's Apache process to the uid and gid of the cPanel account that owns the site. mod_pagespeed keeps one cache for the whole server, `/var/cache/mod_pagespeed`, which the package creates owned by `nobody:nobody` (the EA4 Apache user) with mode `0750`, and its shared-memory cache and locks are set up by the Apache parent process for every child. A process running as an account user cannot read or write that cache, and the package is not built or tested for that setup, so it refuses to install beside mod_ruid2 rather than run half-working.
+
+If you used mod_ruid2 to run PHP as each account's user, PHP-FPM (WHM → _MultiPHP Manager_) does that per account without changing the user Apache itself runs as. `mod_mpm_itk`, which also runs each virtual host under its own uid, is not tested with mod_pagespeed and the package does not declare a conflict with it; the same cache-ownership problem applies, so do not combine them.
+
+### 3. Install the module
 
 ```bash
 sudo dnf install --enablerepo=ea4 ea-apache24-mod_pagespeed
 ```
 
-### 3. Turn it on in WHM
+### 4. Turn it on in WHM
 
 The RPM drops the module file but does not flip it on. Apache loads `mod_pagespeed` only after you tick the box in WHM and rebuild:
 
@@ -1695,7 +1709,7 @@ The RPM drops the module file but does not flip it on. Apache loads `mod_pagespe
 
 The package installs its configuration to `/etc/apache2/conf.d/pagespeed.conf` (marked `%config(noreplace)`, so your edits survive a reinstall or upgrade). Tune it the same way you would on any RHEL Apache host — see [Getting started](https://modpagespeed.com/docs/getting-started/) for the directive reference.
 
-### 4. Open the admin console
+### 5. Open the admin console
 
 The global admin console lives at:
 
@@ -3622,6 +3636,11 @@ Edit that file, or put directives in a virtual host, a `<Directory>` or
 `<Location>` block, or `.htaccess`; every directive is written as
 `ModPagespeedName value`.
 
+On cPanel / EasyApache 4 the file is `/etc/apache2/conf.d/pagespeed.conf`, and
+the module cannot run beside `mod_ruid2`, which switches each request to the
+site owner's uid while the module's cache belongs to the Apache user: remove
+mod_ruid2 first, as [the cPanel page](https://modpagespeed.com/docs/cpanel/#mod-ruid2) explains.
+
 <!-- platform: iis -->
 
 **IIS**
@@ -3896,7 +3915,9 @@ values corrected when upgrading.
 
 <!-- generated:begin module-directives -->
 
-Areas: [Enabling and filter selection](https://modpagespeed.com/docs/configuration/#area-enabling-and-filter-selection) (13) · [Request handling and policy](https://modpagespeed.com/docs/configuration/#area-request-handling-and-policy) (33) · [In-place resource optimization](https://modpagespeed.com/docs/configuration/#area-in-place-resource-optimization) (14) · [Domains and URLs](https://modpagespeed.com/docs/configuration/#area-domains-and-urls) (26) · [Optimizer worker](https://modpagespeed.com/docs/configuration/#area-optimizer-worker) (4) · [Bot authentication and licensing](https://modpagespeed.com/docs/configuration/#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](https://modpagespeed.com/docs/configuration/#area-statistics-console-and-logging) (31) · [Images](https://modpagespeed.com/docs/configuration/#area-images) (42) · [CSS](https://modpagespeed.com/docs/configuration/#area-css) (9) · [JavaScript](https://modpagespeed.com/docs/configuration/#area-javascript) (10) · [Caching](https://modpagespeed.com/docs/configuration/#area-caching) (46) · [Fetching and origins](https://modpagespeed.com/docs/configuration/#area-fetching-and-origins) (19) · [HTML rewriting and page hints](https://modpagespeed.com/docs/configuration/#area-html-rewriting-and-page-hints) (11) · [Threads and limits](https://modpagespeed.com/docs/configuration/#area-threads-and-limits) (2) · [Experiments and analytics](https://modpagespeed.com/docs/configuration/#area-experiments-and-analytics) (11) · [Deprecated and ignored](https://modpagespeed.com/docs/configuration/#area-deprecated-and-ignored) (28).
+Generated from the mod_pagespeed source at tag [`v2.5.0`](https://github.com/We-Amp/mod_pagespeed/tree/v2.5.0): 323 directives.
+
+Areas: [Enabling and filter selection](https://modpagespeed.com/docs/configuration/#area-enabling-and-filter-selection) (13) · [Request handling and policy](https://modpagespeed.com/docs/configuration/#area-request-handling-and-policy) (33) · [In-place resource optimization](https://modpagespeed.com/docs/configuration/#area-in-place-resource-optimization) (14) · [Domains and URLs](https://modpagespeed.com/docs/configuration/#area-domains-and-urls) (26) · [Optimizer worker](https://modpagespeed.com/docs/configuration/#area-optimizer-worker) (4) · [Rule packs](https://modpagespeed.com/docs/configuration/#area-rule-packs) (4) · [Bot authentication and licensing](https://modpagespeed.com/docs/configuration/#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](https://modpagespeed.com/docs/configuration/#area-statistics-console-and-logging) (31) · [Images](https://modpagespeed.com/docs/configuration/#area-images) (43) · [CSS](https://modpagespeed.com/docs/configuration/#area-css) (9) · [JavaScript](https://modpagespeed.com/docs/configuration/#area-javascript) (10) · [Caching](https://modpagespeed.com/docs/configuration/#area-caching) (46) · [Fetching and origins](https://modpagespeed.com/docs/configuration/#area-fetching-and-origins) (19) · [HTML rewriting and page hints](https://modpagespeed.com/docs/configuration/#area-html-rewriting-and-page-hints) (11) · [Threads and limits](https://modpagespeed.com/docs/configuration/#area-threads-and-limits) (2) · [Experiments and analytics](https://modpagespeed.com/docs/configuration/#area-experiments-and-analytics) (11) · [Deprecated and ignored](https://modpagespeed.com/docs/configuration/#area-deprecated-and-ignored) (28).
 
 ### Enabling and filter selection
 
@@ -4001,7 +4022,7 @@ Time to wait for resource optimization (per flush window) beforefalling back to 
 #### RewriteLevel
 
 - **Syntax:** `ModPagespeedRewriteLevel CoreFilters|PassThrough|OptimizeForBandwidth|MobilizeFilters|TestingCoreFilters|AllFilters` (Apache) · `pagespeed RewriteLevel CoreFilters|PassThrough|OptimizeForBandwidth|MobilizeFilters|TestingCoreFilters|AllFilters;` (nginx)
-- **Default:** `PassThrough`
+- **Default:** `CoreFilters`
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
 Base level of rewriting (PassThrough, CoreFilters)
@@ -4727,6 +4748,48 @@ Keep this on a different path from `FileCachePath`. The worker creates the
 volume under its `--cache-dir`; see
 [Worker and reverse-proxy configuration](https://modpagespeed.com/docs/worker-configuration/#--cache-dir).
 
+### Rule packs
+
+[`RulePackFile`](https://modpagespeed.com/docs/configuration/#rulepackfile), [`RulePackMode`](https://modpagespeed.com/docs/configuration/#rulepackmode), [`RulePackRequireSigned`](https://modpagespeed.com/docs/configuration/#rulepackrequiresigned), [`RulePackTrustKey`](https://modpagespeed.com/docs/configuration/#rulepacktrustkey)
+
+#### RulePackFile
+
+- **Syntax:** `ModPagespeedRulePackFile value` (Apache) · `pagespeed RulePackFile value;` (nginx)
+- **Default:** `(empty)`
+- **Context:** Apache: server config, virtual host · nginx: http, server
+
+Path of the rule pack file the rule_packs filter applies.
+
+Repeatable: each line adds a pack file, up to eight per server or virtual host
+(a ninth is a configuration error, and two lines naming the same path count
+once). The packs run in the order of the lines. A virtual host that sets
+`RulePackFile` uses its own list instead of the server-wide one. See
+[Rule packs](https://modpagespeed.com/docs/rule-packs/#enable).
+
+#### RulePackMode
+
+- **Syntax:** `ModPagespeedRulePackMode report|enforce` (Apache) · `pagespeed RulePackMode report|enforce;` (nginx)
+- **Default:** `report`
+- **Context:** Apache: server config, virtual host · nginx: http, server
+
+Mode of the rule_packs filter: report (default) records what the rules would do; enforce lets enforcing rules change the page.
+
+#### RulePackRequireSigned
+
+- **Syntax:** `ModPagespeedRulePackRequireSigned on|off` (Apache) · `pagespeed RulePackRequireSigned on|off;` (nginx)
+- **Default:** `off`
+- **Context:** Apache: server config, virtual host · nginx: http, server
+
+Refuse rule packs that are not signed with a key listed by RulePackTrustKey.
+
+#### RulePackTrustKey
+
+- **Syntax:** `ModPagespeedRulePackTrustKey key_id base64_public_key` (Apache) · `pagespeed RulePackTrustKey key_id base64_public_key;` (nginx)
+- **Default:** —
+- **Context:** Apache: server config, virtual host · nginx: http, server
+
+Trust rule packs signed with this key: &lt;key id&gt; &lt;base64 Ed25519 public key&gt;
+
 ### Bot authentication and licensing
 
 [`RslCapDirectoryHost`](https://modpagespeed.com/docs/configuration/#rslcapdirectoryhost), [`RslCapEnforcement`](https://modpagespeed.com/docs/configuration/#rslcapenforcement), [`RslCapIssuer`](https://modpagespeed.com/docs/configuration/#rslcapissuer), [`RslCapKeyDirectoryAllowlist`](https://modpagespeed.com/docs/configuration/#rslcapkeydirectoryallowlist), [`RslCapKeyDirectoryFile`](https://modpagespeed.com/docs/configuration/#rslcapkeydirectoryfile), [`RslCapKeyDirectoryRefreshSec`](https://modpagespeed.com/docs/configuration/#rslcapkeydirectoryrefreshsec), [`RslCapKeyDirectoryUrl`](https://modpagespeed.com/docs/configuration/#rslcapkeydirectoryurl), [`RslCapRequestedLicense`](https://modpagespeed.com/docs/configuration/#rslcaprequestedlicense), [`RslCapRequestedScope`](https://modpagespeed.com/docs/configuration/#rslcaprequestedscope), [`WebBotAuth`](https://modpagespeed.com/docs/configuration/#webbotauth), [`WebBotAuthBotDetection`](https://modpagespeed.com/docs/configuration/#webbotauthbotdetection), [`WebBotAuthDirectoryHost`](https://modpagespeed.com/docs/configuration/#webbotauthdirectoryhost), [`WebBotAuthKeyDirectoryAllowlist`](https://modpagespeed.com/docs/configuration/#webbotauthkeydirectoryallowlist), [`WebBotAuthKeyDirectoryFile`](https://modpagespeed.com/docs/configuration/#webbotauthkeydirectoryfile), [`WebBotAuthKeyDirectoryRefreshSec`](https://modpagespeed.com/docs/configuration/#webbotauthkeydirectoryrefreshsec), [`WebBotAuthKeyDirectoryUrl`](https://modpagespeed.com/docs/configuration/#webbotauthkeydirectoryurl), [`WebBotAuthPublicCounter`](https://modpagespeed.com/docs/configuration/#webbotauthpubliccounter), [`WebBotAuthTelemetry`](https://modpagespeed.com/docs/configuration/#webbotauthtelemetry), [`WebBotAuthVerifiedBots`](https://modpagespeed.com/docs/configuration/#webbotauthverifiedbots)
@@ -5173,7 +5236,7 @@ If true, keep track of statistics per VHost and not just globally
 
 ### Images
 
-[`AvifAnimatedRecompressionQuality`](https://modpagespeed.com/docs/configuration/#avifanimatedrecompressionquality), [`AvifQualityForSaveData`](https://modpagespeed.com/docs/configuration/#avifqualityforsavedata), [`AvifRecompressionQuality`](https://modpagespeed.com/docs/configuration/#avifrecompressionquality), [`AvifRecompressionQualityForSmallScreens`](https://modpagespeed.com/docs/configuration/#avifrecompressionqualityforsmallscreens), [`AvifTimeoutMs`](https://modpagespeed.com/docs/configuration/#aviftimeoutms), [`CriticalImagesBeaconEnabled`](https://modpagespeed.com/docs/configuration/#criticalimagesbeaconenabled), [`CssImageInlineMaxBytes`](https://modpagespeed.com/docs/configuration/#cssimageinlinemaxbytes), [`EnableLazyLoadHighResImages`](https://modpagespeed.com/docs/configuration/#enablelazyloadhighresimages), [`ImageInlineMaxBytes`](https://modpagespeed.com/docs/configuration/#imageinlinemaxbytes), [`ImageJpegNumProgressiveScans`](https://modpagespeed.com/docs/configuration/#imagejpegnumprogressivescans), [`ImageJpegNumProgressiveScansForSmallScreens`](https://modpagespeed.com/docs/configuration/#imagejpegnumprogressivescansforsmallscreens), [`ImageLimitOptimizedPercent`](https://modpagespeed.com/docs/configuration/#imagelimitoptimizedpercent), [`ImageLimitRenderedAreaPercent`](https://modpagespeed.com/docs/configuration/#imagelimitrenderedareapercent), [`ImageLimitResizeAreaPercent`](https://modpagespeed.com/docs/configuration/#imagelimitresizeareapercent), [`ImageMaxRewritesAtOnce`](https://modpagespeed.com/docs/configuration/#imagemaxrewritesatonce), [`ImageProvenanceCarry`](https://modpagespeed.com/docs/configuration/#imageprovenancecarry), [`ImageRecompressionQuality`](https://modpagespeed.com/docs/configuration/#imagerecompressionquality), [`ImageResolutionLimitBytes`](https://modpagespeed.com/docs/configuration/#imageresolutionlimitbytes), [`InlineOnlyCriticalImages`](https://modpagespeed.com/docs/configuration/#inlineonlycriticalimages), [`JpegQualityForSaveData`](https://modpagespeed.com/docs/configuration/#jpegqualityforsavedata), [`JpegRecompressionQuality`](https://modpagespeed.com/docs/configuration/#jpegrecompressionquality), [`JpegRecompressionQualityForSmallScreens`](https://modpagespeed.com/docs/configuration/#jpegrecompressionqualityforsmallscreens), [`LazyloadImagesAfterOnload`](https://modpagespeed.com/docs/configuration/#lazyloadimagesafteronload), [`LazyloadImagesBlankUrl`](https://modpagespeed.com/docs/configuration/#lazyloadimagesblankurl), [`LazyloadImagesMode`](https://modpagespeed.com/docs/configuration/#lazyloadimagesmode), [`LazyloadImagesSkipFirst`](https://modpagespeed.com/docs/configuration/#lazyloadimagesskipfirst), [`MaxImageSizeLowResolutionBytes`](https://modpagespeed.com/docs/configuration/#maximagesizelowresolutionbytes), [`MaxInlinedPreviewImagesIndex`](https://modpagespeed.com/docs/configuration/#maxinlinedpreviewimagesindex), [`MaxLowResImageSizeBytes`](https://modpagespeed.com/docs/configuration/#maxlowresimagesizebytes), [`MaxLowResToHighResImageSizePercentage`](https://modpagespeed.com/docs/configuration/#maxlowrestohighresimagesizepercentage), [`MinImageSizeLowResolutionBytes`](https://modpagespeed.com/docs/configuration/#minimagesizelowresolutionbytes), [`PreserveImageProvenance`](https://modpagespeed.com/docs/configuration/#preserveimageprovenance), [`ProgressiveJpegMinBytes`](https://modpagespeed.com/docs/configuration/#progressivejpegminbytes), [`ResponsiveImageDensities`](https://modpagespeed.com/docs/configuration/#responsiveimagedensities), [`ServeRewrittenAvifUrlsToAnyAgent`](https://modpagespeed.com/docs/configuration/#serverewrittenavifurlstoanyagent), [`ServeRewrittenWebpUrlsToAnyAgent`](https://modpagespeed.com/docs/configuration/#serverewrittenwebpurlstoanyagent), [`UseBlankImageForInlinePreview`](https://modpagespeed.com/docs/configuration/#useblankimageforinlinepreview), [`WebpAnimatedRecompressionQuality`](https://modpagespeed.com/docs/configuration/#webpanimatedrecompressionquality), [`WebpQualityForSaveData`](https://modpagespeed.com/docs/configuration/#webpqualityforsavedata), [`WebpRecompressionQuality`](https://modpagespeed.com/docs/configuration/#webprecompressionquality), [`WebpRecompressionQualityForSmallScreens`](https://modpagespeed.com/docs/configuration/#webprecompressionqualityforsmallscreens), [`WebpTimeoutMs`](https://modpagespeed.com/docs/configuration/#webptimeoutms)
+[`AvifAnimatedRecompressionQuality`](https://modpagespeed.com/docs/configuration/#avifanimatedrecompressionquality), [`AvifQualityForSaveData`](https://modpagespeed.com/docs/configuration/#avifqualityforsavedata), [`AvifRecompressionQuality`](https://modpagespeed.com/docs/configuration/#avifrecompressionquality), [`AvifRecompressionQualityForSmallScreens`](https://modpagespeed.com/docs/configuration/#avifrecompressionqualityforsmallscreens), [`AvifTimeoutMs`](https://modpagespeed.com/docs/configuration/#aviftimeoutms), [`CriticalImagesBeaconEnabled`](https://modpagespeed.com/docs/configuration/#criticalimagesbeaconenabled), [`CssImageInlineMaxBytes`](https://modpagespeed.com/docs/configuration/#cssimageinlinemaxbytes), [`EnableLazyLoadHighResImages`](https://modpagespeed.com/docs/configuration/#enablelazyloadhighresimages), [`ImageInlineMaxBytes`](https://modpagespeed.com/docs/configuration/#imageinlinemaxbytes), [`ImageJpegNumProgressiveScans`](https://modpagespeed.com/docs/configuration/#imagejpegnumprogressivescans), [`ImageJpegNumProgressiveScansForSmallScreens`](https://modpagespeed.com/docs/configuration/#imagejpegnumprogressivescansforsmallscreens), [`ImageLimitOptimizedPercent`](https://modpagespeed.com/docs/configuration/#imagelimitoptimizedpercent), [`ImageLimitRenderedAreaPercent`](https://modpagespeed.com/docs/configuration/#imagelimitrenderedareapercent), [`ImageLimitResizeAreaPercent`](https://modpagespeed.com/docs/configuration/#imagelimitresizeareapercent), [`ImageMaxAnimatedFrames`](https://modpagespeed.com/docs/configuration/#imagemaxanimatedframes), [`ImageMaxRewritesAtOnce`](https://modpagespeed.com/docs/configuration/#imagemaxrewritesatonce), [`ImageProvenanceCarry`](https://modpagespeed.com/docs/configuration/#imageprovenancecarry), [`ImageRecompressionQuality`](https://modpagespeed.com/docs/configuration/#imagerecompressionquality), [`ImageResolutionLimitBytes`](https://modpagespeed.com/docs/configuration/#imageresolutionlimitbytes), [`InlineOnlyCriticalImages`](https://modpagespeed.com/docs/configuration/#inlineonlycriticalimages), [`JpegQualityForSaveData`](https://modpagespeed.com/docs/configuration/#jpegqualityforsavedata), [`JpegRecompressionQuality`](https://modpagespeed.com/docs/configuration/#jpegrecompressionquality), [`JpegRecompressionQualityForSmallScreens`](https://modpagespeed.com/docs/configuration/#jpegrecompressionqualityforsmallscreens), [`LazyloadImagesAfterOnload`](https://modpagespeed.com/docs/configuration/#lazyloadimagesafteronload), [`LazyloadImagesBlankUrl`](https://modpagespeed.com/docs/configuration/#lazyloadimagesblankurl), [`LazyloadImagesMode`](https://modpagespeed.com/docs/configuration/#lazyloadimagesmode), [`LazyloadImagesSkipFirst`](https://modpagespeed.com/docs/configuration/#lazyloadimagesskipfirst), [`MaxImageSizeLowResolutionBytes`](https://modpagespeed.com/docs/configuration/#maximagesizelowresolutionbytes), [`MaxInlinedPreviewImagesIndex`](https://modpagespeed.com/docs/configuration/#maxinlinedpreviewimagesindex), [`MaxLowResImageSizeBytes`](https://modpagespeed.com/docs/configuration/#maxlowresimagesizebytes), [`MaxLowResToHighResImageSizePercentage`](https://modpagespeed.com/docs/configuration/#maxlowrestohighresimagesizepercentage), [`MinImageSizeLowResolutionBytes`](https://modpagespeed.com/docs/configuration/#minimagesizelowresolutionbytes), [`PreserveImageProvenance`](https://modpagespeed.com/docs/configuration/#preserveimageprovenance), [`ProgressiveJpegMinBytes`](https://modpagespeed.com/docs/configuration/#progressivejpegminbytes), [`ResponsiveImageDensities`](https://modpagespeed.com/docs/configuration/#responsiveimagedensities), [`ServeRewrittenAvifUrlsToAnyAgent`](https://modpagespeed.com/docs/configuration/#serverewrittenavifurlstoanyagent), [`ServeRewrittenWebpUrlsToAnyAgent`](https://modpagespeed.com/docs/configuration/#serverewrittenwebpurlstoanyagent), [`UseBlankImageForInlinePreview`](https://modpagespeed.com/docs/configuration/#useblankimageforinlinepreview), [`WebpAnimatedRecompressionQuality`](https://modpagespeed.com/docs/configuration/#webpanimatedrecompressionquality), [`WebpQualityForSaveData`](https://modpagespeed.com/docs/configuration/#webpqualityforsavedata), [`WebpRecompressionQuality`](https://modpagespeed.com/docs/configuration/#webprecompressionquality), [`WebpRecompressionQualityForSmallScreens`](https://modpagespeed.com/docs/configuration/#webprecompressionqualityforsmallscreens), [`WebpTimeoutMs`](https://modpagespeed.com/docs/configuration/#webptimeoutms)
 
 #### AvifAnimatedRecompressionQuality
 
@@ -5287,6 +5350,14 @@ Limit on percentage of rendered image wxh to the original image wxh that should 
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
 Consider resizing images whose area in pixels is less than the given percent of original image area; 100 means replace if smaller.
+
+#### ImageMaxAnimatedFrames
+
+- **Syntax:** `ModPagespeedImageMaxAnimatedFrames number` (Apache) · `pagespeed ImageMaxAnimatedFrames number;` (nginx)
+- **Default:** `200`
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
+
+Maximum number of frames in an animated image that will be converted. Animations with more frames are served unconverted. 0 or a negative value disables the limit.
 
 #### ImageMaxRewritesAtOnce
 
@@ -10266,13 +10337,27 @@ pagespeed RedisTimeoutUs 50000
 
 #### Flush the entire cache
 
-Touch a `cache.flush` file in the cache directory to force mod_pagespeed to discard all cached data. The filename is set by `CacheFlushFilename` (default `cache.flush`):
+Touch a `cache.flush` file in the `FileCachePath` directory to force mod_pagespeed to discard all cached data. The filename is set by `CacheFlushFilename` (default `cache.flush`; a name that does not start with `/` is relative to `FileCachePath`). Use the cache directory your configuration names. The Apache package's `pagespeed.conf` sets `/var/cache/mod_pagespeed/`; the nginx package's sample configuration uses `/var/cache/ngx_pagespeed`:
+
+<!-- platform: nginx -->
+
+**nginx**
 
 ```bash
-sudo touch /var/cache/pagespeed/cache.flush
+sudo touch /var/cache/ngx_pagespeed/cache.flush
 ```
 
-mod_pagespeed checks for this file every `CacheFlushPollIntervalSec` seconds (default 5). All entries cached before the file's modification time are treated as expired.
+<!-- platform: apache -->
+
+**Apache**
+
+```bash
+sudo touch /var/cache/mod_pagespeed/cache.flush
+```
+
+mod_pagespeed checks the file's modification time every `CacheFlushPollIntervalSec` seconds (default 5). All entries cached before that time are treated as expired.
+
+This works only while `EnableCachePurge` is off (the default). With `EnableCachePurge on` the module keeps its purge records in `cache.purge` instead (or in the file `CacheFlushFilename` names) and reads no timestamp from `cache.flush`, so touching a file does nothing: purge everything through the [global admin page](https://modpagespeed.com/docs/cache-modes/#purge-via-admin-page) (`purge=*`).
 
 #### Purge via admin page
 
@@ -13871,6 +13956,7 @@ mod_pagespeed 2.1 includes filters that optimize HTML structure, cut unnecessary
 | [`decode_rewritten_urls`](https://modpagespeed.com/docs/html-filters/#decode_rewritten_urls)         | No   | Restores original resource URLs      | Test first         |
 | [`compute_statistics`](https://modpagespeed.com/docs/html-filters/#compute_statistics)               | No   | HTML statistics for the console      | Test first         |
 | [`experiment_http2`](https://modpagespeed.com/docs/html-filters/#experiment_http2)                   | No   | HTTP/2 features in development       | Experimental       |
+| [`rule_packs`](https://modpagespeed.com/docs/html-filters/#rule_packs)                               | No   | Applies a rule pack to the head      | Test first         |
 | [`insert_ga`](https://modpagespeed.com/docs/html-filters/#insert_ga)                                 | No   | Inserts the retired ga.js snippet    | Deprecated         |
 
 ## IIS syntax
@@ -14262,6 +14348,19 @@ pagespeed EnableFilters experiment_http2;
 
 Inserts the Google Analytics snippet for the account in `AnalyticsID` into every page. Deprecated: the snippet it inserts is the retired `ga.js`, and `AnalyticsID` itself only targets Universal Analytics, which was discontinued. Add your analytics in your templates instead.
 
+## Rule packs
+
+### rule_packs
+
+[Full guide →](https://modpagespeed.com/docs/filters/rule_packs/)
+
+Applies the rules of a rule pack, a JSON file named by `RulePackFile`, to the canonical link, title, meta description, hreflang cluster and JSON-LD of your pages. It is off by default and in no rewrite level: it is in the dangerous set, so `RewriteLevel AllFilters` does not enable it either. A pack starts in report mode (`RulePackMode report`, the default) and records what it would change without changing anything. See [Rule packs](https://modpagespeed.com/docs/rule-packs/) for the pack format, enforce mode and signed packs.
+
+```nginx
+pagespeed EnableFilters rule_packs;
+pagespeed RulePackFile /etc/pagespeed/packs/example.com.json;
+```
+
 ## Deprecated and dangerous filters
 
 The names below are still accepted so that an existing configuration keeps loading, with a warning. The deprecated ones do nothing at all; `fix_reflows` and `mobilize` are in the dangerous set, which `RewriteLevel AllFilters` never enables, and exist for experiments rather than production. Remove them from your configuration.
@@ -14361,7 +14460,7 @@ The filter does nothing without a pack file, and a pack starts in report mode: i
 
 - It handles five kinds of head element: `canonical`, `title`, `description`, `hreflang` and `jsonld`, and, when a rule asks for it, the `Link` response header for the canonical. It does not edit anything else in the page.
 - Applying a pack fetches nothing over the network. The pack is data, not code.
-- One pack file per server (virtual host or site). The pack id must be `edge-seo`; the loader rejects any other id.
+- Up to eight pack files per server (virtual host or site): repeat `RulePackFile` for each, and a ninth is a configuration error. Packs run in configuration order, and every pack on a server needs its own id (1 to 64 lowercase letters, digits or `-`); a file whose id an earlier file already uses is refused.
 - A host that is not listed in the pack is never touched.
 - It is designed not to fail a response. A pack that does not load, a page it cannot parse or edit safely, or an internal error means the page is served as the origin sent it.
 - It only sees responses the module rewrites: status 200, HTML, not already marked `X-Mod-Pagespeed`.
@@ -14370,7 +14469,7 @@ Changes are made in the head, with three exceptions: a JSON-LD block the pack ad
 
 ## Enable it
 
-`RulePackFile` names the pack file. `RulePackMode` accepts `report` (the default) or `enforce`; any other value is a configuration error.
+`RulePackFile` names a pack file. Repeat it to load more than one pack (at most eight per server or virtual host; two lines naming the same path count once); the packs run in the order of the lines, and the first pack whose rule applies to a kind of element claims it. A virtual host that sets `RulePackFile` uses its own list and ignores the server-wide one; one that sets none inherits it. `RulePackMode` accepts `report` (the default) or `enforce`; any other value is a configuration error.
 
 Both directives are server-scoped. They cannot be set in `.htaccess`, `<Directory>`, an nginx `location` block or an IIS match block. In `.htaccess` Apache answers 500 for that directory; `<Directory>` and nginx `location` fail at configuration load; IIS warns and continues without the setting. `DisableFilters rule_packs` turns the filter off for a directory or location.
 
@@ -14434,7 +14533,7 @@ A minimal pack:
 
 `pack`, `sites` and `rules` are required; `defaults` and `tables` are optional. Unknown keys, repeated keys and unknown placeholders are load errors, so a typo cannot quietly become a different rule.
 
-- **`pack`**: `id` (must be `edge-seo`) and `version` (`MAJOR.MINOR.PATCH`, or the pack fails to load) are required. Optional: `publisher` (default `local`; also the key id of a [signed pack](https://modpagespeed.com/docs/rule-packs/#signed-packs)), `description`, and `engine_min`, the module version the pack needs; an older module refuses to load it. The top-level key `signature` is reserved and is a load error.
+- **`pack`**: `id` (1 to 64 lowercase letters, digits or `-`, unique among the server's packs) and `version` (`MAJOR.MINOR.PATCH`, or the pack fails to load) are required. Optional: `publisher` (default `local`; also the key id of a [signed pack](https://modpagespeed.com/docs/rule-packs/#signed-packs)), `description`, and `engine_min`, the module version the pack needs; an older module refuses to load it. The top-level key `signature` is reserved and is a load error.
 - **`sites`**: a list of `{ "host", "mode" }`. `host` is a lowercase host name or `*.suffix`; `*.example.com` matches subdomains, not `example.com` itself. `mode` is `report` (default) or `enforce`.
 - **`defaults`**: `paths` and `exclude_paths` (glob lists), used by a rule that names none of its own. The fallback is per list: a rule's own `exclude_paths` replaces the defaults. Without `defaults`, paths are `/**`.
 - **`tables`**: named maps of per-URL values for rules to look up, and the `hreflang` table of language clusters.
@@ -14627,7 +14726,7 @@ ed25519 <key id> <base64 signature>
 
 The key id is lowercase letters, digits and `-` (1 to 64 characters) and must equal the pack's `publisher`.
 
-- `RulePackTrustKey <key id> <base64 public key>` lists a key the server trusts. The key is 44 base64 characters. Repeat the directive for up to 16 keys per server or virtual host. A virtual host adds to the server's keys, and a virtual host key with the same id replaces the server's. There is no built-in key: a server trusts only the keys you list.
+- `RulePackTrustKey <key id> <base64 public key>` lists a key the server trusts. The key is 44 base64 characters. Repeat the directive for up to 16 keys per server or virtual host. A virtual host adds to the server's keys, and a virtual host key with the same id replaces the server's. The We-Amp publisher key (key id `we-amp`) is built in, so packs it signed verify without a `RulePackTrustKey` line; a key you list with the id `we-amp` replaces it.
 - `RulePackRequireSigned on|off` (default `off`) decides what happens to a pack that fails the check.
 
 The server runs these checks in order; the first one that fails names the reason:
@@ -14635,7 +14734,7 @@ The server runs these checks in order; the first one that fails names the reason
 1. `unsigned`: there is no `.sig` file.
 2. `signature unreadable`: the sidecar cannot be read or is not in the format above.
 3. `publisher mismatch`: the key id in the sidecar is not the pack's `publisher`.
-4. `unknown key`: no `RulePackTrustKey` for that key id.
+4. `unknown key`: no `RulePackTrustKey` (and not the built-in `we-amp` key) for that key id.
 5. `bad signature`: the signature does not match the pack's bytes and that key.
 
 A pack that passes all five is verified. With `RulePackRequireSigned off`, every pack that loads is used: a verified pack logs `rule pack loaded signed`, any other pack logs the `rule pack loaded unsigned` warning, and only when a `.sig` file exists but fails one of the checks 2 to 5 does a second warning give the reason. With `on`, a pack that fails any check is refused: an earlier accepted version of the same file stays in use, otherwise the filter is off for that server or virtual host.
@@ -17774,8 +17873,8 @@ Verify that the configuration options match between the HTML-serving VHost and t
 
 **Fix:**
 
-- Flush the cache: `curl 'http://yoursite.com/pagespeed_admin/cache?purge=*'`
-- Or touch the cache.flush file (legacy method).
+- With `EnableCachePurge on`, purge everything from the global admin page (a `POST` with the `X-Requested-With` header; a plain `GET` answers `405`, and the per-vhost `/pagespeed_admin` page refuses `*`): `curl -X POST -H 'X-Requested-With: XMLHttpRequest' 'http://yoursite.com/pagespeed_global_admin/cache?purge=*'`. Send it from a client the [admin access rules](https://modpagespeed.com/docs/admin-console/#setup) allow.
+- With `EnableCachePurge` off (the default), touch `cache.flush` in the `FileCachePath` directory: `sudo touch /var/cache/mod_pagespeed/cache.flush` on Apache, `sudo touch /var/cache/ngx_pagespeed/cache.flush` on nginx (the path in the Apache package's `pagespeed.conf` and in the nginx package's sample configuration; use the path your configuration names). See [Cache flushing and purging](https://modpagespeed.com/docs/cache-modes/#cache-flushing-and-purging).
 - If resources are loaded from disk via `LoadFromFile`, changes are picked up after `LoadFromFileCacheTtlMs` expires (default: same as ImplicitCacheTtlMs, 5 minutes).
 - For immediate pickup, set a shorter `ImplicitCacheTtlMs` or purge the specific URL.
 
@@ -17791,13 +17890,23 @@ Verify that the configuration options match between the HTML-serving VHost and t
 
 ### SELinux blocks mod_pagespeed
 
-**Cause:** SELinux policy prevents the web server from writing to the cache directory.
+**Cause:** SELinux policy prevents the web server from writing to the cache directory. On Enterprise Linux both Apache and nginx run in the `httpd_t` domain, which can write files labelled `httpd_cache_t` but not the `httpd_sys_content_t` (read-only content) or generic `var_t` labels.
+
+**Check:** `ls -Zd` on your `FileCachePath` shows its label, and `sudo ausearch -m avc -ts recent` lists the denials.
 
 **Fix:**
 
-```bash
-sudo chcon -R -t httpd_sys_content_t /var/cache/pagespeed/
-```
+- **Apache:** the stock targeted policy already labels `/var/cache/mod_pagespeed`, the package's cache directory, `httpd_cache_t`. If the label is wrong (a directory copied in from elsewhere), restore it with `sudo restorecon -Rv /var/cache/mod_pagespeed`.
+- **nginx:** the stock policy has no rule for `/var/cache/ngx_pagespeed`, so it is labelled `var_t` and nginx cannot write to it. Add a persistent rule and apply it (`semanage` is in the `policycoreutils-python-utils` package):
+
+  ```bash
+  sudo semanage fcontext -a -t httpd_cache_t '/var/cache/ngx_pagespeed(/.*)?'
+  sudo restorecon -Rv /var/cache/ngx_pagespeed
+  ```
+
+- **A cache directory you chose yourself:** the same two commands with your path. Do not use `chcon`: its label is lost at the next `restorecon` or file-system relabel.
+- **Fetching:** the module fetches subresources over HTTP, including from the server itself over loopback, and the stock policy denies the web server outbound connections. Without the boolean below, resources are served unoptimized: `sudo setsebool -P httpd_can_network_connect 1`.
+- **The optimizer worker:** the Apache module RPM installs the `pagespeed-optimizer` SELinux policy module and relabels `/var/cache/pagespeed-optimizer` and `/run/pagespeed-optimizer` itself; `sudo semodule -l | grep pagespeed-optimizer` confirms it is loaded. If the install could not load it, the package printed the retry command: `sudo semodule -i /usr/share/selinux/targeted/pagespeed-optimizer.pp`. The nginx module RPM does not ship this policy module, so on a host with only the nginx module nothing installs it: with SELinux enforcing, nginx cannot reach the worker's cache volume and notify socket, and in-place optimization through the worker stays off.
 
 ### Beacons causing unexpected POST requests
 
@@ -24928,7 +25037,7 @@ The image, CSS, JavaScript, HTML, and caching filters, what each one does, and w
 
 Canonical URL: https://modpagespeed.com/docs/filters/
 
-A PageSpeed filter is one named optimization that mod_pagespeed, the in-process module for Apache, nginx and IIS, applies to a page or a resource as the server serves it. The tables list every filter mod_pagespeed 2.1 accepts: 94 filters and 4 compound names that expand to several. Core means the filter is in CoreFilters, the default RewriteLevel. OFB means it is in OptimizeForBandwidth. Each name links to the entry that explains what the filter changes, when to use it and what can go wrong.
+A PageSpeed filter is one named optimization that mod_pagespeed, the in-process module for Apache, nginx and IIS, applies to a page or a resource as the server serves it. The tables list every filter mod_pagespeed 2.1 accepts: 95 filters and 4 compound names that expand to several. Core means the filter is in CoreFilters, the default RewriteLevel. OFB means it is in OptimizeForBandwidth. Each name links to the entry that explains what the filter changes, when to use it and what can go wrong.
 
 ## Image filters
 
@@ -25042,6 +25151,7 @@ A PageSpeed filter is one named optimization that mod_pagespeed, the in-process 
 | [`pedantic`](https://modpagespeed.com/docs/html-filters/#pedantic) | - | - | Generally safe | Adds type attributes for HTML4 validation |
 | [`remove_comments`](https://modpagespeed.com/docs/filters/remove_comments/) | - | - | Generally safe | Strips HTML comments |
 | [`remove_quotes`](https://modpagespeed.com/docs/html-filters/#remove_quotes) | - | - | Generally safe | Removes unnecessary attribute quotes |
+| [`rule_packs`](https://modpagespeed.com/docs/html-filters/#rule_packs) | - | - | Dangerous | Applies a rule pack's rules for the canonical, title, description, hreflang and JSON-LD of a page |
 | [`split_html`](https://modpagespeed.com/docs/html-filters/#split_html) | - | - | Dangerous | Deprecated no-op: accepted for compatibility, does nothing |
 | [`split_html_helper`](https://modpagespeed.com/docs/html-filters/#split_html_helper) | - | - | Dangerous | Deprecated no-op: accepted for compatibility, does nothing |
 | [`trim_urls`](https://modpagespeed.com/docs/filters/trim_urls/) | - | - | Generally safe | Shortens URLs relative to base URL |
