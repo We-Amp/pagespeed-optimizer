@@ -59,6 +59,15 @@ COMMON_ARGS=(
   --vendor_dir="${VENDOR_DIR}"
 )
 
+# Per-slot Bazel parallelism (CI_SLOT_CPUS, see slot-budget.sh); unset keeps
+# Bazel's default. Part of COMMON_ARGS so every invocation agrees.
+# shellcheck source=slot-budget.sh
+source "$(dirname "${BASH_SOURCE[0]}")/slot-budget.sh"
+slot_budget
+if [ -n "${SLOT_CPUS}" ]; then
+  COMMON_ARGS+=(--jobs="${SLOT_CPUS}")
+fi
+
 cd "${WORKSPACE}"
 
 # ---------- Step 1: build generated headers first ----------
