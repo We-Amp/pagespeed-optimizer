@@ -14,16 +14,15 @@ faq:
 
 mod_pagespeed runs on IIS as a native, in-process module: the successor to
 IISpeed. Download the signed MSI, run it, `iisreset`, and the module optimizes
-every site that has a `pagespeed.config`. The IIS package ships from the 1.15
-packaging channel.
+every site that has a `pagespeed.config`. The IIS package ships as a signed
+installer on the mod_pagespeed GitHub release.
 
 Machine-readable recipe for coding agents: [modpagespeed.com/recipes/iis.md](https://modpagespeed.com/recipes/iis.md) (see [Install with a coding agent](/docs/agent-install/)).
 
 ## Requirements
 
-- Windows Server 2019 or later (IIS 10 or later)
-- 64-bit only
-- Visual C++ Redistributable 2022
+- Windows Server 2016 or later, with IIS 10 (the release is tested on Windows Server 2016)
+- 64-bit only (the Visual C++ runtime is built in; no redistributable is needed)
 - The IIS worker process identity needs write access to the cache directory;
   the installer grants it for the default directory
 

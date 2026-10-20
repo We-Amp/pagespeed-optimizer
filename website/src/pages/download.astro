@@ -15,6 +15,11 @@ const softwareVersion = await productSoftwareVersion();
 const rel11 = await getRelease('1.1');
 const rel21 = await getRelease('2.1');
 
+// The IIS installer is hosted on the module's GitHub release, not under
+// /releases/; its SHA256SUMS sits beside it on the same release.
+const iisMsiUrl = artifactUrl(rel21, 'msi', 'win_x64');
+const iisSumsUrl = iisMsiUrl.slice(0, iisMsiUrl.lastIndexOf('/') + 1) + 'SHA256SUMS';
+
 // Docker/Helm image tag via the shared resolver (see
 // src/components/release/ImageTag.astro for the MDX-side equivalent) — used
 // directly here since the 2.1 manifest declares no native artifact templates
@@ -82,12 +87,12 @@ const integrations = [
   },
   {
     name: 'IIS',
-    product: 'mod_pagespeed 1.15',
+    product: 'mod_pagespeed 2.1',
     badge: 'Native module',
     description:
       'MSI installer for Windows Server. Enable in IIS Manager, iisreset, and the optimization pipeline is live.',
     note: 'Running IISpeed? Uninstall it first — both modules cannot coexist on the same host.',
-    requirements: `${rel11.compat.iis.os[0]} or later, IIS ${rel11.compat.iis.iis_versions.join('/')}, x64`,
+    requirements: `${rel21.compat.iis.os.join(', ')}, IIS ${rel21.compat.iis.iis_versions.join('/')}, x64`,
     href: '/docs/install-iis/',
     cta: 'Install guide',
     umamiEvent: 'cta_download_iis',
@@ -155,9 +160,9 @@ const jsonLd = {
     <p class="mt-4 text-lg text-text-body">
       Every way to run it, in one place. mod_pagespeed 2.1's native module installs on Apache and
       nginx from the signed apt/yum repository, or runs as a Docker container fronting nginx —
-      deploy that with Helm on Kubernetes. Windows/IIS ships from the 1.15 packaging channel, and
-      ASP.NET Core apps get a NuGet middleware or a Linux sidecar. Each card shows which package it
-      comes from and how it integrates.
+      deploy that with Helm on Kubernetes. Windows/IIS gets a signed installer from the GitHub
+      release, and ASP.NET Core apps get a NuGet middleware or a Linux sidecar. Each card shows
+      which package it comes from and how it integrates.
     </p>
     <p class="mt-3 text-sm text-text-annotation inline-flex items-center gap-3">
       <span class="inline-flex items-center rounded-md border border-border-strong bg-bg-secondary px-2 py-0.5 font-mono text-xs text-text-body">
@@ -226,10 +231,14 @@ const jsonLd = {
           signed package repositories
         </a>
         ; for IIS, download the{' '}
-        <a href={artifactUrl(rel11, 'msi', 'win_x64')} class="text-interactive underline">
+        <a href={iisMsiUrl} class="text-interactive underline">
           Windows installer
         </a>{' '}
-        and follow the{' '}
+        ({rel21.release.semver}, hosted on the module's GitHub release beside its{' '}
+        <a href={iisSumsUrl} class="text-interactive underline">
+          SHA256SUMS
+        </a>
+        ) and follow the{' '}
         <a href="/docs/install-iis/" class="text-interactive underline">
           install guide
         </a>
@@ -269,7 +278,7 @@ const jsonLd = {
     </p>
     <p class="mt-3 text-sm text-text-muted">
       IISpeed customer? Contact us about moving to mod_pagespeed — IIS deployments run on the native
-      Windows module from the 1.15 packaging channel.{' '}
+      Windows module, a signed installer on the mod_pagespeed GitHub release.{' '}
       <a
         href="/contact/?topic=iispeed-transfer"
         data-umami-event="cta_commercial"

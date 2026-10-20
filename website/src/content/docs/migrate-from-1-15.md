@@ -80,9 +80,9 @@ confident you will not roll back.
 
 ## Platform notes
 
-- **IIS / Windows Server.** The IIS package ships from the 1.15 packaging
-  channel: run the current MSI over the existing install and `iisreset`. See
-  [Install on IIS](/docs/install-iis/).
+- **IIS / Windows Server.** The IIS package ships as a signed installer on the
+  mod_pagespeed GitHub release: run the current MSI over the existing install
+  and `iisreset`. See [Install on IIS](/docs/install-iis/).
 - **Debian 11 (bullseye).** The repository's bullseye suite carries the 1.15.0
   module packages; the 2.1 packages need Debian 12 or newer.
 - **cPanel EasyApache 4 (EL8).** The module runs without the optimizer worker.
