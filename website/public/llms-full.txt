@@ -15005,12 +15005,15 @@ the `pagespeed` group.
 
 The images are signed with [keyless cosign](https://docs.sigstore.dev/) and
 carry an SBOM attestation and SLSA build provenance. The signing identity is
-the `We-Amp/modpagespeed-images` publish workflow. To verify a pull:
+one workflow on one branch: `publish-images.yml` on `main` of
+`We-Amp/modpagespeed-images`. Check that exact identity, not a pattern that
+would also accept another workflow or branch of the repository. To verify a
+pull:
 
 ```bash
 # Signature (keyless — no public key to manage)
 cosign verify \
-  --certificate-identity-regexp '^https://github.com/We-Amp/modpagespeed-images/' \
+  --certificate-identity https://github.com/We-Amp/modpagespeed-images/.github/workflows/publish-images.yml@refs/heads/main \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   ghcr.io/we-amp/pagespeed-combined:latest
 
