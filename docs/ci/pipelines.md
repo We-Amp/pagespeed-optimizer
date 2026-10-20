@@ -86,7 +86,7 @@ an annotation and the job summary.
 
 To flip it: Settings, Secrets and variables, Actions, Variables, set
 `FLEET_ENABLED` to `false` (or `gh variable set FLEET_ENABLED --body false
--R We-Amp/pagespeed-optimizer`); set it to `true` or delete it to go back. It
+-R We-Amp/pagespeed-optimizer`); set it back to `true` to go back (do not delete it: the release lanes still test for `true`). It
 is read when a run starts, so re-run a run that began before the change. The
 hosted legs run without the hub and the remote cache and are slower; the
 fleet-only legs are skipped, and the CI gate accepts those skips.
@@ -117,6 +117,9 @@ kernel: a fork or Dependabot pull request skips it.
 ```yaml
 if: ${{ vars.FLEET_ENABLED == 'true' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
 ```
+
+The manual shadow lanes keep the dispatch-only guard below with `== 'true'`, so they
+are skipped while the variable is unset or `false`.
 
 **Dispatch only** is for a manual lane; a dispatch is never a fork pull
 request.
