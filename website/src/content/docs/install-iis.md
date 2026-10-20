@@ -81,6 +81,42 @@ the module serves the variant that fits each client. An upgrade or repair with
 the installer keeps a service you turned on running and keeps the cache size
 you chose (`OPTIMIZERCACHESIZE`, 1 GiB by default).
 
+To turn it on:
+
+1. Set the service to start, and start it, from an elevated prompt:
+
+   ```powershell
+   sc.exe config WeAmpPageSpeedOptimizer start= auto
+   sc.exe start WeAmpPageSpeedOptimizer
+   ```
+
+   Use `start= demand` instead of `start= auto` to start it only by hand. The
+   service logs to `C:\ProgramData\We-Amp\PageSpeed\logs\optimizer.log`; once
+   it is up, the log says it is listening on `\\.\pipe\pagespeed-optimizer`.
+
+2. Point the module at it. Add these two lines to the server-level
+   `C:\ProgramData\We-Amp\PageSpeed\pagespeed.config`:
+
+   ```
+   pagespeed DaemonSocketPath pagespeed-optimizer
+   pagespeed DaemonVolumePath "C:\ProgramData\We-Amp\PageSpeed\optimizer\cache"
+   ```
+
+   `DaemonSocketPath` is the pipe name the service listens on, without the
+   `\\.\pipe\` prefix; the module adds it. `DaemonVolumePath` is the cache
+   volume's path stem, `…\optimizer\cache`: not the `optimizer` directory the
+   service is given as its cache directory, and not the `cache-…` file the
+   service creates there.
+
+3. Run `iisreset`.
+
+The application pools reach the pipe and the cache with the permissions the
+installer sets; no extra access rules are needed. Start the service before the
+application pools: the module attaches to the optimizer when a pool starts, so
+if the service was stopped then, or you start or restart it later, run
+`iisreset` again for the module to use it. To turn the optimizer off, remove the
+two lines and run `iisreset`; the module goes back to optimizing on its own.
+
 ### IIS Express
 
 For local development with IIS Express, add the module to
