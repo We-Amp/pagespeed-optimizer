@@ -17,7 +17,7 @@ howTo:
   - name: Let the worker produce the variants once
     text: On the first request for an image, the worker decodes the source once and encodes the format variants (AVIF, WebP, and an optimized original), writing each into the shared cache keyed by what the client supports. No build step and no separate asset pipeline.
   - name: Serve the best variant the client accepts
-    text: On every subsequent request the module picks the smallest format the Accept header says the browser can decode. AVIF for browsers that send image/avif, WebP for clients that send image/webp, image/* or */* (or no Accept header), the optimized original for a client that names only its original format. The cache hit is served via mmap with no re-encode.
+    text: On every subsequent request the module picks the smallest format the Accept header says the browser can decode. AVIF for browsers that send image/avif, WebP for clients that send image/webp, image/* or */* (or no Accept header), the optimized original for a client whose Accept names neither AVIF, WebP nor a wildcard. The cache hit is served via mmap with no re-encode.
   - name: Verify with curl and a real browser
     text: "Send a request with an explicit Accept header (curl -H 'Accept: image/avif,image/webp,*/*') and confirm the Content-Type comes back as image/avif. Drop avif from the header and confirm it falls back to image/webp, then send Accept: image/jpeg and confirm you get the original format. A wildcard or a missing Accept header gets WebP. Check that the response varies on Accept so caches downstream do not cross-serve formats."
 ---

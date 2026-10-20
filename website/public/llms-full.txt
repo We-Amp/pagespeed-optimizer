@@ -1251,14 +1251,14 @@ curl -s -o /dev/null -D - http://localhost:8080/<your-image>.jpg -H 'Accept: ima
 # Content-Type: image/avif   — smaller
 ```
 
-WebP and AVIF are typically smaller than the original; the exact `Content-Length`
-depends on the image. Every response carries
+WebP and AVIF are typically smaller than the original; the exact
+`Content-Length` depends on the image. Every response carries
 `Vary: Accept, Save-Data, User-Agent, Sec-CH-DPR` so caches keep the variants
 apart. A request with `Accept: */*` (curl's default), `image/*` or no `Accept`
 header gets WebP; see
-[Image format and the Accept header](https://modpagespeed.com/docs/cdn-integration/#image-format-negotiation). If the WebP and AVIF responses still match the
-original size, the worker may not have finished — wait a moment and retry. If they
-stay the same, see
+[Image format and the Accept header](https://modpagespeed.com/docs/cdn-integration/#image-format-negotiation).
+If the WebP and AVIF responses still match the original size, the worker may
+not have finished — wait a moment and retry. If they stay the same, see
 [Worker Not Processing Content](https://modpagespeed.com/docs/troubleshooting/#worker-not-processing-content)
 and [Images Not Converting to WebP/AVIF](https://modpagespeed.com/docs/troubleshooting/#images-not-converting-to-webpavif).
 
@@ -10476,17 +10476,18 @@ mod_pagespeed serves different optimized variants at the same URL based on clien
 capabilities (image format support, viewport class, pixel density, encoding).
 To tell downstream caches about this, it emits Vary headers:
 
-| Content type | Vary header                                 |
-| ------------ | ------------------------------------------- |
-| Images       | `Accept, Save-Data, User-Agent, Sec-CH-DPR` |
-| HTML         | `Accept-Encoding, User-Agent`               |
-| CSS / JS     | `Accept-Encoding`                           |
+| Content type                                  | Vary header                                 |
+| --------------------------------------------- | ------------------------------------------- |
+| Images (optimizer's nginx module, containers) | `Accept, Save-Data, User-Agent, Sec-CH-DPR` |
+| Images (ASP.NET Core middleware)              | `Accept, Save-Data, User-Agent`             |
+| HTML                                          | `Accept-Encoding, User-Agent`               |
+| CSS / JS                                      | `Accept-Encoding`                           |
 
-The native Apache and nginx modules with the optimizer worker attached send a
-shorter line on images: `Vary: Accept` on an optimized copy chosen from the
-request's `Accept` header (with `Accept-Encoding` where compression applies).
-A response that carries the origin's own bytes, such as the first request for a
-URL, carries no `Vary: Accept` unless the origin sent one.
+The native Apache, nginx and IIS modules with the optimizer worker attached
+send a shorter line on images: `Vary: Accept` on an optimized copy chosen from
+the request's `Accept` header (with `Accept-Encoding` where compression
+applies). A response that carries the origin's own bytes, such as the first
+request for a URL, carries no `Vary: Accept` unless the origin sent one.
 
 Internally, mod_pagespeed classifies User-Agent strings into a small number of
 capability dimensions: 3 viewport classes (mobile, tablet, desktop) × 2 pixel
@@ -10520,28 +10521,51 @@ copies:
 | is absent or empty                                                | WebP: treated exactly like `*/*`         |
 | anything else, for example `image/jpeg` or `image/png` only       | the original format, optimized in place |
 
-So a client that sends `Accept: */*`, `Accept: image/*` or no `Accept` header
-at all receives WebP for a `.jpg` URL. That includes `curl`, `wget` and most
-HTTP libraries, which send `Accept: */*` by default. This is deliberate: under
-RFC 9110 §12.5.1, `*/*` and `image/*` say the client takes any image type, and a
+So a client that sends `Accept: */*`, `Accept: image/*` or no `Accept` header at
+all receives WebP for a `.jpg` URL. That includes `curl`, `wget` and most HTTP
+libraries, which send `Accept: */*` by default. This is deliberate: under RFC
+9110 §12.5.1, `*/*` and `image/*` say the client takes any image type, and a
 request with no `Accept` header means the same thing. Some browsers rely on it:
-Chrome on iOS, for example, sends `Accept: */*` for images without naming
-WebP. AVIF is served only when the request names `image/avif`;
-a wildcard never selects it.
+Chrome on iOS, for example, sends `Accept: */*` for images without naming WebP.
+AVIF is served only when the request names `image/avif`; a wildcard never
+selects it.
 
 Two details of the matching: quality values are not weighed, so a listed type
 counts even with `;q=0`, and a wildcard anywhere in the header wins over the
-specific types next to it, so `Accept: image/jpeg, */*` still gets WebP. Until
-the copy in the negotiated format exists, the request gets the original format.
-On the native modules without the optimizer worker (the module's own in-place
-path), none of this applies: an image optimized in place is the same bytes for
-every client and carries no `Vary: Accept`.
+specific types next to it, so `Accept: image/jpeg, */*` still gets WebP. When no
+copy in the negotiated format exists (not written yet, or declined by the
+quality check), the request gets the original format; a client that names
+`image/avif` is never given WebP instead. On the native modules without the
+optimizer worker (the module's own in-place path), none of this applies: an
+image optimized in place is the same bytes for every client and carries no
+`Vary: Accept`.
 
 A response whose format was chosen this way carries `Vary: Accept` (see the
-table above), so a cache that honours `Vary` keeps the formats apart. A CDN that ignores
-`Vary: Accept` can hand a WebP body to a client that asked for JPEG. Either
-add the `Accept` header to the CDN's cache key (normalized to a few classes,
-for example AVIF, WebP and other), or do not cache images at the edge.
+table above), so a cache that honours `Vary` keeps the formats apart. A CDN
+that ignores `Vary: Accept` caches whichever format the first visitor got, and
+can hand an AVIF or WebP body to a client that cannot decode it.
+
+To cache images at the edge, key them on `Accept`, normalized with the same
+mapping the optimizer uses, so the edge holds three copies per URL instead of
+one per distinct `Accept` string:
+
+- `avif` when `Accept` contains `image/avif`;
+- `webp` when it contains `image/webp`, `image/*` or `*/*`, or is absent;
+- `original` otherwise.
+
+Forward the normalized value as the request's `Accept` (for example
+`image/avif`, `image/webp` or `image/jpeg`), so the origin answers for the
+class the edge cached it under. If you cannot do that, do not cache images at
+the edge.
+
+**The native modules need more than `Accept` today.** Behind the native
+Apache, nginx or IIS module with the optimizer worker attached, the copy is
+also chosen by device class and pixel density (from `User-Agent`) and by
+`Save-Data`, but the response names only `Accept` in `Vary`
+([mod_pagespeed#102](https://github.com/We-Amp/mod_pagespeed/issues/102)).
+Until that is fixed, a shared cache keyed on `Accept` alone can hand one
+device class's or Save-Data copy to another client. Bypass the edge cache for
+images there, or key on a `User-Agent` device class and `Save-Data` as well.
 
 If a non-browser client must receive the original format:
 
@@ -10563,13 +10587,26 @@ If a non-browser client must receive the original format:
 
 ### Cloudflare
 
-Cloudflare ignores `Vary: User-Agent` by default on most plan tiers. It caches
-one variant regardless of User-Agent, using its own device classification for
-mobile/desktop decisions.
+Cloudflare does not key its cache on `Vary: Accept` or `Vary: User-Agent`
+unless you configure it to: by default an image is cached once, for every
+client. For images, choose one of:
 
-**Recommendation:** mod_pagespeed's safe mode (short TTLs + `must-revalidate`)
-is a good fit. If image variant accuracy is critical, consider Enterprise tier
-with custom cache keys.
+- **The Vary setting in a Cache Rule** (all plans): give the `Accept` header
+  the `normalize` action, and Cloudflare keeps a copy per normalized `Accept`
+  value for responses that send `Vary: Accept`. Leave its media type list
+  empty: narrowing it can put a request with no `Accept` header (served WebP)
+  and one that names only `image/jpeg` (served the original) under one key.
+- **Vary for Images** (Pro, Business and Enterprise plans): declare that
+  `.jpg`, `.jpeg` and `.png` have `image/avif` and `image/webp` variants, and
+  Cloudflare caches each format separately.
+- **A custom cache key on the `Accept` header** (Enterprise plans).
+- **Bypass the edge cache for images** with a Cache Rule.
+
+See Cloudflare's [Vary](https://developers.cloudflare.com/cache/concepts/vary/)
+and
+[Vary for Images](https://developers.cloudflare.com/cache/advanced-configuration/vary-for-images/)
+documentation for the current setup. For HTML, mod_pagespeed's safe mode
+(short TTLs + `must-revalidate`) is a good fit.
 
 ### AWS CloudFront
 
@@ -10583,8 +10620,14 @@ caching, whitelist CloudFront's built-in device headers in your cache policy:
 These headers are derived from User-Agent by CloudFront itself and produce a
 manageable number of cache variants.
 
-**Recommendation:** Use CloudFront's device headers for images. Leave CSS/JS
-caching as-is.
+CloudFront also ignores the origin's `Vary: Accept`: it caches separate copies
+only for the request headers named in the cache policy. Add `Accept` to the
+cache policy for images, and normalize it first with a CloudFront Function on
+the viewer request (the mapping above), so the cache key holds a few values
+instead of every browser's `Accept` string.
+
+**Recommendation:** Add the normalized `Accept` and CloudFront's device
+headers to the cache policy for images. Leave CSS/JS caching as-is.
 
 ### Fastly
 
@@ -10593,9 +10636,13 @@ entries per unique Vary combination. With `Vary: User-Agent`, this creates
 thousands of variants per URL. Fastly limits variants to 256 per URL, after
 which it evicts aggressively.
 
-**Recommendation:** Use custom VCL to normalize User-Agent into capability
-classes, or strip User-Agent from Vary and rely on mod_pagespeed's internal
-classification.
+`Vary: Accept` is honoured the same way: every distinct `Accept` string gets
+its own cache entry.
+
+**Recommendation:** Use custom VCL to normalize `req.http.Accept` into the
+three classes above (`image/avif`, `image/webp`, the original type) and
+`User-Agent` into capability classes, or strip User-Agent from Vary and rely
+on mod_pagespeed's internal classification.
 
 ### Other CDNs / no CDN
 
@@ -12830,7 +12877,7 @@ pagespeed EnableFilters sprite_images;
 
 `in_place_optimize_for_browser` is retired. It used to make the module's own in-place path vary images by the browser's `Accept` header and add `Vary: Accept`; that path now optimizes an image identically for every client, so the filter has nothing left to do. The name is still accepted, with a warning, so an existing configuration keeps loading; it is no longer part of `OptimizeForBandwidth`. Remove it from your configuration.
 
-The filter does not control format negotiation at the original URL. When the optimizer worker is attached (`DaemonSocketPath`, as the Apache package configures it), in-place images are served from the optimizer's cache in the format the request's `Accept` header selects, with `Vary: Accept`: WebP for `*/*`, `image/*` or no `Accept` header, the original format for a request that names only that format. See [Image format and the Accept header](https://modpagespeed.com/docs/cdn-integration/#image-format-negotiation) for the full rule and how to get the original format for a non-browser client.
+The filter does not control format negotiation at the original URL. When the optimizer worker is attached (`DaemonSocketPath` and `DaemonVolumePath`, which the Apache packages built to depend on `pagespeed-optimizer` set in `pagespeed_daemon.conf`), in-place images are served from the optimizer's cache in the format the request's `Accept` header selects, with `Vary: Accept`: WebP for `*/*`, `image/*` or no `Accept` header, the original format for a request that names only that format. See [Image format and the Accept header](https://modpagespeed.com/docs/cdn-integration/#image-format-negotiation) for the full rule and how to get the original format for a non-browser client.
 
 ### Directives
 
@@ -26066,7 +26113,7 @@ Canonical URL: https://modpagespeed.com/docs/filters/in_place_optimize_for_brows
 
 Remove it from your configuration.
 
-The filter does not control format negotiation at the original URL. When the optimizer worker is attached (`DaemonSocketPath`, as the Apache package configures it), in-place images are served from the optimizer's cache in the format the request's `Accept` header selects, with `Vary: Accept`: WebP for `*/*`, `image/*` or no `Accept` header, the original format for a request that names only that format. See [Image format and the Accept header](https://modpagespeed.com/docs/cdn-integration/#image-format-negotiation) for the full rule and how to get the original format for a non-browser client.
+The filter does not control format negotiation at the original URL. When the optimizer worker is attached (`DaemonSocketPath` and `DaemonVolumePath`, which the Apache packages built to depend on `pagespeed-optimizer` set in `pagespeed_daemon.conf`), in-place images are served from the optimizer's cache in the format the request's `Accept` header selects, with `Vary: Accept`: WebP for `*/*`, `image/*` or no `Accept` header, the original format for a request that names only that format. See [Image format and the Accept header](https://modpagespeed.com/docs/cdn-integration/#image-format-negotiation) for the full rule and how to get the original format for a non-browser client.
 
 ## When to use it
 
