@@ -71,7 +71,7 @@ sudo apt-get install pagespeed-optimizer       # nginx: the worker first,
 sudo apt-get install nginx-module-pagespeed    #   then the module
 # 3. Restart the web server
 sudo systemctl restart apache2                 # httpd on Enterprise Linux
-sudo systemctl restart nginx
+sudo nginx -t && sudo systemctl enable nginx && sudo systemctl restart nginx
 ```
 
 Apache optimizes immediately: the package enables the module, its default
@@ -93,7 +93,9 @@ pagespeed DaemonSocketPath /run/pagespeed-optimizer/notify.sock;
 pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v3/cache;
 ```
 
-Restart nginx again (`sudo systemctl restart nginx`), then
+Restart nginx again
+(`sudo nginx -t && sudo systemctl enable nginx && sudo systemctl restart nginx`),
+then
 [verify](#verify-it-works). Install the worker and the module as two separate
 commands, worker first, as above: the module package adds the nginx user to the
 worker's `pagespeed` group only if that group already exists. If the module

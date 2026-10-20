@@ -92,7 +92,7 @@ location ~ "^/ngx_pagespeed_beacon$" { }
 ```
 
 ```bash
-sudo nginx -t && sudo systemctl restart nginx
+sudo nginx -t && sudo systemctl enable nginx && sudo systemctl restart nginx
 ```
 
 Without the worker, leave out the `DaemonSocketPath` and `DaemonVolumePath`

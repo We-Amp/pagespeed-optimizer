@@ -341,7 +341,7 @@ sudo apt-get install pagespeed-optimizer       # nginx: the worker first,
 sudo apt-get install nginx-module-pagespeed    #   then the module
 # 3. Restart the web server
 sudo systemctl restart apache2                 # httpd on Enterprise Linux
-sudo systemctl restart nginx
+sudo nginx -t && sudo systemctl enable nginx && sudo systemctl restart nginx
 ```
 
 Apache optimizes immediately: the package enables the module, its default
@@ -363,7 +363,9 @@ pagespeed DaemonSocketPath /run/pagespeed-optimizer/notify.sock;
 pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v3/cache;
 ```
 
-Restart nginx again (`sudo systemctl restart nginx`), then
+Restart nginx again
+(`sudo nginx -t && sudo systemctl enable nginx && sudo systemctl restart nginx`),
+then
 [verify](https://modpagespeed.com/docs/getting-started/#verify-it-works). Install the worker and the module as two separate
 commands, worker first, as above: the module package adds the nginx user to the
 worker's `pagespeed` group only if that group already exists. If the module
@@ -820,7 +822,9 @@ module's own filters also work without the worker: leave out step 2 and the
    `/etc/nginx/snippets/pagespeed_admin_localhost.conf`. Until then, create
    the file above by hand, under this name: the package leaves a hand-made
    `pagespeed_admin_restrict.conf` alone, but a hand-made file under the
-   packaged name makes the package upgrade stop and ask. Include one of the
+   packaged name makes the package upgrade stop and ask on Debian and Ubuntu
+   (on Enterprise Linux, rpm keeps the hand-made file and saves the packaged
+   copy beside it as `.rpmnew`). Include one of the
    two files, not both: nginx rejects the duplicate `location` blocks.
 
    Then, in each `server` block that should be optimized:

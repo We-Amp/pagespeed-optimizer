@@ -161,7 +161,9 @@ module's own filters also work without the worker: leave out step 2 and the
    `/etc/nginx/snippets/pagespeed_admin_localhost.conf`. Until then, create
    the file above by hand, under this name: the package leaves a hand-made
    `pagespeed_admin_restrict.conf` alone, but a hand-made file under the
-   packaged name makes the package upgrade stop and ask. Include one of the
+   packaged name makes the package upgrade stop and ask on Debian and Ubuntu
+   (on Enterprise Linux, rpm keeps the hand-made file and saves the packaged
+   copy beside it as `.rpmnew`). Include one of the
    two files, not both: nginx rejects the duplicate `location` blocks.
 
    Then, in each `server` block that should be optimized:
