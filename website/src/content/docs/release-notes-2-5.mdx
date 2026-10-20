@@ -3,7 +3,7 @@ title: 'Release notes: 2.5'
 description: 'mod_pagespeed 2.5.0 release notes: a security update for the module and the optimizer worker, and one version number from this release on.'
 order: 79
 group: 'Release notes by line'
-lastUpdated: 2026-10-19
+lastUpdated: 2026-10-20
 ---
 
 import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
@@ -39,6 +39,6 @@ Changed (all servers): the optimizer worker's cache directory moves from `/var/c
 
 Changed (version pins): see "One version number" above. Nothing else in the configuration changes.
 
-Changed (ASP.NET Core sidecar, `WeAmp.PageSpeed.Sidecar`): the sidecar information endpoint requires authorization by default; an app without authentication passes `requireAuthorization: false` to `MapPageSpeedInfo`. With `UseForwardedHeaders()` before `UsePageSpeed()`, raw-origin requests are rejected with 421; call `UsePageSpeed()` first (the fixes are in this source release; an updated package follows separately).
+Changed (ASP.NET Core sidecar, `WeAmp.PageSpeed.Sidecar`): the sidecar information endpoint requires authorization by default; an app without authentication passes `requireAuthorization: false` to `MapPageSpeedInfo`. With `UseForwardedHeaders()` before `UsePageSpeed()`, raw-origin requests are rejected with 421; call `UsePageSpeed()` first (the fixes are in this source release; an updated package follows separately, as `WeAmp.PageSpeed.Sidecar` 2.5.x on the product version).
 
 </div>
