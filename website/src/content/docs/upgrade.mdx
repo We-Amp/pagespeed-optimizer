@@ -3,7 +3,7 @@ title: 'Upgrade'
 description: 'Upgrade mod_pagespeed 2.1 per shape: apt or dnf, Docker tag, Helm, the Windows installer and NuGet; what to read first, security updates, rollback.'
 order: 11
 group: 'Upgrade and migrate'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-20
 datePublished: 2026-10-08
 faq:
   - q: 'Do I upgrade the module and the optimizer worker separately?'
@@ -119,6 +119,17 @@ The `emptyDir` cache is lost on pod restart and rebuilds as requests arrive.
 [Deploy with Helm](/docs/helm-deployment/) has the values.
 
 ## IIS
+
+:::warning[Maintenance window]
+Running the MSI — to install, upgrade, repair or uninstall the module — takes
+every IIS site on the server down for the duration, not only the sites it
+optimizes. The installer stops the Windows Process Activation Service (WAS)
+and the World Wide Web Publishing Service (W3SVC), force-kills any `w3wp.exe`
+worker process still running, and starts IIS again when it is done; anything
+else that depends on WAS, such as the WCF non-HTTP activation services
+(net.tcp, net.pipe, net.msmq), is stopped with it and not restarted. In-flight
+requests are dropped. Plan a maintenance window.
+:::
 
 Download the current MSI from the [download page](/download/) and run it over
 the existing install, then `iisreset`. An upgrade or repair keeps an optimizer

@@ -386,8 +386,11 @@ worker and nginx as separate services from the
 ## Quickstart: IIS
 
 Download the signed MSI from the [download page](https://modpagespeed.com/download/), run it on the
-Windows Server host, then `iisreset`. The installer registers the module as a
-native HTTP module and creates the default cache directory. Then
+Windows Server host, then `iisreset`. Running the MSI takes every IIS site on
+the server down for the duration; plan a maintenance window (details on
+[Install on IIS](https://modpagespeed.com/docs/install-iis/#install-the-module)). The installer
+registers the module as a native HTTP module and creates the default cache
+directory. Then
 [verify](https://modpagespeed.com/docs/getting-started/#verify-it-works). Running IISpeed on that host? Uninstall it first;
 the two register the same handler. The [IIS install guide](https://modpagespeed.com/docs/install-iis/)
 has the requirements, IIS Express and the optional optimizer service. The IIS
@@ -1816,6 +1819,17 @@ Machine-readable recipe for coding agents: [modpagespeed.com/recipes/iis.md](htt
 
 ## Install the module
 
+> **Maintenance window**
+>
+> Running the MSI — to install, upgrade, repair or uninstall the module — takes
+> every IIS site on the server down for the duration, not only the sites it
+> optimizes. The installer stops the Windows Process Activation Service (WAS)
+> and the World Wide Web Publishing Service (W3SVC), force-kills any `w3wp.exe`
+> worker process still running, and starts IIS again when it is done; anything
+> else that depends on WAS, such as the WCF non-HTTP activation services
+> (net.tcp, net.pipe, net.msmq), is stopped with it and not restarted. In-flight
+> requests are dropped. Plan a maintenance window.
+
 1. Download the [IIS MSI installer](https://modpagespeed.com/download/#direct-downloads) from the Download
    page's Windows installer link.
 2. Run it on the Windows Server host. The installer registers the module in
@@ -1848,8 +1862,8 @@ move, configuration and cache included.
 
 ### The optimizer service
 
-The installer also installs the optimizer worker, as the Windows service
-`WeAmpPageSpeedOptimizer` under its own virtual account, and leaves it
+From 2.5.0 on, the installer also installs the optimizer worker, as the Windows
+service `WeAmpPageSpeedOptimizer` under its own virtual account, and leaves it
 **disabled**: until you turn it on, the module behaves exactly as it does
 without it. Turned on and pointed at with the `DaemonSocketPath` and
 `DaemonVolumePath` directives, it takes over in-place optimization: the module
@@ -1895,7 +1909,7 @@ No. Both register the same handler in IIS and one or both fail at site startup. 
 
 **Does the IIS installer include the optimizer worker?**
 
-Yes, as the Windows service `WeAmpPageSpeedOptimizer`, installed disabled. Until you turn it on and point the module at it with `DaemonSocketPath` and `DaemonVolumePath`, the module optimizes on its own exactly as before.
+Yes, from the 2.5.0 installer on, as the Windows service `WeAmpPageSpeedOptimizer`, installed disabled. Until you turn it on and point the module at it with `DaemonSocketPath` and `DaemonVolumePath`, the module optimizes on its own exactly as before.
 
 ---
 
@@ -2835,6 +2849,17 @@ The `emptyDir` cache is lost on pod restart and rebuilds as requests arrive.
 
 ## IIS
 
+> **Maintenance window**
+>
+> Running the MSI — to install, upgrade, repair or uninstall the module — takes
+> every IIS site on the server down for the duration, not only the sites it
+> optimizes. The installer stops the Windows Process Activation Service (WAS)
+> and the World Wide Web Publishing Service (W3SVC), force-kills any `w3wp.exe`
+> worker process still running, and starts IIS again when it is done; anything
+> else that depends on WAS, such as the WCF non-HTTP activation services
+> (net.tcp, net.pipe, net.msmq), is stopped with it and not restarted. In-flight
+> requests are dropped. Plan a maintenance window.
+
 Download the current MSI from the [download page](https://modpagespeed.com/download/) and run it over
 the existing install, then `iisreset`. An upgrade or repair keeps an optimizer
 service you turned on running and keeps the cache size you chose. The IIS
@@ -2960,7 +2985,9 @@ confident you will not roll back.
 
 - **IIS / Windows Server.** The IIS package ships as a signed installer on the
   mod_pagespeed GitHub release: run the current MSI over the existing install
-  and `iisreset`. See [Install on IIS](https://modpagespeed.com/docs/install-iis/).
+  and `iisreset`. Running the MSI takes every IIS site on the server down for
+  the duration; plan a maintenance window. See
+  [Install on IIS](https://modpagespeed.com/docs/install-iis/#install-the-module).
 - **Debian 11 (bullseye).** The repository's bullseye suite carries the 1.15.0
   module packages; the 2.1 packages need Debian 12 or newer.
 - **cPanel EasyApache 4 (EL8).** The module runs without the optimizer worker.
@@ -3134,6 +3161,17 @@ mod_pagespeed GitHub release.
 
 ## Steps
 
+> **Maintenance window**
+>
+> Running the MSI — to install, upgrade, repair or uninstall the module — takes
+> every IIS site on the server down for the duration, not only the sites it
+> optimizes. The installer stops the Windows Process Activation Service (WAS)
+> and the World Wide Web Publishing Service (W3SVC), force-kills any `w3wp.exe`
+> worker process still running, and starts IIS again when it is done; anything
+> else that depends on WAS, such as the WCF non-HTTP activation services
+> (net.tcp, net.pipe, net.msmq), is stopped with it and not restarted. In-flight
+> requests are dropped. Plan a maintenance window.
+
 1. **Uninstall IISpeed.** _Apps & features_ (or _Programs and Features_) →
    remove "IISpeed", then run `iisreset` so no worker process still holds the
    old module. The two modules register the same handler in IIS and cannot
@@ -3184,7 +3222,8 @@ mod_pagespeed GitHub release.
 
 Uninstall the module from _Apps & features_, run `iisreset`, reinstall the
 IISpeed installer you kept, and restore your saved configuration files if you
-renamed them. Nothing on our side needs undoing.
+renamed them. Nothing on our side needs undoing. Uninstalling the module takes
+every IIS site on the server down for the duration, as installing it did.
 
 ## Frequently asked questions
 
@@ -3793,10 +3832,10 @@ Alternatively, use match rules in the server-level config to scope directives
 by hostname:
 
 ```text
-hostname: ^site-a\.example\.com$
+hostname:^site-a\.example\.com$
 pagespeed EnableFilters rewrite_images
 
-hostname: ^site-b\.example\.com$
+hostname:^site-b\.example\.com$
 pagespeed EnableFilters collapse_whitespace
 ```
 
@@ -10946,13 +10985,15 @@ Path separators: backslashes (`\`) are converted to forward slashes internally. 
 
 Use match rules to apply different settings based on the request hostname or URL path. Match rules use [RE2 regular expressions](https://github.com/google/re2/wiki/Syntax).
 
+Write a rule as `hostname:` or `path:` followed directly by the regex, with no space after the colon: everything after the colon up to the end of the line, spaces included, is the regex. The regex must match the whole value (an RE2 full match), so `path:^/blog/` matches only the exact path `/blog/`; end a prefix rule with `.*` to match everything under it. `hostname` is matched against the request's host name and `path` against the URL path without the query string. Trailing spaces are part of the regex too, so a rule that ends in `$ ` never matches. The host name is lowercased before it is matched, so write a `hostname` pattern in lowercase or prefix it with `(?i)`.
+
 ### hostname
 
 Match by hostname:
 
 ```text
 # Only optimize requests for this domain
-hostname: ^www\.example\.com$
+hostname:^www\.example\.com$
 
 pagespeed on
 pagespeed EnableFilters rewrite_images,rewrite_css
@@ -10964,12 +11005,12 @@ Match by URL path:
 
 ```text
 # Aggressive optimization for the blog
-path: ^/blog/
+path:^/blog/.*
 
 pagespeed EnableFilters prioritize_critical_css,defer_javascript
 
 # Conservative optimization for the checkout
-path: ^/checkout/
+path:^/checkout/.*
 
 pagespeed RewriteLevel OptimizeForBandwidth
 ```
@@ -10984,15 +11025,15 @@ pagespeed on
 pagespeed RewriteLevel CoreFilters
 
 # Site A: full optimization
-hostname: ^site-a\.example\.com$
+hostname:^site-a\.example\.com$
 pagespeed EnableFilters collapse_whitespace,remove_comments
 
 # Site B: bandwidth-only optimization
-hostname: ^site-b\.example\.com$
+hostname:^site-b\.example\.com$
 pagespeed RewriteLevel OptimizeForBandwidth
 
 # Blog section on any site: add critical CSS
-path: ^/blog/
+path:^/blog/.*
 pagespeed EnableFilters prioritize_critical_css
 ```
 
@@ -11001,7 +11042,7 @@ pagespeed EnableFilters prioritize_critical_css
 Use `clear` to reset accumulated options before applying new ones:
 
 ```text
-hostname: ^special\.example\.com$
+hostname:^special\.example\.com$
 clear
 pagespeed on
 pagespeed RewriteLevel PassThrough
@@ -11065,16 +11106,16 @@ pagespeed FileCachePath %ProgramData%\We-Amp\PageSpeed\Cache
 pagespeed RewriteLevel CoreFilters
 
 # Marketing site: aggressive optimization
-hostname: ^www\.example\.com$
+hostname:^www\.example\.com$
 pagespeed EnableFilters prioritize_critical_css,defer_javascript
 pagespeed EnableFilters lazyload_images,collapse_whitespace
 
 # API: no HTML optimization, bandwidth only
-hostname: ^api\.example\.com$
+hostname:^api\.example\.com$
 pagespeed RewriteLevel OptimizeForBandwidth
 
 # Admin portal: disable optimization
-hostname: ^admin\.example\.com$
+hostname:^admin\.example\.com$
 pagespeed off
 ```
 
@@ -16851,6 +16892,17 @@ HPA, ConfigMap). The `emptyDir` cache goes with the pods.
 
 ## IIS
 
+> **Maintenance window**
+>
+> Running the MSI — to install, upgrade, repair or uninstall the module — takes
+> every IIS site on the server down for the duration, not only the sites it
+> optimizes. The installer stops the Windows Process Activation Service (WAS)
+> and the World Wide Web Publishing Service (W3SVC), force-kills any `w3wp.exe`
+> worker process still running, and starts IIS again when it is done; anything
+> else that depends on WAS, such as the WCF non-HTTP activation services
+> (net.tcp, net.pipe, net.msmq), is stopped with it and not restarted. In-flight
+> requests are dropped. Plan a maintenance window.
+
 1. Remove the `pagespeed` directives you no longer want, or leave the
    `pagespeed.config` files in place for a later reinstall.
 2. _Apps & features_ (or _Programs and Features_) → uninstall the mod_pagespeed
@@ -16900,7 +16952,9 @@ run `docker compose up -d`; both images move together.
 **Helm.** `helm history pagespeed` lists the revisions, and
 `helm rollback pagespeed <revision>` returns to one.
 
-**IIS.** Uninstall the current module, run the previous MSI, `iisreset`.
+**IIS.** Uninstall the current module, run the previous MSI, `iisreset`. Each
+MSI run takes every IIS site on the server down for the duration (see
+[IIS](https://modpagespeed.com/docs/uninstall/#iis) above).
 
 **ASP.NET Core.** Pin the previous package version in the project file
 (`<PackageReference Include="WeAmp.PageSpeed.AspNetCore" Version="<version>" />`)
@@ -21448,6 +21502,8 @@ Fixed (Apache): stylesheets and scripts served from the optimizer's variants no 
 Fixed: when the web server starts with in-place optimization off because it cannot use the optimizer's cache, the reason now also appears in the admin console's message history; before, it was written only to the web server's error log.
 
 **IIS and Windows**
+
+*The IIS changes in this entry first reached a published Windows installer with mod_pagespeed 2.5.0: the signed MSI on the mod_pagespeed GitHub release. Until then the published IIS installer was 1.15.0, which does not include them.*
 
 Added (IIS): the installer also installs the optimizer worker, as the Windows service `WeAmpPageSpeedOptimizer`, disabled, under its own virtual account. Turned on and pointed at with the `DaemonSocketPath` and `DaemonVolumePath` directives, it takes over in-place optimization: the module records each eligible resource, the optimizer builds optimized variants, and the module serves the variant that fits each client. An upgrade or repair with the Windows installer keeps an optimizer you turned on running and keeps the cache size you chose (`OPTIMIZERCACHESIZE`, 1 GiB by default). Installs that do not turn it on behave as before.
 

@@ -3,7 +3,7 @@ title: 'Migrate from IISpeed'
 description: 'Move an IISpeed install to the mod_pagespeed IIS module: save the configuration, uninstall IISpeed, run the MSI, keep the cache, verify, roll back.'
 order: 14
 group: 'Upgrade and migrate'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-18
 datePublished: 2026-10-08
 faq:
   - q: 'What happens to my IISpeed subscription?'
@@ -29,6 +29,17 @@ mod_pagespeed GitHub release.
    there is nothing to drain.
 
 ## Steps
+
+:::warning[Maintenance window]
+Running the MSI — to install, upgrade, repair or uninstall the module — takes
+every IIS site on the server down for the duration, not only the sites it
+optimizes. The installer stops the Windows Process Activation Service (WAS)
+and the World Wide Web Publishing Service (W3SVC), force-kills any `w3wp.exe`
+worker process still running, and starts IIS again when it is done; anything
+else that depends on WAS, such as the WCF non-HTTP activation services
+(net.tcp, net.pipe, net.msmq), is stopped with it and not restarted. In-flight
+requests are dropped. Plan a maintenance window.
+:::
 
 1. **Uninstall IISpeed.** _Apps & features_ (or _Programs and Features_) →
    remove "IISpeed", then run `iisreset` so no worker process still holds the
@@ -80,4 +91,5 @@ mod_pagespeed GitHub release.
 
 Uninstall the module from _Apps & features_, run `iisreset`, reinstall the
 IISpeed installer you kept, and restore your saved configuration files if you
-renamed them. Nothing on our side needs undoing.
+renamed them. Nothing on our side needs undoing. Uninstalling the module takes
+every IIS site on the server down for the duration, as installing it did.
