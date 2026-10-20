@@ -176,7 +176,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - [Alternatives](https://modpagespeed.com/alternatives/): Structured comparisons for readers coming from mod_pagespeed, ngx_pagespeed, the Google PageSpeed module and IISpeed.
 - [Comparisons](https://modpagespeed.com/vs/): Side-by-side comparisons with Cloudflare APO, Cloudinary, imgix, imgproxy, NitroPack, ShortPixel, Thumbor and WP Rocket.
 - [Terms](https://modpagespeed.com/terms/): Terms of service.
-- [Privacy](https://modpagespeed.com/privacy/): Privacy policy.
+- [Privacy](https://we-amp.com/privacy/): The one privacy notice for every We-Amp website, this one included.
 
 ## Machine-readable
 

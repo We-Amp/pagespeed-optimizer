@@ -41,7 +41,7 @@ export const faqPricing: FaqEntry[] = [
   },
   {
     q: 'Do I pay VAT?',
-    a: 'Prices on this page exclude VAT. FastSpring adds the VAT that applies to you at checkout.',
+    a: 'Prices on this page exclude VAT. At checkout, FastSpring charges the VAT that applies to you; a business in the EU can enter its VAT number there. On an invoice from We-Amp B.V. (Enterprise): customers in the Netherlands are charged 21% BTW; for business customers elsewhere in the EU with a valid VAT number, VAT is reverse charged (BTW verlegd, Art. 6 Wet OB 1968 / Art. 44 Directive 2006/112/EC); business customers outside the EU, including the United Kingdom, are outside the scope of Dutch VAT.',
   },
   {
     q: 'What happens after I pay?',
@@ -61,7 +61,7 @@ export const faqPricing: FaqEntry[] = [
   },
   {
     q: 'I have an IISpeed or mod_pagespeed 1.x license. What now?',
-    a: `Your license moves to mod_pagespeed 2.1 at no cost, and paid terms are honored to expiry. Existing customers keep their current rate when they move to a support subscription. Write to ${link(`mailto:${COMMERCIAL_EMAIL}`, COMMERCIAL_EMAIL)} or use the ${link('/contact/?topic=iispeed-transfer', 'contact form')}.`,
+    a: `Your license moves to mod_pagespeed 2.1 at no cost, and paid terms are honored to expiry. Existing customers keep their current rate when they move to a support subscription. Request the transfer through the ${link('/contact/?topic=iispeed-transfer', 'license-transfer form')}; other questions go to ${link(`mailto:${COMMERCIAL_EMAIL}`, COMMERCIAL_EMAIL)}.`,
   },
   {
     q: 'Where do the support terms live?',

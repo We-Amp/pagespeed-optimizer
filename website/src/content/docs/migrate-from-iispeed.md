@@ -3,11 +3,11 @@ title: 'Migrate from IISpeed'
 description: 'Move an IISpeed install to the mod_pagespeed IIS module: save the configuration, uninstall IISpeed, run the MSI, keep the cache, verify, roll back.'
 order: 14
 group: 'Upgrade and migrate'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-20
 datePublished: 2026-10-08
 faq:
   - q: 'What happens to my IISpeed subscription?'
-    a: 'Nothing needs to carry over: mod_pagespeed 2.1 is free to install and run, in development and in production, so there is no entitlement to move. Questions about an existing IISpeed subscription go to license@we-amp.com.'
+    a: 'Request the license transfer through the form at https://modpagespeed.com/contact/?topic=iispeed-transfer. The transfer is at no cost: paid terms are honored to expiry, and you keep your current rate when you move to a support subscription. The software itself is free to install and run, in development and in production. Other questions go to info@we-amp.com.'
   - q: 'Do I have to rewrite my IISpeed configuration?'
     a: 'No. The module reads your `iiswebspeed.config` files where no `pagespeed.config` exists, accepts the `iispeed` directive prefix, and reads the server-level file under `%ProgramData%\We-Amp\IISWebSpeed\`. Rename the files to `pagespeed.config` when convenient; the content stays the same.'
 ---

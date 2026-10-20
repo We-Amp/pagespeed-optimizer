@@ -16,8 +16,8 @@ const allPages = [
   '/license/',
   '/terms/',
   '/pagespeed-markers/',
-  // /privacy/ is served locally; it is covered by its own suite in
-  // terms-privacy.spec.ts
+  // /privacy/ points at the notice on we-amp.com; it is covered by its own
+  // suite in terms-privacy.spec.ts
 ];
 
 test.describe('SEO', () => {
