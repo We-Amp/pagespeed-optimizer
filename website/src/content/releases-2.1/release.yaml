@@ -20,7 +20,8 @@
 #
 # Schema: scripts/release/manifest-schema.mjs (2.1 branch pending)
 # Distribution scope: Docker + Helm + native deb/rpm packages, plus the
-# ASP.NET Core middleware on NuGet, which ships as 2.5.0 with this release.
+# ASP.NET Core middleware on NuGet, which ships as 2.5.0 with this release,
+# and the signed IIS installer on the module's GitHub release.
 # The middleware's artifact block still lives in the 2.0 manifest; where it
 # re-homes is tracked separately.
 
@@ -57,6 +58,13 @@ artifacts:
   # Filename templates are intentionally not declared yet: the module
   # packages keep the 1.15-line GA-alias naming until the 2.1 packaging
   # channel is formalized.
+  # Windows/IIS: the Authenticode-signed installer for the IIS module. It is
+  # hosted on the public GitHub release of the module (tag module-v%V, with
+  # SHA256SUMS beside it), not under modpagespeed.com/releases/, so the
+  # template is an absolute URL that artifactUrl() renders as-is instead of
+  # joining it to urls.archive_base.
+  msi:
+    win_x64: "https://github.com/We-Amp/mod_pagespeed/releases/download/module-v%V/pagespeed-iis-%V-win-x64.msi"
 
 urls:
   # No direct-archive download channel — packages ship via the signed apt/yum
@@ -75,6 +83,14 @@ compat:
   # see product-facts NGINX_APT_DISTROS).
   apache:
     apache_versions: ["2.4+"]
+  iis:
+    # The 2.5.0 release gate installs the MSI on one guest, Windows Server
+    # 2016 with IIS 10, as an upgrade over an older installed module; the MSI
+    # is built and signed on Windows Server 2022, and the IIS system tests run
+    # on Windows 10/11 with IIS 10. No lane installs on Server 2019 or 2025, so
+    # this states a floor, not a per-version tested list.
+    os: ["Windows Server 2016 or later"]
+    iis_versions: ["10"]
   docker:
     # Release images are ubuntu:24.04-based (digest-pinned); the bundled
     # nginx is version-pinned in docker/nginx-version.txt (1.30.4).

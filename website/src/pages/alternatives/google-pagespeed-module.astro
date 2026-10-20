@@ -29,7 +29,7 @@ const faq: Array<{ q: string; a: string; html?: string }> = [
   },
   {
     q: 'What replaces the Google PageSpeed Module?',
-    a: 'mod_pagespeed 2.1, actively maintained by We-Amp: the native in-process module for Apache and nginx, with the same configuration syntax, the classic filter set, and the built-in admin console, plus, with the Apache module or the reverse-proxy deployment, an optimizer worker for SVG auto-vectorization, variant-aware caching, and zero-copy serving. The IIS package ships from the 1.15 packaging channel.',
+    a: 'mod_pagespeed 2.1, actively maintained by We-Amp: the native in-process module for Apache and nginx, with the same configuration syntax, the classic filter set, and the built-in admin console, plus, with the Apache module or the reverse-proxy deployment, an optimizer worker for SVG auto-vectorization, variant-aware caching, and zero-copy serving. The IIS package ships as a signed installer on the mod_pagespeed GitHub release.',
   },
   {
     q: 'Should I still use PageSpeed Insights?',
@@ -41,7 +41,7 @@ const faq: Array<{ q: string; a: string; html?: string }> = [
   },
   {
     q: 'What is the best Google PageSpeed module alternative in 2026?',
-    a: 'The most direct alternative is a maintained continuation of the same module rather than a different product. mod_pagespeed 2.1 from We-Amp keeps the pagespeed directive surface and the classic filter names of open-source mod_pagespeed and ngx_pagespeed, so an existing configuration carries over — swap the packages and keep your config. It installs as a native in-process module on Apache and nginx from the signed apt/yum repository, or runs as a Docker / nginx reverse proxy in front of any HTTP origin, with ongoing CVE patches and support for current server releases. The IIS package ships from the 1.15 packaging channel.',
+    a: 'The most direct alternative is a maintained continuation of the same module rather than a different product. mod_pagespeed 2.1 from We-Amp keeps the pagespeed directive surface and the classic filter names of open-source mod_pagespeed and ngx_pagespeed, so an existing configuration carries over — swap the packages and keep your config. It installs as a native in-process module on Apache and nginx from the signed apt/yum repository, or runs as a Docker / nginx reverse proxy in front of any HTTP origin, with ongoing CVE patches and support for current server releases. The IIS package ships as a signed installer on the mod_pagespeed GitHub release.',
   },
   {
     q: "Is there a maintained Google PageSpeed alternative that's a drop-in replacement?",
@@ -293,7 +293,8 @@ ModPagespeed on`}</code></pre>
       </table>
       <p>
         Three further integrations are available separately, outside those packages. The IIS package
-        ships from the 1.15 packaging channel. For ASP.NET Core there is the
+        ships as a signed installer on the mod_pagespeed GitHub release. For ASP.NET Core there is
+        the
         <code>WeAmp.PageSpeed.AspNetCore</code> middleware, added in two lines of
         <code>Program.cs</code>, and the <code>WeAmp.PageSpeed.Sidecar</code> package, which runs a
         bundled nginx optimizer on loopback behind your Kestrel app.
@@ -402,7 +403,7 @@ dotnet add package WeAmp.PageSpeed.AspNetCore`}</code></pre>
         with ongoing CVE patches, a current toolchain, and support for current Apache 2.4+ and nginx
         releases. An existing configuration carries over: swap the packages, keep your config. The
         native module installs from the signed apt/yum repository for Apache and nginx. The IIS
-        package ships from the 1.15 packaging channel.
+        package ships as a signed installer on the mod_pagespeed GitHub release.
       </p>
       <p>
         If you're standing up a new deployment rather than rescuing an old one, the same product has

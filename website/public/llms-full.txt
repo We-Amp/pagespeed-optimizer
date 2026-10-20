@@ -275,7 +275,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 - Signed apt and yum repository at https://packages.modpagespeed.com/ (GPG key https://packages.modpagespeed.com/pubkey.gpg; one-time setup `curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh`): `mod-pagespeed` (the Apache module), `nginx-module-pagespeed` (the nginx module, prebuilt and pinned to each distribution's stock nginx: Debian 12 bookworm (nginx 1.22.1), Debian 13 trixie (nginx 1.26.3), Ubuntu 22.04 jammy (nginx 1.18.0), Ubuntu 24.04 noble (nginx 1.24.0), amd64 + arm64; AlmaLinux 9 via yum against stock nginx 1.20.1) and `pagespeed-optimizer` (the optimizer worker). Current release: mod_pagespeed 2.5.0 (2026-10-19). See [the apt/yum repository](https://modpagespeed.com/download/apt-yum/) and [Install the module on Apache and nginx](https://modpagespeed.com/docs/installation-module/).
 - Container images on GHCR: `ghcr.io/we-amp/pagespeed-nginx:2.5.0` (nginx with the module) and `ghcr.io/we-amp/pagespeed-worker:2.5.0` (the optimizer worker), on ubuntu:24.04. See [Install with Docker](https://modpagespeed.com/docs/installation-docker/).
 - Helm chart `pagespeed` from the repository `https://modpagespeed.com/charts` (`helm repo add weamp https://modpagespeed.com/charts`; index at https://modpagespeed.com/charts/index.yaml; application version 2.5.0; Kubernetes 1.28+, 1.29+, 1.30+; Helm 3.12+). See [Deploy with Helm](https://modpagespeed.com/docs/helm-deployment/).
-- IIS: the signed Windows installer from the 1.15 module channel, https://modpagespeed.com/releases/v1.15.0/pagespeed-iis-1.15.0-win-x64.msi (Windows Server 2019, Windows Server 2022, Windows Server 2025; IIS 10+; x64). See [Install on IIS](https://modpagespeed.com/docs/install-iis/).
+- IIS: the signed Windows installer, 2.5.0, on the module's GitHub release: https://github.com/We-Amp/mod_pagespeed/releases/download/module-v2.5.0/pagespeed-iis-2.5.0-win-x64.msi (Windows Server 2016 or later; IIS 10; x64). See [Install on IIS](https://modpagespeed.com/docs/install-iis/).
 - NuGet `WeAmp.PageSpeed.AspNetCore` 2.5.0, the ASP.NET Core middleware (net8.0, net10.0; linux-x64, linux-arm64, osx-arm64, win-x64): `dotnet add package WeAmp.PageSpeed.AspNetCore`. See [Install ASP.NET Core middleware](https://modpagespeed.com/docs/aspnet-getting-started/).
 - NuGet `WeAmp.PageSpeed.Sidecar` with `WeAmp.PageSpeed.Sidecar.NativeAssets.Linux`, 1.17.0, the module as an ASP.NET Core sidecar (linux-x64, linux-arm64; bundles nginx 1.30.4): `dotnet add package WeAmp.PageSpeed.Sidecar`.
 - Worker packages (deb, rpm and Windows zip, with a checksum list) of every release: the [release listing](https://github.com/We-Amp/pagespeed-optimizer/releases/latest). The module packages install from the signed repositories above; see [Download](https://modpagespeed.com/download/).
@@ -316,8 +316,7 @@ Installing with a coding agent? [Install with a coding agent](https://modpagespe
   or Rocky 9 or 10, with Apache 2.4 or newer or the distribution's stock nginx.
 - **Docker reverse proxy:** Docker 24 or newer and Docker Compose v2; nginx
   ships inside the image, so you do not install it yourself.
-- **IIS:** Windows Server 2019 or later, 64-bit, with the Visual C++
-  Redistributable 2022.
+- **IIS:** Windows Server 2016 or later with IIS 10, 64-bit.
 - **ASP.NET Core:** .NET 8 or .NET 10.
 
 > **One worker, two names**
@@ -391,7 +390,7 @@ native HTTP module and creates the default cache directory. Then
 [verify](https://modpagespeed.com/docs/getting-started/#verify-it-works). Running IISpeed on that host? Uninstall it first;
 the two register the same handler. The [IIS install guide](https://modpagespeed.com/docs/install-iis/)
 has the requirements, IIS Express and the optional optimizer service. The IIS
-package ships from the 1.15 packaging channel.
+package ships as a signed installer on the mod_pagespeed GitHub release.
 
 ## Quickstart: ASP.NET Core
 
@@ -496,7 +495,7 @@ No. It optimizes on its own. To hand in-place optimization to the worker, instal
 
 **What are the prerequisites?**
 
-For the native module: Debian 12 or 13, Ubuntu 22.04 or 24.04, or RHEL, AlmaLinux or Rocky 9 or 10, with Apache 2.4 or newer or the stock nginx of the distribution. For Docker: Docker 24 or newer; nginx ships inside the image. For IIS: Windows Server 2019 or later. For ASP.NET Core: .NET 8 or .NET 10.
+For the native module: Debian 12 or 13, Ubuntu 22.04 or 24.04, or RHEL, AlmaLinux or Rocky 9 or 10, with Apache 2.4 or newer or the stock nginx of the distribution. For Docker: Docker 24 or newer; nginx ships inside the image. For IIS: Windows Server 2016 or later. For ASP.NET Core: .NET 8 or .NET 10.
 
 **What is safe cache mode and why is it the default?**
 
@@ -1802,16 +1801,15 @@ Canonical URL: https://modpagespeed.com/docs/install-iis/
 
 mod_pagespeed runs on IIS as a native, in-process module: the successor to
 IISpeed. Download the signed MSI, run it, `iisreset`, and the module optimizes
-every site that has a `pagespeed.config`. The IIS package ships from the 1.15
-packaging channel.
+every site that has a `pagespeed.config`. The IIS package ships as a signed
+installer on the mod_pagespeed GitHub release.
 
 Machine-readable recipe for coding agents: [modpagespeed.com/recipes/iis.md](https://modpagespeed.com/recipes/iis.md) (see [Install with a coding agent](https://modpagespeed.com/docs/agent-install/)).
 
 ## Requirements
 
-- Windows Server 2019 or later (IIS 10 or later)
-- 64-bit only
-- Visual C++ Redistributable 2022
+- Windows Server 2016 or later, with IIS 10 (the release is tested on Windows Server 2016)
+- 64-bit only (the Visual C++ runtime is built in; no redistributable is needed)
 - The IIS worker process identity needs write access to the cache directory;
   the installer grants it for the default directory
 
@@ -2839,7 +2837,7 @@ The `emptyDir` cache is lost on pod restart and rebuilds as requests arrive.
 Download the current MSI from the [download page](https://modpagespeed.com/download/) and run it over
 the existing install, then `iisreset`. An upgrade or repair keeps an optimizer
 service you turned on running and keeps the cache size you chose. The IIS
-package ships from the 1.15 packaging channel.
+package ships as a signed installer on the mod_pagespeed GitHub release.
 
 ## ASP.NET Core
 
@@ -2959,9 +2957,9 @@ confident you will not roll back.
 
 ## Platform notes
 
-- **IIS / Windows Server.** The IIS package ships from the 1.15 packaging
-  channel: run the current MSI over the existing install and `iisreset`. See
-  [Install on IIS](https://modpagespeed.com/docs/install-iis/).
+- **IIS / Windows Server.** The IIS package ships as a signed installer on the
+  mod_pagespeed GitHub release: run the current MSI over the existing install
+  and `iisreset`. See [Install on IIS](https://modpagespeed.com/docs/install-iis/).
 - **Debian 11 (bullseye).** The repository's bullseye suite carries the 1.15.0
   module packages; the 2.1 packages need Debian 12 or newer.
 - **cPanel EasyApache 4 (EL8).** The module runs without the optimizer worker.
@@ -3120,8 +3118,8 @@ Canonical URL: https://modpagespeed.com/docs/migrate-from-iispeed/
 IISpeed is deprecated; its successor is the native IIS module that
 mod_pagespeed 2.1 ships, from the same code lineage. The move is an uninstall,
 an install and a check: your configuration files and your cache directory stay
-in place and keep working. The IIS package ships from the 1.15 packaging
-channel.
+in place and keep working. The IIS package ships as a signed installer on the
+mod_pagespeed GitHub release.
 
 ## Before you start
 
@@ -11168,7 +11166,7 @@ ARR respects standard `Cache-Control` headers. mod_pagespeed sets appropriate ca
 
 TCP slow start controls how quickly a new connection ramps up its sending rate. A larger initial congestion window (ICW) allows more data in the first round trip, which benefits page load times.
 
-All supported Windows Server versions (2019 and later) default to an initial congestion window of 10 (ICW10). No configuration change is needed.
+All supported Windows Server versions (2016 and later) default to an initial congestion window of 10 (ICW10). No configuration change is needed.
 
 ### See also
 
@@ -15248,8 +15246,8 @@ in-process in your request pipeline and, by default, launches the `factory_worke
 binary from the same package as a child process to do the expensive work — image
 transcoding and critical-CSS extraction — out of process. If you need an in-process
 native module for Apache, nginx or IIS instead, see [mod_pagespeed 2.1](https://modpagespeed.com/), where
-the module runs in-process in the web server. The IIS package ships from the 1.15
-packaging channel.
+the module runs in-process in the web server. The IIS package ships as a signed
+installer on the mod_pagespeed GitHub release.
 
 ## Prerequisites
 
@@ -20969,7 +20967,7 @@ The Apache packages install the configuration that points the module at the
 optimizer worker. The native nginx module runs on its own; to use the optimizer
 worker with nginx, run the reverse-proxy deployment.
 
-The IIS package ships from the 1.15 packaging channel.
+The IIS package ships as a signed installer on the mod_pagespeed GitHub release.
 
 ## Reporting a security issue
 
