@@ -898,6 +898,15 @@ bool PreserveIdentityAsDurableOriginal(PageSpeedCache* cache,
   const AlternateId identity = MaskToId(CapabilityMask());
   auto id_read = cache->ReadAlternate(url, hostname, scheme, identity);
   if (!id_read.has_value() || !id_read->is_valid()) return false;
+  // Re-check on the entry actually read: a concurrent pass (a warmup racing
+  // a notification) may have replaced the raw recording with its own encode
+  // since IdentityHoldsRawOriginal looked.  A worker variant is never kept as
+  // the origin's bytes.
+  if ((id_read->metadata.flags & AlternateMetadata::kFlagWorkerProcessed) !=
+      0) {
+    id_read->release();
+    return false;
+  }
   AlternateMetadata meta = id_read->metadata;
   auto span = id_read->content();
   std::string bytes(reinterpret_cast<const char*>(span.data()), span.size());

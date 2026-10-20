@@ -20970,6 +20970,44 @@ TEST_F(VariantSizeTest, WarmupMatrixKeepsTheSizeRules) {
   }
 }
 
+// An identity slot that already holds a worker variant is not the origin's
+// bytes: it is never copied into the durable original.
+TEST_F(VariantSizeTest, WorkerVariantAtIdentitySlotIsNotKeptAsTheOriginal) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(16 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string url = "http://example.com/processed.jpg";
+  const std::string jpeg = ReadTestFile("jpeg/sjpeg4.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  CacheOriginal(worker.cache(), url, jpeg, "",
+                AlternateMetadata::kFlagWorkerProcessed);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+  CacheNotification n;
+  n.url = url;
+  n.scheme = "https";
+  n.content_type = ContentType::kImage;
+  n.capability_mask = 0x08;
+  SendNotification(n);
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+
+  auto durable = worker.cache()->ReadOriginalAlternate(
+      StripSchemeAuthority(url), "", "https");
+  EXPECT_FALSE(durable.has_value())
+      << "a worker variant was kept as the durable original";
+
+  worker.Shutdown();
+  worker_thread.join();
+}
+
 // The image dedup key is the full (format, viewport, density, save-data)
 // slot.  One pass decides every format of its slot, so a notification for
 // another format of the same slot is answered by that decision (a refused
