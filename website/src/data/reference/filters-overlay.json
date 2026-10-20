@@ -269,7 +269,7 @@
       "category": "Image",
       "summary": "Browser-specific in-place optimization",
       "risk": null,
-      "note": "Retired: the name is still accepted (with a warning) but has no effect, because in-place optimization no longer varies its output by browser."
+      "note": "Retired: the name is still accepted (with a warning) but has no effect, because the module's own in-place path optimizes an image identically for every client. It does not control format negotiation: with the optimizer worker attached, in-place images are still served in the format the request's Accept header selects, with Vary: Accept."
     },
     "include_js_source_maps": {
       "category": "JavaScript",

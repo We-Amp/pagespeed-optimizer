@@ -3,7 +3,7 @@ title: 'Worker and reverse-proxy configuration'
 description: 'Every optimizer worker flag and thin nginx module directive of mod_pagespeed 2.1 (the Docker and reverse-proxy shape), generated from the source.'
 order: 21
 group: 'Configure'
-lastUpdated: 2026-10-19
+lastUpdated: 2026-10-20
 faq:
   - q: 'What is the difference between safe and aggressive cache modes?'
     a: 'Safe mode adds `must-revalidate` to non-HTML responses, suppresses stale-while-revalidate synthesis, and strips `immutable`. Aggressive mode adds `public` and `stale-if-error=86400` and allows SWR synthesis. HTML always gets `no-cache` in both modes.'
@@ -2346,8 +2346,10 @@ different optimized variants to be served to different clients.
 
 The nginx module determines these values from request headers:
 
-- **Image Format:** Parsed from the `Accept` header. If the client advertises
-  `image/webp`, WebP variants are preferred. Similarly for `image/avif`.
+- **Image Format:** Parsed from the `Accept` header. `image/avif` selects
+  AVIF; otherwise `image/webp`, `image/*`, `*/*` or no `Accept` header at all
+  selects WebP; any other value selects the original format. See
+  [Image format and the Accept header](/docs/cdn-integration/#image-format-negotiation).
 - **Viewport Class:** Derived from the `Sec-CH-Viewport-Width` client hint or
   `User-Agent` heuristics (mobile vs. desktop).
 - **Pixel Density:** From `Sec-CH-DPR` client hint or device heuristics.
