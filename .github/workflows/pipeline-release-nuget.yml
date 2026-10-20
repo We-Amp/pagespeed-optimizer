@@ -399,10 +399,13 @@ jobs:
       # into both binaries; there are no separate shared libraries to ship.
       - name: Build all targets + the NuGet binaries (release)
         run: |
+          # Per-slot budget (CI_SLOT_CPUS / CI_SLOT_MEM_GB); legacy values when unset.
+          source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"
+          slot_budget 55g || exit 1
           set -euo pipefail
           mkdir -p "${GITHUB_WORKSPACE}/release-artifacts"
           docker run --rm --init ${DOCKER_CACHE_HOST_ARG:+"$DOCKER_CACHE_HOST_ARG"} \
-            --memory=55g --memory-swap=55g \
+            --memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}" \
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
             -e BAZEL_RELEASE_CONFIG -e BAZEL_CACHE_FLAG \
@@ -435,10 +438,13 @@ jobs:
       # it).
       - name: Build the container-image artifacts
         run: |
+          # Per-slot budget (CI_SLOT_CPUS / CI_SLOT_MEM_GB); legacy values when unset.
+          source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"
+          slot_budget 55g || exit 1
           set -euo pipefail
           mkdir -p "${GITHUB_WORKSPACE}/docker-artifacts"
           docker run --rm --init ${DOCKER_CACHE_HOST_ARG:+"$DOCKER_CACHE_HOST_ARG"} \
-            --memory=55g --memory-swap=55g \
+            --memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}" \
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
             -e BAZEL_RELEASE_CONFIG -e BAZEL_CACHE_FLAG \
@@ -539,6 +545,9 @@ jobs:
 
       - name: Run unit tests
         run: |
+          # Per-slot budget (CI_SLOT_CPUS / CI_SLOT_MEM_GB); legacy values when unset.
+          source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"
+          slot_budget 55g || exit 1
           set -euo pipefail
           EXTRA_DOCKER=()
           CACHE_FLAG="--remote_cache="
@@ -547,7 +556,7 @@ jobs:
             CACHE_FLAG=""
           fi
           docker run --rm --init ${EXTRA_DOCKER[@]+"${EXTRA_DOCKER[@]}"} \
-            --memory=55g --memory-swap=55g \
+            --memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}" \
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
             -v "${GITHUB_WORKSPACE}:/workspace" \

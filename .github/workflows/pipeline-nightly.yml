@@ -518,10 +518,13 @@ jobs:
 
       - name: Build optimized test binaries
         run: |
+          # Per-slot budget (CI_SLOT_CPUS / CI_SLOT_MEM_GB); legacy values when unset.
+          source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"
+          slot_budget 55g || exit 1
           OUT="${GITHUB_WORKSPACE}/.ci-artifacts"
           rm -rf "${OUT}"; mkdir -p "${OUT}"
           EXTRA_DOCKER=()
-          BAZEL_CONFIG="--config=docker --config=opt --jobs=HOST_CPUS*.75 --nostamp"
+          BAZEL_CONFIG="--config=docker --config=opt --jobs=${SLOT_JOBS} --nostamp"
           if [ -n "${BAZEL_CACHE_HOST:-}" ]; then
             EXTRA_DOCKER+=(--add-host="bazel-remote-cache:${BAZEL_CACHE_HOST}")
             BAZEL_CONFIG="--config=ci --config=opt"
@@ -529,7 +532,7 @@ jobs:
             echo "::notice::BAZEL_CACHE_HOST not set: building without the remote cache (docs/ci/runner-environment.md)"
           fi
           docker run --rm --init "${EXTRA_DOCKER[@]}" \
-            --memory=55g --memory-swap=55g \
+            --memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}" \
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
             -e BAZEL_CONFIG="${BAZEL_CONFIG}" \
