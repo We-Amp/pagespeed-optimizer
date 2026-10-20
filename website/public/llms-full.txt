@@ -195,6 +195,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ## Blog
 
+- [Is mod_pagespeed safe? How its rewrites are checked](https://modpagespeed.com/blog/is-mod-pagespeed-safe/): 2026-10-19. Is mod_pagespeed safe? It rewrites your HTML, CSS, JS and images: how its rewrites are checked, and what happens when a check fails.
 - [The state of the PageSpeed installed base, 2026](https://modpagespeed.com/blog/pagespeed-installed-base-2026/): 2026-10-10. HTTP Archive data on the PageSpeed installed base in 2026: adoption since 2020, versions, servers, networks, and what no longer receives fixes.
 - [Cyclone as an LLM KV-cache tier: eight rounds to match LMDB](https://modpagespeed.com/blog/cyclone-kv-cache-tier-vs-lmdb/): 2026-10-08. How Cyclone became an LLM KV-cache offload tier: eight rounds against LMDB and file-per-block, from 0.06 GB/s cold reads to ahead of LMDB.
 - [mod_pagespeed 2.1: one product again](https://modpagespeed.com/blog/mod-pagespeed-2-1-one-product-again/): 2026-09-17. The mod_pagespeed lineage and the ModPageSpeed 2.0 engine converge into one open-source product: the module you know plus an optimizer worker. Apache-2.0.
@@ -9210,9 +9211,15 @@ There is no `auto`. `GET /v1/health` reports the resolved state as
 monitoring check can see an unsandboxed browser without reading logs. The
 setting is also readable from the environment as `PAGESPEED_BROWSER_SANDBOX`.
 
-Container images currently run as root, where Chrome declines to sandbox
-itself; set `PAGESPEED_BROWSER_SANDBOX=off` if you want browser analysis there,
-or run the container as a non-root user.
+The container images start as root for one setup step and then drop the
+worker to the unprivileged `pagespeed` user (UID 918) before it starts, so the
+non-root requirement is met inside them. What remains is the runtime's seccomp
+profile: the default Docker and Kubernetes profiles filter out the namespace
+flags Chrome's sandbox needs, so the probe reports `unavailable` until the
+container gets a profile that allows them (the Helm chart's
+`podSecurityContext` comment has the recipe). Set
+`PAGESPEED_BROWSER_SANDBOX=off` only to accept an unsandboxed browser
+deliberately.
 
 If the sandbox probe is refused by a kernel syscall filter rather than by the
 kernel's user-namespace policy, the message says so, so you can tell "this host
@@ -9326,7 +9333,9 @@ factory_worker --cache-path /data/cache.vol \
 
 The worker exposes a management socket at `{socket_path}.mgmt` (e.g.,
 `/var/lib/pagespeed/pagespeed.sock.mgmt`). This socket accepts newline-terminated
-text commands and returns a response before closing the connection.
+text commands and returns a response before closing the connection; the one
+exception is a successful `AUTH`, which keeps the connection open for the
+`PURGE` that follows.
 
 ### Connecting to the management socket
 
@@ -9373,15 +9382,26 @@ the count (`n`) to get the average processing time per item.
 
 ### `PURGE` command
 
-Invalidates all cached variants for a URL. The command format is `PURGE`
-followed by the hostname and URL:
+Invalidates all cached variants for a URL. `PURGE` is refused unless the
+connection was authenticated first: send `AUTH <token>` and then `PURGE`
+followed by the hostname and URL, on the same connection. The token is the
+worker's `PAGESPEED_PURGE_TOKEN` (the packages generate it into
+`/etc/pagespeed-optimizer/daemon.env`; the container images generate one per
+start and print it once in the container log unless you set it). It is not in
+your shell by itself; [Purge and re-test a specific
+URL](https://modpagespeed.com/docs/troubleshooting/#purge-and-re-test-a-specific-url) shows how to
+read it per deployment before running:
 
 ```bash
-echo "PURGE example.com /images/photo.jpg" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
+printf 'AUTH %s\nPURGE example.com /images/photo.jpg\n' "$PAGESPEED_PURGE_TOKEN" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
 ```
 
-**Response:** `OK N entries deleted\n` where N is the number of cache entries
-removed. The PURGE command iterates all possible capability mask combinations
+**Response:** `OK\n` to the `AUTH`, then `OK N entries deleted\n` where N is
+the number of cache entries removed (`OK 0 entries deleted (URL not found — may
+have been evicted or never cached)\n` when nothing matched). A `PURGE` without `AUTH` answers
+`ERR authentication required\n` (`ERR no purge token configured\n` when the
+worker has no token), and a wrong token answers `ERR invalid token\n`. The
+PURGE command iterates all possible capability mask combinations
 for the URL and deletes every matching entry, including sentinel entries used
 for Early Hints and warmup.
 
@@ -9401,12 +9421,18 @@ use cases:
 - **Selective cache clearing:** Unlike restarting the worker or deleting the
   cache file (which loses everything), PURGE targets individual URLs.
 
-For bulk invalidation, send multiple PURGE commands. Each command opens a
-new connection to the management socket:
+The HTTP API's [`POST /v1/cache/purge`](https://modpagespeed.com/docs/http-api/#post-v1cachepurge)
+does the same without the management socket; its credential is group
+membership over the API's unix socket, or the bearer token over TCP where one
+is configured.
+
+For bulk invalidation, send multiple PURGE commands. Each iteration opens a
+new connection to the management socket, and authentication is per
+connection, so each one sends `AUTH` again:
 
 ```bash
 for url in /style.css /app.js /hero.jpg; do
-  echo "PURGE example.com $url" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
+  printf 'AUTH %s\nPURGE example.com %s\n' "$PAGESPEED_PURGE_TOKEN" "$url" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
 done
 ```
 
@@ -16480,10 +16506,13 @@ There is no `auto`. `GET /v1/health` reports the resolved state as
 monitoring check can see an unsandboxed browser without reading logs. The
 setting is also readable from `PAGESPEED_BROWSER_SANDBOX`.
 
-The sandbox needs an unprivileged user namespace and a non-root user. Container
-images currently run as root, where Chrome declines to sandbox itself: set
-`PAGESPEED_BROWSER_SANDBOX=off` if you want browser analysis in one, or run the
-container as a non-root user.
+The sandbox needs an unprivileged user namespace and a non-root user. The
+container images drop the worker to the unprivileged `pagespeed` user (UID 918)
+before it starts, so inside them the remaining requirement is a seccomp profile
+that allows the namespace flags; the default Docker and Kubernetes profiles do
+not, and the probe reports `unavailable` until you supply one. Set
+`PAGESPEED_BROWSER_SANDBOX=off` only to accept an unsandboxed browser
+deliberately.
 
 The probe runs inside whatever syscall filter the worker itself is running
 under, so a filter too tight for Chrome surfaces here, at startup, rather than
@@ -17300,8 +17329,17 @@ Look for:
 To force the worker to re-process a URL:
 
 ```bash
+# PURGE needs AUTH first, on the same connection. The worker's
+# PAGESPEED_PURGE_TOKEN is not in your shell by itself; read it in first.
+# Packages: the env file is readable by root and group `pagespeed`, one KEY=value per line
+PAGESPEED_PURGE_TOKEN=$(sudo sed -n 's/^PAGESPEED_PURGE_TOKEN=//p' /etc/pagespeed-optimizer/daemon.env)
+# Container images and the Helm chart: the worker prints the token once at
+# start when you did not set it -- `docker logs <worker> 2>&1 | grep PAGESPEED_PURGE_TOKEN=`
+# or `kubectl logs <pod> -c worker | grep PAGESPEED_PURGE_TOKEN=` -- or set it
+# yourself in the compose file's `environment:` and use that value.
+
 # Purge all variants
-echo "PURGE localhost /images/photo.jpg" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
+printf 'AUTH %s\nPURGE localhost /images/photo.jpg\n' "$PAGESPEED_PURGE_TOKEN" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
 
 # Request the URL again (triggers a cache miss and new notification)
 curl -H "Accept: image/webp,*/*" http://localhost/images/photo.jpg -o /dev/null -w "%{size_download}\n"
@@ -17313,6 +17351,13 @@ curl -H "Accept: image/webp,*/*" http://localhost/images/photo.jpg -o /dev/null 
 
 If the second request returns a smaller size, the worker is processing
 correctly for that URL.
+
+A refused purge says why: `ERR authentication required` means this connection
+sent no valid `AUTH` (an `AUTH` on another connection does not count);
+`ERR invalid token` means the token was wrong, which is also what an empty
+`$PAGESPEED_PURGE_TOKEN` produces; `ERR no purge token configured` means the
+worker started without a token, so no purge is possible until it has one. The
+responses are listed under [`AUTH`](https://modpagespeed.com/docs/api-reference/#auth-token).
 
 ### Cannot connect to management socket
 
@@ -18362,7 +18407,8 @@ a connection, writes the response, and closes. No request data is needed.
 
 The worker listens on a Unix socket at `{socket_path}.mgmt` for
 newline-terminated text commands. After processing a command, the worker writes
-a response and closes the connection.
+a response and closes the connection; the one exception is a successful `AUTH`,
+which keeps the connection open for the `PURGE` that follows.
 
 ### Socket path
 
@@ -18437,11 +18483,17 @@ Returns a JSON object with worker statistics: connections, notifications, varian
 
 #### `PURGE <hostname> <url>`
 
-Deletes all cached variants for the specified URL and hostname.
+Deletes all cached variants for the specified URL and hostname. The command is
+refused unless the connection was authenticated with `AUTH` (below) first;
+send both commands on the same connection.
 
-**Request:** `PURGE example.com /images/photo.jpg\n`
+**Request:** `AUTH <your-token>\n` followed by `PURGE example.com /images/photo.jpg\n`
 
-**Response:** `OK N entries deleted\n`
+**Response:** `OK\n` to the `AUTH`, then `OK N entries deleted\n` to the
+`PURGE`; when nothing matched, `OK 0 entries deleted (URL not found — may have
+been evicted or never cached)\n`. A `PURGE` without a preceding `AUTH` answers
+`ERR authentication required\n`, or `ERR no purge token configured\n` when the
+worker has no purge token.
 
 The PURGE command iterates all possible capability mask combinations (image
 formats, viewports, pixel densities, Save-Data states, transfer encodings) and
@@ -18451,22 +18503,37 @@ for Early Hints (`0x1C`) and warmup (`0x2C`).
 The maximum number of entries deleted per URL is 192 (4 formats x 3 viewports
 x 2 densities x 2 Save-Data x 4 encodings) plus 2 sentinel entries = 194.
 
+The HTTP API offers the same operation as
+[`POST /v1/cache/purge`](https://modpagespeed.com/docs/http-api/#post-v1cachepurge); there the
+credential is group membership over the API's unix socket, or the bearer token
+over TCP where one is configured.
+
 #### `AUTH <token>`
 
-Authenticates the connection for PURGE commands. Required when the
-`PAGESPEED_PURGE_TOKEN` environment variable is set on the worker.
+Authenticates the connection for `PURGE` commands. Every `PURGE` requires it:
+the worker refuses a `PURGE` on a connection that has not sent a valid `AUTH`,
+and there is no unauthenticated mode. The token is the worker's
+`PAGESPEED_PURGE_TOKEN` environment variable. The packages generate one into
+`/etc/pagespeed-optimizer/daemon.env`; the container images generate one per
+container start and print it once in the container log when you did not set
+it.
 
 **Request:** `AUTH <your-token>\n`
 
-**Response:** `OK\n` on success, or `ERR invalid token\n` on failure.
+**Response:** `OK\n` on success, `ERR invalid token\n` on a wrong token, or
+`ERR no token configured\n` when the worker has no purge token.
 
-Send `AUTH` as the first command on each connection before issuing `PURGE`.
-The token is compared using constant-time comparison to prevent timing attacks.
-STATS and METRICS commands work without authentication regardless of whether
-the env var is set.
+A successful `AUTH` keeps the connection open; every other command closes it
+after its response. Authentication is per connection, so send `AUTH` as the
+first command on each connection and the `PURGE` on that same connection: a
+`PURGE` on a new connection is refused even right after a successful `AUTH` on
+another, which is why a one-shot `echo "PURGE …" | socat` cannot purge. The
+token is compared using constant-time comparison to prevent timing attacks.
+STATS, METRICS and BROWSER-STATUS work without authentication.
 
-When `PAGESPEED_PURGE_TOKEN` is not set, PURGE works without authentication
-(backward compatible).
+When `PAGESPEED_PURGE_TOKEN` is not set, `PURGE` is unavailable: the worker
+answers `ERR no purge token configured\n`, and `AUTH` answers
+`ERR no token configured\n`.
 
 #### `METRICS`
 
@@ -22130,8 +22197,10 @@ of pixels and runs in the isolated worker process, not in the web server.
 Re-optimizing a JPEG could also encode it at a higher quality than the
 original was saved at, producing a larger file with no visible improvement; a
 JPEG re-encode is now capped at the quality detected in the source.
-`--no-quality-cap` turns the cap off and now takes effect;
-`--quality-cap-margin` is still accepted but no longer raises the cap.
+The `no_quality_cap` setting turns the cap off and now takes effect;
+`quality_cap_margin` is still accepted but no longer raises the cap. Both are
+worker configuration settings — `pagespeed.json` next to the cache volume, or
+`PATCH /v1/config` — not command-line flags.
 
 Fixed: a stylesheet with an invalid value in a complete longhand
 family no longer loses the whole family through minification. A browser drops
