@@ -559,6 +559,12 @@
       "risk": "Generally safe",
       "note": null
     },
+    "rule_packs": {
+      "category": "HTML",
+      "summary": "Applies a rule pack's rules for the canonical, title, description, hreflang and JSON-LD of a page",
+      "risk": null,
+      "note": "Off by default and in no rewrite level; a pack starts in report mode and changes nothing until enforced"
+    },
     "split_html": {
       "category": "HTML",
       "summary": "Deprecated no-op: accepted for compatibility, does nothing",
