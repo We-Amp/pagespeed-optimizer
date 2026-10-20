@@ -907,7 +907,7 @@ proxy brings its own nginx inside the image.
 | Native module on Ubuntu 24.04 noble                                            | 1.24.0                          | the distribution's stock nginx (amd64 + arm64)     |
 | Native module on AlmaLinux / RHEL / Rocky 9                                    | 1.20.1                          | the distribution's stock nginx (x86_64 + aarch64)  |
 | Native module on AlmaLinux / RHEL / Rocky 10                                   | the distribution's stock nginx  | the distribution's stock nginx (x86_64)            |
-| Docker / nginx reverse proxy (`pagespeed-nginx` and `pagespeed-combined` images) | 1.30.4                        | bundled in the image                               |
+| Docker / nginx reverse proxy (`pagespeed-nginx` and `pagespeed-combined` images) | 1.30.6                        | bundled in the image                               |
 
 nginx refuses to load a module built for a different version, and
 `--with-compat` does not relax that check, so the native module follows your
@@ -7461,7 +7461,7 @@ package rows from the signed repository's distribution matrix.
 
 | Shape                                                                               | nginx version                                                    | Configuration surface |
 | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------- | --------------------- |
-| Docker / reverse proxy (`ghcr.io/we-amp/pagespeed-nginx`, the combined image, Helm) | nginx 1.30.4, bundled in the image                               | Thin module + worker  |
+| Docker / reverse proxy (`ghcr.io/we-amp/pagespeed-nginx`, the combined image, Helm) | nginx 1.30.6, bundled in the image                               | Thin module + worker  |
 | Native module package, Debian 12 bookworm                                           | nginx 1.22.1 (the distribution's stock nginx; exact-version pin) | Native module         |
 | Native module package, Debian 13 trixie                                             | nginx 1.26.3 (the distribution's stock nginx; exact-version pin) | Native module         |
 | Native module package, Ubuntu 22.04 jammy                                           | nginx 1.18.0 (the distribution's stock nginx; exact-version pin) | Native module         |
