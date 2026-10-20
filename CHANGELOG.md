@@ -4,6 +4,12 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Security: the nginx bundled in the container images (`pagespeed-nginx` and
+the combined image) is updated to 1.30.6, which fixes two memory-safety issues
+in nginx (CVE-2026-15176, CVE-2026-93479). This also carries the earlier
+1.30.5 security update (CVE-2026-90439), which the images had not yet picked
+up. Update recommended.
+
 Fixed: in the ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`) on Linux
 and macOS, a full cache purge (`POST /v1/cache/purge` with `"scope": "all"`,
 the console's purge everything) now takes effect within about a second. The

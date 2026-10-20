@@ -92,7 +92,7 @@ proxy brings its own nginx inside the image.
 | Native module on Ubuntu 24.04 noble                                            | 1.24.0                          | the distribution's stock nginx (amd64 + arm64)     |
 | Native module on AlmaLinux / RHEL / Rocky 9                                    | 1.20.1                          | the distribution's stock nginx (x86_64 + aarch64)  |
 | Native module on AlmaLinux / RHEL / Rocky 10                                   | the distribution's stock nginx  | the distribution's stock nginx (x86_64)            |
-| Docker / nginx reverse proxy (`pagespeed-nginx` and `pagespeed-combined` images) | 1.30.4                        | bundled in the image                               |
+| Docker / nginx reverse proxy (`pagespeed-nginx` and `pagespeed-combined` images) | 1.30.6                        | bundled in the image                               |
 
 nginx refuses to load a module built for a different version, and
 `--with-compat` does not relax that check, so the native module follows your
