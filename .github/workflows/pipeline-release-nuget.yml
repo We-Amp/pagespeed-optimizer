@@ -822,17 +822,22 @@ jobs:
             if ($LASTEXITCODE -ne 0) { Write-Error "signtool failed on $file with exit $LASTEXITCODE"; exit 1 }
           }
 
-      # Consume what was signed: a valid signature on both files, and both
-      # still load and report the release commit on a stock hosted Windows
-      # image.
+      # Consume what was signed: a valid signature by exactly the We-Amp B.V.
+      # identity of the Trusted Signing profile on both files (a signature
+      # Windows calls Valid but that names anyone else, for example a
+      # misconfigured profile or another tenant's, fails), and both still
+      # load and report the release commit on a stock hosted Windows image.
       - name: Verify the signed binaries
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
+          $ExpectedSubject = 'CN=We-Amp B.V., O=We-Amp B.V., L=Castricum, C=NL'
           foreach ($file in @("signed-output\pagespeed.dll", "signed-output\factory_worker.exe")) {
-            $sig = Get-AuthenticodeSignature $file
+            $sig = Get-AuthenticodeSignature -LiteralPath $file
             if ($sig.Status -ne 'Valid') { Write-Error "$file signature status: $($sig.Status)"; exit 1 }
-            Write-Host "$file signed by: $($sig.SignerCertificate.Subject)"
+            $subject = if ($sig.SignerCertificate) { $sig.SignerCertificate.Subject } else { '<no signer certificate>' }
+            if ($subject -cne $ExpectedSubject) { Write-Error "$file is signed by '$subject', expected '$ExpectedSubject'"; exit 1 }
+            Write-Host "$file signed by: $subject"
           }
           & tools\ci\check-no-vc-runtime.ps1 -Binaries signed-output\factory_worker.exe,signed-output\pagespeed.dll
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
