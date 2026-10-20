@@ -51,6 +51,11 @@ if ((Get-FileHash -Algorithm SHA256 $msi).Hash -ne $expected) { throw "SHA256 mi
 $msi
 ```
 
+Running the MSI takes every IIS site on the server down for the duration — the
+installer stops WAS and W3SVC and force-kills `w3wp.exe` workers, and in-flight
+requests are dropped — for an install, an upgrade, a repair and an uninstall alike. Ask
+the operator for a maintenance window before this step and before an uninstall.
+
 Install silently and fail on any exit code other than 0 or 3010 (3010: installed,
 a reboot is pending; tell the operator):
 
@@ -62,9 +67,9 @@ iisreset
 ```
 
 The installer registers the module as a native HTTP module and creates the
-default cache directory, `%ProgramData%\We-Amp\PageSpeed\cache`. In releases
-that bundle the optimizer it also installs the optimizer worker as the Windows
-service `WeAmpPageSpeedOptimizer`, left disabled; the module works without it.
+default cache directory, `%ProgramData%\We-Amp\PageSpeed\cache`. From 2.5.0
+on it also installs the optimizer worker as the Windows service
+`WeAmpPageSpeedOptimizer`, left disabled; the module works without it.
 
 ## 3. Minimal configuration
 

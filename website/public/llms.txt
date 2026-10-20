@@ -195,6 +195,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ## Blog
 
+- [Is mod_pagespeed safe? How its rewrites are checked](https://modpagespeed.com/blog/is-mod-pagespeed-safe/): 2026-10-19. Is mod_pagespeed safe? It rewrites your HTML, CSS, JS and images: how its rewrites are checked, and what happens when a check fails.
 - [The state of the PageSpeed installed base, 2026](https://modpagespeed.com/blog/pagespeed-installed-base-2026/): 2026-10-10. HTTP Archive data on the PageSpeed installed base in 2026: adoption since 2020, versions, servers, networks, and what no longer receives fixes.
 - [Cyclone as an LLM KV-cache tier: eight rounds to match LMDB](https://modpagespeed.com/blog/cyclone-kv-cache-tier-vs-lmdb/): 2026-10-08. How Cyclone became an LLM KV-cache offload tier: eight rounds against LMDB and file-per-block, from 0.06 GB/s cold reads to ahead of LMDB.
 - [mod_pagespeed 2.1: one product again](https://modpagespeed.com/blog/mod-pagespeed-2-1-one-product-again/): 2026-09-17. The mod_pagespeed lineage and the ModPageSpeed 2.0 engine converge into one open-source product: the module you know plus an optimizer worker. Apache-2.0.

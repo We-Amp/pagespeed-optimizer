@@ -195,6 +195,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ## Blog
 
+- [Is mod_pagespeed safe? How its rewrites are checked](https://modpagespeed.com/blog/is-mod-pagespeed-safe/): 2026-10-19. Is mod_pagespeed safe? It rewrites your HTML, CSS, JS and images: how its rewrites are checked, and what happens when a check fails.
 - [The state of the PageSpeed installed base, 2026](https://modpagespeed.com/blog/pagespeed-installed-base-2026/): 2026-10-10. HTTP Archive data on the PageSpeed installed base in 2026: adoption since 2020, versions, servers, networks, and what no longer receives fixes.
 - [Cyclone as an LLM KV-cache tier: eight rounds to match LMDB](https://modpagespeed.com/blog/cyclone-kv-cache-tier-vs-lmdb/): 2026-10-08. How Cyclone became an LLM KV-cache offload tier: eight rounds against LMDB and file-per-block, from 0.06 GB/s cold reads to ahead of LMDB.
 - [mod_pagespeed 2.1: one product again](https://modpagespeed.com/blog/mod-pagespeed-2-1-one-product-again/): 2026-09-17. The mod_pagespeed lineage and the ModPageSpeed 2.0 engine converge into one open-source product: the module you know plus an optimizer worker. Apache-2.0.
@@ -385,8 +386,11 @@ worker and nginx as separate services from the
 ## Quickstart: IIS
 
 Download the signed MSI from the [download page](https://modpagespeed.com/download/), run it on the
-Windows Server host, then `iisreset`. The installer registers the module as a
-native HTTP module and creates the default cache directory. Then
+Windows Server host, then `iisreset`. Running the MSI takes every IIS site on
+the server down for the duration; plan a maintenance window (details on
+[Install on IIS](https://modpagespeed.com/docs/install-iis/#install-the-module)). The installer
+registers the module as a native HTTP module and creates the default cache
+directory. Then
 [verify](https://modpagespeed.com/docs/getting-started/#verify-it-works). Running IISpeed on that host? Uninstall it first;
 the two register the same handler. The [IIS install guide](https://modpagespeed.com/docs/install-iis/)
 has the requirements, IIS Express and the optional optimizer service. The IIS
@@ -1815,6 +1819,17 @@ Machine-readable recipe for coding agents: [modpagespeed.com/recipes/iis.md](htt
 
 ## Install the module
 
+> **Maintenance window**
+>
+> Running the MSI — to install, upgrade, repair or uninstall the module — takes
+> every IIS site on the server down for the duration, not only the sites it
+> optimizes. The installer stops the Windows Process Activation Service (WAS)
+> and the World Wide Web Publishing Service (W3SVC), force-kills any `w3wp.exe`
+> worker process still running, and starts IIS again when it is done; anything
+> else that depends on WAS, such as the WCF non-HTTP activation services
+> (net.tcp, net.pipe, net.msmq), is stopped with it and not restarted. In-flight
+> requests are dropped. Plan a maintenance window.
+
 1. Download the [IIS MSI installer](https://modpagespeed.com/download/#direct-downloads) from the Download
    page's Windows installer link.
 2. Run it on the Windows Server host. The installer registers the module in
@@ -1847,8 +1862,8 @@ move, configuration and cache included.
 
 ### The optimizer service
 
-The installer also installs the optimizer worker, as the Windows service
-`WeAmpPageSpeedOptimizer` under its own virtual account, and leaves it
+From 2.5.0 on, the installer also installs the optimizer worker, as the Windows
+service `WeAmpPageSpeedOptimizer` under its own virtual account, and leaves it
 **disabled**: until you turn it on, the module behaves exactly as it does
 without it. Turned on and pointed at with the `DaemonSocketPath` and
 `DaemonVolumePath` directives, it takes over in-place optimization: the module
@@ -1856,6 +1871,42 @@ records each eligible resource, the optimizer builds optimized variants, and
 the module serves the variant that fits each client. An upgrade or repair with
 the installer keeps a service you turned on running and keeps the cache size
 you chose (`OPTIMIZERCACHESIZE`, 1 GiB by default).
+
+To turn it on:
+
+1. Set the service to start, and start it, from an elevated prompt:
+
+   ```powershell
+   sc.exe config WeAmpPageSpeedOptimizer start= auto
+   sc.exe start WeAmpPageSpeedOptimizer
+   ```
+
+   Use `start= demand` instead of `start= auto` to start it only by hand. The
+   service logs to `C:\ProgramData\We-Amp\PageSpeed\logs\optimizer.log`; once
+   it is up, the log says it is listening on `\\.\pipe\pagespeed-optimizer`.
+
+2. Point the module at it. Add these two lines to the server-level
+   `C:\ProgramData\We-Amp\PageSpeed\pagespeed.config`:
+
+   ```
+   pagespeed DaemonSocketPath pagespeed-optimizer
+   pagespeed DaemonVolumePath "C:\ProgramData\We-Amp\PageSpeed\optimizer\cache"
+   ```
+
+   `DaemonSocketPath` is the pipe name the service listens on, without the
+   `\\.\pipe\` prefix; the module adds it. `DaemonVolumePath` is the cache
+   volume's path stem, `…\optimizer\cache`: not the `optimizer` directory the
+   service is given as its cache directory, and not the `cache-…` file the
+   service creates there.
+
+3. Run `iisreset`.
+
+The application pools reach the pipe and the cache with the permissions the
+installer sets; no extra access rules are needed. Start the service before the
+application pools: the module attaches to the optimizer when a pool starts, so
+if the service was stopped then, or you start or restart it later, run
+`iisreset` again for the module to use it. To turn the optimizer off, remove the
+two lines and run `iisreset`; the module goes back to optimizing on its own.
 
 ### IIS Express
 
@@ -1894,7 +1945,7 @@ No. Both register the same handler in IIS and one or both fail at site startup. 
 
 **Does the IIS installer include the optimizer worker?**
 
-Yes, as the Windows service `WeAmpPageSpeedOptimizer`, installed disabled. Until you turn it on and point the module at it with `DaemonSocketPath` and `DaemonVolumePath`, the module optimizes on its own exactly as before.
+Yes, from the 2.5.0 installer on, as the Windows service `WeAmpPageSpeedOptimizer`, installed disabled. Until you turn it on and point the module at it with `DaemonSocketPath` and `DaemonVolumePath`, the module optimizes on its own exactly as before.
 
 ---
 
@@ -2744,6 +2795,13 @@ optimizer starts first. Read the current release's notes before you start; the
 one-time steps a release needs are listed under "Before you upgrade" in the
 [release notes](https://modpagespeed.com/docs/release-notes/#current-release).
 
+Coming from another line or project? See
+[Migrate from mod_pagespeed 1.15](https://modpagespeed.com/docs/migrate-from-1-15/),
+[Migrate from the archived Google module](https://modpagespeed.com/docs/migrate-from-google-mod-pagespeed/),
+[Migrate from ngx_pagespeed](https://modpagespeed.com/docs/migrate-from-ngx-pagespeed/),
+[Migrate from IISpeed](https://modpagespeed.com/docs/migrate-from-iispeed/) or
+[Migrate from ModPageSpeed 2.0](https://modpagespeed.com/docs/migrating-to-2-1/).
+
 ## Before you upgrade
 
 - **Read the release notes.** A release that changes the cache format starts
@@ -2833,6 +2891,17 @@ The `emptyDir` cache is lost on pod restart and rebuilds as requests arrive.
 [Deploy with Helm](https://modpagespeed.com/docs/helm-deployment/) has the values.
 
 ## IIS
+
+> **Maintenance window**
+>
+> Running the MSI — to install, upgrade, repair or uninstall the module — takes
+> every IIS site on the server down for the duration, not only the sites it
+> optimizes. The installer stops the Windows Process Activation Service (WAS)
+> and the World Wide Web Publishing Service (W3SVC), force-kills any `w3wp.exe`
+> worker process still running, and starts IIS again when it is done; anything
+> else that depends on WAS, such as the WCF non-HTTP activation services
+> (net.tcp, net.pipe, net.msmq), is stopped with it and not restarted. In-flight
+> requests are dropped. Plan a maintenance window.
 
 Download the current MSI from the [download page](https://modpagespeed.com/download/) and run it over
 the existing install, then `iisreset`. An upgrade or repair keeps an optimizer
@@ -2959,7 +3028,9 @@ confident you will not roll back.
 
 - **IIS / Windows Server.** The IIS package ships as a signed installer on the
   mod_pagespeed GitHub release: run the current MSI over the existing install
-  and `iisreset`. See [Install on IIS](https://modpagespeed.com/docs/install-iis/).
+  and `iisreset`. Running the MSI takes every IIS site on the server down for
+  the duration; plan a maintenance window. See
+  [Install on IIS](https://modpagespeed.com/docs/install-iis/#install-the-module).
 - **Debian 11 (bullseye).** The repository's bullseye suite carries the 1.15.0
   module packages; the 2.1 packages need Debian 12 or newer.
 - **cPanel EasyApache 4 (EL8).** The module runs without the optimizer worker.
@@ -3133,6 +3204,17 @@ mod_pagespeed GitHub release.
 
 ## Steps
 
+> **Maintenance window**
+>
+> Running the MSI — to install, upgrade, repair or uninstall the module — takes
+> every IIS site on the server down for the duration, not only the sites it
+> optimizes. The installer stops the Windows Process Activation Service (WAS)
+> and the World Wide Web Publishing Service (W3SVC), force-kills any `w3wp.exe`
+> worker process still running, and starts IIS again when it is done; anything
+> else that depends on WAS, such as the WCF non-HTTP activation services
+> (net.tcp, net.pipe, net.msmq), is stopped with it and not restarted. In-flight
+> requests are dropped. Plan a maintenance window.
+
 1. **Uninstall IISpeed.** _Apps & features_ (or _Programs and Features_) →
    remove "IISpeed", then run `iisreset` so no worker process still holds the
    old module. The two modules register the same handler in IIS and cannot
@@ -3183,7 +3265,8 @@ mod_pagespeed GitHub release.
 
 Uninstall the module from _Apps & features_, run `iisreset`, reinstall the
 IISpeed installer you kept, and restore your saved configuration files if you
-renamed them. Nothing on our side needs undoing.
+renamed them. Nothing on our side needs undoing. Uninstalling the module takes
+every IIS site on the server down for the duration, as installing it did.
 
 ## Frequently asked questions
 
@@ -3792,10 +3875,10 @@ Alternatively, use match rules in the server-level config to scope directives
 by hostname:
 
 ```text
-hostname: ^site-a\.example\.com$
+hostname:^site-a\.example\.com$
 pagespeed EnableFilters rewrite_images
 
-hostname: ^site-b\.example\.com$
+hostname:^site-b\.example\.com$
 pagespeed EnableFilters collapse_whitespace
 ```
 
@@ -9171,9 +9254,15 @@ There is no `auto`. `GET /v1/health` reports the resolved state as
 monitoring check can see an unsandboxed browser without reading logs. The
 setting is also readable from the environment as `PAGESPEED_BROWSER_SANDBOX`.
 
-Container images currently run as root, where Chrome declines to sandbox
-itself; set `PAGESPEED_BROWSER_SANDBOX=off` if you want browser analysis there,
-or run the container as a non-root user.
+The container images start as root for one setup step and then drop the
+worker to the unprivileged `pagespeed` user (UID 918) before it starts, so the
+non-root requirement is met inside them. What remains is the runtime's seccomp
+profile: the default Docker and Kubernetes profiles filter out the namespace
+flags Chrome's sandbox needs, so the probe reports `unavailable` until the
+container gets a profile that allows them (the Helm chart's
+`podSecurityContext` comment has the recipe). Set
+`PAGESPEED_BROWSER_SANDBOX=off` only to accept an unsandboxed browser
+deliberately.
 
 If the sandbox probe is refused by a kernel syscall filter rather than by the
 kernel's user-namespace policy, the message says so, so you can tell "this host
@@ -9287,7 +9376,9 @@ factory_worker --cache-path /data/cache.vol \
 
 The worker exposes a management socket at `{socket_path}.mgmt` (e.g.,
 `/var/lib/pagespeed/pagespeed.sock.mgmt`). This socket accepts newline-terminated
-text commands and returns a response before closing the connection.
+text commands and returns a response before closing the connection; the one
+exception is a successful `AUTH`, which keeps the connection open for the
+`PURGE` that follows.
 
 ### Connecting to the management socket
 
@@ -9334,15 +9425,26 @@ the count (`n`) to get the average processing time per item.
 
 ### `PURGE` command
 
-Invalidates all cached variants for a URL. The command format is `PURGE`
-followed by the hostname and URL:
+Invalidates all cached variants for a URL. `PURGE` is refused unless the
+connection was authenticated first: send `AUTH <token>` and then `PURGE`
+followed by the hostname and URL, on the same connection. The token is the
+worker's `PAGESPEED_PURGE_TOKEN` (the packages generate it into
+`/etc/pagespeed-optimizer/daemon.env`; the container images generate one per
+start and print it once in the container log unless you set it). It is not in
+your shell by itself; [Purge and re-test a specific
+URL](https://modpagespeed.com/docs/troubleshooting/#purge-and-re-test-a-specific-url) shows how to
+read it per deployment before running:
 
 ```bash
-echo "PURGE example.com /images/photo.jpg" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
+printf 'AUTH %s\nPURGE example.com /images/photo.jpg\n' "$PAGESPEED_PURGE_TOKEN" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
 ```
 
-**Response:** `OK N entries deleted\n` where N is the number of cache entries
-removed. The PURGE command iterates all possible capability mask combinations
+**Response:** `OK\n` to the `AUTH`, then `OK N entries deleted\n` where N is
+the number of cache entries removed (`OK 0 entries deleted (URL not found — may
+have been evicted or never cached)\n` when nothing matched). A `PURGE` without `AUTH` answers
+`ERR authentication required\n` (`ERR no purge token configured\n` when the
+worker has no token), and a wrong token answers `ERR invalid token\n`. The
+PURGE command iterates all possible capability mask combinations
 for the URL and deletes every matching entry, including sentinel entries used
 for Early Hints and warmup.
 
@@ -9362,12 +9464,18 @@ use cases:
 - **Selective cache clearing:** Unlike restarting the worker or deleting the
   cache file (which loses everything), PURGE targets individual URLs.
 
-For bulk invalidation, send multiple PURGE commands. Each command opens a
-new connection to the management socket:
+The HTTP API's [`POST /v1/cache/purge`](https://modpagespeed.com/docs/http-api/#post-v1cachepurge)
+does the same without the management socket; its credential is group
+membership over the API's unix socket, or the bearer token over TCP where one
+is configured.
+
+For bulk invalidation, send multiple PURGE commands. Each iteration opens a
+new connection to the management socket, and authentication is per
+connection, so each one sends `AUTH` again:
 
 ```bash
 for url in /style.css /app.js /hero.jpg; do
-  echo "PURGE example.com $url" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
+  printf 'AUTH %s\nPURGE example.com %s\n' "$PAGESPEED_PURGE_TOKEN" "$url" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
 done
 ```
 
@@ -10920,13 +11028,15 @@ Path separators: backslashes (`\`) are converted to forward slashes internally. 
 
 Use match rules to apply different settings based on the request hostname or URL path. Match rules use [RE2 regular expressions](https://github.com/google/re2/wiki/Syntax).
 
+Write a rule as `hostname:` or `path:` followed directly by the regex, with no space after the colon: everything after the colon up to the end of the line, spaces included, is the regex. The regex must match the whole value (an RE2 full match), so `path:^/blog/` matches only the exact path `/blog/`; end a prefix rule with `.*` to match everything under it. `hostname` is matched against the request's host name and `path` against the URL path without the query string. Trailing spaces are part of the regex too, so a rule that ends in `$ ` never matches. The host name is lowercased before it is matched, so write a `hostname` pattern in lowercase or prefix it with `(?i)`.
+
 ### hostname
 
 Match by hostname:
 
 ```text
 # Only optimize requests for this domain
-hostname: ^www\.example\.com$
+hostname:^www\.example\.com$
 
 pagespeed on
 pagespeed EnableFilters rewrite_images,rewrite_css
@@ -10938,12 +11048,12 @@ Match by URL path:
 
 ```text
 # Aggressive optimization for the blog
-path: ^/blog/
+path:^/blog/.*
 
 pagespeed EnableFilters prioritize_critical_css,defer_javascript
 
 # Conservative optimization for the checkout
-path: ^/checkout/
+path:^/checkout/.*
 
 pagespeed RewriteLevel OptimizeForBandwidth
 ```
@@ -10958,15 +11068,15 @@ pagespeed on
 pagespeed RewriteLevel CoreFilters
 
 # Site A: full optimization
-hostname: ^site-a\.example\.com$
+hostname:^site-a\.example\.com$
 pagespeed EnableFilters collapse_whitespace,remove_comments
 
 # Site B: bandwidth-only optimization
-hostname: ^site-b\.example\.com$
+hostname:^site-b\.example\.com$
 pagespeed RewriteLevel OptimizeForBandwidth
 
 # Blog section on any site: add critical CSS
-path: ^/blog/
+path:^/blog/.*
 pagespeed EnableFilters prioritize_critical_css
 ```
 
@@ -10975,7 +11085,7 @@ pagespeed EnableFilters prioritize_critical_css
 Use `clear` to reset accumulated options before applying new ones:
 
 ```text
-hostname: ^special\.example\.com$
+hostname:^special\.example\.com$
 clear
 pagespeed on
 pagespeed RewriteLevel PassThrough
@@ -11039,16 +11149,16 @@ pagespeed FileCachePath %ProgramData%\We-Amp\PageSpeed\Cache
 pagespeed RewriteLevel CoreFilters
 
 # Marketing site: aggressive optimization
-hostname: ^www\.example\.com$
+hostname:^www\.example\.com$
 pagespeed EnableFilters prioritize_critical_css,defer_javascript
 pagespeed EnableFilters lazyload_images,collapse_whitespace
 
 # API: no HTML optimization, bandwidth only
-hostname: ^api\.example\.com$
+hostname:^api\.example\.com$
 pagespeed RewriteLevel OptimizeForBandwidth
 
 # Admin portal: disable optimization
-hostname: ^admin\.example\.com$
+hostname:^admin\.example\.com$
 pagespeed off
 ```
 
@@ -16439,10 +16549,13 @@ There is no `auto`. `GET /v1/health` reports the resolved state as
 monitoring check can see an unsandboxed browser without reading logs. The
 setting is also readable from `PAGESPEED_BROWSER_SANDBOX`.
 
-The sandbox needs an unprivileged user namespace and a non-root user. Container
-images currently run as root, where Chrome declines to sandbox itself: set
-`PAGESPEED_BROWSER_SANDBOX=off` if you want browser analysis in one, or run the
-container as a non-root user.
+The sandbox needs an unprivileged user namespace and a non-root user. The
+container images drop the worker to the unprivileged `pagespeed` user (UID 918)
+before it starts, so inside them the remaining requirement is a seccomp profile
+that allows the namespace flags; the default Docker and Kubernetes profiles do
+not, and the probe reports `unavailable` until you supply one. Set
+`PAGESPEED_BROWSER_SANDBOX=off` only to accept an unsandboxed browser
+deliberately.
 
 The probe runs inside whatever syscall filter the worker itself is running
 under, so a filter too tight for Chrome surfaces here, at startup, rather than
@@ -16768,14 +16881,28 @@ directives from a module that is gone fails to start.
 
 ```bash
 # Debian / Ubuntu: keep the configuration files, or purge them
+sudo apt-mark manual apache2                                     # Apache: keep Apache when the module pulled it in
 sudo apt-get remove mod-pagespeed pagespeed-optimizer            # Apache
+sudo apt-mark manual nginx                                       # nginx: keep nginx when the module pulled it in
 sudo apt-get remove nginx-module-pagespeed pagespeed-optimizer   # nginx
 sudo apt-get purge  mod-pagespeed pagespeed-optimizer            # also removes configuration and the default cache
 # AlmaLinux / RHEL / Rocky
-sudo dnf remove mod-pagespeed pagespeed-optimizer
-sudo dnf remove nginx-module-pagespeed pagespeed-optimizer
+sudo dnf remove --noautoremove mod-pagespeed pagespeed-optimizer            # Apache: --noautoremove keeps httpd
+sudo dnf remove --noautoremove nginx-module-pagespeed pagespeed-optimizer   # nginx: --noautoremove keeps nginx
 sudo systemctl restart apache2   # httpd on Enterprise Linux, or nginx
 ```
+
+> **Removing the module package can take the web server with it**
+>
+> When the module package pulled the web server in as a dependency, the package
+> manager counts it as unused once the module is gone. `dnf remove` without
+> `--noautoremove` removes it in the same transaction, including `httpd`,
+> `httpd-core` and `mod_http2` for Apache and `nginx`, `nginx-core` and
+> `nginx-filesystem` for nginx. On Debian and Ubuntu the next
+> `apt-get autoremove` removes it, including `apache2`, `apache2-bin`,
+> `apache2-data` and `apache2-utils` for Apache and `nginx` for nginx, unless
+> `apt-mark manual apache2` or `apt-mark manual nginx` ran first.
+> `apt-get remove` or `purge` on its own leaves the web server installed.
 
 What stays after `remove`:
 
@@ -16821,6 +16948,17 @@ This removes every resource the chart created (Deployment, Service, Ingress,
 HPA, ConfigMap). The `emptyDir` cache goes with the pods.
 
 ## IIS
+
+> **Maintenance window**
+>
+> Running the MSI — to install, upgrade, repair or uninstall the module — takes
+> every IIS site on the server down for the duration, not only the sites it
+> optimizes. The installer stops the Windows Process Activation Service (WAS)
+> and the World Wide Web Publishing Service (W3SVC), force-kills any `w3wp.exe`
+> worker process still running, and starts IIS again when it is done; anything
+> else that depends on WAS, such as the WCF non-HTTP activation services
+> (net.tcp, net.pipe, net.msmq), is stopped with it and not restarted. In-flight
+> requests are dropped. Plan a maintenance window.
 
 1. Remove the `pagespeed` directives you no longer want, or leave the
    `pagespeed.config` files in place for a later reinstall.
@@ -16871,7 +17009,9 @@ run `docker compose up -d`; both images move together.
 **Helm.** `helm history pagespeed` lists the revisions, and
 `helm rollback pagespeed <revision>` returns to one.
 
-**IIS.** Uninstall the current module, run the previous MSI, `iisreset`.
+**IIS.** Uninstall the current module, run the previous MSI, `iisreset`. Each
+MSI run takes every IIS site on the server down for the duration (see
+[IIS](https://modpagespeed.com/docs/uninstall/#iis) above).
 
 **ASP.NET Core.** Pin the previous package version in the project file
 (`<PackageReference Include="WeAmp.PageSpeed.AspNetCore" Version="<version>" />`)
@@ -17246,8 +17386,17 @@ Look for:
 To force the worker to re-process a URL:
 
 ```bash
+# PURGE needs AUTH first, on the same connection. The worker's
+# PAGESPEED_PURGE_TOKEN is not in your shell by itself; read it in first.
+# Packages: the env file is readable by root and group `pagespeed`, one KEY=value per line
+PAGESPEED_PURGE_TOKEN=$(sudo sed -n 's/^PAGESPEED_PURGE_TOKEN=//p' /etc/pagespeed-optimizer/daemon.env)
+# Container images and the Helm chart: the worker prints the token once at
+# start when you did not set it -- `docker logs <worker> 2>&1 | grep PAGESPEED_PURGE_TOKEN=`
+# or `kubectl logs <pod> -c worker | grep PAGESPEED_PURGE_TOKEN=` -- or set it
+# yourself in the compose file's `environment:` and use that value.
+
 # Purge all variants
-echo "PURGE localhost /images/photo.jpg" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
+printf 'AUTH %s\nPURGE localhost /images/photo.jpg\n' "$PAGESPEED_PURGE_TOKEN" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
 
 # Request the URL again (triggers a cache miss and new notification)
 curl -H "Accept: image/webp,*/*" http://localhost/images/photo.jpg -o /dev/null -w "%{size_download}\n"
@@ -17259,6 +17408,13 @@ curl -H "Accept: image/webp,*/*" http://localhost/images/photo.jpg -o /dev/null 
 
 If the second request returns a smaller size, the worker is processing
 correctly for that URL.
+
+A refused purge says why: `ERR authentication required` means this connection
+sent no valid `AUTH` (an `AUTH` on another connection does not count);
+`ERR invalid token` means the token was wrong, which is also what an empty
+`$PAGESPEED_PURGE_TOKEN` produces; `ERR no purge token configured` means the
+worker started without a token, so no purge is possible until it has one. The
+responses are listed under [`AUTH`](https://modpagespeed.com/docs/api-reference/#auth-token).
 
 ### Cannot connect to management socket
 
@@ -18308,7 +18464,8 @@ a connection, writes the response, and closes. No request data is needed.
 
 The worker listens on a Unix socket at `{socket_path}.mgmt` for
 newline-terminated text commands. After processing a command, the worker writes
-a response and closes the connection.
+a response and closes the connection; the one exception is a successful `AUTH`,
+which keeps the connection open for the `PURGE` that follows.
 
 ### Socket path
 
@@ -18383,11 +18540,17 @@ Returns a JSON object with worker statistics: connections, notifications, varian
 
 #### `PURGE <hostname> <url>`
 
-Deletes all cached variants for the specified URL and hostname.
+Deletes all cached variants for the specified URL and hostname. The command is
+refused unless the connection was authenticated with `AUTH` (below) first;
+send both commands on the same connection.
 
-**Request:** `PURGE example.com /images/photo.jpg\n`
+**Request:** `AUTH <your-token>\n` followed by `PURGE example.com /images/photo.jpg\n`
 
-**Response:** `OK N entries deleted\n`
+**Response:** `OK\n` to the `AUTH`, then `OK N entries deleted\n` to the
+`PURGE`; when nothing matched, `OK 0 entries deleted (URL not found — may have
+been evicted or never cached)\n`. A `PURGE` without a preceding `AUTH` answers
+`ERR authentication required\n`, or `ERR no purge token configured\n` when the
+worker has no purge token.
 
 The PURGE command iterates all possible capability mask combinations (image
 formats, viewports, pixel densities, Save-Data states, transfer encodings) and
@@ -18397,22 +18560,37 @@ for Early Hints (`0x1C`) and warmup (`0x2C`).
 The maximum number of entries deleted per URL is 192 (4 formats x 3 viewports
 x 2 densities x 2 Save-Data x 4 encodings) plus 2 sentinel entries = 194.
 
+The HTTP API offers the same operation as
+[`POST /v1/cache/purge`](https://modpagespeed.com/docs/http-api/#post-v1cachepurge); there the
+credential is group membership over the API's unix socket, or the bearer token
+over TCP where one is configured.
+
 #### `AUTH <token>`
 
-Authenticates the connection for PURGE commands. Required when the
-`PAGESPEED_PURGE_TOKEN` environment variable is set on the worker.
+Authenticates the connection for `PURGE` commands. Every `PURGE` requires it:
+the worker refuses a `PURGE` on a connection that has not sent a valid `AUTH`,
+and there is no unauthenticated mode. The token is the worker's
+`PAGESPEED_PURGE_TOKEN` environment variable. The packages generate one into
+`/etc/pagespeed-optimizer/daemon.env`; the container images generate one per
+container start and print it once in the container log when you did not set
+it.
 
 **Request:** `AUTH <your-token>\n`
 
-**Response:** `OK\n` on success, or `ERR invalid token\n` on failure.
+**Response:** `OK\n` on success, `ERR invalid token\n` on a wrong token, or
+`ERR no token configured\n` when the worker has no purge token.
 
-Send `AUTH` as the first command on each connection before issuing `PURGE`.
-The token is compared using constant-time comparison to prevent timing attacks.
-STATS and METRICS commands work without authentication regardless of whether
-the env var is set.
+A successful `AUTH` keeps the connection open; every other command closes it
+after its response. Authentication is per connection, so send `AUTH` as the
+first command on each connection and the `PURGE` on that same connection: a
+`PURGE` on a new connection is refused even right after a successful `AUTH` on
+another, which is why a one-shot `echo "PURGE …" | socat` cannot purge. The
+token is compared using constant-time comparison to prevent timing attacks.
+STATS, METRICS and BROWSER-STATUS work without authentication.
 
-When `PAGESPEED_PURGE_TOKEN` is not set, PURGE works without authentication
-(backward compatible).
+When `PAGESPEED_PURGE_TOKEN` is not set, `PURGE` is unavailable: the worker
+answers `ERR no purge token configured\n`, and `AUTH` answers
+`ERR no token configured\n`.
 
 #### `METRICS`
 
@@ -21382,6 +21560,8 @@ Fixed: when the web server starts with in-place optimization off because it cann
 
 **IIS and Windows**
 
+*The IIS changes in this entry first reached a published Windows installer with mod_pagespeed 2.5.0: the signed MSI on the mod_pagespeed GitHub release. Until then the published IIS installer was 1.15.0, which does not include them.*
+
 Added (IIS): the installer also installs the optimizer worker, as the Windows service `WeAmpPageSpeedOptimizer`, disabled, under its own virtual account. Turned on and pointed at with the `DaemonSocketPath` and `DaemonVolumePath` directives, it takes over in-place optimization: the module records each eligible resource, the optimizer builds optimized variants, and the module serves the variant that fits each client. An upgrade or repair with the Windows installer keeps an optimizer you turned on running and keeps the cache size you chose (`OPTIMIZERCACHESIZE`, 1 GiB by default). Installs that do not turn it on behave as before.
 
 Added: the Windows optimizer worker runs as a Windows service. Register it with `--service` on its command line; the Service Control Manager starts it, sees it as running once it is ready, and stops it gracefully on a service stop or at system shutdown. `--log-file PATH`, valid only with `--service`, appends the log to a file.
@@ -22074,8 +22254,10 @@ of pixels and runs in the isolated worker process, not in the web server.
 Re-optimizing a JPEG could also encode it at a higher quality than the
 original was saved at, producing a larger file with no visible improvement; a
 JPEG re-encode is now capped at the quality detected in the source.
-`--no-quality-cap` turns the cap off and now takes effect;
-`--quality-cap-margin` is still accepted but no longer raises the cap.
+The `no_quality_cap` setting turns the cap off and now takes effect;
+`quality_cap_margin` is still accepted but no longer raises the cap. Both are
+worker configuration settings — `pagespeed.json` next to the cache volume, or
+`PATCH /v1/config` — not command-line flags.
 
 Fixed: a stylesheet with an invalid value in a complete longhand
 family no longer loses the whole family through minification. A browser drops

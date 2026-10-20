@@ -5,7 +5,7 @@ seoTitle: 'Install mod_pagespeed 2.1: nginx, Apache, Docker, IIS'
 description: 'Pick an integration and get mod_pagespeed 2.1 serving optimized pages: Apache or nginx module, Docker, IIS or ASP.NET Core, then run the same check.'
 order: 1
 group: 'Start here'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-20
 faq:
   - q: 'Which mod_pagespeed 2.1 integration should I pick?'
     a: 'The native module when you run Apache or nginx on Debian, Ubuntu or Enterprise Linux; the Docker reverse proxy when you are container-native or your origin is something else; the IIS module on Windows Server; the NuGet middleware inside an ASP.NET Core app. All four run the same optimization pipeline.'
@@ -116,8 +116,11 @@ worker and nginx as separate services from the
 ## Quickstart: IIS
 
 Download the signed MSI from the [download page](/download/), run it on the
-Windows Server host, then `iisreset`. The installer registers the module as a
-native HTTP module and creates the default cache directory. Then
+Windows Server host, then `iisreset`. Running the MSI takes every IIS site on
+the server down for the duration; plan a maintenance window (details on
+[Install on IIS](/docs/install-iis/#install-the-module)). The installer
+registers the module as a native HTTP module and creates the default cache
+directory. Then
 [verify](#verify-it-works). Running IISpeed on that host? Uninstall it first;
 the two register the same handler. The [IIS install guide](/docs/install-iis/)
 has the requirements, IIS Express and the optional optimizer service. The IIS

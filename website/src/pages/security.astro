@@ -209,10 +209,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         <h2 class="h2-section text-text-body">Threat model</h2>
         <p class="mt-4 text-text-muted">
           mod_pagespeed processes untrusted images, CSS, JS, and HTML from origin servers. The
-          worker process communicates only via a local Unix socket &mdash; it has no network access
-          beyond the cache file and socket. All content parsing uses memory-safe patterns validated
-          by continuous sanitizer testing (ASan, UBSan, TSan). No user data is transmitted
-          externally.
+          module talks to the worker over a local Unix socket. The worker opens no outbound
+          connection on its own: its network traffic is the origin fetches you configure and any key
+          directories you enable, and its management API is off by default. All content parsing uses
+          memory-safe patterns validated by continuous sanitizer testing (ASan, UBSan, TSan). No
+          user data is transmitted externally.
         </p>
       </div>
 

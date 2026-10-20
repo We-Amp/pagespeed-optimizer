@@ -3,13 +3,13 @@ title: 'Install on IIS'
 description: 'Install the mod_pagespeed IIS module on Windows Server: requirements, the signed MSI, IIS Express, the optional optimizer service and the first check.'
 order: 7
 group: 'Install'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-20
 datePublished: 2026-10-08
 faq:
   - q: 'Can the IIS module and IISpeed run on the same host?'
     a: 'No. Both register the same handler in IIS and one or both fail at site startup. Uninstall IISpeed, run `iisreset`, then run the MSI. Your IISpeed configuration files keep working.'
   - q: 'Does the IIS installer include the optimizer worker?'
-    a: 'Yes, as the Windows service `WeAmpPageSpeedOptimizer`, installed disabled. Until you turn it on and point the module at it with `DaemonSocketPath` and `DaemonVolumePath`, the module optimizes on its own exactly as before.'
+    a: 'Yes, from the 2.5.0 installer on, as the Windows service `WeAmpPageSpeedOptimizer`, installed disabled. Until you turn it on and point the module at it with `DaemonSocketPath` and `DaemonVolumePath`, the module optimizes on its own exactly as before.'
 ---
 
 mod_pagespeed runs on IIS as a native, in-process module: the successor to
@@ -27,6 +27,17 @@ Machine-readable recipe for coding agents: [modpagespeed.com/recipes/iis.md](htt
   the installer grants it for the default directory
 
 ## Install the module {#install-the-module}
+
+:::warning[Maintenance window]
+Running the MSI — to install, upgrade, repair or uninstall the module — takes
+every IIS site on the server down for the duration, not only the sites it
+optimizes. The installer stops the Windows Process Activation Service (WAS)
+and the World Wide Web Publishing Service (W3SVC), force-kills any `w3wp.exe`
+worker process still running, and starts IIS again when it is done; anything
+else that depends on WAS, such as the WCF non-HTTP activation services
+(net.tcp, net.pipe, net.msmq), is stopped with it and not restarted. In-flight
+requests are dropped. Plan a maintenance window.
+:::
 
 1. Download the [IIS MSI installer](/download/#direct-downloads) from the Download
    page's Windows installer link.
@@ -58,10 +69,10 @@ _Apps & features_ (or _Programs and Features_), remove "IISpeed", run
 [Migrate from IISpeed](/docs/migrate-from-iispeed/) walks through the whole
 move, configuration and cache included.
 
-### The optimizer service
+### The optimizer service {#the-optimizer-service}
 
-The installer also installs the optimizer worker, as the Windows service
-`WeAmpPageSpeedOptimizer` under its own virtual account, and leaves it
+From 2.5.0 on, the installer also installs the optimizer worker, as the Windows
+service `WeAmpPageSpeedOptimizer` under its own virtual account, and leaves it
 **disabled**: until you turn it on, the module behaves exactly as it does
 without it. Turned on and pointed at with the `DaemonSocketPath` and
 `DaemonVolumePath` directives, it takes over in-place optimization: the module
@@ -69,6 +80,42 @@ records each eligible resource, the optimizer builds optimized variants, and
 the module serves the variant that fits each client. An upgrade or repair with
 the installer keeps a service you turned on running and keeps the cache size
 you chose (`OPTIMIZERCACHESIZE`, 1 GiB by default).
+
+To turn it on:
+
+1. Set the service to start, and start it, from an elevated prompt:
+
+   ```powershell
+   sc.exe config WeAmpPageSpeedOptimizer start= auto
+   sc.exe start WeAmpPageSpeedOptimizer
+   ```
+
+   Use `start= demand` instead of `start= auto` to start it only by hand. The
+   service logs to `C:\ProgramData\We-Amp\PageSpeed\logs\optimizer.log`; once
+   it is up, the log says it is listening on `\\.\pipe\pagespeed-optimizer`.
+
+2. Point the module at it. Add these two lines to the server-level
+   `C:\ProgramData\We-Amp\PageSpeed\pagespeed.config`:
+
+   ```
+   pagespeed DaemonSocketPath pagespeed-optimizer
+   pagespeed DaemonVolumePath "C:\ProgramData\We-Amp\PageSpeed\optimizer\cache"
+   ```
+
+   `DaemonSocketPath` is the pipe name the service listens on, without the
+   `\\.\pipe\` prefix; the module adds it. `DaemonVolumePath` is the cache
+   volume's path stem, `…\optimizer\cache`: not the `optimizer` directory the
+   service is given as its cache directory, and not the `cache-…` file the
+   service creates there.
+
+3. Run `iisreset`.
+
+The application pools reach the pipe and the cache with the permissions the
+installer sets; no extra access rules are needed. Start the service before the
+application pools: the module attaches to the optimizer when a pool starts, so
+if the service was stopped then, or you start or restart it later, run
+`iisreset` again for the module to use it. To turn the optimizer off, remove the
+two lines and run `iisreset`; the module goes back to optimizing on its own.
 
 ### IIS Express
 
