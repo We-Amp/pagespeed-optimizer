@@ -67,10 +67,9 @@ iisreset
 ```
 
 The installer registers the module as a native HTTP module and creates the
-default cache directory, `%ProgramData%\We-Amp\PageSpeed\cache`. An upcoming
-installer release also installs the optimizer worker as the Windows service
-`WeAmpPageSpeedOptimizer`, left disabled; the MSI on the download page does not
-include it yet, and the module works without it.
+default cache directory, `%ProgramData%\We-Amp\PageSpeed\cache`. From 2.5.0
+on it also installs the optimizer worker as the Windows service
+`WeAmpPageSpeedOptimizer`, left disabled; the module works without it.
 
 ## 3. Minimal configuration
 

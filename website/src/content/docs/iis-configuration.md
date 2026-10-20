@@ -3,14 +3,14 @@ title: 'IIS configuration'
 description: 'mod_pagespeed on IIS via pagespeed.config, the native IIS module and successor to IISpeed: directive syntax, path matching, server and site-level config.'
 order: 26
 group: 'Configure'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-20
 ---
 
 mod_pagespeed runs on IIS as a native, in-process module — the successor to IISpeed. This page documents the `pagespeed.config` file format it reads. For the directives that apply across every platform (Apache, nginx, IIS), see [Configuration](/docs/configuration/); to install the module first, see [Install on IIS](/docs/install-iis/).
 
 ## Install the module {#install-the-module}
 
-<a id="requirements"></a><a id="migrating-from-iispeed"></a><a id="iis-express"></a><a id="verify-it-works"></a>Installation moved to [Install on IIS](/docs/install-iis/): requirements, the signed MSI, IIS Express and the upcoming optimizer service. Coming from IISpeed, read [Migrate from IISpeed](/docs/migrate-from-iispeed/) first.
+<a id="requirements"></a><a id="migrating-from-iispeed"></a><a id="iis-express"></a><a id="verify-it-works"></a>Installation moved to [Install on IIS](/docs/install-iis/): requirements, the signed MSI, IIS Express and the optional optimizer service. Coming from IISpeed, read [Migrate from IISpeed](/docs/migrate-from-iispeed/) first.
 
 ### Disable optimization
 

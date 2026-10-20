@@ -1,15 +1,15 @@
 ---
 title: 'Install on IIS'
-description: 'Install the mod_pagespeed IIS module on Windows Server: requirements, the signed MSI, IIS Express, the upcoming optimizer service and the first check.'
+description: 'Install the mod_pagespeed IIS module on Windows Server: requirements, the signed MSI, IIS Express, the optional optimizer service and the first check.'
 order: 7
 group: 'Install'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-20
 datePublished: 2026-10-08
 faq:
   - q: 'Can the IIS module and IISpeed run on the same host?'
     a: 'No. Both register the same handler in IIS and one or both fail at site startup. Uninstall IISpeed, run `iisreset`, then run the MSI. Your IISpeed configuration files keep working.'
   - q: 'Does the IIS installer include the optimizer worker?'
-    a: 'Not yet. An upcoming release of the installer adds it as the Windows service `WeAmpPageSpeedOptimizer`, installed disabled; until you turn it on and point the module at it with `DaemonSocketPath` and `DaemonVolumePath`, the module optimizes on its own exactly as it does today.'
+    a: 'Yes, from the 2.5.0 installer on, as the Windows service `WeAmpPageSpeedOptimizer`, installed disabled. Until you turn it on and point the module at it with `DaemonSocketPath` and `DaemonVolumePath`, the module optimizes on its own exactly as before.'
 ---
 
 mod_pagespeed runs on IIS as a native, in-process module: the successor to
@@ -69,18 +69,17 @@ _Apps & features_ (or _Programs and Features_), remove "IISpeed", run
 [Migrate from IISpeed](/docs/migrate-from-iispeed/) walks through the whole
 move, configuration and cache included.
 
-### The optimizer service (upcoming) {#the-optimizer-service}
+### The optimizer service {#the-optimizer-service}
 
-The MSI you can download today does not include the optimizer service; the
-module optimizes on its own. An upcoming release of the installer also installs
-the optimizer worker, as the Windows service `WeAmpPageSpeedOptimizer` under
-its own virtual account, and leaves it **disabled**: until you turn it on, the
-module behaves exactly as it does without it. Turned on and pointed at with the
-`DaemonSocketPath` and `DaemonVolumePath` directives, it takes over in-place
-optimization: the module records each eligible resource, the optimizer builds
-optimized variants, and the module serves the variant that fits each client. An
-upgrade or repair with that installer keeps a service you turned on running and
-keeps the cache size you chose (`OPTIMIZERCACHESIZE`, 1 GiB by default).
+From 2.5.0 on, the installer also installs the optimizer worker, as the Windows
+service `WeAmpPageSpeedOptimizer` under its own virtual account, and leaves it
+**disabled**: until you turn it on, the module behaves exactly as it does
+without it. Turned on and pointed at with the `DaemonSocketPath` and
+`DaemonVolumePath` directives, it takes over in-place optimization: the module
+records each eligible resource, the optimizer builds optimized variants, and
+the module serves the variant that fits each client. An upgrade or repair with
+the installer keeps a service you turned on running and keeps the cache size
+you chose (`OPTIMIZERCACHESIZE`, 1 GiB by default).
 
 ### IIS Express
 

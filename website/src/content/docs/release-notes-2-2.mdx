@@ -3,7 +3,7 @@ title: 'Release notes: 2.2'
 description: 'mod_pagespeed 2.2.0 release notes: the module and the optimizer worker as one release (packages 1.17.0), its security fixes and what changed.'
 order: 80
 group: 'Release notes by line'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-20
 ---
 
 import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
@@ -151,7 +151,7 @@ Fixed: when the web server starts with in-place optimization off because it cann
 
 **IIS and Windows**
 
-*Note (2026-10-18): the Windows installer and IIS module build carrying the IIS changes in this entry have not been published; the MSI on the download page is 1.15.0 and does not include them.*
+*The IIS changes in this entry first reached a published Windows installer with mod_pagespeed 2.5.0: the signed MSI on the mod_pagespeed GitHub release. Until then the published IIS installer was 1.15.0, which does not include them.*
 
 Added (IIS): the installer also installs the optimizer worker, as the Windows service `WeAmpPageSpeedOptimizer`, disabled, under its own virtual account. Turned on and pointed at with the `DaemonSocketPath` and `DaemonVolumePath` directives, it takes over in-place optimization: the module records each eligible resource, the optimizer builds optimized variants, and the module serves the variant that fits each client. An upgrade or repair with the Windows installer keeps an optimizer you turned on running and keeps the cache size you chose (`OPTIMIZERCACHESIZE`, 1 GiB by default). Installs that do not turn it on behave as before.
 
