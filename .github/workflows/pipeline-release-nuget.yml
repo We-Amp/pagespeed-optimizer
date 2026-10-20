@@ -556,7 +556,16 @@ jobs:
             bazel --output_user_root=/tmp/bazel-out \
               test --vendor_dir=vendor "--config=${BAZEL_RELEASE_CONFIG}" ${CACHE_FLAG:+"$CACHE_FLAG"} \
               //test/... //lib/pagespeed:pagespeed_test \
-              //lib/image/vtracer_ffi:vtracer_ffi_test
+              //lib/image/vtracer_ffi:vtracer_ffi_test 2>&1 | tee "${RUNNER_TEMP}/bazel-test.log"
+      - name: Report flaky tests
+        if: ${{ !cancelled() }}
+        run: |
+          [ -f "${RUNNER_TEMP}/bazel-test.log" ] || exit 0
+          flaky=$(grep -E '^//.* FLAKY' "${RUNNER_TEMP}/bazel-test.log" | sed -E 's/ +/ /g' || true)
+          if [ -n "$flaky" ]; then
+            echo "::warning::Tests passed only on retry (FLAKY): $(echo "$flaky" | cut -d' ' -f1 | paste -sd' ' -)"
+            { echo "### Flaky tests (passed on retry)"; echo '```'; echo "$flaky"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   linux-release-tests-hosted:
     name: Linux Release Tests (hosted)
@@ -1037,8 +1046,18 @@ jobs:
       - *macos-extract
       - name: Run unit tests
         run: |
+          set -o pipefail
           bazel test --vendor_dir=vendor --config=ci-macos --config=opt --stamp \
-            "--remote_cache=${BAZEL_REMOTE_CACHE_URL:-}" //test/...
+            "--remote_cache=${BAZEL_REMOTE_CACHE_URL:-}" //test/... 2>&1 | tee "${RUNNER_TEMP}/bazel-test.log"
+      - name: Report flaky tests
+        if: ${{ !cancelled() }}
+        run: |
+          [ -f "${RUNNER_TEMP}/bazel-test.log" ] || exit 0
+          flaky=$(grep -E '^//.* FLAKY' "${RUNNER_TEMP}/bazel-test.log" | sed -E 's/ +/ /g' || true)
+          if [ -n "$flaky" ]; then
+            echo "::warning::Tests passed only on retry (FLAKY): $(echo "$flaky" | cut -d' ' -f1 | paste -sd' ' -)"
+            { echo "### Flaky tests (passed on retry)"; echo '```'; echo "$flaky"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   # ---------------------------------------------------------------------
   # Package: the four native sets from workflow artifacts, five .nupkg.
