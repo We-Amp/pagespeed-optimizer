@@ -3,7 +3,7 @@ title: 'mod_pagespeed admin console'
 description: 'mod_pagespeed 2.1 admin console: alerts, statistics, cache inspection, message history and config, with setup and access control for nginx, Apache and IIS.'
 order: 52
 group: 'Operate'
-lastUpdated: 2026-10-09
+lastUpdated: 2026-10-20
 ---
 
 :::tip[Live console]
@@ -53,7 +53,9 @@ The console opens on the Overview page by default; the other pages are reached f
 
 <div data-platform="nginx" data-platform-label="nginx">
 
-Set the handler paths you want, then restrict each of them with nginx `location` blocks. `AdminPath`, `StatisticsPath`, `MessagesPath` and `ConsolePath` can be set in a `server` block. `GlobalAdminPath` and `GlobalStatisticsPath` can only be set in the `http` block, and a path set in the `http` block is served by **every** `server` block, including the default server. Each `server` block that serves a path needs its restriction; a path set inside one `server` block needs it in that block only.
+On nginx the console is off until you set a handler path: the module sets none by default, so `/pagespeed_global_admin` answers like any other URL after a fresh install. The [nginx install steps](/docs/installation-module/#native-nginx-module) turn the global console on with its restriction; this section covers every handler path.
+
+Set the handler paths you want, then restrict each of them with nginx `location` blocks. `AdminPath`, `StatisticsPath`, `MessagesPath` and `ConsolePath` can be set in a `server` block. `GlobalAdminPath` and `GlobalStatisticsPath` can only be set in the `http` block, and a path set in the `http` block is served by **every** `server` block in which the module is on. With `pagespeed on` or a `FileCachePath` in the `http` block, and no `pagespeed standby;` or `pagespeed off;` there, that is every `server` block, including the default server. Each `server` block that serves a path needs its restriction; a path set inside one `server` block needs it in that block only.
 
 ```nginx
 http {
@@ -103,7 +105,14 @@ http {
 - **Block order does not matter for these paths.** `=` and `^~` blocks are chosen ahead of any regular-expression location, such as the one for `.pagespeed.` resources.
 - **These pages are reached by their own paths only.** A request that nginx rewrites (`rewrite`) or redirects internally to one of these paths is not served by the admin, statistics, console or message pages.
 
-The nginx packages ship the admin blocks as `/usr/share/doc/nginx-module-pagespeed/pagespeed_admin_restrict.conf.sample`. It covers the two admin paths (`AdminPath` and `GlobalAdminPath`) only; add a `location =` block for each other handler path you set. Copy it to `/etc/nginx/snippets/pagespeed_admin_restrict.conf` and `include` it from every `server` block, including the default server.
+The nginx packages ship the admin blocks as `/usr/share/doc/nginx-module-pagespeed/pagespeed_admin_restrict.conf.sample`. It covers the two admin paths (`AdminPath` and `GlobalAdminPath`) only; add a `location =` block for each other handler path you set. Copy it to `/etc/nginx/snippets/pagespeed_admin_restrict.conf` and `include` it from every `server` block that serves the paths. The Ubuntu container images exclude `/usr/share/doc` from every package they install (`/etc/dpkg/dpkg.cfg.d/excludes`), so there the sample is missing; the snippet is then the four admin lines of the block above, which you can write to that file yourself:
+
+```nginx
+location =  /pagespeed_admin         { allow 127.0.0.1; allow ::1; deny all; }
+location ^~ /pagespeed_admin/        { allow 127.0.0.1; allow ::1; deny all; }
+location =  /pagespeed_global_admin  { allow 127.0.0.1; allow ::1; deny all; }
+location ^~ /pagespeed_global_admin/ { allow 127.0.0.1; allow ::1; deny all; }
+```
 
 **Upgrading from 1.16.0 or earlier:** after updating, replace your access rules for these pages with the blocks above, in every `server` block that serves them. The update does not change rules that are already in your configuration. Enforce the restriction in nginx itself, not in a filter in front of it; see [URL-path ACLs are brittle](#url-path-acls-are-brittle).
 

@@ -12,7 +12,7 @@ faq:
   - q: 'How do I verify mod_pagespeed is working?'
     a: 'Request a page twice with GET (`curl -s -o /dev/null -D -`). The native module adds `X-Mod-Pagespeed` (Apache) or `X-Page-Speed` (nginx and IIS) to the responses it handles. The Docker reverse proxy and the ASP.NET Core middleware answer `X-PageSpeed: MISS` first and `X-PageSpeed: HIT` once the worker has written the optimized variant.'
   - q: 'Does the native nginx module need the optimizer worker?'
-    a: 'No. It optimizes on its own. To hand in-place optimization to the worker, install the `pagespeed-optimizer` package of the same release and set `pagespeed DaemonSocketPath` and `pagespeed DaemonVolumePath` in the server block. The Apache packages install that wiring for you.'
+    a: 'It runs without it, on its own filters only; the install path installs the worker too. Install the `pagespeed-optimizer` package first, then `nginx-module-pagespeed`, and set `pagespeed DaemonSocketPath` and `pagespeed DaemonVolumePath` in the server block so the module hands in-place optimization to the worker. The Apache packages install that wiring for you.'
   - q: 'What are the prerequisites?'
     a: 'For the native module: Debian 12 or 13, Ubuntu 22.04 or 24.04, or RHEL, AlmaLinux or Rocky 9 or 10, with Apache 2.4 or newer or the stock nginx of the distribution. For Docker: Docker 24 or newer; nginx ships inside the image. For IIS: Windows Server 2016 or later. For ASP.NET Core: .NET 8 or .NET 10.'
   - q: 'What is safe cache mode and why is it the default?'
@@ -67,7 +67,8 @@ line that says `pagespeed-optimizer` describe the same process.
 curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 # 2. Install the module (apt-get on Debian/Ubuntu, dnf on Enterprise Linux)
 sudo apt-get install mod-pagespeed             # Apache: also installs pagespeed-optimizer
-sudo apt-get install nginx-module-pagespeed    # nginx
+sudo apt-get install pagespeed-optimizer       # nginx: the worker first,
+sudo apt-get install nginx-module-pagespeed    #   then the module
 # 3. Restart the web server
 sudo systemctl restart apache2                 # httpd on Enterprise Linux
 sudo systemctl restart nginx
@@ -82,17 +83,22 @@ add a `load_module` line: nginx refuses to load the module twice.
 shows the line the package added. Only a module you built or copied in by hand
 needs `load_module modules/ngx_pagespeed_module.so;` (on Enterprise Linux
 `load_module /usr/lib64/nginx/modules/ngx_pagespeed_module.so;`) at the top of
-`nginx.conf`. Then turn the module on in a `server` block:
+`nginx.conf`. Then turn the module on in a `server` block, pointed at the
+worker:
 
 ```nginx
 pagespeed on;
 pagespeed FileCachePath /var/cache/ngx_pagespeed;
+pagespeed DaemonSocketPath /run/pagespeed-optimizer/notify.sock;
+pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v3/cache;
 ```
 
-Then [verify](#verify-it-works). The
-[module install guide](/docs/installation-module/) has the distribution matrix,
-the nginx compatibility table and the two directives that hand nginx's in-place
-optimization to the worker.
+Restart nginx again (`sudo systemctl restart nginx`), then
+[verify](#verify-it-works). The
+[nginx install steps](/docs/installation-module/#native-nginx-module) are the
+full path: the shared settings for every server block, the admin console (nginx
+serves none until you set its path) and its access restriction, and the check
+that the worker is in use.
 
 ## Quickstart: Docker reverse proxy
 

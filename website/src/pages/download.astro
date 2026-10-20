@@ -68,7 +68,7 @@ const integrations = [
     product: 'mod_pagespeed 2.1',
     badge: 'Reverse proxy',
     description:
-      'Run the mod_pagespeed 2.1 worker as a Docker container in front of nginx. Same optimization pipeline, zero changes to your nginx binary or config.',
+      'Run the optimizer worker and an nginx with the thin nginx module as Docker containers in front of your origin. The image brings its own nginx and module, so your nginx binary and config stay as they are.',
     requirements: `Any host with Docker 24+ (Linux, macOS, Windows). Images: ${rel21.artifacts.docker.image}:${rel21DockerTag} and ${rel21.artifacts.docker.worker_image}:${rel21DockerTag}.`,
     href: '/docs/installation-docker/',
     cta: 'Install guide',
@@ -149,8 +149,15 @@ const jsonLd = {
     </p>
     <p class="mt-3 text-sm text-text-annotation max-w-2xl mx-auto">
       After install, open the admin console at{' '}
-      <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">/pagespeed_global_admin</code> on
-      your server.
+      <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">/pagespeed_global_admin</code> on the
+      server itself. The Apache package serves it to localhost out of the box; on nginx,{' '}
+      <a
+        href="/docs/installation-module/#native-nginx-module"
+        class="text-interactive hover:text-interactive-hover underline"
+      >
+        turn it on first
+      </a>
+      .
     </p>
   </section>
 

@@ -17,7 +17,7 @@ const faq = [
   },
   {
     q: 'What replaces mod_pagespeed?',
-    a: 'mod_pagespeed 2.1, actively maintained by We-Amp: the native in-process module for Apache and nginx, with the same configuration syntax, the classic filter set, and the built-in admin console, plus, with the Apache module or the reverse-proxy deployment, an optimizer worker for SVG auto-vectorization, variant-aware caching, and zero-copy serving. The IIS package ships as a signed installer on the mod_pagespeed GitHub release.',
+    a: 'mod_pagespeed 2.1, actively maintained by We-Amp: the native in-process module for Apache and nginx, with the same configuration syntax, the classic filter set, and the built-in admin console, plus an optimizer worker, paired with the Apache or nginx module or in the reverse-proxy deployment, for variant-aware caching and zero-copy serving, and for SVG auto-vectorization in the reverse-proxy deployment. The IIS package ships as a signed installer on the mod_pagespeed GitHub release.',
   },
   {
     q: 'Can I still use mod_pagespeed 1.13.35.2?',
@@ -25,7 +25,7 @@ const faq = [
   },
   {
     q: 'Which platform do I run mod_pagespeed 2.1 on?',
-    a: 'Apache and nginx: the native in-process module with the familiar config surface, the classic filter set, and the built-in admin console, plus the optimizer worker for SVG auto-vectorization, variant-aware caching, and zero-copy serving. The Apache packages install the configuration that points the module at the worker. The native nginx module runs on its own; to use the optimizer worker with nginx, run the reverse-proxy deployment. The IIS package ships as a signed installer on the mod_pagespeed GitHub release.',
+    a: 'Apache and nginx: the native in-process module with the familiar config surface, the classic filter set, and the built-in admin console, plus the optimizer worker for variant-aware caching and zero-copy serving (and, in the reverse-proxy deployment, SVG auto-vectorization). The Apache packages install the configuration that points the module at the worker; the native nginx module uses it once two directives point it there. The IIS package ships as a signed installer on the mod_pagespeed GitHub release.',
   },
 ];
 
@@ -214,8 +214,10 @@ const jsonLd = [
         eligible images), and writes them back. The serving side returns cache hits via zero-copy
         <code>mmap</code>. On the deb and rpm channels the two install and upgrade together as a
         matching pair, and the Apache packages install the configuration that points the module at
-        the worker. The native nginx module runs on its own; to use the optimizer worker with nginx,
-        run the reverse-proxy deployment.
+        the worker. The nginx module package does not pull the worker in: install
+        <code>pagespeed-optimizer</code> first, then point the native nginx module at it with two
+        directives (<a href="/docs/installation-module/#native-nginx-module">nginx install steps</a>
+        ).
       </p>
       <p>
         The optimization libraries underneath are the same ones mod_pagespeed proved at scale; the
@@ -239,8 +241,8 @@ const jsonLd = [
         optimization, and domain-mapping filters, with granular per-filter control &mdash; now on a
         modernized, secured filter stack with new optimizers. Image optimization covers WebP and
         AVIF alongside JPEG, PNG, and GIF. New: CVE patches, current toolchain, and &mdash; with the
-        Apache module or the reverse-proxy deployment &mdash; the Cyclone Cache shared with the
-        optimizer worker.
+        worker paired to the Apache or nginx module, or in the reverse-proxy deployment &mdash; the
+        Cyclone Cache shared with the optimizer worker.
       </p>
       <p>
         An existing mod_pagespeed configuration carries over &mdash; swap the packages, keep the

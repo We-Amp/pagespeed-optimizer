@@ -182,7 +182,7 @@ if (doc.id === 'installation-docker') {
         '@type': 'HowToStep',
         position: 3,
         name: 'Configure nginx',
-        text: 'Create nginx.conf with load_module for ngx_pagespeed_module.so. Add pagespeed on and pagespeed_cache_path directives in your server block, and proxy_set_header Accept-Encoding "" so the origin sends uncompressed responses the module can cache.',
+        text: 'Create nginx.conf with load_module for ngx_pagespeed_module.so, the thin nginx module bundled in the pagespeed-nginx image (not the native module of the nginx-module-pagespeed package, which shares the file name). Add pagespeed on and pagespeed_cache_path directives in your server block, and proxy_set_header Accept-Encoding "" so the origin sends uncompressed responses the module can cache.',
       },
       {
         '@type': 'HowToStep',

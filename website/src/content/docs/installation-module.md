@@ -4,12 +4,12 @@ seoTitle: 'Install mod_pagespeed on Apache and nginx: 2.1 packages'
 description: 'Install the native mod_pagespeed 2.1 module for Apache and nginx from the signed package repository: distributions, nginx compatibility, worker pairing.'
 order: 3
 group: 'Install'
-lastUpdated: 2026-10-06
+lastUpdated: 2026-10-20
 faq:
   - q: 'Is there a native nginx module for mod_pagespeed 2.1?'
     a: 'Yes. The native Apache and nginx module ships from the signed packages.modpagespeed.com repository — the same channel mod_pagespeed 1.15 uses.'
   - q: 'How do I run mod_pagespeed on nginx today?'
-    a: 'Two options. Install the native nginx module — a dynamic module from the signed packages.modpagespeed.com repository, built for Debian and Ubuntu on amd64 and arm64 and pinned to each distribution stock nginx (1.18 to 1.26). Or put the Docker / nginx reverse proxy in front of your origin. The native nginx module runs on its own by default; to use the optimizer worker with it, install the pagespeed-optimizer package of the same release and set pagespeed DaemonSocketPath and pagespeed DaemonVolumePath in the server block.'
+    a: 'Two options. Install the native nginx module — a dynamic module from the signed packages.modpagespeed.com repository, built for Debian and Ubuntu on amd64 and arm64 and pinned to each distribution stock nginx (1.18 to 1.26). Or put the Docker / nginx reverse proxy in front of your origin. Install the optimizer worker (pagespeed-optimizer) first, then the module, and set pagespeed DaemonSocketPath and pagespeed DaemonVolumePath in the server block so the module hands in-place optimization to the worker; the module also runs without the worker, on its own filters only.'
 ---
 
 mod_pagespeed ships a native module for Apache and nginx. You have three
@@ -56,21 +56,147 @@ distribution matrix (including the yum packages) and the nginx module.
 
 ## Native nginx module
 
-The signed repository at `packages.modpagespeed.com` ships the nginx module
-(`nginx-module-pagespeed`) — the same channel mod_pagespeed 1.15 uses — for
-Debian and Ubuntu on amd64 and arm64, and for AlmaLinux, RHEL and Rocky 9 and
-10. Each build is pinned to that distribution's stock nginx (1.18 through
-1.26), so there is no version to match by hand:
+The signed repository at `packages.modpagespeed.com` ships the native nginx
+module (`nginx-module-pagespeed`) — the same channel mod_pagespeed 1.15 uses —
+for Debian and Ubuntu on amd64 and arm64, and for AlmaLinux, RHEL and Rocky 9
+and 10. It is the ngx_pagespeed port of mod_pagespeed, built from the
+mod_pagespeed source, and it loads into the nginx your distribution ships.
+Each build is pinned to that distribution's stock nginx (1.18 through 1.26),
+so there is no version to match by hand.
 
-```bash
-curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
-sudo apt-get install nginx-module-pagespeed   # Debian/Ubuntu
-sudo dnf install nginx-module-pagespeed       # AlmaLinux/RHEL/Rocky
-```
+:::note[Two nginx modules, one file name]
+Two different nginx modules install a file named `ngx_pagespeed_module.so`.
+The **native nginx module** on this page comes from the `nginx-module-pagespeed`
+package, runs inside your own nginx, and takes the `pagespeed <Directive>`
+surface from the [configuration reference](/docs/configuration/)
+(`pagespeed FileCachePath`, `pagespeed EnableFilters`, …); it answers with an
+`X-Page-Speed` header. The **thin nginx module** ships only inside the
+`pagespeed-nginx` and `pagespeed-combined` container images of the
+[Docker / nginx reverse proxy](#docker--nginx-reverse-proxy), runs in the nginx
+bundled there, and takes the `pagespeed_…` directives from the
+[worker and reverse-proxy configuration](/docs/worker-configuration/)
+(`pagespeed_cache_path`, …); it answers with `X-PageSpeed: MISS`, then `HIT`.
+Apart from `pagespeed on;`, the directives of one are not valid in the other.
+:::
 
-The native nginx module runs on its own by default. To have it use the
-optimizer worker, set the two directives described in
-[Using the optimizer worker with nginx](#using-the-optimizer-daemon-with-nginx).
+The steps below install the module the way the Apache packages install the
+Apache module: with the `pagespeed-optimizer` worker beside it. With the worker
+paired, the module records each eligible CSS, JavaScript and image response
+into the worker's cache, the worker builds the optimized variants off the
+request path, and the module serves the variant that fits each client. The
+module's own filters also work without the worker: leave out step 2 and the
+`DaemonSocketPath` and `DaemonVolumePath` lines in step 5 to run it alone.
+
+1. **Add the repository.**
+
+   ```bash
+   curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+   ```
+
+2. **Install the optimizer worker, before the module.**
+
+   ```bash
+   sudo apt-get install pagespeed-optimizer   # Debian/Ubuntu
+   sudo dnf install pagespeed-optimizer       # AlmaLinux/RHEL/Rocky
+   ```
+
+   The package creates the `pagespeed` user and group, and enables and starts
+   `pagespeed-optimizer.service`. Install it first: the module package adds the
+   nginx user to the `pagespeed` group only when that group already exists.
+
+3. **Install the module.**
+
+   ```bash
+   sudo apt-get install nginx-module-pagespeed   # Debian/Ubuntu
+   sudo dnf install nginx-module-pagespeed       # AlmaLinux/RHEL/Rocky
+   ```
+
+   The package loads the module itself (through `/etc/nginx/modules-enabled/`
+   on Debian and Ubuntu, `/usr/share/nginx/modules/` on Enterprise Linux), so
+   add no `load_module` line.
+
+4. **Set the shared settings.** Create `/etc/nginx/conf.d/pagespeed.conf`;
+   the stock `nginx.conf` of every supported distribution includes
+   `conf.d/*.conf` inside its `http` block:
+
+   ```nginx
+   # Off in every server block that does not turn it on.
+   pagespeed standby;
+   pagespeed FileCachePath /var/cache/ngx_pagespeed;
+   # The admin console; step 5 restricts it.
+   pagespeed GlobalAdminPath /pagespeed_global_admin;
+   ```
+
+   `GlobalAdminPath` can only be set in the `http` block, and a
+   `FileCachePath` there covers every server block. Leave out
+   `pagespeed standby;` and the module is on in every server block, including
+   the default server.
+
+5. **Turn it on for your site.** Create the restriction for the admin pages,
+   `/etc/nginx/snippets/pagespeed_admin_restrict.conf` (localhost only; add,
+   for example, `allow 10.0.0.0/8;` before `deny all;` for your operations
+   network):
+
+   ```nginx
+   location =  /pagespeed_admin         { allow 127.0.0.1; allow ::1; deny all; }
+   location ^~ /pagespeed_admin/        { allow 127.0.0.1; allow ::1; deny all; }
+   location =  /pagespeed_global_admin  { allow 127.0.0.1; allow ::1; deny all; }
+   location ^~ /pagespeed_global_admin/ { allow 127.0.0.1; allow ::1; deny all; }
+   ```
+
+   Then, in each `server` block that should be optimized:
+
+   ```nginx
+   server {
+       listen 80;
+       server_name <your-domain>;
+
+       pagespeed on;
+       # The optimizer worker: its notification socket and its cache volume.
+       pagespeed DaemonSocketPath /run/pagespeed-optimizer/notify.sock;
+       pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v3/cache;
+       # Every server block with `pagespeed on` serves the admin console.
+       include /etc/nginx/snippets/pagespeed_admin_restrict.conf;
+   }
+   ```
+
+   On Enterprise Linux the stock default server sits in `/etc/nginx/nginx.conf`
+   and includes `/etc/nginx/default.d/*.conf`; to turn the module on there, put
+   `pagespeed on;`, the `DaemonSocketPath` and `DaemonVolumePath` lines and the
+   `include` line in a file in that directory.
+
+6. **Restart nginx.**
+
+   ```bash
+   sudo nginx -t && sudo systemctl restart nginx
+   ```
+
+   Restart rather than reload: the nginx workers reach the optimizer's files
+   through their `pagespeed` group membership, which only a restarted nginx
+   picks up.
+
+7. **Check it.**
+
+   ```bash
+   curl -s -o /dev/null -D - -H 'Host: <your-domain>' http://127.0.0.1/ | grep -i '^x-page-speed'
+   curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: <your-domain>' http://127.0.0.1/pagespeed_global_admin/
+   ```
+
+   Run them on the server. The first prints `X-Page-Speed: <version>`, the
+   second `200`. The same admin URL requested from another machine answers
+   `403`. To open the console from your workstation, tunnel to the server
+   (`ssh -L 8080:127.0.0.1:80 <you>@<server>`), point `<your-domain>` at
+   `127.0.0.1` in the workstation's hosts file for the session, and browse to
+   `http://<your-domain>:8080/pagespeed_global_admin/`: the request reaches
+   nginx from `127.0.0.1` and selects your server block by its name. Its
+   Statistics page shows whether the worker is in use: see
+   [Check that it works](#check-that-it-works).
+
+The [admin console guide](/docs/admin-console/#setup) covers the other handler
+paths (`AdminPath`, `StatisticsPath`, …) and their restrictions, and
+[Using the optimizer worker with nginx](#using-the-optimizer-daemon-with-nginx)
+the details of the pairing: other paths, start order, upgrades, and what happens
+when the worker is not available.
 
 See [Install from packages.modpagespeed.com](/download/apt-yum/) for the full
 distribution matrix (including the yum packages) and the Apache module. The
@@ -231,8 +357,12 @@ read the optimizer's management API through the separate
 ## Docker / nginx reverse proxy
 
 The [Docker / nginx reverse proxy](/docs/installation-docker/) runs the same
-optimization core in front of any HTTP origin. It uses a dynamic nginx
-module (`ngx_pagespeed_module.so`) paired with the optimizer worker:
+optimization core in front of any HTTP origin. It uses the thin nginx module,
+bundled in its own nginx inside the `pagespeed-nginx` and `pagespeed-combined`
+images and paired with the optimizer worker. The thin module's file is also
+named `ngx_pagespeed_module.so`, but it is a different module from the native
+one above (see [Two nginx modules, one file name](#native-nginx-module)). The
+pair provides
 [image transcoding](/blog/nginx-image-optimization-module/),
 CSS/JS minification, critical CSS, and zero-copy serving from the Cyclone
 shared-memory cache.

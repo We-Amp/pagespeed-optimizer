@@ -84,10 +84,12 @@ sudo dnf install mod-pagespeed`,
           labelledby="apt-yum-nginx-lead"
           lines={[
             {
-              text: `# Debian 12/13, Ubuntu 22.04/24.04
+              text: `# Debian 12/13, Ubuntu 22.04/24.04: the worker first, then the module
+sudo apt-get install pagespeed-optimizer
 sudo apt-get install nginx-module-pagespeed
 
 # AlmaLinux / RHEL / Rocky 9 and 10
+sudo dnf install pagespeed-optimizer
 sudo dnf install nginx-module-pagespeed`,
               tone: 'strong',
             },
@@ -95,15 +97,14 @@ sudo dnf install nginx-module-pagespeed`,
         />
       </div>
       <p class="mt-4 text-sm text-text-muted">
-        The native nginx module runs on its own by default; to use the optimizer worker with it,
-        install <code class="font-mono">pagespeed-optimizer</code> and{' '}
-        <a
-          href="/docs/installation-module/#using-the-optimizer-daemon-with-nginx"
-          class="text-interactive underline"
-        >
-          point the module at it
-        </a>
-        .
+        Install the <code class="font-mono">pagespeed-optimizer</code> worker before the native
+        nginx module: the module package adds the nginx user to the worker's group only when that
+        group exists. Then{' '}
+        <a href="/docs/installation-module/#native-nginx-module" class="text-interactive underline">
+          configure nginx
+        </a>{' '}
+        to hand optimization to the worker and to serve the admin console, which nginx does not
+        serve until you set its path. Without the worker, the module runs on its own filters only.
       </p>
       <p class="mt-4 text-sm text-text-muted">
         Installing <code class="font-mono">nginx-module-pagespeed</code> drops a modules-enabled
