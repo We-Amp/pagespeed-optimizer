@@ -394,11 +394,13 @@ Source `AdminAuth.Token` from a secret store or environment variable — do not 
 
 ### Sidecar container & runtime requirements
 
-The bundled nginx + module are glibc ELF binaries built for a glibc ≥ 2.31 floor. They run on
-Debian and Ubuntu hosts with glibc 2.31 or newer: Debian 11 and later, Ubuntu 20.04 and later.
-Enterprise Linux (RHEL, AlmaLinux, Rocky) and Amazon Linux are not supported: the bundled nginx
-links the Debian library names `libpcre.so.3` and `libcrypt.so.1`, which those distributions do
-not provide. `libstdc++` is statically linked and the build has no OpenSSL dependency, so there is
+The bundled nginx + module are glibc ELF binaries built for a glibc ≥ 2.31 floor. The bundled
+nginx links `libpcre.so.3`, the Debian/Ubuntu name of the PCRE library from the `libpcre3`
+package, so it runs on the Debian and Ubuntu releases that still ship that package: Debian 11 and
+12, Ubuntu 20.04 to 24.04. Debian 13 and Ubuntu 26.04 no longer ship `libpcre3` and are not
+supported. Enterprise Linux (RHEL, AlmaLinux, Rocky) and Amazon Linux are not supported either:
+they ship PCRE as `libpcre.so.1`. (`libcrypt.so.1`, which the nginx also links, is available
+there from `libxcrypt-compat`; PCRE is the blocker.) `libstdc++` is statically linked and the build has no OpenSSL dependency, so there is
 no libstdc++ or libssl/libcrypto host requirement. The binaries link a small set of host shared
 libraries:
 

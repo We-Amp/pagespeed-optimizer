@@ -2428,11 +2428,13 @@ Source `AdminAuth.Token` from a secret store or environment variable — do not 
 
 ### Sidecar container & runtime requirements
 
-The bundled nginx + module are glibc ELF binaries built for a glibc ≥ 2.31 floor. They run on
-Debian and Ubuntu hosts with glibc 2.31 or newer: Debian 11 and later, Ubuntu 20.04 and later.
-Enterprise Linux (RHEL, AlmaLinux, Rocky) and Amazon Linux are not supported: the bundled nginx
-links the Debian library names `libpcre.so.3` and `libcrypt.so.1`, which those distributions do
-not provide. `libstdc++` is statically linked and the build has no OpenSSL dependency, so there is
+The bundled nginx + module are glibc ELF binaries built for a glibc ≥ 2.31 floor. The bundled
+nginx links `libpcre.so.3`, the Debian/Ubuntu name of the PCRE library from the `libpcre3`
+package, so it runs on the Debian and Ubuntu releases that still ship that package: Debian 11 and
+12, Ubuntu 20.04 to 24.04. Debian 13 and Ubuntu 26.04 no longer ship `libpcre3` and are not
+supported. Enterprise Linux (RHEL, AlmaLinux, Rocky) and Amazon Linux are not supported either:
+they ship PCRE as `libpcre.so.1`. (`libcrypt.so.1`, which the nginx also links, is available
+there from `libxcrypt-compat`; PCRE is the blocker.) `libstdc++` is statically linked and the build has no OpenSSL dependency, so there is
 no libstdc++ or libssl/libcrypto host requirement. The binaries link a small set of host shared
 libraries:
 
@@ -20954,7 +20956,7 @@ the release entry says so.
 | 14 | — | missing security headers — cached responses, nginx module | the nginx module in the container images and Helm chart, in releases up to and including 2.3.0 | [mod_pagespeed 2.4.0](https://modpagespeed.com/docs/release-notes-2-4/#v2-4-0) | Recommended; cached responses regain the headers as they expire, or purge the cache after upgrading to restore them at once |
 | 15 | — | resource exhaustion — image optimization | releases up to and including 1.17.0 with image conversion enabled | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Recommended; animations above the new frame limit (default 200) are no longer converted |
 | 16 | — | dependency update — Envoy filter (Envoy 1.37.6, advisories of 2026-08-26) | the Envoy filter in releases up to and including 1.17.0, built against Envoy 1.37.5 or older | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Recommended |
-| 17 | CVE-2026-90439 | dependency update — bundled nginx (1.30.5, in the sidecar's build recipe) | the NuGet sidecar package; not affected, because its bundled nginx is not built with HTTP/3. The published 1.17.0 package bundles nginx 1.30.4; 1.30.5 arrives with the next sidecar package (2.5.x) | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Not required (keeps vulnerability scans clean) |
+| 17 | CVE-2026-90439 | dependency update — bundled nginx (1.30.5, in the sidecar's build recipe) | the NuGet sidecar package; not affected, because its bundled nginx is not built with HTTP/3. The published 1.17.0 package bundles nginx 1.30.4; the next sidecar package (2.5.x) carries a current nginx | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Not required (keeps vulnerability scans clean) |
 | 18 | — | denial of service — nginx module | the nginx module, all releases up to and including 1.16.0 | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
 | 19 | — | denial of service — Apache module | the Apache module, all releases up to and including 1.16.0 | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
 | 20 | — | denial of service — HTML rewriter | releases 1.15.0+r20 through 1.16.0 | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
@@ -21312,7 +21314,7 @@ Security: resource exhaustion, image optimization. Some animated images could ti
 
 Security: dependency update, Envoy filter. The Envoy filter builds against Envoy 1.37.6, which fixes the Envoy security advisories published on 2026-08-26. Affected: the Envoy filter in releases up to and including 1.17.0, built against Envoy 1.37.5 or older, which lack these fixes. Update recommended.
 
-Security: the sidecar's build recipe moves the nginx bundled with the NuGet sidecar package to 1.30.5. It carries the upstream fix for CVE-2026-90439 in nginx's HTTP/3 module. The bundled nginx is not built with HTTP/3, so it was not affected; the update keeps vulnerability scans clean. Correction: no sidecar package was published with this release. The current `WeAmp.PageSpeed.Sidecar` 1.17.0 bundles nginx 1.30.4; nginx 1.30.5 arrives with the next sidecar package, which moves to the product version (2.5.x).
+Security: the sidecar's build recipe moves the nginx bundled with the NuGet sidecar package to 1.30.5. It carries the upstream fix for CVE-2026-90439 in nginx's HTTP/3 module. The bundled nginx is not built with HTTP/3, so it was not affected; the update keeps vulnerability scans clean. Correction: no sidecar package was published with this release. The current `WeAmp.PageSpeed.Sidecar` 1.17.0 bundles nginx 1.30.4; the next sidecar package, which moves to the product version (2.5.x), carries a current nginx.
 
 **Before you upgrade**
 
