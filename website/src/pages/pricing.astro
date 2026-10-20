@@ -18,13 +18,12 @@ import { offerJsonLd, supportTierOffersJsonLd } from '../data/offer-jsonld';
 import {
   AUDIT_PRICE_EUR,
   COMMERCIAL_EMAIL,
-  CURRENT_LINE,
   LICENSE_CLAUSE,
   LICENSE_CLAUSE_CAP,
   LICENSING_TERMS_URL,
   PRICE_HOLD_LINE,
   PRICING_TERMS_LINE,
-  PRODUCT_NAME,
+  PRODUCT_DISPLAY_NAME,
   RESPONSE_TARGETS_LINE,
   SUPPORT_TIERS,
   formatEur,
@@ -32,7 +31,7 @@ import {
 import { productNode } from '../data/software-jsonld';
 import Icon from '../components/Icon.astro';
 
-const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
+const PRODUCT = PRODUCT_DISPLAY_NAME;
 
 // Terms version subscriptions are made under. MUST stay in lockstep with
 // the "Version YYYY-MM[-DD]" stamp in src/pages/terms.astro —

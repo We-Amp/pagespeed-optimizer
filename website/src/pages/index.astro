@@ -1,4 +1,5 @@
 ---
+import { OG_DEFAULT_IMAGE_URL } from '../data/og-image';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import CTAButton from '../components/CTAButton.astro';
 import Icon from '../components/Icon.astro';
@@ -156,7 +157,7 @@ const website = {
 
 const product = await productJsonLd({
   description: `Self-hosted web performance optimization: image transcoding, critical CSS extraction, and variant-aware caching. A native module for Apache and nginx with a separate optimizer worker. ${LICENSE_CLAUSE_CAP}.`,
-  image: 'https://modpagespeed.com/og-default.png?v=2',
+  image: OG_DEFAULT_IMAGE_URL,
   offers: offerJsonLd(),
   citation: lineageCitations,
 });

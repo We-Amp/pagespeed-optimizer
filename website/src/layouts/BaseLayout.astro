@@ -1,4 +1,5 @@
 ---
+import { OG_DEFAULT_IMAGE } from '../data/og-image';
 import NewsletterSignup from '../components/NewsletterSignup.astro';
 import QuickMessage from '../components/QuickMessage.astro';
 import ShareFloat from '../components/ShareFloat.astro';
@@ -82,7 +83,7 @@ const bannerDismissKey = 'banner-dismissed:mps21-ga-2026a';
 // card is added (e.g. public/og-1.1.png), switch the 1.1 branch below to it.
 // Until then 1.1 pages fall back to the shared default rather than referencing
 // a missing file.
-const resolvedOgImage = ogImage ?? '/og-default.png?v=3';
+const resolvedOgImage = ogImage ?? OG_DEFAULT_IMAGE;
 
 const siteUrl = Astro.site ?? new URL('https://modpagespeed.com');
 const absoluteOgImage = new URL(resolvedOgImage, siteUrl).href;

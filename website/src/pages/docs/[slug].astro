@@ -1,4 +1,5 @@
 ---
+import { OG_DEFAULT_IMAGE } from '../../data/og-image';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import ShareButtons from '../../components/ShareButtons.astro';
 import OnThisPage from '../../components/OnThisPage.astro';
@@ -11,6 +12,7 @@ import { getRelease, dockerTag } from '../../lib/release';
 import { gitLastModified } from '../../lib/git-date';
 import { FREE_TO_RUN_LINE, PRODUCT_DISPLAY_NAME } from '../../data/product-facts.mjs';
 import { productRef } from '../../data/software-jsonld';
+import { ORGANIZATION_REF } from '../../data/organization';
 import { basename } from 'node:path';
 
 //: the JSON-LD HowTo schema for aspnet-getting-started cites
@@ -116,10 +118,8 @@ const markdownUrl = `/docs/${doc.id}.md`;
 // Docs have no per-page OG cards (the og-cards generator is blog-only), so the
 // schema `image` is the same /og-default.png the page's og:image meta resolves
 // to in BaseLayout — never a URL that could 404.
-const schemaImage = new URL(
-  '/og-default.png?v=2',
-  Astro.site ?? new URL('https://modpagespeed.com'),
-).href;
+const schemaImage = new URL(OG_DEFAULT_IMAGE, Astro.site ?? new URL('https://modpagespeed.com'))
+  .href;
 
 // Build HowTo JSON-LD for installation docs
 let jsonLd: Record<string, unknown> | undefined;
@@ -133,8 +133,7 @@ jsonLd = {
   image: schemaImage,
   author: { '@type': 'Organization', name: 'We-Amp B.V.' },
   publisher: {
-    '@type': 'Organization',
-    name: 'We-Amp B.V.',
+    ...ORGANIZATION_REF,
     logo: {
       '@type': 'ImageObject',
       url: 'https://modpagespeed.com/logo.svg',

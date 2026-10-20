@@ -1,4 +1,5 @@
 ---
+import { OG_DEFAULT_IMAGE } from '../../data/og-image';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import OnThisPage from '../../components/OnThisPage.astro';
 import Icon from '../../components/Icon.astro';
@@ -43,10 +44,8 @@ const siblings = (await getCollection('how-it-works'))
   .filter((d) => d.id !== doc.id)
   .sort((a, b) => a.data.order - b.data.order);
 
-const schemaImage = new URL(
-  '/og-default.png?v=2',
-  Astro.site ?? new URL('https://modpagespeed.com'),
-).href;
+const schemaImage = new URL(OG_DEFAULT_IMAGE, Astro.site ?? new URL('https://modpagespeed.com'))
+  .href;
 
 const jsonLd: Record<string, unknown> = {
   '@context': 'https://schema.org',

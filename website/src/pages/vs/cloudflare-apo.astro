@@ -1,4 +1,5 @@
 ---
+import { OG_DEFAULT_IMAGE_URL } from '../../data/og-image';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import CompareTable from '../../components/vs/CompareTable.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
@@ -81,7 +82,7 @@ const rows = [
 
 const jsonLd = [
   await productJsonLd({
-    image: 'https://modpagespeed.com/og-default.png?v=2',
+    image: OG_DEFAULT_IMAGE_URL,
     description:
       'Cloudflare APO is WordPress-only and runs at the Cloudflare edge. mod_pagespeed runs at your origin, supports any CMS, and is free under the Apache License 2.0 — every server behind the site is covered.',
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),

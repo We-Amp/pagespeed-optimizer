@@ -1,4 +1,5 @@
 ---
+import { OG_DEFAULT_IMAGE_URL } from '../../data/og-image';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import CompareTable from '../../components/vs/CompareTable.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
@@ -73,7 +74,7 @@ const rows = [
 
 const jsonLd = [
   await productJsonLd({
-    image: 'https://modpagespeed.com/og-default.png?v=2',
+    image: OG_DEFAULT_IMAGE_URL,
     description:
       'NitroPack is managed SaaS aimed at WordPress. mod_pagespeed is self-hosted, runs on any CMS, and is free under the Apache License 2.0 — no monthly traffic tier.',
     offers: offerJsonLd(),

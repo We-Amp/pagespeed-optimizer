@@ -360,6 +360,11 @@ type DenyRule = {
   // listed file with FEWER hits fails too, naming the count to lower it to,
   // so the list only shrinks and cannot outlive the copy it was written for.
   pending?: Record<string, number>;
+  // EXACT-LINE exemptions: one line of one file, matched character for
+  // character, with the reason. Narrower than exemptIf (no other line, and
+  // no edit of this one, is covered) and pinned by a test that each entry
+  // still occurs exactly once in its file.
+  exemptLines?: Array<{ file: string; line: string; why: string }>;
 };
 
 // A gap INSIDE a rule regex that stops at a clause boundary instead of running
@@ -1273,6 +1278,13 @@ const DENYLIST: DenyRule[] = [
       'src/pages/privacy.astro',
       'src/pages/terms.astro',
     ],
+    exemptLines: [
+      {
+        file: 'src/data/software-jsonld.ts',
+        line: "  'ModPageSpeed',",
+        why: 'the camel spelling as an entry of PRODUCT_ALTERNATE_NAMES: the JSON-LD alternate name that keeps the old query findable (the alternateName exemption, for a list one entry per line)',
+      },
+    ],
     bad: 'ModPageSpeed 2.0 optimizes whole sites from its worker behind nginx.',
     good: 'mod_pagespeed optimizes whole sites: the optimizer worker, introduced by the 2.0 re-architecture, does the heavy work behind the module.',
     variantsBad: [
@@ -1711,6 +1723,7 @@ function scanFilesForRule(rule: DenyRule, files: string[]): Violation[] {
     for (let i = 0; i < lines.length; i++) {
       const line = lines[i];
       const m = line.match(rule.re);
+      if (rule.exemptLines?.some((e) => e.file === rel && e.line === line)) continue;
       if (m && isFlaggedByRule(rule, line, file)) {
         violations.push({
           ruleId: rule.id,
@@ -2055,6 +2068,19 @@ describe('denylist matchers discriminate bad vs good samples', () => {
         .filter((rel) => rule.exemptFile!(rel))
         .sort();
       expect(covered).toEqual(rule.exemptFileExpectation ?? []);
+    });
+  }
+
+  // An exact-line exemption names one line; if that line changes or moves to
+  // another file, the entry goes stale and must fail rather than linger.
+  for (const rule of DENYLIST) {
+    if (!rule.exemptLines?.length) continue;
+    it(`[${rule.id}] each exact-line exemption still matches exactly one line`, () => {
+      for (const e of rule.exemptLines!) {
+        const lines = readFileSync(path.join(WEBSITE_ROOT, e.file), 'utf8').split('\n');
+        expect(lines.filter((l) => l === e.line).length, `${e.file}: ${e.line}`).toBe(1);
+        expect(isFlaggedByRule(rule, e.line), `${e.line} no longer needs the exemption`).toBe(true);
+      }
     });
   }
 

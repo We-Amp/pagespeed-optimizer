@@ -11,7 +11,9 @@
 //
 // `extra` carries what a page says about the product in its own words (a
 // description, an image, an offer URL, a feature list). It cannot change the
-// identity fields, which come from product-facts.mjs and the release manifest.
+// identity fields (name, alternate names, version, operating systems,
+// category, brand, publisher), which come from product-facts.mjs and the
+// release manifest.
 //
 // Naming (owner ruling, 2026-10-20): the product is plain PRODUCT_DISPLAY_NAME,
 // with no version. The version is the exact three-part release from the
@@ -22,11 +24,21 @@
 import { getRelease } from '../lib/release';
 import { offerJsonLd } from './offer-jsonld';
 import { ORGANIZATION_REF, PRODUCT_BRAND } from './organization';
-import { PRODUCT_DISPLAY_NAME, WEBSITE } from './product-facts.mjs';
+import {
+  ASPNETCORE_RIDS,
+  PKG_ASPNETCORE,
+  PRODUCT_DISPLAY_NAME,
+  WEBSITE,
+} from './product-facts.mjs';
 
-// The platforms it ships for: the Apache and nginx packages on Linux, the IIS
-// module and the ASP.NET Core packages on Windows.
-export const PRODUCT_OPERATING_SYSTEMS = ['Linux', 'Windows'];
+// The platforms it ships for, one list for the one node: the Apache and nginx
+// packages on Linux, the IIS module and the ASP.NET Core packages on Windows,
+// and macOS when the ASP.NET Core middleware ships a macOS runtime.
+export const PRODUCT_OPERATING_SYSTEMS = [
+  'Linux',
+  'Windows',
+  ...(ASPNETCORE_RIDS.some((rid: string) => rid.startsWith('osx-')) ? ['macOS'] : []),
+];
 
 export const PRODUCT_JSONLD_ID = `${WEBSITE}/#software`;
 
@@ -34,19 +46,23 @@ export const PRODUCT_JSONLD_ID = `${WEBSITE}/#software`;
 // Google's own product names ("Google PageSpeed", "PageSpeed Insights") are
 // deliberately absent: they are Google's, and /pagespeed-insights/ exists to
 // tell them apart.
+// The 2.0 line is not listed: it is a separate line with its own releases
+// (releases-2.0), and it stays on the Brand (organization.ts) instead.
 export const PRODUCT_ALTERNATE_NAMES = [
   // The major line, the form the copy uses to contrast with 1.x.
   `${PRODUCT_DISPLAY_NAME} 2`,
   // The nginx module's historical name, still the most searched.
   'ngx_pagespeed',
-  // The package names.
+  // The package names, and the ASP.NET Core middleware's NuGet package.
   'mod-pagespeed',
   'nginx-module-pagespeed',
+  PKG_ASPNETCORE,
+  // The Apache project's own name for it (Apache PageSpeed, the "PageSpeed
+  // Module" of the archived docs), whose code this product continues.
   'PageSpeed module',
-  // The camel spelling, and the 2.0 predecessor under it. Both appear here
-  // as an alternateName only.
-  /* alternateName */ 'ModPageSpeed',
-  'ModPageSpeed 2.0',
+  // The camel spelling people search. Its line is exempted, by exact text,
+  // in rule i of test/content-accuracy.test.ts.
+  'ModPageSpeed',
 ];
 
 // Where the product lives besides this site.
@@ -59,25 +75,23 @@ export async function productSoftwareVersion(): Promise<string> {
   return (await getRelease('2.1')).release.semver;
 }
 
-export async function productNode(extra: ProductExtra = {}) {
-  const { alternateName: moreNames = [], ...rest } = extra;
+export async function productNode(extra: Record<string, unknown> = {}) {
   return {
     // Defaults a page may replace.
-    operatingSystem: PRODUCT_OPERATING_SYSTEMS,
     url: `${WEBSITE}/`,
     downloadUrl: `${WEBSITE}/download/`,
     releaseNotes: `${WEBSITE}/docs/release-notes/`,
     sameAs: PRODUCT_SAME_AS,
     offers: offerJsonLd({ url: `${WEBSITE}/download/` }),
-    ...rest,
-    // Identity fields last, so a page cannot override them. A page may add
-    // alternate names (a package name, say), never drop the shared ones.
+    ...extra,
+    // Identity fields last, so a page cannot override them.
     '@type': ['Product', 'SoftwareApplication'],
     '@id': PRODUCT_JSONLD_ID,
     name: PRODUCT_DISPLAY_NAME,
-    alternateName: [...PRODUCT_ALTERNATE_NAMES, ...moreNames],
+    alternateName: PRODUCT_ALTERNATE_NAMES,
     softwareVersion: await productSoftwareVersion(),
-    applicationCategory: 'WebApplication',
+    operatingSystem: PRODUCT_OPERATING_SYSTEMS,
+    applicationCategory: 'DeveloperApplication',
     applicationSubCategory: 'Web performance optimization',
     license: 'https://www.apache.org/licenses/LICENSE-2.0',
     isAccessibleForFree: true,
@@ -86,9 +100,7 @@ export async function productNode(extra: ProductExtra = {}) {
   };
 }
 
-export type ProductExtra = Record<string, unknown> & { alternateName?: string[] };
-
-export async function productJsonLd(extra: ProductExtra = {}) {
+export async function productJsonLd(extra: Record<string, unknown> = {}) {
   return { '@context': 'https://schema.org', ...(await productNode(extra)) };
 }
 
@@ -101,6 +113,6 @@ export async function productRef() {
     '@id': PRODUCT_JSONLD_ID,
     name: PRODUCT_DISPLAY_NAME,
     softwareVersion: await productSoftwareVersion(),
-    applicationCategory: 'WebApplication',
+    applicationCategory: 'DeveloperApplication',
   };
 }

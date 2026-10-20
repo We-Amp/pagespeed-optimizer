@@ -500,7 +500,31 @@ describe('lintPage', () => {
     const hit = lintPage(page('Runs mod_pagespeed 2.1 today')).find(
       (f) => f.rule === 'retired-product-label',
     );
-    expect(hit?.message).toMatch(/"mod_pagespeed 2\.1" is the retired product label/);
+    expect(hit?.message).toMatch(/retired "mod_pagespeed 2\.1" label/);
+
+    // Every use counts, on every surface: social metas, alt, aria-label and
+    // the JSON-LD strings, besides the text, title and description.
+    const head = (extra: string) =>
+      `<html><head><title>A title of usable length</title>${extra}<link rel="canonical" href="https://modpagespeed.com/x/"></head><body><h1>H</h1><p>All fine</p></body></html>`;
+    const count = (html: string) =>
+      lintPage(html).find((f) => f.rule === 'retired-product-label')?.count ?? 0;
+    expect(count(head('<meta property="og:title" content="Install mod_pagespeed 2.1">'))).toBe(1);
+    expect(count(head('<meta name="twitter:description" content="mod_pagespeed 2.1 rocks">'))).toBe(
+      1,
+    );
+    expect(
+      count(head('<script type="application/ld+json">{"name":"mod_pagespeed 2.1"}</script>')),
+    ).toBe(1);
+    expect(
+      count(
+        head('<script type="application/ld+json">{"url":"https://x/release-notes-2-1/"}</script>'),
+      ),
+    ).toBe(0);
+    expect(
+      count(
+        `<html><head><title>A title of usable length</title></head><body><h1>H</h1><img alt="mod_pagespeed 2.1 logo" src="/x.png"><a aria-label="mod_pagespeed 2.1 home" href="/">x</a><p>mod_pagespeed 2.1 and mod_pagespeed 2.1</p></body></html>`,
+      ),
+    ).toBe(4);
   });
 
   it('flags more than one description meta under description-present', () => {
@@ -613,7 +637,7 @@ describe('retired-label pending list (the rename ratchet)', () => {
   });
 
   it('reports a pending page as a warning', () => {
-    const { failures, warnings } = lintPages([labelled('/a/')], {}, ['/a/']);
+    const { failures, warnings } = lintPages([labelled('/a/')], {}, { '/a/': 1 });
     expect(failures).toEqual([]);
     expect(
       warnings.some(
@@ -623,23 +647,38 @@ describe('retired-label pending list (the rename ratchet)', () => {
   });
 
   it('fails a pending entry whose page no longer carries the label', () => {
-    const { failures } = lintPages([labelled('/a/', 'mod_pagespeed runs here')], {}, ['/a/']);
+    const { failures } = lintPages([labelled('/a/', 'mod_pagespeed runs here')], {}, { '/a/': 1 });
     const stale = failures.find((f) => f.rule === 'retired-product-label');
     expect(stale?.url).toBe('/a/');
     expect(stale?.message).toMatch(/no longer carries the retired label/);
   });
 
   it('fails a pending entry that matches no built page', () => {
-    const { failures } = lintPages([labelled('/a/')], {}, ['/a/', '/gone/']);
+    const { failures } = lintPages([labelled('/a/')], {}, { '/a/': 1, '/gone/': 1 });
     const stale = failures.find((f) => f.url === '/gone/');
     expect(stale?.rule).toBe('retired-product-label');
     expect(stale?.message).toMatch(/matches no built page/);
   });
 
-  it('the shipped pending list loads and names only URL paths', () => {
+  it('fails a pending page whose count went up (a new use), however it got there', () => {
+    const twice = labelled('/a/', 'mod_pagespeed 2.1 runs here, and mod_pagespeed 2.1 again');
+    const { failures } = lintPages([twice], {}, { '/a/': 1 });
+    const hit = failures.find((f) => f.rule === 'retired-product-label');
+    expect(hit?.message).toMatch(/^2 uses, 1 pending: new text/);
+  });
+
+  it('fails a pending page whose count went down until the entry is lowered', () => {
+    const { failures } = lintPages([labelled('/a/')], {}, { '/a/': 2 });
+    const hit = failures.find((f) => f.rule === 'retired-product-label');
+    expect(hit?.message).toMatch(/lower its count .* to 1/);
+  });
+
+  it('the shipped pending list loads as URL paths with positive counts', () => {
     const pending = loadPending(join(__dirname, '../scripts/retired-label-pending.json'));
-    expect(pending.every((u) => u.startsWith('/') && u.endsWith('/'))).toBe(true);
-    expect(new Set(pending).size).toBe(pending.length);
+    for (const [url, n] of Object.entries(pending)) {
+      expect(url.startsWith('/') && url.endsWith('/'), url).toBe(true);
+      expect(Number.isInteger(n) && n > 0, url).toBe(true);
+    }
   });
 });
 

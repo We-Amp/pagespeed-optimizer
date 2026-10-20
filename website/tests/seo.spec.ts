@@ -179,8 +179,13 @@ test.describe('SEO', () => {
         expect(node.name).toBe('mod_pagespeed');
         expect(node.softwareVersion).toBe(MANIFEST_SEMVER);
         expect(node.alternateName).toEqual(
-          expect.arrayContaining(['ngx_pagespeed', 'ModPageSpeed', 'ModPageSpeed 2.0']),
+          expect.arrayContaining(['ngx_pagespeed', 'ModPageSpeed', 'WeAmp.PageSpeed.AspNetCore']),
         );
+        // The 2.0 line is a separate line with its own releases (it stays on
+        // the Brand), so it is not an alternate name of this node.
+        expect(node.alternateName).not.toContain('ModPageSpeed 2.0');
+        expect(node.applicationCategory).toBe('DeveloperApplication');
+        expect(node.operatingSystem).toEqual(['Linux', 'Windows', 'macOS']);
         expect(node.publisher['@id']).toBe('https://we-amp.com/#organization');
       }
     });

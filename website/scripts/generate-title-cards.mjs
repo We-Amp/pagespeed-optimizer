@@ -354,7 +354,13 @@ async function main() {
   // The default card (og-default.png): the product name (PRODUCT_DISPLAY_NAME,
   // no version) as the mono eyebrow
   // over the home page's title tagline (src/pages/index.astro).
-  if (stale(defaultCardPath, [])) {
+  // The eyebrow is the product-name constant, so a name change in either
+  // facts file re-renders the card.
+  const factsMtimes = [
+    path.join(__dirname, '../src/data/product-facts.mjs'),
+    path.join(__dirname, '../../shared/product-facts.mjs'),
+  ].map((file) => fs.statSync(file).mtimeMs);
+  if (stale(defaultCardPath, factsMtimes)) {
     await renderCard(
       buildTree({
         eyebrow: PRODUCT_DISPLAY_NAME,

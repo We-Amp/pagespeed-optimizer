@@ -1,4 +1,5 @@
 ---
+import { OG_DEFAULT_IMAGE_URL } from '../../data/og-image';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import CompareTable from '../../components/vs/CompareTable.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
@@ -86,7 +87,7 @@ const rows = [
 
 const jsonLd = [
   await productJsonLd({
-    image: 'https://modpagespeed.com/og-default.png?v=2',
+    image: OG_DEFAULT_IMAGE_URL,
     description:
       'ShortPixel is a WordPress image-optimization plugin plus an Adaptive Images CDN/API. mod_pagespeed runs at the server layer (nginx/Apache), is CMS-independent, and optimizes the full HTML/CSS/JS pipeline at your origin.',
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),

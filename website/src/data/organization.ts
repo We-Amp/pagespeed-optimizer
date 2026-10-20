@@ -21,9 +21,9 @@ export const ORGANIZATION_REF = {
   url: VENDOR_URL,
 };
 
-// The brand We-Amp owns. The nginx module's historical name and the camel
-// spelling stay as alternate names so the queries people still type resolve to
-// this brand.
+// The brand We-Amp owns. The nginx module's historical name and the 2.0 line
+// (a separate line with its own releases, so not an alternate name of the
+// product node) stay as alternate names of the brand.
 export const PRODUCT_BRAND = {
   '@type': 'Brand',
   name: PRODUCT_DISPLAY_NAME,

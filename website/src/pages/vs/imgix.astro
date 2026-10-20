@@ -1,4 +1,5 @@
 ---
+import { OG_DEFAULT_IMAGE_URL } from '../../data/og-image';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import CompareTable from '../../components/vs/CompareTable.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
@@ -83,7 +84,7 @@ const rows = [
 
 const jsonLd = [
   await productJsonLd({
-    image: 'https://modpagespeed.com/og-default.png?v=2',
+    image: OG_DEFAULT_IMAGE_URL,
     description:
       'imgix is a managed real-time image CDN: your images egress to and are served from imgix’s edge, billed by usage. mod_pagespeed runs at your origin and optimizes the whole HTML pipeline — CSS, JS, and images — without your images leaving your servers.',
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),

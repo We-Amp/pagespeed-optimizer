@@ -45,13 +45,14 @@ export function h1Count(html: string): number;
 export function documentStructureProblems(html: string): string[];
 export function canonicalHrefs(html: string): string[];
 export function canonicalProblem(href: string): string | null;
-export function lintPage(html: string): { rule: RuleName; message: string }[];
+export function lintPage(html: string): { rule: RuleName; message: string; count?: number }[];
 export function lintPages(
   pages: Page[],
   allowlist?: Record<string, Record<string, string>>,
-  pending?: string[],
+  pending?: Record<string, number>,
 ): { failures: Failure[]; warnings: Failure[] };
 export function urlOf(distRoot: string, file: string): string;
 export function collectPages(distRoot: string): string[];
 export function loadAllowlist(file: string): Record<string, Record<string, string>>;
-export function loadPending(file: string): string[];
+export function loadPending(file: string): Record<string, number>;
+export function labelSurfaces(html: string): [string, string][];

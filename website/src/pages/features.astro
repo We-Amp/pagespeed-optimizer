@@ -1,4 +1,5 @@
 ---
+import { OG_DEFAULT_IMAGE_URL } from '../data/og-image';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import BitmaskVisualizer from '../components/BitmaskVisualizer.astro';
 import CTAButton from '../components/CTAButton.astro';
@@ -21,7 +22,7 @@ const nugetInstallCmd = `dotnet add package ${rel20.artifacts.nuget.package}${
 const softwareApplication = await productJsonLd({
   description:
     'Self-hosted web performance optimization: WebP/AVIF image transcoding (plus SVG auto-vectorization in the optimizer worker), CSS/JS minification, heuristic critical CSS, variant-aware caching, and zero-copy mmap serving. One product in two parts: an in-process module and an optimizer worker; with the Apache module and in the reverse-proxy deployment, both parts map the same Cyclone cache.',
-  image: 'https://modpagespeed.com/og-default.png?v=2',
+  image: OG_DEFAULT_IMAGE_URL,
   featureList: [
     'WebP/AVIF/SVG image transcoding with viewport-aware resizing',
     'ML-predicted encoder quality with SSIMULACRA2 verification',

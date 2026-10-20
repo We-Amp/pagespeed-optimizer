@@ -41,22 +41,26 @@
  *                        history and stay allowed.
  *   retired-product-label  the retired "2.1" product label: "mod_pagespeed
  *                        2.1" (any case, underscore or space) used as the
- *                        product's name, in visible text, <title> and
- *                        description (every page). The product is plain
+ *                        product's name (every page). Every match is
+ *                        counted, on every surface a reader, a search
+ *                        engine or a social card shows: visible text,
+ *                        <title>, description, og:title, og:description,
+ *                        twitter:* metas, alt and aria-label values, and the
+ *                        string values of application/ld+json blocks (URL
+ *                        values skipped). The product is plain
  *                        "mod_pagespeed"; an exact version ("mod_pagespeed
  *                        2.1.0", "2.5.0") is a release fact and passes, as
  *                        do version-scoped phrases that do not put the
  *                        label after the name ("since 2.1.0", "before
- *                        2.1"), code and identifiers (stripped with the
- *                        rest of <code>/<pre>; URLs are attributes, never
- *                        text). Historical pages that keep the label on
- *                        purpose are exempted in content-lint-allow.json.
- *                        Pages that still carry it because the rename has
- *                        not reached them yet are listed in
- *                        retired-label-pending.json: their hits print as
- *                        warnings, and an entry whose page no longer
- *                        carries the label is an error, so the list only
- *                        ever shrinks and the sweep empties it.
+ *                        2.1"), and code (<code>/<pre> are stripped).
+ *                        Historical pages that keep the label on purpose are
+ *                        exempted in content-lint-allow.json. Pages the
+ *                        rename has not reached yet are listed with their
+ *                        exact count in retired-label-pending.json: that
+ *                        count prints as a warning, and any other count is
+ *                        an error (more: new text; fewer: lower the entry),
+ *                        so the list only ever shrinks and the sweep
+ *                        empties it.
  *   canonical            exactly one <link rel="canonical"> with an absolute
  *                        https://modpagespeed.com URL ending in "/" or a file
  *                        extension (indexable pages)
@@ -455,7 +459,57 @@ const NAMING_RES = [/\bmod[_ ]pagespeed\s*2\.0\b/i, /\bModPageSpeed\s*2\.[1-9]\b
 // The retired product label: the name followed by "2.1" that is not the
 // start of a longer version ("2.1.0", "2.10"). Case-insensitive, like the
 // naming rule above, and the space form too: both read as the label.
-const RETIRED_LABEL_RE = /\bmod[_ ]pagespeed\s+2\.1(?!\d|\.\d)/i;
+const RETIRED_LABEL_RE = /\bmod[_ ]pagespeed\s+2\.1(?!\d|\.\d)/gi;
+
+/** Every string value in a JSON document, URL values left out. */
+function jsonStrings(value, out = []) {
+  if (typeof value === 'string') {
+    if (!/^(?:https?:)?\/\//.test(value) && !value.startsWith('/')) out.push(value);
+  } else if (Array.isArray(value)) {
+    for (const v of value) jsonStrings(v, out);
+  } else if (value && typeof value === 'object') {
+    for (const v of Object.values(value)) jsonStrings(v, out);
+  }
+  return out;
+}
+
+/**
+ * The surfaces the retired-label rule reads besides visible text, title and
+ * description: social metas, alt and aria-label values, and the strings of
+ * every application/ld+json block. [where, text] pairs.
+ */
+export function labelSurfaces(html) {
+  const tk = tokens(html);
+  const surfaces = [];
+  for (const t of tk) {
+    if (t.kind !== 'open') continue;
+    if (t.name === 'meta') {
+      const key = (attrValue(t.attrs, 'property') || attrValue(t.attrs, 'name')).toLowerCase();
+      if (key === 'og:title' || key === 'og:description' || key.startsWith('twitter:')) {
+        const content = attrValue(t.attrs, 'content');
+        if (!/^https?:\/\//.test(content)) {
+          surfaces.push([key, decodeEntities(collapseWhitespace(content))]);
+        }
+      }
+    }
+    for (const attr of ['alt', 'aria-label']) {
+      const value = attrValue(t.attrs, attr);
+      if (value) surfaces.push([attr, decodeEntities(collapseWhitespace(value))]);
+    }
+    if (t.name === 'script' && /application\/ld\+json/i.test(attrValue(t.attrs, 'type'))) {
+      const close = tk.find((c) => c.kind === 'close' && c.name === 'script' && c.start >= t.end);
+      const raw = html.slice(t.end, close ? close.start : html.length);
+      let strings;
+      try {
+        strings = jsonStrings(JSON.parse(raw));
+      } catch {
+        strings = [raw];
+      }
+      for (const text of strings) surfaces.push(['JSON-LD', text]);
+    }
+  }
+  return surfaces;
+}
 
 /** A ~100-char window around the match, so the failure names the copy. */
 function around(text, match) {
@@ -536,15 +590,23 @@ export function lintPage(html) {
     }
   }
 
-  for (const text of [visibleText(html), title.text, description.text]) {
-    const retired = RETIRED_LABEL_RE.exec(text);
-    if (retired) {
-      fails(
-        'retired-product-label',
-        `"${retired[0]}" is the retired product label; the product is "mod_pagespeed" (an exact version is three parts, from the release manifest): …${around(text, retired)}…`,
-      );
-      break;
-    }
+  // Every match on every surface counts: the pending list holds exact counts.
+  const labelHits = [];
+  for (const [where, text] of [
+    ['visible text', visibleText(html)],
+    ['<title>', title.text],
+    ['<meta name="description">', description.text],
+    ...labelSurfaces(html),
+  ]) {
+    for (const m of text.matchAll(RETIRED_LABEL_RE))
+      labelHits.push(`${where}: …${around(text, m)}…`);
+  }
+  if (labelHits.length) {
+    failures.push({
+      rule: 'retired-product-label',
+      count: labelHits.length,
+      message: `${labelHits.length} use(s) of the retired "mod_pagespeed 2.1" label; the product is "mod_pagespeed" (an exact version is three parts, from the release manifest). First: ${labelHits[0]}`,
+    });
   }
 
   if (indexable) {
@@ -568,10 +630,9 @@ export function lintPage(html) {
  * {urlPath: {rule: reason}} — only the named rule is skipped on that page.
  * Returns {failures: [{url, rule, level, message}], warnings: [...]}.
  */
-export function lintPages(pages, allowlist = {}, pending = []) {
+export function lintPages(pages, allowlist = {}, pending = {}) {
   const failures = [];
   const warnings = [];
-  const pendingPages = new Set(pending);
   const stillPending = new Set();
 
   const known = new Set(pages.map((p) => p.url));
@@ -589,7 +650,7 @@ export function lintPages(pages, allowlist = {}, pending = []) {
   const byDescription = new Map();
   for (const page of pages) {
     const exempt = allowlist[page.url] ?? {};
-    for (const { rule, message } of lintPage(page.html)) {
+    for (const { rule, message, count } of lintPage(page.html)) {
       if (exempt[rule] !== undefined) {
         warnings.push({
           url: page.url,
@@ -599,14 +660,27 @@ export function lintPages(pages, allowlist = {}, pending = []) {
         });
         continue;
       }
-      if (rule === 'retired-product-label' && pendingPages.has(page.url)) {
+      if (rule === 'retired-product-label' && pending[page.url] !== undefined) {
         stillPending.add(page.url);
-        warnings.push({
-          url: page.url,
-          rule,
-          level: 'warn',
-          message: `pending the rename (retired-label-pending.json): ${message}`,
-        });
+        const allowed = pending[page.url];
+        if (count === allowed) {
+          warnings.push({
+            url: page.url,
+            rule,
+            level: 'warn',
+            message: `pending the rename (retired-label-pending.json): ${message}`,
+          });
+        } else {
+          failures.push({
+            url: page.url,
+            rule,
+            level: 'error',
+            message:
+              count > allowed
+                ? `${count} uses, ${allowed} pending: new text must not add the retired label. ${message}`
+                : `${count} uses, ${allowed} pending: lower its count in scripts/retired-label-pending.json to ${count}`,
+          });
+        }
         continue;
       }
       const level = RULES[rule]?.level ?? 'error';
@@ -623,7 +697,7 @@ export function lintPages(pages, allowlist = {}, pending = []) {
       }
     }
   }
-  for (const url of pendingPages) {
+  for (const url of Object.keys(pending)) {
     if (stillPending.has(url)) continue;
     failures.push({
       url,
@@ -706,16 +780,21 @@ export function loadAllowlist(file) {
 }
 
 /**
- * The pages the retired-label rename has not reached yet: the `pages` array
- * of scripts/retired-label-pending.json (its `sources` half is read by
- * test/content-accuracy.test.ts). A missing file means nothing is pending.
+ * The pages the retired-label rename has not reached yet: the `pages` map
+ * {urlPath: count} of scripts/retired-label-pending.json (its `sources` half
+ * is read by test/content-accuracy.test.ts). A missing file means nothing is
+ * pending.
  */
 export function loadPending(file) {
-  if (!existsSync(file)) return [];
-  const parsed = JSON.parse(readFileSync(file, 'utf8'));
-  const pages = parsed?.pages;
-  if (!Array.isArray(pages) || pages.some((u) => typeof u !== 'string' || !u.startsWith('/'))) {
-    throw new Error(`${file}: expected "pages" to be an array of URL paths`);
+  if (!existsSync(file)) return {};
+  const pages = JSON.parse(readFileSync(file, 'utf8'))?.pages;
+  if (
+    typeof pages !== 'object' ||
+    pages === null ||
+    Array.isArray(pages) ||
+    Object.entries(pages).some(([u, n]) => !u.startsWith('/') || !Number.isInteger(n) || n < 1)
+  ) {
+    throw new Error(`${file}: expected "pages" to be {urlPath: positive count}`);
   }
   return pages;
 }

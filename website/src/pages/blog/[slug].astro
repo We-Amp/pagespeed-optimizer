@@ -1,4 +1,5 @@
 ---
+import { OG_DEFAULT_IMAGE } from '../../data/og-image';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import NewsletterSignup from '../../components/NewsletterSignup.astro';
 import ShareButtons from '../../components/ShareButtons.astro';
@@ -58,7 +59,7 @@ const canonicalUrl = `https://modpagespeed.com/blog/${post.id}/`;
 // time and fall back to the always-present /og-default.png so we never emit a
 // broken og:image / JSON-LD image. coverImage (an external/explicit URL) is
 // trusted as-is and not filesystem-checked.
-const fallbackCardUrl = '/og-default.png';
+const fallbackCardUrl = OG_DEFAULT_IMAGE;
 // Cachebust the generated per-post card so social platforms (which cache OG
 // images aggressively and ignore the file's own cache headers) re-fetch when
 // the card is regenerated. The key tracks the post's last content change

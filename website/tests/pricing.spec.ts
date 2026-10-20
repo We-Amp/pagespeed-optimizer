@@ -175,7 +175,7 @@ test.describe('Pricing page', () => {
     }> = app.offers;
     expect(offers[0].price).toBe(0);
     const paid = offers.slice(1);
-    expect(paid.map((o) => o.price)).toEqual([490, 1900, undefined]);
+    expect(paid.map((o) => o.price)).toEqual([490, 1900, 7500]);
     expect(paid[2].priceSpecification).toMatchObject({ minPrice: 7500, priceCurrency: 'EUR' });
     for (const o of paid.slice(0, 2)) {
       expect(o.priceCurrency).toBe('EUR');

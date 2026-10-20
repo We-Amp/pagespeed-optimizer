@@ -1,4 +1,5 @@
 ---
+import { OG_DEFAULT_IMAGE_URL } from '../data/og-image';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import { LICENSE_CLAUSE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
 import { moduleHeaderVersion } from '../lib/docs-markdown.mjs';
@@ -166,7 +167,7 @@ const articleJsonLd = {
   description,
   url: 'https://modpagespeed.com/pagespeed-markers/',
   about: markers.map((m) => ({ '@type': 'Thing', name: m.name })),
-  image: 'https://modpagespeed.com/og-default.png?v=2',
+  image: OG_DEFAULT_IMAGE_URL,
   author: { '@type': 'Organization', name: 'We-Amp B.V.' },
   publisher: {
     '@type': 'Organization',
