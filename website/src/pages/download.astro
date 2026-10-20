@@ -4,15 +4,16 @@ import Icon from '../components/Icon.astro';
 import TermPanel from '../components/instrument/TermPanel.astro';
 import { getRelease, artifactUrl, dockerTag } from '../lib/release';
 import { offerJsonLd } from '../data/offer-jsonld';
-import { LICENSE_CLAUSE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
+import {
+  LICENSE_CLAUSE,
+  LICENSE_CLAUSE_CAP,
+  RELEASE_SIGNING_KEY,
+  REPOSITORY_KEY_FINGERPRINT,
+} from '../data/product-facts.mjs';
 import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../data/software-jsonld';
 
 const softwareVersion = await productSoftwareVersion();
 
-// Single source of truth: the 1.1 release manifest, synced into
-// src/content/releases-1.1/release.yaml (§7). Edit the manifest at its
-// source, not this file.
-const rel11 = await getRelease('1.1');
 const rel21 = await getRelease('2.1');
 
 // The IIS installer is hosted on the module's GitHub release, not under
@@ -254,15 +255,34 @@ const jsonLd = {
         >
           release listing
         </a>
-        . The signing key for the repositories is documented on the{' '}
+        .
+      </p>
+      <p id="verify-the-installer" class="mt-3 text-sm text-text-muted">
+        <strong class="text-text-body">Verifying the Windows installer.</strong> The release's{' '}
+        <code class="text-xs">SHA256SUMS.asc</code> is a GPG signature of its{' '}
+        <code class="text-xs">SHA256SUMS</code>, made with the{' '}
+        <a href={RELEASE_SIGNING_KEY.keyUrl} class="text-interactive underline">
+          release signing key
+        </a>{' '}
+        (fingerprint <code class="text-xs break-all">{RELEASE_SIGNING_KEY.fingerprint}</code>): the
+        signature verifies the checksum file, and the checksum file then verifies the MSI. The steps
+        are in{' '}
+        <a href={RELEASE_SIGNING_KEY.verifyUrl} class="text-interactive underline">
+          Verifying a Release
+        </a>
+        . On Windows, the MSI's own Authenticode signature, publisher "We-Amp B.V.", remains the
+        check for the installer itself.
+      </p>
+      <p class="mt-3 text-sm text-text-muted">
+        The apt and dnf repositories are signed with a different key, the{' '}
+        <a href={rel21.urls.gpg_key} class="text-interactive underline">
+          repository signing key
+        </a>{' '}
+        (fingerprint <code class="text-xs break-all">{REPOSITORY_KEY_FINGERPRINT}</code>), which the{' '}
         <a href="/download/apt-yum/" class="text-interactive underline">
           apt/yum page
-        </a>
-        , and the public key is available as the{' '}
-        <a href={rel11.urls.gpg_key} class="text-interactive underline">
-          GPG signing key
-        </a>
-        .
+        </a>{' '}
+        sets up; it does not sign the GitHub release files.
       </p>
     </div>
   </section>

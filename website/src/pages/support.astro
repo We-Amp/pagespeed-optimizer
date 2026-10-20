@@ -29,6 +29,8 @@ import {
   LICENSE_CLAUSE,
   LICENSING_TERMS_URL,
   PRICING_LINE,
+  RELEASE_SIGNING_KEY,
+  REPOSITORY_KEY_FINGERPRINT,
   RESPONSE_TARGETS_LINE,
   SOURCE_PUBLICATION,
 } from '../data/product-facts.mjs';
@@ -38,7 +40,7 @@ const rel21 = await getRelease('2.1');
 const GPG_KEY_URL = rel21.urls.gpg_key;
 // The repository signing key (RSA 4096). Same fingerprint the download page
 // and the apt/yum page show.
-const KEY_FINGERPRINT = 'DF00 E296 BE91 41CE A541  1346 F50D 6054 F107 12A0';
+const KEY_FINGERPRINT = REPOSITORY_KEY_FINGERPRINT;
 const SBOM_URL = 'https://github.com/We-Amp/pagespeed-optimizer/tree/main/sbom';
 const CONSULTING_URL = 'https://we-amp.com/consulting/';
 
@@ -200,16 +202,33 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
               <Icon name="key-round" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
               <span>
                 The apt and yum repositories at{' '}
-                <code class="text-xs">packages.modpagespeed.com</code> are GPG-signed (RSA 4096,
-                fingerprint <code class="text-xs break-all">{KEY_FINGERPRINT}</code>); apt and dnf
-                verify what they install against that key.
+                <code class="text-xs">packages.modpagespeed.com</code> are GPG-signed with the
+                repository signing key (RSA 4096, fingerprint{' '}
+                <code class="text-xs break-all">{KEY_FINGERPRINT}</code>); apt and dnf verify what
+                they install against that key.
               </span>
             </li>
             <li class="flex gap-2">
               <Icon name="check" class="mt-0.5 h-4 w-4 shrink-0 text-interactive" />
               <span>
                 Every release asset on GitHub is listed in a <code class="text-xs">SHA256SUMS</code>{' '}
-                file published with the release.
+                file published with the release. On the module's releases (from 2.5.0 on),{' '}
+                <code class="text-xs">SHA256SUMS.asc</code> signs that file with a separate key, the{' '}
+                <a
+                  href={RELEASE_SIGNING_KEY.keyUrl}
+                  class="text-interactive hover:text-interactive-hover underline"
+                >
+                  release signing key
+                </a>{' '}
+                (fingerprint{' '}
+                <code class="text-xs break-all">{RELEASE_SIGNING_KEY.fingerprint}</code>; steps in{' '}
+                <a
+                  href={RELEASE_SIGNING_KEY.verifyUrl}
+                  class="text-interactive hover:text-interactive-hover underline"
+                >
+                  Verifying a Release
+                </a>
+                ). The Windows installer is also Authenticode-signed by We-Amp B.V.
               </span>
             </li>
             <li class="flex gap-2">

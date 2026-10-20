@@ -1832,10 +1832,21 @@ Machine-readable recipe for coding agents: [modpagespeed.com/recipes/iis.md](htt
 
 1. Download the [IIS MSI installer](https://modpagespeed.com/download/#direct-downloads) from the Download
    page's Windows installer link.
-2. Run it on the Windows Server host. The installer registers the module in
+2. Check it. On Windows, the MSI's Authenticode signature is the check for
+   the installer itself: its publisher must be "We-Amp B.V."
+   (`Get-AuthenticodeSignature .\pagespeed-iis-<version>-win-x64.msi` reports
+   `Valid`, with a signer certificate subject starting `CN=We-Amp B.V.`). The release also carries `SHA256SUMS` and
+   `SHA256SUMS.asc`, a GPG signature of the checksum file made with the
+   [release signing key](https://github.com/We-Amp/mod_pagespeed/blob/master/RELEASE-SIGNING-KEY.asc),
+   fingerprint `411D EFDB 5713 51D2 B25A  EFCC 9C02 B5BD CCE7 5313`: the
+   signature verifies `SHA256SUMS`, and `SHA256SUMS` then verifies the MSI.
+   The steps are in
+   [Verifying a Release](https://github.com/We-Amp/mod_pagespeed/blob/master/SECURITY.md#verifying-a-release).
+   This key is not the one that signs the apt and dnf repositories.
+3. Run it on the Windows Server host. The installer registers the module in
    IIS as a native HTTP module and creates the default cache directory at
    `%ProgramData%\We-Amp\PageSpeed\Cache`.
-3. Run `iisreset`.
+4. Run `iisreset`.
 
 The module reads `pagespeed.config`. A site is optimized only when its own
 physical root holds one; the server-level file at
@@ -1905,7 +1916,9 @@ The application pools reach the pipe and the cache with the permissions the
 installer sets; no extra access rules are needed. Start the service before the
 application pools: the module attaches to the optimizer when a pool starts, so
 if the service was stopped then, or you start or restart it later, run
-`iisreset` again for the module to use it. To turn the optimizer off, remove the
+`iisreset` again for the module to use it (the module does not reattach on its
+own yet; tracked in
+[mod_pagespeed#104](https://github.com/We-Amp/mod_pagespeed/issues/104)). To turn the optimizer off, remove the
 two lines and run `iisreset`; the module goes back to optimizing on its own.
 
 ### IIS Express

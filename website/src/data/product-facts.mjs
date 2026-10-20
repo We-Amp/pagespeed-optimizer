@@ -174,6 +174,20 @@ export const formatEur = (n) => `\u20ac${String(n).replace(/\B(?=(\d{3})+(?!\d))
 // assets or provenance on packages; release SBOM and VEX are available on
 // request. The private package repository for Priority and Enterprise is being
 // set up; say so, never that it exists.
+// Two different signing keys, for two different purposes; label each by what
+// it signs wherever a page shows one. The repository key signs the apt/dnf
+// repositories at packages.modpagespeed.com (its public half is the 2.1
+// manifest's urls.gpg_key). The release signing key signs SHA256SUMS on every
+// mod_pagespeed GitHub release from 2.5.0 on (SHA256SUMS.asc) and the source
+// tags from v2.5.0 on (v2.1.0-v2.4.0 used another key); it does not sign the
+// repositories. Fingerprints verified
+// against the published key files.
+export const REPOSITORY_KEY_FINGERPRINT = 'DF00 E296 BE91 41CE A541  1346 F50D 6054 F107 12A0';
+export const RELEASE_SIGNING_KEY = {
+  fingerprint: '411D EFDB 5713 51D2 B25A  EFCC 9C02 B5BD CCE7 5313',
+  keyUrl: 'https://github.com/We-Amp/mod_pagespeed/blob/master/RELEASE-SIGNING-KEY.asc',
+  verifyUrl: 'https://github.com/We-Amp/mod_pagespeed/blob/master/SECURITY.md#verifying-a-release',
+};
 export const ARTIFACT_ACCESS = {
   standardPackages: 'free',
   hardenedBuilds: 'not-offered',
