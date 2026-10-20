@@ -64,3 +64,4 @@ page	anchor
 /1.1/docs/caching/	in-place-resource-optimization-ipro
 /1.1/docs/caching/	fetch-and-performance
 /1.1/docs/caching/	additional-cache-directives
+/1.1/docs/install-iis/	the-optimizer-service

@@ -28,7 +28,7 @@ describe('lifecycleSentence', () => {
   });
   it('has no sentence at or past the current package version, suffixes included', () => {
     const cur = MODULE_PACKAGE_VERSION;
-    for (const v of [cur, `${cur}-rc1`, `${cur}-dev`, `${cur}+r2`, '1.99.0']) {
+    for (const v of [cur, `${cur}-rc1`, `${cur}-dev`, `${cur}+r2`, '99.0.0']) {
       expect(lifecycleSentence(v)).toBe('');
     }
   });

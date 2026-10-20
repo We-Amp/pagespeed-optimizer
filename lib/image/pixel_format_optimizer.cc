@@ -21,6 +21,7 @@ using net_instaweb::SCANLINE_STATUS_INTERNAL_ERROR;
 using net_instaweb::SCANLINE_STATUS_INVOCATION_ERROR;
 using net_instaweb::SCANLINE_STATUS_SUCCESS;
 using net_instaweb::SCANLINE_STATUS_UNINITIALIZED;
+using net_instaweb::SCANLINE_STATUS_UNSUPPORTED_FORMAT;
 using net_instaweb::ScanlineStatus;
 
 static const uint8_t OPAQUE_ALPHA = 0xFF;
@@ -79,6 +80,19 @@ ScanlineStatus PixelFormatOptimizer::Initialize(
 
   const size_t image_width = reader_->GetImageWidth();
   const size_t image_height = reader_->GetImageHeight();
+
+  // The whole image is buffered below to avoid decoding it twice; refuse
+  // dimensions implying a buffer beyond anything we would ever decode.
+  if (static_cast<uint64_t>(image_width) * image_height >
+      kScanlineMaxImagePixels) {
+    Reset();
+    return PS_LOGGED_STATUS(PS_LOG_INFO, message_handler_,
+                            SCANLINE_STATUS_UNSUPPORTED_FORMAT,
+                            SCANLINE_PIXEL_FORMAT_OPTIMIZER,
+                            "Image dimensions %zux%zu exceed the supported "
+                            "maximum.",
+                            image_width, image_height);
+  }
 
   // Guard against multiplication overflow for allocation size.
   if (bytes_per_row_ > 0 && image_height > SIZE_MAX / bytes_per_row_) {

@@ -47,8 +47,8 @@ describe.skipIf(!BUILT)(
   () => {
     // Fixture sanity: this is the pre-deploy gate, so a shrinking fixture
     // must fail loudly rather than silently pass with fewer checks.
-    it('fixture carries all 65 rows across the converged pages', () => {
-      expect(ANCHOR_ROWS.length).toBe(65);
+    it('fixture carries all 66 rows across the converged pages', () => {
+      expect(ANCHOR_ROWS.length).toBe(66);
     });
 
     if (!BUILT) return; // belt-and-braces: no file I/O below when unbuilt.

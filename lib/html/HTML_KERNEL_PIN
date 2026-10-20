@@ -17,5 +17,5 @@
 # the floor at the last MERGED pin — the unmerged SHA is orphaned by the
 # 1.15 squash-merge and must never become the floor; move the floor at
 # reconciliation. See lib/html/CLAUDE.md.
-cc775d971ae489cc036cb82f474f9e93c950945c  mod_pagespeed 1.15: no HTML kernel change; kept level with the JS kernel pin
-floor cc775d971ae489cc036cb82f474f9e93c950945c
+e9d4b77d8df0b586b20e5eb3d73364b1c0bd3619  mod_pagespeed master: HTML element escaping hardening (public repository)
+floor e9d4b77d8df0b586b20e5eb3d73364b1c0bd3619

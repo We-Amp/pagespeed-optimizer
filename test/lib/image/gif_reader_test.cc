@@ -2368,6 +2368,241 @@ TEST_F(GifReaderTest, ReadPng_EmptyBody) {
                                     PNG_TRANSFORM_IDENTITY));
 }
 
+// --- Decode caps on the whole-image and frame-reader GIF paths ---
+
+// Appends a 16-bit little-endian value, the GIF field encoding.
+void AppendGifUint16(std::string* out, uint32_t value) {
+  out->push_back(static_cast<char>(value & 0xFF));
+  out->push_back(static_cast<char>((value >> 8) & 0xFF));
+}
+
+// Builds a GIF89a with the given logical screen and one frame of the given
+// size at the origin, a two-entry global color table and the pre-encoded
+// LZW block of MakeMinimalGif(). With `transparent`, a graphics control
+// extension marks index 1 transparent; the frame reader then defers
+// decoding the frame data past PrepareNextFrame(), so the test can observe
+// how the frame dimensions alone are handled.
+std::string MakeGifWithScreenAndFrame(uint32_t screen_width,
+                                      uint32_t screen_height,
+                                      uint32_t frame_width,
+                                      uint32_t frame_height, bool transparent) {
+  std::string gif("GIF89a");
+  AppendGifUint16(&gif, screen_width);
+  AppendGifUint16(&gif, screen_height);
+  gif += '\x80';  // packed: GCT flag=1, color resolution=0, GCT size=0 (2)
+  gif += '\x00';  // background color index
+  gif += '\x00';  // pixel aspect ratio
+  gif += std::string("\xFF\x00\x00", 3);  // color 0: red
+  gif += std::string("\x00\x00\xFF", 3);  // color 1: blue
+  if (transparent) {
+    gif += '\x21';  // extension introducer
+    gif += '\xF9';  // graphics control extension label
+    gif += '\x04';  // block size
+    gif += '\x01';  // packed: transparent color flag
+    gif += '\x00';
+    gif += '\x00';  // delay
+    gif += '\x01';  // transparent color index
+    gif += '\x00';  // block terminator
+  }
+  gif += '\x2C';             // image separator
+  AppendGifUint16(&gif, 0);  // left
+  AppendGifUint16(&gif, 0);  // top
+  AppendGifUint16(&gif, frame_width);
+  AppendGifUint16(&gif, frame_height);
+  gif += '\x00';                              // packed: no LCT, not interlaced
+  gif += '\x02';                              // LZW minimum code size
+  gif += std::string("\x03\x04\x01\x00", 4);  // one pre-encoded sub-block
+  gif += '\x00';                              // block terminator
+  gif += '\x3B';                              // trailer
+  return gif;
+}
+
+// The whole-image GIF reader allocates one row per logical-screen line
+// before it looks at any frame data, so a file whose screen declares
+// dimensions past the decode caps must be refused up front. The same
+// layout with a small screen is accepted, so the refusal is down to the
+// screen size alone.
+TEST_F(GifReaderTest, OversizedScreenRejected) {
+  std::string small = MakeGifWithScreenAndFrame(16, 10, 2, 2, false);
+  ASSERT_TRUE(gif_reader_->ReadPng(small, read_.png_ptr(), read_.info_ptr(),
+                                   PNG_TRANSFORM_IDENTITY));
+  ASSERT_TRUE(read_.reset());
+
+  std::string wide = MakeGifWithScreenAndFrame(65535, 10, 2, 2, false);
+  EXPECT_FALSE(gif_reader_->ReadPng(wide, read_.png_ptr(), read_.info_ptr(),
+                                    PNG_TRANSFORM_IDENTITY));
+}
+
+// A screen that declares a side past the decode cap drives buffers
+// proportional to the screen area, whatever the size of the frames, so
+// initialization must refuse it before any frame is prepared.
+TEST(GifFrameReaderInvalidInput, OversizedScreenRejectedByInitialize) {
+  NullMessageHandler handler;
+  std::unique_ptr<MultipleFrameReader> reader(new TestGifFrameReader(&handler));
+  std::string in = MakeGifWithScreenAndFrame(65535, 10, 2, 2, false);
+  EXPECT_FALSE(reader->Initialize(in.data(), in.length()).Success());
+}
+
+// Sides within the cap can still combine past the pixel budget.
+TEST(GifFrameReaderInvalidInput,
+     OversizedScreenPixelBudgetRejectedByInitialize) {
+  NullMessageHandler handler;
+  std::unique_ptr<MultipleFrameReader> reader(new TestGifFrameReader(&handler));
+  // 128 Mi pixels, over the 100 Mi pixel budget.
+  std::string in = MakeGifWithScreenAndFrame(16384, 8192, 2, 2, false);
+  EXPECT_FALSE(reader->Initialize(in.data(), in.length()).Success());
+}
+
+// A frame may declare dimensions beyond the logical screen, and the frame
+// buffers are proportional to width * height, so the same caps are applied
+// when the frame is prepared.
+TEST(GifFrameReaderInvalidInput, OversizedFrameRejectedByPrepareNextFrame) {
+  NullMessageHandler handler;
+  std::unique_ptr<MultipleFrameReader> reader(new TestGifFrameReader(&handler));
+  std::string in = MakeGifWithScreenAndFrame(2, 2, 16385, 1, true);
+  ASSERT_TRUE(reader->Initialize(in.data(), in.length()).Success());
+  ScanlineStatus status;
+  EXPECT_FALSE(reader->PrepareNextFrame(&status));
+  EXPECT_EQ(net_instaweb::SCANLINE_STATUS_UNSUPPORTED_FORMAT, status.type());
+}
+
+// In Chrome quirks mode the logical screen is resized to the first frame
+// after the screen caps were checked, so a first frame past the cap would
+// be published through GetImageSpec() uncapped. Initialization must refuse
+// the enlarged dimensions.
+TEST(GifFrameReaderInvalidInput,
+     OversizedFirstFrameInChromeQuirksRejectedByInitialize) {
+  NullMessageHandler handler;
+  std::unique_ptr<MultipleFrameReader> reader(new TestGifFrameReader(&handler));
+  std::string in = MakeGifWithScreenAndFrame(2, 2, 16385, 1, true);
+  ASSERT_TRUE(reader->set_quirks_mode(QUIRKS_CHROME).Success());
+  EXPECT_FALSE(reader->Initialize(in.data(), in.length()).Success());
+}
+
+// --- Extension blocks with no data ---
+
+// Helpers to build minimal GIF images byte by byte so truncated
+// extension blocks can be constructed precisely.
+
+// A 1x1 GIF89a header with no global color table.
+void AppendGifHeaderNoGct(std::string* out) {
+  const char header[] = {'G',  'I',  'F', '8', '9', 'a',  //
+                         0x01, 0x00,                      // width = 1
+                         0x01, 0x00,                      // height = 1
+                         0x00,   // no global color table
+                         0x00,   // background index
+                         0x00};  // aspect ratio
+  out->append(header, sizeof(header));
+}
+
+// A 1x1 image descriptor at (0, 0) with no local color table, followed by
+// LZW data encoding a single pixel of value 'pixel_value' (minimum code
+// size 3 so values up to 7 encode).
+void AppendOnePixelImageDescriptor(std::string* out, int pixel_value) {
+  const char descriptor[] = {0x2C,        // image separator
+                             0x00, 0x00,  // left = 0
+                             0x00, 0x00,  // top = 0
+                             0x01, 0x00,  // width = 1
+                             0x01, 0x00,  // height = 1
+                             0x00};       // no local color table
+  out->append(descriptor, sizeof(descriptor));
+  // Minimum code size 3: clear = 8, EOI = 9, first code is 4 bits.
+  // Codes: clear(8), pixel_value, EOI(9), packed LSB first.
+  const int bits = 8 /* clear */ | (pixel_value << 4) | (9 << 8) /* EOI */;
+  const char lzw[] = {
+      0x03,  // minimum code size
+      0x02, static_cast<char>(bits & 0xff),
+      static_cast<char>((bits >> 8) & 0xff),
+      0x00  // block terminator
+  };
+  out->append(lzw, sizeof(lzw));
+}
+
+// A graphics control extension whose single sub-block is empty (length
+// zero) decodes to a null extension pointer; the whole-image reader must
+// reject the image instead of dereferencing it.
+TEST_F(GifReaderTest, EmptyGraphicsControlExtensionBlock) {
+  std::string in;
+  AppendGifHeaderNoGct(&in);
+  const char empty_gce[] = {0x21, '\xF9', 0x00};
+  in.append(empty_gce, sizeof(empty_gce));
+  in.push_back(0x3B);  // trailer
+
+  EXPECT_FALSE(gif_reader_->ReadPng(in, read_.png_ptr(), read_.info_ptr(),
+                                    PNG_TRANSFORM_IDENTITY));
+}
+
+// Same empty graphics control extension block, on the frame reader path:
+// Initialize() scans past it, and PrepareNextFrame() must reject it
+// instead of dereferencing a null extension.
+TEST(GifFrameReaderInvalidInput, EmptyGraphicsControlExtensionBlock) {
+  std::string in;
+  AppendGifHeaderNoGct(&in);
+  const char empty_gce[] = {0x21, '\xF9', 0x00};
+  in.append(empty_gce, sizeof(empty_gce));
+  AppendOnePixelImageDescriptor(&in, 0);
+  in.push_back(0x3B);
+
+  NullMessageHandler handler;
+  std::unique_ptr<MultipleFrameReader> reader(new TestGifFrameReader(&handler));
+  ASSERT_TRUE(reader->Initialize(in.data(), in.length()).Success());
+  ScanlineStatus status;
+  EXPECT_FALSE(reader->PrepareNextFrame(&status));
+}
+
+// A NETSCAPE2.0 application extension whose loop-count sub-block is empty
+// (length zero) decodes to a null extension pointer; the frame reader must
+// reject the image during Initialize() instead of dereferencing it.
+TEST(GifFrameReaderInvalidInput, EmptyLoopCountSubblock) {
+  std::string in;
+  AppendGifHeaderNoGct(&in);
+  const char empty_loop_count[] = {0x21, '\xFF', 0x0B, 'N', 'E', 'T', 'S', 'C',
+                                   'A',  'P',    'E',  '2', '.', '0', 0x00};
+  in.append(empty_loop_count, sizeof(empty_loop_count));
+  in.push_back(0x3B);
+
+  NullMessageHandler handler;
+  std::unique_ptr<MultipleFrameReader> reader(new TestGifFrameReader(&handler));
+  EXPECT_FALSE(reader->Initialize(in.data(), in.length()).Success());
+}
+
+// Builds a one-frame image whose NETSCAPE2.0 loop-count sub-block is
+// `subblock` (length byte first).
+std::string GifWithLoopCountSubblock(const std::string& subblock) {
+  std::string in;
+  AppendGifHeaderNoGct(&in);
+  const char app_ext[] = {0x21, '\xFF', 0x0B, 'N', 'E', 'T', 'S',
+                          'C',  'A',    'P',  'E', '2', '.', '0'};
+  in.append(app_ext, sizeof(app_ext));
+  in.append(subblock);
+  in.push_back(0x00);  // sub-block terminator
+  AppendOnePixelImageDescriptor(&in, 0);
+  in.push_back(0x3B);
+  return in;
+}
+
+// A loop-count sub-block too short to hold a loop count must be rejected
+// even when its first data byte holds the expected marker; so must one
+// with the wrong marker. A well-formed block is still accepted.
+TEST(GifFrameReaderInvalidInput, ShortLoopCountSubblock) {
+  NullMessageHandler handler;
+  std::unique_ptr<MultipleFrameReader> reader(new TestGifFrameReader(&handler));
+  const char valid_block[] = {0x03, 0x01, 0x05, 0x00};
+  std::string valid =
+      GifWithLoopCountSubblock(std::string(valid_block, sizeof(valid_block)));
+  EXPECT_TRUE(reader->Initialize(valid.data(), valid.length()).Success());
+
+  const char short_block[] = {0x02, 0x01, 0x05};
+  std::string in =
+      GifWithLoopCountSubblock(std::string(short_block, sizeof(short_block)));
+  EXPECT_FALSE(reader->Initialize(in.data(), in.length()).Success());
+
+  const char wrong_marker[] = {0x03, 0x02, 0x05, 0x00};
+  std::string marker =
+      GifWithLoopCountSubblock(std::string(wrong_marker, sizeof(wrong_marker)));
+  EXPECT_FALSE(reader->Initialize(marker.data(), marker.length()).Success());
+}
+
 TEST_F(GifReaderTest, ReadPng_JustHeader) {
   // Only the GIF header, no frames.
   std::string gif = "GIF89a";
