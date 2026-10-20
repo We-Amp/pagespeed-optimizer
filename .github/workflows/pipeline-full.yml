@@ -322,7 +322,7 @@ jobs:
             --memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}" \
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
-            -e BAZEL_CONFIG="${BAZEL_CONFIG}" \
+            -e BAZEL_CONFIG="${BAZEL_CONFIG}${SLOT_CPUS:+ --jobs=${SLOT_CPUS}}" \
             -v "${GITHUB_WORKSPACE}:/workspace" \
             -w /workspace \
             "${DOCKER_IMAGE}" \
@@ -511,7 +511,7 @@ jobs:
             --shm-size=512m \
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
-            -e BAZEL_CONFIG="${BAZEL_CONFIG}" \
+            -e BAZEL_CONFIG="${BAZEL_CONFIG}${SLOT_CPUS:+ --jobs=${SLOT_CPUS}}" \
             -v "${GITHUB_WORKSPACE}:/workspace" \
             -w /workspace \
             "${DOCKER_IMAGE}" \
@@ -591,7 +591,7 @@ jobs:
             --security-opt seccomp=unconfined \
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
-            -e BAZEL_CONFIG="${BAZEL_CONFIG}" \
+            -e BAZEL_CONFIG="${BAZEL_CONFIG}${SLOT_CPUS:+ --jobs=${SLOT_CPUS}}" \
             -v "${GITHUB_WORKSPACE}:/workspace" \
             -w /workspace \
             "${DOCKER_IMAGE}" \

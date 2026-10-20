@@ -16,6 +16,7 @@
 #            sets SLOT_JOBS  (value for --jobs=)
 #                 SLOT_MEM   (value for --memory=/--memory-swap=, e.g. 50g;
 #                             empty = no cap)
+#                 SLOT_MEM_GB (SLOT_MEM without the g suffix)
 #                 SLOT_CPUS  (plain integer, empty when CI_SLOT_CPUS is unset)
 # Executed:  tools/ci/slot-budget.sh [LEGACY_MEM]
 #            prints JOBS=, MEM= and CPUS= lines.
@@ -48,6 +49,7 @@ slot_budget() {
     _slot_check CI_SLOT_MEM_GB "${CI_SLOT_MEM_GB}" 4096 || return 1
     SLOT_MEM="${CI_SLOT_MEM_GB}g"
   fi
+  SLOT_MEM_GB="${SLOT_MEM%g}"
   return 0
 }
 
