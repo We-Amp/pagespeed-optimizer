@@ -240,6 +240,7 @@ function buildTree({ title, eyebrow }) {
         // carry the identity, not gradients or shadows.
         backgroundColor: colors.ground,
         padding: PAD,
+        boxSizing: 'border-box',
         fontFamily: 'Inter',
         color: colors.title,
       },
