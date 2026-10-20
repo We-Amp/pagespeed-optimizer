@@ -2301,6 +2301,8 @@ inlining and extracting critical CSS, and rewriting HTML for Core Web Vitals on 
 Requests that can't be optimized — and any request while the optimizer isn't running — pass straight
 through your app un-optimized.
 
+The current package is 1.17.0; the next sidecar release moves to the product version (2.5.x).
+
 ```csharp
 builder.Services.AddPageSpeed(builder.Configuration);
 // ...
@@ -2426,10 +2428,13 @@ Source `AdminAuth.Token` from a secret store or environment variable — do not 
 
 ### Sidecar container & runtime requirements
 
-The bundled nginx + module are glibc ELF binaries built for a glibc ≥ 2.31 floor, so they run on
-Debian 11/12, Ubuntu 20.04+, RHEL/Alma 9, and Amazon Linux 2023. `libstdc++` is statically linked
-and the build has no OpenSSL dependency, so there is no libstdc++ or libssl/libcrypto host
-requirement. The binaries link a small set of host shared libraries:
+The bundled nginx + module are glibc ELF binaries built for a glibc ≥ 2.31 floor. They run on
+Debian and Ubuntu hosts with glibc 2.31 or newer: Debian 11 and later, Ubuntu 20.04 and later.
+Enterprise Linux (RHEL, AlmaLinux, Rocky) and Amazon Linux are not supported: the bundled nginx
+links the Debian library names `libpcre.so.3` and `libcrypt.so.1`, which those distributions do
+not provide. `libstdc++` is statically linked and the build has no OpenSSL dependency, so there is
+no libstdc++ or libssl/libcrypto host requirement. The binaries link a small set of host shared
+libraries:
 
 | Host library    | Provided by | Notes                                                      |
 | --------------- | ----------- | ---------------------------------------------------------- |
@@ -20945,11 +20950,11 @@ the release entry says so.
 | 10 | none | memory corruption, image spriting | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
 | 11 | none | denial of service, statistics admin page | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
 | 12 | none | crashes and truncated responses, IIS module and Windows shared memory | the IIS module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
-| 13 | none | local exposure and unauthenticated endpoint, ASP.NET Core sidecar | `WeAmp.PageSpeed.Sidecar` up to and including 1.17.0; the fixes are in this source release and an updated package follows | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
+| 13 | none | local exposure and unauthenticated endpoint, ASP.NET Core sidecar | `WeAmp.PageSpeed.Sidecar` up to and including 1.17.0; the fixes are in this source release and an updated package follows, on the product version (2.5.x) | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
 | 14 | — | missing security headers — cached responses, nginx module | the nginx module in the container images and Helm chart, in releases up to and including 2.3.0 | [mod_pagespeed 2.4.0](https://modpagespeed.com/docs/release-notes-2-4/#v2-4-0) | Recommended; cached responses regain the headers as they expire, or purge the cache after upgrading to restore them at once |
 | 15 | — | resource exhaustion — image optimization | releases up to and including 1.17.0 with image conversion enabled | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Recommended; animations above the new frame limit (default 200) are no longer converted |
 | 16 | — | dependency update — Envoy filter (Envoy 1.37.6, advisories of 2026-08-26) | the Envoy filter in releases up to and including 1.17.0, built against Envoy 1.37.5 or older | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Recommended |
-| 17 | CVE-2026-90439 | dependency update — bundled nginx (1.30.5) | the NuGet sidecar package; not affected, because its bundled nginx is not built with HTTP/3 | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Not required (keeps vulnerability scans clean) |
+| 17 | CVE-2026-90439 | dependency update — bundled nginx (1.30.5, in the sidecar's build recipe) | the NuGet sidecar package; not affected, because its bundled nginx is not built with HTTP/3. The published 1.17.0 package bundles nginx 1.30.4; 1.30.5 arrives with the next sidecar package (2.5.x) | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Not required (keeps vulnerability scans clean) |
 | 18 | — | denial of service — nginx module | the nginx module, all releases up to and including 1.16.0 | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
 | 19 | — | denial of service — Apache module | the Apache module, all releases up to and including 1.16.0 | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
 | 20 | — | denial of service — HTML rewriter | releases 1.15.0+r20 through 1.16.0 | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
@@ -21307,7 +21312,7 @@ Security: resource exhaustion, image optimization. Some animated images could ti
 
 Security: dependency update, Envoy filter. The Envoy filter builds against Envoy 1.37.6, which fixes the Envoy security advisories published on 2026-08-26. Affected: the Envoy filter in releases up to and including 1.17.0, built against Envoy 1.37.5 or older, which lack these fixes. Update recommended.
 
-Security: the nginx bundled with the NuGet sidecar package is updated to 1.30.5. It carries the upstream fix for CVE-2026-90439 in nginx's HTTP/3 module. The bundled nginx is not built with HTTP/3, so it was not affected; the update keeps vulnerability scans clean.
+Security: the sidecar's build recipe moves the nginx bundled with the NuGet sidecar package to 1.30.5. It carries the upstream fix for CVE-2026-90439 in nginx's HTTP/3 module. The bundled nginx is not built with HTTP/3, so it was not affected; the update keeps vulnerability scans clean. Correction: no sidecar package was published with this release. The current `WeAmp.PageSpeed.Sidecar` 1.17.0 bundles nginx 1.30.4; nginx 1.30.5 arrives with the next sidecar package, which moves to the product version (2.5.x).
 
 **Before you upgrade**
 
@@ -21412,7 +21417,7 @@ Changed (all servers): the optimizer worker's cache directory moves from `/var/c
 
 Changed (version pins): see "One version number" above. Nothing else in the configuration changes.
 
-Changed (ASP.NET Core sidecar, `WeAmp.PageSpeed.Sidecar`): the sidecar information endpoint requires authorization by default; an app without authentication passes `requireAuthorization: false` to `MapPageSpeedInfo`. With `UseForwardedHeaders()` before `UsePageSpeed()`, raw-origin requests are rejected with 421; call `UsePageSpeed()` first (the fixes are in this source release; an updated package follows separately).
+Changed (ASP.NET Core sidecar, `WeAmp.PageSpeed.Sidecar`): the sidecar information endpoint requires authorization by default; an app without authentication passes `requireAuthorization: false` to `MapPageSpeedInfo`. With `UseForwardedHeaders()` before `UsePageSpeed()`, raw-origin requests are rejected with 421; call `UsePageSpeed()` first (the fixes are in this source release; an updated package follows separately, as `WeAmp.PageSpeed.Sidecar` 2.5.x on the product version).
 
 ---
 
