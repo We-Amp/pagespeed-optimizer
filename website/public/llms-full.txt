@@ -10504,7 +10504,10 @@ capability classes that mod_pagespeed actually uses.
 - **Browser caching** works correctly regardless. The same browser always sends
   the same User-Agent, so resources stay cached within a session.
 - **CDN edge caching** is impaired for images and HTML. The CDN stores many
-  near-identical variants, reducing hit rates.
+  near-identical variants, reducing hit rates. A CDN that ignores
+  `Vary: User-Agent` (Cloudflare does, by default) can do worse on the
+  optimizer's nginx module: it caches the viewport-sized copy the first
+  visitor got and serves it to every device class.
 - **CSS/JS** is unaffected — it uses only `Vary: Accept-Encoding`, which CDNs
   handle well.
 
@@ -10596,9 +10599,12 @@ client. For images, choose one of:
   value for responses that send `Vary: Accept`. Leave its media type list
   empty: narrowing it can put a request with no `Accept` header (served WebP)
   and one that names only `image/jpeg` (served the original) under one key.
-- **Vary for Images** (Pro, Business and Enterprise plans): declare that
-  `.jpg`, `.jpeg` and `.png` have `image/avif` and `image/webp` variants, and
-  Cloudflare caches each format separately.
+- **Vary for Images** (Pro, Business and Enterprise plans, configured through
+  the API only): declare that `.jpg`, `.jpeg` and `.png` have `image/avif` and
+  `image/webp` variants, and Cloudflare caches each format separately.
+  Requests with `Accept: */*` or no `Accept` header bypass that cache, because
+  the origin answers them with WebP for a `.jpg` URL rather than the original
+  type; they are served correctly, just not from the edge.
 - **A custom cache key on the `Accept` header** (Enterprise plans).
 - **Bypass the edge cache for images** with a Cache Rule.
 
@@ -10610,39 +10616,40 @@ documentation for the current setup. For HTML, mod_pagespeed's safe mode
 
 ### AWS CloudFront
 
-CloudFront does not vary on User-Agent by default. To enable device-aware
-caching, whitelist CloudFront's built-in device headers in your cache policy:
+CloudFront caches separate copies only for the request headers named in the
+cache policy, and does not act on the origin's `Vary: Accept`. A header that is
+not in the policy is not forwarded as sent: CloudFront removes `Accept`, and
+replaces `User-Agent` with `Amazon CloudFront`. So with no `Accept` in the
+cache policy, every client gets WebP (an absent `Accept` counts as `*/*`) and
+none gets AVIF.
 
-- `CloudFront-Is-Mobile-Viewer`
-- `CloudFront-Is-Tablet-Viewer`
-- `CloudFront-Is-Desktop-Viewer`
+Add `Accept` to the cache policy for images, and normalize it first with a
+CloudFront Function on the viewer request (the mapping above), so the cache
+key holds three values instead of every browser's `Accept` string. Do not add
+the `CloudFront-Is-*-Viewer` device headers for images: mod_pagespeed does not
+read them, so they split the cache without changing the bytes.
 
-These headers are derived from User-Agent by CloudFront itself and produce a
-manageable number of cache variants.
-
-CloudFront also ignores the origin's `Vary: Accept`: it caches separate copies
-only for the request headers named in the cache policy. Add `Accept` to the
-cache policy for images, and normalize it first with a CloudFront Function on
-the viewer request (the mapping above), so the cache key holds a few values
-instead of every browser's `Accept` string.
-
-**Recommendation:** Add the normalized `Accept` and CloudFront's device
-headers to the cache policy for images. Leave CSS/JS caching as-is.
+**Recommendation:** Key images on the normalized `Accept` alone. Leave CSS/JS
+caching as-is.
 
 ### Fastly
 
 Fastly (Varnish-based) respects `Vary` faithfully, creating separate cache
-entries per unique Vary combination. With `Vary: User-Agent`, this creates
-thousands of variants per URL. Fastly limits variants to 256 per URL, after
-which it evicts aggressively.
+entries per unique Vary combination. With `Vary: User-Agent`, this means one
+variant per User-Agent string, and Fastly limits the number of variants per
+object; its `vcl_hash` reference recommends moving the variation into the cache
+key instead when there are many.
 
 `Vary: Accept` is honoured the same way: every distinct `Accept` string gets
 its own cache entry.
 
 **Recommendation:** Use custom VCL to normalize `req.http.Accept` into the
 three classes above (`image/avif`, `image/webp`, the original type) and
-`User-Agent` into capability classes, or strip User-Agent from Vary and rely
-on mod_pagespeed's internal classification.
+`User-Agent` into capability classes, and add both to the cache key in
+`vcl_hash`, or bypass the cache for images. Do not strip `User-Agent` from
+`Vary` and rely on mod_pagespeed's classification: the origin only classifies
+on a cache miss, so Fastly would serve the first device class's copy to
+everyone.
 
 ### Other CDNs / no CDN
 
