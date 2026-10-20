@@ -3139,11 +3139,14 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
       return;
     }
     stats_.alternate_writes.fetch_add(1, std::memory_order_relaxed);
-    bool wr = WriteVariant(
-        cache_.get(), notification.url, notification.hostname,
-        notification.scheme, write_mask,
-        std::span<const char>(tr.output_data.data(), tr.output_data.size()),
-        img_variant_meta, purge_check, this);
+    bool wr =
+        !(test_hook_fail_image_variant_write_ &&
+          test_hook_fail_image_variant_write_()) &&
+        WriteVariant(
+            cache_.get(), notification.url, notification.hostname,
+            notification.scheme, write_mask,
+            std::span<const char>(tr.output_data.data(), tr.output_data.size()),
+            img_variant_meta, purge_check, this);
     if (wr) {
       written_variants.push_back({csz, chash});
       ++result.successful_writes;

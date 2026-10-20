@@ -793,6 +793,13 @@ class Worker {
   // notification.
   std::function<void()> test_hook_after_html_origin_read_;
 
+  // TEST-ONLY seam.  When set, invoked on the worker-pool thread before each
+  // image variant write; returning true makes that write fail as a cache
+  // write would, so a test can produce an incomplete variant matrix on
+  // demand instead of waiting for a real write race.  Never set in
+  // production; the cost there is one null std::function check per write.
+  std::function<bool()> test_hook_fail_image_variant_write_;
+
   // Get the socket path
   const std::string& socket_path() const { return config_.socket_path; }
 
