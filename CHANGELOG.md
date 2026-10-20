@@ -6,9 +6,8 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 Changed: the Helm chart (0.3.10) defaults `podSecurityContext.fsGroup: 918`,
 the worker's `pagespeed` uid/gid, so the shared cache volume arrives
-group-owned before any container starts and the pod schedules on clusters
-that enforce the restricted PodSecurity standard without opting out of the
-chart defaults. Where the worker entrypoint still runs its root phase it
+group-owned before any container starts, which is what the worker needs
+when it runs without its root phase. Where the worker entrypoint still runs its root phase it
 re-establishes the same 918:918 ownership, so behaviour there is unchanged.
 The chart also stops shipping an nginx ConfigMap nothing read: the nginx
 image renders its configuration from a template baked into the image plus

@@ -120,9 +120,10 @@ podAnnotations: {}
 # starts as root, takes the shared emptyDir to 918:918 (mode 2750, 0660
 # sockets) and drops to uid 918, so on a permissive cluster the pod needs
 # no fsGroup. The kubelet applies fsGroup before any container starts,
-# though, which is what a cluster enforcing restricted PodSecurity wants:
-# the volume arrives group-owned by 918 instead of relying on the
-# entrypoint's root phase. The two agree (same gid), so adding it changes
+# though, so the volume arrives group-owned by 918 without relying on the
+# entrypoint's root phase (what the worker needs when it runs as non-root).
+# This alone does not satisfy the restricted PodSecurity standard: both
+# containers still start as root by default. The two agree (same gid), so adding it changes
 # nothing where the entrypoint runs as before.
 podSecurityContext:
   fsGroup: 918

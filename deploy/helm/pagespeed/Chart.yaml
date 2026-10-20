@@ -7,8 +7,8 @@ type: application
 # values-API change, hence the minor bump.
 # 0.3.10: drop the unused nginx ConfigMap (the image renders its config from
 # baked-in nginx.conf.template + env, and never read the mount), and default
-# podSecurityContext.fsGroup to 918 so restricted-PodSecurity clusters get a
-# group-owned shared volume without opting out of the chart defaults.
+# podSecurityContext.fsGroup to 918 so the shared volume arrives group-owned
+# by the worker's gid before any container starts.
 version: 0.3.10
 appVersion: "2.5.0"
 keywords:
