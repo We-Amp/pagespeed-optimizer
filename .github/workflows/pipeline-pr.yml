@@ -1291,15 +1291,18 @@ jobs:
           RUNNER_TAG="${RUNNER_NAME//[^A-Za-z0-9_.-]/_}"
           LINT_OUT="${HOME}/.cache/optimizer-lint${RUNNER_TAG:+-${RUNNER_TAG}}"
           mkdir -p "${LINT_OUT}"
-          # Per-slot budget: memory cap (32g when the runner sets none) and
-          # the shared parallelism for Bazel and run-clang-tidy.
+          # Per-slot budget: memory cap only when the runner sets one (no
+          # default cap), and the shared parallelism for Bazel and
+          # run-clang-tidy.
           source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"
-          slot_budget 32g || exit 1
+          slot_budget || exit 1
+          MEM_ARGS=()
+          [ -z "${SLOT_MEM}" ] || MEM_ARGS=(--memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}")
           docker run --rm \
-            --memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}" \
+            "${MEM_ARGS[@]}" \
             --user "$(id -u):$(id -g)" \
             -e HOME=/cache \
-            -e CI_SLOT_CPUS="${SLOT_CPUS}" \
+            -e CI_SLOT_CPUS="${SLOT_CPUS}" -e CI_SLOT_MEM_GB="${SLOT_MEM_GB}" \
             -e LINT_MODE="${LINT_MODE:-full}" \
             -e BAZEL_REPO_CACHE=/cache/bazel-repo \
             -v "${GITHUB_WORKSPACE}:/workspace" \
@@ -1371,7 +1374,15 @@ jobs:
               # LLVM ERE -- no lookahead.
               # run-clang-tidy defaults to every host CPU; honour the slot.
               CT_J=()
-              [ -z "${CI_SLOT_CPUS:-}" ] || CT_J=(-j "${CI_SLOT_CPUS}")
+              # With a memory cap, also allow at most one process per 2 GiB.
+              if [ -n "${CI_SLOT_CPUS:-}" ]; then
+                ct_j="${CI_SLOT_CPUS}"
+                if [ -n "${CI_SLOT_MEM_GB:-}" ]; then
+                  mem_j=$(( CI_SLOT_MEM_GB / 2 )); [ "${mem_j}" -ge 1 ] || mem_j=1
+                  [ "${ct_j}" -le "${mem_j}" ] || ct_j="${mem_j}"
+                fi
+                CT_J=(-j "${ct_j}")
+              fi
               run-clang-tidy-20 \
                 "${CT_J[@]}" \
                 -clang-tidy-binary=clang-tidy-20 \
@@ -2104,7 +2115,7 @@ jobs:
           $diskCache = $env:WIN_CACHE_DIR -replace '\\', '/'
           $jobs = 'HOST_CPUS*.75'
           if ($env:CI_SLOT_CPUS) {
-            if ($env:CI_SLOT_CPUS -notmatch '^[1-9][0-9]{0,3}$') { Write-Host "::error::CI_SLOT_CPUS='$($env:CI_SLOT_CPUS)' is not a positive integer"; exit 1 }
+            if (($env:CI_SLOT_CPUS -notmatch '^[1-9][0-9]{0,3}$') -or ([int]$env:CI_SLOT_CPUS -gt 1024)) { Write-Host "::error::CI_SLOT_CPUS='$($env:CI_SLOT_CPUS)' is not a positive integer"; exit 1 }
             $jobs = $env:CI_SLOT_CPUS
           }
           $common = @('--config=windows', "--jobs=$jobs", '--nostamp',
@@ -2364,7 +2375,7 @@ jobs:
           $diskCache = $env:WIN_CACHE_DIR -replace '\\', '/'
           $jobs = 'HOST_CPUS*.75'
           if ($env:CI_SLOT_CPUS) {
-            if ($env:CI_SLOT_CPUS -notmatch '^[1-9][0-9]{0,3}$') { Write-Host "::error::CI_SLOT_CPUS='$($env:CI_SLOT_CPUS)' is not a positive integer"; exit 1 }
+            if (($env:CI_SLOT_CPUS -notmatch '^[1-9][0-9]{0,3}$') -or ([int]$env:CI_SLOT_CPUS -gt 1024)) { Write-Host "::error::CI_SLOT_CPUS='$($env:CI_SLOT_CPUS)' is not a positive integer"; exit 1 }
             $jobs = $env:CI_SLOT_CPUS
           }
           $common = @('--config=windows', "--jobs=$jobs", '--nostamp',

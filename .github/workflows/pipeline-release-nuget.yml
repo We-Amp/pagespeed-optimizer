@@ -399,9 +399,14 @@ jobs:
       # into both binaries; there are no separate shared libraries to ship.
       - name: Build all targets + the NuGet binaries (release)
         run: |
-          # Per-slot budget (CI_SLOT_CPUS / CI_SLOT_MEM_GB); legacy values when unset.
-          source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"
-          slot_budget 55g || exit 1
+          # Per-slot budget (CI_SLOT_CPUS / CI_SLOT_MEM_GB). A tag cut before the helper
+          # existed has no such file: use the previous fixed values for it.
+          if [ -f "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh" ]; then
+            source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"
+            slot_budget 55g || exit 1
+          else
+            SLOT_JOBS='HOST_CPUS*.75' SLOT_CPUS='' SLOT_MEM=55g
+          fi
           set -euo pipefail
           mkdir -p "${GITHUB_WORKSPACE}/release-artifacts"
           docker run --rm --init ${DOCKER_CACHE_HOST_ARG:+"$DOCKER_CACHE_HOST_ARG"} \
@@ -438,9 +443,14 @@ jobs:
       # it).
       - name: Build the container-image artifacts
         run: |
-          # Per-slot budget (CI_SLOT_CPUS / CI_SLOT_MEM_GB); legacy values when unset.
-          source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"
-          slot_budget 55g || exit 1
+          # Per-slot budget (CI_SLOT_CPUS / CI_SLOT_MEM_GB). A tag cut before the helper
+          # existed has no such file: use the previous fixed values for it.
+          if [ -f "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh" ]; then
+            source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"
+            slot_budget 55g || exit 1
+          else
+            SLOT_JOBS='HOST_CPUS*.75' SLOT_CPUS='' SLOT_MEM=55g
+          fi
           set -euo pipefail
           mkdir -p "${GITHUB_WORKSPACE}/docker-artifacts"
           docker run --rm --init ${DOCKER_CACHE_HOST_ARG:+"$DOCKER_CACHE_HOST_ARG"} \
@@ -545,9 +555,14 @@ jobs:
 
       - name: Run unit tests
         run: |
-          # Per-slot budget (CI_SLOT_CPUS / CI_SLOT_MEM_GB); legacy values when unset.
-          source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"
-          slot_budget 55g || exit 1
+          # Per-slot budget (CI_SLOT_CPUS / CI_SLOT_MEM_GB). A tag cut before the helper
+          # existed has no such file: use the previous fixed values for it.
+          if [ -f "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh" ]; then
+            source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"
+            slot_budget 55g || exit 1
+          else
+            SLOT_JOBS='HOST_CPUS*.75' SLOT_CPUS='' SLOT_MEM=55g
+          fi
           set -euo pipefail
           EXTRA_DOCKER=()
           CACHE_FLAG="--remote_cache="
