@@ -2,6 +2,8 @@
 
 All notable changes to mod_pagespeed 2.1 are documented in this file.
 
+## Unreleased
+
 ## 2.5.0 - 2026-10-19
 
 Changed: one version number. The host packages move from 1.19.0 to 2.5.0
