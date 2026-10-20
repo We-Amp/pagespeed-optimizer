@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/We-Amp/pagespeed-optimizer/security/policy
+    about: Report vulnerabilities privately to security@modpagespeed.com, not in a public issue.
+  - name: Apache, IIS or Envoy module
+    url: https://github.com/We-Amp/mod_pagespeed/issues
+    about: Those modules are developed in We-Amp/mod_pagespeed.
+  - name: Commercial support and licensing questions
+    url: https://modpagespeed.com/contact/
+    about: SLA-backed support, migrations and consulting from We-Amp.
