@@ -19,7 +19,7 @@ To tell downstream caches about this, it emits Vary headers:
 
 | Content type | Vary header                     |
 | ------------ | ------------------------------- |
-| Images       | `Accept, Save-Data, User-Agent` |
+| Images       | `Accept, Save-Data, User-Agent, Sec-CH-DPR` |
 | HTML         | `Accept-Encoding, User-Agent`   |
 | CSS / JS     | `Accept-Encoding`               |
 
