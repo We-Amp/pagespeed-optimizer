@@ -30,6 +30,8 @@ import {
   PRICING_LINE,
   LEGACY_1X_KEY,
   RELEASE_KEY,
+  RELEASE_KEY_PAGE_URL,
+  RELEASE_VERIFY_URL,
   REPOSITORY_KEY,
   formatFingerprint,
   RESPONSE_TARGETS_LINE,
@@ -43,10 +45,6 @@ const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
 const KEY_FINGERPRINT = formatFingerprint(REPOSITORY_KEY.fingerprint);
 const RELEASE_FINGERPRINT = formatFingerprint(RELEASE_KEY.fingerprint);
 const LEGACY_1X_FINGERPRINT = formatFingerprint(LEGACY_1X_KEY.fingerprint);
-const RELEASE_KEY_RAW_URL = RELEASE_KEY.public_url.replace(
-  'https://github.com/We-Amp/mod_pagespeed/blob/',
-  'https://raw.githubusercontent.com/We-Amp/mod_pagespeed/',
-);
 const SBOM_URL = 'https://github.com/We-Amp/pagespeed-optimizer/tree/main/sbom';
 const CONSULTING_URL = 'https://we-amp.com/consulting/';
 
@@ -56,7 +54,7 @@ const verifyRecipe = [
   `gpg --show-keys --with-fingerprint modpagespeed.asc   # expect ${KEY_FINGERPRINT}`,
   `gpg --dearmor < modpagespeed.asc | sudo tee /usr/share/keyrings/modpagespeed.gpg > /dev/null   # apt: deb [signed-by=/usr/share/keyrings/modpagespeed.gpg] ...`,
   `# files from a mod_pagespeed GitHub release (2.5.0 on): the release signing key`,
-  `curl -fsSLO ${RELEASE_KEY_RAW_URL}`,
+  `curl -fsSLO ${RELEASE_KEY.public_url}`,
   `gpg --show-keys --with-fingerprint RELEASE-SIGNING-KEY.asc   # expect ${RELEASE_FINGERPRINT}`,
   `gpg --import RELEASE-SIGNING-KEY.asc && gpg --verify SHA256SUMS.asc SHA256SUMS`,
   `sha256sum --check --ignore-missing SHA256SUMS`,
@@ -226,14 +224,14 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
                 file published with the release. On the module's releases (from 2.5.0 on),{' '}
                 <code class="text-xs">SHA256SUMS.asc</code> signs that file with a separate key, the{' '}
                 <a
-                  href={RELEASE_KEY.public_url}
+                  href={RELEASE_KEY_PAGE_URL}
                   class="text-interactive hover:text-interactive-hover underline"
                 >
                   release signing key
                 </a>{' '}
                 (fingerprint <code class="text-xs break-all">{RELEASE_FINGERPRINT}</code>; steps in{' '}
                 <a
-                  href={RELEASE_KEY.verify_url}
+                  href={RELEASE_VERIFY_URL}
                   class="text-interactive hover:text-interactive-hover underline"
                 >
                   Verifying a Release

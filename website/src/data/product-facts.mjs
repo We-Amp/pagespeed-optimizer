@@ -175,39 +175,47 @@ export const formatEur = (n) => `\u20ac${String(n).replace(/\B(?=(\d{3})+(?!\d))
 // assets or provenance on packages; release SBOM and VEX are available on
 // request. The private package repository for Priority and Enterprise is being
 // set up; say so, never that it exists.
-// Signing keys. One entry per key, in the shape of a future keys.json (id,
-// status, purpose, fingerprint, public_url) so this block can later be
-// generated from that file instead of edited by hand. Fingerprints are the
-// full 40 hex digits, never a short key id, and were read from the published
-// key files with `gpg --show-keys`; show them with formatFingerprint().
-// Label each key by what it signs wherever a page shows one.
+// Signing keys. Each entry copies its fields verbatim from the key's entry in
+// We-Amp/corp security/keys.json, the source of truth for keys (id, name,
+// status, purpose, fingerprint, public_url), so this block can later be
+// generated from that file. Change keys.json first, then this block.
+// Fingerprints are the full 40 hex digits, never a short key id; show them
+// with formatFingerprint(). Label each key by what it signs wherever a page
+// shows one.
 export const REPOSITORY_KEY = {
   id: 'repository',
+  name: 'We-Amp Repository Signing Key',
   status: 'active',
   purpose:
-    'Signs the apt and dnf repositories at packages.modpagespeed.com (InRelease, repomd.xml, rpm headers).',
+    'Signs the apt and yum repositories at packages.modpagespeed.com and the rpm headers in them. Nothing else.',
   fingerprint: 'DF00E296BE9141CEA5411346F50D6054F10712A0',
   public_url: 'https://packages.modpagespeed.com/pubkey.gpg',
 };
 export const RELEASE_KEY = {
   id: 'release',
+  name: 'We-Amp Release Signing Key',
   status: 'active',
-  purpose:
-    'Signs SHA256SUMS (as SHA256SUMS.asc) on every mod_pagespeed GitHub release from 2.5.0 on, and the source tags from v2.5.0 on.',
+  purpose: 'Signs SHA256SUMS.asc of GitHub releases and signed source tags. Nothing else.',
   fingerprint: '411DEFDB571351D2B25AEFCC9C02B5BDCCE75313',
-  public_url: 'https://github.com/We-Amp/mod_pagespeed/blob/master/RELEASE-SIGNING-KEY.asc',
-  // Not part of the key entry proper: where the verification steps live.
-  verify_url: 'https://github.com/We-Amp/mod_pagespeed/blob/master/SECURITY.md#verifying-a-release',
+  public_url:
+    'https://raw.githubusercontent.com/We-Amp/mod_pagespeed/master/RELEASE-SIGNING-KEY.asc',
 };
-// The 1.x key: signed the per-file .asc of the 1.x direct downloads (v1.1.0
-// and the old private-lane archives) and the v2.1.0-v2.4.0 tags. Retired;
-// never link it as a current key (its public_url is deliberately null).
+// Page links for the release key (not keys.json fields): the key file as a
+// GitHub page and the verification steps in SECURITY.md.
+export const RELEASE_KEY_PAGE_URL =
+  'https://github.com/We-Amp/mod_pagespeed/blob/master/RELEASE-SIGNING-KEY.asc';
+export const RELEASE_VERIFY_URL =
+  'https://github.com/We-Amp/mod_pagespeed/blob/master/SECURITY.md#verifying-a-release';
+// The 1.x key: retiring (revocation decided). Pages show it only as retired
+// and never link it, even though keys.json still records its public_url.
 export const LEGACY_1X_KEY = {
   id: 'legacy-1x',
-  status: 'retired',
-  purpose: '1.x downloads only, retired; do not use for new verification.',
+  name: '1.x direct-download key',
+  status: 'retiring',
+  purpose:
+    'None from 2026-10-20. Signed the 1.x direct downloads (per-file .asc) and the source tags v2.1.0 to v2.4.0.',
   fingerprint: 'A358270318045B75C552FEA8DA8FEBD5000BC194',
-  public_url: null,
+  public_url: 'https://modpagespeed.com/releases/v1.1.0/weamp-pkg-public.asc',
 };
 export const SIGNING_KEYS = [REPOSITORY_KEY, RELEASE_KEY, LEGACY_1X_KEY];
 // 'DF00E296...' -> 'DF00 E296 BE91 41CE A541  1346 F50D 6054 F107 12A0' (gpg's own layout).

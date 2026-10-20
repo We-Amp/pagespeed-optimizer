@@ -9,6 +9,8 @@ import {
   LICENSE_CLAUSE_CAP,
   LEGACY_1X_KEY,
   RELEASE_KEY,
+  RELEASE_KEY_PAGE_URL,
+  RELEASE_VERIFY_URL,
   REPOSITORY_KEY,
   formatFingerprint,
 } from '../data/product-facts.mjs';
@@ -267,12 +269,12 @@ const jsonLd = {
         <strong class="text-text-body">Verifying the Windows installer.</strong> The release's{' '}
         <code class="text-xs">SHA256SUMS.asc</code> is a GPG signature of its{' '}
         <code class="text-xs">SHA256SUMS</code>, made with the{' '}
-        <a href={RELEASE_KEY.public_url} class="text-interactive underline">
+        <a href={RELEASE_KEY_PAGE_URL} class="text-interactive underline">
           release signing key
         </a>{' '}
         (fingerprint <code class="text-xs break-all">{RELEASE_FINGERPRINT}</code>): the signature
         verifies the checksum file, and the checksum file then verifies the MSI. The steps are in{' '}
-        <a href={RELEASE_KEY.verify_url} class="text-interactive underline">
+        <a href={RELEASE_VERIFY_URL} class="text-interactive underline">
           Verifying a Release
         </a>
         . On Windows, the MSI's own Authenticode signature, publisher "We-Amp B.V.", remains the
