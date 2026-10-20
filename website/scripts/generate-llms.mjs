@@ -227,7 +227,7 @@ export function buildIndex(ctx) {
       lines.push(
         entry(
           render(item.title, 'agent-files.mjs SURFACES'),
-          `${SITE}${item.path}`,
+          /^https:\/\//.test(item.path) ? item.path : `${SITE}${item.path}`,
           render(item.description, 'agent-files.mjs SURFACES'),
         ),
       );

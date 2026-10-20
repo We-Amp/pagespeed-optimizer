@@ -9,9 +9,10 @@ import {
   COMPANY_KVK,
   SOURCE_PUBLICATION,
   LICENSING_TERMS_URL,
+  COMMERCIAL_EMAIL,
 } from '../data/product-facts.mjs';
 
-// OWNER: set the effective date at GA. The "Version YYYY-MM" literal in the
+// The effective date and the "Version YYYY-MM[-DD]" literal in the
 // markup below must stay in lockstep with TERMS_VERSION_WEB in
 // src/pages/pricing.astro (the pricing page's terms stamp) —
 // test/sync/terms-version-sync.test.ts guards it.
@@ -26,7 +27,7 @@ const LICENSE = SOURCE_PUBLICATION.license;
   <section class="mx-auto max-w-4xl px-4 sm:px-6 lg:px-8 py-16">
     <h1 class="text-3xl sm:text-4xl font-bold tracking-tight text-text-body">Terms of Service</h1>
     <p class="mt-4 text-sm text-text-annotation">
-      Effective date: October 2026 &middot; Version 2026-10
+      Effective date: 20 October 2026 &middot; Version 2026-10-20
     </p>
     <p class="mt-6 text-lg text-text-muted">
       These terms are written in plain language. If something is unclear, email
@@ -55,7 +56,10 @@ const LICENSE = SOURCE_PUBLICATION.license;
             the free standard package repository at
             <code class="font-mono text-sm">packages.modpagespeed.com</code>;
           </li>
-          <li>the subscriber repository through which we deliver hardened builds; and</li>
+          <li>
+            the private package repository for Priority and Enterprise subscribers, once it is live
+            (it is being set up); and
+          </li>
           <li>support subscriptions.</li>
         </ul>
         <p class="mt-2 text-text-muted">
@@ -74,8 +78,8 @@ const LICENSE = SOURCE_PUBLICATION.license;
           ModPageSpeed
           {V2_LINE} &mdash; is licensed under the {LICENSE}. That license, not these terms, governs
           your rights to install, run, copy, modify and redistribute the software. It applies to
-          every artifact we publish, including the hardened builds: an artifact you obtain through a
-          subscription carries the same license as a standard package.
+          every artifact we publish: an artifact you obtain through a subscription carries the same
+          license as a standard package.
         </p>
         <p class="mt-2 text-text-muted">
           Nothing in these terms narrows the rights the {LICENSE} grants you. Where these terms and
@@ -116,51 +120,74 @@ const LICENSE = SOURCE_PUBLICATION.license;
       <!-- Subscriptions -->
       <div>
         <h2 class="text-2xl font-bold text-text-body">Subscriptions</h2>
-        <p class="mt-4 text-text-muted">We sell two things:</p>
-        <ul class="mt-2 list-disc list-inside text-text-muted space-y-2">
-          <li>
-            <strong>Support subscriptions.</strong> Support from the people who build the product: a
-            direct channel, agreed response times for configuration, upgrade and incident questions,
-            and SLA-backed delivery of security updates. The scope, response times and contact
-            channel of your subscription are set out in your order.
-          </li>
-          <li>
-            <strong>Hardened builds.</strong> Builds of the same code the standard packages are
-            built from, produced through a hardened build pipeline and delivered through a
-            subscriber repository. They differ from the standard packages in how they are built and
-            delivered, never in features. What is signed and attested today applies to every user:
-            the apt and yum repositories are GPG-signed, release assets are listed with their
-            checksums in a SHA256SUMS file, an SPDX software bill of materials (SBOM) is published
-            in the source tree, and the container images on GHCR are signed with keyless cosign and
-            carry SBOM and build-provenance attestations.
-          </li>
-        </ul>
         <p class="mt-4 text-text-muted">
-          <strong>What a subscription grants.</strong> For its term, a subscription gives you access
-          to the subscriber repository and the builds in it, and the support services in your order.
-          Access to the subscriber repository is for your organization: do not share it outside your
-          organization or use it to mirror the repository for others. You may deploy the builds you
-          obtain on as many of your own systems as you like, and you may redistribute them under the{' '}
-          {LICENSE} &mdash; the restriction is on access to the repository, not on the artifacts.
+          We sell support subscriptions, in three tiers: Standard, Priority and Enterprise. Support
+          comes from the people who build the product: a direct channel, first-response targets for
+          configuration, upgrade and incident questions, and advance notice of security releases.
+          What each tier includes, its price and its first-response target are published on the
+          <a href="/support/" class="text-interactive hover:text-interactive-hover underline">
+            support
+          </a>{' '}
+          and
+          <a href="/pricing/" class="text-interactive hover:text-interactive-hover underline">
+            pricing
+          </a>{' '}
+          pages; the scope and contact channel of your subscription are set out in your order.
         </p>
         <p class="mt-2 text-text-muted">
-          <strong>What a subscription does not do.</strong> A subscription covers access to the
-          subscriber repository and to support. The software itself is the same for everyone and
-          behaves the same with or without one. A subscription grants no rights in the software
-          beyond the {LICENSE}, and it does not make us responsible for your deployment (see
+          Everything we sign and attest is the same for every user, with or without a subscription:
+          the apt and yum repositories are GPG-signed, release assets are listed with their
+          checksums in a SHA256SUMS file, an SPDX software bill of materials (SBOM) is published in
+          the source tree, and the container images on GHCR are signed with keyless cosign and carry
+          SBOM and build-provenance attestations. A private package repository for Priority and
+          Enterprise subscribers is being set up; it is not delivered yet.
+        </p>
+        <p class="mt-4 text-text-muted">
+          <strong>What a subscription grants.</strong> For its term, a subscription gives you the
+          support services of your tier and your order. Once the private package repository is live,
+          a Priority or Enterprise subscription also gives you access to it. That access is for your
+          organization: do not share it outside your organization or use it to mirror the repository
+          for others. You may deploy the packages you obtain on as many of your own systems as you
+          like, and you may redistribute them under the {LICENSE} &mdash; the restriction is on
+          access to the repository, not on the artifacts.
+        </p>
+        <p class="mt-2 text-text-muted">
+          <strong>What a subscription does not do.</strong> A subscription covers support and, for
+          Priority and Enterprise once it is live, access to the private package repository. The
+          software itself is the same for everyone and behaves the same with or without one. A
+          subscription grants no rights in the software beyond the {LICENSE}, and it does not make
+          us responsible for your deployment (see
           <em>Your responsibilities</em>).
         </p>
         <p class="mt-2 text-text-muted">
-          <strong>Ordering, term and cancellation.</strong> Pricing is published on the
+          <strong>Ordering and payment.</strong> Prices are published on the
           <a href="/pricing/" class="text-interactive hover:text-interactive-hover underline">
             pricing page
-          </a>{' '}
-          when available; until then, subscriptions are arranged directly with us. Subscriptions run
-          for the term stated in your order and renew as stated there. You can cancel at any time;
-          cancellation takes effect at the end of the current term. Where a merchant of record
-          handles payment, its terms apply to the payment and to refunds. Where your order or a
-          subscription agreement states something different from these terms, the order or agreement
-          prevails for that subscription; the
+          </a>
+          . Standard and Priority subscriptions are bought at checkout from FastSpring, the merchant
+          of record; FastSpring processes the payment, and its terms govern the payment and refunds.
+          Enterprise subscriptions are invoiced by {VENDOR} directly.
+        </p>
+        <p class="mt-2 text-text-muted">
+          <strong>VAT.</strong> Prices exclude VAT. At checkout, FastSpring charges the VAT that
+          applies to you; a business in the EU can enter its VAT number there. On an invoice from
+          {VENDOR}: customers in the Netherlands are charged 21% BTW; for business customers
+          elsewhere in the EU with a valid VAT number, VAT is reverse charged (&ldquo;BTW
+          verlegd&rdquo;, Art. 6 Wet OB 1968 / Art. 44 Directive 2006/112/EC); for business
+          customers outside the EU, including the United Kingdom, the service is outside the scope
+          of Dutch VAT.
+        </p>
+        <p class="mt-2 text-text-muted">
+          <strong>Term, renewal and cancellation.</strong> Subscriptions run for one year and renew
+          automatically each year unless you cancel before the renewal date. For a subscription
+          bought at checkout, FastSpring emails you a reminder one month before the renewal date.
+          You can cancel at any time; cancellation takes effect at the end of the current term (for
+          consumers, see below). Apart from refunds under FastSpring&rsquo;s terms for a checkout
+          purchase and those mandatory law requires, fees already paid are not refunded, except for
+          the pro-rata refunds described under <em>Circumstances beyond our control</em> and
+          <em>Changes to these terms</em>. Where your order or a subscription agreement states
+          something different from these terms, the order or agreement prevails for that
+          subscription; the
           <a
             href={LICENSING_TERMS_URL}
             class="text-interactive hover:text-interactive-hover underline"
@@ -171,16 +198,20 @@ const LICENSE = SOURCE_PUBLICATION.license;
         </p>
         <p class="mt-2 text-text-muted">
           <strong>Consumers (EU/EEA).</strong> If you are a consumer, you have a 14-day right of
-          withdrawal from a subscription under Directive 2011/83/EU. If you ask us to begin
-          performing immediately and acknowledge that you thereby lose that right, it ends when
-          performance begins. Your mandatory statutory rights are unaffected.
+          withdrawal under Directive 2011/83/EU; for a subscription bought at checkout you exercise
+          it with FastSpring, the seller. If you asked for the subscription to start within those 14
+          days and then withdraw, you pay only for the support provided until you withdraw. Once a
+          subscription has renewed automatically, you may cancel it at any time with one
+          month&rsquo;s notice (Article 6:236(j) of the Dutch Civil Code); it then ends one month
+          after your notice, and the fees paid for the period after that date are refunded pro rata.
+          Your mandatory statutory rights are unaffected.
         </p>
         <p class="mt-2 text-text-muted">
           <strong>Ending a subscription.</strong> We may suspend or end a subscription if you
           materially breach these terms and do not remedy the breach within 14 days of our written
-          notice; sharing subscriber repository access outside your organization ends it
-          immediately. When a subscription ends, for whatever reason, access to the subscriber
-          repository and to support ends with it. Your right to keep using, modifying and
+          notice; sharing private package repository access outside your organization ends it
+          immediately. When a subscription ends, for whatever reason, support and any access to the
+          private package repository end with it. Your right to keep using, modifying and
           redistributing every artifact you already obtained does not end: those artifacts are
           licensed under the {LICENSE}, and nothing we do under these terms revokes that license.
         </p>
@@ -198,8 +229,8 @@ const LICENSE = SOURCE_PUBLICATION.license;
             without our written permission;
           </li>
           <li>
-            circumvent access controls on the subscriber repository, or share its access details
-            outside your organization;
+            circumvent access controls on the private package repository, or share its access
+            details outside your organization;
           </li>
           <li>submit sites you have no right to test to the analysis tools on this site;</li>
           <li>use the services to attack, disrupt or overload third-party systems; or</li>
@@ -251,11 +282,12 @@ const LICENSE = SOURCE_PUBLICATION.license;
           so, and these terms add no warranty on top of it.
         </p>
         <p class="mt-2 text-text-muted">
-          <strong>The services.</strong> We perform support with reasonable skill and care, within
-          the response times in your order. We do not warrant that support will resolve every issue,
-          or that a hardened build is free of defects or vulnerabilities: signatures, checksums,
-          SBOMs and attestations describe where an artifact came from and what went into it, not
-          that it is defect-free. The free services are provided as-is.
+          <strong>The services.</strong> We perform support with reasonable skill and care, and we
+          aim to respond within your tier&rsquo;s first-response targets. We do not warrant that
+          support will resolve every issue, or that any artifact we publish is free of defects or
+          vulnerabilities: signatures, checksums, SBOMs and attestations describe where an artifact
+          came from and what went into it, not that it is defect-free. The free services are
+          provided as-is.
         </p>
         <p class="mt-2 text-text-muted">
           The rest of this section applies to business customers. If you are a consumer in the
@@ -317,7 +349,10 @@ const LICENSE = SOURCE_PUBLICATION.license;
           The software runs on your servers, sends nothing to us, and never processes your
           visitors&rsquo; data on our behalf. What our websites and services do with personal data,
           and what the software does and does not send, is described in our
-          <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline">
+          <a
+            href="https://we-amp.com/privacy/"
+            class="text-interactive hover:text-interactive-hover underline"
+          >
             privacy notice
           </a>
           .
@@ -365,19 +400,12 @@ const LICENSE = SOURCE_PUBLICATION.license;
       <div>
         <h2 class="text-2xl font-bold text-text-body">Contact</h2>
         <p class="mt-4 text-text-muted">
-          Questions about these terms go to
+          Questions about these terms or about a subscription go to
           <a
-            href="mailto:info@we-amp.com"
+            href={`mailto:${COMMERCIAL_EMAIL}`}
             class="text-interactive hover:text-interactive-hover underline"
           >
-            info@we-amp.com
-          </a>
-          . Questions about a subscription go to
-          <a
-            href="mailto:license@we-amp.com"
-            class="text-interactive hover:text-interactive-hover underline"
-          >
-            license@we-amp.com
+            {COMMERCIAL_EMAIL}
           </a>
           .
         </p>

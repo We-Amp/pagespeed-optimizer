@@ -116,7 +116,7 @@ test.describe('QuickMessage widget', () => {
     const privacy = page.locator('.qm-privacy');
     await expect(privacy).toContainText('go to We-Amp by email');
     await expect(privacy).not.toContainText('Telegram');
-    await expect(privacy.locator('a[href="/privacy/"]')).toBeVisible();
+    await expect(privacy.locator('a[href="https://we-amp.com/privacy/"]')).toBeVisible();
   });
 
   test('launchers hide while the search dialog is open', async ({ page }) => {

@@ -44,6 +44,9 @@ interface Props {
   ogType?: 'website' | 'article';
   articlePublished?: Date;
   articleModified?: Date;
+  // Absolute canonical URL for a page whose content lives on another origin
+  // (/privacy/ points at the one We-Amp privacy notice on we-amp.com).
+  canonical?: string;
 }
 
 const {
@@ -59,6 +62,7 @@ const {
   ogType = 'website',
   articlePublished,
   articleModified,
+  canonical,
 } = Astro.props;
 
 const is11Section = Astro.url.pathname.startsWith('/1.1/');
@@ -101,7 +105,7 @@ const ogImageType = /\.webp(\?|$)/i.test(resolvedOgImage)
 const rawPath = Astro.url.pathname;
 const canonicalPath =
   rawPath.endsWith('/') || /\.[a-z0-9]+$/i.test(rawPath) ? rawPath : `${rawPath}/`;
-const canonicalUrl = new URL(canonicalPath, 'https://modpagespeed.com').href;
+const canonicalUrl = canonical ?? new URL(canonicalPath, 'https://modpagespeed.com').href;
 
 const logoLight = '/logo.svg';
 const logoDark = '/logo-dark.svg';
@@ -371,7 +375,7 @@ const footerGroups: Array<{ title: string; links: FooterLink[] }> = [
     title: 'Legal',
     links: [
       { href: '/terms/', label: 'Terms' },
-      { href: '/privacy/', label: 'Privacy' },
+      { href: 'https://we-amp.com/privacy/', label: 'Privacy' },
       { href: '/license/', label: 'Source license' },
     ],
   },
