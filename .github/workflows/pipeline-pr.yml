@@ -1471,6 +1471,11 @@ jobs:
       - name: Docker preflight
         run: tools/ci/docker-preflight.sh
 
+      - name: Docker daemon gate
+        run: |
+          for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break; echo "docker daemon not ready ($i/30)"; sleep 2; done
+          docker info >/dev/null 2>&1 || { echo "::error::the container daemon is unreachable after 60s"; exit 1; }
+
       - name: Ensure the dev image
         run: |
           # Content-hashed tag and a per-host flock around the build
@@ -1580,6 +1585,11 @@ jobs:
 
       - name: Docker preflight
         run: tools/ci/docker-preflight.sh
+
+      - name: Docker daemon gate
+        run: |
+          for i in $(seq 1 30); do docker info >/dev/null 2>&1 && break; echo "docker daemon not ready ($i/30)"; sleep 2; done
+          docker info >/dev/null 2>&1 || { echo "::error::the container daemon is unreachable after 60s"; exit 1; }
 
       - name: Ensure the dev image
         run: |
