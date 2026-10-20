@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 We-Amp B.V.
 """Probe Web Bot Auth key directories. Usage: probe.py targets.csv > results.tsv
 targets.csv columns: operator,sources,url,basis. Needs curl on PATH."""
 import csv, datetime, json, subprocess, sys, tempfile

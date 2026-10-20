@@ -70,6 +70,7 @@ logrotate\.d
 (?i).*\.mdx?
 .*\.txt
 .*\.csv
+.*\.tsv
 .*\.svg
 
 # --- License and notice files (they ARE the license text) --------------------

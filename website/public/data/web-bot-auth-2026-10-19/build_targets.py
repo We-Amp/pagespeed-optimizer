@@ -1,4 +1,6 @@
 #!/usr/bin/env python3
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2026 We-Amp B.V.
 """Build the operator population and probe targets.
 
 Inputs: ai.robots.txt robots.json, Cloudflare Radar bots directory details.
