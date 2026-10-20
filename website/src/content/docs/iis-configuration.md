@@ -378,7 +378,7 @@ ARR respects standard `Cache-Control` headers. mod_pagespeed sets appropriate ca
 
 TCP slow start controls how quickly a new connection ramps up its sending rate. A larger initial congestion window (ICW) allows more data in the first round trip, which benefits page load times.
 
-All supported Windows Server versions (2019 and later) default to an initial congestion window of 10 (ICW10). No configuration change is needed.
+All supported Windows Server versions (2016 and later) default to an initial congestion window of 10 (ICW10). No configuration change is needed.
 
 ### See also
 

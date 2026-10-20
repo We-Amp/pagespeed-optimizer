@@ -38,10 +38,12 @@ function atLeast(a: number[], b: number[]): boolean {
 }
 
 /**
- * - 2.1 and later, and any 1.x at or past the current package version: none.
+ * - Anything at or past the current package version: none.
  * - 2.0.x (ModPageSpeed): a pointer to the migration guide, no support claim.
- * - 1.1.x (our line, renumbered to 1.15.0) and 1.15 up to below current:
- *   a newer release is available.
+ * - 2.1 through 2.4: none (ModPageSpeed product versions; the module never
+ *   shipped them: its 1.x line moved from 1.19.0 straight to 2.5.0).
+ * - 1.1.x (our line, renumbered to 1.15.0), 1.15 and later, and 2.5 and
+ *   later, below current: a newer release is available.
  * - 1.0 through 1.14 (the archived upstream line, 1.1 excepted): no fixes.
  */
 export function lifecycleSentence(
@@ -51,8 +53,7 @@ export function lifecycleSentence(
   const v = parseVersion(version);
   if (!v) return '';
   const label = String(version).trim();
-  if (v.major >= 3) return '';
-  if (v.major === 2) {
+  if (v.major === 2 && v.minor < 5) {
     return v.minor === 0
       ? `ModPageSpeed ${label}: Migrate from ModPageSpeed 2.0 explains whether your setup moves to 2.1 today.`
       : '';
@@ -60,7 +61,8 @@ export function lifecycleSentence(
   const cur = parseVersion(current);
   const renumbered = v.major === 1 && v.minor === 1;
   if (!renumbered && cur && atLeast(v.parts, cur.parts)) return '';
-  if (renumbered || (v.major === 1 && v.minor >= 15)) {
+  if (v.major >= 2 && !cur) return '';
+  if (renumbered || (v.major === 1 && v.minor >= 15) || v.major >= 2) {
     return `mod_pagespeed ${label}: a newer release is available. Update recommended.`;
   }
   return `mod_pagespeed ${label}: this line no longer receives fixes. Move to the current release; configuration carries over.`;

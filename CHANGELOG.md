@@ -2,44 +2,65 @@
 
 All notable changes to mod_pagespeed 2.1 are documented in this file.
 
-## Unreleased
+## 2.5.0 - 2026-10-19
+
+Changed: one version number. The host packages move from 1.19.0 to 2.5.0
+and the product from 2.4.0 to 2.5.0; from this release on `pagespeed-optimizer`,
+the serving-module packages, the container images, the NuGet packages
+(`WeAmp.PageSpeed`, `WeAmp.PageSpeed.AspNetCore` and the
+`WeAmp.PageSpeed.NativeAssets.*` packages), the Helm chart's application
+version and the version header all carry 2.5.0. A package pin, image tag,
+NuGet version range or header match on `1.` needs updating before the
+upgrade. The C API, the configuration and the module-to-worker handshake are
+unchanged; your configuration carries over as it is.
 
 Security: disk cache: damaged or stale cache contents could be served, and a
 damaged cache file could terminate the process. Affected: the optimizer worker,
 the nginx module and the `WeAmp.PageSpeed.NativeAssets.*` NuGet packages, up to
 and including 2.4.0. Update recommended.
 
-Changed: the disk cache moves to on-disk format v9 (Cyclone 22f6553) in the
-optimizer worker, the nginx module and the `WeAmp.PageSpeed.NativeAssets.*`
+Security: specially crafted GIF, PNG, WebP or JPEG images could make the
+optimizer worker exit or consume unbounded memory. Oversized and malformed
+images are now rejected up front and a failed conversion keeps the original
+image. Affected: the optimizer worker and the `WeAmp.PageSpeed.NativeAssets.*`
+NuGet packages up to and including 2.4.0. Update recommended.
+
+Security: crafted JavaScript or HTML handled by the optimizer worker could end a
+script block early or produce malformed attribute output. The JavaScript and
+HTML parsing kernels are now synced from the module repository and carry its
+fixes. Affected: the optimizer worker and the `WeAmp.PageSpeed.NativeAssets.*`
+NuGet packages up to and including 2.4.0. Update recommended.
+
+Changed: the disk cache moves to on-disk format v9 of the Cyclone cache library
+in the optimizer worker, the nginx module and the `WeAmp.PageSpeed.NativeAssets.*`
 NuGet packages. The cache starts cold on the first start after the upgrade: it
 opens a new file and the previous file stays on disk until you delete it. The
 optimizer's cache directory generation moves from 2 to 3: the default cache
 directory is now `/var/cache/pagespeed-optimizer/v3` (2.4.0 used `.../v2`), and
 a web-server configuration that names `.../v2/cache` explicitly must be changed
-to `.../v3/cache`. During a rolling restart the old and new versions use
-separate files, so disk use temporarily doubles and the hit rate stays low
-until every process runs the new version.
+to `.../v3/cache`; a module and worker on different generations refuse to
+attach and say so in the log. During a rolling restart the old and new versions
+use separate files, so disk use temporarily doubles and the hit rate stays low
+until every process runs the new version. Prefer an off-peak window for the
+upgrade.
 
-Security: the ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`) serves its
-web console at `/console/` and proxies the worker API (`/v1/health`, `/v1/ws`,
-`/v1/cache`, `/v1/stats`, `/v1/capture`, `/v1/config`) from your site's root, in
-every environment, with no authentication. Anyone who can reach the site can
-read the stats and the optimizer configuration, change the live configuration
-with `PATCH /v1/config`, and purge the cache. Affected: 2.0.13 and later; 2.0.4
-through 2.0.12 served the console and a smaller set of proxied paths, also
-without authentication. The package README and the install, configuration and
-production docs now say so. Fix: set `PageSpeed:Console:Enabled` to `false` in
-production (recommended), or put your own authentication in front of the console
-path and those six `/v1/*` paths, immediately before `UsePageSpeed()`. Check
-from outside your network: `curl -s https://<your-domain>/v1/config` must not
-return the optimizer's configuration (JSON with keys such as `webp_quality`); a
-`200` from your own app's route is not a finding. A configuration changed
-through the open console is saved to `pagespeed.json` in the directory of
-`Cache.VolumePath` and stays in force after either fix, as do the variants built
-under it: stop the app, delete `pagespeed.json` and the cache volume files
-(`volume*` for the default `volume.dat`) in that directory, and start it again.
-`Worker.ApiPort` `0` does not disable the worker API: it picks a free loopback
-port, and the console proxy reaches it either way. No code change.
+Security, known issue: the ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`)
+serves its web console at `/console/` and proxies the worker API (`/v1/health`,
+`/v1/ws`, `/v1/cache`, `/v1/stats`, `/v1/capture`, `/v1/config`) from your
+site's root, in every environment, with no authentication, so anyone who can
+reach the site can read and change the live optimizer configuration and purge
+the cache. Affected: 2.0.13 and later, including this release; 2.0.4 through
+2.0.12 served the console and a smaller set of proxied paths, also without
+authentication. Set `PageSpeed:Console:Enabled` to `false` in production
+(recommended), or put your own authentication in front of the console path and
+those six `/v1/*` paths, immediately before `UsePageSpeed()`. A configuration
+changed through the open console is saved to `pagespeed.json` in the directory
+of `Cache.VolumePath` and stays in force after either fix, as do the variants
+built under it: stop the app, delete `pagespeed.json` and the cache volume
+files (`volume*` for the default `volume.dat`) in that directory, and start it
+again. `Worker.ApiPort` `0` does not disable the worker API: it picks a free
+loopback port, and the console proxy reaches it either way. The production
+guidance in the documentation shows how to check your own site from outside.
 
 Changed: the nginx module now also caches responses that carry static policy
 and resource headers, and replays them on cache hits: HTTP Strict Transport

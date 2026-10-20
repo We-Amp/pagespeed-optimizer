@@ -319,15 +319,18 @@ cc_library(
     hdrs = ["image_analysis.h"],
     visibility = ["//:internal"],
     deps = [
+        ":gif",
         ":image_frame_interface",
         ":image_util",
         ":jpeg",
         ":pixel_format_optimizer",
+        ":png",
         ":read_image",
         ":scanline_interface",
         ":scanline_utils",
         "//lib/base:basictypes",
         "//lib/base:message_handler",
+        "@libwebp//:webp_decode",
     ],
 )
 

@@ -1232,6 +1232,7 @@ const DENYLIST: DenyRule[] = [
       'src/content/docs/release-notes-2-2.mdx',
       'src/content/docs/release-notes-2-3.mdx',
       'src/content/docs/release-notes-2-4.mdx',
+      'src/content/docs/release-notes-2-5.mdx',
       'src/content/docs/release-notes.mdx',
       // The legal pages, which enumerate the predecessor lines by name because
       // the terms they state apply to each of them.
@@ -1691,7 +1692,8 @@ describe('canonical sources hold ground-truth product facts', () => {
       path.join(CONTENT_DIR, 'docs/installation-docker.md'),
       path.join(CONTENT_DIR, 'docs/deployment.mdx'),
       path.join(CONTENT_DIR, 'docs/web-bot-auth.md'),
-      path.join(WEBSITE_ROOT, 'src/pages/docs/[slug].astro'),
+      // src/pages/docs/[slug].astro renders its tags with dockerTag() from
+      // the manifest, so it carries no literal to check.
       path.join(WEBSITE_ROOT, 'public/docker-compose.yml'),
     ];
     // The tag is a literal semver ("...pagespeed-worker:2.1.0"), the same
@@ -1709,7 +1711,12 @@ describe('canonical sources hold ground-truth product facts', () => {
         `no pagespeed-worker/pagespeed-nginx tag found in ${file}`,
       ).toBeGreaterThan(0);
       for (const tag of tags) {
-        if (tag === 'latest') continue; // a rolling tag, not a pinned version to check
+        // The worker and nginx images publish version tags only (`latest`
+        // exists for the combined image alone), so `latest` here is a pull
+        // that fails, not a rolling tag.
+        expect(tag, `${file} names a :latest worker/nginx image, which is not published`).not.toBe(
+          'latest',
+        );
         expect(tag, `${file} pins a docker tag that disagrees with the 2.1 manifest`).toBe(
           V2_1_SEMVER,
         );

@@ -39,7 +39,7 @@ done
 mkdir -p "$WORK"
 
 PKG=pagespeed-optimizer
-CACHE_DIR=/var/cache/$PKG/v2
+CACHE_DIR=/var/cache/$PKG/v3
 RUN_DIR=/run/$PKG
 fails=0
 LEG_NAME=""; LEG_NOTE=""; LEG_FAILS=0

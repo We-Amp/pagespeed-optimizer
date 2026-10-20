@@ -3,7 +3,7 @@ title: 'Upgrade'
 description: 'Upgrade mod_pagespeed 2.1 per shape: apt or dnf, Docker tag, Helm, the Windows installer and NuGet; what to read first, security updates, rollback.'
 order: 11
 group: 'Upgrade and migrate'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-20
 datePublished: 2026-10-08
 faq:
   - q: 'Do I upgrade the module and the optimizer worker separately?'
@@ -132,10 +132,9 @@ requests are dropped. Plan a maintenance window.
 :::
 
 Download the current MSI from the [download page](/download/) and run it over
-the existing install, then `iisreset`. The optimizer service is not in the MSI
-you can download today; an upcoming installer release adds it, and from then
-on an upgrade or repair keeps a service you turned on running and keeps the
-cache size you chose. The IIS package ships from the 1.15 packaging channel.
+the existing install, then `iisreset`. An upgrade or repair keeps an optimizer
+service you turned on running and keeps the cache size you chose. The IIS
+package ships as a signed installer on the mod_pagespeed GitHub release.
 
 ## ASP.NET Core
 
