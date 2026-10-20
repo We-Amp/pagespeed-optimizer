@@ -20,17 +20,28 @@
 #         must hold exactly one key, the release key) and requires the
 #         VALIDSIG primary-key fingerprint to be the release key exactly.
 #
-# RELEASE_KEY_FPR overrides the pinned fingerprint; only the self-test
-# (tools/ci/test_release_checksums_sig.sh) sets it.
+# RELEASE_KEY_FPR overrides the pinned fingerprint, and is honoured only
+# together with RELEASE_SIG_SELF_TEST=1, which only the self-test
+# (tools/ci/test_release_checksums_sig.sh) sets. Anywhere else an override is
+# refused, so a stray environment variable can never change the pin.
+#
+# The pin is a consistency check between the signing secret and the
+# committed RELEASE-SIGNING-KEY.asc, not an independent trust root: whoever
+# can change main can change both.
 
 set -euo pipefail
 
 # The release signing key. A new key changes this line,
 # RELEASE-SIGNING-KEY.asc and docs/ci/release.md together.
 PINNED_FPR=411DEFDB571351D2B25AEFCC9C02B5BDCCE75313
-FPR_WANT="${RELEASE_KEY_FPR:-$PINNED_FPR}"
-
 die() { echo "::error::$*" >&2; exit 1; }
+
+FPR_WANT="$PINNED_FPR"
+if [ -n "${RELEASE_KEY_FPR:-}" ]; then
+  [ "${RELEASE_SIG_SELF_TEST:-}" = 1 ] \
+    || die "RELEASE_KEY_FPR is set outside the self-test; the release signing key is pinned to $PINNED_FPR"
+  FPR_WANT="$RELEASE_KEY_FPR"
+fi
 
 # Every keyring is a fresh mktemp directory (mode 0700) removed by an EXIT
 # trap on success and failure alike, so the private key never outlives the
@@ -71,6 +82,11 @@ cmd_sign() {
   echo "Signed $sums with key $fpr"
 }
 
+# status_count <gpg status output> <keyword> -> number of [GNUPG:] <keyword> lines
+status_count() {
+  printf '%s\n' "$1" | awk -v t="$2" '$1=="[GNUPG:]" && $2==t {n++} END {print n+0}'
+}
+
 cmd_verify() {
   [ $# -eq 3 ] || die "usage: $0 verify <SHA256SUMS> <SHA256SUMS.asc> <public key file>"
   local sums="$1" sig="$2" key="$3" keys status signer
@@ -84,7 +100,19 @@ cmd_verify() {
   gpg --batch --quiet --import "$key" 2>/dev/null
   status="$(gpg --batch --status-fd 1 --verify "$sig" "$sums" 2>/dev/null)" \
     || die "$sig does not verify against the published release signing key"
-  signer="$(printf '%s\n' "$status" | awk '$1=="[GNUPG:]" && $2=="VALIDSIG" {print $NF}')"
+  # gpg exits 0 and prints VALIDSIG also for a signature by a revoked or
+  # expired key (REVKEYSIG / EXPKEYSIG): require exactly one good signature
+  # and none of the bad-key or bad-signature states.
+  local t n
+  for t in REVKEYSIG EXPKEYSIG EXPSIG KEYREVOKED ERRSIG BADSIG; do
+    n="$(status_count "$status" "$t")"
+    [ "$n" = 0 ] || die "$sig verification reports $t; not a good signature by a valid release key"
+  done
+  [ "$(status_count "$status" GOODSIG)" = 1 ] && [ "$(status_count "$status" VALIDSIG)" = 1 ] \
+    || die "$sig must carry exactly one good signature (GOODSIG $(status_count "$status" GOODSIG), VALIDSIG $(status_count "$status" VALIDSIG))"
+  # VALIDSIG field 10 (awk $12) is the primary-key fingerprint; field 1
+  # ($3) is the key that made the signature, which may be a subkey.
+  signer="$(printf '%s\n' "$status" | awk '$1=="[GNUPG:]" && $2=="VALIDSIG" {print $12}')"
   [ "$signer" = "$FPR_WANT" ] \
     || die "$sig VALIDSIG primary key is [$(printf '%s' "$signer" | tr '\n' ' ')], expected exactly $FPR_WANT"
   echo "Verified $sig against $key ($FPR_WANT)"

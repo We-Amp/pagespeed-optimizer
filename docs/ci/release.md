@@ -164,12 +164,21 @@ the same key that signs the mod_pagespeed module releases. Its public half is
 - `sign` refuses unless the secret holds exactly one secret key whose full
   fingerprint is `411DEFDB571351D2B25AEFCC9C02B5BDCCE75313`;
 - `verify` imports only `RELEASE-SIGNING-KEY.asc` (which must hold exactly
-  that one key) into a fresh keyring and requires the `VALIDSIG` primary-key
-  fingerprint of `SHA256SUMS.asc` to be exactly that fingerprint.
+  that one key) into a fresh keyring and requires exactly one good signature
+  (`GOODSIG`), no revoked or expired key or signature (`REVKEYSIG`,
+  `EXPKEYSIG`, `EXPSIG`, `KEYREVOKED`, `ERRSIG`, `BADSIG`), and the `VALIDSIG`
+  primary-key fingerprint of `SHA256SUMS.asc` to be exactly that fingerprint.
+
+The pin is a consistency check between the signing secret and the committed
+key, not an independent trust root: whoever can change `main` can change
+both. The script honours a different fingerprint only in its self-test.
 
 In the NuGet lane the draft already exists when the checksums are signed:
-`attach-signature` adds `SHA256SUMS.asc` to it after checking that the
-draft's `SHA256SUMS` is the signed file, and `publish-nuget` waits for it.
+`attach-signature` downloads every asset of the draft, checks that its
+`SHA256SUMS` is the signed file, that the draft holds exactly the files it
+lists and that they pass `sha256sum -c`, then adds `SHA256SUMS.asc`;
+`publish-nuget` waits for it. A draft with extra assets (for example one
+an operator created by hand) therefore fails this check.
 A new key changes the pin in the script, `RELEASE-SIGNING-KEY.asc` and this
 page together.
 

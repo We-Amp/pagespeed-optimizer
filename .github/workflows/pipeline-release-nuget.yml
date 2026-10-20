@@ -1463,10 +1463,18 @@ jobs:
           set -euo pipefail
           gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft | grep -qx true \
             || { echo "::error::$TAG is not a draft release; the signature is attached to the draft only"; exit 1; }
+          # Every asset on the draft, checked against the signed SHA256SUMS:
+          # the draft must carry exactly the signed file and the files it
+          # lists, intact (a stale SHA256SUMS.asc aside, which is replaced).
           rm -rf draft && mkdir draft
-          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS --dir draft
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --dir draft
+          rm -f draft/SHA256SUMS.asc
           cmp -s draft/SHA256SUMS signed/SHA256SUMS \
             || { echo "::error::the draft's SHA256SUMS is not the file that was signed"; exit 1; }
+          diff <(awk '{ sub(/^\*/, "", $2); print $2 }' signed/SHA256SUMS | LC_ALL=C sort) \
+               <(find draft -maxdepth 1 -type f ! -name SHA256SUMS -printf '%f\n' | LC_ALL=C sort) \
+            || { echo "::error::the draft's assets differ from the files SHA256SUMS lists"; exit 1; }
+          ( cd draft && sha256sum -c SHA256SUMS )
           gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber signed/SHA256SUMS.asc
           echo "Attached SHA256SUMS.asc to the draft release $TAG" | tee -a "$GITHUB_STEP_SUMMARY"
 
