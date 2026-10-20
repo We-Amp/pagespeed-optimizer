@@ -23,6 +23,37 @@ retrying every second until the reopen succeeds (the nginx module serves
 uncached instead). On Windows a full purge may still not take effect while the
 application is running.
 
+Fixed: a phone whose browser accepts WebP but not AVIF could be served the
+full-size desktop image instead of the phone-size one, several times larger.
+Image selection now prefers an image at the client's size over one in its
+preferred format at another size, so phones get a phone-size image and
+desktops a desktop-size one. After the upgrade the change applies to cached
+images as soon as they are served again.
+
+Fixed: with `Save-Data: on`, a full-size JPEG could be larger than the one sent
+without it, so turning Save-Data on cost more data. The Save-Data JPEG is now
+encoded at the Save-Data quality, and the optimizer no longer stores any
+Save-Data image that is not smaller than the normal one for the same client.
+
+Fixed: WebP and AVIF images were stored and served even when they were larger
+than the optimized JPEG (or other original-format image) of the same size, so
+a browser that accepts the newer formats could download several times more
+than one that does not. Such a WebP or AVIF image is now discarded and those
+browsers get the smaller image.
+
+Fixed: with the nginx module, desktop browsers that accept only JPEG (or
+another original format) were served the original upload unoptimized, because
+the optimizer never replaced the copy the module stores for them. The optimizer
+now builds the optimized image for those browsers too, and keeps the upload as
+the reference it rebuilds variants from.
+
+Upgrading: image variants stored by 2.5.0 and earlier, including Save-Data
+JPEGs larger than the normal ones and WebP or AVIF images larger than the
+JPEG, keep being served until their cache entry is refreshed or purged. Purge
+the cache once after upgrading: in the console use purge everything, or send
+`POST /v1/cache/purge` with `{"scope": "all"}` to the management API. Variants
+are rebuilt as images are requested again.
+
 ## 2.5.0 - 2026-10-19
 
 Changed: one version number. The host packages move from 1.19.0 to 2.5.0

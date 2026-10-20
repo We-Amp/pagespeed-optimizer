@@ -19,6 +19,27 @@ namespace pagespeed {
 // Bits 6-7: Transfer-Encoding (00: Identity, 01: Gzip, 10: Brotli, 11: Reserved)
 //
 // Variants stored as Cyclone alternates. AlternateId = low 8 bits of Encode().
+
+// The request headers image variant selection reads, by selection dimension
+// (PageSpeedSelector scores every dimension of the mask above):
+//
+//   format     <- Accept
+//   viewport   <- User-Agent (the image's size class)
+//   density    <- User-Agent, Sec-CH-DPR
+//   save-data  <- Save-Data
+//   encoding   <- Accept-Encoding: never changes an image selection, since
+//                 image variants are stored identity only
+//
+// A response served from a selected image variant must name every one of
+// them in `Vary`, or a shared cache downstream can hand one client's variant
+// (a phone-size image, a Save-Data image, a format it cannot decode) to a
+// client that would have been selected another one.  This is the one list
+// every front end matches: the optimizer's own response builder emits it
+// (lib/cache/vary_emission.cc), and a front end that builds its responses
+// elsewhere declares the same value.  A dimension added to the selection is
+// added here, in the same change.
+inline constexpr std::string_view kImageSelectionVary =
+    "Accept, Save-Data, User-Agent, Sec-CH-DPR";
 // Sentinel mask values for special purposes.
 // kWarmupSentinel: sent by nginx when a URL crosses the hot threshold,
 // triggering the worker to generate the full format variant matrix.

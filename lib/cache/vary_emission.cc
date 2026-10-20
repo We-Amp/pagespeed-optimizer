@@ -5,6 +5,7 @@
 
 #include <string_view>
 
+#include "lib/classify/capability_mask.h"
 #include "lib/classify/content_type.h"
 
 namespace pagespeed {
@@ -17,8 +18,9 @@ std::string_view VaryForServedResponse(ContentType ct,
       // of User-Agent, so downstream caches must key on it too.  Already
       // names Accept: the origin's own Accept negotiation adds no axis this
       // row was missing, and appending a second `Accept` would be a
-      // duplicate list member.
-      return "Accept, Save-Data, User-Agent, Sec-CH-DPR";
+      // duplicate list member.  The value is the selection's own header
+      // list (capability_mask.h), so the two cannot drift apart.
+      return kImageSelectionVary;
     case ContentType::kHtml:
       return entry_varies_accept ? "Accept-Encoding, User-Agent, Accept"
                                  : "Accept-Encoding, User-Agent";
