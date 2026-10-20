@@ -515,7 +515,7 @@ pagespeed RedisTimeoutUs 50000
 
 #### Flush the entire cache
 
-Touch a `cache.flush` file in the `FileCachePath` directory to force mod_pagespeed to discard all cached data. The filename is set by `CacheFlushFilename` (default `cache.flush`; a name that does not start with `/` is relative to `FileCachePath`). Use the cache directory your configuration names; the packages default to these:
+Touch a `cache.flush` file in the `FileCachePath` directory to force mod_pagespeed to discard all cached data. The filename is set by `CacheFlushFilename` (default `cache.flush`; a name that does not start with `/` is relative to `FileCachePath`). Use the cache directory your configuration names. The Apache package's `pagespeed.conf` sets `/var/cache/mod_pagespeed/`; the nginx package's sample configuration uses `/var/cache/ngx_pagespeed`:
 
 <!-- platform: nginx -->
 

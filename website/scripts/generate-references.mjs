@@ -727,13 +727,15 @@ export function buildModuleDirectives(moduleSrc, warnings) {
     const ngxFactoryCc = p('pagespeed/nginx/ngx_rewrite_driver_factory.cc');
     const apacheLevel =
       /SetDefaultRewriteLevel\(\s*RewriteOptions::(k\w+)\s*\)/.exec(modInstawebCc)?.[1] ?? null;
-    const ngxBody = ngxFactoryCc.slice(
-      Math.max(0, ngxFactoryCc.indexOf('NgxRewriteDriverFactory::NewRewriteOptions()')),
-    );
+    // The body of NgxRewriteDriverFactory::NewRewriteOptions, or null when
+    // the definition or its closing brace is not found.
+    const ngxStart = ngxFactoryCc.indexOf('NgxRewriteDriverFactory::NewRewriteOptions()');
+    const ngxEnd = ngxStart === -1 ? -1 : ngxFactoryCc.indexOf('\n}', ngxStart);
+    const ngxBody = ngxEnd === -1 ? null : ngxFactoryCc.slice(ngxStart, ngxEnd);
     const ngxLevel =
-      /SetRewriteLevel\(\s*RewriteOptions::(k\w+)\s*\)/.exec(
-        ngxBody.slice(0, ngxBody.indexOf('\n}')),
-      )?.[1] ?? null;
+      ngxBody === null
+        ? null
+        : (/SetRewriteLevel\(\s*RewriteOptions::(k\w+)\s*\)/.exec(ngxBody)?.[1] ?? null);
     const portDefault =
       apacheLevel && apacheLevel === ngxLevel ? ENUM_DEFAULTS.get(apacheLevel) : null;
     if (portDefault) rewriteLevel.default = portDefault;

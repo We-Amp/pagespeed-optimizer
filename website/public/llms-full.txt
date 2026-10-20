@@ -1656,7 +1656,7 @@ Canonical URL: https://modpagespeed.com/docs/cpanel/
 
 mod_pagespeed ships as a signed EasyApache 4 RPM, `ea-apache24-mod_pagespeed`, served from `packages.modpagespeed.com`. This is the package name Google's archived [apache/incubator-pagespeed-cpanel](https://github.com/apache/incubator-pagespeed-cpanel) repo used before it went dormant; We-Amp maintains the EA4 build today.
 
-EasyApache 4 ships only on RHEL-family hosts. The EA4 RPM is built for **EL8 (AlmaLinux 8, Rocky 8, CloudLinux 8), EL9 (AlmaLinux 9, Rocky 9, RHEL 9, CloudLinux 9), and EL10, x86_64**. Each EL major has its own RPM (the module is built against that major's glibc); pick the tree matching your host's release. arm64 is not built. The module pairs with the `pagespeed-optimizer` worker on EL9 and EL10; on EL8, the module runs without the optimizer worker.
+EasyApache 4 ships only on RHEL-family hosts. The EA4 RPM is built for **EL8 (AlmaLinux 8, Rocky 8, CloudLinux 8), EL9 (AlmaLinux 9, Rocky 9, RHEL 9, CloudLinux 9), and EL10, x86_64**. Each EL major has its own RPM (the module is built against that major's glibc); pick the tree matching your host's release. arm64 is not built. The EA4 package runs without the `pagespeed-optimizer` worker on every EL major: there is no EA4 optimizer package, so in-place optimization through the worker is not available on cPanel.
 
 On CloudLinux 8/9, mod_pagespeed is an Apache output filter and runs on the standard EA4 Apache (including hosts using `mod_lsapi` as the PHP handler — `mod_lsapi` is an Apache handler, not LiteSpeed Web Server). It does not apply to LiteSpeed Web Server (LSWS), which is a separate, non-Apache server. The EL8 build is validated on AlmaLinux 8 / Rocky 8 stock EA4; if you run CloudLinux's `cl-ea4`-patched Apache and hit anything unexpected, [let us know](https://modpagespeed.com/contact/).
 
@@ -3915,7 +3915,7 @@ values corrected when upgrading.
 
 <!-- generated:begin module-directives -->
 
-Generated from the mod_pagespeed source at tag [`module-v2.5.0`](https://github.com/We-Amp/mod_pagespeed/tree/module-v2.5.0): 323 directives.
+Generated from the mod_pagespeed source at tag [`v2.5.0`](https://github.com/We-Amp/mod_pagespeed/tree/v2.5.0): 323 directives.
 
 Areas: [Enabling and filter selection](https://modpagespeed.com/docs/configuration/#area-enabling-and-filter-selection) (13) · [Request handling and policy](https://modpagespeed.com/docs/configuration/#area-request-handling-and-policy) (33) · [In-place resource optimization](https://modpagespeed.com/docs/configuration/#area-in-place-resource-optimization) (14) · [Domains and URLs](https://modpagespeed.com/docs/configuration/#area-domains-and-urls) (26) · [Optimizer worker](https://modpagespeed.com/docs/configuration/#area-optimizer-worker) (4) · [Rule packs](https://modpagespeed.com/docs/configuration/#area-rule-packs) (4) · [Bot authentication and licensing](https://modpagespeed.com/docs/configuration/#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](https://modpagespeed.com/docs/configuration/#area-statistics-console-and-logging) (31) · [Images](https://modpagespeed.com/docs/configuration/#area-images) (43) · [CSS](https://modpagespeed.com/docs/configuration/#area-css) (9) · [JavaScript](https://modpagespeed.com/docs/configuration/#area-javascript) (10) · [Caching](https://modpagespeed.com/docs/configuration/#area-caching) (46) · [Fetching and origins](https://modpagespeed.com/docs/configuration/#area-fetching-and-origins) (19) · [HTML rewriting and page hints](https://modpagespeed.com/docs/configuration/#area-html-rewriting-and-page-hints) (11) · [Threads and limits](https://modpagespeed.com/docs/configuration/#area-threads-and-limits) (2) · [Experiments and analytics](https://modpagespeed.com/docs/configuration/#area-experiments-and-analytics) (11) · [Deprecated and ignored](https://modpagespeed.com/docs/configuration/#area-deprecated-and-ignored) (28).
 
@@ -4759,6 +4759,12 @@ volume under its `--cache-dir`; see
 - **Context:** Apache: server config, virtual host · nginx: http, server
 
 Path of the rule pack file the rule_packs filter applies.
+
+Repeatable: each line adds a pack file, up to eight per server or virtual host
+(a ninth is a configuration error, and two lines naming the same path count
+once). The packs run in the order of the lines. A virtual host that sets
+`RulePackFile` uses its own list instead of the server-wide one. See
+[Rule packs](https://modpagespeed.com/docs/rule-packs/#enable).
 
 #### RulePackMode
 
@@ -10331,7 +10337,7 @@ pagespeed RedisTimeoutUs 50000
 
 #### Flush the entire cache
 
-Touch a `cache.flush` file in the `FileCachePath` directory to force mod_pagespeed to discard all cached data. The filename is set by `CacheFlushFilename` (default `cache.flush`; a name that does not start with `/` is relative to `FileCachePath`). Use the cache directory your configuration names; the packages default to these:
+Touch a `cache.flush` file in the `FileCachePath` directory to force mod_pagespeed to discard all cached data. The filename is set by `CacheFlushFilename` (default `cache.flush`; a name that does not start with `/` is relative to `FileCachePath`). Use the cache directory your configuration names. The Apache package's `pagespeed.conf` sets `/var/cache/mod_pagespeed/`; the nginx package's sample configuration uses `/var/cache/ngx_pagespeed`:
 
 <!-- platform: nginx -->
 
@@ -14454,7 +14460,7 @@ The filter does nothing without a pack file, and a pack starts in report mode: i
 
 - It handles five kinds of head element: `canonical`, `title`, `description`, `hreflang` and `jsonld`, and, when a rule asks for it, the `Link` response header for the canonical. It does not edit anything else in the page.
 - Applying a pack fetches nothing over the network. The pack is data, not code.
-- One pack file per server (virtual host or site). The pack id must be `edge-seo`; the loader rejects any other id.
+- Up to eight pack files per server (virtual host or site): repeat `RulePackFile` for each, and a ninth is a configuration error. Packs run in configuration order, and every pack on a server needs its own id (1 to 64 lowercase letters, digits or `-`); a file whose id an earlier file already uses is refused.
 - A host that is not listed in the pack is never touched.
 - It is designed not to fail a response. A pack that does not load, a page it cannot parse or edit safely, or an internal error means the page is served as the origin sent it.
 - It only sees responses the module rewrites: status 200, HTML, not already marked `X-Mod-Pagespeed`.
@@ -14463,7 +14469,7 @@ Changes are made in the head, with three exceptions: a JSON-LD block the pack ad
 
 ## Enable it
 
-`RulePackFile` names the pack file. `RulePackMode` accepts `report` (the default) or `enforce`; any other value is a configuration error.
+`RulePackFile` names a pack file. Repeat it to load more than one pack (at most eight per server or virtual host; two lines naming the same path count once); the packs run in the order of the lines, and the first pack whose rule applies to a kind of element claims it. A virtual host that sets `RulePackFile` uses its own list and ignores the server-wide one; one that sets none inherits it. `RulePackMode` accepts `report` (the default) or `enforce`; any other value is a configuration error.
 
 Both directives are server-scoped. They cannot be set in `.htaccess`, `<Directory>`, an nginx `location` block or an IIS match block. In `.htaccess` Apache answers 500 for that directory; `<Directory>` and nginx `location` fail at configuration load; IIS warns and continues without the setting. `DisableFilters rule_packs` turns the filter off for a directory or location.
 
@@ -14527,7 +14533,7 @@ A minimal pack:
 
 `pack`, `sites` and `rules` are required; `defaults` and `tables` are optional. Unknown keys, repeated keys and unknown placeholders are load errors, so a typo cannot quietly become a different rule.
 
-- **`pack`**: `id` (must be `edge-seo`) and `version` (`MAJOR.MINOR.PATCH`, or the pack fails to load) are required. Optional: `publisher` (default `local`; also the key id of a [signed pack](https://modpagespeed.com/docs/rule-packs/#signed-packs)), `description`, and `engine_min`, the module version the pack needs; an older module refuses to load it. The top-level key `signature` is reserved and is a load error.
+- **`pack`**: `id` (1 to 64 lowercase letters, digits or `-`, unique among the server's packs) and `version` (`MAJOR.MINOR.PATCH`, or the pack fails to load) are required. Optional: `publisher` (default `local`; also the key id of a [signed pack](https://modpagespeed.com/docs/rule-packs/#signed-packs)), `description`, and `engine_min`, the module version the pack needs; an older module refuses to load it. The top-level key `signature` is reserved and is a load error.
 - **`sites`**: a list of `{ "host", "mode" }`. `host` is a lowercase host name or `*.suffix`; `*.example.com` matches subdomains, not `example.com` itself. `mode` is `report` (default) or `enforce`.
 - **`defaults`**: `paths` and `exclude_paths` (glob lists), used by a rule that names none of its own. The fallback is per list: a rule's own `exclude_paths` replaces the defaults. Without `defaults`, paths are `/**`.
 - **`tables`**: named maps of per-URL values for rules to look up, and the `hreflang` table of language clusters.
@@ -14720,7 +14726,7 @@ ed25519 <key id> <base64 signature>
 
 The key id is lowercase letters, digits and `-` (1 to 64 characters) and must equal the pack's `publisher`.
 
-- `RulePackTrustKey <key id> <base64 public key>` lists a key the server trusts. The key is 44 base64 characters. Repeat the directive for up to 16 keys per server or virtual host. A virtual host adds to the server's keys, and a virtual host key with the same id replaces the server's. There is no built-in key: a server trusts only the keys you list.
+- `RulePackTrustKey <key id> <base64 public key>` lists a key the server trusts. The key is 44 base64 characters. Repeat the directive for up to 16 keys per server or virtual host. A virtual host adds to the server's keys, and a virtual host key with the same id replaces the server's. The We-Amp publisher key (key id `we-amp`) is built in, so packs it signed verify without a `RulePackTrustKey` line; a key you list with the id `we-amp` replaces it.
 - `RulePackRequireSigned on|off` (default `off`) decides what happens to a pack that fails the check.
 
 The server runs these checks in order; the first one that fails names the reason:
@@ -14728,7 +14734,7 @@ The server runs these checks in order; the first one that fails names the reason
 1. `unsigned`: there is no `.sig` file.
 2. `signature unreadable`: the sidecar cannot be read or is not in the format above.
 3. `publisher mismatch`: the key id in the sidecar is not the pack's `publisher`.
-4. `unknown key`: no `RulePackTrustKey` for that key id.
+4. `unknown key`: no `RulePackTrustKey` (and not the built-in `we-amp` key) for that key id.
 5. `bad signature`: the signature does not match the pack's bytes and that key.
 
 A pack that passes all five is verified. With `RulePackRequireSigned off`, every pack that loads is used: a verified pack logs `rule pack loaded signed`, any other pack logs the `rule pack loaded unsigned` warning, and only when a `.sig` file exists but fails one of the checks 2 to 5 does a second warning give the reason. With `on`, a pack that fails any check is refused: an earlier accepted version of the same file stays in use, otherwise the filter is off for that server or virtual host.
@@ -17865,7 +17871,7 @@ Verify that the configuration options match between the HTML-serving VHost and t
 **Fix:**
 
 - With `EnableCachePurge on`, purge everything from the global admin page (a `POST` with the `X-Requested-With` header; a plain `GET` answers `405`, and the per-vhost `/pagespeed_admin` page refuses `*`): `curl -X POST -H 'X-Requested-With: XMLHttpRequest' 'http://yoursite.com/pagespeed_global_admin/cache?purge=*'`. Send it from a client the [admin access rules](https://modpagespeed.com/docs/admin-console/#setup) allow.
-- With `EnableCachePurge` off (the default), touch `cache.flush` in the `FileCachePath` directory: `sudo touch /var/cache/mod_pagespeed/cache.flush` on Apache, `sudo touch /var/cache/ngx_pagespeed/cache.flush` on nginx (the package defaults; use the path your configuration names). See [Cache flushing and purging](https://modpagespeed.com/docs/cache-modes/#cache-flushing-and-purging).
+- With `EnableCachePurge` off (the default), touch `cache.flush` in the `FileCachePath` directory: `sudo touch /var/cache/mod_pagespeed/cache.flush` on Apache, `sudo touch /var/cache/ngx_pagespeed/cache.flush` on nginx (the path in the Apache package's `pagespeed.conf` and in the nginx package's sample configuration; use the path your configuration names). See [Cache flushing and purging](https://modpagespeed.com/docs/cache-modes/#cache-flushing-and-purging).
 - If resources are loaded from disk via `LoadFromFile`, changes are picked up after `LoadFromFileCacheTtlMs` expires (default: same as ImplicitCacheTtlMs, 5 minutes).
 - For immediate pickup, set a shorter `ImplicitCacheTtlMs` or purge the specific URL.
 
@@ -17897,7 +17903,7 @@ Verify that the configuration options match between the HTML-serving VHost and t
 
 - **A cache directory you chose yourself:** the same two commands with your path. Do not use `chcon`: its label is lost at the next `restorecon` or file-system relabel.
 - **Fetching:** the module fetches subresources over HTTP, including from the server itself over loopback, and the stock policy denies the web server outbound connections. Without the boolean below, resources are served unoptimized: `sudo setsebool -P httpd_can_network_connect 1`.
-- **The optimizer worker:** the Apache module RPM installs the `pagespeed-optimizer` SELinux policy module and relabels `/var/cache/pagespeed-optimizer` and `/run/pagespeed-optimizer` itself; `sudo semodule -l | grep pagespeed-optimizer` confirms it is loaded. If the install could not load it, the package printed the retry command: `sudo semodule -i /usr/share/selinux/targeted/pagespeed-optimizer.pp`. The nginx module RPM does not ship this policy module.
+- **The optimizer worker:** the Apache module RPM installs the `pagespeed-optimizer` SELinux policy module and relabels `/var/cache/pagespeed-optimizer` and `/run/pagespeed-optimizer` itself; `sudo semodule -l | grep pagespeed-optimizer` confirms it is loaded. If the install could not load it, the package printed the retry command: `sudo semodule -i /usr/share/selinux/targeted/pagespeed-optimizer.pp`. The nginx module RPM does not ship this policy module, so on a host with only the nginx module nothing installs it: with SELinux enforcing, nginx cannot reach the worker's cache volume and notify socket, and in-place optimization through the worker stays off.
 
 ### Beacons causing unexpected POST requests
 
