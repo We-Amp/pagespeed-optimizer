@@ -197,6 +197,9 @@ the worker side and shared with nginx automatically via `pagespeed-shared.conf`
 
 ## Development
 
+See [CONTRIBUTING.md](CONTRIBUTING.md) for how to report bugs and send
+pull requests.
+
 ### Prerequisites
 
 - [Bazelisk](https://github.com/bazelbuild/bazelisk) — the repository pins
@@ -264,6 +267,8 @@ deploy/        Production deployment configs
 
 See [SUPPORT.md](SUPPORT.md) — GitHub Issues for bugs, [SECURITY.md](SECURITY.md)
 for vulnerabilities, commercial support from We-Amp.
+Release history: [CHANGELOG.md](CHANGELOG.md) and the
+[release notes](https://modpagespeed.com/docs/release-notes/).
 
 ## License
 
