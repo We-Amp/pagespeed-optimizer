@@ -4,21 +4,30 @@ import Icon from '../components/Icon.astro';
 import TermPanel from '../components/instrument/TermPanel.astro';
 import { getRelease, artifactUrl, dockerTag } from '../lib/release';
 import { offerJsonLd } from '../data/offer-jsonld';
-import { LICENSE_CLAUSE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
+import {
+  LICENSE_CLAUSE,
+  LICENSE_CLAUSE_CAP,
+  LEGACY_1X_KEY,
+  RELEASE_KEY,
+  RELEASE_KEY_PAGE_URL,
+  RELEASE_VERIFY_URL,
+  REPOSITORY_KEY,
+  formatFingerprint,
+} from '../data/product-facts.mjs';
 import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../data/software-jsonld';
 
 const softwareVersion = await productSoftwareVersion();
 
-// Single source of truth: the 1.1 release manifest, synced into
-// src/content/releases-1.1/release.yaml (§7). Edit the manifest at its
-// source, not this file.
-const rel11 = await getRelease('1.1');
 const rel21 = await getRelease('2.1');
 
 // The IIS installer is hosted on the module's GitHub release, not under
 // /releases/; its SHA256SUMS sits beside it on the same release.
 const iisMsiUrl = artifactUrl(rel21, 'msi', 'win_x64');
 const iisSumsUrl = iisMsiUrl.slice(0, iisMsiUrl.lastIndexOf('/') + 1) + 'SHA256SUMS';
+// Signing keys, each labelled by what it signs (product-facts.mjs).
+const RELEASE_FINGERPRINT = formatFingerprint(RELEASE_KEY.fingerprint);
+const REPOSITORY_FINGERPRINT = formatFingerprint(REPOSITORY_KEY.fingerprint);
+const LEGACY_1X_FINGERPRINT = formatFingerprint(LEGACY_1X_KEY.fingerprint);
 
 // Docker/Helm image tag via the shared resolver (see
 // src/components/release/ImageTag.astro for the MDX-side equivalent) — used
@@ -261,15 +270,39 @@ const jsonLd = {
         >
           release listing
         </a>
-        . The signing key for the repositories is documented on the{' '}
+        .
+      </p>
+      <p id="verify-the-installer" class="mt-3 text-sm text-text-muted">
+        <strong class="text-text-body">Verifying the Windows installer.</strong> The release's{' '}
+        <code class="text-xs">SHA256SUMS.asc</code> is a GPG signature of its{' '}
+        <code class="text-xs">SHA256SUMS</code>, made with the{' '}
+        <a href={RELEASE_KEY_PAGE_URL} class="text-interactive underline">
+          release signing key
+        </a>{' '}
+        (fingerprint <code class="text-xs break-all">{RELEASE_FINGERPRINT}</code>): the signature
+        verifies the checksum file, and the checksum file then verifies the MSI. The steps are in{' '}
+        <a href={RELEASE_VERIFY_URL} class="text-interactive underline">
+          Verifying a Release
+        </a>
+        . On Windows, the MSI's own Authenticode signature, publisher "We-Amp B.V.", remains the
+        check for the installer itself.
+      </p>
+      <p class="mt-3 text-sm text-text-muted">
+        The apt and dnf repositories are signed with a different key, the{' '}
+        <a href={REPOSITORY_KEY.public_url} class="text-interactive underline">
+          repository signing key
+        </a>{' '}
+        (fingerprint <code class="text-xs break-all">{REPOSITORY_FINGERPRINT}</code>), which the{' '}
         <a href="/download/apt-yum/" class="text-interactive underline">
           apt/yum page
-        </a>
-        , and the public key is available as the{' '}
-        <a href={rel11.urls.gpg_key} class="text-interactive underline">
-          GPG signing key
-        </a>
-        .
+        </a>{' '}
+        sets up; it does not sign the GitHub release files.
+      </p>
+      <p class="mt-3 text-xs text-text-annotation">
+        An older key, fingerprint <code class="break-all">{LEGACY_1X_FINGERPRINT}</code>, signed the
+        1.x direct downloads (per-file <code>.asc</code>) and the source tags v2.1.0 to v2.4.0. It
+        signs nothing new from 20 October 2026 and is being revoked: use it only to check those
+        older signatures, and treat any signature it made after that date as not ours.
       </p>
     </div>
   </section>

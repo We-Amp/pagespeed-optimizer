@@ -31,8 +31,8 @@ Ticking the module in WHM (below) rebuilds Apache and turns the filter on for
 every virtual host served by `ea-apache24-httpd`. On a host that serves
 production traffic, get the operator's OK first.
 
-The RPMs and the repository metadata are signed (key `rsa4096/F50D6054F10712A0`);
-dnf checks both. The repo stays disabled for routine updates and is enabled per
+The RPMs and the repository metadata are signed with the repository signing
+key (fingerprint `DF00 E296 BE91 41CE A541  1346 F50D 6054 F107 12A0`); dnf checks both. The repo stays disabled for routine updates and is enabled per
 command.
 
 ```bash

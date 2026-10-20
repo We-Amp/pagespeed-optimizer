@@ -1,7 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import TermPanel from '../../components/instrument/TermPanel.astro';
-import { LICENSE_CLAUSE } from '../../data/product-facts.mjs';
+import { LICENSE_CLAUSE, REPOSITORY_KEY, formatFingerprint } from '../../data/product-facts.mjs';
 
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -218,8 +218,9 @@ sudo dnf install nginx-module-pagespeed`,
 
     <h2 class="h2-section mt-14 text-text-body">How it works</h2>
     <p class="mt-4 text-text-body">
-      The install script detects the distribution, fetches the public signing key (
-      <code class="font-mono">F50D6054F10712A0</code>), and writes a single source file:
+      The install script detects the distribution, fetches the repository signing key (fingerprint{' '}
+      <code class="font-mono wrap-anywhere">{formatFingerprint(REPOSITORY_KEY.fingerprint)}</code>),
+      and writes a single source file:
       <code class="font-mono wrap-anywhere">/etc/apt/sources.list.d/modpagespeed.list</code> on apt,
       or
       <code class="font-mono wrap-anywhere">/etc/yum.repos.d/modpagespeed.repo</code> on yum.
