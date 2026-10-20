@@ -252,6 +252,38 @@ CapabilityMask NormalizeMaskForDedup(uint32_t encoded_mask) {
   return m;
 }
 
+// The dedup id an image notification is checked and recorded under: the
+// full (format, viewport, density, save-data) slot, transfer-encoding
+// stripped (image variants are always stored identity).  Unlike the text
+// types above, an image's format IS a different piece of work, so it stays
+// in the key: an entry for one format never answers "already processed"
+// for a format no pass has decided.  A pass marks every format it decided
+// for its slot (mark_image_slot_decided in HandleNotification), which is
+// what keeps a notification for a format the pass refused (for instance a
+// WebP not smaller than the JPEG at the same size) from re-running the
+// pass.
+CapabilityMask ImageDedupMask(uint32_t encoded_mask) {
+  CapabilityMask m = CapabilityMask::Decode(encoded_mask);
+  m.set_transfer_encoding(CapabilityMask::TransferEncoding::kIdentity);
+  return m;
+}
+
+// The dedup mask of any notification: the image slot for an image, the
+// format-stripped mask for every other type.
+CapabilityMask DedupMaskFor(ContentType type, uint32_t encoded_mask) {
+  return type == ContentType::kImage ? ImageDedupMask(encoded_mask)
+                                     : NormalizeMaskForDedup(encoded_mask);
+}
+
+// The raster formats one image pass decides for its (viewport, density,
+// save-data) slot: WriteImageVariants builds, refuses or finds present every
+// one of them, and the passthrough branches answer all of them alike.
+constexpr CapabilityMask::ImageFormat kImageSlotFormats[] = {
+    CapabilityMask::ImageFormat::kOriginal,
+    CapabilityMask::ImageFormat::kWebP,
+    CapabilityMask::ImageFormat::kAvif,
+};
+
 // The flag bits a variant inherits from the entry it is derived from.  A hit
 // reads the selected variant, never the identity, so the headers-sidecar
 // state recorded on the source entry (kFlagHeadersClassified,
@@ -4261,8 +4293,10 @@ void Worker::HandleNotification(const CacheNotification& notification,
     // always use encoding=kIdentity.  Without this, AVIF notifications
     // (mask 0x4A) would check AlternateId 0x0A instead of 0x08,
     // missing the existing variant and causing unbounded reprocessing.
-    AlternateId target_id =
-        MaskToId(NormalizeMaskForDedup(notification.capability_mask));
+    // Images keep the format bits: their key is the full slot (see
+    // ImageDedupMask).
+    AlternateId target_id = MaskToId(
+        DedupMaskFor(notification.content_type, notification.capability_mask));
     std::string dedup_key =
         ComposeInternalKeyWithId(notification.url, notification.hostname,
                                  notification.scheme, target_id);
@@ -5518,6 +5552,18 @@ void Worker::HandleNotification(const CacheNotification& notification,
         return;
       }
 
+      // Record every format of a slot as decided by this pass: the image
+      // dedup key carries the format (ImageDedupMask), and each exit below
+      // has decided all of kImageSlotFormats for the slot it marks.
+      auto mark_image_slot_decided = [&](CapabilityMask slot) {
+        slot.set_transfer_encoding(CapabilityMask::TransferEncoding::kIdentity);
+        for (auto fmt : kImageSlotFormats) {
+          slot.set_image_format(fmt);
+          MarkVariantProcessed(notification.url, notification.hostname,
+                               notification.scheme, MaskToId(slot), purge_gen);
+        }
+      };
+
       // Read original image from cache (with exponential-backoff retry).
       auto img_read_result = ReadOriginalWithRetry(
           cache_.get(), notification.url, notification.hostname,
@@ -5582,10 +5628,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
                          notification.scheme, CapabilityMask(), svg_data,
                          svg_source_genuine, cfg->gzip_level, cfg->brotli_level,
                          purge_check);
-        MarkVariantProcessed(
-            notification.url, notification.hostname, notification.scheme,
-            MaskToId(NormalizeMaskForDedup(notification.capability_mask)),
-            purge_gen);
+        mark_image_slot_decided(
+            CapabilityMask::Decode(notification.capability_mask));
         return;
       }
 
@@ -5609,10 +5653,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
               "type %.*s, skipping: %s",
               static_cast<int>(origin_ct.size()), origin_ct.data(),
               notification.url.c_str());
-          MarkVariantProcessed(
-              notification.url, notification.hostname, notification.scheme,
-              MaskToId(NormalizeMaskForDedup(notification.capability_mask)),
-              purge_gen);
+          mark_image_slot_decided(
+              CapabilityMask::Decode(notification.capability_mask));
           return;
         }
         LogInfo(
@@ -5654,10 +5696,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
                          notification.scheme, CapabilityMask(), data,
                          source_genuine, cfg->gzip_level, cfg->brotli_level,
                          purge_check);
-        MarkVariantProcessed(
-            notification.url, notification.hostname, notification.scheme,
-            MaskToId(NormalizeMaskForDedup(notification.capability_mask)),
-            purge_gen);
+        mark_image_slot_decided(
+            CapabilityMask::Decode(notification.capability_mask));
         return;
       }
 
@@ -5670,10 +5710,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
         LogWarning("Image too large (%zu > %zu), skipping %s",
                    image_data.size(), cfg->max_image_size,
                    notification.url.c_str());
-        MarkVariantProcessed(
-            notification.url, notification.hostname, notification.scheme,
-            MaskToId(NormalizeMaskForDedup(notification.capability_mask)),
-            purge_gen);
+        mark_image_slot_decided(
+            CapabilityMask::Decode(notification.capability_mask));
         return;
       }
 
@@ -5824,14 +5862,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
                 "Content hash unchanged, all requested variants exist, "
                 "skipping: %s",
                 notification.url.c_str());
-            CapabilityMask img_dedup_mask = target_mask;
-            img_dedup_mask.set_transfer_encoding(
-                CapabilityMask::TransferEncoding::kIdentity);
-            img_dedup_mask.set_image_format(
-                CapabilityMask::ImageFormat::kOriginal);
-            MarkVariantProcessed(notification.url, notification.hostname,
-                                 notification.scheme, MaskToId(img_dedup_mask),
-                                 purge_gen);
+            mark_image_slot_decided(target_mask);
             return;
           }
         }
@@ -6171,8 +6202,8 @@ void Worker::HandleNotification(const CacheNotification& notification,
       }
 
       {
-        CapabilityMask img_dedup_mask =
-            NormalizeMaskForDedup(notification.capability_mask);
+        const CapabilityMask img_slot =
+            CapabilityMask::Decode(notification.capability_mask);
 
         // Incomplete-matrix retry tracking: if not all expected variants
         // were written (e.g., due to cache write failures from race
@@ -6192,9 +6223,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
             image_incomplete_retries_.erase(retry_key);
             // Populate dedup set so that any observer polling stats
             // sees the entry already present.
-            MarkVariantProcessed(notification.url, notification.hostname,
-                                 notification.scheme, MaskToId(img_dedup_mask),
-                                 purge_gen);
+            mark_image_slot_decided(img_slot);
           } else {
             // Don't mark as processed — allow re-notification to fill gaps.
             stats_.image_incomplete_matrices.fetch_add(
@@ -6211,9 +6240,7 @@ void Worker::HandleNotification(const CacheNotification& notification,
         } else {
           // All expected writes succeeded — populate dedup set before
           // stats become observable to prevent dedup race.
-          MarkVariantProcessed(notification.url, notification.hostname,
-                               notification.scheme, MaskToId(img_dedup_mask),
-                               purge_gen);
+          mark_image_slot_decided(img_slot);
         }
       }
       break;

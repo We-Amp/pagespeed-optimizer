@@ -137,7 +137,7 @@ Click a URL to open the inspector detail view:
 - **Device simulation** -- build a capability mask by choosing format, viewport,
   density, Save-Data, and encoding (or use a device preset), then click
   "Simulate Selection" to see which alternate the cache selector would serve.
-  The scoring breakdown shows exactly how format match (+1000), viewport (+80),
+  The scoring breakdown shows exactly how viewport (+2000), format match (+1000),
   encoding (+60), density (+40), and Save-Data (+20) contribute.
 - **Actions** -- Purge (delete all variants), Reprocess (purge + re-queue),
   Add to Group

@@ -20672,5 +20672,64 @@ TEST(WorkerConfigTest, ExtractorSmallSheetThresholdMatchesTheWorkers) {
             WorkerConfig{}.async_css_min_deferred_bytes);
 }
 
+// The image dedup key is the full (format, viewport, density, save-data)
+// slot.  One pass decides every format of its slot, so a notification for
+// another format of the same slot is answered by that decision (a refused
+// format is not re-run on every request), while a different size or a
+// different Save-Data setting is new work.
+TEST_F(WorkerTest, ImageDedupKeyIsTheFullSlot) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(16 * 1024 * 1024);
+  config.mobile_width = 160;  // sjpeg4 is 512 wide: the phone slot resizes
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string url = "http://example.com/slot.jpg";
+  const std::string jpeg = ReadTestFile("jpeg/sjpeg4.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  CacheOriginal(worker.cache(), url, jpeg);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  uint64_t sent = 0;
+  auto notify = [&](uint32_t mask) {
+    CacheNotification n;
+    n.url = url;
+    n.scheme = "https";
+    n.content_type = ContentType::kImage;
+    n.capability_mask = mask;
+    SendNotification(n);
+    ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(
+        worker, ++sent, kWorkerStallBudget));
+  };
+  auto skipped = [&] {
+    return worker.stats().notifications_skipped_dedup.load();
+  };
+
+  ASSERT_NO_FATAL_FAILURE(notify(0x10));  // phone, original format
+  const uint64_t s0 = skipped();
+  ASSERT_NO_FATAL_FAILURE(notify(0x11));  // same slot, WebP
+  ASSERT_NO_FATAL_FAILURE(notify(0x12));  // same slot, AVIF
+  ASSERT_NO_FATAL_FAILURE(notify(0x10));  // same slot, original again
+  EXPECT_EQ(skipped(), s0 + 3)
+      << "every format of a decided slot is answered by its decision";
+
+  const uint64_t written = worker.stats().variants_written.load();
+  ASSERT_NO_FATAL_FAILURE(notify(0x31));  // phone + Save-Data, WebP
+  ASSERT_NO_FATAL_FAILURE(notify(0x01));  // phone 1x, WebP
+  ASSERT_NO_FATAL_FAILURE(notify(0x09));  // desktop, WebP
+  EXPECT_EQ(skipped(), s0 + 3)
+      << "another Save-Data setting, density or viewport is a new slot";
+  EXPECT_GT(worker.stats().variants_written.load(), written);
+
+  worker.Shutdown();
+  worker_thread.join();
+}
+
 }  // namespace
 }  // namespace pagespeed

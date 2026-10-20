@@ -121,6 +121,7 @@ gtest_test(
     name = "vary_emission_test",
     deps = [
         "//lib/cache:vary_emission",
+        "//lib/classify:capability_mask",
         "//lib/classify:content_type",
     ],
 )

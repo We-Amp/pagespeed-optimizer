@@ -17,6 +17,13 @@ retrying every second until the reopen succeeds (the nginx module serves
 uncached instead). On Windows a full purge may still not take effect while the
 application is running.
 
+Fixed: a phone whose browser accepts WebP but not AVIF could be served the
+full-size desktop image instead of the phone-size one, several times larger.
+Image selection now prefers an image at the client's size over one in its
+preferred format at another size, so phones get a phone-size image and
+desktops a desktop-size one. After the upgrade the change applies to cached
+images as soon as they are served again.
+
 ## 2.5.0 - 2026-10-19
 
 Changed: one version number. The host packages move from 1.19.0 to 2.5.0
