@@ -3,7 +3,7 @@ title: 'Uninstall and rollback'
 description: 'Remove mod_pagespeed 2.1 per shape (apt, dnf, cPanel, Docker, Helm, IIS, NuGet), what each leaves behind, cache cleanup, and rolling back a release.'
 order: 56
 group: 'Operate'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-19
 datePublished: 2026-10-08
 faq:
   - q: 'Does removing the packages delete the cache?'
@@ -25,14 +25,28 @@ directives from a module that is gone fails to start.
 
 ```bash
 # Debian / Ubuntu: keep the configuration files, or purge them
+sudo apt-mark manual apache2                                     # Apache: keep Apache when the module pulled it in
 sudo apt-get remove mod-pagespeed pagespeed-optimizer            # Apache
+sudo apt-mark manual nginx                                       # nginx: keep nginx when the module pulled it in
 sudo apt-get remove nginx-module-pagespeed pagespeed-optimizer   # nginx
 sudo apt-get purge  mod-pagespeed pagespeed-optimizer            # also removes configuration and the default cache
 # AlmaLinux / RHEL / Rocky
-sudo dnf remove mod-pagespeed pagespeed-optimizer
-sudo dnf remove nginx-module-pagespeed pagespeed-optimizer
+sudo dnf remove --noautoremove mod-pagespeed pagespeed-optimizer            # Apache: --noautoremove keeps httpd
+sudo dnf remove --noautoremove nginx-module-pagespeed pagespeed-optimizer   # nginx: --noautoremove keeps nginx
 sudo systemctl restart apache2   # httpd on Enterprise Linux, or nginx
 ```
+
+:::warning[Removing the module package can take the web server with it]
+When the module package pulled the web server in as a dependency, the package
+manager counts it as unused once the module is gone. `dnf remove` without
+`--noautoremove` removes it in the same transaction, including `httpd`,
+`httpd-core` and `mod_http2` for Apache and `nginx`, `nginx-core` and
+`nginx-filesystem` for nginx. On Debian and Ubuntu the next
+`apt-get autoremove` removes it, including `apache2`, `apache2-bin`,
+`apache2-data` and `apache2-utils` for Apache and `nginx` for nginx, unless
+`apt-mark manual apache2` or `apt-mark manual nginx` ran first.
+`apt-get remove` or `purge` on its own leaves the web server installed.
+:::
 
 What stays after `remove`:
 
