@@ -31,9 +31,12 @@ inline int unsetenv(const char* name) { return _putenv_s(name, ""); }
 #include <cstdarg>
 #include <cstddef>
 #include <cstdint>
+#include <ctime>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <iostream>
+#include <map>
 #include <mutex>
 #include <optional>
 #include <span>
@@ -20670,6 +20673,180 @@ TEST_F(WorkerTest, DecodeFailingImageKeepsOriginBytesAtTheOriginalFormatId) {
 TEST(WorkerConfigTest, ExtractorSmallSheetThresholdMatchesTheWorkers) {
   EXPECT_EQ(CriticalCssConfig{}.inline_limit_min_sheet_bytes,
             WorkerConfig{}.async_css_min_deferred_bytes);
+}
+
+// =============================================================================
+// Variant sizes per client: the selection and the size gates together.
+// =============================================================================
+
+// Width x height of a JPEG, WebP or AVIF variant, read from its own bytes
+// ({0, 0} when the bytes are none of those).
+std::pair<uint32_t, uint32_t> VariantDimensions(const std::string& b) {
+  auto u8 = [&](size_t i) {
+    return static_cast<uint32_t>(static_cast<unsigned char>(b[i]));
+  };
+  if (b.size() > 4 && u8(0) == 0xFF && u8(1) == 0xD8) {
+    size_t i = 2;
+    while (i + 9 < b.size() && u8(i) == 0xFF) {
+      const uint32_t marker = u8(i + 1);
+      const size_t len = (u8(i + 2) << 8) | u8(i + 3);
+      if (marker == 0xC0 || marker == 0xC1 || marker == 0xC2) {
+        return {(u8(i + 7) << 8) | u8(i + 8), (u8(i + 5) << 8) | u8(i + 6)};
+      }
+      i += 2 + len;
+    }
+    return {0, 0};
+  }
+  if (b.size() > 30 && b.compare(0, 4, "RIFF") == 0 &&
+      b.compare(8, 4, "WEBP") == 0) {
+    if (b.compare(12, 4, "VP8 ") == 0) {
+      return {((u8(27) << 8) | u8(26)) & 0x3FFF,
+              ((u8(29) << 8) | u8(28)) & 0x3FFF};
+    }
+    if (b.compare(12, 4, "VP8L") == 0) {
+      const uint32_t bits =
+          u8(21) | (u8(22) << 8) | (u8(23) << 16) | (u8(24) << 24);
+      return {(bits & 0x3FFF) + 1, ((bits >> 14) & 0x3FFF) + 1};
+    }
+    if (b.compare(12, 4, "VP8X") == 0) {
+      return {(u8(24) | (u8(25) << 8) | (u8(26) << 16)) + 1,
+              (u8(27) | (u8(28) << 8) | (u8(29) << 16)) + 1};
+    }
+    return {0, 0};
+  }
+  avifDecoder* decoder = avifDecoderCreate();
+  std::pair<uint32_t, uint32_t> dims{0, 0};
+  if (decoder != nullptr &&
+      avifDecoderSetIOMemory(decoder,
+                             reinterpret_cast<const uint8_t*>(b.data()),
+                             b.size()) == AVIF_RESULT_OK &&
+      avifDecoderParse(decoder) == AVIF_RESULT_OK) {
+    dims = {decoder->image->width, decoder->image->height};
+  }
+  if (decoder != nullptr) avifDecoderDestroy(decoder);
+  return dims;
+}
+
+// End-to-end reproduction of the per-client variant sizes: the request
+// sequence of the bug reports (desktop and phone, Accept image/jpeg vs
+// WebP-only vs AVIF, Save-Data on and off) replayed as the notifications a
+// front end sends for it, against the worker's stock image configuration
+// and a stored 1200x800 high-quality noisy photo, then read back through the
+// production selector for each client.  The fixture is a seeded
+// diamond-square plasma (three channels, roughness 0.9) saved at JPEG
+// quality 95 -- the same class of content as the reports' fractal plasma,
+// at half their size, which still resizes for a phone (960 px target).
+//
+// Invariants, for every client:
+//   * a phone is never served the desktop-size image when a phone-size one
+//     exists (here: the phone JPEG), whatever format it negotiated;
+//   * a converted (WebP/AVIF) variant is never larger than the
+//     original-format variant it replaces for that client;
+//   * a Save-Data variant is never larger than the variant the same client
+//     gets without Save-Data.
+// The byte table is printed so a run documents the sizes it saw.
+TEST_F(WorkerTest, VariantSizesPerClientNeverExceedTheirFallback) {
+  WorkerConfig config;
+  config.socket_path = socket_path_;
+  config.cache_path = cache_path_;
+  config.cache_size_bytes = static_cast<uint64_t>(64 * 1024 * 1024);
+
+  NullMessageHandler handler;
+  Worker worker(config, &handler);
+  ASSERT_TRUE(worker.Initialize());
+
+  const std::string url = "http://example.com/big.jpg";
+  const std::string jpeg = ReadTestFile("jpeg/plasma_1200x800_q95.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  // Recorded the way a front end that keeps the origin's bytes as the
+  // durable original records them, so every slot, the desktop JPEG
+  // included, is built by the worker as in the reports.
+  CacheDurableOriginal(worker.cache(), url, jpeg, "image/jpeg",
+                       ContentType::kImage,
+                       static_cast<uint32_t>(std::time(nullptr)), 3600);
+
+  std::thread worker_thread([&worker]() { worker.Run(); });
+  std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+  struct Client {
+    const char* name;
+    uint32_t mask;
+  };
+  // Masks as CapabilityMask::FromHeaders derives them from the reports'
+  // requests: desktop Chrome is Desktop/1x (0x08), the Pixel 8 is Mobile/2x
+  // (0x10); Accept picks the format, Save-Data sets 0x20.
+  const Client clients[] = {
+      {"desktop  image/jpeg       ", 0x08},
+      {"phone    image/jpeg       ", 0x10},
+      {"desktop  image/jpeg  SD   ", 0x28},
+      {"desktop  AVIF+WebP        ", 0x0A},
+      {"desktop  AVIF+WebP   SD   ", 0x2A},
+      {"desktop  WebP, no AVIF    ", 0x09},
+      {"phone    WebP, no AVIF    ", 0x11},
+  };
+  uint64_t sent = 0;
+  for (const Client& c : clients) {
+    CacheNotification n;
+    n.url = url;
+    n.scheme = "https";
+    n.content_type = ContentType::kImage;
+    n.capability_mask = c.mask;
+    SendNotification(n);
+    ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(
+        worker, ++sent, kWorkerStallBudget));
+  }
+
+  std::map<uint32_t, std::string> served;
+  std::cout << "\nclient                       bytes      size\n";
+  for (const Client& c : clients) {
+    served[c.mask] =
+        ReadBestVariant(worker.cache(), url, CapabilityMask::Decode(c.mask));
+    const auto [w, h] = VariantDimensions(served[c.mask]);
+    std::cout << c.name << std::setw(9) << served[c.mask].size() << "  " << w
+              << "x" << h << "\n";
+    ASSERT_FALSE(served[c.mask].empty()) << c.name;
+  }
+
+  // A phone gets a phone-size image, whatever format it negotiated.
+  EXPECT_EQ(VariantDimensions(served[0x11]), VariantDimensions(served[0x10]))
+      << "the WebP-only phone was served another size than the phone JPEG";
+  EXPECT_LE(VariantDimensions(served[0x11]).first, 960u);
+  EXPECT_LE(served[0x11].size(), served[0x10].size());
+  // A converted format never costs more than the JPEG it replaces.
+  EXPECT_LE(served[0x09].size(), served[0x08].size());
+  EXPECT_LE(served[0x0A].size(), served[0x08].size());
+  // Save-Data never costs more than the same client without it.
+  EXPECT_LE(served[0x28].size(), served[0x08].size());
+  EXPECT_LE(served[0x2A].size(), served[0x0A].size());
+
+  // The same two size rules hold for every stored slot, not only for the
+  // ones these clients happened to select.
+  auto alts =
+      worker.cache()->ListAlternates(StripSchemeAuthority(url), "", "https");
+  ASSERT_TRUE(alts.has_value());
+  std::map<uint8_t, uint64_t> sizes;
+  for (const auto& a : *alts) {
+    if (!IsSentinel(static_cast<uint8_t>(a.id))) {
+      sizes[static_cast<uint8_t>(a.id)] = a.content_length;
+    }
+  }
+  for (const auto& [id, size] : sizes) {
+    if ((id & 0x03) != 0) {  // WebP or AVIF: compare with the JPEG slot
+      auto orig = sizes.find(static_cast<uint8_t>(id & ~0x03));
+      if (orig != sizes.end()) {
+        EXPECT_LT(size, orig->second) << "slot 0x" << std::hex << int{id};
+      }
+    }
+    if ((id & 0x20) != 0) {  // Save-Data: compare with the normal slot
+      auto normal = sizes.find(static_cast<uint8_t>(id & ~0x20));
+      if (normal != sizes.end()) {
+        EXPECT_LT(size, normal->second) << "slot 0x" << std::hex << int{id};
+      }
+    }
+  }
+
+  worker.Shutdown();
+  worker_thread.join();
 }
 
 // The image dedup key is the full (format, viewport, density, save-data)

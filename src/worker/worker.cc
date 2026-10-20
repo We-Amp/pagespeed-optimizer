@@ -3471,11 +3471,16 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
           }
         };
 
-        // Size gate against the variant each new one would replace for a
+        // Size gates against the variant each new one would replace for a
         // client.  A Save-Data variant must be smaller than the variant of
         // the same format and size without Save-Data, or Save-Data costs the
         // user bytes; it is refused otherwise, and the selector then serves
-        // that normal variant.
+        // that normal variant.  A converted variant (WebP/AVIF) must be
+        // smaller than the original-format variant of the same slot: the
+        // transcoder gates it against the original-format variant it built
+        // in this call, and this covers the one it did not build because
+        // the slot already held it.  The original-format gate runs first so
+        // the converted ones compare with what the slot will actually hold.
         if (sd == CapabilityMask::SaveData::kOn) {
           for (auto [fmt, tr] :
                {std::pair{CapabilityMask::ImageFormat::kOriginal,
@@ -3488,6 +3493,30 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
                                             CapabilityMask::SaveData::kOff)),
                 VariantSlotId(fmt, vp, den, sd), "variant without Save-Data");
           }
+        }
+        {
+          const uint8_t orig_slot = VariantSlotId(
+              CapabilityMask::ImageFormat::kOriginal, vp, den, sd);
+          size_t orig_baseline =
+              multi.optimized_original.success
+                  ? multi.optimized_original.output_data.size()
+                  : baseline_size(orig_slot);
+          // A same-format origin (WebP) holds its own WebP in the
+          // original-format slot; comparing the WebP arm with it is the
+          // transcoder's job, not a cross-format gate.
+          const bool orig_is_webp =
+              multi.optimized_original.success &&
+              multi.optimized_original.output_mime_type == "image/webp";
+          if (!orig_is_webp) {
+            refuse_unless_smaller(
+                multi.webp, orig_baseline,
+                VariantSlotId(CapabilityMask::ImageFormat::kWebP, vp, den, sd),
+                "original-format variant");
+          }
+          refuse_unless_smaller(
+              multi.avif, orig_baseline,
+              VariantSlotId(CapabilityMask::ImageFormat::kAvif, vp, den, sd),
+              "original-format variant");
         }
         for (auto [fmt, tr] :
              {std::pair{CapabilityMask::ImageFormat::kOriginal,

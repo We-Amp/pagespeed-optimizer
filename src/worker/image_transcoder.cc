@@ -1533,6 +1533,28 @@ MultiTranscodeResult ImageTranscoder::TranscodeMulti(
     }
   }
 
+  // A converted variant replaces the original-format variant for the
+  // clients that negotiate its format, so it must be smaller than THAT, not
+  // only than the upload: a WebP or AVIF several times the size of the
+  // optimized JPEG of the same size used to pass the gates above, which
+  // compare with the original bytes.  The resizing path has always gated on
+  // its own optimized original; this is the same rule for the full-size
+  // path.  A WebP origin is exempt for the WebP arm: its original-format
+  // slot is WebP too, and the WebP arm's own acceptance above decided it.
+  if (result.optimized_original.success &&
+      !result.optimized_original.output_data.empty()) {
+    const size_t baseline = result.optimized_original.output_data.size();
+    if (result.optimized_original.output_mime_type != "image/webp" &&
+        result.webp.success && result.webp.output_data.size() >= baseline) {
+      result.webp = {
+          false, {}, {}, "WebP output not smaller than the optimized original"};
+    }
+    if (result.avif.success && result.avif.output_data.size() >= baseline) {
+      result.avif = {
+          false, {}, {}, "AVIF output not smaller than the optimized original"};
+    }
+  }
+
   // Record the final qualities so callers can carry them forward.
   result.final_webp_quality = local_config.webp_quality;
   result.final_avif_quality = local_config.avif_quality;

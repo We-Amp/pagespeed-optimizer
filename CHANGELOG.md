@@ -29,6 +29,13 @@ without it, so turning Save-Data on cost more data. The Save-Data JPEG is now
 encoded at the Save-Data quality, and the optimizer no longer stores any
 Save-Data image that is not smaller than the normal one for the same client.
 
+Fixed: WebP and AVIF images were stored and served even when they were larger
+than the optimized JPEG (or other original-format image) of the same size, so
+a browser that accepts the newer formats could download several times more
+than one that does not. Such a WebP or AVIF image is now discarded and those
+browsers get the smaller image. Images already in the cache keep their
+current variants until the cache entry is refreshed or purged.
+
 ## 2.5.0 - 2026-10-19
 
 Changed: one version number. The host packages move from 1.19.0 to 2.5.0
