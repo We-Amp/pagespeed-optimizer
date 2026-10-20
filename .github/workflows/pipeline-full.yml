@@ -1069,7 +1069,7 @@ jobs:
         run: |
           docker compose -f tools/async-css-probe/docker-compose.yml \
             -f tools/async-css-probe/docker-compose.prebuilt.yml \
-            down --remove-orphans -v 2>/dev/null || true
+            down --remove-orphans -v --rmi local 2>/dev/null || true
 
   # Container cache-sharing contract: the first in-repo consumer of
   # docker/Dockerfile.*.prebuilt. It asserts that the web server image can

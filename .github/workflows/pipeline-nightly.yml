@@ -1941,7 +1941,7 @@ jobs:
         run: |
           docker compose -f tools/async-css-probe/docker-compose.yml \
             -f tools/async-css-probe/docker-compose.prebuilt.yml \
-            down --remove-orphans -v 2>/dev/null || true
+            down --remove-orphans -v --rmi local 2>/dev/null || true
 
   async-css-probe-report:
     name: Async-CSS probe report
