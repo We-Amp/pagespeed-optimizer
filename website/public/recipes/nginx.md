@@ -33,9 +33,20 @@ and dnf check every package against the repository key.
 ```bash
 curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 sudo apt-get install -s nginx-module-pagespeed | grep '^Inst'   # Debian / Ubuntu: what would change
+# The optimizer worker first, as its own command; then the module.
+sudo apt-get install -y pagespeed-optimizer                     # Debian / Ubuntu
 sudo apt-get install -y nginx-module-pagespeed                  # Debian / Ubuntu
+sudo dnf install -y pagespeed-optimizer                         # AlmaLinux / RHEL / Rocky
 sudo dnf install -y nginx-module-pagespeed                      # AlmaLinux / RHEL / Rocky
 ```
+
+Never install the two in one command: the module package adds the nginx user
+to the worker's `pagespeed` group only if that group exists when its install
+script runs, and in one transaction dnf runs the module's script first. If the
+module went in first or alongside, run `sudo usermod -a -G pagespeed www-data`
+(Debian / Ubuntu) or `sudo usermod -a -G pagespeed nginx` (AlmaLinux / RHEL /
+Rocky) and restart nginx. The worker package needs systemd; in a container use
+https://modpagespeed.com/recipes/docker.md.
 
 The module requires the exact nginx version it was built for. If the
 simulation (or dnf's transaction summary) would upgrade or replace nginx
@@ -68,6 +79,9 @@ In each `server` block to optimize:
 ```nginx
 pagespeed on;
 pagespeed FileCachePath /var/cache/ngx_pagespeed;
+# The optimizer worker: its notification socket and its cache volume.
+pagespeed DaemonSocketPath /run/pagespeed-optimizer/notify.sock;
+pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v3/cache;
 
 # Let the module serve its own resources.
 location ~ "\.pagespeed\.([a-z]\.)?[a-z]{2}\.[^.]{10}\.[^.]+" {
@@ -81,9 +95,10 @@ location ~ "^/ngx_pagespeed_beacon$" { }
 sudo nginx -t && sudo systemctl restart nginx
 ```
 
-To hand in-place optimization to the optimizer worker (`pagespeed-optimizer`,
-same release) follow
-https://modpagespeed.com/docs/installation-module/#using-the-optimizer-daemon-with-nginx.
+Without the worker, leave out the `DaemonSocketPath` and `DaemonVolumePath`
+lines (the module then runs on
+its own filters only). Details and the admin console:
+https://modpagespeed.com/docs/installation-module/#native-nginx-module.
 
 ## 4. Verify
 

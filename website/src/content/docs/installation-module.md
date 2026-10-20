@@ -101,8 +101,16 @@ module's own filters also work without the worker: leave out step 2 and the
    ```
 
    The package creates the `pagespeed` user and group, and enables and starts
-   `pagespeed-optimizer.service`. Install it first: the module package adds the
-   nginx user to the `pagespeed` group only when that group already exists.
+   `pagespeed-optimizer.service`. These steps are for a host that runs
+   systemd; in a container, use the [Docker images](/docs/installation-docker/).
+
+   Install the worker on its own, before the module, never both in one
+   command: the module package adds the nginx user to the `pagespeed` group
+   only if that group already exists when its install script runs, and in a
+   single transaction dnf runs the module's script first. On a host where the
+   module went in first or alongside, add the user yourself and restart nginx:
+   `sudo usermod -a -G pagespeed www-data` on Debian and Ubuntu,
+   `sudo usermod -a -G pagespeed nginx` on Enterprise Linux.
 
 3. **Install the module.**
 
@@ -135,14 +143,26 @@ module's own filters also work without the worker: leave out step 2 and the
 5. **Turn it on for your site.** Create the restriction for the admin pages,
    `/etc/nginx/snippets/pagespeed_admin_restrict.conf` (localhost only; add,
    for example, `allow 10.0.0.0/8;` before `deny all;` for your operations
-   network):
+   network). Enterprise Linux has no `snippets` directory, so create it first:
 
-   ```nginx
+   ```bash
+   sudo mkdir -p /etc/nginx/snippets
+   sudo tee /etc/nginx/snippets/pagespeed_admin_restrict.conf >/dev/null <<'EOF'
+   # PageSpeed admin pages, localhost only.
    location =  /pagespeed_admin         { allow 127.0.0.1; allow ::1; deny all; }
    location ^~ /pagespeed_admin/        { allow 127.0.0.1; allow ::1; deny all; }
    location =  /pagespeed_global_admin  { allow 127.0.0.1; allow ::1; deny all; }
    location ^~ /pagespeed_global_admin/ { allow 127.0.0.1; allow ::1; deny all; }
+   EOF
    ```
+
+   From the next release, the `nginx-module-pagespeed` package installs the
+   same four `location` lines as
+   `/etc/nginx/snippets/pagespeed_admin_localhost.conf`. Until then, create
+   the file above by hand, under this name: the package leaves a hand-made
+   `pagespeed_admin_restrict.conf` alone, but a hand-made file under the
+   packaged name makes the package upgrade stop and ask. Include one of the
+   two files, not both: nginx rejects the duplicate `location` blocks.
 
    Then, in each `server` block that should be optimized:
 
@@ -160,20 +180,23 @@ module's own filters also work without the worker: leave out step 2 and the
    }
    ```
 
-   On Enterprise Linux the stock default server sits in `/etc/nginx/nginx.conf`
-   and includes `/etc/nginx/default.d/*.conf`; to turn the module on there, put
+   On Enterprise Linux the stock server in `/etc/nginx/nginx.conf` includes
+   `/etc/nginx/default.d/*.conf`; to turn the module on there, put
    `pagespeed on;`, the `DaemonSocketPath` and `DaemonVolumePath` lines and the
-   `include` line in a file in that directory.
+   `include` line in a file in that directory. That stock server has no
+   `default_server`, and `conf.d/*.conf` is included before it, so a server
+   you add in `conf.d` that listens on the same port becomes the default
+   server.
 
 6. **Restart nginx.**
 
    ```bash
-   sudo nginx -t && sudo systemctl restart nginx
+   sudo nginx -t && sudo systemctl enable nginx && sudo systemctl restart nginx
    ```
 
-   Restart rather than reload: the nginx workers reach the optimizer's files
-   through their `pagespeed` group membership, which only a restarted nginx
-   picks up.
+   `enable` matters on Enterprise Linux, where the nginx that `dnf` pulled in
+   does not start at boot otherwise. Restarting also applies the nginx user's
+   new `pagespeed` group membership.
 
 7. **Check it.**
 
@@ -188,7 +211,10 @@ module's own filters also work without the worker: leave out step 2 and the
    (`ssh -L 8080:127.0.0.1:80 <you>@<server>`), point `<your-domain>` at
    `127.0.0.1` in the workstation's hosts file for the session, and browse to
    `http://<your-domain>:8080/pagespeed_global_admin/`: the request reaches
-   nginx from `127.0.0.1` and selects your server block by its name. Its
+   nginx from `127.0.0.1` and selects your server block by its name. For a site
+   that redirects port 80 to HTTPS, tunnel port 443 instead
+   (`ssh -L 8443:127.0.0.1:443 <you>@<server>`) and browse to
+   `https://<your-domain>:8443/pagespeed_global_admin/`. Its
    Statistics page shows whether the worker is in use: see
    [Check that it works](#check-that-it-works).
 
@@ -246,10 +272,10 @@ optimization works exactly as before.
   shared configuration are open to members of the `pagespeed` group only. When
   `nginx-module-pagespeed` is installed or upgraded and that group exists, the
   package adds the nginx user to it (`www-data` on Debian and Ubuntu, `nginx`
-  on the RHEL family). If you installed the module before the optimizer, or
-  nginx runs as another user, add the user yourself, for example
-  `sudo usermod -a -G pagespeed www-data`. Restart nginx afterwards; the new
-  group membership takes effect only in a restarted nginx.
+  on the RHEL family). If you installed the module before the optimizer or in
+  the same command, or nginx runs as another user, add the user yourself, for
+  example `sudo usermod -a -G pagespeed www-data`, then restart nginx; the
+  restart also applies the new group membership.
 - **Find the two paths.** The packaged optimizer's defaults are
   `/run/pagespeed-optimizer/notify.sock` for the notification socket and
   `/var/cache/pagespeed-optimizer/v3/cache` for the cache volume. If you
@@ -275,6 +301,9 @@ server {
 }
 ```
 
+- `FileCachePath` works in either place: in the `server` block as above, or
+  once in the `http` block as in [step 4](#native-nginx-module), which then
+  covers every server block.
 - Set the two together. With only one of them set, in-place optimization is
   off and the error log says that both are needed.
 - Keep `DaemonVolumePath` on a different path from `FileCachePath`. The

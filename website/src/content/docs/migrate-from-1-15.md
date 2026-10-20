@@ -41,10 +41,13 @@ sudo dnf upgrade nginx-module-pagespeed    # nginx
 ```
 
 The `mod-pagespeed` package depends on `pagespeed-optimizer` at the exact same
-version, so the Apache upgrade pulls the worker in. On nginx the worker is
-optional: `sudo apt-get install pagespeed-optimizer` (or `dnf install`) adds
-it, and two directives hand nginx's in-place optimization to it; see
-[Using the optimizer worker with nginx](/docs/installation-module/#using-the-optimizer-daemon-with-nginx).
+version, so the Apache upgrade pulls the worker in. The nginx package does
+not: `sudo apt-get install pagespeed-optimizer` (or `dnf install`), as its own
+command, adds it, and two directives hand nginx's in-place optimization to it;
+see [Using the optimizer worker with nginx](/docs/installation-module/#using-the-optimizer-daemon-with-nginx).
+A worker installed after the module leaves the nginx user outside its group:
+run `sudo usermod -a -G pagespeed www-data` (`nginx` on Enterprise Linux) and
+restart nginx.
 
 Then start things in order:
 

@@ -94,7 +94,12 @@ pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v3/cache;
 ```
 
 Restart nginx again (`sudo systemctl restart nginx`), then
-[verify](#verify-it-works). The
+[verify](#verify-it-works). Install the worker and the module as two separate
+commands, worker first, as above: the module package adds the nginx user to the
+worker's `pagespeed` group only if that group already exists. If the module
+went in first or in the same command, run
+`sudo usermod -a -G pagespeed www-data` (`nginx` on Enterprise Linux) and
+restart nginx. The
 [nginx install steps](/docs/installation-module/#native-nginx-module) are the
 full path: the shared settings for every server block, the admin console (nginx
 serves none until you set its path) and its access restriction, and the check

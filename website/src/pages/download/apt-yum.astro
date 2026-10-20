@@ -98,8 +98,12 @@ sudo dnf install nginx-module-pagespeed`,
       </div>
       <p class="mt-4 text-sm text-text-muted">
         Install the <code class="font-mono">pagespeed-optimizer</code> worker before the native
-        nginx module: the module package adds the nginx user to the worker's group only when that
-        group exists. Then{' '}
+        nginx module, as two separate commands: the module package adds the nginx user to the
+        worker's group only when that group already exists, and in one transaction dnf runs the
+        module's script first. If the module went in first or alongside, run{' '}
+        <code class="font-mono">sudo usermod -a -G pagespeed www-data</code> on Debian and Ubuntu or{' '}
+        <code class="font-mono">sudo usermod -a -G pagespeed nginx</code> on Enterprise Linux, and
+        restart nginx. Then{' '}
         <a href="/docs/installation-module/#native-nginx-module" class="text-interactive underline">
           configure nginx
         </a>{' '}

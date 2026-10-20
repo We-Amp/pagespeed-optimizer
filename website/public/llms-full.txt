@@ -364,7 +364,12 @@ pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v3/cache;
 ```
 
 Restart nginx again (`sudo systemctl restart nginx`), then
-[verify](https://modpagespeed.com/docs/getting-started/#verify-it-works). The
+[verify](https://modpagespeed.com/docs/getting-started/#verify-it-works). Install the worker and the module as two separate
+commands, worker first, as above: the module package adds the nginx user to the
+worker's `pagespeed` group only if that group already exists. If the module
+went in first or in the same command, run
+`sudo usermod -a -G pagespeed www-data` (`nginx` on Enterprise Linux) and
+restart nginx. The
 [nginx install steps](https://modpagespeed.com/docs/installation-module/#native-nginx-module) are the
 full path: the shared settings for every server block, the admin console (nginx
 serves none until you set its path) and its access restriction, and the check
@@ -755,8 +760,16 @@ module's own filters also work without the worker: leave out step 2 and the
    ```
 
    The package creates the `pagespeed` user and group, and enables and starts
-   `pagespeed-optimizer.service`. Install it first: the module package adds the
-   nginx user to the `pagespeed` group only when that group already exists.
+   `pagespeed-optimizer.service`. These steps are for a host that runs
+   systemd; in a container, use the [Docker images](https://modpagespeed.com/docs/installation-docker/).
+
+   Install the worker on its own, before the module, never both in one
+   command: the module package adds the nginx user to the `pagespeed` group
+   only if that group already exists when its install script runs, and in a
+   single transaction dnf runs the module's script first. On a host where the
+   module went in first or alongside, add the user yourself and restart nginx:
+   `sudo usermod -a -G pagespeed www-data` on Debian and Ubuntu,
+   `sudo usermod -a -G pagespeed nginx` on Enterprise Linux.
 
 3. **Install the module.**
 
@@ -789,14 +802,26 @@ module's own filters also work without the worker: leave out step 2 and the
 5. **Turn it on for your site.** Create the restriction for the admin pages,
    `/etc/nginx/snippets/pagespeed_admin_restrict.conf` (localhost only; add,
    for example, `allow 10.0.0.0/8;` before `deny all;` for your operations
-   network):
+   network). Enterprise Linux has no `snippets` directory, so create it first:
 
-   ```nginx
+   ```bash
+   sudo mkdir -p /etc/nginx/snippets
+   sudo tee /etc/nginx/snippets/pagespeed_admin_restrict.conf >/dev/null <<'EOF'
+   # PageSpeed admin pages, localhost only.
    location =  /pagespeed_admin         { allow 127.0.0.1; allow ::1; deny all; }
    location ^~ /pagespeed_admin/        { allow 127.0.0.1; allow ::1; deny all; }
    location =  /pagespeed_global_admin  { allow 127.0.0.1; allow ::1; deny all; }
    location ^~ /pagespeed_global_admin/ { allow 127.0.0.1; allow ::1; deny all; }
+   EOF
    ```
+
+   From the next release, the `nginx-module-pagespeed` package installs the
+   same four `location` lines as
+   `/etc/nginx/snippets/pagespeed_admin_localhost.conf`. Until then, create
+   the file above by hand, under this name: the package leaves a hand-made
+   `pagespeed_admin_restrict.conf` alone, but a hand-made file under the
+   packaged name makes the package upgrade stop and ask. Include one of the
+   two files, not both: nginx rejects the duplicate `location` blocks.
 
    Then, in each `server` block that should be optimized:
 
@@ -814,20 +839,23 @@ module's own filters also work without the worker: leave out step 2 and the
    }
    ```
 
-   On Enterprise Linux the stock default server sits in `/etc/nginx/nginx.conf`
-   and includes `/etc/nginx/default.d/*.conf`; to turn the module on there, put
+   On Enterprise Linux the stock server in `/etc/nginx/nginx.conf` includes
+   `/etc/nginx/default.d/*.conf`; to turn the module on there, put
    `pagespeed on;`, the `DaemonSocketPath` and `DaemonVolumePath` lines and the
-   `include` line in a file in that directory.
+   `include` line in a file in that directory. That stock server has no
+   `default_server`, and `conf.d/*.conf` is included before it, so a server
+   you add in `conf.d` that listens on the same port becomes the default
+   server.
 
 6. **Restart nginx.**
 
    ```bash
-   sudo nginx -t && sudo systemctl restart nginx
+   sudo nginx -t && sudo systemctl enable nginx && sudo systemctl restart nginx
    ```
 
-   Restart rather than reload: the nginx workers reach the optimizer's files
-   through their `pagespeed` group membership, which only a restarted nginx
-   picks up.
+   `enable` matters on Enterprise Linux, where the nginx that `dnf` pulled in
+   does not start at boot otherwise. Restarting also applies the nginx user's
+   new `pagespeed` group membership.
 
 7. **Check it.**
 
@@ -842,7 +870,10 @@ module's own filters also work without the worker: leave out step 2 and the
    (`ssh -L 8080:127.0.0.1:80 <you>@<server>`), point `<your-domain>` at
    `127.0.0.1` in the workstation's hosts file for the session, and browse to
    `http://<your-domain>:8080/pagespeed_global_admin/`: the request reaches
-   nginx from `127.0.0.1` and selects your server block by its name. Its
+   nginx from `127.0.0.1` and selects your server block by its name. For a site
+   that redirects port 80 to HTTPS, tunnel port 443 instead
+   (`ssh -L 8443:127.0.0.1:443 <you>@<server>`) and browse to
+   `https://<your-domain>:8443/pagespeed_global_admin/`. Its
    Statistics page shows whether the worker is in use: see
    [Check that it works](https://modpagespeed.com/docs/installation-module/#check-that-it-works).
 
@@ -900,10 +931,10 @@ optimization works exactly as before.
   shared configuration are open to members of the `pagespeed` group only. When
   `nginx-module-pagespeed` is installed or upgraded and that group exists, the
   package adds the nginx user to it (`www-data` on Debian and Ubuntu, `nginx`
-  on the RHEL family). If you installed the module before the optimizer, or
-  nginx runs as another user, add the user yourself, for example
-  `sudo usermod -a -G pagespeed www-data`. Restart nginx afterwards; the new
-  group membership takes effect only in a restarted nginx.
+  on the RHEL family). If you installed the module before the optimizer or in
+  the same command, or nginx runs as another user, add the user yourself, for
+  example `sudo usermod -a -G pagespeed www-data`, then restart nginx; the
+  restart also applies the new group membership.
 - **Find the two paths.** The packaged optimizer's defaults are
   `/run/pagespeed-optimizer/notify.sock` for the notification socket and
   `/var/cache/pagespeed-optimizer/v3/cache` for the cache volume. If you
@@ -929,6 +960,9 @@ server {
 }
 ```
 
+- `FileCachePath` works in either place: in the `server` block as above, or
+  once in the `http` block as in [step 4](https://modpagespeed.com/docs/installation-module/#native-nginx-module), which then
+  covers every server block.
 - Set the two together. With only one of them set, in-place optimization is
   off and the error log says that both are needed.
 - Keep `DaemonVolumePath` on a different path from `FileCachePath`. The
@@ -3126,10 +3160,13 @@ sudo dnf upgrade nginx-module-pagespeed    # nginx
 ```
 
 The `mod-pagespeed` package depends on `pagespeed-optimizer` at the exact same
-version, so the Apache upgrade pulls the worker in. On nginx the worker is
-optional: `sudo apt-get install pagespeed-optimizer` (or `dnf install`) adds
-it, and two directives hand nginx's in-place optimization to it; see
-[Using the optimizer worker with nginx](https://modpagespeed.com/docs/installation-module/#using-the-optimizer-daemon-with-nginx).
+version, so the Apache upgrade pulls the worker in. The nginx package does
+not: `sudo apt-get install pagespeed-optimizer` (or `dnf install`), as its own
+command, adds it, and two directives hand nginx's in-place optimization to it;
+see [Using the optimizer worker with nginx](https://modpagespeed.com/docs/installation-module/#using-the-optimizer-daemon-with-nginx).
+A worker installed after the module leaves the nginx user outside its group:
+run `sudo usermod -a -G pagespeed www-data` (`nginx` on Enterprise Linux) and
+restart nginx.
 
 Then start things in order:
 
@@ -15756,7 +15793,7 @@ http {
 - **Block order does not matter for these paths.** `=` and `^~` blocks are chosen ahead of any regular-expression location, such as the one for `.pagespeed.` resources.
 - **These pages are reached by their own paths only.** A request that nginx rewrites (`rewrite`) or redirects internally to one of these paths is not served by the admin, statistics, console or message pages.
 
-The nginx packages ship the admin blocks as `/usr/share/doc/nginx-module-pagespeed/pagespeed_admin_restrict.conf.sample`. It covers the two admin paths (`AdminPath` and `GlobalAdminPath`) only; add a `location =` block for each other handler path you set. Copy it to `/etc/nginx/snippets/pagespeed_admin_restrict.conf` and `include` it from every `server` block that serves the paths. The Ubuntu container images exclude `/usr/share/doc` from every package they install (`/etc/dpkg/dpkg.cfg.d/excludes`), so there the sample is missing; the snippet is then the four admin lines of the block above, which you can write to that file yourself:
+The nginx packages ship the admin blocks as `/usr/share/doc/nginx-module-pagespeed/pagespeed_admin_restrict.conf.sample`. It covers the two admin paths (`AdminPath` and `GlobalAdminPath`) only; add a `location =` block for each other handler path you set. Copy it to `/etc/nginx/snippets/pagespeed_admin_restrict.conf` and `include` it from every `server` block that serves the paths. The Ubuntu container images exclude `/usr/share/doc` from every package they install (`/etc/dpkg/dpkg.cfg.d/excludes`), so there the sample is missing; the snippet is then the four admin lines of the block above, which you can write to that file yourself (`sudo mkdir -p /etc/nginx/snippets` first on Enterprise Linux). From the next release the package installs the same four lines itself as `/etc/nginx/snippets/pagespeed_admin_localhost.conf`; include one of the two files, not both:
 
 ```nginx
 location =  /pagespeed_admin         { allow 127.0.0.1; allow ::1; deny all; }
@@ -21293,8 +21330,9 @@ Docker images, and as a Helm chart. See
 [Deployment](https://modpagespeed.com/docs/deployment/) for production rollouts.
 
 The Apache packages install the configuration that points the module at the
-optimizer worker. The native nginx module runs on its own; to use the optimizer
-worker with nginx, run the reverse-proxy deployment.
+optimizer worker. The native nginx module uses the worker once two directives
+point it there: install `pagespeed-optimizer` first, as its own command, then
+follow the [nginx install steps](https://modpagespeed.com/docs/installation-module/#native-nginx-module).
 
 The IIS package ships as a signed installer on the mod_pagespeed GitHub release.
 
