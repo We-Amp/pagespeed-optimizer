@@ -12,7 +12,7 @@ faq:
   - q: 'Does my content leave my server?'
     a: 'No. Rendering, cleaning, caching, and serving all happen on your own server. Serving a cached response performs zero outbound network I/O.'
   - q: 'Does this work with the module alone, or does it need the optimizer worker?'
-    a: 'Yes. The rendered-Markdown variant runs in the optimizer worker behind nginx, using headless Chrome. The module recognizes and safely declines the agent request (it always serves normal HTML); it does not produce the rendered variant.'
+    a: 'It needs the optimizer worker. The rendered-Markdown variant runs in the optimizer worker behind nginx, using headless Chrome. The module recognizes and safely declines the agent request (it always serves normal HTML); it does not produce the rendered variant.'
   - q: 'What is the synthesized /llms.txt, and is it your /llms.txt?'
     a: 'The optimizer worker can publish a synthesized /llms.txt for YOUR site — a Markdown index built from your own sitemap, off by default and enabled by its own worker flag. It is unrelated to the /llms.txt on modpagespeed.com, which describes our product. The index is built off the serving path and serving it performs zero outbound network I/O. It needs the worker: the module alone does not produce it.'
 ---
