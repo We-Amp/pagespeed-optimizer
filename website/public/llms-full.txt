@@ -195,6 +195,7 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ## Blog
 
+- [Is mod_pagespeed safe? How its rewrites are checked](https://modpagespeed.com/blog/is-mod-pagespeed-safe/): 2026-10-19. Is mod_pagespeed safe? It rewrites your HTML, CSS, JS and images: how its rewrites are checked, and what happens when a check fails.
 - [The state of the PageSpeed installed base, 2026](https://modpagespeed.com/blog/pagespeed-installed-base-2026/): 2026-10-10. HTTP Archive data on the PageSpeed installed base in 2026: adoption since 2020, versions, servers, networks, and what no longer receives fixes.
 - [Cyclone as an LLM KV-cache tier: eight rounds to match LMDB](https://modpagespeed.com/blog/cyclone-kv-cache-tier-vs-lmdb/): 2026-10-08. How Cyclone became an LLM KV-cache offload tier: eight rounds against LMDB and file-per-block, from 0.06 GB/s cold reads to ahead of LMDB.
 - [mod_pagespeed 2.1: one product again](https://modpagespeed.com/blog/mod-pagespeed-2-1-one-product-again/): 2026-09-17. The mod_pagespeed lineage and the ModPageSpeed 2.0 engine converge into one open-source product: the module you know plus an optimizer worker. Apache-2.0.
@@ -9171,9 +9172,15 @@ There is no `auto`. `GET /v1/health` reports the resolved state as
 monitoring check can see an unsandboxed browser without reading logs. The
 setting is also readable from the environment as `PAGESPEED_BROWSER_SANDBOX`.
 
-Container images currently run as root, where Chrome declines to sandbox
-itself; set `PAGESPEED_BROWSER_SANDBOX=off` if you want browser analysis there,
-or run the container as a non-root user.
+The container images start as root for one setup step and then drop the
+worker to the unprivileged `pagespeed` user (UID 918) before it starts, so the
+non-root requirement is met inside them. What remains is the runtime's seccomp
+profile: the default Docker and Kubernetes profiles filter out the namespace
+flags Chrome's sandbox needs, so the probe reports `unavailable` until the
+container gets a profile that allows them (the Helm chart's
+`podSecurityContext` comment has the recipe). Set
+`PAGESPEED_BROWSER_SANDBOX=off` only to accept an unsandboxed browser
+deliberately.
 
 If the sandbox probe is refused by a kernel syscall filter rather than by the
 kernel's user-namespace policy, the message says so, so you can tell "this host
@@ -16439,10 +16446,13 @@ There is no `auto`. `GET /v1/health` reports the resolved state as
 monitoring check can see an unsandboxed browser without reading logs. The
 setting is also readable from `PAGESPEED_BROWSER_SANDBOX`.
 
-The sandbox needs an unprivileged user namespace and a non-root user. Container
-images currently run as root, where Chrome declines to sandbox itself: set
-`PAGESPEED_BROWSER_SANDBOX=off` if you want browser analysis in one, or run the
-container as a non-root user.
+The sandbox needs an unprivileged user namespace and a non-root user. The
+container images drop the worker to the unprivileged `pagespeed` user (UID 918)
+before it starts, so inside them the remaining requirement is a seccomp profile
+that allows the namespace flags; the default Docker and Kubernetes profiles do
+not, and the probe reports `unavailable` until you supply one. Set
+`PAGESPEED_BROWSER_SANDBOX=off` only to accept an unsandboxed browser
+deliberately.
 
 The probe runs inside whatever syscall filter the worker itself is running
 under, so a filter too tight for Chrome surfaces here, at startup, rather than

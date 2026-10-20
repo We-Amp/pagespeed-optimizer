@@ -309,10 +309,13 @@ There is no `auto`. `GET /v1/health` reports the resolved state as
 monitoring check can see an unsandboxed browser without reading logs. The
 setting is also readable from `PAGESPEED_BROWSER_SANDBOX`.
 
-The sandbox needs an unprivileged user namespace and a non-root user. Container
-images currently run as root, where Chrome declines to sandbox itself: set
-`PAGESPEED_BROWSER_SANDBOX=off` if you want browser analysis in one, or run the
-container as a non-root user.
+The sandbox needs an unprivileged user namespace and a non-root user. The
+container images drop the worker to the unprivileged `pagespeed` user (UID 918)
+before it starts, so inside them the remaining requirement is a seccomp profile
+that allows the namespace flags; the default Docker and Kubernetes profiles do
+not, and the probe reports `unavailable` until you supply one. Set
+`PAGESPEED_BROWSER_SANDBOX=off` only to accept an unsandboxed browser
+deliberately.
 
 The probe runs inside whatever syscall filter the worker itself is running
 under, so a filter too tight for Chrome surfaces here, at startup, rather than
