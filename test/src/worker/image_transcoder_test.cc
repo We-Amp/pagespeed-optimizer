@@ -9755,3 +9755,79 @@ TEST(VerifyQualitySearchTest, TheShipBelowFloorArmSearchesButDoesNotRefuse) {
   EXPECT_FALSE(run.probed.empty());
   EXPECT_FLOAT_EQ(run.verify.score, UnreachableCurve(96));
 }
+
+// ===========================================================================
+// A Save-Data variant is never larger than the normal one.
+// ===========================================================================
+
+// The full-size Save-Data JPEG must be encoded at the Save-Data quality.  It
+// takes the one full-size JPEG leg the desktop fast path does not (Save-Data
+// skips that path), and that leg re-encoded through Transcode(), whose fresh
+// config snapshot dropped the Save-Data quality: the Save-Data JPEG came out
+// at the default quality, no smaller (and with content tuning on, larger)
+// than the normal one.  Same shape as the WebP leg's test above.
+TEST_F(ImageTranscoderTest, FullSizeSaveDataJpegHonoursSaveDataQuality) {
+  std::string jpeg = ReadTestFile("jpeg/sjpeg4.jpg");  // 512x384 photo
+  ASSERT_FALSE(jpeg.empty());
+
+  NullMessageHandler handler;
+  ImageTranscoderConfig cfg;
+  cfg.jpeg_quality = 85;
+  cfg.savedata_jpeg_quality = 30;
+  cfg.quality_verify = false;
+  cfg.content_analysis = false;
+  cfg.learned_quality = false;
+  ImageTranscoder tc(cfg, &handler);
+
+  auto run = [&](CapabilityMask::SaveData sd) {
+    return tc.TranscodeMultiResized(jpeg,
+                                    {CapabilityMask::ImageFormat::kOriginal},
+                                    CapabilityMask::Viewport::kDesktop,
+                                    CapabilityMask::PixelDensity::k1x, sd);
+  };
+  auto plain = run(CapabilityMask::SaveData::kOff);
+  auto saved = run(CapabilityMask::SaveData::kOn);
+
+  ASSERT_TRUE(plain.optimized_original.success)
+      << plain.optimized_original.error_message;
+  ASSERT_TRUE(saved.optimized_original.success)
+      << saved.optimized_original.error_message;
+  EXPECT_EQ("image/jpeg", saved.optimized_original.output_mime_type);
+  EXPECT_LT(saved.optimized_original.output_data.size(),
+            plain.optimized_original.output_data.size())
+      << "the Save-Data JPEG must be smaller than the normal JPEG";
+}
+
+// The same invariant under the stock configuration (content analysis,
+// learned quality and quality verification on), over every photo-sized JPEG
+// fixture and every viewport: the Save-Data JPEG is never larger than the
+// normal one for the same viewport.
+TEST_F(ImageTranscoderTest, SaveDataJpegNeverLargerThanNormalStockConfig) {
+  for (const char* name :
+       {"jpeg/sjpeg3.jpg", "jpeg/sjpeg4.jpg", "jpeg/sjpeg6.jpg",
+        "jpeg/q80_512x512.jpg", "jpeg/quality100.jpg"}) {
+    std::string jpeg = ReadTestFile(name);
+    ASSERT_FALSE(jpeg.empty()) << name;
+    const int source_q =
+        ImageTranscoder::DetectSourceJpegQuality(jpeg, &handler_);
+    for (auto vp :
+         {CapabilityMask::Viewport::kMobile, CapabilityMask::Viewport::kTablet,
+          CapabilityMask::Viewport::kDesktop}) {
+      auto run = [&](CapabilityMask::SaveData sd) {
+        return transcoder_.TranscodeMultiResized(
+            jpeg, {CapabilityMask::ImageFormat::kOriginal}, vp,
+            CapabilityMask::PixelDensity::k1x, sd,
+            {.source_quality = source_q});
+      };
+      auto plain = run(CapabilityMask::SaveData::kOff);
+      auto saved = run(CapabilityMask::SaveData::kOn);
+      if (!plain.optimized_original.success ||
+          !saved.optimized_original.success) {
+        continue;
+      }
+      EXPECT_LE(saved.optimized_original.output_data.size(),
+                plain.optimized_original.output_data.size())
+          << name << " viewport " << static_cast<int>(vp);
+    }
+  }
+}

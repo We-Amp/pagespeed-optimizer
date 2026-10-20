@@ -2162,8 +2162,10 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
         if (source_jpeg_quality > 0 &&
             source_jpeg_quality <= local_config.jpeg_quality &&
             encode_src == &decoded && image_type == net_instaweb::IMAGE_JPEG) {
-          CapabilityMask orig_mask;
-          result.optimized_original = Transcode(input_data, orig_mask);
+          // OptimizeJpeg at THIS call's local_config, not Transcode(): that
+          // takes a fresh config snapshot and so drops the Save-Data
+          // quality and the content tuning applied above.
+          result.optimized_original = OptimizeJpeg(input_data, local_config);
           result.skipped_jpeg_reencode = true;
           if (handler_) {
             handler_->Info(
@@ -2184,16 +2186,21 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
                 EncodeJpegFromPixels(*encode_src, local_config);
             if (!result.optimized_original.success) {
               // Pixel encode failed: stream-optimize the original bytes.
-              CapabilityMask orig_mask;
-              result.optimized_original = Transcode(input_data, orig_mask);
+              result.optimized_original =
+                  OptimizeJpeg(input_data, local_config);
               break;
             }
             // Fall through to the verify loop and size gate below.
           } else {
             // No resize/denoise (and the early exit above did not fire):
-            // stream-based optimization of the original bytes.
-            CapabilityMask orig_mask;
-            result.optimized_original = Transcode(input_data, orig_mask);
+            // stream-based optimization of the original bytes, at THIS
+            // call's local_config.  This is the full-size Save-Data JPEG
+            // (or one carrying a quality hint; the fast path above takes
+            // every other full-size case), and it used to go through
+            // Transcode(), whose fresh config snapshot dropped the
+            // Save-Data quality: the Save-Data JPEG came out at the default
+            // quality, larger than the normal one.
+            result.optimized_original = OptimizeJpeg(input_data, local_config);
             break;
           }
         } else if (image_type == net_instaweb::IMAGE_WEBP ||

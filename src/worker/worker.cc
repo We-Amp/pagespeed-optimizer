@@ -23,6 +23,7 @@
 #include <span>
 #include <string_view>
 #include <thread>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -3244,15 +3245,49 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
   // Fetch all existing alternate IDs in a single disk traversal
   // instead of calling AlternateExists() per format/viewport/etc.
   std::unordered_set<uint8_t> existing_ids;
+  // Stored byte size per alternate id, from the same traversal: the size
+  // gates below compare a new variant with the stored one it would replace
+  // for a client when that one is not rebuilt in this pass.
+  std::unordered_map<uint8_t, uint64_t> existing_sizes;
   {
     auto alts = cache_->ListAlternates(notification.url, notification.hostname,
                                        notification.scheme);
     if (alts.has_value()) {
       for (const auto& alt : *alts) {
         existing_ids.insert(static_cast<uint8_t>(alt.id));
+        existing_sizes[static_cast<uint8_t>(alt.id)] = alt.content_length;
       }
     }
   }
+  // Byte size of every variant this pass produced, by slot id.
+  std::unordered_map<uint8_t, size_t> pass_sizes;
+  // The size a client of slot |slot| is served today when this pass does
+  // not produce |slot| itself: this pass's own variant, else the stored one,
+  // else nothing (0).
+  auto baseline_size = [&](uint8_t slot) -> size_t {
+    if (auto it = pass_sizes.find(slot); it != pass_sizes.end()) {
+      return it->second;
+    }
+    if (auto it = existing_sizes.find(slot); it != existing_sizes.end()) {
+      return static_cast<size_t>(it->second);
+    }
+    return 0;
+  };
+  // Refuse |tr| when it is not smaller than |baseline| bytes: storing it
+  // would hand the clients of its slot more bytes than the variant they are
+  // served without it.
+  auto refuse_unless_smaller = [&](TranscodeResult& tr, size_t baseline,
+                                   uint8_t slot, const char* than) {
+    if (!tr.success || baseline == 0 || tr.output_data.size() < baseline) {
+      return;
+    }
+    LogInfo(
+        "Refused image variant for %s (slot 0x%02X, %s): %zu bytes is not "
+        "smaller than the %s (%zu bytes)",
+        notification.url.c_str(), static_cast<int>(slot),
+        tr.output_mime_type.c_str(), tr.output_data.size(), than, baseline);
+    tr = {false, {}, {}, absl::StrCat("not smaller than the ", than)};
+  };
 
   // Decline tombstone (#1382): slots this source's verify already refused.
   // Consulted once, before the loops; records are only honored when the
@@ -3435,6 +3470,35 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
             img_variant_meta.ssimulacra2_score_x100 = 0xFFFF;  // N/A
           }
         };
+
+        // Size gate against the variant each new one would replace for a
+        // client.  A Save-Data variant must be smaller than the variant of
+        // the same format and size without Save-Data, or Save-Data costs the
+        // user bytes; it is refused otherwise, and the selector then serves
+        // that normal variant.
+        if (sd == CapabilityMask::SaveData::kOn) {
+          for (auto [fmt, tr] :
+               {std::pair{CapabilityMask::ImageFormat::kOriginal,
+                          &multi.optimized_original},
+                std::pair{CapabilityMask::ImageFormat::kWebP, &multi.webp},
+                std::pair{CapabilityMask::ImageFormat::kAvif, &multi.avif}}) {
+            refuse_unless_smaller(
+                *tr,
+                baseline_size(VariantSlotId(fmt, vp, den,
+                                            CapabilityMask::SaveData::kOff)),
+                VariantSlotId(fmt, vp, den, sd), "variant without Save-Data");
+          }
+        }
+        for (auto [fmt, tr] :
+             {std::pair{CapabilityMask::ImageFormat::kOriginal,
+                        &multi.optimized_original},
+              std::pair{CapabilityMask::ImageFormat::kWebP, &multi.webp},
+              std::pair{CapabilityMask::ImageFormat::kAvif, &multi.avif}}) {
+          if (tr->success) {
+            pass_sizes[VariantSlotId(fmt, vp, den, sd)] =
+                tr->output_data.size();
+          }
+        }
 
         // A variant is "not proactive" only when it matches
         // the exact requested combination.

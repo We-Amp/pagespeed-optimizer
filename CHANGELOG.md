@@ -24,6 +24,11 @@ preferred format at another size, so phones get a phone-size image and
 desktops a desktop-size one. After the upgrade the change applies to cached
 images as soon as they are served again.
 
+Fixed: with `Save-Data: on`, a full-size JPEG could be larger than the one sent
+without it, so turning Save-Data on cost more data. The Save-Data JPEG is now
+encoded at the Save-Data quality, and the optimizer no longer stores any
+Save-Data image that is not smaller than the normal one for the same client.
+
 ## 2.5.0 - 2026-10-19
 
 Changed: one version number. The host packages move from 1.19.0 to 2.5.0
