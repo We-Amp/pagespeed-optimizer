@@ -1412,6 +1412,18 @@ jobs:
           bash trust/tools/ci/release_checksums_sig.sh verify sums/SHA256SUMS signature/SHA256SUMS.asc trust/RELEASE-SIGNING-KEY.asc \
             | tee -a "$GITHUB_STEP_SUMMARY"
 
+      # Belt and braces for the script's EXIT trap: a cancelled or killed
+      # step skips it, and a leftover keyring on a persistent runner would
+      # keep the private key on disk.
+      - name: Remove the temporary keyrings
+        if: always()
+        run: |
+          for h in "${RUNNER_TEMP}"/gnupg.*; do
+            [ -d "$h" ] || continue
+            GNUPGHOME="$h" gpgconf --kill gpg-agent >/dev/null 2>&1 || true
+            rm -rf "$h"
+          done
+
       - name: Upload the signature
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:

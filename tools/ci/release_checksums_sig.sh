@@ -32,6 +32,10 @@ FPR_WANT="${RELEASE_KEY_FPR:-$PINNED_FPR}"
 
 die() { echo "::error::$*" >&2; exit 1; }
 
+# Every keyring is a fresh mktemp directory (mode 0700) removed by an EXIT
+# trap on success and failure alike, so the private key never outlives the
+# command, also on a persistent runner. The workflow adds an always() step
+# that removes $RUNNER_TEMP/gnupg.* in case the shell is killed.
 new_home() {
   GNUPGHOME="$(mktemp -d "${RUNNER_TEMP:-${TMPDIR:-/tmp}}/gnupg.XXXXXX")"
   export GNUPGHOME
