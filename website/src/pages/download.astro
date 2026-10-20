@@ -293,7 +293,9 @@ const jsonLd = {
       </p>
       <p class="mt-3 text-xs text-text-annotation">
         An older key, fingerprint <code class="break-all">{LEGACY_1X_FINGERPRINT}</code>, signed the
-        1.x direct downloads only. It is retired: do not use it for new verification.
+        1.x direct downloads (per-file <code>.asc</code>) and the source tags v2.1.0 to v2.4.0. It
+        signs nothing new from 20 October 2026 and is being revoked: use it only to check those
+        older signatures, and treat any signature it made after that date as not ours.
       </p>
     </div>
   </section>

@@ -175,10 +175,10 @@ export const formatEur = (n) => `\u20ac${String(n).replace(/\B(?=(\d{3})+(?!\d))
 // assets or provenance on packages; release SBOM and VEX are available on
 // request. The private package repository for Priority and Enterprise is being
 // set up; say so, never that it exists.
-// Signing keys. Each entry copies its fields verbatim from the key's entry in
-// We-Amp/corp security/keys.json, the source of truth for keys (id, name,
-// status, purpose, fingerprint, public_url), so this block can later be
-// generated from that file. Change keys.json first, then this block.
+// Signing keys. Each entry copies its fields verbatim from the internal
+// signing-key register, the source of truth for keys (id, name, status,
+// purpose, fingerprint, public_url), so this block can later be generated
+// from it. Change the register first, then this block.
 // Fingerprints are the full 40 hex digits, never a short key id; show them
 // with formatFingerprint(). Label each key by what it signs wherever a page
 // shows one.
@@ -200,14 +200,16 @@ export const RELEASE_KEY = {
   public_url:
     'https://raw.githubusercontent.com/We-Amp/mod_pagespeed/master/RELEASE-SIGNING-KEY.asc',
 };
-// Page links for the release key (not keys.json fields): the key file as a
+// Page links for the release key (not register fields): the key file as a
 // GitHub page and the verification steps in SECURITY.md.
 export const RELEASE_KEY_PAGE_URL =
   'https://github.com/We-Amp/mod_pagespeed/blob/master/RELEASE-SIGNING-KEY.asc';
 export const RELEASE_VERIFY_URL =
   'https://github.com/We-Amp/mod_pagespeed/blob/master/SECURITY.md#verifying-a-release';
-// The 1.x key: retiring (revocation decided). Pages show it only as retired
-// and never link it, even though keys.json still records its public_url.
+// The 1.x key: no longer used, being revoked (status retiring; the revocation
+// is not published yet). Pages name it only as that, never link it, and never
+// offer it as a current key, although the register still records its
+// public_url.
 export const LEGACY_1X_KEY = {
   id: 'legacy-1x',
   name: '1.x direct-download key',

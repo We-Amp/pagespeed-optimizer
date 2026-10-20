@@ -56,8 +56,9 @@ const verifyRecipe = [
   `# files from a mod_pagespeed GitHub release (2.5.0 on): the release signing key`,
   `curl -fsSLO ${RELEASE_KEY.public_url}`,
   `gpg --show-keys --with-fingerprint RELEASE-SIGNING-KEY.asc   # expect ${RELEASE_FINGERPRINT}`,
-  `gpg --import RELEASE-SIGNING-KEY.asc && gpg --verify SHA256SUMS.asc SHA256SUMS`,
-  `sha256sum --check --ignore-missing SHA256SUMS`,
+  // A keyring holding only this key: gpg --verify against the normal keyring
+  // would accept a good signature from any key in it.
+  `gpg --dearmor < RELEASE-SIGNING-KEY.asc > release.gpg && gpgv --keyring ./release.gpg SHA256SUMS.asc SHA256SUMS && sha256sum --check --ignore-missing SHA256SUMS   # macOS: shasum -a 256 --check --ignore-missing SHA256SUMS`,
 ].join('\n');
 
 const jsonLd = [
@@ -311,7 +312,8 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
           Two keys for two jobs. For the repositories: fetch the repository key, check its
           fingerprint and pin apt to it. For files downloaded from a mod_pagespeed GitHub release:
           fetch the release signing key, check its fingerprint, verify the signature on{' '}
-          <code>SHA256SUMS</code>, then check the files against it.
+          <code>SHA256SUMS</code> against a keyring that holds only that key, then check the files
+          against it.
         </p>
         <pre class="mt-4 overflow-x-auto rounded-lg bg-bg-recessed p-4 text-xs text-text-body"><code>{verifyRecipe}</code></pre>
         <p class="mt-3 text-xs text-text-annotation">
@@ -326,8 +328,9 @@ const buys: Array<{ key: string; value: string; detail: string }> = [
         </p>
         <p class="mt-3 text-xs text-text-annotation">
           An older key, fingerprint <code class="break-all">{LEGACY_1X_FINGERPRINT}</code>, signed
-          the per-file <code>.asc</code> signatures of the 1.x direct downloads only. It is retired:
-          do not use it for new verification.
+          the 1.x direct downloads (per-file <code>.asc</code>) and the source tags v2.1.0 to
+          v2.4.0. It signs nothing new from 20 October 2026 and is being revoked: use it only to
+          check those older signatures, and treat any signature it made after that date as not ours.
         </p>
       </div>
     </div>

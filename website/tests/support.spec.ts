@@ -84,15 +84,17 @@ test.describe('Support page', () => {
     await expect(section).not.toContainText('signed SBOM');
     await expect(section).not.toContainText('with every build');
     const recipe = await page.locator('#verify pre code').innerText();
-    expect(recipe.trim().split('\n')).toHaveLength(9);
+    expect(recipe.trim().split('\n')).toHaveLength(8);
     expect(recipe).toContain('gpg --show-keys --with-fingerprint');
     expect(recipe).toContain('signed-by=');
     // Each key checked by its full fingerprint, for its own purpose.
     expect(recipe).toContain('DF00 E296 BE91 41CE A541  1346 F50D 6054 F107 12A0');
     expect(recipe).toContain('411D EFDB 5713 51D2 B25A  EFCC 9C02 B5BD CCE7 5313');
-    expect(recipe).toContain('gpg --verify SHA256SUMS.asc SHA256SUMS');
+    // The release signature is checked against a keyring holding only the release key.
+    expect(recipe).toContain('gpgv --keyring ./release.gpg SHA256SUMS.asc SHA256SUMS');
+    expect(recipe).not.toContain('gpg --verify');
     expect(recipe).toContain('sha256sum --check');
-    // The retired 1.x key is never linked as a current key.
+    // The 1.x key (being revoked) is never linked as a current key.
     await expect(page.locator('a[href*="weamp-pkg-public.asc"]')).toHaveCount(0);
   });
 
