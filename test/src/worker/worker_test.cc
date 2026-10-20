@@ -20753,7 +20753,7 @@ class VariantSizeTest : public WorkerTest {
   // .NET middleware keep them as the durable original (0x0C); the nginx
   // module records them at the identity slot (0x08), the same id the
   // optimized desktop original-format variant lives at.
-  enum class Layout { kDurableOriginal, kIdentitySlot };
+  enum class Layout : std::uint8_t { kDurableOriginal, kIdentitySlot };
 
   void StoreOriginal(Worker& worker, const std::string& url,
                      const std::string& bytes, Layout layout) {
