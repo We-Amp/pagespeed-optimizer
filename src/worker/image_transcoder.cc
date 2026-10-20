@@ -1843,8 +1843,11 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
   }
 
   // Animated GIFs can't be decoded to pixels; delegate directly.
+  // The delegations below hand over local_config: it already carries the
+  // Save-Data quality overrides, which a fresh config snapshot would drop.
   if (is_animated_gif) {
-    return TranscodeMulti(input_data, formats, source_jpeg_quality);
+    return TranscodeMulti(input_data, formats, source_jpeg_quality,
+                          local_config);
   }
 
   // Decode pixels.  Even paths that delegate to the stream-based
@@ -1852,7 +1855,8 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
   // result carries a valid content class.
   DecodedImage decoded = DecodeToPixels(input_data);
   if (decoded.pixel_buffer.empty()) {
-    return TranscodeMulti(input_data, formats, source_jpeg_quality);
+    return TranscodeMulti(input_data, formats, source_jpeg_quality,
+                          local_config);
   }
 
   // Resize if the image is wider than the viewport target.
