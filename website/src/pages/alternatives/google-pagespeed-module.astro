@@ -29,7 +29,7 @@ const faq: Array<{ q: string; a: string; html?: string }> = [
   },
   {
     q: 'What replaces the Google PageSpeed Module?',
-    a: 'mod_pagespeed 2.1, actively maintained by We-Amp: the native in-process module for Apache and nginx, with the same configuration syntax, the classic filter set, and the built-in admin console, plus, with the Apache module or the reverse-proxy deployment, an optimizer worker for SVG auto-vectorization, variant-aware caching, and zero-copy serving. The IIS package ships as a signed installer on the mod_pagespeed GitHub release.',
+    a: 'mod_pagespeed 2.1, actively maintained by We-Amp: the native in-process module for Apache and nginx, with the same configuration syntax, the classic filter set, and the built-in admin console, plus an optimizer worker, paired with the Apache or nginx module or in the reverse-proxy deployment, for variant-aware caching and zero-copy serving, and for SVG auto-vectorization in the reverse-proxy deployment. The IIS package ships as a signed installer on the mod_pagespeed GitHub release.',
   },
   {
     q: 'Should I still use PageSpeed Insights?',
@@ -236,14 +236,17 @@ const jsonLd = [
         covers WebP and AVIF alongside JPEG, PNG, and GIF.
       </p>
       <p>
-        With the Apache module or the reverse-proxy deployment, the <code>pagespeed-optimizer</code>
-        worker runs alongside and takes the heavy work off the request path: image transcoding,
-        critical CSS, SVG auto-vectorization, ML-predicted image quality, and the variant-aware
-        cache the module then serves from with zero-copy <code>mmap</code>. Up to 37 variants per
-        asset are generated per client capability. On the deb and rpm channels the module and the
-        worker install and upgrade together as a matching pair, and a version mismatch between them
-        is reported loudly rather than absorbed. The native nginx module runs on its own; to use the
-        optimizer worker with nginx, run the reverse-proxy deployment.
+        Paired with the Apache or nginx module, or in the reverse-proxy deployment, the
+        <code>pagespeed-optimizer</code> worker runs alongside and takes the heavy work off the
+        request path: image transcoding, ML-predicted image quality, and the variant-aware cache the
+        module then serves from with zero-copy <code>mmap</code>, plus critical CSS and SVG
+        auto-vectorization in the reverse-proxy deployment. Up to 37 variants per asset are
+        generated per client capability. The Apache packages install and upgrade the module and
+        worker together, and a version mismatch between them is reported loudly rather than
+        absorbed. The nginx module package does not pull the worker in: install
+        <code>pagespeed-optimizer</code> first, as its own command, then point the native nginx
+        module at it with two directives, as the
+        <a href="/docs/installation-module/#native-nginx-module">nginx install steps</a> show.
       </p>
 
       <pre><code>{`# Apache — the native mod_pagespeed 2.1 module
