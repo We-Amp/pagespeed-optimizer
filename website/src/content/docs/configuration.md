@@ -3,7 +3,7 @@ title: 'Configuration reference: Apache and nginx directives'
 description: 'Every mod_pagespeed 2.1 directive for the native Apache and nginx module, generated from the source: syntax, default, context and description.'
 order: 20
 group: 'Configure'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-20
 faq:
   - q: 'Where is the mod_pagespeed configuration file?'
     a: 'Apache reads `pagespeed.conf` from `/etc/apache2/mods-available/` (Debian, Ubuntu) or `/etc/httpd/conf.d/` (RHEL, AlmaLinux, Rocky); nginx reads `pagespeed` directives from `nginx.conf`, in the `http`, `server` or `location` block; IIS reads `pagespeed.config` from the site root or `%ProgramData%\We-Amp\PageSpeed\`.'
@@ -53,6 +53,11 @@ Ubuntu) or `/etc/httpd/conf.d/` (RHEL, AlmaLinux, Rocky) and loads the module.
 Edit that file, or put directives in a virtual host, a `<Directory>` or
 `<Location>` block, or `.htaccess`; every directive is written as
 `ModPagespeedName value`.
+
+On cPanel / EasyApache 4 the file is `/etc/apache2/conf.d/pagespeed.conf`, and
+the module cannot run beside `mod_ruid2`, which switches each request to the
+site owner's uid while the module's cache belongs to the Apache user: remove
+mod_ruid2 first, as [the cPanel page](/docs/cpanel/#mod-ruid2) explains.
 
 </div>
 
@@ -358,7 +363,9 @@ values corrected when upgrading.
 
 <!-- generated:begin module-directives -->
 
-Areas: [Enabling and filter selection](#area-enabling-and-filter-selection) (13) · [Request handling and policy](#area-request-handling-and-policy) (33) · [In-place resource optimization](#area-in-place-resource-optimization) (14) · [Domains and URLs](#area-domains-and-urls) (26) · [Optimizer worker](#area-optimizer-worker) (4) · [Bot authentication and licensing](#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](#area-statistics-console-and-logging) (31) · [Images](#area-images) (42) · [CSS](#area-css) (9) · [JavaScript](#area-javascript) (10) · [Caching](#area-caching) (46) · [Fetching and origins](#area-fetching-and-origins) (19) · [HTML rewriting and page hints](#area-html-rewriting-and-page-hints) (11) · [Threads and limits](#area-threads-and-limits) (2) · [Experiments and analytics](#area-experiments-and-analytics) (11) · [Deprecated and ignored](#area-deprecated-and-ignored) (28).
+Generated from the mod_pagespeed source at tag [`module-v2.5.0`](https://github.com/We-Amp/mod_pagespeed/tree/module-v2.5.0): 323 directives.
+
+Areas: [Enabling and filter selection](#area-enabling-and-filter-selection) (13) · [Request handling and policy](#area-request-handling-and-policy) (33) · [In-place resource optimization](#area-in-place-resource-optimization) (14) · [Domains and URLs](#area-domains-and-urls) (26) · [Optimizer worker](#area-optimizer-worker) (4) · [Rule packs](#area-rule-packs) (4) · [Bot authentication and licensing](#area-bot-authentication-and-licensing) (19) · [Statistics, console and logging](#area-statistics-console-and-logging) (31) · [Images](#area-images) (43) · [CSS](#area-css) (9) · [JavaScript](#area-javascript) (10) · [Caching](#area-caching) (46) · [Fetching and origins](#area-fetching-and-origins) (19) · [HTML rewriting and page hints](#area-html-rewriting-and-page-hints) (11) · [Threads and limits](#area-threads-and-limits) (2) · [Experiments and analytics](#area-experiments-and-analytics) (11) · [Deprecated and ignored](#area-deprecated-and-ignored) (28).
 
 ### Enabling and filter selection {#area-enabling-and-filter-selection}
 
@@ -465,7 +472,7 @@ Time to wait for resource optimization (per flush window) beforefalling back to 
 #### RewriteLevel {#rewritelevel}
 
 - **Syntax:** `ModPagespeedRewriteLevel CoreFilters|PassThrough|OptimizeForBandwidth|MobilizeFilters|TestingCoreFilters|AllFilters` (Apache) · `pagespeed RewriteLevel CoreFilters|PassThrough|OptimizeForBandwidth|MobilizeFilters|TestingCoreFilters|AllFilters;` (nginx)
-- **Default:** `PassThrough`
+- **Default:** `CoreFilters`
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
 Base level of rewriting (PassThrough, CoreFilters)
@@ -1191,6 +1198,42 @@ Keep this on a different path from `FileCachePath`. The worker creates the
 volume under its `--cache-dir`; see
 [Worker and reverse-proxy configuration](/docs/worker-configuration/#--cache-dir).
 
+### Rule packs {#area-rule-packs}
+
+[`RulePackFile`](#rulepackfile), [`RulePackMode`](#rulepackmode), [`RulePackRequireSigned`](#rulepackrequiresigned), [`RulePackTrustKey`](#rulepacktrustkey)
+
+#### RulePackFile {#rulepackfile}
+
+- **Syntax:** `ModPagespeedRulePackFile value` (Apache) · `pagespeed RulePackFile value;` (nginx)
+- **Default:** `(empty)`
+- **Context:** Apache: server config, virtual host · nginx: http, server
+
+Path of the rule pack file the rule_packs filter applies.
+
+#### RulePackMode {#rulepackmode}
+
+- **Syntax:** `ModPagespeedRulePackMode report|enforce` (Apache) · `pagespeed RulePackMode report|enforce;` (nginx)
+- **Default:** `report`
+- **Context:** Apache: server config, virtual host · nginx: http, server
+
+Mode of the rule_packs filter: report (default) records what the rules would do; enforce lets enforcing rules change the page.
+
+#### RulePackRequireSigned {#rulepackrequiresigned}
+
+- **Syntax:** `ModPagespeedRulePackRequireSigned on|off` (Apache) · `pagespeed RulePackRequireSigned on|off;` (nginx)
+- **Default:** `off`
+- **Context:** Apache: server config, virtual host · nginx: http, server
+
+Refuse rule packs that are not signed with a key listed by RulePackTrustKey.
+
+#### RulePackTrustKey {#rulepacktrustkey}
+
+- **Syntax:** `ModPagespeedRulePackTrustKey key_id base64_public_key` (Apache) · `pagespeed RulePackTrustKey key_id base64_public_key;` (nginx)
+- **Default:** —
+- **Context:** Apache: server config, virtual host · nginx: http, server
+
+Trust rule packs signed with this key: &lt;key id&gt; &lt;base64 Ed25519 public key&gt;
+
 ### Bot authentication and licensing {#area-bot-authentication-and-licensing}
 
 [`RslCapDirectoryHost`](#rslcapdirectoryhost), [`RslCapEnforcement`](#rslcapenforcement), [`RslCapIssuer`](#rslcapissuer), [`RslCapKeyDirectoryAllowlist`](#rslcapkeydirectoryallowlist), [`RslCapKeyDirectoryFile`](#rslcapkeydirectoryfile), [`RslCapKeyDirectoryRefreshSec`](#rslcapkeydirectoryrefreshsec), [`RslCapKeyDirectoryUrl`](#rslcapkeydirectoryurl), [`RslCapRequestedLicense`](#rslcaprequestedlicense), [`RslCapRequestedScope`](#rslcaprequestedscope), [`WebBotAuth`](#webbotauth), [`WebBotAuthBotDetection`](#webbotauthbotdetection), [`WebBotAuthDirectoryHost`](#webbotauthdirectoryhost), [`WebBotAuthKeyDirectoryAllowlist`](#webbotauthkeydirectoryallowlist), [`WebBotAuthKeyDirectoryFile`](#webbotauthkeydirectoryfile), [`WebBotAuthKeyDirectoryRefreshSec`](#webbotauthkeydirectoryrefreshsec), [`WebBotAuthKeyDirectoryUrl`](#webbotauthkeydirectoryurl), [`WebBotAuthPublicCounter`](#webbotauthpubliccounter), [`WebBotAuthTelemetry`](#webbotauthtelemetry), [`WebBotAuthVerifiedBots`](#webbotauthverifiedbots)
@@ -1637,7 +1680,7 @@ If true, keep track of statistics per VHost and not just globally
 
 ### Images {#area-images}
 
-[`AvifAnimatedRecompressionQuality`](#avifanimatedrecompressionquality), [`AvifQualityForSaveData`](#avifqualityforsavedata), [`AvifRecompressionQuality`](#avifrecompressionquality), [`AvifRecompressionQualityForSmallScreens`](#avifrecompressionqualityforsmallscreens), [`AvifTimeoutMs`](#aviftimeoutms), [`CriticalImagesBeaconEnabled`](#criticalimagesbeaconenabled), [`CssImageInlineMaxBytes`](#cssimageinlinemaxbytes), [`EnableLazyLoadHighResImages`](#enablelazyloadhighresimages), [`ImageInlineMaxBytes`](#imageinlinemaxbytes), [`ImageJpegNumProgressiveScans`](#imagejpegnumprogressivescans), [`ImageJpegNumProgressiveScansForSmallScreens`](#imagejpegnumprogressivescansforsmallscreens), [`ImageLimitOptimizedPercent`](#imagelimitoptimizedpercent), [`ImageLimitRenderedAreaPercent`](#imagelimitrenderedareapercent), [`ImageLimitResizeAreaPercent`](#imagelimitresizeareapercent), [`ImageMaxRewritesAtOnce`](#imagemaxrewritesatonce), [`ImageProvenanceCarry`](#imageprovenancecarry), [`ImageRecompressionQuality`](#imagerecompressionquality), [`ImageResolutionLimitBytes`](#imageresolutionlimitbytes), [`InlineOnlyCriticalImages`](#inlineonlycriticalimages), [`JpegQualityForSaveData`](#jpegqualityforsavedata), [`JpegRecompressionQuality`](#jpegrecompressionquality), [`JpegRecompressionQualityForSmallScreens`](#jpegrecompressionqualityforsmallscreens), [`LazyloadImagesAfterOnload`](#lazyloadimagesafteronload), [`LazyloadImagesBlankUrl`](#lazyloadimagesblankurl), [`LazyloadImagesMode`](#lazyloadimagesmode), [`LazyloadImagesSkipFirst`](#lazyloadimagesskipfirst), [`MaxImageSizeLowResolutionBytes`](#maximagesizelowresolutionbytes), [`MaxInlinedPreviewImagesIndex`](#maxinlinedpreviewimagesindex), [`MaxLowResImageSizeBytes`](#maxlowresimagesizebytes), [`MaxLowResToHighResImageSizePercentage`](#maxlowrestohighresimagesizepercentage), [`MinImageSizeLowResolutionBytes`](#minimagesizelowresolutionbytes), [`PreserveImageProvenance`](#preserveimageprovenance), [`ProgressiveJpegMinBytes`](#progressivejpegminbytes), [`ResponsiveImageDensities`](#responsiveimagedensities), [`ServeRewrittenAvifUrlsToAnyAgent`](#serverewrittenavifurlstoanyagent), [`ServeRewrittenWebpUrlsToAnyAgent`](#serverewrittenwebpurlstoanyagent), [`UseBlankImageForInlinePreview`](#useblankimageforinlinepreview), [`WebpAnimatedRecompressionQuality`](#webpanimatedrecompressionquality), [`WebpQualityForSaveData`](#webpqualityforsavedata), [`WebpRecompressionQuality`](#webprecompressionquality), [`WebpRecompressionQualityForSmallScreens`](#webprecompressionqualityforsmallscreens), [`WebpTimeoutMs`](#webptimeoutms)
+[`AvifAnimatedRecompressionQuality`](#avifanimatedrecompressionquality), [`AvifQualityForSaveData`](#avifqualityforsavedata), [`AvifRecompressionQuality`](#avifrecompressionquality), [`AvifRecompressionQualityForSmallScreens`](#avifrecompressionqualityforsmallscreens), [`AvifTimeoutMs`](#aviftimeoutms), [`CriticalImagesBeaconEnabled`](#criticalimagesbeaconenabled), [`CssImageInlineMaxBytes`](#cssimageinlinemaxbytes), [`EnableLazyLoadHighResImages`](#enablelazyloadhighresimages), [`ImageInlineMaxBytes`](#imageinlinemaxbytes), [`ImageJpegNumProgressiveScans`](#imagejpegnumprogressivescans), [`ImageJpegNumProgressiveScansForSmallScreens`](#imagejpegnumprogressivescansforsmallscreens), [`ImageLimitOptimizedPercent`](#imagelimitoptimizedpercent), [`ImageLimitRenderedAreaPercent`](#imagelimitrenderedareapercent), [`ImageLimitResizeAreaPercent`](#imagelimitresizeareapercent), [`ImageMaxAnimatedFrames`](#imagemaxanimatedframes), [`ImageMaxRewritesAtOnce`](#imagemaxrewritesatonce), [`ImageProvenanceCarry`](#imageprovenancecarry), [`ImageRecompressionQuality`](#imagerecompressionquality), [`ImageResolutionLimitBytes`](#imageresolutionlimitbytes), [`InlineOnlyCriticalImages`](#inlineonlycriticalimages), [`JpegQualityForSaveData`](#jpegqualityforsavedata), [`JpegRecompressionQuality`](#jpegrecompressionquality), [`JpegRecompressionQualityForSmallScreens`](#jpegrecompressionqualityforsmallscreens), [`LazyloadImagesAfterOnload`](#lazyloadimagesafteronload), [`LazyloadImagesBlankUrl`](#lazyloadimagesblankurl), [`LazyloadImagesMode`](#lazyloadimagesmode), [`LazyloadImagesSkipFirst`](#lazyloadimagesskipfirst), [`MaxImageSizeLowResolutionBytes`](#maximagesizelowresolutionbytes), [`MaxInlinedPreviewImagesIndex`](#maxinlinedpreviewimagesindex), [`MaxLowResImageSizeBytes`](#maxlowresimagesizebytes), [`MaxLowResToHighResImageSizePercentage`](#maxlowrestohighresimagesizepercentage), [`MinImageSizeLowResolutionBytes`](#minimagesizelowresolutionbytes), [`PreserveImageProvenance`](#preserveimageprovenance), [`ProgressiveJpegMinBytes`](#progressivejpegminbytes), [`ResponsiveImageDensities`](#responsiveimagedensities), [`ServeRewrittenAvifUrlsToAnyAgent`](#serverewrittenavifurlstoanyagent), [`ServeRewrittenWebpUrlsToAnyAgent`](#serverewrittenwebpurlstoanyagent), [`UseBlankImageForInlinePreview`](#useblankimageforinlinepreview), [`WebpAnimatedRecompressionQuality`](#webpanimatedrecompressionquality), [`WebpQualityForSaveData`](#webpqualityforsavedata), [`WebpRecompressionQuality`](#webprecompressionquality), [`WebpRecompressionQualityForSmallScreens`](#webprecompressionqualityforsmallscreens), [`WebpTimeoutMs`](#webptimeoutms)
 
 #### AvifAnimatedRecompressionQuality {#avifanimatedrecompressionquality}
 
@@ -1751,6 +1794,14 @@ Limit on percentage of rendered image wxh to the original image wxh that should 
 - **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
 
 Consider resizing images whose area in pixels is less than the given percent of original image area; 100 means replace if smaller.
+
+#### ImageMaxAnimatedFrames {#imagemaxanimatedframes}
+
+- **Syntax:** `ModPagespeedImageMaxAnimatedFrames number` (Apache) · `pagespeed ImageMaxAnimatedFrames number;` (nginx)
+- **Default:** `200`
+- **Context:** Apache: server config, virtual host, directory, .htaccess · nginx: http, server, location
+
+Maximum number of frames in an animated image that will be converted. Animations with more frames are served unconverted. 0 or a negative value disables the limit.
 
 #### ImageMaxRewritesAtOnce {#imagemaxrewritesatonce}
 

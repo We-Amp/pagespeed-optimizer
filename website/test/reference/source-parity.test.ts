@@ -24,6 +24,7 @@ import {
   parseWorkerUsage,
   parseThinModuleDirectives,
 } from '../../scripts/lib/reference-parsers.mjs';
+import { releaseManifest } from '../lib/release-manifest';
 
 const WEBSITE_ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const REPO_ROOT = resolve(WEBSITE_ROOT, '..');
@@ -84,8 +85,31 @@ describe('the module data carries its provenance', () => {
   const directives = readJson('module-directives.json');
   const filters = readJson('filters.json');
 
-  it('source-pin.json names a v2.* tag of the public mod_pagespeed repository', () => {
-    expect(pin.mod_pagespeed).toMatch(/^v2\.\d+\.\d+$/);
+  // mod_pagespeed tags its releases v2.1.0 .. v2.4.0, and module-v2.5.0 from
+  // 2.5.0 on (the optimizer worker's release is optimizer-v2.5.0).
+  it('source-pin.json names a v2.* or module-v2.* tag of the public mod_pagespeed repository', () => {
+    expect(pin.mod_pagespeed).toMatch(/^(module-)?v2\.\d+\.\d+$/);
+  });
+
+  // The reference says it lists every directive the shipped module accepts,
+  // which is only true while the pin is the current release. Bumping
+  // release.semver in src/content/releases-2.1/release.yaml without
+  // regenerating the reference (`npm run gen:references` against the new tag)
+  // turns this red.
+  it('source-pin.json is not behind the current release in the 2.1 release manifest', () => {
+    const version = (v: string) =>
+      v
+        .replace(/^(module-)?v/, '')
+        .split('.')
+        .map(Number);
+    const pinned = version(pin.mod_pagespeed);
+    const current = version(releaseManifest.release.semver);
+    const cmp = pinned.map((n, i) => n - current[i]).find((d) => d !== 0) ?? 0;
+    expect(
+      cmp,
+      `source-pin.json pins ${pin.mod_pagespeed}, but the current release is ${releaseManifest.release.semver}; ` +
+        'regenerate the reference against that release (npm run gen:references) and commit the result',
+    ).toBeGreaterThanOrEqual(0);
   });
 
   it('module-directives.json and filters.json were generated from that tag', () => {

@@ -122,6 +122,8 @@ const ENUM_DEFAULTS = new Map([
   ['kLazyloadImagesModeAuto', 'auto'],
   ['kLazyloadImagesModeNative', 'native'],
   ['kLazyloadImagesModeJs', 'js'],
+  ['kRulePackModeReport', 'report'],
+  ['kRulePackModeEnforce', 'enforce'],
 ]);
 
 // Options whose accepted values are parsed by a dedicated function; the
@@ -130,6 +132,7 @@ const ENUM_PARSERS = [
   ['RewriteLevel', 'bool RewriteOptions::ParseRewriteLevel('],
   ['EnableRewriting', 'EnabledEnum* value)'],
   ['LazyloadImagesMode', 'LazyloadImagesMode* value)'],
+  ['RulePackMode', 'RulePackMode* value)'],
 ];
 
 // Argument shapes of the directives that are not registered options. The
@@ -185,6 +188,7 @@ const DIRECTIVE_ARGS = {
   NativeFetcherMaxKeepaliveRequests: 'number',
   ProcessScriptVariables: 'on|off|all',
   ClearInheritedScripts: '',
+  RulePackTrustKey: 'key_id base64_public_key',
 };
 
 // nginx-only directives handled directly in NgxRewriteOptions::ParseAndSetOptions
@@ -252,6 +256,7 @@ const AREA_RULES = [
     /^(Domain|MapOriginDomain|MapProxyDomain|MapRewriteDomain|ShardDomain|DomainShardCount|DomainRewriteCookies|DomainRewriteHyperlinks|ClientDomainRewrite|ProxySuffix|LoadFromFile|UrlValuedAttribute|MaxSegmentLength|MaxUrlSize|PreserveUrlRelativity|CssPreserveURLs|ImagePreserveURLs|JsPreserveURLs|StaticAssetPrefix|StaticAssetCDN|RemoteConfiguration)/,
   ],
   ['Optimizer worker', /^Daemon/],
+  ['Rule packs', /^RulePack/],
   ['Bot authentication and licensing', /^(WebBotAuth|RslCap)/],
   [
     'Statistics, console and logging',
@@ -709,6 +714,33 @@ export function buildModuleDirectives(moduleSrc, warnings) {
       safeToPrint: null,
       deprecated: false,
     });
+  }
+
+  // The registered default of RewriteLevel is the base class's PassThrough,
+  // but neither server runs with it: Apache's create_dir_config calls
+  // SetDefaultRewriteLevel and nginx's NewRewriteOptions calls SetRewriteLevel
+  // on every new configuration. The effective default is what both set; when
+  // the two ports disagree, or the call is gone, the registered value stays
+  // and the run warns.
+  const rewriteLevel = byName.get('RewriteLevel');
+  if (rewriteLevel) {
+    const ngxFactoryCc = p('pagespeed/nginx/ngx_rewrite_driver_factory.cc');
+    const apacheLevel =
+      /SetDefaultRewriteLevel\(\s*RewriteOptions::(k\w+)\s*\)/.exec(modInstawebCc)?.[1] ?? null;
+    const ngxBody = ngxFactoryCc.slice(
+      Math.max(0, ngxFactoryCc.indexOf('NgxRewriteDriverFactory::NewRewriteOptions()')),
+    );
+    const ngxLevel =
+      /SetRewriteLevel\(\s*RewriteOptions::(k\w+)\s*\)/.exec(
+        ngxBody.slice(0, ngxBody.indexOf('\n}')),
+      )?.[1] ?? null;
+    const portDefault =
+      apacheLevel && apacheLevel === ngxLevel ? ENUM_DEFAULTS.get(apacheLevel) : null;
+    if (portDefault) rewriteLevel.default = portDefault;
+    else
+      warnings.push(
+        `RewriteLevel: no common port default (Apache ${apacheLevel}, nginx ${ngxLevel}); kept ${rewriteLevel.default}`,
+      );
   }
 
   // Prose from the docs overlay fills in where the source has only a syntax

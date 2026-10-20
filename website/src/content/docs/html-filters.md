@@ -3,7 +3,7 @@ title: 'HTML filters'
 description: 'HTML optimization filters in mod_pagespeed 2.1: collapse whitespace, strip comments, elide attributes, DNS prefetch, and resource preload hints.'
 order: 46
 group: 'Filters'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-20
 ---
 
 ## Overview
@@ -33,6 +33,7 @@ mod_pagespeed 2.1 includes filters that optimize HTML structure, cut unnecessary
 | [`decode_rewritten_urls`](#decode_rewritten_urls)         | No   | Restores original resource URLs      | Test first         |
 | [`compute_statistics`](#compute_statistics)               | No   | HTML statistics for the console      | Test first         |
 | [`experiment_http2`](#experiment_http2)                   | No   | HTTP/2 features in development       | Experimental       |
+| [`rule_packs`](#rule_packs)                               | No   | Applies a rule pack to the head      | Test first         |
 | [`insert_ga`](#insert_ga)                                 | No   | Inserts the retired ga.js snippet    | Deprecated         |
 
 ## IIS syntax
@@ -425,6 +426,19 @@ pagespeed EnableFilters experiment_http2;
 [Full guide →](/docs/filters/insert_ga/)
 
 Inserts the Google Analytics snippet for the account in `AnalyticsID` into every page. Deprecated: the snippet it inserts is the retired `ga.js`, and `AnalyticsID` itself only targets Universal Analytics, which was discontinued. Add your analytics in your templates instead.
+
+## Rule packs
+
+### rule_packs {#rule_packs}
+
+[Full guide →](/docs/filters/rule_packs/)
+
+Applies the rules of a rule pack, a JSON file named by `RulePackFile`, to the canonical link, title, meta description, hreflang cluster and JSON-LD of your pages. It is off by default and in no rewrite level: it is in the dangerous set, so `RewriteLevel AllFilters` does not enable it either. A pack starts in report mode (`RulePackMode report`, the default) and records what it would change without changing anything. See [Rule packs](/docs/rule-packs/) for the pack format, enforce mode and signed packs.
+
+```nginx
+pagespeed EnableFilters rule_packs;
+pagespeed RulePackFile /etc/pagespeed/packs/example.com.json;
+```
 
 ## Deprecated and dangerous filters
 

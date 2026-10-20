@@ -1,8 +1,8 @@
 {
   "source": {
     "repo": "https://github.com/We-Amp/mod_pagespeed",
-    "tag": "v2.2.0",
-    "commit": "949435fb8b72919c9db8596bae513113fb213eac"
+    "tag": "module-v2.5.0",
+    "commit": "d85af9cdfd8c1deb45088162dd8532e706b20fa8"
   },
   "generator": "website/scripts/generate-references.mjs",
   "areas": [
@@ -11,6 +11,7 @@
     "In-place resource optimization",
     "Domains and URLs",
     "Optimizer worker",
+    "Rule packs",
     "Bot authentication and licensing",
     "Statistics, console and logging",
     "Images",
@@ -43,6 +44,10 @@
       "auto",
       "native",
       "js"
+    ],
+    "RulePackMode": [
+      "report",
+      "enforce"
     ]
   },
   "directives": [
@@ -4561,6 +4566,43 @@
       "safeToPrint": true
     },
     {
+      "name": "ImageMaxAnimatedFrames",
+      "kind": "option",
+      "area": "Images",
+      "platforms": [
+        "apache",
+        "nginx"
+      ],
+      "syntax": {
+        "apache": "ModPagespeedImageMaxAnimatedFrames number",
+        "nginx": "pagespeed ImageMaxAnimatedFrames number;"
+      },
+      "default": "200",
+      "context": {
+        "apache": [
+          "server config",
+          "virtual host",
+          "directory",
+          ".htaccess"
+        ],
+        "nginx": [
+          "http",
+          "server",
+          "location"
+        ],
+        "query": false
+      },
+      "since": null,
+      "description": "Maximum number of frames in an animated image that will be converted. Animations with more frames are served unconverted. 0 or a negative value disables the limit.",
+      "descriptionSource": "source",
+      "scope": "directory",
+      "valueType": "int",
+      "id": "imaf",
+      "origin": "rewrite_options",
+      "deprecated": false,
+      "safeToPrint": true
+    },
+    {
       "name": "ImageMaxRewritesAtOnce",
       "kind": "option",
       "area": "Images",
@@ -8711,7 +8753,7 @@
         "apache": "ModPagespeedRewriteLevel CoreFilters|PassThrough|OptimizeForBandwidth|MobilizeFilters|TestingCoreFilters|AllFilters",
         "nginx": "pagespeed RewriteLevel CoreFilters|PassThrough|OptimizeForBandwidth|MobilizeFilters|TestingCoreFilters|AllFilters;"
       },
-      "default": "PassThrough",
+      "default": "CoreFilters",
       "context": {
         "apache": [
           "server config",
@@ -9076,6 +9118,143 @@
       "origin": "nginx",
       "deprecated": false,
       "safeToPrint": false
+    },
+    {
+      "name": "RulePackFile",
+      "kind": "option",
+      "area": "Rule packs",
+      "platforms": [
+        "apache",
+        "nginx"
+      ],
+      "syntax": {
+        "apache": "ModPagespeedRulePackFile value",
+        "nginx": "pagespeed RulePackFile value;"
+      },
+      "default": "",
+      "context": {
+        "apache": [
+          "server config",
+          "virtual host"
+        ],
+        "nginx": [
+          "http",
+          "server"
+        ],
+        "query": false
+      },
+      "since": null,
+      "description": "Path of the rule pack file the rule_packs filter applies.",
+      "descriptionSource": "source",
+      "scope": "server",
+      "valueType": "empty",
+      "id": "rpkf",
+      "origin": "rewrite_options",
+      "deprecated": false,
+      "safeToPrint": true
+    },
+    {
+      "name": "RulePackMode",
+      "kind": "option",
+      "area": "Rule packs",
+      "platforms": [
+        "apache",
+        "nginx"
+      ],
+      "syntax": {
+        "apache": "ModPagespeedRulePackMode report|enforce",
+        "nginx": "pagespeed RulePackMode report|enforce;"
+      },
+      "default": "report",
+      "context": {
+        "apache": [
+          "server config",
+          "virtual host"
+        ],
+        "nginx": [
+          "http",
+          "server"
+        ],
+        "query": false
+      },
+      "since": null,
+      "description": "Mode of the rule_packs filter: report (default) records what the rules would do; enforce lets enforcing rules change the page.",
+      "descriptionSource": "source",
+      "scope": "server",
+      "valueType": "enum",
+      "id": "rpkm",
+      "origin": "rewrite_options",
+      "deprecated": false,
+      "safeToPrint": true
+    },
+    {
+      "name": "RulePackRequireSigned",
+      "kind": "option",
+      "area": "Rule packs",
+      "platforms": [
+        "apache",
+        "nginx"
+      ],
+      "syntax": {
+        "apache": "ModPagespeedRulePackRequireSigned on|off",
+        "nginx": "pagespeed RulePackRequireSigned on|off;"
+      },
+      "default": "off",
+      "context": {
+        "apache": [
+          "server config",
+          "virtual host"
+        ],
+        "nginx": [
+          "http",
+          "server"
+        ],
+        "query": false
+      },
+      "since": null,
+      "description": "Refuse rule packs that are not signed with a key listed by RulePackTrustKey.",
+      "descriptionSource": "source",
+      "scope": "server",
+      "valueType": "bool",
+      "id": "rpkrs",
+      "origin": "rewrite_options",
+      "deprecated": false,
+      "safeToPrint": true
+    },
+    {
+      "name": "RulePackTrustKey",
+      "kind": "directive",
+      "area": "Rule packs",
+      "platforms": [
+        "apache",
+        "nginx"
+      ],
+      "syntax": {
+        "apache": "ModPagespeedRulePackTrustKey key_id base64_public_key",
+        "nginx": "pagespeed RulePackTrustKey key_id base64_public_key;"
+      },
+      "default": null,
+      "context": {
+        "apache": [
+          "server config",
+          "virtual host"
+        ],
+        "nginx": [
+          "http",
+          "server"
+        ],
+        "query": false
+      },
+      "since": null,
+      "description": "Trust rule packs signed with this key: <key id> <base64 Ed25519 public key>",
+      "descriptionSource": "source",
+      "scope": "server",
+      "scopeNginx": "server",
+      "valueType": null,
+      "id": null,
+      "origin": "rewrite_options",
+      "deprecated": false,
+      "safeToPrint": null
     },
     {
       "name": "RunExperiment",

@@ -1,8 +1,8 @@
 {
   "source": {
     "repo": "https://github.com/We-Amp/mod_pagespeed",
-    "tag": "v2.2.0",
-    "commit": "949435fb8b72919c9db8596bae513113fb213eac"
+    "tag": "module-v2.5.0",
+    "commit": "d85af9cdfd8c1deb45088162dd8532e706b20fa8"
   },
   "generator": "website/scripts/generate-references.mjs",
   "filters": [
@@ -1520,6 +1520,23 @@
       "example": "/examples/rewrite_style_attributes_with_url/"
     },
     {
+      "name": "rule_packs",
+      "enum": "kRulePacks",
+      "id": "rpk",
+      "label": "Rule Packs",
+      "core": false,
+      "optimizeForBandwidth": false,
+      "dangerous": true,
+      "deprecated": false,
+      "alternateSpellingOf": null,
+      "category": "HTML",
+      "summary": "Applies a rule pack's rules for the canonical, title, description, hreflang and JSON-LD of a page",
+      "risk": "Dangerous",
+      "riskSource": "source",
+      "note": "Off by default and in no rewrite level; a pack starts in report mode and changes nothing until enforced",
+      "example": null
+    },
+    {
       "name": "split_html",
       "enum": "kSplitHtmlDeprecated",
       "id": "sh",
@@ -1782,6 +1799,7 @@
       "make_google_analytics_async",
       "mobilize",
       "mobilize_precompute",
+      "rule_packs",
       "split_html",
       "split_html_helper",
       "strip_scripts"

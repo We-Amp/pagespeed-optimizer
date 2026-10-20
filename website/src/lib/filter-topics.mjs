@@ -148,6 +148,7 @@ export const HUMAN_NAMES = {
   rewrite_javascript_inline: 'Minify inline JavaScript',
   rewrite_style_attributes: 'Rewrite style attributes',
   rewrite_style_attributes_with_url: 'Rewrite style attributes with url()',
+  rule_packs: 'Rule packs',
   split_html: 'Split HTML',
   split_html_helper: 'Split HTML helper',
   sprite_images: 'Sprite images',
