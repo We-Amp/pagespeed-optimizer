@@ -8,8 +8,8 @@ one of two lanes, each a reusable workflow pinned to `main`:
 
 | Tag | Lane | Publishes |
 |---|---|---|
-| `optimizer-v<version>` | `pipeline-release-optimizer.yml` | a GitHub release with the host packages: deb and rpm for amd64 and arm64, a Windows x64 zip, `SHA256SUMS` |
-| `v<version>` | `pipeline-release-nuget.yml` | five NuGet packages on nuget.org (WeAmp.PageSpeed, WeAmp.PageSpeed.AspNetCore, WeAmp.PageSpeed.NativeAssets.Linux / .Windows / .macOS) and a draft GitHub release with the packages, SBOM, VEX and `SHA256SUMS` |
+| `optimizer-v<version>` | `pipeline-release-optimizer.yml` | a GitHub release with the host packages: deb and rpm for amd64 and arm64, a Windows x64 zip, `SHA256SUMS` and `SHA256SUMS.asc` |
+| `v<version>` | `pipeline-release-nuget.yml` | five NuGet packages on nuget.org (WeAmp.PageSpeed, WeAmp.PageSpeed.AspNetCore, WeAmp.PageSpeed.NativeAssets.Linux / .Windows / .macOS) and a draft GitHub release with the packages, SBOM, VEX, `SHA256SUMS` and `SHA256SUMS.asc` |
 
 `optimizer-v*` never matches `v*`. `release-smoke.yml` runs
 `pipeline-release-smoke.yml` when a `v*` release is published: it installs
@@ -111,9 +111,11 @@ that run in it:
 
 | Lane | Job | Why |
 |---|---|---|
+| optimizer | `sign-checksums` | signs `SHA256SUMS` with the release signing key (`RELEASE_GPG_*`) |
 | optimizer | `release` | creates the GitHub release |
 | NuGet | `sign-windows` | Authenticode signing with the six `AZURE_*` secrets |
 | NuGet | `package` | draft GitHub release, the two notifications (`CORP_DISPATCH_TOKEN`) |
+| NuGet | `sign-checksums` | signs `SHA256SUMS` with the release signing key (`RELEASE_GPG_*`) |
 | NuGet | `publish-nuget` | nuget.org Trusted Publishing (OIDC, `id-token: write`) |
 | NuGet | `promote-release` | draft to published, only with `auto_promote` |
 
@@ -129,8 +131,8 @@ that signs, writes to GitHub or publishes runs on a hosted runner.
 
 ## Secrets
 
-Environment secrets of `release`. `pipeline-release-nuget.yml` declares each
-one (none required), and `release.yml` passes each one explicitly (never
+Environment secrets of `release`. The lane that uses a secret declares it
+(none required), and `release.yml` passes each one explicitly (never
 `secrets: inherit`); a job in the environment reads the environment's
 value.
 
@@ -143,8 +145,42 @@ value.
 | `AZURE_TRUSTED_SIGNING_ACCOUNT` | `sign-windows` | Trusted Signing account name |
 | `AZURE_TRUSTED_SIGNING_PROFILE` | `sign-windows` | certificate profile name |
 | `CORP_DISPATCH_TOKEN` | `package` | fine-grained token with `actions: write` on the two notification targets |
+| `RELEASE_GPG_KEY` | `sign-checksums` (both lanes) | the release signing key, fingerprint `411DEFDB571351D2B25AEFCC9C02B5BDCCE75313`: the armored secret key, base64 encoded, a single secret key |
+| `RELEASE_GPG_PASSPHRASE` | `sign-checksums` (both lanes) | its passphrase |
 
-The optimizer lane needs no secret beyond the job token.
+Until the owner adds `RELEASE_GPG_KEY` and `RELEASE_GPG_PASSPHRASE`, a real
+run of either lane fails at `sign-checksums` with a message that names them,
+and nothing is published: the optimizer lane creates no release, and the
+NuGet lane leaves its draft unsigned and pushes nothing to nuget.org.
+
+## Signed checksums
+
+`SHA256SUMS` of every release is signed with the We-Amp release signing key,
+the same key that signs the mod_pagespeed module releases. Its public half is
+`RELEASE-SIGNING-KEY.asc` at the repository root. `sign-checksums` runs
+`tools/ci/release_checksums_sig.sh` (self-test:
+`tools/ci/test_release_checksums_sig.sh`) from a checkout of `main`:
+
+- `sign` refuses unless the secret holds exactly one secret key whose full
+  fingerprint is `411DEFDB571351D2B25AEFCC9C02B5BDCCE75313`;
+- `verify` imports only `RELEASE-SIGNING-KEY.asc` (which must hold exactly
+  that one key) into a fresh keyring and requires the `VALIDSIG` primary-key
+  fingerprint of `SHA256SUMS.asc` to be exactly that fingerprint.
+
+In the NuGet lane the draft already exists when the checksums are signed:
+`attach-signature` adds `SHA256SUMS.asc` to it after checking that the
+draft's `SHA256SUMS` is the signed file, and `publish-nuget` waits for it.
+A new key changes the pin in the script, `RELEASE-SIGNING-KEY.asc` and this
+page together.
+
+To verify a download:
+
+```bash
+gpg --show-keys --with-fingerprint RELEASE-SIGNING-KEY.asc   # 411D EFDB 5713 51D2 B25A  EFCC 9C02 B5BD CCE7 5313
+gpg --import RELEASE-SIGNING-KEY.asc
+gpg --verify SHA256SUMS.asc SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS
+```
 
 Repository variables read by the NuGet lane (a repository variable that
 is unset skips its dispatch step with a notice; a variable that is set while
@@ -213,4 +249,7 @@ runners. Jobs pass files only as workflow artifacts:
 | `native-win-x64-unsigned` | Windows build | `sign-windows`; `package` in a dry run |
 | `native-win-x64` | `sign-windows` | `package` in a real run |
 | `nupkg-<sha>` | `package` | `publish-nuget` |
-| `optimizer-*`, `optimizer-release-dist` | optimizer builds, `manifest` | `manifest`, `release` |
+| `release-sums-<sha>` | `package` (real run) | `sign-checksums`, `attach-signature` |
+| `release-signature-<sha>` | `sign-checksums` | `attach-signature` |
+| `optimizer-*`, `optimizer-release-dist` | optimizer builds, `manifest` | `manifest`, `sign-checksums`, `release` |
+| `optimizer-release-signature` | `sign-checksums` | `release` |

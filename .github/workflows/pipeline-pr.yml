@@ -368,6 +368,8 @@ jobs:
         run: tools/ci/test_check_workflow_shape.sh
       - name: Release ref guard self-test
         run: tools/ci/test_ref_guard.sh
+      - name: Release checksum signature self-test
+        run: tools/ci/test_release_checksums_sig.sh
       - name: Release tag version guard self-test
         run: tools/ci/check_optimizer_tag_version.sh --self-test
 

@@ -17,6 +17,13 @@ retrying every second until the reopen succeeds (the nginx module serves
 uncached instead). On Windows a full purge may still not take effect while the
 application is running.
 
+Added: the GitHub releases of the host packages (`optimizer-v*`) and of the
+NuGet packages (`v*`) carry `SHA256SUMS.asc`, a detached signature of
+`SHA256SUMS` made with the We-Amp release signing key (fingerprint
+`411D EFDB 5713 51D2 B25A EFCC 9C02 B5BD CCE7 5313`), the key that already signs
+the module releases. Its public half is `RELEASE-SIGNING-KEY.asc` in this
+repository. Releases up to and including 2.5.0 have no signature.
+
 ## 2.5.0 - 2026-10-19
 
 Changed: one version number. The host packages move from 1.19.0 to 2.5.0

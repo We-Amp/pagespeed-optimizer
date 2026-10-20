@@ -66,6 +66,10 @@ GIT_COMMIT
 # deploy/logrotate.d/: logrotate drop-in configuration.
 logrotate\.d
 
+# --- Key material -----------------------------------------------------------
+# The armored public release signing key: no room for a header.
+RELEASE-SIGNING-KEY\.asc
+
 # --- Documentation, prose, data and images ----------------------------------
 (?i).*\.mdx?
 .*\.txt

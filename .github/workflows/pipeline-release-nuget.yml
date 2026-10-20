@@ -21,6 +21,9 @@
 #     -> package (hosted, `release` environment): the four native sets
 #        from workflow artifacts, five .nupkg, draft GitHub release, the two
 #        repository_dispatch notifications
+#     -> sign-checksums (hosted, `release` environment): SHA256SUMS signed
+#        with the release signing key, verified against the published key
+#     -> attach-signature (hosted): SHA256SUMS.asc added to the draft
 #     -> publish-nuget (hosted, `release` environment): nuget.org Trusted
 #        Publishing (OIDC)
 #     -> promote-release (hosted, `release` environment): draft ->
@@ -83,6 +86,10 @@ on:
       AZURE_TRUSTED_SIGNING_PROFILE:
         required: false
       CORP_DISPATCH_TOKEN:
+        required: false
+      RELEASE_GPG_KEY:
+        required: false
+      RELEASE_GPG_PASSPHRASE:
         required: false
 
 permissions:
@@ -1254,6 +1261,8 @@ jobs:
           ( cd "$ASSETS" && sha256sum -- *.nupkg mod_pagespeed-"${VERSION}".spdx.json mod_pagespeed-"${VERSION}".vex.json > SHA256SUMS && sha256sum -c SHA256SUMS )
           if gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null | grep -qx true; then
             echo "A draft release for $TAG exists; attaching the packages, SBOM, VEX and SHA256SUMS"
+            # A signature from an earlier run would not match the new SHA256SUMS.
+            gh release delete-asset "$TAG" SHA256SUMS.asc --yes 2>/dev/null || true
             gh release upload "$TAG" --clobber "$ASSETS"/*
           else
             gh release create "$TAG" --draft \
@@ -1263,6 +1272,16 @@ jobs:
               "$ASSETS"/*
             echo "Draft release created: $TAG"
           fi
+
+      # Real runs only: the input to sign-checksums.
+      - name: Upload SHA256SUMS (input to sign-checksums)
+        if: ${{ needs.ref-guard.outputs.real == 'true' }}
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-sums-${{ needs.ref-guard.outputs.short_sha }}
+          path: ${{ runner.temp }}/release-assets/SHA256SUMS
+          retention-days: 7
+          if-no-files-found: error
 
       - name: Upload the .nupkg artifact (input to publish-nuget)
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
@@ -1352,14 +1371,101 @@ jobs:
     env: *package-env
     steps: *package-steps
 
+  # The release signing key lives in this one job, which holds no write
+  # token. The signing script and the published public key come from main,
+  # never from the tree being released.
+  sign-checksums:
+    name: Sign SHA256SUMS
+    needs: [ref-guard, package]
+    if: ${{ !cancelled() && needs.package.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release
+    steps:
+      - name: Checkout main (signing script, published key)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: trust
+          sparse-checkout: |
+            tools/ci/release_checksums_sig.sh
+            RELEASE-SIGNING-KEY.asc
+          sparse-checkout-cone-mode: false
+          persist-credentials: false
+
+      - name: Download SHA256SUMS
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-sums-${{ needs.ref-guard.outputs.short_sha }}
+          path: sums
+
+      - name: Sign SHA256SUMS (detached, armored)
+        env:
+          RELEASE_GPG_KEY: ${{ secrets.RELEASE_GPG_KEY }}
+          RELEASE_GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
+        run: bash trust/tools/ci/release_checksums_sig.sh sign sums/SHA256SUMS signature/SHA256SUMS.asc
+
+      # A fresh keyring holding only RELEASE-SIGNING-KEY.asc from main.
+      - name: Verify SHA256SUMS.asc against the published release key
+        run: |
+          set -euo pipefail
+          bash trust/tools/ci/release_checksums_sig.sh verify sums/SHA256SUMS signature/SHA256SUMS.asc trust/RELEASE-SIGNING-KEY.asc \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
+      - name: Upload the signature
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
+        with:
+          name: release-signature-${{ needs.ref-guard.outputs.short_sha }}
+          path: signature/SHA256SUMS.asc
+          retention-days: 7
+          if-no-files-found: error
+
+  # Adds the signature to the draft, after checking that the draft's
+  # SHA256SUMS is the file that was signed. Holds the write token, no key.
+  attach-signature:
+    name: Attach SHA256SUMS.asc to the draft release
+    needs: [ref-guard, sign-checksums]
+    if: ${{ !cancelled() && needs.sign-checksums.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - name: Download SHA256SUMS
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-sums-${{ needs.ref-guard.outputs.short_sha }}
+          path: signed
+
+      - name: Download the signature
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: release-signature-${{ needs.ref-guard.outputs.short_sha }}
+          path: signed
+
+      - name: Attach to the draft
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ needs.ref-guard.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft | grep -qx true \
+            || { echo "::error::$TAG is not a draft release; the signature is attached to the draft only"; exit 1; }
+          rm -rf draft && mkdir draft
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern SHA256SUMS --dir draft
+          cmp -s draft/SHA256SUMS signed/SHA256SUMS \
+            || { echo "::error::the draft's SHA256SUMS is not the file that was signed"; exit 1; }
+          gh release upload "$TAG" --repo "$GITHUB_REPOSITORY" --clobber signed/SHA256SUMS.asc
+          echo "Attached SHA256SUMS.asc to the draft release $TAG" | tee -a "$GITHUB_STEP_SUMMARY"
+
   # nuget.org Trusted Publishing: NuGet/login exchanges this job's OIDC
   # token for a short-lived API key. The nuget.org policy names this
   # repository, the workflow file pipeline-release-nuget.yml (the token's
   # job_workflow_ref) and the environment `release` (docs/ci/release.md).
   publish-nuget:
     name: Publish to nuget.org (Trusted Publishing)
-    needs: [ref-guard, package]
-    if: ${{ !cancelled() && needs.package.result == 'success' }}
+    needs: [ref-guard, package, attach-signature]
+    if: ${{ !cancelled() && needs.package.result == 'success' && needs.attach-signature.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     environment: release
