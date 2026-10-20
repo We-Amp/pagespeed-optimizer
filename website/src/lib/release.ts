@@ -36,6 +36,9 @@ export type Release = Awaited<ReturnType<typeof getRelease>>;
  *   %R → release.revision ?? 0  (e.g. 9; renders as "9")
  *   %T → release.tag            (e.g. "v1.1.0+r9")
  *
+ * A template that is already an absolute https:// URL is returned without
+ * the archive_base prefix.
+ *
  * Throws when the channel/arch pair is absent so build-time failures surface
  * loudly instead of producing a broken href.
  */
@@ -54,6 +57,9 @@ export function artifactUrl(rel: Release, channel: string, arch: string): string
     .replaceAll('%V', rel.release.semver)
     .replaceAll('%R', String(rel.release.revision ?? 0))
     .replaceAll('%T', rel.release.tag);
+  // An absolute template names an artifact hosted outside archive_base (the
+  // IIS installer on the GitHub release) and is rendered as-is.
+  if (filename.startsWith('https://')) return filename;
   return rel.urls.archive_base + filename;
 }
 

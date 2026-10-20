@@ -3,7 +3,7 @@ title: 'Uninstall and rollback'
 description: 'Remove mod_pagespeed 2.1 per shape (apt, dnf, cPanel, Docker, Helm, IIS, NuGet), what each leaves behind, cache cleanup, and rolling back a release.'
 order: 56
 group: 'Operate'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-19
 datePublished: 2026-10-08
 faq:
   - q: 'Does removing the packages delete the cache?'
@@ -25,14 +25,28 @@ directives from a module that is gone fails to start.
 
 ```bash
 # Debian / Ubuntu: keep the configuration files, or purge them
+sudo apt-mark manual apache2                                     # Apache: keep Apache when the module pulled it in
 sudo apt-get remove mod-pagespeed pagespeed-optimizer            # Apache
+sudo apt-mark manual nginx                                       # nginx: keep nginx when the module pulled it in
 sudo apt-get remove nginx-module-pagespeed pagespeed-optimizer   # nginx
 sudo apt-get purge  mod-pagespeed pagespeed-optimizer            # also removes configuration and the default cache
 # AlmaLinux / RHEL / Rocky
-sudo dnf remove mod-pagespeed pagespeed-optimizer
-sudo dnf remove nginx-module-pagespeed pagespeed-optimizer
+sudo dnf remove --noautoremove mod-pagespeed pagespeed-optimizer            # Apache: --noautoremove keeps httpd
+sudo dnf remove --noautoremove nginx-module-pagespeed pagespeed-optimizer   # nginx: --noautoremove keeps nginx
 sudo systemctl restart apache2   # httpd on Enterprise Linux, or nginx
 ```
+
+:::warning[Removing the module package can take the web server with it]
+When the module package pulled the web server in as a dependency, the package
+manager counts it as unused once the module is gone. `dnf remove` without
+`--noautoremove` removes it in the same transaction, including `httpd`,
+`httpd-core` and `mod_http2` for Apache and `nginx`, `nginx-core` and
+`nginx-filesystem` for nginx. On Debian and Ubuntu the next
+`apt-get autoremove` removes it, including `apache2`, `apache2-bin`,
+`apache2-data` and `apache2-utils` for Apache and `nginx` for nginx, unless
+`apt-mark manual apache2` or `apt-mark manual nginx` ran first.
+`apt-get remove` or `purge` on its own leaves the web server installed.
+:::
 
 What stays after `remove`:
 
@@ -78,6 +92,17 @@ This removes every resource the chart created (Deployment, Service, Ingress,
 HPA, ConfigMap). The `emptyDir` cache goes with the pods.
 
 ## IIS
+
+:::warning[Maintenance window]
+Running the MSI — to install, upgrade, repair or uninstall the module — takes
+every IIS site on the server down for the duration, not only the sites it
+optimizes. The installer stops the Windows Process Activation Service (WAS)
+and the World Wide Web Publishing Service (W3SVC), force-kills any `w3wp.exe`
+worker process still running, and starts IIS again when it is done; anything
+else that depends on WAS, such as the WCF non-HTTP activation services
+(net.tcp, net.pipe, net.msmq), is stopped with it and not restarted. In-flight
+requests are dropped. Plan a maintenance window.
+:::
 
 1. Remove the `pagespeed` directives you no longer want, or leave the
    `pagespeed.config` files in place for a later reinstall.
@@ -128,7 +153,9 @@ run `docker compose up -d`; both images move together.
 **Helm.** `helm history pagespeed` lists the revisions, and
 `helm rollback pagespeed <revision>` returns to one.
 
-**IIS.** Uninstall the current module, run the previous MSI, `iisreset`.
+**IIS.** Uninstall the current module, run the previous MSI, `iisreset`. Each
+MSI run takes every IIS site on the server down for the duration (see
+[IIS](#iis) above).
 
 **ASP.NET Core.** Pin the previous package version in the project file
 (`<PackageReference Include="WeAmp.PageSpeed.AspNetCore" Version="<version>" />`)
