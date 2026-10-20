@@ -20745,7 +20745,62 @@ std::pair<uint32_t, uint32_t> VariantDimensions(const std::string& b) {
 //   * a Save-Data variant is never larger than the variant the same client
 //     gets without Save-Data.
 // The byte table is printed so a run documents the sizes it saw.
-TEST_F(WorkerTest, VariantSizesPerClientNeverExceedTheirFallback) {
+// Shared by the variant-size tests below: the reported request mix, the
+// storage layouts of the two front-end families, and the per-slot size check.
+class VariantSizeTest : public WorkerTest {
+ protected:
+  // How a front end records the origin's bytes: the Apache module and the
+  // .NET middleware keep them as the durable original (0x0C); the nginx
+  // module records them at the identity slot (0x08), the same id the
+  // optimized desktop original-format variant lives at.
+  enum class Layout { kDurableOriginal, kIdentitySlot };
+
+  void StoreOriginal(Worker& worker, const std::string& url,
+                     const std::string& bytes, Layout layout) {
+    if (layout == Layout::kIdentitySlot) {
+      CacheOriginal(worker.cache(), url, bytes);
+    } else {
+      CacheDurableOriginal(worker.cache(), url, bytes, "image/jpeg",
+                           ContentType::kImage,
+                           static_cast<uint32_t>(std::time(nullptr)), 3600);
+    }
+  }
+
+  // Every stored converted variant is smaller than the original-format
+  // variant of its slot, and every stored Save-Data variant is smaller than
+  // the same format and size without Save-Data.
+  void ExpectStoredSlotsSmallerThanFallback(Worker& worker,
+                                            const std::string& url) {
+    auto alts =
+        worker.cache()->ListAlternates(StripSchemeAuthority(url), "", "https");
+    ASSERT_TRUE(alts.has_value());
+    std::map<uint8_t, uint64_t> sizes;
+    for (const auto& a : *alts) {
+      if (!IsSentinel(static_cast<uint8_t>(a.id))) {
+        sizes[static_cast<uint8_t>(a.id)] = a.content_length;
+      }
+    }
+    ASSERT_FALSE(sizes.empty());
+    for (const auto& [id, size] : sizes) {
+      if ((id & 0x03) != 0) {  // WebP or AVIF: compare with the JPEG slot
+        auto orig = sizes.find(static_cast<uint8_t>(id & ~0x03));
+        if (orig != sizes.end()) {
+          EXPECT_LT(size, orig->second) << "slot 0x" << std::hex << int{id};
+        }
+      }
+      if ((id & 0x20) != 0) {  // Save-Data: compare with the normal slot
+        auto normal = sizes.find(static_cast<uint8_t>(id & ~0x20));
+        if (normal != sizes.end()) {
+          EXPECT_LT(size, normal->second) << "slot 0x" << std::hex << int{id};
+        }
+      }
+    }
+  }
+
+  void ReplayReportedClients(Layout layout);
+};
+
+void VariantSizeTest::ReplayReportedClients(Layout layout) {
   WorkerConfig config;
   config.socket_path = socket_path_;
   config.cache_path = cache_path_;
@@ -20758,12 +20813,7 @@ TEST_F(WorkerTest, VariantSizesPerClientNeverExceedTheirFallback) {
   const std::string url = "http://example.com/big.jpg";
   const std::string jpeg = ReadTestFile("jpeg/plasma_1200x800_q95.jpg");
   ASSERT_FALSE(jpeg.empty());
-  // Recorded the way a front end that keeps the origin's bytes as the
-  // durable original records them, so every slot, the desktop JPEG
-  // included, is built by the worker as in the reports.
-  CacheDurableOriginal(worker.cache(), url, jpeg, "image/jpeg",
-                       ContentType::kImage,
-                       static_cast<uint32_t>(std::time(nullptr)), 3600);
+  StoreOriginal(worker, url, jpeg, layout);
 
   std::thread worker_thread([&worker]() { worker.Run(); });
   std::this_thread::sleep_for(std::chrono::milliseconds(50));
@@ -20818,35 +20868,106 @@ TEST_F(WorkerTest, VariantSizesPerClientNeverExceedTheirFallback) {
   // Save-Data never costs more than the same client without it.
   EXPECT_LE(served[0x28].size(), served[0x08].size());
   EXPECT_LE(served[0x2A].size(), served[0x0A].size());
+  // The desktop original-format client gets the optimized encode, never
+  // the upload, on either layout.
+  EXPECT_LT(served[0x08].size(), jpeg.size());
 
-  // The same two size rules hold for every stored slot, not only for the
-  // ones these clients happened to select.
-  auto alts =
-      worker.cache()->ListAlternates(StripSchemeAuthority(url), "", "https");
-  ASSERT_TRUE(alts.has_value());
-  std::map<uint8_t, uint64_t> sizes;
-  for (const auto& a : *alts) {
-    if (!IsSentinel(static_cast<uint8_t>(a.id))) {
-      sizes[static_cast<uint8_t>(a.id)] = a.content_length;
+  ExpectStoredSlotsSmallerThanFallback(worker, url);
+
+  if (layout == Layout::kIdentitySlot) {
+    // The upload replaced at the identity slot is kept as the durable
+    // original, so change detection keeps reading the origin's bytes: a
+    // second pass does not mistake the optimized encode for a new origin.
+    auto durable = worker.cache()->ReadOriginalAlternate(
+        StripSchemeAuthority(url), "", "https");
+    EXPECT_TRUE(durable.has_value()) << "the upload was not kept";
+    if (durable.has_value()) {
+      auto span = durable->content();
+      EXPECT_EQ(
+          std::string(reinterpret_cast<const char*>(span.data()), span.size()),
+          jpeg);
+      durable->release();
     }
-  }
-  for (const auto& [id, size] : sizes) {
-    if ((id & 0x03) != 0) {  // WebP or AVIF: compare with the JPEG slot
-      auto orig = sizes.find(static_cast<uint8_t>(id & ~0x03));
-      if (orig != sizes.end()) {
-        EXPECT_LT(size, orig->second) << "slot 0x" << std::hex << int{id};
-      }
-    }
-    if ((id & 0x20) != 0) {  // Save-Data: compare with the normal slot
-      auto normal = sizes.find(static_cast<uint8_t>(id & ~0x20));
-      if (normal != sizes.end()) {
-        EXPECT_LT(size, normal->second) << "slot 0x" << std::hex << int{id};
-      }
-    }
+    CacheNotification again;
+    again.url = url;
+    again.scheme = "https";
+    again.content_type = ContentType::kImage;
+    again.capability_mask = 0x14;  // tablet: a slot not built yet
+    SendNotification(again);
+    ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(
+        worker, ++sent, kWorkerStallBudget));
+    EXPECT_EQ(worker.stats().content_hash_stale.load(), 0u)
+        << "the worker's own encode was read as an origin change";
   }
 
   worker.Shutdown();
   worker_thread.join();
+}
+
+TEST_F(VariantSizeTest, ReportedClientsDurableOriginalLayout) {
+  ReplayReportedClients(Layout::kDurableOriginal);
+}
+
+// The nginx layout: the upload sits at the identity slot.  The desktop
+// original-format variant must still be built over it (it used to be served
+// raw), and the size gates must compare with that optimized encode.
+TEST_F(VariantSizeTest, ReportedClientsIdentitySlotLayout) {
+  ReplayReportedClients(Layout::kIdentitySlot);
+}
+
+// The warmup (hot URL) matrix writes variants through its own path; it
+// keeps the same size rules.
+TEST_F(VariantSizeTest, WarmupMatrixKeepsTheSizeRules) {
+  for (Layout layout : {Layout::kDurableOriginal, Layout::kIdentitySlot}) {
+    SCOPED_TRACE(layout == Layout::kIdentitySlot ? "identity slot"
+                                                 : "durable original");
+    TearDown();
+    SetUp();
+    WorkerConfig config;
+    config.socket_path = socket_path_;
+    config.cache_path = cache_path_;
+    config.cache_size_bytes = static_cast<uint64_t>(64 * 1024 * 1024);
+    config.enable_warmup = true;
+    // Desktop 1x with and without Save-Data: enough to exercise both gates
+    // without the full viewport matrix.
+    config.proactive_viewport_variants = false;
+    config.proactive_density_variants = false;
+    config.proactive_savedata_variants = true;
+
+    NullMessageHandler handler;
+    Worker worker(config, &handler);
+    ASSERT_TRUE(worker.Initialize());
+    const std::string url = "http://example.com/warm.jpg";
+    const std::string jpeg = ReadTestFile("jpeg/plasma_1200x800_q95.jpg");
+    ASSERT_FALSE(jpeg.empty());
+    StoreOriginal(worker, url, jpeg, layout);
+
+    std::thread worker_thread([&worker]() { worker.Run(); });
+    std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    CacheNotification warm;
+    warm.url = url;
+    warm.scheme = "https";
+    warm.content_type = ContentType::kImage;
+    warm.capability_mask = kWarmupSentinel;
+    SendNotification(warm);
+    ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(
+        worker, 1, kWorkerStallBudget));
+    EXPECT_GT(worker.stats().variants_written.load(), 0u);
+
+    ExpectStoredSlotsSmallerThanFallback(worker, url);
+    const std::string desktop_jpeg =
+        ReadBestVariant(worker.cache(), url, CapabilityMask::Decode(0x08));
+    EXPECT_LT(desktop_jpeg.size(), jpeg.size());
+    EXPECT_LE(ReadBestVariant(worker.cache(), url, CapabilityMask::Decode(0x0A))
+                  .size(),
+              desktop_jpeg.size());
+    EXPECT_LE(ReadBestVariant(worker.cache(), url, CapabilityMask::Decode(0x28))
+                  .size(),
+              desktop_jpeg.size());
+
+    worker.Shutdown();
+    worker_thread.join();
+  }
 }
 
 // The image dedup key is the full (format, viewport, density, save-data)

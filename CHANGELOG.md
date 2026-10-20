@@ -33,8 +33,20 @@ Fixed: WebP and AVIF images were stored and served even when they were larger
 than the optimized JPEG (or other original-format image) of the same size, so
 a browser that accepts the newer formats could download several times more
 than one that does not. Such a WebP or AVIF image is now discarded and those
-browsers get the smaller image. Images already in the cache keep their
-current variants until the cache entry is refreshed or purged.
+browsers get the smaller image.
+
+Fixed: with the nginx module, desktop browsers that accept only JPEG (or
+another original format) were served the original upload unoptimized, because
+the optimizer never replaced the copy the module stores for them. The optimizer
+now builds the optimized image for those browsers too, and keeps the upload as
+the reference it rebuilds variants from.
+
+Upgrading: image variants stored by 2.5.0 and earlier, including Save-Data
+JPEGs larger than the normal ones and WebP or AVIF images larger than the
+JPEG, keep being served until their cache entry is refreshed or purged. Purge
+the cache once after upgrading: in the console use purge everything, or send
+`POST /v1/cache/purge` with `{"scope": "all"}` to the management API. Variants
+are rebuilt as images are requested again.
 
 ## 2.5.0 - 2026-10-19
 

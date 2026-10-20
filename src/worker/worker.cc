@@ -750,6 +750,179 @@ std::vector<CapabilityMask::ImageFormat> FindMissingFormats(
   return missing;
 }
 
+// Size gates shared by every image write path (the notification pass and
+// the warmup matrix).  Each new variant is compared with the variant a client
+// of its slot would be served without it, and refused when it is not
+// smaller:
+//
+//   * a Save-Data variant against the variant of the same format and size
+//     without Save-Data, or Save-Data costs the user bytes;
+//   * a converted variant (WebP/AVIF) against the original-format variant of
+//     the same slot -- built in this pass, else stored, else, for a
+//     Save-Data slot, the one without Save-Data the selector falls back to.
+//
+// A refused variant is not stored; the selector then serves the smaller
+// variant it was compared with.  The front end's unoptimized original at the
+// identity slot is never a baseline: it is about to be replaced by the
+// optimized encode, which is the variant the comparison is about.
+class VariantSizeGates {
+ public:
+  using Log = std::function<void(const std::string&)>;
+
+  VariantSizeGates(const std::vector<cyclone::AlternateInfo>* alts,
+                   bool identity_raw, Log log)
+      : log_(std::move(log)) {
+    if (alts == nullptr) return;
+    const auto identity = static_cast<uint8_t>(MaskToId(CapabilityMask()));
+    for (const auto& alt : *alts) {
+      const auto id = static_cast<uint8_t>(alt.id);
+      if (IsSentinel(id) || (identity_raw && id == identity)) continue;
+      stored_[id] = alt.content_length;
+    }
+  }
+
+  // Applies the gates to one (viewport, density, save-data) combination's
+  // results, then records what survives as this pass's variants.
+  void Apply(MultiTranscodeResult& multi, CapabilityMask::Viewport vp,
+             CapabilityMask::PixelDensity den, CapabilityMask::SaveData sd) {
+    using Fmt = CapabilityMask::ImageFormat;
+    constexpr auto kOff = CapabilityMask::SaveData::kOff;
+    const std::pair<Fmt, TranscodeResult*> arms[] = {
+        {Fmt::kOriginal, &multi.optimized_original},
+        {Fmt::kWebP, &multi.webp},
+        {Fmt::kAvif, &multi.avif}};
+    // Save-Data first, so the converted gates below compare with what the
+    // Save-Data slot will actually hold.
+    if (sd == CapabilityMask::SaveData::kOn) {
+      for (auto [fmt, tr] : arms) {
+        RefuseUnlessSmaller(*tr, Baseline(VariantSlotId(fmt, vp, den, kOff)),
+                            VariantSlotId(fmt, vp, den, sd),
+                            "variant without Save-Data");
+      }
+    }
+    size_t orig = multi.optimized_original.success
+                      ? multi.optimized_original.output_data.size()
+                      : Baseline(VariantSlotId(Fmt::kOriginal, vp, den, sd));
+    if (orig == 0 && sd == CapabilityMask::SaveData::kOn) {
+      orig = Baseline(VariantSlotId(Fmt::kOriginal, vp, den, kOff));
+    }
+    // A same-format origin (WebP) holds its own WebP in the original-format
+    // slot; the transcoder decides that arm, not a cross-format gate.
+    const bool orig_is_webp =
+        multi.optimized_original.success &&
+        multi.optimized_original.output_mime_type == "image/webp";
+    if (!orig_is_webp) {
+      RefuseUnlessSmaller(multi.webp, orig,
+                          VariantSlotId(Fmt::kWebP, vp, den, sd),
+                          "original-format variant");
+    }
+    RefuseUnlessSmaller(multi.avif, orig,
+                        VariantSlotId(Fmt::kAvif, vp, den, sd),
+                        "original-format variant");
+    for (auto [fmt, tr] : arms) {
+      if (tr->success) {
+        produced_[VariantSlotId(fmt, vp, den, sd)] = tr->output_data.size();
+      }
+    }
+  }
+
+  // The size a client of |slot| is served when this pass does not produce
+  // |slot| itself: this pass's own variant, else the stored one, else 0
+  // (nothing to compare with).
+  size_t Baseline(uint8_t slot) const {
+    if (auto it = produced_.find(slot); it != produced_.end()) {
+      return it->second;
+    }
+    if (auto it = stored_.find(slot); it != stored_.end()) {
+      return static_cast<size_t>(it->second);
+    }
+    return 0;
+  }
+
+ private:
+  void RefuseUnlessSmaller(TranscodeResult& tr, size_t baseline, uint8_t slot,
+                           const char* than) {
+    if (!tr.success || baseline == 0 || tr.output_data.size() < baseline) {
+      return;
+    }
+    if (log_) {
+      log_(absl::StrFormat(
+          "Refused image variant (slot 0x%02X, %s): %zu bytes is not smaller "
+          "than the %s (%zu bytes)",
+          static_cast<int>(slot), tr.output_mime_type, tr.output_data.size(),
+          than, baseline));
+    }
+    tr = {false, {}, {}, absl::StrCat("not smaller than the ", than)};
+  }
+
+  Log log_;
+  std::unordered_map<uint8_t, uint64_t> stored_;
+  std::unordered_map<uint8_t, size_t> produced_;
+};
+
+// True when the identity slot (0x08: desktop, 1x, Save-Data off, original
+// format) holds the front end's own unoptimized recording rather than a
+// worker variant.  The nginx front end records the origin's bytes there, and
+// a check that only asks whether the slot exists would then never build the
+// desktop original-format variant: desktop clients that negotiate no other
+// format would be served the raw upload, and the size gates would compare
+// with it.  Such a slot counts as missing for the original format.
+bool IdentityHoldsRawOriginal(PageSpeedCache* cache, const std::string& url,
+                              const std::string& hostname,
+                              std::string_view scheme,
+                              const std::unordered_set<uint8_t>& existing_ids) {
+  const AlternateId identity = MaskToId(CapabilityMask());
+  if (existing_ids.count(static_cast<uint8_t>(identity)) == 0) return false;
+  // Same RAM-tier reasoning as ReadPristineOrigin: observe the on-disk entry.
+  cache->EvictAlternateFromRamCache(url, hostname, scheme, identity);
+  auto rr = cache->ReadAlternate(url, hostname, scheme, identity);
+  if (!rr.has_value() || !rr->is_valid()) return false;
+  const bool raw =
+      (rr->metadata.flags & AlternateMetadata::kFlagWorkerProcessed) == 0;
+  rr->release();
+  return raw;
+}
+
+// Before the worker writes its optimized encode over a raw identity slot,
+// keep the origin's bytes as the durable original (the class the change
+// detection reads as the pristine reference, ReadPristineOrigin), unless a
+// durable original at least as new is already stored.  Without it the next
+// pass would hash the worker's own encode, read it as an origin change, and
+// rebuild every variant from derived bytes.  Returns false when the bytes
+// could not be preserved; the caller then leaves the identity slot alone.
+bool PreserveIdentityAsDurableOriginal(PageSpeedCache* cache,
+                                       const std::string& url,
+                                       const std::string& hostname,
+                                       std::string_view scheme,
+                                       bool leases_enabled) {
+  const AlternateId identity = MaskToId(CapabilityMask());
+  auto id_read = cache->ReadAlternate(url, hostname, scheme, identity);
+  if (!id_read.has_value() || !id_read->is_valid()) return false;
+  AlternateMetadata meta = id_read->metadata;
+  auto span = id_read->content();
+  std::string bytes(reinterpret_cast<const char*>(span.data()), span.size());
+  if (!Worker::BorrowCopyUntorn(*id_read, leases_enabled)) return false;
+  id_read->release();
+  {
+    auto durable = cache->ReadOriginalAlternate(url, hostname, scheme);
+    if (durable.has_value() && durable->is_valid()) {
+      const bool current =
+          durable->metadata.cache_inserted_at >= meta.cache_inserted_at;
+      durable->release();
+      if (current) return true;
+    }
+  }
+  meta.full_mask = static_cast<uint32_t>(SentinelId::kOriginalContent);
+  auto wh =
+      cache->WriteOriginalAlternate(url, hostname, scheme, bytes.size(), meta);
+  if (!wh.has_value()) return false;
+  if (!wh->write_sync(std::as_bytes(std::span(bytes.data(), bytes.size())))
+           .has_value()) {
+    return false;
+  }
+  return wh->close_sync().has_value();
+}
+
 // ---------------------------------------------------------------------
 // Issue #1503: the pristine origin reference.
 //
@@ -3245,49 +3418,33 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
   // Fetch all existing alternate IDs in a single disk traversal
   // instead of calling AlternateExists() per format/viewport/etc.
   std::unordered_set<uint8_t> existing_ids;
-  // Stored byte size per alternate id, from the same traversal: the size
-  // gates below compare a new variant with the stored one it would replace
-  // for a client when that one is not rebuilt in this pass.
-  std::unordered_map<uint8_t, uint64_t> existing_sizes;
+  std::optional<std::vector<cyclone::AlternateInfo>> listed;
   {
     auto alts = cache_->ListAlternates(notification.url, notification.hostname,
                                        notification.scheme);
     if (alts.has_value()) {
       for (const auto& alt : *alts) {
         existing_ids.insert(static_cast<uint8_t>(alt.id));
-        existing_sizes[static_cast<uint8_t>(alt.id)] = alt.content_length;
       }
+      listed = std::move(*alts);
     }
   }
-  // Byte size of every variant this pass produced, by slot id.
-  std::unordered_map<uint8_t, size_t> pass_sizes;
-  // The size a client of slot |slot| is served today when this pass does
-  // not produce |slot| itself: this pass's own variant, else the stored one,
-  // else nothing (0).
-  auto baseline_size = [&](uint8_t slot) -> size_t {
-    if (auto it = pass_sizes.find(slot); it != pass_sizes.end()) {
-      return it->second;
-    }
-    if (auto it = existing_sizes.find(slot); it != existing_sizes.end()) {
-      return static_cast<size_t>(it->second);
-    }
-    return 0;
-  };
-  // Refuse |tr| when it is not smaller than |baseline| bytes: storing it
-  // would hand the clients of its slot more bytes than the variant they are
-  // served without it.
-  auto refuse_unless_smaller = [&](TranscodeResult& tr, size_t baseline,
-                                   uint8_t slot, const char* than) {
-    if (!tr.success || baseline == 0 || tr.output_data.size() < baseline) {
-      return;
-    }
-    LogInfo(
-        "Refused image variant for %s (slot 0x%02X, %s): %zu bytes is not "
-        "smaller than the %s (%zu bytes)",
-        notification.url.c_str(), static_cast<int>(slot),
-        tr.output_mime_type.c_str(), tr.output_data.size(), than, baseline);
-    tr = {false, {}, {}, absl::StrCat("not smaller than the ", than)};
-  };
+  // A raw identity slot is rebuilt as the optimized desktop original-format
+  // variant once its bytes are kept as the durable original.
+  bool identity_raw = IdentityHoldsRawOriginal(
+                          cache_.get(), notification.url, notification.hostname,
+                          notification.scheme, existing_ids) &&
+                      PreserveIdentityAsDurableOriginal(
+                          cache_.get(), notification.url, notification.hostname,
+                          notification.scheme, cfg->read_lease_duration_ms > 0);
+  if (identity_raw) {
+    existing_ids.erase(static_cast<uint8_t>(MaskToId(CapabilityMask())));
+  }
+  VariantSizeGates gates(listed ? &*listed : nullptr, identity_raw,
+                         [this, &notification](const std::string& msg) {
+                           LogInfo("%s for %s", msg.c_str(),
+                                   notification.url.c_str());
+                         });
 
   // Decline tombstone (#1382): slots this source's verify already refused.
   // Consulted once, before the loops; records are only honored when the
@@ -3471,63 +3628,9 @@ Worker::ImageVariantResult Worker::WriteImageVariants(
           }
         };
 
-        // Size gates against the variant each new one would replace for a
-        // client.  A Save-Data variant must be smaller than the variant of
-        // the same format and size without Save-Data, or Save-Data costs the
-        // user bytes; it is refused otherwise, and the selector then serves
-        // that normal variant.  A converted variant (WebP/AVIF) must be
-        // smaller than the original-format variant of the same slot: the
-        // transcoder gates it against the original-format variant it built
-        // in this call, and this covers the one it did not build because
-        // the slot already held it.  The original-format gate runs first so
-        // the converted ones compare with what the slot will actually hold.
-        if (sd == CapabilityMask::SaveData::kOn) {
-          for (auto [fmt, tr] :
-               {std::pair{CapabilityMask::ImageFormat::kOriginal,
-                          &multi.optimized_original},
-                std::pair{CapabilityMask::ImageFormat::kWebP, &multi.webp},
-                std::pair{CapabilityMask::ImageFormat::kAvif, &multi.avif}}) {
-            refuse_unless_smaller(
-                *tr,
-                baseline_size(VariantSlotId(fmt, vp, den,
-                                            CapabilityMask::SaveData::kOff)),
-                VariantSlotId(fmt, vp, den, sd), "variant without Save-Data");
-          }
-        }
-        {
-          const uint8_t orig_slot = VariantSlotId(
-              CapabilityMask::ImageFormat::kOriginal, vp, den, sd);
-          size_t orig_baseline =
-              multi.optimized_original.success
-                  ? multi.optimized_original.output_data.size()
-                  : baseline_size(orig_slot);
-          // A same-format origin (WebP) holds its own WebP in the
-          // original-format slot; comparing the WebP arm with it is the
-          // transcoder's job, not a cross-format gate.
-          const bool orig_is_webp =
-              multi.optimized_original.success &&
-              multi.optimized_original.output_mime_type == "image/webp";
-          if (!orig_is_webp) {
-            refuse_unless_smaller(
-                multi.webp, orig_baseline,
-                VariantSlotId(CapabilityMask::ImageFormat::kWebP, vp, den, sd),
-                "original-format variant");
-          }
-          refuse_unless_smaller(
-              multi.avif, orig_baseline,
-              VariantSlotId(CapabilityMask::ImageFormat::kAvif, vp, den, sd),
-              "original-format variant");
-        }
-        for (auto [fmt, tr] :
-             {std::pair{CapabilityMask::ImageFormat::kOriginal,
-                        &multi.optimized_original},
-              std::pair{CapabilityMask::ImageFormat::kWebP, &multi.webp},
-              std::pair{CapabilityMask::ImageFormat::kAvif, &multi.avif}}) {
-          if (tr->success) {
-            pass_sizes[VariantSlotId(fmt, vp, den, sd)] =
-                tr->output_data.size();
-          }
-        }
+        // Size gates (VariantSizeGates): never store a variant larger than
+        // the one its clients are served without it.
+        gates.Apply(multi, vp, den, sd);
 
         // A variant is "not proactive" only when it matches
         // the exact requested combination.
@@ -5900,6 +6003,15 @@ void Worker::HandleNotification(const CacheNotification& notification,
             }
           }
 
+          // A raw identity slot is not the desktop original-format variant
+          // (IdentityHoldsRawOriginal): it still has to be built.
+          if (IdentityHoldsRawOriginal(
+                  cache_.get(), notification.url, notification.hostname,
+                  notification.scheme, existing_ids_dedup)) {
+            existing_ids_dedup.erase(
+                static_cast<uint8_t>(MaskToId(CapabilityMask())));
+          }
+
           // Check if all formats for this viewport/density/save-data exist.
           bool all_requested_exist = true;
           const CapabilityMask::ImageFormat check_formats[] = {
@@ -7601,6 +7713,37 @@ void Worker::HandleWarmupRequest(const CacheNotification& notification,
           std::min(image_data.size(), size_t{UINT32_MAX}));
       // origin_content_type inherited from img_read->metadata
 
+      // Fetch all existing alternate IDs in a single disk traversal.
+      std::unordered_set<uint8_t> existing_ids;
+      std::optional<std::vector<cyclone::AlternateInfo>> warmup_listed;
+      {
+        auto alts = cache_->ListAlternates(
+            notification.url, notification.hostname, notification.scheme);
+        if (alts.has_value()) {
+          for (const auto& alt : *alts) {
+            existing_ids.insert(static_cast<uint8_t>(alt.id));
+          }
+          warmup_listed = std::move(*alts);
+        }
+      }
+      // Same identity-slot and size-gate rules as the notification pass
+      // (WriteImageVariants).
+      const bool warmup_identity_raw =
+          IdentityHoldsRawOriginal(cache_.get(), notification.url,
+                                   notification.hostname, notification.scheme,
+                                   existing_ids) &&
+          PreserveIdentityAsDurableOriginal(
+              cache_.get(), notification.url, notification.hostname,
+              notification.scheme, cfg->read_lease_duration_ms > 0);
+      if (warmup_identity_raw) {
+        existing_ids.erase(static_cast<uint8_t>(MaskToId(CapabilityMask())));
+      }
+      VariantSizeGates warmup_gates(
+          warmup_listed ? &*warmup_listed : nullptr, warmup_identity_raw,
+          [this, &notification](const std::string& msg) {
+            LogInfo("Warmup: %s for %s", msg.c_str(), notification.url.c_str());
+          });
+
       auto write_warmup = [&](const TranscodeResult& tr,
                               CapabilityMask::ImageFormat fmt,
                               CapabilityMask::Viewport vp,
@@ -7613,8 +7756,12 @@ void Worker::HandleWarmupRequest(const CacheNotification& notification,
         wm.set_pixel_density(den);
         wm.set_save_data(sd);
         // Skip if the proactive handler already wrote this variant
-        // (avoid overwriting metadata set by the proactive path).
-        if (VariantExistsForMask(cache_.get(), notification.url,
+        // (avoid overwriting metadata set by the proactive path).  A raw
+        // identity slot is not such a variant: it is replaced.
+        const bool replaces_raw_identity =
+            warmup_identity_raw && MaskToId(wm) == MaskToId(CapabilityMask());
+        if (!replaces_raw_identity &&
+            VariantExistsForMask(cache_.get(), notification.url,
                                  notification.hostname, notification.scheme,
                                  wm)) {
           return;
@@ -7662,18 +7809,6 @@ void Worker::HandleWarmupRequest(const CacheNotification& notification,
           }
         }
       };
-
-      // Fetch all existing alternate IDs in a single disk traversal.
-      std::unordered_set<uint8_t> existing_ids;
-      {
-        auto alts = cache_->ListAlternates(
-            notification.url, notification.hostname, notification.scheme);
-        if (alts.has_value()) {
-          for (const auto& alt : *alts) {
-            existing_ids.insert(static_cast<uint8_t>(alt.id));
-          }
-        }
-      }
 
       // Decline tombstone (#1382), warmup leg: the warmup matrix must not
       // re-pay the attempt ladder for slots the verify already refused for
@@ -7765,6 +7900,8 @@ void Worker::HandleWarmupRequest(const CacheNotification& notification,
                 warmup_img_meta.ssimulacra2_score_x100 = 0xFFFF;  // N/A
               }
             };
+
+            warmup_gates.Apply(multi, vp, den, sd);
 
             set_warmup_ssim(multi.webp_ssimulacra2_score);
             write_warmup(multi.webp, CapabilityMask::ImageFormat::kWebP, vp,
