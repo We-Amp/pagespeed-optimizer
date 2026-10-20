@@ -7,8 +7,10 @@ import { offerJsonLd } from '../data/offer-jsonld';
 import {
   LICENSE_CLAUSE,
   LICENSE_CLAUSE_CAP,
-  RELEASE_SIGNING_KEY,
-  REPOSITORY_KEY_FINGERPRINT,
+  LEGACY_1X_KEY,
+  RELEASE_KEY,
+  REPOSITORY_KEY,
+  formatFingerprint,
 } from '../data/product-facts.mjs';
 import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../data/software-jsonld';
 
@@ -20,6 +22,10 @@ const rel21 = await getRelease('2.1');
 // /releases/; its SHA256SUMS sits beside it on the same release.
 const iisMsiUrl = artifactUrl(rel21, 'msi', 'win_x64');
 const iisSumsUrl = iisMsiUrl.slice(0, iisMsiUrl.lastIndexOf('/') + 1) + 'SHA256SUMS';
+// Signing keys, each labelled by what it signs (product-facts.mjs).
+const RELEASE_FINGERPRINT = formatFingerprint(RELEASE_KEY.fingerprint);
+const REPOSITORY_FINGERPRINT = formatFingerprint(REPOSITORY_KEY.fingerprint);
+const LEGACY_1X_FINGERPRINT = formatFingerprint(LEGACY_1X_KEY.fingerprint);
 
 // Docker/Helm image tag via the shared resolver (see
 // src/components/release/ImageTag.astro for the MDX-side equivalent) — used
@@ -261,13 +267,12 @@ const jsonLd = {
         <strong class="text-text-body">Verifying the Windows installer.</strong> The release's{' '}
         <code class="text-xs">SHA256SUMS.asc</code> is a GPG signature of its{' '}
         <code class="text-xs">SHA256SUMS</code>, made with the{' '}
-        <a href={RELEASE_SIGNING_KEY.keyUrl} class="text-interactive underline">
+        <a href={RELEASE_KEY.public_url} class="text-interactive underline">
           release signing key
         </a>{' '}
-        (fingerprint <code class="text-xs break-all">{RELEASE_SIGNING_KEY.fingerprint}</code>): the
-        signature verifies the checksum file, and the checksum file then verifies the MSI. The steps
-        are in{' '}
-        <a href={RELEASE_SIGNING_KEY.verifyUrl} class="text-interactive underline">
+        (fingerprint <code class="text-xs break-all">{RELEASE_FINGERPRINT}</code>): the signature
+        verifies the checksum file, and the checksum file then verifies the MSI. The steps are in{' '}
+        <a href={RELEASE_KEY.verify_url} class="text-interactive underline">
           Verifying a Release
         </a>
         . On Windows, the MSI's own Authenticode signature, publisher "We-Amp B.V.", remains the
@@ -275,14 +280,18 @@ const jsonLd = {
       </p>
       <p class="mt-3 text-sm text-text-muted">
         The apt and dnf repositories are signed with a different key, the{' '}
-        <a href={rel21.urls.gpg_key} class="text-interactive underline">
+        <a href={REPOSITORY_KEY.public_url} class="text-interactive underline">
           repository signing key
         </a>{' '}
-        (fingerprint <code class="text-xs break-all">{REPOSITORY_KEY_FINGERPRINT}</code>), which the{' '}
+        (fingerprint <code class="text-xs break-all">{REPOSITORY_FINGERPRINT}</code>), which the{' '}
         <a href="/download/apt-yum/" class="text-interactive underline">
           apt/yum page
         </a>{' '}
         sets up; it does not sign the GitHub release files.
+      </p>
+      <p class="mt-3 text-xs text-text-annotation">
+        An older key, fingerprint <code class="break-all">{LEGACY_1X_FINGERPRINT}</code>, signed the
+        1.x direct downloads only. It is retired: do not use it for new verification.
       </p>
     </div>
   </section>

@@ -4,7 +4,7 @@ description: 'Install, uninstall and maintain mod_pagespeed on cPanel / EasyApac
 order: 6
 group: 'Install'
 datePublished: 2026-05-20
-lastUpdated: 2026-09-18
+lastUpdated: 2026-10-20
 ---
 
 mod_pagespeed ships as a signed EasyApache 4 RPM, `ea-apache24-mod_pagespeed`, served from `packages.modpagespeed.com`. This is the package name Google's archived [apache/incubator-pagespeed-cpanel](https://github.com/apache/incubator-pagespeed-cpanel) repo used before it went dormant; We-Amp maintains the EA4 build today.
@@ -29,7 +29,7 @@ gpgkey=https://packages.modpagespeed.com/pubkey.gpg
 EOF
 ```
 
-`$releasever` resolves to `8` on EL8 hosts, `9` on EL9, and `10` on EL10, so dnf picks the matching tree automatically — the same `.repo` file works on both. `enabled=0` keeps the EA4 tree out of routine `dnf update` runs; you opt in per command with `--enablerepo=ea4` below. The RPMs and the repository metadata are both signed with key `rsa4096/F50D6054F10712A0` — the same key as the rest of `packages.modpagespeed.com`, which is why both `repo_gpgcheck=1` and `gpgcheck=1` are set.
+`$releasever` resolves to `8` on EL8 hosts, `9` on EL9, and `10` on EL10, so dnf picks the matching tree automatically — the same `.repo` file works on both. `enabled=0` keeps the EA4 tree out of routine `dnf update` runs; you opt in per command with `--enablerepo=ea4` below. The RPMs and the repository metadata are both signed with the repository signing key, fingerprint `DF00 E296 BE91 41CE A541  1346 F50D 6054 F107 12A0` — the same key as the rest of `packages.modpagespeed.com`, which is why both `repo_gpgcheck=1` and `gpgcheck=1` are set.
 
 ### 2. Install the module
 
