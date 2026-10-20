@@ -26,6 +26,8 @@
 //   highlight: true               → row gets a subtle accent tint (used for the
 //                                   measured-proof row)
 
+import { PRODUCT_DISPLAY_NAME } from '../../data/product-facts.mjs';
+
 interface Row {
   label: string;
   mps: string;
@@ -40,7 +42,7 @@ interface Props {
   labelledBy?: string;
 }
 
-const { competitor, rows, mpsHeader = 'mod_pagespeed 2.1', labelledBy } = Astro.props as Props;
+const { competitor, rows, mpsHeader = PRODUCT_DISPLAY_NAME, labelledBy } = Astro.props as Props;
 
 const BOOLS = new Set(['yes', 'no', 'partial']);
 const isBool = (v: string) => BOOLS.has(v);

@@ -2,6 +2,7 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import CompareTable from '../../components/vs/CompareTable.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
+import { productJsonLd } from '../../data/software-jsonld';
 import { editionClause, FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
 
 const rows = [
@@ -62,21 +63,12 @@ const rows = [
 ];
 
 const jsonLd = [
-  {
-    '@context': 'https://schema.org',
-    '@type': ['Product', 'SoftwareApplication'],
-    name: 'mod_pagespeed 2.1',
-    alternateName: 'ModPageSpeed',
+  await productJsonLd({
     image: 'https://modpagespeed.com/og-default.png?v=2',
-    applicationCategory: 'WebApplication',
-    operatingSystem: ['Linux', 'Windows', 'macOS'],
     description:
       'mod_pagespeed includes image transcoding plus critical CSS, JS/CSS minification, and HTML rewriting in one worker — imgproxy is image-only.',
-    url: 'https://modpagespeed.com/',
-    brand: { '@type': 'Brand', name: 'mod_pagespeed 2.1' },
-    publisher: { '@id': 'https://we-amp.com/#organization' },
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
-  },
+  }),
 ];
 ---
 

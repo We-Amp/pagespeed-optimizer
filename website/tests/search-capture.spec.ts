@@ -33,7 +33,8 @@ const titles: Array<[string, string]> = [
   ],
   ['/blog/content-hash-urls/', 'Content-hash URLs: why .pagespeed. URLs carry a hash'],
   ['/security/', 'Security policy and vulnerability reporting'],
-  ['/docs/security/', 'Security hardening guide — mod_pagespeed 2.1'],
+  // A docs title without a seoTitle: the title plus the product-name suffix.
+  ['/docs/security/', 'Security hardening guide — mod_pagespeed'],
 ];
 
 test.describe('search capture: titles', () => {

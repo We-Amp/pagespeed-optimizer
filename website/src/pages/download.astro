@@ -5,9 +5,7 @@ import TermPanel from '../components/instrument/TermPanel.astro';
 import { getRelease, artifactUrl, dockerTag } from '../lib/release';
 import { offerJsonLd } from '../data/offer-jsonld';
 import { LICENSE_CLAUSE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
-import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../data/software-jsonld';
-
-const softwareVersion = await productSoftwareVersion();
+import { productJsonLd } from '../data/software-jsonld';
 
 // Single source of truth: the 1.1 release manifest, synced into
 // src/content/releases-1.1/release.yaml (§7). Edit the manifest at its
@@ -122,19 +120,12 @@ const integrations = [
   },
 ];
 
-const jsonLd = {
-  '@context': 'https://schema.org',
-  '@type': ['Product', 'SoftwareApplication'],
-  name: 'mod_pagespeed 2.1',
-  applicationCategory: 'WebApplication',
-  operatingSystem: PRODUCT_OPERATING_SYSTEMS,
-  softwareVersion,
+const jsonLd = await productJsonLd({
   image: 'https://modpagespeed.com/og-default.png?v=2',
-  brand: { '@type': 'Brand', name: 'mod_pagespeed' },
   offers: offerJsonLd({
     url: 'https://modpagespeed.com/download/',
   }),
-};
+});
 ---
 
 <BaseLayout

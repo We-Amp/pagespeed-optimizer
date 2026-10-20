@@ -26,6 +26,7 @@ import {
   lintPage,
   lintPages,
   loadAllowlist,
+  loadPending,
   urlOf,
 } from '../scripts/check-built-content.mjs';
 
@@ -432,10 +433,14 @@ describe('lintPage', () => {
     ).toContain('product-naming');
 
     // The predecessor line under its real CamelCase name is history, and
-    // the current product name is fine.
+    // the current product name is fine. (The retired "2.1" label is a
+    // separate rule, below; it is not this one.)
     expect(
       lintPage(page('Migrating from ModPageSpeed 2.0 today')).map((f) => f.rule),
     ).not.toContain('product-naming');
+    expect(lintPage(page('Runs mod_pagespeed today')).map((f) => f.rule)).not.toContain(
+      'product-naming',
+    );
     expect(lintPage(page('Runs mod_pagespeed 2.1 today')).map((f) => f.rule)).not.toContain(
       'product-naming',
     );
@@ -448,6 +453,54 @@ describe('lintPage', () => {
       (f) => f.rule === 'product-naming',
     );
     expect(hit?.message).toMatch(/"mod pagespeed 2\.0" never named a product line/);
+  });
+
+  it('flags the retired "2.1" product label, and only as a label', () => {
+    const page = (body: string, title = 'A title of usable length', description?: string) =>
+      `<html><head><title>${title}</title>${
+        description ? `<meta name="description" content="${description}">` : ''
+      }<link rel="canonical" href="https://modpagespeed.com/x/"></head><body><h1>H</h1><p>${body}</p></body></html>`;
+    const rules = (html: string) => lintPage(html).map((f) => f.rule);
+
+    // The label, in any case, with underscore or space, at the end of a
+    // sentence too.
+    for (const body of [
+      'Runs mod_pagespeed 2.1 today',
+      'Runs MOD_PAGESPEED 2.1 today',
+      'Runs mod pagespeed 2.1 today',
+      'Install mod_pagespeed 2.1.',
+      'The mod_pagespeed 2.1 worker',
+    ]) {
+      expect(rules(page(body)), body).toContain('retired-product-label');
+    }
+    // In the title and description, not only in body text.
+    expect(rules(page('All fine', 'Security hardening guide — mod_pagespeed 2.1'))).toContain(
+      'retired-product-label',
+    );
+    expect(
+      rules(page('All fine', undefined, 'Install mod_pagespeed 2.1 on Apache and nginx from apt')),
+    ).toContain('retired-product-label');
+
+    // Allowed: the plain name, the major line, exact versions, version-scoped
+    // phrases that do not follow the name, and code.
+    for (const body of [
+      'Runs mod_pagespeed today',
+      'mod_pagespeed 2 is a drop-in for 1.15 configurations',
+      'mod_pagespeed 2.1.0 converged the two lines',
+      'mod_pagespeed 2.5.0 is the current release',
+      'Since 2.1.0 the worker drops privileges',
+      'Volumes created before 2.1 are migrated',
+      'See <a href="/docs/release-notes-2-1/">the 2.1.0 notes</a>',
+      'Set <code>Version: mod_pagespeed 2.1</code> in old configs',
+    ]) {
+      expect(rules(page(body)), body).not.toContain('retired-product-label');
+    }
+
+    // The message names the match and the replacement.
+    const hit = lintPage(page('Runs mod_pagespeed 2.1 today')).find(
+      (f) => f.rule === 'retired-product-label',
+    );
+    expect(hit?.message).toMatch(/"mod_pagespeed 2\.1" is the retired product label/);
   });
 
   it('flags more than one description meta under description-present', () => {
@@ -539,6 +592,54 @@ describe('lintPages', () => {
     expect(hit?.level).toBe('error');
     expect(hit?.message).toMatch(/mod_pagespeed 2\.0/);
     expect(warnings).toEqual([]);
+  });
+});
+
+describe('retired-label pending list (the rename ratchet)', () => {
+  const labelled = (url: string, text = 'mod_pagespeed 2.1 runs here') => ({
+    url,
+    html:
+      '<html><head><title>A title of usable length</title>' +
+      '<meta name="description" content="A description that is long enough to be a valid one here">' +
+      '<link rel="canonical" href="https://modpagespeed.com/x/"></head>' +
+      `<body><h1>H</h1><p>${text}</p></body></html>`,
+  });
+
+  it('fails a page that is not pending', () => {
+    const { failures } = lintPages([labelled('/a/')]);
+    const hit = failures.find((f) => f.rule === 'retired-product-label');
+    expect(hit?.url).toBe('/a/');
+    expect(hit?.level).toBe('error');
+  });
+
+  it('reports a pending page as a warning', () => {
+    const { failures, warnings } = lintPages([labelled('/a/')], {}, ['/a/']);
+    expect(failures).toEqual([]);
+    expect(
+      warnings.some(
+        (w) => w.url === '/a/' && w.rule === 'retired-product-label' && /^pending/.test(w.message),
+      ),
+    ).toBe(true);
+  });
+
+  it('fails a pending entry whose page no longer carries the label', () => {
+    const { failures } = lintPages([labelled('/a/', 'mod_pagespeed runs here')], {}, ['/a/']);
+    const stale = failures.find((f) => f.rule === 'retired-product-label');
+    expect(stale?.url).toBe('/a/');
+    expect(stale?.message).toMatch(/no longer carries the retired label/);
+  });
+
+  it('fails a pending entry that matches no built page', () => {
+    const { failures } = lintPages([labelled('/a/')], {}, ['/a/', '/gone/']);
+    const stale = failures.find((f) => f.url === '/gone/');
+    expect(stale?.rule).toBe('retired-product-label');
+    expect(stale?.message).toMatch(/matches no built page/);
+  });
+
+  it('the shipped pending list loads and names only URL paths', () => {
+    const pending = loadPending(join(__dirname, '../scripts/retired-label-pending.json'));
+    expect(pending.every((u) => u.startsWith('/') && u.endsWith('/'))).toBe(true);
+    expect(new Set(pending).size).toBe(pending.length);
   });
 });
 

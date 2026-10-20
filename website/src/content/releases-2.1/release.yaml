@@ -29,7 +29,7 @@ schema_version: 2
 
 product:
   line: "2.1"
-  display_name: "mod_pagespeed 2.1"
+  display_name: "mod_pagespeed" # PRODUCT_DISPLAY_NAME; no version in the product name
 
 status: active
 

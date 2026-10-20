@@ -6,6 +6,7 @@ import SectionHeader from '../../components/instrument/SectionHeader.astro';
 import { getCollection, render } from 'astro:content';
 import { createMarkdownProcessor } from '@astrojs/markdown-remark';
 import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
+import { productRef } from '../../data/software-jsonld';
 
 export async function getStaticPaths() {
   const pages = await getCollection('how-it-works');
@@ -66,11 +67,7 @@ const jsonLd: Record<string, unknown> = {
   ...(doc.data.lastUpdated && {
     dateModified: doc.data.lastUpdated.toISOString().split('T')[0],
   }),
-  about: {
-    '@type': 'SoftwareApplication',
-    name: 'mod_pagespeed',
-    applicationCategory: 'WebApplication',
-  },
+  about: await productRef(),
 };
 
 const faqJsonLd =

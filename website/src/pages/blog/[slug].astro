@@ -5,7 +5,7 @@ import ShareButtons from '../../components/ShareButtons.astro';
 import { getCollection, render } from 'astro:content';
 import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
+import { FREE_TO_RUN_LINE, PRODUCT_DISPLAY_NAME } from '../../data/product-facts.mjs';
 
 // Build-time set of generated social cards. Blog pages are prerendered, so this
 // frontmatter runs during `astro build` with cwd = the project root — read the
@@ -76,7 +76,7 @@ if (!post.data.coverImage && !generatedCards.has(`${post.id}.png`)) {
 const absoluteCardUrl = new URL(cardUrl, Astro.site ?? new URL('https://modpagespeed.com')).href;
 
 const isOneOne = post.data.product === '1.1';
-const productLabel = 'mod_pagespeed 2.1';
+const productLabel = PRODUCT_DISPLAY_NAME;
 
 // Append the product suffix to the <title> only when it won't push the SERP
 // title past the ~60-char truncation point. Long post titles keep their full
@@ -217,7 +217,7 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
       {isOneOne ? (
         <>
           <p class="text-base font-semibold text-text-body">
-            Run mod_pagespeed 2.1 — Apache, nginx and IIS.
+            Run {productLabel} — Apache, nginx and IIS.
           </p>
           <p class="mt-2 text-sm text-text-muted">
             Signed builds · Current dependency graph · Apache License 2.0

@@ -163,7 +163,10 @@ test.describe('Pricing page', () => {
     expect(faq.mainEntity.map((q: { name: string }) => q.name)).toEqual(
       visible.map((v) => v.trim()),
     );
-    const app = graph.find((n: { '@type': string }) => n['@type'] === 'SoftwareApplication');
+    // The shared product node is typed ['Product', 'SoftwareApplication'].
+    const app = graph.find((n: { '@type': string | string[] }) =>
+      [n['@type']].flat().includes('SoftwareApplication'),
+    );
     const offers: Array<{
       price?: number;
       priceCurrency?: string;

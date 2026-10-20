@@ -2,9 +2,11 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import SectionHeader from '../components/instrument/SectionHeader.astro';
 import { offerJsonLd } from '../data/offer-jsonld';
+import { productJsonLd } from '../data/software-jsonld';
 import {
   MAX_VARIANTS,
   PKG_ASPNETCORE,
+  PRODUCT_DISPLAY_NAME,
   PKG_SIDECAR,
   SIDECAR_NGINX_VERSION,
   ASPNETCORE_RIDS,
@@ -83,23 +85,14 @@ const faqEntries = [
 ];
 
 const jsonLd = [
-  {
-    '@context': 'https://schema.org',
-    '@type': 'SoftwareApplication',
-    name: 'mod_pagespeed 2.1',
-    alternateName: ['ModPageSpeed 2.0', PKG_ASPNETCORE],
-    applicationCategory: 'DeveloperApplication',
+  await productJsonLd({
+    alternateName: [PKG_ASPNETCORE],
     operatingSystem: ['Windows', 'Linux', 'macOS'],
-    description: `The ASP.NET Core form of mod_pagespeed 2.1: in-process middleware (${PKG_ASPNETCORE}) for server-side web optimization — WebP and AVIF image transcoding, critical-CSS inlining, CSS and JavaScript minification, and content-hashed cache extension. One dotnet add package; native worker bundled per runtime identifier.`,
+    description: `The ASP.NET Core form of ${PRODUCT_DISPLAY_NAME}: in-process middleware (${PKG_ASPNETCORE}) for server-side web optimization — WebP and AVIF image transcoding, critical-CSS inlining, CSS and JavaScript minification, and content-hashed cache extension. One dotnet add package; native worker bundled per runtime identifier.`,
     downloadUrl: `https://www.nuget.org/packages/${PKG_ASPNETCORE}/`,
     softwareHelp: 'https://modpagespeed.com/docs/aspnet-configuration/',
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
-    publisher: {
-      '@type': 'Organization',
-      name: 'We-Amp B.V.',
-      url: 'https://we-amp.com/',
-    },
-  },
+  }),
   {
     '@context': 'https://schema.org',
     '@type': 'FAQPage',

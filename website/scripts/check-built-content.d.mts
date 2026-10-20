@@ -17,6 +17,7 @@ export type RuleName =
   | 'document-structure'
   | 'term-drift-daemon'
   | 'product-naming'
+  | 'retired-product-label'
   | 'canonical';
 export type Failure = { url: string; rule: string; level: RuleLevel; message: string };
 export type Page = { url: string; html: string };
@@ -48,7 +49,9 @@ export function lintPage(html: string): { rule: RuleName; message: string }[];
 export function lintPages(
   pages: Page[],
   allowlist?: Record<string, Record<string, string>>,
+  pending?: string[],
 ): { failures: Failure[]; warnings: Failure[] };
 export function urlOf(distRoot: string, file: string): string;
 export function collectPages(distRoot: string): string[];
 export function loadAllowlist(file: string): Record<string, Record<string, string>>;
+export function loadPending(file: string): string[];

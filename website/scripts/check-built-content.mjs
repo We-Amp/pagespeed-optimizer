@@ -39,6 +39,24 @@
  *                        from visible text, <title> and description (every
  *                        page). The real predecessor names are legitimate
  *                        history and stay allowed.
+ *   retired-product-label  the retired "2.1" product label: "mod_pagespeed
+ *                        2.1" (any case, underscore or space) used as the
+ *                        product's name, in visible text, <title> and
+ *                        description (every page). The product is plain
+ *                        "mod_pagespeed"; an exact version ("mod_pagespeed
+ *                        2.1.0", "2.5.0") is a release fact and passes, as
+ *                        do version-scoped phrases that do not put the
+ *                        label after the name ("since 2.1.0", "before
+ *                        2.1"), code and identifiers (stripped with the
+ *                        rest of <code>/<pre>; URLs are attributes, never
+ *                        text). Historical pages that keep the label on
+ *                        purpose are exempted in content-lint-allow.json.
+ *                        Pages that still carry it because the rename has
+ *                        not reached them yet are listed in
+ *                        retired-label-pending.json: their hits print as
+ *                        warnings, and an entry whose page no longer
+ *                        carries the label is an error, so the list only
+ *                        ever shrinks and the sweep empties it.
  *   canonical            exactly one <link rel="canonical"> with an absolute
  *                        https://modpagespeed.com URL ending in "/" or a file
  *                        extension (indexable pages)
@@ -92,6 +110,9 @@ export const RULES = {
   // a product line. The CamelCase predecessor "ModPageSpeed 2.0" — 79 hits
   // in visible text at the time, all legitimate history — stays allowed.
   'product-naming': { level: 'error', indexableOnly: false },
+  // Error-level for new text; the pages the rename has not reached yet are
+  // downgraded to warnings by retired-label-pending.json (see the header).
+  'retired-product-label': { level: 'error', indexableOnly: false },
   canonical: { level: 'error', indexableOnly: true },
 };
 
@@ -431,6 +452,11 @@ const DAEMON_RE = /\bdaemons?\b/i;
 // case, and CamelCase "ModPageSpeed 2.1"+, are always drift.
 const NAMING_RES = [/\bmod[_ ]pagespeed\s*2\.0\b/i, /\bModPageSpeed\s*2\.[1-9]\b/];
 
+// The retired product label: the name followed by "2.1" that is not the
+// start of a longer version ("2.1.0", "2.10"). Case-insensitive, like the
+// naming rule above, and the space form too: both read as the label.
+const RETIRED_LABEL_RE = /\bmod[_ ]pagespeed\s+2\.1(?!\d|\.\d)/i;
+
 /** A ~100-char window around the match, so the failure names the copy. */
 function around(text, match) {
   const start = Math.max(0, match.index - 45);
@@ -510,6 +536,17 @@ export function lintPage(html) {
     }
   }
 
+  for (const text of [visibleText(html), title.text, description.text]) {
+    const retired = RETIRED_LABEL_RE.exec(text);
+    if (retired) {
+      fails(
+        'retired-product-label',
+        `"${retired[0]}" is the retired product label; the product is "mod_pagespeed" (an exact version is three parts, from the release manifest): …${around(text, retired)}…`,
+      );
+      break;
+    }
+  }
+
   if (indexable) {
     const hrefs = canonicalHrefs(html);
     if (hrefs.length !== 1) {
@@ -531,9 +568,11 @@ export function lintPage(html) {
  * {urlPath: {rule: reason}} — only the named rule is skipped on that page.
  * Returns {failures: [{url, rule, level, message}], warnings: [...]}.
  */
-export function lintPages(pages, allowlist = {}) {
+export function lintPages(pages, allowlist = {}, pending = []) {
   const failures = [];
   const warnings = [];
+  const pendingPages = new Set(pending);
+  const stillPending = new Set();
 
   const known = new Set(pages.map((p) => p.url));
   for (const url of Object.keys(allowlist)) {
@@ -560,6 +599,16 @@ export function lintPages(pages, allowlist = {}) {
         });
         continue;
       }
+      if (rule === 'retired-product-label' && pendingPages.has(page.url)) {
+        stillPending.add(page.url);
+        warnings.push({
+          url: page.url,
+          rule,
+          level: 'warn',
+          message: `pending the rename (retired-label-pending.json): ${message}`,
+        });
+        continue;
+      }
       const level = RULES[rule]?.level ?? 'error';
       const failure = { url: page.url, rule, level, message };
       if (level === 'warn') warnings.push(failure);
@@ -574,6 +623,18 @@ export function lintPages(pages, allowlist = {}) {
       }
     }
   }
+  for (const url of pendingPages) {
+    if (stillPending.has(url)) continue;
+    failures.push({
+      url,
+      rule: 'retired-product-label',
+      level: 'error',
+      message: known.has(url)
+        ? 'no longer carries the retired label: remove it from scripts/retired-label-pending.json'
+        : 'retired-label-pending.json entry matches no built page',
+    });
+  }
+
   for (const [d, urls] of byDescription) {
     const live = urls.filter(
       (url) => (allowlist[url] ?? {})['description-duplicate'] === undefined,
@@ -644,6 +705,21 @@ export function loadAllowlist(file) {
   return parsed;
 }
 
+/**
+ * The pages the retired-label rename has not reached yet: the `pages` array
+ * of scripts/retired-label-pending.json (its `sources` half is read by
+ * test/content-accuracy.test.ts). A missing file means nothing is pending.
+ */
+export function loadPending(file) {
+  if (!existsSync(file)) return [];
+  const parsed = JSON.parse(readFileSync(file, 'utf8'));
+  const pages = parsed?.pages;
+  if (!Array.isArray(pages) || pages.some((u) => typeof u !== 'string' || !u.startsWith('/'))) {
+    throw new Error(`${file}: expected "pages" to be an array of URL paths`);
+  }
+  return pages;
+}
+
 function summary(failures, warnings, pageCount) {
   const byRule = new Map();
   for (const list of [failures, warnings]) {
@@ -686,7 +762,8 @@ async function main() {
     html: readFileSync(file, 'utf8'),
   }));
 
-  const { failures, warnings } = lintPages(pages, allowlist);
+  const pending = loadPending(join(WEBSITE_ROOT, 'scripts', 'retired-label-pending.json'));
+  const { failures, warnings } = lintPages(pages, allowlist, pending);
 
   const print = (f) => console.log(`  ${f.url}  ${f.rule}  ${f.message}`);
   if (warnings.length) {

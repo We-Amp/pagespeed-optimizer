@@ -5,6 +5,7 @@ import CTAButton from '../components/CTAButton.astro';
 import Icon from '../components/Icon.astro';
 import { getRelease } from '../lib/release';
 import { offerJsonLd } from '../data/offer-jsonld';
+import { productJsonLd } from '../data/software-jsonld';
 import { FREE_TO_RUN_LINE } from '../data/product-facts.mjs';
 
 // Single source of truth for the NuGet install command — the 2.0 release
@@ -17,17 +18,10 @@ const nugetInstallCmd = `dotnet add package ${rel20.artifacts.nuget.package}${
 // The canonical product page previously emitted only a FAQPage. Add a
 // SoftwareApplication + Offer so the feature content ties to the product
 // entity (and carries the price for merchant/rich results).
-const softwareApplication = {
-  '@context': 'https://schema.org',
-  '@type': ['Product', 'SoftwareApplication'],
-  name: 'mod_pagespeed 2.1',
-  alternateName: ['ModPageSpeed 2.0', 'mod_pagespeed'],
-  applicationCategory: 'WebApplication',
-  operatingSystem: 'Linux, Windows, macOS',
+const softwareApplication = await productJsonLd({
   description:
     'Self-hosted web performance optimization: WebP/AVIF image transcoding (plus SVG auto-vectorization in the optimizer worker), CSS/JS minification, heuristic critical CSS, variant-aware caching, and zero-copy mmap serving. One product in two parts: an in-process module and an optimizer worker; with the Apache module and in the reverse-proxy deployment, both parts map the same Cyclone cache.',
   image: 'https://modpagespeed.com/og-default.png?v=2',
-  brand: { '@type': 'Brand', name: 'mod_pagespeed' },
   featureList: [
     'WebP/AVIF/SVG image transcoding with viewport-aware resizing',
     'ML-predicted encoder quality with SSIMULACRA2 verification',
@@ -37,7 +31,7 @@ const softwareApplication = {
     'Zero-copy serving via mmap',
   ],
   offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
-};
+});
 
 const faqPage = {
   '@context': 'https://schema.org',

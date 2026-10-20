@@ -9,17 +9,19 @@ import { getCollection, render } from 'astro:content';
 import { createMarkdownProcessor } from '@astrojs/markdown-remark';
 import { getRelease, dockerTag } from '../../lib/release';
 import { gitLastModified } from '../../lib/git-date';
-import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
+import { FREE_TO_RUN_LINE, PRODUCT_DISPLAY_NAME } from '../../data/product-facts.mjs';
+import { productRef } from '../../data/software-jsonld';
 import { basename } from 'node:path';
 
 //: the JSON-LD HowTo schema for aspnet-getting-started cites
 // the literal `dotnet add package …` command shown on the page. Source it
 // from the release manifest so HowTo + page body never drift.
 const rel20 = await getRelease('2.0');
-// The docs `about` node labels the current product line; derive it from the
-// 2.1 manifest so the structured-data version cannot drift from the release.
+// The image tags in the HowTo steps come from the current release manifest.
 const rel21 = await getRelease('2.1');
-const docsAboutVersion = rel21.release.semver.split('.').slice(0, 2).join('.');
+// The docs `about` node is the shared product reference (its version is the
+// manifest's exact release).
+const productAbout = await productRef();
 const nugetInstallCmd = `dotnet add package ${rel20.artifacts.nuget.package}${
   rel20.display.nuget_install_flags ? ` ${rel20.display.nuget_install_flags}` : ''
 }`;
@@ -143,12 +145,7 @@ jsonLd = {
     datePublished: doc.data.datePublished.toISOString().split('T')[0],
   }),
   ...(lastUpdated && { dateModified: lastUpdated }),
-  about: {
-    '@type': 'SoftwareApplication',
-    name: 'mod_pagespeed',
-    version: docsAboutVersion,
-    applicationCategory: 'WebApplication',
-  },
+  about: productAbout,
 };
 
 // Override with specific schema for installation docs
@@ -202,7 +199,7 @@ if (doc.id === 'installation-docker') {
   jsonLd = {
     '@context': 'https://schema.org',
     '@type': 'HowTo',
-    name: 'Install the mod_pagespeed 2.1 ASP.NET Core Middleware',
+    name: `Install the ${PRODUCT_DISPLAY_NAME} ASP.NET Core Middleware`,
     description:
       'Add PageSpeed optimization to an ASP.NET Core application via the WeAmp.PageSpeed.AspNetCore NuGet package.',
     totalTime: 'PT5M',
@@ -266,7 +263,7 @@ if (faqJsonLd) jsonLdEntries.push(faqJsonLd);
 // <title>: an explicit seoTitle wins; otherwise the sidebar title plus the
 // product suffix, dropped when it would push the title past the ~60-character
 // point where search engines truncate (the same rule as the blog).
-const titleSuffix = ' — mod_pagespeed 2.1';
+const titleSuffix = ` — ${PRODUCT_DISPLAY_NAME}`;
 const pageTitle =
   doc.data.seoTitle ??
   (doc.data.title.length + titleSuffix.length <= 60

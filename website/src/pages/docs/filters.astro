@@ -1,5 +1,7 @@
 ---
 import BaseLayout from '../../layouts/BaseLayout.astro';
+import { PRODUCT_DISPLAY_NAME } from '../../data/product-facts.mjs';
+import { productRef } from '../../data/software-jsonld';
 import {
   FILTERS,
   FILTER_SETS,
@@ -100,7 +102,7 @@ const jsonLd = [
     '@context': 'https://schema.org',
     '@type': 'CollectionPage',
     name: 'PageSpeed filters: the complete reference',
-    description: `Every mod_pagespeed 2.1 optimization filter in one reference: what each filter does, which content type it transforms, whether CoreFilters or OptimizeForBandwidth enables it, and its risk rating. ${counts.shipped} filters plus ${counts.aliases} compound names, generated from the module source.`,
+    description: `Every ${PRODUCT_DISPLAY_NAME} optimization filter in one reference: what each filter does, which content type it transforms, whether CoreFilters or OptimizeForBandwidth enables it, and its risk rating. ${counts.shipped} filters plus ${counts.aliases} compound names, generated from the module source.`,
     url: `${siteOrigin}/docs/filters/`,
     mainEntity: {
       '@type': 'ItemList',
@@ -113,11 +115,7 @@ const jsonLd = [
         url: `${siteOrigin}${f.href}`,
       })),
     },
-    about: {
-      '@type': 'SoftwareApplication',
-      name: 'mod_pagespeed',
-      applicationCategory: 'WebApplication',
-    },
+    about: await productRef(),
   },
   {
     '@context': 'https://schema.org',
