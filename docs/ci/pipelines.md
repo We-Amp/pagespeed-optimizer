@@ -114,7 +114,8 @@ set the job runs slower, never fails for that reason. In `pipeline-pr.yml`:
   when `BAZEL_CACHE_HOST` is set (`--config=ci`); otherwise they build with
   `--config=docker` and no cache. The build bundle always goes to
   `actions/upload-artifact` (retention 3 days) and the unit tests download it.
-- **Kernel differentials**, the **release-config test compile** and the
+- **Kernel differentials** (class `fleet-light`, since they replay cached
+  builds with little CPU), the **release-config test compile** and the
   **fuzz smokes** follow the same two rules: the remote cache only when
   `BAZEL_CACHE_HOST` is set, and the dev image built in the job when the
   runner has none. The differentials' floor ratchet reads the public
