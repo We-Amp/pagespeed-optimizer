@@ -17133,23 +17133,27 @@ TEST_F(WorkerTest, OriginRefreshedChangedImageStillPurgesAndRebuilds) {
 // =============================================================================
 
 TEST_F(WorkerTest, IncompleteMatrixAllowsReprocessing) {
-  // Enable proactive image variants. Use a tiny image where some format
-  // conversions may not reduce size. The key behavior: if the proactive
-  // loop writes fewer variants than expected, the URL should NOT be marked
-  // as processed (allowing retry on next notification).
+  // If the proactive loop writes fewer variants than expected, the URL must
+  // NOT be marked as processed, so the next notification fills the gap.
+  // One variant write is failed through the test seam, which makes the
+  // matrix incomplete on every run; the format matrix alone is enough to
+  // exercise the path, so the viewport/density/save-data fan-out is off.
   WorkerConfig config;
   config.socket_path = socket_path_;
   config.cache_path = cache_path_;
   config.cache_size_bytes = static_cast<uint64_t>(10 * 1024 * 1024);
-  // Enable all proactive variant types to maximize variant count.
   config.proactive_image_variants = true;
-  config.proactive_viewport_variants = true;
-  config.proactive_savedata_variants = true;
-  config.proactive_density_variants = true;
+  config.proactive_viewport_variants = false;
+  config.proactive_savedata_variants = false;
+  config.proactive_density_variants = false;
 
   NullMessageHandler handler;
   Worker worker(config, &handler);
   ASSERT_TRUE(worker.Initialize());
+  std::atomic<bool> fail_next_write{true};
+  worker.test_hook_fail_image_variant_write_ = [&fail_next_write]() {
+    return fail_next_write.exchange(false);
+  };
 
   std::string url = "http://example.com/incomplete-retry.jpg";
   std::string image_data = ReadTestFile("jpeg/quality100.jpg");
@@ -17172,33 +17176,24 @@ TEST_F(WorkerTest, IncompleteMatrixAllowsReprocessing) {
           .Encode();
 
   SendNotification(notification);
-  for (int i = 0; i < 60 * kSanitizerBudgetScale; ++i) {
-    std::this_thread::sleep_for(std::chrono::milliseconds(100));
-    if (worker.stats().images_processed.load() >= 1) break;
-  }
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 1,
+                                                           kWorkerStallBudget));
+  EXPECT_FALSE(fail_next_write.load()) << "no image variant write attempted";
   EXPECT_GE(worker.stats().images_processed.load(), 1u)
       << "Image should be processed";
+  ASSERT_EQ(worker.stats().image_incomplete_matrices.load(), 1u)
+      << "the failed write should leave the matrix incomplete";
 
-  // images_processed moves before the in-flight entry is erased.  Drain first
-  // so the conditional re-send below is not rejected by the in-flight guard.
-  WaitForWorkerIdle(worker);
-
-  uint64_t incomplete = worker.stats().image_incomplete_matrices.load();
-  if (incomplete > 0) {
-    // If an incomplete matrix was detected, the URL is NOT dedup-marked.
-    // Re-sending should trigger re-processing (not dedup skip).
-    uint64_t processed_before = worker.stats().images_processed.load();
-    SendNotification(notification);
-    for (int i = 0; i < 60 * kSanitizerBudgetScale; ++i) {
-      std::this_thread::sleep_for(std::chrono::milliseconds(100));
-      if (worker.stats().images_processed.load() > processed_before) break;
-    }
-    EXPECT_GT(worker.stats().images_processed.load(), processed_before)
-        << "Incomplete matrix should allow re-processing on retry";
-  }
-  // Whether or not incomplete was triggered, the counter should be
-  // a non-negative value (sanity check).
-  EXPECT_GE(incomplete, 0u);
+  // The URL is NOT dedup-marked, so re-sending re-processes it and writes
+  // the variant that failed the first time.
+  uint64_t processed_before = worker.stats().images_processed.load();
+  SendNotification(notification);
+  ASSERT_TRUE(pagespeed::test::WaitForNotificationsRetired(worker, 2,
+                                                           kWorkerStallBudget));
+  EXPECT_GT(worker.stats().images_processed.load(), processed_before)
+      << "Incomplete matrix should allow re-processing on retry";
+  EXPECT_EQ(worker.stats().image_incomplete_matrices.load(), 1u)
+      << "the retry should complete the matrix";
 
   worker.Shutdown();
   worker_thread.join();
