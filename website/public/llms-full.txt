@@ -17989,7 +17989,7 @@ No. Rendering, cleaning, caching, and serving all happen on your own server. Ser
 
 **Does this work with the module alone, or does it need the optimizer worker?**
 
-Yes. The rendered-Markdown variant runs in the optimizer worker behind nginx, using headless Chrome. The module recognizes and safely declines the agent request (it always serves normal HTML); it does not produce the rendered variant.
+It needs the optimizer worker. The rendered-Markdown variant runs in the optimizer worker behind nginx, using headless Chrome. The module recognizes and safely declines the agent request (it always serves normal HTML); it does not produce the rendered variant.
 
 **What is the synthesized /llms.txt, and is it your /llms.txt?**
 
@@ -21345,7 +21345,7 @@ Added: rule packs. The new `rule_packs` filter applies a rule pack, a JSON file 
 - Signed packs. A pack file may carry an Ed25519 signature in a `.sig` sidecar; `RulePackTrustKey` names a trusted publisher key and `RulePackRequireSigned` (off by default) refuses a pack without a valid signature. With `RulePackRequireSigned` off, a pack without a valid signature still loads and logs a warning once per file version per server process; a second warning gives the reason when a signature file is present but fails its check. Six `rule_pack_*` statistics count the outcomes, and `tools/rule-packs/sign-pack.sh` in the source tree signs and verifies packs. See [Signed packs](https://modpagespeed.com/docs/rule-packs/#signed-packs). `RulePackTrustKey` is not available on Envoy.
 - Licence fields. The `pack` object may carry a `license` object with an `entitlement` name, an `expires` date (`YYYY-MM-DD`) and a `terms` URL (`https://`). The module checks their format and writes them to the server log (at info level) once per pack version per server process, when that version is first used; they are informational and do not change what the pack does. The top-level key `signature` is reserved; a pack that uses it does not load.
 
-Added: a free edge-SEO rule pack template, `packs/edge-seo/pack.example.json`, with a README, for the `rule_packs` filter of mod_pagespeed 1.18.0 and later. It lists one placeholder host in report mode and one rule per kind (canonical, title, description, hreflang, JSON-LD); replace the example values with your own. It is not signed.
+Added: a free edge-SEO rule pack template, `packs/edge-seo/pack.example.json`, with a README, for the `rule_packs` filter of mod_pagespeed 2.3.0 (packages 1.18.0) and later. It lists one placeholder host in report mode and one rule per kind (canonical, title, description, hreflang, JSON-LD); replace the example values with your own. It is not signed.
 
 **Optimizer worker**
 
