@@ -372,7 +372,7 @@ describe('agent files cover the docs collection', () => {
       `${rel21.artifacts.docker.worker_image}:${tag}`,
       `\`${rel21.artifacts.helm.chart}\``,
       rel21.artifacts.helm.repository,
-      artifactUrl(rel11, 'msi', 'win_x64'),
+      artifactUrl(rel21, 'msi', 'win_x64'),
       `\`${rel20.artifacts.nuget.package}\``,
       `\`${PKG_ASPNETCORE}\``,
       `\`${PKG_SIDECAR}\``,

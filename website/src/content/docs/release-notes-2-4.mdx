@@ -3,20 +3,21 @@ title: 'Release notes: 2.4'
 description: 'mod_pagespeed 2.4.0 release notes: the module and the optimizer worker as one release (packages 1.19.0), with several rule packs and a security fix.'
 order: 78
 group: 'Release notes by line'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-19
 ---
 
 import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
+import Version from '../../components/release/Version.astro';
 
 <ReleaseNotesDeepLink />
 
-mod_pagespeed 2.4.0 is the current release: the module and the optimizer worker, released together on 2026-10-14 and installed as a matching pair. In the signed apt and yum repositories both parts carry the package version 1.19.0; 2.4.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.8). The [release notes index](/docs/release-notes/) lists every release of every line, and [Security updates](/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it.
+mod_pagespeed 2.4.0 was released on 2026-10-14 as the module and the optimizer worker together, installed as a matching pair. In the signed apt and yum repositories both parts carry the package version 1.19.0; 2.4.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.8). The current release is <Version line="2.1" />. The [release notes index](/docs/release-notes/) lists every release of every line, and [Security updates](/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it. The entry below is collapsed; open it to read it in place.
 
-<span id="v2-4-0" class="rn-alias" aria-hidden="true"></span>
+## Releases
+
 <span id="v1-19-0" class="rn-alias" aria-hidden="true"></span>
-<div class="rn-entry rn-entry-current">
-
-<p class="rn-summary-line"><span class="rn-ver">mod_pagespeed 2.4.0</span> <span class="rn-date">2026-10-14</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span></p>
+<details id="v2-4-0" class="rn-entry">
+<summary><span class="rn-ver">2.4.0</span> <span class="rn-date">2026-10-14</span> <span class="rn-badge rn-badge-pair">module + optimizer worker</span> <span class="rn-lede">Several rule packs per server, plus a security and reliability update for the module and the optimizer worker, released together. Update recommended.</span></summary>
 
 **mod_pagespeed 2.4.0 (packages 1.19.0) lets a server run several rule packs and is a security and reliability update for the module and the optimizer worker, released together and installed as a matching pair.** In the signed apt and yum repositories both parts carry the package version 1.19.0; 2.4.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.8). In the nginx module in the container images and Helm chart, cache hits now carry the origin's security and CORS headers, including `Content-Security-Policy`. That module also stops stale serves of responses the origin marked `must-revalidate`, `proxy-revalidate` or `s-maxage`, and serves the full stored response, not a bare `304`, to a client that sent no conditional request after the origin confirms a stale copy. The ASP.NET Core middleware now builds its ETag from the origin's content. If you use rule packs, run the nginx module from the container images or Helm chart, or use the ASP.NET Core middleware, read "Before you upgrade".
 **Update recommended.**
@@ -103,4 +104,4 @@ Known issue: the ASP.NET Core middleware still omits some of the origin's respon
 
 Known issue (security): the ASP.NET Core middleware serves its web console at `/console/` and proxies the worker API (`/v1/health`, `/v1/ws`, `/v1/cache`, `/v1/stats`, `/v1/capture` and `/v1/config`) from your site's root without authentication, so anyone who can reach the site can read the optimizer configuration, change it and purge the cache. Affected: `WeAmp.PageSpeed.AspNetCore` 2.0.13 and later, with no fix release yet; 2.0.4 through 2.0.12 served the console and a smaller set of proxied paths, also without authentication. Fix: set `PageSpeed:Console:Enabled` to `false` in production, or gate the console and those six paths with your own authentication. A configuration changed through the open console stays in force after either fix, because the worker saves it to `pagespeed.json` next to the cache volume, as do the variants built under it: stop the app, delete `pagespeed.json` and the cache volume files (`volume*` for the default `volume.dat`) in that directory, and start it again. Check from outside your network: `curl -s https://<your-domain>/v1/config` must not return the optimizer's configuration (JSON with keys such as `webp_quality`); a `200` from your own app's route is not a finding. See [Console](/docs/aspnet-configuration/#console-pagespeedconsole).
 
-</div>
+</details>

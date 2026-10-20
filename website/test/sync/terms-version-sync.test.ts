@@ -4,7 +4,7 @@
 // terms-version-sync.test.ts — drift guard for the terms-of-service version
 // string, which is stamped in TWO places that must never disagree:
 //
-//   1. website/src/pages/terms.astro          — "Version YYYY-MM" (source of truth,
+//   1. website/src/pages/terms.astro          — "Version YYYY-MM[-DD]" (source of truth,
 //                                                the version shown to and accepted by users)
 //   2. website/src/pages/pricing.astro         — TERMS_VERSION_WEB (the terms
 //                                                version the pricing page names)
@@ -42,8 +42,8 @@ function extract(rel: string, re: RegExp, label: string): string {
 describe('terms-of-service version is in lockstep across all stamp sites', () => {
   const termsVersion = extract(
     '../../src/pages/terms.astro',
-    /Version\s+(\d{4}-\d{2})\b/,
-    'the "Version YYYY-MM" line',
+    /Version\s+(\d{4}-\d{2}(?:-\d{2})?)\b/,
+    'the "Version YYYY-MM[-DD]" line',
   );
   const pricingVersion = extract(
     '../../src/pages/pricing.astro',

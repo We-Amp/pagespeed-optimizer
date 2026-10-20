@@ -5,7 +5,7 @@ seoTitle: 'Install mod_pagespeed 2.1: nginx, Apache, Docker, IIS'
 description: 'Pick an integration and get mod_pagespeed 2.1 serving optimized pages: Apache or nginx module, Docker, IIS or ASP.NET Core, then run the same check.'
 order: 1
 group: 'Start here'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-20
 faq:
   - q: 'Which mod_pagespeed 2.1 integration should I pick?'
     a: 'The native module when you run Apache or nginx on Debian, Ubuntu or Enterprise Linux; the Docker reverse proxy when you are container-native or your origin is something else; the IIS module on Windows Server; the NuGet middleware inside an ASP.NET Core app. All four run the same optimization pipeline.'
@@ -14,7 +14,7 @@ faq:
   - q: 'Does the native nginx module need the optimizer worker?'
     a: 'No. It optimizes on its own. To hand in-place optimization to the worker, install the `pagespeed-optimizer` package of the same release and set `pagespeed DaemonSocketPath` and `pagespeed DaemonVolumePath` in the server block. The Apache packages install that wiring for you.'
   - q: 'What are the prerequisites?'
-    a: 'For the native module: Debian 12 or 13, Ubuntu 22.04 or 24.04, or RHEL, AlmaLinux or Rocky 9 or 10, with Apache 2.4 or newer or the stock nginx of the distribution. For Docker: Docker 24 or newer; nginx ships inside the image. For IIS: Windows Server 2019 or later. For ASP.NET Core: .NET 8 or .NET 10.'
+    a: 'For the native module: Debian 12 or 13, Ubuntu 22.04 or 24.04, or RHEL, AlmaLinux or Rocky 9 or 10, with Apache 2.4 or newer or the stock nginx of the distribution. For Docker: Docker 24 or newer; nginx ships inside the image. For IIS: Windows Server 2016 or later. For ASP.NET Core: .NET 8 or .NET 10.'
   - q: 'What is safe cache mode and why is it the default?'
     a: 'Safe mode caches optimized resources for short periods (5 minutes for CSS/JS, 30 minutes for images) with mandatory revalidation, so misconfigurations self-correct quickly. It is the recommended mode while validating a new setup before switching to aggressive.'
 ---
@@ -47,8 +47,7 @@ Installing with a coding agent? [Install with a coding agent](/docs/agent-instal
   or Rocky 9 or 10, with Apache 2.4 or newer or the distribution's stock nginx.
 - **Docker reverse proxy:** Docker 24 or newer and Docker Compose v2; nginx
   ships inside the image, so you do not install it yourself.
-- **IIS:** Windows Server 2019 or later, 64-bit, with the Visual C++
-  Redistributable 2022.
+- **IIS:** Windows Server 2016 or later with IIS 10, 64-bit.
 - **ASP.NET Core:** .NET 8 or .NET 10.
 
 :::note[One worker, two names]
@@ -117,12 +116,15 @@ worker and nginx as separate services from the
 ## Quickstart: IIS
 
 Download the signed MSI from the [download page](/download/), run it on the
-Windows Server host, then `iisreset`. The installer registers the module as a
-native HTTP module and creates the default cache directory. Then
+Windows Server host, then `iisreset`. Running the MSI takes every IIS site on
+the server down for the duration; plan a maintenance window (details on
+[Install on IIS](/docs/install-iis/#install-the-module)). The installer
+registers the module as a native HTTP module and creates the default cache
+directory. Then
 [verify](#verify-it-works). Running IISpeed on that host? Uninstall it first;
 the two register the same handler. The [IIS install guide](/docs/install-iis/)
 has the requirements, IIS Express and the optional optimizer service. The IIS
-package ships from the 1.15 packaging channel.
+package ships as a signed installer on the mod_pagespeed GitHub release.
 
 ## Quickstart: ASP.NET Core
 

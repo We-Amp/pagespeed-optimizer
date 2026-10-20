@@ -333,10 +333,10 @@ Alternatively, use match rules in the server-level config to scope directives
 by hostname:
 
 ```text
-hostname: ^site-a\.example\.com$
+hostname:^site-a\.example\.com$
 pagespeed EnableFilters rewrite_images
 
-hostname: ^site-b\.example\.com$
+hostname:^site-b\.example\.com$
 pagespeed EnableFilters collapse_whitespace
 ```
 

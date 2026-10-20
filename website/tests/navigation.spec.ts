@@ -192,7 +192,8 @@ test.describe('Navigation', () => {
       'data-umami-event',
       'nav-analyze-footer',
     );
-    await expect(footer.locator('a[href="/docs/migrating-to-2-1/"]')).toHaveText('Upgrade to 2.1');
+    await expect(footer.locator('a[href="/docs/upgrade/"]')).toHaveText('Upgrade');
+    await expect(footer.locator('a[href="/docs/migrating-to-2-1/"]')).toHaveCount(0);
     await expect(footer.locator('a[href="/1.1/"]')).toHaveCount(0);
     await expect(footer.locator('a[href="/1.1/docs/"]')).toHaveCount(0);
   });

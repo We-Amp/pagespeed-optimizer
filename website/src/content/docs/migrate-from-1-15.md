@@ -3,7 +3,7 @@ title: 'Migrate from mod_pagespeed 1.15'
 description: 'Move a 1.15 install to mod_pagespeed 2.1 in place: one package upgrade brings the optimizer worker, configuration carries over, the old cache stays.'
 order: 12
 group: 'Upgrade and migrate'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-20
 datePublished: 2026-10-08
 faq:
   - q: 'Does my 1.15 configuration carry over?'
@@ -80,9 +80,11 @@ confident you will not roll back.
 
 ## Platform notes
 
-- **IIS / Windows Server.** The IIS package ships from the 1.15 packaging
-  channel: run the current MSI over the existing install and `iisreset`. See
-  [Install on IIS](/docs/install-iis/).
+- **IIS / Windows Server.** The IIS package ships as a signed installer on the
+  mod_pagespeed GitHub release: run the current MSI over the existing install
+  and `iisreset`. Running the MSI takes every IIS site on the server down for
+  the duration; plan a maintenance window. See
+  [Install on IIS](/docs/install-iis/#install-the-module).
 - **Debian 11 (bullseye).** The repository's bullseye suite carries the 1.15.0
   module packages; the 2.1 packages need Debian 12 or newer.
 - **cPanel EasyApache 4 (EL8).** The module runs without the optimizer worker.

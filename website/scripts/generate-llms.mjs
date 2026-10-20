@@ -42,7 +42,6 @@ import {
   LLMS_TOKENS,
   PRODUCT_NAME,
   CURRENT_LINE,
-  V1_LINE,
   PKG_APACHE_MODULE,
   PKG_NGINX_MODULE,
   PKG_OPTIMIZER,
@@ -173,7 +172,6 @@ function entry(title, url, description) {
 export function distributionLines(ctx) {
   const rel21 = ctx.manifests['2.1'];
   const rel20 = ctx.manifests['2.0'];
-  const rel11 = ctx.manifests['1.1'];
   const repo = rel21.urls.archive_base;
   const tag = dockerTag(rel21);
   const aspnetPkg = rel20.artifacts.nuget?.package ?? PKG_ASPNETCORE;
@@ -182,7 +180,7 @@ export function distributionLines(ctx) {
     `- Signed apt and yum repository at ${repo} (GPG key ${rel21.urls.gpg_key}; one-time setup \`curl -fsSL ${repo}install.sh | sudo sh\`): \`${PKG_APACHE_MODULE}\` (the Apache module), \`${PKG_NGINX_MODULE}\` (the nginx module, prebuilt and pinned to each distribution's stock nginx: ${NGINX_APT_MATRIX}, ${NGINX_APT_ARCHES}; AlmaLinux 9 via yum against stock nginx ${STOCK_NGINX_ALMA}) and \`${PKG_OPTIMIZER}\` (the optimizer worker). Current release: ${current}. See [the apt/yum repository](${SITE}/download/apt-yum/) and [Install the module on Apache and nginx](${docUrl('installation-module')}).`,
     `- Container images on GHCR: \`${rel21.artifacts.docker.image}:${tag}\` (nginx with the module) and \`${rel21.artifacts.docker.worker_image}:${tag}\` (the optimizer worker), on ${rel21.compat.docker.base_images.join(', ')}. See [Install with Docker](${docUrl('installation-docker')}).`,
     `- Helm chart \`${rel21.artifacts.helm.chart}\` from the repository \`${rel21.artifacts.helm.repository}\` (\`helm repo add weamp ${rel21.artifacts.helm.repository}\`; index at ${rel21.artifacts.helm.repository}/index.yaml; application version ${substituteRelease(rel21.artifacts.helm.app_version, rel21)}; Kubernetes ${rel21.compat.kubernetes.versions.join(', ')}; Helm ${rel21.compat.kubernetes.helm_versions.join(', ')}). See [Deploy with Helm](${docUrl('helm-deployment')}).`,
-    `- IIS: the signed Windows installer from the ${V1_LINE} module channel, ${artifactUrl(rel11, 'msi', 'win_x64')} (${rel11.compat.iis.os.join(', ')}; IIS ${rel11.compat.iis.iis_versions.join(', ')}; x64). See [Install on IIS](${docUrl('install-iis')}).`,
+    `- IIS: the signed Windows installer, ${rel21.release.semver}, on the module's GitHub release: ${artifactUrl(rel21, 'msi', 'win_x64')} (${rel21.compat.iis.os.join(', ')}; IIS ${rel21.compat.iis.iis_versions.join(', ')}; x64). See [Install on IIS](${docUrl('install-iis')}).`,
     `- NuGet \`${aspnetPkg}\` ${rel21.release.semver}, the ASP.NET Core middleware (${ASPNETCORE_TFMS.join(', ')}; ${ASPNETCORE_RIDS.join(', ')}): \`dotnet add package ${aspnetPkg}\`. See [Install ASP.NET Core middleware](${docUrl('aspnet-getting-started')}).`,
     `- NuGet \`${PKG_SIDECAR}\` with \`${PKG_SIDECAR_NATIVE}\`, ${SIDECAR_VERSION}, the module as an ASP.NET Core sidecar (${SIDECAR_RIDS.join(', ')}; bundles nginx ${SIDECAR_NGINX_VERSION}): \`dotnet add package ${PKG_SIDECAR}\`.`,
     `- Worker packages (deb, rpm and Windows zip, with a checksum list) of every release: the [release listing](https://github.com/We-Amp/pagespeed-optimizer/releases/latest). The module packages install from the signed repositories above; see [Download](${SITE}/download/).`,
@@ -229,7 +227,7 @@ export function buildIndex(ctx) {
       lines.push(
         entry(
           render(item.title, 'agent-files.mjs SURFACES'),
-          `${SITE}${item.path}`,
+          /^https:\/\//.test(item.path) ? item.path : `${SITE}${item.path}`,
           render(item.description, 'agent-files.mjs SURFACES'),
         ),
       );

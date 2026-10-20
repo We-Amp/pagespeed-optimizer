@@ -195,7 +195,11 @@ export const SURFACES = [
           'Side-by-side comparisons with Cloudflare APO, Cloudinary, imgix, imgproxy, NitroPack, ShortPixel, Thumbor and WP Rocket.',
       },
       { path: '/terms/', title: 'Terms', description: 'Terms of service.' },
-      { path: '/privacy/', title: 'Privacy', description: 'Privacy policy.' },
+      {
+        path: 'https://we-amp.com/privacy/',
+        title: 'Privacy',
+        description: 'The one privacy notice for every We-Amp website, this one included.',
+      },
     ],
   },
   {

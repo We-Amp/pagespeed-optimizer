@@ -32,8 +32,11 @@ test.describe('Pricing page', () => {
       ).toBeVisible();
     }
     await expect(page.locator('#tiers [data-tier="priority"]')).toHaveClass(/card-featured/);
-    await expect(page.locator('#tiers [data-tier="priority"]')).toContainText(
-      'Private package repository (being set up)',
+    await expect(page.locator('#tiers [data-tier="priority"]')).not.toContainText(
+      'Private package repository',
+    );
+    await expect(page.locator('#tiers [data-private-repo]')).toContainText(
+      'A private package repository for Priority and Enterprise subscribers is being set up.',
     );
     await expect(page.locator('#tiers [data-tier="standard"]')).not.toContainText(
       'Private package repository',
@@ -186,7 +189,7 @@ test.describe('Pricing page', () => {
   test('the page names the terms version and links the support terms', async ({ page }) => {
     await expect(page.locator('[data-terms-version]')).toHaveAttribute(
       'data-terms-version',
-      /^\d{4}-\d{2}$/,
+      /^\d{4}-\d{2}(-\d{2})?$/,
     );
     await expect(page.locator('[data-terms-version] a[href="/terms/"]')).toBeVisible();
     await expect(page.locator('#start a[href="https://we-amp.com/licensing/"]')).toBeVisible();

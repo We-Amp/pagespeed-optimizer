@@ -9,7 +9,7 @@
 // page.
 //
 // BACKEND. Posts SAME-ORIGIN to the existing contact pipeline
-// (/ai-readability/api/contact -> render service -> Telegram notification +
+// (/ai-readability/api/contact -> render service -> email notification +
 // server-side log), tagged topic "quick-message". The render service treats
 // `email` as OPTIONAL for this topic (one-way is allowed). No secret ships in
 // this client code; staying same-origin keeps it inside the site CSP
@@ -17,7 +17,7 @@
 //
 // PRIVACY (GDPR). We capture the message text, the page PATH (path only — never
 // the query string, which can carry a third-party URL on /analyze etc.), and an
-// optional email. The inline notice names Telegram as the delivery channel and
+// optional email. The inline notice names email as the delivery channel and
 // links the policy. Legal basis: legitimate interest (responding to an inbound
 // message the user chose to send). No consent checkbox — that's the wrong basis
 // here and adds friction for a one-way note.
@@ -182,10 +182,10 @@
       {/* aria-live status (validation / sending / error). */}
       <p data-qm-status class="qm-status" role="status" aria-live="polite"></p>
 
-      {/* GDPR transparency notice — names Telegram, optionality, privacy link. */}
+      {/* GDPR transparency notice — names email delivery, optionality, privacy link. */}
       <p class="qm-privacy">
-        Your message and the page you're on go to We-Amp, delivered via Telegram. Email is optional.{' '}
-        <a href="/privacy/">Privacy</a>.
+        Your message and the page you're on go to We-Amp by email. Your email address is optional.{' '}
+        <a href="https://we-amp.com/privacy/">Privacy</a>.
       </p>
     </form>
 

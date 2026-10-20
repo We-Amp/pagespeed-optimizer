@@ -97,7 +97,7 @@ const faqEntries = [
   },
   {
     q: 'How do mod_pagespeed 1.15 and the 2.0 re-architecture fit into 2.1?',
-    a: 'They converged. mod_pagespeed 2.1 continues both: the original module — same directives, Apache and nginx — plus a separate optimizer worker process, under one Apache-2.0 open-source license. The IIS package ships from the 1.15 packaging channel.',
+    a: 'They converged. mod_pagespeed 2.1 continues both: the original module — same directives, Apache and nginx — plus a separate optimizer worker process, under one Apache-2.0 open-source license. The IIS package ships as a signed installer on the mod_pagespeed GitHub release.',
   },
 ];
 
@@ -363,7 +363,7 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
         </div>
       </div>
       <p class="mt-6 text-sm text-text-muted">
-        The IIS package ships from the 1.15 packaging channel. See the
+        The IIS package ships as a signed installer on the mod_pagespeed GitHub release. See the
         <a
           href="/docs/migrating-to-2-1/#upgrading-from-1-15"
           class="font-medium text-interactive hover:text-interactive-hover underline underline-offset-4"
@@ -380,18 +380,19 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
         .
       </p>
       <p class="mt-4 text-sm text-text-muted">
-        Running IISpeed? Its license transfers to mod_pagespeed 2.1 at no cost — see the
+        Running IISpeed? Its license transfers to mod_pagespeed 2.1 at no cost — request it through
+        the
         <a
-          href="/alternatives/iispeed/"
+          href="/contact/?topic=iispeed-transfer"
           class="font-medium text-interactive hover:text-interactive-hover underline underline-offset-4"
         >
-          IISpeed transfer details
+          license-transfer form
         </a>
         .
       </p>
       <p class="mt-6 text-sm text-text-muted">
-        mod_pagespeed 2.1 is {LICENSE_CLAUSE}: free to install and run. Support &mdash; and hardened
-        builds &mdash; are what&rsquo;s for sale; see{' '}
+        mod_pagespeed 2.1 is {LICENSE_CLAUSE}: free to install and run. Support is what&rsquo;s for
+        sale; see{' '}
         <a href="/pricing/" class="text-interactive hover:text-interactive-hover underline">
           support
         </a>

@@ -96,7 +96,7 @@ export const SUPPORT_TIERS = [
     includes: [
       'Ticket and email channel to the engineers who build the product',
       'Configuration, upgrade and incident help',
-      'Advance notice of security updates',
+      'Advance notice of security releases',
       'One onboarding configuration review',
       'First response within 2 business days',
     ],
@@ -117,11 +117,10 @@ export const SUPPORT_TIERS = [
     note: 'everything in Standard plus a private package repository (being set up), for up to 25 production servers',
     includes: [
       'Everything in Standard',
-      'Private package repository (being set up)',
-      'Signed packages and container images; the images carry an SBOM attestation and build provenance; the release SBOM and VEX on request',
       'Vulnerability notifications timed to the EU Cyber Resilience Act reporting windows',
       'Upgrade rehearsal on request',
       'Quarterly review call',
+      'Release SBOM and VEX on request',
       'First response next business day; severity 1 (production down) within 8 business hours',
     ],
   },
@@ -150,6 +149,10 @@ export const SUPPORT_TIERS = [
     ],
   },
 ];
+// The line under the tier cards: the private repository is not a checkmark
+// until it exists, and what is signed and attested is not a tier feature.
+export const PRIVATE_REPO_LINE =
+  'A private package repository for Priority and Enterprise subscribers is being set up. Every signature and attestation is the same for every user, with or without a subscription.';
 // The pricing terms, said the same way everywhere they are said.
 export const PRICING_TERMS_LINE = 'Prices are per year, billed annually, excl. VAT.';
 export const PRICE_HOLD_LINE =
@@ -163,7 +166,8 @@ export const AUDIT_PRICE_EUR = 950;
 export const formatEur = (n) => `\u20ac${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 // The artifact axis: the standard signed packages are free for everyone.
 // What ships today for everyone:
-// GPG-signed apt/yum repositories, .asc signatures on release packages, the
+// GPG-signed apt/yum repositories, .asc signatures on the module's release
+// packages (the optimizer's GitHub release assets carry none; SHA256SUMS), the
 // Authenticode-signed Windows installer, cosign-signed container images with
 // an SBOM attestation and build provenance, and the source-tree SPDX SBOM and
 // OpenVEX file. No surface may claim a per-release SBOM/VEX on the release
@@ -385,7 +389,7 @@ export const PKG_OPTIMIZER = 'pagespeed-optimizer'; // the optimizer worker
 // (X-Mod-Pagespeed on Apache, X-Page-Speed on nginx), which is what the
 // homepage quick-start shows. Bump it when new module packages are published;
 // test/sync/module-package-version.test.ts compares it with the live index.
-export const MODULE_PACKAGE_VERSION = '1.19.0';
+export const MODULE_PACKAGE_VERSION = '2.5.0';
 
 // --- NuGet packages ---------------------------------------------------------
 export const PKG_ASPNETCORE = 'WeAmp.PageSpeed.AspNetCore'; // the ASP.NET Core middleware

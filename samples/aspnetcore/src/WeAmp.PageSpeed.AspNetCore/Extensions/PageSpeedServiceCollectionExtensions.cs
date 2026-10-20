@@ -2,6 +2,7 @@
 // Copyright (c) 2026 We-Amp B.V.
 
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using WeAmp.PageSpeed.AspNetCore.Internal;
 
@@ -44,6 +45,8 @@ public static class PageSpeedServiceCollectionExtensions
         VersionCheck.EnsureCompatible();
 
         // Cache: singleton, disposed on shutdown. Registered as interface.
+        // Wrapped so it follows the worker's volume resets (full purge):
+        // the wrapper reopens the cache when {VolumePath}.gen changes.
         services.AddSingleton<IPageSpeedCache>(sp =>
         {
             var opts = sp.GetRequiredService<IOptions<PageSpeedOptions>>().Value;
@@ -55,7 +58,12 @@ public static class PageSpeedServiceCollectionExtensions
                 RamCacheSizeBytes = opts.Cache.RamCacheSizeBytes,
                 MaxMetadataSizeBytes = opts.Cache.MaxMetadataSizeBytes,
             };
-            return new PageSpeedCache(cacheOpts);
+            var logger = sp.GetService<ILoggerFactory>()
+                ?.CreateLogger<GenerationAwarePageSpeedCache>();
+            return new GenerationAwarePageSpeedCache(
+                () => new PageSpeedCache(cacheOpts),
+                cacheOpts.VolumePath + ".gen",
+                logger);
         });
 
         // HTML processor: singleton, reads IOptionsMonitor per call.

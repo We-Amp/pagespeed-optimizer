@@ -238,7 +238,10 @@ export default defineConfig({
           page.includes('/buy/') ||
           page.includes('/go/') ||
           page.includes('/error/') ||
-          page.endsWith('/contact/thanks/')
+          page.endsWith('/contact/thanks/') ||
+          // /privacy/ points at the one privacy notice on we-amp.com (production
+          // answers it with a 301); the canonical page is there.
+          page.endsWith('/privacy/')
         )
           return false;
         // The Markdown twins of the docs pages (/docs/<slug>.md) are for
