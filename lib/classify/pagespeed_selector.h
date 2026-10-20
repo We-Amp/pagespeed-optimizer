@@ -6,11 +6,13 @@
 // Selects the best-fit cache alternate for a client request by scoring
 // each alternate's stored metadata against the client's capability mask.
 //
-// Scoring weights (format=1000 > original_fallback=100 > viewport=80
+// Scoring weights (viewport=2000 > format=1000 > original_fallback=100
 // > encoding=60 > density=40 > save-data=20) intentionally differ
 // from the old FallbackMasks() probe order.  The ordering prefers
-// serving the correct image format (e.g. AVIF to an AVIF-capable client)
-// first, then correct transfer encoding (brotli/gzip/identity).
+// serving an image at the client's size class first (a phone never gets
+// the desktop-size image when a phone-size one exists), then the correct
+// image format (e.g. AVIF to an AVIF-capable client), then correct
+// transfer encoding (brotli/gzip/identity).
 // SVG alternates receive a +1200 universal format bonus (higher than
 // the +1000 exact match) since SVG is resolution-independent and
 // universally supported.  Viewport and density bonuses are always
@@ -39,7 +41,10 @@ namespace pagespeed {
 //   SVG format     : +1200 (universal bonus — SVG serves all devices)
 //   Original format: +100  (fallback bonus when stored is Original
 //                           and client requests a different format)
-//   Viewport match : +80   (exact match; SVG always awarded)
+//   Viewport match : +2000 (exact match; SVG always awarded).  Larger
+//                           than all other dimensions combined, so a
+//                           variant at the client's size class beats
+//                           one in its format at another size.
 //   Density match  : +40   (exact match; SVG always awarded)
 //   Save-Data match: +20   (exact match)
 //   Save-Data SVG  : +50   (SVG is inherently lightweight)

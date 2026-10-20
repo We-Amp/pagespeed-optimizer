@@ -38,6 +38,7 @@ cc_library(
     hdrs = ["vary_emission.h"],
     visibility = ["//:internal"],
     deps = [
+        "//lib/classify:capability_mask",
         "//lib/classify:content_type",
     ],
 )

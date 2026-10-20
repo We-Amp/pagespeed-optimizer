@@ -3,7 +3,7 @@ title: 'Release notes: 2.3'
 description: 'mod_pagespeed 2.3.0 release notes: the module and the optimizer worker as one release (packages 1.18.0), with rule packs and security fixes.'
 order: 79
 group: 'Release notes by line'
-lastUpdated: 2026-10-17
+lastUpdated: 2026-10-20
 ---
 
 import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
@@ -28,7 +28,7 @@ Security: resource exhaustion, image optimization. Some animated images could ti
 
 Security: dependency update, Envoy filter. The Envoy filter builds against Envoy 1.37.6, which fixes the Envoy security advisories published on 2026-08-26. Affected: the Envoy filter in releases up to and including 1.17.0, built against Envoy 1.37.5 or older, which lack these fixes. Update recommended.
 
-Security: the nginx bundled with the NuGet sidecar package is updated to 1.30.5. It carries the upstream fix for CVE-2026-90439 in nginx's HTTP/3 module. The bundled nginx is not built with HTTP/3, so it was not affected; the update keeps vulnerability scans clean.
+Security: the sidecar's build recipe moves the nginx bundled with the NuGet sidecar package to 1.30.5. It carries the upstream fix for CVE-2026-90439 in nginx's HTTP/3 module. The bundled nginx is not built with HTTP/3, so it was not affected; the update keeps vulnerability scans clean. Correction: no sidecar package was published with this release. The current `WeAmp.PageSpeed.Sidecar` 1.17.0 bundles nginx 1.30.4; the next sidecar package, which moves to the product version (2.5.x), carries a current nginx.
 
 **Before you upgrade**
 

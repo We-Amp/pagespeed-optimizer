@@ -8354,10 +8354,17 @@ TEST_F(ImageTranscoderTest, TranscodeMultiBakesOrientationInAllFormats) {
   std::string jpeg = ReadTestFile("jpeg/exif_orientation_6_photo.jpg");
   ASSERT_FALSE(jpeg.empty());
 
-  std::vector<CapabilityMask::ImageFormat> formats = {
-      CapabilityMask::ImageFormat::kWebP, CapabilityMask::ImageFormat::kAvif,
-      CapabilityMask::ImageFormat::kOriginal};
-  auto result = transcoder_.TranscodeMulti(jpeg, formats);
+  // One format per call: this test is about orientation, and on this noisy
+  // fixture a converted variant can be refused for not being smaller than
+  // the optimized JPEG it would replace when both are built together.
+  auto result = transcoder_.TranscodeMulti(
+      jpeg, {CapabilityMask::ImageFormat::kOriginal});
+  result.webp =
+      transcoder_.TranscodeMulti(jpeg, {CapabilityMask::ImageFormat::kWebP})
+          .webp;
+  result.avif =
+      transcoder_.TranscodeMulti(jpeg, {CapabilityMask::ImageFormat::kAvif})
+          .avif;
 
   // WebP: upright pixels, swapped (display) dimensions.
   ASSERT_TRUE(result.webp.success) << result.webp.error_message;
@@ -9754,4 +9761,195 @@ TEST(VerifyQualitySearchTest, TheShipBelowFloorArmSearchesButDoesNotRefuse) {
   EXPECT_FALSE(run.verify.declined);
   EXPECT_FALSE(run.probed.empty());
   EXPECT_FLOAT_EQ(run.verify.score, UnreachableCurve(96));
+}
+
+// ===========================================================================
+// A Save-Data variant is never larger than the normal one, and a converted
+// variant is never larger than the original-format variant it replaces.
+// ===========================================================================
+
+// The full-size Save-Data JPEG must be encoded at the Save-Data quality.  It
+// takes the one full-size JPEG leg the desktop fast path does not (Save-Data
+// skips that path), and that leg re-encoded through Transcode(), whose fresh
+// config snapshot dropped the Save-Data quality: the Save-Data JPEG came out
+// at the default quality, no smaller (and with content tuning on, larger)
+// than the normal one.  Same shape as the WebP leg's test above.
+TEST_F(ImageTranscoderTest, FullSizeSaveDataJpegHonoursSaveDataQuality) {
+  std::string jpeg = ReadTestFile("jpeg/sjpeg4.jpg");  // 512x384 photo
+  ASSERT_FALSE(jpeg.empty());
+
+  NullMessageHandler handler;
+  ImageTranscoderConfig cfg;
+  cfg.jpeg_quality = 85;
+  cfg.savedata_jpeg_quality = 30;
+  cfg.quality_verify = false;
+  cfg.content_analysis = false;
+  cfg.learned_quality = false;
+  ImageTranscoder tc(cfg, &handler);
+
+  auto run = [&](CapabilityMask::SaveData sd) {
+    return tc.TranscodeMultiResized(jpeg,
+                                    {CapabilityMask::ImageFormat::kOriginal},
+                                    CapabilityMask::Viewport::kDesktop,
+                                    CapabilityMask::PixelDensity::k1x, sd);
+  };
+  auto plain = run(CapabilityMask::SaveData::kOff);
+  auto saved = run(CapabilityMask::SaveData::kOn);
+
+  ASSERT_TRUE(plain.optimized_original.success)
+      << plain.optimized_original.error_message;
+  ASSERT_TRUE(saved.optimized_original.success)
+      << saved.optimized_original.error_message;
+  EXPECT_EQ("image/jpeg", saved.optimized_original.output_mime_type);
+  EXPECT_LT(saved.optimized_original.output_data.size(),
+            plain.optimized_original.output_data.size())
+      << "the Save-Data JPEG must be smaller than the normal JPEG";
+}
+
+// The same invariant under the stock configuration (content analysis,
+// learned quality and quality verification on), over every photo-sized JPEG
+// fixture and every viewport: the Save-Data JPEG is never larger than the
+// normal one for the same viewport.
+TEST_F(ImageTranscoderTest, SaveDataJpegNeverLargerThanNormalStockConfig) {
+  for (const char* name :
+       {"jpeg/sjpeg3.jpg", "jpeg/sjpeg4.jpg", "jpeg/sjpeg6.jpg",
+        "jpeg/q80_512x512.jpg", "jpeg/quality100.jpg",
+        "jpeg/plasma_1200x800_q95.jpg"}) {
+    std::string jpeg = ReadTestFile(name);
+    ASSERT_FALSE(jpeg.empty()) << name;
+    const int source_q =
+        ImageTranscoder::DetectSourceJpegQuality(jpeg, &handler_);
+    for (auto vp :
+         {CapabilityMask::Viewport::kMobile, CapabilityMask::Viewport::kTablet,
+          CapabilityMask::Viewport::kDesktop}) {
+      auto run = [&](CapabilityMask::SaveData sd) {
+        return transcoder_.TranscodeMultiResized(
+            jpeg, {CapabilityMask::ImageFormat::kOriginal}, vp,
+            CapabilityMask::PixelDensity::k1x, sd,
+            {.source_quality = source_q});
+      };
+      auto plain = run(CapabilityMask::SaveData::kOff);
+      auto saved = run(CapabilityMask::SaveData::kOn);
+      if (!plain.optimized_original.success ||
+          !saved.optimized_original.success) {
+        continue;
+      }
+      EXPECT_LE(saved.optimized_original.output_data.size(),
+                plain.optimized_original.output_data.size())
+          << name << " viewport " << static_cast<int>(vp);
+    }
+  }
+}
+
+// A WebP or AVIF variant that is not smaller than the optimized JPEG of the
+// same size must be refused on the full-size path: it used to be compared
+// with the original upload only, so a converted variant several times the
+// optimized JPEG was stored and served to every client negotiating it.
+TEST_F(ImageTranscoderTest,
+       FullSizeConvertedVariantNotLargerThanOptimizedJpeg) {
+  std::string jpeg = ReadTestFile("jpeg/sjpeg4.jpg");  // 512x384 photo
+  ASSERT_FALSE(jpeg.empty());
+
+  NullMessageHandler handler;
+  ImageTranscoderConfig cfg;
+  // A cheap JPEG and expensive WebP/AVIF settings: the converted encodes
+  // stay below the upload but land well above the optimized JPEG.
+  cfg.jpeg_quality = 20;
+  cfg.webp_quality = 100;
+  cfg.avif_quality = 100;
+  cfg.quality_verify = false;
+  cfg.content_analysis = false;
+  cfg.learned_quality = false;
+  ImageTranscoder tc(cfg, &handler);
+
+  // Non-vacuity: alone (no original-format arm to compare with) the
+  // converted encodes pass the upload gate, and they are larger than the
+  // optimized JPEG -- the exact shape that used to be stored.
+  auto jpeg_only =
+      tc.TranscodeMulti(jpeg, {CapabilityMask::ImageFormat::kOriginal});
+  ASSERT_TRUE(jpeg_only.optimized_original.success)
+      << jpeg_only.optimized_original.error_message;
+  const size_t jpeg_size = jpeg_only.optimized_original.output_data.size();
+  auto webp_only =
+      tc.TranscodeMulti(jpeg, {CapabilityMask::ImageFormat::kWebP});
+  auto avif_only =
+      tc.TranscodeMulti(jpeg, {CapabilityMask::ImageFormat::kAvif});
+  ASSERT_TRUE(webp_only.webp.success) << webp_only.webp.error_message;
+  ASSERT_TRUE(avif_only.avif.success) << avif_only.avif.error_message;
+  if (webp_only.webp.output_data.size() < jpeg_size ||
+      avif_only.avif.output_data.size() < jpeg_size) {
+    // An encoder change made the converted encodes smaller than the JPEG
+    // even at these settings, so this fixture no longer builds the case
+    // the gate exists for; the gate itself is still covered by the noisy
+    // photo test below.
+    GTEST_SKIP() << "precondition not met: WebP "
+                 << webp_only.webp.output_data.size() << ", AVIF "
+                 << avif_only.avif.output_data.size()
+                 << " bytes are not both >= the optimized JPEG " << jpeg_size;
+  }
+
+  // The full-size path a desktop notification takes, both entry points.
+  const std::vector<CapabilityMask::ImageFormat> all = {
+      CapabilityMask::ImageFormat::kWebP, CapabilityMask::ImageFormat::kAvif,
+      CapabilityMask::ImageFormat::kOriginal};
+  for (bool resized_entry : {false, true}) {
+    auto multi = resized_entry
+                     ? tc.TranscodeMultiResized(
+                           jpeg, all, CapabilityMask::Viewport::kDesktop)
+                     : tc.TranscodeMulti(jpeg, all);
+    ASSERT_TRUE(multi.optimized_original.success)
+        << multi.optimized_original.error_message;
+    const size_t baseline = multi.optimized_original.output_data.size();
+    EXPECT_FALSE(multi.webp.success &&
+                 multi.webp.output_data.size() >= baseline)
+        << "WebP " << multi.webp.output_data.size() << " >= JPEG " << baseline
+        << " (resized_entry=" << resized_entry << ")";
+    EXPECT_FALSE(multi.avif.success &&
+                 multi.avif.output_data.size() >= baseline)
+        << "AVIF " << multi.avif.output_data.size() << " >= JPEG " << baseline
+        << " (resized_entry=" << resized_entry << ")";
+  }
+}
+
+// The gate refuses only what it must: with stock settings a photo's WebP and
+// AVIF are smaller than its optimized JPEG and are still produced.
+TEST_F(ImageTranscoderTest, FullSizeConvertedVariantStillProducedWhenSmaller) {
+  std::string jpeg = ReadTestFile("jpeg/sjpeg4.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  auto multi = transcoder_.TranscodeMulti(
+      jpeg,
+      {CapabilityMask::ImageFormat::kWebP, CapabilityMask::ImageFormat::kAvif,
+       CapabilityMask::ImageFormat::kOriginal});
+  ASSERT_TRUE(multi.optimized_original.success);
+  const size_t baseline = multi.optimized_original.output_data.size();
+  ASSERT_TRUE(multi.avif.success) << multi.avif.error_message;
+  EXPECT_LT(multi.avif.output_data.size(), baseline);
+  if (multi.webp.success) {
+    EXPECT_LT(multi.webp.output_data.size(), baseline);
+  }
+}
+
+// The reports' content class under the stock configuration: a noisy
+// high-quality photo (a seeded plasma, see the worker test that replays the
+// reports) whose WebP and AVIF at the verified quality come out larger than
+// its optimized JPEG.  On the desktop path they must be refused, not stored.
+TEST_F(ImageTranscoderTest,
+       NoisyPhotoDesktopConvertedVariantsNotLargerThanJpeg) {
+  std::string jpeg = ReadTestFile("jpeg/plasma_1200x800_q95.jpg");
+  ASSERT_FALSE(jpeg.empty());
+  const int source_q =
+      ImageTranscoder::DetectSourceJpegQuality(jpeg, &handler_);
+  auto multi = transcoder_.TranscodeMultiResized(
+      jpeg,
+      {CapabilityMask::ImageFormat::kWebP, CapabilityMask::ImageFormat::kAvif,
+       CapabilityMask::ImageFormat::kOriginal},
+      CapabilityMask::Viewport::kDesktop, CapabilityMask::PixelDensity::k1x,
+      CapabilityMask::SaveData::kOff, {.source_quality = source_q});
+  ASSERT_TRUE(multi.optimized_original.success)
+      << multi.optimized_original.error_message;
+  const size_t baseline = multi.optimized_original.output_data.size();
+  EXPECT_FALSE(multi.webp.success && multi.webp.output_data.size() >= baseline)
+      << "WebP " << multi.webp.output_data.size() << " >= JPEG " << baseline;
+  EXPECT_FALSE(multi.avif.success && multi.avif.output_data.size() >= baseline)
+      << "AVIF " << multi.avif.output_data.size() << " >= JPEG " << baseline;
 }

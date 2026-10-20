@@ -3,7 +3,7 @@ title: 'Integrate with a CDN'
 description: 'Run mod_pagespeed 2.1 behind Cloudflare, CloudFront or Fastly: how Vary headers affect edge caching, per-CDN cache-key settings and keeping hit rates high.'
 order: 23
 group: 'Configure'
-lastUpdated: 2026-10-20
+lastUpdated: 2026-10-21
 ---
 
 mod_pagespeed 2.1 runs behind any CDN. The one thing to get right is how your CDN
@@ -77,9 +77,9 @@ selects it.
 Two details of the matching: quality values are not weighed, so a listed type
 counts even with `;q=0`, and a wildcard anywhere in the header wins over the
 specific types next to it, so `Accept: image/jpeg, */*` still gets WebP. When no
-copy in the negotiated format exists (not written yet, or declined by the
-quality check), the request gets the original format; a client that names
-`image/avif` is never given WebP instead. On the native modules without the
+copy in the negotiated format exists at the client's size class (not written
+yet, or declined by the quality check), the request gets the original format
+at that size; a client that names `image/avif` is never given WebP instead. On the native modules without the
 optimizer worker (the module's own in-place path), none of this applies: an
 image optimized in place is the same bytes for every client and carries no
 `Vary: Accept`.

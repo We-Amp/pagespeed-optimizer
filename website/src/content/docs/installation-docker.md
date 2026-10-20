@@ -143,6 +143,9 @@ worker_processes auto;
 error_log /var/log/nginx/error.log warn;
 pid /var/run/nginx.pid;
 
+# The thin nginx module bundled in the image. The native module from the
+# nginx-module-pagespeed package has the same file name but is a different
+# module, with different directives.
 load_module /usr/lib/nginx/modules/ngx_pagespeed_module.so;
 
 events {

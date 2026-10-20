@@ -196,7 +196,11 @@ We-Amp B.V., The Netherlands (founded 2012, KvK 57898138); info@we-amp.com for s
 
 ## Blog
 
+- [Our seccomp soak passed. Then Chrome called mincore](https://modpagespeed.com/blog/our-seccomp-soak-passed-then-chrome-called-mincore/): 2026-10-20. A log-only systemd soak cannot see calls your filter subtracts, or a call that fires less often than the soak runs. Headless Chrome hit both.
 - [Is mod_pagespeed safe? How its rewrites are checked](https://modpagespeed.com/blog/is-mod-pagespeed-safe/): 2026-10-19. Is mod_pagespeed safe? It rewrites your HTML, CSS, JS and images: how its rewrites are checked, and what happens when a check fails.
+- [55 of 150 AI crawler operators publish Web Bot Auth keys](https://modpagespeed.com/blog/which-ai-crawlers-sign-their-requests/): 2026-10-19. We asked 150 AI crawler operators for their Web Bot Auth key directory on 19 October 2026. 55 served one. The script, the data, and what to do with it.
+- [Most mod_pagespeed sites run a release from 2020 or earlier](https://modpagespeed.com/blog/mod-pagespeed-sites-run-2020-or-earlier/): 2026-10-17. HTTP Archive, September 2026: 99.9% of PageSpeed origins that report a version run a release from 2020 or earlier. The queries are public.
+- [JPEG XL in the Accept header, and your CDN image cache](https://modpagespeed.com/blog/jpeg-xl-accept-header-and-your-cdn-image-cache/): 2026-10-14. Chrome 155 and Firefox 158 now send image/jxl on desktop and Android. What that does to a cache keyed on Accept, and four curl commands to check yours.
 - [The state of the PageSpeed installed base, 2026](https://modpagespeed.com/blog/pagespeed-installed-base-2026/): 2026-10-10. HTTP Archive data on the PageSpeed installed base in 2026: adoption since 2020, versions, servers, networks, and what no longer receives fixes.
 - [Cyclone as an LLM KV-cache tier: eight rounds to match LMDB](https://modpagespeed.com/blog/cyclone-kv-cache-tier-vs-lmdb/): 2026-10-08. How Cyclone became an LLM KV-cache offload tier: eight rounds against LMDB and file-per-block, from 0.06 GB/s cold reads to ahead of LMDB.
 - [mod_pagespeed 2.1: one product again](https://modpagespeed.com/blog/mod-pagespeed-2-1-one-product-again/): 2026-09-17. The mod_pagespeed lineage and the ModPageSpeed 2.0 engine converge into one open-source product: the module you know plus an optimizer worker. Apache-2.0.
@@ -338,10 +342,11 @@ Installing with a coding agent? [Install with a coding agent](https://modpagespe
 curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
 # 2. Install the module (apt-get on Debian/Ubuntu, dnf on Enterprise Linux)
 sudo apt-get install mod-pagespeed             # Apache: also installs pagespeed-optimizer
-sudo apt-get install nginx-module-pagespeed    # nginx
+sudo apt-get install pagespeed-optimizer       # nginx: the worker first,
+sudo apt-get install nginx-module-pagespeed    #   then the module
 # 3. Restart the web server
 sudo systemctl restart apache2                 # httpd on Enterprise Linux
-sudo systemctl restart nginx
+sudo nginx -t && sudo systemctl enable nginx && sudo systemctl restart nginx
 ```
 
 Apache optimizes immediately: the package enables the module, its default
@@ -353,17 +358,29 @@ add a `load_module` line: nginx refuses to load the module twice.
 shows the line the package added. Only a module you built or copied in by hand
 needs `load_module modules/ngx_pagespeed_module.so;` (on Enterprise Linux
 `load_module /usr/lib64/nginx/modules/ngx_pagespeed_module.so;`) at the top of
-`nginx.conf`. Then turn the module on in a `server` block:
+`nginx.conf`. Then turn the module on in a `server` block, pointed at the
+worker:
 
 ```nginx
 pagespeed on;
 pagespeed FileCachePath /var/cache/ngx_pagespeed;
+pagespeed DaemonSocketPath /run/pagespeed-optimizer/notify.sock;
+pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v3/cache;
 ```
 
-Then [verify](https://modpagespeed.com/docs/getting-started/#verify-it-works). The
-[module install guide](https://modpagespeed.com/docs/installation-module/) has the distribution matrix,
-the nginx compatibility table and the two directives that hand nginx's in-place
-optimization to the worker.
+Restart nginx again
+(`sudo nginx -t && sudo systemctl enable nginx && sudo systemctl restart nginx`),
+then
+[verify](https://modpagespeed.com/docs/getting-started/#verify-it-works). Install the worker and the module as two separate
+commands, worker first, as above: the module package adds the nginx user to the
+worker's `pagespeed` group only if that group already exists. If the module
+went in first or in the same command, run
+`sudo usermod -a -G pagespeed www-data` (`nginx` on Enterprise Linux) and
+restart nginx. The
+[nginx install steps](https://modpagespeed.com/docs/installation-module/#native-nginx-module) are the
+full path: the shared settings for every server block, the admin console (nginx
+serves none until you set its path) and its access restriction, and the check
+that the worker is in use.
 
 ## Quickstart: Docker reverse proxy
 
@@ -496,7 +513,7 @@ Request a page twice with GET (`curl -s -o /dev/null -D -`). The native module a
 
 **Does the native nginx module need the optimizer worker?**
 
-No. It optimizes on its own. To hand in-place optimization to the worker, install the `pagespeed-optimizer` package of the same release and set `pagespeed DaemonSocketPath` and `pagespeed DaemonVolumePath` in the server block. The Apache packages install that wiring for you.
+It runs without it, on its own filters only; the install path installs the worker too. Install the `pagespeed-optimizer` package first, then `nginx-module-pagespeed`, and set `pagespeed DaemonSocketPath` and `pagespeed DaemonVolumePath` in the server block so the module hands in-place optimization to the worker. The Apache packages install that wiring for you.
 
 **What are the prerequisites?**
 
@@ -705,21 +722,175 @@ distribution matrix (including the yum packages) and the nginx module.
 
 ## Native nginx module
 
-The signed repository at `packages.modpagespeed.com` ships the nginx module
-(`nginx-module-pagespeed`) — the same channel mod_pagespeed 1.15 uses — for
-Debian and Ubuntu on amd64 and arm64, and for AlmaLinux, RHEL and Rocky 9 and
-10. Each build is pinned to that distribution's stock nginx (1.18 through
-1.26), so there is no version to match by hand:
+The signed repository at `packages.modpagespeed.com` ships the native nginx
+module (`nginx-module-pagespeed`) — the same channel mod_pagespeed 1.15 uses —
+for Debian and Ubuntu on amd64 and arm64, and for AlmaLinux, RHEL and Rocky 9
+and 10. It is the ngx_pagespeed port of mod_pagespeed, built from the
+mod_pagespeed source, and it loads into the nginx your distribution ships.
+Each build is pinned to that distribution's stock nginx (1.18 through 1.26),
+so there is no version to match by hand.
 
-```bash
-curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
-sudo apt-get install nginx-module-pagespeed   # Debian/Ubuntu
-sudo dnf install nginx-module-pagespeed       # AlmaLinux/RHEL/Rocky
-```
+> **Two nginx modules, one file name**
+>
+> Two different nginx modules install a file named `ngx_pagespeed_module.so`.
+> The **native nginx module** on this page comes from the `nginx-module-pagespeed`
+> package, runs inside your own nginx, and takes the `pagespeed <Directive>`
+> surface from the [configuration reference](https://modpagespeed.com/docs/configuration/)
+> (`pagespeed FileCachePath`, `pagespeed EnableFilters`, …); it answers with an
+> `X-Page-Speed` header. The **thin nginx module** ships only inside the
+> `pagespeed-nginx` and `pagespeed-combined` container images of the
+> [Docker / nginx reverse proxy](https://modpagespeed.com/docs/installation-module/#docker--nginx-reverse-proxy), runs in the nginx
+> bundled there, and takes the `pagespeed_…` directives from the
+> [worker and reverse-proxy configuration](https://modpagespeed.com/docs/worker-configuration/)
+> (`pagespeed_cache_path`, …); it answers with `X-PageSpeed: MISS`, then `HIT`.
+> Apart from `pagespeed on;`, the directives of one are not valid in the other.
 
-The native nginx module runs on its own by default. To have it use the
-optimizer worker, set the two directives described in
-[Using the optimizer worker with nginx](https://modpagespeed.com/docs/installation-module/#using-the-optimizer-daemon-with-nginx).
+The steps below install the module the way the Apache packages install the
+Apache module: with the `pagespeed-optimizer` worker beside it. With the worker
+paired, the module records each eligible CSS, JavaScript and image response
+into the worker's cache, the worker builds the optimized variants off the
+request path, and the module serves the variant that fits each client. The
+module's own filters also work without the worker: leave out step 2 and the
+`DaemonSocketPath` and `DaemonVolumePath` lines in step 5 to run it alone.
+
+1. **Add the repository.**
+
+   ```bash
+   curl -fsSL https://packages.modpagespeed.com/install.sh | sudo sh
+   ```
+
+2. **Install the optimizer worker, before the module.**
+
+   ```bash
+   sudo apt-get install pagespeed-optimizer   # Debian/Ubuntu
+   sudo dnf install pagespeed-optimizer       # AlmaLinux/RHEL/Rocky
+   ```
+
+   The package creates the `pagespeed` user and group, and enables and starts
+   `pagespeed-optimizer.service`. These steps are for a host that runs
+   systemd; in a container, use the [Docker images](https://modpagespeed.com/docs/installation-docker/).
+
+   Install the worker on its own, before the module, never both in one
+   command: the module package adds the nginx user to the `pagespeed` group
+   only if that group already exists when its install script runs, and in a
+   single transaction dnf runs the module's script first. On a host where the
+   module went in first or alongside, add the user yourself and restart nginx:
+   `sudo usermod -a -G pagespeed www-data` on Debian and Ubuntu,
+   `sudo usermod -a -G pagespeed nginx` on Enterprise Linux.
+
+3. **Install the module.**
+
+   ```bash
+   sudo apt-get install nginx-module-pagespeed   # Debian/Ubuntu
+   sudo dnf install nginx-module-pagespeed       # AlmaLinux/RHEL/Rocky
+   ```
+
+   The package loads the module itself (through `/etc/nginx/modules-enabled/`
+   on Debian and Ubuntu, `/usr/share/nginx/modules/` on Enterprise Linux), so
+   add no `load_module` line.
+
+4. **Set the shared settings.** Create `/etc/nginx/conf.d/pagespeed.conf`;
+   the stock `nginx.conf` of every supported distribution includes
+   `conf.d/*.conf` inside its `http` block:
+
+   ```nginx
+   # Off in every server block that does not turn it on.
+   pagespeed standby;
+   pagespeed FileCachePath /var/cache/ngx_pagespeed;
+   # The admin console; step 5 restricts it.
+   pagespeed GlobalAdminPath /pagespeed_global_admin;
+   ```
+
+   `GlobalAdminPath` can only be set in the `http` block, and a
+   `FileCachePath` there covers every server block. Leave out
+   `pagespeed standby;` and the module is on in every server block, including
+   the default server.
+
+5. **Turn it on for your site.** Create the restriction for the admin pages,
+   `/etc/nginx/snippets/pagespeed_admin_restrict.conf` (localhost only; add,
+   for example, `allow 10.0.0.0/8;` before `deny all;` for your operations
+   network). Enterprise Linux has no `snippets` directory, so create it first:
+
+   ```bash
+   sudo mkdir -p /etc/nginx/snippets
+   sudo tee /etc/nginx/snippets/pagespeed_admin_restrict.conf >/dev/null <<'EOF'
+   # PageSpeed admin pages, localhost only.
+   location =  /pagespeed_admin         { allow 127.0.0.1; allow ::1; deny all; }
+   location ^~ /pagespeed_admin/        { allow 127.0.0.1; allow ::1; deny all; }
+   location =  /pagespeed_global_admin  { allow 127.0.0.1; allow ::1; deny all; }
+   location ^~ /pagespeed_global_admin/ { allow 127.0.0.1; allow ::1; deny all; }
+   EOF
+   ```
+
+   From the next release, the `nginx-module-pagespeed` package installs the
+   same four `location` lines as
+   `/etc/nginx/snippets/pagespeed_admin_localhost.conf`. Until then, create
+   the file above by hand, under this name: the package leaves a hand-made
+   `pagespeed_admin_restrict.conf` alone, but a hand-made file under the
+   packaged name makes the package upgrade stop and ask on Debian and Ubuntu
+   (on Enterprise Linux, rpm keeps the hand-made file and saves the packaged
+   copy beside it as `.rpmnew`). Include one of the
+   two files, not both: nginx rejects the duplicate `location` blocks.
+
+   Then, in each `server` block that should be optimized:
+
+   ```nginx
+   server {
+       listen 80;
+       server_name <your-domain>;
+
+       pagespeed on;
+       # The optimizer worker: its notification socket and its cache volume.
+       pagespeed DaemonSocketPath /run/pagespeed-optimizer/notify.sock;
+       pagespeed DaemonVolumePath /var/cache/pagespeed-optimizer/v3/cache;
+       # Every server block with `pagespeed on` serves the admin console.
+       include /etc/nginx/snippets/pagespeed_admin_restrict.conf;
+   }
+   ```
+
+   On Enterprise Linux the stock server in `/etc/nginx/nginx.conf` includes
+   `/etc/nginx/default.d/*.conf`; to turn the module on there, put
+   `pagespeed on;`, the `DaemonSocketPath` and `DaemonVolumePath` lines and the
+   `include` line in a file in that directory. That stock server has no
+   `default_server`, and `conf.d/*.conf` is included before it, so a server
+   you add in `conf.d` that listens on the same port becomes the default
+   server.
+
+6. **Restart nginx.**
+
+   ```bash
+   sudo nginx -t && sudo systemctl enable nginx && sudo systemctl restart nginx
+   ```
+
+   `enable` matters on Enterprise Linux, where the nginx that `dnf` pulled in
+   does not start at boot otherwise. Restarting also applies the nginx user's
+   new `pagespeed` group membership.
+
+7. **Check it.**
+
+   ```bash
+   curl -s -o /dev/null -D - -H 'Host: <your-domain>' http://127.0.0.1/ | grep -i '^x-page-speed'
+   curl -s -o /dev/null -w '%{http_code}\n' -H 'Host: <your-domain>' http://127.0.0.1/pagespeed_global_admin/
+   ```
+
+   Run them on the server. The first prints `X-Page-Speed: <version>`, the
+   second `200`. The same admin URL requested from another machine answers
+   `403`. To open the console from your workstation, tunnel to the server
+   (`ssh -L 8080:127.0.0.1:80 <you>@<server>`), point `<your-domain>` at
+   `127.0.0.1` in the workstation's hosts file for the session, and browse to
+   `http://<your-domain>:8080/pagespeed_global_admin/`: the request reaches
+   nginx from `127.0.0.1` and selects your server block by its name. For a site
+   that redirects port 80 to HTTPS, tunnel port 443 instead
+   (`ssh -L 8443:127.0.0.1:443 <you>@<server>`) and browse to
+   `https://<your-domain>:8443/pagespeed_global_admin/`. Its
+   Statistics page shows whether the worker is in use: see
+   [Check that it works](https://modpagespeed.com/docs/installation-module/#check-that-it-works).
+
+The [admin console guide](https://modpagespeed.com/docs/admin-console/#setup) covers the other handler
+paths (`AdminPath`, `StatisticsPath`, …) and their restrictions, and
+[Using the optimizer worker with nginx](https://modpagespeed.com/docs/installation-module/#using-the-optimizer-daemon-with-nginx)
+the details of the pairing: other paths, start order, upgrades, and what happens
+when the worker is not available.
 
 See [Install from packages.modpagespeed.com](https://modpagespeed.com/download/apt-yum/) for the full
 distribution matrix (including the yum packages) and the Apache module. The
@@ -741,7 +912,7 @@ proxy brings its own nginx inside the image.
 | Native module on Ubuntu 24.04 noble                                            | 1.24.0                          | the distribution's stock nginx (amd64 + arm64)     |
 | Native module on AlmaLinux / RHEL / Rocky 9                                    | 1.20.1                          | the distribution's stock nginx (x86_64 + aarch64)  |
 | Native module on AlmaLinux / RHEL / Rocky 10                                   | the distribution's stock nginx  | the distribution's stock nginx (x86_64)            |
-| Docker / nginx reverse proxy (`pagespeed-nginx` and `pagespeed-combined` images) | 1.30.4                        | bundled in the image                               |
+| Docker / nginx reverse proxy (`pagespeed-nginx` and `pagespeed-combined` images) | 1.30.6                        | bundled in the image                               |
 
 nginx refuses to load a module built for a different version, and
 `--with-compat` does not relax that check, so the native module follows your
@@ -769,10 +940,10 @@ optimization works exactly as before.
   shared configuration are open to members of the `pagespeed` group only. When
   `nginx-module-pagespeed` is installed or upgraded and that group exists, the
   package adds the nginx user to it (`www-data` on Debian and Ubuntu, `nginx`
-  on the RHEL family). If you installed the module before the optimizer, or
-  nginx runs as another user, add the user yourself, for example
-  `sudo usermod -a -G pagespeed www-data`. Restart nginx afterwards; the new
-  group membership takes effect only in a restarted nginx.
+  on the RHEL family). If you installed the module before the optimizer or in
+  the same command, or nginx runs as another user, add the user yourself, for
+  example `sudo usermod -a -G pagespeed www-data`, then restart nginx; the
+  restart also applies the new group membership.
 - **Find the two paths.** The packaged optimizer's defaults are
   `/run/pagespeed-optimizer/notify.sock` for the notification socket and
   `/var/cache/pagespeed-optimizer/v3/cache` for the cache volume. If you
@@ -798,6 +969,9 @@ server {
 }
 ```
 
+- `FileCachePath` works in either place: in the `server` block as above, or
+  once in the `http` block as in [step 4](https://modpagespeed.com/docs/installation-module/#native-nginx-module), which then
+  covers every server block.
 - Set the two together. With only one of them set, in-place optimization is
   off and the error log says that both are needed.
 - Keep `DaemonVolumePath` on a different path from `FileCachePath`. The
@@ -880,8 +1054,12 @@ read the optimizer's management API through the separate
 ## Docker / nginx reverse proxy
 
 The [Docker / nginx reverse proxy](https://modpagespeed.com/docs/installation-docker/) runs the same
-optimization core in front of any HTTP origin. It uses a dynamic nginx
-module (`ngx_pagespeed_module.so`) paired with the optimizer worker:
+optimization core in front of any HTTP origin. It uses the thin nginx module,
+bundled in its own nginx inside the `pagespeed-nginx` and `pagespeed-combined`
+images and paired with the optimizer worker. The thin module's file is also
+named `ngx_pagespeed_module.so`, but it is a different module from the native
+one above (see [Two nginx modules, one file name](https://modpagespeed.com/docs/installation-module/#native-nginx-module)). The
+pair provides
 [image transcoding](https://modpagespeed.com/blog/nginx-image-optimization-module/),
 CSS/JS minification, critical CSS, and zero-copy serving from the Cyclone
 shared-memory cache.
@@ -898,7 +1076,7 @@ Yes. The native Apache and nginx module ships from the signed packages.modpagesp
 
 **How do I run mod_pagespeed on nginx today?**
 
-Two options. Install the native nginx module — a dynamic module from the signed packages.modpagespeed.com repository, built for Debian and Ubuntu on amd64 and arm64 and pinned to each distribution stock nginx (1.18 to 1.26). Or put the Docker / nginx reverse proxy in front of your origin. The native nginx module runs on its own by default; to use the optimizer worker with it, install the pagespeed-optimizer package of the same release and set pagespeed DaemonSocketPath and pagespeed DaemonVolumePath in the server block.
+Two options. Install the native nginx module — a dynamic module from the signed packages.modpagespeed.com repository, built for Debian and Ubuntu on amd64 and arm64 and pinned to each distribution stock nginx (1.18 to 1.26). Or put the Docker / nginx reverse proxy in front of your origin. Install the optimizer worker (pagespeed-optimizer) first, then the module, and set pagespeed DaemonSocketPath and pagespeed DaemonVolumePath in the server block so the module hands in-place optimization to the worker; the module also runs without the worker, on its own filters only.
 
 ---
 
@@ -1045,6 +1223,9 @@ worker_processes auto;
 error_log /var/log/nginx/error.log warn;
 pid /var/run/nginx.pid;
 
+# The thin nginx module bundled in the image. The native module from the
+# nginx-module-pagespeed package has the same file name but is a different
+# module, with different directives.
 load_module /usr/lib/nginx/modules/ngx_pagespeed_module.so;
 
 events {
@@ -1680,7 +1861,7 @@ gpgkey=https://packages.modpagespeed.com/pubkey.gpg
 EOF
 ```
 
-`$releasever` resolves to `8` on EL8 hosts, `9` on EL9, and `10` on EL10, so dnf picks the matching tree automatically — the same `.repo` file works on both. `enabled=0` keeps the EA4 tree out of routine `dnf update` runs; you opt in per command with `--enablerepo=ea4` below. The RPMs and the repository metadata are both signed with key `rsa4096/F50D6054F10712A0` — the same key as the rest of `packages.modpagespeed.com`, which is why both `repo_gpgcheck=1` and `gpgcheck=1` are set.
+`$releasever` resolves to `8` on EL8 hosts, `9` on EL9, and `10` on EL10, so dnf picks the matching tree automatically — the same `.repo` file works on both. `enabled=0` keeps the EA4 tree out of routine `dnf update` runs; you opt in per command with `--enablerepo=ea4` below. The RPMs and the repository metadata are both signed with the repository signing key, fingerprint `DF00 E296 BE91 41CE A541  1346 F50D 6054 F107 12A0` — the same key as the rest of `packages.modpagespeed.com`, which is why both `repo_gpgcheck=1` and `gpgcheck=1` are set.
 
 ### 2. Remove mod_ruid2 if it is installed
 
@@ -1850,10 +2031,21 @@ Machine-readable recipe for coding agents: [modpagespeed.com/recipes/iis.md](htt
 
 1. Download the [IIS MSI installer](https://modpagespeed.com/download/#direct-downloads) from the Download
    page's Windows installer link.
-2. Run it on the Windows Server host. The installer registers the module in
+2. Check it. On Windows, the MSI's Authenticode signature is the check for
+   the installer itself: its publisher must be "We-Amp B.V."
+   (`Get-AuthenticodeSignature .\pagespeed-iis-<version>-win-x64.msi` reports
+   `Valid`, with a signer certificate subject starting `CN=We-Amp B.V.`). The release also carries `SHA256SUMS` and
+   `SHA256SUMS.asc`, a GPG signature of the checksum file made with the
+   [release signing key](https://github.com/We-Amp/mod_pagespeed/blob/master/RELEASE-SIGNING-KEY.asc),
+   fingerprint `411D EFDB 5713 51D2 B25A  EFCC 9C02 B5BD CCE7 5313`: the
+   signature verifies `SHA256SUMS`, and `SHA256SUMS` then verifies the MSI.
+   The steps are in
+   [Verifying a Release](https://github.com/We-Amp/mod_pagespeed/blob/master/SECURITY.md#verifying-a-release).
+   This key is not the one that signs the apt and dnf repositories.
+3. Run it on the Windows Server host. The installer registers the module in
    IIS as a native HTTP module and creates the default cache directory at
    `%ProgramData%\We-Amp\PageSpeed\Cache`.
-3. Run `iisreset`.
+4. Run `iisreset`.
 
 The module reads `pagespeed.config`. A site is optimized only when its own
 physical root holds one; the server-level file at
@@ -1923,7 +2115,9 @@ The application pools reach the pipe and the cache with the permissions the
 installer sets; no extra access rules are needed. Start the service before the
 application pools: the module attaches to the optimizer when a pool starts, so
 if the service was stopped then, or you start or restart it later, run
-`iisreset` again for the module to use it. To turn the optimizer off, remove the
+`iisreset` again for the module to use it (the module does not reattach on its
+own yet; tracked in
+[mod_pagespeed#104](https://github.com/We-Amp/mod_pagespeed/issues/104)). To turn the optimizer off, remove the
 two lines and run `iisreset`; the module goes back to optimizing on its own.
 
 ### IIS Express
@@ -2319,6 +2513,8 @@ inlining and extracting critical CSS, and rewriting HTML for Core Web Vitals on 
 Requests that can't be optimized — and any request while the optimizer isn't running — pass straight
 through your app un-optimized.
 
+The current package is 1.17.0; the next sidecar release moves to the product version (2.5.x).
+
 ```csharp
 builder.Services.AddPageSpeed(builder.Configuration);
 // ...
@@ -2444,10 +2640,15 @@ Source `AdminAuth.Token` from a secret store or environment variable — do not 
 
 ### Sidecar container & runtime requirements
 
-The bundled nginx + module are glibc ELF binaries built for a glibc ≥ 2.31 floor, so they run on
-Debian 11/12, Ubuntu 20.04+, RHEL/Alma 9, and Amazon Linux 2023. `libstdc++` is statically linked
-and the build has no OpenSSL dependency, so there is no libstdc++ or libssl/libcrypto host
-requirement. The binaries link a small set of host shared libraries:
+The bundled nginx + module are glibc ELF binaries built for a glibc ≥ 2.31 floor. The bundled
+nginx links `libpcre.so.3`, the Debian/Ubuntu name of the PCRE library from the `libpcre3`
+package, so it runs on the Debian and Ubuntu releases that still ship that package: Debian 11 and
+12, Ubuntu 20.04 to 24.04. Debian 13 and Ubuntu 26.04 no longer ship `libpcre3` and are not
+supported. Enterprise Linux (RHEL, AlmaLinux, Rocky) and Amazon Linux are not supported either:
+they ship PCRE as `libpcre.so.1`. (`libcrypt.so.1`, which the nginx also links, is available
+there from `libxcrypt-compat`; PCRE is the blocker.) `libstdc++` is statically linked and the build has no OpenSSL dependency, so there is
+no libstdc++ or libssl/libcrypto host requirement. The binaries link a small set of host shared
+libraries:
 
 | Host library    | Provided by | Notes                                                      |
 | --------------- | ----------- | ---------------------------------------------------------- |
@@ -3005,10 +3206,13 @@ sudo dnf upgrade nginx-module-pagespeed    # nginx
 ```
 
 The `mod-pagespeed` package depends on `pagespeed-optimizer` at the exact same
-version, so the Apache upgrade pulls the worker in. On nginx the worker is
-optional: `sudo apt-get install pagespeed-optimizer` (or `dnf install`) adds
-it, and two directives hand nginx's in-place optimization to it; see
-[Using the optimizer worker with nginx](https://modpagespeed.com/docs/installation-module/#using-the-optimizer-daemon-with-nginx).
+version, so the Apache upgrade pulls the worker in. The nginx package does
+not: `sudo apt-get install pagespeed-optimizer` (or `dnf install`), as its own
+command, adds it, and two directives hand nginx's in-place optimization to it;
+see [Using the optimizer worker with nginx](https://modpagespeed.com/docs/installation-module/#using-the-optimizer-daemon-with-nginx).
+A worker installed after the module leaves the nginx user outside its group:
+run `sudo usermod -a -G pagespeed www-data` (`nginx` on Enterprise Linux) and
+restart nginx.
 
 Then start things in order:
 
@@ -7278,7 +7482,7 @@ package rows from the signed repository's distribution matrix.
 
 | Shape                                                                               | nginx version                                                    | Configuration surface |
 | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------- | --------------------- |
-| Docker / reverse proxy (`ghcr.io/we-amp/pagespeed-nginx`, the combined image, Helm) | nginx 1.30.4, bundled in the image                               | Thin module + worker  |
+| Docker / reverse proxy (`ghcr.io/we-amp/pagespeed-nginx`, the combined image, Helm) | nginx 1.30.6, bundled in the image                               | Thin module + worker  |
 | Native module package, Debian 12 bookworm                                           | nginx 1.22.1 (the distribution's stock nginx; exact-version pin) | Native module         |
 | Native module package, Debian 13 trixie                                             | nginx 1.26.3 (the distribution's stock nginx; exact-version pin) | Native module         |
 | Native module package, Ubuntu 22.04 jammy                                           | nginx 1.18.0 (the distribution's stock nginx; exact-version pin) | Native module         |
@@ -9638,6 +9842,9 @@ worker_processes auto;
 error_log /var/log/nginx/error.log warn;
 pid /var/run/nginx.pid;
 
+# The thin nginx module, as the pagespeed-nginx image bundles it. The native
+# module from the nginx-module-pagespeed package has the same file name but is
+# a different module, with different directives.
 load_module /usr/lib/nginx/modules/ngx_pagespeed_module.so;
 
 events {
@@ -10621,9 +10828,9 @@ selects it.
 Two details of the matching: quality values are not weighed, so a listed type
 counts even with `;q=0`, and a wildcard anywhere in the header wins over the
 specific types next to it, so `Accept: image/jpeg, */*` still gets WebP. When no
-copy in the negotiated format exists (not written yet, or declined by the
-quality check), the request gets the original format; a client that names
-`image/avif` is never given WebP instead. On the native modules without the
+copy in the negotiated format exists at the client's size class (not written
+yet, or declined by the quality check), the request gets the original format
+at that size; a client that names `image/avif` is never given WebP instead. On the native modules without the
 optimizer worker (the module's own in-place path), none of this applies: an
 image optimized in place is the same bytes for every client and carries no
 `Vary: Accept`.
@@ -15783,7 +15990,9 @@ The console opens on the Overview page by default; the other pages are reached f
 
 **nginx**
 
-Set the handler paths you want, then restrict each of them with nginx `location` blocks. `AdminPath`, `StatisticsPath`, `MessagesPath` and `ConsolePath` can be set in a `server` block. `GlobalAdminPath` and `GlobalStatisticsPath` can only be set in the `http` block, and a path set in the `http` block is served by **every** `server` block, including the default server. Each `server` block that serves a path needs its restriction; a path set inside one `server` block needs it in that block only.
+On nginx the console is off until you set a handler path: the module sets none by default, so `/pagespeed_global_admin` answers like any other URL after a fresh install. The [nginx install steps](https://modpagespeed.com/docs/installation-module/#native-nginx-module) turn the global console on with its restriction; this section covers every handler path.
+
+Set the handler paths you want, then restrict each of them with nginx `location` blocks. `AdminPath`, `StatisticsPath`, `MessagesPath` and `ConsolePath` can be set in a `server` block. `GlobalAdminPath` and `GlobalStatisticsPath` can only be set in the `http` block, and a path set in the `http` block is served by **every** `server` block in which the module is on. With `pagespeed on` or a `FileCachePath` in the `http` block, and no `pagespeed standby;` or `pagespeed off;` there, that is every `server` block, including the default server. Each `server` block that serves a path needs its restriction; a path set inside one `server` block needs it in that block only.
 
 ```nginx
 http {
@@ -15833,7 +16042,14 @@ http {
 - **Block order does not matter for these paths.** `=` and `^~` blocks are chosen ahead of any regular-expression location, such as the one for `.pagespeed.` resources.
 - **These pages are reached by their own paths only.** A request that nginx rewrites (`rewrite`) or redirects internally to one of these paths is not served by the admin, statistics, console or message pages.
 
-The nginx packages ship the admin blocks as `/usr/share/doc/nginx-module-pagespeed/pagespeed_admin_restrict.conf.sample`. It covers the two admin paths (`AdminPath` and `GlobalAdminPath`) only; add a `location =` block for each other handler path you set. Copy it to `/etc/nginx/snippets/pagespeed_admin_restrict.conf` and `include` it from every `server` block, including the default server.
+The nginx packages ship the admin blocks as `/usr/share/doc/nginx-module-pagespeed/pagespeed_admin_restrict.conf.sample`. It covers the two admin paths (`AdminPath` and `GlobalAdminPath`) only; add a `location =` block for each other handler path you set. Copy it to `/etc/nginx/snippets/pagespeed_admin_restrict.conf` and `include` it from every `server` block that serves the paths. The Ubuntu container images exclude `/usr/share/doc` from every package they install (`/etc/dpkg/dpkg.cfg.d/excludes`), so there the sample is missing; the snippet is then the four admin lines of the block above, which you can write to that file yourself (`sudo mkdir -p /etc/nginx/snippets` first on Enterprise Linux). From the next release the package installs the same four lines itself as `/etc/nginx/snippets/pagespeed_admin_localhost.conf`; include one of the two files, not both:
+
+```nginx
+location =  /pagespeed_admin         { allow 127.0.0.1; allow ::1; deny all; }
+location ^~ /pagespeed_admin/        { allow 127.0.0.1; allow ::1; deny all; }
+location =  /pagespeed_global_admin  { allow 127.0.0.1; allow ::1; deny all; }
+location ^~ /pagespeed_global_admin/ { allow 127.0.0.1; allow ::1; deny all; }
+```
 
 **Upgrading from 1.16.0 or earlier:** after updating, replace your access rules for these pages with the blocks above, in every `server` block that serves them. The update does not change rules that are already in your configuration. Enforce the restriction in nginx itself, not in a filter in front of it; see [URL-path ACLs are brittle](https://modpagespeed.com/docs/admin-console/#url-path-acls-are-brittle).
 
@@ -16307,7 +16523,7 @@ Click a URL to open the inspector detail view:
 - **Device simulation** -- build a capability mask by choosing format, viewport,
   density, Save-Data, and encoding (or use a device preset), then click
   "Simulate Selection" to see which alternate the cache selector would serve.
-  The scoring breakdown shows exactly how format match (+1000), viewport (+80),
+  The scoring breakdown shows exactly how viewport (+2000), format match (+1000),
   encoding (+60), density (+40), and Save-Data (+20) contribute.
 - **Actions** -- Purge (delete all variants), Reprocess (purge + re-queue),
   Add to Group
@@ -21176,11 +21392,11 @@ the release entry says so.
 | 10 | none | memory corruption, image spriting | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
 | 11 | none | denial of service, statistics admin page | the module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
 | 12 | none | crashes and truncated responses, IIS module and Windows shared memory | the IIS module in releases up to and including 1.19.0 | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
-| 13 | none | local exposure and unauthenticated endpoint, ASP.NET Core sidecar | `WeAmp.PageSpeed.Sidecar` up to and including 1.17.0; the fixes are in this source release and an updated package follows | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
+| 13 | none | local exposure and unauthenticated endpoint, ASP.NET Core sidecar | `WeAmp.PageSpeed.Sidecar` up to and including 1.17.0; the fixes are in this source release and an updated package follows, on the product version (2.5.x) | [mod_pagespeed 2.5.0](https://modpagespeed.com/docs/release-notes-2-5/#v2-5-0) | Recommended |
 | 14 | — | missing security headers — cached responses, nginx module | the nginx module in the container images and Helm chart, in releases up to and including 2.3.0 | [mod_pagespeed 2.4.0](https://modpagespeed.com/docs/release-notes-2-4/#v2-4-0) | Recommended; cached responses regain the headers as they expire, or purge the cache after upgrading to restore them at once |
 | 15 | — | resource exhaustion — image optimization | releases up to and including 1.17.0 with image conversion enabled | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Recommended; animations above the new frame limit (default 200) are no longer converted |
 | 16 | — | dependency update — Envoy filter (Envoy 1.37.6, advisories of 2026-08-26) | the Envoy filter in releases up to and including 1.17.0, built against Envoy 1.37.5 or older | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Recommended |
-| 17 | CVE-2026-90439 | dependency update — bundled nginx (1.30.5) | the NuGet sidecar package; not affected, because its bundled nginx is not built with HTTP/3 | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Not required (keeps vulnerability scans clean) |
+| 17 | CVE-2026-90439 | dependency update — bundled nginx (1.30.5, in the sidecar's build recipe) | the NuGet sidecar package; not affected, because its bundled nginx is not built with HTTP/3. The published 1.17.0 package bundles nginx 1.30.4; the next sidecar package (2.5.x) carries a current nginx | [mod_pagespeed 2.3.0](https://modpagespeed.com/docs/release-notes-2-3/#v2-3-0) | Not required (keeps vulnerability scans clean) |
 | 18 | — | denial of service — nginx module | the nginx module, all releases up to and including 1.16.0 | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
 | 19 | — | denial of service — Apache module | the Apache module, all releases up to and including 1.16.0 | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
 | 20 | — | denial of service — HTML rewriter | releases 1.15.0+r20 through 1.16.0 | [mod_pagespeed 2.2.0](https://modpagespeed.com/docs/release-notes-2-2/#v2-2-0) | Recommended |
@@ -21373,8 +21589,9 @@ Docker images, and as a Helm chart. See
 [Deployment](https://modpagespeed.com/docs/deployment/) for production rollouts.
 
 The Apache packages install the configuration that points the module at the
-optimizer worker. The native nginx module runs on its own; to use the optimizer
-worker with nginx, run the reverse-proxy deployment.
+optimizer worker. The native nginx module uses the worker once two directives
+point it there: install `pagespeed-optimizer` first, as its own command, then
+follow the [nginx install steps](https://modpagespeed.com/docs/installation-module/#native-nginx-module).
 
 The IIS package ships as a signed installer on the mod_pagespeed GitHub release.
 
@@ -21538,7 +21755,7 @@ Security: resource exhaustion, image optimization. Some animated images could ti
 
 Security: dependency update, Envoy filter. The Envoy filter builds against Envoy 1.37.6, which fixes the Envoy security advisories published on 2026-08-26. Affected: the Envoy filter in releases up to and including 1.17.0, built against Envoy 1.37.5 or older, which lack these fixes. Update recommended.
 
-Security: the nginx bundled with the NuGet sidecar package is updated to 1.30.5. It carries the upstream fix for CVE-2026-90439 in nginx's HTTP/3 module. The bundled nginx is not built with HTTP/3, so it was not affected; the update keeps vulnerability scans clean.
+Security: the sidecar's build recipe moves the nginx bundled with the NuGet sidecar package to 1.30.5. It carries the upstream fix for CVE-2026-90439 in nginx's HTTP/3 module. The bundled nginx is not built with HTTP/3, so it was not affected; the update keeps vulnerability scans clean. Correction: no sidecar package was published with this release. The current `WeAmp.PageSpeed.Sidecar` 1.17.0 bundles nginx 1.30.4; the next sidecar package, which moves to the product version (2.5.x), carries a current nginx.
 
 **Before you upgrade**
 
@@ -21643,7 +21860,7 @@ Changed (all servers): the optimizer worker's cache directory moves from `/var/c
 
 Changed (version pins): see "One version number" above. Nothing else in the configuration changes.
 
-Changed (ASP.NET Core sidecar, `WeAmp.PageSpeed.Sidecar`): the sidecar information endpoint requires authorization by default; an app without authentication passes `requireAuthorization: false` to `MapPageSpeedInfo`. With `UseForwardedHeaders()` before `UsePageSpeed()`, raw-origin requests are rejected with 421; call `UsePageSpeed()` first (the fixes are in this source release; an updated package follows separately).
+Changed (ASP.NET Core sidecar, `WeAmp.PageSpeed.Sidecar`): the sidecar information endpoint requires authorization by default; an app without authentication passes `requireAuthorization: false` to `MapPageSpeedInfo`. With `UseForwardedHeaders()` before `UsePageSpeed()`, raw-origin requests are rejected with 421; call `UsePageSpeed()` first (the fixes are in this source release; an updated package follows separately, as `WeAmp.PageSpeed.Sidecar` 2.5.x on the product version).
 
 ---
 

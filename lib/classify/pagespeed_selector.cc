@@ -105,10 +105,20 @@ int ScoreAlternate(uint32_t client_mask, uint32_t stored_mask) {
     return 0;
   }
 
-  // Viewport: exact match = +80.
+  // Viewport: exact match = +2000, deliberately larger than the format
+  // bonus.  The viewport is the image's size class: a variant at the
+  // client's size outranks a variant in the client's negotiated format at
+  // another size.  With +80 (below the +900 gap between an exact format
+  // match and the original-format fallback) a phone whose Accept named WebP
+  // but whose slot had no WebP (refused as not smaller than the phone-size
+  // JPEG) was handed the full-size desktop WebP, many times the bytes of
+  // the phone JPEG it could have had; and a desktop could be handed a
+  // phone-size image.  2000 exceeds every other dimension combined
+  // (1000 + 40 + 20 + 60 = 1120), so a size-class match always wins, and
+  // the SVG tier (which always takes this bonus) stays above every raster.
   // SVG is resolution-independent — always award the viewport bonus.
   if (is_svg || ExtractViewport(client_mask) == ExtractViewport(stored_mask)) {
-    score += 80;
+    score += 2000;
   }
 
   // Density: exact match = +40.
@@ -216,8 +226,13 @@ std::optional<size_t> PageSpeedSelector::select(
     // (capability_mask.cc) and the enum values kOriginal=0 < kWebP=1 <
     // kAvif=2 < kSvg=3 encode exactly that, with worker-only universal SVG
     // on top.  (Cross-format positive ties cannot actually occur today —
-    // the SVG tier scores >= 1325, exact matches <= 1200, Original
-    // fallbacks <= 300 — so the byte arm is the live one; the format arm is
+    // the SVG tier scores >= 3245, viewport-matched exact formats are
+    // 3005-3120 and Original fallbacks 2105-2220, and without a viewport
+    // match exact formats are 1005-1120 and Original fallbacks 105-220,
+    // and every one of these totals differs between an exact match and a
+    // fallback by the format bonus alone (900), which no combination of
+    // the smaller dimensions (at most 120) can close; so the byte arm is
+    // the live one; the format arm is
     // stated so a future scoring change cannot silently reintroduce
     // order-dependent selection.)  Byte-identical duplicates are
     // interchangeable, so keeping the first of those is not a listing-order
