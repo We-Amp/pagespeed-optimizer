@@ -46,9 +46,6 @@ spec:
         - name: shared
           emptyDir:
             sizeLimit: {{ .Values.cache.sizeLimit }}
-        - name: nginx-conf
-          configMap:
-            name: {{ include "pagespeed.fullname" . }}-nginx
       containers:
         # Worker container
         - name: worker
@@ -119,8 +116,6 @@ spec:
           volumeMounts:
             - name: shared
               mountPath: /data
-            - name: nginx-conf
-              mountPath: /etc/nginx/templates
           readinessProbe:
             httpGet:
               path: /health

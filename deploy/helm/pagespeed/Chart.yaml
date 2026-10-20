@@ -5,7 +5,11 @@ type: application
 # 0.3.0: collapse worker.image.tag + nginx.image.tag into one lockstep tag that
 # defaults to appVersion. Removing the two per-image tag keys is a
 # values-API change, hence the minor bump.
-version: 0.3.9
+# 0.3.10: drop the unused nginx ConfigMap (the image renders its config from
+# baked-in nginx.conf.template + env, and never read the mount), and default
+# podSecurityContext.fsGroup to 918 so restricted-PodSecurity clusters get a
+# group-owned shared volume without opting out of the chart defaults.
+version: 0.3.10
 appVersion: "2.5.0"
 keywords:
   - pagespeed

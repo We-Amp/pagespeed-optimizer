@@ -115,7 +115,17 @@ podAnnotations: {}
 # The path is relative to that root, the file must exist on every node that
 # can schedule the pod, and a missing file makes the pod fail to start --
 # loudly, which is the intended failure mode.
+#
+# fsGroup: 918 is the worker's `pagespeed` uid/gid. The worker entrypoint
+# starts as root, takes the shared emptyDir to 918:918 (mode 2750, 0660
+# sockets) and drops to uid 918, so on a permissive cluster the pod needs
+# no fsGroup. The kubelet applies fsGroup before any container starts,
+# though, which is what a cluster enforcing restricted PodSecurity wants:
+# the volume arrives group-owned by 918 instead of relying on the
+# entrypoint's root phase. The two agree (same gid), so adding it changes
+# nothing where the entrypoint runs as before.
 podSecurityContext:
+  fsGroup: 918
   seccompProfile:
     type: RuntimeDefault
 nodeSelector: {}

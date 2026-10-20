@@ -4,6 +4,21 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Changed: the Helm chart (0.3.10) defaults `podSecurityContext.fsGroup: 918`,
+the worker's `pagespeed` uid/gid, so the shared cache volume arrives
+group-owned before any container starts and the pod schedules on clusters
+that enforce the restricted PodSecurity standard without opting out of the
+chart defaults. Where the worker entrypoint still runs its root phase it
+re-establishes the same 918:918 ownership, so behaviour there is unchanged.
+The chart also stops shipping an nginx ConfigMap nothing read: the nginx
+image renders its configuration from a template baked into the image plus
+environment variables, and the ConfigMap carried a directive the module no
+longer accepts, so it never applied and wiring it in would fail nginx's
+config check. Installing 0.3.10 renders one fewer object and adds the fsGroup
+field; nothing else changes. Chart repository index updates are now
+append-only, so publishing a chart version no longer rewrites the `created`
+dates, digests or metadata of the versions already published.
+
 Fixed: in the ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`) on Linux
 and macOS, a full cache purge (`POST /v1/cache/purge` with `"scope": "all"`,
 the console's purge everything) now takes effect within about a second. The
