@@ -16,11 +16,11 @@ test.describe('/terms/ page', () => {
     await expect(page.locator('main h1')).toHaveText(/Terms of Service/i);
   });
 
-  test('displays version identifier 2026-10-19', async ({ page }) => {
+  test('displays version identifier 2026-10-20', async ({ page }) => {
     await page.goto('/terms/');
     // Scoped to main: the telemetry strip shows a capture date (2026-10-..)
     // until its live value replaces it, which also matches a bare '2026-10'.
-    await expect(page.locator('main').getByText('Version 2026-10-19')).toBeVisible();
+    await expect(page.locator('main').getByText('Version 2026-10-20')).toBeVisible();
   });
 
   test('displays effective date October 2026', async ({ page }) => {
