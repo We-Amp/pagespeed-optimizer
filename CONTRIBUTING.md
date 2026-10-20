@@ -1,9 +1,11 @@
 # Contributing to pagespeed-optimizer
 
 Thanks for helping. This repository holds the mod_pagespeed 2 optimization
-worker (`pagespeed-optimizer`), the nginx serving module, the management
-console, the ASP.NET Core middleware and the modpagespeed.com website. The
-Apache, IIS and Envoy modules live in
+worker (`pagespeed-optimizer`), the nginx serving module shipped in the
+container images and Helm chart, the management console, the ASP.NET Core
+middleware and the modpagespeed.com website. The Apache, IIS and Envoy
+modules, and the packaged nginx module (`nginx-module-pagespeed` from
+apt/dnf and the `ngx_pagespeed` tarballs), live in
 [We-Amp/mod_pagespeed](https://github.com/We-Amp/mod_pagespeed).
 
 ## Reporting bugs and requesting features
@@ -67,7 +69,8 @@ Website changes (`website/`) are ordinary pull requests too; see
   heading of [CHANGELOG.md](CHANGELOG.md), written for a user deciding whether
   to upgrade. If the change is invisible to users, put
   `Release-Note: none — <why>` in a commit message or the pull request
-  description. Check it locally with
+  description (editing the description does not re-run the check; re-run
+  the job). Check it locally with
   `bash tools/ci/check_release_note.sh --base origin/main --head HEAD`.
   Details in [RELEASING.md](RELEASING.md).
 - Describe the problem, the change and how you verified it.

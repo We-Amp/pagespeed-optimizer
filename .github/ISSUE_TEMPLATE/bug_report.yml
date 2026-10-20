@@ -2,14 +2,14 @@
 # Copyright (c) 2026 We-Amp B.V.
 
 name: Bug report
-description: Something in pagespeed-optimizer, the nginx module, the console or the ASP.NET Core middleware does not work as documented.
+description: Something in pagespeed-optimizer, the nginx module of the container images / Helm chart, the console or the ASP.NET Core middleware does not work as documented.
 labels: [bug]
 body:
   - type: markdown
     attributes:
       value: |
-        Security vulnerabilities: do not file them here, see the security policy.
-        Apache, IIS and Envoy module bugs belong in [We-Amp/mod_pagespeed](https://github.com/We-Amp/mod_pagespeed/issues).
+        Security vulnerabilities: do not file them here, see the [security policy](https://github.com/We-Amp/pagespeed-optimizer/security/policy).
+        Bugs in the Apache, IIS and Envoy modules and in the packaged nginx module (`nginx-module-pagespeed`, `ngx_pagespeed` tarballs) belong in [We-Amp/mod_pagespeed](https://github.com/We-Amp/mod_pagespeed/issues).
   - type: input
     id: version
     attributes:
@@ -24,7 +24,7 @@ body:
       label: Component
       options:
         - pagespeed-optimizer worker
-        - nginx module
+        - nginx module (container image / Helm chart)
         - Management console / HTTP API
         - ASP.NET Core middleware
         - Packages, container images or Helm chart
@@ -37,7 +37,7 @@ body:
     attributes:
       label: Platform
       description: OS / distribution and architecture, web server and its version, and how you installed (signed apt/dnf repository, container image, Helm chart, NuGet, built from source).
-      placeholder: Ubuntu 24.04 arm64, nginx 1.24.0, apt from packages.modpagespeed.com
+      placeholder: Ubuntu 24.04 arm64, pagespeed-optimizer from apt (packages.modpagespeed.com), nginx container image 2.5.0
     validations:
       required: true
   - type: textarea

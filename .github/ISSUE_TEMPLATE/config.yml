@@ -6,9 +6,9 @@ contact_links:
   - name: Security vulnerability
     url: https://github.com/We-Amp/pagespeed-optimizer/security/policy
     about: Report vulnerabilities privately to security@modpagespeed.com, not in a public issue.
-  - name: Apache, IIS or Envoy module
+  - name: Apache, IIS or Envoy module, or the packaged nginx module (nginx-module-pagespeed, ngx_pagespeed tarballs)
     url: https://github.com/We-Amp/mod_pagespeed/issues
-    about: Those modules are developed in We-Amp/mod_pagespeed.
-  - name: Commercial support and licensing questions
+    about: Those modules are developed and released in We-Amp/mod_pagespeed.
+  - name: Support subscriptions and IISpeed license transfers
     url: https://modpagespeed.com/contact/
-    about: SLA-backed support, migrations and consulting from We-Amp.
+    about: Support subscriptions with first-response targets, migrations and consulting from We-Amp.
