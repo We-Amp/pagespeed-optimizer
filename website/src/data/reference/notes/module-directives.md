@@ -151,3 +151,11 @@ signed agent is recognized even when it presents a browser user agent. Requires
 ## RslCapEnforcement
 
 See [RSL-CAP enforcement](/docs/rsl-cap/).
+
+## RulePackFile
+
+Repeatable: each line adds a pack file, up to eight per server or virtual host
+(a ninth is a configuration error, and two lines naming the same path count
+once). The packs run in the order of the lines. A virtual host that sets
+`RulePackFile` uses its own list instead of the server-wide one. See
+[Rule packs](/docs/rule-packs/#enable).

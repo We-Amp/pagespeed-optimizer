@@ -47,10 +47,13 @@ urls:
   # structurally broken on the production nginx config (§2).
   archive_base: "https://modpagespeed.com/releases/v1.15.0/"
   latest_base: "https://modpagespeed.com/releases/latest/"
-  # Stable, NOT version-pinned (A1.1) — the same We-Amp signing key
-  # verifies every release, so gpg_key intentionally stays pinned to the frozen
-  # v1.1.0 canonical path even as archive_base advances to v1.15.0 (KEEP:
-  # /1.1/ download paths are frozen; the key file there is permanent + public).
+  # The 1.x key (fingerprint A358 2703 1804 5B75 C552  FEA8 DA8F EBD5 000B C194):
+  # it signed the 1.x direct downloads (per-file .asc), the private-lane 1.x
+  # archives and the source tags v2.1.0 to v2.4.0; never the apt/dnf
+  # repositories or the 2.5.0+ GitHub releases. No longer used, being revoked.
+  # Kept here because the schema requires the field and the /1.1/ download
+  # paths are frozen; no page links it as a current key (see SIGNING_KEYS in
+  # src/data/product-facts.mjs).
   gpg_key: "https://modpagespeed.com/releases/v1.1.0/weamp-pkg-public.asc"
 
 compat:

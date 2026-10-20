@@ -3,7 +3,7 @@ title: 'Worker and reverse-proxy configuration'
 description: 'Every optimizer worker flag and thin nginx module directive of mod_pagespeed 2.1 (the Docker and reverse-proxy shape), generated from the source.'
 order: 21
 group: 'Configure'
-lastUpdated: 2026-10-19
+lastUpdated: 2026-10-20
 faq:
   - q: 'What is the difference between safe and aggressive cache modes?'
     a: 'Safe mode adds `must-revalidate` to non-HTML responses, suppresses stale-while-revalidate synthesis, and strips `immutable`. Aggressive mode adds `public` and `stale-if-error=86400` and allows SWR synthesis. HTML always gets `no-cache` in both modes.'
@@ -50,7 +50,7 @@ package rows from the signed repository's distribution matrix.
 
 | Shape                                                                               | nginx version                                                    | Configuration surface |
 | ----------------------------------------------------------------------------------- | ---------------------------------------------------------------- | --------------------- |
-| Docker / reverse proxy (`ghcr.io/we-amp/pagespeed-nginx`, the combined image, Helm) | nginx 1.30.4, bundled in the image                               | Thin module + worker  |
+| Docker / reverse proxy (`ghcr.io/we-amp/pagespeed-nginx`, the combined image, Helm) | nginx 1.30.6, bundled in the image                               | Thin module + worker  |
 | Native module package, Debian 12 bookworm                                           | nginx 1.22.1 (the distribution's stock nginx; exact-version pin) | Native module         |
 | Native module package, Debian 13 trixie                                             | nginx 1.26.3 (the distribution's stock nginx; exact-version pin) | Native module         |
 | Native module package, Ubuntu 22.04 jammy                                           | nginx 1.18.0 (the distribution's stock nginx; exact-version pin) | Native module         |
@@ -2408,6 +2408,9 @@ worker_processes auto;
 error_log /var/log/nginx/error.log warn;
 pid /var/run/nginx.pid;
 
+# The thin nginx module, as the pagespeed-nginx image bundles it. The native
+# module from the nginx-module-pagespeed package has the same file name but is
+# a different module, with different directives.
 load_module /usr/lib/nginx/modules/ngx_pagespeed_module.so;
 
 events {

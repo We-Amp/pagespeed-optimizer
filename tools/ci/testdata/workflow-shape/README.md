@@ -11,6 +11,12 @@ tree root passed to `tools/ci/check-workflow-shape.sh`:
   block), `bad-write-quoted/` and `bad-write-single-quoted/` (a quoted `write`
   on a fleet job) and `bad-write-flow/` (the one-line flow form) cover the
   gaps of rule f.
+- `good/` also has jobs on the switch routing expression (no guard, or the
+  path filter alone) and the `!= 'false'` form of the fleet-only guard;
+  `bad-switch-guard/` (a guard on a switch-routed job), `bad-switch-drift/`,
+  `bad-switch-iis-class/` (the switch expression on a class with no hosted
+  twin), `bad-switch-path-drift/` and `bad-guard-only-switch-drift/` (the
+  switch form without the fork term) break them.
 - `bad-*/` must each fail (exit 1) and name the rule in the message.
 
 The bad trees violate the gate on purpose; the token scan excludes this

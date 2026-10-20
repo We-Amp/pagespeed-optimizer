@@ -1533,6 +1533,28 @@ MultiTranscodeResult ImageTranscoder::TranscodeMulti(
     }
   }
 
+  // A converted variant replaces the original-format variant for the
+  // clients that negotiate its format, so it must be smaller than THAT, not
+  // only than the upload: a WebP or AVIF several times the size of the
+  // optimized JPEG of the same size used to pass the gates above, which
+  // compare with the original bytes.  The resizing path has always gated on
+  // its own optimized original; this is the same rule for the full-size
+  // path.  A WebP origin is exempt for the WebP arm: its original-format
+  // slot is WebP too, and the WebP arm's own acceptance above decided it.
+  if (result.optimized_original.success &&
+      !result.optimized_original.output_data.empty()) {
+    const size_t baseline = result.optimized_original.output_data.size();
+    if (result.optimized_original.output_mime_type != "image/webp" &&
+        result.webp.success && result.webp.output_data.size() >= baseline) {
+      result.webp = {
+          false, {}, {}, "WebP output not smaller than the optimized original"};
+    }
+    if (result.avif.success && result.avif.output_data.size() >= baseline) {
+      result.avif = {
+          false, {}, {}, "AVIF output not smaller than the optimized original"};
+    }
+  }
+
   // Record the final qualities so callers can carry them forward.
   result.final_webp_quality = local_config.webp_quality;
   result.final_avif_quality = local_config.avif_quality;
@@ -1821,8 +1843,11 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
   }
 
   // Animated GIFs can't be decoded to pixels; delegate directly.
+  // The delegations below hand over local_config: it already carries the
+  // Save-Data quality overrides, which a fresh config snapshot would drop.
   if (is_animated_gif) {
-    return TranscodeMulti(input_data, formats, source_jpeg_quality);
+    return TranscodeMulti(input_data, formats, source_jpeg_quality,
+                          local_config);
   }
 
   // Decode pixels.  Even paths that delegate to the stream-based
@@ -1830,7 +1855,8 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
   // result carries a valid content class.
   DecodedImage decoded = DecodeToPixels(input_data);
   if (decoded.pixel_buffer.empty()) {
-    return TranscodeMulti(input_data, formats, source_jpeg_quality);
+    return TranscodeMulti(input_data, formats, source_jpeg_quality,
+                          local_config);
   }
 
   // Resize if the image is wider than the viewport target.
@@ -2162,8 +2188,10 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
         if (source_jpeg_quality > 0 &&
             source_jpeg_quality <= local_config.jpeg_quality &&
             encode_src == &decoded && image_type == net_instaweb::IMAGE_JPEG) {
-          CapabilityMask orig_mask;
-          result.optimized_original = Transcode(input_data, orig_mask);
+          // OptimizeJpeg at THIS call's local_config, not Transcode(): that
+          // takes a fresh config snapshot and so drops the Save-Data
+          // quality and the content tuning applied above.
+          result.optimized_original = OptimizeJpeg(input_data, local_config);
           result.skipped_jpeg_reencode = true;
           if (handler_) {
             handler_->Info(
@@ -2184,16 +2212,21 @@ MultiTranscodeResult ImageTranscoder::TranscodeMultiResized(
                 EncodeJpegFromPixels(*encode_src, local_config);
             if (!result.optimized_original.success) {
               // Pixel encode failed: stream-optimize the original bytes.
-              CapabilityMask orig_mask;
-              result.optimized_original = Transcode(input_data, orig_mask);
+              result.optimized_original =
+                  OptimizeJpeg(input_data, local_config);
               break;
             }
             // Fall through to the verify loop and size gate below.
           } else {
             // No resize/denoise (and the early exit above did not fire):
-            // stream-based optimization of the original bytes.
-            CapabilityMask orig_mask;
-            result.optimized_original = Transcode(input_data, orig_mask);
+            // stream-based optimization of the original bytes, at THIS
+            // call's local_config.  This is the full-size Save-Data JPEG
+            // (or one carrying a quality hint; the fast path above takes
+            // every other full-size case), and it used to go through
+            // Transcode(), whose fresh config snapshot dropped the
+            // Save-Data quality: the Save-Data JPEG came out at the default
+            // quality, larger than the normal one.
+            result.optimized_original = OptimizeJpeg(input_data, local_config);
             break;
           }
         } else if (image_type == net_instaweb::IMAGE_WEBP ||

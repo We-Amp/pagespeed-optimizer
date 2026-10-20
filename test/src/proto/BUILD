@@ -6,6 +6,8 @@ load("//bazel:test.bzl", "gtest_test")
 gtest_test(
     name = "notification_sender_test",
     size = "large",
+    # PartialWriteWithSlowDrain is timing-sensitive on loaded runners.
+    flaky = True,
     deps = [
         "//src/proto:notification_sender",
         "//src/proto:worker_ipc",

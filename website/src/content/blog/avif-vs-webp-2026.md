@@ -2,7 +2,7 @@
 title: 'AVIF vs WebP in 2026: which to serve, and how to serve both'
 description: 'AVIF beats WebP on size but is slower to encode. Serve AVIF, WebP or the original per request off the Accept header instead of one format for everyone.'
 date: 2026-06-06
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-14
 tags: ['avif', 'webp', 'image-optimization', 'content-negotiation', 'performance']
 product: '2.0'
 howTo:
@@ -19,7 +19,7 @@ howTo:
   - name: Serve the best variant the client accepts
     text: On every subsequent request the module picks the smallest format the Accept header says the browser can decode. AVIF for browsers that send image/avif, WebP for browsers that send image/webp, the optimized original for everything else. The cache hit is served via mmap with no re-encode.
   - name: Verify with curl and a real browser
-    text: "Send a request with an explicit Accept header (curl -H 'Accept: image/avif,image/webp,*/*') and confirm the Content-Type comes back as image/avif. Drop avif from the header and confirm it falls back to image/webp, then to the original. Check that the response varies on Accept so caches downstream do not cross-serve formats."
+    text: "Send a request with an explicit Accept header (curl -H 'Accept: image/avif,image/webp,*/*') and confirm the Content-Type comes back as image/avif. Drop avif from the header (curl -H 'Accept: image/webp,*/*') and confirm it falls back to image/webp. Then send a header with no image/webp, image/* or */* (curl -H 'Accept: image/jpeg,image/png,image/gif') and confirm you get the original. Check that the response varies on Accept, then confirm your CDN keeps the formats apart."
 ---
 
 "AVIF or WebP?" assumes you pick one format and ship it to everyone. You don't have to. Different browsers accept different formats, and the right format for a given image is the smallest one the requesting browser can decode. That is a per-request decision, not a project-wide one.
@@ -44,10 +44,10 @@ Two things follow from those numbers. AVIF no longer needs a feature flag; for m
 
 ## The right answer is content negotiation on the Accept header
 
-Every browser tells you what it can decode, on every image request, in the `Accept` header. A current Chrome sends:
+Every browser tells you what it can decode, on every image request, in the `Accept` header. Chrome 155 on desktop and Android (October 2026) sends:
 
 ```
-Accept: image/avif,image/webp,image/apng,image/*,*/*;q=0.8
+Accept: image/jxl,image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8
 ```
 
 A browser without AVIF support omits `image/avif`. One without WebP omits that too. The header is a per-request statement of what this specific client will accept. It is more reliable than user-agent sniffing, and it stays current without you editing a `<picture>` block.
@@ -82,7 +82,7 @@ The variants are produced once. On a cache miss the worker reads the source, dec
 Two properties make this safe to leave running:
 
 - **It covers every image the server serves**, not only the ones in `<picture>` markup, because the decision lives below the HTML at the proxy.
-- **Responses vary on `Accept`**, so a downstream cache or CDN will not hand an AVIF body to a browser that cannot decode it. Format negotiation and HTTP caching coexist.
+- **Responses vary on `Accept`.** That tells a downstream cache to keep formats apart, but CDNs differ in what they do with it: some don't cache the response, some ignore the header. [Check yours with four curl commands](/blog/jpeg-xl-accept-header-and-your-cdn-image-cache/#four-curl-commands-against-your-own-cdn) before relying on it.
 
 ### Verify it with curl and a real browser
 
@@ -94,7 +94,7 @@ curl -sI -H 'Accept: image/avif,image/webp,*/*' https://example.com/hero.jpg | g
 # vary: Accept
 ```
 
-Drop `avif` from the header and confirm it falls back to `image/webp`, then drop `webp` too and confirm you get the optimized original. Check that the response varies on `Accept` so caches downstream do not cross-serve formats. Then load the page in a real browser and read the `Content-Type` of the image request in the network panel — it should match what that browser advertises.
+Drop `avif` from the header and confirm it falls back to `image/webp`, then send `Accept: image/jpeg,image/png,image/gif` (any header without `image/webp`, `image/*` or `*/*`) and confirm you get the optimized original. Check that the response varies on `Accept`, then [confirm your CDN keeps the formats apart](/blog/jpeg-xl-accept-header-and-your-cdn-image-cache/#four-curl-commands-against-your-own-cdn). Then load the page in a real browser and read the `Content-Type` of the image request in the network panel. It should match what that browser advertises.
 
 The same content-negotiation machinery drives [viewport-aware resizing](/blog/viewport-aware-image-optimization/): the capability mask carries screen class and pixel density alongside format support, so one source image resolves to the right format *and* the right size for the requesting client. Format is one axis of the same per-request decision.
 

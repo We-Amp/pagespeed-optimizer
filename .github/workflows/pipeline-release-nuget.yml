@@ -406,10 +406,18 @@ jobs:
       # into both binaries; there are no separate shared libraries to ship.
       - name: Build all targets + the NuGet binaries (release)
         run: |
+          # Per-slot budget (CI_SLOT_CPUS / CI_SLOT_MEM_GB). A tag cut before the helper
+          # existed has no such file: use the previous fixed values for it.
+          if [ -f "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh" ]; then
+            source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"
+            slot_budget 55g || exit 1
+          else
+            SLOT_JOBS='HOST_CPUS*.75' SLOT_CPUS='' SLOT_MEM=55g
+          fi
           set -euo pipefail
           mkdir -p "${GITHUB_WORKSPACE}/release-artifacts"
           docker run --rm --init ${DOCKER_CACHE_HOST_ARG:+"$DOCKER_CACHE_HOST_ARG"} \
-            --memory=55g --memory-swap=55g \
+            --memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}" \
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
             -e BAZEL_RELEASE_CONFIG -e BAZEL_CACHE_FLAG \
@@ -442,10 +450,18 @@ jobs:
       # it).
       - name: Build the container-image artifacts
         run: |
+          # Per-slot budget (CI_SLOT_CPUS / CI_SLOT_MEM_GB). A tag cut before the helper
+          # existed has no such file: use the previous fixed values for it.
+          if [ -f "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh" ]; then
+            source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"
+            slot_budget 55g || exit 1
+          else
+            SLOT_JOBS='HOST_CPUS*.75' SLOT_CPUS='' SLOT_MEM=55g
+          fi
           set -euo pipefail
           mkdir -p "${GITHUB_WORKSPACE}/docker-artifacts"
           docker run --rm --init ${DOCKER_CACHE_HOST_ARG:+"$DOCKER_CACHE_HOST_ARG"} \
-            --memory=55g --memory-swap=55g \
+            --memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}" \
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
             -e BAZEL_RELEASE_CONFIG -e BAZEL_CACHE_FLAG \
@@ -546,6 +562,14 @@ jobs:
 
       - name: Run unit tests
         run: |
+          # Per-slot budget (CI_SLOT_CPUS / CI_SLOT_MEM_GB). A tag cut before the helper
+          # existed has no such file: use the previous fixed values for it.
+          if [ -f "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh" ]; then
+            source "${GITHUB_WORKSPACE}/tools/ci/slot-budget.sh"
+            slot_budget 55g || exit 1
+          else
+            SLOT_JOBS='HOST_CPUS*.75' SLOT_CPUS='' SLOT_MEM=55g
+          fi
           set -euo pipefail
           EXTRA_DOCKER=()
           CACHE_FLAG="--remote_cache="
@@ -554,7 +578,7 @@ jobs:
             CACHE_FLAG=""
           fi
           docker run --rm --init ${EXTRA_DOCKER[@]+"${EXTRA_DOCKER[@]}"} \
-            --memory=55g --memory-swap=55g \
+            --memory="${SLOT_MEM}" --memory-swap="${SLOT_MEM}" \
             --user "$(id -u):$(id -g)" \
             -e HOME=/workspace \
             -v "${GITHUB_WORKSPACE}:/workspace" \
@@ -563,7 +587,16 @@ jobs:
             bazel --output_user_root=/tmp/bazel-out \
               test --vendor_dir=vendor "--config=${BAZEL_RELEASE_CONFIG}" ${CACHE_FLAG:+"$CACHE_FLAG"} \
               //test/... //lib/pagespeed:pagespeed_test \
-              //lib/image/vtracer_ffi:vtracer_ffi_test
+              //lib/image/vtracer_ffi:vtracer_ffi_test 2>&1 | tee "${RUNNER_TEMP}/bazel-test.log"
+      - name: Report flaky tests
+        if: ${{ !cancelled() }}
+        run: |
+          [ -f "${RUNNER_TEMP}/bazel-test.log" ] || exit 0
+          flaky=$(grep -E '^//.* FLAKY' "${RUNNER_TEMP}/bazel-test.log" | sed -E 's/ +/ /g' || true)
+          if [ -n "$flaky" ]; then
+            echo "::warning::Tests passed only on retry (FLAKY): $(echo "$flaky" | cut -d' ' -f1 | paste -sd' ' -)"
+            { echo "### Flaky tests (passed on retry)"; echo '```'; echo "$flaky"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   linux-release-tests-hosted:
     name: Linux Release Tests (hosted)
@@ -576,8 +609,12 @@ jobs:
 
   linux-arm64-release-tests:
     name: Linux arm64 Release Tests
-    needs: [ref-guard, linux-arm64-release-build]
-    if: ${{ !cancelled() && needs.linux-arm64-release-build.result == 'success' }}
+    # Starts with the build, not after it: the tests only consume
+    # release-source and compile on their own runner.
+    needs: [ref-guard, vendor, vendor-hosted]
+    if: >-
+      ${{ !cancelled() && needs.ref-guard.result == 'success'
+      && (needs.vendor.result == 'success' || needs.vendor-hosted.result == 'success') }}
     runs-on: ubuntu-24.04-arm
     timeout-minutes: 300
     env: *linux-arm64-env
@@ -816,17 +853,22 @@ jobs:
             if ($LASTEXITCODE -ne 0) { Write-Error "signtool failed on $file with exit $LASTEXITCODE"; exit 1 }
           }
 
-      # Consume what was signed: a valid signature on both files, and both
-      # still load and report the release commit on a stock hosted Windows
-      # image.
+      # Consume what was signed: a valid signature by exactly the We-Amp B.V.
+      # identity of the Trusted Signing profile on both files (a signature
+      # Windows calls Valid but that names anyone else, for example a
+      # misconfigured profile or another tenant's, fails), and both still
+      # load and report the release commit on a stock hosted Windows image.
       - name: Verify the signed binaries
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
+          $ExpectedSubject = 'CN=We-Amp B.V., O=We-Amp B.V., L=Castricum, C=NL'
           foreach ($file in @("signed-output\pagespeed.dll", "signed-output\factory_worker.exe")) {
-            $sig = Get-AuthenticodeSignature $file
+            $sig = Get-AuthenticodeSignature -LiteralPath $file
             if ($sig.Status -ne 'Valid') { Write-Error "$file signature status: $($sig.Status)"; exit 1 }
-            Write-Host "$file signed by: $($sig.SignerCertificate.Subject)"
+            $subject = if ($sig.SignerCertificate) { $sig.SignerCertificate.Subject } else { '<no signer certificate>' }
+            if ($subject -cne $ExpectedSubject) { Write-Error "$file is signed by '$subject', expected '$ExpectedSubject'"; exit 1 }
+            Write-Host "$file signed by: $subject"
           }
           & tools\ci\check-no-vc-runtime.ps1 -Binaries signed-output\factory_worker.exe,signed-output\pagespeed.dll
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
@@ -1025,8 +1067,12 @@ jobs:
 
   macos-release-tests:
     name: macOS Release Tests
-    needs: [ref-guard, macos-release-build]
-    if: ${{ !cancelled() && needs.macos-release-build.result == 'success' }}
+    # Starts with the build, not after it: the tests only consume
+    # release-source and compile on their own runner.
+    needs: [ref-guard, vendor, vendor-hosted]
+    if: >-
+      ${{ !cancelled() && needs.ref-guard.result == 'success'
+      && (needs.vendor.result == 'success' || needs.vendor-hosted.result == 'success') }}
     runs-on: macos-15
     timeout-minutes: 300
     env: *macos-env
@@ -1036,8 +1082,18 @@ jobs:
       - *macos-extract
       - name: Run unit tests
         run: |
+          set -o pipefail
           bazel test --vendor_dir=vendor --config=ci-macos --config=opt --stamp \
-            "--remote_cache=${BAZEL_REMOTE_CACHE_URL:-}" //test/...
+            "--remote_cache=${BAZEL_REMOTE_CACHE_URL:-}" //test/... 2>&1 | tee "${RUNNER_TEMP}/bazel-test.log"
+      - name: Report flaky tests
+        if: ${{ !cancelled() }}
+        run: |
+          [ -f "${RUNNER_TEMP}/bazel-test.log" ] || exit 0
+          flaky=$(grep -E '^//.* FLAKY' "${RUNNER_TEMP}/bazel-test.log" | sed -E 's/ +/ /g' || true)
+          if [ -n "$flaky" ]; then
+            echo "::warning::Tests passed only on retry (FLAKY): $(echo "$flaky" | cut -d' ' -f1 | paste -sd' ' -)"
+            { echo "### Flaky tests (passed on retry)"; echo '```'; echo "$flaky"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
+          fi
 
   # ---------------------------------------------------------------------
   # Package: the four native sets from workflow artifacts, five .nupkg.
@@ -1047,14 +1103,16 @@ jobs:
   # ---------------------------------------------------------------------
   package:
     name: Package & Release
-    needs: [ref-guard, security-gates, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, sign-windows, macos-release-tests, linux-arm64-release-tests]
+    needs: [ref-guard, security-gates, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, sign-windows, macos-release-build, macos-release-tests, linux-arm64-release-build, linux-arm64-release-tests]
     if: >-
       ${{ !cancelled() && needs.ref-guard.outputs.real == 'true'
       && needs.security-gates.result == 'success'
       && (needs.linux-release-tests.result == 'success' || needs.linux-release-tests-hosted.result == 'success')
       && (needs.windows-release-tests.result == 'success' || needs.windows-release-tests-hosted.result == 'success')
       && needs.sign-windows.result == 'success'
+      && needs.macos-release-build.result == 'success'
       && needs.macos-release-tests.result == 'success'
+      && needs.linux-arm64-release-build.result == 'success'
       && needs.linux-arm64-release-tests.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -1358,13 +1416,15 @@ jobs:
 
   package-dry-run:
     name: Package (dry run)
-    needs: [ref-guard, security-gates, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, macos-release-tests, linux-arm64-release-tests]
+    needs: [ref-guard, security-gates, linux-release-tests, linux-release-tests-hosted, windows-release-tests, windows-release-tests-hosted, macos-release-build, macos-release-tests, linux-arm64-release-build, linux-arm64-release-tests]
     if: >-
       ${{ !cancelled() && needs.ref-guard.outputs.real != 'true'
       && needs.security-gates.result == 'success'
       && (needs.linux-release-tests.result == 'success' || needs.linux-release-tests-hosted.result == 'success')
       && (needs.windows-release-tests.result == 'success' || needs.windows-release-tests-hosted.result == 'success')
+      && needs.macos-release-build.result == 'success'
       && needs.macos-release-tests.result == 'success'
+      && needs.linux-arm64-release-build.result == 'success'
       && needs.linux-arm64-release-tests.result == 'success' }}
     runs-on: ubuntu-latest
     timeout-minutes: 30

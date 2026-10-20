@@ -26,6 +26,7 @@
 #include <vector>
 
 #include "gtest/gtest.h"
+#include "lib/classify/capability_mask.h"
 #include "lib/classify/content_type.h"
 
 namespace pagespeed {
@@ -182,6 +183,19 @@ TEST(VaryEmission, ReturnedViewsOutliveTheCall) {
       EXPECT_EQ(VaryForServedResponse(ct, flagged).data(),
                 VaryForServedResponse(ct, flagged).data());
     }
+  }
+}
+
+// The image row IS the selection's header list (capability_mask.h): every
+// request header the image variant selection reads is declared, so a shared
+// cache downstream keys on each dimension the selection uses.
+TEST(VaryEmission, ImageRowNamesEverySelectionHeader) {
+  EXPECT_EQ(VaryForServedResponse(ContentType::kImage, false),
+            kImageSelectionVary);
+  const std::string vary(VaryForServedResponse(ContentType::kImage, false));
+  for (const char* header :
+       {"Accept", "User-Agent", "Sec-CH-DPR", "Save-Data"}) {
+    EXPECT_NE(vary.find(header), std::string::npos) << header;
   }
 }
 
