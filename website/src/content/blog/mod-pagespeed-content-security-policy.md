@@ -82,7 +82,7 @@ A note on the optimizer worker: the `HonorCsp` directive described here is the m
 
 CSP support in mod_pagespeed grew out of design work on the [Apache PageSpeed project](https://github.com/we-amp/mod_pagespeed/wiki), specifically a 2016 design note by Maksim Orlovich that mapped out exactly these conflict classes before any of them were implemented. We-Amp was an initial committer on that project alongside the Google engineers who started PageSpeed, as the project moved toward Apache incubation. The conservative stance this post describes (refuse the rewrite rather than legalize it) is the design's own conclusion, and it is what We-Amp ships in the [maintained mod_pagespeed](/mod-pagespeed-still-maintained/) today.
 
-If you want to try it — mod_pagespeed is licensed under Apache-2.0 and free to run — install it, then put a strict policy in front of a page and watch how `HonorCsp` behaves against it. The full directive set is in the [configuration reference](/docs/configuration/) and the [directive index](/docs/directive-index/), and the feature overview is on the [features page](/features/).
+If you want to try it — mod_pagespeed is licensed under Apache-2.0 and free to run — install it, then put a strict policy in front of a page and watch how `HonorCsp` behaves against it. The full directive set is in the [configuration reference](/docs/configuration/), and the feature overview is on the [features page](/features/).
 
 ---
 

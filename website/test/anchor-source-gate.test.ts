@@ -36,8 +36,8 @@ const DOCS_SRC_DIR = path.join(WEBSITE_ROOT, 'src/content/docs');
 const ANCHOR_ROWS = loadAnchorFixture(FIXTURE_PATH);
 
 describe('legacy doc anchors resolve at their new /docs/ location (source)', () => {
-  it('fixture carries all 65 rows across the converged pages', () => {
-    expect(ANCHOR_ROWS.length).toBe(65);
+  it('fixture carries all 66 rows across the converged pages', () => {
+    expect(ANCHOR_ROWS.length).toBe(66);
   });
 
   const bySlug = groupBySlug(ANCHOR_ROWS);

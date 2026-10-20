@@ -1,0 +1,38 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (c) 2024-2026 We-Amp B.V.
+#
+# Nightly caller: schedule and manual dispatch. All jobs live in
+# pipeline-nightly.yml, pinned to main. See docs/ci/pipelines.md.
+
+name: Nightly
+
+on:
+  schedule:
+    - cron: "0 3 * * *"
+  workflow_dispatch:
+    inputs:
+      fuzz_seconds:
+        description: libFuzzer time budget in seconds
+        required: false
+        default: "600"
+
+# One nightly at a time; a running nightly is never cancelled.
+concurrency:
+  group: nightly
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  nightly:
+    # The ceiling for the called workflow: it can narrow these, never widen
+    # them. Only its hosted report jobs use issues: write, and only the
+    # manual shadow lane reads actions.
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+    uses: We-Amp/pagespeed-optimizer/.github/workflows/pipeline-nightly.yml@main
+    with:
+      fuzz_seconds: ${{ inputs.fuzz_seconds || '600' }}

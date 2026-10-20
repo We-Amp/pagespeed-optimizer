@@ -3,7 +3,7 @@ title: 'API reference: IPC, sockets, and C API'
 description: 'mod_pagespeed 2.1 internal interfaces: the module-to-worker IPC wire format, the health and management sockets, the capability mask and the ps_ C API.'
 order: 65
 group: 'Reference'
-lastUpdated: 2026-09-19
+lastUpdated: 2026-10-19
 ---
 
 This page documents the internal protocols and interfaces of mod_pagespeed 2.1:
@@ -126,7 +126,8 @@ a connection, writes the response, and closes. No request data is needed.
 
 The worker listens on a Unix socket at `{socket_path}.mgmt` for
 newline-terminated text commands. After processing a command, the worker writes
-a response and closes the connection.
+a response and closes the connection; the one exception is a successful `AUTH`,
+which keeps the connection open for the `PURGE` that follows.
 
 ### Socket path
 
@@ -201,11 +202,17 @@ Returns a JSON object with worker statistics: connections, notifications, varian
 
 #### `PURGE <hostname> <url>`
 
-Deletes all cached variants for the specified URL and hostname.
+Deletes all cached variants for the specified URL and hostname. The command is
+refused unless the connection was authenticated with `AUTH` (below) first;
+send both commands on the same connection.
 
-**Request:** `PURGE example.com /images/photo.jpg\n`
+**Request:** `AUTH <your-token>\n` followed by `PURGE example.com /images/photo.jpg\n`
 
-**Response:** `OK N entries deleted\n`
+**Response:** `OK\n` to the `AUTH`, then `OK N entries deleted\n` to the
+`PURGE`; when nothing matched, `OK 0 entries deleted (URL not found — may have
+been evicted or never cached)\n`. A `PURGE` without a preceding `AUTH` answers
+`ERR authentication required\n`, or `ERR no purge token configured\n` when the
+worker has no purge token.
 
 The PURGE command iterates all possible capability mask combinations (image
 formats, viewports, pixel densities, Save-Data states, transfer encodings) and
@@ -215,22 +222,37 @@ for Early Hints (`0x1C`) and warmup (`0x2C`).
 The maximum number of entries deleted per URL is 192 (4 formats x 3 viewports
 x 2 densities x 2 Save-Data x 4 encodings) plus 2 sentinel entries = 194.
 
+The HTTP API offers the same operation as
+[`POST /v1/cache/purge`](/docs/http-api/#post-v1cachepurge); there the
+credential is group membership over the API's unix socket, or the bearer token
+over TCP where one is configured.
+
 #### `AUTH <token>`
 
-Authenticates the connection for PURGE commands. Required when the
-`PAGESPEED_PURGE_TOKEN` environment variable is set on the worker.
+Authenticates the connection for `PURGE` commands. Every `PURGE` requires it:
+the worker refuses a `PURGE` on a connection that has not sent a valid `AUTH`,
+and there is no unauthenticated mode. The token is the worker's
+`PAGESPEED_PURGE_TOKEN` environment variable. The packages generate one into
+`/etc/pagespeed-optimizer/daemon.env`; the container images generate one per
+container start and print it once in the container log when you did not set
+it.
 
 **Request:** `AUTH <your-token>\n`
 
-**Response:** `OK\n` on success, or `ERR invalid token\n` on failure.
+**Response:** `OK\n` on success, `ERR invalid token\n` on a wrong token, or
+`ERR no token configured\n` when the worker has no purge token.
 
-Send `AUTH` as the first command on each connection before issuing `PURGE`.
-The token is compared using constant-time comparison to prevent timing attacks.
-STATS and METRICS commands work without authentication regardless of whether
-the env var is set.
+A successful `AUTH` keeps the connection open; every other command closes it
+after its response. Authentication is per connection, so send `AUTH` as the
+first command on each connection and the `PURGE` on that same connection: a
+`PURGE` on a new connection is refused even right after a successful `AUTH` on
+another, which is why a one-shot `echo "PURGE …" | socat` cannot purge. The
+token is compared using constant-time comparison to prevent timing attacks.
+STATS, METRICS and BROWSER-STATUS work without authentication.
 
-When `PAGESPEED_PURGE_TOKEN` is not set, PURGE works without authentication
-(backward compatible).
+When `PAGESPEED_PURGE_TOKEN` is not set, `PURGE` is unavailable: the worker
+answers `ERR no purge token configured\n`, and `AUTH` answers
+`ERR no token configured\n`.
 
 #### `METRICS`
 
@@ -347,7 +369,7 @@ enabled, returns `{"enabled":false}`.
 | `reanalyses_scheduled`                                 | Pages queued for re-analysis (e.g., after CSS changes) |
 | `scripts_analyzed` / `scripts_deferrable`              | Script deferral analysis counters                      |
 
-#### Unknown Commands
+#### Unknown commands
 
 Any command other than `AUTH`, `STATS`, `PURGE`, `METRICS`, or `BROWSER-STATUS` returns:
 
@@ -719,18 +741,23 @@ ps_cache_read_alternate(cache, url, hostname, scheme,
 ```
 
 Pass the response's **complete** header set, not a curated one: this call is the
-admission gate. The headers it keeps are `Content-Security-Policy`,
-`Access-Control-Allow-Origin`, `X-Content-Type-Options`, `Referrer-Policy`, the
-`Cross-Origin-*` family, `Permissions-Policy` and the origin's own `Vary`
-string. The list is closed and not configurable — a header whose value depends
-on the request must never be replayed to the next client.
+admission gate. The headers it keeps are the security policy headers
+(`Content-Security-Policy`, `Strict-Transport-Security`,
+`X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, the frame
+and XSS protection headers and the `Cross-Origin-*` family), the reporting
+headers, `Link`, the static CORS headers (`Access-Control-Allow-Origin` among
+them), the resource description headers (such as `Content-Language`,
+`Content-Disposition` and `Allow`) and the origin's own `Vary` string. The list
+is closed and not configurable — a header whose value depends on the request
+must never be replayed to the next client.
 
 A refusal is **not** an error. The call returns `PS_OK` with `*out_stored` 0 and
 one of three verdicts: `PS_SIDECAR_SWAP_ELIGIBLE` (nothing outside the reproducible
 set — it may have stored a block, or had nothing to store),
 `PS_SIDECAR_FALL_THROUGH` (something cannot be reproduced; serve the response
-plain), or `PS_SIDECAR_NEVER_OPTIMIZED` (a `Content-Security-Policy` carrying a
-nonce, which is never stored because replaying a nonce defeats the policy).
+plain), or `PS_SIDECAR_NEVER_OPTIMIZED` (a `Content-Security-Policy` or `Link`
+carrying a nonce, which is never stored because replaying a nonce defeats the
+policy).
 `ps_headers_sidecar_classify()` answers the same question with no cache
 involved.
 
@@ -1005,9 +1032,10 @@ every notification that carries one — that check is what catches two
 implementations of the format drifting apart. A context that passes is accepted
 whatever it names, and the work is processed and stored under the **default
 context**: optimized output is a function of the resource, of the request
-(client capabilities and content type, plus whether it was an *entitled* agent
-request — the request's own declared intent, gated by an entitlement the
-optimizer itself publishes), and of the optimizer's own configuration, so two
+(client capabilities and content type, plus whether it was an agent request:
+the request declares its own intent, and it counts only when the operator has
+turned on `agent_optimize`, which the optimizer advertises to the module), and of
+the optimizer's own configuration, so two
 requests that resolved to two different configurations cannot produce two
 different optimized artifacts. Keep supplying the context you resolve — it is
 what the drift check runs on.

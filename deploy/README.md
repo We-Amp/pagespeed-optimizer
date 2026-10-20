@@ -2,36 +2,38 @@
 
 ## Quick Start with Docker Compose
 
-1. Build the binaries:
+The compose file pulls the published `ghcr.io/we-amp/pagespeed-worker` and
+`pagespeed-nginx` images at the current release tag; nothing is built locally.
+
+1. Point it at your origin:
    ```bash
-   bazel build //src/worker:factory_worker
-   bazel build //src/nginx:ngx_pagespeed_module.so
+   cd deploy
+   cp .env.example .env
    ```
+   Set `BACKEND_HOST` and `BACKEND_PORT` in `.env`. The default,
+   `host.docker.internal:8081`, is a server on the Docker host. The nginx
+   image renders its own config from those two variables; for a config of
+   your own, copy `nginx.conf.example` to `nginx.conf`, replace the
+   `${BACKEND_HOST}:${BACKEND_PORT}` upstream with your origin (a mounted
+   config is used as is, not rendered) and uncomment the `./nginx.conf` mount
+   in `docker-compose.yml`.
 
-2. Copy binaries and config:
-   ```bash
-   cp bazel-bin/src/worker/factory_worker deploy/
-   cp bazel-bin/src/nginx/ngx_pagespeed_module.so deploy/
-   cp deploy/nginx.conf.example deploy/nginx.conf
-   ```
-
-3. Edit `deploy/nginx.conf` -- set your upstream backend address.
-
-4. Start services. The compose file runs a third service, `pidns` (the
+2. Start services. The compose file runs a third service, `pidns` (the
    digest-pinned Kubernetes pause image): the worker and nginx join its PID
    namespace, which keeps upgrades safe while an older build (which judges
    cache-lock holders by PID) shares the volume. Restarting the worker or
    nginx leaves the other up; stopping `pidns` stops both, and `up -d` brings
-   them back (see the comment in `docker-compose.yml`).
+   them back (see the comment in `docker-compose.yml`). nginx starts once the
+   worker reports healthy.
    ```bash
-   cd deploy
    docker compose up -d
    ```
 
-5. Verify:
+3. Verify with GET (the module does not cache HEAD, so `curl -I` never shows
+   a HIT):
    ```bash
-   curl -I http://localhost/
-   # Look for X-PageSpeed: MISS (first request) or HIT (subsequent)
+   curl -s -o /dev/null -D - http://localhost/ | grep -i x-pagespeed
+   # X-PageSpeed: MISS on the first request, HIT on the next
    ```
 
 ## Systemd Deployment

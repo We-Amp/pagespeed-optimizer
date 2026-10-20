@@ -3,7 +3,7 @@ title: 'Install with Docker'
 description: 'Run mod_pagespeed 2.1 with Docker Compose: the nginx module, the worker and a shared Cyclone cache. A one-container quick try, then a production stack.'
 order: 4
 group: 'Install'
-lastUpdated: 2026-09-19
+lastUpdated: 2026-10-18
 ---
 
 Deploy mod_pagespeed 2.1 with Docker Compose. You run three containers — nginx
@@ -21,12 +21,15 @@ at your origin and publish port 80:
 
 ```bash
 docker run --rm -p 80:80 \
+  --add-host=host.docker.internal:host-gateway \
   -e BACKEND_HOST=host.docker.internal -e BACKEND_PORT=8081 \
   -e ACCEPT_EULA=Y \
   ghcr.io/we-amp/pagespeed-combined:latest
 ```
 
-Replace `BACKEND_HOST`/`BACKEND_PORT` with your origin. The combined image suits
+Replace `BACKEND_HOST`/`BACKEND_PORT` with your origin. `host.docker.internal`
+is the Docker host; Docker Desktop defines it, and on Linux the `--add-host`
+line does. The combined image suits
 evaluation and small single-host deployments; for production, run the worker and
 nginx as separate services (below) so you can scale and update them
 independently — see [Run in production](/docs/deployment/) for the hardened
@@ -52,8 +55,7 @@ Create a project directory with the following layout:
 ```text
 modpagespeed/
 ├── docker-compose.yml
-├── nginx.conf
-└── entrypoint-worker.sh
+└── nginx.conf
 ```
 
 ## Docker Compose configuration
@@ -82,22 +84,23 @@ services:
 
   # Factory Worker — optimizes cached content
   worker:
-    image: ghcr.io/we-amp/pagespeed-worker:2.3.0
+    image: ghcr.io/we-amp/pagespeed-worker:2.5.0
     pid: 'service:pidns'
-    entrypoint: /entrypoint-worker.sh
     environment:
       # Acknowledges the Terms of Service: https://modpagespeed.com/terms/
       ACCEPT_EULA: 'Y'
+      # The image's entrypoint prepares this directory, then starts the
+      # optimizer unprivileged (default /data)
+      DATA_DIR: /shared
     volumes:
       - shared:/shared
-      - ./entrypoint-worker.sh:/entrypoint-worker.sh:ro
     depends_on:
       - pidns
       - origin
 
   # Nginx with PageSpeed module
   nginx:
-    image: ghcr.io/we-amp/pagespeed-nginx:2.3.0
+    image: ghcr.io/we-amp/pagespeed-nginx:2.5.0
     pid: 'service:pidns'
     ports:
       - '8080:8080'
@@ -166,6 +169,9 @@ http {
             proxy_set_header X-Real-IP $remote_addr;
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header X-Forwarded-Proto $scheme;
+            # The module caches only uncompressed responses (it compresses at
+            # serve time); a gzipping origin would otherwise MISS forever.
+            proxy_set_header Accept-Encoding "";
         }
     }
 }
@@ -180,21 +186,26 @@ The worker socket path and other shared settings are read
 automatically from `pagespeed-shared.conf`, which the worker writes next to
 the cache file.
 
-## Worker entrypoint
+Keep the image's own entrypoint rather than starting `factory_worker`
+yourself: it is what establishes the shared-group ownership described below.
+`DATA_DIR` points it at the stack's shared directory.
 
-Create `entrypoint-worker.sh` and make it executable (`chmod +x`). Delegate to
-the image's own entrypoint rather than starting `factory_worker` yourself — it
-is what establishes the shared-group ownership described below:
-
-```bash
-#!/bin/bash
-set -e
-
-# Point the packaged entrypoint at this stack's shared directory; it prepares
-# ownership and permissions, then starts the optimizer unprivileged.
-export DATA_DIR=/shared
-exec /docker/entrypoint-worker.sh
-```
+:::note[Deployed from an earlier version of this page?]
+That version had you write an `entrypoint-worker.sh` of your own and mount it
+over `/entrypoint-worker.sh`. In the current images that path is a symlink to
+the script the file called, so the mount replaced the script with itself and
+the worker re-ran it forever: `/shared` stayed empty and every response was a
+`MISS`. Its `nginx.conf` also lacked the `Accept-Encoding` line, which keeps a
+gzipping origin at `MISS` even once the worker runs. Two steps to move over.
+First, in `docker-compose.yml`, remove the `entrypoint:` line and the
+`./entrypoint-worker.sh` mount from the `worker` service, add
+`DATA_DIR: /shared` to its environment as above, and delete the file;
+`docker compose up -d` then recreates the worker (nginx and the origin are
+left running), and the `shared` volume and the cache in it are kept. Second,
+in `nginx.conf`, add `proxy_set_header Accept-Encoding "";` to the
+`location /` block as above and run `docker compose restart nginx`: the file
+is a read-only bind mount, which `up -d` does not reload.
+:::
 
 ## How the cache volume is shared
 
@@ -297,11 +308,12 @@ You should see `origin`, `worker`, and `nginx` all in a running state.
 
 ## Verify it works
 
-Test with a simple request:
+Request a page twice with GET. Do not use `curl -I`: the module does not
+cache HEAD requests, so a HEAD never turns into a HIT.
 
 ```bash
 # First request — cache miss, proxied to origin
-curl -I http://localhost:8080/
+curl -s -o /dev/null -D - http://localhost:8080/
 ```
 
 Look for the `X-PageSpeed: MISS` header. This means the module is active and the
@@ -309,7 +321,7 @@ response was proxied to your origin and cached.
 
 ```bash
 # Second request — cache hit, served from cache
-curl -I http://localhost:8080/
+curl -s -o /dev/null -D - http://localhost:8080/
 ```
 
 You should now see `X-PageSpeed: HIT`.
@@ -356,7 +368,7 @@ production are covered under [Monitoring](/docs/monitoring/).
 
 ## Cache size
 
-The default cache size is 1 GB. Set `CACHE_SIZE` (in bytes) in the worker
+The images default to a 512 MB cache. Set `CACHE_SIZE` (in bytes) in the worker
 container's environment, as the production Compose file does; the image's
 entrypoint passes it to the worker. Sizing guidance is under
 [Run in production](/docs/deployment/#cache-sizing-recommendations).

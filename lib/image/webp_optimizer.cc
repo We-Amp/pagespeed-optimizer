@@ -38,6 +38,7 @@ using net_instaweb::SCANLINE_STATUS_PARSE_ERROR;
 using net_instaweb::SCANLINE_STATUS_SUCCESS;
 using net_instaweb::SCANLINE_STATUS_TIMEOUT_ERROR;
 using net_instaweb::SCANLINE_STATUS_UNSUPPORTED_FEATURE;
+using net_instaweb::SCANLINE_STATUS_UNSUPPORTED_FORMAT;
 using net_instaweb::SCANLINE_WEBPREADER;
 using net_instaweb::ScanlineStatus;
 
@@ -665,6 +666,20 @@ ScanlineStatus WebpScanlineReader::InitializeWithStatus(
     return PS_LOGGED_STATUS(PS_LOG_INFO, message_handler_,
                             SCANLINE_STATUS_PARSE_ERROR, SCANLINE_WEBPREADER,
                             "WebPGetFeatures()");
+  }
+
+  // Reject dimensions that imply a decode buffer we would never allocate,
+  // whatever the actual (possibly tiny) data size. The VP8X canvas size is
+  // 24 bits per side, so it can reach far beyond decodable images.
+  if (features.width > static_cast<int>(kScanlineMaxDimension) ||
+      features.height > static_cast<int>(kScanlineMaxDimension) ||
+      static_cast<uint64_t>(features.width) * features.height >
+          kScanlineMaxImagePixels) {
+    return PS_LOGGED_STATUS(
+        PS_LOG_INFO, message_handler_, SCANLINE_STATUS_UNSUPPORTED_FORMAT,
+        SCANLINE_WEBPREADER,
+        "Image dimensions %dx%d exceed the supported maximum.", features.width,
+        features.height);
   }
 
   // Determine the pixel format and the number of channels.

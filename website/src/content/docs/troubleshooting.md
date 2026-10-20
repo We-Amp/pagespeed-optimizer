@@ -3,7 +3,7 @@ title: 'Troubleshoot common issues'
 description: 'Fix common mod_pagespeed 2.1 issues: cache misses, images not converting to WebP or AVIF, the optimizer worker not processing, and socket diagnostics.'
 order: 58
 group: 'Operate'
-lastUpdated: 2026-09-25
+lastUpdated: 2026-10-19
 ---
 
 Most mod_pagespeed 2.1 problems surface in one place: the `X-PageSpeed`
@@ -25,7 +25,7 @@ been requested before.
    config matches the worker's cache (`--cache-dir` / `--cache-path`).
 
    **After upgrading to 2.1 this is the first thing to check.** The worker's
-   default paths moved to `/var/cache/pagespeed-optimizer/v2/cache` and
+   default paths moved to `/var/cache/pagespeed-optimizer/v3/cache` and
    `/run/pagespeed-optimizer/notify.sock`, but your web-server configuration
    keeps whatever it was set to. A configuration still naming the old
    `/var/lib/pagespeed-optimizer/...` paths makes the module attach to the
@@ -47,7 +47,7 @@ been requested before.
    Check:
 
    ```bash
-   ls -la /var/cache/pagespeed-optimizer/v2/
+   ls -la /var/cache/pagespeed-optimizer/v3/
    id www-data   # (or apache / nginx) — must list "pagespeed"
    ```
 
@@ -64,7 +64,7 @@ been requested before.
    in-memory directories. Restart both to re-sync:
 
    ```bash
-   sudo systemctl restart pagespeed-worker
+   sudo systemctl restart pagespeed-optimizer
    sudo systemctl reload nginx
    ```
 
@@ -79,7 +79,7 @@ been requested before.
 
    ```bash
    grep 'cache-directory generation' /var/log/nginx/error.log | tail -1
-   grep cache_dir_generation /var/cache/pagespeed-optimizer/v2/pagespeed-shared.conf
+   grep cache_dir_generation /var/cache/pagespeed-optimizer/v3/pagespeed-shared.conf
    ```
 
    Or expose `$pagespeed_cache_generation` (`match`, `mismatch`, `unknown`)
@@ -91,7 +91,7 @@ been requested before.
    socket:
 
    ```bash
-   echo "STATS" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
+   echo "STATS" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
    ```
 
    Look at `cache.size` relative to your `--cache-size` setting. If they are
@@ -129,7 +129,7 @@ are not transcoded, CSS/JS are not minified, and no optimized variants appear.
 
    ```bash
    # systemd
-   sudo systemctl status pagespeed-worker
+   sudo systemctl status pagespeed-optimizer
 
    # Docker
    docker compose ps worker
@@ -142,7 +142,7 @@ are not transcoded, CSS/JS are not minified, and no optimized variants appear.
 
    ```bash
    # Check the shared config and socket file
-   cat /var/cache/pagespeed-optimizer/v2/pagespeed-shared.conf
+   cat /var/cache/pagespeed-optimizer/v3/pagespeed-shared.conf
    ls -la /run/pagespeed-optimizer/notify.sock
    ```
 
@@ -160,7 +160,7 @@ are not transcoded, CSS/JS are not minified, and no optimized variants appear.
    limits. Check worker logs for "too large" warnings:
 
    ```bash
-   sudo journalctl -u pagespeed-worker | grep "too large"
+   sudo journalctl -u pagespeed-optimizer | grep "too large"
    ```
 
    Increase limits with `--max-html-size`, `--max-css-size`, `--max-js-size`,
@@ -218,7 +218,7 @@ JPEG or PNG.
    are skipped. Check worker logs:
 
    ```bash
-   sudo journalctl -u pagespeed-worker | grep "Image too large"
+   sudo journalctl -u pagespeed-optimizer | grep "Image too large"
    ```
 
 3. **Image transcoding disabled.** Verify `--disable-image` is not set.
@@ -227,7 +227,7 @@ JPEG or PNG.
    very large dimensions) may fail to transcode. Check for error messages:
 
    ```bash
-   sudo journalctl -u pagespeed-worker | grep -i "transcode\|failed\|error"
+   sudo journalctl -u pagespeed-optimizer | grep -i "transcode\|failed\|error"
    ```
 
 5. **Decoded pixel buffer too large.** The worker enforces a 50 MB limit on
@@ -245,9 +245,9 @@ JPEG or PNG.
 Enable debug-level logging to see detailed processing information:
 
 ```bash
-# systemd: edit the service file
-sudo systemctl edit pagespeed-worker --full
-# Change --log-level info to --log-level debug
+# systemd: set LOG_LEVEL=debug in /etc/default/pagespeed-optimizer, then restart
+sudoedit /etc/default/pagespeed-optimizer
+sudo systemctl restart pagespeed-optimizer
 
 # Docker: set environment variable or modify command
 docker compose exec worker factory_worker --log-level debug ...
@@ -271,7 +271,7 @@ factory_worker --log-format json --log-level debug
 Parse JSON logs with `jq`:
 
 ```bash
-sudo journalctl -u pagespeed-worker -o cat | jq 'select(.level == "ERROR")'
+sudo journalctl -u pagespeed-optimizer -o cat | jq 'select(.level == "ERROR")'
 ```
 
 ## Management socket diagnostics
@@ -281,8 +281,10 @@ The management socket provides real-time insight into the worker's state.
 ### Check overall health
 
 ```bash
-echo "STATS" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
+echo "STATS" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
 ```
+
+In the container images the management socket is `/data/pagespeed.sock.mgmt`. On the packages, run these commands as root or as a member of group `pagespeed`.
 
 Look for:
 
@@ -299,8 +301,17 @@ Look for:
 To force the worker to re-process a URL:
 
 ```bash
+# PURGE needs AUTH first, on the same connection. The worker's
+# PAGESPEED_PURGE_TOKEN is not in your shell by itself; read it in first.
+# Packages: the env file is readable by root and group `pagespeed`, one KEY=value per line
+PAGESPEED_PURGE_TOKEN=$(sudo sed -n 's/^PAGESPEED_PURGE_TOKEN=//p' /etc/pagespeed-optimizer/daemon.env)
+# Container images and the Helm chart: the worker prints the token once at
+# start when you did not set it -- `docker logs <worker> 2>&1 | grep PAGESPEED_PURGE_TOKEN=`
+# or `kubectl logs <pod> -c worker | grep PAGESPEED_PURGE_TOKEN=` -- or set it
+# yourself in the compose file's `environment:` and use that value.
+
 # Purge all variants
-echo "PURGE localhost /images/photo.jpg" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
+printf 'AUTH %s\nPURGE localhost /images/photo.jpg\n' "$PAGESPEED_PURGE_TOKEN" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
 
 # Request the URL again (triggers a cache miss and new notification)
 curl -H "Accept: image/webp,*/*" http://localhost/images/photo.jpg -o /dev/null -w "%{size_download}\n"
@@ -313,19 +324,26 @@ curl -H "Accept: image/webp,*/*" http://localhost/images/photo.jpg -o /dev/null 
 If the second request returns a smaller size, the worker is processing
 correctly for that URL.
 
+A refused purge says why: `ERR authentication required` means this connection
+sent no valid `AUTH` (an `AUTH` on another connection does not count);
+`ERR invalid token` means the token was wrong, which is also what an empty
+`$PAGESPEED_PURGE_TOKEN` produces; `ERR no purge token configured` means the
+worker started without a token, so no purge is possible until it has one. The
+responses are listed under [`AUTH`](/docs/api-reference/#auth-token).
+
 ### Cannot connect to management socket
 
 If `socat` or Python fails to connect to the management socket:
 
 ```bash
 # Verify the socket file exists
-ls -la /var/lib/pagespeed/pagespeed.sock.mgmt
+ls -la /run/pagespeed-optimizer/notify.sock.mgmt
 
 # Verify the worker is running
-sudo systemctl status pagespeed-worker
+sudo systemctl status pagespeed-optimizer
 
 # Check socket permissions
-stat /var/lib/pagespeed/pagespeed.sock.mgmt
+stat /run/pagespeed-optimizer/notify.sock.mgmt
 ```
 
 The management socket is created when the worker starts and removed when it
@@ -413,7 +431,7 @@ analysis. Browser profiles are not generated.
    delay. Check logs for the crash reason:
 
    ```bash
-   sudo journalctl -u pagespeed-worker | grep -i "chrome\|crash\|exit"
+   sudo journalctl -u pagespeed-optimizer | grep -i "chrome\|crash\|exit"
    ```
 
 2. **Memory limit exceeded.** If Chrome's RSS exceeds `--chrome-max-memory`
@@ -443,7 +461,7 @@ inlined CSS volume. Check the page's stylesheet count and total CSS size.
 
 ```bash
 # Check browser analysis status via management socket
-echo "BROWSER-STATUS" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
+echo "BROWSER-STATUS" | socat - UNIX-CONNECT:/run/pagespeed-optimizer/notify.sock.mgmt
 ```
 
 The response includes `analysis_errors`, `chrome_crashes`, and `queue_depth`

@@ -8,6 +8,7 @@
 // there, not here.
 
 import type { APIRoute } from 'astro';
+import { getRelease } from '../../lib/release';
 import {
   VENDOR,
   WEBSITE,
@@ -34,12 +35,25 @@ import {
   PKG_SIDECAR_NATIVE,
   SIDECAR_NGINX_VERSION,
   SIDECAR_RIDS,
+  MODULE_PACKAGE_VERSION,
 } from '../../data/product-facts.mjs';
+
+// The newest published release of the current line, from its release manifest;
+// `module_package_version` is the newest version of the Apache and nginx module
+// packages in the package index (see product-facts.mjs).
+const rel = await getRelease(CURRENT_LINE as '2.1');
 
 const productData = {
   product: `${PRODUCT_NAME} ${CURRENT_LINE}`,
   vendor: VENDOR,
   website: WEBSITE,
+  release: {
+    line: CURRENT_LINE,
+    version: rel.release.semver,
+    tag: rel.release.tag,
+    released_on: rel.release.released_on,
+    module_package_version: MODULE_PACKAGE_VERSION,
+  },
   description:
     'Self-hosted web performance optimization: a native web-server module for Apache and nginx, with a separate optimizer worker process doing the heavy optimization work outside the web server. No application code changes required.',
   // The software license (SPDX id) and the state of the source, both from the

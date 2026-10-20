@@ -49,9 +49,8 @@ touched:
 mkdir pagespeed && cd pagespeed
 ```
 
-Create `docker-compose.yml`, `nginx.conf` and `entrypoint-worker.sh` (then
-`chmod +x entrypoint-worker.sh`) as given in the source document, which carries
-the current image tags, with two changes:
+Create `docker-compose.yml` and `nginx.conf` as given in the source document,
+which carries the current image tags, with two changes:
 
 - Leave out the placeholder `origin` service, and `origin` from the worker's
   `depends_on`.

@@ -145,10 +145,10 @@ const organization = {
   '@type': 'Organization',
   '@id': 'https://we-amp.com/#organization',
   name: 'We-Amp B.V.',
-  url: 'https://we-amp.com',
+  url: 'https://we-amp.com/',
   logo: 'https://we-amp.com/images/weamp.svg',
   description:
-    'Dutch software company building server-side web optimization technology. Maintainer of mod_pagespeed.',
+    'Dutch software and consulting company specializing in HTTP infrastructure, web performance, and reverse proxy engineering.',
   foundingDate: '2012',
   founder: {
     '@type': 'Person',
@@ -162,14 +162,16 @@ const organization = {
   },
   identifier: [{ '@type': 'PropertyValue', propertyID: 'KvK', value: '57898138' }],
   sameAs: [
-    'https://we-amp.com',
+    'https://modpagespeed.com',
     'https://iispeed.com',
+    'https://ngxpagespeed.com',
     'https://github.com/We-Amp',
     'https://github.com/oschaaf',
   ],
   brand: {
     '@type': 'Brand',
-    name: 'mod_pagespeed',
+    name: 'mod_pagespeed 2.1',
+    alternateName: 'ModPageSpeed 2.0',
   },
   subjectOf: lineageCitations,
 };
@@ -674,6 +676,8 @@ const jsonLd = [organization, website, product, faqPage];
       <figure class="mt-10 max-w-4xl">
         <img
           src="/images/live-console-overview.webp"
+          srcset="/images/live-console-overview-480.webp 480w, /images/live-console-overview-768.webp 768w, /images/live-console-overview-1024.webp 1024w, /images/live-console-overview.webp 1440w"
+          sizes="(min-width: 1024px) 896px, calc(100vw - 2rem)"
           alt="mod_pagespeed admin console Overview: a sidebar with Savings, URLs, Statistics, Histograms, Caches, Configuration, optimizer Status and Logs; a host selector; a module panel with bytes saved and responses served from the optimizer's cache; an optimizer panel with status, uptime and bytes saved"
           width="1440"
           height="760"
@@ -762,7 +766,8 @@ const jsonLd = [organization, website, product, faqPage];
                 >
                   the IIS module
                 </a>{' '}
-                &mdash; the IIS package ships from the 1.15 packaging channel
+                &mdash; the IIS package ships as a signed installer on the mod_pagespeed GitHub
+                release
               </span>
             </li>
             <li>
@@ -1767,7 +1772,8 @@ const jsonLd = [organization, website, product, faqPage];
           />
         </div>
         <p class="mt-3 text-xs text-text-annotation">
-          On IIS / Windows Server, the package ships from the 1.15 packaging channel.
+          On IIS / Windows Server, the package ships as a signed installer on the mod_pagespeed
+          GitHub release.
           <a href="/download/" class="text-interactive underline underline-offset-2">
             See the IIS package &rarr;
           </a>

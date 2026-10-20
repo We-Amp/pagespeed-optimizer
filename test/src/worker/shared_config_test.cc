@@ -557,8 +557,8 @@ TEST_F(SharedConfigTest, CacheDirGenerationRoundTrip) {
 // (bump it, or record why not in shared_config.h), then update both numbers
 // here together.
 TEST(CacheDirGeneration, TracksTheStorageFormatMajor) {
-  EXPECT_EQ(cyclone::VolumeHeader::kFormatVersionMajor, 8);
-  EXPECT_EQ(kCacheDirGeneration, 2);
+  EXPECT_EQ(cyclone::VolumeHeader::kFormatVersionMajor, 9);
+  EXPECT_EQ(kCacheDirGeneration, 3);
 }
 
 TEST_F(SharedConfigTest, WritePidField) {

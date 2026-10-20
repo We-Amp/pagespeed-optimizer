@@ -84,9 +84,15 @@ inline constexpr int kSharedConfigVersion = 1;
 //     the 2.x nginx module from 2.1.0 checks nothing,
 //     and the generation check added to it later covers only a new module
 //     next to an old worker.
+// N = 3: cyclone's format major went 8 -> 9 (the document checksum covers the
+// fixed document header) after 2.4.0 shipped with v2, so trigger 2 fires
+// against a released generation again.  The new binary opens a new, empty
+// volume in v3/ and never touches v2/, including v2/pagespeed-shared.conf,
+// which 2.4.0 left saying generation 2.  The handshake limits listed under
+// N = 2 apply unchanged.
 // Do NOT bump for entry-schema changes (those ride per-entry versioning
 // inside the volume) or serve-stats layout changes (own namespace, own file).
-inline constexpr int kCacheDirGeneration = 2;
+inline constexpr int kCacheDirGeneration = 3;
 
 // Keep in sync with inline SharedConfig in src/nginx/ngx_pagespeed_module.cc.
 struct SharedConfig {

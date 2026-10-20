@@ -12,7 +12,7 @@ Pre-flight checks before deploying mod_pagespeed 2.1 in production.
 - [ ] Web-server user is in group `pagespeed` (module postinst does the join;
   `id www-data` / `id apache` must list it) and the web server was restarted
   after the join
-- [ ] Cache dir `/var/cache/pagespeed-optimizer/v2` is 3770 (setgid+sticky)
+- [ ] Cache dir `/var/cache/pagespeed-optimizer/v3` is 3770 (setgid+sticky)
   `pagespeed:pagespeed`; volume + serve-stats 0660, shared config 0640 —
   nothing world-writable (`find /var/cache/pagespeed-optimizer -perm -o+w`
   is empty)
@@ -33,7 +33,7 @@ Pre-flight checks before deploying mod_pagespeed 2.1 in production.
 
 ## Nginx Module
 
-- [ ] Module loaded: `load_module /path/to/ngx_pagespeed_module.so;`
+- [ ] Module loaded: the package's snippet (`sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules` shows exactly one line); add `load_module` by hand only for a self-built module.
 - [ ] `pagespeed on;` in server block
 - [ ] `proxy_set_header Accept-Encoding "";` to origin (PageSpeed caches raw bytes)
 - [ ] Exclusion rules set for API/admin paths (`pagespeed off;` in location blocks)

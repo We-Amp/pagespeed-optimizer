@@ -9,7 +9,7 @@ before it records a response:
 * only reproducible headers (the security set: ACAO, CSP, nosniff,
   Referrer-Policy) -> recorded, with the headers stored beside the entry
   (the stored-block counter moves);
-* any header a cache hit cannot reproduce (X-Powered-By, a custom header)
+* any header a cache hit cannot reproduce (X-Request-Id, a custom header)
   -> never cached, served from the origin each time, and an entry recorded
   earlier under different headers is removed;
 * a Content-Security-Policy carrying a nonce -> never cached;
@@ -99,6 +99,24 @@ CARRIED_NAMES = (
     "cross-origin-resource-policy",
     "permissions-policy",
     "vary",
+    "link",
+    "strict-transport-security",
+    "x-frame-options",
+    "x-xss-protection",
+    "x-permitted-cross-domain-policies",
+    "origin-agent-cluster",
+    "x-dns-prefetch-control",
+    "timing-allow-origin",
+    "access-control-expose-headers",
+    "reporting-endpoints",
+    "nel",
+    "x-powered-by",
+    "x-pingback",
+    "x-robots-tag",
+    "content-language",
+    "content-disposition",
+    "alt-svc",
+    "allow",
 )
 
 IDENTITY = {"Accept-Encoding": "identity"}
@@ -118,6 +136,10 @@ def carried(response, names=CARRIED_NAMES) -> dict[str, list[str]]:
 
 def without_vary(lines: dict[str, list[str]]) -> dict[str, list[str]]:
     return {k: v for k, v in lines.items() if k != "vary"}
+
+
+def without_link(lines: dict[str, list[str]]) -> dict[str, list[str]]:
+    return {k: v for k, v in lines.items() if k != "link"}
 
 
 def wait_for_optimized_hit(client, path: str, miss):
@@ -228,14 +250,14 @@ class TestHeadersSidecarRecord:
         assert after["write_failed"] == before["write_failed"]
 
     def test_unreproducible_header_is_never_cached(self, client):
-        """X-Powered-By cannot be reproduced on a hit: never a HIT."""
+        """X-Request-Id cannot be reproduced on a hit: never a HIT."""
         before = read_sidecar_counters()
         seen = requests_never_hit(client, "/sidecar/custom.css")
         assert "HIT" not in seen, seen
         assert all(v == "MISS" for v in seen), seen
         # The origin's header reaches the client on every (origin) response.
         r = client.get("/sidecar/custom.css")
-        assert r.headers.get("X-Powered-By") == "PHP/8.3"
+        assert r.headers.get("X-Request-Id") == "req-8f3a"
         after = read_sidecar_counters()
         assert after["fall_through"] >= before["fall_through"] + len(seen), (
             before,
@@ -334,7 +356,21 @@ class TestHeadersSidecarReplay:
                 break
             time.sleep(0.5)
         assert hit is not None, "the optimized page was never served from cache"
-        assert carried(hit) == expected
+        # An HTML hit also carries the module's own preload hints (the Link
+        # lines built from the page's Early Hints record, e.g. the hero image
+        # preload), which the origin MISS cannot have.  The origin's lines
+        # must all be replayed; Link is compared as "the origin's lines plus
+        # exactly the page's known hints" (the page references only
+        # /1x1.jpg).
+        hit_lines = carried(hit)
+        assert without_link(hit_lines) == without_link(expected)
+        hit_links = list(hit_lines.get("link", []))
+        for line in expected.get("link", []):
+            assert line in hit_links, (line, hit_links)
+            hit_links.remove(line)
+        assert sorted(hit_links) == [
+            "</1x1.jpg>; rel=preload; as=image; fetchpriority=high"
+        ], hit_links
 
     def test_missing_stored_headers_is_a_miss_then_rerecorded(self, client):
         """A cached URL whose stored lines are removed behind the server's
@@ -539,6 +575,81 @@ class TestRevalidatedStatusLine:
         )
         assert status_line == "HTTP/1.1 200 OK", status_line
         assert body == hit.content
+
+
+class TestRevalidatedUnstorable:
+    """A 304 to the module's own revalidation that makes the entry no longer
+    storable (here `Vary: *`) must not reach a client that sent no
+    conditional request (issue #220)."""
+
+    PATH = "/sidecar/reval.css"
+
+    @pytest.mark.parametrize("vary304", ["*", "Cookie"])
+    def test_non_conditional_client_gets_200_and_entry_is_dropped(
+        self, client, origin_client, vary304
+    ):
+        path = self.PATH
+        try:
+            serve_control(origin_client, rp="no-referrer", vary304="")
+            # The URL lives one second, so a poll can land on a revalidation
+            # as well as a hit.  Any cached copy will do: the worker records
+            # the optimized variant of a URL once, so a second run of this
+            # test finds the original bytes cached, and the assertion below
+            # is that the stored bytes are what gets served.
+            client.get(path, headers=IDENTITY)
+            hit = None
+            for _ in range(60):
+                r = client.get(path, headers=IDENTITY)
+                if x_pagespeed(r) in ("HIT", "REVALIDATED"):
+                    hit = r
+                    break
+                time.sleep(0.3)
+            assert hit is not None, "no cached copy"
+            # The stored lines say no-referrer; the 304 says same-origin and
+            # must win, while the other stored lines are still replayed.
+            serve_control(origin_client, rp="same-origin", vary304=vary304)
+            time.sleep(2.5)
+            status_line, header_lines, body = raw_get(path)
+            assert status_line == "HTTP/1.1 200 OK", status_line
+            assert raw_header(header_lines, "X-PageSpeed") == ["REVALIDATED"]
+            assert raw_header(header_lines, "Vary")
+            assert body == hit.content
+            assert int(raw_header(header_lines, "Content-Length")[0]) == len(body)
+            assert raw_header(header_lines, "Referrer-Policy") == ["same-origin"]
+            # The entry was dropped and not written again: with the origin
+            # back to a storable 304, the next request is a miss, not a hit.
+            serve_control(origin_client, vary304="")
+            again = client.get(path, headers=IDENTITY)
+            assert again.status_code == 200
+            assert x_pagespeed(again) == "MISS", again.headers
+        finally:
+            serve_control(origin_client, vary304="")
+
+    def test_matching_conditional_client_still_gets_304(
+        self, client, origin_client
+    ):
+        path = self.PATH
+        try:
+            serve_control(origin_client, rp="no-referrer", vary304="*")
+            client.get(path, headers=IDENTITY)  # records the entry
+            time.sleep(2.5)
+            # The 200 served from the unstorable revalidation: the validator
+            # a client would hold.
+            status_line, header_lines, _ = raw_get(path)
+            assert status_line == "HTTP/1.1 200 OK", status_line
+            etag = raw_header(header_lines, "ETag")
+            assert etag, header_lines
+            client.get(path, headers=IDENTITY)  # records the entry again
+            time.sleep(2.5)
+            status_line, header_lines, body = raw_get(
+                path, {"If-None-Match": etag[0]}
+            )
+            assert status_line == "HTTP/1.1 304 Not Modified", status_line
+            assert raw_header(header_lines, "ETag") == [etag[0]]
+            assert raw_header(header_lines, "X-PageSpeed") == ["REVALIDATED"]
+            assert body == b""
+        finally:
+            serve_control(origin_client, vary304="")
 
 
 def requests_get(client, path: str):

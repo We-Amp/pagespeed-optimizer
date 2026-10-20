@@ -7,23 +7,33 @@
 
 #include "lib/image/pixel_format_optimizer.h"
 
+#include <cstddef>
 #include <memory>
 #include <string>
 
 #include "gtest/gtest.h"
 #include "lib/base/basictypes.h"
 #include "lib/base/message_handler.h"
+#include "lib/image/image_util.h"
 #include "lib/image/png_optimizer.h"
+#include "lib/image/scanline_interface.h"
+#include "lib/image/scanline_status.h"
 #include "test/lib/image/test_utils.h"
 
 namespace {
 
+using net_instaweb::SCANLINE_STATUS_INVOCATION_ERROR;
+using net_instaweb::SCANLINE_STATUS_SUCCESS;
+using net_instaweb::ScanlineReaderInterface;
+using net_instaweb::ScanlineStatus;
 using pagespeed::NullMessageHandler;
 using pagespeed::image_compression::CompareImageReaders;
 using pagespeed::image_compression::kWebpTestDir;
+using pagespeed::image_compression::PixelFormat;
 using pagespeed::image_compression::PixelFormatOptimizer;
 using pagespeed::image_compression::PngScanlineReaderRaw;
 using pagespeed::image_compression::ReadTestFileWithExt;
+using pagespeed::image_compression::RGBA_8888;
 
 const char kOpaqueAlphaImage[] = "completely_opaque_32x20.png";
 const char kNoAlphaImage[] = "opaque_32x20.png";
@@ -74,6 +84,38 @@ class PixelFormatOptimizerTest : public testing::Test {
   DISALLOW_COPY_AND_ASSIGN(PixelFormatOptimizerTest);
 };
 
+// A minimal RGBA reader that reports the given dimensions without holding
+// any image data, so the optimizer's handling of header dimensions alone
+// can be exercised. Counts scanline reads into *read_calls so a test can
+// tell whether the optimizer tried to buffer the image.
+class FakeRgbaReader : public ScanlineReaderInterface {
+ public:
+  FakeRgbaReader(size_t width, size_t height, int* read_calls)
+      : width_(width), height_(height), read_calls_(read_calls) {}
+
+  bool Reset() override { return true; }
+  size_t GetBytesPerScanline() override { return width_ * 4; }
+  bool HasMoreScanLines() override { return false; }
+  ScanlineStatus InitializeWithStatus(const void* /* image_buffer */,
+                                      size_t /* buffer_length */) override {
+    return ScanlineStatus(SCANLINE_STATUS_SUCCESS);
+  }
+  ScanlineStatus ReadNextScanlineWithStatus(
+      void** /* out_scanline_bytes */) override {
+    ++*read_calls_;
+    return ScanlineStatus(SCANLINE_STATUS_INVOCATION_ERROR);
+  }
+  size_t GetImageHeight() override { return height_; }
+  size_t GetImageWidth() override { return width_; }
+  PixelFormat GetPixelFormat() override { return RGBA_8888; }
+  bool IsProgressive() override { return false; }
+
+ private:
+  size_t width_;
+  size_t height_;
+  int* read_calls_;
+};
+
 // The optimizable image will be converted to a new image.
 TEST_F(PixelFormatOptimizerTest, Optimizable) {
   ASSERT_TRUE(InitializeOptimizer(kOpaqueAlphaImage));
@@ -94,6 +136,18 @@ TEST_F(PixelFormatOptimizerTest, Unoptimizable) {
 // but no scanline is read.
 TEST_F(PixelFormatOptimizerTest, InitializeWithoutRead) {
   ASSERT_TRUE(InitializeOptimizer(kOpaqueAlphaImage));
+}
+
+// An image whose dimensions imply a whole-image buffer far beyond anything
+// we can decode must be refused by Initialize(), before that buffer is
+// allocated and before a single scanline is requested.
+TEST_F(PixelFormatOptimizerTest, OversizedImageRejected) {
+  int read_calls = 0;
+  // Initialize() takes ownership of the reader it accepts.
+  EXPECT_FALSE(
+      optimizer_.Initialize(new FakeRgbaReader(60000, 60000, &read_calls))
+          .Success());
+  EXPECT_EQ(0, read_calls);
 }
 
 // Test that we don't have memory leakage if we don't read all of the

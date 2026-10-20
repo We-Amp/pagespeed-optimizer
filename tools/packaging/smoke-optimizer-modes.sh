@@ -10,7 +10,7 @@
 # Asserts (design doc §4 table):
 #   notify/health/mgmt sockets  0660
 #   volume file(s)              0660
-#   pagespeed-shared.conf       0640, and carries cache_dir_generation=2
+#   pagespeed-shared.conf       0640, and carries cache_dir_generation=3
 #   .pagespeed-serve-stats      0660
 #   no world-writable bit anywhere under the cache or socket dirs
 #   missing cache dir           -> refuses to start, log names "does not exist"
@@ -113,8 +113,8 @@ check "serve-stats mode 0660" "660" "$(mode_of "$CACHE_DIR/.pagespeed-serve-stat
 volume="$(find "$CACHE_DIR" -maxdepth 1 -name 'cache-*' -type f | head -1)"
 [[ -n "$volume" ]] || { echo "FAIL: no volume file in $CACHE_DIR" >&2; exit 1; }
 check "volume file mode 0660" "660" "$(mode_of "$volume")"
-check "shared config publishes cache_dir_generation=2" "1" \
-  "$(grep -c '^cache_dir_generation=2$' "$CACHE_DIR/pagespeed-shared.conf")"
+check "shared config publishes cache_dir_generation=3" "1" \
+  "$(grep -c '^cache_dir_generation=3$' "$CACHE_DIR/pagespeed-shared.conf")"
 check "no world-writable file under cache dir" "0" \
   "$(find "$CACHE_DIR" -perm -o+w | wc -l | tr -d ' ')"
 check "no world-writable entry under socket dir" "0" \

@@ -106,40 +106,52 @@ See [Install with a coding agent](https://modpagespeed.com/docs/agent-install/).
 
 ### Build
 
+Needs clang-20 with libc++-20 (see [Prerequisites](#prerequisites)); a build
+with the distribution compiler fails. Every Bazel command takes the same
+compiler and `--config=libc++`:
+
 ```bash
+export CC=clang-20 CXX=clang++-20
+
 # Build all (excludes nginx module)
-bazel build //...
+bazel build --config=libc++ //...
 
 # Run all tests
-bazel test //...
+bazel test --config=libc++ //...
 
 # Build nginx module (requires nginx source headers)
-NGINX_PATH=/path/to/nginx bazel build //src/nginx:ngx_pagespeed_module.so
+NGINX_PATH=/path/to/nginx bazel build --config=libc++ //src/nginx:ngx_pagespeed_module.so
 ```
 
 ### Deploy
 
 ```bash
-# Docker Compose (see deploy/ directory)
+# Docker Compose: pulls the published worker and nginx images (see deploy/README.md)
 cd deploy
-cp nginx.conf.example nginx.conf
-# Edit nginx.conf for your upstream
+cp .env.example .env
+# Edit .env: set BACKEND_HOST and BACKEND_PORT to your origin
+# (default host.docker.internal:8081, a server on the Docker host)
 docker compose up -d
+```
 
-# Or systemd (see deploy/pagespeed-optimizer.service)
+```bash
+# Or systemd, from the repository root (see deploy/pagespeed-optimizer.service)
 sudo cp deploy/pagespeed-optimizer.service /etc/systemd/system/
 sudo systemctl enable --now pagespeed-optimizer
 ```
 
 ### Verify
 
+Use GET, not `curl -I`: the module does not cache HEAD requests, so a HEAD
+never turns into a HIT.
+
 ```bash
 # First request — cache miss, proxied to origin
-curl -I http://localhost/style.css
+curl -s -o /dev/null -D - http://localhost/style.css | grep -i x-pagespeed
 # X-PageSpeed: MISS
 
 # Subsequent request — served from cache
-curl -I http://localhost/style.css
+curl -s -o /dev/null -D - http://localhost/style.css | grep -i x-pagespeed
 # X-PageSpeed: HIT
 ```
 
@@ -163,7 +175,7 @@ the worker side and shared with nginx automatically via `pagespeed-shared.conf`
 
 | Flag | Default | Description |
 |------|---------|-------------|
-| `--cache-dir DIR` | `/var/cache/pagespeed-optimizer/v2` | Directory holding the cache volume, shared config and serve-stats |
+| `--cache-dir DIR` | `/var/cache/pagespeed-optimizer/v3` | Directory holding the cache volume, shared config and serve-stats |
 | `--cache-path PATH` | (derived from `--cache-dir`) | Expert override: full cache volume file stem |
 | `--socket PATH` | `/run/pagespeed-optimizer/notify.sock` | Unix socket path |
 | `--cache-size BYTES` | `104857600` | Cache size (100MB) |
@@ -202,7 +214,8 @@ the worker side and shared with nginx automatically via `pagespeed-shared.conf`
 
 ```bash
 # Unit tests
-bazel test //...
+export CC=clang-20 CXX=clang++-20
+bazel test --config=libc++ //...
 
 # Sanitizers (ASan + UBSan + LeakSan + TSan)
 ./tools/docker-sanitizers.sh

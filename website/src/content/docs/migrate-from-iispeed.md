@@ -3,11 +3,11 @@ title: 'Migrate from IISpeed'
 description: 'Move an IISpeed install to the mod_pagespeed IIS module: save the configuration, uninstall IISpeed, run the MSI, keep the cache, verify, roll back.'
 order: 14
 group: 'Upgrade and migrate'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-20
 datePublished: 2026-10-08
 faq:
   - q: 'What happens to my IISpeed subscription?'
-    a: 'Nothing needs to carry over: mod_pagespeed 2.1 is free to install and run, in development and in production, so there is no entitlement to move. Questions about an existing IISpeed subscription go to license@we-amp.com.'
+    a: 'Request the license transfer through the form at https://modpagespeed.com/contact/?topic=iispeed-transfer. The transfer is at no cost: paid terms are honored to expiry, and you keep your current rate when you move to a support subscription. The software itself is free to install and run, in development and in production. Other questions go to info@we-amp.com.'
   - q: 'Do I have to rewrite my IISpeed configuration?'
     a: 'No. The module reads your `iiswebspeed.config` files where no `pagespeed.config` exists, accepts the `iispeed` directive prefix, and reads the server-level file under `%ProgramData%\We-Amp\IISWebSpeed\`. Rename the files to `pagespeed.config` when convenient; the content stays the same.'
 ---
@@ -15,8 +15,8 @@ faq:
 IISpeed is deprecated; its successor is the native IIS module that
 mod_pagespeed 2.1 ships, from the same code lineage. The move is an uninstall,
 an install and a check: your configuration files and your cache directory stay
-in place and keep working. The IIS package ships from the 1.15 packaging
-channel.
+in place and keep working. The IIS package ships as a signed installer on the
+mod_pagespeed GitHub release.
 
 ## Before you start
 
@@ -29,6 +29,17 @@ channel.
    there is nothing to drain.
 
 ## Steps
+
+:::warning[Maintenance window]
+Running the MSI — to install, upgrade, repair or uninstall the module — takes
+every IIS site on the server down for the duration, not only the sites it
+optimizes. The installer stops the Windows Process Activation Service (WAS)
+and the World Wide Web Publishing Service (W3SVC), force-kills any `w3wp.exe`
+worker process still running, and starts IIS again when it is done; anything
+else that depends on WAS, such as the WCF non-HTTP activation services
+(net.tcp, net.pipe, net.msmq), is stopped with it and not restarted. In-flight
+requests are dropped. Plan a maintenance window.
+:::
 
 1. **Uninstall IISpeed.** _Apps & features_ (or _Programs and Features_) →
    remove "IISpeed", then run `iisreset` so no worker process still holds the
@@ -80,4 +91,5 @@ channel.
 
 Uninstall the module from _Apps & features_, run `iisreset`, reinstall the
 IISpeed installer you kept, and restore your saved configuration files if you
-renamed them. Nothing on our side needs undoing.
+renamed them. Nothing on our side needs undoing. Uninstalling the module takes
+every IIS site on the server down for the duration, as installing it did.

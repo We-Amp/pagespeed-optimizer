@@ -28,7 +28,7 @@ describe('lifecycleSentence', () => {
   });
   it('has no sentence at or past the current package version, suffixes included', () => {
     const cur = MODULE_PACKAGE_VERSION;
-    for (const v of [cur, `${cur}-rc1`, `${cur}-dev`, `${cur}+r2`, '1.99.0']) {
+    for (const v of [cur, `${cur}-rc1`, `${cur}-dev`, `${cur}+r2`, '99.0.0']) {
       expect(lifecycleSentence(v)).toBe('');
     }
   });
@@ -45,6 +45,25 @@ describe('lifecycleSentence', () => {
   });
   it('has no sentence for 2.1 and later', () => {
     for (const v of ['2.1.0', '2.2.0', '3.0']) expect(lifecycleSentence(v)).toBe('');
+  });
+  it('bands 2.5 and later as the module line once 1.19.0 moved to 2.5.0', () => {
+    expect(lifecycleSentence('2.5.0', '2.6.0')).toBe(NEWER('2.5.0'));
+    expect(lifecycleSentence('2.5.0', '2.10.0')).toBe(NEWER('2.5.0'));
+    expect(lifecycleSentence('1.19.0', '2.5.0')).toBe(NEWER('1.19.0'));
+    expect(lifecycleSentence('2.9.0', '2.10.0')).toBe(NEWER('2.9.0'));
+    for (const v of ['2.5.0', '2.5.0-rc.1', '2.5.0+r2'])
+      expect(lifecycleSentence(v, '2.5.0')).toBe('');
+    expect(lifecycleSentence('2.10.0', '2.9.0')).toBe('');
+    expect(lifecycleSentence('3.0.0', '2.5.0')).toBe('');
+    expect(lifecycleSentence('3.0.0', '3.1.0')).toBe(NEWER('3.0.0'));
+  });
+  it('has no sentence for 2.5 and later when current is unparsable', () => {
+    expect(lifecycleSentence('2.5.0', 'garbage')).toBe('');
+    expect(lifecycleSentence('3.0.0', '')).toBe('');
+  });
+  it('never bands 2.1 through 2.4 as the module line (it never shipped them)', () => {
+    for (const v of ['2.1.0', '2.4.0']) expect(lifecycleSentence(v, '2.6.0')).toBe('');
+    expect(lifecycleSentence('2.0.3', '2.6.0')).toMatch(/^ModPageSpeed 2\.0\.3: Migrate/);
   });
   it('has no sentence for an unparsable version', () => {
     for (const v of ['', 'garbage', 'latest', '1', '.5', 'x1.2', undefined, null, 7]) {

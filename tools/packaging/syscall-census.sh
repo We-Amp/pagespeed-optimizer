@@ -199,7 +199,7 @@ if [[ "$UNIT_POSTURE" -eq 1 ]]; then
   # RuntimeDirectory, so strace -o there fails silently and the posture
   # produces nothing. The cache directory is the one place the daemon may
   # write; the log is copied out afterwards.
-  TRACE_IN_UNIT=/var/cache/$PKG/v2/strace-P8.log
+  TRACE_IN_UNIT=/var/cache/$PKG/v3/strace-P8.log
   cat > "$D/zz-census-strace.conf" <<EOF
 [Service]
 SystemCallFilter=
@@ -277,7 +277,7 @@ RUN_ROOT="$WORK/census-run"
 run_posture() { # name extra-daemon-args...
   local name="$1"; shift
   local log="$WORK/strace-${DISTRO}-${name}.log"
-  local cdir="$CACHE_ROOT/$name/v2"
+  local cdir="$CACHE_ROOT/$name/v3"
   local rdir="$RUN_ROOT/$name"
   rm -rf "$CACHE_ROOT/$name" "$rdir"
   mkdir -p "$cdir" "$rdir"

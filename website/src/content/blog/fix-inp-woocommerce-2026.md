@@ -61,7 +61,7 @@ Where this actually helps: on non-shop pages (homepage, blog, content pages), `d
 
 Enable, in order:
 
-- **`defer_javascript`** — pushes script execution past the initial render, so the first interaction is not competing with cart-fragments init. Marked **Test first** in the [filter reference](/docs/filter-reference/) because order-sensitive WC behavior can break. Stage it; verify the cart still updates after add-to-cart.
+- **`defer_javascript`** — pushes script execution past the initial render, so the first interaction is not competing with cart-fragments init. Marked **Test first** in the [filters reference](/docs/filters/) because order-sensitive WC behavior can break. Stage it; verify the cart still updates after add-to-cart.
 - **`combine_javascript`** — concatenates the dozen separate JS files WC pulls in. Reduces per-file parser setup; first-load parse drops noticeably.
 - **`rewrite_javascript`** — minifies inline and external JS ([safely, without breaking on implicit semicolons](/blog/safe-javascript-minification-semicolon-insertion/)). WC's bundles are already minified in production, but theme bundles and third-party plugin JS often are not.
 
@@ -140,7 +140,7 @@ If your INP problem is on the homepage/blog, the server layer is the high-levera
 - [How to fix Cumulative Layout Shift (CLS)](/core-web-vitals/cls/): causes, thresholds and the server-side fixes
 - [How to fix INP on WordPress](/blog/fix-inp-wordpress-2026/)
 - [Critical CSS without a headless browser](/blog/critical-css-heuristics/)
-- [mod_pagespeed filter reference](/docs/filter-reference/)
+- [mod_pagespeed filters reference](/docs/filters/)
 - [The full INP guide](/core-web-vitals/inp/)
 - [Test your page in the analyzer](/analyze/)
 

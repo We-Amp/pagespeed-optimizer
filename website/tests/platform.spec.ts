@@ -70,6 +70,7 @@ test.describe('Transform packs early access', () => {
       url: '/platform/',
       message:
         'Pack: Payment-page script integrity\nSite: https://shop.example.com/\n\nCheckout is on a separate host.',
+      t: expect.any(Number),
     });
     const events = await trackedEvents(page);
     expect(events).toContainEqual({ name: 'page-integrity', data: undefined });

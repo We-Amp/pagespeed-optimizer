@@ -32,10 +32,15 @@
 #   - CWD is the workspace root
 #   - $BAZEL_REPO_CACHE is set (or defaults to /root/bazel-repo-cache)
 #   - $VENDOR_DIR is set (or defaults to "vendor")
-#   - SSH key is already wired up (hedron's aquery subprocess fetches
-#     the cache library over git+ssh; see the workflow for setup).
+#   - network access to the dependency repos (hedron's aquery subprocess
+#     does not inherit --vendor_dir and fetches them over https).
 
 set -euo pipefail
+
+# The lint container runs as the host uid, which has no passwd entry in the
+# image. Bazel refuses to start without a resolvable user name, so give it
+# one: it only shapes the default output user root under $HOME.
+export USER="${USER:-ci}"
 
 BAZEL_REPO_CACHE="${BAZEL_REPO_CACHE:-/root/bazel-repo-cache}"
 VENDOR_DIR="${VENDOR_DIR:-vendor}"

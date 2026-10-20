@@ -15,7 +15,7 @@
 //   both                        every in-page fragment link resolves, and the
 //                               deep-link ids external pages depend on exist
 
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { resolve } from 'node:path';
 import { describe, it, expect } from 'vitest';
@@ -32,8 +32,12 @@ const DOCS_DIR = resolve(WEBSITE_ROOT, 'src/content/docs');
 const REFERENCE_DIR = resolve(WEBSITE_ROOT, 'src/data/reference');
 
 const readJson = (name: string) => JSON.parse(readFileSync(resolve(REFERENCE_DIR, name), 'utf8'));
-const readDoc = (slug: string) =>
-  stripFrontmatter(readFileSync(resolve(DOCS_DIR, `${slug}.md`), 'utf8'));
+const readDoc = (slug: string) => {
+  // A cross-page link may target an .mdx page (http-api, deployment, ...).
+  const md = resolve(DOCS_DIR, `${slug}.md`);
+  const file = existsSync(md) ? md : resolve(DOCS_DIR, `${slug}.mdx`);
+  return stripFrontmatter(readFileSync(file, 'utf8'));
+};
 
 const configuration = readDoc('configuration');
 const worker = readDoc('worker-configuration');

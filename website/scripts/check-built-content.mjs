@@ -344,14 +344,12 @@ export function documentStructureProblems(html) {
     closes('body')[0],
     closes('html')[0],
   ];
-  if (
-    !(
-      htmlOpen.start < headOpen.start &&
-      headOpen.end <= headClose.start &&
-      headClose.end <= bodyOpen.start &&
-      bodyClose.end <= htmlClose.start
-    )
-  ) {
+  if (!(
+    htmlOpen.start < headOpen.start &&
+    headOpen.end <= headClose.start &&
+    headClose.end <= bodyOpen.start &&
+    bodyClose.end <= htmlClose.start
+  )) {
     problems.push('html/head/body tags out of order');
   }
 

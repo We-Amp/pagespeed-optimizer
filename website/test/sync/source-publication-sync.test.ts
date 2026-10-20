@@ -45,10 +45,17 @@
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import { GET as productJsonGet } from '../../src/pages/api/product.json.ts';
 import { SOURCE_PUBLICATION } from '../../src/data/product-facts.mjs';
+
+// product.json.ts reads the release manifest through astro:content, which only
+// exists inside an Astro build; stand in the real manifest, read from disk.
+vi.mock('../../src/lib/release', async () => {
+  const { releaseManifest } = await import('../lib/release-manifest');
+  return { getRelease: async () => releaseManifest };
+});
 
 const ROOT = resolve(__dirname, '../..');
 // 3b is about the page body: a future SPDX header line legitimately carries the

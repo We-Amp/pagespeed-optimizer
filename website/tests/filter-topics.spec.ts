@@ -80,4 +80,43 @@ test.describe('Filter topic pages', () => {
       '/docs/filters/combine_css/',
     );
   });
+
+  // The Markdown twins (src/pages/docs/filters/[name].md.ts): an indexable
+  // page advertises its twin and the server serves it; a thin page does
+  // neither.
+  test('an indexable page advertises its Markdown twin and the server serves it', async ({
+    page,
+  }) => {
+    await page.goto('/docs/filters/lazyload_images/');
+    const alternate = page.locator('head link[rel="alternate"][type="text/markdown"]');
+    await expect(alternate).toHaveCount(1);
+    await expect(alternate).toHaveAttribute('href', '/docs/filters/lazyload_images.md');
+    const res = await page.request.get((await alternate.getAttribute('href'))!);
+    expect(res.status()).toBe(200);
+    expect(res.headers()['content-type']).toMatch(/^text\/markdown/);
+    const body = await res.text();
+    expect(body.startsWith('# Lazy-load images (lazyload_images)\n')).toBe(true);
+    expect(body).toContain('Canonical URL: https://modpagespeed.com/docs/filters/lazyload_images/');
+    expect(body).toContain('## Frequently asked questions');
+    expect(body).not.toContain('](/');
+    expect((await page.request.get('/docs/filters/lazyload_images.md/')).status()).toBe(404);
+  });
+
+  test('a thin page has no Markdown twin', async ({ page, request }) => {
+    await page.goto('/docs/filters/split_html/');
+    await expect(page.locator('head link[rel="alternate"][type="text/markdown"]')).toHaveCount(0);
+    expect((await request.get('/docs/filters/split_html.md')).status()).toBe(404);
+  });
+
+  test('the filters table has a Markdown twin', async ({ page, request }) => {
+    await page.goto('/docs/filters/');
+    const alternate = page.locator('head link[rel="alternate"][type="text/markdown"]');
+    await expect(alternate).toHaveAttribute('href', '/docs/filters.md');
+    const res = await request.get('/docs/filters.md');
+    expect(res.status()).toBe(200);
+    expect(res.headers()['content-type']).toMatch(/^text\/markdown/);
+    const body = await res.text();
+    expect(body.startsWith('# PageSpeed filters\n')).toBe(true);
+    expect(body).toContain('(https://modpagespeed.com/docs/filters/lazyload_images/)');
+  });
 });

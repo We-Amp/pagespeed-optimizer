@@ -5,16 +5,16 @@ seoTitle: 'Install mod_pagespeed 2.1: nginx, Apache, Docker, IIS'
 description: 'Pick an integration and get mod_pagespeed 2.1 serving optimized pages: Apache or nginx module, Docker, IIS or ASP.NET Core, then run the same check.'
 order: 1
 group: 'Start here'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-20
 faq:
   - q: 'Which mod_pagespeed 2.1 integration should I pick?'
     a: 'The native module when you run Apache or nginx on Debian, Ubuntu or Enterprise Linux; the Docker reverse proxy when you are container-native or your origin is something else; the IIS module on Windows Server; the NuGet middleware inside an ASP.NET Core app. All four run the same optimization pipeline.'
   - q: 'How do I verify mod_pagespeed is working?'
-    a: 'Request a page twice with `curl -I`. The native module adds `X-Mod-Pagespeed` (Apache) or `X-Page-Speed` (nginx and IIS) to the responses it handles. The Docker reverse proxy and the ASP.NET Core middleware answer `X-PageSpeed: MISS` first and `X-PageSpeed: HIT` once the worker has written the optimized variant.'
+    a: 'Request a page twice with GET (`curl -s -o /dev/null -D -`). The native module adds `X-Mod-Pagespeed` (Apache) or `X-Page-Speed` (nginx and IIS) to the responses it handles. The Docker reverse proxy and the ASP.NET Core middleware answer `X-PageSpeed: MISS` first and `X-PageSpeed: HIT` once the worker has written the optimized variant.'
   - q: 'Does the native nginx module need the optimizer worker?'
     a: 'No. It optimizes on its own. To hand in-place optimization to the worker, install the `pagespeed-optimizer` package of the same release and set `pagespeed DaemonSocketPath` and `pagespeed DaemonVolumePath` in the server block. The Apache packages install that wiring for you.'
   - q: 'What are the prerequisites?'
-    a: 'For the native module: Debian 12 or 13, Ubuntu 22.04 or 24.04, or RHEL, AlmaLinux or Rocky 9 or 10, with Apache 2.4 or newer or the stock nginx of the distribution. For Docker: Docker 24 or newer; nginx ships inside the image. For IIS: Windows Server 2019 or later. For ASP.NET Core: .NET 8 or .NET 10.'
+    a: 'For the native module: Debian 12 or 13, Ubuntu 22.04 or 24.04, or RHEL, AlmaLinux or Rocky 9 or 10, with Apache 2.4 or newer or the stock nginx of the distribution. For Docker: Docker 24 or newer; nginx ships inside the image. For IIS: Windows Server 2016 or later. For ASP.NET Core: .NET 8 or .NET 10.'
   - q: 'What is safe cache mode and why is it the default?'
     a: 'Safe mode caches optimized resources for short periods (5 minutes for CSS/JS, 30 minutes for images) with mandatory revalidation, so misconfigurations self-correct quickly. It is the recommended mode while validating a new setup before switching to aggressive.'
 ---
@@ -47,8 +47,7 @@ Installing with a coding agent? [Install with a coding agent](/docs/agent-instal
   or Rocky 9 or 10, with Apache 2.4 or newer or the distribution's stock nginx.
 - **Docker reverse proxy:** Docker 24 or newer and Docker Compose v2; nginx
   ships inside the image, so you do not install it yourself.
-- **IIS:** Windows Server 2019 or later, 64-bit, with the Visual C++
-  Redistributable 2022.
+- **IIS:** Windows Server 2016 or later with IIS 10, 64-bit.
 - **ASP.NET Core:** .NET 8 or .NET 10.
 
 :::note[One worker, two names]
@@ -57,7 +56,7 @@ the NuGet package ship the binary as `factory_worker`. The deb and rpm packages
 install it as `/usr/bin/pagespeed-optimizer`, with the
 `pagespeed-optimizer.service` unit, host overrides in
 `/etc/default/pagespeed-optimizer` and its cache under
-`/var/cache/pagespeed-optimizer/v2`. A page that says `factory_worker` and a log
+`/var/cache/pagespeed-optimizer/v3`. A page that says `factory_worker` and a log
 line that says `pagespeed-optimizer` describe the same process.
 :::
 
@@ -76,9 +75,14 @@ sudo systemctl restart nginx
 
 Apache optimizes immediately: the package enables the module, its default
 `pagespeed.conf`, and the configuration that points it at the worker. On nginx,
-make sure `load_module modules/ngx_pagespeed_module.so;` (on Enterprise Linux
-`load_module /usr/lib64/nginx/modules/ngx_pagespeed_module.so;`) is at the top
-of `nginx.conf`, then turn the module on in a `server` block:
+the package loads the module itself (through `/etc/nginx/modules-enabled/` on
+Debian and Ubuntu, `/usr/share/nginx/modules/` on Enterprise Linux), so do not
+add a `load_module` line: nginx refuses to load the module twice.
+`sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules`
+shows the line the package added. Only a module you built or copied in by hand
+needs `load_module modules/ngx_pagespeed_module.so;` (on Enterprise Linux
+`load_module /usr/lib64/nginx/modules/ngx_pagespeed_module.so;`) at the top of
+`nginx.conf`. Then turn the module on in a `server` block:
 
 ```nginx
 pagespeed on;
@@ -94,12 +98,14 @@ optimization to the worker.
 
 ```bash
 docker run --rm -p 80:80 \
+  --add-host=host.docker.internal:host-gateway \
   -e BACKEND_HOST=host.docker.internal -e BACKEND_PORT=8081 \
   -e ACCEPT_EULA=Y \
   ghcr.io/we-amp/pagespeed-combined:latest
 ```
 
-Point `BACKEND_HOST` and `BACKEND_PORT` at your origin; `ACCEPT_EULA=Y`
+Point `BACKEND_HOST` and `BACKEND_PORT` at your origin (`host.docker.internal`
+is the Docker host; the `--add-host` line defines it on Linux); `ACCEPT_EULA=Y`
 acknowledges the [Terms of Service](/terms/). The combined image runs nginx with
 the module and the worker in one container, for evaluation and small single-host
 deployments. Then [verify](#verify-it-works) on port 80. For production, run the
@@ -110,12 +116,15 @@ worker and nginx as separate services from the
 ## Quickstart: IIS
 
 Download the signed MSI from the [download page](/download/), run it on the
-Windows Server host, then `iisreset`. The installer registers the module as a
-native HTTP module and creates the default cache directory. Then
+Windows Server host, then `iisreset`. Running the MSI takes every IIS site on
+the server down for the duration; plan a maintenance window (details on
+[Install on IIS](/docs/install-iis/#install-the-module)). The installer
+registers the module as a native HTTP module and creates the default cache
+directory. Then
 [verify](#verify-it-works). Running IISpeed on that host? Uninstall it first;
 the two register the same handler. The [IIS install guide](/docs/install-iis/)
 has the requirements, IIS Express and the optional optimizer service. The IIS
-package ships from the 1.15 packaging channel.
+package ships as a signed installer on the mod_pagespeed GitHub release.
 
 ## Quickstart: ASP.NET Core
 
@@ -135,12 +144,15 @@ Set `PageSpeed:Enabled` to `true` in `appsettings.json`, run the app and
 
 ## Verify it works
 
-<a id="quick-verification"></a>Request any HTML page twice:
+<a id="quick-verification"></a>Request any HTML page twice with GET:
 
 ```bash
-curl -I http://localhost/
-curl -I http://localhost/
+curl -s -o /dev/null -D - http://localhost/
+curl -s -o /dev/null -D - http://localhost/
 ```
+
+Use GET, not `curl -I`: the Docker reverse proxy does not cache HEAD requests,
+so a HEAD never turns into a HIT there.
 
 - **Apache module:** `X-Mod-Pagespeed: <version>` on both responses. nginx and
   IIS module: `X-Page-Speed: <version>`. The header's presence means the module

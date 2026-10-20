@@ -6,7 +6,12 @@ import {
   loadFilterTopics,
   plainText,
   faqHtml,
-  RELATED,
+  topicFacts,
+  topicConfig,
+  relatedTopics,
+  namesGoogleProduct,
+  topicMarkdownUrl,
+  GROUP_TITLES,
   type Topic,
 } from '../../../lib/filter-topics.mjs';
 import { exampleImpact } from '../../../lib/example-impact';
@@ -64,126 +69,34 @@ const body = await Promise.all(
 );
 const risks = t.section.risks.length ? await html(t.section.risks.join('\n\n')) : '';
 
-// Configuration: the enable line for each server, generated from the
-// reference syntax, then the section's own configuration in page order. A
-// section code block that only repeats the enable line is left out.
-const enableOnly = (code: string) => {
-  const lines = code
-    .split('\n')
-    .map((l) => l.trim())
-    .filter((l) => l && !l.startsWith('#'));
-  return (
-    !!t.enable &&
-    lines.length > 0 &&
-    lines.every((l) => l === t.enable!.apache || l === t.enable!.nginx || l === t.enable!.iis)
-  );
-};
-const serverBlocks = t.enable
-  ? await Promise.all(
-      [
-        { label: 'Apache', lang: 'apache', code: t.enable.apache },
-        { label: 'nginx', lang: 'nginx', code: t.enable.nginx },
-        { label: 'IIS (pagespeed.config)', lang: 'text', code: t.enable.iis },
-      ].map(async (b) => ({ label: b.label, html: await codeBlock(b.lang, b.code) })),
-    )
-  : [];
-const disableBlock =
-  t.disable && t.core === true
-    ? await codeBlock(
-        'text',
-        [
-          `${t.disable.apache}   # Apache`,
-          `${t.disable.nginx}   # nginx`,
-          `${t.disable.iis}   # IIS`,
-        ].join('\n'),
-      )
-    : '';
+// Configuration: the enable line for each server, the disable line and the
+// section's own configuration, as src/lib/filter-topics.mjs assembles them.
+const config = topicConfig(t);
+const serverBlocks = await Promise.all(
+  config.servers.map(async (b) => ({ label: b.label, html: await codeBlock(b.lang, b.code) })),
+);
+const disableBlock = config.disable ? await codeBlock('text', config.disable) : '';
 const sectionConfig = await Promise.all(
-  t.section.config
-    .filter((c) => !('code' in c) || !enableOnly(c.code))
-    .map((c) => ('code' in c ? codeBlock(c.lang, c.code) : html(c.md))),
+  config.section.map((c) => ('code' in c ? codeBlock(c.lang, c.code) : html(c.md))),
 );
 const worker = t.worker
   ? { ...t.worker, control: t.worker.control ? await inline(t.worker.control) : '' }
   : null;
 
-// "When to use it": the facts the data states, one line each.
-const facts: string[] = [];
-if (t.alternateSpellingOf) {
-  facts.push(
-    `An alternate spelling of <a href="/docs/filters/${t.alternateSpellingOf}/"><code>${t.alternateSpellingOf}</code></a>: the module accepts both names for the same filter.`,
-  );
-}
-if (t.deprecated) {
-  facts.push(
-    'Deprecated: the module accepts the name so that an existing configuration loads, and does nothing with it.',
-  );
-} else if (t.dangerous) {
-  facts.push(
-    'In the dangerous set: no RewriteLevel enables it, not even <code>AllFilters</code>. It exists for testing and measurement, not for production traffic.',
-  );
-} else if (t.core === true) {
-  facts.push('In CoreFilters, the default RewriteLevel: it runs unless you disable it.');
-} else if (t.core === 'partial') {
-  facts.push(
-    'Partly in CoreFilters, the default RewriteLevel: some of the filters it enables run by default, the others only when named.',
-  );
-} else {
-  facts.push('Not in CoreFilters: it runs only when you enable it by name.');
-}
-if (!t.deprecated && !t.dangerous) {
-  if (t.optimizeForBandwidth === true)
-    facts.push(
-      'Part of OptimizeForBandwidth, the level that optimizes resources without changing their URLs.',
-    );
-  else if (t.optimizeForBandwidth === 'partial')
-    facts.push('Some of the filters it enables are part of OptimizeForBandwidth.');
-}
-if (t.memberOf.length) {
-  const links = t.memberOf.map((a) => `<a href="/docs/filters/${a}/"><code>${a}</code></a>`);
-  facts.push(
-    `Also switched on by ${links.length > 1 ? `${links.slice(0, -1).join(', ')} and ${links.at(-1)}` : links[0]}.`,
-  );
-}
-const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-if (t.risk) facts.push(`Risk rating on these docs: <strong>${esc(t.risk)}</strong>.`);
-if (t.note) facts.push(await inline(t.note));
+// "When to use it": the facts the data states, one line each (Markdown, shared
+// with the page's Markdown twin).
+const facts = await Promise.all(topicFacts(t).map(inline));
 
 // The live example, when the gallery isolates this filter.
 const exampleSlug = t.example?.match(/^\/examples\/([^/]+)\/$/)?.[1];
 const impact = exampleSlug ? exampleImpact(exampleSlug) : null;
 
 // Related: the filters documented on the same section, then the rest of the
-// category, skipping alternate spellings and deprecated names.
-const related = [
-  ...(RELATED[t.name] ?? []),
-  ...t.section.siblings,
-  ...topics.filter((x) => x.category === t.category).map((x) => x.name),
-]
-  .filter((n, i, all) => all.indexOf(n) === i && n !== t.name)
-  .map((n) => byName.get(n)!)
-  .filter(
-    (x) =>
-      x && ((RELATED[t.name] ?? []).includes(x.name) || (!x.alternateSpellingOf && !x.deprecated)),
-  )
-  // Filters meant for production first; the dangerous set last.
-  .sort(
-    (a, b) =>
-      Number(!(RELATED[t.name] ?? []).includes(a.name)) -
-        Number(!(RELATED[t.name] ?? []).includes(b.name)) ||
-      Number(a.dangerous) - Number(b.dangerous),
-  )
-  .slice(0, 8);
+// category (src/lib/filter-topics.mjs).
+const related = relatedTopics(t, topics);
 
 const members = t.members.map((n) => byName.get(n)!).filter(Boolean);
-const groupTitle: Record<string, string> = {
-  'image-filters': 'Image filters',
-  'css-filters': 'CSS filters',
-  'javascript-filters': 'JavaScript filters',
-  'html-filters': 'HTML filters',
-  'cache-control': 'Cache control',
-};
-const groupName = groupTitle[t.section.page] ?? t.section.page;
+const groupName = (GROUP_TITLES as Record<string, string>)[t.section.page] ?? t.section.page;
 const groupHref = `/docs/${t.section.page}/#${t.name}`;
 
 // FAQ: visible answers and the FAQPage JSON-LD come from the same strings; the
@@ -192,8 +105,7 @@ const faq = t.faq.map((item) => ({ q: item.q, a: item.a, html: faqHtml(item.a) }
 
 // Pages that name a Google product (Analytics, AdSense, Fonts, the hosted
 // libraries) carry the same non-affiliation line as the examples gallery.
-const sectionText = [t.section.lede, ...t.section.body.map((g) => g.md), t.note ?? ''].join(' ');
-const namesGoogle = /google|adsense/i.test(`${t.human} ${sectionText}`);
+const namesGoogle = namesGoogleProduct(t);
 
 const h1 = `${t.human} (${t.name})`;
 const url = `https://modpagespeed.com${t.path}`;
@@ -243,6 +155,7 @@ const yesNo = (v: boolean | 'partial') => (v === true ? 'Yes' : v === 'partial' 
   description={t.description}
   jsonLd={jsonLd}
   noindex={!t.indexable}
+  alternateMarkdown={t.indexable ? topicMarkdownUrl(t.name) : undefined}
   breadcrumbLeafName={t.name}
   searchable
 >

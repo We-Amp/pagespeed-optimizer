@@ -123,13 +123,19 @@ class DurableOriginalsTest : public ::testing::Test {
   // file is not portable) and is re-opened by the caller afterwards.
   //
   // The successor is a stripe-relative offset in the document's fixed header,
-  // outside the payload checksum, so a plain file write is what the cache
+  // outside the checksum, so a plain file write is what the cache
   // reads next.  The two constants are the storage layer's on-disk document
   // format; they are verified against the file before anything is written, so
   // a pin that moves them fails here rather than silently patching nothing.
   void SelfLinkChainHead(uint64_t head, uint64_t tail) {
     constexpr uint32_t kDocumentMagic = 0x5F129B14;
     constexpr std::streamoff kNextAlternateOffsetPos = 112;
+    // Format v9: the link packs the successor's stripe-relative offset in the
+    // low 48 bits and the successor's fill serial in the top 16; the document's
+    // own fill serial sits at byte 88.
+    constexpr std::streamoff kFillSerialPos = 88;
+    constexpr unsigned kLinkSerialShift = 48;
+    constexpr uint64_t kLinkOffsetMask = (uint64_t{1} << kLinkSerialShift) - 1;
     auto magic_at = [](std::fstream& f, uint64_t offset) {
       uint32_t magic = 0;
       f.clear();
@@ -155,15 +161,33 @@ class DurableOriginalsTest : public ::testing::Test {
     std::fstream volume(volume_file,
                         std::ios::in | std::ios::out | std::ios::binary);
     ASSERT_TRUE(volume.is_open());
-    uint64_t tail_relative = 0;
+    uint64_t link = 0;
     volume.seekg(static_cast<std::streamoff>(head) + kNextAlternateOffsetPos);
-    volume.read(reinterpret_cast<char*>(&tail_relative), sizeof(tail_relative));
+    volume.read(reinterpret_cast<char*>(&link), sizeof(link));
+    ASSERT_TRUE(volume.good());
+    const uint64_t tail_relative = link & kLinkOffsetMask;
+    // The link's top 16 bits must be the successor's own fill serial; this
+    // confirms the v9 layout assumed above before anything is written.
+    uint32_t tail_fill_serial = 0;
+    volume.seekg(static_cast<std::streamoff>(tail) + kFillSerialPos);
+    volume.read(reinterpret_cast<char*>(&tail_fill_serial),
+                sizeof(tail_fill_serial));
+    ASSERT_TRUE(volume.good());
+    ASSERT_EQ(link >> kLinkSerialShift,
+              static_cast<uint64_t>(static_cast<uint16_t>(tail_fill_serial)))
+        << "the link's serial must be the tail's fill serial";
+    uint32_t head_fill_serial = 0;
+    volume.seekg(static_cast<std::streamoff>(head) + kFillSerialPos);
+    volume.read(reinterpret_cast<char*>(&head_fill_serial),
+                sizeof(head_fill_serial));
     ASSERT_TRUE(volume.good());
     ASSERT_NE(tail_relative, 0u);
     ASSERT_LE(tail_relative, tail) << "the successor field is stripe-relative";
     const uint64_t stripe_base = tail - tail_relative;
     ASSERT_LT(stripe_base, head);
-    const uint64_t head_relative = head - stripe_base;
+    const uint64_t head_relative =
+        (head - stripe_base) |
+        (uint64_t{static_cast<uint16_t>(head_fill_serial)} << kLinkSerialShift);
     volume.clear();
     volume.seekp(static_cast<std::streamoff>(head) + kNextAlternateOffsetPos);
     volume.write(reinterpret_cast<const char*>(&head_relative),
@@ -552,11 +576,10 @@ TEST_F(DurableOriginalsTest, TheOriginalCannotBePreservedAcrossARefresh) {
 
 namespace {
 CapabilityMask GzipMask() {
-  return CapabilityMask(CapabilityMask::ImageFormat::kOriginal,
-                        CapabilityMask::Viewport::kDesktop,
-                        CapabilityMask::PixelDensity::k1x,
-                        CapabilityMask::SaveData::kOff,
-                        CapabilityMask::TransferEncoding::kGzip);
+  return CapabilityMask(
+      CapabilityMask::ImageFormat::kOriginal,
+      CapabilityMask::Viewport::kDesktop, CapabilityMask::PixelDensity::k1x,
+      CapabilityMask::SaveData::kOff, CapabilityMask::TransferEncoding::kGzip);
 }
 constexpr AlternateId kSentinelHash =
     static_cast<AlternateId>(SentinelId::kContentHash);
@@ -599,12 +622,11 @@ TEST_F(DurableOriginalsTest, DerivedPurgeKeepsTheOriginalAndRemovesTheRest) {
     ASSERT_TRUE(md->close_sync().has_value());
   }
   // Warm this process's RAM tier so a stale RAM copy would show.
-  ASSERT_TRUE(
-      cache_->ReadAlternate("/logo.svg", "example.com", "https", gzip)
-          .has_value());
+  ASSERT_TRUE(cache_->ReadAlternate("/logo.svg", "example.com", "https", gzip)
+                  .has_value());
 
-  auto removed = cache_->RemoveDerivedAlternates("/logo.svg", "example.com",
-                                                 "https");
+  auto removed =
+      cache_->RemoveDerivedAlternates("/logo.svg", "example.com", "https");
   ASSERT_TRUE(removed.has_value());
   // gzip copy, worker identity, content-hash oracle, tombstone, markdown
   EXPECT_EQ(*removed, 5u);
@@ -622,9 +644,8 @@ TEST_F(DurableOriginalsTest, DerivedPurgeKeepsTheOriginalAndRemovesTheRest) {
       "/logo.svg", "example.com", "https",
       static_cast<AlternateId>(SentinelId::kAgentMarkdown)));
   // The RAM copy went with the disk entry.
-  EXPECT_FALSE(
-      cache_->ReadAlternate("/logo.svg", "example.com", "https", gzip)
-          .has_value());
+  EXPECT_FALSE(cache_->ReadAlternate("/logo.svg", "example.com", "https", gzip)
+                   .has_value());
   auto original =
       cache_->ReadOriginalAlternate("/logo.svg", "example.com", "https");
   ASSERT_TRUE(original.has_value());
@@ -643,9 +664,9 @@ TEST_F(DurableOriginalsTest, DerivedPurgeKeepsAGenuineIdentityAndTheSidecar) {
   WriteVariant("/site.css", GzipMask(), "gzip-of-old");
   const std::vector<HeaderField> headers = {
       {"X-Content-Type-Options", "nosniff"}};
-  ASSERT_TRUE(cache_->WriteHeadersSidecar("/site.css", "example.com", "https",
-                                          headers)
-                  .has_value());
+  ASSERT_TRUE(
+      cache_->WriteHeadersSidecar("/site.css", "example.com", "https", headers)
+          .has_value());
 
   auto removed =
       cache_->RemoveDerivedAlternates("/site.css", "example.com", "https");
@@ -672,9 +693,8 @@ TEST_F(DurableOriginalsTest, DerivedPurgeReadsTheIdentityFlagFromDisk) {
   ASSERT_TRUE(WriteOriginalTo("/a.svg", "O", OriginalMetadata()));
   WriteVariant("/a.svg", CapabilityMask(), "derived",
                AlternateMetadata::kFlagWorkerProcessed);
-  ASSERT_TRUE(
-      cache_->ReadAlternate("/a.svg", "example.com", "https", identity)
-          .has_value());  // RAM now holds the worker-processed entry
+  ASSERT_TRUE(cache_->ReadAlternate("/a.svg", "example.com", "https", identity)
+                  .has_value());  // RAM now holds the worker-processed entry
 
   // A peer handle re-records a genuine identity over it.
   PageSpeedCacheConfig config;
@@ -690,13 +710,13 @@ TEST_F(DurableOriginalsTest, DerivedPurgeReadsTheIdentityFlagFromDisk) {
     auto wh = (*peer)->WriteAlternate("/a.svg", "example.com", "https",
                                       identity, 7, meta);
     ASSERT_TRUE(wh.has_value());
-    ASSERT_TRUE(wh->write_sync(std::as_bytes(std::span("genuine", 7)))
-                    .has_value());
+    ASSERT_TRUE(
+        wh->write_sync(std::as_bytes(std::span("genuine", 7))).has_value());
     ASSERT_TRUE(wh->close_sync().has_value());
   }
 
-  auto removed = cache_->RemoveDerivedAlternates("/a.svg", "example.com",
-                                                 "https");
+  auto removed =
+      cache_->RemoveDerivedAlternates("/a.svg", "example.com", "https");
   ASSERT_TRUE(removed.has_value());
   EXPECT_EQ(*removed, 0u);
   EXPECT_TRUE(
@@ -797,7 +817,7 @@ TEST_F(DurableOriginalsTest, OriginRefreshDropsAKeyWhoseChainCannotBeWalked) {
   const uint64_t tail = (*two)[1].disk_offset;
 
   // The document's fixed header carries its successor as a stripe-relative
-  // offset at a fixed position, outside the payload checksum.  Read the
+  // offset at a fixed position, outside the checksum.  Read the
   // head's successor field (it names the tail), derive the stripe base from
   // it, and re-point the head at itself.
   //

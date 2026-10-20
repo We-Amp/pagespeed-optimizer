@@ -17,7 +17,7 @@ const faq = [
   },
   {
     q: 'What replaces mod_pagespeed?',
-    a: 'mod_pagespeed 2.1, actively maintained by We-Amp: the native in-process module for Apache and nginx, with the same configuration syntax, the classic filter set, and the built-in admin console, plus, with the Apache module or the reverse-proxy deployment, an optimizer worker for SVG auto-vectorization, variant-aware caching, and zero-copy serving. The IIS package ships from the 1.15 packaging channel.',
+    a: 'mod_pagespeed 2.1, actively maintained by We-Amp: the native in-process module for Apache and nginx, with the same configuration syntax, the classic filter set, and the built-in admin console, plus, with the Apache module or the reverse-proxy deployment, an optimizer worker for SVG auto-vectorization, variant-aware caching, and zero-copy serving. The IIS package ships as a signed installer on the mod_pagespeed GitHub release.',
   },
   {
     q: 'Can I still use mod_pagespeed 1.13.35.2?',
@@ -25,7 +25,7 @@ const faq = [
   },
   {
     q: 'Which platform do I run mod_pagespeed 2.1 on?',
-    a: 'Apache and nginx: the native in-process module with the familiar config surface, the classic filter set, and the built-in admin console, plus the optimizer worker for SVG auto-vectorization, variant-aware caching, and zero-copy serving. The Apache packages install the configuration that points the module at the worker. The native nginx module runs on its own; to use the optimizer worker with nginx, run the reverse-proxy deployment. The IIS package ships from the 1.15 packaging channel.',
+    a: 'Apache and nginx: the native in-process module with the familiar config surface, the classic filter set, and the built-in admin console, plus the optimizer worker for SVG auto-vectorization, variant-aware caching, and zero-copy serving. The Apache packages install the configuration that points the module at the worker. The native nginx module runs on its own; to use the optimizer worker with nginx, run the reverse-proxy deployment. The IIS package ships as a signed installer on the mod_pagespeed GitHub release.',
   },
 ];
 
@@ -244,16 +244,15 @@ const jsonLd = [
       </p>
       <p>
         An existing mod_pagespeed configuration carries over &mdash; swap the packages, keep the
-        config. The IIS package ships from the 1.15 packaging channel.
+        config. The IIS package ships as a signed installer on the mod_pagespeed GitHub release.
       </p>
 
-      <pre><code>{`# nginx
-load_module modules/ngx_pagespeed.so;
+      <pre><code>{`# nginx (the package loads ngx_pagespeed_module.so itself)
 pagespeed on;
 pagespeed FileCachePath /var/cache/ngx_pagespeed;`}</code></pre>
 
-      <pre><code>{`# Apache
-LoadModule pagespeed_module modules/mod_pagespeed.so
+      <pre><code>{`# Apache (the package enables the module; on Debian/Ubuntu run
+# sudo a2enmod pagespeed if it was disabled)
 ModPagespeed on
 ModPagespeedFileCachePath /var/cache/mod_pagespeed`}</code></pre>
 
@@ -310,7 +309,8 @@ ModPagespeedFileCachePath /var/cache/mod_pagespeed`}</code></pre>
       </table>
       <p>
         Three further integrations are available separately, outside those packages. The IIS package
-        ships from the 1.15 packaging channel. For ASP.NET Core there is the
+        ships as a signed installer on the mod_pagespeed GitHub release. For ASP.NET Core there is
+        the
         <code>WeAmp.PageSpeed.AspNetCore</code> middleware, added in two lines of
         <code>Program.cs</code>, and the <code>WeAmp.PageSpeed.Sidecar</code> package, which runs a
         bundled nginx optimizer on loopback behind your Kestrel app.

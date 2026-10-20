@@ -39,8 +39,10 @@ export const DEFAULT_OFFER_DESCRIPTION =
   `to install and run. Support plans are sold separately; Priority and Enterprise add a private package repository (being set up): ${SUPPORT_URL}`;
 
 // Return policy intentionally omitted from structured data — /terms/ grants no
-// unconditional money-back guarantee; the EU 14-day withdrawal right is
-// conditional and extinguishable on use (Art 16(m)). Re-add a
+// unconditional money-back guarantee; the EU 14-day withdrawal right for a
+// service is conditional: a consumer who asked for it to start within the 14
+// days and then withdraws pays for what was provided (Art. 14(3)); it ends on
+// full performance (Art. 16(a)). Re-add a
 // MerchantReturnPolicy ONLY if a real 14-day money-back guarantee is adopted and
 // stated on /terms/ + /pricing/ (owner decision).
 

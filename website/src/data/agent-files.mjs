@@ -25,7 +25,7 @@ export const SUMMARY =
  */
 export const ABOUT = `We-Amp B.V. develops {{PRODUCT_NAME}} {{CURRENT_LINE}}, the converged continuation of the open-source mod_pagespeed project, originally developed at Google. It automatically optimizes web content (images, CSS, JavaScript, HTML): a native in-process module for Apache and nginx handles serving, and a separate optimizer worker does the heavy optimization work outside the web server. Drop-in compatible with the classic module: the same configuration directives and filters carry over, and no application code changes are required. {{PRODUCT_NAME}} {{CURRENT_LINE}} converges the {{V1_LINE}} module line (renumbered from {{V1_RENUMBERED_FROM}}, the forward-semver successor to the last upstream release, {{LAST_UPSTREAM_VERSION}}) with the ModPageSpeed {{V2_LINE}} engine, which continues as the optimizer worker; both predecessor lines upgrade to it in place.
 
-Heritage: mod_pagespeed, the open-source optimization core this product continues, powers {{BUILTWITH_SITES}} live sites today (per BuiltWith, {{BUILTWITH_AS_OF}}; {{BUILTWITH_HISTORICAL}} across its history). These are not We-Amp customers; they are the proof the optimization core works at scale.
+Heritage: mod_pagespeed, the open-source optimization core this product continues, powers {{BUILTWITH_SITES}} live sites (per BuiltWith, {{BUILTWITH_AS_OF}}; {{BUILTWITH_HISTORICAL}} across its history). These are not We-Amp customers; they are the proof the optimization core works at scale.
 
 What it does:
 
@@ -43,7 +43,7 @@ What it does:
 - Standard and Priority are bought at checkout; Enterprise runs on a master agreement. A fixed-price agent-readiness audit is also available: one site, one written report, one review call, {{AUDIT_PRICE}} per site excl. VAT.
 - No bandwidth fees, no per-request charges, no feature gates; the software itself costs nothing. Support terms: {{LICENSING_TERMS_URL}}
 
-Every documentation page below is also served as Markdown at its URL with a \`.md\` suffix (for example https://modpagespeed.com/docs/getting-started.md), and https://modpagespeed.com/llms-full.txt carries this index followed by the full text of every page.
+Every documentation page and every filter reference page below is also served as Markdown at its URL with a \`.md\` suffix (for example https://modpagespeed.com/docs/getting-started.md and https://modpagespeed.com/docs/filters/rewrite_images.md; the filters table is https://modpagespeed.com/docs/filters.md), and https://modpagespeed.com/llms-full.txt carries this index followed by the full text of every one of those pages. Every blog post is served as Markdown the same way (https://modpagespeed.com/blog/<slug>.md) and is listed in the Blog section below, but its text is not in llms-full.txt: the posts are dated commentary, so fetch one when you need it.
 
 We-Amp B.V., The Netherlands (founded {{COMPANY_FOUNDED_YEAR}}, KvK {{COMPANY_KVK}}); {{COMMERCIAL_EMAIL}} for support, partnerships and consulting; security@modpagespeed.com for vulnerability reports only. License: {{LICENSE_NAME}}; the LICENSE, NOTICE and THIRD-PARTY-NOTICES files ship with every distribution. mod_pagespeed is an open-source project originally developed at Google. {{PRODUCT_NAME}} {{CURRENT_LINE}} is developed by We-Amp B.V. and is not affiliated with or endorsed by Google.`;
 
@@ -98,6 +98,18 @@ export const SURFACES = [
         title: 'Savings calculator',
         description:
           'Estimate bandwidth and cost savings from automatic image optimization, CSS/JS minification, and variant-aware caching.',
+      },
+      {
+        path: '/how-it-works/',
+        title: 'How it works',
+        description:
+          'How the module works inside: asynchronous rewriting, CSS parsing and the metadata cache.',
+      },
+      {
+        path: '/packs/',
+        title: 'Rule packs',
+        description:
+          'The rule-pack catalogue: rules the module runs at the origin, starting with the free edge SEO pack.',
       },
       {
         path: '/pagespeed-markers/',
@@ -180,10 +192,14 @@ export const SURFACES = [
         path: '/vs/',
         title: 'Comparisons',
         description:
-          'Side-by-side comparisons with Cloudflare APO, Cloudinary, imgproxy, NitroPack, Thumbor and WP Rocket.',
+          'Side-by-side comparisons with Cloudflare APO, Cloudinary, imgix, imgproxy, NitroPack, ShortPixel, Thumbor and WP Rocket.',
       },
       { path: '/terms/', title: 'Terms', description: 'Terms of service.' },
-      { path: '/privacy/', title: 'Privacy', description: 'Privacy policy.' },
+      {
+        path: 'https://we-amp.com/privacy/',
+        title: 'Privacy',
+        description: 'The one privacy notice for every We-Amp website, this one included.',
+      },
     ],
   },
   {

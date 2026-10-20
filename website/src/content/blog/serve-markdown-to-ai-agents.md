@@ -5,11 +5,11 @@ date: 2026-06-22
 author: 'Otto van der Schaaf'
 tags: ['ai-agents', 'llms-txt', 'agent-optimize', 'content']
 product: '2.0'
-lastUpdated: 2026-07-04
+lastUpdated: 2026-10-13
 draft: false
 ---
 
-> **Status: experimental.** `agent_optimize` is an optimizer worker feature, off by default and gated behind a license entitlement (contact us to scope it, not a self-serve toggle). Not generally available.
+> **Status: experimental.** `agent_optimize` is an optimizer worker feature, off by default and enabled by an operator flag. Its flags and behavior may change in a future release.
 
 An AI agent requests your page and wants the article. What it gets is your full HTML document: the nav, the cookie banner markup, the script tags, the footer, and the content buried in the middle. It parses all of it and burns tokens on all of it. The signal it wanted is maybe 10% of the bytes you sent.
 
@@ -29,17 +29,14 @@ It can also build a site index. `--agent-optimize-llms-txt` synthesizes an `/llm
 
 The generation runs at your origin. There is no external service rendering your pages, no markdown-as-a-service vendor, no copy of your content on someone else's infrastructure. The render runs on the same worker that already optimizes the page, and the markdown lives in your cache, on your servers. The sovereignty argument that applies to the rest of the pipeline applies here too.
 
-## It ships off by default, behind a license entitlement
+## It ships off by default, as an experimental feature
 
-Be clear on availability, because this one has real gates.
-
-`agent_optimize` runs in the optimizer worker; the module alone does not produce it. It ships **off by default**. It is license-entitlement-gated, not part of the free baseline, and the entitlement is scoped with us directly rather than flipped on self-serve. On the module the request is recognized and the response carries `Vary: Accept`, but no markdown is ever rendered or served; the render depends on a headless browser only the optimizer worker runs. Turning it on takes three things:
+`agent_optimize` runs in the optimizer worker; the module alone does not produce it. It ships **off by default** and is experimental, so evaluate it in staging before you enable it in production. Operator flags turn it on. On the module alone, with `AgentOptimize on`, the request is recognized and HTML responses carry `Vary: Accept`, but no markdown is ever rendered or served; the render depends on a headless browser only the optimizer worker runs. Turning it on takes two things:
 
 1. **Enable browser analysis.** `agent_optimize` requires `--enable-browser-analysis`, because the markdown variant comes from a headless render.
-2. **Hold the entitlement.** Your license must include the `agent_optimize` entitlement. Without it, the flag does nothing.
-3. **Set the flag.** `--agent-optimize` (or `PAGESPEED_AGENT_OPTIMIZE=true`). Default: `false`.
+2. **Set the flag.** `--agent-optimize` (or `PAGESPEED_AGENT_OPTIMIZE=true`). Default: `false`.
 
-For the site index, `--agent-optimize-llms-txt` (env `PAGESPEED_AGENT_OPTIMIZE_LLMS_TXT=true`, default `false`) implies `agent_optimize`, so enabling the index turns on markdown negotiation too.
+For the site index, `--agent-optimize-llms-txt` (env `PAGESPEED_AGENT_OPTIMIZE_LLMS_TXT=true`, default `false`) requires `--agent-optimize`, so enable both.
 
 This is not a "just works out of the box" feature, and it would be dishonest to sell it as one. It is default-off and dependent on browser analysis being on.
 
@@ -64,7 +61,7 @@ Because everything is cached, the usual escape hatches apply. If a generated var
 
 Do not take the behavior on faith. Test it on staging.
 
-1. Enable `--enable-browser-analysis` and `--agent-optimize`, with an entitled license.
+1. Enable `--enable-browser-analysis` and `--agent-optimize`.
 2. Request an HTML URL with the header `Accept: text/markdown`. Confirm the response comes back as `Content-Type: text/markdown` with the page's main content rendered as markdown.
 3. Enable `--agent-optimize-llms-txt` and `GET /llms.txt`. You should see the synthesized index built from your sitemap.
 4. Check the worker stats endpoint, which exposes build and serve counters for the feature, so you can confirm it is generating and serving rather than silently no-opping.
@@ -75,4 +72,4 @@ Exact per-case responses, such as what happens on paths with no extractable cont
 
 Serving markdown is one piece of treating AI agents as a first-class audience at the origin. The broader argument for why the agentic web is better served from your own infrastructure than bolted on as a separate stack is the [agentic web at the origin](/blog/agentic-web-at-the-origin/) pillar. For the implementation detail behind the render, the [deep dive on the markdown and llms.txt code path](/blog/serve-markdown-to-ai-crawlers-llms-txt/) walks the shipped filter. If you first want the evidence that AI crawlers miss JavaScript-rendered content, [can AI read your website?](/blog/can-ai-read-your-website/) has the data. If you also want to know which agents are reaching you and which are impersonating real crawlers, the companion piece on [verifying AI crawlers with Web Bot Auth](/blog/verify-ai-crawlers-web-bot-auth/) covers the identity side. If your stack is .NET rather than nginx, the same 2.0 pipeline runs as [ASP.NET Core middleware](/blog/aspnet-core-middleware/).
 
-To turn it on, start with `--enable-browser-analysis` and an entitled license, then read the [agent_optimize configuration reference](/docs/agent-optimize/) for the full flag list and defaults.
+To turn it on, start with `--enable-browser-analysis` and `--agent-optimize`, then read the [agent_optimize configuration reference](/docs/agent-optimize/) for the full flag list and defaults.

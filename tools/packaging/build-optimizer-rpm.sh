@@ -386,7 +386,7 @@ ps_stale_web_config() { # [root]
 }
 # Cold-start notice: a pre-existing ROOT-OWNED pagespeed cache can never
 # be chowned or migrated.  The daemon cold-starts into
-# /var/cache/pagespeed-optimizer/v2.  One line (apt and dnf show only the
+# /var/cache/pagespeed-optimizer/v3.  One line (apt and dnf show only the
 # first line of a maintainer-script message), and only while it is news:
 # the daemon has not yet written a v2 cache volume, or the web-server
 # configuration still names a pre-2.1 path.  A host whose configuration
@@ -399,29 +399,31 @@ for legacy in /var/lib/pagespeed-optimizer /var/lib/pagespeed; do
      [ -n "\$(find "\$legacy" -mindepth 1 -maxdepth 1 -uid 0 -print -quit 2>/dev/null)" ]; then
     ps_action=""
     if ps_stale_web_config; then
-      ps_action=" ACTION REQUIRED: the daemon's default paths moved, but your web-server configuration still points at the old ones; set 'pagespeed DaemonVolumePath' (nginx) or ModPagespeedDaemonVolumePath / ModPagespeedDaemonSocketPath (Apache) to /var/cache/pagespeed-optimizer/v2/cache and /run/pagespeed-optimizer/notify.sock and restart the web server, otherwise in-place optimization stays OFF."
+      ps_action=" ACTION REQUIRED: the daemon's default paths moved, but your web-server configuration still points at the old ones; set 'pagespeed DaemonVolumePath' (nginx) or ModPagespeedDaemonVolumePath / ModPagespeedDaemonSocketPath (Apache) to /var/cache/pagespeed-optimizer/v3/cache and /run/pagespeed-optimizer/notify.sock and restart the web server, otherwise in-place optimization stays OFF."
     fi
     ps_cold=1
-    if [ -n "\$(find /var/cache/pagespeed-optimizer/v2 -name 'cache-*' -print -quit 2>/dev/null)" ]; then ps_cold=""; fi
+    if [ -n "\$(find /var/cache/pagespeed-optimizer/v3 -name 'cache-*' -print -quit 2>/dev/null)" ]; then ps_cold=""; fi
     # a configuration that names some OTHER volume path is not served by the v2 default
-    if ps_stale_web_config / DaemonVolumePath && ! ps_stale_web_config / /var/cache/pagespeed-optimizer/v2; then ps_cold=""; fi
+    if ps_stale_web_config / DaemonVolumePath && ! ps_stale_web_config / /var/cache/pagespeed-optimizer/v3; then ps_cold=""; fi
     if [ -n "\$ps_action\$ps_cold" ]; then
-      ps_msg="pre-existing root-owned cache detected at \$legacy; the daemon now runs unprivileged (user pagespeed) with a fresh cache at /var/cache/pagespeed-optimizer/v2, so the cache will cold-start; no content is migrated or chowned."
+      ps_msg="pre-existing root-owned cache detected at \$legacy; the daemon now runs unprivileged (user pagespeed) with a fresh cache at /var/cache/pagespeed-optimizer/v3, so the cache will cold-start; no content is migrated or chowned."
       echo "%{name}: \$ps_msg\$ps_action See https://modpagespeed.com/docs/deployment/"
     fi
     break
   fi
 done
-# Generation notice: the cache-directory generation moved from v1 to v2
-# (cache format change).  The daemon never reads v1/ again and nothing
+# Generation notice: the cache-directory generation moved from v2 to v3
+# (cache format change).  The daemon never reads v2/ again and nothing
 # deletes it.  It is raised only while a loaded web-server file still
-# names the v1 path (the configured volume path is what decides, not
+# names the v1 or v2 path (the configured volume path is what decides, not
 # whether the old directory is still on disk), as one line.  It repeats on
 # every configure until the configuration is fixed (intended; do not turn
 # it into a once-only notice).
-if ps_stale_web_config / /var/cache/pagespeed-optimizer/v1; then
-  echo "%{name}: ACTION REQUIRED: your web-server configuration still names the cache path /var/cache/pagespeed-optimizer/v1 (the cache format changed and the directory moved to v2); set 'pagespeed DaemonVolumePath' (nginx) or ModPagespeedDaemonVolumePath (Apache) to /var/cache/pagespeed-optimizer/v2/cache and restart the web server; the cache starts empty and refills as traffic arrives, and the v1 directory is left in place until you delete it."
-fi
+for ps_old in v1 v2; do
+  if ps_stale_web_config / /var/cache/pagespeed-optimizer/\$ps_old; then
+    echo "%{name}: ACTION REQUIRED: your web-server configuration still names the cache path /var/cache/pagespeed-optimizer/\$ps_old (the cache format changed and the directory moved to v3); set 'pagespeed DaemonVolumePath' (nginx) or ModPagespeedDaemonVolumePath (Apache) to /var/cache/pagespeed-optimizer/v3/cache and restart the web server; the cache starts empty and refills as traffic arrives, and the \$ps_old directory is left in place until you delete it."
+  fi
+done
 if [ -d /run/systemd/system ]; then
   systemctl daemon-reload || true
   systemctl enable $PKG.service >/dev/null 2>&1 || true
@@ -590,12 +592,14 @@ self_test() {
     "$(printf '%s\n' "$scripts" | grep -c 'pagespeed_cache_path' || true)"
   check "post names the native nginx directive" "2" \
     "$(printf '%s\n' "$scripts" | grep -c "'pagespeed DaemonVolumePath'")"
-  check "v1 notice is gated on the configured path, not the directory" "1" \
-    "$(printf '%s\n' "$scripts" | grep -c 'if ps_stale_web_config / /var/cache/pagespeed-optimizer/v1; then')"
-  check "v1 notice has no directory-presence clause" "0" \
-    "$(printf '%s\n' "$scripts" | grep -c -- '-d /var/cache/pagespeed-optimizer/v1' || true)"
+  check "stale-path notice loops over v1 and v2" "1" \
+    "$(printf '%s\n' "$scripts" | grep -c 'for ps_old in v1 v2; do')"
+  check "stale-path notice is gated on the configured path, not the directory" "1" \
+    "$(printf '%s\n' "$scripts" | grep -c -F 'if ps_stale_web_config / /var/cache/pagespeed-optimizer/$ps_old; then')"
+  check "stale-path notice has no directory-presence clause" "0" \
+    "$(printf '%s\n' "$scripts" | grep -c -F -- '-d /var/cache/pagespeed-optimizer/' || true)"
   check "cold-start notice stays silent for another configured volume path" "1" \
-    "$(printf '%s\n' "$scripts" | grep -c 'ps_stale_web_config / DaemonVolumePath && ! ps_stale_web_config / /var/cache/pagespeed-optimizer/v2')"
+    "$(printf '%s\n' "$scripts" | grep -c 'ps_stale_web_config / DaemonVolumePath && ! ps_stale_web_config / /var/cache/pagespeed-optimizer/v3')"
   check "post has no redundant ps_stale" "0" \
     "$(printf '%s\n' "$scripts" | grep -c 'ps_stale=' || true)"
   check "post restarts service" "1" \
@@ -671,7 +675,7 @@ self_test() {
   check "tmpfiles.d creates the cache dir 3770 pagespeed:pagespeed" "1" \
     "$(rpm2cpio "$rpmf" 2>/dev/null \
       | cpio -i --quiet --to-stdout "./usr/lib/tmpfiles.d/$PKG.conf" 2>/dev/null \
-      | grep -cE "^d +/var/cache/pagespeed-optimizer/v2 +3770 +pagespeed +pagespeed")"
+      | grep -cE "^d +/var/cache/pagespeed-optimizer/v3 +3770 +pagespeed +pagespeed")"
   # #1486: both env files get their group scope re-asserted by `z` lines on
   # every install/upgrade/boot.
   check "tmpfiles.d re-scopes the daemon.env secrets file" "1" \

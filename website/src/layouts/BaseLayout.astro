@@ -39,6 +39,14 @@ interface Props {
   // Keep a noindex page in site search anyway (Pagefind is separate from
   // search-engine indexing): the thin filter topic pages use this.
   searchable?: boolean;
+  // Open Graph object type. Blog posts pass 'article' together with the two
+  // timestamps below, which render as article:published_time / modified_time.
+  ogType?: 'website' | 'article';
+  articlePublished?: Date;
+  articleModified?: Date;
+  // Absolute canonical URL for a page whose content lives on another origin
+  // (/privacy/ points at the one We-Amp privacy notice on we-amp.com).
+  canonical?: string;
 }
 
 const {
@@ -51,6 +59,10 @@ const {
   breadcrumbSkipSegments = [],
   alternateMarkdown,
   searchable = false,
+  ogType = 'website',
+  articlePublished,
+  articleModified,
+  canonical,
 } = Astro.props;
 
 const is11Section = Astro.url.pathname.startsWith('/1.1/');
@@ -93,7 +105,7 @@ const ogImageType = /\.webp(\?|$)/i.test(resolvedOgImage)
 const rawPath = Astro.url.pathname;
 const canonicalPath =
   rawPath.endsWith('/') || /\.[a-z0-9]+$/i.test(rawPath) ? rawPath : `${rawPath}/`;
-const canonicalUrl = new URL(canonicalPath, 'https://modpagespeed.com').href;
+const canonicalUrl = canonical ?? new URL(canonicalPath, 'https://modpagespeed.com').href;
 
 const logoLight = '/logo.svg';
 const logoDark = '/logo-dark.svg';
@@ -270,7 +282,7 @@ const footerGroups: Array<{ title: string; links: FooterLink[] }> = [
       },
       { href: '/docs/release-notes/', label: 'Release notes' },
       { href: '/security/', label: 'Security' },
-      { href: '/docs/migrating-to-2-1/', label: 'Upgrade to 2.1' },
+      { href: '/docs/upgrade/', label: 'Upgrade' },
       { href: '/alternatives/', label: 'Alternatives' },
       { href: '/vs/', label: 'Comparisons' },
       { href: '/core-web-vitals/', label: 'Core Web Vitals' },
@@ -363,7 +375,7 @@ const footerGroups: Array<{ title: string; links: FooterLink[] }> = [
     title: 'Legal',
     links: [
       { href: '/terms/', label: 'Terms' },
-      { href: '/privacy/', label: 'Privacy' },
+      { href: 'https://we-amp.com/privacy/', label: 'Privacy' },
       { href: '/license/', label: 'Source license' },
     ],
   },
@@ -681,7 +693,17 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
     <meta property="og:image:type" content={ogImageType} />
     <meta property="og:image:width" content="1200" />
     <meta property="og:image:height" content="630" />
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={ogType} />
+    {
+      ogType === 'article' && articlePublished && (
+        <meta property="article:published_time" content={articlePublished.toISOString()} />
+      )
+    }
+    {
+      ogType === 'article' && articleModified && (
+        <meta property="article:modified_time" content={articleModified.toISOString()} />
+      )
+    }
     <meta property="og:url" content={canonicalUrl} />
     <meta property="og:site_name" content={PRODUCT_DISPLAY_NAME} />
     <meta name="twitter:card" content="summary_large_image" />
@@ -928,6 +950,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
               class="md:hidden p-2 text-text-muted hover:text-text-body"
               aria-label="Toggle menu"
               aria-expanded="false"
+              aria-controls="mobile-menu"
             >
               <svg
                 class="h-6 w-6"
@@ -1174,7 +1197,7 @@ const searchSection = sectionNames[pathSegments[0] ?? ''] ?? 'Site';
     {
       /* Site-wide low-friction "quick message" widget — fixed bottom-right
         launcher; sends a one-way message (optional reply email) to the
-        maintainer via the existing contact -> Telegram pipeline. */
+        maintainer via the existing contact -> email pipeline. */
     }
     <QuickMessage />
 

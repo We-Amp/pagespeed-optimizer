@@ -58,23 +58,31 @@
 #                 absent. Extraction is `tar ... -C <dest>`.
 #   --local  <p>  Candidate local tarball path to try before falling back to
 #                 the hub (e.g. a machine-local vendor dir). Optional; if
-#                 omitted only the hub path is used (e.g. auxiliary runners
-#                 with no local vendor drive).
+#                 omitted only the hub path is used (e.g. runners with no
+#                 local vendor drive).
 #   --prefix <n>  Tarball basename prefix (default: mod_pagespeed).
 #                 Every caller passes its vendor job's prefix explicitly.
 #   --stream      Extract by streaming `zstd -d | tar` instead of
 #                 `tar --zstd -xf`. Used by jobs whose tar lacks --zstd.
 #
-# Environment (hub coordinates come from GitHub repository variables; NOTHING
-# environment-specific is hardcoded here):
+# Environment (hub coordinates come from the runner environment, see
+# docs/ci/runner-environment.md; NOTHING environment-specific is hardcoded
+# here, and no coordinate is ever echoed to the log):
+#   CI_HUB_SSH          ssh target (user@host) for the shared dir. Preferred;
+#                       takes precedence over the CI_HUB_USER + address
+#                       variables below.
 #   CI_HUB_ADDR         ssh host/IP for the shared dir (default: resolved by
 #                       resolve-cache-host.sh from CI_HUB_HOST / CI_HUB_IP).
-#   CI_HUB_USER         ssh user (required only when the hub is contacted).
-#   CI_HUB_VENDOR_DIR   remote shared vendor dir (same).
+#   CI_HUB_USER         ssh user (required only when the hub is contacted and
+#                       CI_HUB_SSH is unset).
+#   CI_HUB_VENDOR_DIR   remote shared vendor dir (required when the hub is
+#                       contacted).
 #   FETCH_RETRIES       hub fetch attempts (default: 4).
 #   FETCH_BACKOFF       initial backoff seconds, doubled each retry (default: 3).
+#   LOCAL_RETRIES       checks of the --local tarball before the hub fallback
+#                       (default: 3); LOCAL_BACKOFF seconds between them (2).
 #   SSH_OPTS            ssh options (default: StrictHostKeyChecking=accept-new
-#                       + BatchMode=yes).
+#                       + BatchMode=yes + LogLevel=ERROR).
 #
 # Exit codes:
 #   0  workspace extracted and integrity-verified.
@@ -127,25 +135,38 @@ BASENAME="${PREFIX}-${SHORT_SHA}.tar.zst"
 # unset variable would fail a job that had everything it needed. The hard
 # requirement (and the address resolution, which costs TCP probes) is scoped to
 # resolve_hub() below, called from fetch_from_hub().
+CI_HUB_SSH="${CI_HUB_SSH:-}"
 CI_HUB_USER="${CI_HUB_USER:-}"
 CI_HUB_VENDOR_DIR="${CI_HUB_VENDOR_DIR:-}"
 FETCH_RETRIES="${FETCH_RETRIES:-4}"
 FETCH_BACKOFF="${FETCH_BACKOFF:-3}"
-SSH_OPTS="${SSH_OPTS:--o StrictHostKeyChecking=accept-new -o BatchMode=yes}"
+# A local copy that is short, fails its digest, or has no sidecar yet may be
+# mid-publish by a sibling runner on the same host: re-check it a few times
+# before falling back to the hub.
+LOCAL_RETRIES="${LOCAL_RETRIES:-3}"
+LOCAL_BACKOFF="${LOCAL_BACKOFF:-2}"
+SSH_OPTS="${SSH_OPTS:--o StrictHostKeyChecking=accept-new -o BatchMode=yes -o LogLevel=ERROR}"
 REMOTE_PATH=""
+SSH_TARGET=""
 
 log()  { echo "$*"; }
 warn() { echo "::warning::$*"; }
 err()  { echo "::error::$*" >&2; }
 
 # --- integrity --------------------------------------------------------------
-# verify_tarball <path> [<expected_sha_file>]
-#   Returns 0 only if the file is non-empty, passes `zstd -t`, and (when a
-#   .sha256 sidecar exists) matches it. Never extracts; pure verification so a
-#   partial can be rejected before it ever reaches `tar`.
+# verify_tarball <path> [<allow_no_sidecar>] [<expected_sha_file>]
+#   Returns 0 only if the file is non-empty, passes `zstd -t`, and matches its
+#   .sha256 sidecar. Never extracts; pure verification so a partial can be
+#   rejected before it ever reaches `tar`. Returns 1 for a bad file and 3 when
+#   the file is sound but has no usable sidecar and <allow_no_sidecar> is 0:
+#   the publisher writes the sidecar just after the tarball, so callers retry
+#   that case and only accept it on their last attempt (an older tarball
+#   predates the sidecar).
 verify_tarball() {
   local path="$1"
-  local sha_file="${2:-${path}.sha256}"
+  local allow_no_sidecar="${2:-1}"
+  local sha_file="${3:-${path}.sha256}"
+  local have_digest=0
 
   if [ ! -s "$path" ]; then
     warn "tarball missing or empty: $path"
@@ -166,6 +187,7 @@ verify_tarball() {
     local want got
     want="$(awk '{print $1}' "$sha_file" 2>/dev/null | head -1)"
     if [ -n "$want" ]; then
+      have_digest=1
       # Distinguish "no hash tool" (degrade to the zstd -t floor) from "the
       # hash tool FAILED" (the file vanished between zstd -t and here: a
       # Windows consumer's `zstd --rm` deleted it on 2026-10-03, and
@@ -182,12 +204,17 @@ verify_tarball() {
         got="$(printf '%s\n' "$out" | awk '{print $1}')"
       else
         got=""
+        have_digest=0
       fi
       if [ -n "$got" ] && [ "$got" != "$want" ]; then
         warn "tarball sha256 mismatch (want ${want:0:12}.. got ${got:0:12}..): $path"
         return 1
       fi
     fi
+  fi
+  if [ "$have_digest" -eq 0 ] && [ "$allow_no_sidecar" -eq 0 ]; then
+    warn "no usable .sha256 sidecar next to: $path"
+    return 3
   fi
   return 0
 }
@@ -203,30 +230,36 @@ verify_tarball() {
 #   needed when we actually reach over the network.
 resolve_hub() {
   [ -n "$REMOTE_PATH" ] && return 0
-  : "${CI_HUB_USER:?CI_HUB_USER must be set (GitHub repository variable) to fetch from the hub}"
-  : "${CI_HUB_VENDOR_DIR:?CI_HUB_VENDOR_DIR must be set (GitHub repository variable) to fetch from the hub}"
+  : "${CI_HUB_VENDOR_DIR:?CI_HUB_VENDOR_DIR must be set (runner environment) to fetch from the hub}"
 
-  if [ -z "${CI_HUB_ADDR:-}" ]; then
-    # resolve-cache-host.sh probes TCP/22 on every resolved address and prints
-    # the first that answers -- the bare first-resolved-address idiom this
-    # replaces pre-collapsed to whatever stale A-record DNS listed first and
-    # died with "No route to host" (see resolve-cache-host.sh's header).
-    CI_HUB_ADDR="$(bash "$(dirname "${BASH_SOURCE[0]}")/resolve-cache-host.sh" 2>/dev/null || true)"
-    : "${CI_HUB_ADDR:=${CI_HUB_IP:-}}"
+  if [ -n "${CI_HUB_SSH}" ]; then
+    # Preferred form: one ssh target (user@host) from the runner environment.
+    SSH_TARGET="${CI_HUB_SSH}"
+  else
+    : "${CI_HUB_USER:?CI_HUB_USER or CI_HUB_SSH must be set (runner environment) to fetch from the hub}"
+    if [ -z "${CI_HUB_ADDR:-}" ]; then
+      # resolve-cache-host.sh probes TCP/22 on every resolved address and prints
+      # the first that answers -- the bare first-resolved-address idiom this
+      # replaces pre-collapsed to whatever stale A-record DNS listed first and
+      # died with "No route to host" (see resolve-cache-host.sh's header).
+      CI_HUB_ADDR="$(bash "$(dirname "${BASH_SOURCE[0]}")/resolve-cache-host.sh" 2>/dev/null || true)"
+      : "${CI_HUB_ADDR:=${CI_HUB_IP:-}}"
+    fi
+    : "${CI_HUB_ADDR:?no hub address: set CI_HUB_SSH, or CI_HUB_ADDR / CI_HUB_HOST / CI_HUB_IP for resolve-cache-host.sh}"
+    SSH_TARGET="${CI_HUB_USER}@${CI_HUB_ADDR}"
   fi
-  : "${CI_HUB_ADDR:?no hub address: set CI_HUB_ADDR, or CI_HUB_HOST/CI_HUB_IP for resolve-cache-host.sh}"
 
-  REMOTE_PATH="${CI_HUB_USER}@${CI_HUB_ADDR}:${CI_HUB_VENDOR_DIR}/${BASENAME}"
+  REMOTE_PATH="${SSH_TARGET}:${CI_HUB_VENDOR_DIR}/${BASENAME}"
 }
 
 fetch_from_hub() {
   local dest_path="$1"
-  local attempt backoff
+  local attempt backoff allow
   resolve_hub
   backoff="$FETCH_BACKOFF"
 
   for attempt in $(seq 1 "$FETCH_RETRIES"); do
-    log "Fetching ${BASENAME} from the CI hub (${CI_HUB_ADDR}), attempt ${attempt}/${FETCH_RETRIES}..."
+    log "Fetching ${BASENAME} from the CI hub, attempt ${attempt}/${FETCH_RETRIES}..."
     # Best-effort sidecar fetch first (don't fail the attempt if it's absent --
     # older vendor runs predate the sidecar). --ignore-missing-args keeps rsync
     # from erroring when the sidecar doesn't exist on the source.
@@ -234,7 +267,10 @@ fetch_from_hub() {
       "${REMOTE_PATH}.sha256" "${dest_path}.sha256" >/dev/null 2>&1 || true
 
     if rsync -a -e "ssh ${SSH_OPTS}" "$REMOTE_PATH" "$dest_path"; then
-      if verify_tarball "$dest_path"; then
+      # An absent sidecar is retried until the last attempt: the publisher
+      # writes it just after the tarball.
+      allow=0; [ "$attempt" -lt "$FETCH_RETRIES" ] || allow=1
+      if verify_tarball "$dest_path" "$allow"; then
         # Extend in-flight TTL: re-stamp mtime so hub cleanup counts from
         # last consumption, not from vendoring. Best-effort; never fatal.
         # The sidecar is touched only when present: `touch` on an absent
@@ -242,7 +278,7 @@ fetch_from_hub() {
         # check (empty want-line) and outlives its tarball as an orphan.
         # SSH_OPTS is an intentional multi-token option list -> must word-split.
         # shellcheck disable=SC2029,SC2086
-        ssh ${SSH_OPTS} "${CI_HUB_USER}@${CI_HUB_ADDR}" \
+        ssh ${SSH_OPTS} "${SSH_TARGET}" \
           "touch ${CI_HUB_VENDOR_DIR}/${BASENAME} 2>/dev/null || true; [ ! -f ${CI_HUB_VENDOR_DIR}/${BASENAME}.sha256 ] || touch ${CI_HUB_VENDOR_DIR}/${BASENAME}.sha256 2>/dev/null || true" \
           >/dev/null 2>&1 || true
         log "Fetched and verified ${BASENAME} from the CI hub."
@@ -306,18 +342,27 @@ if [ -n "$LOCAL_TARBALL" ] && [ -r "$LOCAL_TARBALL" ]; then
   # present (touch would CREATE an empty one).
   touch "$LOCAL_TARBALL" 2>/dev/null || true
   [ ! -f "${LOCAL_TARBALL}.sha256" ] || touch "${LOCAL_TARBALL}.sha256" 2>/dev/null || true
-  if verify_tarball "$LOCAL_TARBALL"; then
-    log "Local tarball present and verified: $LOCAL_TARBALL"
+  local_ok=0
+  for local_attempt in $(seq 1 "$LOCAL_RETRIES"); do
+    allow=0; [ "$local_attempt" -lt "$LOCAL_RETRIES" ] || allow=1
+    if verify_tarball "$LOCAL_TARBALL" "$allow"; then local_ok=1; break; fi
+    [ "$local_attempt" -lt "$LOCAL_RETRIES" ] || break
+    [ -r "$LOCAL_TARBALL" ] || break
+    warn "Local tarball not yet usable (attempt ${local_attempt}/${LOCAL_RETRIES}); it may be mid-publish. Retrying in ${LOCAL_BACKOFF}s."
+    sleep "$LOCAL_BACKOFF"
+  done
+  if [ "$local_ok" -eq 1 ]; then
+    log "Local tarball present and verified: $(basename "$LOCAL_TARBALL")"
     CHOSEN="$LOCAL_TARBALL"
   else
     # CRITICAL FIX vs old behaviour: a present-but-partial local file no longer
     # reaches tar. We fall through and self-heal from the CI hub.
-    warn "Local tarball failed integrity on $(hostname): $LOCAL_TARBALL -- self-healing from the CI hub."
+    warn "Local tarball failed integrity: $(basename "$LOCAL_TARBALL") -- self-healing from the CI hub."
   fi
 elif [ -n "$LOCAL_TARBALL" ]; then
-  warn "Local tarball missing/unreadable on $(hostname): $LOCAL_TARBALL -- fetching from the CI hub."
+  warn "Local tarball missing/unreadable: $(basename "$LOCAL_TARBALL") -- fetching from the CI hub."
 else
-  log "No local candidate provided (auxiliary runner) -- fetching from the CI hub."
+  log "No local candidate provided -- fetching from the CI hub."
 fi
 
 # 2. Extract the verified local candidate. Verification passing is NOT the end
@@ -330,7 +375,7 @@ if [ -n "$CHOSEN" ]; then
     log "Workspace extracted into ${DEST}"
     exit 0
   fi
-  warn "Local tarball verified but extraction failed on $(hostname): $CHOSEN -- self-healing from the CI hub."
+  warn "Local tarball verified but extraction failed: $(basename "$CHOSEN") -- self-healing from the CI hub."
   # A failed extraction can leave a partial tree behind; clear it so the hub
   # copy lands in a clean $DEST (documented divergence, see the SYNC NOTE).
   rm -rf "${DEST:?}/"* 2>/dev/null || true
@@ -358,8 +403,8 @@ if fetch_from_hub "$FETCHED"; then
   fi
   rm -rf "$FETCH_DIR"
   err "Vendor tarball ${BASENAME} was fetched from the CI hub and passed integrity,"
-  err "but extraction into ${DEST} still failed on $(hostname). Investigate the"
-  err "runner's tar/zstd toolchain and the destination filesystem; re-running"
+  err "but extraction into ${DEST} still failed. Investigate the runner's"
+  err "tar/zstd toolchain and the destination filesystem; re-running"
   err "the job as-is will hit the same failure."
   exit 1
 fi
@@ -367,7 +412,7 @@ fi
 rm -rf "$FETCH_DIR"
 # The bracketed marker is a contract with the Required Checks Gate (ci.yml)
 # and is pinned by test_extract_vendor_tarball.sh case [3]; do not reword it.
-err "[vendor-tarball-unavailable] Vendor tarball ${BASENAME} is unavailable on $(hostname) AND could not be"
+err "[vendor-tarball-unavailable] Vendor tarball ${BASENAME} is unavailable locally AND could not be"
 err "fetched/verified from the CI hub after ${FETCH_RETRIES} attempts."
 err "Most likely the producing vendor job's artifact aged out of the CI hub's"
 err "retention window because only failed jobs were rerun -- GitHub does"

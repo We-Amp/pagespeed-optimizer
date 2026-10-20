@@ -151,7 +151,10 @@ const jsonLd = [webApp, faqPage];
         Only scan sites you own or are authorized to test. Scanned content is used only to produce
         this readability result and is not retained or shared beyond that. Your IP address is logged
         and rate-limited to 20 requests per minute per visitor to prevent abuse. See our
-        <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline">
+        <a
+          href="https://we-amp.com/privacy/"
+          class="text-interactive hover:text-interactive-hover underline"
+        >
           Privacy policy
         </a>
         .
@@ -329,6 +332,21 @@ const jsonLd = [webApp, faqPage];
           </details>
         ))}
       </div>
+      <p class="mt-3 text-sm text-text-muted">
+        Docs:{' '}
+        <a href="/docs/agent-optimize/" class="text-interactive underline">
+          Serve Markdown to AI agents
+        </a>
+        ,{' '}
+        <a href="/docs/web-bot-auth/" class="text-interactive underline">
+          Verify AI crawlers with Web Bot Auth
+        </a>{' '}
+        and{' '}
+        <a href="/docs/rsl-cap/" class="text-interactive underline">
+          Validate RSL license capability tokens
+        </a>
+        .
+      </p>
     </div>
   </section>
 
@@ -991,6 +1009,7 @@ const jsonLd = [webApp, faqPage];
       // The shared scan interface (?ui=v2) drives this page instead.
       if (document.documentElement.dataset.scanUi === 'v2') return;
       const API = new URLSearchParams(location.search).get('api') || '/ai-readability/api';
+      const loadedAt = Date.now();
       const $ = (s) => document.querySelector(s);
       const out = $('#ar-out');
       const esc = (s) =>
@@ -2157,7 +2176,7 @@ const jsonLd = [webApp, faqPage];
         // no wedge fires.
         const disclosure = wedgeActive
           ? '<p class="ar-disclosure">Submitting this sends us your email and a summary of this scan’s findings. ' +
-            'We use them only for this request; see our <a href="/privacy/">privacy policy</a>.</p>'
+            'We use them only for this request; see our <a href="https://we-amp.com/privacy/">privacy policy</a>.</p>'
           : '';
         return (
           '<h3 id="ar-h-next" class="ar-h3">What mod_pagespeed can do about it</h3>' +
@@ -2188,7 +2207,7 @@ const jsonLd = [webApp, faqPage];
           '</form>' +
           // Same per-request disclosure as the next-step wedge form (it posts to /contact).
           '<p class="ar-disclosure">Submitting this sends us your email and a summary of this scan’s findings. ' +
-          'We use them only for this request; see our <a href="/privacy/">privacy policy</a>.</p>' +
+          'We use them only for this request; see our <a href="https://we-amp.com/privacy/">privacy policy</a>.</p>' +
           // Own explicit aria-live for the same reason as #ar-next-msg (see nextStep).
           '<div id="ar-consent-msg" class="ar-next-msg" role="status" aria-live="polite" tabindex="-1"></div>' +
           '</section>'
@@ -2234,7 +2253,7 @@ const jsonLd = [webApp, faqPage];
           '</form>' +
           // Same per-request disclosure as the other wedge forms (it posts to /contact).
           '<p class="ar-disclosure">Submitting this sends us your email and a summary of this scan’s findings. ' +
-          'We use them only for this request; see our <a href="/privacy/">privacy policy</a>.</p>' +
+          'We use them only for this request; see our <a href="https://we-amp.com/privacy/">privacy policy</a>.</p>' +
           '<div id="ar-scripts-msg" class="ar-next-msg" role="status" aria-live="polite" tabindex="-1"></div>' +
           '</section>'
         );
@@ -2277,7 +2296,7 @@ const jsonLd = [webApp, faqPage];
           '</form>' +
           // Same per-request disclosure as the other wedge forms (it posts to /contact).
           '<p class="ar-disclosure">Submitting this sends us your email and a summary of this scan’s findings. ' +
-          'We use them only for this request; see our <a href="/privacy/">privacy policy</a>.</p>' +
+          'We use them only for this request; see our <a href="https://we-amp.com/privacy/">privacy policy</a>.</p>' +
           '<div id="ar-seo-msg" class="ar-next-msg" role="status" aria-live="polite" tabindex="-1"></div>' +
           '</section>'
         );
@@ -2296,7 +2315,7 @@ const jsonLd = [webApp, faqPage];
           '<label class="ar-field"><span class="ar-field-label">Your email</span>' +
           '<input id="ar-watch-email" type="email" autocomplete="email" required /></label>' +
           '<label class="ar-consent"><input id="ar-watch-consent" type="checkbox" required />' +
-          '<span>Email me about new checks and research. I can ask to be removed at any time; see the <a href="/privacy/">privacy policy</a>.</span></label>' +
+          '<span>Email me about new checks and research. I can ask to be removed at any time; see the <a href="https://we-amp.com/privacy/">privacy policy</a>.</span></label>' +
           '<button type="submit" data-umami-event="airead-watch">Keep me posted</button>' +
           '</form>' +
           // Own explicit aria-live for the same reason as #ar-next-msg (see nextStep).
@@ -2319,7 +2338,7 @@ const jsonLd = [webApp, faqPage];
           '<button type="submit" data-umami-event="airead-agents">Tell us</button>' +
           '</form>' +
           '<p class="ar-disclosure">Submitting this sends us your email, your answer and this scan’s URL. ' +
-          'We use them only for this request; see our <a href="/privacy/">privacy policy</a>.</p>' +
+          'We use them only for this request; see our <a href="https://we-amp.com/privacy/">privacy policy</a>.</p>' +
           '<div id="ar-agents-msg" class="ar-next-msg" role="status" aria-live="polite" tabindex="-1"></div>';
         return (
           '<section class="ar-sec" aria-labelledby="ar-h-watch">' +
@@ -2636,7 +2655,7 @@ const jsonLd = [webApp, faqPage];
               const res = await fetch(API + '/contact', {
                 method: 'POST',
                 headers: { 'content-type': 'application/json' },
-                body: JSON.stringify(payload),
+                body: JSON.stringify(Object.assign({}, payload, { t: loadedAt })),
               });
               const j = await res.json().catch(() => ({}));
               if (res.ok) {
@@ -2665,7 +2684,7 @@ const jsonLd = [webApp, faqPage];
           const res = await fetch(API + '/contact', {
             method: 'POST',
             headers: { 'content-type': 'application/json' },
-            body: JSON.stringify(payload),
+            body: JSON.stringify(Object.assign({}, payload, { t: loadedAt })),
           });
           return res.ok;
         } catch (_) {

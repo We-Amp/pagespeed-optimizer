@@ -3,7 +3,7 @@ title: 'Call the worker HTTP API'
 description: 'Optimizer worker HTTP API for mod_pagespeed 2.1: health, stats, Prometheus metrics, cache management, live config and WebSocket streaming, all via curl.'
 order: 66
 group: 'Reference'
-lastUpdated: 2026-09-19
+lastUpdated: 2026-10-18
 ---
 
 import { getRelease } from '../../lib/release';
@@ -32,7 +32,10 @@ With the in-process ASP.NET Core middleware
 port your ASP.NET Core app listens on (e.g. `http://localhost:5123/console/`)
 — not on `:9880`. The worker's own HTTP API stays bound to `127.0.0.1` on an
 ephemeral loopback port unless you set `Worker.ApiPort` explicitly. Substitute
-your app's origin for `localhost:9880` in the examples below.
+your app's origin for `localhost:9880` in the examples below. There is no
+authentication on these paths by default and the worker API token does not
+apply; see [Console](/docs/aspnet-configuration/#console-pagespeedconsole) to
+turn them off or gate them.
 :::
 
 All endpoints are prefixed with `/v1/`. The server supports HTTP/1.1 only

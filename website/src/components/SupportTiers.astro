@@ -11,11 +11,12 @@
 //
 // Every card CTA is a paid CTA and carries the cta_commercial event with the
 // tier's offer (buy-standard, buy-priority, enterprise), the page it sits on
-// (surface) and the tier as its position.
+// (surface) and the tier as its position. The line under the cards says the
+// private package repository is being set up (it is not a tier checkmark).
 
 import Icon from './Icon.astro';
 import Chip from './instrument/Chip.astro';
-import { SUPPORT_TIERS, formatEur } from '../data/product-facts.mjs';
+import { SUPPORT_TIERS, PRIVATE_REPO_LINE, formatEur } from '../data/product-facts.mjs';
 
 interface Props {
   /** Page slug for the umami `surface` property (e.g. "pricing"). */
@@ -74,3 +75,6 @@ const EMPHASIZED = 'priority';
     );
   })}
 </div>
+<p class="mt-4 text-sm text-text-muted" data-private-repo>
+  {PRIVATE_REPO_LINE}
+</p>

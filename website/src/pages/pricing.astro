@@ -37,9 +37,9 @@ const softwareVersion = await productSoftwareVersion();
 const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
 
 // Terms version subscriptions are made under. MUST stay in lockstep with
-// the "Version YYYY-MM" stamp in src/pages/terms.astro —
+// the "Version YYYY-MM[-DD]" stamp in src/pages/terms.astro —
 // test/sync/terms-version-sync.test.ts guards it.
-const TERMS_VERSION_WEB = '2026-10';
+const TERMS_VERSION_WEB = '2026-10-20';
 
 // The software itself costs nothing (a zero-price Offer is accurate and keeps
 // the SoftwareApplication markup valid); each support tier is its own priced
@@ -102,6 +102,7 @@ const auditPoints = [
   </section>
 
   <section id="tiers" class="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8 pb-8 scroll-mt-20">
+    <h2 class="sr-only">Support tiers</h2>
     <SupportTiers surface="pricing" />
     <div class="mt-6 rounded-lg border border-border bg-bg-secondary p-5 text-sm text-text-muted">
       <p data-response-targets>
@@ -189,7 +190,7 @@ const auditPoints = [
       class="readout-plate flex flex-col gap-4 px-5 py-5 md:flex-row md:items-center md:justify-between"
     >
       <div>
-        <h2 class="font-semibold text-text-body">Hosting provider?</h2>
+        <h2 class="font-semibold text-text-body">For hosting providers</h2>
         <p class="mt-1 text-sm text-text-muted max-w-3xl">
           The hosting partner program covers multi-tenant fleets: Priority-level support for your
           second- and third-line team, plus cPanel/EA4 and distribution-channel upkeep. Unlimited
@@ -276,7 +277,10 @@ const auditPoints = [
           terms of service
         </a>{' '}
         (version {TERMS_VERSION_WEB}). We use what you send only to reply; see the{' '}
-        <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline">
+        <a
+          href="https://we-amp.com/privacy/"
+          class="text-interactive hover:text-interactive-hover underline"
+        >
           privacy policy
         </a>
         .

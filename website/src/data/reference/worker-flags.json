@@ -16,8 +16,8 @@
     {
       "name": "--cache-dir",
       "arg": "DIR",
-      "default": "/var/cache/pagespeed-optimizer/v2",
-      "description": "Cache directory; the volume, shared config and serve-stats live inside it (default: /var/cache/pagespeed-optimizer/v2)",
+      "default": "/var/cache/pagespeed-optimizer/v3",
+      "description": "Cache directory; the volume, shared config and serve-stats live inside it (default: /var/cache/pagespeed-optimizer/v3)",
       "section": "Options",
       "platform": null
     },

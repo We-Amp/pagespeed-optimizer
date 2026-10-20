@@ -16,11 +16,11 @@ test.describe('/terms/ page', () => {
     await expect(page.locator('main h1')).toHaveText(/Terms of Service/i);
   });
 
-  test('displays version identifier 2026-10', async ({ page }) => {
+  test('displays version identifier 2026-10-20', async ({ page }) => {
     await page.goto('/terms/');
     // Scoped to main: the telemetry strip shows a capture date (2026-10-..)
     // until its live value replaces it, which also matches a bare '2026-10'.
-    await expect(page.locator('main').getByText('Version 2026-10')).toBeVisible();
+    await expect(page.locator('main').getByText('Version 2026-10-20')).toBeVisible();
   });
 
   test('displays effective date October 2026', async ({ page }) => {
@@ -30,9 +30,8 @@ test.describe('/terms/ page', () => {
 
   test('links to privacy policy', async ({ page }) => {
     await page.goto('/terms/');
-    // The privacy policy is now served locally at /privacy/ (was an off-site
-    // link to www.we-amp.com/privacy/).
-    const privacyLink = page.locator('main a[href="/privacy/"]');
+    // The one We-Amp privacy notice lives on we-amp.com (apex, never www).
+    const privacyLink = page.locator('main a[href="https://we-amp.com/privacy/"]');
     await expect(privacyLink.first()).toBeVisible();
   });
 
@@ -71,7 +70,10 @@ test.describe('/terms/ page', () => {
     await page.goto('/terms/');
     const main = page.locator('main');
     await expect(main).toContainText('Apache License 2.0');
-    await expect(main).toContainText('subscriber repository');
+    await expect(main).toContainText('private package repository');
+    await expect(main).not.toContainText('SLA-backed');
+    await expect(main).not.toContainText('hardened');
+    await expect(main).not.toContainText('when available');
     await expect(main).not.toContainText('X-PageSpeed-Warn');
     await expect(main).not.toContainText('unlicensed');
     await expect(main).not.toContainText('license key');
@@ -84,27 +86,23 @@ test.describe('/terms/ page', () => {
 });
 
 test.describe('/privacy/ page', () => {
-  test('is served locally and references the corporate policy', async ({ page }) => {
-    // The privacy policy is now a local page (it previously redirected off-site
-    // to www.we-amp.com/privacy/). It must render in place — no off-site
-    // redirect — and point to the corporate policy for the full text.
-    const response = await page.goto('/privacy/');
-    expect(response?.status()).toBe(200);
-    expect(page.url()).toContain('/privacy/');
-    expect(page.url()).not.toContain('we-amp.com');
-    await expect(page.locator('main h1')).toContainText(/Privacy/i);
-    await expect(page.locator('a[href="https://we-amp.com/privacy/"]').first()).toBeVisible();
+  // Production answers /privacy/ with a 301 to https://we-amp.com/privacy/ from
+  // the server's redirect map. The dev server serves the pointer page, whose
+  // canonical is the notice on we-amp.com.
+  test('points at the one privacy notice on we-amp.com', async ({ page }) => {
+    await page.goto('/privacy/');
+    await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
+      'href',
+      'https://we-amp.com/privacy/',
+    );
+    await expect(page.locator('main a[href="https://we-amp.com/privacy/"]')).toBeVisible();
   });
 
-  test('describes the software as sending nothing, no heartbeat', async ({ page }) => {
-    await page.goto('/privacy/');
-    const main = page.locator('main');
-    await expect(main).toContainText('sends no telemetry');
-    await expect(main).not.toContainText('heartbeat');
-    await expect(main).not.toContainText('license key');
-    await expect(main).not.toContainText('license token');
-    // GeoIP is a local lookup on our own server; the DB-IP Lite attribution stays.
-    await expect(main).toContainText('not sent to DB-IP');
-    await expect(main.locator('a[href="https://db-ip.com"]')).toBeVisible();
+  test('the footer links the notice on we-amp.com', async ({ page }) => {
+    await page.goto('/');
+    await expect(
+      page.locator('footer').getByRole('link', { name: 'Privacy', exact: true }),
+    ).toHaveAttribute('href', 'https://we-amp.com/privacy/');
+    await expect(page.locator('a[href="/privacy/"]')).toHaveCount(0);
   });
 });

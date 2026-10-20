@@ -1050,8 +1050,8 @@ PageSpeedCache::RemoveDerivedAlternates(std::string_view url,
       static_cast<AlternateId>(SentinelId::kOriginalContent);
   constexpr auto kSidecar =
       static_cast<AlternateId>(SentinelId::kHeadersSidecar);
-  const AlternateId identity_id = MaskToAlternateId(
-      static_cast<uint8_t>(CapabilityMask().Encode() & 0xFF));
+  const AlternateId identity_id =
+      MaskToAlternateId(static_cast<uint8_t>(CapabilityMask().Encode() & 0xFF));
 
   // Is the identity slot a front end's genuine recording, or a worker-derived
   // copy?  Read the ON-DISK entry: this process's RAM tier is write-around, so

@@ -143,6 +143,11 @@ uint16_t ReadBigEndian16(std::string_view s, size_t offset) {
 
 // The sidecar's closed set of carried field names.
 //
+// A name is listed when its value describes the resource or the server's
+// policy and is the same for every request.  Names whose value is stamped per
+// request, connection or trace (a CDN request id, Set-Cookie, Server-Timing)
+// are never listed.
+//
 // `vary` is carried, and its ADMISSION is decided by the store-side Vary
 // predicate rather than by membership here: a response whose Vary the cache
 // key cannot honour is not storable at all, so there is nothing to carry.
@@ -150,15 +155,33 @@ uint16_t ReadBigEndian16(std::string_view s, size_t offset) {
 // byte for byte instead of being re-synthesised from the tokens the cache
 // happened to understand.
 constexpr std::string_view kAllowlist[] = {
-    "content-security-policy",       //
-    "access-control-allow-origin",   //
-    "x-content-type-options",        //
-    "referrer-policy",               //
-    "cross-origin-opener-policy",    //
-    "cross-origin-embedder-policy",  //
-    "cross-origin-resource-policy",  //
-    "permissions-policy",            //
-    "vary",                          //
+    "content-security-policy",            //
+    "access-control-allow-origin",        //
+    "x-content-type-options",             //
+    "referrer-policy",                    //
+    "cross-origin-opener-policy",         //
+    "cross-origin-embedder-policy",       //
+    "cross-origin-resource-policy",       //
+    "permissions-policy",                 //
+    "vary",                               //
+    "link",                               //
+    "strict-transport-security",          //
+    "x-frame-options",                    //
+    "x-xss-protection",                   //
+    "x-permitted-cross-domain-policies",  //
+    "origin-agent-cluster",               //
+    "x-dns-prefetch-control",             //
+    "timing-allow-origin",                //
+    "access-control-expose-headers",      //
+    "reporting-endpoints",                //
+    "nel",                                //
+    "x-powered-by",                       //
+    "x-pingback",                         //
+    "x-robots-tag",                       //
+    "content-language",                   //
+    "content-disposition",                //
+    "alt-svc",                            //
+    "allow",                              //
 };
 
 // Reproduced by the entry metadata itself, so the sidecar does not carry them
@@ -187,6 +210,34 @@ bool CspCarriesNonce(std::string_view csp_value) {
     }
   }
   return false;
+}
+
+bool LinkCarriesNonce(std::string_view link_value) {
+  constexpr std::string_view kNeedle = "nonce";
+  bool in_target = false;
+  bool in_quotes = false;
+  for (size_t i = 0; i < link_value.size(); ++i) {
+    const char c = link_value[i];
+    if (in_target) {
+      in_target = c != '>';
+    } else if (in_quotes) {
+      if (c == '\\' && i + 1 < link_value.size()) {
+        ++i;
+      } else if (c == '"') {
+        in_quotes = false;
+      }
+    } else if (c == '"') {
+      in_quotes = true;
+    } else if (c == '<') {
+      in_target = true;
+    }
+    if (!in_target && i + kNeedle.size() <= link_value.size() &&
+        AsciiEqualsIgnoreCase(link_value.substr(i, kNeedle.size()), kNeedle)) {
+      return true;
+    }
+  }
+  // An unclosed target is malformed: never carry it.
+  return in_target;
 }
 
 std::span<const std::string_view> HeadersSidecarAllowlist() {
@@ -229,6 +280,14 @@ SidecarClassification ClassifyForHeadersSidecar(
       // reasons stay complete.
       never_optimized = true;
       add_reason("nonce-csp");
+      continue;
+    }
+
+    // A per-response nonce in a preload hint must never be replayed.
+    if (AsciiEqualsIgnoreCase(field.name, "link") &&
+        LinkCarriesNonce(field.value)) {
+      never_optimized = true;
+      add_reason("nonce-link");
       continue;
     }
 

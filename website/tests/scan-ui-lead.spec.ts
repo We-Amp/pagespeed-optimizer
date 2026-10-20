@@ -232,6 +232,7 @@ test.describe('the one lead form', () => {
       'consulting',
     ]);
     expect(posted.map((p) => p.wedge)).toEqual(['tollbooth', 'agentpass', 'edge-seo', '']);
+    for (const p of posted) expect(typeof p.t).toBe('number');
     expect(String(posted[2].message)).toContain(
       'Operator note / crawl volume: sites: 12; WordPress',
     );
@@ -432,7 +433,12 @@ test.describe('v1 and v2 send the same lead', () => {
         ),
       ).toBeVisible();
       expect(v2.posted).toHaveLength(1);
-      expect(v2.posted[0]).toEqual(v1.posted[0]);
+      // The page-load timestamp differs per page; the rest of the body is the same.
+      expect(typeof v1.posted[0].t).toBe('number');
+      expect(typeof v2.posted[0].t).toBe('number');
+      const { t: _t1, ...body1 } = v1.posted[0];
+      const { t: _t2, ...body2 } = v2.posted[0];
+      expect(body2).toEqual(body1);
     });
   }
 });

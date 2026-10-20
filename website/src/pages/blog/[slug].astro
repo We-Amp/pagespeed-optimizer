@@ -165,6 +165,10 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
   description={post.data.description}
   ogImage={cardUrl}
   jsonLd={jsonLdProp}
+  alternateMarkdown={`/blog/${post.id}.md`}
+  ogType="article"
+  articlePublished={post.data.date}
+  articleModified={post.data.lastUpdated}
 >
   <article class="mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-20">
     <header>
@@ -219,7 +223,7 @@ const jsonLdProp = [jsonLd, howToJsonLd, faqJsonLd].filter(
             Signed builds · Current dependency graph · Apache License 2.0
           </p>
           <p class="mt-2 text-sm text-text-muted">
-            The IIS package ships from the 1.15 packaging channel.
+            The IIS package ships as a signed installer on the mod_pagespeed GitHub release.
           </p>
           <div class="mt-5 flex flex-wrap items-center gap-3">
             <a

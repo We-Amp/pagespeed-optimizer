@@ -5,7 +5,7 @@ date: 2026-05-20
 author: 'Otto van der Schaaf'
 tags: ['deprecation', 'history', 'downloads']
 draft: false
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-18
 ---
 
 If you landed here, you probably ran something like this and got a
@@ -197,19 +197,23 @@ $ httpd -M 2>&1 | grep pagespeed
  pagespeed_module (shared)
 
 $ curl -sI http://localhost/ | grep -i pagespeed
-X-Mod-Pagespeed: 1.17.0
+X-Mod-Pagespeed: <version>
 ```
+
+The header carries the version of the package you installed.
 
 ```bash
 # nginx
 $ nginx -T 2>&1 | grep -i pagespeed
-load_module modules/ngx_pagespeed.so;
+load_module modules/ngx_pagespeed_module.so;
 pagespeed on;
 ...
 
 $ curl -sI http://localhost/ | grep -iE 'page-?speed'
-X-Page-Speed: 1.17.0
+X-Page-Speed: <version>
 ```
+
+The header carries the version of the package you installed.
 
 ### Path 2: the optimizer worker, from the 2.0 re-architecture {#path-2-modpagespeed-20-the-rewrite}
 
@@ -241,7 +245,7 @@ server, the modern equivalents:
 - **IIS:** the [download page](/download/) ships an MSI installer. The IIS package
   ships from the 1.15 packaging channel.
 - **ASP.NET Core:** the [WeAmp.PageSpeed.AspNetCore NuGet
-  middleware](/go/nuget?from=blog-google-dl-ssl)
+  middleware](/go/nuget/?from=blog-google-dl-ssl)
   registers the mod_pagespeed 2.1 optimization core as ASP.NET Core middleware.
 
 ## What to do with the existing install

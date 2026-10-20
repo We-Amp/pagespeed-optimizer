@@ -3,12 +3,12 @@ title: 'ASP.NET Core in production'
 description: 'Production deployment of the mod_pagespeed 2.1 ASP.NET Core middleware: configuration, health probes, multi-instance scale and zero-downtime restarts.'
 order: 51
 group: 'Operate'
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-18
 faq:
   - q: 'Does scaling the ASP.NET Core middleware across multiple instances add per-server cost?'
     a: 'No. mod_pagespeed 2.1 is licensed under Apache-2.0 and free to run in development and in production, so scaling out adds no software cost — size replica counts for traffic and availability.'
   - q: 'What does the /healthz check report?'
-    a: '`Healthy`, with the cache entry count and the middleware version, while the cache is operational; `Unhealthy` when the cache cannot be opened — wire monitoring to alert on `Unhealthy`.'
+    a: 'The plain-text status: `Healthy` while the cache is operational, `Unhealthy` when the cache cannot be opened — wire monitoring to alert on `Unhealthy`.'
 ---
 
 import NugetCmd from '../../components/release/NugetCmd.astro';
@@ -29,8 +29,8 @@ in-process in your request pipeline and, by default, launches the `factory_worke
 binary from the same package as a child process to do the expensive work — image
 transcoding and critical-CSS extraction — out of process. If you need an in-process
 native module for Apache, nginx or IIS instead, see [mod_pagespeed 2.1](/), where
-the module runs in-process in the web server. The IIS package ships from the 1.15
-packaging channel.
+the module runs in-process in the web server. The IIS package ships as a signed
+installer on the mod_pagespeed GitHub release.
 
 ## Prerequisites
 
@@ -67,7 +67,8 @@ any middleware that writes to the response body:
 using WeAmp.PageSpeed.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddPageSpeed(builder.Configuration);
+builder.Services.AddRazorPages();
+builder.Services.AddPageSpeed(); // binds the "PageSpeed" configuration section
 
 var app = builder.Build();
 app.UsePageSpeed();
@@ -79,6 +80,18 @@ app.Run();
 Bind a `PageSpeed` section in your configuration. For the full set of
 `PageSpeedOptions` properties and hot-reload semantics, see the
 [ASP.NET Core configuration reference](/docs/aspnet-configuration/).
+
+Turn the web console off in production. By default the middleware serves it at
+`/console/`, with its worker API proxy under `/v1/*`, from your site's root
+without authentication. Set it in the production environment, as an
+environment variable or in `appsettings.Production.json`:
+
+```bash
+PageSpeed__Console__Enabled=false
+```
+
+If you need the console in production, gate it with your own authentication
+instead; see [Console](/docs/aspnet-configuration/#console-pagespeedconsole).
 
 ## Cache backing
 
@@ -109,22 +122,32 @@ After deploy, confirm the middleware is active:
     <XPageSpeedExample line="2.1" surface="middleware" />
     {`
 
-curl -s https://<your-domain>/healthz | jq .
-# "status": "Healthy"
-# entries, version`}
+curl -s https://<your-domain>/healthz
+# Healthy
+
+curl -s -o /dev/null -w '%{http_code}\n' https://<your-domain>/v1/config
+# 404 with the console off; 401, 403 or 302 when gated`}
   </code>
 </pre>
 
-The `/healthz` endpoint reports `Healthy`, with the cache entry count and the
-middleware version, while the cache is operational, and `Unhealthy` when the
-cache cannot be opened — wire your monitoring to alert on `Unhealthy`.
+The `/healthz` endpoint answers with the plain-text status: `Healthy` while the
+cache is operational, `Unhealthy` when the cache cannot be opened — wire
+monitoring to alert on `Unhealthy`. The check also records the cache entry
+count and the middleware version as health-check data; the default
+`MapHealthChecks` response shows only the status, so add a JSON
+`ResponseWriter` to see them.
 
-The worker process exposes its own diagnostic console SPA out-of-process. The
-middleware starts the worker with `--api-no-auth` on a loopback-only management
-port (`PageSpeed.Worker.ApiPort`; an ephemeral port when left at `0`), so the
-API answers anything on the host and is never reachable off-host — the worker
-refuses a non-loopback bind without a token. Reach it from the host or through
-an SSH tunnel rather than by publishing the port.
+The `/v1/config` check must not return the optimizer's configuration, JSON with
+keys such as `webp_quality`: that would mean anyone can read and change it
+through the console proxy. A `200` from your own app (its own `/v1/config`
+route, or a catch-all or SPA fallback) is not the console.
+
+The middleware starts the worker with `--api-no-auth` on a loopback-only
+management port (`PageSpeed.Worker.ApiPort`; an ephemeral port when left at
+`0`). The worker refuses a non-loopback bind without a token, so the port
+itself is not reachable off-host; never publish it. The worker API is still
+reachable off-host through the middleware's console proxy unless you turn the
+console off or gate it, as above.
 
 ## Scale across multiple instances
 

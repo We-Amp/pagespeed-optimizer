@@ -50,7 +50,8 @@ public sealed class CacheWriter : IDisposable
         int err = NativePageSpeed.WriteClose(_handle.DangerousGetHandle());
         // Always mark invalid: ps_write_close frees the native handle
         // regardless of error return, so WriteAbort must not be called.
-        _handle.SetHandleAsInvalid();
+        // SetNativeFreed also drops the reference on the owning cache.
+        _handle.SetNativeFreed();
         NativeCheck.ThrowOnError(err);
     }
 

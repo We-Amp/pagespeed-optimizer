@@ -165,7 +165,7 @@ app.Run();`;
     </SectionHeader>
 
     <div class="mt-8 flex flex-wrap gap-3">
-      <a href="/go/nuget?pkg=aspnetcore" class="btn-primary" data-umami-event="cta_aspnet_nuget">
+      <a href="/go/nuget/?pkg=aspnetcore" class="btn-primary" data-umami-event="cta_aspnet_nuget">
         Get it on NuGet
       </a>
       <a
@@ -255,8 +255,8 @@ app.Run();`;
       </div>
       <p class="mt-4 text-sm text-text-annotation">
         The worker the middleware starts adds viewport- and density-aware variants. The native IIS
-        module does WebP and AVIF transcoding without them. The IIS package ships from the 1.15
-        packaging channel.
+        module does WebP and AVIF transcoding without them. The IIS package ships as a signed
+        installer on the mod_pagespeed GitHub release.
         <a
           href="/blog/aspnet-core-image-optimization-c-sharp/"
           class="text-interactive hover:text-interactive-hover underline"
@@ -401,7 +401,7 @@ app.Run();`;
         </p>
         <div class="mt-6 flex flex-wrap gap-3">
           <a
-            href="/go/nuget?pkg=aspnetcore"
+            href="/go/nuget/?pkg=aspnetcore"
             class="btn-primary"
             data-umami-event="cta_aspnet_nuget_footer"
           >
@@ -467,7 +467,7 @@ app.Run();`;
         </li>
         <li>
           <a
-            href="/go/nuget?pkg=sidecar"
+            href="/go/nuget/?pkg=sidecar"
             class="text-interactive hover:text-interactive-hover underline"
           >
             {PKG_SIDECAR} on NuGet

@@ -42,8 +42,9 @@ namespace pagespeed {
 //      it at all.  This gate COMPOSES with that predicate; it does not
 //      re-implement it.
 //
-//   2. A NONCE-BEARING CSP IS NEVER STORED.  A CSP nonce is per-response by
-//      construction: replaying it defeats the policy it is part of.  A CSP
+//   2. A NONCE-BEARING CSP OR LINK IS NEVER STORED.  A nonce is per-response
+//      by construction: replaying it defeats the policy it is part of (or
+//      hands every client a stale nonce in a preload hint).  A CSP or Link
 //      that carries one puts the URL in the never-optimized class, and it is
 //      a HARD refusal — not "store the other headers and drop this one".
 //
@@ -74,7 +75,7 @@ enum class SidecarVerdict : uint8_t {
   // correctly, just not optimized in place.  This is the fall-through class,
   // and it is a normal outcome, not an error.
   kFallThrough = 1,
-  // A Content-Security-Policy carrying a nonce.  Distinguished from
+  // A Content-Security-Policy or Link carrying a nonce.  Distinguished from
   // kFallThrough because it is not a gap to be closed later: the class is
   // never optimized, permanently, by construction.
   kNeverOptimized = 2,
@@ -89,6 +90,7 @@ struct SidecarClassification {
   //   "unreconstructible-header:<lowercased name>"
   //   "vary-unstorable:<combined vary value>"
   //   "nonce-csp"
+  //   "nonce-link"
   //   "malformed-field:<lowercased name>"     (a name that is not a token, or
   //                                            a value carrying CR/LF/NUL)
   //   "field-too-large:<lowercased name>"
@@ -135,6 +137,13 @@ SidecarClassification ClassifyForHeadersSidecar(
 // a per-response nonce to every subsequent client and silently defeats the
 // policy.  The gate takes the cheap error.
 bool CspCarriesNonce(std::string_view csp_value);
+
+// The same rule for a Link value: any ASCII-case-insensitive `nonce` outside
+// the `<...>` targets counts, whatever the spelling of the parameter
+// (`nonce=`, `nonce = `, `nonce*=`), so a URL that merely contains the word is
+// not affected.  A per-response nonce in a preload hint must never be
+// replayed.
+bool LinkCarriesNonce(std::string_view link_value);
 
 // Field names the sidecar carries, lowercased, as one closed set.  Exposed so
 // a caller can state the boundary rather than infer it from behaviour; the

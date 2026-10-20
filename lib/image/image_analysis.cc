@@ -17,12 +17,15 @@
 #include <memory>
 
 #include "lib/base/message_handler.h"
+#include "lib/image/gif_reader.h"
 #include "lib/image/image_frame_interface.h"
 #include "lib/image/jpeg_utils.h"
 #include "lib/image/pixel_format_optimizer.h"
+#include "lib/image/png_optimizer.h"
 #include "lib/image/read_image.h"
 #include "lib/image/scanline_interface.h"
 #include "lib/image/scanline_utils.h"
+#include "src/webp/decode.h"
 
 namespace pagespeed {
 
@@ -248,6 +251,79 @@ bool IsPhoto(ScanlineReaderInterface* reader, MessageHandler* handler) {
   return metric >= kPhotoMetricThreshold;
 }
 
+namespace {
+
+// The PNG and GIF attribute parsers look at a fixed-size prefix only (the
+// signature plus IHDR chunk, and the logical screen descriptor) and check
+// the length themselves, so a dimension probe hands them at most this many
+// bytes instead of copying the whole image.
+constexpr size_t kHeaderPrefixBytes = 64;
+
+// Reads the image dimensions from the fixed-size header alone. This path
+// allocates nothing proportional to the image, so it is deliberately not
+// subject to the decode caps the readers apply in Initialize: a probe for
+// the dimensions must keep working for images the decoders refuse.
+bool ReadHeaderDimensions(ImageFormat image_type, const void* image_buffer,
+                          size_t buffer_length, int* width, int* height,
+                          MessageHandler* handler) {
+  int header_width = 0;
+  int header_height = 0;
+  switch (image_type) {
+    case IMAGE_PNG:
+    case IMAGE_GIF: {
+      const std::string header(static_cast<const char*>(image_buffer),
+                               std::min(buffer_length, kHeaderPrefixBytes));
+      int bit_depth = 0;
+      int color_type = 0;
+      const bool ok = image_type == IMAGE_PNG
+                          ? PngReader(handler).GetAttributes(
+                                header, &header_width, &header_height,
+                                &bit_depth, &color_type)
+                          : GifReader(handler).GetAttributes(
+                                header, &header_width, &header_height,
+                                &bit_depth, &color_type);
+      if (!ok) {
+        return false;
+      }
+      break;
+    }
+    case IMAGE_WEBP: {
+      WebPBitstreamFeatures features;
+      if (WebPGetFeatures(static_cast<const uint8_t*>(image_buffer),
+                          buffer_length, &features) != VP8_STATUS_OK) {
+        return false;
+      }
+      header_width = features.width;
+      header_height = features.height;
+      break;
+    }
+    case IMAGE_JPEG: {
+      // The JPEG scanline reader's Initialize reads the frame header only
+      // (jpeg_read_header), applies no decode cap and allocates nothing
+      // proportional to the image before the first scanline is read.
+      std::unique_ptr<ScanlineReaderInterface> reader(CreateScanlineReader(
+          image_type, image_buffer, buffer_length, handler));
+      if (reader == nullptr) {
+        return false;
+      }
+      header_width = reader->GetImageWidth();
+      header_height = reader->GetImageHeight();
+      break;
+    }
+    default:
+      return false;
+  }
+  if (width != nullptr) {
+    *width = header_width;
+  }
+  if (height != nullptr) {
+    *height = header_height;
+  }
+  return true;
+}
+
+}  // namespace
+
 bool AnalyzeImage(ImageFormat image_type, const void* image_buffer,
                   size_t buffer_length, int* width, int* height,
                   bool* is_progressive, bool* is_animated,
@@ -259,6 +335,17 @@ bool AnalyzeImage(ImageFormat image_type, const void* image_buffer,
   int image_width = 0;
   int image_height = 0;
   bool image_is_progressive = false;
+
+  // A probe for the dimensions alone never needs a decoder: read the header
+  // and stop, so the decode caps (which guard allocations proportional to
+  // the image) do not apply to it. Every other request goes through the
+  // capped reader below.
+  if ((width != nullptr || height != nullptr) && is_progressive == nullptr &&
+      is_animated == nullptr && has_transparency == nullptr &&
+      is_photo == nullptr && quality == nullptr && reader == nullptr) {
+    return ReadHeaderDimensions(image_type, image_buffer, buffer_length, width,
+                                height, handler);
+  }
 
   // PNG, JPEG, and WebP images only have a single frame (we skip GIF
   // entirely).

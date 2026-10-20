@@ -5,8 +5,18 @@
 // repository for Priority and Enterprise is being set up, and there is no
 // hardened-builds offer.
 
-import { describe, expect, it } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { describe, expect, it, vi } from 'vitest';
+import { MODULE_PACKAGE_VERSION } from '../src/data/product-facts.mjs';
 import { GET as productJsonGet } from '../src/pages/api/product.json.ts';
+import { releaseManifest } from './lib/release-manifest';
+
+// product.json.ts reads the release manifest through astro:content, which only
+// exists inside an Astro build; stand in the real manifest, read from disk.
+vi.mock('../src/lib/release', async () => {
+  const { releaseManifest } = await import('./lib/release-manifest');
+  return { getRelease: async () => releaseManifest };
+});
 
 describe('/api/product.json private repository status', () => {
   it('states the repository as being set up and offers no hardened builds', async () => {
@@ -23,5 +33,29 @@ describe('/api/product.json private repository status', () => {
     expect(priority.note).toContain('private package repository (being set up)');
     const ent = data.support.tiers.find((t: { id: string }) => t.id === 'enterprise');
     expect(ent.includes.join(' ')).toContain('Custom build targets');
+  });
+
+  it('carries a release block with the line, version and module package version', async () => {
+    const res = (productJsonGet as (ctx?: unknown) => Response)({});
+    const data = JSON.parse(await res.text());
+    expect(data.release).toEqual({
+      line: '2.1',
+      version: releaseManifest.release.semver,
+      tag: releaseManifest.release.tag,
+      released_on: releaseManifest.release.released_on,
+      module_package_version: MODULE_PACKAGE_VERSION,
+    });
+  });
+});
+
+describe('release manifest matches the published release notes', () => {
+  it('names the manifest version and release date in the release notes page', () => {
+    const [major, minor] = releaseManifest.release.semver.split('.');
+    const notes = readFileSync(
+      new URL(`../src/content/docs/release-notes-${major}-${minor}.mdx`, import.meta.url),
+      'utf8',
+    );
+    expect(notes).toContain(`mod_pagespeed ${releaseManifest.release.semver}`);
+    expect(notes).toContain(String(releaseManifest.release.released_on));
   });
 });

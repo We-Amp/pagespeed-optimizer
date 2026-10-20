@@ -52,7 +52,7 @@ ExecStartPost=/bin/sh -c 'i=0; while [ ! -S "$SOCKET_PATH" ]; do if [ -n "$MAINP
 # (PAGESPEED_API_TOKEN, PAGESPEED_PURGE_TOKEN) do NOT belong here or on the
 # command line: they ride /etc/pagespeed-optimizer/daemon.env (0640
 # root:pagespeed) so they stay out of /proc/<pid>/cmdline.
-Environment=CACHE_DIR=/var/cache/pagespeed-optimizer/v2
+Environment=CACHE_DIR=/var/cache/pagespeed-optimizer/v3
 Environment=SOCKET_PATH=/run/pagespeed-optimizer/notify.sock
 Environment=CACHE_SIZE=536870912
 Environment=LOG_LEVEL=info

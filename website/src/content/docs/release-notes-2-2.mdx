@@ -3,14 +3,15 @@ title: 'Release notes: 2.2'
 description: 'mod_pagespeed 2.2.0 release notes: the module and the optimizer worker as one release (packages 1.17.0), its security fixes and what changed.'
 order: 80
 group: 'Release notes by line'
-lastUpdated: 2026-10-12
+lastUpdated: 2026-10-20
 ---
 
 import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
+import Version from '../../components/release/Version.astro';
 
 <ReleaseNotesDeepLink />
 
-mod_pagespeed 2.2.0 was released on 2026-10-06 as the module and the optimizer worker together, installed as a matching pair. In the signed apt and yum repositories both parts carry the package version 1.17.0; 2.2.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.6). The current release is [2.3.0](/docs/release-notes-2-3/). The [release notes index](/docs/release-notes/) lists every release of every line, and [Security updates](/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it. The entry below is collapsed; open it to read it in place.
+mod_pagespeed 2.2.0 was released on 2026-10-06 as the module and the optimizer worker together, installed as a matching pair. In the signed apt and yum repositories both parts carry the package version 1.17.0; 2.2.0 is the version of the container images and the NuGet packages and the application version of the Helm chart (chart 0.3.6). The current release is <Version line="2.1" />. The [release notes index](/docs/release-notes/) lists every release of every line, and [Security updates](/docs/release-notes/#security-updates) lists every security fix we have published with the release that carried it. The entry below is collapsed; open it to read it in place.
 
 ## Releases
 
@@ -149,6 +150,8 @@ Fixed (Apache): stylesheets and scripts served from the optimizer's variants no 
 Fixed: when the web server starts with in-place optimization off because it cannot use the optimizer's cache, the reason now also appears in the admin console's message history; before, it was written only to the web server's error log.
 
 **IIS and Windows**
+
+*The IIS changes in this entry first reached a published Windows installer with mod_pagespeed 2.5.0: the signed MSI on the mod_pagespeed GitHub release. Until then the published IIS installer was 1.15.0, which does not include them.*
 
 Added (IIS): the installer also installs the optimizer worker, as the Windows service `WeAmpPageSpeedOptimizer`, disabled, under its own virtual account. Turned on and pointed at with the `DaemonSocketPath` and `DaemonVolumePath` directives, it takes over in-place optimization: the module records each eligible resource, the optimizer builds optimized variants, and the module serves the variant that fits each client. An upgrade or repair with the Windows installer keeps an optimizer you turned on running and keeps the cache size you chose (`OPTIMIZERCACHESIZE`, 1 GiB by default). Installs that do not turn it on behave as before.
 

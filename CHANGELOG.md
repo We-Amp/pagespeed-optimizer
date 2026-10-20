@@ -4,6 +4,108 @@ All notable changes to mod_pagespeed 2.1 are documented in this file.
 
 ## Unreleased
 
+Fixed: in the ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`) on Linux
+and macOS, a full cache purge (`POST /v1/cache/purge` with `"scope": "all"`,
+the console's purge everything) now takes effect within about a second. The
+middleware kept using the cache volume the purge had deleted and went on
+answering `X-PageSpeed: HIT` with pre-purge content until the application
+restarted. It now notices the worker's volume reset and reopens the cache, as
+the nginx module does; responses already being sent from the old volume
+complete normally. If the cache cannot be reopened, the middleware logs a
+warning and keeps serving the previous volume, pre-purge entries included,
+retrying every second until the reopen succeeds (the nginx module serves
+uncached instead). On Windows a full purge may still not take effect while the
+application is running.
+
+## 2.5.0 - 2026-10-19
+
+Changed: one version number. The host packages move from 1.19.0 to 2.5.0
+and the product from 2.4.0 to 2.5.0; from this release on `pagespeed-optimizer`,
+the serving-module packages, the container images, the NuGet packages
+(`WeAmp.PageSpeed`, `WeAmp.PageSpeed.AspNetCore` and the
+`WeAmp.PageSpeed.NativeAssets.*` packages), the Helm chart's application
+version and the version header all carry 2.5.0. A package pin, image tag,
+NuGet version range or header match on `1.` needs updating before the
+upgrade. The C API, the configuration and the module-to-worker handshake are
+unchanged; your configuration carries over as it is.
+
+Security: disk cache: damaged or stale cache contents could be served, and a
+damaged cache file could terminate the process. Affected: the optimizer worker,
+the nginx module and the `WeAmp.PageSpeed.NativeAssets.*` NuGet packages, up to
+and including 2.4.0. Update recommended.
+
+Security: specially crafted GIF, PNG, WebP or JPEG images could make the
+optimizer worker exit or consume unbounded memory. Oversized and malformed
+images are now rejected up front and a failed conversion keeps the original
+image. Affected: the optimizer worker and the `WeAmp.PageSpeed.NativeAssets.*`
+NuGet packages up to and including 2.4.0. Update recommended.
+
+Security: crafted JavaScript or HTML handled by the optimizer worker could end a
+script block early or produce malformed attribute output. The JavaScript and
+HTML parsing kernels are now synced from the module repository and carry its
+fixes. Affected: the optimizer worker and the `WeAmp.PageSpeed.NativeAssets.*`
+NuGet packages up to and including 2.4.0. Update recommended.
+
+Changed: the disk cache moves to on-disk format v9 of the Cyclone cache library
+in the optimizer worker, the nginx module and the `WeAmp.PageSpeed.NativeAssets.*`
+NuGet packages. The cache starts cold on the first start after the upgrade: it
+opens a new file and the previous file stays on disk until you delete it. The
+optimizer's cache directory generation moves from 2 to 3: the default cache
+directory is now `/var/cache/pagespeed-optimizer/v3` (2.4.0 used `.../v2`), and
+a web-server configuration that names `.../v2/cache` explicitly must be changed
+to `.../v3/cache`; a module and worker on different generations refuse to
+attach and say so in the log. During a rolling restart the old and new versions
+use separate files, so disk use temporarily doubles and the hit rate stays low
+until every process runs the new version. Prefer an off-peak window for the
+upgrade.
+
+Security, known issue: the ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`)
+serves its web console at `/console/` and proxies the worker API (`/v1/health`,
+`/v1/ws`, `/v1/cache`, `/v1/stats`, `/v1/capture`, `/v1/config`) from your
+site's root, in every environment, with no authentication, so anyone who can
+reach the site can read and change the live optimizer configuration and purge
+the cache. Affected: 2.0.13 and later, including this release; 2.0.4 through
+2.0.12 served the console and a smaller set of proxied paths, also without
+authentication. Set `PageSpeed:Console:Enabled` to `false` in production
+(recommended), or put your own authentication in front of the console path and
+those six `/v1/*` paths, immediately before `UsePageSpeed()`. A configuration
+changed through the open console is saved to `pagespeed.json` in the directory
+of `Cache.VolumePath` and stays in force after either fix, as do the variants
+built under it: stop the app, delete `pagespeed.json` and the cache volume
+files (`volume*` for the default `volume.dat`) in that directory, and start it
+again. `Worker.ApiPort` `0` does not disable the worker API: it picks a free
+loopback port, and the console proxy reaches it either way. The production
+guidance in the documentation shows how to check your own site from outside.
+
+Changed: the nginx module now also caches responses that carry static policy
+and resource headers, and replays them on cache hits: HTTP Strict Transport
+Security, the frame and XSS protection headers, the reporting policy headers,
+`Link`, static CORS headers, `Content-Language`, `Content-Disposition`,
+`Alt-Svc`, `Allow`, `X-Powered-By` and `X-Robots-Tag`. A `Link` header that
+carries a nonce is never cached. A header whose value changes per request, such
+as a request id or `Set-Cookie`, still passes the response through uncached,
+and the error-log notice still names the header. A `Link` preload the origin
+sent is emitted once on a cache hit, even when the module adds its own preload
+hints.
+
+## 2.4.0 — 2026-10-14
+
+This release is a security and reliability update for the nginx module in
+the container images and Helm chart: cache hits now carry the origin's
+security and CORS headers, including `Content-Security-Policy`. That module
+also stops stale serves of responses the origin marked `must-revalidate`,
+`proxy-revalidate` or `s-maxage`, and serves the full stored response, not a
+bare `304`, to a client that sent no conditional request after the origin
+confirms a stale copy. Update recommended; see Changed below before
+upgrading.
+
+Fixed: when the origin confirms a stale cached response with a 304 that makes
+it no longer cacheable (for example a `Vary: *` line), nginx now answers a
+client that sent no conditional request with a normal `200` and the full body,
+once, and then drops the cached copy. Previously such a client could receive a
+bodyless `304 Not Modified` it had not asked for. A client whose own
+`If-None-Match` matches still receives a `304`.
+
 Fixed: nginx now serves a stale cached response that the origin confirms is
 still current (a 304 to the module's own revalidation request) to a client
 that sent no conditional request as a normal `200` with the full body, as RFC
@@ -69,6 +171,22 @@ statistics file of an optimizer that has not been upgraded yet, and records
 no serve statistics (caching and serving are unaffected) until the optimizer
 is upgraded too; an older module keeps writing to the replaced file until
 nginx is reloaded.
+
+Fixed: when the optimizer worker improves HTML served through the nginx
+module in the container images and Helm chart, it now also honours a
+`Content-Security-Policy` the origin sent as a response header, not only one
+in a `<meta>` tag. An inline element is added only when every policy present
+allows it. Pages recorded without stored header lines behave as before.
+
+Fixed: the optimizer worker's deb and rpm packages no longer repeat the
+cache notices on every configure once they no longer apply. The notice about
+the old `v1` cache path now appears only while a loaded web-server
+configuration file still names that path, and the notice about a
+cold-started cache only while the worker has not yet written a `v2` cache or
+the configuration still names a path from before 2.1. Each notice is one
+line, so apt and dnf no longer cut it off, and it names the directive to
+check: `pagespeed DaemonVolumePath` on nginx, `ModPagespeedDaemonVolumePath`
+on Apache.
 
 ## 2.3.0 — 2026-10-12
 

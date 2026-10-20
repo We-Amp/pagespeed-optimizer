@@ -132,7 +132,7 @@ const nextSteps = [
     </ol>
 
     <!-- Contact form. JS-enabled clients intercept the submit and POST JSON to the
-         capture endpoint (/ai-readability/api/contact → render service → Telegram +
+         capture endpoint (/ai-readability/api/contact → render service → email +
          logged), with a mailto: fallback if that POST fails. Without JavaScript the
          browser posts the form natively to the same endpoint, which answers with a
          redirect to the thanks page. -->
@@ -145,6 +145,7 @@ const nextSteps = [
       class="mt-8 rounded-lg border border-border bg-bg-elevated p-6 sm:p-8 space-y-5"
     >
       <input type="hidden" name="redirect" value="/contact/thanks/" />
+      <input type="hidden" name="t" value="" data-load-time />
       <div
         style="position:absolute;left:-9999px;width:1px;height:1px;overflow:hidden"
         aria-hidden="true"
@@ -277,7 +278,10 @@ const nextSteps = [
 
       <p class="text-xs text-text-annotation">
         We use what you send only to reply. See the
-        <a href="/privacy/" class="text-interactive hover:text-interactive-hover underline">
+        <a
+          href="https://we-amp.com/privacy/"
+          class="text-interactive hover:text-interactive-hover underline"
+        >
           privacy policy
         </a>
         .
@@ -305,6 +309,7 @@ const nextSteps = [
             id="contact-copy-email"
             data-copy={COMMERCIAL_EMAIL}
             class="ml-1 text-interactive hover:text-interactive-hover underline"
+            aria-label="Copy email address"
           >
             (copy)
           </button>
@@ -325,6 +330,9 @@ const nextSteps = [
         aliases: Record<string, string>;
       };
       const form = document.getElementById('contact-form') as HTMLFormElement | null;
+      const loadedAt = Date.now();
+      const loadTimeEl = form?.querySelector<HTMLInputElement>('input[data-load-time]');
+      if (loadTimeEl) loadTimeEl.value = String(loadedAt);
       const config: TopicConfig = JSON.parse(form?.dataset.topicConfig ?? '{}');
       const topicEl = document.getElementById('contact-topic') as HTMLSelectElement | null;
       const hintEl = form?.querySelector<HTMLElement>('[data-topic-hint]') ?? null;
@@ -385,8 +393,10 @@ const nextSteps = [
             await navigator.clipboard.writeText(addr);
             const prev = copyBtn.textContent;
             copyBtn.textContent = '(copied)';
+            copyBtn.setAttribute('aria-label', 'Email address copied');
             window.setTimeout(() => {
               copyBtn.textContent = prev;
+              copyBtn.setAttribute('aria-label', 'Copy email address');
             }, 1500);
           } catch {
             // Clipboard API unavailable (e.g. non-secure context) — the address
@@ -497,6 +507,7 @@ const nextSteps = [
               topic,
               message,
               company: String(data.get('company') ?? ''),
+              t: loadedAt,
             }),
           });
           if (!res.ok) throw new Error(`status ${res.status}`);

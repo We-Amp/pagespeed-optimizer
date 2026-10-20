@@ -52,6 +52,7 @@ const articleJsonLd = {
     { '@type': 'Thing', name: 'mod_pagespeed 2.1' },
   ],
   image: 'https://modpagespeed.com/og-default.png?v=2',
+  author: { '@type': 'Organization', name: 'We-Amp B.V.' },
   publisher: {
     '@type': 'Organization',
     name: 'We-Amp B.V.',
@@ -84,7 +85,7 @@ const faqEntries = [
   },
   {
     q: 'Who maintains mod_pagespeed now?',
-    a: 'We-Amp B.V., a Dutch company. We-Amp helped maintain the open-source project and prepared its last releases during both the Google era and the Apache incubation, contributing externally rather than as a Google employee. Development resumed on 2026-01-24, with more than 633 commits landing in 2026 after the two-year gap.',
+    a: 'We-Amp B.V., a Dutch company. We-Amp helped maintain the open-source project and prepared its last releases throughout the Google era and the Apache incubation, as an external committer on the project. Development resumed on 2026-01-24, with more than 633 commits landing in 2026 after the two-year gap.',
   },
   {
     q: 'Is the maintained version a drop-in replacement?',
@@ -96,7 +97,7 @@ const faqEntries = [
   },
   {
     q: 'How do mod_pagespeed 1.15 and the 2.0 re-architecture fit into 2.1?',
-    a: 'They converged. mod_pagespeed 2.1 continues both: the original module — same directives, Apache and nginx — plus a separate optimizer worker process, under one Apache-2.0 open-source license. The IIS package ships from the 1.15 packaging channel.',
+    a: 'They converged. mod_pagespeed 2.1 continues both: the original module — same directives, Apache and nginx — plus a separate optimizer worker process, under one Apache-2.0 open-source license. The IIS package ships as a signed installer on the mod_pagespeed GitHub release.',
   },
 ];
 
@@ -197,10 +198,9 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
         <h2 class="h2-section text-text-body">The short answer</h2>
         <p class="mt-3 text-text-body">
           mod_pagespeed is maintained. We-Amp B.V. helped maintain the open-source project and
-          prepared its last releases during both the Google era and the Apache incubation,
-          contributing externally rather than as a Google employee. After a two-year gap, active
-          development resumed on 2026-01-24, with more than 633 commits landing in 2026. The
-          maintained line is
+          prepared its last releases throughout the Google era and the Apache incubation, as an
+          external committer on the project. After a two-year gap, active development resumed on
+          2026-01-24, with more than 633 commits landing in 2026. The maintained line is
           <span class="whitespace-nowrap">mod_pagespeed 2.1</span>, an open-source (Apache-2.0)
           drop-in continuation that keeps the same directives and filter names. It converges the
           1.15 line and the from-scratch ModPageSpeed 2.0 rewrite (GA {V2_GA_DATE}) into one
@@ -363,7 +363,7 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
         </div>
       </div>
       <p class="mt-6 text-sm text-text-muted">
-        The IIS package ships from the 1.15 packaging channel. See the
+        The IIS package ships as a signed installer on the mod_pagespeed GitHub release. See the
         <a
           href="/docs/migrating-to-2-1/#upgrading-from-1-15"
           class="font-medium text-interactive hover:text-interactive-hover underline underline-offset-4"
@@ -380,18 +380,19 @@ const toneClasses: Record<'neutral' | 'caution' | 'live', string> = {
         .
       </p>
       <p class="mt-4 text-sm text-text-muted">
-        Running IISpeed? Its license transfers to mod_pagespeed 2.1 at no cost — see the
+        Running IISpeed? Its license transfers to mod_pagespeed 2.1 at no cost — request it through
+        the
         <a
-          href="/alternatives/iispeed/"
+          href="/contact/?topic=iispeed-transfer"
           class="font-medium text-interactive hover:text-interactive-hover underline underline-offset-4"
         >
-          IISpeed transfer details
+          license-transfer form
         </a>
         .
       </p>
       <p class="mt-6 text-sm text-text-muted">
-        mod_pagespeed 2.1 is {LICENSE_CLAUSE}: free to install and run. Support &mdash; and hardened
-        builds &mdash; are what&rsquo;s for sale; see{' '}
+        mod_pagespeed 2.1 is {LICENSE_CLAUSE}: free to install and run. Support is what&rsquo;s for
+        sale; see{' '}
         <a href="/pricing/" class="text-interactive hover:text-interactive-hover underline">
           support
         </a>

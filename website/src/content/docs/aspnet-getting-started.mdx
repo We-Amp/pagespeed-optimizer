@@ -3,7 +3,7 @@ title: 'Install ASP.NET Core middleware'
 description: 'Install the mod_pagespeed 2.1 ASP.NET Core middleware via NuGet — the same optimization pipeline (image transcoding, critical CSS) inside your .NET app.'
 order: 9
 group: 'Install'
-lastUpdated: 2026-09-19
+lastUpdated: 2026-10-18
 ---
 
 import NugetCmd from '../../components/release/NugetCmd.astro';
@@ -47,6 +47,8 @@ using WeAmp.PageSpeed.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddRazorPages();
+
 // Register PageSpeed services — auto-binds the "PageSpeed" section from
 // IConfiguration (appsettings.json, env vars, user secrets, …).
 builder.Services.AddPageSpeed();
@@ -57,7 +59,7 @@ var app = builder.Build();
 // anything that writes the response body.
 app.UsePageSpeed();
 
-app.MapStaticAssets();
+app.UseStaticFiles();
 app.MapRazorPages();
 
 app.Run();
@@ -71,6 +73,41 @@ process starts automatically and coordinates over an auto-resolved per-process
 socket, so HTML and image optimization are on out of the box. You only add a
 `PageSpeed:Worker` section when you want to change that behavior; see the
 [configuration reference](/docs/aspnet-configuration/#worker-pagespeedworker).
+
+:::warning[The console is public until you lock it down]
+The setup above also serves the web console at `/console/` and proxies its
+worker API (`/v1/health`, `/v1/ws`, `/v1/cache`, `/v1/stats`, `/v1/capture`
+and `/v1/config`) from your site's root, in every environment, with no
+authentication. Anyone who can reach your site can read the stats and the
+optimizer configuration, change the live configuration with
+`PATCH /v1/config`, and purge the cache. Before you go to production, turn the
+console off or put your own authentication in front of it.
+:::
+
+Recommended for production: `Enabled: false`, for example in
+`appsettings.Production.json`, so the console stays available in development
+only:
+
+```json
+{
+  "PageSpeed": {
+    "Console": {
+      "Enabled": false
+    }
+  }
+}
+```
+
+The console paths then fall through to your app, and optimization is
+unaffected. The top-level `PageSpeed:Enabled` switch does not turn the console
+off. Switched off through hot reload, the change can take a few seconds to
+apply.
+
+To keep the console in production, gate it: see
+[Gate the console with your own authentication](/docs/aspnet-configuration/#gate-the-console-with-your-own-authentication)
+in the configuration reference. Its
+[Console](/docs/aspnet-configuration/#console-pagespeedconsole) section also
+covers checking an existing deployment.
 
 ## Configure via appsettings.json
 
@@ -165,6 +202,9 @@ Open `http://localhost:<port>/console/`. After a few requests, the
 Dashboard and Metrics show non-zero request and optimization counts. If they
 read zero, jump to
 [My dashboard shows zeros](#my-dashboard-shows-zeros-and-nothing-is-moving).
+With `PageSpeed:Console:Enabled` set to `false`, `/console/` and `/v1/*` fall
+through to your app (typically a `404`); with the console gated, sign in as an
+admin first.
 
 ### 3. Content negotiation serves smaller images
 

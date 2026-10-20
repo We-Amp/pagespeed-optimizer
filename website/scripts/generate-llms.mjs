@@ -12,9 +12,12 @@
 //     => public/llms.txt       the llms.txt convention: H1, summary, about,
 //                              then every docs page grouped as the sidebar
 //                              groups them, the tools, the download/pricing/
-//                              support pages and the distribution channels
+//                              support pages, the blog posts (newest first) and
+//                              the distribution channels
 //     => public/llms-full.txt  the same index followed by the Markdown of
-//                              every docs page (the text /docs/<slug>.md serves)
+//                              every docs page (the text /docs/<slug>.md serves),
+//                              the filters hub and the indexable filter topics
+//                              (the blog posts are listed in the index only)
 //
 //   ai-plugin.json.tmpl (scripts/llms-templates/) + LLMS_TOKENS
 //     => public/.well-known/ai-plugin.json
@@ -39,7 +42,6 @@ import {
   LLMS_TOKENS,
   PRODUCT_NAME,
   CURRENT_LINE,
-  V1_LINE,
   PKG_APACHE_MODULE,
   PKG_NGINX_MODULE,
   PKG_OPTIMIZER,
@@ -67,7 +69,12 @@ import {
   substituteRelease,
   docUrl,
 } from '../src/lib/docs-markdown.mjs';
-import { loadFilterTopics } from '../src/lib/filter-topics.mjs';
+import {
+  loadFilterTopics,
+  renderTopicMarkdown,
+  renderFiltersHubMarkdown,
+} from '../src/lib/filter-topics.mjs';
+import { loadPosts, postUrl } from '../src/lib/blog-markdown.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 export const WEBSITE_ROOT = resolve(__dirname, '..');
@@ -120,6 +127,8 @@ export function render(template, name) {
  *   groups: import('../src/lib/docs-markdown.mjs').DocGroup[],
  *   manifests: import('../src/lib/docs-markdown.mjs').Manifests,
  *   topics: import('../src/lib/filter-topics.mjs').Topic[],
+ *   allTopics: import('../src/lib/filter-topics.mjs').Topic[],
+ *   posts: import('../src/lib/blog-markdown.mjs').Post[],
  * }} Context
  */
 
@@ -132,8 +141,16 @@ export function loadContext(root = WEBSITE_ROOT) {
   const docs = loadDocs(root);
   // Only the indexable filter topic pages are listed; the thin ones are noindex
   // until their group-page section is enriched (src/lib/filter-topics.mjs).
-  const topics = loadFilterTopics(root).filter((t) => t.indexable);
-  return { docs, groups: groupDocs(docs), manifests: loadManifests(root), topics };
+  const allTopics = loadFilterTopics(root);
+  const topics = allTopics.filter((t) => t.indexable);
+  return {
+    docs,
+    groups: groupDocs(docs),
+    manifests: loadManifests(root),
+    topics,
+    allTopics,
+    posts: loadPosts(root),
+  };
 }
 
 /**
@@ -155,7 +172,6 @@ function entry(title, url, description) {
 export function distributionLines(ctx) {
   const rel21 = ctx.manifests['2.1'];
   const rel20 = ctx.manifests['2.0'];
-  const rel11 = ctx.manifests['1.1'];
   const repo = rel21.urls.archive_base;
   const tag = dockerTag(rel21);
   const aspnetPkg = rel20.artifacts.nuget?.package ?? PKG_ASPNETCORE;
@@ -163,11 +179,11 @@ export function distributionLines(ctx) {
   return [
     `- Signed apt and yum repository at ${repo} (GPG key ${rel21.urls.gpg_key}; one-time setup \`curl -fsSL ${repo}install.sh | sudo sh\`): \`${PKG_APACHE_MODULE}\` (the Apache module), \`${PKG_NGINX_MODULE}\` (the nginx module, prebuilt and pinned to each distribution's stock nginx: ${NGINX_APT_MATRIX}, ${NGINX_APT_ARCHES}; AlmaLinux 9 via yum against stock nginx ${STOCK_NGINX_ALMA}) and \`${PKG_OPTIMIZER}\` (the optimizer worker). Current release: ${current}. See [the apt/yum repository](${SITE}/download/apt-yum/) and [Install the module on Apache and nginx](${docUrl('installation-module')}).`,
     `- Container images on GHCR: \`${rel21.artifacts.docker.image}:${tag}\` (nginx with the module) and \`${rel21.artifacts.docker.worker_image}:${tag}\` (the optimizer worker), on ${rel21.compat.docker.base_images.join(', ')}. See [Install with Docker](${docUrl('installation-docker')}).`,
-    `- Helm chart \`${rel21.artifacts.helm.chart}\` from ${rel21.artifacts.helm.repository} (application version ${substituteRelease(rel21.artifacts.helm.app_version, rel21)}; Kubernetes ${rel21.compat.kubernetes.versions.join(', ')}; Helm ${rel21.compat.kubernetes.helm_versions.join(', ')}). See [Deploy with Helm](${docUrl('helm-deployment')}).`,
-    `- IIS: the signed Windows installer from the ${V1_LINE} module channel, ${artifactUrl(rel11, 'msi', 'win_x64')} (${rel11.compat.iis.os.join(', ')}; IIS ${rel11.compat.iis.iis_versions.join(', ')}; x64). See [Install on IIS](${docUrl('install-iis')}).`,
+    `- Helm chart \`${rel21.artifacts.helm.chart}\` from the repository \`${rel21.artifacts.helm.repository}\` (\`helm repo add weamp ${rel21.artifacts.helm.repository}\`; index at ${rel21.artifacts.helm.repository}/index.yaml; application version ${substituteRelease(rel21.artifacts.helm.app_version, rel21)}; Kubernetes ${rel21.compat.kubernetes.versions.join(', ')}; Helm ${rel21.compat.kubernetes.helm_versions.join(', ')}). See [Deploy with Helm](${docUrl('helm-deployment')}).`,
+    `- IIS: the signed Windows installer, ${rel21.release.semver}, on the module's GitHub release: ${artifactUrl(rel21, 'msi', 'win_x64')} (${rel21.compat.iis.os.join(', ')}; IIS ${rel21.compat.iis.iis_versions.join(', ')}; x64). See [Install on IIS](${docUrl('install-iis')}).`,
     `- NuGet \`${aspnetPkg}\` ${rel21.release.semver}, the ASP.NET Core middleware (${ASPNETCORE_TFMS.join(', ')}; ${ASPNETCORE_RIDS.join(', ')}): \`dotnet add package ${aspnetPkg}\`. See [Install ASP.NET Core middleware](${docUrl('aspnet-getting-started')}).`,
     `- NuGet \`${PKG_SIDECAR}\` with \`${PKG_SIDECAR_NATIVE}\`, ${SIDECAR_VERSION}, the module as an ASP.NET Core sidecar (${SIDECAR_RIDS.join(', ')}; bundles nginx ${SIDECAR_NGINX_VERSION}): \`dotnet add package ${PKG_SIDECAR}\`.`,
-    `- Direct downloads of the ${V1_LINE} module line (deb, rpm and MSI, with SHA256SUMS and GPG signatures) at ${rel11.urls.archive_base}: ${rel11.release.tag} (${rel11.release.released_on}). See [Download](${SITE}/download/).`,
+    `- Worker packages (deb, rpm and Windows zip, with a checksum list) of every release: the [release listing](https://github.com/We-Amp/pagespeed-optimizer/releases/latest). The module packages install from the signed repositories above; see [Download](${SITE}/download/).`,
   ];
 }
 
@@ -211,19 +227,28 @@ export function buildIndex(ctx) {
       lines.push(
         entry(
           render(item.title, 'agent-files.mjs SURFACES'),
-          `${SITE}${item.path}`,
+          /^https:\/\//.test(item.path) ? item.path : `${SITE}${item.path}`,
           render(item.description, 'agent-files.mjs SURFACES'),
         ),
       );
     }
     lines.push('');
   }
+  lines.push('## Blog', '');
+  for (const post of ctx.posts) {
+    lines.push(
+      entry(post.data.title, postUrl(post.slug), `${post.date}. ${post.data.description}`),
+    );
+  }
+  lines.push('');
   lines.push('## Distribution', '', ...distributionLines(ctx), '');
   return lines.join('\n');
 }
 
 /**
- * The index followed by every page's Markdown, in sidebar order.
+ * The index followed by every page's Markdown, in sidebar order, then the
+ * filters hub and the indexable filter topics in index order (the text
+ * /docs/filters.md and /docs/filters/<name>.md serve).
  * @param {Context} ctx
  * @returns {string}
  */
@@ -231,6 +256,10 @@ export function buildFull(ctx) {
   const parts = [buildIndex(ctx).trimEnd(), ''];
   for (const doc of ctx.docs) {
     parts.push('---', '', renderDocMarkdown(doc, ctx.manifests).trimEnd(), '');
+  }
+  parts.push('---', '', renderFiltersHubMarkdown(ctx.allTopics).trimEnd(), '');
+  for (const t of ctx.topics) {
+    parts.push('---', '', renderTopicMarkdown(t, ctx.allTopics).trimEnd(), '');
   }
   return parts.join('\n');
 }

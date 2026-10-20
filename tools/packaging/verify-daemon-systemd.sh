@@ -39,7 +39,7 @@ done
 mkdir -p "$WORK"
 
 PKG=pagespeed-optimizer
-CACHE_DIR=/var/cache/$PKG/v2
+CACHE_DIR=/var/cache/$PKG/v3
 RUN_DIR=/run/$PKG
 fails=0
 LEG_NAME=""; LEG_NOTE=""; LEG_FAILS=0
@@ -1021,6 +1021,13 @@ print("%s/%s" % (b.get("chrome_running"), b.get("chrome_consecutive_failures")))
     journalctl -u "$PKG.service" --no-pager --since "$t0" -o cat > "$WORK/h6-browser.log" 2>/dev/null || true
     B_EXITED="$(grep -c 'Chrome exited' "$WORK/h6-browser.log" || true)"
     B_SIGSYS="$(grep -c 'signal=31' "$WORK/h6-browser.log" || true)"
+    if [[ "$B_EXITED" != "0" ]]; then
+      # Chrome's own stderr is discarded by the daemon; its exit lines and the
+      # host's user-namespace policy are what name the cause.
+      echo "diag: $1: first Chrome exit lines:"
+      grep 'Chrome exited' "$WORK/h6-browser.log" | head -3 | sed 's/^/diag:   /' || true
+      echo "diag: kernel.apparmor_restrict_unprivileged_userns=$(cat /proc/sys/kernel/apparmor_restrict_unprivileged_userns 2>/dev/null || echo absent)"
+    fi
     check "$1: no 'Chrome exited' line over the cycle" "0" "$B_EXITED"
     check "$1: Chrome never died of SIGSYS" "0" "$B_SIGSYS"
     check "$1: still chrome_running after the render" "true" \

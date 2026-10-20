@@ -94,13 +94,13 @@ podAnnotations: {}
 # and browser analysis will refuse (naming the reason -- it never falls back
 # to an unsandboxed browser).
 #
-# Swapping the profile is NOT sufficient on its own today: the worker image
-# still runs as root (no USER directive), and Chrome refuses to sandbox
-# itself as uid 0, so browser analysis reports
-# browser_sandbox: "unavailable" regardless of which seccomp profile the pod
-# gets. Until the image gains a non-root user, the Localhost recipe below is
-# the seccomp HALF of a fix whose other half is missing -- set it if you are
-# preparing for that, not expecting browser analysis to start working.
+# The worker image has no USER directive, but its entrypoint drops the daemon
+# to the unprivileged pagespeed user (uid 918) with no-new-privs before
+# exec'ing it, so the non-root half of Chrome's requirement is met in the
+# pod. The seccomp profile is the remaining half: under RuntimeDefault the
+# probe reports browser_sandbox: "unavailable", and the Localhost recipe
+# below is what lifts that. Check GET /v1/health after switching; the probe,
+# not this comment, decides.
 #
 # With that said: if you run browser analysis, stage
 # deploy/chrome-seccomp.json into the kubelet's seccomp profile root

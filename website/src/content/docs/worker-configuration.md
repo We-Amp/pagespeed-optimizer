@@ -3,14 +3,14 @@ title: 'Worker and reverse-proxy configuration'
 description: 'Every optimizer worker flag and thin nginx module directive of mod_pagespeed 2.1 (the Docker and reverse-proxy shape), generated from the source.'
 order: 21
 group: 'Configure'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-19
 faq:
   - q: 'What is the difference between safe and aggressive cache modes?'
     a: 'Safe mode adds `must-revalidate` to non-HTML responses, suppresses stale-while-revalidate synthesis, and strips `immutable`. Aggressive mode adds `public` and `stale-if-error=86400` and allows SWR synthesis. HTML always gets `no-cache` in both modes.'
   - q: 'How do I disable PageSpeed for specific URLs?'
     a: 'Use `pagespeed off` inside a `location` block to disable the module for that path, or `pagespeed_disallow` to skip individual URL patterns (prefix, suffix, or substring) while keeping the module active elsewhere.'
   - q: 'How do I share the cache file between nginx and the worker?'
-    a: 'Point `pagespeed_cache_path` (nginx) and the worker cache at the same file (the packaged optimizer worker defaults to `--cache-dir /var/cache/pagespeed-optimizer/v2`). The optimizer worker owns the directory and every file in it (0660 `pagespeed:pagespeed`); the nginx worker user reaches them through membership in group `pagespeed`. Memory-mapped directory sharing is enabled automatically.'
+    a: 'Point `pagespeed_cache_path` (nginx) and the worker cache at the same file (the packaged optimizer worker defaults to `--cache-dir /var/cache/pagespeed-optimizer/v3`). The optimizer worker owns the directory and every file in it (0660 `pagespeed:pagespeed`); the nginx worker user reaches them through membership in group `pagespeed`. Memory-mapped directory sharing is enabled automatically.'
   - q: 'What does the capability mask do?'
     a: 'The 32-bit mask encodes the client image format, viewport, pixel density, Save-Data, and transfer encoding into the cache key, so different optimized variants are served to different clients. Nginx derives the mask from request headers and client hints.'
   - q: 'How large should the Cyclone cache be?'
@@ -422,15 +422,15 @@ and be writable by the worker's user (the packaged unit uses a systemd
 #### --cache-dir {#--cache-dir}
 
 - **Syntax:** `--cache-dir DIR`
-- **Default:** `/var/cache/pagespeed-optimizer/v2`
+- **Default:** `/var/cache/pagespeed-optimizer/v3`
 
-Cache directory; the volume, shared config and serve-stats live inside it (default: /var/cache/pagespeed-optimizer/v2)
+Cache directory; the volume, shared config and serve-stats live inside it (default: /var/cache/pagespeed-optimizer/v3)
 
 ```bash
-factory_worker --cache-dir /var/cache/pagespeed-optimizer/v2
+factory_worker --cache-dir /var/cache/pagespeed-optimizer/v3
 ```
 
-The `v2` in the default is the compiled-in cache-directory generation. The
+The `v3` in the default is the compiled-in cache-directory generation. The
 directory must exist, be writable by the worker, and contain only files owned by
 the worker's user; otherwise the worker refuses to start and names the cause.
 The packaged tmpfiles.d drop-in creates the default as 3770
@@ -445,7 +445,7 @@ member cannot remove another's files).
 Expert override: full cache volume file STEM (deliberately extensionless); wins over --cache-dir
 
 ```bash
-factory_worker --cache-path /var/cache/pagespeed-optimizer/v2/cache
+factory_worker --cache-path /var/cache/pagespeed-optimizer/v3/cache
 ```
 
 Must match the nginx [`pagespeed_cache_path`](#pagespeed_cache_path) directive.
@@ -2067,13 +2067,13 @@ entire reason to prefer the socket over `127.0.0.1` plus a token.
 
 ```bash
 # Local: no port, no credential to distribute.
-factory_worker --cache-dir /var/cache/pagespeed-optimizer/v2 \
+factory_worker --cache-dir /var/cache/pagespeed-optimizer/v3 \
   --api-socket \
   --console-dir /opt/pagespeed/console
 
 # Remote, deliberately: both flags AND a token, or it will not start.
 PAGESPEED_API_TOKEN="$(cat /run/secrets/api-token)" \
-factory_worker --cache-dir /var/cache/pagespeed-optimizer/v2 \
+factory_worker --cache-dir /var/cache/pagespeed-optimizer/v3 \
   --api-port 9880 --api-bind 0.0.0.0 --api-allow-remote \
   --console-dir /opt/pagespeed/console
 ```
@@ -2101,9 +2101,15 @@ There is no `auto`. `GET /v1/health` reports the resolved state as
 monitoring check can see an unsandboxed browser without reading logs. The
 setting is also readable from the environment as `PAGESPEED_BROWSER_SANDBOX`.
 
-Container images currently run as root, where Chrome declines to sandbox
-itself; set `PAGESPEED_BROWSER_SANDBOX=off` if you want browser analysis there,
-or run the container as a non-root user.
+The container images start as root for one setup step and then drop the
+worker to the unprivileged `pagespeed` user (UID 918) before it starts, so the
+non-root requirement is met inside them. What remains is the runtime's seccomp
+profile: the default Docker and Kubernetes profiles filter out the namespace
+flags Chrome's sandbox needs, so the probe reports `unavailable` until the
+container gets a profile that allows them (the Helm chart's
+`podSecurityContext` comment has the recipe). Set
+`PAGESPEED_BROWSER_SANDBOX=off` only to accept an unsandboxed browser
+deliberately.
 
 If the sandbox probe is refused by a kernel syscall filter rather than by the
 kernel's user-namespace policy, the message says so, so you can tell "this host
@@ -2217,7 +2223,9 @@ factory_worker --cache-path /data/cache.vol \
 
 The worker exposes a management socket at `{socket_path}.mgmt` (e.g.,
 `/var/lib/pagespeed/pagespeed.sock.mgmt`). This socket accepts newline-terminated
-text commands and returns a response before closing the connection.
+text commands and returns a response before closing the connection; the one
+exception is a successful `AUTH`, which keeps the connection open for the
+`PURGE` that follows.
 
 ### Connecting to the management socket
 
@@ -2264,15 +2272,26 @@ the count (`n`) to get the average processing time per item.
 
 ### `PURGE` command
 
-Invalidates all cached variants for a URL. The command format is `PURGE`
-followed by the hostname and URL:
+Invalidates all cached variants for a URL. `PURGE` is refused unless the
+connection was authenticated first: send `AUTH <token>` and then `PURGE`
+followed by the hostname and URL, on the same connection. The token is the
+worker's `PAGESPEED_PURGE_TOKEN` (the packages generate it into
+`/etc/pagespeed-optimizer/daemon.env`; the container images generate one per
+start and print it once in the container log unless you set it). It is not in
+your shell by itself; [Purge and re-test a specific
+URL](/docs/troubleshooting/#purge-and-re-test-a-specific-url) shows how to
+read it per deployment before running:
 
 ```bash
-echo "PURGE example.com /images/photo.jpg" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
+printf 'AUTH %s\nPURGE example.com /images/photo.jpg\n' "$PAGESPEED_PURGE_TOKEN" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
 ```
 
-**Response:** `OK N entries deleted\n` where N is the number of cache entries
-removed. The PURGE command iterates all possible capability mask combinations
+**Response:** `OK\n` to the `AUTH`, then `OK N entries deleted\n` where N is
+the number of cache entries removed (`OK 0 entries deleted (URL not found — may
+have been evicted or never cached)\n` when nothing matched). A `PURGE` without `AUTH` answers
+`ERR authentication required\n` (`ERR no purge token configured\n` when the
+worker has no token), and a wrong token answers `ERR invalid token\n`. The
+PURGE command iterates all possible capability mask combinations
 for the URL and deletes every matching entry, including sentinel entries used
 for Early Hints and warmup.
 
@@ -2292,12 +2311,18 @@ use cases:
 - **Selective cache clearing:** Unlike restarting the worker or deleting the
   cache file (which loses everything), PURGE targets individual URLs.
 
-For bulk invalidation, send multiple PURGE commands. Each command opens a
-new connection to the management socket:
+The HTTP API's [`POST /v1/cache/purge`](/docs/http-api/#post-v1cachepurge)
+does the same without the management socket; its credential is group
+membership over the API's unix socket, or the bearer token over TCP where one
+is configured.
+
+For bulk invalidation, send multiple PURGE commands. Each iteration opens a
+new connection to the management socket, and authentication is per
+connection, so each one sends `AUTH` again:
 
 ```bash
 for url in /style.css /app.js /hero.jpg; do
-  echo "PURGE example.com $url" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
+  printf 'AUTH %s\nPURGE example.com %s\n' "$PAGESPEED_PURGE_TOKEN" "$url" | socat - UNIX-CONNECT:/var/lib/pagespeed/pagespeed.sock.mgmt
 done
 ```
 
@@ -2423,7 +2448,7 @@ After=network.target
 Type=simple
 ExecStart=/usr/local/bin/factory_worker \
   --socket /run/pagespeed-optimizer/notify.sock \
-  --cache-dir /var/cache/pagespeed-optimizer/v2 \
+  --cache-dir /var/cache/pagespeed-optimizer/v3 \
   --cache-size 536870912 \
   --log-format json \
   --log-level info

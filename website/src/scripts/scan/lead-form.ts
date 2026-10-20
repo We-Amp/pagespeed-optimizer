@@ -71,6 +71,7 @@ export function initLeadForm(state: ScanState) {
   const downloadBtn = shareRow.querySelector<HTMLButtonElement>('[data-scan-download]')!;
 
   emailEl.required = true;
+  const loadedAt = Date.now();
 
   let rendered: ScanOutcome | null = null;
   let renderedSpeed: TileState | null = null;
@@ -311,6 +312,7 @@ export function initLeadForm(state: ScanState) {
         url: state.url,
         mobile,
         desktop,
+        t: loadedAt,
       },
       (state.lastScan?.report as ScanReport | null) ?? null,
       post,

@@ -25,10 +25,16 @@
 //      2.0" as the current product, anywhere outside the archival release-notes
 //      entries.
 //   8. THE MARKDOWN ROUTE — /docs/<slug>.md serves the same body for every page.
+//   9. THE FILTER TWINS: the filters hub and every indexable filter topic are
+//      in llms-full.txt, once and in index order, and /docs/filters.md and
+//      /docs/filters/<name>.md serve the same body.
+//  10. THE BLOG TWINS: every post is listed in llms.txt once, with its date,
+//      newest first, and is left out of llms-full.txt; /blog/<slug>.md serves
+//      the rendered body.
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 
 import {
   generateContent,
@@ -45,11 +51,27 @@ import {
   docUrl,
   SITE,
 } from '../../src/lib/docs-markdown.mjs';
+import {
+  renderTopicMarkdown,
+  renderFiltersHubMarkdown,
+  topicPath,
+} from '../../src/lib/filter-topics.mjs';
+import { loadPosts, renderPostMarkdown, postUrl } from '../../src/lib/blog-markdown.mjs';
+import { readdirSync } from 'node:fs';
+import {
+  GET as blogMarkdownGet,
+  getStaticPaths as blogMarkdownPaths,
+} from '../../src/pages/blog/[slug].md.ts';
 import { GET as productJsonGet } from '../../src/pages/api/product.json.ts';
 import {
   GET as markdownGet,
   getStaticPaths as markdownPaths,
 } from '../../src/pages/docs/[slug].md.ts';
+import {
+  GET as topicMarkdownGet,
+  getStaticPaths as topicMarkdownPaths,
+} from '../../src/pages/docs/filters/[name].md.ts';
+import { GET as hubMarkdownGet } from '../../src/pages/docs/filters.md.ts';
 import {
   SUPPORT_TIERS,
   SUPPORT_LADDER_MD,
@@ -88,6 +110,13 @@ import {
 } from '../../src/data/product-facts.mjs';
 import { offerJsonLd } from '../../src/data/offer-jsonld.ts';
 
+// product.json.ts reads the release manifest through astro:content, which only
+// exists inside an Astro build; stand in the real manifest, read from disk.
+vi.mock('../../src/lib/release', async () => {
+  const { releaseManifest } = await import('../lib/release-manifest');
+  return { getRelease: async () => releaseManifest };
+});
+
 const generated = generateContent();
 const ctx = loadContext();
 const index = generated['llms.txt'];
@@ -121,13 +150,23 @@ describe('llms*.txt drift guard', () => {
       const allowed = new Set(
         Object.values(ctx.manifests).map((rel) => rel.release.released_on as string),
       );
-      const dates = index.match(/\b\d{4}-\d{2}-\d{2}\b/g) ?? [];
+      const blogStart = index.indexOf('\n## Blog\n');
+      const blogEnd = index.indexOf('\n## ', blogStart + 1);
+      const posted = new Set(ctx.posts.map((p) => p.date));
       // The release-notes descriptions cite a renumber date; that is content,
       // not a build timestamp.
       const content = ctx.docs.flatMap(
         (d) => d.data.description.match(/\b\d{4}-\d{2}-\d{2}\b/g) ?? [],
       );
-      for (const d of dates) expect(allowed.has(d) || content.includes(d), d).toBe(true);
+      let offset = 0;
+      for (const line of index.split('\n')) {
+        const inBlog = offset > blogStart && offset < blogEnd;
+        offset += line.length + 1;
+        for (const d of line.match(/\b\d{4}-\d{2}-\d{2}\b/g) ?? []) {
+          // A post date is allowed only on a line inside the Blog section.
+          expect(allowed.has(d) || content.includes(d) || (inBlog && posted.has(d)), d).toBe(true);
+        }
+      }
     });
   });
 
@@ -275,6 +314,7 @@ describe('agent files cover the docs collection', () => {
       'Tools',
       'Download, pricing and support',
       'Machine-readable',
+      'Blog',
       'Distribution',
     ]);
     // Inside a group, the pages come in sidebar order.
@@ -332,19 +372,20 @@ describe('agent files cover the docs collection', () => {
       `${rel21.artifacts.docker.worker_image}:${tag}`,
       `\`${rel21.artifacts.helm.chart}\``,
       rel21.artifacts.helm.repository,
-      artifactUrl(rel11, 'msi', 'win_x64'),
+      artifactUrl(rel21, 'msi', 'win_x64'),
       `\`${rel20.artifacts.nuget.package}\``,
       `\`${PKG_ASPNETCORE}\``,
       `\`${PKG_SIDECAR}\``,
       `\`${PKG_SIDECAR_NATIVE}\``,
       `${PRODUCT_NAME} ${rel21.release.semver} (${rel21.release.released_on})`,
-      rel11.release.tag,
+      'https://github.com/We-Amp/pagespeed-optimizer/releases/latest',
       ...ASPNETCORE_TFMS,
       ...ASPNETCORE_RIDS,
       ...SIDECAR_RIDS,
     ]) {
       expect(section, needle).toContain(needle);
     }
+    expect(section).not.toContain(rel11.release.tag);
     // Versions come from the manifests, never typed: the docker tag the
     // section carries is the manifest's, and a second pagespeed-* tag is not.
     const tags = [...section.matchAll(/ghcr\.io\/we-amp\/pagespeed-\w+:(\S+?)[`\s)]/g)].map(
@@ -372,10 +413,16 @@ describe('agent files carry no retired product framing', () => {
   const RETIRED_2_0_AS_CURRENT =
     /\bModPageSpeed 2\.0\s+(?:is|are|runs?|ships?|optimi[sz]es?|supports?|serves?|deploys?|handles?|uses?|generates?)\b|\b(?:[Rr]un|[Ii]nstall|[Dd]eploy|[Tt]ry|[Gg]et|[Uu]pgrade to|[Ss]witch to|[Mm]igrate to|[Cc]hoose)\s+ModPageSpeed 2\.0\b|^#{1,6} (?!.*\bfrom ModPageSpeed 2\.0\b).*ModPageSpeed 2\.0|\bModPageSpeed 2\.1\b|\bMPS ?2\.0\b/m;
 
+  // The release-notes entries are archival, and so is one Blog entry:
+  // `run-with-docker-compose` is a dated post whose title names the 2.0 era;
+  // dated posts are frozen. Every other Blog entry stays under the scan.
   const indexWithoutReleaseNotes = index
     .split('\n')
     .filter(
-      (l) => !/\]\(https:\/\/modpagespeed\.com\/docs\/release-notes(?:-\d+-\d+)?\/\): /.test(l),
+      (l) =>
+        !/\]\(https:\/\/modpagespeed\.com\/(?:docs\/release-notes(?:-\d+-\d+)?|blog\/run-with-docker-compose)\/\): /.test(
+          l,
+        ),
     )
     .join('\n');
 
@@ -424,6 +471,101 @@ describe('/docs/<slug>.md serves the same Markdown', () => {
     expect(full).toContain(body.trimEnd());
     expect(body.startsWith('# Getting started\n')).toBe(true);
     expect(body).toContain(`Canonical URL: ${SITE}/docs/getting-started/`);
+  });
+});
+
+describe('filter reference pages have Markdown twins', () => {
+  const indexable = ctx.topics;
+  const bodyOf = (t: (typeof indexable)[number]) => renderTopicMarkdown(t, ctx.allTopics);
+  const hub = renderFiltersHubMarkdown(ctx.allTopics);
+  const canonical = (path: string) => `\nCanonical URL: ${SITE}${path}\n`;
+
+  it('the paths are exactly the indexable topics', () => {
+    const paths = (topicMarkdownPaths as () => Array<{ params: { name: string } }>)();
+    expect(paths.map((p) => p.params.name).sort()).toEqual(indexable.map((t) => t.name).sort());
+    expect(indexable.length).toBeGreaterThan(30);
+    expect(indexable.length).toBeLessThan(ctx.allTopics.length);
+  });
+
+  it('llms.txt lists every indexable topic and the hub, as before', () => {
+    for (const t of indexable) expect(index).toContain(`](${SITE}${topicPath(t.name)}): `);
+    expect(index).toContain(`](${SITE}/docs/filters/): `);
+  });
+
+  it('llms-full.txt carries the hub once, then each topic once, in index order', () => {
+    expect(full).toContain(hub.trimEnd());
+    expect(full.split(canonical('/docs/filters/')).length - 1).toBe(1);
+    const positions = indexable.map((t) => {
+      const md = bodyOf(t).trimEnd();
+      expect(full.split(md).length - 1, t.name).toBe(1);
+      expect(full.split(canonical(t.path)).length - 1, t.name).toBe(1);
+      return full.indexOf(md);
+    });
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    expect(full.indexOf(hub.trimEnd())).toBeGreaterThan(
+      full.indexOf(canonical(`/docs/${ctx.docs.at(-1)!.slug}/`)),
+    );
+    expect(full.indexOf(hub.trimEnd())).toBeLessThan(positions[0]);
+  });
+
+  it('the thin topics get no body', () => {
+    for (const t of ctx.allTopics.filter((x) => !x.indexable)) {
+      expect(full, t.name).not.toContain(canonical(t.path));
+    }
+  });
+
+  const bodies = [
+    ...indexable.map((t) => ({ id: t.name, md: bodyOf(t), title: `# ${t.human} (${t.name})` })),
+    { id: 'hub', md: hub, title: '# PageSpeed filters' },
+  ];
+  it('every body has one H1, absolute links only and no HTML outside code', () => {
+    for (const { id, md, title } of bodies) {
+      let fenced = false;
+      const h1s: string[] = [];
+      for (const line of md.split('\n')) {
+        if (/^(```|~~~)/.test(line)) {
+          fenced = !fenced;
+          continue;
+        }
+        if (fenced) continue;
+        if (/^# /.test(line)) h1s.push(line);
+        const prose = line.replace(/`[^`]*`/g, '');
+        expect(prose, `${id}: ${line}`).not.toMatch(/\]\((?:\/|#)/);
+        expect(prose, `${id}: ${line}`).not.toMatch(/<\/?[A-Za-z][^>]*>/);
+      }
+      expect(h1s, id).toEqual([title]);
+      expect(md.endsWith('\n') && !md.endsWith('\n\n'), id).toBe(true);
+    }
+  });
+
+  it('every body says worker, never daemon', () => {
+    for (const { id, md } of bodies) expect(md, id).not.toMatch(/\bdaemons?\b/i);
+  });
+
+  it('/docs/filters/<name>.md serves the body llms-full.txt carries', async () => {
+    const topic = indexable.find((t) => t.name === 'lazyload_images')!;
+    const res = (topicMarkdownGet as (c: unknown) => Response)({
+      props: { topic, topics: ctx.allTopics },
+      params: { name: topic.name },
+    });
+    expect(res.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8');
+    const body = await res.text();
+    expect(body).toBe(bodyOf(topic));
+    expect(body.startsWith('# Lazy-load images (lazyload_images)\n')).toBe(true);
+    expect(body).toContain(`Canonical URL: ${SITE}/docs/filters/lazyload_images/`);
+    expect(full).toContain(body.trimEnd());
+  });
+
+  it('/docs/filters.md serves the hub', async () => {
+    const res = (hubMarkdownGet as (c: unknown) => Response)({});
+    expect(res.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8');
+    expect(await res.text()).toBe(hub);
+  });
+
+  it('the hub lists every filter and compound name once', () => {
+    for (const t of ctx.allTopics) {
+      expect(hub.split(`[\`${t.name}\`](`).length - 1, t.name).toBe(1);
+    }
   });
 });
 
@@ -525,5 +667,96 @@ describe('product-facts consumers reflect the single source', () => {
     expect(data.related_products[1].product).toBe(`ModPageSpeed ${V2_LINE}`);
     expect(data.related_products[1]).not.toHaveProperty('status');
     expect(data.related_products[1]).not.toHaveProperty('support_until');
+  });
+});
+
+describe('blog posts have Markdown twins', () => {
+  const posts = ctx.posts;
+  const blogDir = resolve(PUBLIC_DIR, '../src/content/blog');
+  const ids = readdirSync(blogDir)
+    .filter((f) => f.endsWith('.md'))
+    .map((f) => f.replace(/\.md$/, ''));
+
+  it('the paths are exactly the collection ids', () => {
+    const paths = (blogMarkdownPaths as () => Array<{ params: { slug: string } }>)();
+    expect(paths.map((p) => p.params.slug).sort()).toEqual([...ids].sort());
+    expect(posts.length).toBeGreaterThan(50);
+  });
+
+  it('llms.txt lists each post once, with its date, newest first', () => {
+    const section = index.slice(index.indexOf('\n## Blog\n'), index.indexOf('\n## Distribution\n'));
+    const positions = posts.map((p) => {
+      const line = `- [${p.data.title}](${postUrl(p.slug)}): ${p.date}. ${p.data.description}`;
+      expect(section.split(line).length - 1, p.slug).toBe(1);
+      return section.indexOf(line);
+    });
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    const dates = posts.map((p) => p.date);
+    expect(dates).toEqual([...dates].sort().reverse());
+  });
+
+  it('llms-full.txt does not carry the posts, and says so', () => {
+    for (const p of posts)
+      expect(full, p.slug).not.toContain(`\nCanonical URL: ${postUrl(p.slug)}\n`);
+    expect(index).toContain('its text is not in llms-full.txt');
+  });
+
+  it('every body has the right header, one H1, absolute links only and no HTML blocks', () => {
+    for (const p of posts) {
+      const md = renderPostMarkdown(p);
+      expect(
+        md.startsWith(`# ${p.data.title}\n\n${p.data.description}\n\nPublished: ${p.date}\n`),
+      ).toBe(true);
+      expect(md).toContain(`\nCanonical URL: ${postUrl(p.slug)}\n`);
+      // Fences as the renderer reads them: a closing fence is the same marker
+      // character, at least as long, followed by whitespace only.
+      let fence: string | null = null;
+      let h1s = 0;
+      for (const line of md.split('\n')) {
+        const f = line.match(/^\s*(`{3,}|~{3,})(.*)$/);
+        if (fence) {
+          if (f && f[1][0] === fence[0] && f[1].length >= fence.length && f[2].trim() === '')
+            fence = null;
+          continue;
+        }
+        if (f) {
+          fence = f[1];
+          continue;
+        }
+        if (/^# /.test(line)) h1s++;
+        const prose = line.replace(/`[^`]*`/g, '');
+        expect(prose, `${p.slug}: ${line}`).not.toMatch(/\]\((?:\/|#)/);
+        expect(prose, `${p.slug}: ${line}`).not.toMatch(/^\s*<[A-Za-z!]/);
+      }
+      expect(h1s, p.slug).toBe(1);
+    }
+  });
+
+  it('keeps the code in a fence byte for byte', () => {
+    const post = posts.find((p) => p.slug === 'fix-cls-aspnet-core-2026')!;
+    const md = renderPostMarkdown(post);
+    expect(md).toContain('<div class="related-products-skeleton" style="min-height: 320px;">');
+    expect(md).toContain("import { onCLS } from 'https://unpkg.com/web-vitals?module';");
+  });
+
+  it('reduces a figure to its svg title, caption or aria-label', () => {
+    const census = renderPostMarkdown(
+      posts.find((p) => p.slug === 'pagespeed-installed-base-2026')!,
+    );
+    expect(census).toContain('Figure: PageSpeed-serving origins per monthly crawl, by build era');
+    const cyclone = renderPostMarkdown(
+      posts.find((p) => p.slug === 'cyclone-cache-vs-file-cache-benchmark')!,
+    );
+    expect(cyclone).toContain('Figure: Read throughput across four memory regimes');
+  });
+
+  it('/blog/<slug>.md responds with text/markdown and the rendered body', async () => {
+    const post = posts.find((p) => p.slug === 'pagespeed-installed-base-2026')!;
+    const res = (blogMarkdownGet as (c: unknown) => Response)({
+      props: { post },
+      params: { slug: post.slug },
+    });
+    expect(res.headers.get('Content-Type')).toBe('text/markdown; charset=utf-8');
+    expect(await res.text()).toBe(renderPostMarkdown(post));
   });
 });

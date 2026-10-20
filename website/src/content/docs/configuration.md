@@ -3,12 +3,12 @@ title: 'Configuration reference: Apache and nginx directives'
 description: 'Every mod_pagespeed 2.1 directive for the native Apache and nginx module, generated from the source: syntax, default, context and description.'
 order: 20
 group: 'Configure'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-18
 faq:
   - q: 'Where is the mod_pagespeed configuration file?'
     a: 'Apache reads `pagespeed.conf` from `/etc/apache2/mods-available/` (Debian, Ubuntu) or `/etc/httpd/conf.d/` (RHEL, AlmaLinux, Rocky); nginx reads `pagespeed` directives from `nginx.conf`, in the `http`, `server` or `location` block; IIS reads `pagespeed.config` from the site root or `%ProgramData%\We-Amp\PageSpeed\`.'
   - q: 'What is the minimal working configuration?'
-    a: 'On Apache, `ModPagespeed on` and a writable `ModPagespeedFileCachePath`; the packaged `pagespeed.conf` already sets both. On nginx, `load_module modules/ngx_pagespeed_module.so;`, `pagespeed on;` and `pagespeed FileCachePath /var/cache/ngx_pagespeed;` in the server block, plus the three location blocks that let the module serve its own resources. On IIS, `pagespeed on` in `pagespeed.config`.'
+    a: 'On Apache, `ModPagespeed on` and a writable `ModPagespeedFileCachePath`; the packaged `pagespeed.conf` already sets both. On nginx, the package already loads the module; add `pagespeed on;` and `pagespeed FileCachePath /var/cache/ngx_pagespeed;` in the server block, plus the three location blocks that let the module serve its own resources. On IIS, `pagespeed on` in `pagespeed.config`.'
   - q: 'How do I write the same directive for Apache, nginx and IIS?'
     a: 'Prefix the directive name with `ModPagespeed` on Apache (`ModPagespeedEnableFilters rewrite_images`); on nginx write `pagespeed` followed by the name and a semicolon (`pagespeed EnableFilters rewrite_images;`); on IIS use the nginx form without the semicolon in `pagespeed.config`.'
   - q: 'How do I turn mod_pagespeed off for one path?'
@@ -79,7 +79,11 @@ format.
 <div data-platform="nginx" data-platform-label="nginx">
 
 ```nginx
-load_module modules/ngx_pagespeed_module.so;   # Enterprise Linux: /usr/lib64/nginx/modules/ngx_pagespeed_module.so
+# The package loads the module; check with:
+#   sudo grep -Rns '^[[:space:]]*load_module.*pagespeed' /etc/nginx /usr/share/nginx/modules
+# Only a module installed by hand needs this line at the top of nginx.conf:
+# load_module modules/ngx_pagespeed_module.so;                    # Debian / Ubuntu
+# load_module /usr/lib64/nginx/modules/ngx_pagespeed_module.so;   # Enterprise Linux
 
 http {
     server {
@@ -329,10 +333,10 @@ Alternatively, use match rules in the server-level config to scope directives
 by hostname:
 
 ```text
-hostname: ^site-a\.example\.com$
+hostname:^site-a\.example\.com$
 pagespeed EnableFilters rewrite_images
 
-hostname: ^site-b\.example\.com$
+hostname:^site-b\.example\.com$
 pagespeed EnableFilters collapse_whitespace
 ```
 

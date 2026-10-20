@@ -7,7 +7,7 @@ import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
 import ReferralOrientation from '../../components/ReferralOrientation.astro';
 import { getCollection, render } from 'astro:content';
 import { createMarkdownProcessor } from '@astrojs/markdown-remark';
-import { getRelease } from '../../lib/release';
+import { getRelease, dockerTag } from '../../lib/release';
 import { gitLastModified } from '../../lib/git-date';
 import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
 import { basename } from 'node:path';
@@ -170,37 +170,31 @@ if (doc.id === 'installation-docker') {
         '@type': 'HowToStep',
         position: 1,
         name: 'Create project directory',
-        text: 'Create a project directory with docker-compose.yml, nginx.conf, and entrypoint-worker.sh files.',
+        text: 'Create a project directory with docker-compose.yml and nginx.conf files.',
       },
       {
         '@type': 'HowToStep',
         position: 2,
         name: 'Configure Docker Compose',
-        text: 'Create docker-compose.yml with three services: origin (your web server), worker (ghcr.io/we-amp/pagespeed-worker:2.3.0), and nginx (ghcr.io/we-amp/pagespeed-nginx:2.3.0). All share a named volume at /shared for the Cyclone cache.',
+        text: `Create docker-compose.yml with three services: origin (your web server), worker (ghcr.io/we-amp/pagespeed-worker:${dockerTag(rel21)}), and nginx (ghcr.io/we-amp/pagespeed-nginx:${dockerTag(rel21)}). All share a named volume at /shared for the Cyclone cache; the DATA_DIR environment variable points the worker entrypoint there.`,
       },
       {
         '@type': 'HowToStep',
         position: 3,
         name: 'Configure nginx',
-        text: 'Create nginx.conf with load_module for ngx_pagespeed_module.so. Add pagespeed on and pagespeed_cache_path directives in your server block.',
+        text: 'Create nginx.conf with load_module for ngx_pagespeed_module.so. Add pagespeed on and pagespeed_cache_path directives in your server block, and proxy_set_header Accept-Encoding "" so the origin sends uncompressed responses the module can cache.',
       },
       {
         '@type': 'HowToStep',
         position: 4,
-        name: 'Create worker entrypoint',
-        text: 'Create entrypoint-worker.sh that sets permissions (chmod 777 /shared, chmod 666 cache file) and starts factory_worker with --socket and --cache-path flags.',
-      },
-      {
-        '@type': 'HowToStep',
-        position: 5,
         name: 'Start the stack',
         text: 'Run docker compose up -d and verify all three containers are running with docker compose ps.',
       },
       {
         '@type': 'HowToStep',
-        position: 6,
+        position: 5,
         name: 'Verify it works',
-        text: 'Send a request with curl -I http://localhost:8080/. The first request should show X-PageSpeed: MISS. The second request should show X-PageSpeed: HIT.',
+        text: 'Send a GET request twice with curl -s -o /dev/null -D - http://localhost:8080/ (not curl -I: HEAD requests are not cached). The first response should show X-PageSpeed: MISS, the second X-PageSpeed: HIT.',
       },
     ],
   };

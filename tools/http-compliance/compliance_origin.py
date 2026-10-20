@@ -44,7 +44,7 @@ SIDECAR_FLIP = {"custom": False}
 # (holds the refresh in flight so a concurrent request takes the coalesced
 # stale serve), a 500 on /sidecar/flaky.css (stale-if-error), and the
 # Referrer-Policy /sidecar/reval.css sends on its 200 and 304.
-SIDECAR_SERVE = {"delay": 0.0, "fail": False, "rp": "no-referrer"}
+SIDECAR_SERVE = {"delay": 0.0, "fail": False, "rp": "no-referrer", "vary304": ""}
 
 # The reproducible security set the sidecar routes send (every name is in
 # the sidecar allowlist).
@@ -655,7 +655,7 @@ class ComplianceHandler(http.server.BaseHTTPRequestHandler):
         # cacheable stylesheet/page plus a header set chosen to land in one
         # verdict of the store-side gate:
         #   /sidecar/asset.css   only reproducible headers (security set)
-        #   /sidecar/custom.css  + X-Powered-By (cannot be reproduced)
+        #   /sidecar/custom.css  + X-Request-Id (cannot be reproduced)
         #   /sidecar/nonce.html  CSP with a per-response nonce
         #   /sidecar/vary-origin.css  Vary: Origin (never stored)
         #   /sidecar/flip.css    short-lived; X-Custom-Foo switched on via
@@ -670,7 +670,8 @@ class ComplianceHandler(http.server.BaseHTTPRequestHandler):
         #                        while SIDECAR_SERVE["fail"] is set
         #   /sidecar/reval.css   max-age=1 + ETag: revalidated with a 304
         #                        that carries the current Referrer-Policy
-        # Controlled through /sidecar/serve-control?delay=&fail=&rp=.
+        # Controlled through /sidecar/serve-control?delay=&fail=&rp=&vary304=
+        # (vary304 adds a Vary line to the 304 of /sidecar/reval.css).
         if path == "/sidecar/serve-control":
             query = self.path.split("?", 1)[1] if "?" in self.path else ""
             params = dict(p.split("=", 1) for p in query.split("&") if "=" in p)
@@ -680,6 +681,8 @@ class ComplianceHandler(http.server.BaseHTTPRequestHandler):
                 SIDECAR_SERVE["fail"] = params["fail"] in ("1", "on", "true")
             if "rp" in params:
                 SIDECAR_SERVE["rp"] = params["rp"]
+            if "vary304" in params:
+                SIDECAR_SERVE["vary304"] = params["vary304"]
             body = f"{SIDECAR_SERVE}\n".encode()
             self.send_response(200)
             self.send_header("Content-Type", "text/plain")
@@ -740,6 +743,8 @@ class ComplianceHandler(http.server.BaseHTTPRequestHandler):
                     self.send_header("ETag", tag)
                     self.send_header("Cache-Control", "public, max-age=1")
                     self.send_header("Referrer-Policy", rp)
+                    if SIDECAR_SERVE["vary304"]:
+                        self.send_header("Vary", SIDECAR_SERVE["vary304"])
                     self.send_header("Date", formatdate(usegmt=True))
                     self.end_headers()
                     return True
@@ -809,7 +814,7 @@ class ComplianceHandler(http.server.BaseHTTPRequestHandler):
                 for name, value in SIDECAR_SECURITY_HEADERS:
                     self.send_header(name, value)
             if path == "/sidecar/custom.css":
-                self.send_header("X-Powered-By", "PHP/8.3")
+                self.send_header("X-Request-Id", "req-8f3a")
             if path == "/sidecar/vary-origin.css":
                 self.send_header("Vary", "Origin")
             if path == "/sidecar/flip.css" and SIDECAR_FLIP["custom"]:
