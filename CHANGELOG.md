@@ -20,7 +20,7 @@ image renders its configuration from a template baked into the image plus
 environment variables, and the ConfigMap carried a directive the module no
 longer accepts, so it never applied and wiring it in would fail nginx's
 config check. Installing 0.3.11 renders one fewer object and adds the fsGroup
-field; nothing else changes. Chart repository index updates are now
+field, and its default image version moves to 2.5.1; nothing else changes. Chart repository index updates are now
 append-only, so publishing a chart version no longer rewrites the `created`
 dates, digests or metadata of the versions already published.
 
