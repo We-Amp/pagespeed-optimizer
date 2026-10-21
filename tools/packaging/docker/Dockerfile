@@ -28,7 +28,7 @@ FROM almalinux:9@sha256:9819dc675b67b595c2b59e42be7763fca1a8bb217fa5944e04daa22e
 RUN dnf -y install --setopt=install_weak_deps=False systemd-rpm-macros \
     && dnf clean all
 
-FROM ubuntu:24.04@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517
+FROM ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get -qq update \
     && apt-get -qq -y install --no-install-recommends rpm binutils cpio python3 \

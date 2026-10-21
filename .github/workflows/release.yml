@@ -66,6 +66,11 @@ jobs:
     with:
       tag: ${{ inputs.tag || '' }}
       dry_run: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
+    # Passed one by one, never `secrets: inherit`. Jobs in the `release`
+    # environment read the environment's value of each.
+    secrets:
+      RELEASE_GPG_KEY: ${{ secrets.RELEASE_GPG_KEY }}
+      RELEASE_GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
 
   nuget:
     if: >-
@@ -92,6 +97,8 @@ jobs:
       AZURE_TRUSTED_SIGNING_ACCOUNT: ${{ secrets.AZURE_TRUSTED_SIGNING_ACCOUNT }}
       AZURE_TRUSTED_SIGNING_PROFILE: ${{ secrets.AZURE_TRUSTED_SIGNING_PROFILE }}
       CORP_DISPATCH_TOKEN: ${{ secrets.CORP_DISPATCH_TOKEN }}
+      RELEASE_GPG_KEY: ${{ secrets.RELEASE_GPG_KEY }}
+      RELEASE_GPG_PASSPHRASE: ${{ secrets.RELEASE_GPG_PASSPHRASE }}
 
   unsupported-tag:
     name: Unsupported tag
