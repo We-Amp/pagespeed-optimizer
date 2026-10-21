@@ -3,9 +3,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
 import { FREE_TO_RUN_LINE, LICENSE_CLAUSE } from '../../data/product-facts.mjs';
 import { stripHtml } from '../../data/faq-shared';
-import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../../data/software-jsonld';
-
-const softwareVersion = await productSoftwareVersion();
+import { productJsonLd } from '../../data/software-jsonld';
 
 // `html`, when set, is the visible answer with links; the FAQPage JSON-LD
 // carries its text, so the structured data and the page say the same thing.
@@ -50,22 +48,11 @@ const faq: Array<{ q: string; a: string; html?: string }> = [
 ];
 
 const jsonLd = [
-  {
-    '@context': 'https://schema.org',
-    '@type': 'SoftwareApplication',
-    name: 'mod_pagespeed 2.1',
-    applicationCategory: 'DeveloperApplication',
-    operatingSystem: PRODUCT_OPERATING_SYSTEMS,
-    softwareVersion,
+  await productJsonLd({
     description:
       'Maintained continuation of the Google PageSpeed Module: the native in-process module for Apache and nginx with the optimizer worker alongside it. Zero-copy cache serving, variant-aware fan-out, AVIF + WebP.',
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
-    publisher: {
-      '@type': 'Organization',
-      name: 'We-Amp B.V.',
-      url: 'https://we-amp.com/',
-    },
-  },
+  }),
   {
     '@context': 'https://schema.org',
     '@type': 'WebApplication',

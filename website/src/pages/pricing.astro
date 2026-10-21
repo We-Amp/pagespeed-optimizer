@@ -18,23 +18,20 @@ import { offerJsonLd, supportTierOffersJsonLd } from '../data/offer-jsonld';
 import {
   AUDIT_PRICE_EUR,
   COMMERCIAL_EMAIL,
-  CURRENT_LINE,
   LICENSE_CLAUSE,
   LICENSE_CLAUSE_CAP,
   LICENSING_TERMS_URL,
   PRICE_HOLD_LINE,
   PRICING_TERMS_LINE,
-  PRODUCT_NAME,
+  PRODUCT_DISPLAY_NAME,
   RESPONSE_TARGETS_LINE,
   SUPPORT_TIERS,
   formatEur,
 } from '../data/product-facts.mjs';
-import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../data/software-jsonld';
+import { productNode } from '../data/software-jsonld';
 import Icon from '../components/Icon.astro';
 
-const softwareVersion = await productSoftwareVersion();
-
-const PRODUCT = `${PRODUCT_NAME} ${CURRENT_LINE}`;
+const PRODUCT = PRODUCT_DISPLAY_NAME;
 
 // Terms version subscriptions are made under. MUST stay in lockstep with
 // the "Version YYYY-MM[-DD]" stamp in src/pages/terms.astro —
@@ -50,15 +47,10 @@ const tierOffers = supportTierOffersJsonLd({ url: 'https://modpagespeed.com/pric
 const jsonLd = {
   '@context': 'https://schema.org',
   '@graph': [
-    {
-      '@type': 'SoftwareApplication',
-      name: PRODUCT,
-      applicationCategory: 'WebApplication',
-      operatingSystem: PRODUCT_OPERATING_SYSTEMS,
-      softwareVersion,
+    await productNode({
       description: `Self-hosted web performance optimization: a native module for Apache and nginx with a separate optimizer worker. ${LICENSE_CLAUSE_CAP}; support subscriptions are sold separately, from ${formatEur(SUPPORT_TIERS[0].prices.annualEur)} a year, excl. VAT.`,
       offers: [offer, ...tierOffers],
-    },
+    }),
     {
       '@type': 'FAQPage',
       mainEntity: faqPricing.map((entry) => ({

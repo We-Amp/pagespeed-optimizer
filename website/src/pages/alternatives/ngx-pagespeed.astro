@@ -3,9 +3,7 @@ import BaseLayout from '../../layouts/BaseLayout.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
 import { getRelease } from '../../lib/release';
 import { FREE_TO_RUN_LINE, LICENSE_CLAUSE } from '../../data/product-facts.mjs';
-import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../../data/software-jsonld';
-
-const softwareVersion = await productSoftwareVersion();
+import { PRODUCT_SAME_AS, productJsonLd } from '../../data/software-jsonld';
 
 // Image names and tag come from the release manifest, so the compose sample
 // below cannot drift from the published images.
@@ -42,23 +40,12 @@ const faq = [
 ];
 
 const jsonLd = [
-  {
-    '@context': 'https://schema.org',
-    '@type': 'SoftwareApplication',
-    name: 'mod_pagespeed 2.1',
-    applicationCategory: 'DeveloperApplication',
-    operatingSystem: PRODUCT_OPERATING_SYSTEMS,
-    softwareVersion,
+  await productJsonLd({
     description:
       'Maintained continuation of the nginx PageSpeed port. Native in-process nginx module (ngx_pagespeed_module.so) with the same pagespeed directives and filters as open-source mod_pagespeed, built against current nginx with applied CVE patches, variant-aware Cyclone caching and zero-copy mmap serving. Also native on Apache, and available as a Docker / nginx reverse proxy with the optimizer worker.',
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
-    sameAs: ['https://packages.modpagespeed.com/', 'https://ngxpagespeed.com/'],
-    publisher: {
-      '@type': 'Organization',
-      name: 'We-Amp B.V.',
-      url: 'https://we-amp.com/',
-    },
-  },
+    sameAs: [...PRODUCT_SAME_AS, 'https://packages.modpagespeed.com/', 'https://ngxpagespeed.com/'],
+  }),
   {
     '@context': 'https://schema.org',
     '@type': 'FAQPage',

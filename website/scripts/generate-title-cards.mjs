@@ -57,6 +57,7 @@ import { Resvg } from '@resvg/resvg-js';
 // build time. wawoff2 is a thin WASM wrapper around Google's woff2 tool
 // and adds ~140KB of devDeps.
 import wawoff from 'wawoff2';
+import { PRODUCT_DISPLAY_NAME } from '../src/data/product-facts.mjs';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -351,12 +352,19 @@ async function main() {
   let generated = 0;
   let skipped = 0;
 
-  // The default card (og-default.png): the product name as the mono eyebrow
+  // The default card (og-default.png): the product name (PRODUCT_DISPLAY_NAME,
+  // no version) as the mono eyebrow
   // over the home page's title tagline (src/pages/index.astro).
-  if (stale(defaultCardPath, [])) {
+  // The eyebrow is the product-name constant, so a name change in either
+  // facts file re-renders the card.
+  const factsMtimes = [
+    path.join(__dirname, '../src/data/product-facts.mjs'),
+    path.join(__dirname, '../../shared/product-facts.mjs'),
+  ].map((file) => fs.statSync(file).mtimeMs);
+  if (stale(defaultCardPath, factsMtimes)) {
     await renderCard(
       buildTree({
-        eyebrow: 'mod_pagespeed 2.1',
+        eyebrow: PRODUCT_DISPLAY_NAME,
         title: 'PageSpeed module for nginx and Apache',
       }),
       defaultCardPath,

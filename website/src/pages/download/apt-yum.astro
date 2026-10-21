@@ -1,4 +1,5 @@
 ---
+import { OG_DEFAULT_IMAGE_URL } from '../../data/og-image';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import TermPanel from '../../components/instrument/TermPanel.astro';
 import { LICENSE_CLAUSE, REPOSITORY_KEY, formatFingerprint } from '../../data/product-facts.mjs';
@@ -10,7 +11,7 @@ const jsonLd = {
   description:
     'Signed apt and yum repository for the mod_pagespeed 2.1 Apache and nginx modules on Debian 12/13, Ubuntu 22.04/24.04, and AlmaLinux/RHEL/Rocky 9 and 10. One-line install configures the repo and pulls the package.',
   about: 'mod_pagespeed 2.1',
-  image: 'https://modpagespeed.com/og-default.png?v=2',
+  image: OG_DEFAULT_IMAGE_URL,
   author: { '@type': 'Organization', name: 'We-Amp B.V.' },
   publisher: {
     '@type': 'Organization',

@@ -1,16 +1,17 @@
 ---
+import { OG_DEFAULT_IMAGE } from '../data/og-image';
 import NewsletterSignup from '../components/NewsletterSignup.astro';
 import QuickMessage from '../components/QuickMessage.astro';
 import ShareFloat from '../components/ShareFloat.astro';
 import SearchDialog from '../components/SearchDialog.astro';
 import Icon from '../components/Icon.astro';
 import TelemetryStrip from '../components/instrument/TelemetryStrip.astro';
-import { PRODUCT_DISPLAY_NAME, CURRENT_LINE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
+import { PRODUCT_DISPLAY_NAME, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
 import { safeJsonLd } from '../lib/jsonld';
 
 // Derived chrome label (lowercase everywhere) — one product name,
 // one logo, one site name, used sitewide.
-const currentLabel = `${PRODUCT_DISPLAY_NAME} ${CURRENT_LINE}`;
+const currentLabel = PRODUCT_DISPLAY_NAME;
 
 interface Props {
   title: string;
@@ -51,7 +52,7 @@ interface Props {
 
 const {
   title,
-  description = `${PRODUCT_DISPLAY_NAME} ${CURRENT_LINE} — automatic web performance optimization for Apache and nginx. ${LICENSE_CLAUSE_CAP}. Your servers, your rules.`,
+  description = `${PRODUCT_DISPLAY_NAME} — automatic web performance optimization for Apache and nginx. ${LICENSE_CLAUSE_CAP}. Your servers, your rules.`,
   ogImage,
   jsonLd,
   noindex = false,
@@ -82,7 +83,7 @@ const bannerDismissKey = 'banner-dismissed:mps21-ga-2026a';
 // card is added (e.g. public/og-1.1.png), switch the 1.1 branch below to it.
 // Until then 1.1 pages fall back to the shared default rather than referencing
 // a missing file.
-const resolvedOgImage = ogImage ?? '/og-default.png?v=3';
+const resolvedOgImage = ogImage ?? OG_DEFAULT_IMAGE;
 
 const siteUrl = Astro.site ?? new URL('https://modpagespeed.com');
 const absoluteOgImage = new URL(resolvedOgImage, siteUrl).href;

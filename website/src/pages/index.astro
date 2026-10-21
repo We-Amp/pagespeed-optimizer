@@ -1,4 +1,5 @@
 ---
+import { OG_DEFAULT_IMAGE_URL } from '../data/og-image';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import CTAButton from '../components/CTAButton.astro';
 import Icon from '../components/Icon.astro';
@@ -22,9 +23,8 @@ import {
   MAX_VARIANTS,
   MODULE_PACKAGE_VERSION,
 } from '../data/product-facts.mjs';
-import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../data/software-jsonld';
-
-const softwareVersion = await productSoftwareVersion();
+import { productJsonLd } from '../data/software-jsonld';
+import { ORGANIZATION } from '../data/organization';
 
 // Hero readout panel: the e-commerce case from src/data/demo-metrics.json
 // (measured on the demo store; the label date comes from generated_at).
@@ -142,37 +142,7 @@ const lineageCitations = [
 
 const organization = {
   '@context': 'https://schema.org',
-  '@type': 'Organization',
-  '@id': 'https://we-amp.com/#organization',
-  name: 'We-Amp B.V.',
-  url: 'https://we-amp.com/',
-  logo: 'https://we-amp.com/images/weamp.svg',
-  description:
-    'Dutch software and consulting company specializing in HTTP infrastructure, web performance, and reverse proxy engineering.',
-  foundingDate: '2012',
-  founder: {
-    '@type': 'Person',
-    name: 'Otto van der Schaaf',
-    sameAs: ['https://www.linkedin.com/in/oschaaf', 'https://github.com/oschaaf'],
-  },
-  address: {
-    '@type': 'PostalAddress',
-    addressLocality: 'Castricum',
-    addressCountry: 'NL',
-  },
-  identifier: [{ '@type': 'PropertyValue', propertyID: 'KvK', value: '57898138' }],
-  sameAs: [
-    'https://modpagespeed.com',
-    'https://iispeed.com',
-    'https://ngxpagespeed.com',
-    'https://github.com/We-Amp',
-    'https://github.com/oschaaf',
-  ],
-  brand: {
-    '@type': 'Brand',
-    name: 'mod_pagespeed 2.1',
-    alternateName: 'ModPageSpeed 2.0',
-  },
+  ...ORGANIZATION,
   subjectOf: lineageCitations,
 };
 
@@ -185,19 +155,12 @@ const website = {
   publisher: { '@id': 'https://we-amp.com/#organization' },
 };
 
-const product = {
-  '@context': 'https://schema.org',
-  '@type': ['Product', 'SoftwareApplication'],
-  name: 'mod_pagespeed 2.1',
-  applicationCategory: 'WebApplication',
-  operatingSystem: PRODUCT_OPERATING_SYSTEMS,
-  softwareVersion,
+const product = await productJsonLd({
   description: `Self-hosted web performance optimization: image transcoding, critical CSS extraction, and variant-aware caching. A native module for Apache and nginx with a separate optimizer worker. ${LICENSE_CLAUSE_CAP}.`,
-  image: 'https://modpagespeed.com/og-default.png?v=2',
-  brand: { '@type': 'Brand', name: 'mod_pagespeed' },
+  image: OG_DEFAULT_IMAGE_URL,
   offers: offerJsonLd(),
   citation: lineageCitations,
-};
+});
 
 // FAQPage JSON-LD — mainEntity mirrors the 6 visible Q&A pairs in the FAQ <dl>
 // below. The "Why should I pay?" answer uses ONLY its prose <dd>; the

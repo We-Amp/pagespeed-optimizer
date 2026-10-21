@@ -1,4 +1,5 @@
 ---
+import { OG_DEFAULT_IMAGE_URL } from '../data/og-image';
 import BaseLayout from '../layouts/BaseLayout.astro';
 
 const jsonLd = {
@@ -8,7 +9,7 @@ const jsonLd = {
   description:
     "PSOL was Google's server-independent C++ optimization core inside mod_pagespeed. The original project's last open-source release shipped in 2020. The same engine is maintained today and runs in your web server, in front of any origin, or inside ASP.NET Core.",
   about: 'PageSpeed Optimization Libraries',
-  image: 'https://modpagespeed.com/og-default.png?v=2',
+  image: OG_DEFAULT_IMAGE_URL,
   author: { '@type': 'Organization', name: 'We-Amp B.V.' },
   publisher: {
     '@type': 'Organization',

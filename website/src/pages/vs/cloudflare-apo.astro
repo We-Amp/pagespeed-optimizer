@@ -1,7 +1,9 @@
 ---
+import { OG_DEFAULT_IMAGE_URL } from '../../data/og-image';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import CompareTable from '../../components/vs/CompareTable.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
+import { productJsonLd } from '../../data/software-jsonld';
 import { editionClause, FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
 
 const rows = [
@@ -79,21 +81,12 @@ const rows = [
 ];
 
 const jsonLd = [
-  {
-    '@context': 'https://schema.org',
-    '@type': ['Product', 'SoftwareApplication'],
-    name: 'mod_pagespeed 2.1',
-    alternateName: 'ModPageSpeed',
-    image: 'https://modpagespeed.com/og-default.png?v=2',
-    applicationCategory: 'WebApplication',
-    operatingSystem: ['Linux', 'Windows', 'macOS'],
+  await productJsonLd({
+    image: OG_DEFAULT_IMAGE_URL,
     description:
       'Cloudflare APO is WordPress-only and runs at the Cloudflare edge. mod_pagespeed runs at your origin, supports any CMS, and is free under the Apache License 2.0 — every server behind the site is covered.',
-    url: 'https://modpagespeed.com/',
-    brand: { '@type': 'Brand', name: 'mod_pagespeed 2.1' },
-    publisher: { '@id': 'https://we-amp.com/#organization' },
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
-  },
+  }),
 ];
 ---
 

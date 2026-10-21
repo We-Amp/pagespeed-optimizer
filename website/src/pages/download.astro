@@ -1,4 +1,5 @@
 ---
+import { OG_DEFAULT_IMAGE_URL } from '../data/og-image';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Icon from '../components/Icon.astro';
 import TermPanel from '../components/instrument/TermPanel.astro';
@@ -14,9 +15,7 @@ import {
   REPOSITORY_KEY,
   formatFingerprint,
 } from '../data/product-facts.mjs';
-import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../data/software-jsonld';
-
-const softwareVersion = await productSoftwareVersion();
+import { productJsonLd } from '../data/software-jsonld';
 
 const rel21 = await getRelease('2.1');
 
@@ -131,19 +130,12 @@ const integrations = [
   },
 ];
 
-const jsonLd = {
-  '@context': 'https://schema.org',
-  '@type': ['Product', 'SoftwareApplication'],
-  name: 'mod_pagespeed 2.1',
-  applicationCategory: 'WebApplication',
-  operatingSystem: PRODUCT_OPERATING_SYSTEMS,
-  softwareVersion,
-  image: 'https://modpagespeed.com/og-default.png?v=2',
-  brand: { '@type': 'Brand', name: 'mod_pagespeed' },
+const jsonLd = await productJsonLd({
+  image: OG_DEFAULT_IMAGE_URL,
   offers: offerJsonLd({
     url: 'https://modpagespeed.com/download/',
   }),
-};
+});
 ---
 
 <BaseLayout

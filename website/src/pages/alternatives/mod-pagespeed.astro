@@ -2,9 +2,7 @@
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { offerJsonLd } from '../../data/offer-jsonld';
 import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
-import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../../data/software-jsonld';
-
-const softwareVersion = await productSoftwareVersion();
+import { PRODUCT_SAME_AS, productJsonLd } from '../../data/software-jsonld';
 
 const faq = [
   {
@@ -30,23 +28,12 @@ const faq = [
 ];
 
 const jsonLd = [
-  {
-    '@context': 'https://schema.org',
-    '@type': 'SoftwareApplication',
-    name: 'mod_pagespeed 2.1',
-    applicationCategory: 'DeveloperApplication',
-    operatingSystem: PRODUCT_OPERATING_SYSTEMS,
-    softwareVersion,
+  await productJsonLd({
     description:
       'Maintained continuation of Google mod_pagespeed: the native in-process module for Apache and nginx, with the C++23 optimizer worker alongside it for zero-copy caching and variant-aware serving. Same directive surface as 1.13.35.2.',
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
-    sameAs: 'https://packages.modpagespeed.com/',
-    publisher: {
-      '@type': 'Organization',
-      name: 'We-Amp B.V.',
-      url: 'https://we-amp.com/',
-    },
-  },
+    sameAs: [...PRODUCT_SAME_AS, 'https://packages.modpagespeed.com/'],
+  }),
   {
     '@context': 'https://schema.org',
     '@type': 'FAQPage',

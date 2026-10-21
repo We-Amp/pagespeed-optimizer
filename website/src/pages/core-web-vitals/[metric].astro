@@ -1,4 +1,5 @@
 ---
+import { OG_DEFAULT_IMAGE_URL } from '../../data/og-image';
 import BaseLayout from '../../layouts/BaseLayout.astro';
 import { pillars, spokeFor, type CwvPillar } from '../../data/cwv-pillars';
 import { FREE_TO_RUN_LINE } from '../../data/product-facts.mjs';
@@ -43,7 +44,7 @@ const jsonLd = [
     about: pillar.name,
     url,
     mainEntityOfPage: url,
-    image: 'https://modpagespeed.com/og-default.png?v=2',
+    image: OG_DEFAULT_IMAGE_URL,
     author: { '@type': 'Organization', name: 'We-Amp B.V.' },
     // Inline the publisher: the https://we-amp.com/#organization node this
     // previously referenced by @id is only embedded on / and /about/, so the

@@ -2,7 +2,7 @@
 import BaseLayout from '../layouts/BaseLayout.astro';
 import SectionHeader from '../components/instrument/SectionHeader.astro';
 import { offerJsonLd } from '../data/offer-jsonld';
-import { V1_LINE, LICENSE_CLAUSE } from '../data/product-facts.mjs';
+import { V1_LINE, LICENSE_CLAUSE, PRODUCT_DISPLAY_NAME } from '../data/product-facts.mjs';
 import { stripHtml } from '../data/faq-shared';
 
 // /wordpress/ — landing page for the WordPress control-plane plugin
@@ -50,7 +50,7 @@ const jsonLd = [
     name: 'WeAmp Cache Control for ModPageSpeed',
     applicationCategory: 'WebApplication',
     operatingSystem: 'WordPress',
-    description: `WordPress control panel for mod_pagespeed 2.1 full-page caching: adds Cache-Control headers to anonymous pages, purges the mod_pagespeed cache on publish, update, and delete, and exposes per-post-type TTLs in WP Admin and WP-CLI. Requires mod_pagespeed on the server.`,
+    description: `WordPress control panel for ${PRODUCT_DISPLAY_NAME} full-page caching: adds Cache-Control headers to anonymous pages, purges the mod_pagespeed cache on publish, update, and delete, and exposes per-post-type TTLs in WP Admin and WP-CLI. Requires mod_pagespeed on the server.`,
     softwareHelp: 'https://modpagespeed.com/docs/cache-control/',
     downloadUrl: WP_URL,
     offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),

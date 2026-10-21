@@ -1,8 +1,9 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import { ORGANIZATION } from '../data/organization';
 
-// AboutPage JSON-LD references the canonical Organization node defined on
-// index.astro and iispeed.com via @id. Cross-property identity lets Google
+// AboutPage JSON-LD carries the one Organization node (src/data/organization.ts),
+// the same @id the home page and iispeed.com use. Cross-property identity lets Google
 // reconcile the same legal entity wherever it appears.
 const jsonLd = {
   '@context': 'https://schema.org',
@@ -11,39 +12,7 @@ const jsonLd = {
   url: 'https://modpagespeed.com/about/',
   description:
     'The team behind mod_pagespeed 2.1, introduced as ModPageSpeed 2.0: We-Amp B.V., a Dutch software company founded in 2012 that helped build ngx_pagespeed and maintained mod_pagespeed, and today maintains the PageSpeed optimization lineage — led by Otto van der Schaaf, an Apache PageSpeed (incubating) committer who release-managed its only Apache release, 1.14.36.1, and an Apache Traffic Server PMC member since 2012.',
-  mainEntity: {
-    '@type': 'Organization',
-    '@id': 'https://we-amp.com/#organization',
-    name: 'We-Amp B.V.',
-    url: 'https://we-amp.com/',
-    logo: 'https://we-amp.com/images/weamp.svg',
-    description:
-      'Dutch software and consulting company specializing in HTTP infrastructure, web performance, and reverse proxy engineering.',
-    foundingDate: '2012',
-    founder: {
-      '@type': 'Person',
-      name: 'Otto van der Schaaf',
-      sameAs: ['https://www.linkedin.com/in/oschaaf', 'https://github.com/oschaaf'],
-    },
-    address: {
-      '@type': 'PostalAddress',
-      addressLocality: 'Castricum',
-      addressCountry: 'NL',
-    },
-    identifier: [{ '@type': 'PropertyValue', propertyID: 'KvK', value: '57898138' }],
-    sameAs: [
-      'https://modpagespeed.com',
-      'https://iispeed.com',
-      'https://ngxpagespeed.com',
-      'https://github.com/We-Amp',
-      'https://github.com/oschaaf',
-    ],
-    brand: {
-      '@type': 'Brand',
-      name: 'mod_pagespeed 2.1',
-      alternateName: 'ModPageSpeed 2.0',
-    },
-  },
+  mainEntity: ORGANIZATION,
 };
 ---
 
