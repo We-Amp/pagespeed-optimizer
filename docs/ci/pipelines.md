@@ -63,19 +63,51 @@ runs-on: ${{ (github.event_name == 'pull_request' && (github.event.pull_request.
 The fleet class is one of `fleet-heavy`, `fleet-light`, `fleet-windows`,
 `fleet-iis`. Windows jobs use `windows-2022` as the hosted side.
 
-### The fleet guard and the kill switch
+### The kill switch
 
-Every fleet job also carries this guard, verbatim, as its `if:`:
+`FLEET_ENABLED` is a repository variable. Unset or `true` means the fleet is
+in use; `false` is the kill switch.
+
+The PR, full and nightly tiers use the switch routing expression, copied
+verbatim into every fleet job that has a hosted twin. It sends the job to the
+hosted side for a fork or Dependabot pull request and also while the switch
+is off:
+
+```yaml
+runs-on: ${{ (vars.FLEET_ENABLED == 'false' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]'))) && 'ubuntu-latest' || 'fleet-heavy' }}
+```
+
+Such a job carries no `if:` guard (it always runs, on one side or the other),
+except a path filter alone (`needs.changes.outputs.<name> == 'true'`). Jobs
+with no hosted twin keep the plain routing expression and a fleet-only guard
+whose `FLEET_ENABLED` term is `!= 'false'`: they are skipped, not failed,
+while the switch is off, and a `fleet-off-notice` job in each tier says so in
+an annotation and the job summary.
+
+To flip it: Settings, Secrets and variables, Actions, Variables, set
+`FLEET_ENABLED` to `false` (or `gh variable set FLEET_ENABLED --body false
+-R We-Amp/pagespeed-optimizer`); set it back to `true` to go back (do not delete it: the release lanes still test for `true`). It
+is read when a run starts, so re-run a run that began before the change. The
+hosted legs run without the hub and the remote cache and are slower; the
+fleet-only legs are skipped, and the CI gate accepts those skips.
+
+The release lanes do not use the switch routing expression. They keep the
+plain routing expression, the original guards (`FLEET_ENABLED == 'true'`) and
+their hosted twins; see "Release lanes: hosted twins".
+
+#### The plain guards
+
+A fleet job routed by the plain expression (the release lanes, and the jobs
+without a hosted twin) carries one of these guards, verbatim, as its `if:`:
 
 ```yaml
 if: ${{ vars.FLEET_ENABLED == 'true' || (github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
 ```
 
-`FLEET_ENABLED` is a repository variable. While it is unset (or anything but
-`true`), fleet jobs are skipped for same-repository events and still run on
-hosted runners for fork and Dependabot pull requests, which need no fleet.
-Setting it to `true` turns the fleet legs on; clearing it is the kill switch
-that takes every fleet job off the fleet at once, with no workflow change.
+While the variable is unset (or anything but `true`), these jobs are skipped
+for same-repository events and still run on hosted runners for fork and
+Dependabot pull requests, which need no fleet. Clearing it is the kill switch
+for the release lanes' fleet jobs, which then run their hosted twins.
 
 Two more guards exist for jobs that cannot fall back to a hosted runner, and
 the gate accepts exactly these three. **Fleet only** is for a job that mounts
@@ -86,6 +118,9 @@ kernel: a fork or Dependabot pull request skips it.
 if: ${{ vars.FLEET_ENABLED == 'true' && !(github.event_name == 'pull_request' && (github.event.pull_request.head.repo.fork == true || github.actor == 'dependabot[bot]')) }}
 ```
 
+The manual shadow lanes keep the dispatch-only guard below with `== 'true'`, so they
+are skipped while the variable is unset or `false`.
+
 **Dispatch only** is for a manual lane; a dispatch is never a fork pull
 request.
 
@@ -93,7 +128,9 @@ request.
 if: ${{ github.event_name == 'workflow_dispatch' && vars.FLEET_ENABLED == 'true' }}
 ```
 
-A job that needs more conditions (for example a path filter) appends them in
+The PR, full and nightly tiers write the fleet-only guard with the first term
+`vars.FLEET_ENABLED != 'false'` (unset means on); the gate accepts both
+spellings. A job that needs more conditions (for example a path filter) appends them in
 a later change together with a matching gate rule; the gate rejects any
 fleet job whose `if:` is not exactly one of the three guards. A job that runs
 on a hosted label only (hosted arm64, macOS, report jobs) carries no guard.

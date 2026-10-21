@@ -3,7 +3,7 @@ title: 'Release notes: 2.3'
 description: 'mod_pagespeed 2.3.0 release notes: the module and the optimizer worker as one release (packages 1.18.0), with rule packs and security fixes.'
 order: 79
 group: 'Release notes by line'
-lastUpdated: 2026-10-17
+lastUpdated: 2026-10-20
 ---
 
 import ReleaseNotesDeepLink from '../../components/ReleaseNotesDeepLink.astro';
@@ -28,7 +28,7 @@ Security: resource exhaustion, image optimization. Some animated images could ti
 
 Security: dependency update, Envoy filter. The Envoy filter builds against Envoy 1.37.6, which fixes the Envoy security advisories published on 2026-08-26. Affected: the Envoy filter in releases up to and including 1.17.0, built against Envoy 1.37.5 or older, which lack these fixes. Update recommended.
 
-Security: the nginx bundled with the NuGet sidecar package is updated to 1.30.5. It carries the upstream fix for CVE-2026-90439 in nginx's HTTP/3 module. The bundled nginx is not built with HTTP/3, so it was not affected; the update keeps vulnerability scans clean.
+Security: the sidecar's build recipe moves the nginx bundled with the NuGet sidecar package to 1.30.5. It carries the upstream fix for CVE-2026-90439 in nginx's HTTP/3 module. The bundled nginx is not built with HTTP/3, so it was not affected; the update keeps vulnerability scans clean. Correction: no sidecar package was published with this release. The current `WeAmp.PageSpeed.Sidecar` 1.17.0 bundles nginx 1.30.4; the next sidecar package, which moves to the product version (2.5.x), carries a current nginx.
 
 **Before you upgrade**
 
@@ -53,7 +53,7 @@ Added: rule packs. The new `rule_packs` filter applies a rule pack, a JSON file 
 - Signed packs. A pack file may carry an Ed25519 signature in a `.sig` sidecar; `RulePackTrustKey` names a trusted publisher key and `RulePackRequireSigned` (off by default) refuses a pack without a valid signature. With `RulePackRequireSigned` off, a pack without a valid signature still loads and logs a warning once per file version per server process; a second warning gives the reason when a signature file is present but fails its check. Six `rule_pack_*` statistics count the outcomes, and `tools/rule-packs/sign-pack.sh` in the source tree signs and verifies packs. See [Signed packs](/docs/rule-packs/#signed-packs). `RulePackTrustKey` is not available on Envoy.
 - Licence fields. The `pack` object may carry a `license` object with an `entitlement` name, an `expires` date (`YYYY-MM-DD`) and a `terms` URL (`https://`). The module checks their format and writes them to the server log (at info level) once per pack version per server process, when that version is first used; they are informational and do not change what the pack does. The top-level key `signature` is reserved; a pack that uses it does not load.
 
-Added: a free edge-SEO rule pack template, `packs/edge-seo/pack.example.json`, with a README, for the `rule_packs` filter of mod_pagespeed 1.18.0 and later. It lists one placeholder host in report mode and one rule per kind (canonical, title, description, hreflang, JSON-LD); replace the example values with your own. It is not signed.
+Added: a free edge-SEO rule pack template, `packs/edge-seo/pack.example.json`, with a README, for the `rule_packs` filter of mod_pagespeed 2.3.0 (packages 1.18.0) and later. It lists one placeholder host in report mode and one rule per kind (canonical, title, description, hreflang, JSON-LD); replace the example values with your own. It is not signed.
 
 **Optimizer worker**
 

@@ -27,7 +27,7 @@ const faq = [
   },
   {
     q: 'Native nginx module or Docker reverse proxy — which fits my stack?',
-    a: 'Both are mod_pagespeed 2.1. Install the native nginx module when you run nginx on Debian, Ubuntu, or Enterprise Linux and want the module in-process where ngx_pagespeed sat: the package loads it, your existing directives, no traffic detour. Run the Docker / nginx reverse proxy when you are container-native, when the origin is something other than nginx, or on Kubernetes via the Helm chart. Both are the same product and the same Cyclone cache library. The native nginx module runs on its own; to use the optimizer worker with nginx, run the reverse-proxy deployment.',
+    a: 'Both are mod_pagespeed 2.1. Install the native nginx module when you run nginx on Debian, Ubuntu, or Enterprise Linux and want the module in-process where ngx_pagespeed sat: the package loads it, your existing directives, no traffic detour. Run the Docker / nginx reverse proxy when you are container-native, when the origin is something other than nginx, or on Kubernetes via the Helm chart. Both are the same product and the same Cyclone cache library. The native nginx module uses the optimizer worker too: install pagespeed-optimizer first and point the module at it with two directives.',
   },
   {
     q: 'Does the nginx module generate AVIF?',

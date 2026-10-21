@@ -3,7 +3,7 @@ title: 'Install with Docker'
 description: 'Run mod_pagespeed 2.1 with Docker Compose: the nginx module, the worker and a shared Cyclone cache. A one-container quick try, then a production stack.'
 order: 4
 group: 'Install'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-20
 ---
 
 Deploy mod_pagespeed 2.1 with Docker Compose. You run three containers — nginx
@@ -143,6 +143,9 @@ worker_processes auto;
 error_log /var/log/nginx/error.log warn;
 pid /var/run/nginx.pid;
 
+# The thin nginx module bundled in the image. The native module from the
+# nginx-module-pagespeed package has the same file name but is a different
+# module, with different directives.
 load_module /usr/lib/nginx/modules/ngx_pagespeed_module.so;
 
 events {

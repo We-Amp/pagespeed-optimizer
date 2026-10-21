@@ -1324,7 +1324,7 @@
         </table>
         <p class="scoring-legend">
           Higher total score = better match for the requested capability mask.
-          Format match (+1000) dominates; viewport (+80), encoding (+60), density (+40),
+          Viewport (+2000) dominates, then format match (+1000); encoding (+60), density (+40),
           and save-data (+20) are tiebreakers. Original content scores +100 as a fallback.
         </p>
       </div>

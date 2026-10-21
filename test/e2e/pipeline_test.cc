@@ -529,8 +529,19 @@ TEST_F(PipelineTest, ImagePipelineAvifEndToEnd) {
   // Surface the observed latency so a creep stays visible in the logs.
   GTEST_LOG_(INFO) << "AVIF notification retired in " << wait_elapsed_ms
                    << " ms";
+  // The upload sits at the identity slot here (the nginx layout), so the
+  // pass also builds the optimized desktop JPEG over it, and an AVIF that is
+  // not smaller than that JPEG is refused: the AVIF client is then served
+  // the JPEG.  Either way it never gets more bytes than the JPEG client.
+  CapabilityMask jpeg_mask;  // Desktop/Original/Identity = 0x08
+  std::string jpeg_variant = ReadVariant(worker.cache(), cache_url, jpeg_mask);
+  ASSERT_FALSE(jpeg_variant.empty()) << "optimized JPEG not written";
+  EXPECT_LT(jpeg_variant.size(), jpeg.size())
+      << "the identity slot still holds the upload";
   std::string variant = ReadVariant(worker.cache(), cache_url, avif_mask);
-  EXPECT_FALSE(variant.empty()) << "AVIF variant not written";
+  if (!variant.empty()) {
+    EXPECT_LT(variant.size(), jpeg_variant.size());
+  }
   if (variant.size() >= 12) {
     // Verify AVIF magic bytes: "ftyp" at offset 4.
     EXPECT_EQ('f', variant[4]);

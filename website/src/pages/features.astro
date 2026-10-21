@@ -21,7 +21,7 @@ const nugetInstallCmd = `dotnet add package ${rel20.artifacts.nuget.package}${
 // entity (and carries the price for merchant/rich results).
 const softwareApplication = await productJsonLd({
   description:
-    'Self-hosted web performance optimization: WebP/AVIF image transcoding (plus SVG auto-vectorization in the optimizer worker), CSS/JS minification, heuristic critical CSS, variant-aware caching, and zero-copy mmap serving. One product in two parts: an in-process module and an optimizer worker; with the Apache module and in the reverse-proxy deployment, both parts map the same Cyclone cache.',
+    'Self-hosted web performance optimization: WebP/AVIF image transcoding (plus SVG auto-vectorization in the optimizer worker), CSS/JS minification, heuristic critical CSS, variant-aware caching, and zero-copy mmap serving. One product in two parts: an in-process module and an optimizer worker; with the worker paired to the Apache or nginx module, and in the reverse-proxy deployment, both parts map the same Cyclone cache.',
   image: OG_DEFAULT_IMAGE_URL,
   featureList: [
     'WebP/AVIF/SVG image transcoding with viewport-aware resizing',
@@ -1133,8 +1133,16 @@ const jsonLd = [softwareApplication, faqPage];
       </div>
       <p class="mt-8 text-sm text-text-muted text-center max-w-2xl mx-auto">
         The Apache packages install the configuration that points the module at the optimizer
-        worker. The native nginx module runs on its own; to use the optimizer worker with nginx, run
-        the reverse-proxy deployment.
+        worker. The native nginx module uses the worker once two directives point it there: install{' '}
+        <code class="text-xs bg-bg-elevated px-1 rounded">pagespeed-optimizer</code> first, then
+        follow the{' '}
+        <a
+          href="/docs/installation-module/#native-nginx-module"
+          class="text-interactive hover:text-interactive-hover underline"
+        >
+          nginx install steps
+        </a>
+        .
       </p>
       <p class="mt-4 text-sm text-text-muted text-center max-w-2xl mx-auto">
         Beyond nginx, mod_pagespeed integrates as middleware for ASP.NET Core applications via the{' '}

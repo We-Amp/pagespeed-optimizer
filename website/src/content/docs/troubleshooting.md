@@ -3,7 +3,7 @@ title: 'Troubleshoot common issues'
 description: 'Fix common mod_pagespeed 2.1 issues: cache misses, images not converting to WebP or AVIF, the optimizer worker not processing, and socket diagnostics.'
 order: 58
 group: 'Operate'
-lastUpdated: 2026-10-19
+lastUpdated: 2026-10-20
 ---
 
 Most mod_pagespeed 2.1 problems surface in one place: the `X-PageSpeed`
@@ -698,8 +698,8 @@ Verify that the configuration options match between the HTML-serving VHost and t
 
 **Fix:**
 
-- Flush the cache: `curl 'http://yoursite.com/pagespeed_admin/cache?purge=*'`
-- Or touch the cache.flush file (legacy method).
+- With `EnableCachePurge on`, purge everything from the global admin page (a `POST` with the `X-Requested-With` header; a plain `GET` answers `405`, and the per-vhost `/pagespeed_admin` page refuses `*`): `curl -X POST -H 'X-Requested-With: XMLHttpRequest' 'http://yoursite.com/pagespeed_global_admin/cache?purge=*'`. Send it from a client the [admin access rules](/docs/admin-console/#setup) allow.
+- With `EnableCachePurge` off (the default), touch `cache.flush` in the `FileCachePath` directory: `sudo touch /var/cache/mod_pagespeed/cache.flush` on Apache, `sudo touch /var/cache/ngx_pagespeed/cache.flush` on nginx (the path in the Apache package's `pagespeed.conf` and in the nginx package's sample configuration; use the path your configuration names). See [Cache flushing and purging](/docs/cache-modes/#cache-flushing-and-purging).
 - If resources are loaded from disk via `LoadFromFile`, changes are picked up after `LoadFromFileCacheTtlMs` expires (default: same as ImplicitCacheTtlMs, 5 minutes).
 - For immediate pickup, set a shorter `ImplicitCacheTtlMs` or purge the specific URL.
 
@@ -715,13 +715,23 @@ Verify that the configuration options match between the HTML-serving VHost and t
 
 ### SELinux blocks mod_pagespeed
 
-**Cause:** SELinux policy prevents the web server from writing to the cache directory.
+**Cause:** SELinux policy prevents the web server from writing to the cache directory. On Enterprise Linux both Apache and nginx run in the `httpd_t` domain, which can write files labelled `httpd_cache_t` but not the `httpd_sys_content_t` (read-only content) or generic `var_t` labels.
+
+**Check:** `ls -Zd` on your `FileCachePath` shows its label, and `sudo ausearch -m avc -ts recent` lists the denials.
 
 **Fix:**
 
-```bash
-sudo chcon -R -t httpd_sys_content_t /var/cache/pagespeed/
-```
+- **Apache:** the stock targeted policy already labels `/var/cache/mod_pagespeed`, the package's cache directory, `httpd_cache_t`. If the label is wrong (a directory copied in from elsewhere), restore it with `sudo restorecon -Rv /var/cache/mod_pagespeed`.
+- **nginx:** the stock policy has no rule for `/var/cache/ngx_pagespeed`, so it is labelled `var_t` and nginx cannot write to it. Add a persistent rule and apply it (`semanage` is in the `policycoreutils-python-utils` package):
+
+  ```bash
+  sudo semanage fcontext -a -t httpd_cache_t '/var/cache/ngx_pagespeed(/.*)?'
+  sudo restorecon -Rv /var/cache/ngx_pagespeed
+  ```
+
+- **A cache directory you chose yourself:** the same two commands with your path. Do not use `chcon`: its label is lost at the next `restorecon` or file-system relabel.
+- **Fetching:** the module fetches subresources over HTTP, including from the server itself over loopback, and the stock policy denies the web server outbound connections. Without the boolean below, resources are served unoptimized: `sudo setsebool -P httpd_can_network_connect 1`.
+- **The optimizer worker:** the Apache module RPM installs the `pagespeed-optimizer` SELinux policy module and relabels `/var/cache/pagespeed-optimizer` and `/run/pagespeed-optimizer` itself; `sudo semodule -l | grep pagespeed-optimizer` confirms it is loaded. If the install could not load it, the package printed the retry command: `sudo semodule -i /usr/share/selinux/targeted/pagespeed-optimizer.pp`. The nginx module RPM does not ship this policy module, so on a host with only the nginx module nothing installs it: with SELinux enforcing, nginx cannot reach the worker's cache volume and notify socket, and in-place optimization through the worker stays off.
 
 ### Beacons causing unexpected POST requests
 

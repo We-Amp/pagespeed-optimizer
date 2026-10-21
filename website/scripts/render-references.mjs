@@ -150,6 +150,11 @@ export function renderModuleDirectives() {
   const nav = [...byArea.entries()]
     .filter(([, list]) => list.length)
     .map(([area, list]) => `[${area}](#${areaId(area)}) (${list.length})`);
+  const { repo, tag } = data.source;
+  out.push(
+    `Generated from the mod_pagespeed source at tag [\`${tag}\`](${repo}/tree/${tag}): ${data.directives.length} directives.`,
+    '',
+  );
   out.push(`Areas: ${nav.join(' · ')}.`, '');
   for (const [area, list] of byArea) {
     if (!list.length) continue;
