@@ -104,7 +104,6 @@ cache for ALL subsequent requests to that URL.
 
 **Affected configs** (none set `proxy_set_header Accept-Encoding ""`):
 - `deploy/nginx.conf.example`
-- `deploy/helm/pagespeed/templates/configmap.yaml`
 - `tools/e2e/nginx-e2e.conf`
 - `tools/http-compliance/nginx-compliance.conf`
 - `tools/stress/nginx-stress.conf`

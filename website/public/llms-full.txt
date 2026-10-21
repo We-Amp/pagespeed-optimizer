@@ -1792,7 +1792,7 @@ helm uninstall pagespeed
 ```
 
 This removes all Kubernetes resources created by the chart (Deployment, Service,
-Ingress, HPA, ConfigMap). The emptyDir volumes are deleted with the pods.
+Ingress, HPA). The emptyDir volumes are deleted with the pods.
 
 ## Verifying the deployment
 
@@ -17382,7 +17382,7 @@ helm uninstall pagespeed
 ```
 
 This removes every resource the chart created (Deployment, Service, Ingress,
-HPA, ConfigMap). The `emptyDir` cache goes with the pods.
+HPA). The `emptyDir` cache goes with the pods.
 
 ## IIS
 
