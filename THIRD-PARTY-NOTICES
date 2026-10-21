@@ -49,14 +49,14 @@ SSIMULACRA2 (bundled with jpegli)
   Copyright (c) the JPEG XL Project Authors
   https://github.com/google/jpegli/blob/bc19ca2393f79bfe0a4a9518f77e4ad33ce1ab7a/LICENSE
 
-libpng 1.6.54
+libpng 1.6.58
   License: Libpng-2.0
   Copyright (c) 1995-2026 The PNG Reference Library Authors
   Copyright (c) 2018-2026 Cosmin Truta
   Copyright (c) 2000-2002, 2004, 2006-2018 Glenn Randers-Pehrson
   Copyright (c) 1996-1997 Andreas Dilger
   Copyright (c) 1995-1996 Guy Eric Schalnat, Group 42, Inc.
-  https://github.com/pnggroup/libpng/blob/v1.6.54/LICENSE
+  https://github.com/pnggroup/libpng/blob/v1.6.58/LICENSE
 
 zlib 1.3.2
   License: Zlib

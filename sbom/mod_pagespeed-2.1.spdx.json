@@ -3,9 +3,9 @@
   "dataLicense": "CC0-1.0",
   "SPDXID": "SPDXRef-DOCUMENT",
   "name": "mod_pagespeed-2.1",
-  "documentNamespace": "https://spdx.org/spdxdocs/mod_pagespeed-2.1-2026-10-21T08:04:02Z",
+  "documentNamespace": "https://spdx.org/spdxdocs/mod_pagespeed-2.1-2026-10-21T18:56:39Z",
   "creationInfo": {
-    "created": "2026-10-21T08:04:02Z",
+    "created": "2026-10-21T18:56:39Z",
     "creators": [
       "Tool: generate-sbom.py-1.0",
       "Organization: We-Amp B.V."
@@ -136,9 +136,9 @@
     {
       "SPDXID": "SPDXRef-Package-libpng",
       "name": "libpng",
-      "versionInfo": "1.6.54",
+      "versionInfo": "1.6.58",
       "supplier": "Organization: Glenn Randers-Pehrson et al.",
-      "downloadLocation": "https://github.com/glennrp/libpng/archive/refs/tags/v1.6.54.tar.gz",
+      "downloadLocation": "https://github.com/glennrp/libpng/archive/refs/tags/v1.6.58.tar.gz",
       "filesAnalyzed": false,
       "licenseConcluded": "Libpng-2.0",
       "licenseDeclared": "Libpng-2.0",
@@ -147,13 +147,13 @@
         {
           "referenceCategory": "PACKAGE-MANAGER",
           "referenceType": "purl",
-          "referenceLocator": "pkg:github/glennrp/libpng@1.6.54"
+          "referenceLocator": "pkg:github/glennrp/libpng@1.6.58"
         }
       ],
       "checksums": [
         {
           "algorithm": "SHA256",
-          "checksumValue": "ba7efce137409079989df4667706c339bebfbb10e9f413474718012a13c8cd4c"
+          "checksumValue": "a9d4df463d36a6e5f9c29bd6f4967312d17e996c1854f3511f833924eb1993cf"
         }
       ]
     },
