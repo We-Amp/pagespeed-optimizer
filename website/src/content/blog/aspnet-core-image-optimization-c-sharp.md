@@ -2,7 +2,7 @@
 title: 'ASP.NET Core image optimization in C#: WebP and AVIF'
 description: 'Serve WebP and AVIF from ASP.NET Core with no controller or Razor changes: WeAmp.PageSpeed middleware negotiates on Accept, sizes images, preloads LCP.'
 date: 2026-05-20
-lastUpdated: 2026-09-06
+lastUpdated: 2026-10-20
 author: 'Otto van der Schaaf'
 tags: ['aspnet-core', 'image-optimization', 'webp', 'avif', 'dotnet']
 draft: false
@@ -75,7 +75,7 @@ Request flow:
 3. On the next request for that rewritten URL, the cache lookup returns
    the pre-generated WebP variant. Zero application code involved; the
    middleware serves the bytes directly with the correct `Content-Type`
-   and `Vary: Accept` headers.
+   and `Vary: Accept, Save-Data, User-Agent` headers.
 4. If the variant doesn't exist yet (first request after deploy), the
    middleware returns the original JPEG and asynchronously notifies the
    worker to generate WebP, AVIF, and viewport-sized variants. The next
@@ -94,7 +94,7 @@ $ curl -sI -H "Accept: image/avif,image/webp,*/*" \
     http://localhost:5000/img/hero.jpg
 HTTP/1.1 200 OK
 Content-Type: image/avif
-Vary: Accept, Save-Data
+Vary: Accept, Save-Data, User-Agent
 X-PageSpeed: HIT
 Cache-Control: public, max-age=31536000, immutable
 ```
@@ -106,7 +106,7 @@ $ curl -sI -H "Accept: image/jpeg" \
     http://localhost:5000/img/hero.jpg
 HTTP/1.1 200 OK
 Content-Type: image/jpeg
-Vary: Accept, Save-Data
+Vary: Accept, Save-Data, User-Agent
 X-PageSpeed: HIT
 ```
 
@@ -127,7 +127,7 @@ $ curl -sI -H "Accept: image/avif" -H "Save-Data: on" \
 HTTP/1.1 200 OK
 Content-Type: image/avif
 Content-Length: 18432    # ~40% smaller than the no-Save-Data variant
-Vary: Accept, Save-Data
+Vary: Accept, Save-Data, User-Agent
 X-PageSpeed: HIT
 ```
 

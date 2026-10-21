@@ -352,11 +352,14 @@ curl -s -o /dev/null -D - http://localhost:8080/<your-image>.jpg -H 'Accept: ima
 # Content-Type: image/avif   — smaller
 ```
 
-WebP and AVIF are typically smaller than the original; the exact `Content-Length`
-depends on the image. Every response carries `Vary: Accept, Save-Data, User-Agent`
-so caches keep the variants apart. If the WebP and AVIF responses still match the
-original size, the worker may not have finished — wait a moment and retry. If they
-stay the same, see
+WebP and AVIF are typically smaller than the original; the exact
+`Content-Length` depends on the image. Every response carries
+`Vary: Accept, Save-Data, User-Agent, Sec-CH-DPR` so caches keep the variants
+apart. A request with `Accept: */*` (curl's default), `image/*` or no `Accept`
+header gets WebP; see
+[Image format and the Accept header](/docs/cdn-integration/#image-format-negotiation).
+If the WebP and AVIF responses still match the original size, the worker may
+not have finished — wait a moment and retry. If they stay the same, see
 [Worker Not Processing Content](/docs/troubleshooting/#worker-not-processing-content)
 and [Images Not Converting to WebP/AVIF](/docs/troubleshooting/#images-not-converting-to-webpavif).
 

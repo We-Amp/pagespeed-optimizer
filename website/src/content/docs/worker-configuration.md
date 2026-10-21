@@ -2346,8 +2346,10 @@ different optimized variants to be served to different clients.
 
 The nginx module determines these values from request headers:
 
-- **Image Format:** Parsed from the `Accept` header. If the client advertises
-  `image/webp`, WebP variants are preferred. Similarly for `image/avif`.
+- **Image Format:** Parsed from the `Accept` header. `image/avif` selects
+  AVIF; otherwise `image/webp`, `image/*`, `*/*` or no `Accept` header at all
+  selects WebP; any other value selects the original format. See
+  [Image format and the Accept header](/docs/cdn-integration/#image-format-negotiation).
 - **Viewport Class:** Derived from the `Sec-CH-Viewport-Width` client hint or
   `User-Agent` heuristics (mobile vs. desktop).
 - **Pixel Density:** From `Sec-CH-DPR` client hint or device heuristics.

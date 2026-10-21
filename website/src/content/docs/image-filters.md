@@ -3,7 +3,7 @@ title: 'Image filters'
 description: 'Image filters in mod_pagespeed 2.1 for Apache, nginx and IIS: recompression, WebP and opt-in AVIF conversion, resizing, lazy loading and responsive images.'
 order: 43
 group: 'Filters'
-lastUpdated: 2026-10-08
+lastUpdated: 2026-10-20
 ---
 
 ## Overview
@@ -691,7 +691,9 @@ pagespeed EnableFilters sprite_images;
 
 ### What it does
 
-`in_place_optimize_for_browser` is retired. It used to vary in-place optimized images by the browser's `Accept` header and add `Vary: Accept`; in-place optimization no longer produces browser-dependent bytes, so the filter has nothing left to do. The name is still accepted, with a warning, so an existing configuration keeps loading; it is no longer part of `OptimizeForBandwidth`. Remove it from your configuration.
+`in_place_optimize_for_browser` is retired. It used to make the module's own in-place path vary images by the browser's `Accept` header and add `Vary: Accept`; that path now optimizes an image identically for every client, so the filter has nothing left to do. The name is still accepted, with a warning, so an existing configuration keeps loading; it is no longer part of `OptimizeForBandwidth`. Remove it from your configuration.
+
+The filter does not control format negotiation at the original URL. When the optimizer worker is attached (`DaemonSocketPath` and `DaemonVolumePath`, which the Apache packages built to depend on `pagespeed-optimizer` set in `pagespeed_daemon.conf`), in-place images are served from the optimizer's cache in the format the request's `Accept` header selects, with `Vary: Accept`: WebP for `*/*`, `image/*` or no `Accept` header, the original format for a request that names only that format. See [Image format and the Accept header](/docs/cdn-integration/#image-format-negotiation) for the full rule and how to get the original format for a non-browser client.
 
 ### Directives
 
@@ -709,8 +711,7 @@ pagespeed EnableFilters in_place_optimize_for_browser;
 
 ### Risks
 
-- The `Vary: Accept` header can reduce CDN cache hit rates. Many CDNs handle `Vary` correctly, but verify with your provider.
-- Some proxy servers do not respect `Vary` headers and may serve the wrong format to clients.
+- None from the filter itself: it has no effect. The `Vary: Accept` considerations for images served from the worker's cache are on the [CDN integration page](/docs/cdn-integration/#image-format-negotiation).
 
 ## Cache extension for images: extend_cache_images {#extend_cache_images}
 

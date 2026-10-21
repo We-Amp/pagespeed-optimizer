@@ -2,7 +2,7 @@
 title: 'AVIF vs WebP in 2026: which to serve, and how to serve both'
 description: 'AVIF beats WebP on size but is slower to encode. Serve AVIF, WebP or the original per request off the Accept header instead of one format for everyone.'
 date: 2026-06-06
-lastUpdated: 2026-10-14
+lastUpdated: 2026-10-21
 tags: ['avif', 'webp', 'image-optimization', 'content-negotiation', 'performance']
 product: '2.0'
 howTo:
@@ -17,9 +17,9 @@ howTo:
   - name: Let the worker produce the variants once
     text: On the first request for an image, the worker decodes the source once and encodes the format variants (AVIF, WebP, and an optimized original), writing each into the shared cache keyed by what the client supports. No build step and no separate asset pipeline.
   - name: Serve the best variant the client accepts
-    text: On every subsequent request the module picks the smallest format the Accept header says the browser can decode. AVIF for browsers that send image/avif, WebP for browsers that send image/webp, the optimized original for everything else. The cache hit is served via mmap with no re-encode.
+    text: On every subsequent request the module picks the smallest format the Accept header says the browser can decode. AVIF for browsers that send image/avif, WebP for clients that send image/webp, image/* or */* (or no Accept header), the optimized original for a client whose Accept names neither AVIF, WebP nor a wildcard. The cache hit is served via mmap with no re-encode.
   - name: Verify with curl and a real browser
-    text: "Send a request with an explicit Accept header (curl -H 'Accept: image/avif,image/webp,*/*') and confirm the Content-Type comes back as image/avif. Drop avif from the header (curl -H 'Accept: image/webp,*/*') and confirm it falls back to image/webp. Then send a header with no image/webp, image/* or */* (curl -H 'Accept: image/jpeg,image/png,image/gif') and confirm you get the original. Check that the response varies on Accept, then confirm your CDN keeps the formats apart."
+    text: "Send a request with an explicit Accept header (curl -H 'Accept: image/avif,image/webp,*/*') and confirm the Content-Type comes back as image/avif. Drop avif from the header (curl -H 'Accept: image/webp,*/*') and confirm it falls back to image/webp. Then send a header with no image/webp, image/* or */* (curl -H 'Accept: image/jpeg,image/png,image/gif') and confirm you get the original; a wildcard or a missing Accept header gets WebP. Check that the response varies on Accept, then confirm your CDN keeps the formats apart."
 ---
 
 "AVIF or WebP?" assumes you pick one format and ship it to everyone. You don't have to. Different browsers accept different formats, and the right format for a given image is the smallest one the requesting browser can decode. That is a per-request decision, not a project-wide one.
@@ -55,8 +55,10 @@ A browser without AVIF support omits `image/avif`. One without WebP omits that t
 The rule is mechanical:
 
 - `image/avif` present → serve AVIF (smallest).
-- else `image/webp` present → serve WebP.
+- else `image/webp`, `image/*` or `*/*` present, or no `Accept` header at all → serve WebP.
 - else → serve the optimized original.
+
+The wildcards count: `*/*` and `image/*` say the client takes any image type, and a request without an `Accept` header means the same under RFC 9110. So `curl` with its default `Accept: */*` gets WebP. AVIF needs `image/avif` by name.
 
 One source image, three possible answers, decided at request time from one header.
 
@@ -75,7 +77,7 @@ The markup approach puts a person in charge of a decision the server already has
 
 Move the decision to where the `Accept` header arrives, at the server, and the per-image bookkeeping disappears.
 
-The module classifies each request into a capability mask that includes the formats the client accepts, read off the `Accept` header. It looks up the requested image in the [variant-aware cache](/features/) and serves the best-fit variant for that mask: AVIF to a browser that sent `image/avif`, WebP to one that sent `image/webp` but not `image/avif`, the optimized original to the rest. If the ideal variant is not in the cache yet, the selector degrades to the next-best one rather than failing.
+The module classifies each request into a capability mask that includes the formats the client accepts, read off the `Accept` header. It looks up the requested image in the [variant-aware cache](/features/) and serves the best-fit variant for that mask: AVIF to a browser that sent `image/avif`, WebP to one that sent `image/webp`, `image/*` or `*/*` but not `image/avif`, the optimized original to the rest. If the ideal variant is not in the cache yet, the selector degrades to the next-best one rather than failing.
 
 The variants are produced once. On a cache miss the worker reads the source, decodes it a single time, and encodes the formats from that one decode pass, writing each back into the shared cache. A 10-megapixel JPEG decodes to tens of megabytes in memory, so decoding once and fanning out to AVIF, WebP, and an optimized original keeps the CPU cost in check. The slow AVIF encode runs in the worker, off the request path, so no visitor waits on it.
 
@@ -94,7 +96,7 @@ curl -sI -H 'Accept: image/avif,image/webp,*/*' https://example.com/hero.jpg | g
 # vary: Accept
 ```
 
-Drop `avif` from the header and confirm it falls back to `image/webp`, then send `Accept: image/jpeg,image/png,image/gif` (any header without `image/webp`, `image/*` or `*/*`) and confirm you get the optimized original. Check that the response varies on `Accept`, then [confirm your CDN keeps the formats apart](/blog/jpeg-xl-accept-header-and-your-cdn-image-cache/#four-curl-commands-against-your-own-cdn). Then load the page in a real browser and read the `Content-Type` of the image request in the network panel. It should match what that browser advertises.
+Drop `avif` from the header and confirm it falls back to `image/webp`, then send `Accept: image/jpeg,image/png,image/gif` (any header without `image/webp`, `image/*` or `*/*`) and confirm you get the optimized original. Keep the wildcard out of that last request: `*/*`, `image/*` or no `Accept` header at all selects WebP, because a wildcard says the client takes any image type. Check that the response varies on `Accept`, then [confirm your CDN keeps the formats apart](/blog/jpeg-xl-accept-header-and-your-cdn-image-cache/#four-curl-commands-against-your-own-cdn). Then load the page in a real browser and read the `Content-Type` of the image request in the network panel. It should match what that browser advertises.
 
 The same content-negotiation machinery drives [viewport-aware resizing](/blog/viewport-aware-image-optimization/): the capability mask carries screen class and pixel density alongside format support, so one source image resolves to the right format *and* the right size for the requesting client. Format is one axis of the same per-request decision.
 
