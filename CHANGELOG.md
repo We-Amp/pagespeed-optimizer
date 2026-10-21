@@ -1,8 +1,8 @@
 # Changelog
 
-All notable changes to mod_pagespeed 2.1 are documented in this file.
+All notable changes to mod_pagespeed are documented in this file.
 
-## Unreleased
+## 2.5.1 - 2026-10-21
 
 Security: the nginx bundled in the container images (`pagespeed-nginx` and
 the combined image) is updated to 1.30.6, which fixes two memory-safety issues
@@ -10,7 +10,7 @@ in nginx (CVE-2026-15176, CVE-2026-93479). This also carries the earlier
 1.30.5 security update (CVE-2026-90439), which the images had not yet picked
 up. Update recommended.
 
-Changed: the Helm chart (0.3.10) defaults `podSecurityContext.fsGroup: 918`,
+Changed: the Helm chart (0.3.11) defaults `podSecurityContext.fsGroup: 918`,
 the worker's `pagespeed` uid/gid, so the shared cache volume arrives
 group-owned before any container starts, which is what the worker needs
 when it runs without its root phase. Where the worker entrypoint still runs its root phase it
@@ -19,10 +19,19 @@ The chart also stops shipping an nginx ConfigMap nothing read: the nginx
 image renders its configuration from a template baked into the image plus
 environment variables, and the ConfigMap carried a directive the module no
 longer accepts, so it never applied and wiring it in would fail nginx's
-config check. Installing 0.3.10 renders one fewer object and adds the fsGroup
-field; nothing else changes. Chart repository index updates are now
+config check. Installing 0.3.11 renders one fewer object and adds the fsGroup
+field, and its default image version moves to 2.5.1; nothing else changes. Chart repository index updates are now
 append-only, so publishing a chart version no longer rewrites the `created`
 dates, digests or metadata of the versions already published.
+
+Fixed: installing the nginx or Apache module package before
+`pagespeed-optimizer`, or both in one transaction, left the web server's user
+out of group `pagespeed`, so the web server could not reach the worker. The
+`pagespeed-optimizer` package now adds each existing web-server user
+(`www-data`, `nginx`, `apache`) to the group when it installs or upgrades, in
+any install order. When it adds a user it says so: restart the web server
+once to pick up the new group. Upgrading from 2.5.0 repairs an install that
+was affected.
 
 Fixed: in the ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`) on Linux
 and macOS, a full cache purge (`POST /v1/cache/purge` with `"scope": "all"`,
