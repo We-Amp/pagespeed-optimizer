@@ -236,6 +236,26 @@ if [ "$1" = "configure" ] || [ "$1" = "abort-remove" ]; then
   if command -v systemd-sysusers >/dev/null 2>&1; then
     systemd-sysusers pagespeed-optimizer.conf || true
   fi
+  # Join the web-server user to group pagespeed so it can reach the daemon
+  # socket. The serving module's package does the same, but only if the group
+  # already exists, and the two packages have no install-order guarantee.
+  # Idempotent, only users that exist, never fails the install.
+  ps_joined=""
+  for ps_u in www-data nginx apache; do
+    getent passwd "$ps_u" >/dev/null 2>&1 || continue
+    if getent group pagespeed | cut -d: -f4 | tr ',' '\n' | grep -qx "$ps_u"; then
+      continue
+    fi
+    if usermod -a -G pagespeed "$ps_u" >/dev/null 2>&1 \
+       || gpasswd -a "$ps_u" pagespeed >/dev/null 2>&1; then
+      ps_joined="$ps_joined $ps_u"
+    else
+      echo "pagespeed-optimizer: warning: could not add user $ps_u to group pagespeed; add it by hand" >&2
+    fi
+  done
+  if [ -n "$ps_joined" ]; then
+    echo "pagespeed-optimizer: added$ps_joined to group pagespeed; restart the web server for the membership to take effect."
+  fi
   # Provision the management-API and PURGE credentials at
   # INSTALL time, once, into the env file systemd hands the daemon.  Runs
   # after sysusers (the tmpfiles `z` line below needs group `pagespeed` to
