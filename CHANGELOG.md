@@ -2,6 +2,13 @@
 
 All notable changes to mod_pagespeed are documented in this file.
 
+## Unreleased
+
+Security: the bundled libpng is updated to 1.6.58, which fixes memory-safety
+issues in PNG decoding, one of them reachable on arm64 when an origin PNG with
+a palette is optimized (CVE-2026-33636, CVE-2026-33416, CVE-2026-34757).
+**Update recommended.**
+
 ## 2.5.1 - 2026-10-21
 
 Security: the nginx bundled in the container images (`pagespeed-nginx` and
