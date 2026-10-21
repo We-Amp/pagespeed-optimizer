@@ -2252,8 +2252,9 @@ TEST_F(NotificationSenderTest, PartialWriteWithSlowDrain) {
     intptr_t client_fd = AcceptClient(server_fd, socket_path_);
     if (client_fd != -1) {
       // Read in tiny 32-byte chunks to create backpressure that exercises
-      // the EAGAIN/poll/continue path: the payload is larger than the
-      // socket buffer, so the sender has to wait for the reader. No sleep
+      // the EAGAIN/poll/continue path where the payload is larger than the
+      // socket's send buffer (true on macOS, whose default is 8 KiB; on
+      // Linux the buffer is larger and the send completes at once). No sleep
       // between reads: the sender gives up after kSendTimeoutMs without
       // progress, and a sleeping reader on a loaded host can stall longer
       // than that, failing the test on timing alone.
