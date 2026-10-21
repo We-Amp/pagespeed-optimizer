@@ -2,12 +2,15 @@
 
 All notable changes to mod_pagespeed are documented in this file.
 
-## Unreleased
+## 2.5.2 - 2026-10-21
 
 Security: the bundled libpng is updated to 1.6.58, which fixes memory-safety
 issues in PNG decoding, one of them reachable on arm64 when an origin PNG with
 a palette is optimized (CVE-2026-33636, CVE-2026-33416, CVE-2026-34757).
 **Update recommended.**
+
+Changed: the Helm chart 0.3.11, whose changes are listed under 2.5.1, is
+published with this release; its default image version is 2.5.2.
 
 ## 2.5.1 - 2026-10-21
 
@@ -27,7 +30,8 @@ image renders its configuration from a template baked into the image plus
 environment variables, and the ConfigMap carried a directive the module no
 longer accepts, so it never applied and wiring it in would fail nginx's
 config check. Installing 0.3.11 renders one fewer object and adds the fsGroup
-field, and its default image version moves to 2.5.1; nothing else changes. Chart repository index updates are now
+field; nothing else changes. 2.5.1 shipped no chart: chart 0.3.11 is
+published with 2.5.2, with default image version 2.5.2. Chart repository index updates are now
 append-only, so publishing a chart version no longer rewrites the `created`
 dates, digests or metadata of the versions already published.
 
