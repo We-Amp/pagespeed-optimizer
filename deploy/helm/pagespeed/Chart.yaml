@@ -10,7 +10,7 @@ type: application
 # podSecurityContext.fsGroup to 918 so the shared volume arrives group-owned
 # by the worker's gid before any container starts.
 version: 0.3.11
-appVersion: "2.5.1"
+appVersion: "2.5.2"
 keywords:
   - pagespeed
   - nginx
