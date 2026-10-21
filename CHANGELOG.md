@@ -24,6 +24,15 @@ field; nothing else changes. Chart repository index updates are now
 append-only, so publishing a chart version no longer rewrites the `created`
 dates, digests or metadata of the versions already published.
 
+Fixed: installing the nginx or Apache module package before
+`pagespeed-optimizer`, or both in one transaction, left the web server's user
+out of group `pagespeed`, so the web server could not reach the worker. The
+`pagespeed-optimizer` package now adds each existing web-server user
+(`www-data`, `nginx`, `apache`) to the group when it installs or upgrades, in
+any install order. When it adds a user it says so: restart the web server
+once to pick up the new group. Upgrading from 2.5.0 repairs an install that
+was affected.
+
 Fixed: in the ASP.NET Core middleware (`WeAmp.PageSpeed.AspNetCore`) on Linux
 and macOS, a full cache purge (`POST /v1/cache/purge` with `"scope": "all"`,
 the console's purge everything) now takes effect within about a second. The
