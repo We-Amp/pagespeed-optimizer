@@ -3,7 +3,7 @@ title: 'Install with Docker'
 description: 'Run mod_pagespeed 2.1 with Docker Compose: the nginx module, the worker and a shared Cyclone cache. A one-container quick try, then a production stack.'
 order: 4
 group: 'Install'
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-20
 ---
 
 Deploy mod_pagespeed 2.1 with Docker Compose. You run three containers — nginx
@@ -143,6 +143,9 @@ worker_processes auto;
 error_log /var/log/nginx/error.log warn;
 pid /var/run/nginx.pid;
 
+# The thin nginx module bundled in the image. The native module from the
+# nginx-module-pagespeed package has the same file name but is a different
+# module, with different directives.
 load_module /usr/lib/nginx/modules/ngx_pagespeed_module.so;
 
 events {
@@ -349,11 +352,14 @@ curl -s -o /dev/null -D - http://localhost:8080/<your-image>.jpg -H 'Accept: ima
 # Content-Type: image/avif   — smaller
 ```
 
-WebP and AVIF are typically smaller than the original; the exact `Content-Length`
-depends on the image. Every response carries `Vary: Accept, Save-Data, User-Agent`
-so caches keep the variants apart. If the WebP and AVIF responses still match the
-original size, the worker may not have finished — wait a moment and retry. If they
-stay the same, see
+WebP and AVIF are typically smaller than the original; the exact
+`Content-Length` depends on the image. Every response carries
+`Vary: Accept, Save-Data, User-Agent, Sec-CH-DPR` so caches keep the variants
+apart. A request with `Accept: */*` (curl's default), `image/*` or no `Accept`
+header gets WebP; see
+[Image format and the Accept header](/docs/cdn-integration/#image-format-negotiation).
+If the WebP and AVIF responses still match the original size, the worker may
+not have finished — wait a moment and retry. If they stay the same, see
 [Worker Not Processing Content](/docs/troubleshooting/#worker-not-processing-content)
 and [Images Not Converting to WebP/AVIF](/docs/troubleshooting/#images-not-converting-to-webpavif).
 

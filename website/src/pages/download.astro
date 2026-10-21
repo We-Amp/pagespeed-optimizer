@@ -1,24 +1,32 @@
 ---
+import { OG_DEFAULT_IMAGE_URL } from '../data/og-image';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import Icon from '../components/Icon.astro';
 import TermPanel from '../components/instrument/TermPanel.astro';
 import { getRelease, artifactUrl, dockerTag } from '../lib/release';
 import { offerJsonLd } from '../data/offer-jsonld';
-import { LICENSE_CLAUSE, LICENSE_CLAUSE_CAP } from '../data/product-facts.mjs';
-import { PRODUCT_OPERATING_SYSTEMS, productSoftwareVersion } from '../data/software-jsonld';
+import {
+  LICENSE_CLAUSE,
+  LICENSE_CLAUSE_CAP,
+  LEGACY_1X_KEY,
+  RELEASE_KEY,
+  RELEASE_KEY_PAGE_URL,
+  RELEASE_VERIFY_URL,
+  REPOSITORY_KEY,
+  formatFingerprint,
+} from '../data/product-facts.mjs';
+import { productJsonLd } from '../data/software-jsonld';
 
-const softwareVersion = await productSoftwareVersion();
-
-// Single source of truth: the 1.1 release manifest, synced into
-// src/content/releases-1.1/release.yaml (§7). Edit the manifest at its
-// source, not this file.
-const rel11 = await getRelease('1.1');
 const rel21 = await getRelease('2.1');
 
 // The IIS installer is hosted on the module's GitHub release, not under
 // /releases/; its SHA256SUMS sits beside it on the same release.
 const iisMsiUrl = artifactUrl(rel21, 'msi', 'win_x64');
 const iisSumsUrl = iisMsiUrl.slice(0, iisMsiUrl.lastIndexOf('/') + 1) + 'SHA256SUMS';
+// Signing keys, each labelled by what it signs (product-facts.mjs).
+const RELEASE_FINGERPRINT = formatFingerprint(RELEASE_KEY.fingerprint);
+const REPOSITORY_FINGERPRINT = formatFingerprint(REPOSITORY_KEY.fingerprint);
+const LEGACY_1X_FINGERPRINT = formatFingerprint(LEGACY_1X_KEY.fingerprint);
 
 // Docker/Helm image tag via the shared resolver (see
 // src/components/release/ImageTag.astro for the MDX-side equivalent) — used
@@ -68,7 +76,7 @@ const integrations = [
     product: 'mod_pagespeed 2.1',
     badge: 'Reverse proxy',
     description:
-      'Run the mod_pagespeed 2.1 worker as a Docker container in front of nginx. Same optimization pipeline, zero changes to your nginx binary or config.',
+      'Run the optimizer worker and an nginx with the thin nginx module as Docker containers in front of your origin. The image brings its own nginx and module, so your nginx binary and config stay as they are.',
     requirements: `Any host with Docker 24+ (Linux, macOS, Windows). Images: ${rel21.artifacts.docker.image}:${rel21DockerTag} and ${rel21.artifacts.docker.worker_image}:${rel21DockerTag}.`,
     href: '/docs/installation-docker/',
     cta: 'Install guide',
@@ -122,19 +130,12 @@ const integrations = [
   },
 ];
 
-const jsonLd = {
-  '@context': 'https://schema.org',
-  '@type': ['Product', 'SoftwareApplication'],
-  name: 'mod_pagespeed 2.1',
-  applicationCategory: 'WebApplication',
-  operatingSystem: PRODUCT_OPERATING_SYSTEMS,
-  softwareVersion,
-  image: 'https://modpagespeed.com/og-default.png?v=2',
-  brand: { '@type': 'Brand', name: 'mod_pagespeed' },
+const jsonLd = await productJsonLd({
+  image: OG_DEFAULT_IMAGE_URL,
   offers: offerJsonLd({
     url: 'https://modpagespeed.com/download/',
   }),
-};
+});
 ---
 
 <BaseLayout
@@ -149,8 +150,15 @@ const jsonLd = {
     </p>
     <p class="mt-3 text-sm text-text-annotation max-w-2xl mx-auto">
       After install, open the admin console at{' '}
-      <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">/pagespeed_global_admin</code> on
-      your server.
+      <code class="rounded bg-bg-elevated px-1 py-0.5 text-xs">/pagespeed_global_admin</code> on the
+      server itself. The Apache package serves it to localhost out of the box; on nginx,{' '}
+      <a
+        href="/docs/installation-module/#native-nginx-module"
+        class="text-interactive hover:text-interactive-hover underline"
+      >
+        turn it on first
+      </a>
+      .
     </p>
   </section>
 
@@ -254,15 +262,39 @@ const jsonLd = {
         >
           release listing
         </a>
-        . The signing key for the repositories is documented on the{' '}
+        .
+      </p>
+      <p id="verify-the-installer" class="mt-3 text-sm text-text-muted">
+        <strong class="text-text-body">Verifying the Windows installer.</strong> The release's{' '}
+        <code class="text-xs">SHA256SUMS.asc</code> is a GPG signature of its{' '}
+        <code class="text-xs">SHA256SUMS</code>, made with the{' '}
+        <a href={RELEASE_KEY_PAGE_URL} class="text-interactive underline">
+          release signing key
+        </a>{' '}
+        (fingerprint <code class="text-xs break-all">{RELEASE_FINGERPRINT}</code>): the signature
+        verifies the checksum file, and the checksum file then verifies the MSI. The steps are in{' '}
+        <a href={RELEASE_VERIFY_URL} class="text-interactive underline">
+          Verifying a Release
+        </a>
+        . On Windows, the MSI's own Authenticode signature, publisher "We-Amp B.V.", remains the
+        check for the installer itself.
+      </p>
+      <p class="mt-3 text-sm text-text-muted">
+        The apt and dnf repositories are signed with a different key, the{' '}
+        <a href={REPOSITORY_KEY.public_url} class="text-interactive underline">
+          repository signing key
+        </a>{' '}
+        (fingerprint <code class="text-xs break-all">{REPOSITORY_FINGERPRINT}</code>), which the{' '}
         <a href="/download/apt-yum/" class="text-interactive underline">
           apt/yum page
-        </a>
-        , and the public key is available as the{' '}
-        <a href={rel11.urls.gpg_key} class="text-interactive underline">
-          GPG signing key
-        </a>
-        .
+        </a>{' '}
+        sets up; it does not sign the GitHub release files.
+      </p>
+      <p class="mt-3 text-xs text-text-annotation">
+        An older key, fingerprint <code class="break-all">{LEGACY_1X_FINGERPRINT}</code>, signed the
+        1.x direct downloads (per-file <code>.asc</code>) and the source tags v2.1.0 to v2.4.0. It
+        signs nothing new from 20 October 2026 and is being revoked: use it only to check those
+        older signatures, and treat any signature it made after that date as not ours.
       </p>
     </div>
   </section>

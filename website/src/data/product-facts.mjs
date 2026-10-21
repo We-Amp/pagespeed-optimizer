@@ -166,14 +166,65 @@ export const AUDIT_PRICE_EUR = 950;
 export const formatEur = (n) => `\u20ac${String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ',')}`;
 // The artifact axis: the standard signed packages are free for everyone.
 // What ships today for everyone:
-// GPG-signed apt/yum repositories, .asc signatures on the module's release
-// packages (the optimizer's GitHub release assets carry none; SHA256SUMS), the
+// GPG-signed apt/yum repositories, a GPG-signed SHA256SUMS (SHA256SUMS.asc) on
+// the module's GitHub releases from 2.5.0 on (no per-file .asc; the optimizer's
+// GitHub release assets carry no signature, only SHA256SUMS), the
 // Authenticode-signed Windows installer, cosign-signed container images with
 // an SBOM attestation and build provenance, and the source-tree SPDX SBOM and
 // OpenVEX file. No surface may claim a per-release SBOM/VEX on the release
 // assets or provenance on packages; release SBOM and VEX are available on
 // request. The private package repository for Priority and Enterprise is being
 // set up; say so, never that it exists.
+// Signing keys. Each entry copies its fields verbatim from the internal
+// signing-key register, the source of truth for keys (id, name, status,
+// purpose, fingerprint, public_url), so this block can later be generated
+// from it. Change the register first, then this block.
+// Fingerprints are the full 40 hex digits, never a short key id; show them
+// with formatFingerprint(). Label each key by what it signs wherever a page
+// shows one.
+export const REPOSITORY_KEY = {
+  id: 'repository',
+  name: 'We-Amp Repository Signing Key',
+  status: 'active',
+  purpose:
+    'Signs the apt and yum repositories at packages.modpagespeed.com and the rpm headers in them. Nothing else.',
+  fingerprint: 'DF00E296BE9141CEA5411346F50D6054F10712A0',
+  public_url: 'https://packages.modpagespeed.com/pubkey.gpg',
+};
+export const RELEASE_KEY = {
+  id: 'release',
+  name: 'We-Amp Release Signing Key',
+  status: 'active',
+  purpose: 'Signs SHA256SUMS.asc of GitHub releases and signed source tags. Nothing else.',
+  fingerprint: '411DEFDB571351D2B25AEFCC9C02B5BDCCE75313',
+  public_url:
+    'https://raw.githubusercontent.com/We-Amp/mod_pagespeed/master/RELEASE-SIGNING-KEY.asc',
+};
+// Page links for the release key (not register fields): the key file as a
+// GitHub page and the verification steps in SECURITY.md.
+export const RELEASE_KEY_PAGE_URL =
+  'https://github.com/We-Amp/mod_pagespeed/blob/master/RELEASE-SIGNING-KEY.asc';
+export const RELEASE_VERIFY_URL =
+  'https://github.com/We-Amp/mod_pagespeed/blob/master/SECURITY.md#verifying-a-release';
+// The 1.x key: no longer used, being revoked (status retiring; the revocation
+// is not published yet). Pages name it only as that, never link it, and never
+// offer it as a current key, although the register still records its
+// public_url.
+export const LEGACY_1X_KEY = {
+  id: 'legacy-1x',
+  name: '1.x direct-download key',
+  status: 'retiring',
+  purpose:
+    'None from 2026-10-20. Signed the 1.x direct downloads (per-file .asc) and the source tags v2.1.0 to v2.4.0.',
+  fingerprint: 'A358270318045B75C552FEA8DA8FEBD5000BC194',
+  public_url: 'https://modpagespeed.com/releases/v1.1.0/weamp-pkg-public.asc',
+};
+export const SIGNING_KEYS = [REPOSITORY_KEY, RELEASE_KEY, LEGACY_1X_KEY];
+// 'DF00E296...' -> 'DF00 E296 BE91 41CE A541  1346 F50D 6054 F107 12A0' (gpg's own layout).
+export const formatFingerprint = (f) => {
+  const g = f.match(/.{4}/g);
+  return `${g.slice(0, 5).join(' ')}  ${g.slice(5).join(' ')}`;
+};
 export const ARTIFACT_ACCESS = {
   standardPackages: 'free',
   hardenedBuilds: 'not-offered',

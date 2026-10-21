@@ -1,9 +1,19 @@
+# One pull request per ecosystem per week for minor and patch updates; a major
+# update still arrives as its own pull request (or stays ignored, see below).
 version: 2
 updates:
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+      day: monday
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
   - package-ecosystem: docker
     directories:
       - /docker
@@ -16,6 +26,14 @@ updates:
       - /website
     schedule:
       interval: weekly
+      day: monday
+    groups:
+      docker:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch
     ignore:
       # Base images move to a new major release on purpose, never by a bump.
       - dependency-name: "*"
@@ -27,3 +45,11 @@ updates:
     directory: /website
     schedule:
       interval: weekly
+      day: monday
+    groups:
+      npm:
+        patterns:
+          - "*"
+        update-types:
+          - minor
+          - patch

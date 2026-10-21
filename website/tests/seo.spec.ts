@@ -1,7 +1,14 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright (c) 2024-2026 We-Amp B.V.
 
+import { readFileSync } from 'node:fs';
 import { test, expect } from '@playwright/test';
+import { parse as parseYaml } from 'yaml';
+
+// The current release, read from the manifest every page derives it from.
+const MANIFEST_SEMVER: string = parseYaml(
+  readFileSync(new URL('../src/content/releases-2.1/release.yaml', import.meta.url), 'utf8'),
+).release.semver;
 
 const allPages = [
   '/',
@@ -153,12 +160,45 @@ test.describe('SEO', () => {
     }
   });
 
-  test('/download/ JSON-LD name reflects the converged line', async ({ page }) => {
-    await page.goto('/download/');
-    const jsonLd = page.locator('script[type="application/ld+json"]').first();
-    const content = await jsonLd.textContent();
-    const data = JSON.parse(content!);
-    expect(data.name).toBe('mod_pagespeed 2.1');
+  // One product node everywhere (src/data/software-jsonld.ts): the plain
+  // product name with no version (owner ruling, 2026-10-20), the old names
+  // as alternateName, and the exact release from the manifest as
+  // softwareVersion.
+  for (const path of ['/', '/download/', '/pricing/']) {
+    test(`${path} product JSON-LD: the product name, the manifest version`, async ({ page }) => {
+      await page.goto(path);
+      const nodes = (await page.locator('script[type="application/ld+json"]').allTextContents())
+        .map((text) => JSON.parse(text))
+        .flatMap((data) => (Array.isArray(data['@graph']) ? data['@graph'] : [data]));
+      const products = nodes.filter((node) =>
+        [node['@type']].flat().includes('SoftwareApplication'),
+      );
+      expect(products.length).toBeGreaterThan(0);
+      for (const node of products) {
+        expect(node['@id']).toBe('https://modpagespeed.com/#software');
+        expect(node.name).toBe('mod_pagespeed');
+        expect(node.softwareVersion).toBe(MANIFEST_SEMVER);
+        expect(node.alternateName).toEqual(
+          expect.arrayContaining(['ngx_pagespeed', 'ModPageSpeed', 'WeAmp.PageSpeed.AspNetCore']),
+        );
+        // The 2.0 line is a separate line with its own releases (it stays on
+        // the Brand), so it is not an alternate name of this node.
+        expect(node.alternateName).not.toContain('ModPageSpeed 2.0');
+        expect(node.applicationCategory).toBe('DeveloperApplication');
+        expect(node.operatingSystem).toEqual(['Linux', 'Windows', 'macOS']);
+        expect(node.publisher['@id']).toBe('https://we-amp.com/#organization');
+      }
+    });
+  }
+
+  test('home Organization brand is the plain product name', async ({ page }) => {
+    await page.goto('/');
+    const nodes = (await page.locator('script[type="application/ld+json"]').allTextContents()).map(
+      (text) => JSON.parse(text),
+    );
+    const org = nodes.find((node) => node['@type'] === 'Organization');
+    expect(org['@id']).toBe('https://we-amp.com/#organization');
+    expect(org.brand.name).toBe('mod_pagespeed');
   });
 
   test('og:image is set on all pages', async ({ page }) => {

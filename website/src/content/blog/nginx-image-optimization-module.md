@@ -2,7 +2,7 @@
 title: 'nginx image optimization module: automatic WebP, opt-in AVIF'
 description: 'A native nginx module that transcodes images to WebP and AVIF on serve, negotiates on Accept and caches the variant. Signed apt/yum packages, no compiling.'
 date: 2026-06-06
-lastUpdated: 2026-10-18
+lastUpdated: 2026-10-20
 author: 'Otto van der Schaaf'
 tags: ['nginx', 'image-optimization', 'webp', 'avif']
 product: '1.1'
@@ -47,7 +47,7 @@ On Debian or Ubuntu:
 
 ```bash
 # Add the signed apt repository
-curl -fsSL https://packages.modpagespeed.com/apt/pubkey.gpg \
+curl -fsSL https://packages.modpagespeed.com/pubkey.gpg \
   | sudo gpg --dearmor -o /usr/share/keyrings/modpagespeed.gpg
 
 echo "deb [signed-by=/usr/share/keyrings/modpagespeed.gpg] \
@@ -67,7 +67,7 @@ name=ModPageSpeed
 baseurl=https://packages.modpagespeed.com/yum/el$releasever/$basearch
 enabled=1
 gpgcheck=1
-gpgkey=https://packages.modpagespeed.com/yum/pubkey.gpg
+gpgkey=https://packages.modpagespeed.com/pubkey.gpg
 EOF
 
 sudo dnf install nginx-module-pagespeed

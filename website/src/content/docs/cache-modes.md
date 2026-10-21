@@ -3,7 +3,7 @@ title: 'Choose a cache mode: safe vs aggressive'
 description: 'Safe or aggressive Cache-Control for optimized responses in mod_pagespeed 2.1, plus the module cache reference: Cyclone, memcached, Redis, purging, IPRO.'
 order: 22
 group: 'Configure'
-lastUpdated: 2026-10-06
+lastUpdated: 2026-10-20
 ---
 
 mod_pagespeed 2.1 transforms your origin's content — optimizing images, minifying
@@ -515,13 +515,31 @@ pagespeed RedisTimeoutUs 50000
 
 #### Flush the entire cache
 
-Touch a `cache.flush` file in the cache directory to force mod_pagespeed to discard all cached data. The filename is set by `CacheFlushFilename` (default `cache.flush`):
+Touch a `cache.flush` file in the `FileCachePath` directory to force mod_pagespeed to discard all cached data. The filename is set by `CacheFlushFilename` (default `cache.flush`; a name that does not start with `/` is relative to `FileCachePath`). Use the cache directory your configuration names. The Apache package's `pagespeed.conf` sets `/var/cache/mod_pagespeed/`; the nginx package's sample configuration uses `/var/cache/ngx_pagespeed`:
+
+<!-- platform: nginx -->
+
+<div data-platform="nginx" data-platform-label="nginx">
 
 ```bash
-sudo touch /var/cache/pagespeed/cache.flush
+sudo touch /var/cache/ngx_pagespeed/cache.flush
 ```
 
-mod_pagespeed checks for this file every `CacheFlushPollIntervalSec` seconds (default 5). All entries cached before the file's modification time are treated as expired.
+</div>
+
+<!-- platform: apache -->
+
+<div data-platform="apache" data-platform-label="Apache">
+
+```bash
+sudo touch /var/cache/mod_pagespeed/cache.flush
+```
+
+</div>
+
+mod_pagespeed checks the file's modification time every `CacheFlushPollIntervalSec` seconds (default 5). All entries cached before that time are treated as expired.
+
+This works only while `EnableCachePurge` is off (the default). With `EnableCachePurge on` the module keeps its purge records in `cache.purge` instead (or in the file `CacheFlushFilename` names) and reads no timestamp from `cache.flush`, so touching a file does nothing: purge everything through the [global admin page](#purge-via-admin-page) (`purge=*`).
 
 #### Purge via admin page
 

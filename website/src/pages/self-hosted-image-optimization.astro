@@ -1,7 +1,9 @@
 ---
+import { OG_DEFAULT_IMAGE_URL } from '../data/og-image';
 import BaseLayout from '../layouts/BaseLayout.astro';
 import SectionHeader from '../components/instrument/SectionHeader.astro';
 import { offerJsonLd } from '../data/offer-jsonld';
+import { productJsonLd } from '../data/software-jsonld';
 import {
   MAX_VARIANTS,
   RASTER_VARIANTS,
@@ -78,7 +80,7 @@ const articleJsonLd = {
   description:
     'WebP and AVIF transcoding with perceptual-quality targeting, on your own server. No per-transform fee, no egress on the optimization round-trip, and images never leave your origin.',
   url: 'https://modpagespeed.com/self-hosted-image-optimization/',
-  image: 'https://modpagespeed.com/og-default.png?v=2',
+  image: OG_DEFAULT_IMAGE_URL,
   about: 'Self-hosted image optimization',
   author: { '@type': 'Organization', name: 'We-Amp B.V.' },
   publisher: {
@@ -88,22 +90,11 @@ const articleJsonLd = {
   },
 };
 
-const softwareJsonLd = {
-  '@context': 'https://schema.org',
-  '@type': 'SoftwareApplication',
-  name: 'mod_pagespeed 2.1',
-  alternateName: 'ModPageSpeed 2.0',
-  applicationCategory: 'DeveloperApplication',
-  operatingSystem: ['Linux', 'Windows', 'macOS'],
+const softwareJsonLd = await productJsonLd({
   description:
     'Self-hosted image optimization: WebP and AVIF transcoding, viewport-aware variants, and perceptual-quality targeting that runs on your own origin behind nginx or as ASP.NET Core middleware.',
   offers: offerJsonLd({ url: 'https://modpagespeed.com/pricing/' }),
-  publisher: {
-    '@type': 'Organization',
-    name: 'We-Amp B.V.',
-    url: 'https://we-amp.com/',
-  },
-};
+});
 
 // FAQ — single source for both the visible <dl> and the FAQPage JSON-LD.
 // At least one question is phrased as the canonical searcher query.

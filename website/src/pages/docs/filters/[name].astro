@@ -15,9 +15,9 @@ import {
   type Topic,
 } from '../../../lib/filter-topics.mjs';
 import { exampleImpact } from '../../../lib/example-impact';
-import { getRelease } from '../../../lib/release';
 import { gitLastModified } from '../../../lib/git-date';
 import { FREE_TO_RUN_LINE } from '../../../data/product-facts.mjs';
+import { productRef } from '../../../data/software-jsonld';
 
 // One topic page per filter the module accepts: /docs/filters/<name>/.
 //
@@ -109,8 +109,6 @@ const namesGoogle = namesGoogleProduct(t);
 
 const h1 = `${t.human} (${t.name})`;
 const url = `https://modpagespeed.com${t.path}`;
-const rel21 = await getRelease('2.1');
-const aboutVersion = rel21.release.semver.split('.').slice(0, 2).join('.');
 const lastUpdated = gitLastModified(`src/content/docs/${t.section.page}.md`);
 
 const jsonLd = [
@@ -127,12 +125,7 @@ const jsonLd = [
     },
     mainEntityOfPage: url,
     ...(lastUpdated && { dateModified: lastUpdated }),
-    about: {
-      '@type': 'SoftwareApplication',
-      name: 'mod_pagespeed',
-      version: aboutVersion,
-      applicationCategory: 'WebApplication',
-    },
+    about: await productRef(),
   },
   {
     '@context': 'https://schema.org',

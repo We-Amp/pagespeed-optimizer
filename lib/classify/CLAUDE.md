@@ -69,8 +69,10 @@ The cross-version corpus in `test/lib/classify/testdata/` is real output from th
 serializers that shipped at v3-v7, not transcribed layout — regenerate it from the
 commits it names rather than by hand.
 
-`PageSpeedSelector::select()` scores by: format (+1000), Original fallback (+100),
-viewport (+80), encoding (+60 exact / +5 identity), density (+40), save-data (+20).
+`PageSpeedSelector::select()` scores by: viewport (+2000), format (+1000), Original
+fallback (+100), encoding (+60 exact / +5 identity), density (+40), save-data (+20).
+The viewport (size class) outranks format, so a client is served a variant at its
+own size before one in its negotiated format at another size.
 SVG gets universal +1200 bonus (resolution-independent).
 
 ## Testing

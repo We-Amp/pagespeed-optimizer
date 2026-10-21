@@ -47,8 +47,8 @@ TEST(ScoreAlternateTest, ExactMatch) {
                                  CapabilityMask::SaveData::kOn,
                                  CapabilityMask::TransferEncoding::kIdentity)
                       .Encode();
-  // Exact match: 1000 + 80 + 40 + 20 + 60 = 1200
-  EXPECT_EQ(ScoreAlternate(mask, mask), 1200);
+  // Exact match: 1000 + 2000 + 40 + 20 + 60 = 3120
+  EXPECT_EQ(ScoreAlternate(mask, mask), 3120);
 }
 
 TEST(ScoreAlternateTest, FormatMismatch) {
@@ -84,8 +84,8 @@ TEST(ScoreAlternateTest, EncodingExactMatch) {
                                CapabilityMask::SaveData::kOff,
                                CapabilityMask::TransferEncoding::kBrotli)
                     .Encode();
-  // 1000 + 80 + 40 + 20 + 60 = 1200
-  EXPECT_EQ(ScoreAlternate(client, stored), 1200);
+  // 1000 + 2000 + 40 + 20 + 60 = 3120
+  EXPECT_EQ(ScoreAlternate(client, stored), 3120);
 }
 
 TEST(ScoreAlternateTest, EncodingIdentityFallback) {
@@ -102,8 +102,8 @@ TEST(ScoreAlternateTest, EncodingIdentityFallback) {
                                CapabilityMask::SaveData::kOff,
                                CapabilityMask::TransferEncoding::kIdentity)
                     .Encode();
-  // 1000 + 80 + 40 + 20 + 5 = 1145
-  EXPECT_EQ(ScoreAlternate(client, stored), 1145);
+  // 1000 + 2000 + 40 + 20 + 5 = 3065
+  EXPECT_EQ(ScoreAlternate(client, stored), 3065);
 }
 
 TEST(ScoreAlternateTest, EncodingMismatchDisqualifies) {
@@ -180,8 +180,8 @@ TEST(ScoreAlternateTest, OriginalFormatFallbackBonus) {
                                CapabilityMask::TransferEncoding::kIdentity)
                     .Encode();
   // Original bonus + viewport + density + save-data + encoding:
-  // 100 + 80 + 40 + 20 + 60 = 300
-  EXPECT_EQ(ScoreAlternate(client, stored), 300);
+  // 100 + 2000 + 40 + 20 + 60 = 2220
+  EXPECT_EQ(ScoreAlternate(client, stored), 2220);
 }
 
 TEST(ScoreAlternateTest, ExactFormatMatchOverridesOriginalBonus) {
@@ -193,8 +193,8 @@ TEST(ScoreAlternateTest, ExactFormatMatchOverridesOriginalBonus) {
                              CapabilityMask::SaveData::kOff,
                              CapabilityMask::TransferEncoding::kIdentity)
                   .Encode();
-  // Exact match: 1000 + 80 + 40 + 20 + 60 = 1200
-  EXPECT_EQ(ScoreAlternate(mask, mask), 1200);
+  // Exact match: 1000 + 2000 + 40 + 20 + 60 = 3120
+  EXPECT_EQ(ScoreAlternate(mask, mask), 3120);
 }
 
 TEST(ScoreAlternateTest, NonOriginalFormatMismatchDisqualifies) {
@@ -231,9 +231,9 @@ TEST(ScoreAlternateTest, SvgUniversalFormatBonus) {
                                    CapabilityMask::SaveData::kOff,
                                    CapabilityMask::TransferEncoding::kIdentity)
                         .Encode();
-  // SVG: 1200 + 80 (viewport) + 40 (density) + 20 (save-data match) + 60
-  // (encoding) = 1400
-  EXPECT_EQ(ScoreAlternate(client_webp, stored_svg), 1400);
+  // SVG: 1200 + 2000 (viewport) + 40 (density) + 20 (save-data match) + 60
+  // (encoding) = 3320
+  EXPECT_EQ(ScoreAlternate(client_webp, stored_svg), 3320);
 }
 
 TEST(ScoreAlternateTest, SvgFormatBonusWithAvifClient) {
@@ -250,8 +250,8 @@ TEST(ScoreAlternateTest, SvgFormatBonusWithAvifClient) {
                                    CapabilityMask::SaveData::kOff,
                                    CapabilityMask::TransferEncoding::kIdentity)
                         .Encode();
-  // 1200 + 80 + 40 + 20 + 60 = 1400
-  EXPECT_EQ(ScoreAlternate(client_avif, stored_svg), 1400);
+  // 1200 + 2000 + 40 + 20 + 60 = 3320
+  EXPECT_EQ(ScoreAlternate(client_avif, stored_svg), 3320);
 }
 
 TEST(ScoreAlternateTest, SvgViewportIndependent) {
@@ -269,8 +269,9 @@ TEST(ScoreAlternateTest, SvgViewportIndependent) {
                                    CapabilityMask::SaveData::kOff,
                                    CapabilityMask::TransferEncoding::kIdentity)
                         .Encode();
-  // SVG: 1200 + 80 (always) + 40 (always) + 20 (save-data match) + 60 = 1400
-  EXPECT_EQ(ScoreAlternate(client, stored_svg), 1400);
+  // SVG: 1200 + 2000 (always) + 40 (always) + 20 (save-data match) + 60 =
+  // 3320
+  EXPECT_EQ(ScoreAlternate(client, stored_svg), 3320);
 }
 
 TEST(ScoreAlternateTest, SvgSaveDataBonus) {
@@ -287,8 +288,8 @@ TEST(ScoreAlternateTest, SvgSaveDataBonus) {
                                    CapabilityMask::SaveData::kOff,
                                    CapabilityMask::TransferEncoding::kIdentity)
                         .Encode();
-  // SVG: 1200 + 80 + 40 + 50 (save-data SVG bonus) + 60 = 1430
-  EXPECT_EQ(ScoreAlternate(client, stored_svg), 1430);
+  // SVG: 1200 + 2000 + 40 + 50 (save-data SVG bonus) + 60 = 3350
+  EXPECT_EQ(ScoreAlternate(client, stored_svg), 3350);
 }
 
 TEST(ScoreAlternateTest, SvgSaveDataOffNoBonus) {
@@ -306,8 +307,8 @@ TEST(ScoreAlternateTest, SvgSaveDataOffNoBonus) {
                                    CapabilityMask::SaveData::kOff,
                                    CapabilityMask::TransferEncoding::kIdentity)
                         .Encode();
-  // SVG: 1200 + 80 + 40 + 20 (save-data match) + 60 = 1400
-  EXPECT_EQ(ScoreAlternate(client, stored_svg), 1400);
+  // SVG: 1200 + 2000 + 40 + 20 (save-data match) + 60 = 3320
+  EXPECT_EQ(ScoreAlternate(client, stored_svg), 3320);
 }
 
 TEST(ScoreAlternateTest, SvgBeatsWebPAndAvif) {
@@ -341,12 +342,12 @@ TEST(ScoreAlternateTest, SvgBeatsWebPAndAvif) {
   int score_webp = ScoreAlternate(client, stored_webp);
   int score_svg = ScoreAlternate(client, stored_svg);
 
-  // AVIF exact match: 1000 + 80 + 40 + 20 + 60 = 1200
-  EXPECT_EQ(score_avif, 1200);
+  // AVIF exact match: 1000 + 2000 + 40 + 20 + 60 = 3120
+  EXPECT_EQ(score_avif, 3120);
   // WebP mismatch: hard-disqualified (#1331)
   EXPECT_EQ(score_webp, 0);
-  // SVG: 1200 + 80 + 40 + 20 + 60 = 1400
-  EXPECT_EQ(score_svg, 1400);
+  // SVG: 1200 + 2000 + 40 + 20 + 60 = 3320
+  EXPECT_EQ(score_svg, 3320);
   EXPECT_GT(score_svg, score_avif);
   EXPECT_GT(score_svg, score_webp);
 }
@@ -367,8 +368,8 @@ TEST(ScoreAlternateTest, OriginalFallbackStillWorksWithSvg) {
                      CapabilityMask::SaveData::kOff,
                      CapabilityMask::TransferEncoding::kIdentity)
           .Encode();
-  // Original fallback: 100 + 80 + 40 + 20 + 60 = 300
-  EXPECT_EQ(ScoreAlternate(client, stored_original), 300);
+  // Original fallback: 100 + 2000 + 40 + 20 + 60 = 2220
+  EXPECT_EQ(ScoreAlternate(client, stored_original), 2220);
 }
 
 TEST(ScoreAlternateTest, SvgEncodingExactMatch) {
@@ -385,8 +386,8 @@ TEST(ScoreAlternateTest, SvgEncodingExactMatch) {
                                    CapabilityMask::SaveData::kOff,
                                    CapabilityMask::TransferEncoding::kBrotli)
                         .Encode();
-  // 1200 + 80 + 40 + 20 + 60 = 1400
-  EXPECT_EQ(ScoreAlternate(client, stored_svg), 1400);
+  // 1200 + 2000 + 40 + 20 + 60 = 3320
+  EXPECT_EQ(ScoreAlternate(client, stored_svg), 3320);
 }
 
 TEST(ScoreAlternateTest, SvgEncodingIdentityFallback) {
@@ -403,8 +404,8 @@ TEST(ScoreAlternateTest, SvgEncodingIdentityFallback) {
                                    CapabilityMask::SaveData::kOff,
                                    CapabilityMask::TransferEncoding::kIdentity)
                         .Encode();
-  // 1200 + 80 + 40 + 20 + 5 (identity fallback) = 1345
-  EXPECT_EQ(ScoreAlternate(client, stored_svg), 1345);
+  // 1200 + 2000 + 40 + 20 + 5 (identity fallback) = 3265
+  EXPECT_EQ(ScoreAlternate(client, stored_svg), 3265);
 }
 
 TEST(ScoreAlternateTest, SvgEncodingMismatchDisqualifies) {
@@ -433,8 +434,8 @@ TEST(ScoreAlternateTest, NonSvgAlternatesUnaffected) {
                                CapabilityMask::SaveData::kOn,
                                CapabilityMask::TransferEncoding::kIdentity)
                     .Encode();
-  // Exact match: 1000 + 80 + 40 + 20 + 60 = 1200
-  EXPECT_EQ(ScoreAlternate(client, client), 1200);
+  // Exact match: 1000 + 2000 + 40 + 20 + 60 = 3120
+  EXPECT_EQ(ScoreAlternate(client, client), 3120);
 
   // Format mismatch (AVIF stored, WebP wanted): hard-disqualified (#1331).
   auto stored_avif = CapabilityMask(CapabilityMask::ImageFormat::kAvif,
@@ -445,7 +446,7 @@ TEST(ScoreAlternateTest, NonSvgAlternatesUnaffected) {
                          .Encode();
   EXPECT_EQ(ScoreAlternate(client, stored_avif), 0);
 
-  // Original fallback: 100 + 80 + 40 + 20 + 60 = 300
+  // Original fallback: 100 + 2000 + 40 + 20 + 60 = 2220
   auto stored_original =
       CapabilityMask(CapabilityMask::ImageFormat::kOriginal,
                      CapabilityMask::Viewport::kMobile,
@@ -453,7 +454,7 @@ TEST(ScoreAlternateTest, NonSvgAlternatesUnaffected) {
                      CapabilityMask::SaveData::kOn,
                      CapabilityMask::TransferEncoding::kIdentity)
           .Encode();
-  EXPECT_EQ(ScoreAlternate(client, stored_original), 300);
+  EXPECT_EQ(ScoreAlternate(client, stored_original), 2220);
 }
 
 TEST(ScoreAlternateTest, SvgExactFormatMatchWithSvgClient) {
@@ -471,8 +472,8 @@ TEST(ScoreAlternateTest, SvgExactFormatMatchWithSvgClient) {
                                    CapabilityMask::SaveData::kOff,
                                    CapabilityMask::TransferEncoding::kIdentity)
                         .Encode();
-  // SVG: 1200 + 80 + 40 + 20 + 60 = 1400
-  EXPECT_EQ(ScoreAlternate(client_svg, stored_svg), 1400);
+  // SVG: 1200 + 2000 + 40 + 20 + 60 = 3320
+  EXPECT_EQ(ScoreAlternate(client_svg, stored_svg), 3320);
 }
 
 // --- Format hard-disqualify and tie determinism (issue #1331) ---
@@ -621,7 +622,7 @@ TEST(PageSpeedSelectorTest, WebpClientFallsBackToOriginalVariantNotAvif) {
                      CapabilityMask::PixelDensity::k1x,
                      CapabilityMask::SaveData::kOff,
                      CapabilityMask::TransferEncoding::kIdentity)
-          .Encode()));  // index 1: 100 + 80 + 40 + 20 + 60 = 300
+          .Encode()));  // index 1: 100 + 2000 + 40 + 20 + 60 = 2220
 
   auto ctx = MakeContext(client_mask);
   auto result = selector.select(alts, ctx);
@@ -837,9 +838,9 @@ TEST(ScoreAlternateTest, ViewportCorrectnessOverEncodingPreference) {
   int score_mobile_br = ScoreAlternate(client, mobile_br);
   int score_desktop_id = ScoreAlternate(client, desktop_id);
 
-  // Desktop/identity: 1000 + 80 + 40 + 20 + 5 = 1145
+  // Desktop/identity: 1000 + 2000 + 40 + 20 + 5 = 3065
   // Mobile/brotli: 1000 + 0 + 40 + 20 + 60 = 1120
-  EXPECT_EQ(score_desktop_id, 1145);
+  EXPECT_EQ(score_desktop_id, 3065);
   EXPECT_EQ(score_mobile_br, 1120);
   EXPECT_GT(score_desktop_id, score_mobile_br);
 }
@@ -966,8 +967,93 @@ TEST(PageSpeedSelectorTest, PrefersFormatOverViewport) {
   auto ctx = MakeContext(client_mask);
   auto result = selector.select(alts, ctx);
   ASSERT_TRUE(result.has_value());
-  // Format match (1000) beats viewport match (80)
+  // AVIF is disqualified for a WebP client, so the WebP at another viewport
+  // is the only candidate.
   EXPECT_EQ(*result, 1u);
+}
+
+// A phone whose Accept names WebP but not AVIF (mask 0x11: WebP, Mobile,
+// 2x), against the variant set a stock worker leaves behind: the desktop
+// pass wrote JPEG/WebP/AVIF at full size, the phone pass wrote JPEG and AVIF
+// at phone size and refused the phone WebP (not smaller than the phone
+// JPEG).  The phone must get the phone-size JPEG, not the full-size desktop
+// WebP that is many times larger.
+TEST(PageSpeedSelectorTest, PhoneWebpClientGetsPhoneSizeJpegNotDesktopWebp) {
+  PageSpeedSelector selector;
+  const uint32_t client = 0x11;
+  std::vector<cyclone::AlternateInfo> alts;
+  for (uint32_t id : {0x08u, 0x09u, 0x0Au, 0x10u, 0x12u}) {
+    alts.push_back(MakeAlternateInfo(id));
+  }
+  auto result = selector.select(alts, MakeContext(client));
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(alts[*result].id, static_cast<cyclone::AlternateId>(0x10));
+}
+
+// The mirror image: a desktop WebP client must not be handed a phone-size
+// WebP when a desktop-size image exists.
+TEST(PageSpeedSelectorTest, DesktopClientNeverGetsPhoneSizeVariant) {
+  PageSpeedSelector selector;
+  const uint32_t client = 0x09;  // WebP, Desktop, 1x
+  std::vector<cyclone::AlternateInfo> alts;
+  alts.push_back(MakeAlternateInfo(0x11));  // WebP, Mobile, 2x
+  alts.push_back(MakeAlternateInfo(0x08));  // Original, Desktop, 1x
+  auto result = selector.select(alts, MakeContext(client));
+  ASSERT_TRUE(result.has_value());
+  EXPECT_EQ(alts[*result].id, static_cast<cyclone::AlternateId>(0x08));
+}
+
+// Invariant sweep: for every WebP/AVIF client mask, when the original-format
+// variant at the client's viewport exists but the client's own format at
+// that viewport does not (refused or not built yet), the selection stays at
+// the client's viewport whatever else the family holds.
+TEST(PageSpeedSelectorTest, SizeClassMatchAlwaysBeatsFormatAtOtherSize) {
+  PageSpeedSelector selector;
+  // WebP and AVIF clients: an Original client's own format IS the fallback.
+  for (int fmt = 1; fmt < 3; ++fmt) {
+    for (int vp = 0; vp < 3; ++vp) {
+      for (int den = 0; den < 2; ++den) {
+        for (int sd = 0; sd < 2; ++sd) {
+          const auto client =
+              CapabilityMask(static_cast<CapabilityMask::ImageFormat>(fmt),
+                             static_cast<CapabilityMask::Viewport>(vp),
+                             static_cast<CapabilityMask::PixelDensity>(den),
+                             static_cast<CapabilityMask::SaveData>(sd),
+                             CapabilityMask::TransferEncoding::kIdentity)
+                  .Encode();
+          std::vector<cyclone::AlternateInfo> alts;
+          for (int sf = 0; sf < 3; ++sf) {
+            for (int sv = 0; sv < 3; ++sv) {
+              for (int sden = 0; sden < 2; ++sden) {
+                for (int ssd = 0; ssd < 2; ++ssd) {
+                  if (sf == fmt && sv == vp) continue;
+                  // Keep only the original-format variant at the client's
+                  // viewport with the "wrong" density and save-data, the
+                  // weakest same-size candidate there is.
+                  if (sv == vp && (sden == den || ssd == sd)) continue;
+                  alts.push_back(MakeAlternateInfo(
+                      CapabilityMask(
+                          static_cast<CapabilityMask::ImageFormat>(sf),
+                          static_cast<CapabilityMask::Viewport>(sv),
+                          static_cast<CapabilityMask::PixelDensity>(sden),
+                          static_cast<CapabilityMask::SaveData>(ssd),
+                          CapabilityMask::TransferEncoding::kIdentity)
+                          .Encode()));
+                }
+              }
+            }
+          }
+          auto result = selector.select(alts, MakeContext(client));
+          ASSERT_TRUE(result.has_value());
+          const auto chosen =
+              CapabilityMask::Decode(static_cast<uint8_t>(alts[*result].id));
+          EXPECT_EQ(static_cast<int>(chosen.viewport()), vp)
+              << "client 0x" << std::hex << client << " got 0x"
+              << static_cast<int>(alts[*result].id);
+        }
+      }
+    }
+  }
 }
 
 TEST(PageSpeedSelectorTest, SkipsSentinels) {
@@ -1153,7 +1239,7 @@ TEST(PageSpeedSelectorTest, Combinatorial144NonSvgMasks) {
     auto result = selector.select(alts, ctx);
     ASSERT_TRUE(result.has_value())
         << "No match for mask 0x" << std::hex << all_masks[i];
-    // Exact match should always win (score 1200).
+    // Exact match should always win (score 3120).
     EXPECT_EQ(*result, i) << "Wrong match for mask 0x" << std::hex
                           << all_masks[i] << " — got index " << *result
                           << " (mask 0x" << all_masks[*result] << ")";
@@ -1188,7 +1274,7 @@ TEST(PageSpeedSelectorTest, CombinatorialSvgAlwaysWins) {
   auto ctx = MakeContext(client_mask);
   auto result = selector.select(alts, ctx);
   ASSERT_TRUE(result.has_value());
-  // SVG (1200+80+40+20+60=1400) beats WebP exact (1200).
+  // SVG (1200+2000+40+20+60=3320) beats WebP exact (3120).
   EXPECT_EQ(*result, 1u);
 }
 

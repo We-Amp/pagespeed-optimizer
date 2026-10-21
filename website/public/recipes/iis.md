@@ -30,7 +30,15 @@ site, ask the operator which sites to optimize.
 Find the current MSI on https://modpagespeed.com/download/ (section "Direct
 downloads"; it links the installer on the module's GitHub release), download it
 and the release's `SHA256SUMS` from the same release, and stop on a checksum
-mismatch:
+mismatch or on an Authenticode signature that is not valid or not from
+publisher "We-Amp B.V.". The Authenticode signature is the check for the MSI
+itself; a `SHA256SUMS` fetched from the same release only catches a damaged
+download. To also check the checksum file, verify the release's
+`SHA256SUMS.asc` against the release signing key (fingerprint
+`411D EFDB 5713 51D2 B25A  EFCC 9C02 B5BD CCE7 5313`, key:
+https://github.com/We-Amp/mod_pagespeed/blob/master/RELEASE-SIGNING-KEY.asc,
+steps: https://github.com/We-Amp/mod_pagespeed/blob/master/SECURITY.md#verifying-a-release)
+on a host with gpg; that key is not the apt/dnf repository key.
 
 ```powershell
 $ProgressPreference = 'SilentlyContinue'
@@ -48,6 +56,8 @@ $line = Select-String -Path (Join-Path $dir 'SHA256SUMS') -Pattern ('\s\*?' + [r
 if (-not $line) { throw "$name is not listed in SHA256SUMS" }
 $expected = $line.Line.Split(' ')[0]
 if ((Get-FileHash -Algorithm SHA256 $msi).Hash -ne $expected) { throw "SHA256 mismatch for $name" }
+$sig = Get-AuthenticodeSignature $msi
+if ($sig.Status -ne 'Valid' -or $sig.SignerCertificate.Subject -notmatch '^CN=We-Amp B\.V\.,') { throw "Authenticode check failed for ${name}: $($sig.Status) $($sig.SignerCertificate.Subject)" }
 $msi
 ```
 
